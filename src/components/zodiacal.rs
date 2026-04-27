@@ -74,9 +74,15 @@ pub fn leinert_lookup_s10(beta_rad: f64, delta_lambda_rad: f64) -> Result<S10> {
     // Python expression: (180 - LambdaMinLambdaSun - 5*l0) / 5
     let lt = (180.0 - dl_deg - 5.0 * l0 as f64) / 5.0;
 
-    let bx0 = LEINERT_S10[l0][b0] + bt * (LEINERT_S10[l0][b1] - LEINERT_S10[l0][b0]);
-    let bx1 = LEINERT_S10[l1][b0] + bt * (LEINERT_S10[l1][b1] - LEINERT_S10[l1][b0]);
-    Ok(S10::new(bx0 + lt * (bx1 - bx0)))
+    let v = siderust::tables::algo::bilinear_unit(
+        LEINERT_S10[l0][b0],
+        LEINERT_S10[l0][b1],
+        LEINERT_S10[l1][b0],
+        LEINERT_S10[l1][b1],
+        bt,
+        lt,
+    );
+    Ok(S10::new(v))
 }
 
 /// Leinert reddening factor at a given wavelength and elongation.

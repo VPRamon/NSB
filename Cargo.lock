@@ -6,36 +6,14 @@ version = 4
 name = "affn"
 version = "0.6.1"
 dependencies = [
- "affn-derive 0.1.4",
+ "affn-derive",
  "nalgebra",
- "qtty 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "affn"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "381a7e024c56cbd97e2a39b6fe6aa6dccc1750e5ef31f795744b524cc9501e90"
-dependencies = [
- "affn-derive 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "nalgebra",
- "qtty 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qtty",
 ]
 
 [[package]]
 name = "affn-derive"
 version = "0.1.4"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "affn-derive"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82753e9be968f42991300bcee91930171a1f2a7a2d0f074a6f32b2fb19241df6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -119,16 +97,7 @@ checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 name = "cheby"
 version = "0.1.0"
 dependencies = [
- "qtty 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "cheby"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3af87a2f4182a67a08e5618b52859ef58cca770526061f0f43eaa754f12ecd30"
-dependencies = [
- "qtty 0.3.1",
+ "qtty",
 ]
 
 [[package]]
@@ -411,18 +380,18 @@ dependencies = [
 name = "nsb"
 version = "0.1.0"
 dependencies = [
- "affn 0.6.1",
+ "affn",
  "anyhow",
  "approx",
  "bitflags",
- "cheby 0.1.0",
+ "cheby",
  "chrono",
  "pyo3",
- "qtty 0.6.1",
+ "qtty",
  "serde",
  "serde_json",
  "siderust",
- "tempoch 0.4.2",
+ "tempoch",
  "thiserror",
 ]
 
@@ -566,41 +535,10 @@ dependencies = [
 
 [[package]]
 name = "qtty"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b42948ee9aba0ed2217fd0d89a666df2ab020e3e25ef9b0328150e6d6c0aaee3"
-dependencies = [
- "qtty-core 0.3.1",
- "qtty-derive 0.3.1",
-]
-
-[[package]]
-name = "qtty"
 version = "0.6.1"
 dependencies = [
- "qtty-core 0.6.1",
- "qtty-derive 0.6.1",
-]
-
-[[package]]
-name = "qtty"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc4e4fbd7aabae80c30ca07bd9583dc3bc3f6bcf8b123ff538386715aeee293"
-dependencies = [
- "qtty-core 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "qtty-derive 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "qtty-core"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "283c549662e44f8a2848964e9639f2924f7a442f94294d508fc70c531a9717b3"
-dependencies = [
- "libm",
- "qtty-derive 0.3.1",
- "typenum",
+ "qtty-core",
+ "qtty-derive",
 ]
 
 [[package]]
@@ -608,46 +546,13 @@ name = "qtty-core"
 version = "0.6.1"
 dependencies = [
  "libm",
- "qtty-derive 0.6.1",
- "typenum",
-]
-
-[[package]]
-name = "qtty-core"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e524035941ae68ff8524dfc41d395fe721cd3c0e7eaa16a756284d59a64ddd53"
-dependencies = [
- "libm",
- "qtty-derive 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qtty-derive",
  "typenum",
 ]
 
 [[package]]
 name = "qtty-derive"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5edb55d59461af47a984baae7fafc2374dac2a79d41434a77ee7807f0f592757"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "qtty-derive"
 version = "0.6.1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "qtty-derive"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "75757ec156050a0343f72034061a8cfd7a4a7c49254ba55feef0c4951bceb842"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -784,16 +689,16 @@ checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
 name = "siderust"
 version = "0.6.1"
 dependencies = [
- "affn 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "affn",
  "anyhow",
  "approx",
- "cheby 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cheby",
  "chrono",
  "nalgebra",
  "paste",
- "qtty 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qtty",
  "regex",
- "tempoch 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempoch",
  "walkdir",
  "wide 1.3.0",
 ]
@@ -832,52 +737,22 @@ checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
 name = "tempoch"
 version = "0.4.2"
 dependencies = [
- "tempoch-core 0.4.2",
-]
-
-[[package]]
-name = "tempoch"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "493caf391691f45c2f2de15dce032e5180009066059a1673bda3a853155c084a"
-dependencies = [
- "tempoch-core 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tempoch-core",
 ]
 
 [[package]]
 name = "tempoch-core"
 version = "0.4.2"
 dependencies = [
- "affn 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "affn",
  "chrono",
- "qtty 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempoch-time-data 0.1.0",
-]
-
-[[package]]
-name = "tempoch-core"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32e8c71221c8d1a82dfc529216006506c0a45afa7e6e0e24b93c1ee6e60ffc4e"
-dependencies = [
- "affn 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "chrono",
- "qtty 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tempoch-time-data 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "qtty",
+ "tempoch-time-data",
 ]
 
 [[package]]
 name = "tempoch-time-data"
 version = "0.1.0"
-dependencies = [
- "chrono",
-]
-
-[[package]]
-name = "tempoch-time-data"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "672165c5b96abb03126dc4a30fa6df2e357d82de2b74e6a92f202a481e22b91d"
 dependencies = [
  "chrono",
 ]
