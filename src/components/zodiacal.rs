@@ -15,7 +15,8 @@ use crate::data::leinert::{
     CORNER_LL_LT_20_B_LT_25, CORNER_LL_LT_25_B_LT_20, CORNER_LL_LT_30_B_LT_15,
 };
 use crate::error::{NsbError, Result};
-use crate::geometry::airmass::{airmass, Formula};
+use qtty::angular::Radians;
+use siderust::atmosphere::{airmass, AirmassFormula};
 use crate::spectra::{integrate, Spectrum};
 use crate::units::{BandPhotonRadiance, S10};
 
@@ -123,7 +124,7 @@ fn extinction_transmission(zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith_deg:
     let lam_um = lambda_nm * 1e-3;
     let kaer = if lam_um < 0.4 { 0.05 } else { 0.013 * lam_um.powf(-1.38) };
     let tau0 = (10f64).powf(-0.4 * kaer).ln();
-    let am = airmass(zenith_deg, Formula::Young);
+    let am = airmass(Radians::new(zenith_deg.to_radians()), AirmassFormula::Young1994);
     let tau_eff = tau0 * (fext_r + fext_m) * am;
     (-tau_eff).exp()
 }
