@@ -122,9 +122,31 @@ risk, is:
    relocated to NSB-local `nsb::photometry`.)*
 3. **Generic gridded tables**: 1D/2D interpolation with explicit boundary
    behavior, checksums, row/column units, and data-source metadata.
+   *(Status: done in `siderust` `0.6.2-dev` under the optional `tables`
+   feature — see `siderust/CHANGELOG.md`. Exposes `Grid1D<X, V>` and
+   `Grid2D<X, Y, V>` with strict-monotonic axis validation and per-axis
+   `OutOfRange` policy, plus untyped `tables::algo::{linear_1d,
+   bilinear, bilinear_unit}` `f64` kernels. NSB's
+   `leinert_lookup_s10` now delegates its bilinear arithmetic to
+   `tables::algo::bilinear_unit` while keeping its own corner-clamp and
+   wrapped-axis indexing policy locally; bit-for-bit golden parity is
+   preserved. Checksums and data-source metadata for bundled tables
+   remain a separate provenance pass.)*
 4. **Airmass and atmospheric transmission**: named formulas, Beer-Lambert
    transmission, Rayleigh/Mie/ozone model traits, and configurable site
    atmosphere profiles.
+   *(Status: done in `siderust` `0.6.2-dev` under the optional
+   `atmosphere` feature — see `siderust/CHANGELOG.md`. Exposes
+   `airmass(zenith: Radians, AirmassFormula::{PlaneParallel,
+   Young1994, Rozenberg1966, KrisciunasSchaefer1991})`,
+   `rayleigh_optical_depth_bodhaine99`, `rayleigh_phase`,
+   `MieParams { tau0, alpha, lambda_ref }` with a `MieParams::PARANAL`
+   preset, and Beer-Lambert `transmission(tau, airmass)`. NSB now
+   delegates `geometry::airmass` and `atmosphere::{rayleigh, mie,
+   extinction}` to those upstreams while preserving its `f64`-only
+   wrapper signatures; `cross_validate_against_python_golden` stays
+   green. Ozone transmittance datasets and multi-layer profiles remain
+   NSB-local for now.)*
 5. **Photometry helpers**: magnitude/surface-brightness types, zero-point
    handling, and cited passband datasets.
 6. **Lunar/atmospheric scattering primitives**: phase functions, aerosol

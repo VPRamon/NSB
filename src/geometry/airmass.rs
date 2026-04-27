@@ -1,8 +1,11 @@
-//! Airmass formulae used by the Python NSB model.
+//! Airmass formula re-export.
 //!
-//! `Airmass(zenithDeg, which=3)` selects between several approximations.
-//! We expose all of them; the orchestrator defaults to `which = 3`
-//! (Krisciunas & Schaefer 1991).
+//! Behavior is upstreamed in [`siderust::atmosphere::airmass`]. This
+//! module preserves NSB's `f64`-degree call-site signature for backwards
+//! compatibility (the orchestrator threads zenith distance as degrees).
+
+use siderust::atmosphere::airmass::{airmass as upstream_airmass, AirmassFormula};
+use qtty::angular::Radians;
 
 /// Airmass formula selector mirroring the Python `which` argument.
 #[derive(Debug, Clone, Copy)]
@@ -17,24 +20,21 @@ pub enum Formula {
     KrisciunasSchaefer,
 }
 
-#[inline]
-pub fn airmass(zenith_deg: f64, formula: Formula) -> f64 {
-    let z = zenith_deg.to_radians();
-    match formula {
-        Formula::PlaneParallel => 1.0 / z.cos(),
-        Formula::Young => {
-            let c = z.cos();
-            let num = 1.002432 * c * c + 0.148386 * c + 0.0096467;
-            let den = c * c * c + 0.149864 * c * c + 0.0102963 * c + 0.000303978;
-            num / den
-        }
-        Formula::Rozenberg => 1.0 / (z.cos() + 0.025 * (-11.0 * z.cos()).exp()),
-        Formula::KrisciunasSchaefer => {
-            // X = (1 - 0.96 sin² z)^(-1/2) (Krisciunas & Schaefer 1991).
-            let s = z.sin();
-            (1.0 - 0.96 * s * s).powf(-0.5)
+impl From<Formula> for AirmassFormula {
+    #[inline]
+    fn from(f: Formula) -> AirmassFormula {
+        match f {
+            Formula::PlaneParallel => AirmassFormula::PlaneParallel,
+            Formula::Young => AirmassFormula::Young1994,
+            Formula::Rozenberg => AirmassFormula::Rozenberg1966,
+            Formula::KrisciunasSchaefer => AirmassFormula::KrisciunasSchaefer1991,
         }
     }
+}
+
+#[inline]
+pub fn airmass(zenith_deg: f64, formula: Formula) -> f64 {
+    upstream_airmass(Radians::new(zenith_deg.to_radians()), formula.into())
 }
 
 #[cfg(test)]

@@ -1,18 +1,13 @@
-//! Mie scattering — optical depth and phase function table.
+//! Mie scattering optical depth (re-export).
 //!
-//! Loads `data/mie_m15s1.dat` (the Cerro Paranal aerosol model from the
-//! ESO Sky Model). Format: tabulated phase function over scattering angle.
-//!
-//! TODO: complete the Mie phase-function loader. The current implementation
-//! provides only a placeholder `optical_depth` based on the wavelength power
-//! law used by Python `GetMieOptDepth` (`NSB_Utils.py:1631`).
+//! Behavior is upstreamed in [`siderust::atmosphere::mie`] using the
+//! [`siderust::atmosphere::mie::MieParams::PARANAL`] preset.
 
 use crate::error::Result;
+use qtty::length::Nanometers;
+use siderust::atmosphere::mie::{mie_optical_depth, MieParams};
 
-/// Mie (aerosol) optical depth approximation: τ_M(λ) = τ₀ · (λ/550nm)^α.
-/// Python uses τ₀ ≈ 0.05 and α ≈ -1.38 for Paranal.
+/// Mie (aerosol) optical depth — wrapper preserving the `f64`-only NSB signature.
 pub fn optical_depth(lambda_nm: f64) -> Result<f64> {
-    const TAU0: f64 = 0.05;
-    const ALPHA: f64 = -1.38;
-    Ok(TAU0 * (lambda_nm / 550.0).powf(ALPHA))
+    Ok(mie_optical_depth(&MieParams::PARANAL, Nanometers::new(lambda_nm)))
 }

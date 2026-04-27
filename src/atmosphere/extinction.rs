@@ -10,8 +10,8 @@ pub fn optical_depth(lambda_nm: f64, pressure_hpa: f64, h_km: f64) -> Result<f64
     Ok(tau_r + tau_m)
 }
 
-/// Multiplicative transmission `exp(-airmass · τ)`.
+/// Multiplicative transmission `exp(-airmass · τ)` — re-export.
 #[inline]
 pub fn transmission(tau: f64, airmass: f64) -> f64 {
-    (-airmass * tau).exp()
+    siderust::atmosphere::extinction::transmission(tau, airmass)
 }

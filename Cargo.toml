@@ -23,7 +23,7 @@ serde = ["dep:serde"]
 [dependencies]
 qtty     = { path = "../qtty/qtty", features = ["radiometry", "astro"] }
 tempoch  = { path = "../tempoch/tempoch" }
-siderust = { path = "../siderust", features = ["spectra"] }
+siderust = { path = "../siderust", features = ["spectra", "tables", "atmosphere"] }
 affn     = { path = "../affn" }
 cheby    = { path = "../cheby" }
 chrono    = "0.4"
@@ -40,3 +40,11 @@ anyhow = "1"
 [[example]]
 name = "ctaos_sgr_a"
 path = "examples/ctaos_sgr_a.rs"
+
+[patch.crates-io]
+qtty       = { path = "../qtty/qtty" }
+qtty-core  = { path = "../qtty/qtty-core" }
+qtty-derive = { path = "../qtty/qtty-derive" }
+tempoch    = { path = "../tempoch/tempoch" }
+affn       = { path = "../affn" }
+cheby      = { path = "../cheby" }
