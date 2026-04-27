@@ -5,27 +5,19 @@
 
 use crate::error::{NsbError, Result};
 use super::spectrum::Spectrum;
+use siderust::spectra::loaders::ascii::two_column;
+use siderust::spectra::{Interpolation, OutOfRange};
+use siderust::qtty::{length::Meter, Nanometer};
 
 const RAW: &str = include_str!("../../data/solar_spectrum.dat");
 
 /// Returns the solar spectrum as `(wavelength [nm], irradiance [W m⁻² nm⁻¹])`.
 pub fn load() -> Result<Spectrum> {
-    let mut lam = Vec::new();
-    let mut flx = Vec::new();
-    for (n, line) in RAW.lines().enumerate() {
-        let s = line.trim();
-        if s.is_empty() || s.starts_with('#') { continue; }
-        let mut parts = s.split(|c: char| c == ',' || c.is_whitespace()).filter(|p| !p.is_empty());
-        let l: f64 = parts.next()
-            .ok_or_else(|| NsbError::DataParse { file: "solar_spectrum.dat", message: format!("line {n}: missing lambda") })?
-            .parse().map_err(|_| NsbError::DataParse { file: "solar_spectrum.dat", message: format!("line {n}: bad lambda") })?;
-        let f: f64 = parts.next()
-            .ok_or_else(|| NsbError::DataParse { file: "solar_spectrum.dat", message: format!("line {n}: missing flux") })?
-            .parse().map_err(|_| NsbError::DataParse { file: "solar_spectrum.dat", message: format!("line {n}: bad flux") })?;
-        lam.push(l);
-        flx.push(f);
-    }
-    Ok(Spectrum::new(lam, flx).with_tag("solar"))
+    let s = two_column::<Nanometer, Meter>(
+        RAW, 1.0, 1.0, Interpolation::Linear, OutOfRange::ClampToEndpoints, None,
+    )
+    .map_err(|e| NsbError::DataParse { file: "solar_spectrum.dat", message: e.to_string() })?;
+    Ok(Spectrum::new(s.xs_raw(), s.ys_raw()).with_tag("solar"))
 }
 
 #[cfg(test)]

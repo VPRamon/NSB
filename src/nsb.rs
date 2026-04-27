@@ -5,10 +5,9 @@
 
 use crate::components::{airglow, moonlight, starlight, zodiacal};
 use crate::error::Result;
-use crate::ephemeris::{source as source_db, sun as sun_eph};
-use crate::spectra::{self, integrate};
-use crate::photometry;
-use crate::units::{BandPhotonRadiance, S10, SurfaceBrightness};
+use crate::ephemeris::source as source_db;
+use crate::spectra;
+use crate::units::{BandPhotonRadiance, S10, SurfaceBrightness, SurfaceBrightnessExt};
 use siderust::bodies::Moon;
 use siderust::calculus::horizontal::star_horizontal;
 use siderust::coordinates::transform::TransformFrame;
@@ -67,18 +66,6 @@ pub struct NsbResult {
     pub components: Vec<NsbComponent>,
 }
 
-/// Bridge a `tempoch::Time<UTC>` to siderust's legacy TT-scale `JulianDate`.
-///
-/// Routes through `chrono::DateTime<Utc>` so siderust applies its own
-/// UTC→TT leap-second conversion, regardless of which `tempoch` build
-/// the surrounding crates pulled in.
-fn jd_tt(time: Time<UTC>) -> JulianDate {
-    let dt = time
-        .try_to_chrono()
-        .expect("UTC time is within chrono's representable range");
-    JulianDate::from_utc(dt)
-}
-
 /// Top-level entry point.
 pub fn calculate(req: &ObservationRequest) -> Result<NsbResult> {
     // Resolve source equatorial direction.
@@ -87,18 +74,15 @@ pub fn calculate(req: &ObservationRequest) -> Result<NsbResult> {
         Source::RaDec(dir) => *dir,
     };
 
-    let jd = jd_tt(req.time);
+    let jd = JulianDate::from_tempoch_utc(req.time);
     let hz = star_horizontal(source.ra(), source.dec(), &req.site.geodetic(), jd);
     let altitude_deg = hz.alt().value();
     let zenith_deg = 90.0 - altitude_deg;
     let ecl: SphericalDirection<EclipticMeanJ2000> = source.to_frame();
     let ecliptic_lat = ecl.lat().to::<Radian>();
     let ecliptic_lon = ecl.lon().to::<Radian>();
-    let lambda_sun = sun_eph::ecliptic_longitude(jd);
-    let mut delta_lambda = (ecliptic_lon - lambda_sun).value().abs();
-    while delta_lambda > std::f64::consts::PI {
-        delta_lambda = (2.0 * std::f64::consts::PI - delta_lambda).abs();
-    }
+    let lambda_sun = siderust::bodies::Sun::ecliptic_longitude_geocentric(jd);
+    let delta_lambda = ecliptic_lon.abs_separation(lambda_sun).value();
 
     let solar = spectra::solar::load()?;
 
@@ -177,10 +161,4 @@ pub fn calculate(req: &ObservationRequest) -> Result<NsbResult> {
     })
 }
 
-// silence unused-import warnings until the integrator wires `integrate` and
-// `photometry` below.
-#[allow(dead_code)]
-fn _kept_for_future_use() {
-    let _ = integrate::band_integral;
-    let _ = photometry::flux_to_mag;
-}
+
