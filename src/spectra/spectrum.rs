@@ -1,7 +1,15 @@
 //! `Spectrum` mirroring the Python helper class.
 //!
 //! A `Spectrum` is a pair of equally-sized vectors `(lambda, flux)` plus
-//! optional uncertainty. Wavelengths are stored in nanometres unless noted.
+//! an optional tag. Wavelengths are stored in nanometres unless noted.
+//!
+//! The numerical kernels (linear interpolation with endpoint clamping and
+//! trapezoidal integration) are delegated to `siderust::spectra::algo`,
+//! which preserves NSB's historical `numpy.interp`-style semantics
+//! bit-for-bit.
+
+use siderust::spectra::algo;
+use siderust::spectra::{Interpolation, OutOfRange};
 
 #[derive(Debug, Clone)]
 pub struct Spectrum {
@@ -25,44 +33,25 @@ impl Spectrum {
     pub fn is_empty(&self) -> bool { self.lambda_nm.is_empty() }
 
     /// Linear interpolation. Out-of-range queries clamp to endpoints
-    /// (matches `np.interp`'s default behaviour, which the Python code
-    /// implicitly relies on via `interp1d`).
+    /// (matches `np.interp`'s default behaviour).
     pub fn interp(&self, lambda_nm: f64) -> f64 {
-        let xs = &self.lambda_nm;
-        let ys = &self.flux;
-        if lambda_nm <= xs[0] { return ys[0]; }
-        if lambda_nm >= *xs.last().unwrap() { return *ys.last().unwrap(); }
-        let i = xs.partition_point(|&x| x <= lambda_nm);
-        let (x0, x1) = (xs[i - 1], xs[i]);
-        let (y0, y1) = (ys[i - 1], ys[i]);
-        let t = (lambda_nm - x0) / (x1 - x0);
-        y0 + t * (y1 - y0)
+        algo::interp(
+            &self.lambda_nm,
+            &self.flux,
+            lambda_nm,
+            Interpolation::Linear,
+            OutOfRange::ClampToEndpoints,
+        )
+        .expect("interp with ClampToEndpoints cannot fail on a validated spectrum")
     }
 
     /// Trapezoidal integral over the full range.
     pub fn integrate(&self) -> f64 {
-        let xs = &self.lambda_nm;
-        let ys = &self.flux;
-        let mut s = 0.0;
-        for i in 1..xs.len() {
-            s += 0.5 * (ys[i] + ys[i - 1]) * (xs[i] - xs[i - 1]);
-        }
-        s
+        algo::trapz(&self.lambda_nm, &self.flux)
     }
 
     /// Trapezoidal integral over `[lo, hi]` (in nm).
     pub fn integrate_range(&self, lo_nm: f64, hi_nm: f64) -> f64 {
-        let xs = &self.lambda_nm;
-        let mut s = 0.0;
-        for i in 1..xs.len() {
-            let (a, b) = (xs[i - 1], xs[i]);
-            if b < lo_nm || a > hi_nm { continue; }
-            let lo = a.max(lo_nm);
-            let hi = b.min(hi_nm);
-            let ya = self.interp(lo);
-            let yb = self.interp(hi);
-            s += 0.5 * (ya + yb) * (hi - lo);
-        }
-        s
+        algo::trapz_range(&self.lambda_nm, &self.flux, lo_nm, hi_nm)
     }
 }

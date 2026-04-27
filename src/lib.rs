@@ -20,6 +20,7 @@ pub mod error;
 pub mod units;
 pub mod geometry;
 pub mod spectra;
+pub mod photometry;
 pub mod atmosphere;
 pub mod ephemeris;
 pub mod components;
