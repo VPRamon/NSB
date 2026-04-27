@@ -108,6 +108,18 @@ risk, is:
    logarithmic, zero-point-dependent definition.)*
 2. **Generic sampled spectra**: typed wavelength grids, interpolation policies,
    band integration, filter integration, and provenance metadata.
+   *(Status: done in `siderust` `0.6.2-dev` under the optional `spectra`
+   feature — see `siderust/CHANGELOG.md`. Exposes
+   `SampledSpectrum<X, Y, S>` with strict-monotonic validation,
+   `Interpolation`/`OutOfRange` policies, trapezoidal `integrate` /
+   `integrate_range` / `integrate_weighted` returning `Quantity<Prod<Y, X>>`,
+   `Provenance` / `DataSource`, and a generic two-column ASCII loader.
+   Untyped `f64` numerical kernels under `spectra::algo` preserve NSB's
+   historical `numpy.interp` parity bit-for-bit; NSB now delegates its
+   `Spectrum::{interp, integrate, integrate_range}` and `filter_integral`
+   to those kernels. The B/V Gaussian filter placeholders were removed
+   per this report's recommendation, and `flux_to_mag`'s 27.78 zero-point
+   relocated to NSB-local `nsb::photometry`.)*
 3. **Generic gridded tables**: 1D/2D interpolation with explicit boundary
    behavior, checksums, row/column units, and data-source metadata.
 4. **Airmass and atmospheric transmission**: named formulas, Beer-Lambert

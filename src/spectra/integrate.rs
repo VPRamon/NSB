@@ -1,6 +1,12 @@
 //! Spectral integration helpers shared by all components.
+//!
+//! Thin convenience wrappers that delegate to
+//! `siderust::spectra::algo` for the numerical kernels. Kept as a
+//! crate-local namespace because component call-sites read more naturally
+//! when written as `integrate::band_integral(&s, lo, hi)`.
 
 use super::spectrum::Spectrum;
+use siderust::spectra::algo;
 
 /// Integrate `s` over `[lo_nm, hi_nm]` (trapezoidal).
 pub fn band_integral(s: &Spectrum, lo_nm: f64, hi_nm: f64) -> f64 {
@@ -8,21 +14,14 @@ pub fn band_integral(s: &Spectrum, lo_nm: f64, hi_nm: f64) -> f64 {
 }
 
 /// Integrate `s · filter` over the filter's full support.
+///
+/// Mirrors the historical NSB behaviour of using the *filter*'s wavelength
+/// grid as the integration grid (and not a union grid).
 pub fn filter_integral(s: &Spectrum, filter: &Spectrum) -> f64 {
-    let mut sum = 0.0;
-    for i in 1..filter.lambda_nm.len() {
-        let a = filter.lambda_nm[i - 1];
-        let b = filter.lambda_nm[i];
-        let fa = s.interp(a) * filter.flux[i - 1];
-        let fb = s.interp(b) * filter.flux[i];
-        sum += 0.5 * (fa + fb) * (b - a);
-    }
-    sum
-}
-
-/// Photometric zero-point conversion mirroring `get_NSB.py`:
-/// `mag = 27.78 - 2.5 · log10(flux)`.
-#[inline]
-pub fn flux_to_mag(flux: f64) -> f64 {
-    27.78 - 2.5 * flux.log10()
+    algo::trapz_weighted(
+        &s.lambda_nm,
+        &s.flux,
+        &filter.lambda_nm,
+        &filter.flux,
+    )
 }

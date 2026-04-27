@@ -7,6 +7,7 @@ use crate::components::{airglow, moonlight, starlight, zodiacal};
 use crate::error::Result;
 use crate::ephemeris::{source as source_db, sun as sun_eph};
 use crate::spectra::{self, integrate};
+use crate::photometry;
 use crate::units::{BandPhotonRadiance, S10, SurfaceBrightness};
 use siderust::bodies::Moon;
 use siderust::calculus::horizontal::star_horizontal;
@@ -176,6 +177,10 @@ pub fn calculate(req: &ObservationRequest) -> Result<NsbResult> {
     })
 }
 
-// silence unused-import warnings until the integrator wires `integrate` below.
+// silence unused-import warnings until the integrator wires `integrate` and
+// `photometry` below.
 #[allow(dead_code)]
-fn _kept_for_future_use() { let _ = integrate::flux_to_mag; }
+fn _kept_for_future_use() {
+    let _ = integrate::band_integral;
+    let _ = photometry::flux_to_mag;
+}
