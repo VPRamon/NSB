@@ -21,7 +21,7 @@ python = ["dep:pyo3"]
 serde = ["dep:serde"]
 
 [dependencies]
-qtty     = { path = "../qtty/qtty", features = ["radiometry", "astro"] }
+qtty     = { path = "../qtty/qtty", features = ["radiometry", "astro", "photometry"] }
 tempoch  = { path = "../tempoch/tempoch" }
 siderust = { path = "../siderust", features = ["spectra", "tables", "atmosphere"] }
 affn     = { path = "../affn" }

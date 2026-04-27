@@ -1,4 +1,3 @@
-//! Ephemerides: Sun, named astronomical sources.
+//! Ephemerides: named astronomical sources.
 
-pub mod sun;
 pub mod source;

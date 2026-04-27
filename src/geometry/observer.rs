@@ -32,17 +32,20 @@ impl Site {
 
     pub fn geodetic(self) -> Geodetic<ECEF> {
         match self {
-            Site::Paranal => observatories::EL_PARANAL,
-            Site::LaPalma => observatories::ROQUE_DE_LOS_MUCHACHOS,
+            Site::Paranal => observatories::EL_PARANAL.geodetic(),
+            Site::LaPalma => observatories::ROQUE_DE_LOS_MUCHACHOS.geodetic(),
         }
     }
 
     /// Reference pressure in hPa used by the Python model
-    /// (`cerro_paranal_pres = 744 hPa`).
+    /// (`cerro_paranal_pres = 744 hPa`, source: `NSB_Utils.py:59`).
+    ///
+    /// Value is read from the typed [`siderust::observatories::Observatory`]
+    /// constant, which stores it as [`qtty::Hectopascals`].
     pub fn reference_pressure_hpa(self) -> f64 {
         match self {
-            // Both sites use 744 hPa in the Python reference (`NSB_Utils.py:59`).
-            Site::Paranal | Site::LaPalma => 744.0,
+            Site::Paranal => observatories::EL_PARANAL.reference_pressure.value(),
+            Site::LaPalma => observatories::ROQUE_DE_LOS_MUCHACHOS.reference_pressure.value(),
         }
     }
 

@@ -1,15 +1,17 @@
 //! Domain unit re-exports for NSB.
 //!
 //! Most quantities now come from `qtty::radiometry` (gated on the
-//! `radiometry` feature in our `Cargo.toml`). Kept locally:
+//! `radiometry` feature in our `Cargo.toml`). Also re-exported:
 //!
 //! - [`SurfaceBrightness`] — logarithmic mag/arcsec² surface brightness,
-//!   which has no widely accepted physical-quantity dimension and so stays
-//!   in NSB until a dedicated upstream type is designed.
+//!   now backed by [`qtty::photometry::SurfaceBrightness`].
+//! - [`SurfaceBrightnessExt`] — NSB-specific constructor (`from_band_flux`)
+//!   using the model zero-point `27.78`.
 
 mod surface_brightness;
 
 pub use surface_brightness::SurfaceBrightness;
+pub use surface_brightness::SurfaceBrightnessExt;
 
 /// `S10`: 10th-magnitude stars per square degree
 /// (re-exported from [`qtty::radiometry::S10s`]).
