@@ -1,5 +1,11 @@
 # darknsb inspection report
 
+> **Historical note**
+> This report documents the original Python `darknsb` codebase that informed the
+> first Rust port. The current `nsb` crate no longer vendors that tree or ships
+> Python bindings. For the current API and CLI, see `../README.md` and
+> `../examples/`.
+
 ## Executive summary
 
 `darknsb/` contains a Python implementation of a "dark" night-sky-background (NSB) model used in the Cherenkov Telescope Array Observatory context. The active executable path in `get_NSB.py` computes the broadband optical NSB for one site, time, and target direction as:
@@ -294,4 +300,3 @@ For ZL and starlight, this produces band-integrated photon radiance. For airglow
 ## Bottom line
 
 `darknsb` is best understood as a research/prototype Python implementation of a CTAO dark-NSB model. Its active executable computes a natural, moonless NSB from zodiacal light, fixed starlight, and altitude-fitted airglow. The repository also contains enough partial infrastructure to support a more complete all-sky model with moonlight, seasonal airglow, and SkyCalc-derived calibration data, but that broader capability is not fully wired into the main script.
-

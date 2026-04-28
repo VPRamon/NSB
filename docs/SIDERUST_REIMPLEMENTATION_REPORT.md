@@ -1,5 +1,11 @@
 # Reimplementing darknsb in Rust with SideRust
 
+> **Historical note**
+> This feasibility report predates the simplified public API. It remains useful
+> as design background, but the current crate no longer includes the Python
+> compatibility layer, vendored `darknsb` sources, or the named-target catalog.
+> See `../README.md` and `../examples/` for the current surface.
+
 ## Executive summary
 
 Yes, `darknsb` could be reimplemented in Rust and substantially strengthened by the SideRust toolchain in `../`. SideRust is a strong fit for the astronomical geometry layer: time scales, observer sites, Sun/Moon ephemerides, topocentric horizontal coordinates, Moon phase, typed coordinate frames, and event searches. The sibling crates `qtty`, `affn`, `tempoch`, and `cheby` cover unit safety, affine coordinate semantics, precise time handling, and high-performance interpolation.
@@ -387,4 +393,3 @@ A scientifically credible Rust reimplementation should be validated at several l
 ## Final assessment
 
 A Rust reimplementation is not only feasible; it is likely the better long-term engineering path. SideRust can provide the precise, typed astronomy backbone that `darknsb` currently delegates to Astropy, while the new NSB layer can focus on radiance physics, spectra, tables, and validation. The main work is not celestial mechanics; it is carefully porting and validating the photometric and atmospheric model.
-

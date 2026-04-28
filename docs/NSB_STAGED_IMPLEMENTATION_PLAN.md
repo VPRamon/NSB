@@ -1,5 +1,10 @@
 # NSB staged implementation plan
 
+> **Historical note**
+> This staged plan was written before the crate was simplified to the current
+> `PointQuery` / `ThresholdQuery` API and `nsb` CLI. It is kept as background
+> design context, not as the source of truth for the current implementation.
+
 ## Goal
 
 Define a staged implementation path for a new NSB tool such that:
@@ -702,4 +707,3 @@ Build the new NSB tool in layers:
 6. **then atmospheric and calibration refinements.**
 
 That sequence preserves usefulness from the start, avoids an all-or-nothing port, and creates a clean path from a simple but working tool to a scientifically defensible NSB model.
-
