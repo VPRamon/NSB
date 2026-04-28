@@ -7,16 +7,24 @@
 //! are applied later in `components::airglow`.
 
 use crate::error::{NsbError, Result};
-use super::spectrum::Spectrum;
+use siderust::qtty::{length::Meter, Nanometer};
+use siderust::spectra::{Interpolation, OutOfRange, Provenance, SampledSpectrum};
 
 const RAW: &str = include_str!("../../data/airglow_cont.dat");
+
+// Pinned SHA-256 of the airglow continuum reference file.
+siderust::assert_data_checksum!(
+    "NSB/data/airglow_cont.dat",
+    RAW.as_bytes(),
+    "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
+);
 
 #[derive(Debug, Clone)]
 pub struct AirglowContinuum {
     /// Global scale factor (`scale` block in the file).
     pub global_scale: f64,
     /// Wavelength [nm] vs relative mean radiance.
-    pub spectrum: Spectrum,
+    pub spectrum: SampledSpectrum<Nanometer, Meter, f64>,
     /// Number of seasons / time windows in the file.
     pub n_season: usize,
     pub n_time: usize,
@@ -67,10 +75,27 @@ pub fn load() -> Result<AirglowContinuum> {
         lam.push(l_um * 1000.0);
         rel.push(r);
     }
-    Ok(AirglowContinuum {
-        global_scale,
-        spectrum: Spectrum::new(lam, rel).with_tag("airglow_cont_relmean"),
-        n_season,
-        n_time,
-    })
+    let spectrum = SampledSpectrum::<Nanometer, Meter, f64>::from_raw(
+        lam,
+        rel,
+        Interpolation::Linear,
+        OutOfRange::ClampToEndpoints,
+        Some(Provenance::bundled_file("NSB/data/airglow_cont.dat")),
+    )
+    .map_err(|e| NsbError::DataParse { file: "airglow_cont.dat", message: e.to_string() })?;
+    Ok(AirglowContinuum { global_scale, spectrum, n_season, n_time })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pinned_sha256_matches_runtime_hash() {
+        use siderust::provenance::checksum::{sha256, to_hex};
+        assert_eq!(
+            to_hex(&sha256(RAW.as_bytes())),
+            "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f",
+        );
+    }
 }
