@@ -1,9 +1,9 @@
 //! Integrated starlight spectrum from SkyCalc (Noll et al. 2012).
 
 use crate::error::{NsbError, Result};
+use siderust::qtty::{length::Meter, Nanometer};
 use siderust::spectra::loaders::ascii::two_column;
 use siderust::spectra::{Interpolation, OutOfRange, Provenance, SampledSpectrum};
-use siderust::qtty::{length::Meter, Nanometer};
 
 const RAW: &str = include_str!("../../data/radiance_starlight.txt");
 
@@ -26,7 +26,10 @@ pub fn load() -> Result<SampledSpectrum<Nanometer, Meter, f64>> {
         OutOfRange::ClampToEndpoints,
         Some(Provenance::bundled_file("NSB/data/radiance_starlight.txt")),
     )
-    .map_err(|e| NsbError::DataParse { file: "radiance_starlight.txt", message: e.to_string() })
+    .map_err(|e| NsbError::DataParse {
+        file: "radiance_starlight.txt",
+        message: e.to_string(),
+    })
 }
 
 #[cfg(test)]

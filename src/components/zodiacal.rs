@@ -13,19 +13,21 @@
 use std::sync::OnceLock;
 
 use crate::data::leinert::{
-    LEINERT_S10, S10_TO_W_M2_SR_UM,
-    CORNER_LL_LT_20_B_LT_25, CORNER_LL_LT_25_B_LT_20, CORNER_LL_LT_30_B_LT_15,
+    CORNER_LL_LT_20_B_LT_25, CORNER_LL_LT_25_B_LT_20, CORNER_LL_LT_30_B_LT_15, LEINERT_S10,
+    S10_TO_W_M2_SR_UM,
 };
 use crate::error::{NsbError, Result};
-use qtty::angular::{Degree, Degrees, Radians};
-use siderust::atmosphere::{airmass, AirmassFormula};
-use siderust::tables::{ConstantRegion, Grid2D, OutOfRange, Provenance};
 use crate::spectra::SampledSpectrum;
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10};
+use qtty::angular::{Degree, Degrees, Radians};
+use qtty::radiometry::{
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
+};
+use siderust::atmosphere::{airmass, AirmassFormula};
 use siderust::qtty::{length::Meter, Nanometer, Nanometers};
 use siderust::spectra::{
     algo, Interpolation, OutOfRange as SpectrumOutOfRange, Provenance as SpectrumProvenance,
 };
+use siderust::tables::{ConstantRegion, Grid2D, OutOfRange, Provenance};
 
 /// Unit marker for S10 values — the inner unit struct from `qtty::radiometry`.
 use qtty::radiometry::S10 as S10Unit;
@@ -63,15 +65,21 @@ fn s10_grid() -> &'static LeinertGrid {
             .expect("Leinert S10 grid invariants")
             // Corner extrapolations from Leinert (1998), equivalent to the
             // legacy `if dl_deg < X && beta_deg < Y` clamp branches.
-            .with_constant_region(
-                ConstantRegion::lower_corner(25.0, 20.0, CORNER_LL_LT_20_B_LT_25),
-            )
-            .with_constant_region(
-                ConstantRegion::lower_corner(20.0, 25.0, CORNER_LL_LT_25_B_LT_20),
-            )
-            .with_constant_region(
-                ConstantRegion::lower_corner(15.0, 30.0, CORNER_LL_LT_30_B_LT_15),
-            )
+            .with_constant_region(ConstantRegion::lower_corner(
+                25.0,
+                20.0,
+                CORNER_LL_LT_20_B_LT_25,
+            ))
+            .with_constant_region(ConstantRegion::lower_corner(
+                20.0,
+                25.0,
+                CORNER_LL_LT_25_B_LT_20,
+            ))
+            .with_constant_region(ConstantRegion::lower_corner(
+                15.0,
+                30.0,
+                CORNER_LL_LT_30_B_LT_15,
+            ))
             .with_provenance(Provenance::cited("Leinert+1998"))
     })
 }
@@ -130,16 +138,26 @@ pub fn leinert_lookup_s10(beta_rad: f64, delta_lambda_rad: f64) -> Result<S10> {
 /// Leinert reddening factor at a given wavelength and elongation.
 /// Mirrors `GetZodicalReddening` in NSB_Utils.py.
 fn reddening_factor(beta_rad: f64, delta_lambda_rad: f64, lambda_nm: f64) -> f64 {
-    let elong_deg = (delta_lambda_rad.cos() * beta_rad.cos()).acos().to_degrees();
+    let elong_deg = (delta_lambda_rad.cos() * beta_rad.cos())
+        .acos()
+        .to_degrees();
     let log_ratio = (lambda_nm / 500.0).ln();
     if elong_deg <= 30.0 {
-        if (220.0..550.0).contains(&lambda_nm) { return 1.0 + 1.2 * log_ratio; }
-        if (550.0..2500.0).contains(&lambda_nm) { return 1.0 + 0.8 * log_ratio; }
+        if (220.0..550.0).contains(&lambda_nm) {
+            return 1.0 + 1.2 * log_ratio;
+        }
+        if (550.0..2500.0).contains(&lambda_nm) {
+            return 1.0 + 0.8 * log_ratio;
+        }
         return 1.0;
     }
     if elong_deg >= 90.0 {
-        if (220.0..550.0).contains(&lambda_nm) { return 1.0 + 0.9 * log_ratio; }
-        if (550.0..2500.0).contains(&lambda_nm) { return 1.0 + 0.6 * log_ratio; }
+        if (220.0..550.0).contains(&lambda_nm) {
+            return 1.0 + 0.9 * log_ratio;
+        }
+        if (550.0..2500.0).contains(&lambda_nm) {
+            return 1.0 + 0.6 * log_ratio;
+        }
         return 1.0;
     }
     // Linear interpolation in elongation.
@@ -159,13 +177,28 @@ fn reddening_factor(beta_rad: f64, delta_lambda_rad: f64, lambda_nm: f64) -> f64
 fn extinction_transmission(zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith_deg: f64) -> f64 {
     // dex = log10(zl_value)
     let dex = zl_value_w_m2_sr_um.log10();
-    let fext_m = if dex <= 2.255 { 1.309 * dex - 2.598 } else { 0.468 * dex - 0.702 };
-    let fext_r = if dex <= 2.244 { 1.407 * dex - 2.692 } else { 0.527 * dex - 0.715 };
+    let fext_m = if dex <= 2.255 {
+        1.309 * dex - 2.598
+    } else {
+        0.468 * dex - 0.702
+    };
+    let fext_r = if dex <= 2.244 {
+        1.407 * dex - 2.692
+    } else {
+        0.527 * dex - 0.715
+    };
 
     let lam_um = lambda_nm * 1e-3;
-    let kaer = if lam_um < 0.4 { 0.05 } else { 0.013 * lam_um.powf(-1.38) };
+    let kaer = if lam_um < 0.4 {
+        0.05
+    } else {
+        0.013 * lam_um.powf(-1.38)
+    };
     let tau0 = (10f64).powf(-0.4 * kaer).ln();
-    let am = airmass(Radians::new(zenith_deg.to_radians()), AirmassFormula::Young1994);
+    let am = airmass(
+        Radians::new(zenith_deg.to_radians()),
+        AirmassFormula::Young1994,
+    );
     let tau_eff = tau0 * (fext_r + fext_m) * am;
     (-tau_eff).exp()
 }
@@ -183,12 +216,14 @@ pub fn compute(
         .interp_at(Nanometers::new(500.0))
         .expect("solar interp at 500 nm")
         .value(); // W m⁻² nm⁻¹
-    // Convert solar W/m²/nm → W/m²/sr/nm by dividing by π·sr (Lambertian),
-    // matching the Python `f_sun_sr = f_sun / pi` convention.
+                  // Convert solar W/m²/nm → W/m²/sr/nm by dividing by π·sr (Lambertian),
+                  // matching the Python `f_sun_sr = f_sun / pi` convention.
     let f_sun_500_sr = f_sun_500 / std::f64::consts::PI;
     if f_sun_500_sr <= 0.0 {
         return Err(NsbError::DataParse {
-            file: "solar_spectrum.dat", message: "non-positive flux at 500 nm".into() });
+            file: "solar_spectrum.dat",
+            message: "non-positive flux at 500 nm".into(),
+        });
     }
     // ZL value at 500 nm: convert W/m²/sr/μm → W/m²/sr/nm by dividing by 1000.
     let target_500 = zl_500_wmsrum / 1000.0; // W m⁻² sr⁻¹ nm⁻¹
@@ -205,7 +240,9 @@ pub fn compute(
     let solar_ys = solar_spectrum.ys_raw();
     for i in 0..solar_xs.len() {
         let l = solar_xs[i];
-        if !(WL_LOW_NM..=WL_HIGH_NM).contains(&l) { continue; }
+        if !(WL_LOW_NM..=WL_HIGH_NM).contains(&l) {
+            continue;
+        }
         let f_sun_sr = solar_ys[i] / std::f64::consts::PI;
         let zl = f_sun_sr * k * reddening_factor(inp.beta_rad, inp.delta_lambda_rad, l);
         // ZL value in W m⁻² sr⁻¹ nm⁻¹ at this wavelength → as proxy magnitude
@@ -229,8 +266,8 @@ pub fn compute(
         let lam_a = l * 10.0;
         let zl_erg_cgs = zl_ext * 100.0; // erg s⁻¹ cm⁻² sr⁻¹ Å⁻¹
         let zl_ph_per_a = zl_erg_cgs * 5.03e7 * lam_a; // ph s⁻¹ cm⁻² sr⁻¹ Å⁻¹
-        let zl_ph_per_nm = zl_ph_per_a * 10.0;          // ph s⁻¹ cm⁻² sr⁻¹ nm⁻¹
-        let zl_ph_per_ns_per_nm = zl_ph_per_nm * 1e-9;  // ph ns⁻¹ cm⁻² sr⁻¹ nm⁻¹
+        let zl_ph_per_nm = zl_ph_per_a * 10.0; // ph s⁻¹ cm⁻² sr⁻¹ nm⁻¹
+        let zl_ph_per_ns_per_nm = zl_ph_per_nm * 1e-9; // ph ns⁻¹ cm⁻² sr⁻¹ nm⁻¹
         lam.push(l);
         zl_ph.push(zl_ph_per_ns_per_nm);
     }
@@ -255,7 +292,12 @@ pub fn compute(
     let b_flux = S10::new(b_zl_um / S10_TO_W_M2_SR_UM);
     let v_flux = S10::new(v_zl_um / S10_TO_W_M2_SR_UM);
 
-    Ok(ZlOutputs { integrated, b_flux_s10: b_flux, v_flux_s10: v_flux, spectrum })
+    Ok(ZlOutputs {
+        integrated,
+        b_flux_s10: b_flux,
+        v_flux_s10: v_flux,
+        spectrum,
+    })
 }
 
 #[cfg(test)]
@@ -266,11 +308,21 @@ mod tests {
     fn legacy_leinert_lookup_s10_for_test(beta_rad: f64, delta_lambda_rad: f64) -> Option<f64> {
         let beta_deg = beta_rad.to_degrees().abs();
         let dl_deg = delta_lambda_rad.to_degrees().abs().min(180.0);
-        if !(0.0..90.0).contains(&beta_deg) { return None; }
-        if !(0.0..=180.0).contains(&dl_deg) { return None; }
-        if dl_deg < 20.0 && beta_deg < 25.0 { return Some(CORNER_LL_LT_20_B_LT_25); }
-        if dl_deg < 25.0 && beta_deg < 20.0 { return Some(CORNER_LL_LT_25_B_LT_20); }
-        if dl_deg < 30.0 && beta_deg < 15.0 { return Some(CORNER_LL_LT_30_B_LT_15); }
+        if !(0.0..90.0).contains(&beta_deg) {
+            return None;
+        }
+        if !(0.0..=180.0).contains(&dl_deg) {
+            return None;
+        }
+        if dl_deg < 20.0 && beta_deg < 25.0 {
+            return Some(CORNER_LL_LT_20_B_LT_25);
+        }
+        if dl_deg < 25.0 && beta_deg < 20.0 {
+            return Some(CORNER_LL_LT_25_B_LT_20);
+        }
+        if dl_deg < 30.0 && beta_deg < 15.0 {
+            return Some(CORNER_LL_LT_30_B_LT_15);
+        }
 
         let b0 = (beta_deg / 5.0).floor() as usize;
         let b1 = (b0 + 1).min(18);

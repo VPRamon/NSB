@@ -4,9 +4,9 @@
 //! shipped with the Python package, embedded via `include_str!`.
 
 use crate::error::{NsbError, Result};
+use siderust::qtty::{length::Meter, Nanometer};
 use siderust::spectra::loaders::ascii::two_column;
 use siderust::spectra::{Interpolation, OutOfRange, Provenance, SampledSpectrum};
-use siderust::qtty::{length::Meter, Nanometer};
 
 const RAW: &str = include_str!("../../data/solar_spectrum.dat");
 
@@ -28,7 +28,10 @@ pub fn load() -> Result<SampledSpectrum<Nanometer, Meter, f64>> {
         OutOfRange::ClampToEndpoints,
         Some(Provenance::bundled_file("NSB/data/solar_spectrum.dat")),
     )
-    .map_err(|e| NsbError::DataParse { file: "solar_spectrum.dat", message: e.to_string() })
+    .map_err(|e| NsbError::DataParse {
+        file: "solar_spectrum.dat",
+        message: e.to_string(),
+    })
 }
 
 #[cfg(test)]

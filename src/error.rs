@@ -19,9 +19,6 @@ pub enum NsbError {
     #[error("interpolation error: {0}")]
     Interpolation(String),
 
-    #[error("unknown source: {0}")]
-    UnknownSource(String),
-
     #[error("unknown site: {0}")]
     UnknownSite(String),
 

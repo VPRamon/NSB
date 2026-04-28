@@ -1,15 +1,14 @@
-//! Observation site abstraction.
+//! Named CTAO observation site.
 //!
-//! The Python `darknsb` recognises two CTAO sites:
+//! `darknsb` recognised two CTAO sites:
 //! * `CTAO-N` → La Palma (Roque de los Muchachos).
 //! * `CTAO-S` → Cerro Paranal.
 //!
-//! These are mapped to the geodetic constants exposed by
-//! `siderust::observatories`.
+//! These map to geodetic constants exposed by `siderust::observatories`.
 
-use siderust::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use siderust::observatories;
 
 use crate::error::{NsbError, Result};
 
@@ -25,7 +24,9 @@ impl Site {
     pub fn from_name(name: &str) -> Result<Self> {
         match name.trim() {
             "CTAO-S" | "ctao-s" | "paranal" | "Paranal" => Ok(Site::Paranal),
-            "CTAO-N" | "ctao-n" | "lapalma" | "La Palma" | "Roque de los Muchachos" => Ok(Site::LaPalma),
+            "CTAO-N" | "ctao-n" | "lapalma" | "La Palma" | "Roque de los Muchachos" => {
+                Ok(Site::LaPalma)
+            }
             other => Err(NsbError::UnknownSite(other.to_string())),
         }
     }
@@ -35,15 +36,5 @@ impl Site {
             Site::Paranal => observatories::EL_PARANAL.geodetic(),
             Site::LaPalma => observatories::ROQUE_DE_LOS_MUCHACHOS.geodetic(),
         }
-    }
-
-    /// Geodetic latitude in degrees.
-    pub fn latitude_deg(self) -> f64 {
-        self.geodetic().lat.value()
-    }
-
-    /// Geodetic longitude in degrees (east-positive).
-    pub fn longitude_deg(self) -> f64 {
-        self.geodetic().lon.value()
     }
 }

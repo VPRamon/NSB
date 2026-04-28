@@ -44,34 +44,77 @@ pub struct AirglowContinuum {
 pub fn load() -> Result<AirglowContinuum> {
     let mut iter = RAW.lines().filter_map(|l| {
         let t = l.trim();
-        if t.is_empty() || t.starts_with('#') { None } else { Some(t) }
+        if t.is_empty() || t.starts_with('#') {
+            None
+        } else {
+            Some(t)
+        }
     });
 
     let header = iter.next().ok_or_else(|| NsbError::DataParse {
-        file: "airglow_cont.dat", message: "missing nseason/ntime".into() })?;
+        file: "airglow_cont.dat",
+        message: "missing nseason/ntime".into(),
+    })?;
     let mut hp = header.split_whitespace();
-    let n_season: usize = hp.next().and_then(|x| x.parse().ok())
-        .ok_or_else(|| NsbError::DataParse { file: "airglow_cont.dat", message: "nseason".into() })?;
-    let n_time: usize = hp.next().and_then(|x| x.parse().ok())
-        .ok_or_else(|| NsbError::DataParse { file: "airglow_cont.dat", message: "ntime".into() })?;
+    let n_season: usize =
+        hp.next()
+            .and_then(|x| x.parse().ok())
+            .ok_or_else(|| NsbError::DataParse {
+                file: "airglow_cont.dat",
+                message: "nseason".into(),
+            })?;
+    let n_time: usize =
+        hp.next()
+            .and_then(|x| x.parse().ok())
+            .ok_or_else(|| NsbError::DataParse {
+                file: "airglow_cont.dat",
+                message: "ntime".into(),
+            })?;
 
-    let n_dat: usize = iter.next().and_then(|x| x.parse().ok())
-        .ok_or_else(|| NsbError::DataParse { file: "airglow_cont.dat", message: "ndat".into() })?;
-    let _height: f64 = iter.next().and_then(|x| x.parse().ok())
-        .ok_or_else(|| NsbError::DataParse { file: "airglow_cont.dat", message: "height".into() })?;
-    let global_scale: f64 = iter.next().and_then(|x| x.parse().ok())
-        .ok_or_else(|| NsbError::DataParse { file: "airglow_cont.dat", message: "scale".into() })?;
+    let n_dat: usize =
+        iter.next()
+            .and_then(|x| x.parse().ok())
+            .ok_or_else(|| NsbError::DataParse {
+                file: "airglow_cont.dat",
+                message: "ndat".into(),
+            })?;
+    let _height: f64 =
+        iter.next()
+            .and_then(|x| x.parse().ok())
+            .ok_or_else(|| NsbError::DataParse {
+                file: "airglow_cont.dat",
+                message: "height".into(),
+            })?;
+    let global_scale: f64 =
+        iter.next()
+            .and_then(|x| x.parse().ok())
+            .ok_or_else(|| NsbError::DataParse {
+                file: "airglow_cont.dat",
+                message: "scale".into(),
+            })?;
 
     let mut lam = Vec::with_capacity(n_dat);
     let mut rel = Vec::with_capacity(n_dat);
     for _ in 0..n_dat {
         let row = iter.next().ok_or_else(|| NsbError::DataParse {
-            file: "airglow_cont.dat", message: "premature EOF in data block".into() })?;
+            file: "airglow_cont.dat",
+            message: "premature EOF in data block".into(),
+        })?;
         let mut p = row.split_whitespace();
-        let l_um: f64 = p.next().and_then(|x| x.parse().ok())
-            .ok_or_else(|| NsbError::DataParse { file: "airglow_cont.dat", message: "lambda".into() })?;
-        let r: f64 = p.next().and_then(|x| x.parse().ok())
-            .ok_or_else(|| NsbError::DataParse { file: "airglow_cont.dat", message: "rel_mean".into() })?;
+        let l_um: f64 =
+            p.next()
+                .and_then(|x| x.parse().ok())
+                .ok_or_else(|| NsbError::DataParse {
+                    file: "airglow_cont.dat",
+                    message: "lambda".into(),
+                })?;
+        let r: f64 = p
+            .next()
+            .and_then(|x| x.parse().ok())
+            .ok_or_else(|| NsbError::DataParse {
+                file: "airglow_cont.dat",
+                message: "rel_mean".into(),
+            })?;
         lam.push(l_um * 1000.0);
         rel.push(r);
     }
@@ -82,8 +125,16 @@ pub fn load() -> Result<AirglowContinuum> {
         OutOfRange::ClampToEndpoints,
         Some(Provenance::bundled_file("NSB/data/airglow_cont.dat")),
     )
-    .map_err(|e| NsbError::DataParse { file: "airglow_cont.dat", message: e.to_string() })?;
-    Ok(AirglowContinuum { global_scale, spectrum, n_season, n_time })
+    .map_err(|e| NsbError::DataParse {
+        file: "airglow_cont.dat",
+        message: e.to_string(),
+    })?;
+    Ok(AirglowContinuum {
+        global_scale,
+        spectrum,
+        n_season,
+        n_time,
+    })
 }
 
 #[cfg(test)]
