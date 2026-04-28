@@ -66,6 +66,8 @@ fn threshold_query_returns_full_window_for_large_threshold() {
             threshold: BandPhotonRadiance::new(1.0e6),
             components: default_components(),
             sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
+            sun_altitude_ceiling: None,
+            target_altitude_floor: None,
         })
         .expect("threshold query");
 
@@ -87,6 +89,8 @@ fn threshold_query_returns_empty_for_zero_threshold() {
             threshold: BandPhotonRadiance::new(0.0),
             components: default_components(),
             sample_step: Second::new(600.0),
+            sun_altitude_ceiling: None,
+            target_altitude_floor: None,
         })
         .expect("threshold query");
 

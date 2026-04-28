@@ -41,8 +41,25 @@ let w = evaluator.periods_below_threshold(&ThresholdQuery {
     threshold: BandPhotonRadiance::new(1.0e3),
     components: ComponentMask::ALL,
     sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
+    sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
+    target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
 })?;
 ```
+
+The threshold search uses an event-driven pipeline modelled on
+`siderust::calculus::stellar::altitude_periods`: it pre-filters the
+window to the intersection of *Sun below astronomical twilight* and
+*target above the horizon*, then runs a coarse scan with Brent
+refinement (via `siderust::calculus::math_core::intervals`) inside each
+candidate sub-window. For year-long searches this typically delivers
+a 1–2 order of magnitude speedup over a uniform-cadence scan. Setting
+`sun_altitude_ceiling` and/or `target_altitude_floor` to `None`
+disables the corresponding pre-filter (legacy uniform-scan semantics).
+
+Runnable Rust examples live under `examples/`:
+
+- `cargo run --example point_query`
+- `cargo run --example threshold_window`
 
 ## CLI
 
@@ -78,19 +95,42 @@ cargo run --bin nsb -- window \
   --all
 ```
 
+Pre-filter knobs (defaults reproduce the recommended pipeline):
+
+* `--sun-altitude-ceiling -18` — drop sub-windows where the Sun is above
+  astronomical twilight. Pass `90` to disable.
+* `--target-altitude-floor 0` — drop sub-windows where the target is
+  below the horizon. Pass `-90` to disable.
+* `--no-pre-filter` — disable both pre-filters; equivalent to the legacy
+  uniform-scan semantics.
+* `--step-seconds 600` — coarse-scan cadence (Brent refines crossings to
+  seconds inside each candidate sub-window).
+
 Component selection: `--component zodiacal|starlight|airglow|moon` (repeatable)
 or `--all`. The default is `zodiacal + starlight + airglow`.
+
+## Examples
+
+The repository includes two small end-to-end examples for the current API:
+
+- `examples/point_query.rs` — evaluate the NSB for one UTC instant, location,
+  and equatorial target.
+- `examples/threshold_window.rs` — search a UTC time window for periods darker
+  than a radiance threshold.
 
 ## Build & test
 
 ```bash
 cargo build
 cargo test
+cargo bench   # Criterion benches under benches/threshold_window.rs
 ```
 
 ## Layout
 
 ```
+examples/          # Runnable library examples
+docs/              # Supporting notes and historical reports
 src/
 ├── evaluator.rs   # NsbEvaluator + PointQuery + ThresholdQuery + Location
 ├── site.rs        # Named CTAO sites
@@ -114,4 +154,4 @@ This crate depends, via `path = ".."`, on:
 
 ## Documentation
 
-- `docs/README.md` — documentation index.
+- `docs/README.md` — documentation index and pointers to historical reports.

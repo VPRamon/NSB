@@ -133,8 +133,21 @@ struct WindowArgs {
     #[arg(long)]
     threshold: f64,
     /// Coarse-scan cadence in seconds.
-    #[arg(long, default_value_t = 300.0)]
+    #[arg(long, default_value_t = 600.0)]
     step_seconds: f64,
+    /// Pre-filter: drop sub-windows where the Sun is above this altitude
+    /// (degrees). Defaults to −18° (astronomical twilight). Use a value
+    /// of `90` to disable the Sun pre-filter.
+    #[arg(long, default_value_t = -18.0, allow_hyphen_values = true)]
+    sun_altitude_ceiling: f64,
+    /// Pre-filter: drop sub-windows where the target is below this
+    /// altitude (degrees). Defaults to 0° (geometric horizon). Use a
+    /// value of `-90` to disable the target pre-filter.
+    #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
+    target_altitude_floor: f64,
+    /// Disable both pre-filters (legacy uniform-scan semantics).
+    #[arg(long)]
+    no_pre_filter: bool,
 
     #[command(flatten)]
     location: LocationArgs,
@@ -208,6 +221,14 @@ fn run_point(args: PointArgs) -> anyhow::Result<()> {
 fn run_window(args: WindowArgs) -> anyhow::Result<()> {
     let start = parse_utc(&args.start)?;
     let end = parse_utc(&args.end)?;
+    let (sun_altitude_ceiling, target_altitude_floor) = if args.no_pre_filter {
+        (None, None)
+    } else {
+        (
+            Some(Degrees::new(args.sun_altitude_ceiling)),
+            Some(Degrees::new(args.target_altitude_floor)),
+        )
+    };
     let query = ThresholdQuery {
         location: resolve_location(&args.location)?,
         target: resolve_target(&args.target),
@@ -215,6 +236,8 @@ fn run_window(args: WindowArgs) -> anyhow::Result<()> {
         threshold: BandPhotonRadiance::new(args.threshold),
         components: args.components.resolve(),
         sample_step: Second::new(args.step_seconds),
+        sun_altitude_ceiling,
+        target_altitude_floor,
     };
     let evaluator = NsbEvaluator::new().map_err(|e| anyhow!("{e}"))?;
     let result = evaluator

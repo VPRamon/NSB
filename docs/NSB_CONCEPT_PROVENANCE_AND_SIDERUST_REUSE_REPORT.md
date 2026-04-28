@@ -1,5 +1,11 @@
 # NSB concept provenance and SideRust reuse report
 
+> **Historical note**
+> This document captures provenance and reuse analysis from the original porting
+> effort. Some rows refer to removed compatibility layers or Python-derived test
+> scaffolding; treat those as historical context rather than the current crate
+> layout. The current user-facing API is documented in `../README.md`.
+
 ## Purpose
 
 This report maps the concepts used by the NSB crate to their source of

@@ -1,16 +1,25 @@
 # NSB documentation
 
-This directory centralizes persistent reports and project documentation for the
-NSB Rust port. The root `README.md` remains the package entry point for GitHub
-and crates.io metadata.
+This directory holds supporting notes and historical reports for `nsb`.
+
+For the **current** crate API and CLI, start here first:
+
+| Entry point | Purpose |
+|---|---|
+| `../README.md` | Current package overview, library API, CLI usage, and layout. |
+| `../examples/point_query.rs` | Runnable point-in-time library example. |
+| `../examples/threshold_window.rs` | Runnable threshold-window library example. |
+
+Several documents below were written during the earlier `darknsb`-porting phase.
+They are still useful as provenance and design background, but they may refer to
+surfaces that no longer exist in the simplified crate (Python bindings, vendored
+`darknsb`, named-target catalog, compatibility wrappers, and Python golden
+tests).
 
 | Document | Purpose |
 |---|---|
-| `DARKNSB_REPORT.md` | Inspection report for the original Python `darknsb` model and data. |
-| `SIDERUST_REIMPLEMENTATION_REPORT.md` | Assessment of how `darknsb` maps onto the SideRust ecosystem. |
-| `NSB_STAGED_IMPLEMENTATION_PLAN.md` | Staged roadmap for implementing NSB functionality. |
-| `NSB_CONCEPT_PROVENANCE_AND_SIDERUST_REUSE_REPORT.md` | Source-of-knowledge and generic SideRust reuse assessment for each NSB concept. |
-| `TODO_SIDERUST.md` | Local NSB units/helpers that should migrate upstream once stable. |
-
-Generated discrepancy reports are still written under `target/` by the test
-suite because they are build artifacts, not source documentation.
+| `DARKNSB_REPORT.md` | Historical inspection report for the original Python `darknsb` model and data. |
+| `SIDERUST_REIMPLEMENTATION_REPORT.md` | Historical assessment of how `darknsb` mapped onto the SideRust ecosystem. |
+| `NSB_STAGED_IMPLEMENTATION_PLAN.md` | Historical staged plan from the original port and API-shaping work. |
+| `NSB_CONCEPT_PROVENANCE_AND_SIDERUST_REUSE_REPORT.md` | Provenance notes for NSB concepts, data sources, and possible upstream reuse. |
+| `TODO_SIDERUST.md` | Current notes on what, if anything, still makes sense to upstream from NSB. |

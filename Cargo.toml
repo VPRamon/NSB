@@ -31,6 +31,11 @@ anyhow    = "1"
 
 [dev-dependencies]
 approx = "0.5"
+criterion = { version = "0.5", default-features = false, features = ["html_reports"] }
+
+[[bench]]
+name = "threshold_window"
+harness = false
 
 [patch.crates-io]
 qtty       = { path = "../qtty/qtty" }
