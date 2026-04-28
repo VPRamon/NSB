@@ -7,7 +7,8 @@ use crate::components::{airglow, moonlight, starlight, zodiacal};
 use crate::error::Result;
 use crate::ephemeris::source as source_db;
 use crate::spectra;
-use crate::units::{BandPhotonRadiance, S10, SurfaceBrightness, SurfaceBrightnessExt};
+use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10};
+use qtty::photometry::{SurfaceBrightness, band_flux_to_surface_brightness};
 use siderust::bodies::Moon;
 use siderust::calculus::horizontal::star_horizontal;
 use siderust::coordinates::transform::TransformFrame;
@@ -155,8 +156,8 @@ pub fn calculate(req: &ObservationRequest) -> Result<NsbResult> {
 
     Ok(NsbResult {
         integrated: total,
-        b_mag: SurfaceBrightness::from_band_flux(b_total.max(f64::MIN_POSITIVE)),
-        v_mag: SurfaceBrightness::from_band_flux(v_total.max(f64::MIN_POSITIVE)),
+        b_mag: band_flux_to_surface_brightness(b_total.max(f64::MIN_POSITIVE), 27.78),
+        v_mag: band_flux_to_surface_brightness(v_total.max(f64::MIN_POSITIVE), 27.78),
         components,
     })
 }

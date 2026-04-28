@@ -5,8 +5,10 @@
 //! two hardcoded S10 magnitudes for B and V (constants in `NSB_Utils.py`).
 
 use crate::error::Result;
-use crate::spectra::{integrate, starlight, Spectrum};
-use crate::units::{BandPhotonRadiance, S10};
+use crate::spectra::starlight;
+use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10};
+use siderust::qtty::{length::Meter, Nanometer};
+use siderust::spectra::{algo, Interpolation, OutOfRange, Provenance, SampledSpectrum};
 
 const WL_LOW_NM: f64 = 300.0;
 const WL_HIGH_NM: f64 = 650.0;
@@ -20,7 +22,7 @@ pub struct SlOutputs {
     pub integrated: BandPhotonRadiance,
     pub b_flux_s10: S10,
     pub v_flux_s10: S10,
-    pub spectrum: Spectrum,
+    pub spectrum: SampledSpectrum<Nanometer, Meter, f64>,
 }
 
 /// Compute the starlight contribution.
@@ -40,10 +42,22 @@ pub fn compute() -> Result<SlOutputs> {
     const ARCSEC2_PER_SR: f64 = 4.254_517_029_022_576e10;
     const FACTOR: f64 = 1e-9 * 1e-4 * 1e-3 * ARCSEC2_PER_SR;
 
-    let lam = raw.lambda_nm.clone();
-    let flx: Vec<f64> = raw.flux.iter().map(|y| y * FACTOR).collect();
-    let spectrum = Spectrum::new(lam, flx).with_tag("starlight");
-    let integrated = BandPhotonRadiance::new(integrate::band_integral(&spectrum, WL_LOW_NM, WL_HIGH_NM));
+    let lam = raw.xs_raw();
+    let flx: Vec<f64> = raw.ys_raw().into_iter().map(|y| y * FACTOR).collect();
+    let spectrum = SampledSpectrum::<Nanometer, Meter, f64>::from_raw(
+        lam,
+        flx,
+        Interpolation::Linear,
+        OutOfRange::ClampToEndpoints,
+        Some(Provenance::computed("starlight")),
+    )
+    .expect("starlight spectrum invariants");
+    let integrated = BandPhotonRadiance::new(algo::trapz_range(
+        &spectrum.xs_raw(),
+        &spectrum.ys_raw(),
+        WL_LOW_NM,
+        WL_HIGH_NM,
+    ));
     Ok(SlOutputs {
         integrated,
         b_flux_s10: S10::new(SL_S10_B),

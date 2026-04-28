@@ -37,18 +37,6 @@ impl Site {
         }
     }
 
-    /// Reference pressure in hPa used by the Python model
-    /// (`cerro_paranal_pres = 744 hPa`, source: `NSB_Utils.py:59`).
-    ///
-    /// Value is read from the typed [`siderust::observatories::Observatory`]
-    /// constant, which stores it as [`qtty::Hectopascals`].
-    pub fn reference_pressure_hpa(self) -> f64 {
-        match self {
-            Site::Paranal => observatories::EL_PARANAL.reference_pressure.value(),
-            Site::LaPalma => observatories::ROQUE_DE_LOS_MUCHACHOS.reference_pressure.value(),
-        }
-    }
-
     /// Geodetic latitude in degrees.
     pub fn latitude_deg(self) -> f64 {
         self.geodetic().lat.value()
