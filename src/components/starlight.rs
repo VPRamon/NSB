@@ -6,7 +6,9 @@
 
 use crate::error::Result;
 use crate::spectra::starlight;
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10};
+use qtty::radiometry::{
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
+};
 use siderust::qtty::{length::Meter, Nanometer};
 use siderust::spectra::{algo, Interpolation, OutOfRange, Provenance, SampledSpectrum};
 

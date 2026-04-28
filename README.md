@@ -1,79 +1,106 @@
-# nsb — Night Sky Background (Rust)
+# nsb — Night Sky Background
 
-Rust reimplementation of the CTAO [`darknsb`](./darknsb/) Python model for the
-ground-based night-sky background (NSB), with optional Python bindings.
+Rust crate and CLI for the ground-based night-sky background (NSB) photon
+flux in `ph/(cm² · ns · sr)`, plus the integrated B and V band surface
+brightness in `mag/arcsec²`.
 
-The crate computes the photon flux in `ph/(cm² · ns · sr)` reaching a
-ground-based observatory from the dark sky, plus the integrated B and V band
-surface brightness in `mag/arcsec²`. Contributions:
+Components:
 
 - **Zodiacal light** — Leinert (1998) brightness map, Noll (2012) reddening &
   extinction, scaled solar spectrum.
 - **Integrated starlight** — SkyCalc Cerro Paranal radiance.
 - **Airglow continuum** — empirical cubic in source altitude (Noll 2012).
-- **Scattered moonlight** — currently a stub returning zero (TODO: port the
-  Jones 2013 model + per-season LUTs).
+- **Scattered moonlight** — currently a stub returning zero.
+
+## Library
+
+The public Rust API is built around a single `NsbEvaluator` and two query
+shapes:
+
+```rust
+use nsb::{ComponentMask, Location, NsbEvaluator, PointQuery, Site, Target, ThresholdQuery, DEG};
+use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use qtty::Second;
+use tempoch::{Period, Time, UTC};
+
+let evaluator = NsbEvaluator::new()?;
+
+// 1) NSB at one (time, location, target):
+let r = evaluator.evaluate(&PointQuery {
+    location: Location::NamedSite(Site::Paranal),
+    time: /* tempoch::Time<UTC> */,
+    target: Target::new(266.41683 * DEG, -29.00781 * DEG),
+    components: ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW,
+})?;
+
+// 2) UTC sub-periods darker than a threshold within a window:
+let w = evaluator.periods_below_threshold(&ThresholdQuery {
+    location: Location::NamedSite(Site::Paranal),
+    target: Target::new(266.41683 * DEG, -29.00781 * DEG),
+    window: Period::new(/* start */, /* end */),
+    threshold: BandPhotonRadiance::new(1.0e3),
+    components: ComponentMask::ALL,
+    sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
+})?;
+```
+
+## CLI
+
+The crate ships an `nsb` binary with two subcommands.
+
+### Point evaluation
+
+```bash
+cargo run --bin nsb -- point \
+  --time 2023-09-04T01:48:00Z \
+  --site CTAO-S \
+  --ra 266.41683 --dec -29.00781
+```
+
+Or with arbitrary geodetic coordinates:
+
+```bash
+cargo run --bin nsb -- point \
+  --time '2023-09-04 01:48:00' \
+  --lat -24.6275 --lon -70.4044 --alt 2635 \
+  --ra 266.41683 --dec -29.00781 \
+  --component zodiacal --component starlight --component airglow
+```
+
+### Threshold-window search
+
+```bash
+cargo run --bin nsb -- window \
+  --start 2023-09-04T00:00:00Z --end 2023-09-04T12:00:00Z \
+  --threshold 5e2 \
+  --site CTAO-S \
+  --ra 266.41683 --dec -29.00781 \
+  --all
+```
+
+Component selection: `--component zodiacal|starlight|airglow|moon` (repeatable)
+or `--all`. The default is `zodiacal + starlight + airglow`.
 
 ## Build & test
 
-Pure-Rust build:
-
 ```bash
 cargo build
-cargo test                                  # unit tests
-cargo test --test cross_validation          # against Python golden fixtures
-cargo run --example ctaos_sgr_a             # mirrors get_NSB.py
+cargo test
 ```
-
-Cross-validation tolerances and the per-metric Δ are aggregated into
-`target/nsb_discrepancy_report.md` whenever the cross-validation test runs.
-
-### Python bindings
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install maturin pytest 'numpy<2' 'scipy<1.14' 'astropy<6'
-.venv/bin/maturin develop --features python
-.venv/bin/pytest python/tests
-```
-
-The Python module exposes:
-
-```python
-import nsb
-r = nsb.calculate("CTAO-S", "2023-09-04 01:48:00", "SgrA*")
-print(r.integrated, r.b_mag, r.v_mag)
-for c in r.components:
-    print(c.name, c.integrated, c.b_s10, c.v_s10)
-```
-
-### Regenerating golden fixtures
-
-```bash
-.venv/bin/python tools/capture_golden.py
-```
-
-The script pins to `numpy<2`, `scipy<1.14`, `astropy<6` because the original
-Python code relies on `scipy.interpolate.interp2d` and
-`astropy.coordinates.get_moon`, both removed in newer releases.
 
 ## Layout
 
 ```
 src/
+├── evaluator.rs   # NsbEvaluator + PointQuery + ThresholdQuery + Location
+├── site.rs        # Named CTAO sites
+├── error.rs
 ├── components/    # ZL, SL, AG, Moon
 ├── spectra/       # Solar / starlight / airglow / ozone loaders + B/V filters
 ├── atmosphere/    # Rayleigh / Mie / single-scatter
-├── ephemeris/     # Sun, Moon, source resolver
-├── geometry/      # Site + time + airmass + alt-az/ecliptic transforms
 ├── data/          # Embedded Leinert table + bundled .dat files
-├── units/         # Local newtypes (S10, BandPhotonRadiance, ...)
-└── pybind/        # PyO3 module behind `python` feature
+└── bin/nsb.rs     # CLI binary
 ```
-
-Anything in `units/` or implemented locally that should eventually live in
-`siderust`/`qtty` is annotated `TODO: implement in siderust` and tracked in
-`docs/TODO_SIDERUST.md`.
 
 ## Sibling crates
 
@@ -85,21 +112,6 @@ This crate depends, via `path = ".."`, on:
 - [`affn`](../affn) — affine geometry primitives
 - [`cheby`](../cheby) — Chebyshev interpolation
 
-## Status & known gaps
-
-| Component | Parity vs Python |
-|---|---|
-| Zodiacal | ~2 % (driven by simplified ecliptic transform) |
-| Starlight | exact (<1e-4) |
-| Airglow | <0.5 % (cubic-in-altitude approximation; full spectral model TODO) |
-| Moonlight | not implemented |
-
-See `target/nsb_discrepancy_report.md` after `cargo test` for the live numbers.
-
 ## Documentation
 
 - `docs/README.md` — documentation index.
-- `docs/DARKNSB_REPORT.md` — what NSB is and how the Python code computes it.
-- `docs/SIDERUST_REIMPLEMENTATION_REPORT.md` — feasibility map onto siderust.
-- `docs/NSB_STAGED_IMPLEMENTATION_PLAN.md` — staged porting roadmap.
-- `docs/NSB_CONCEPT_PROVENANCE_AND_SIDERUST_REUSE_REPORT.md` — source-of-knowledge and upstream-reuse assessment for NSB concepts.

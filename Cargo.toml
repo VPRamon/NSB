@@ -3,7 +3,7 @@ name = "nsb"
 version = "0.1.0"
 edition = "2021"
 authors = ["VPRamon <vallespuigramon@gmail.com>"]
-description = "Night Sky Background model — Rust port of the CTAO darknsb Python package."
+description = "Night Sky Background model and CLI."
 license = "BSD-3-Clause"
 repository = "https://github.com/VPRamon/NSB"
 readme = "README.md"
@@ -12,13 +12,10 @@ categories = ["science"]
 
 [lib]
 name = "nsb"
-crate-type = ["cdylib", "rlib"]
 
-[features]
-default = []
-# Build PyO3 bindings; combine with maturin to produce a Python wheel.
-python = ["dep:pyo3"]
-serde = ["dep:serde"]
+[[bin]]
+name = "nsb"
+path = "src/bin/nsb.rs"
 
 [dependencies]
 qtty     = { path = "../qtty/qtty", features = ["radiometry", "astro", "photometry"] }
@@ -28,18 +25,12 @@ affn     = { path = "../affn" }
 cheby    = { path = "../cheby" }
 chrono    = "0.4"
 thiserror = "1"
-bitflags = "2"
-pyo3 = { version = "0.22", optional = true, features = ["extension-module"] }
-serde = { version = "1", optional = true, features = ["derive"] }
+bitflags  = "2"
+clap      = { version = "4", features = ["derive"] }
+anyhow    = "1"
 
 [dev-dependencies]
 approx = "0.5"
-serde_json = "1"
-anyhow = "1"
-
-[[example]]
-name = "ctaos_sgr_a"
-path = "examples/ctaos_sgr_a.rs"
 
 [patch.crates-io]
 qtty       = { path = "../qtty/qtty" }

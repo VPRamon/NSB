@@ -14,32 +14,34 @@
 //! `docs/NSB_STAGED_IMPLEMENTATION_PLAN.md` (stages 9–11).
 
 use crate::error::Result;
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10};
+use qtty::angular::Degrees;
+use qtty::radiometry;
+use siderust::MoonPhaseGeometry;
 
 #[derive(Debug, Clone, Copy)]
 pub struct MoonInputs {
-    /// Moon-source angular separation [deg].
-    pub separation_deg: f64,
-    /// Moon zenith distance [deg].
-    pub moon_zenith_deg: f64,
-    /// Lunar phase as illuminated fraction in [0, 1].
-    pub phase_fraction: f64,
-    /// Source zenith distance [deg].
-    pub source_zenith_deg: f64,
+    /// Moon-source angular separation.
+    pub separation: Degrees,
+    /// Moon zenith distance.
+    pub moon_zenith: Degrees,
+    /// Geocentric lunar phase geometry from siderust.
+    pub phase: MoonPhaseGeometry,
+    /// Source zenith distance.
+    pub source_zenith: Degrees,
 }
 
 #[derive(Debug, Clone)]
 pub struct MoonOutputs {
-    pub integrated: BandPhotonRadiance,
-    pub b_flux_s10: S10,
-    pub v_flux_s10: S10,
+    pub integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian,
+    pub b_flux_s10: radiometry::S10s,
+    pub v_flux_s10: radiometry::S10s,
 }
 
 pub fn compute(_inp: &MoonInputs) -> Result<MoonOutputs> {
     // TODO: implement the Jones et al. (2013) scattered-moonlight model.
     Ok(MoonOutputs {
-        integrated: BandPhotonRadiance::new(0.0),
-        b_flux_s10: S10::new(0.0),
-        v_flux_s10: S10::new(0.0),
+        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(0.0),
+        b_flux_s10: radiometry::S10s::new(0.0),
+        v_flux_s10: radiometry::S10s::new(0.0),
     })
 }
