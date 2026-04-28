@@ -14,7 +14,7 @@
 //! `docs/NSB_STAGED_IMPLEMENTATION_PLAN.md` (stages 9–11).
 
 use crate::error::Result;
-use crate::units::{BandPhotonRadiance, S10};
+use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10};
 
 #[derive(Debug, Clone, Copy)]
 pub struct MoonInputs {

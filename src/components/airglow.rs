@@ -16,7 +16,7 @@
 //! the polynomial point estimate.
 
 use crate::error::Result;
-use crate::units::{BandPhotonRadiance, S10};
+use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10};
 
 const AG_PARAM: [f64; 4] = [
     -1.382_674_19e-7,
