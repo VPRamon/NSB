@@ -15,6 +15,21 @@
 //! This collapses ~year-long searches from tens of thousands of full NSB
 //! evaluations down to a few hundred, while keeping the per-sample math
 //! identical to [`NsbEvaluator::evaluate`].
+//!
+//! Scientific role:
+//! this file is the "scientific orchestrator" of the crate. It does not define
+//! new physics by itself; instead, it combines the implemented component models
+//! into a site/time/target prediction of sky background.
+//!
+//! Contribution to the science:
+//! the evaluator is where the astronomy geometry becomes operational. It:
+//!
+//! * turns user inputs into observer and target geometry
+//! * computes target altitude and the relevant Sun/Moon geometry
+//! * invokes the zodiacal-light, starlight, airglow, and moonlight models
+//! * adds those contributions into a total background radiance
+//! * supports threshold-window searches that are scientifically equivalent to
+//!   repeated point evaluations, but much faster for long observing windows
 
 use crate::components::{airglow, moonlight, starlight, zodiacal};
 use crate::error::{NsbError, Result};

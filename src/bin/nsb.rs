@@ -1,3 +1,15 @@
+//! Command-line interface for the `nsb` crate.
+//!
+//! Scientific role:
+//! this binary is the user-facing entry point for asking scientific questions
+//! of the model without writing Rust code.
+//!
+//! Contribution to the science:
+//! it exposes the same point-evaluation and threshold-window calculations as
+//! the library API, making the NSB model easier to inspect, validate, and use
+//! in observing-planning workflows. The CLI does not add new physics; it makes
+//! the implemented science operational for end users.
+
 use anyhow::{anyhow, Context};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use clap::{Args, Parser, Subcommand, ValueEnum};

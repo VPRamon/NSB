@@ -2,6 +2,16 @@
 //!
 //! Loads `data/solar_spectrum.dat` (CSV: `wavelength_nm, irradiance_W_m2_nm`)
 //! shipped with the Python package, embedded via `include_str!`.
+//!
+//! Scientific role:
+//! zodiacal light is modeled as scattered sunlight, so the spectral shape of
+//! the Sun is the starting point for the zodiacal component.
+//!
+//! Contribution to the science:
+//! this file loads the bundled solar reference spectrum that is rescaled and
+//! reddened in `components::zodiacal`. Without it, the crate could only model
+//! zodiacal light as a scalar brightness rather than as a physically motivated
+//! spectrum integrated over the NSB band.
 
 use crate::error::{NsbError, Result};
 use siderust::qtty::{length::Meter, Nanometer};

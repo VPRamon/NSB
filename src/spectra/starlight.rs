@@ -1,4 +1,13 @@
 //! Integrated starlight spectrum from SkyCalc (Noll et al. 2012).
+//!
+//! Scientific role:
+//! this file holds the reference spectrum for unresolved integrated starlight,
+//! one of the diffuse astronomical components of the night sky.
+//!
+//! Contribution to the science:
+//! the loader preserves the bundled SkyCalc-derived radiance table and makes
+//! it available to `components::starlight`, which converts and integrates it
+//! into the contribution added to the total NSB.
 
 use crate::error::{NsbError, Result};
 use siderust::qtty::{length::Meter, Nanometer};

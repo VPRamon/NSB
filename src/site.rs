@@ -5,6 +5,16 @@
 //! * `CTAO-S` → Cerro Paranal.
 //!
 //! These map to geodetic constants exposed by `siderust::observatories`.
+//!
+//! Scientific role:
+//! a night-sky-background value is meaningless without an observing site,
+//! because local horizon geometry, airmass, and the apparent positions of the
+//! Sun and Moon depend on where the observer is on Earth.
+//!
+//! Contribution to the science:
+//! this file provides the minimal named-site mapping used by the historical
+//! CTAO-oriented interface. It turns user-facing site names into the geodetic
+//! coordinates that drive all topocentric calculations in the evaluator.
 
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;

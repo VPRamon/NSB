@@ -4,13 +4,21 @@ Rust crate and CLI for the ground-based night-sky background (NSB) photon
 flux in `ph/(cm² · ns · sr)`, plus the integrated B and V band surface
 brightness in `mag/arcsec²`.
 
+If you are new to astronomy or to the NSB domain, start with:
+
+- `docs/CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` — plain-language explanation of
+  the astronomy terms, the query model, and what each implemented component
+  means.
+
 Components:
 
 - **Zodiacal light** — Leinert (1998) brightness map, Noll (2012) reddening &
   extinction, scaled solar spectrum.
 - **Integrated starlight** — SkyCalc Cerro Paranal radiance.
 - **Airglow continuum** — empirical cubic in source altitude (Noll 2012).
-- **Scattered moonlight** — currently a stub returning zero.
+- **Scattered moonlight** — Krisciunas & Schaefer (1991) analytic
+  scattered-moonlight model, converted into the crate's integrated radiance
+  output.
 
 ## Library
 
@@ -154,4 +162,6 @@ This crate depends, via `path = ".."`, on:
 
 ## Documentation
 
+- `docs/CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` — beginner-oriented explanation
+  of the domain concepts and the current implementation.
 - `docs/README.md` — documentation index and pointers to historical reports.

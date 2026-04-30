@@ -9,6 +9,16 @@
 //!
 //! Transcribed verbatim from `darknsb/NSB_Utils.py:867-903` (the active `zl`
 //! table — *not* the `zl2` variant which sets the unmeasured corners to 0).
+//!
+//! Scientific role:
+//! this table is the empirical backbone of the zodiacal-light model. It
+//! encodes how zodiacal brightness varies with target position relative to the
+//! Sun and the ecliptic plane.
+//!
+//! Contribution to the science:
+//! `components::zodiacal` uses this file to anchor the zodiacal calculation to
+//! a published observational reference rather than relying on an ad hoc
+//! analytic approximation.
 
 /// `LEINERT_S10[i_lambda][j_beta]` — see module docs.
 pub const LEINERT_S10: [[f64; 19]; 37] = [
