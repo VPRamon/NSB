@@ -14,6 +14,8 @@
 //! toward more detailed single-scatter treatments and for explaining why sky
 //! brightness depends on wavelength and line-of-sight geometry.
 
+use siderust::tables::{algo, AxisDirection, OutOfRange};
+
 /// Pre-computed single-scattering grid for zenith angle and wavelength.
 ///
 /// This struct stores a lookup table of scattering coefficients indexed by
@@ -104,60 +106,22 @@ impl ScatterGrid {
     /// # Returns
     /// The interpolated scattering coefficient.
     pub fn lookup(&self, zenith_deg: f64, wavelength_nm: f64) -> f64 {
-        // Clamp to grid bounds
-        let z = zenith_deg.max(self.zenith_deg[0]).min(self.zenith_deg[self.zenith_deg.len() - 1]);
-        let wl = wavelength_nm
-            .max(self.wavelength_nm[0])
-            .min(self.wavelength_nm[self.wavelength_nm.len() - 1]);
-
-        // Find surrounding grid points for zenith angle
-        let (z_idx, z_frac) = self.find_index(&self.zenith_deg, z);
-        let (wl_idx, wl_frac) = self.find_index(&self.wavelength_nm, wl);
-
-        let wl_count = self.wavelength_nm.len();
-
-        // Get the four surrounding values (bilinear interpolation)
-        let v00 = self.data[z_idx * wl_count + wl_idx];
-        let v01 = if wl_idx + 1 < self.wavelength_nm.len() {
-            self.data[z_idx * wl_count + wl_idx + 1]
-        } else {
-            v00
-        };
-        let v10 = if z_idx + 1 < self.zenith_deg.len() {
-            self.data[(z_idx + 1) * wl_count + wl_idx]
-        } else {
-            v00
-        };
-        let v11 = if z_idx + 1 < self.zenith_deg.len() && wl_idx + 1 < self.wavelength_nm.len() {
-            self.data[(z_idx + 1) * wl_count + wl_idx + 1]
-        } else {
-            v00
-        };
-
-        // Bilinear interpolation
-        let v0 = v00 * (1.0 - wl_frac) + v01 * wl_frac;
-        let v1 = v10 * (1.0 - wl_frac) + v11 * wl_frac;
-        v0 * (1.0 - z_frac) + v1 * z_frac
-    }
-
-    /// Finds the grid index and fractional position for a given coordinate value.
-    ///
-    /// Returns (index, fraction) where the value lies between grid[index] and grid[index+1],
-    /// with fraction ∈ [0, 1] indicating the relative position.
-    fn find_index(&self, grid: &[f64], value: f64) -> (usize, f64) {
-        // Binary search or linear search (small grids, so linear is fine)
-        for i in 0..grid.len() - 1 {
-            if value <= grid[i + 1] {
-                let range = grid[i + 1] - grid[i];
-                let frac = if range > 1e-10 {
-                    (value - grid[i]) / range
-                } else {
-                    0.0
-                };
-                return (i, frac.max(0.0).min(1.0));
-            }
-        }
-        (grid.len() - 1, 0.0)
+        let nz = self.zenith_deg.len();
+        let nw = self.wavelength_nm.len();
+        // rows[z_idx][wl_idx] — zenith is the row (y) axis, wavelength is column (x)
+        let rows: Vec<&[f64]> = (0..nz).map(|i| &self.data[i * nw..(i + 1) * nw]).collect();
+        algo::bilinear(
+            &self.wavelength_nm,
+            &self.zenith_deg,
+            &rows,
+            wavelength_nm,
+            zenith_deg,
+            OutOfRange::ClampToEndpoints,
+            OutOfRange::ClampToEndpoints,
+            AxisDirection::Ascending,
+            AxisDirection::Ascending,
+        )
+        .expect("ScatterGrid::lookup: bilinear interpolation failed")
     }
 }
 

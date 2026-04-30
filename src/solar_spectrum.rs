@@ -17,6 +17,8 @@
 //! of the solar spectral energy distribution that underlies the zodiacal-light
 //! model.
 
+use siderust::spectra::algo;
+
 /// Solar spectral irradiance at Earth orbit (1 AU).
 #[derive(Clone, Debug)]
 pub struct SolarSpectrum {
@@ -71,49 +73,15 @@ impl SolarSpectrum {
     /// Uses trapezoidal integration between sample points. Wavelengths outside
     /// the sampled range are excluded.
     pub fn integrate_range(&self, lambda_min: f64, lambda_max: f64) -> f64 {
-        if lambda_min > lambda_max {
-            return 0.0;
-        }
-
-        let mut total = 0.0;
-        for i in 0..self.wavelength_nm.len().saturating_sub(1) {
-            let w1 = self.wavelength_nm[i];
-            let w2 = self.wavelength_nm[i + 1];
-            let f1 = self.flux_wm2_nm[i];
-            let f2 = self.flux_wm2_nm[i + 1];
-
-            // Skip if both points are outside the range
-            if w2 < lambda_min || w1 > lambda_max {
-                continue;
-            }
-
-            // Clamp the segment to [lambda_min, lambda_max]
-            let w1_clamped = w1.max(lambda_min);
-            let w2_clamped = w2.min(lambda_max);
-
-            if w1_clamped >= w2_clamped {
-                continue;
-            }
-
-            // Linear interpolation for the flux at the clamped boundaries
-            let dw = w2 - w1;
-            let f1_clamped = f1 + (f2 - f1) * (w1_clamped - w1) / dw;
-            let f2_clamped = f1 + (f2 - f1) * (w2_clamped - w1) / dw;
-
-            // Trapezoidal rule
-            total += (f1_clamped + f2_clamped) * (w2_clamped - w1_clamped) / 2.0;
-        }
-        total
+        algo::trapz_range(&self.wavelength_nm, &self.flux_wm2_nm, lambda_min, lambda_max)
     }
 
     /// Integrates the entire spectrum.
     pub fn integrate_total(&self) -> f64 {
-        if self.wavelength_nm.is_empty() {
-            return 0.0;
+        match (self.wavelength_nm.first(), self.wavelength_nm.last()) {
+            (Some(&lo), Some(&hi)) => algo::trapz_range(&self.wavelength_nm, &self.flux_wm2_nm, lo, hi),
+            _ => 0.0,
         }
-        let w_min = self.wavelength_nm[0];
-        let w_max = self.wavelength_nm[self.wavelength_nm.len() - 1];
-        self.integrate_range(w_min, w_max)
     }
 
     /// Cross-check: validates that the spectrum satisfies known constraints.

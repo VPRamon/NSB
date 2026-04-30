@@ -100,18 +100,16 @@ const WL_HIGH_NM: f64 = 650.0;
 const B_FILTER_NM: f64 = 445.0;
 const V_FILTER_NM: f64 = 551.0;
 
-/// Inputs needed by `compute`. Coordinates are in radians and degrees as
-/// indicated; using primitive types here avoids dragging the full ephemeris
-/// surface into the test paths.
+/// Inputs needed by `compute`. Angles are typed with `qtty` quantities.
 #[derive(Debug, Clone, Copy)]
 pub struct ZlInputs {
-    /// Source ecliptic latitude `β` [rad].
-    pub beta_rad: f64,
-    /// Source ecliptic longitude minus solar longitude `(λ - λ_sun)` [rad],
+    /// Source ecliptic latitude `β`.
+    pub beta: Radians,
+    /// Source ecliptic longitude minus solar longitude `(λ - λ_sun)`,
     /// reduced to `[0, π]`.
-    pub delta_lambda_rad: f64,
-    /// Source zenith distance [deg].
-    pub zenith_deg: f64,
+    pub delta_lambda: Radians,
+    /// Source zenith distance.
+    pub zenith: Degrees,
 }
 
 #[derive(Debug, Clone)]
@@ -127,9 +125,9 @@ pub struct ZlOutputs {
 /// around the solar disk are attached to the grid as constant-fill regions
 /// at construction time, so this function is now a thin radians→degrees
 /// wrapper around [`Grid2D::interp_at`].
-pub fn leinert_lookup_s10(beta_rad: f64, delta_lambda_rad: f64) -> Result<S10> {
-    let beta_deg = beta_rad.to_degrees().abs();
-    let dl_deg = delta_lambda_rad.to_degrees().abs().min(180.0);
+pub fn leinert_lookup_s10(beta: Radians, delta_lambda: Radians) -> Result<S10> {
+    let beta_deg = beta.value().to_degrees().abs();
+    let dl_deg = delta_lambda.value().to_degrees().abs().min(180.0);
     if !(0.0..90.0).contains(&beta_deg) {
         return Err(NsbError::OutOfRange(format!("β={beta_deg}° not in [0,90)")));
     }
@@ -148,8 +146,8 @@ pub fn leinert_lookup_s10(beta_rad: f64, delta_lambda_rad: f64) -> Result<S10> {
 
 /// Leinert reddening factor at a given wavelength and elongation.
 /// Mirrors `GetZodicalReddening` in NSB_Utils.py.
-fn reddening_factor(beta_rad: f64, delta_lambda_rad: f64, lambda_nm: f64) -> f64 {
-    let elong_deg = (delta_lambda_rad.cos() * beta_rad.cos())
+fn reddening_factor(beta: Radians, delta_lambda: Radians, lambda_nm: f64) -> f64 {
+    let elong_deg = (delta_lambda.value().cos() * beta.value().cos())
         .acos()
         .to_degrees();
     let log_ratio = (lambda_nm / 500.0).ln();
@@ -185,7 +183,7 @@ fn reddening_factor(beta_rad: f64, delta_lambda_rad: f64, lambda_nm: f64) -> f64
 
 /// Atmospheric extinction (Noll et al. 2012) — Rayleigh + Mie combined.
 /// Returns the transmission `T(λ)`.
-fn extinction_transmission(zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith_deg: f64) -> f64 {
+fn extinction_transmission(zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith: Degrees) -> f64 {
     // dex = log10(zl_value)
     let dex = zl_value_w_m2_sr_um.log10();
     let fext_m = if dex <= 2.255 {
@@ -207,7 +205,7 @@ fn extinction_transmission(zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith_deg:
     };
     let tau0 = (10f64).powf(-0.4 * kaer).ln();
     let am = airmass(
-        Radians::new(zenith_deg.to_radians()),
+        Radians::new(zenith.value().to_radians()),
         AirmassFormula::Young1994,
     );
     let tau_eff = tau0 * (fext_r + fext_m) * am;
@@ -219,7 +217,7 @@ pub fn compute(
     inp: &ZlInputs,
     solar_spectrum: &SampledSpectrum<Nanometer, Meter, f64>,
 ) -> Result<ZlOutputs> {
-    let zl_500_s10 = leinert_lookup_s10(inp.beta_rad, inp.delta_lambda_rad)?;
+    let zl_500_s10 = leinert_lookup_s10(inp.beta, inp.delta_lambda)?;
     let zl_500_wmsrum = zl_500_s10.value() * S10_TO_W_M2_SR_UM;
 
     // Scale the solar spectrum so its 500 nm value matches zl_500.
@@ -255,11 +253,11 @@ pub fn compute(
             continue;
         }
         let f_sun_sr = solar_ys[i] / std::f64::consts::PI;
-        let zl = f_sun_sr * k * reddening_factor(inp.beta_rad, inp.delta_lambda_rad, l);
+        let zl = f_sun_sr * k * reddening_factor(inp.beta, inp.delta_lambda, l);
         // ZL value in W m⁻² sr⁻¹ nm⁻¹ at this wavelength → as proxy magnitude
         // for the extinction-input we use the value normalized to W/m²/sr/μm:
         let zl_w_m2_sr_um = zl * 1000.0;
-        let trans = extinction_transmission(zl_w_m2_sr_um, l, inp.zenith_deg);
+        let trans = extinction_transmission(zl_w_m2_sr_um, l, inp.zenith);
         let zl_ext = zl * trans; // W m⁻² sr⁻¹ nm⁻¹
         let zl_ext_um = zl_ext * 1000.0; // W m⁻² sr⁻¹ μm⁻¹
 
@@ -377,7 +375,7 @@ mod tests {
                     Some(v) => v,
                     None => continue, // out-of-range – skip
                 };
-                let got = leinert_lookup_s10(beta_rad, dl_rad)
+                let got = leinert_lookup_s10(Radians::new(beta_rad), Radians::new(dl_rad))
                     .expect("leinert_lookup_s10 failed")
                     .value();
 
