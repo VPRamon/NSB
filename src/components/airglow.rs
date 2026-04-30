@@ -26,6 +26,7 @@
 //! approximates how the airglow contribution changes with line of sight.
 
 use crate::error::Result;
+use qtty::angular::Degrees;
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
@@ -42,8 +43,8 @@ const AG_S10_V: f64 = 228.735_856_150_608_16;
 
 #[derive(Debug, Clone)]
 pub struct AgInputs {
-    /// Source altitude [deg].
-    pub altitude_deg: f64,
+    /// Source altitude.
+    pub altitude: Degrees,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +55,7 @@ pub struct AgOutputs {
 }
 
 pub fn compute(inp: &AgInputs) -> Result<AgOutputs> {
-    let x = inp.altitude_deg;
+    let x = inp.altitude.value();
     let v = AG_PARAM[0] * x.powi(3) + AG_PARAM[1] * x.powi(2) + AG_PARAM[2] * x + AG_PARAM[3];
     Ok(AgOutputs {
         integrated: BandPhotonRadiance::new(v),

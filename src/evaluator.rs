@@ -50,7 +50,7 @@ use siderust::coordinates::frames::{ECEF, EclipticMeanJ2000, EquatorialMeanJ2000
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::coordinates::transform::TransformFrame;
-use siderust::qtty::{Days, Kilometer, Radian};
+use siderust::qtty::{Day, Kilometer, Radian};
 use siderust::spectra::SampledSpectrum;
 use siderust::time::{intersect_periods, ModifiedJulianDate, Period as TimePeriod, TT};
 use tempoch::{Period, Time, MJD, UTC};
@@ -177,10 +177,10 @@ struct PreparedThresholdQuery {
     observer: Geodetic<ECEF>,
     target: Target,
     components: ComponentMask,
-    /// Target ecliptic latitude (radians, J2000 ecliptic) — fixed for the window.
-    ecliptic_lat_rad: f64,
-    /// Target ecliptic longitude (radians, J2000 ecliptic) — fixed for the window.
-    ecliptic_lon_rad: f64,
+    /// Target ecliptic latitude (J2000 ecliptic) — fixed for the window.
+    ecliptic_lat: siderust::qtty::Radians,
+    /// Target ecliptic longitude (J2000 ecliptic) — fixed for the window.
+    ecliptic_lon: siderust::qtty::Radians,
     /// Constant starlight integrated radiance contribution, when enabled.
     starlight_integrated: BandPhotonRadiance,
 }
@@ -213,7 +213,7 @@ impl NsbEvaluator {
 
         let prepared = Self::prepare_threshold(query)?;
         let tt_window = utc_period_to_tt_mjd(query.window);
-        let step = sample_step_to_days(query.sample_step);
+        let step = query.sample_step.to::<Day>();
 
         let candidate_windows = self.candidate_windows(query, &prepared, tt_window);
 
@@ -248,7 +248,7 @@ impl NsbEvaluator {
 
         let prepared = Self::prepare_point(query.location, query.target, query.components);
         let tt_window = utc_period_to_tt_mjd(query.window);
-        let step = sample_step_to_days(query.sample_step);
+        let step = query.sample_step.to::<Day>();
         let integrated_at = |mjd_tt: ModifiedJulianDate| -> BandPhotonRadiance {
             let time_utc = tt_mjd_to_utc_time(mjd_tt);
             self.evaluate_full(&prepared, time_utc)
@@ -310,8 +310,8 @@ impl NsbEvaluator {
             observer,
             target: query.target,
             components: query.components,
-            ecliptic_lat_rad: ecl.lat().to::<Radian>().value(),
-            ecliptic_lon_rad: ecl.lon().to::<Radian>().value(),
+            ecliptic_lat: ecl.lat().to::<Radian>(),
+            ecliptic_lon: ecl.lon().to::<Radian>(),
             starlight_integrated,
         })
     }
@@ -349,26 +349,18 @@ impl NsbEvaluator {
         let time = tt_mjd_to_utc_time(mjd_tt);
         let jd = siderust::time::JulianDate::from_tempoch_utc(time);
         let hz = star_horizontal(prepared.target.ra(), prepared.target.dec(), &prepared.observer, jd);
-        let altitude_deg = hz.alt().value();
-        let source_zenith = Degrees::new(90.0 - altitude_deg);
-        let zenith_deg = source_zenith.value();
+        let source_zenith = Degrees::new(90.0) - hz.alt();
 
         let mut total = BandPhotonRadiance::new(0.0);
 
         if prepared.components.contains(ComponentMask::ZODIACAL) {
             let lambda_sun = siderust::bodies::Sun::ecliptic_longitude_geocentric(jd);
-            let delta_lambda = (prepared.ecliptic_lon_rad - lambda_sun.value())
-                .rem_euclid(std::f64::consts::TAU);
-            let delta_lambda = if delta_lambda > std::f64::consts::PI {
-                std::f64::consts::TAU - delta_lambda
-            } else {
-                delta_lambda
-            };
+            let delta_lambda = prepared.ecliptic_lon.abs_separation(lambda_sun);
             let out = zodiacal::compute(
                 &zodiacal::ZlInputs {
-                    beta_rad: prepared.ecliptic_lat_rad,
-                    delta_lambda_rad: delta_lambda,
-                    zenith_deg,
+                    beta: prepared.ecliptic_lat,
+                    delta_lambda,
+                    zenith: source_zenith,
                 },
                 &self.solar,
             )
@@ -379,14 +371,14 @@ impl NsbEvaluator {
             total += prepared.starlight_integrated;
         }
         if prepared.components.contains(ComponentMask::AIRGLOW) {
-            let out = airglow::compute(&airglow::AgInputs { altitude_deg })
+            let out = airglow::compute(&airglow::AgInputs { altitude: hz.alt() })
                 .expect("prepared airglow evaluation");
             total += out.integrated;
         }
         if prepared.components.contains(ComponentMask::MOON) {
             let moon_pos = Moon::get_horizontal::<Kilometer>(jd, prepared.observer);
             let moon_dir = moon_pos.direction();
-            let moon_zenith = Degrees::new(90.0 - moon_dir.alt().value());
+            let moon_zenith = Degrees::new(90.0) - moon_dir.alt();
             let separation = hz.angular_separation(&moon_dir);
             let phase = Moon::phase_geocentric(jd);
             let out = moonlight::compute(&moonlight::MoonInputs {
@@ -405,32 +397,29 @@ impl NsbEvaluator {
     fn evaluate_full(&self, query: &PreparedPointQuery, time: Time<UTC>) -> Result<NsbResult> {
         let jd = siderust::time::JulianDate::from_tempoch_utc(time);
         let hz = star_horizontal(query.target.ra(), query.target.dec(), &query.observer, jd);
-        let altitude = hz.alt();
-        let altitude_deg = altitude.value();
-        let source_zenith = Degrees::new(90.0 - altitude_deg);
-        let zenith_deg = source_zenith.value();
+        let source_zenith = Degrees::new(90.0) - hz.alt();
         let ecl: SphericalDirection<EclipticMeanJ2000> = query.target.to_frame();
         let ecliptic_lat = ecl.lat().to::<Radian>();
         let ecliptic_lon = ecl.lon().to::<Radian>();
         let lambda_sun = siderust::bodies::Sun::ecliptic_longitude_geocentric(jd);
-        let delta_lambda = ecliptic_lon.abs_separation(lambda_sun).value();
+        let delta_lambda = ecliptic_lon.abs_separation(lambda_sun);
 
         let mut components = Vec::new();
         let mut total = BandPhotonRadiance::new(0.0);
-        let (mut b_total, mut v_total) = (0.0, 0.0);
+        let (mut b_total, mut v_total) = (S10::new(0.0), S10::new(0.0));
 
         if query.components.contains(ComponentMask::ZODIACAL) {
             let out = zodiacal::compute(
                 &zodiacal::ZlInputs {
-                    beta_rad: ecliptic_lat.value(),
-                    delta_lambda_rad: delta_lambda,
-                    zenith_deg,
+                    beta: ecliptic_lat,
+                    delta_lambda,
+                    zenith: source_zenith,
                 },
                 &self.solar,
             )?;
             total += out.integrated;
-            b_total += out.b_flux_s10.value();
-            v_total += out.v_flux_s10.value();
+            b_total += out.b_flux_s10;
+            v_total += out.v_flux_s10;
             components.push(NsbComponent {
                 name: "zodiacal",
                 integrated: out.integrated,
@@ -441,8 +430,8 @@ impl NsbEvaluator {
         if query.components.contains(ComponentMask::STARLIGHT) {
             let out = starlight::compute()?;
             total += out.integrated;
-            b_total += out.b_flux_s10.value();
-            v_total += out.v_flux_s10.value();
+            b_total += out.b_flux_s10;
+            v_total += out.v_flux_s10;
             components.push(NsbComponent {
                 name: "starlight",
                 integrated: out.integrated,
@@ -451,10 +440,10 @@ impl NsbEvaluator {
             });
         }
         if query.components.contains(ComponentMask::AIRGLOW) {
-            let out = airglow::compute(&airglow::AgInputs { altitude_deg })?;
+            let out = airglow::compute(&airglow::AgInputs { altitude: hz.alt() })?;
             total += out.integrated;
-            b_total += out.b_flux_s10.value();
-            v_total += out.v_flux_s10.value();
+            b_total += out.b_flux_s10;
+            v_total += out.v_flux_s10;
             components.push(NsbComponent {
                 name: "airglow",
                 integrated: out.integrated,
@@ -465,7 +454,7 @@ impl NsbEvaluator {
         if query.components.contains(ComponentMask::MOON) {
             let moon_pos = Moon::get_horizontal::<Kilometer>(jd, query.observer);
             let moon_dir = moon_pos.direction();
-            let moon_zenith = Degrees::new(90.0 - moon_dir.alt().value());
+            let moon_zenith = Degrees::new(90.0) - moon_dir.alt();
             let separation = hz.angular_separation(&moon_dir);
             let phase = Moon::phase_geocentric(jd);
             let out = moonlight::compute(&moonlight::MoonInputs {
@@ -475,8 +464,8 @@ impl NsbEvaluator {
                 source_zenith,
             })?;
             total += out.integrated;
-            b_total += out.b_flux_s10.value();
-            v_total += out.v_flux_s10.value();
+            b_total += out.b_flux_s10;
+            v_total += out.v_flux_s10;
             components.push(NsbComponent {
                 name: "moon",
                 integrated: out.integrated,
@@ -487,15 +476,11 @@ impl NsbEvaluator {
 
         Ok(NsbResult {
             integrated: total,
-            b_mag: band_flux_to_surface_brightness(b_total.max(f64::MIN_POSITIVE), 27.78),
-            v_mag: band_flux_to_surface_brightness(v_total.max(f64::MIN_POSITIVE), 27.78),
+            b_mag: band_flux_to_surface_brightness(b_total.value().max(f64::MIN_POSITIVE), 27.78),
+            v_mag: band_flux_to_surface_brightness(v_total.value().max(f64::MIN_POSITIVE), 27.78),
             components,
         })
     }
-}
-
-fn sample_step_to_days(step: Second) -> Days {
-    Days::new(step.value() / 86_400.0)
 }
 
 fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
