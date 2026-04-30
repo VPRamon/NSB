@@ -3,6 +3,16 @@
 //! Port of `CalculateSL`. The Python implementation reads the SkyCalc
 //! starlight radiance, integrates over `[wl_low, wl_high]`, and reports
 //! two hardcoded S10 magnitudes for B and V (constants in `NSB_Utils.py`).
+//!
+//! Scientific role:
+//! even where no individual star dominates the field, unresolved stars produce
+//! a diffuse optical glow. That integrated starlight is part of the baseline
+//! night-sky background.
+//!
+//! Contribution to the science:
+//! this file turns the bundled SkyCalc-derived starlight spectrum into the
+//! crate's working radiance units and contributes a direction-independent
+//! baseline term to the total NSB in the current implementation.
 
 use crate::error::Result;
 use crate::spectra::starlight;

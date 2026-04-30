@@ -14,6 +14,16 @@
 //! TODO: a future stage will use `spectra::airglow_cont::load` and per-season
 //! corrections to produce a wavelength-resolved airglow spectrum instead of
 //! the polynomial point estimate.
+//!
+//! Scientific role:
+//! airglow is light emitted by Earth's upper atmosphere, even on moonless
+//! nights. It is a terrestrial contributor rather than an astrophysical one,
+//! but it is part of what astronomers actually observe from the ground.
+//!
+//! Contribution to the science:
+//! this file provides the current first-order airglow model used by the crate.
+//! It is intentionally simple: an empirical altitude-dependent polynomial that
+//! approximates how the airglow contribution changes with line of sight.
 
 use crate::error::Result;
 use qtty::radiometry::{

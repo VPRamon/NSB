@@ -5,6 +5,17 @@
 //! only the global scale and the per-wavelength relative mean profile, which
 //! is enough for a first-pass airglow component. Per-season/time corrections
 //! are applied later in `components::airglow`.
+//!
+//! Scientific role:
+//! airglow is intrinsically spectral: different wavelengths and bands vary in
+//! strength, season, and time of night. This file preserves the continuum-side
+//! reference data needed for a more detailed airglow model.
+//!
+//! Contribution to the science:
+//! the current crate still uses a simpler polynomial airglow estimate for the
+//! main evaluator, but this loader is the bridge toward a wavelength-resolved
+//! model that can represent the spectral structure of atmospheric emission more
+//! faithfully.
 
 use crate::error::{NsbError, Result};
 use siderust::qtty::{length::Meter, Nanometer};

@@ -1,4 +1,15 @@
 //! Error type for the NSB crate.
+//!
+//! Scientific role:
+//! scientific code is only as trustworthy as its failure modes. This module
+//! defines the explicit ways the NSB calculation can fail: malformed bundled
+//! reference data, invalid geometry/ranges, unsupported model requests, or
+//! upstream ephemeris/interpolation issues.
+//!
+//! Contribution to the science:
+//! by separating parse, range, interpolation, and ephemeris failures, this
+//! file helps users distinguish between "the sky model says the answer is X"
+//! and "the model could not be evaluated reliably for this input or dataset."
 
 use thiserror::Error;
 

@@ -9,6 +9,17 @@
 //! 4. Apply atmospheric extinction (Noll et al. 2012 fext for Rayleigh + Mie).
 //! 5. Convert from energy to photons via `5.03e7 · λ_Å` and integrate over
 //!    the 300–650 nm band.
+//!
+//! Scientific role:
+//! zodiacal light is sunlight scattered by interplanetary dust. It is one of
+//! the dominant dark-sky components away from the Galactic plane, especially
+//! near the ecliptic and for sightlines not far from the Sun.
+//!
+//! Contribution to the science:
+//! this file provides the most geometry-dependent optical-background component
+//! in the crate. It connects sky position relative to the Sun and ecliptic
+//! plane to a wavelength-dependent radiance, then propagates that radiance
+//! through reddening and extinction before integrating it into the NSB band.
 
 use std::sync::OnceLock;
 

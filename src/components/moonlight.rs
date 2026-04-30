@@ -28,6 +28,17 @@
 //! a full Mie / single-scatter port of the Python `CalculateMoon` pipeline
 //! using the `mie_m15s1.dat` / `sscatcor_m15s1.dat` grids and the
 //! `LUT_moon` lookup tables.
+//!
+//! Scientific role:
+//! moonlight can dominate the optical sky background when the Moon is above
+//! the horizon. The effect depends on lunar phase, Moon-target separation, and
+//! how much atmosphere the Moon and target rays pass through.
+//!
+//! Contribution to the science:
+//! this file adds a physically motivated scattered-moonlight term to the NSB
+//! model. Although it is still simplified relative to a full wavelength-
+//! resolved scattering pipeline, it captures the main observing-system impact
+//! of moon phase and geometry on sky brightness.
 
 use crate::error::Result;
 use qtty::angular::Degrees;
@@ -267,5 +278,245 @@ mod tests {
     fn airmass_at_zenith_is_unity() {
         let am = airmass_ks(0.0);
         assert!((am - 1.0).abs() < 1e-12, "X(0) = {am}");
+    }
+}
+
+// ============================================================================
+// Jones et al. (2013) Improved Moonlight Model (EXPERIMENTAL STUB)
+// ============================================================================
+
+/// Compute the Jones et al. (2013) scattered moonlight contribution.
+///
+/// # Reference
+///
+/// Jones, A., Staig, A., Noll, S., & Kausch, W. 2013, "An advanced scattered
+/// moonlight model for Cerro Paranal", Astronomy & Astrophysics, 560, A91.
+/// DOI: 10.1051/0004-6361/201322433 arXiv:1307.1407v1
+///
+/// # Overview
+///
+/// The Jones et al. (2013) model improves upon Krisciunas & Schaefer (1991) by:
+///
+/// 1. **Better handling of solar contamination**: Separates direct/diffuse
+///    solar irradiance affecting the scattered moonlight more cleanly.
+/// 2. **Improved phase function**: Uses a more physics-based scattering function
+///    that better accounts for Rayleigh/Mie transitions in different scattering
+///    angles, particularly at large zenith distances and deep twilight.
+/// 3. **Aerosol single-scattering albedo**: Incorporates wavelength-dependent
+///    aerosol properties rather than a fixed model.
+/// 4. **Enhanced edge cases**: Better behavior when the Moon is near the
+///    horizon, during twilight, or at large separation angles.
+///
+/// # Current Implementation Status
+///
+/// This is a **stub implementation** that:
+/// - ✓ Accepts the same inputs as the K&S model
+/// - ✓ Uses the same V-band → band-integrated radiance conversion
+/// - ✓ Includes parameter documentation and references
+/// - ✓ Provides tests comparing K&S vs. Jones behavior
+/// - ✗ **Does NOT implement the full Jones algorithm** (full Mie/Rayleigh,
+///   aerosol scattering corrections, etc.)
+/// - ⚠ Currently returns K&S result as a placeholder (see LIMITATIONS below)
+///
+/// # Limitations
+///
+/// The complete Jones et al. (2013) model requires:
+/// - Rayleigh optical depth lookup tables (wavelength & altitude dependent)
+/// - Mie optical depth and single-scattering albedo grids
+/// - Aerosol layer characterization
+/// - Phase functions for multiple scattering orders
+/// - Ground reflection and correction grids from `LUT_moon/*.csv`
+/// - Full spectral integration across the observing band
+///
+/// These are referenced in:
+///   `docs/NSB_STAGED_IMPLEMENTATION_PLAN.md` (stages 9–11)
+///   Python CalculateMoon pipeline: `mie_m15s1.dat`, `sscatcor_m15s1.dat`
+///
+/// For now, this function demonstrates the API and documents the scientific
+/// gaps. Production use should prefer `compute()` (K&S) until the full model
+/// is ported.
+///
+/// # Arguments
+///
+/// - `inp`: Moon geometry, phase angle, zenith distances, and separation angle.
+/// - `k_ext`: V-band extinction coefficient (mag/airmass). Use `DEFAULT_K_EXT`
+///   for consistency with published K&S curves.
+///
+/// # Returns
+///
+/// V and B surface brightnesses (S10 units) and band-integrated photon
+/// radiance, or zero values on invalid input.
+///
+/// # Physical Parameters Used
+///
+/// - **Rayleigh optical depth**: Modeled as wavelength/altitude dependent;
+///   at sea level ≈ 0.13–0.15 optically thin.
+/// - **Aerosol component**: Single-scattering albedo nominally ≈ 0.95–0.98
+///   depending on wavelength and aerosol type.
+/// - **Moon illuminance**: Phase-angle-dependent solar flux reflected by
+///   the lunar surface (albedo ≈ 0.12).
+/// - **Mie aureole**: Dominates near the Moon; more pronounced than in K&S.
+///
+/// # Why Prefer Jones et al. over K&S
+///
+/// Jones et al. (2013) is **recommended** when:
+/// - Observing during deep twilight (Sun 6–18° below horizon).
+/// - Moon altitude is very high (Zm < 20°) or very low (Zm > 70°).
+/// - Studying faint sources where the ±0.5 mag K&S scatter matters.
+///
+/// K&S (1991) remains adequate when:
+/// - Quick estimates are needed and the ±0.5 mag model uncertainty is acceptable.
+/// - Observing in full darkness (Sun > 18° below horizon) with bright moonlight.
+///
+pub fn compute_jones2013(inp: &MoonInputs) -> Result<MoonOutputs> {
+    compute_jones2013_with_extinction(inp, DEFAULT_K_EXT)
+}
+
+/// Variant of `compute_jones2013` allowing override of extinction coefficient.
+///
+/// See [`compute_jones2013`] for full documentation.
+pub fn compute_jones2013_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result<MoonOutputs> {
+    let z_moon = inp.moon_zenith.value();
+    let z_src = inp.source_zenith.value();
+    let rho = inp.separation.value();
+
+    if !z_moon.is_finite() || !z_src.is_finite() || !rho.is_finite() || !k_ext.is_finite() {
+        return Ok(zero_outputs());
+    }
+    if z_moon >= 90.0 || z_src >= 90.0 || rho <= 0.0 {
+        return Ok(zero_outputs());
+    }
+
+    let alpha_deg = inp.phase.phase_angle.to::<qtty::angular::Degree>().value();
+
+    // ========================================================================
+    // STUB IMPLEMENTATION
+    // ========================================================================
+    // For now, use K&S as the fallback. The full Jones et al. model requires
+    // the aerosol/Mie/Rayleigh infrastructure mentioned in the docs.
+    //
+    // TODO: Replace with full Jones et al. algorithm once:
+    //   1. Rayleigh optical depth tables are ported (wavelength/altitude)
+    //   2. Mie grids (mie_m15s1.dat) are integrated
+    //   3. Aerosol correction grids are loaded
+    //   4. Phase functions for multiple scattering orders are available
+    // ========================================================================
+
+    let b_nl = scattered_brightness_nanolamberts(alpha_deg, rho, z_moon, z_src, k_ext);
+
+    if !b_nl.is_finite() || b_nl <= 0.0 {
+        return Ok(zero_outputs());
+    }
+
+    let v_mag_arcsec2 = v_mag_per_arcsec2_from_nl(b_nl);
+    let v_s10 = 10f64.powf(0.4 * (NSB_S10_ZP - v_mag_arcsec2));
+    let integrated = v_s10 * S10_V_TO_INTEGRATED_PH;
+
+    Ok(MoonOutputs {
+        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(integrated),
+        b_flux_s10: radiometry::S10s::new(v_s10),
+        v_flux_s10: radiometry::S10s::new(v_s10),
+    })
+}
+
+#[cfg(test)]
+mod jones_tests {
+    use super::*;
+    use qtty::angular::Radians;
+
+    fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
+        MoonPhaseGeometry {
+            phase_angle: Radians::new(alpha_deg.to_radians()),
+            illuminated_fraction: 0.5 * (1.0 + alpha_deg.to_radians().cos()),
+            elongation: Radians::new(0.0),
+            waxing: true,
+        }
+    }
+
+    fn inputs(alpha_deg: f64, rho_deg: f64, z_moon: f64, z_src: f64) -> MoonInputs {
+        MoonInputs {
+            separation: Degrees::new(rho_deg),
+            moon_zenith: Degrees::new(z_moon),
+            phase: make_phase(alpha_deg),
+            source_zenith: Degrees::new(z_src),
+        }
+    }
+
+    fn v_mag_arcsec2(out: &MoonOutputs) -> f64 {
+        NSB_S10_ZP - 2.5 * out.v_flux_s10.value().log10()
+    }
+
+    #[test]
+    fn jones2013_full_moon_high_altitude() {
+        // Full moon (α=0°) at high Moon altitude (Zm=20°), separation 90°.
+        // Both K&S and Jones should give similar results for bright full moon.
+        let inp = inputs(0.0, 90.0, 20.0, 45.0);
+        
+        let out_ks = compute(&inp).unwrap();
+        let out_jones = compute_jones2013(&inp).unwrap();
+
+        assert!(out_jones.v_flux_s10.value() > 0.0, "Jones full moon should have positive brightness");
+        
+        let v_ks = v_mag_arcsec2(&out_ks);
+        let v_jones = v_mag_arcsec2(&out_jones);
+        
+        // For this bright scenario, K&S and Jones (currently same) should agree
+        let diff = (v_jones - v_ks).abs();
+        assert!(diff < 0.1, "Full moon V_mag difference {:.3} exceeds 0.1 mag", diff);
+    }
+
+    #[test]
+    fn jones2013_twilight_conditions() {
+        // Twilight scenario: Moon at moderate altitude, source at zenith,
+        // phase angle 45° (half-moon scenario).
+        let inp = inputs(45.0, 60.0, 50.0, 30.0);
+        
+        let out = compute_jones2013(&inp).unwrap();
+        assert!(out.v_flux_s10.value() > 0.0, "Jones twilight should have positive brightness");
+        
+        // Ensure the output is well-formed
+        assert!(out.integrated.value() > 0.0, "Jones integrated radiance should be positive");
+        assert!(out.b_flux_s10.value() > 0.0, "Jones B-band brightness should be positive");
+    }
+
+    #[test]
+    fn jones2013_new_moon_negligible() {
+        // New moon (α=180°) should have negligible scattered brightness
+        // compared to full moon.
+        let inp_new = inputs(180.0, 90.0, 45.0, 45.0);
+        let inp_full = inputs(0.0, 90.0, 45.0, 45.0);
+        
+        let out_new = compute_jones2013(&inp_new).unwrap();
+        let out_full = compute_jones2013(&inp_full).unwrap();
+        
+        assert!(out_full.v_flux_s10.value() > 0.0);
+        assert!(
+            out_new.v_flux_s10.value() < out_full.v_flux_s10.value() * 1e-3,
+            "Jones new moon should be << full moon; new={}, full={}",
+            out_new.v_flux_s10.value(),
+            out_full.v_flux_s10.value()
+        );
+    }
+
+    #[test]
+    fn jones2013_moon_below_horizon_returns_zero() {
+        let out = compute_jones2013(&inputs(0.0, 30.0, 95.0, 30.0)).unwrap();
+        assert_eq!(out.v_flux_s10.value(), 0.0, "Jones should return zero when Moon below horizon");
+        assert_eq!(out.integrated.value(), 0.0);
+    }
+
+    #[test]
+    fn jones2013_vs_ks_comparison() {
+        // Comparison test showing current parity (stub uses K&S).
+        // Once the full Jones algorithm is implemented, this test may need updating.
+        let inp = inputs(60.0, 75.0, 40.0, 50.0);
+        
+        let out_ks = compute(&inp).unwrap();
+        let out_jones = compute_jones2013(&inp).unwrap();
+        
+        // Currently, Jones stub should return same values as K&S
+        let ratio = out_jones.v_flux_s10.value() / out_ks.v_flux_s10.value();
+        assert!((ratio - 1.0).abs() < 1e-10, 
+            "Stub Jones should match K&S; ratio={:.6}", ratio);
     }
 }
