@@ -14,7 +14,8 @@ use anyhow::{anyhow, Context};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use nsb::{
-    ComponentMask, Location, NsbEvaluator, PointQuery, Site, Target, ThresholdQuery, DEG,
+    AirglowModel, ComponentMask, Location, MoonlightModel, NsbEvaluator, NsbModelConfig,
+    PointQuery, Site, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -96,8 +97,7 @@ struct ComponentArgs {
     #[arg(long, conflicts_with = "component")]
     all: bool,
 
-    /// Components to include. May be repeated. Defaults to zodiacal,
-    /// starlight, airglow.
+    /// Components to include. May be repeated. Defaults to all components.
     #[arg(long = "component", value_enum)]
     component: Vec<ComponentArg>,
 }
@@ -108,11 +108,85 @@ impl ComponentArgs {
             return ComponentMask::ALL;
         }
         if self.component.is_empty() {
-            return ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW;
+            return ComponentMask::ALL;
         }
         self.component
             .iter()
             .fold(ComponentMask::empty(), |acc, c| acc | c.mask())
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum ModelArg {
+    Best,
+    PythonParity,
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum AirglowModelArg {
+    PythonPolynomial,
+    SkycalcContinuum,
+}
+
+impl AirglowModelArg {
+    fn model(self) -> AirglowModel {
+        match self {
+            Self::PythonPolynomial => AirglowModel::PythonPolynomial,
+            Self::SkycalcContinuum => AirglowModel::SkyCalcContinuum,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum MoonModelArg {
+    KrisciunasSchaefer,
+    Jones2013Spectral,
+}
+
+impl MoonModelArg {
+    fn model(self) -> MoonlightModel {
+        match self {
+            Self::KrisciunasSchaefer => MoonlightModel::KrisciunasSchaefer1991,
+            Self::Jones2013Spectral => MoonlightModel::Jones2013Spectral,
+        }
+    }
+}
+
+#[derive(Debug, Args)]
+struct ModelArgs {
+    /// Overall model preset.
+    #[arg(long, value_enum, default_value = "best")]
+    model: ModelArg,
+
+    /// Override the airglow model selected by --model.
+    #[arg(long = "airglow-model", value_enum)]
+    airglow_model: Option<AirglowModelArg>,
+
+    /// Override the moonlight model selected by --model.
+    #[arg(long = "moon-model", value_enum)]
+    moon_model: Option<MoonModelArg>,
+
+    /// Solar radio flux F10.7 in solar flux units for SkyCalc airglow.
+    #[arg(long)]
+    solar_radio_flux_sfu: Option<f64>,
+}
+
+impl ModelArgs {
+    fn resolve(&self) -> NsbModelConfig {
+        let mut config = match self.model {
+            ModelArg::Best => NsbModelConfig::best_science(),
+            ModelArg::PythonParity => NsbModelConfig::python_parity(),
+        };
+        if let Some(model) = self.airglow_model {
+            config.airglow_model = model.model();
+        }
+        if let Some(model) = self.moon_model {
+            config.moonlight_model = model.model();
+        }
+        if let Some(flux) = self.solar_radio_flux_sfu {
+            config.solar_radio_flux_sfu = flux;
+        }
+        config
     }
 }
 
@@ -131,6 +205,9 @@ struct PointArgs {
 
     #[command(flatten)]
     components: ComponentArgs,
+
+    #[command(flatten)]
+    model: ModelArgs,
 }
 
 #[derive(Debug, Args)]
@@ -169,6 +246,9 @@ struct WindowArgs {
 
     #[command(flatten)]
     components: ComponentArgs,
+
+    #[command(flatten)]
+    model: ModelArgs,
 }
 
 fn parse_utc(s: &str) -> anyhow::Result<Time<UTC>> {
@@ -211,7 +291,7 @@ fn run_point(args: PointArgs) -> anyhow::Result<()> {
         target: resolve_target(&args.target),
         components: args.components.resolve(),
     };
-    let evaluator = NsbEvaluator::new().map_err(|e| anyhow!("{e}"))?;
+    let evaluator = NsbEvaluator::with_config(args.model.resolve()).map_err(|e| anyhow!("{e}"))?;
     let r = evaluator.evaluate(&query).map_err(|e| anyhow!("{e}"))?;
 
     for c in &r.components {
@@ -251,7 +331,7 @@ fn run_window(args: WindowArgs) -> anyhow::Result<()> {
         sun_altitude_ceiling,
         target_altitude_floor,
     };
-    let evaluator = NsbEvaluator::new().map_err(|e| anyhow!("{e}"))?;
+    let evaluator = NsbEvaluator::with_config(args.model.resolve()).map_err(|e| anyhow!("{e}"))?;
     let result = evaluator
         .periods_below_threshold(&query)
         .map_err(|e| anyhow!("{e}"))?;
@@ -266,11 +346,7 @@ fn run_window(args: WindowArgs) -> anyhow::Result<()> {
     }
     println!("{} period(s) below threshold:", result.periods.len());
     for (i, p) in result.periods.iter().enumerate() {
-        println!(
-            "  [{i:>3}] {} → {}",
-            format_utc(p.start),
-            format_utc(p.end)
-        );
+        println!("  [{i:>3}] {} → {}", format_utc(p.start), format_utc(p.end));
     }
     Ok(())
 }

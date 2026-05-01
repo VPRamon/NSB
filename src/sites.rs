@@ -165,6 +165,7 @@ pub const ALL_SITES: &[CatalogSite] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+    use siderust::qtty::{Degrees, Meters};
 
     #[test]
     fn catalogue_invariants() {
@@ -176,24 +177,24 @@ mod tests {
 
         for site in ALL_SITES {
             let geo = site.geodetic();
-            let lon = geo.lon.value();
-            let lat = geo.lat.value();
-            let elev = geo.height.value();
 
             assert!(
-                (-90.0..=90.0).contains(&lat),
-                "{}: latitude {lat} out of [-90, 90]",
-                site.name
+                geo.lat >= Degrees::new(-90.0) && geo.lat <= Degrees::new(90.0),
+                "{}: latitude {}° out of [-90, 90]",
+                site.name,
+                geo.lat.value()
             );
             assert!(
-                (-180.0..=360.0).contains(&lon),
-                "{}: longitude {lon} out of [-180, 360]",
-                site.name
+                geo.lon >= Degrees::new(-180.0) && geo.lon <= Degrees::new(360.0),
+                "{}: longitude {}° out of [-180, 360]",
+                site.name,
+                geo.lon.value()
             );
             assert!(
-                (0.0..=5000.0).contains(&elev),
-                "{}: elevation {elev} out of [0, 5000]",
-                site.name
+                geo.height >= Meters::new(0.0) && geo.height <= Meters::new(5000.0),
+                "{}: elevation {}m out of [0, 5000]",
+                site.name,
+                geo.height.value()
             );
             assert!(
                 site.k_v > 0.0 && site.k_v < 1.0,

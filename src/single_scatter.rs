@@ -1,88 +1,76 @@
-//! Single-scattering lookup table for Rayleigh and Mie scattering.
+//! Tabulated scattering grids used by the advanced moonlight model.
 //!
-//! Provides pre-computed grids of scattering coefficients as a function of
-//! zenith angle and wavelength, reducing real-time computation for night-sky
-//! background brightness estimates.
-//!
-//! Scientific role:
-//! atmospheric scattering is one of the mechanisms that redistributes light
-//! from bright sources, especially the Moon, into other sky directions.
-//!
-//! Contribution to the science:
-//! this file currently provides a simplified, educational lookup grid rather
-//! than the full production moon-scattering pipeline. It is useful as a bridge
-//! toward more detailed single-scatter treatments and for explaining why sky
-//! brightness depends on wavelength and line-of-sight geometry.
+//! The bundled `mie_m15s1.dat` table stores the Paranal aerosol/Mie phase
+//! function as wavelength × scattering angle.  The bundled
+//! `sscatcor_m15s1.dat` table stores multiple-scattering correction factors
+//! over the same kind of axes.  This module keeps those datasets NSB-local but
+//! uses the generic `siderust::tables` interpolation kernels.
 
+use crate::error::{NsbError, Result};
 use siderust::qtty::{Degrees, Nanometers};
 use siderust::tables::{algo, AxisDirection, OutOfRange};
 
-/// Pre-computed single-scattering grid for zenith angle and wavelength.
-///
-/// This struct stores a lookup table of scattering coefficients indexed by
-/// zenith angle (0° to ~89°) and wavelength (350–1100 nm). The underlying
-/// data follows a Rayleigh scattering model (∝ λ⁻⁴) for visible wavelengths.
+const MIE_RAW: &str = include_str!("../data/mie_m15s1.dat");
+const SSCAT_RAW: &str = include_str!("../data/sscatcor_m15s1.dat");
+
+siderust::assert_data_checksum!(
+    "NSB/data/mie_m15s1.dat",
+    MIE_RAW.as_bytes(),
+    "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
+);
+siderust::assert_data_checksum!(
+    "NSB/data/sscatcor_m15s1.dat",
+    SSCAT_RAW.as_bytes(),
+    "2bf48a71e007bc557bd088d53ede15e97163d9154f19b1e411b104c38c4a18b8"
+);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScatterGridKind {
+    MiePhase,
+    MultipleScatteringCorrection,
+}
+
+/// Pre-computed scattering grid indexed by scattering angle and wavelength.
 #[derive(Clone, Debug)]
 pub struct ScatterGrid {
-    /// Zenith angles in degrees
-    zenith_deg: Vec<f64>,
-    /// Wavelengths in nanometers
+    kind: ScatterGridKind,
+    angle_deg: Vec<f64>,
     wavelength_nm: Vec<f64>,
-    /// Flattened scattering coefficients: data[i * wl_count + j]
-    /// where i indexes zenith angle, j indexes wavelength.
+    /// Row-major storage: data[angle_idx * wavelength_count + wavelength_idx].
     data: Vec<f64>,
 }
 
 impl ScatterGrid {
-    /// Creates a new scatter grid with example data for Rayleigh scattering.
-    ///
-    /// Grid dimensions:
-    /// - Zenith angles: [0°, 20°, 40°, 60°, 80°, 89°] (6 points)
-    /// - Wavelengths: [400, 500, 600, 800, 1000] nm (5 points)
-    ///
-    /// Scattering coefficients are computed using a Rayleigh model:
-    /// σ(λ, z) = σ₀ * (λ₀ / λ)⁴ * airmass_factor(z)
-    ///
-    /// where airmass_factor approximates the optical depth increase with zenith angle.
+    /// Load the production Mie phase grid.
     pub fn new() -> Self {
-        let zenith_deg: Vec<f64> = vec![0.0, 20.0, 40.0, 60.0, 80.0, 89.0];
-        let wavelength_nm: Vec<f64> = vec![400.0, 500.0, 600.0, 800.0, 1000.0];
-
-        // Reference scattering coefficient at 500 nm and 0° zenith
-        const SIGMA_500NM_REF: f64 = 1.0; // Arbitrary unit; normalized to 1.0
-        const WAVELENGTH_REF: f64 = 500.0;
-
-        let mut data = Vec::with_capacity(zenith_deg.len() * wavelength_nm.len());
-
-        for z_deg in &zenith_deg {
-            // Simple airmass approximation: X ≈ 1 / cos(z)
-            // For z near 90°, this becomes very large, but we cap it for realism.
-            let z_rad: f64 = z_deg.to_radians();
-            let airmass = if *z_deg < 89.0 {
-                1.0 / z_rad.cos()
-            } else {
-                // At 89°, airmass ≈ 57; we use a realistic value
-                57.0
-            };
-
-            for wl_nm in &wavelength_nm {
-                // Rayleigh scattering: σ ∝ λ⁻⁴
-                let rayleigh_factor = (WAVELENGTH_REF / wl_nm).powi(4);
-                let coefficient = SIGMA_500NM_REF * rayleigh_factor * airmass;
-                data.push(coefficient);
-            }
-        }
-
-        ScatterGrid {
-            zenith_deg,
-            wavelength_nm,
-            data,
-        }
+        Self::mie_phase().expect("bundled Mie phase grid must parse")
     }
 
-    /// Returns the zenith angles covered by this grid.
+    pub fn mie_phase() -> Result<Self> {
+        parse_grid(MIE_RAW, "mie_m15s1.dat", ScatterGridKind::MiePhase)
+    }
+
+    pub fn multiple_scattering_correction() -> Result<Self> {
+        parse_grid(
+            SSCAT_RAW,
+            "sscatcor_m15s1.dat",
+            ScatterGridKind::MultipleScatteringCorrection,
+        )
+    }
+
+    pub fn kind(&self) -> ScatterGridKind {
+        self.kind
+    }
+
+    /// Returns the scattering angles covered by this grid.
+    pub fn angles(&self) -> &[f64] {
+        &self.angle_deg
+    }
+
+    /// Backwards-compatible alias for callers that used the old placeholder
+    /// grid's zenith-angle terminology.
     pub fn zenith_angles(&self) -> &[f64] {
-        &self.zenith_deg
+        self.angles()
     }
 
     /// Returns the wavelengths covered by this grid.
@@ -90,26 +78,23 @@ impl ScatterGrid {
         &self.wavelength_nm
     }
 
-    /// Returns the grid dimensions as (zenith_count, wavelength_count).
+    /// Returns the grid dimensions as (angle_count, wavelength_count).
     pub fn dimensions(&self) -> (usize, usize) {
-        (self.zenith_deg.len(), self.wavelength_nm.len())
+        (self.angle_deg.len(), self.wavelength_nm.len())
     }
 
-    /// Looks up the scattering coefficient at the given zenith angle and wavelength.
-    ///
-    /// Uses bilinear interpolation if the requested point falls between grid points.
-    /// Points outside the grid are clamped to the nearest edge.
-    pub fn lookup(&self, zenith: Degrees, wavelength: Nanometers) -> f64 {
-        let nz = self.zenith_deg.len();
+    /// Bilinear lookup at `angle` and `wavelength`; out-of-range queries clamp
+    /// to the nearest table boundary for parity with the original Python path.
+    pub fn lookup(&self, angle: Degrees, wavelength: Nanometers) -> f64 {
+        let na = self.angle_deg.len();
         let nw = self.wavelength_nm.len();
-        // rows[z_idx][wl_idx] — zenith is the row (y) axis, wavelength is column (x)
-        let rows: Vec<&[f64]> = (0..nz).map(|i| &self.data[i * nw..(i + 1) * nw]).collect();
+        let rows: Vec<&[f64]> = (0..na).map(|i| &self.data[i * nw..(i + 1) * nw]).collect();
         algo::bilinear(
             &self.wavelength_nm,
-            &self.zenith_deg,
+            &self.angle_deg,
             &rows,
             wavelength.value(),
-            zenith.value(),
+            angle.value(),
             OutOfRange::ClampToEndpoints,
             OutOfRange::ClampToEndpoints,
             AxisDirection::Ascending,
@@ -125,132 +110,143 @@ impl Default for ScatterGrid {
     }
 }
 
+fn parse_grid(raw: &str, file: &'static str, kind: ScatterGridKind) -> Result<ScatterGrid> {
+    let mut lines = raw.lines().filter_map(|line| {
+        let t = line.trim();
+        if t.is_empty() || t.starts_with('#') {
+            None
+        } else {
+            Some(t)
+        }
+    });
+
+    let dims = lines
+        .next()
+        .ok_or_else(|| parse_err(file, "missing dimensions"))?;
+    let dims = parse_usizes(dims, file, "dimensions")?;
+    if dims.len() != 2 {
+        return Err(parse_err(file, "dimensions must contain two values"));
+    }
+    let (n_wavelength, n_angle) = (dims[0], dims[1]);
+
+    let wavelength_um = parse_f64s(
+        lines
+            .next()
+            .ok_or_else(|| parse_err(file, "missing wavelength axis"))?,
+        file,
+        "wavelength axis",
+    )?;
+    if wavelength_um.len() != n_wavelength {
+        return Err(parse_err(file, "wavelength axis length mismatch"));
+    }
+    let wavelength_nm: Vec<f64> = wavelength_um.into_iter().map(|x| x * 1000.0).collect();
+
+    let angle_deg = parse_f64s(
+        lines
+            .next()
+            .ok_or_else(|| parse_err(file, "missing angle axis"))?,
+        file,
+        "angle axis",
+    )?;
+    if angle_deg.len() != n_angle {
+        return Err(parse_err(file, "angle axis length mismatch"));
+    }
+
+    let mut wavelength_major = Vec::with_capacity(n_wavelength);
+    for row_idx in 0..n_wavelength {
+        let row = lines
+            .next()
+            .ok_or_else(|| parse_err(file, "premature EOF in grid data"))?;
+        let values = parse_f64s(row, file, "grid row")?;
+        if values.len() != n_angle {
+            return Err(parse_err(
+                file,
+                &format!("grid row {row_idx} length mismatch"),
+            ));
+        }
+        wavelength_major.push(values);
+    }
+
+    let mut data = Vec::with_capacity(n_angle * n_wavelength);
+    for angle_idx in 0..n_angle {
+        for row in wavelength_major.iter().take(n_wavelength) {
+            data.push(row[angle_idx]);
+        }
+    }
+
+    Ok(ScatterGrid {
+        kind,
+        angle_deg,
+        wavelength_nm,
+        data,
+    })
+}
+
+fn parse_f64s(row: &str, file: &'static str, label: &'static str) -> Result<Vec<f64>> {
+    row.split_whitespace()
+        .map(|x| {
+            x.parse::<f64>()
+                .map_err(|_| parse_err(file, format!("bad {label} value: {x:?}")))
+        })
+        .collect()
+}
+
+fn parse_usizes(row: &str, file: &'static str, label: &'static str) -> Result<Vec<usize>> {
+    row.split_whitespace()
+        .map(|x| {
+            x.parse::<usize>()
+                .map_err(|_| parse_err(file, format!("bad {label} value: {x:?}")))
+        })
+        .collect()
+}
+
+fn parse_err(file: &'static str, message: impl Into<String>) -> NsbError {
+    NsbError::DataParse {
+        file,
+        message: message.into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use siderust::provenance::checksum::{sha256, to_hex};
 
     #[test]
-    fn test_grid_creation() {
-        let grid = ScatterGrid::new();
-        assert_eq!(grid.zenith_deg.len(), 6);
-        assert_eq!(grid.wavelength_nm.len(), 5);
-        assert_eq!(grid.data.len(), 6 * 5);
-    }
-
-    #[test]
-    fn test_grid_dimensions() {
-        let grid = ScatterGrid::new();
-        let (z_count, wl_count) = grid.dimensions();
-        assert_eq!(z_count, 6);
-        assert_eq!(wl_count, 5);
-    }
-
-    #[test]
-    fn test_zenith_wavelength_coverage() {
-        let grid = ScatterGrid::new();
-        let zenith = grid.zenith_angles();
-        let wavelength = grid.wavelengths();
-
-        assert_eq!(zenith[0], 0.0);
-        assert_eq!(zenith[zenith.len() - 1], 89.0);
-        assert_eq!(wavelength[0], 400.0);
-        assert_eq!(wavelength[wavelength.len() - 1], 1000.0);
-    }
-
-    #[test]
-    fn test_lookup_at_grid_points() {
-        let grid = ScatterGrid::new();
-
-        // Lookup at exact grid points should return the stored values
-        let val_00 = grid.lookup(Degrees::new(0.0), Nanometers::new(400.0));
-        assert!(val_00 > 0.0);
-
-        let val_89_1000 = grid.lookup(Degrees::new(89.0), Nanometers::new(1000.0));
-        assert!(val_89_1000 > 0.0);
-    }
-
-    #[test]
-    fn test_lookup_interpolation() {
-        let grid = ScatterGrid::new();
-
-        // Interpolation between grid points
-        let val_at_10_deg = grid.lookup(Degrees::new(10.0), Nanometers::new(450.0));
-        assert!(val_at_10_deg > 0.0);
-
-        // Should be between the corner values
-        let val_0_400 = grid.lookup(Degrees::new(0.0), Nanometers::new(400.0));
-        let _val_20_500 = grid.lookup(Degrees::new(20.0), Nanometers::new(500.0));
-        assert!(val_at_10_deg >= val_0_400 * 0.5); // Very loose bound
-    }
-
-    #[test]
-    fn test_lookup_out_of_bounds_clamping() {
-        let grid = ScatterGrid::new();
-
-        // Values outside bounds should be clamped to edge
-        let val_neg_zenith = grid.lookup(Degrees::new(-10.0), Nanometers::new(500.0));
-        let val_0_zenith = grid.lookup(Degrees::new(0.0), Nanometers::new(500.0));
-        assert_eq!(val_neg_zenith, val_0_zenith);
-
-        let val_high_zenith = grid.lookup(Degrees::new(100.0), Nanometers::new(500.0));
-        let val_89_zenith = grid.lookup(Degrees::new(89.0), Nanometers::new(500.0));
-        assert_eq!(val_high_zenith, val_89_zenith);
-
-        let val_low_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(300.0));
-        let val_400_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(400.0));
-        assert_eq!(val_low_wl, val_400_wl);
-
-        let val_high_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(1500.0));
-        let val_1000_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(1000.0));
-        assert_eq!(val_high_wl, val_1000_wl);
-    }
-
-    #[test]
-    fn test_rayleigh_scaling() {
-        // Test that the Rayleigh λ⁻⁴ scaling is approximately preserved
-        // across the grid at a fixed zenith angle.
-        let grid = ScatterGrid::new();
-        let z = Degrees::new(0.0);
-
-        let val_400 = grid.lookup(z, Nanometers::new(400.0));
-        let val_500 = grid.lookup(z, Nanometers::new(500.0));
-        let val_600 = grid.lookup(z, Nanometers::new(600.0));
-
-        // For Rayleigh: σ(λ) ∝ λ⁻⁴
-        // So σ(400) / σ(500) should be close to (500/400)⁴
-        let ratio_400_500_expected = (500.0 / 400.0_f64).powi(4);
-        let ratio_400_500_actual = val_400 / val_500;
-        assert!((ratio_400_500_actual - ratio_400_500_expected).abs() < 0.01);
-
-        let ratio_600_500_expected = (500.0 / 600.0_f64).powi(4);
-        let ratio_600_500_actual = val_600 / val_500;
-        assert!((ratio_600_500_actual - ratio_600_500_expected).abs() < 0.01);
-    }
-
-    #[test]
-    fn test_airmass_increase_with_zenith() {
-        // Scattering coefficient should increase with zenith angle due to airmass
-        let grid = ScatterGrid::new();
-        let wl = Nanometers::new(500.0);
-
-        let val_0 = grid.lookup(Degrees::new(0.0), wl);
-        let val_45 = grid.lookup(Degrees::new(45.0), wl);
-        let val_80 = grid.lookup(Degrees::new(80.0), wl);
-
-        // Higher zenith angle => higher airmass => higher scattering coefficient
-        assert!(val_45 > val_0);
-        assert!(val_80 > val_45);
-    }
-
-    #[test]
-    fn test_default_constructor() {
-        let grid1 = ScatterGrid::new();
-        let grid2 = ScatterGrid::default();
-
-        assert_eq!(grid1.dimensions(), grid2.dimensions());
+    fn pinned_checksums_match_runtime_hashes() {
         assert_eq!(
-            grid1.lookup(Degrees::new(45.0), Nanometers::new(500.0)),
-            grid2.lookup(Degrees::new(45.0), Nanometers::new(500.0))
+            to_hex(&sha256(MIE_RAW.as_bytes())),
+            "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
         );
+        assert_eq!(
+            to_hex(&sha256(SSCAT_RAW.as_bytes())),
+            "2bf48a71e007bc557bd088d53ede15e97163d9154f19b1e411b104c38c4a18b8"
+        );
+    }
+
+    #[test]
+    fn mie_phase_grid_loads_known_value() {
+        let grid = ScatterGrid::mie_phase().unwrap();
+        assert_eq!(grid.kind(), ScatterGridKind::MiePhase);
+        assert_eq!(grid.dimensions(), (181, 40));
+        let v = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
+        assert!((v - 57.433_337).abs() < 1.0e-6);
+    }
+
+    #[test]
+    fn correction_grid_loads_known_value() {
+        let grid = ScatterGrid::multiple_scattering_correction().unwrap();
+        assert_eq!(grid.kind(), ScatterGridKind::MultipleScatteringCorrection);
+        assert_eq!(grid.dimensions(), (16, 40));
+        let v = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
+        assert!((v - 1.936).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn lookup_clamps_to_boundaries() {
+        let grid = ScatterGrid::mie_phase().unwrap();
+        let low = grid.lookup(Degrees::new(-10.0), Nanometers::new(100.0));
+        let edge = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
+        assert_eq!(low, edge);
     }
 }

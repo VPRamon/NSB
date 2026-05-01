@@ -31,7 +31,9 @@ use crate::error::{NsbError, Result};
 use crate::spectra::SampledSpectrum;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
 use qtty::radiometry::{
+    spectral_radiance_to_photon_radiance_ns_nm,
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
+    WattsPerSquareMeterSteradianNanometer,
 };
 use siderust::atmosphere::{airmass, AirmassFormula};
 use siderust::qtty::{length::Meter, Nanometer, Nanometers};
@@ -126,18 +128,30 @@ pub struct ZlOutputs {
 /// at construction time, so this function is now a thin radians→degrees
 /// wrapper around [`Grid2D::interp_at`].
 pub fn leinert_lookup_s10(beta: Radians, delta_lambda: Radians) -> Result<S10> {
-    let beta_deg = beta.to::<Degree>().value().abs();
-    let dl_deg = delta_lambda.to::<Degree>().value().abs().min(180.0);
-    if !(0.0..90.0).contains(&beta_deg) {
-        return Err(NsbError::OutOfRange(format!("β={beta_deg}° not in [0,90)")));
+    if !beta.is_finite() {
+        return Err(NsbError::OutOfRange(format!(
+            "β={} rad is not finite",
+            beta.value()
+        )));
     }
-    if !(0.0..=180.0).contains(&dl_deg) {
-        return Err(NsbError::OutOfRange(format!("Δλ={dl_deg}° not in [0,180]")));
+    if !delta_lambda.is_finite() {
+        return Err(NsbError::OutOfRange(format!(
+            "Δλ={} rad is not finite",
+            delta_lambda.value()
+        )));
+    }
+    let beta_abs = beta.abs().to::<Degree>();
+    let dl_abs = delta_lambda.abs().to::<Degree>().min(Degrees::new(180.0));
+    if beta_abs >= Degrees::new(90.0) {
+        return Err(NsbError::OutOfRange(format!(
+            "β={}° not in [0,90)",
+            beta_abs.value()
+        )));
     }
     s10_grid()
         .interp_at(
-            Degrees::new(beta_deg),
-            Degrees::new(dl_deg),
+            beta_abs,
+            dl_abs,
             OutOfRange::ClampToEndpoints,
             OutOfRange::ClampToEndpoints,
         )
@@ -147,9 +161,7 @@ pub fn leinert_lookup_s10(beta: Radians, delta_lambda: Radians) -> Result<S10> {
 /// Leinert reddening factor at a given wavelength and elongation.
 /// Mirrors `GetZodicalReddening` in NSB_Utils.py.
 fn reddening_factor(beta: Radians, delta_lambda: Radians, lambda_nm: f64) -> f64 {
-    let elong_deg = (delta_lambda.value().cos() * beta.value().cos())
-        .acos()
-        .to_degrees();
+    let elong_deg = (delta_lambda.cos() * beta.cos()).acos().to_degrees();
     let log_ratio = (lambda_nm / 500.0).ln();
     if elong_deg <= 30.0 {
         if (220.0..550.0).contains(&lambda_nm) {
@@ -267,13 +279,11 @@ pub fn compute(
             v_zl_um = zl_ext_um;
         }
 
-        // Convert energy → photons.
-        // 1 W/m²/sr/nm = 1e7 erg/s · 1e-4/cm² · 0.1/Å  =  100 erg/(s·cm²·sr·Å)
-        let lam_a = l * 10.0;
-        let zl_erg_cgs = zl_ext * 100.0; // erg s⁻¹ cm⁻² sr⁻¹ Å⁻¹
-        let zl_ph_per_a = zl_erg_cgs * 5.03e7 * lam_a; // ph s⁻¹ cm⁻² sr⁻¹ Å⁻¹
-        let zl_ph_per_nm = zl_ph_per_a * 10.0; // ph s⁻¹ cm⁻² sr⁻¹ nm⁻¹
-        let zl_ph_per_ns_per_nm = zl_ph_per_nm * 1e-9; // ph ns⁻¹ cm⁻² sr⁻¹ nm⁻¹
+        let zl_ph_per_ns_per_nm = spectral_radiance_to_photon_radiance_ns_nm(
+            WattsPerSquareMeterSteradianNanometer::new(zl_ext),
+            Nanometers::new(l),
+        )
+        .value();
         lam.push(l);
         zl_ph.push(zl_ph_per_ns_per_nm);
     }

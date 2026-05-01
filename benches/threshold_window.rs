@@ -125,5 +125,10 @@ fn bench_window_with_moon(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_point_eval, bench_window, bench_window_with_moon);
+criterion_group!(
+    benches,
+    bench_point_eval,
+    bench_window,
+    bench_window_with_moon
+);
 criterion_main!(benches);

@@ -14,7 +14,7 @@ fn parse(s: &str) -> Time<UTC> {
 
 #[test]
 fn optimized_matches_legacy_within_tolerance() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let evaluator = NsbEvaluator::python_parity().expect("evaluator");
     let start = parse("2023-09-04T00:00:00Z");
     let end = parse("2023-09-05T00:00:00Z");
 
