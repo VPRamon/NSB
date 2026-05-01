@@ -65,8 +65,7 @@ impl SolarSpectrum {
             0.92,
         ];
 
-        SolarSpectrum::new(wavelength_nm, flux_wm2_nm)
-            .expect("default spectrum should be valid")
+        SolarSpectrum::new(wavelength_nm, flux_wm2_nm).expect("default spectrum should be valid")
     }
 
     /// Integrates the spectrum over the given wavelength range [λ_min, λ_max].
@@ -85,7 +84,9 @@ impl SolarSpectrum {
     /// Integrates the entire spectrum.
     pub fn integrate_total(&self) -> f64 {
         match (self.wavelength_nm.first(), self.wavelength_nm.last()) {
-            (Some(&lo), Some(&hi)) => algo::trapz_range(&self.wavelength_nm, &self.flux_wm2_nm, lo, hi),
+            (Some(&lo), Some(&hi)) => {
+                algo::trapz_range(&self.wavelength_nm, &self.flux_wm2_nm, lo, hi)
+            }
             _ => 0.0,
         }
     }
@@ -126,7 +127,8 @@ impl SolarSpectrum {
         // Check interpolated flux in a small window around 555 nm
         let vband_low = 550.0;
         let vband_high = 560.0;
-        let vband_flux = self.integrate_range(Nanometers::new(vband_low), Nanometers::new(vband_high));
+        let vband_flux =
+            self.integrate_range(Nanometers::new(vband_low), Nanometers::new(vband_high));
         let vband_width = vband_high - vband_low; // 10 nm
         let vband_avg = vband_flux / vband_width;
 
@@ -175,8 +177,16 @@ mod tests {
     #[test]
     fn test_wavelength_bounds() {
         let spectrum = SolarSpectrum::kurucz_default();
-        let min_w = spectrum.wavelength_nm.iter().copied().fold(f64::INFINITY, f64::min);
-        let max_w = spectrum.wavelength_nm.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        let min_w = spectrum
+            .wavelength_nm
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min);
+        let max_w = spectrum
+            .wavelength_nm
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max);
         assert!(min_w >= 300.0, "min wavelength {} < 300 nm", min_w);
         assert!(max_w <= 2500.0, "max wavelength {} > 2500 nm", max_w);
     }
@@ -192,19 +202,22 @@ mod tests {
     #[test]
     fn test_integration_visible() {
         let spectrum = SolarSpectrum::kurucz_default();
-        let visible_400_700 = spectrum.integrate_range(Nanometers::new(400.0), Nanometers::new(700.0));
+        let visible_400_700 =
+            spectrum.integrate_range(Nanometers::new(400.0), Nanometers::new(700.0));
         // Expected: ~100–600 W/m² for this sample (subset of full spectrum)
-        assert!(visible_400_700 > 10.0, "visible flux {} too low", visible_400_700);
-        println!(
-            "Visible spectrum (400–700 nm): {:.2} W/m²",
+        assert!(
+            visible_400_700 > 10.0,
+            "visible flux {} too low",
             visible_400_700
         );
+        println!("Visible spectrum (400–700 nm): {:.2} W/m²", visible_400_700);
     }
 
     #[test]
     fn test_integration_nir() {
         let spectrum = SolarSpectrum::kurucz_default();
-        let nir_700_1200 = spectrum.integrate_range(Nanometers::new(700.0), Nanometers::new(1200.0));
+        let nir_700_1200 =
+            spectrum.integrate_range(Nanometers::new(700.0), Nanometers::new(1200.0));
         // Expected: ~50–700 W/m² for this sample
         assert!(nir_700_1200 > 5.0, "NIR flux {} too low", nir_700_1200);
         println!("NIR spectrum (700–1200 nm): {:.2} W/m²", nir_700_1200);

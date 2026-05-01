@@ -21,7 +21,10 @@ fn main() -> Result<()> {
 
     let result = NsbEvaluator::new()?.periods_below_threshold(&query)?;
 
-    println!("threshold = {:.6e} ph/(cm² ns sr)", result.threshold.value());
+    println!(
+        "threshold = {:.6e} ph/(cm² ns sr)",
+        result.threshold.value()
+    );
     if result.periods.is_empty() {
         println!("(no sub-periods in window are below threshold)");
         return Ok(());
@@ -29,7 +32,11 @@ fn main() -> Result<()> {
 
     println!("{} period(s) below threshold:", result.periods.len());
     for period in result.periods {
-        println!("  {} -> {}", format_utc(period.start), format_utc(period.end));
+        println!(
+            "  {} -> {}",
+            format_utc(period.start),
+            format_utc(period.end)
+        );
     }
 
     Ok(())

@@ -35,9 +35,10 @@ use crate::components::{airglow, moonlight, starlight, zodiacal};
 use crate::error::{NsbError, Result};
 use crate::site::Site;
 use crate::spectra;
+use crate::spectra::airglow_cont::AirglowContinuum;
 use crate::NSB_S10_ZP;
 use qtty::angular::Degrees;
-use qtty::photometry::{band_flux_to_surface_brightness, SurfaceBrightness};
+use qtty::photometry::{s10_to_surface_brightness, SurfaceBrightness};
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
@@ -47,7 +48,7 @@ use siderust::calculus::altitude::AltitudePeriodsProvider;
 use siderust::calculus::horizontal::star_horizontal;
 use siderust::calculus::math_core::intervals;
 use siderust::coordinates::centers::Geodetic;
-use siderust::coordinates::frames::{ECEF, EclipticMeanJ2000, EquatorialMeanJ2000};
+use siderust::coordinates::frames::{EclipticMeanJ2000, EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::coordinates::transform::TransformFrame;
@@ -165,6 +166,58 @@ pub struct ThresholdQueryResult {
     pub periods: Vec<Period<UTC>>,
 }
 
+/// Airglow model used by [`NsbEvaluator`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AirglowModel {
+    /// Current darknsb-compatible cubic polynomial in source altitude.
+    PythonPolynomial,
+    /// Wavelength-resolved SkyCalc continuum with Van Rhijn geometry.
+    SkyCalcContinuum,
+}
+
+/// Scattered-moonlight model used by [`NsbEvaluator`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MoonlightModel {
+    /// Krisciunas & Schaefer (1991), preserving the previous NSB behavior.
+    KrisciunasSchaefer1991,
+    /// Jones et al. (2013)-style wavelength-resolved scattered moonlight.
+    Jones2013Spectral,
+}
+
+/// Model-selection configuration for [`NsbEvaluator`].
+#[derive(Debug, Clone, Copy)]
+pub struct NsbModelConfig {
+    pub airglow_model: AirglowModel,
+    pub moonlight_model: MoonlightModel,
+    pub solar_radio_flux_sfu: f64,
+}
+
+impl NsbModelConfig {
+    /// Best validated science path. This is the default for new evaluators.
+    pub fn best_science() -> Self {
+        Self {
+            airglow_model: AirglowModel::SkyCalcContinuum,
+            moonlight_model: MoonlightModel::Jones2013Spectral,
+            solar_radio_flux_sfu: airglow::DEFAULT_SOLAR_RADIO_FLUX_SFU,
+        }
+    }
+
+    /// Darknsb-compatible behavior retained for regression and validation.
+    pub fn python_parity() -> Self {
+        Self {
+            airglow_model: AirglowModel::PythonPolynomial,
+            moonlight_model: MoonlightModel::KrisciunasSchaefer1991,
+            solar_radio_flux_sfu: airglow::DEFAULT_SOLAR_RADIO_FLUX_SFU,
+        }
+    }
+}
+
+impl Default for NsbModelConfig {
+    fn default() -> Self {
+        Self::best_science()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 struct PreparedPointQuery {
     observer: Geodetic<ECEF>,
@@ -189,13 +242,29 @@ struct PreparedThresholdQuery {
 /// Reusable evaluator with cached spectral inputs.
 pub struct NsbEvaluator {
     solar: SampledSpectrum<siderust::qtty::Nanometer, siderust::qtty::length::Meter, f64>,
+    airglow_continuum: AirglowContinuum,
+    config: NsbModelConfig,
 }
 
 impl NsbEvaluator {
     pub fn new() -> Result<Self> {
+        Self::with_config(NsbModelConfig::best_science())
+    }
+
+    pub fn with_config(config: NsbModelConfig) -> Result<Self> {
         Ok(Self {
             solar: spectra::solar::load()?,
+            airglow_continuum: spectra::airglow_cont::load()?,
+            config,
         })
+    }
+
+    pub fn python_parity() -> Result<Self> {
+        Self::with_config(NsbModelConfig::python_parity())
+    }
+
+    pub fn config(&self) -> NsbModelConfig {
+        self.config
     }
 
     pub fn evaluate(&self, query: &PointQuery) -> Result<NsbResult> {
@@ -218,8 +287,9 @@ impl NsbEvaluator {
 
         let candidate_windows = self.candidate_windows(query, &prepared, tt_window);
 
-        let f =
-            |mjd_tt: ModifiedJulianDate| -> BandPhotonRadiance { self.evaluate_integrated(&prepared, mjd_tt) };
+        let f = |mjd_tt: ModifiedJulianDate| -> BandPhotonRadiance {
+            self.evaluate_integrated(&prepared, mjd_tt)
+        };
 
         let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = Vec::new();
         for cw in candidate_windows {
@@ -334,8 +404,7 @@ impl NsbEvaluator {
         }
         if let Some(target_min) = query.target_altitude_floor {
             let target_dir = direction::ICRS::new(prepared.target.ra(), prepared.target.dec());
-            let above =
-                target_dir.above_threshold(prepared.observer, tt_window, target_min);
+            let above = target_dir.above_threshold(prepared.observer, tt_window, target_min);
             current = intersect_periods(&current, &above);
         }
         current
@@ -349,7 +418,12 @@ impl NsbEvaluator {
     ) -> BandPhotonRadiance {
         let time = tt_mjd_to_utc_time(mjd_tt);
         let jd = siderust::time::JulianDate::from_tempoch_utc(time);
-        let hz = star_horizontal(prepared.target.ra(), prepared.target.dec(), &prepared.observer, jd);
+        let hz = star_horizontal(
+            prepared.target.ra(),
+            prepared.target.dec(),
+            &prepared.observer,
+            jd,
+        );
         let source_zenith = Degrees::new(90.0) - hz.alt();
 
         let mut total = BandPhotonRadiance::new(0.0);
@@ -372,7 +446,8 @@ impl NsbEvaluator {
             total += prepared.starlight_integrated;
         }
         if prepared.components.contains(ComponentMask::AIRGLOW) {
-            let out = airglow::compute(&airglow::AgInputs { altitude: hz.alt() })
+            let out = self
+                .evaluate_airglow(time, hz.alt())
                 .expect("prepared airglow evaluation");
             total += out.integrated;
         }
@@ -382,13 +457,17 @@ impl NsbEvaluator {
             let moon_zenith = Degrees::new(90.0) - moon_dir.alt();
             let separation = hz.angular_separation(&moon_dir);
             let phase = Moon::phase_geocentric(jd);
-            let out = moonlight::compute(&moonlight::MoonInputs {
-                separation,
-                moon_zenith,
-                phase,
-                source_zenith,
-            })
-            .expect("prepared moon evaluation");
+            let out = self
+                .evaluate_moonlight(
+                    &moonlight::MoonInputs {
+                        separation,
+                        moon_zenith,
+                        phase,
+                        source_zenith,
+                    },
+                    moon_pos.distance,
+                )
+                .expect("prepared moon evaluation");
             total += out.integrated;
         }
 
@@ -441,7 +520,7 @@ impl NsbEvaluator {
             });
         }
         if query.components.contains(ComponentMask::AIRGLOW) {
-            let out = airglow::compute(&airglow::AgInputs { altitude: hz.alt() })?;
+            let out = self.evaluate_airglow(time, hz.alt())?;
             total += out.integrated;
             b_total += out.b_flux_s10;
             v_total += out.v_flux_s10;
@@ -458,12 +537,15 @@ impl NsbEvaluator {
             let moon_zenith = Degrees::new(90.0) - moon_dir.alt();
             let separation = hz.angular_separation(&moon_dir);
             let phase = Moon::phase_geocentric(jd);
-            let out = moonlight::compute(&moonlight::MoonInputs {
-                separation,
-                moon_zenith,
-                phase,
-                source_zenith,
-            })?;
+            let out = self.evaluate_moonlight(
+                &moonlight::MoonInputs {
+                    separation,
+                    moon_zenith,
+                    phase,
+                    source_zenith,
+                },
+                moon_pos.distance,
+            )?;
             total += out.integrated;
             b_total += out.b_flux_s10;
             v_total += out.v_flux_s10;
@@ -477,10 +559,36 @@ impl NsbEvaluator {
 
         Ok(NsbResult {
             integrated: total,
-            b_mag: band_flux_to_surface_brightness(b_total.value().max(f64::MIN_POSITIVE), NSB_S10_ZP),
-            v_mag: band_flux_to_surface_brightness(v_total.value().max(f64::MIN_POSITIVE), NSB_S10_ZP),
+            b_mag: s10_to_surface_brightness(b_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
+            v_mag: s10_to_surface_brightness(v_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
             components,
         })
+    }
+
+    fn evaluate_airglow(&self, time: Time<UTC>, altitude: Degrees) -> Result<airglow::AgOutputs> {
+        let inputs = airglow::AgInputs { altitude };
+        match self.config.airglow_model {
+            AirglowModel::PythonPolynomial => airglow::compute(&inputs),
+            AirglowModel::SkyCalcContinuum => airglow::compute_skycalc_continuum(
+                &inputs,
+                &self.airglow_continuum,
+                time,
+                self.config.solar_radio_flux_sfu,
+            ),
+        }
+    }
+
+    fn evaluate_moonlight(
+        &self,
+        inputs: &moonlight::MoonInputs,
+        moon_distance: siderust::qtty::Kilometers,
+    ) -> Result<moonlight::MoonOutputs> {
+        match self.config.moonlight_model {
+            MoonlightModel::KrisciunasSchaefer1991 => moonlight::compute(inputs),
+            MoonlightModel::Jones2013Spectral => {
+                moonlight::compute_jones2013_spectral(inputs, &self.solar, moon_distance)
+            }
+        }
     }
 }
 

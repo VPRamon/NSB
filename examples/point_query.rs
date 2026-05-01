@@ -25,7 +25,10 @@ fn main() -> Result<()> {
         );
     }
     println!("--------------------");
-    println!("    total: {:.6e} ph/(cm² ns sr)", result.integrated.value());
+    println!(
+        "    total: {:.6e} ph/(cm² ns sr)",
+        result.integrated.value()
+    );
     println!("       B = {:.3} mag/arcsec²", result.b_mag.value());
     println!("       V = {:.3} mag/arcsec²", result.v_mag.value());
 

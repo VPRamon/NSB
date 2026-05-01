@@ -24,10 +24,9 @@
 //! totals pick up the moonlight contribution without a wavelength-resolved
 //! port.
 //!
-//! Future work (see `docs/NSB_STAGED_IMPLEMENTATION_PLAN.md` stages 9–11):
-//! a full Mie / single-scatter port of the Python `CalculateMoon` pipeline
-//! using the `mie_m15s1.dat` / `sscatcor_m15s1.dat` grids and the
-//! `LUT_moon` lookup tables.
+//! The module also exposes a Jones et al. (2013)-style spectral path using the
+//! bundled Mie phase and multiple-scattering correction grids. The K&S path is
+//! retained for explicit Python-parity configuration.
 //!
 //! Scientific role:
 //! moonlight can dominate the optical sky background when the Moon is above
@@ -40,12 +39,23 @@
 //! resolved scattering pipeline, it captures the main observing-system impact
 //! of moon phase and geometry on sky brightness.
 
+use std::sync::OnceLock;
+
 use crate::error::Result;
+use crate::single_scatter::ScatterGrid;
+use crate::spectra::SampledSpectrum;
 use crate::NSB_S10_ZP;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
-use qtty::radiometry;
-use siderust::atmosphere::{airmass, AirmassFormula};
-use siderust::MoonPhaseGeometry;
+use qtty::radiometry::{
+    self, spectral_radiance_to_photon_radiance_ns_nm, WattsPerSquareMeterSteradianNanometer,
+};
+use siderust::atmosphere::rayleigh::DEFAULT_SCALE_HEIGHT_KM;
+use siderust::atmosphere::{
+    airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase, AirmassFormula,
+    AtmosphereProfile, MieParams,
+};
+use siderust::qtty::{Kilometers, Nanometer, Nanometers};
+use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
 
 /// Default V-band atmospheric extinction coefficient (mag/airmass) used by
 /// K&S 1991 in their published curves.
@@ -60,6 +70,13 @@ pub const DEFAULT_K_EXT: f64 = 0.172;
 ///   × 1e-4 (m² → cm²) × 1e-9 (s → ns) → 3.549e-6 ph cm⁻² ns⁻¹ sr⁻¹ nm⁻¹
 ///   × 350 nm bandwidth                → 1.242e-3 ph cm⁻² ns⁻¹ sr⁻¹
 const S10_V_TO_INTEGRATED_PH: f64 = 1.242e-3;
+const WL_LOW_NM: f64 = 300.0;
+const WL_HIGH_NM: f64 = 650.0;
+const B_FILTER_NM: f64 = 445.0;
+const V_FILTER_NM: f64 = 551.0;
+const S10_TO_W_M2_SR_UM: f64 = 1.28e-8;
+const HC_JOULE_METER: f64 = 1.986_445_857_148_968e-25;
+const JONES_MIE_WEIGHT: f64 = 0.05;
 
 #[derive(Debug, Clone, Copy)]
 pub struct MoonInputs {
@@ -93,16 +110,16 @@ pub fn compute(inp: &MoonInputs) -> Result<MoonOutputs> {
 /// Variant of [`compute`] that lets the caller override the V-band
 /// extinction coefficient `k` (mag/airmass).
 pub fn compute_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result<MoonOutputs> {
-    if !inp.moon_zenith.value().is_finite()
-        || !inp.source_zenith.value().is_finite()
-        || !inp.separation.value().is_finite()
+    if !inp.moon_zenith.is_finite()
+        || !inp.source_zenith.is_finite()
+        || !inp.separation.is_finite()
         || !k_ext.is_finite()
     {
         return Ok(zero_outputs());
     }
-    if inp.moon_zenith.value() >= 90.0
-        || inp.source_zenith.value() >= 90.0
-        || inp.separation.value() <= 0.0
+    if inp.moon_zenith >= Degrees::new(90.0)
+        || inp.source_zenith >= Degrees::new(90.0)
+        || inp.separation <= Degrees::new(0.0)
     {
         return Ok(zero_outputs());
     }
@@ -141,7 +158,10 @@ fn scattered_brightness_nanolamberts(
 ) -> f64 {
     let i_star = lunar_illuminance_outside_atmosphere(alpha);
     let f_rho = scattering_function(rho);
-    let am_moon = airmass(z_moon.to::<Radian>(), AirmassFormula::KrisciunasSchaefer1991);
+    let am_moon = airmass(
+        z_moon.to::<Radian>(),
+        AirmassFormula::KrisciunasSchaefer1991,
+    );
     let am_src = airmass(z_src.to::<Radian>(), AirmassFormula::KrisciunasSchaefer1991);
     let trans_moon = 10f64.powf(-0.4 * k_ext * am_moon);
     let absorb_path = 1.0 - 10f64.powf(-0.4 * k_ext * am_src);
@@ -150,7 +170,7 @@ fn scattered_brightness_nanolamberts(
 
 /// `I*(α)` — lunar illuminance above the atmosphere (relative units, eq. 8).
 fn lunar_illuminance_outside_atmosphere(alpha: Radians) -> f64 {
-    let a = alpha.to::<Degree>().value().abs();
+    let a = alpha.abs().to::<Degree>().value();
     let exponent = -0.4 * (3.84 + 0.026 * a + 4.0e-9 * a.powi(4));
     10f64.powf(exponent)
 }
@@ -158,7 +178,7 @@ fn lunar_illuminance_outside_atmosphere(alpha: Radians) -> f64 {
 /// `f(ρ)` — angular scattering function of K&S 1991 (eq. 16/17), summing
 /// the Rayleigh + aerosol forward-scattering term and the Mie aureole term.
 fn scattering_function(rho: Degrees) -> f64 {
-    let cos_rho = rho.to::<Radian>().value().cos();
+    let cos_rho = rho.cos();
     let rayleigh = 10f64.powf(5.36) * (1.06 + cos_rho * cos_rho);
     let aureole = 10f64.powf(6.15 - rho.value() / 40.0);
     rayleigh + aureole
@@ -172,9 +192,9 @@ fn v_mag_per_arcsec2_from_nl(b_nl: f64) -> f64 {
 
 fn zero_outputs() -> MoonOutputs {
     MoonOutputs {
-        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(0.0),
-        b_flux_s10: radiometry::S10s::new(0.0),
-        v_flux_s10: radiometry::S10s::new(0.0),
+        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::zero(),
+        b_flux_s10: radiometry::S10s::zero(),
+        v_flux_s10: radiometry::S10s::zero(),
     }
 }
 
@@ -182,6 +202,8 @@ fn zero_outputs() -> MoonOutputs {
 mod tests {
     use super::*;
     use qtty::angular::Radians;
+    use qtty::photometry::s10_to_surface_brightness;
+    use qtty::radiometry::S10s;
 
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         MoonPhaseGeometry {
@@ -202,7 +224,7 @@ mod tests {
     }
 
     fn v_mag_arcsec2(out: &MoonOutputs) -> f64 {
-        NSB_S10_ZP - 2.5 * out.v_flux_s10.value().log10()
+        s10_to_surface_brightness(out.v_flux_s10, NSB_S10_ZP).value()
     }
 
     #[test]
@@ -211,7 +233,7 @@ mod tests {
         // the analytic model lands near V ≈ 18 mag/arcsec² (the model itself
         // has comparable scatter, so we allow ±0.7 mag).
         let out = compute(&inputs(0.0, 90.0, 45.0, 45.0)).unwrap();
-        assert!(out.v_flux_s10.value() > 0.0);
+        assert!(out.v_flux_s10 > S10s::zero());
         let v_mag = v_mag_arcsec2(&out);
         assert!(
             (v_mag - 18.0).abs() < 0.7,
@@ -226,9 +248,9 @@ mod tests {
         // than at full moon.
         let out_new = compute(&inputs(180.0, 90.0, 45.0, 45.0)).unwrap();
         let out_full = compute(&inputs(0.0, 90.0, 45.0, 45.0)).unwrap();
-        assert!(out_full.v_flux_s10.value() > 0.0);
+        assert!(out_full.v_flux_s10 > S10s::zero());
         assert!(
-            out_new.v_flux_s10.value() < out_full.v_flux_s10.value() * 1e-3,
+            out_new.v_flux_s10 < out_full.v_flux_s10 * 1e-3,
             "new-moon V S10 ({}) should be << full-moon ({})",
             out_new.v_flux_s10.value(),
             out_full.v_flux_s10.value()
@@ -246,44 +268,55 @@ mod tests {
         // This test verifies the model computes positive brightness at various
         // separations and that extremal points match expectations.
         let inputs_at_rho = |rho| compute(&inputs(45.0, rho, 30.0, 60.0)).unwrap();
-        
-        let b5 = inputs_at_rho(5.0).v_flux_s10.value();
-        let b90 = inputs_at_rho(90.0).v_flux_s10.value();
-        let b120 = inputs_at_rho(120.0).v_flux_s10.value();
-        let b175 = inputs_at_rho(175.0).v_flux_s10.value();
-        
+
+        let b5 = inputs_at_rho(5.0).v_flux_s10;
+        let b90 = inputs_at_rho(90.0).v_flux_s10;
+        let b120 = inputs_at_rho(120.0).v_flux_s10;
+        let b175 = inputs_at_rho(175.0).v_flux_s10;
+
         // Forward scattering (small ρ) is strong
-        assert!(b5 > 0.0, "brightness at ρ=5° must be positive");
-        
+        assert!(b5 > S10s::zero(), "brightness at ρ=5° must be positive");
+
         // Brightness at 90° (perpendicular) is the minimum
-        assert!(b90 > 0.0, "brightness at ρ=90° must be positive");
-        assert!(b90 < b5, "brightness at ρ=90° should be less than forward scattering");
-        
+        assert!(b90 > S10s::zero(), "brightness at ρ=90° must be positive");
+        assert!(
+            b90 < b5,
+            "brightness at ρ=90° should be less than forward scattering"
+        );
+
         // Backscattering increases again due to Rayleigh symmetry
-        assert!(b120 > b90, "brightness should increase from ρ=90° to ρ=120°");
-        assert!(b175 > b120, "brightness should increase toward ρ=180° (backscattering)");
-        
+        assert!(
+            b120 > b90,
+            "brightness should increase from ρ=90° to ρ=120°"
+        );
+        assert!(
+            b175 > b120,
+            "brightness should increase toward ρ=180° (backscattering)"
+        );
+
         // But even backscattering should be less than forward scattering
-        assert!(b175 < b5, "backscattering should be weaker than forward scattering");
+        assert!(
+            b175 < b5,
+            "backscattering should be weaker than forward scattering"
+        );
     }
 
     #[test]
     fn moon_below_horizon_returns_zero() {
         let out = compute(&inputs(0.0, 30.0, 95.0, 30.0)).unwrap();
-        assert_eq!(out.v_flux_s10.value(), 0.0);
+        assert_eq!(out.v_flux_s10, S10s::zero());
         assert_eq!(out.integrated.value(), 0.0);
     }
 
     #[test]
     fn airmass_at_zenith_is_unity() {
-        let am = airmass(Degrees::new(0.0).to::<Radian>(), AirmassFormula::KrisciunasSchaefer1991);
+        let am = airmass(
+            Degrees::new(0.0).to::<Radian>(),
+            AirmassFormula::KrisciunasSchaefer1991,
+        );
         assert!((am - 1.0).abs() < 1e-12, "X(0) = {am}");
     }
 }
-
-// ============================================================================
-// Jones et al. (2013) Improved Moonlight Model (EXPERIMENTAL STUB)
-// ============================================================================
 
 /// Compute the Jones et al. (2013) scattered moonlight contribution.
 ///
@@ -307,34 +340,11 @@ mod tests {
 /// 4. **Enhanced edge cases**: Better behavior when the Moon is near the
 ///    horizon, during twilight, or at large separation angles.
 ///
-/// # Current Implementation Status
-///
-/// This is a **stub implementation** that:
-/// - ✓ Accepts the same inputs as the K&S model
-/// - ✓ Uses the same V-band → band-integrated radiance conversion
-/// - ✓ Includes parameter documentation and references
-/// - ✓ Provides tests comparing K&S vs. Jones behavior
-/// - ✗ **Does NOT implement the full Jones algorithm** (full Mie/Rayleigh,
-///   aerosol scattering corrections, etc.)
-/// - ⚠ Currently returns K&S result as a placeholder (see LIMITATIONS below)
-///
-/// # Limitations
-///
-/// The complete Jones et al. (2013) model requires:
-/// - Rayleigh optical depth lookup tables (wavelength & altitude dependent)
-/// - Mie optical depth and single-scattering albedo grids
-/// - Aerosol layer characterization
-/// - Phase functions for multiple scattering orders
-/// - Ground reflection and correction grids from `LUT_moon/*.csv`
-/// - Full spectral integration across the observing band
-///
-/// These are referenced in:
-///   `docs/NSB_STAGED_IMPLEMENTATION_PLAN.md` (stages 9–11)
-///   Python CalculateMoon pipeline: `mie_m15s1.dat`, `sscatcor_m15s1.dat`
-///
-/// For now, this function demonstrates the API and documents the scientific
-/// gaps. Production use should prefer `compute()` (K&S) until the full model
-/// is ported.
+/// This implementation performs wavelength-resolved integration over the NSB
+/// band, using the bundled Mie phase and multiple-scattering correction grids.
+/// The one-argument variant uses a smooth reference solar spectrum and mean
+/// lunar distance; [`compute_jones2013_spectral`] lets the evaluator provide
+/// the bundled solar spectrum and topocentric Moon distance.
 ///
 /// # Arguments
 ///
@@ -376,60 +386,181 @@ pub fn compute_jones2013(inp: &MoonInputs) -> Result<MoonOutputs> {
 ///
 /// See [`compute_jones2013`] for full documentation.
 pub fn compute_jones2013_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result<MoonOutputs> {
-    if !inp.moon_zenith.value().is_finite()
-        || !inp.source_zenith.value().is_finite()
-        || !inp.separation.value().is_finite()
-        || !k_ext.is_finite()
-    {
-        return Ok(zero_outputs());
-    }
-    if inp.moon_zenith.value() >= 90.0
-        || inp.source_zenith.value() >= 90.0
-        || inp.separation.value() <= 0.0
-    {
-        return Ok(zero_outputs());
-    }
-
-    // ========================================================================
-    // STUB IMPLEMENTATION
-    // ========================================================================
-    // For now, use K&S as the fallback. The full Jones et al. model requires
-    // the aerosol/Mie/Rayleigh infrastructure mentioned in the docs.
-    //
-    // TODO: Replace with full Jones et al. algorithm once:
-    //   1. Rayleigh optical depth tables are ported (wavelength/altitude)
-    //   2. Mie grids (mie_m15s1.dat) are integrated
-    //   3. Aerosol correction grids are loaded
-    //   4. Phase functions for multiple scattering orders are available
-    // ========================================================================
-
-    let b_nl = scattered_brightness_nanolamberts(
-        inp.phase.phase_angle,
-        inp.separation,
-        inp.moon_zenith,
-        inp.source_zenith,
+    let samples = reference_solar_samples();
+    compute_jones2013_from_samples(
+        inp,
+        &samples,
+        Kilometers::new(siderust::calculus::lunar::photometry::MEAN_MOON_DISTANCE_KM),
         k_ext,
-    );
+    )
+}
 
-    if !b_nl.is_finite() || b_nl <= 0.0 {
+/// Spectral Jones et al. moonlight model using the caller's solar spectrum and
+/// actual topocentric/geocentric Moon distance.
+pub fn compute_jones2013_spectral(
+    inp: &MoonInputs,
+    solar_spectrum: &SampledSpectrum<Nanometer, siderust::qtty::length::Meter, f64>,
+    moon_distance: Kilometers,
+) -> Result<MoonOutputs> {
+    let xs = solar_spectrum.xs_raw();
+    let ys = solar_spectrum.ys_raw();
+    let samples: Vec<(f64, f64)> = xs.into_iter().zip(ys).collect();
+    compute_jones2013_from_samples(inp, &samples, moon_distance, DEFAULT_K_EXT)
+}
+
+fn compute_jones2013_from_samples(
+    inp: &MoonInputs,
+    solar_samples: &[(f64, f64)],
+    moon_distance: Kilometers,
+    k_ext: f64,
+) -> Result<MoonOutputs> {
+    if !inp.moon_zenith.is_finite()
+        || !inp.source_zenith.is_finite()
+        || !inp.separation.is_finite()
+        || !k_ext.is_finite()
+        || !moon_distance.is_finite()
+    {
+        return Ok(zero_outputs());
+    }
+    if inp.moon_zenith >= Degrees::new(90.0)
+        || inp.source_zenith >= Degrees::new(90.0)
+        || inp.separation <= Degrees::new(0.0)
+        || moon_distance <= Kilometers::new(0.0)
+    {
         return Ok(zero_outputs());
     }
 
-    let v_mag_arcsec2 = v_mag_per_arcsec2_from_nl(b_nl);
-    let v_s10 = 10f64.powf(0.4 * (NSB_S10_ZP - v_mag_arcsec2));
-    let integrated = v_s10 * S10_V_TO_INTEGRATED_PH;
+    let mie = mie_grid();
+    let correction = correction_grid();
+    let am_moon = airmass(
+        inp.moon_zenith.to::<Radian>(),
+        AirmassFormula::KrisciunasSchaefer1991,
+    );
+    let am_src = airmass(
+        inp.source_zenith.to::<Radian>(),
+        AirmassFormula::KrisciunasSchaefer1991,
+    );
+    let tau_scale = k_ext / DEFAULT_K_EXT;
+    let cos_rho = inp.separation.to::<Radian>().cos();
+
+    let mut lam = Vec::new();
+    let mut density = Vec::new();
+    for &(lambda_nm, solar_irradiance) in solar_samples {
+        if !(WL_LOW_NM..=WL_HIGH_NM).contains(&lambda_nm) {
+            continue;
+        }
+        let wavelength = Nanometers::new(lambda_nm);
+        let lunar_radiance = reflected_lunar_spectral_radiance_jones2013(
+            solar_irradiance,
+            wavelength,
+            inp.phase.phase_angle,
+            moon_distance,
+        );
+        if !lunar_radiance.value().is_finite() || lunar_radiance.value() <= 0.0 {
+            continue;
+        }
+        let lunar_ph = spectral_radiance_to_photon_radiance_ns_nm(
+            WattsPerSquareMeterSteradianNanometer::new(lunar_radiance.value()),
+            wavelength,
+        )
+        .value();
+        let tau_r = rayleigh_optical_depth_bodhaine99(
+            wavelength,
+            AtmosphereProfile::PARANAL.surface_pressure.value(),
+            AtmosphereProfile::PARANAL.observer_altitude,
+            DEFAULT_SCALE_HEIGHT_KM,
+        ) * tau_scale;
+        let tau_m = mie_optical_depth(&MieParams::PARANAL, wavelength) * tau_scale;
+        let phase_r = rayleigh_phase(cos_rho);
+        let phase_m = mie.lookup(inp.separation, wavelength);
+        let multi = correction.lookup(inp.separation, wavelength);
+        let scatter = (tau_r * phase_r + tau_m * JONES_MIE_WEIGHT * phase_m).max(0.0);
+        let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon + am_src)).exp();
+        let source_path = 1.0 - (-(tau_r + tau_m) * am_src).exp();
+        let value = lunar_ph * scatter * transmission * source_path.max(0.0) * multi;
+        if value.is_finite() && value > 0.0 {
+            lam.push(lambda_nm);
+            density.push(value);
+        }
+    }
+
+    if lam.len() < 2 {
+        return Ok(zero_outputs());
+    }
+
+    let integrated = integrate_trapz(&lam, &density);
+    let b_density = interp_linear(&lam, &density, B_FILTER_NM);
+    let v_density = interp_linear(&lam, &density, V_FILTER_NM);
 
     Ok(MoonOutputs {
         integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(integrated),
-        b_flux_s10: radiometry::S10s::new(v_s10),
-        v_flux_s10: radiometry::S10s::new(v_s10),
+        b_flux_s10: spectral_photon_density_to_s10(b_density, Nanometers::new(B_FILTER_NM)),
+        v_flux_s10: spectral_photon_density_to_s10(v_density, Nanometers::new(V_FILTER_NM)),
     })
+}
+
+fn mie_grid() -> &'static ScatterGrid {
+    static GRID: OnceLock<ScatterGrid> = OnceLock::new();
+    GRID.get_or_init(|| ScatterGrid::mie_phase().expect("bundled Mie phase grid"))
+}
+
+fn correction_grid() -> &'static ScatterGrid {
+    static GRID: OnceLock<ScatterGrid> = OnceLock::new();
+    GRID.get_or_init(|| {
+        ScatterGrid::multiple_scattering_correction().expect("bundled scattering correction grid")
+    })
+}
+
+fn reference_solar_samples() -> Vec<(f64, f64)> {
+    let mut out = Vec::new();
+    let mut lambda = WL_LOW_NM;
+    while lambda <= WL_HIGH_NM {
+        let x = (lambda - 550.0) / 180.0;
+        let irradiance = 1.88 * (-0.5 * x * x).exp() + 0.25;
+        out.push((lambda, irradiance));
+        lambda += 10.0;
+    }
+    out
+}
+
+fn integrate_trapz(xs: &[f64], ys: &[f64]) -> f64 {
+    xs.windows(2)
+        .zip(ys.windows(2))
+        .map(|(xw, yw)| 0.5 * (yw[0] + yw[1]) * (xw[1] - xw[0]))
+        .sum()
+}
+
+fn interp_linear(xs: &[f64], ys: &[f64], x: f64) -> f64 {
+    if x <= xs[0] {
+        return ys[0];
+    }
+    if x >= xs[xs.len() - 1] {
+        return ys[ys.len() - 1];
+    }
+    let i = xs.partition_point(|&xi| xi <= x);
+    let x0 = xs[i - 1];
+    let x1 = xs[i];
+    let t = (x - x0) / (x1 - x0);
+    ys[i - 1] + t * (ys[i] - ys[i - 1])
+}
+
+fn spectral_photon_density_to_s10(density: f64, wavelength: Nanometers) -> radiometry::S10s {
+    let lambda_m = wavelength.value() * 1.0e-9;
+    let photon_energy = HC_JOULE_METER / lambda_m;
+    let w_m2_sr_nm = density * 1.0e13 * photon_energy;
+    let w_m2_sr_um = w_m2_sr_nm * 1.0e3;
+    radiometry::S10s::new(w_m2_sr_um / S10_TO_W_M2_SR_UM)
 }
 
 #[cfg(test)]
 mod jones_tests {
     use super::*;
     use qtty::angular::Radians;
+    use qtty::photometry::s10_to_surface_brightness;
+    use qtty::radiometry::S10s;
+
+    const LUT_MOON_PHASE_0454: &str =
+        include_str!("../../data/lut_moon/Phase_0.454_waxing_moon_LUT.csv");
 
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         MoonPhaseGeometry {
@@ -438,6 +569,54 @@ mod jones_tests {
             elongation: Radians::new(0.0),
             waxing: true,
         }
+    }
+
+    fn phase_from_illumination_fraction(fraction: f64) -> MoonPhaseGeometry {
+        let phase_angle = (2.0 * fraction - 1.0).clamp(-1.0, 1.0).acos();
+        MoonPhaseGeometry {
+            phase_angle: Radians::new(phase_angle),
+            illuminated_fraction: fraction,
+            elongation: Radians::new(0.0),
+            waxing: true,
+        }
+    }
+
+    fn horizontal_separation_deg(
+        moon_alt_deg: f64,
+        moon_az_deg: f64,
+        source_alt_deg: f64,
+        source_az_deg: f64,
+    ) -> f64 {
+        let moon_alt = moon_alt_deg.to_radians();
+        let source_alt = source_alt_deg.to_radians();
+        let delta_az = (source_az_deg - moon_az_deg).to_radians();
+        let cos_sep =
+            moon_alt.sin() * source_alt.sin() + moon_alt.cos() * source_alt.cos() * delta_az.cos();
+        cos_sep.clamp(-1.0, 1.0).acos().to_degrees()
+    }
+
+    fn lut_inputs(line: &str) -> (MoonInputs, f64) {
+        let values: Vec<f64> = line
+            .split(',')
+            .map(|field| field.trim().parse::<f64>().expect("numeric LUT field"))
+            .collect();
+        assert_eq!(values.len(), 6);
+        let moon_az = values[0];
+        let moon_alt = values[1];
+        let moon_phase = values[2];
+        let source_alt = values[3];
+        let source_az = values[4];
+        let expected = values[5];
+        let separation = horizontal_separation_deg(moon_alt, moon_az, source_alt, source_az);
+        (
+            MoonInputs {
+                separation: Degrees::new(separation),
+                moon_zenith: Degrees::new(90.0 - moon_alt),
+                phase: phase_from_illumination_fraction(moon_phase),
+                source_zenith: Degrees::new(90.0 - source_alt),
+            },
+            expected,
+        )
     }
 
     fn inputs(alpha_deg: f64, rho_deg: f64, z_moon: f64, z_src: f64) -> MoonInputs {
@@ -450,26 +629,27 @@ mod jones_tests {
     }
 
     fn v_mag_arcsec2(out: &MoonOutputs) -> f64 {
-        NSB_S10_ZP - 2.5 * out.v_flux_s10.value().log10()
+        s10_to_surface_brightness(out.v_flux_s10, NSB_S10_ZP).value()
     }
 
     #[test]
     fn jones2013_full_moon_high_altitude() {
         // Full moon (α=0°) at high Moon altitude (Zm=20°), separation 90°.
-        // Both K&S and Jones should give similar results for bright full moon.
         let inp = inputs(0.0, 90.0, 20.0, 45.0);
-        
-        let out_ks = compute(&inp).unwrap();
+
         let out_jones = compute_jones2013(&inp).unwrap();
 
-        assert!(out_jones.v_flux_s10.value() > 0.0, "Jones full moon should have positive brightness");
-        
-        let v_ks = v_mag_arcsec2(&out_ks);
+        assert!(
+            out_jones.v_flux_s10 > S10s::zero(),
+            "Jones full moon should have positive brightness"
+        );
+        assert!(out_jones.integrated.value().is_finite());
+
         let v_jones = v_mag_arcsec2(&out_jones);
-        
-        // For this bright scenario, K&S and Jones (currently same) should agree
-        let diff = (v_jones - v_ks).abs();
-        assert!(diff < 0.1, "Full moon V_mag difference {:.3} exceeds 0.1 mag", diff);
+        assert!(
+            v_jones.is_finite(),
+            "Jones full moon V magnitude should be finite"
+        );
     }
 
     #[test]
@@ -477,13 +657,22 @@ mod jones_tests {
         // Twilight scenario: Moon at moderate altitude, source at zenith,
         // phase angle 45° (half-moon scenario).
         let inp = inputs(45.0, 60.0, 50.0, 30.0);
-        
+
         let out = compute_jones2013(&inp).unwrap();
-        assert!(out.v_flux_s10.value() > 0.0, "Jones twilight should have positive brightness");
-        
+        assert!(
+            out.v_flux_s10 > S10s::zero(),
+            "Jones twilight should have positive brightness"
+        );
+
         // Ensure the output is well-formed
-        assert!(out.integrated.value() > 0.0, "Jones integrated radiance should be positive");
-        assert!(out.b_flux_s10.value() > 0.0, "Jones B-band brightness should be positive");
+        assert!(
+            out.integrated.value() > 0.0,
+            "Jones integrated radiance should be positive"
+        );
+        assert!(
+            out.b_flux_s10 > S10s::zero(),
+            "Jones B-band brightness should be positive"
+        );
     }
 
     #[test]
@@ -492,13 +681,13 @@ mod jones_tests {
         // compared to full moon.
         let inp_new = inputs(180.0, 90.0, 45.0, 45.0);
         let inp_full = inputs(0.0, 90.0, 45.0, 45.0);
-        
+
         let out_new = compute_jones2013(&inp_new).unwrap();
         let out_full = compute_jones2013(&inp_full).unwrap();
-        
-        assert!(out_full.v_flux_s10.value() > 0.0);
+
+        assert!(out_full.v_flux_s10 > S10s::zero());
         assert!(
-            out_new.v_flux_s10.value() < out_full.v_flux_s10.value() * 1e-3,
+            out_new.v_flux_s10 < out_full.v_flux_s10 * 1e-3,
             "Jones new moon should be << full moon; new={}, full={}",
             out_new.v_flux_s10.value(),
             out_full.v_flux_s10.value()
@@ -508,22 +697,47 @@ mod jones_tests {
     #[test]
     fn jones2013_moon_below_horizon_returns_zero() {
         let out = compute_jones2013(&inputs(0.0, 30.0, 95.0, 30.0)).unwrap();
-        assert_eq!(out.v_flux_s10.value(), 0.0, "Jones should return zero when Moon below horizon");
+        assert_eq!(
+            out.v_flux_s10,
+            S10s::zero(),
+            "Jones should return zero when Moon below horizon"
+        );
         assert_eq!(out.integrated.value(), 0.0);
     }
 
     #[test]
     fn jones2013_vs_ks_comparison() {
-        // Comparison test showing current parity (stub uses K&S).
-        // Once the full Jones algorithm is implemented, this test may need updating.
+        // The spectral Jones path is intentionally no longer a K&S alias.
         let inp = inputs(60.0, 75.0, 40.0, 50.0);
-        
+
         let out_ks = compute(&inp).unwrap();
         let out_jones = compute_jones2013(&inp).unwrap();
-        
-        // Currently, Jones stub should return same values as K&S
+
         let ratio = out_jones.v_flux_s10.value() / out_ks.v_flux_s10.value();
-        assert!((ratio - 1.0).abs() < 1e-10, 
-            "Stub Jones should match K&S; ratio={:.6}", ratio);
+        assert!(ratio.is_finite() && ratio > 0.0);
+        assert!(
+            (ratio - 1.0).abs() > 1.0e-6,
+            "Spectral Jones should not collapse to K&S parity; ratio={ratio:.6}"
+        );
+    }
+
+    #[test]
+    fn jones2013_lut_moon_fixture_same_scale() {
+        // The bundled LUTs are inherited operational fixtures rather than
+        // independent calibration data. Until the generator metadata is
+        // recovered, keep this as a broad scale guard against unit or geometry
+        // regressions rather than a tight scientific calibration test.
+        let fixture_line = LUT_MOON_PHASE_0454
+            .lines()
+            .nth(1)
+            .expect("first LUT data row");
+        let (inp, expected) = lut_inputs(fixture_line);
+        let out = compute_jones2013(&inp).unwrap();
+        let ratio = out.integrated.value() / expected;
+        assert!(ratio.is_finite() && ratio > 0.0);
+        assert!(
+            (0.05..=20.0).contains(&ratio),
+            "Jones LUT scale ratio {ratio:.3} outside broad validation tolerance"
+        );
     }
 }

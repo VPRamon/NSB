@@ -44,7 +44,7 @@ pub struct AirglowLine {
 }
 
 /// Catalogue of major night-sky airglow emission lines.
-/// 
+///
 /// This list spans from UV (N₂ LBH ~160 nm) to infrared (OH Meinel ~2500 nm).
 /// Intensities are approximate relative values for comparison; absolute values depend
 /// on altitude, latitude, and activity level.
@@ -97,13 +97,15 @@ pub const ALL_LINES: &[AirglowLine] = &[
         name: "O I 557.7 nm (Green line)",
         wavelength: 557.7,
         intensity: 280.0,
-        description: "Atomic oxygen forbidden emission (¹S → ³P); prominent green airglow, altitude ~97 km.",
+        description:
+            "Atomic oxygen forbidden emission (¹S → ³P); prominent green airglow, altitude ~97 km.",
     },
     AirglowLine {
         name: "O I 630.0 nm (Red line, 1st)",
         wavelength: 630.0,
         intensity: 120.0,
-        description: "Atomic oxygen forbidden emission; red airglow, altitude ~250–350 km (thermosphere).",
+        description:
+            "Atomic oxygen forbidden emission; red airglow, altitude ~250–350 km (thermosphere).",
     },
     AirglowLine {
         name: "O I 636.4 nm (Red line, 2nd)",
@@ -148,7 +150,8 @@ pub const ALL_LINES: &[AirglowLine] = &[
         name: "Ca+ H line (397.0 nm)",
         wavelength: 397.0,
         intensity: 40.0,
-        description: "Singly-ionized calcium; weak but detectable in high-sensitivity observations.",
+        description:
+            "Singly-ionized calcium; weak but detectable in high-sensitivity observations.",
     },
     AirglowLine {
         name: "Ca+ K line (393.3 nm)",
@@ -256,10 +259,11 @@ mod tests {
         assert!(has_oh_meinel, "Missing OH Meinel bands in catalogue");
 
         // Check that O I 557.7 nm is present
-        let has_green_line = ALL_LINES
-            .iter()
-            .any(|l| (l.wavelength - 557.7).abs() < 0.1);
-        assert!(has_green_line, "Missing O I 557.7 nm green line in catalogue");
+        let has_green_line = ALL_LINES.iter().any(|l| (l.wavelength - 557.7).abs() < 0.1);
+        assert!(
+            has_green_line,
+            "Missing O I 557.7 nm green line in catalogue"
+        );
 
         // Check that Na D lines are present
         let has_na_d = ALL_LINES

@@ -1,6 +1,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::{
-    ComponentMask, Location, NsbEvaluator, PointQuery, Site, Target, ThresholdQuery, DEG,
+    AirglowModel, ComponentMask, Location, MoonlightModel, NsbEvaluator, NsbModelConfig,
+    PointQuery, Site, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -20,6 +21,24 @@ fn sgr_a_star() -> Target {
 
 fn default_components() -> ComponentMask {
     ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW
+}
+
+#[test]
+fn evaluator_defaults_to_best_science_config() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let config = evaluator.config();
+    assert_eq!(config.airglow_model, AirglowModel::SkyCalcContinuum);
+    assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
+}
+
+#[test]
+fn python_parity_config_selects_legacy_models() {
+    let config = NsbModelConfig::python_parity();
+    assert_eq!(config.airglow_model, AirglowModel::PythonPolynomial);
+    assert_eq!(
+        config.moonlight_model,
+        MoonlightModel::KrisciunasSchaefer1991
+    );
 }
 
 #[test]
