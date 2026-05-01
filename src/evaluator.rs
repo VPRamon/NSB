@@ -35,6 +35,7 @@ use crate::components::{airglow, moonlight, starlight, zodiacal};
 use crate::error::{NsbError, Result};
 use crate::site::Site;
 use crate::spectra;
+use crate::NSB_S10_ZP;
 use qtty::angular::Degrees;
 use qtty::photometry::{band_flux_to_surface_brightness, SurfaceBrightness};
 use qtty::radiometry::{
@@ -476,8 +477,8 @@ impl NsbEvaluator {
 
         Ok(NsbResult {
             integrated: total,
-            b_mag: band_flux_to_surface_brightness(b_total.value().max(f64::MIN_POSITIVE), 27.78),
-            v_mag: band_flux_to_surface_brightness(v_total.value().max(f64::MIN_POSITIVE), 27.78),
+            b_mag: band_flux_to_surface_brightness(b_total.value().max(f64::MIN_POSITIVE), NSB_S10_ZP),
+            v_mag: band_flux_to_surface_brightness(v_total.value().max(f64::MIN_POSITIVE), NSB_S10_ZP),
             components,
         })
     }

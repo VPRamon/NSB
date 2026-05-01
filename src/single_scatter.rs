@@ -14,6 +14,7 @@
 //! toward more detailed single-scatter treatments and for explaining why sky
 //! brightness depends on wavelength and line-of-sight geometry.
 
+use siderust::qtty::{Degrees, Nanometers};
 use siderust::tables::{algo, AxisDirection, OutOfRange};
 
 /// Pre-computed single-scattering grid for zenith angle and wavelength.
@@ -98,14 +99,7 @@ impl ScatterGrid {
     ///
     /// Uses bilinear interpolation if the requested point falls between grid points.
     /// Points outside the grid are clamped to the nearest edge.
-    ///
-    /// # Arguments
-    /// * `zenith_deg` - Zenith angle in degrees [0, 89]
-    /// * `wavelength_nm` - Wavelength in nanometers
-    ///
-    /// # Returns
-    /// The interpolated scattering coefficient.
-    pub fn lookup(&self, zenith_deg: f64, wavelength_nm: f64) -> f64 {
+    pub fn lookup(&self, zenith: Degrees, wavelength: Nanometers) -> f64 {
         let nz = self.zenith_deg.len();
         let nw = self.wavelength_nm.len();
         // rows[z_idx][wl_idx] — zenith is the row (y) axis, wavelength is column (x)
@@ -114,8 +108,8 @@ impl ScatterGrid {
             &self.wavelength_nm,
             &self.zenith_deg,
             &rows,
-            wavelength_nm,
-            zenith_deg,
+            wavelength.value(),
+            zenith.value(),
             OutOfRange::ClampToEndpoints,
             OutOfRange::ClampToEndpoints,
             AxisDirection::Ascending,
@@ -168,10 +162,10 @@ mod tests {
         let grid = ScatterGrid::new();
 
         // Lookup at exact grid points should return the stored values
-        let val_00 = grid.lookup(0.0, 400.0);
+        let val_00 = grid.lookup(Degrees::new(0.0), Nanometers::new(400.0));
         assert!(val_00 > 0.0);
 
-        let val_89_1000 = grid.lookup(89.0, 1000.0);
+        let val_89_1000 = grid.lookup(Degrees::new(89.0), Nanometers::new(1000.0));
         assert!(val_89_1000 > 0.0);
     }
 
@@ -180,12 +174,12 @@ mod tests {
         let grid = ScatterGrid::new();
 
         // Interpolation between grid points
-        let val_at_10_deg = grid.lookup(10.0, 450.0);
+        let val_at_10_deg = grid.lookup(Degrees::new(10.0), Nanometers::new(450.0));
         assert!(val_at_10_deg > 0.0);
 
         // Should be between the corner values
-        let val_0_400 = grid.lookup(0.0, 400.0);
-        let _val_20_500 = grid.lookup(20.0, 500.0);
+        let val_0_400 = grid.lookup(Degrees::new(0.0), Nanometers::new(400.0));
+        let _val_20_500 = grid.lookup(Degrees::new(20.0), Nanometers::new(500.0));
         assert!(val_at_10_deg >= val_0_400 * 0.5); // Very loose bound
     }
 
@@ -194,20 +188,20 @@ mod tests {
         let grid = ScatterGrid::new();
 
         // Values outside bounds should be clamped to edge
-        let val_neg_zenith = grid.lookup(-10.0, 500.0);
-        let val_0_zenith = grid.lookup(0.0, 500.0);
+        let val_neg_zenith = grid.lookup(Degrees::new(-10.0), Nanometers::new(500.0));
+        let val_0_zenith = grid.lookup(Degrees::new(0.0), Nanometers::new(500.0));
         assert_eq!(val_neg_zenith, val_0_zenith);
 
-        let val_high_zenith = grid.lookup(100.0, 500.0);
-        let val_89_zenith = grid.lookup(89.0, 500.0);
+        let val_high_zenith = grid.lookup(Degrees::new(100.0), Nanometers::new(500.0));
+        let val_89_zenith = grid.lookup(Degrees::new(89.0), Nanometers::new(500.0));
         assert_eq!(val_high_zenith, val_89_zenith);
 
-        let val_low_wl = grid.lookup(45.0, 300.0);
-        let val_400_wl = grid.lookup(45.0, 400.0);
+        let val_low_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(300.0));
+        let val_400_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(400.0));
         assert_eq!(val_low_wl, val_400_wl);
 
-        let val_high_wl = grid.lookup(45.0, 1500.0);
-        let val_1000_wl = grid.lookup(45.0, 1000.0);
+        let val_high_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(1500.0));
+        let val_1000_wl = grid.lookup(Degrees::new(45.0), Nanometers::new(1000.0));
         assert_eq!(val_high_wl, val_1000_wl);
     }
 
@@ -216,12 +210,11 @@ mod tests {
         // Test that the Rayleigh λ⁻⁴ scaling is approximately preserved
         // across the grid at a fixed zenith angle.
         let grid = ScatterGrid::new();
+        let z = Degrees::new(0.0);
 
-        let z = 0.0; // Zenith angle
-
-        let val_400 = grid.lookup(z, 400.0);
-        let val_500 = grid.lookup(z, 500.0);
-        let val_600 = grid.lookup(z, 600.0);
+        let val_400 = grid.lookup(z, Nanometers::new(400.0));
+        let val_500 = grid.lookup(z, Nanometers::new(500.0));
+        let val_600 = grid.lookup(z, Nanometers::new(600.0));
 
         // For Rayleigh: σ(λ) ∝ λ⁻⁴
         // So σ(400) / σ(500) should be close to (500/400)⁴
@@ -238,11 +231,11 @@ mod tests {
     fn test_airmass_increase_with_zenith() {
         // Scattering coefficient should increase with zenith angle due to airmass
         let grid = ScatterGrid::new();
+        let wl = Nanometers::new(500.0);
 
-        let wl = 500.0;
-        let val_0 = grid.lookup(0.0, wl);
-        let val_45 = grid.lookup(45.0, wl);
-        let val_80 = grid.lookup(80.0, wl);
+        let val_0 = grid.lookup(Degrees::new(0.0), wl);
+        let val_45 = grid.lookup(Degrees::new(45.0), wl);
+        let val_80 = grid.lookup(Degrees::new(80.0), wl);
 
         // Higher zenith angle => higher airmass => higher scattering coefficient
         assert!(val_45 > val_0);
@@ -256,8 +249,8 @@ mod tests {
 
         assert_eq!(grid1.dimensions(), grid2.dimensions());
         assert_eq!(
-            grid1.lookup(45.0, 500.0),
-            grid2.lookup(45.0, 500.0)
+            grid1.lookup(Degrees::new(45.0), Nanometers::new(500.0)),
+            grid2.lookup(Degrees::new(45.0), Nanometers::new(500.0))
         );
     }
 }

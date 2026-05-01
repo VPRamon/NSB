@@ -17,6 +17,7 @@
 //! of the solar spectral energy distribution that underlies the zodiacal-light
 //! model.
 
+use siderust::qtty::Nanometers;
 use siderust::spectra::algo;
 
 /// Solar spectral irradiance at Earth orbit (1 AU).
@@ -68,12 +69,17 @@ impl SolarSpectrum {
             .expect("default spectrum should be valid")
     }
 
-    /// Integrates the spectrum over the given wavelength range [λ_min, λ_max] in nm.
+    /// Integrates the spectrum over the given wavelength range [λ_min, λ_max].
     ///
     /// Uses trapezoidal integration between sample points. Wavelengths outside
     /// the sampled range are excluded.
-    pub fn integrate_range(&self, lambda_min: f64, lambda_max: f64) -> f64 {
-        algo::trapz_range(&self.wavelength_nm, &self.flux_wm2_nm, lambda_min, lambda_max)
+    pub fn integrate_range(&self, lambda_min: Nanometers, lambda_max: Nanometers) -> f64 {
+        algo::trapz_range(
+            &self.wavelength_nm,
+            &self.flux_wm2_nm,
+            lambda_min.value(),
+            lambda_max.value(),
+        )
     }
 
     /// Integrates the entire spectrum.
@@ -108,7 +114,7 @@ impl SolarSpectrum {
 
         // Visible spectrum (400–700 nm) reference: ~500 W/m²
         // Our sample should integrate to a fraction of that (depends on point density)
-        let visible_flux = self.integrate_range(400.0, 700.0);
+        let visible_flux = self.integrate_range(Nanometers::new(400.0), Nanometers::new(700.0));
         if visible_flux < 5.0 {
             return Err(format!(
                 "visible spectrum flux {} W/m² is unrealistically low",
@@ -120,7 +126,7 @@ impl SolarSpectrum {
         // Check interpolated flux in a small window around 555 nm
         let vband_low = 550.0;
         let vband_high = 560.0;
-        let vband_flux = self.integrate_range(vband_low, vband_high);
+        let vband_flux = self.integrate_range(Nanometers::new(vband_low), Nanometers::new(vband_high));
         let vband_width = vband_high - vband_low; // 10 nm
         let vband_avg = vband_flux / vband_width;
 
@@ -140,8 +146,8 @@ impl SolarSpectrum {
     /// Returns descriptive statistics about the spectrum.
     pub fn describe(&self) -> String {
         let total = self.integrate_total();
-        let visible = self.integrate_range(400.0, 700.0);
-        let nir = self.integrate_range(700.0, 1200.0);
+        let visible = self.integrate_range(Nanometers::new(400.0), Nanometers::new(700.0));
+        let nir = self.integrate_range(Nanometers::new(700.0), Nanometers::new(1200.0));
 
         format!(
             "SolarSpectrum: {} points, λ=[{:.0}–{:.0}] nm, Total={:.1} W/m², Visible(400–700nm)={:.1} W/m², NIR(700–1200nm)={:.1} W/m²",
@@ -186,7 +192,7 @@ mod tests {
     #[test]
     fn test_integration_visible() {
         let spectrum = SolarSpectrum::kurucz_default();
-        let visible_400_700 = spectrum.integrate_range(400.0, 700.0);
+        let visible_400_700 = spectrum.integrate_range(Nanometers::new(400.0), Nanometers::new(700.0));
         // Expected: ~100–600 W/m² for this sample (subset of full spectrum)
         assert!(visible_400_700 > 10.0, "visible flux {} too low", visible_400_700);
         println!(
@@ -198,7 +204,7 @@ mod tests {
     #[test]
     fn test_integration_nir() {
         let spectrum = SolarSpectrum::kurucz_default();
-        let nir_700_1200 = spectrum.integrate_range(700.0, 1200.0);
+        let nir_700_1200 = spectrum.integrate_range(Nanometers::new(700.0), Nanometers::new(1200.0));
         // Expected: ~50–700 W/m² for this sample
         assert!(nir_700_1200 > 5.0, "NIR flux {} too low", nir_700_1200);
         println!("NIR spectrum (700–1200 nm): {:.2} W/m²", nir_700_1200);
@@ -218,7 +224,7 @@ mod tests {
     #[test]
     fn test_vband_reference() {
         let spectrum = SolarSpectrum::kurucz_default();
-        let vband_flux = spectrum.integrate_range(550.0, 560.0);
+        let vband_flux = spectrum.integrate_range(Nanometers::new(550.0), Nanometers::new(560.0));
         let vband_avg = vband_flux / 10.0;
         // V-band published ~1.96 W/m²/nm, allow ±20% for sample data
         assert!(
