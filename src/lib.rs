@@ -64,3 +64,7 @@ pub use solar_spectrum::SolarSpectrum;
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
 pub use siderust::coordinates::spherical::Direction as SphericalDirection;
 pub use siderust::qtty::DEG;
+
+/// V-band S10 zero-point used by `band_flux_to_surface_brightness` and by each
+/// component that converts between S10 surface brightness and AB magnitudes.
+pub(crate) const NSB_S10_ZP: f64 = 27.78;

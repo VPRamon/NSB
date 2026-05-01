@@ -41,17 +41,15 @@
 //! of moon phase and geometry on sky brightness.
 
 use crate::error::Result;
-use qtty::angular::Degrees;
+use crate::NSB_S10_ZP;
+use qtty::angular::{Degree, Degrees, Radian, Radians};
 use qtty::radiometry;
+use siderust::atmosphere::{airmass, AirmassFormula};
 use siderust::MoonPhaseGeometry;
 
 /// Default V-band atmospheric extinction coefficient (mag/airmass) used by
 /// K&S 1991 in their published curves.
 pub const DEFAULT_K_EXT: f64 = 0.172;
-
-/// V-band S10 zero-point used throughout NSB (matches
-/// `evaluator::NsbResult::v_mag` and `band_flux_to_surface_brightness`).
-const NSB_S10_ZP: f64 = 27.78;
 
 /// Conversion factor from a V-band S10 surface brightness to an estimated
 /// band-integrated photon radiance over [300, 650] nm. Derived assuming a
@@ -95,19 +93,27 @@ pub fn compute(inp: &MoonInputs) -> Result<MoonOutputs> {
 /// Variant of [`compute`] that lets the caller override the V-band
 /// extinction coefficient `k` (mag/airmass).
 pub fn compute_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result<MoonOutputs> {
-    let z_moon = inp.moon_zenith.value();
-    let z_src = inp.source_zenith.value();
-    let rho = inp.separation.value();
-
-    if !z_moon.is_finite() || !z_src.is_finite() || !rho.is_finite() || !k_ext.is_finite() {
+    if !inp.moon_zenith.value().is_finite()
+        || !inp.source_zenith.value().is_finite()
+        || !inp.separation.value().is_finite()
+        || !k_ext.is_finite()
+    {
         return Ok(zero_outputs());
     }
-    if z_moon >= 90.0 || z_src >= 90.0 || rho <= 0.0 {
+    if inp.moon_zenith.value() >= 90.0
+        || inp.source_zenith.value() >= 90.0
+        || inp.separation.value() <= 0.0
+    {
         return Ok(zero_outputs());
     }
 
-    let alpha_deg = inp.phase.phase_angle.to::<qtty::angular::Degree>().value();
-    let b_nl = scattered_brightness_nanolamberts(alpha_deg, rho, z_moon, z_src, k_ext);
+    let b_nl = scattered_brightness_nanolamberts(
+        inp.phase.phase_angle,
+        inp.separation,
+        inp.moon_zenith,
+        inp.source_zenith,
+        k_ext,
+    );
 
     if !b_nl.is_finite() || b_nl <= 0.0 {
         return Ok(zero_outputs());
@@ -127,41 +133,35 @@ pub fn compute_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result<MoonOutpu
 /// Scattered-moon surface brightness at the source location, in nanolamberts
 /// (eq. 15 of K&S 1991).
 fn scattered_brightness_nanolamberts(
-    alpha_deg: f64,
-    rho_deg: f64,
-    z_moon_deg: f64,
-    z_src_deg: f64,
+    alpha: Radians,
+    rho: Degrees,
+    z_moon: Degrees,
+    z_src: Degrees,
     k_ext: f64,
 ) -> f64 {
-    let i_star = lunar_illuminance_outside_atmosphere(alpha_deg);
-    let f_rho = scattering_function(rho_deg);
-    let am_moon = airmass_ks(z_moon_deg);
-    let am_src = airmass_ks(z_src_deg);
+    let i_star = lunar_illuminance_outside_atmosphere(alpha);
+    let f_rho = scattering_function(rho);
+    let am_moon = airmass(z_moon.to::<Radian>(), AirmassFormula::KrisciunasSchaefer1991);
+    let am_src = airmass(z_src.to::<Radian>(), AirmassFormula::KrisciunasSchaefer1991);
     let trans_moon = 10f64.powf(-0.4 * k_ext * am_moon);
     let absorb_path = 1.0 - 10f64.powf(-0.4 * k_ext * am_src);
     f_rho * i_star * trans_moon * absorb_path
 }
 
 /// `I*(α)` — lunar illuminance above the atmosphere (relative units, eq. 8).
-fn lunar_illuminance_outside_atmosphere(alpha_deg: f64) -> f64 {
-    let a = alpha_deg.abs();
+fn lunar_illuminance_outside_atmosphere(alpha: Radians) -> f64 {
+    let a = alpha.to::<Degree>().value().abs();
     let exponent = -0.4 * (3.84 + 0.026 * a + 4.0e-9 * a.powi(4));
     10f64.powf(exponent)
 }
 
 /// `f(ρ)` — angular scattering function of K&S 1991 (eq. 16/17), summing
 /// the Rayleigh + aerosol forward-scattering term and the Mie aureole term.
-fn scattering_function(rho_deg: f64) -> f64 {
-    let cos_rho = rho_deg.to_radians().cos();
+fn scattering_function(rho: Degrees) -> f64 {
+    let cos_rho = rho.to::<Radian>().value().cos();
     let rayleigh = 10f64.powf(5.36) * (1.06 + cos_rho * cos_rho);
-    let aureole = 10f64.powf(6.15 - rho_deg / 40.0);
+    let aureole = 10f64.powf(6.15 - rho.value() / 40.0);
     rayleigh + aureole
-}
-
-/// K&S airmass approximation `X(Z) = (1 − 0.96 sin²Z)^(-1/2)`.
-fn airmass_ks(z_deg: f64) -> f64 {
-    let s = z_deg.to_radians().sin();
-    (1.0 - 0.96 * s * s).max(f64::MIN_POSITIVE).powf(-0.5)
 }
 
 /// Convert moonlight brightness `B` (nanolamberts) into V-band surface
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn airmass_at_zenith_is_unity() {
-        let am = airmass_ks(0.0);
+        let am = airmass(Degrees::new(0.0).to::<Radian>(), AirmassFormula::KrisciunasSchaefer1991);
         assert!((am - 1.0).abs() < 1e-12, "X(0) = {am}");
     }
 }
@@ -376,18 +376,19 @@ pub fn compute_jones2013(inp: &MoonInputs) -> Result<MoonOutputs> {
 ///
 /// See [`compute_jones2013`] for full documentation.
 pub fn compute_jones2013_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result<MoonOutputs> {
-    let z_moon = inp.moon_zenith.value();
-    let z_src = inp.source_zenith.value();
-    let rho = inp.separation.value();
-
-    if !z_moon.is_finite() || !z_src.is_finite() || !rho.is_finite() || !k_ext.is_finite() {
+    if !inp.moon_zenith.value().is_finite()
+        || !inp.source_zenith.value().is_finite()
+        || !inp.separation.value().is_finite()
+        || !k_ext.is_finite()
+    {
         return Ok(zero_outputs());
     }
-    if z_moon >= 90.0 || z_src >= 90.0 || rho <= 0.0 {
+    if inp.moon_zenith.value() >= 90.0
+        || inp.source_zenith.value() >= 90.0
+        || inp.separation.value() <= 0.0
+    {
         return Ok(zero_outputs());
     }
-
-    let alpha_deg = inp.phase.phase_angle.to::<qtty::angular::Degree>().value();
 
     // ========================================================================
     // STUB IMPLEMENTATION
@@ -402,7 +403,13 @@ pub fn compute_jones2013_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result
     //   4. Phase functions for multiple scattering orders are available
     // ========================================================================
 
-    let b_nl = scattered_brightness_nanolamberts(alpha_deg, rho, z_moon, z_src, k_ext);
+    let b_nl = scattered_brightness_nanolamberts(
+        inp.phase.phase_angle,
+        inp.separation,
+        inp.moon_zenith,
+        inp.source_zenith,
+        k_ext,
+    );
 
     if !b_nl.is_finite() || b_nl <= 0.0 {
         return Ok(zero_outputs());

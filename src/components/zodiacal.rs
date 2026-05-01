@@ -29,7 +29,7 @@ use crate::data::leinert::{
 };
 use crate::error::{NsbError, Result};
 use crate::spectra::SampledSpectrum;
-use qtty::angular::{Degree, Degrees, Radians};
+use qtty::angular::{Degree, Degrees, Radian, Radians};
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
@@ -126,8 +126,8 @@ pub struct ZlOutputs {
 /// at construction time, so this function is now a thin radians→degrees
 /// wrapper around [`Grid2D::interp_at`].
 pub fn leinert_lookup_s10(beta: Radians, delta_lambda: Radians) -> Result<S10> {
-    let beta_deg = beta.value().to_degrees().abs();
-    let dl_deg = delta_lambda.value().to_degrees().abs().min(180.0);
+    let beta_deg = beta.to::<Degree>().value().abs();
+    let dl_deg = delta_lambda.to::<Degree>().value().abs().min(180.0);
     if !(0.0..90.0).contains(&beta_deg) {
         return Err(NsbError::OutOfRange(format!("β={beta_deg}° not in [0,90)")));
     }
@@ -204,10 +204,7 @@ fn extinction_transmission(zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith: Deg
         0.013 * lam_um.powf(-1.38)
     };
     let tau0 = (10f64).powf(-0.4 * kaer).ln();
-    let am = airmass(
-        Radians::new(zenith.value().to_radians()),
-        AirmassFormula::Young1994,
-    );
+    let am = airmass(zenith.to::<Radian>(), AirmassFormula::Young1994);
     let tau_eff = tau0 * (fext_r + fext_m) * am;
     (-tau_eff).exp()
 }
