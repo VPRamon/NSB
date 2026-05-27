@@ -29,18 +29,18 @@ use crate::data::leinert::{
 };
 use crate::error::{NsbError, Result};
 use crate::spectra::SampledSpectrum;
+use optica::data::Provenance;
+use optica::grid::OutOfRange;
+use optica::grid::{ConstantRegion, Grid2D};
+use optica::spectrum::{algo, Interpolation};
 use qtty::angular::{Degree, Degrees, Radian, Radians};
 use qtty::radiometry::{
     spectral_radiance_to_photon_radiance_ns_nm,
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
     WattsPerSquareMeterSteradianNanometer,
 };
-use siderust::atmosphere::{airmass, AirmassFormula};
+use siderust::atmosphere::{airmass, Young1994};
 use siderust::qtty::{length::Meter, Nanometer, Nanometers};
-use siderust::spectra::{
-    algo, Interpolation, OutOfRange as SpectrumOutOfRange, Provenance as SpectrumProvenance,
-};
-use siderust::tables::{ConstantRegion, Grid2D, OutOfRange, Provenance};
 
 /// Unit marker for S10 values — the inner unit struct from `qtty::radiometry`.
 use qtty::radiometry::S10 as S10Unit;
@@ -74,7 +74,7 @@ fn s10_grid() -> &'static LeinertGrid {
         for row in LEINERT_S10.iter() {
             table.extend_from_slice(row);
         }
-        Grid2D::from_raw_row_major_y_descending(xs, ys_desc, table)
+        Grid2D::from_raw_row_major_y_descending(&xs, &ys_desc, &table)
             .expect("Leinert S10 grid invariants")
             // Corner extrapolations from Leinert (1998), equivalent to the
             // legacy `if dl_deg < X && beta_deg < Y` clamp branches.
@@ -119,7 +119,7 @@ pub struct ZlOutputs {
     pub integrated: BandPhotonRadiance,
     pub b_flux_s10: S10,
     pub v_flux_s10: S10,
-    pub spectrum: SampledSpectrum<Nanometer, Meter, f64>,
+    pub spectrum: SampledSpectrum<Nanometer, Meter>,
 }
 
 /// Bilinear interpolation in the Leinert table at `(β [rad], (λ-λ_sun) [rad])`.
@@ -148,14 +148,7 @@ pub fn leinert_lookup_s10(beta: Radians, delta_lambda: Radians) -> Result<S10> {
             beta_abs.value()
         )));
     }
-    s10_grid()
-        .interp_at(
-            beta_abs,
-            dl_abs,
-            OutOfRange::ClampToEndpoints,
-            OutOfRange::ClampToEndpoints,
-        )
-        .map_err(|e| NsbError::Interpolation(e.to_string()))
+    Ok(s10_grid().interp_at(beta_abs, dl_abs))
 }
 
 /// Leinert reddening factor at a given wavelength and elongation.
@@ -216,26 +209,23 @@ fn extinction_transmission(zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith: Deg
         0.013 * lam_um.powf(-1.38)
     };
     let tau0 = (10f64).powf(-0.4 * kaer).ln();
-    let am = airmass(zenith.to::<Radian>(), AirmassFormula::Young1994);
-    let tau_eff = tau0 * (fext_r + fext_m) * am;
+    let am = airmass::<Young1994>(zenith.to::<Radian>());
+    let tau_eff = tau0 * (fext_r + fext_m) * am.value();
     (-tau_eff).exp()
 }
 
 /// Compute the zodiacal-light contribution.
 pub fn compute(
     inp: &ZlInputs,
-    solar_spectrum: &SampledSpectrum<Nanometer, Meter, f64>,
+    solar_spectrum: &SampledSpectrum<Nanometer, Meter>,
 ) -> Result<ZlOutputs> {
     let zl_500_s10 = leinert_lookup_s10(inp.beta, inp.delta_lambda)?;
     let zl_500_wmsrum = zl_500_s10.value() * S10_TO_W_M2_SR_UM;
 
     // Scale the solar spectrum so its 500 nm value matches zl_500.
-    let f_sun_500 = solar_spectrum
-        .interp_at(Nanometers::new(500.0))
-        .expect("solar interp at 500 nm")
-        .value(); // W m⁻² nm⁻¹
-                  // Convert solar W/m²/nm → W/m²/sr/nm by dividing by π·sr (Lambertian),
-                  // matching the Python `f_sun_sr = f_sun / pi` convention.
+    let f_sun_500 = solar_spectrum.interp_at(Nanometers::new(500.0)).value(); // W m⁻² nm⁻¹
+                                                                              // Convert solar W/m²/nm → W/m²/sr/nm by dividing by π·sr (Lambertian),
+                                                                              // matching the Python `f_sun_sr = f_sun / pi` convention.
     let f_sun_500_sr = f_sun_500 / std::f64::consts::PI;
     if f_sun_500_sr <= 0.0 {
         return Err(NsbError::DataParse {
@@ -288,17 +278,17 @@ pub fn compute(
         zl_ph.push(zl_ph_per_ns_per_nm);
     }
 
-    let spectrum = SampledSpectrum::<Nanometer, Meter, f64>::from_raw(
+    let spectrum = SampledSpectrum::<Nanometer, Meter>::from_raw(
         lam,
         zl_ph,
         Interpolation::Linear,
-        SpectrumOutOfRange::ClampToEndpoints,
-        Some(SpectrumProvenance::computed("zodiacal")),
+        OutOfRange::ClampToEndpoints,
+        Some(Provenance::computed("zodiacal")),
     )
     .expect("zodiacal spectrum invariants");
     let integrated = BandPhotonRadiance::new(algo::trapz_range(
-        &spectrum.xs_raw(),
-        &spectrum.ys_raw(),
+        spectrum.xs_raw(),
+        spectrum.ys_raw(),
         WL_LOW_NM,
         WL_HIGH_NM,
     ));
@@ -345,11 +335,11 @@ mod tests {
         let bt = (beta_deg - 5.0 * b0 as f64) / 5.0;
 
         let l0_idx = ((180.0 - dl_deg.ceil()) / 5.0).floor() as isize;
-        let l0 = l0_idx.max(0).min(35) as usize;
+        let l0 = l0_idx.clamp(0, 35) as usize;
         let l1 = (l0 + 1).min(36);
         let lt = (180.0 - dl_deg - 5.0 * l0 as f64) / 5.0;
 
-        Some(siderust::tables::algo::bilinear_unit(
+        Some(optica::grid::algo::bilinear_unit(
             LEINERT_S10[l0][b0],
             LEINERT_S10[l0][b1],
             LEINERT_S10[l1][b0],

@@ -49,10 +49,9 @@ use qtty::angular::{Degree, Degrees, Radian, Radians};
 use qtty::radiometry::{
     self, spectral_radiance_to_photon_radiance_ns_nm, WattsPerSquareMeterSteradianNanometer,
 };
-use siderust::atmosphere::rayleigh::DEFAULT_SCALE_HEIGHT_KM;
 use siderust::atmosphere::{
-    airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase, AirmassFormula,
-    AtmosphereProfile, MieParams,
+    airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,
+    AtmosphereProfile, KrisciunasSchaefer1991, MieParams, DEFAULT_SCALE_HEIGHT,
 };
 use siderust::qtty::{Kilometers, Nanometer, Nanometers};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
@@ -158,13 +157,10 @@ fn scattered_brightness_nanolamberts(
 ) -> f64 {
     let i_star = lunar_illuminance_outside_atmosphere(alpha);
     let f_rho = scattering_function(rho);
-    let am_moon = airmass(
-        z_moon.to::<Radian>(),
-        AirmassFormula::KrisciunasSchaefer1991,
-    );
-    let am_src = airmass(z_src.to::<Radian>(), AirmassFormula::KrisciunasSchaefer1991);
-    let trans_moon = 10f64.powf(-0.4 * k_ext * am_moon);
-    let absorb_path = 1.0 - 10f64.powf(-0.4 * k_ext * am_src);
+    let am_moon = airmass::<KrisciunasSchaefer1991>(z_moon.to::<Radian>());
+    let am_src = airmass::<KrisciunasSchaefer1991>(z_src.to::<Radian>());
+    let trans_moon = 10f64.powf(-0.4 * k_ext * am_moon.value());
+    let absorb_path = 1.0 - 10f64.powf(-0.4 * k_ext * am_src.value());
     f_rho * i_star * trans_moon * absorb_path
 }
 
@@ -204,11 +200,14 @@ mod tests {
     use qtty::angular::Radians;
     use qtty::photometry::s10_to_surface_brightness;
     use qtty::radiometry::S10s;
+    use siderust::qtty::IlluminationFractions;
 
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         MoonPhaseGeometry {
             phase_angle: Radians::new(alpha_deg.to_radians()),
-            illuminated_fraction: 0.5 * (1.0 + alpha_deg.to_radians().cos()),
+            illuminated_fraction: IlluminationFractions::new(
+                0.5 * (1.0 + alpha_deg.to_radians().cos()),
+            ),
             elongation: Radians::new(0.0),
             waxing: true,
         }
@@ -310,11 +309,8 @@ mod tests {
 
     #[test]
     fn airmass_at_zenith_is_unity() {
-        let am = airmass(
-            Degrees::new(0.0).to::<Radian>(),
-            AirmassFormula::KrisciunasSchaefer1991,
-        );
-        assert!((am - 1.0).abs() < 1e-12, "X(0) = {am}");
+        let am = airmass::<KrisciunasSchaefer1991>(Degrees::new(0.0).to::<Radian>());
+        assert!((am.value() - 1.0).abs() < 1e-12, "X(0) = {:?}", am);
     }
 }
 
@@ -390,7 +386,7 @@ pub fn compute_jones2013_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result
     compute_jones2013_from_samples(
         inp,
         &samples,
-        Kilometers::new(siderust::calculus::lunar::photometry::MEAN_MOON_DISTANCE_KM),
+        siderust::event::lunar::photometry::MEAN_MOON_DISTANCE,
         k_ext,
     )
 }
@@ -399,12 +395,15 @@ pub fn compute_jones2013_with_extinction(inp: &MoonInputs, k_ext: f64) -> Result
 /// actual topocentric/geocentric Moon distance.
 pub fn compute_jones2013_spectral(
     inp: &MoonInputs,
-    solar_spectrum: &SampledSpectrum<Nanometer, siderust::qtty::length::Meter, f64>,
+    solar_spectrum: &SampledSpectrum<Nanometer, siderust::qtty::length::Meter>,
     moon_distance: Kilometers,
 ) -> Result<MoonOutputs> {
-    let xs = solar_spectrum.xs_raw();
-    let ys = solar_spectrum.ys_raw();
-    let samples: Vec<(f64, f64)> = xs.into_iter().zip(ys).collect();
+    let samples: Vec<(f64, f64)> = solar_spectrum
+        .xs_raw()
+        .iter()
+        .copied()
+        .zip(solar_spectrum.ys_raw().iter().copied())
+        .collect();
     compute_jones2013_from_samples(inp, &samples, moon_distance, DEFAULT_K_EXT)
 }
 
@@ -432,16 +431,9 @@ fn compute_jones2013_from_samples(
 
     let mie = mie_grid();
     let correction = correction_grid();
-    let am_moon = airmass(
-        inp.moon_zenith.to::<Radian>(),
-        AirmassFormula::KrisciunasSchaefer1991,
-    );
-    let am_src = airmass(
-        inp.source_zenith.to::<Radian>(),
-        AirmassFormula::KrisciunasSchaefer1991,
-    );
+    let am_moon = airmass::<KrisciunasSchaefer1991>(inp.moon_zenith.to::<Radian>());
+    let am_src = airmass::<KrisciunasSchaefer1991>(inp.source_zenith.to::<Radian>());
     let tau_scale = k_ext / DEFAULT_K_EXT;
-    let cos_rho = inp.separation.to::<Radian>().cos();
 
     let mut lam = Vec::new();
     let mut density = Vec::new();
@@ -466,17 +458,21 @@ fn compute_jones2013_from_samples(
         .value();
         let tau_r = rayleigh_optical_depth_bodhaine99(
             wavelength,
-            AtmosphereProfile::PARANAL.surface_pressure.value(),
-            AtmosphereProfile::PARANAL.observer_altitude,
-            DEFAULT_SCALE_HEIGHT_KM,
-        ) * tau_scale;
-        let tau_m = mie_optical_depth(&MieParams::PARANAL, wavelength) * tau_scale;
-        let phase_r = rayleigh_phase(cos_rho);
+            AtmosphereProfile::EL_PARANAL.surface_pressure,
+            AtmosphereProfile::EL_PARANAL.observer_altitude,
+            DEFAULT_SCALE_HEIGHT,
+        )
+        .value()
+            * tau_scale;
+        let tau_m = mie_optical_depth(&MieParams::PARANAL, wavelength).value() * tau_scale;
+        let phase_r = rayleigh_phase(inp.separation.to::<Radian>()).value();
         let phase_m = mie.lookup(inp.separation, wavelength);
         let multi = correction.lookup(inp.separation, wavelength);
+        let am_moon_v = am_moon.value();
+        let am_src_v = am_src.value();
         let scatter = (tau_r * phase_r + tau_m * JONES_MIE_WEIGHT * phase_m).max(0.0);
-        let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon + am_src)).exp();
-        let source_path = 1.0 - (-(tau_r + tau_m) * am_src).exp();
+        let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon_v + am_src_v)).exp();
+        let source_path = 1.0 - (-(tau_r + tau_m) * am_src_v).exp();
         let value = lunar_ph * scatter * transmission * source_path.max(0.0) * multi;
         if value.is_finite() && value > 0.0 {
             lam.push(lambda_nm);
@@ -558,6 +554,7 @@ mod jones_tests {
     use qtty::angular::Radians;
     use qtty::photometry::s10_to_surface_brightness;
     use qtty::radiometry::S10s;
+    use siderust::qtty::IlluminationFractions;
 
     const LUT_MOON_PHASE_0454: &str =
         include_str!("../../data/lut_moon/Phase_0.454_waxing_moon_LUT.csv");
@@ -565,7 +562,9 @@ mod jones_tests {
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         MoonPhaseGeometry {
             phase_angle: Radians::new(alpha_deg.to_radians()),
-            illuminated_fraction: 0.5 * (1.0 + alpha_deg.to_radians().cos()),
+            illuminated_fraction: IlluminationFractions::new(
+                0.5 * (1.0 + alpha_deg.to_radians().cos()),
+            ),
             elongation: Radians::new(0.0),
             waxing: true,
         }
@@ -575,7 +574,7 @@ mod jones_tests {
         let phase_angle = (2.0 * fraction - 1.0).clamp(-1.0, 1.0).acos();
         MoonPhaseGeometry {
             phase_angle: Radians::new(phase_angle),
-            illuminated_fraction: fraction,
+            illuminated_fraction: IlluminationFractions::new(fraction),
             elongation: Radians::new(0.0),
             waxing: true,
         }

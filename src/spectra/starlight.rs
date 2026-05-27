@@ -10,9 +10,10 @@
 //! into the contribution added to the total NSB.
 
 use crate::error::{NsbError, Result};
+use optica::data::Provenance;
+use optica::grid::OutOfRange;
+use optica::spectrum::{loaders::ascii::two_column, Interpolation, SampledSpectrum};
 use siderust::qtty::{length::Meter, Nanometer};
-use siderust::spectra::loaders::ascii::two_column;
-use siderust::spectra::{Interpolation, OutOfRange, Provenance, SampledSpectrum};
 
 const RAW: &str = include_str!("../../data/radiance_starlight.txt");
 
@@ -26,7 +27,7 @@ siderust::assert_data_checksum!(
 /// Loads `(wavelength [nm], radiance [ph s⁻¹ m⁻² μm⁻¹ arcsec⁻²])`.
 ///
 /// Format mirrors SkyCalc's two-column ASCII output.
-pub fn load() -> Result<SampledSpectrum<Nanometer, Meter, f64>> {
+pub fn load() -> Result<SampledSpectrum<Nanometer, Meter>> {
     two_column::<Nanometer, Meter>(
         RAW,
         1.0,
@@ -47,7 +48,7 @@ mod tests {
 
     #[test]
     fn pinned_sha256_matches_runtime_hash() {
-        use siderust::provenance::checksum::{sha256, to_hex};
+        use siderust::data::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),
             "69b0fc4edc08a38a62ef9cdfd27e2ecefef61f3d36205cba2e941c61193b638d",

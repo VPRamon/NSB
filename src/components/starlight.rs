@@ -16,11 +16,13 @@
 
 use crate::error::Result;
 use crate::spectra::starlight;
+use optica::data::Provenance;
+use optica::grid::OutOfRange;
+use optica::spectrum::{algo, Interpolation, SampledSpectrum};
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 use siderust::qtty::{length::Meter, Nanometer};
-use siderust::spectra::{algo, Interpolation, OutOfRange, Provenance, SampledSpectrum};
 
 const WL_LOW_NM: f64 = 300.0;
 const WL_HIGH_NM: f64 = 650.0;
@@ -34,7 +36,7 @@ pub struct SlOutputs {
     pub integrated: BandPhotonRadiance,
     pub b_flux_s10: S10,
     pub v_flux_s10: S10,
-    pub spectrum: SampledSpectrum<Nanometer, Meter, f64>,
+    pub spectrum: SampledSpectrum<Nanometer, Meter>,
 }
 
 /// Compute the starlight contribution.
@@ -55,9 +57,9 @@ pub fn compute() -> Result<SlOutputs> {
     const FACTOR: f64 = 1e-9 * 1e-4 * 1e-3 * ARCSEC2_PER_SR;
 
     let lam = raw.xs_raw();
-    let flx: Vec<f64> = raw.ys_raw().into_iter().map(|y| y * FACTOR).collect();
-    let spectrum = SampledSpectrum::<Nanometer, Meter, f64>::from_raw(
-        lam,
+    let flx: Vec<f64> = raw.ys_raw().iter().map(|&y| y * FACTOR).collect();
+    let spectrum = SampledSpectrum::<Nanometer, Meter>::from_raw(
+        lam.to_vec(),
         flx,
         Interpolation::Linear,
         OutOfRange::ClampToEndpoints,
@@ -65,8 +67,8 @@ pub fn compute() -> Result<SlOutputs> {
     )
     .expect("starlight spectrum invariants");
     let integrated = BandPhotonRadiance::new(algo::trapz_range(
-        &spectrum.xs_raw(),
-        &spectrum.ys_raw(),
+        spectrum.xs_raw(),
+        spectrum.ys_raw(),
         WL_LOW_NM,
         WL_HIGH_NM,
     ));

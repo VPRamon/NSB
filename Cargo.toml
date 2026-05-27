@@ -20,7 +20,8 @@ path = "src/bin/nsb.rs"
 [dependencies]
 qtty     = { path = "../qtty/qtty", features = ["radiometry", "astro", "photometry"] }
 tempoch  = { path = "../tempoch/tempoch" }
-siderust = { path = "../siderust", features = ["spectra", "tables", "atmosphere"] }
+siderust = { path = "../siderust", features = ["spectra", "atmosphere"] }
+optica   = { path = "../optica" }
 affn     = { path = "../affn" }
 cheby    = { path = "../cheby" }
 chrono    = "0.4"

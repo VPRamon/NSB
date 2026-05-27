@@ -4,11 +4,11 @@
 //! function as wavelength × scattering angle.  The bundled
 //! `sscatcor_m15s1.dat` table stores multiple-scattering correction factors
 //! over the same kind of axes.  This module keeps those datasets NSB-local but
-//! uses the generic `siderust::tables` interpolation kernels.
+//! uses the `optica::grid` interpolation kernels.
 
 use crate::error::{NsbError, Result};
+use optica::grid::{algo, AxisDirection, OutOfRange};
 use siderust::qtty::{Degrees, Nanometers};
-use siderust::tables::{algo, AxisDirection, OutOfRange};
 
 const MIE_RAW: &str = include_str!("../data/mie_m15s1.dat");
 const SSCAT_RAW: &str = include_str!("../data/sscatcor_m15s1.dat");
@@ -161,7 +161,7 @@ fn parse_grid(raw: &str, file: &'static str, kind: ScatterGridKind) -> Result<Sc
         if values.len() != n_angle {
             return Err(parse_err(
                 file,
-                &format!("grid row {row_idx} length mismatch"),
+                format!("grid row {row_idx} length mismatch"),
             ));
         }
         wavelength_major.push(values);
@@ -210,7 +210,7 @@ fn parse_err(file: &'static str, message: impl Into<String>) -> NsbError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use siderust::provenance::checksum::{sha256, to_hex};
+    use siderust::data::checksum::{sha256, to_hex};
 
     #[test]
     fn pinned_checksums_match_runtime_hashes() {

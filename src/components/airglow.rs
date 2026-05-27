@@ -28,13 +28,14 @@
 use crate::data::leinert::S10_TO_W_M2_SR_UM;
 use crate::error::Result;
 use crate::spectra::airglow_cont::AirglowContinuum;
+use optica::grid::OutOfRange;
+use optica::spectrum::algo;
 use qtty::angular::Degrees;
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 use siderust::atmosphere::van_rhijn_factor;
 use siderust::qtty::{Kilometers, Nanometers, Radian};
-use siderust::spectra::algo;
 use tempoch::{Time, UTC};
 
 const AG_PARAM: [f64; 4] = [
@@ -108,7 +109,8 @@ pub fn compute_skycalc_continuum(
     let van_rhijn = van_rhijn_factor(
         Degrees::new(zenith).to::<Radian>(),
         Kilometers::new(continuum.emission_height_km),
-    );
+    )
+    .value();
     let solar_corr =
         continuum.solar_activity_const + continuum.solar_activity_slope * solar_radio_flux_sfu;
     let season = season_bin(time);
@@ -124,25 +126,15 @@ pub fn compute_skycalc_continuum(
     let lam = continuum.spectrum.xs_raw();
     let rel = continuum.spectrum.ys_raw();
     let flux: Vec<f64> = rel
-        .into_iter()
-        .map(|r| r * scale * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR)
+        .iter()
+        .map(|&r| r * scale * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR)
         .collect();
-    let integrated = BandPhotonRadiance::new(algo::trapz_range(&lam, &flux, WL_LOW_NM, WL_HIGH_NM));
+    let integrated = BandPhotonRadiance::new(algo::trapz_range(lam, &flux, WL_LOW_NM, WL_HIGH_NM));
 
-    let b_density = algo::interp_linear(
-        &lam,
-        &flux,
-        B_FILTER_NM,
-        siderust::spectra::OutOfRange::ClampToEndpoints,
-    )
-    .expect("airglow B interpolation");
-    let v_density = algo::interp_linear(
-        &lam,
-        &flux,
-        V_FILTER_NM,
-        siderust::spectra::OutOfRange::ClampToEndpoints,
-    )
-    .expect("airglow V interpolation");
+    let b_density = algo::interp_linear(lam, &flux, B_FILTER_NM, OutOfRange::ClampToEndpoints)
+        .expect("airglow B interpolation");
+    let v_density = algo::interp_linear(lam, &flux, V_FILTER_NM, OutOfRange::ClampToEndpoints)
+        .expect("airglow V interpolation");
 
     Ok(AgOutputs {
         integrated,
