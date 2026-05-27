@@ -17,8 +17,8 @@
 //! of the solar spectral energy distribution that underlies the zodiacal-light
 //! model.
 
+use optica::spectrum::algo;
 use siderust::qtty::Nanometers;
-use siderust::spectra::algo;
 
 /// Solar spectral irradiance at Earth orbit (1 AU).
 #[derive(Clone, Debug)]
@@ -101,7 +101,7 @@ impl SolarSpectrum {
     pub fn validate(&self) -> Result<(), String> {
         // Check wavelength bounds
         for &w in &self.wavelength_nm {
-            if w < 300.0 || w > 2500.0 {
+            if !(300.0..=2500.0).contains(&w) {
                 return Err(format!("wavelength {} nm outside [300, 2500] nm", w));
             }
         }

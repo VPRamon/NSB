@@ -1,13 +1,13 @@
 //! NSB evaluator: point evaluation and threshold-period search.
 //!
 //! The threshold search runs an event-driven pipeline modelled on
-//! `siderust::calculus::stellar::altitude_periods`:
+//! `siderust::event::stellar::altitude_periods`:
 //!
 //! 1. Optionally pre-filter to the intersection of *Sun below twilight*
 //!    and *target above horizon* sub-windows (cheap analytical engines
 //!    inside `siderust`).
 //! 2. Inside each surviving candidate window, run a coarse scan with
-//!    Brent refinement via `siderust::calculus::math_core::intervals` to
+//!    Brent refinement via `siderust::numeric::intervals` to
 //!    locate the radiance crossings of `threshold`.
 //! 3. Take the complement (darker-than-threshold) inside each candidate
 //!    window and return the concatenated list.
@@ -37,6 +37,7 @@ use crate::site::Site;
 use crate::spectra;
 use crate::spectra::airglow_cont::AirglowContinuum;
 use crate::NSB_S10_ZP;
+use optica::spectrum::SampledSpectrum;
 use qtty::angular::Degrees;
 use qtty::photometry::{s10_to_surface_brightness, SurfaceBrightness};
 use qtty::radiometry::{
@@ -44,18 +45,17 @@ use qtty::radiometry::{
 };
 use qtty::Second;
 use siderust::bodies::{Moon, Sun as SunBody};
-use siderust::calculus::altitude::AltitudePeriodsProvider;
-use siderust::calculus::horizontal::star_horizontal;
-use siderust::calculus::math_core::intervals;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EclipticMeanJ2000, EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::coordinates::transform::TransformFrame;
+use siderust::event::altitude::AltitudePeriodsProvider;
+use siderust::event::horizontal::star_horizontal;
+use siderust::numeric::intervals;
 use siderust::qtty::{Day, Kilometer, Radian};
-use siderust::spectra::SampledSpectrum;
-use siderust::time::{intersect_periods, ModifiedJulianDate, Period as TimePeriod, TT};
-use tempoch::{Period, Time, MJD, UTC};
+use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate, TT};
+use tempoch::{Period, Time, JD, MJD, UTC};
 
 bitflags::bitflags! {
     /// Which components to include in the calculation.
@@ -241,7 +241,7 @@ struct PreparedThresholdQuery {
 
 /// Reusable evaluator with cached spectral inputs.
 pub struct NsbEvaluator {
-    solar: SampledSpectrum<siderust::qtty::Nanometer, siderust::qtty::length::Meter, f64>,
+    solar: SampledSpectrum<siderust::qtty::Nanometer, siderust::qtty::length::Meter>,
     airglow_continuum: AirglowContinuum,
     config: NsbModelConfig,
 }
@@ -417,7 +417,7 @@ impl NsbEvaluator {
         mjd_tt: ModifiedJulianDate,
     ) -> BandPhotonRadiance {
         let time = tt_mjd_to_utc_time(mjd_tt);
-        let jd = siderust::time::JulianDate::from_tempoch_utc(time);
+        let jd = time.to::<TT>().to::<JD>();
         let hz = star_horizontal(
             prepared.target.ra(),
             prepared.target.dec(),
@@ -475,7 +475,7 @@ impl NsbEvaluator {
     }
 
     fn evaluate_full(&self, query: &PreparedPointQuery, time: Time<UTC>) -> Result<NsbResult> {
-        let jd = siderust::time::JulianDate::from_tempoch_utc(time);
+        let jd = time.to::<TT>().to::<JD>();
         let hz = star_horizontal(query.target.ra(), query.target.dec(), &query.observer, jd);
         let source_zenith = Degrees::new(90.0) - hz.alt();
         let ecl: SphericalDirection<EclipticMeanJ2000> = query.target.to_frame();
@@ -597,8 +597,7 @@ fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
 }
 
 fn tt_mjd_to_utc_time(time: ModifiedJulianDate) -> Time<UTC> {
-    let tt_mjd: tempoch::ModifiedJulianDate<TT> = time.into();
-    tt_mjd.to_time().to::<UTC>()
+    tempoch::Time::<TT>::from(time).to::<UTC>()
 }
 
 fn utc_period_to_tt_mjd(window: Period<UTC>) -> TimePeriod<ModifiedJulianDate> {

@@ -14,14 +14,15 @@
 //! spectrum integrated over the NSB band.
 
 use crate::error::{NsbError, Result};
+use optica::data::Provenance;
+use optica::grid::OutOfRange;
+use optica::spectrum::{loaders::ascii::two_column, Interpolation, SampledSpectrum};
 use siderust::qtty::{length::Meter, Nanometer};
-use siderust::spectra::loaders::ascii::two_column;
-use siderust::spectra::{Interpolation, OutOfRange, Provenance, SampledSpectrum};
 
 const RAW: &str = include_str!("../../data/solar_spectrum.dat");
 
 // Pinned SHA-256 of the bundled solar spectrum table. See
-// `siderust::provenance::checksum` for the update workflow.
+// `siderust::data::checksum` for the update workflow.
 siderust::assert_data_checksum!(
     "NSB/data/solar_spectrum.dat",
     RAW.as_bytes(),
@@ -29,7 +30,7 @@ siderust::assert_data_checksum!(
 );
 
 /// Returns the solar spectrum as `(wavelength [nm], irradiance [W m⁻² nm⁻¹])`.
-pub fn load() -> Result<SampledSpectrum<Nanometer, Meter, f64>> {
+pub fn load() -> Result<SampledSpectrum<Nanometer, Meter>> {
     two_column::<Nanometer, Meter>(
         RAW,
         1.0,
@@ -56,7 +57,7 @@ mod tests {
 
     #[test]
     fn pinned_sha256_matches_runtime_hash() {
-        use siderust::provenance::checksum::{sha256, to_hex};
+        use siderust::data::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),
             "dbf6a6205c9311782f4a084c1a3ded8d9331c3616dd7e71fbaa1db9fdcc7a7df",

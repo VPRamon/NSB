@@ -181,6 +181,10 @@ pub const ALL_LINES: &[AirglowLine] = &[
 
 /// Total number of airglow lines in the catalogue.
 pub const NUM_LINES: usize = ALL_LINES.len();
+const _: () = assert!(
+    NUM_LINES >= 15,
+    "Catalogue must contain at least 15 airglow lines",
+);
 
 #[cfg(test)]
 mod tests {
@@ -188,12 +192,9 @@ mod tests {
 
     #[test]
     fn test_airglow_catalogue_completeness() {
-        // Ensure catalogue has sufficient lines for modeling
-        assert!(
-            NUM_LINES >= 15,
-            "Catalogue must contain at least 15 airglow lines; found {}",
-            NUM_LINES
-        );
+        // NUM_LINES >= 15 is enforced at compile time via const assertion above.
+        // Verify runtime access to the catalogue works.
+        let _ = ALL_LINES[0];
     }
 
     #[test]

@@ -17,8 +17,10 @@
 //! faithfully.
 
 use crate::error::{NsbError, Result};
+use optica::data::Provenance;
+use optica::grid::OutOfRange;
+use optica::spectrum::{Interpolation, SampledSpectrum};
 use siderust::qtty::{length::Meter, Nanometer};
-use siderust::spectra::{Interpolation, OutOfRange, Provenance, SampledSpectrum};
 
 const RAW: &str = include_str!("../../data/airglow_cont.dat");
 
@@ -48,9 +50,9 @@ pub struct AirglowContinuum {
     /// [`mean_corrections`](Self::mean_corrections).
     pub sigma_corrections: Vec<Vec<f64>>,
     /// Wavelength [nm] vs relative mean radiance.
-    pub spectrum: SampledSpectrum<Nanometer, Meter, f64>,
+    pub spectrum: SampledSpectrum<Nanometer, Meter>,
     /// Wavelength [nm] vs relative uncertainty.
-    pub uncertainty: SampledSpectrum<Nanometer, Meter, f64>,
+    pub uncertainty: SampledSpectrum<Nanometer, Meter>,
     /// Number of seasons / time windows in the file.
     pub n_season: usize,
     pub n_time: usize,
@@ -182,7 +184,7 @@ pub fn load() -> Result<AirglowContinuum> {
         rel.push(r);
         sig.push(dr);
     }
-    let spectrum = SampledSpectrum::<Nanometer, Meter, f64>::from_raw(
+    let spectrum = SampledSpectrum::<Nanometer, Meter>::from_raw(
         lam.clone(),
         rel,
         Interpolation::Linear,
@@ -193,7 +195,7 @@ pub fn load() -> Result<AirglowContinuum> {
         file: "airglow_cont.dat",
         message: e.to_string(),
     })?;
-    let uncertainty = SampledSpectrum::<Nanometer, Meter, f64>::from_raw(
+    let uncertainty = SampledSpectrum::<Nanometer, Meter>::from_raw(
         lam,
         sig,
         Interpolation::Linear,
@@ -262,7 +264,7 @@ mod tests {
 
     #[test]
     fn pinned_sha256_matches_runtime_hash() {
-        use siderust::provenance::checksum::{sha256, to_hex};
+        use siderust::data::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),
             "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f",

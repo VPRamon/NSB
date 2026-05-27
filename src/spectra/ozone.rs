@@ -12,9 +12,9 @@
 //! traceable.
 
 use crate::error::Result;
+use optica::spectrum::SampledSpectrum;
 use siderust::atmosphere::Transmittance;
 use siderust::qtty::Nanometer;
-use siderust::spectra::SampledSpectrum;
 
 /// `(wavelength [nm], transmittance [-])`.
 ///

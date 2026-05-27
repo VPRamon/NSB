@@ -20,6 +20,19 @@ Components:
   scattered-moonlight model, converted into the crate's integrated radiance
   output.
 
+Bundled scientific tables and their references:
+
+| Table / asset | Role | Official reference or authoritative upstream | Notes |
+|---|---|---|---|
+| `src/data/leinert.rs` | Zodiacal-light brightness grid | Leinert, Ch., et al. (1998), *A&AS* **127**, 1, "The 1997 reference of diffuse night sky brightness" | Core empirical zodiacal table used by `components::zodiacal` |
+| `data/radiance_starlight.txt` | Integrated starlight spectrum | ESO SkyCalc / Advanced Cerro Paranal Sky Model lineage, as described by Noll, S., et al. (2012), *A&A* **543**, A92 | Bundled SkyCalc-derived export |
+| `data/airglow_cont.dat` | Wavelength-resolved airglow continuum table | ESO SkyCalc / Advanced Cerro Paranal Sky Model lineage, as described by Noll, S., et al. (2012), *A&A* **543**, A92 | Multi-block continuum table with season/time corrections |
+| `data/solar_spectrum.dat` | Solar reference spectrum used to shape zodiacal light | Bundled `darknsb`/SkyCalc lineage artifact | Direct publication/source file provenance is not yet recorded separately in-repo |
+| `data/mie_m15s1.dat` | Aerosol/Mie scattering phase grid | Bundled `darknsb`/SkyCalc lineage artifact | Direct generator metadata is still being documented |
+| `data/sscatcor_m15s1.dat` | Multiple-scattering correction grid | Bundled `darknsb`/SkyCalc lineage artifact | Direct generator metadata is still being documented |
+| `data/lut_moon/*.csv` | Precomputed moonlight lookup tables | Bundled `darknsb`/CTAO operational artifact | Generated LUT family, not a primary published table |
+| `siderust::atmosphere::ozone::transmission_table()` | Ozone transmittance table reused from `siderust` | Patat, F., et al. (2008), *A&A* **481**, 575, "An Atlas of the Sky Background Spectrum over Cerro Paranal" | Canonical copy lives upstream in `siderust` |
+
 ## Library
 
 The public Rust API is built around a single `NsbEvaluator` and two query
@@ -55,10 +68,10 @@ let w = evaluator.periods_below_threshold(&ThresholdQuery {
 ```
 
 The threshold search uses an event-driven pipeline modelled on
-`siderust::calculus::stellar::altitude_periods`: it pre-filters the
+`siderust::event::stellar::altitude_periods`: it pre-filters the
 window to the intersection of *Sun below astronomical twilight* and
 *target above the horizon*, then runs a coarse scan with Brent
-refinement (via `siderust::calculus::math_core::intervals`) inside each
+refinement (via `siderust::numeric::intervals`) inside each
 candidate sub-window. For year-long searches this typically delivers
 a 1–2 order of magnitude speedup over a uniform-cadence scan. Setting
 `sun_altitude_ceiling` and/or `target_altitude_floor` to `None`
