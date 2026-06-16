@@ -35,7 +35,6 @@
 #![forbid(unsafe_code)]
 
 pub mod airglow;
-pub mod atmosphere;
 pub mod components;
 pub mod data;
 pub mod error;
