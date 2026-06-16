@@ -18,30 +18,21 @@ name = "nsb"
 path = "src/bin/nsb.rs"
 
 [dependencies]
-qtty     = { path = "../qtty/qtty", features = ["radiometry", "astro", "photometry"] }
-tempoch  = { path = "../tempoch/tempoch" }
-siderust = { path = "../siderust", features = ["spectra", "atmosphere"] }
-optica   = { path = "../optica" }
-affn     = { path = "../affn" }
-cheby    = { path = "../cheby" }
+qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
+tempoch  = "0.6"
+siderust = "0.10"
+affn = "0.7"
+
 chrono    = "0.4"
-thiserror = "1"
-bitflags  = "2"
+thiserror = "2.0"
+bitflags  = "2.13"
 clap      = { version = "4", features = ["derive"] }
 anyhow    = "1"
 
 [dev-dependencies]
 approx = "0.5"
-criterion = { version = "0.5", default-features = false, features = ["html_reports"] }
+criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
 
 [[bench]]
 name = "threshold_window"
 harness = false
-
-[patch.crates-io]
-qtty       = { path = "../qtty/qtty" }
-qtty-core  = { path = "../qtty/qtty-core" }
-qtty-derive = { path = "../qtty/qtty-derive" }
-tempoch    = { path = "../tempoch/tempoch" }
-affn       = { path = "../affn" }
-cheby      = { path = "../cheby" }
