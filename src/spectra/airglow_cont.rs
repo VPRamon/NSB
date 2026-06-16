@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn pinned_sha256_matches_runtime_hash() {
-        use siderust::data::checksum::{sha256, to_hex};
+        use siderust::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),
             "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f",

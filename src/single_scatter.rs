@@ -210,7 +210,7 @@ fn parse_err(file: &'static str, message: impl Into<String>) -> NsbError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use siderust::data::checksum::{sha256, to_hex};
+    use siderust::checksum::{sha256, to_hex};
 
     #[test]
     fn pinned_checksums_match_runtime_hashes() {

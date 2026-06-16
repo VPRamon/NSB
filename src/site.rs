@@ -4,7 +4,7 @@
 //! * `CTAO-N` → La Palma (Roque de los Muchachos).
 //! * `CTAO-S` → Cerro Paranal.
 //!
-//! These map to geodetic constants exposed by `siderust::observatories`.
+//! These map to geodetic constants exposed by `siderust::catalogs::observatories`.
 //!
 //! Scientific role:
 //! a night-sky-background value is meaningless without an observing site,
@@ -16,9 +16,9 @@
 //! CTAO-oriented interface. It turns user-facing site names into the geodetic
 //! coordinates that drive all topocentric calculations in the evaluator.
 
+use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::observatories;
 
 use crate::error::{NsbError, Result};
 
