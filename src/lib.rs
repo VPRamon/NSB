@@ -44,6 +44,7 @@ pub mod site;
 pub mod sites;
 pub mod solar_spectrum;
 pub mod spectra;
+pub mod leinert;
 
 pub use airglow::{AirglowLine, ALL_LINES, NUM_LINES};
 pub use components::moonlight::{
