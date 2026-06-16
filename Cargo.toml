@@ -20,7 +20,6 @@ path = "src/bin/nsb.rs"
 [dependencies]
 qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch  = "0.6"
-affn     = "0.7"
 optica   = "0.1"
 siderust = { version = "0.10", features = ["atmosphere", "photometry"] }
 

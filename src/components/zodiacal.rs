@@ -23,11 +23,11 @@
 
 use std::sync::OnceLock;
 
-use crate::data::leinert::{
+use crate::error::{NsbError, Result};
+use crate::leinert::{
     CORNER_LL_LT_20_B_LT_25, CORNER_LL_LT_25_B_LT_20, CORNER_LL_LT_30_B_LT_15, LEINERT_S10,
     S10_TO_W_M2_SR_UM,
 };
-use crate::error::{NsbError, Result};
 use crate::spectra::SampledSpectrum;
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
@@ -142,19 +142,20 @@ pub fn leinert_lookup_s10(beta: Radians, delta_lambda: Radians) -> Result<S10> {
     }
     let beta_abs = beta.abs().to::<Degree>();
     let dl_abs = delta_lambda.abs().to::<Degree>().min(Degrees::new(180.0));
-    if beta_abs >= Degrees::new(90.0) {
+    if beta_abs > Degrees::new(90.0) {
         return Err(NsbError::OutOfRange(format!(
-            "β={}° not in [0,90)",
+            "β={}° not in [0,90]",
             beta_abs.value()
         )));
     }
-    Ok(s10_grid().interp_at(beta_abs, dl_abs))
+    Ok(s10_grid().interp_at(beta_abs.min(Degrees::new(90.0)), dl_abs))
 }
 
 /// Leinert reddening factor at a given wavelength and elongation.
 /// Mirrors `GetZodicalReddening` in NSB_Utils.py.
 fn reddening_factor(beta: Radians, delta_lambda: Radians, lambda_nm: f64) -> f64 {
-    let elong_deg = (delta_lambda.cos() * beta.cos()).acos().to_degrees();
+    let cos_elong = (delta_lambda.cos() * beta.cos()).clamp(-1.0, 1.0);
+    let elong_deg = cos_elong.acos().to_degrees();
     let log_ratio = (lambda_nm / 500.0).ln();
     if elong_deg <= 30.0 {
         if (220.0..550.0).contains(&lambda_nm) {
@@ -383,5 +384,77 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn leinert_lookup_beta_at_90_degrees_succeeds() {
+        // β = 90° is the ecliptic pole; the Leinert table includes it.
+        let s10 = leinert_lookup_s10(
+            Radians::new(90_f64.to_radians()),
+            Radians::new(90_f64.to_radians()),
+        )
+        .expect("beta=90° should succeed");
+        assert!(
+            s10.value() > 0.0,
+            "Leinert S10 at beta=90° must be positive"
+        );
+    }
+
+    #[test]
+    fn leinert_lookup_beta_above_90_returns_error() {
+        let result = leinert_lookup_s10(
+            Radians::new(91_f64.to_radians()),
+            Radians::new(90_f64.to_radians()),
+        );
+        assert!(result.is_err(), "beta > 90° should return an error");
+    }
+
+    #[test]
+    fn leinert_lookup_non_finite_beta_returns_error() {
+        let result = leinert_lookup_s10(Radians::new(f64::NAN), Radians::new(1.0));
+        assert!(result.is_err(), "NaN beta should return an error");
+    }
+
+    #[test]
+    fn leinert_lookup_non_finite_dl_returns_error() {
+        let result = leinert_lookup_s10(Radians::new(0.5), Radians::new(f64::INFINITY));
+        assert!(
+            result.is_err(),
+            "Infinite delta_lambda should return an error"
+        );
+    }
+
+    #[test]
+    fn reddening_factor_acos_clamp_does_not_panic() {
+        // When |cos(Δλ)·cos(β)| slightly exceeds 1.0 due to floating-point
+        // rounding, the clamped path must not return NaN.
+        let beta = Radians::new(0.0);
+        let dl = Radians::new(0.0);
+        let f = reddening_factor(beta, dl, 450.0);
+        assert!(
+            f.is_finite(),
+            "reddening factor must be finite at elong=0: {f}"
+        );
+    }
+
+    #[test]
+    fn zodiacal_compute_returns_positive_integrated() {
+        use crate::spectra;
+        let solar = spectra::solar::load().expect("solar spectrum");
+        let out = compute(
+            &ZlInputs {
+                beta: Radians::new(0.3),
+                delta_lambda: Radians::new(1.5),
+                zenith: Degrees::new(30.0),
+            },
+            &solar,
+        )
+        .expect("zodiacal compute");
+        assert!(
+            out.integrated.value() > 0.0,
+            "integrated zodiacal must be positive"
+        );
+        assert!(out.b_flux_s10.value() >= 0.0);
+        assert!(out.v_flux_s10.value() >= 0.0);
     }
 }

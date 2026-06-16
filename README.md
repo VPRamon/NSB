@@ -15,10 +15,23 @@ Components:
 - **Zodiacal light** — Leinert (1998) brightness map, Noll (2012) reddening &
   extinction, scaled solar spectrum.
 - **Integrated starlight** — SkyCalc Cerro Paranal radiance.
-- **Airglow continuum** — empirical cubic in source altitude (Noll 2012).
-- **Scattered moonlight** — Krisciunas & Schaefer (1991) analytic
-  scattered-moonlight model, converted into the crate's integrated radiance
-  output.
+- **Airglow continuum** — SkyCalc-continuum path with Van Rhijn geometry
+  (default) or empirical cubic polynomial in source altitude.
+- **Scattered moonlight** — Jones et al. (2013) wavelength-resolved spectral
+  model (default) or Krisciunas & Schaefer (1991) analytic model.
+
+## Architecture
+
+`siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
+photometry, and passbands. NSB owns only NSB-specific tables, component
+composition, and planner windows:
+
+- Atmosphere (Rayleigh optical depth, Mie optical depth, airmass, Van Rhijn,
+  phase functions) — `siderust::atmosphere`.
+- Solar night and target altitude windows — `siderust::event::altitude`.
+- Horizontal geometry — `siderust::event::horizontal`.
+- Lunar photometry — `siderust::event::lunar::photometry`.
+- Observatory geodetic coordinates — `siderust::catalogs::observatories`.
 
 Bundled scientific tables and their references:
 
@@ -150,17 +163,18 @@ cargo bench   # Criterion benches under benches/threshold_window.rs
 ## Layout
 
 ```
-examples/          # Runnable library examples
-docs/              # Supporting notes and historical reports
+examples/              # Runnable library examples
+docs/                  # Supporting notes and historical reports
 src/
-├── evaluator.rs   # NsbEvaluator + PointQuery + ThresholdQuery + Location
-├── site.rs        # Named CTAO sites
+├── evaluator.rs       # NsbEvaluator + PointQuery + ThresholdQuery + Location
+├── site.rs            # Named CTAO sites (Paranal / La Palma)
+├── sites.rs           # Broader observatory catalogue with k_v metadata
+├── leinert.rs         # Leinert (1998) S10 zodiacal table
+├── single_scatter.rs  # Mie phase + multiple-scattering correction parsers
 ├── error.rs
-├── components/    # ZL, SL, AG, Moon
-├── spectra/       # Solar / starlight / airglow / ozone loaders + B/V filters
-├── atmosphere/    # Rayleigh / Mie / single-scatter
-├── data/          # Embedded Leinert table + bundled .dat files
-└── bin/nsb.rs     # CLI binary
+├── components/        # ZL, SL, AG, Moon component evaluators
+├── spectra/           # Solar / starlight / airglow / ozone loaders
+└── bin/nsb.rs         # CLI binary
 ```
 
 ## Sibling crates
@@ -169,9 +183,8 @@ This crate depends, via `path = ".."`, on:
 
 - [`qtty`](../qtty) — quantity / unit types
 - [`tempoch`](../tempoch) — astronomical time scales
-- [`siderust`](../siderust) — coordinates, observatories, ephemerides
-- [`affn`](../affn) — affine geometry primitives
-- [`cheby`](../cheby) — Chebyshev interpolation
+- [`siderust`](../siderust) — coordinates, observatories, ephemerides, atmosphere
+- [`optica`](../optica) — spectra and grid interpolation
 
 ## Documentation
 

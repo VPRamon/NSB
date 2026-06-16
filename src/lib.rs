@@ -15,38 +15,23 @@
 //! * [`ThresholdQuery`] — UTC sub-periods within a window where the integrated
 //!   linear NSB is below a given radiance threshold.
 //!
-//! Scientific role:
-//! this crate provides an operational model of the main astrophysical and
-//! atmospheric contributors to the optical night-sky background seen by a
-//! ground-based observer. In practical terms, it helps answer "how bright is
-//! the sky in this direction, at this time, from this site?"
+//! # Architecture
 //!
-//! Architectural role:
-//! this root module exposes the public API and gathers the science-specific
-//! submodules:
-//!
-//! * `evaluator` orchestrates the full calculation
-//! * `components` contains the individual physical/empirical contributors
-//! * `spectra` and `data` load the bundled scientific reference inputs
-//! * `site` and `sites` provide observing-site inputs
-//! * `airglow`, `solar_spectrum`, and `single_scatter` expose supporting
-//!   reference catalogues and simplified helper data structures
+//! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
+//! photometry, and passbands. NSB owns only NSB-specific tables, component
+//! composition, and planner windows.
 
 #![forbid(unsafe_code)]
 
-pub mod airglow;
 pub mod components;
-pub mod data;
 pub mod error;
 pub mod evaluator;
+pub mod leinert;
 pub mod single_scatter;
 pub mod site;
 pub mod sites;
-pub mod solar_spectrum;
 pub mod spectra;
-pub mod leinert;
 
-pub use airglow::{AirglowLine, ALL_LINES, NUM_LINES};
 pub use components::moonlight::{
     compute_jones2013, compute_jones2013_spectral, compute_jones2013_with_extinction,
 };
@@ -61,7 +46,6 @@ pub use sites::{
     CatalogSite, ALL_SITES, APACHE_POINT, CERRO_PARANAL, KITT_PEAK, MAUNA_KEA,
     ROQUE_DE_LOS_MUCHACHOS, SUBURBAN_REFERENCE,
 };
-pub use solar_spectrum::SolarSpectrum;
 
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
 pub use siderust::coordinates::spherical::Direction as SphericalDirection;
