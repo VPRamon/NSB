@@ -25,8 +25,8 @@
 //! It is intentionally simple: an empirical altitude-dependent polynomial that
 //! approximates how the airglow contribution changes with line of sight.
 
-use crate::data::leinert::S10_TO_W_M2_SR_UM;
 use crate::error::Result;
+use crate::leinert::S10_TO_W_M2_SR_UM;
 use crate::spectra::airglow_cont::AirglowContinuum;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
@@ -218,5 +218,58 @@ mod tests {
         assert!(low.integrated > zenith.integrated);
         assert!(low.b_flux_s10 > S10::zero());
         assert!(low.v_flux_s10 > S10::zero());
+    }
+
+    #[test]
+    fn skycalc_continuum_below_horizon_returns_zero() {
+        let c = airglow_cont::load().unwrap();
+        // Altitude below −90° (non-physical) should return zero contribution.
+        let out = compute_skycalc_continuum(
+            &AgInputs {
+                altitude: Degrees::new(-91.0),
+            },
+            &c,
+            t(),
+            DEFAULT_SOLAR_RADIO_FLUX_SFU,
+        )
+        .unwrap();
+        assert_eq!(
+            out.integrated,
+            BandPhotonRadiance::zero(),
+            "below-horizon altitude must yield zero airglow"
+        );
+    }
+
+    #[test]
+    fn skycalc_continuum_nan_altitude_returns_zero() {
+        let c = airglow_cont::load().unwrap();
+        let out = compute_skycalc_continuum(
+            &AgInputs {
+                altitude: Degrees::new(f64::NAN),
+            },
+            &c,
+            t(),
+            DEFAULT_SOLAR_RADIO_FLUX_SFU,
+        )
+        .unwrap();
+        assert_eq!(
+            out.integrated,
+            BandPhotonRadiance::zero(),
+            "NaN altitude must yield zero airglow"
+        );
+    }
+
+    #[test]
+    fn skycalc_continuum_solar_scaling_changes_result() {
+        let c = airglow_cont::load().unwrap();
+        let inp = AgInputs {
+            altitude: Degrees::new(60.0),
+        };
+        let low_flux = compute_skycalc_continuum(&inp, &c, t(), 50.0).unwrap();
+        let high_flux = compute_skycalc_continuum(&inp, &c, t(), 250.0).unwrap();
+        assert!(
+            low_flux.integrated != high_flux.integrated,
+            "solar radio flux scaling must change airglow output"
+        );
     }
 }
