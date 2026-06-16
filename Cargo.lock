@@ -538,6 +538,7 @@ dependencies = [
  "chrono",
  "clap",
  "criterion",
+ "optica",
  "qtty",
  "siderust",
  "tempoch",

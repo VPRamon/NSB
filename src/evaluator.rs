@@ -7,7 +7,7 @@
 //!    and *target above horizon* sub-windows (cheap analytical engines
 //!    inside `siderust`).
 //! 2. Inside each surviving candidate window, run a coarse scan with
-//!    Brent refinement via `siderust::numeric::intervals` to
+//!    local bisection refinement to
 //!    locate the radiance crossings of `threshold`.
 //! 3. Take the complement (darker-than-threshold) inside each candidate
 //!    window and return the concatenated list.
@@ -43,17 +43,16 @@ use qtty::photometry::{s10_to_surface_brightness, SurfaceBrightness};
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
-use qtty::Second;
+use qtty::{Quantity, Second, Unit};
 use siderust::bodies::{Moon, Sun as SunBody};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EclipticMeanJ2000, EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::coordinates::transform::TransformFrame;
-use siderust::event::altitude::AltitudePeriodsProvider;
+use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
 use siderust::event::horizontal::star_horizontal;
-use siderust::numeric::intervals;
-use siderust::qtty::{Day, Kilometer, Radian};
+use siderust::qtty::{Day, Days, Kilometer, Radian};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Period, Time, JD, MJD, UTC};
 
@@ -293,8 +292,8 @@ impl NsbEvaluator {
 
         let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = Vec::new();
         for cw in candidate_windows {
-            let brighter = intervals::above_threshold_periods(cw, step, &f, query.threshold);
-            let darker = intervals::complement(cw, &brighter);
+            let brighter = above_threshold_periods(cw, step, &f, query.threshold);
+            let darker = complement_periods(cw, &brighter);
             darker_periods.extend(darker);
         }
 
@@ -328,8 +327,8 @@ impl NsbEvaluator {
         };
 
         let brighter_than_threshold =
-            intervals::above_threshold_periods(tt_window, step, &integrated_at, query.threshold);
-        let darker_than_threshold = intervals::complement(tt_window, &brighter_than_threshold);
+            above_threshold_periods(tt_window, step, &integrated_at, query.threshold);
+        let darker_than_threshold = complement_periods(tt_window, &brighter_than_threshold);
 
         Ok(ThresholdQueryResult {
             threshold: query.threshold,
@@ -396,7 +395,12 @@ impl NsbEvaluator {
         let mut current: Vec<TimePeriod<ModifiedJulianDate>> = vec![tt_window];
 
         if let Some(sun_max) = query.sun_altitude_ceiling {
-            let nights = SunBody.below_threshold(prepared.observer, tt_window, sun_max);
+            let nights = SunBody.below_threshold(
+                &prepared.observer,
+                tt_window,
+                sun_max,
+                SearchOpts::default(),
+            );
             current = intersect_periods(&current, &nights);
             if current.is_empty() {
                 return current;
@@ -404,7 +408,12 @@ impl NsbEvaluator {
         }
         if let Some(target_min) = query.target_altitude_floor {
             let target_dir = direction::ICRS::new(prepared.target.ra(), prepared.target.dec());
-            let above = target_dir.above_threshold(prepared.observer, tt_window, target_min);
+            let above = target_dir.above_threshold(
+                &prepared.observer,
+                tt_window,
+                target_min,
+                SearchOpts::default(),
+            );
             current = intersect_periods(&current, &above);
         }
         current
@@ -605,6 +614,158 @@ fn utc_period_to_tt_mjd(window: Period<UTC>) -> TimePeriod<ModifiedJulianDate> {
         utc_time_to_tt_mjd(window.start),
         utc_time_to_tt_mjd(window.end),
     )
+}
+
+fn above_threshold_periods<V, F>(
+    window: TimePeriod<ModifiedJulianDate>,
+    step: Days,
+    f: &F,
+    threshold: Quantity<V>,
+) -> Vec<TimePeriod<ModifiedJulianDate>>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Quantity<V>,
+{
+    if window.start >= window.end || step <= Days::new(0.0) {
+        return Vec::new();
+    }
+
+    let mut periods = Vec::new();
+    let mut t0 = window.start;
+    let mut y0 = f(t0);
+    let mut above0 = y0 > threshold;
+    let mut open_start = above0.then_some(window.start);
+
+    while t0 < window.end {
+        let t1 = add_days_clamped(t0, step, window.end);
+        if t1 <= t0 {
+            break;
+        }
+
+        let y1 = f(t1);
+        let above1 = y1 > threshold;
+        if above0 != above1 {
+            let crossing = refine_threshold_crossing(t0, y0, t1, y1, f, threshold);
+            if above0 {
+                if let Some(start) = open_start.take() {
+                    push_non_empty_period(&mut periods, start, crossing);
+                }
+            } else {
+                open_start = Some(crossing);
+            }
+        }
+
+        t0 = t1;
+        y0 = y1;
+        above0 = above1;
+    }
+
+    if let Some(start) = open_start {
+        push_non_empty_period(&mut periods, start, window.end);
+    }
+
+    periods
+}
+
+fn complement_periods(
+    window: TimePeriod<ModifiedJulianDate>,
+    periods: &[TimePeriod<ModifiedJulianDate>],
+) -> Vec<TimePeriod<ModifiedJulianDate>> {
+    let mut out = Vec::new();
+    let mut cursor = window.start;
+
+    for period in periods {
+        let start = period.start.max(window.start);
+        let end = period.end.min(window.end);
+        if end <= window.start || start >= window.end || start >= end {
+            continue;
+        }
+        push_non_empty_period(&mut out, cursor, start);
+        cursor = cursor.max(end);
+    }
+
+    push_non_empty_period(&mut out, cursor, window.end);
+    out
+}
+
+fn refine_threshold_crossing<V, F>(
+    mut lo: ModifiedJulianDate,
+    mut y_lo: Quantity<V>,
+    mut hi: ModifiedJulianDate,
+    mut y_hi: Quantity<V>,
+    f: &F,
+    threshold: Quantity<V>,
+) -> ModifiedJulianDate
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Quantity<V>,
+{
+    let lo_above = y_lo > threshold;
+    for _ in 0..48 {
+        let mid = midpoint_mjd(lo, hi);
+        if mid <= lo || mid >= hi {
+            break;
+        }
+        let y_mid = f(mid);
+        if y_mid == threshold {
+            return mid;
+        }
+        if (y_mid > threshold) == lo_above {
+            lo = mid;
+            y_lo = y_mid;
+        } else {
+            hi = mid;
+            y_hi = y_mid;
+        }
+        if (hi.raw() - lo.raw()).abs() <= Days::new(1.0e-10) {
+            break;
+        }
+    }
+
+    linear_crossing_estimate(lo, y_lo, hi, y_hi, threshold)
+}
+
+fn linear_crossing_estimate<V>(
+    lo: ModifiedJulianDate,
+    y_lo: Quantity<V>,
+    hi: ModifiedJulianDate,
+    y_hi: Quantity<V>,
+    threshold: Quantity<V>,
+) -> ModifiedJulianDate
+where
+    V: Unit,
+{
+    let denom = y_hi.value() - y_lo.value();
+    if !denom.is_finite() || denom == 0.0 {
+        return midpoint_mjd(lo, hi);
+    }
+    let frac = ((threshold.value() - y_lo.value()) / denom).clamp(0.0, 1.0);
+    let lo_raw = lo.raw().value();
+    let hi_raw = hi.raw().value();
+    ModifiedJulianDate::new(lo_raw + (hi_raw - lo_raw) * frac)
+}
+
+fn midpoint_mjd(lo: ModifiedJulianDate, hi: ModifiedJulianDate) -> ModifiedJulianDate {
+    ModifiedJulianDate::new(0.5 * (lo.raw().value() + hi.raw().value()))
+}
+
+fn add_days_clamped(
+    time: ModifiedJulianDate,
+    delta: Days,
+    end: ModifiedJulianDate,
+) -> ModifiedJulianDate {
+    let next = ModifiedJulianDate::new(time.raw().value() + delta.value());
+    next.min(end)
+}
+
+fn push_non_empty_period(
+    periods: &mut Vec<TimePeriod<ModifiedJulianDate>>,
+    start: ModifiedJulianDate,
+    end: ModifiedJulianDate,
+) {
+    if start < end {
+        periods.push(TimePeriod::new(start, end));
+    }
 }
 
 fn tt_mjd_period_to_utc(
