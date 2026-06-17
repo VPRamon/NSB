@@ -37,6 +37,10 @@ pub use components::airglow::{
 };
 pub use components::moonlight::{AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991};
 pub use components::starlight::{Starlight, StarlightMap, StarlightOutputs, StarlightProvenance};
+pub use components::zodiacal::{
+    ZodiacalBrightnessGrid, ZodiacalBrightnessModel, ZodiacalExtinction, ZodiacalLight,
+    ZodiacalOutputs, ZodiacalSpectrum,
+};
 pub use error::{NsbError, Result};
 pub use evaluator::{
     ComponentMask, Location, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult,

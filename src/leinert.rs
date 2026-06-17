@@ -1,24 +1,26 @@
-//! Leinert (1998) zodiacal-light reference table.
+//! Leinert (1998) zodiacal-light reference table — raw numerical data.
 //!
-//! Reference: Ch. Leinert, "The 1997 reference of diffuse night sky brightness",
-//! A&A Suppl. 127 (1998) 1-99.
+//! This module contains only the transcribed data constants. All business
+//! logic (grid construction, interpolation, corner extrapolation) is in
+//! [`crate::components::zodiacal::leinert`], which wraps this table with the
+//! [`Leinert1998Grid`][crate::components::zodiacal::leinert::Leinert1998Grid]
+//! typed interface.
 //!
-//! Rows: ecliptic longitude offset `λ - λ_sun` from 180° down to 0° in 5° steps
-//! (37 rows). Columns: ecliptic latitude `β` from 0° to 90° in 5° steps
-//! (19 columns). Values are in S10 units (10th-magnitude stars per square degree).
+//! # Table layout
 //!
-//! Transcribed verbatim from `darknsb/NSB_Utils.py:867-903` (the active `zl`
-//! table — *not* the `zl2` variant which sets the unmeasured corners to 0).
+//! `LEINERT_S10[i_lambda][j_beta]`
+//! - rows: ecliptic longitude offset `λ − λ_sun` from 180° down to 0° in 5°
+//!   steps (37 rows, index 0 = 180°).
+//! - columns: ecliptic latitude `β` from 0° to 90° in 5° steps (19 columns).
+//! - values: zodiacal surface brightness in S10 units (equivalent 10th-magnitude
+//!   stars per square degree) at 500 nm.
 //!
-//! Scientific role:
-//! this table is the empirical backbone of the zodiacal-light model. It
-//! encodes how zodiacal brightness varies with target position relative to the
-//! Sun and the ecliptic plane.
+//! # Reference
 //!
-//! Contribution to the science:
-//! `components::zodiacal` uses this file to anchor the zodiacal calculation to
-//! a published observational reference rather than relying on an ad hoc
-//! analytic approximation.
+//! Ch. Leinert et al., "The 1997 reference of diffuse night sky brightness",
+//! *A&AS* 127 (1998) 1–99. Transcribed from `darknsb/NSB_Utils.py:867–903`
+//! (the active `zl` table — **not** the `zl2` variant that sets unmeasured
+//! corners to 0).
 
 /// `LEINERT_S10[i_lambda][j_beta]` — see module docs.
 pub const LEINERT_S10: [[f64; 19]; 37] = [
