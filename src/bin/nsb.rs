@@ -14,8 +14,8 @@ use anyhow::{anyhow, Context};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use nsb::{
-    AirglowModel, ComponentMask, Location, MoonlightModel, NsbEvaluator, NsbModelConfig,
-    PointQuery, Site, Target, ThresholdQuery, DEG,
+    ComponentMask, Location, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, Site,
+    SolarFluxUnits, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -123,21 +123,6 @@ enum ModelArg {
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
-enum AirglowModelArg {
-    PythonPolynomial,
-    SkycalcContinuum,
-}
-
-impl AirglowModelArg {
-    fn model(self) -> AirglowModel {
-        match self {
-            Self::PythonPolynomial => AirglowModel::PythonPolynomial,
-            Self::SkycalcContinuum => AirglowModel::SkyCalcContinuum,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
 enum MoonModelArg {
     KrisciunasSchaefer,
     Jones2013Spectral,
@@ -158,15 +143,11 @@ struct ModelArgs {
     #[arg(long, value_enum, default_value = "best")]
     model: ModelArg,
 
-    /// Override the airglow model selected by --model.
-    #[arg(long = "airglow-model", value_enum)]
-    airglow_model: Option<AirglowModelArg>,
-
     /// Override the moonlight model selected by --model.
     #[arg(long = "moon-model", value_enum)]
     moon_model: Option<MoonModelArg>,
 
-    /// Solar radio flux F10.7 in solar flux units for SkyCalc airglow.
+    /// Solar radio flux F10.7 in solar flux units for airglow.
     #[arg(long)]
     solar_radio_flux_sfu: Option<f64>,
 }
@@ -177,14 +158,11 @@ impl ModelArgs {
             ModelArg::Best => NsbModelConfig::best_science(),
             ModelArg::PythonParity => NsbModelConfig::python_parity(),
         };
-        if let Some(model) = self.airglow_model {
-            config.airglow_model = model.model();
-        }
         if let Some(model) = self.moon_model {
             config.moonlight_model = model.model();
         }
         if let Some(flux) = self.solar_radio_flux_sfu {
-            config.solar_radio_flux_sfu = flux;
+            config.solar_radio_flux = SolarFluxUnits::new(flux);
         }
         config
     }
