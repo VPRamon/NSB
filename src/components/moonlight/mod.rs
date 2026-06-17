@@ -19,9 +19,8 @@
 //! parameter set. It is not a site-calibrated atmosphere.
 
 use crate::error::Result;
-use crate::single_scatter::ScatterGrid;
-use crate::site::Site;
-use crate::spectra::solar;
+use crate::reference::solar;
+use scattering::ScatterGrid;
 use crate::NSB_S10_ZP;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
@@ -47,6 +46,7 @@ use tempoch::{Period, Time, JD, TT, UTC};
 
 mod jones_2013_spectral;
 mod krisciunas_schaefer1991;
+mod scattering;
 
 pub use jones_2013_spectral::Jones2013Spectral;
 pub use krisciunas_schaefer1991::KrisciunasSchaefer1991;

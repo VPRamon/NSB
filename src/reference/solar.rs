@@ -1,10 +1,10 @@
-//! Solar irradiance spectrum loader.
+//! Solar irradiance reference spectrum loader.
 //!
 //! Loads `data/solar_spectrum.dat` (CSV: `wavelength_nm, irradiance_W_m2_nm`)
-//! shipped with the Python package, embedded via `include_str!`.
+//! shipped with the crate, embedded via `include_str!`.
 //!
 //! Scientific role:
-//! zodiacal light is modeled as scattered sunlight, so the spectral shape of
+//! zodiacal light is modelled as scattered sunlight, so the spectral shape of
 //! the Sun is the starting point for the zodiacal component.
 //!
 //! Contribution to the science:
@@ -12,6 +12,9 @@
 //! reddened in `components::zodiacal`. Without it, the crate could only model
 //! zodiacal light as a scalar brightness rather than as a physically motivated
 //! spectrum integrated over the NSB band.
+//!
+//! Provenance:
+//! solar reference spectrum lives in `reference::solar`.
 
 use crate::error::{NsbError, Result};
 use optica::data::Provenance;
@@ -29,8 +32,9 @@ siderust::assert_data_checksum!(
     "dbf6a6205c9311782f4a084c1a3ded8d9331c3616dd7e71fbaa1db9fdcc7a7df"
 );
 
-/// Returns the solar spectrum as `(wavelength [nm], irradiance [W m⁻² nm⁻¹])`.
-pub fn load() -> Result<SampledSpectrum<Nanometer, Meter>> {
+/// Returns the solar reference spectrum as
+/// `(wavelength [nm], irradiance [W m⁻² nm⁻¹])`.
+pub(crate) fn load() -> Result<SampledSpectrum<Nanometer, Meter>> {
     two_column::<Nanometer, Meter>(
         RAW,
         1.0,
@@ -48,15 +52,16 @@ pub fn load() -> Result<SampledSpectrum<Nanometer, Meter>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     #[test]
-    fn loads_nonempty() {
-        let s = load().expect("load solar spectrum");
+    fn solar_reference_loader_loads_nonempty() {
+        let s = load().expect("load solar reference spectrum");
         assert!(!s.is_empty());
         assert!(s.xs_raw()[0] > 0.0);
     }
 
     #[test]
-    fn pinned_sha256_matches_runtime_hash() {
+    fn solar_reference_checksum_matches() {
         use siderust::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),

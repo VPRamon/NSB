@@ -12,7 +12,7 @@
 //!   [`ZodiacalLight::compute_spectrum`]. It contains the full wavelength-
 //!   resolved photon-radiance spectrum in addition to the scalar fields.
 
-use crate::spectra::SampledSpectrum;
+use optica::spectrum::SampledSpectrum;
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };

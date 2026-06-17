@@ -17,6 +17,9 @@
 //!
 //! # Architecture
 //!
+//! Shared reference inputs live in internal `reference` modules; component-
+//! specific calibrations and grids live inside their component modules.
+//!
 //! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
 //! photometry, and passbands. NSB owns only NSB-specific tables, component
 //! composition, and planner windows.
@@ -26,11 +29,9 @@
 pub mod components;
 pub mod error;
 pub mod evaluator;
-pub mod leinert;
-pub mod single_scatter;
+mod reference;
 pub mod site;
 pub mod sites;
-pub mod spectra;
 
 pub use components::airglow::{
     Airglow, AirglowContinuum, AirglowOutputs, SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX,
@@ -46,7 +47,6 @@ pub use evaluator::{
     ComponentMask, Location, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult,
     PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
-pub use single_scatter::ScatterGrid;
 pub use site::Site;
 pub use sites::{
     CatalogSite, ALL_SITES, APACHE_POINT, CERRO_PARANAL, KITT_PEAK, MAUNA_KEA,

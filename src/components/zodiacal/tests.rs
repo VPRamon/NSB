@@ -224,7 +224,7 @@ fn b_v_are_interpolated_not_nearest_sample() {
     // values should yield the same S10 regardless of exact wavelength.
     let lam: Vec<f64> = (300..=650).map(|i| i as f64).collect();
     let flux: Vec<f64> = vec![1.0; lam.len()];
-    let solar = crate::spectra::SampledSpectrum::<Nanometer, Meter>::from_raw(
+    let solar = optica::spectrum::SampledSpectrum::<Nanometer, Meter>::from_raw(
         lam,
         flux,
         Interpolation::Linear,

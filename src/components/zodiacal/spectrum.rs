@@ -21,7 +21,7 @@
 //! | `V_FILTER_NM`     | 551 nm  | V-band reference wavelength           |
 
 use crate::error::{NsbError, Result};
-use crate::spectra::SampledSpectrum;
+use optica::spectrum::SampledSpectrum;
 
 use super::extinction::ZodiacalExtinction;
 use super::geometry::ZodiacalGeometry;

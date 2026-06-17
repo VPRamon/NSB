@@ -35,8 +35,7 @@ use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalLight};
 use crate::components::{airglow, moonlight, starlight};
 use crate::error::{NsbError, Result};
 use crate::site::Site;
-use crate::spectra;
-use crate::spectra::airglow_cont::AirglowContinuum;
+use crate::components::airglow::AirglowContinuum;
 use crate::NSB_S10_ZP;
 use qtty::angular::Degrees;
 use qtty::photometry::{s10_to_surface_brightness, SurfaceBrightness};
@@ -261,7 +260,7 @@ impl NsbEvaluator {
         let zodiacal = ZodiacalLight::standard()?.with_extinction(config.zodiacal_extinction);
         Ok(Self {
             zodiacal,
-            airglow_continuum: spectra::airglow_cont::load()?,
+            airglow_continuum: airglow::load_builtin_standard()?,
             config,
         })
     }

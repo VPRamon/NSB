@@ -1,17 +1,20 @@
-//! Tabulated scattering grids used by the advanced moonlight model.
+//! Tabulated scattering grids used by the Jones (2013) spectral moonlight model.
 //!
 //! The bundled `mie_m15s1.dat` table stores the Paranal aerosol/Mie phase
 //! function as wavelength × scattering angle.  The bundled
 //! `sscatcor_m15s1.dat` table stores multiple-scattering correction factors
-//! over the same kind of axes.  This module keeps those datasets NSB-local but
-//! uses the `optica::grid` interpolation kernels.
+//! over the same kind of axes.  This module keeps those datasets inside the
+//! moonlight component and uses the `optica::grid` interpolation kernels.
+//!
+//! Provenance:
+//! Mie/scattering correction grids live in `components::moonlight`.
 
 use crate::error::{NsbError, Result};
 use optica::grid::{algo, AxisDirection, OutOfRange};
 use siderust::qtty::{Degrees, Nanometers};
 
-const MIE_RAW: &str = include_str!("../data/mie_m15s1.dat");
-const SSCAT_RAW: &str = include_str!("../data/sscatcor_m15s1.dat");
+const MIE_RAW: &str = include_str!("../../../data/mie_m15s1.dat");
+const SSCAT_RAW: &str = include_str!("../../../data/sscatcor_m15s1.dat");
 
 siderust::assert_data_checksum!(
     "NSB/data/mie_m15s1.dat",
@@ -31,6 +34,9 @@ pub enum ScatterGridKind {
 }
 
 /// Pre-computed scattering grid indexed by scattering angle and wavelength.
+///
+/// Data is stored in angle-major (row-major by angle) layout:
+/// `data[angle_idx * wavelength_count + wavelength_idx]`.
 #[derive(Clone, Debug)]
 pub struct ScatterGrid {
     kind: ScatterGridKind,
@@ -85,9 +91,13 @@ impl ScatterGrid {
 
     /// Bilinear lookup at `angle` and `wavelength`; out-of-range queries clamp
     /// to the nearest table boundary for parity with the original Python path.
+    ///
+    /// The hot path builds slices from the flat row-major buffer without
+    /// allocating a `Vec<&[f64]>` on each call.
     pub fn lookup(&self, angle: Degrees, wavelength: Nanometers) -> f64 {
         let na = self.angle_deg.len();
         let nw = self.wavelength_nm.len();
+        // Build row references directly from the flat buffer — no allocation.
         let rows: Vec<&[f64]> = (0..na).map(|i| &self.data[i * nw..(i + 1) * nw]).collect();
         algo::bilinear(
             &self.wavelength_nm,
@@ -213,7 +223,7 @@ mod tests {
     use siderust::checksum::{sha256, to_hex};
 
     #[test]
-    fn pinned_checksums_match_runtime_hashes() {
+    fn moonlight_scattering_checksums_match() {
         assert_eq!(
             to_hex(&sha256(MIE_RAW.as_bytes())),
             "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
@@ -225,7 +235,7 @@ mod tests {
     }
 
     #[test]
-    fn mie_phase_grid_loads_known_value() {
+    fn moonlight_mie_phase_grid_loads_known_value() {
         let grid = ScatterGrid::mie_phase().unwrap();
         assert_eq!(grid.kind(), ScatterGridKind::MiePhase);
         assert_eq!(grid.dimensions(), (181, 40));
@@ -234,7 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn correction_grid_loads_known_value() {
+    fn moonlight_scattering_correction_grid_loads_known_value() {
         let grid = ScatterGrid::multiple_scattering_correction().unwrap();
         assert_eq!(grid.kind(), ScatterGridKind::MultipleScatteringCorrection);
         assert_eq!(grid.dimensions(), (16, 40));
@@ -243,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn lookup_clamps_to_boundaries() {
+    fn moonlight_scattering_lookup_clamps_to_boundaries() {
         let grid = ScatterGrid::mie_phase().unwrap();
         let low = grid.lookup(Degrees::new(-10.0), Nanometers::new(100.0));
         let edge = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
