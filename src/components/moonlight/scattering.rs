@@ -1,16 +1,10 @@
 //! Tabulated scattering grids used by the Jones (2013) spectral moonlight model.
 //!
-//! The bundled `mie_m15s1.dat` table stores the Paranal aerosol/Mie phase
-//! function as wavelength × scattering angle.  The bundled
-//! `sscatcor_m15s1.dat` table stores multiple-scattering correction factors
-//! over the same kind of axes.  This module keeps those datasets inside the
-//! moonlight component and uses the `optica::grid` interpolation kernels.
-//!
-//! Provenance:
-//! Mie/scattering correction grids live in `components::moonlight`.
+//! The bundled tables are owned by the moonlight component. `mie_m15s1.dat`
+//! provides the wavelength/angle Mie phase grid, and `sscatcor_m15s1.dat`
+//! provides the matching multiple-scattering correction grid.
 
 use crate::error::{NsbError, Result};
-use optica::grid::{algo, AxisDirection, OutOfRange};
 use siderust::qtty::{Degrees, Nanometers};
 
 const MIE_RAW: &str = include_str!("../../../data/mie_m15s1.dat");
@@ -33,21 +27,15 @@ pub enum ScatterGridKind {
     MultipleScatteringCorrection,
 }
 
-/// Pre-computed scattering grid indexed by scattering angle and wavelength.
-///
-/// Data is stored in angle-major (row-major by angle) layout:
-/// `data[angle_idx * wavelength_count + wavelength_idx]`.
 #[derive(Clone, Debug)]
 pub struct ScatterGrid {
     kind: ScatterGridKind,
     angle_deg: Vec<f64>,
     wavelength_nm: Vec<f64>,
-    /// Row-major storage: data[angle_idx * wavelength_count + wavelength_idx].
     data: Vec<f64>,
 }
 
 impl ScatterGrid {
-    /// Load the production Mie phase grid.
     pub fn new() -> Self {
         Self::mie_phase().expect("bundled Mie phase grid must parse")
     }
@@ -68,49 +56,35 @@ impl ScatterGrid {
         self.kind
     }
 
-    /// Returns the scattering angles covered by this grid.
     pub fn angles(&self) -> &[f64] {
         &self.angle_deg
     }
 
-    /// Backwards-compatible alias for callers that used the old placeholder
-    /// grid's zenith-angle terminology.
     pub fn zenith_angles(&self) -> &[f64] {
         self.angles()
     }
 
-    /// Returns the wavelengths covered by this grid.
     pub fn wavelengths(&self) -> &[f64] {
         &self.wavelength_nm
     }
 
-    /// Returns the grid dimensions as (angle_count, wavelength_count).
     pub fn dimensions(&self) -> (usize, usize) {
         (self.angle_deg.len(), self.wavelength_nm.len())
     }
 
-    /// Bilinear lookup at `angle` and `wavelength`; out-of-range queries clamp
-    /// to the nearest table boundary for parity with the original Python path.
-    ///
-    /// The hot path builds slices from the flat row-major buffer without
-    /// allocating a `Vec<&[f64]>` on each call.
     pub fn lookup(&self, angle: Degrees, wavelength: Nanometers) -> f64 {
-        let na = self.angle_deg.len();
         let nw = self.wavelength_nm.len();
-        // Build row references directly from the flat buffer — no allocation.
-        let rows: Vec<&[f64]> = (0..na).map(|i| &self.data[i * nw..(i + 1) * nw]).collect();
-        algo::bilinear(
-            &self.wavelength_nm,
-            &self.angle_deg,
-            &rows,
-            wavelength.value(),
-            angle.value(),
-            OutOfRange::ClampToEndpoints,
-            OutOfRange::ClampToEndpoints,
-            AxisDirection::Ascending,
-            AxisDirection::Ascending,
-        )
-        .expect("ScatterGrid::lookup: bilinear interpolation failed")
+        let (a0, a1, ta) = bracket_clamped(&self.angle_deg, angle.value());
+        let (w0, w1, tw) = bracket_clamped(&self.wavelength_nm, wavelength.value());
+
+        let v00 = self.data[a0 * nw + w0];
+        let v01 = self.data[a0 * nw + w1];
+        let v10 = self.data[a1 * nw + w0];
+        let v11 = self.data[a1 * nw + w1];
+
+        let row0 = v00 + tw * (v01 - v00);
+        let row1 = v10 + tw * (v11 - v10);
+        row0 + ta * (row1 - row0)
     }
 }
 
@@ -118,6 +92,26 @@ impl Default for ScatterGrid {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn bracket_clamped(axis: &[f64], value: f64) -> (usize, usize, f64) {
+    debug_assert!(!axis.is_empty());
+    if value <= axis[0] {
+        return (0, 0, 0.0);
+    }
+    let last = axis.len() - 1;
+    if value >= axis[last] {
+        return (last, last, 0.0);
+    }
+    let upper = axis.partition_point(|&x| x <= value);
+    let lower = upper - 1;
+    let denom = axis[upper] - axis[lower];
+    let t = if denom > 0.0 {
+        (value - axis[lower]) / denom
+    } else {
+        0.0
+    };
+    (lower, upper, t.clamp(0.0, 1.0))
 }
 
 fn parse_grid(raw: &str, file: &'static str, kind: ScatterGridKind) -> Result<ScatterGrid> {
