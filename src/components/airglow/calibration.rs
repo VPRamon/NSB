@@ -8,13 +8,7 @@
 //! Scientific role:
 //! airglow is intrinsically spectral: different wavelengths and bands vary in
 //! strength, season, and time of night. This file preserves the continuum-side
-//! reference data needed for a more detailed airglow model.
-//!
-//! Contribution to the science:
-//! the current crate uses a simpler polynomial airglow estimate for the
-//! main evaluator, but this loader is the bridge toward a wavelength-resolved
-//! model that can represent the spectral structure of atmospheric emission more
-//! faithfully.
+//! calibration data used by the site-bound empirical airglow model.
 //!
 //! Provenance:
 //! airglow continuum calibration lives in `components::airglow`.
@@ -66,7 +60,7 @@ pub struct AirglowContinuum {
 ///
 /// Parses `data/airglow_cont.dat` embedded at compile time.
 ///
-/// File format (excerpted from the file header):
+/// File format:
 /// 1. `nseason ntime` — counts of season/time bins.
 /// 2. `ndat` — number of wavelength samples that follow.
 /// 3. `height` — emission height [km].
