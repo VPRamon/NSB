@@ -1,12 +1,13 @@
+use super::calibration::AirglowContinuum;
 use super::output::AirglowOutputs;
 use super::temporal::{season_bin, time_of_night_bin};
 use super::units::SolarFluxUnits;
-use super::calibration::AirglowContinuum;
-use crate::components::zodiacal::leinert::S10_TO_W_M2_SR_UM;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
 use qtty::angular::Degrees;
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use qtty::radiometry::{
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
+};
 use siderust::atmosphere::van_rhijn_factor;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -21,6 +22,7 @@ const ARCSEC2_PER_SR: f64 = 4.254_517_029_022_576e10;
 const SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR: f64 =
     1.0e-9 * 1.0e-4 * 1.0e-3 * ARCSEC2_PER_SR;
 const HC_JOULE_METER: f64 = 1.986_445_857_148_968e-25;
+const S10_TO_W_M2_SR_UM: f64 = 1.28e-8;
 
 pub(crate) fn evaluate_continuum(
     continuum: &AirglowContinuum,
