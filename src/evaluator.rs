@@ -31,13 +31,13 @@
 //! * supports threshold-window searches that are scientifically equivalent to
 //!   repeated point evaluations, but much faster for long observing windows
 
-use crate::components::{airglow, moonlight, starlight, zodiacal};
+use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalLight};
+use crate::components::{airglow, moonlight, starlight};
 use crate::error::{NsbError, Result};
 use crate::site::Site;
 use crate::spectra;
 use crate::spectra::airglow_cont::AirglowContinuum;
 use crate::NSB_S10_ZP;
-use optica::spectrum::SampledSpectrum;
 use qtty::angular::Degrees;
 use qtty::photometry::{s10_to_surface_brightness, SurfaceBrightness};
 use qtty::radiometry::{
@@ -46,15 +46,13 @@ use qtty::radiometry::{
 use qtty::{Quantity, Second, Unit};
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
-use siderust::coordinates::frames::{EclipticMeanJ2000, EquatorialMeanJ2000, ECEF};
+use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::spherical::Direction as SphericalDirection;
-use siderust::coordinates::transform::TransformFrame;
 use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
-use siderust::event::horizontal::star_horizontal;
-use siderust::qtty::{Day, Days, Radian};
+use siderust::qtty::{Day, Days};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate, TT};
-use tempoch::{Period, Time, JD, MJD, UTC};
+use tempoch::{Period, Time, MJD, UTC};
 
 bitflags::bitflags! {
     /// Which components to include in the calculation.
@@ -195,6 +193,11 @@ pub struct NsbModelConfig {
     pub moonlight_model: MoonlightModel,
     pub starlight_model: StarlightModel,
     pub solar_radio_flux: airglow::SolarFluxUnits,
+    /// Atmospheric extinction strategy for the zodiacal-light component.
+    ///
+    /// Defaults to [`ZodiacalExtinction::Noll2012Approx`], which matches the
+    /// original NSB pipeline behaviour.
+    pub zodiacal_extinction: ZodiacalExtinction,
 }
 
 impl NsbModelConfig {
@@ -204,6 +207,7 @@ impl NsbModelConfig {
             moonlight_model: MoonlightModel::Jones2013Spectral,
             starlight_model: StarlightModel::StandardGalacticModel,
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
+            zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
         }
     }
 
@@ -213,6 +217,7 @@ impl NsbModelConfig {
             moonlight_model: MoonlightModel::KrisciunasSchaefer1991,
             starlight_model: StarlightModel::StandardGalacticModel,
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
+            zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
         }
     }
 }
@@ -236,17 +241,13 @@ struct PreparedThresholdQuery {
     observer: Geodetic<ECEF>,
     target: Target,
     components: ComponentMask,
-    /// Target ecliptic latitude (J2000 ecliptic) — fixed for the window.
-    ecliptic_lat: siderust::qtty::Radians,
-    /// Target ecliptic longitude (J2000 ecliptic) — fixed for the window.
-    ecliptic_lon: siderust::qtty::Radians,
     /// Target-dependent starlight radiance cached once for the threshold query.
     starlight_integrated: BandPhotonRadiance,
 }
 
 /// Reusable evaluator with cached spectral inputs.
 pub struct NsbEvaluator {
-    solar: SampledSpectrum<siderust::qtty::Nanometer, siderust::qtty::length::Meter>,
+    zodiacal: ZodiacalLight,
     airglow_continuum: AirglowContinuum,
     config: NsbModelConfig,
 }
@@ -257,8 +258,9 @@ impl NsbEvaluator {
     }
 
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
+        let zodiacal = ZodiacalLight::standard()?.with_extinction(config.zodiacal_extinction);
         Ok(Self {
-            solar: spectra::solar::load()?,
+            zodiacal,
             airglow_continuum: spectra::airglow_cont::load()?,
             config,
         })
@@ -379,7 +381,6 @@ impl NsbEvaluator {
 
     fn prepare_threshold(&self, query: &ThresholdQuery) -> Result<PreparedThresholdQuery> {
         let observer = query.location.geodetic();
-        let ecl: SphericalDirection<EclipticMeanJ2000> = query.target.to_frame();
         let starlight_integrated = if query.components.contains(ComponentMask::STARLIGHT) {
             self.evaluate_starlight(query.target)?.integrated
         } else {
@@ -389,8 +390,6 @@ impl NsbEvaluator {
             observer,
             target: query.target,
             components: query.components,
-            ecliptic_lat: ecl.lat().to::<Radian>(),
-            ecliptic_lon: ecl.lon().to::<Radian>(),
             starlight_integrated,
         })
     }
@@ -435,30 +434,16 @@ impl NsbEvaluator {
         mjd_tt: ModifiedJulianDate,
     ) -> BandPhotonRadiance {
         let time = tt_mjd_to_utc_time(mjd_tt);
-        let jd = time.to::<TT>().to::<JD>();
-        let hz = star_horizontal(
-            prepared.target.ra(),
-            prepared.target.dec(),
-            &prepared.observer,
-            jd,
-        );
-        let source_zenith = Degrees::new(90.0) - hz.alt();
 
         let mut total = BandPhotonRadiance::new(0.0);
 
         if prepared.components.contains(ComponentMask::ZODIACAL) {
-            let lambda_sun = siderust::bodies::Sun::ecliptic_longitude_geocentric(jd);
-            let delta_lambda = prepared.ecliptic_lon.abs_separation(lambda_sun);
-            let out = zodiacal::compute(
-                &zodiacal::ZlInputs {
-                    beta: prepared.ecliptic_lat,
-                    delta_lambda,
-                    zenith: source_zenith,
-                },
-                &self.solar,
-            )
-            .expect("prepared zodiacal evaluation");
-            total += out.integrated;
+            if let Ok(out) =
+                self.zodiacal
+                    .compute_observed(time, prepared.observer, prepared.target)
+            {
+                total += out.integrated;
+            }
         }
         if prepared.components.contains(ComponentMask::STARLIGHT) {
             total += prepared.starlight_integrated;
@@ -480,28 +465,12 @@ impl NsbEvaluator {
     }
 
     fn evaluate_full(&self, query: &PreparedPointQuery, time: Time<UTC>) -> Result<NsbResult> {
-        let jd = time.to::<TT>().to::<JD>();
-        let hz = star_horizontal(query.target.ra(), query.target.dec(), &query.observer, jd);
-        let source_zenith = Degrees::new(90.0) - hz.alt();
-        let ecl: SphericalDirection<EclipticMeanJ2000> = query.target.to_frame();
-        let ecliptic_lat = ecl.lat().to::<Radian>();
-        let ecliptic_lon = ecl.lon().to::<Radian>();
-        let lambda_sun = siderust::bodies::Sun::ecliptic_longitude_geocentric(jd);
-        let delta_lambda = ecliptic_lon.abs_separation(lambda_sun);
-
         let mut components = Vec::new();
         let mut total = BandPhotonRadiance::new(0.0);
         let (mut b_total, mut v_total) = (S10::new(0.0), S10::new(0.0));
 
         if query.components.contains(ComponentMask::ZODIACAL) {
-            let out = zodiacal::compute(
-                &zodiacal::ZlInputs {
-                    beta: ecliptic_lat,
-                    delta_lambda,
-                    zenith: source_zenith,
-                },
-                &self.solar,
-            )?;
+            let out = self.zodiacal.compute(time, query.observer, query.target)?;
             total += out.integrated;
             b_total += out.b_flux_s10;
             v_total += out.v_flux_s10;
