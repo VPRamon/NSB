@@ -2,7 +2,7 @@
 //!
 //! NSB's local `Spectrum` wrapper has been collapsed into
 //! [`optica::spectrum::SampledSpectrum`]; this module hosts only the
-//! NSB-specific loaders (solar, starlight, airglow, ozone) that wrap the
+//! NSB-specific loaders (solar, airglow, ozone) that wrap the
 //! upstream typed spectrum.
 //!
 //! Scientific role:
@@ -18,6 +18,5 @@
 pub mod airglow_cont;
 pub mod ozone;
 pub mod solar;
-pub mod starlight;
 
 pub use optica::spectrum::SampledSpectrum;

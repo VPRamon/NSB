@@ -10,7 +10,7 @@ fn main() -> Result<()> {
         location: Location::NamedSite(Site::Paranal),
         time: Time::<UTC>::from_chrono(time),
         target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-        components: ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW,
+        components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
     };
 
     let result = NsbEvaluator::new()?.evaluate(&query)?;

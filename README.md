@@ -14,7 +14,9 @@ Components:
 
 - **Zodiacal light** — Leinert (1998) brightness map, Noll (2012) reddening &
   extinction, scaled solar spectrum.
-- **Integrated starlight** — SkyCalc Cerro Paranal radiance.
+- **Integrated starlight** — directional Galactic-coordinate map model; the
+  standard map is not bundled until a real catalogue-derived product is
+  generated with provenance.
 - **Airglow continuum** — SkyCalc-continuum path with Van Rhijn geometry
   (default) or empirical cubic polynomial in source altitude.
 - **Scattered moonlight** — Jones et al. (2013) wavelength-resolved spectral
@@ -38,7 +40,7 @@ Bundled scientific tables and their references:
 | Table / asset | Role | Official reference or authoritative upstream | Notes |
 |---|---|---|---|
 | `src/data/leinert.rs` | Zodiacal-light brightness grid | Leinert, Ch., et al. (1998), *A&AS* **127**, 1, "The 1997 reference of diffuse night sky brightness" | Core empirical zodiacal table used by `components::zodiacal` |
-| `data/radiance_starlight.txt` | Integrated starlight spectrum | ESO SkyCalc / Advanced Cerro Paranal Sky Model lineage, as described by Noll, S., et al. (2012), *A&A* **543**, A92 | Bundled SkyCalc-derived export |
+| `tools/build_starlight_map/` | Standard starlight-map generator placeholder | No production catalogue product is bundled yet | `Starlight::standard_galactic_model()` returns `DataMissing` until `data/starlight_galactic_map_v1.csv` exists |
 | `data/airglow_cont.dat` | Wavelength-resolved airglow continuum table | ESO SkyCalc / Advanced Cerro Paranal Sky Model lineage, as described by Noll, S., et al. (2012), *A&A* **543**, A92 | Multi-block continuum table with season/time corrections |
 | `data/solar_spectrum.dat` | Solar reference spectrum used to shape zodiacal light | Bundled `darknsb`/SkyCalc lineage artifact | Direct publication/source file provenance is not yet recorded separately in-repo |
 | `data/mie_m15s1.dat` | Aerosol/Mie scattering phase grid | Bundled `darknsb`/SkyCalc lineage artifact | Direct generator metadata is still being documented |
@@ -64,7 +66,7 @@ let r = evaluator.evaluate(&PointQuery {
     location: Location::NamedSite(Site::Paranal),
     time: /* tempoch::Time<UTC> */,
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-    components: ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW,
+    components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
 })?;
 
 // 2) UTC sub-periods darker than a threshold within a window:
@@ -73,7 +75,7 @@ let w = evaluator.periods_below_threshold(&ThresholdQuery {
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
     window: Period::new(/* start */, /* end */),
     threshold: BandPhotonRadiance::new(1.0e3),
-    components: ComponentMask::ALL,
+    components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
     sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
     sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
     target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
@@ -115,7 +117,7 @@ cargo run --bin nsb -- point \
   --time '2023-09-04 01:48:00' \
   --lat -24.6275 --lon -70.4044 --alt 2635 \
   --ra 266.41683 --dec -29.00781 \
-  --component zodiacal --component starlight --component airglow
+  --component zodiacal --component airglow
 ```
 
 ### Threshold-window search
@@ -126,7 +128,7 @@ cargo run --bin nsb -- window \
   --threshold 5e2 \
   --site CTAO-S \
   --ra 266.41683 --dec -29.00781 \
-  --all
+  --component zodiacal --component airglow
 ```
 
 Pre-filter knobs (defaults reproduce the recommended pipeline):
@@ -141,7 +143,9 @@ Pre-filter knobs (defaults reproduce the recommended pipeline):
   seconds inside each candidate sub-window).
 
 Component selection: `--component zodiacal|starlight|airglow|moon` (repeatable)
-or `--all`. The default is `zodiacal + starlight + airglow`.
+or `--all`. The default is `zodiacal + airglow`. `starlight` currently
+requires a generated `data/starlight_galactic_map_v1.csv`; requesting it before
+that file exists returns `DataMissing`.
 
 ## Examples
 
@@ -173,7 +177,7 @@ src/
 ├── single_scatter.rs  # Mie phase + multiple-scattering correction parsers
 ├── error.rs
 ├── components/        # ZL, SL, AG, Moon component evaluators
-├── spectra/           # Solar / starlight / airglow / ozone loaders
+├── spectra/           # Solar / airglow / ozone loaders
 └── bin/nsb.rs         # CLI binary
 ```
 

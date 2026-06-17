@@ -35,7 +35,7 @@ Inspected root: `darknsb/darknsb-main/`.
 | `get_new_moon.py` | Helper script to compute daily Moon illuminated fractions for 2024 and write dates with phase `< 0.01`. |
 | `new_moon_dates_2024.csv` | Output from `get_new_moon.py`. |
 | `data/solar_spectrum.dat` | Extraterrestrial solar spectrum, wavelength in nm and flux in W m^-2 nm^-1. |
-| `data/radiance_starlight.txt` | SkyCalc-derived scattered starlight radiance spectrum. |
+| legacy starlight radiance text file | SkyCalc-derived scattered starlight radiance spectrum used by the original Python code. |
 | `data/airglow_cont.dat` | Airglow continuum tables and seasonal parameters. |
 | `data/o3trans.dat` | Ozone transmission table. |
 | `data/mie_m15s1.dat` | Mie phase/scattering grid, used by scattered moonlight. |
@@ -76,7 +76,7 @@ The included data and algorithms match that lineage:
 | Component | Scientific basis in the code |
 |---|---|
 | Zodiacal light | Leinert et al. 1997 tabulated zodiacal brightness in S10 units, scaled by a solar spectrum, reddening correction, and atmospheric extinction. |
-| Starlight | SkyCalc-derived scattered starlight spectrum from `radiance_starlight.txt`. |
+| Starlight | SkyCalc-derived scattered starlight spectrum from the original Python data bundle. |
 | Airglow | Active path uses an empirical cubic altitude fit; additional functions contain a seasonal/solar-radio-flux airglow continuum model and SkyCalc FITS inputs. |
 | Moonlight | Lunar albedo and scattered moonlight machinery based on Jones et al. 2013: lunar phase angle, solar spectrum reflected by the Moon, Rayleigh/Mie scattering, aerosol single-scattering albedo, ground reflection, and correction grids. |
 | Atmosphere | Airmass formulas, Rayleigh optical depth, Mie optical depth, extinction corrections, ozone and molecular-transmission hooks. |
@@ -150,9 +150,9 @@ Finally, `CalculateZL(...)` converts the attenuated energy spectrum to photon ra
 
 ### Starlight
 
-`CalculateSL()` is the simplest active component:
+`CalculateSL()` is the simplest active component in the original Python code:
 
-1. Read `data/radiance_starlight.txt`.
+1. Read the legacy SkyCalc-derived starlight radiance text file.
 2. Interpret the spectrum as `ph / (s m^2 um arcsec^2)`.
 3. Convert to `ph / (ns cm^2 nm sr)`.
 4. Integrate over 300-650 nm.
@@ -163,7 +163,7 @@ SL_s10_b = 17.22580320204227
 SL_s10_v = 9.011178802900696
 ```
 
-This means active starlight is not target-, date-, Galactic-coordinate-, or atmospheric-state-dependent. It is a fixed all-sky/average spectral contribution inherited from SkyCalc-derived data.
+This means the original Python starlight path is not target-, date-, Galactic-coordinate-, or atmospheric-state-dependent. It is a fixed all-sky/average spectral contribution inherited from SkyCalc-derived data.
 
 ### Airglow
 

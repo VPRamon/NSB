@@ -109,18 +109,23 @@ small background glow.
 
 How this crate models it:
 
-- It loads a bundled starlight spectrum.
-- It converts that spectrum into the crate's working radiance units.
-- It integrates the spectrum over the wavelength band.
+- It converts the target direction from equatorial coordinates into Galactic
+  longitude and latitude.
+- It looks up the target in a rectangular Galactic starlight map.
+- It interpolates the map values and returns integrated radiance plus B/V S10
+  summaries.
+- The standard map is not bundled yet. Until a real catalogue-derived map is
+  generated with provenance, `Starlight::standard_galactic_model()` reports
+  `DataMissing`.
 
 Code:
 
-- `src/components/starlight.rs`
-- `src/spectra/starlight.rs`
+- `src/components/starlight/`
+- `tools/build_starlight_map/`
 
 Important intuition:
-in the current implementation this is effectively a **fixed background term**.
-It does not vary by time or target direction inside the current model.
+starlight is **target-direction dependent** because unresolved stars are
+strongly concentrated toward the Galactic plane.
 
 ## 3. Airglow
 
@@ -234,7 +239,7 @@ More detailed parts:
 
 Simpler parts:
 
-- starlight as a fixed bundled spectrum
+- starlight standard data generation is still pending
 - airglow as a fitted polynomial
 - moonlight converted from a V-band model into an integrated band estimate
 
@@ -249,11 +254,11 @@ than others.
   main API and orchestration
 - `src/components/zodiacal.rs`:
   zodiacal-light model
-- `src/components/starlight.rs`:
+- `src/components/starlight/`:
   integrated starlight model
-- `src/components/airglow.rs`:
+- `src/components/airglow/`:
   airglow model
-- `src/components/moonlight.rs`:
+- `src/components/moonlight/`:
   scattered moonlight model
 - `src/site.rs`:
   named observing sites

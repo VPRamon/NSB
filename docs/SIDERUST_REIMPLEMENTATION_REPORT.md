@@ -240,7 +240,7 @@ The Python model's data should be made explicit and testable:
 | Python input | Rust strategy |
 |---|---|
 | `solar_spectrum.dat` | Parse at build time with `build.rs` or at runtime with a data registry. |
-| `radiance_starlight.txt` | Parse into a static spectrum with provenance metadata. |
+| `starlight_galactic_map_v1.csv` | Parse a provenance-recorded Galactic-coordinate starlight map. |
 | Zodiacal table hardcoded in Python | Move to a documented static Rust table or external CSV/TOML. |
 | `mie_m15s1.dat` and `sscatcor_m15s1.dat` | Parse into 2D interpolation grids. |
 | FITS SkyCalc outputs | Either use a FITS reader crate or convert once into a simpler versioned table format. |

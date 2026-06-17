@@ -1,7 +1,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::{
     ComponentMask, Location, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, Site,
-    Target, ThresholdQuery, DEG,
+    StarlightMap, StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -20,7 +20,15 @@ fn sgr_a_star() -> Target {
 }
 
 fn default_components() -> ComponentMask {
-    ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW
+    ComponentMask::ZODIACAL | ComponentMask::AIRGLOW
+}
+
+fn fixture_starlight_map() -> StarlightMap {
+    StarlightMap::from_csv_str(
+        include_str!("data/starlight_fixture_map.csv"),
+        StarlightProvenance::test_fixture(),
+    )
+    .expect("starlight fixture")
 }
 
 #[test]
@@ -112,4 +120,36 @@ fn threshold_query_returns_empty_for_zero_threshold() {
         .expect("threshold query");
 
     assert!(result.periods.is_empty());
+}
+
+#[test]
+fn threshold_starlight_is_target_dependent() {
+    let mut config = NsbModelConfig::best_science();
+    config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
+    let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
+    let start = parse_obstime("2023-09-04 01:00:00");
+    let end = parse_obstime("2023-09-04 02:00:00");
+
+    let query = |target| ThresholdQuery {
+        location: Location::NamedSite(Site::Paranal),
+        target,
+        window: Period::new(start, end),
+        threshold: BandPhotonRadiance::new(3.0),
+        components: ComponentMask::STARLIGHT,
+        sample_step: Second::new(600.0),
+        sun_altitude_ceiling: None,
+        target_altitude_floor: None,
+    };
+
+    let galactic_center = evaluator
+        .periods_below_threshold(&query(Target::new(266.4051 * DEG, -28.936175 * DEG)))
+        .expect("galactic-center starlight query");
+    let north_galactic_pole = evaluator
+        .periods_below_threshold(&query(Target::new(192.85948 * DEG, 27.12825 * DEG)))
+        .expect("north-galactic-pole starlight query");
+
+    assert!(galactic_center.periods.is_empty());
+    assert_eq!(north_galactic_pole.periods.len(), 1);
+    assert_eq!(north_galactic_pole.periods[0].start, start);
+    assert_eq!(north_galactic_pole.periods[0].end, end);
 }

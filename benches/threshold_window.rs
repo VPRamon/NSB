@@ -20,7 +20,7 @@ fn target_sgr_a() -> Target {
 }
 
 fn default_components() -> ComponentMask {
-    ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW
+    ComponentMask::ZODIACAL | ComponentMask::AIRGLOW
 }
 
 fn make_query(
@@ -105,7 +105,7 @@ fn bench_window_with_moon(c: &mut Criterion) {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse("2023-09-04T00:00:00Z");
     let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + chrono::Duration::days(7));
-    let components = ComponentMask::ALL;
+    let components = ComponentMask::ZODIACAL | ComponentMask::AIRGLOW | ComponentMask::MOON;
 
     let mut group = c.benchmark_group("threshold_window_moon_1w");
     group.sample_size(10);

@@ -18,6 +18,12 @@ pub enum NsbError {
     #[error("data parse error in {file}: {message}")]
     DataParse { file: &'static str, message: String },
 
+    #[error("required data missing: {file}: {message}")]
+    DataMissing { file: &'static str, message: String },
+
+    #[error("invalid starlight map: {message}")]
+    InvalidMap { message: String },
+
     #[error("input out of range: {0}")]
     OutOfRange(String),
 

@@ -13,7 +13,7 @@ fn main() -> Result<()> {
         target: Target::new(266.41683 * DEG, -29.00781 * DEG),
         window: Period::new(start, end),
         threshold: BandPhotonRadiance::new(0.21),
-        components: ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW,
+        components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
         sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
         sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
         target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),

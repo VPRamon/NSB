@@ -94,10 +94,12 @@ impl ComponentArg {
 #[derive(Debug, Args)]
 struct ComponentArgs {
     /// Include all components (zodiacal + starlight + airglow + moon).
+    ///
+    /// Starlight requires a standard Galactic map to be available.
     #[arg(long, conflicts_with = "component")]
     all: bool,
 
-    /// Components to include. May be repeated. Defaults to all components.
+    /// Components to include. May be repeated. Defaults to zodiacal + airglow.
     #[arg(long = "component", value_enum)]
     component: Vec<ComponentArg>,
 }
@@ -108,7 +110,7 @@ impl ComponentArgs {
             return ComponentMask::ALL;
         }
         if self.component.is_empty() {
-            return ComponentMask::ALL;
+            return ComponentMask::ZODIACAL | ComponentMask::AIRGLOW;
         }
         self.component
             .iter()
