@@ -312,21 +312,21 @@ This is a low-order empirical model, but it is directly compatible with the curr
 
 ---
 
-## Stage 5 - Starlight fixed spectral term
+## Stage 5 - Directional starlight map
 
 ### Purpose
 
-Add the second active dark component from the Python code with minimal model risk.
+Add unresolved starlight as a target-dependent Galactic-coordinate map.
 
 ### Inputs used
 
-- starlight spectrum table
-- wavelength integration
+- provenance-recorded Galactic starlight map
+- map interpolation
 
 ### Model
 
 ```text
-starlight = integrate( fixed_scattered_starlight_spectrum )
+starlight = interpolate(galactic_map, target_l, target_b)
 ```
 
 ### Outputs added
@@ -337,7 +337,7 @@ starlight = integrate( fixed_scattered_starlight_spectrum )
 
 This stage is straightforward and stable:
 
-- one data file,
+- one map file,
 - one conversion path,
 - one band integration.
 

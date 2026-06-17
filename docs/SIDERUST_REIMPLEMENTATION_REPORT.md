@@ -111,7 +111,7 @@ The following must be implemented in a new NSB layer:
 | S10 photometric unit and B/V conversion constants | Not present. Implement units in qtty|
 | Spectral radiance type such as `ph / (cm^2 ns sr nm)` | Not present as a domain abstraction. Implement units in qtty ?|
 | Solar spectral irradiance/radiance table ingestion | Not present as an NSB model. |
-| SkyCalc-derived starlight spectrum integration | Not present. |
+| Catalogue-derived Galactic starlight map ingestion | Not present. |
 | Airglow continuum/line model | Not present. |
 | Rayleigh/Mie optical-depth and scattering model from Jones/Noll | Not present. |
 | FITS table ingestion for SkyCalc outputs | Not present. |
@@ -138,14 +138,14 @@ darknsb-rs/
     data/
       mod.rs
       solar.rs
-      starlight.rs
+      starlight/
       zodiacal_table.rs
       moon_tables.rs
       skycalc_fits.rs
     components/
       mod.rs
       zodiacal.rs
-      starlight.rs
+      starlight/
       airglow.rs
       moonlight.rs
       extinction.rs
@@ -274,10 +274,10 @@ This is the best first milestone because it matches active `get_NSB.py`.
 
 Implement:
 
-1. `CalculateSL` parity:
-   - read starlight spectrum,
-   - convert to photon radiance,
-   - integrate 300-650 nm.
+1. Directional starlight:
+   - read a provenance-recorded Galactic starlight map,
+   - convert target RA/Dec to Galactic `l,b`,
+   - interpolate integrated radiance and B/V S10 values.
 2. `CalculateAG` parity:
    - cubic altitude polynomial,
    - same constants,
