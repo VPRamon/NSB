@@ -32,9 +32,7 @@ pub mod site;
 pub mod sites;
 pub mod spectra;
 
-pub use components::moonlight::{
-    compute_jones2013, compute_jones2013_spectral, compute_jones2013_with_extinction,
-};
+pub use components::moonlight::{AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991};
 pub use error::{NsbError, Result};
 pub use evaluator::{
     AirglowModel, ComponentMask, Location, MoonlightModel, NsbComponent, NsbEvaluator,

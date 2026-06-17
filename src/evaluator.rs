@@ -44,7 +44,7 @@ use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 use qtty::{Quantity, Second, Unit};
-use siderust::bodies::{Moon, Sun as SunBody};
+use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EclipticMeanJ2000, EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::direction;
@@ -52,7 +52,7 @@ use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::coordinates::transform::TransformFrame;
 use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
 use siderust::event::horizontal::star_horizontal;
-use siderust::qtty::{Day, Days, Kilometer, Radian};
+use siderust::qtty::{Day, Days, Radian};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Period, Time, JD, MJD, UTC};
 
@@ -461,21 +461,8 @@ impl NsbEvaluator {
             total += out.integrated;
         }
         if prepared.components.contains(ComponentMask::MOON) {
-            let moon_pos = Moon::get_horizontal::<Kilometer>(jd, prepared.observer);
-            let moon_dir = moon_pos.direction();
-            let moon_zenith = Degrees::new(90.0) - moon_dir.alt();
-            let separation = hz.angular_separation(&moon_dir);
-            let phase = Moon::phase_geocentric(jd);
             let out = self
-                .evaluate_moonlight(
-                    &moonlight::MoonInputs {
-                        separation,
-                        moon_zenith,
-                        phase,
-                        source_zenith,
-                    },
-                    moon_pos.distance,
-                )
+                .evaluate_moonlight(prepared.observer, time, prepared.target)
                 .expect("prepared moon evaluation");
             total += out.integrated;
         }
@@ -541,20 +528,7 @@ impl NsbEvaluator {
             });
         }
         if query.components.contains(ComponentMask::MOON) {
-            let moon_pos = Moon::get_horizontal::<Kilometer>(jd, query.observer);
-            let moon_dir = moon_pos.direction();
-            let moon_zenith = Degrees::new(90.0) - moon_dir.alt();
-            let separation = hz.angular_separation(&moon_dir);
-            let phase = Moon::phase_geocentric(jd);
-            let out = self.evaluate_moonlight(
-                &moonlight::MoonInputs {
-                    separation,
-                    moon_zenith,
-                    phase,
-                    source_zenith,
-                },
-                moon_pos.distance,
-            )?;
+            let out = self.evaluate_moonlight(query.observer, time, query.target)?;
             total += out.integrated;
             b_total += out.b_flux_s10;
             v_total += out.v_flux_s10;
@@ -589,13 +563,17 @@ impl NsbEvaluator {
 
     fn evaluate_moonlight(
         &self,
-        inputs: &moonlight::MoonInputs,
-        moon_distance: siderust::qtty::Kilometers,
+        location: Geodetic<ECEF>,
+        time: Time<UTC>,
+        target: Target,
     ) -> Result<moonlight::MoonOutputs> {
         match self.config.moonlight_model {
-            MoonlightModel::KrisciunasSchaefer1991 => moonlight::compute(inputs),
+            MoonlightModel::KrisciunasSchaefer1991 => {
+                moonlight::KrisciunasSchaefer1991::standard_clear_sky(location)
+                    .compute(time, target)
+            }
             MoonlightModel::Jones2013Spectral => {
-                moonlight::compute_jones2013_spectral(inputs, &self.solar, moon_distance)
+                moonlight::Jones2013Spectral::standard_clear_sky(location).compute(time, target)
             }
         }
     }
