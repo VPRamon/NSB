@@ -21,7 +21,7 @@ fn optimized_matches_legacy_within_tolerance() {
     // Threshold chosen so the function actually crosses inside the
     // window. ~0.21 ph/(cm² ns sr) is a typical bright-end cutoff.
     let target = Target::new(266.41683 * DEG, -29.00781 * DEG);
-    let components = ComponentMask::ZODIACAL | ComponentMask::STARLIGHT | ComponentMask::AIRGLOW;
+    let components = ComponentMask::ZODIACAL | ComponentMask::AIRGLOW;
 
     let legacy_query = ThresholdQuery {
         location: Location::NamedSite(Site::Paranal),

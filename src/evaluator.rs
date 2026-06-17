@@ -174,10 +174,26 @@ pub enum MoonlightModel {
     Jones2013Spectral,
 }
 
+/// Directional unresolved-starlight model used by [`NsbEvaluator`].
+#[derive(Debug, Clone)]
+pub enum StarlightModel {
+    /// Load the provenance-recorded standard Galactic map.
+    StandardGalacticModel,
+    /// Use a caller-supplied Galactic-coordinate map.
+    CustomMap(Box<starlight::StarlightMap>),
+}
+
+impl StarlightModel {
+    pub fn with_map(map: starlight::StarlightMap) -> Self {
+        Self::CustomMap(Box::new(map))
+    }
+}
+
 /// Model-selection configuration for [`NsbEvaluator`].
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct NsbModelConfig {
     pub moonlight_model: MoonlightModel,
+    pub starlight_model: StarlightModel,
     pub solar_radio_flux: airglow::SolarFluxUnits,
 }
 
@@ -186,6 +202,7 @@ impl NsbModelConfig {
     pub fn best_science() -> Self {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
+            starlight_model: StarlightModel::StandardGalacticModel,
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
         }
     }
@@ -194,6 +211,7 @@ impl NsbModelConfig {
     pub fn python_parity() -> Self {
         Self {
             moonlight_model: MoonlightModel::KrisciunasSchaefer1991,
+            starlight_model: StarlightModel::StandardGalacticModel,
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
         }
     }
@@ -222,7 +240,7 @@ struct PreparedThresholdQuery {
     ecliptic_lat: siderust::qtty::Radians,
     /// Target ecliptic longitude (J2000 ecliptic) — fixed for the window.
     ecliptic_lon: siderust::qtty::Radians,
-    /// Constant starlight integrated radiance contribution, when enabled.
+    /// Target-dependent starlight radiance cached once for the threshold query.
     starlight_integrated: BandPhotonRadiance,
 }
 
@@ -251,7 +269,7 @@ impl NsbEvaluator {
     }
 
     pub fn config(&self) -> NsbModelConfig {
-        self.config
+        self.config.clone()
     }
 
     pub fn evaluate(&self, query: &PointQuery) -> Result<NsbResult> {
@@ -268,7 +286,7 @@ impl NsbEvaluator {
     pub fn periods_below_threshold(&self, query: &ThresholdQuery) -> Result<ThresholdQueryResult> {
         Self::validate_threshold(query)?;
 
-        let prepared = Self::prepare_threshold(query)?;
+        let prepared = self.prepare_threshold(query)?;
         let tt_window = utc_period_to_tt_mjd(query.window);
         let step = query.sample_step.to::<Day>();
 
@@ -303,6 +321,9 @@ impl NsbEvaluator {
         query: &ThresholdQuery,
     ) -> Result<ThresholdQueryResult> {
         Self::validate_threshold(query)?;
+        if query.components.contains(ComponentMask::STARLIGHT) {
+            self.evaluate_starlight(query.target)?;
+        }
 
         let prepared = Self::prepare_point(query.location, query.target, query.components);
         let tt_window = utc_period_to_tt_mjd(query.window);
@@ -356,11 +377,11 @@ impl NsbEvaluator {
         }
     }
 
-    fn prepare_threshold(query: &ThresholdQuery) -> Result<PreparedThresholdQuery> {
+    fn prepare_threshold(&self, query: &ThresholdQuery) -> Result<PreparedThresholdQuery> {
         let observer = query.location.geodetic();
         let ecl: SphericalDirection<EclipticMeanJ2000> = query.target.to_frame();
         let starlight_integrated = if query.components.contains(ComponentMask::STARLIGHT) {
-            starlight::compute()?.integrated
+            self.evaluate_starlight(query.target)?.integrated
         } else {
             BandPhotonRadiance::new(0.0)
         };
@@ -492,7 +513,7 @@ impl NsbEvaluator {
             });
         }
         if query.components.contains(ComponentMask::STARLIGHT) {
-            let out = starlight::compute()?;
+            let out = self.evaluate_starlight(query.target)?;
             total += out.integrated;
             b_total += out.b_flux_s10;
             v_total += out.v_flux_s10;
@@ -545,6 +566,16 @@ impl NsbEvaluator {
         airglow::Airglow::with_continuum(location, self.airglow_continuum.clone())
             .with_solar_radio_flux(self.config.solar_radio_flux)
             .compute(time, target)
+    }
+
+    fn evaluate_starlight(&self, target: Target) -> Result<starlight::StarlightOutputs> {
+        let model = match &self.config.starlight_model {
+            StarlightModel::StandardGalacticModel => {
+                starlight::Starlight::standard_galactic_model()?
+            }
+            StarlightModel::CustomMap(map) => starlight::Starlight::with_map((**map).clone()),
+        };
+        model.compute(target)
     }
 
     fn evaluate_moonlight(

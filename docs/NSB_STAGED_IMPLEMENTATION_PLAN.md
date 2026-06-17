@@ -632,7 +632,7 @@ Stage 1  -> constant dark floor
 Stage 2  -> coarse Sun/Moon-aware estimator
 Stage 3  -> spectral backbone
 Stage 4  -> simple airglow
-Stage 5  -> fixed starlight
+Stage 5  -> directional Galactic starlight map
 Stage 7  -> zodiacal geometry
 Stage 8  -> full zodiacal-light spectral model
 Stage 6  -> dark-mode parity milestone
@@ -655,7 +655,7 @@ Note: Stage 6 is a milestone rather than a technical dependency node. It is achi
 | 2 | rough observing-condition awareness | accurate dark NSB physics |
 | 3 | spectral pipeline correctness | full physical NSB |
 | 4 | first dark-sky directional term | full dark-sky realism |
-| 5 | stable dark-sky additive term | spatially varying starlight |
+| 5 | directional dark-sky additive term | catalogue-grade starlight validation |
 | 6 | practical dark-NSB replacement | bright-Moon conditions |
 | 8 | realistic moonless dark-NSB | Moon-contaminated conditions |
 | 9 | practical Moon-on estimate | full lunar radiative transfer |
@@ -677,7 +677,7 @@ That combination gives:
 - proper astronomy geometry,
 - proper spectral integration,
 - simple airglow,
-- fixed starlight,
+- directional starlight,
 - full zodiacal light,
 - a realistic moonless dark-NSB tool,
 - parity with the active Python scope.
