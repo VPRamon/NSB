@@ -1,6 +1,6 @@
 use super::*;
 use crate::site::Site;
-use crate::spectra::airglow_cont;
+use super::calibration::load_builtin_standard;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
@@ -93,7 +93,7 @@ fn custom_continuum_path_works() {
     let location = paranal();
     let time = t("2023-09-04T01:48:00Z");
     let target = target(266.41683, -29.00781);
-    let continuum = airglow_cont::load().unwrap();
+    let continuum = load_builtin_standard().unwrap();
 
     let standard = Airglow::standard_clear_sky(location)
         .unwrap()
@@ -121,7 +121,7 @@ fn time_of_night_bin_is_not_utc_hour_based() {
 
 #[test]
 fn invalid_altitude_returns_zero_stable_result() {
-    let continuum = airglow_cont::load().unwrap();
+    let continuum = load_builtin_standard().unwrap();
     let out = super::continuum::evaluate_continuum(
         &continuum,
         t("2023-09-04T01:48:00Z"),
@@ -136,7 +136,7 @@ fn invalid_altitude_returns_zero_stable_result() {
 
 #[test]
 fn default_solar_radio_flux_is_neutral() {
-    let continuum = airglow_cont::load().unwrap();
+    let continuum = load_builtin_standard().unwrap();
     let correction = continuum.solar_activity_const
         + continuum.solar_activity_slope * DEFAULT_SOLAR_RADIO_FLUX.value();
     assert!((correction - 1.0).abs() < 1e-12);

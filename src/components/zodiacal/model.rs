@@ -43,8 +43,8 @@
 
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
-use crate::spectra;
-use crate::spectra::SampledSpectrum;
+use crate::reference::solar;
+use optica::spectrum::SampledSpectrum;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{length::Meter, Nanometer};
@@ -245,7 +245,7 @@ impl ZodiacalLight {
     pub fn leinert1998() -> Result<Self> {
         Ok(Self {
             brightness_model: ZodiacalBrightnessModel::Leinert1998,
-            solar_spectrum: spectra::solar::load()?,
+            solar_spectrum: solar::load()?,
             extinction: ZodiacalExtinction::Noll2012Approx,
         })
     }
@@ -255,7 +255,7 @@ impl ZodiacalLight {
     pub fn with_brightness_model(model: ZodiacalBrightnessModel) -> Result<Self> {
         Ok(Self {
             brightness_model: model,
-            solar_spectrum: spectra::solar::load()?,
+            solar_spectrum: solar::load()?,
             extinction: ZodiacalExtinction::Noll2012Approx,
         })
     }

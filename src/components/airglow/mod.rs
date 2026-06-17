@@ -14,6 +14,7 @@
 //! site-specific calibration, load or build an [`AirglowContinuum`] and pass it
 //! to [`Airglow::with_continuum`].
 
+pub(crate) mod calibration;
 mod continuum;
 mod geometry;
 mod model;
@@ -21,7 +22,8 @@ mod output;
 mod temporal;
 mod units;
 
-pub use crate::spectra::airglow_cont::AirglowContinuum;
+pub use calibration::AirglowContinuum;
+pub(crate) use calibration::load_builtin_standard;
 pub use model::Airglow;
 pub use output::AirglowOutputs;
 pub use units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};

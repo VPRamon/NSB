@@ -1,8 +1,8 @@
 use super::output::AirglowOutputs;
 use super::temporal::{season_bin, time_of_night_bin};
 use super::units::SolarFluxUnits;
-use crate::leinert::S10_TO_W_M2_SR_UM;
-use crate::spectra::airglow_cont::AirglowContinuum;
+use super::calibration::AirglowContinuum;
+use crate::components::zodiacal::leinert::S10_TO_W_M2_SR_UM;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
 use qtty::angular::Degrees;

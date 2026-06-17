@@ -3,7 +3,7 @@ use super::geometry::target_altitude;
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
-use crate::spectra::airglow_cont::{self, AirglowContinuum};
+use super::calibration::{load_builtin_standard, AirglowContinuum};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
@@ -19,7 +19,7 @@ pub struct Airglow {
 
 impl Airglow {
     pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Self> {
-        Ok(Self::with_continuum(location, airglow_cont::load()?))
+        Ok(Self::with_continuum(location, load_builtin_standard()?))
     }
 
     pub fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {

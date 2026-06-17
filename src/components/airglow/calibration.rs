@@ -1,4 +1,4 @@
-//! Airglow continuum spectrum.
+//! Airglow continuum calibration data and loader.
 //!
 //! The reference file `data/airglow_cont.dat` is a multi-block format with
 //! per-season and per-time-of-night scaling factors. The loader below extracts
@@ -11,10 +11,13 @@
 //! reference data needed for a more detailed airglow model.
 //!
 //! Contribution to the science:
-//! the current crate still uses a simpler polynomial airglow estimate for the
+//! the current crate uses a simpler polynomial airglow estimate for the
 //! main evaluator, but this loader is the bridge toward a wavelength-resolved
 //! model that can represent the spectral structure of atmospheric emission more
 //! faithfully.
+//!
+//! Provenance:
+//! airglow continuum calibration lives in `components::airglow`.
 
 use crate::error::{NsbError, Result};
 use optica::data::Provenance;
@@ -22,7 +25,7 @@ use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
 use siderust::qtty::{length::Meter, Nanometer};
 
-const RAW: &str = include_str!("../../data/airglow_cont.dat");
+const RAW: &str = include_str!("../../../data/airglow_cont.dat");
 
 // Pinned SHA-256 of the airglow continuum reference file.
 siderust::assert_data_checksum!(
@@ -31,6 +34,7 @@ siderust::assert_data_checksum!(
     "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
 );
 
+/// Airglow continuum calibration data loaded from the bundled reference file.
 #[derive(Debug, Clone)]
 pub struct AirglowContinuum {
     /// Global scale factor (`scale` block in the file).
@@ -58,7 +62,9 @@ pub struct AirglowContinuum {
     pub n_time: usize,
 }
 
-/// Parse the airglow continuum reference file.
+/// Load the built-in empirical airglow continuum calibration.
+///
+/// Parses `data/airglow_cont.dat` embedded at compile time.
 ///
 /// File format (excerpted from the file header):
 /// 1. `nseason ntime` — counts of season/time bins.
@@ -69,7 +75,7 @@ pub struct AirglowContinuum {
 /// 6. `(ntime + 1)` mean-correction rows, each with `(nseason + 1)` values.
 /// 7. `(ntime + 1)` sigma-correction rows, same shape.
 /// 8. `ndat` rows of `wavelength_um  relative_mean  relative_sigma`.
-pub fn load() -> Result<AirglowContinuum> {
+pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
     let mut iter = RAW.lines().filter_map(|l| {
         let t = l.trim();
         if t.is_empty() || t.starts_with('#') {
@@ -263,7 +269,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pinned_sha256_matches_runtime_hash() {
+    fn airglow_builtin_calibration_checksum_matches() {
         use siderust::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),
@@ -272,8 +278,8 @@ mod tests {
     }
 
     #[test]
-    fn parses_full_airglow_correction_structure() {
-        let c = load().expect("airglow continuum");
+    fn airglow_builtin_calibration_parses_full_structure() {
+        let c = load_builtin_standard().expect("airglow continuum calibration");
         assert_eq!(c.n_season, 6);
         assert_eq!(c.n_time, 3);
         assert_eq!(c.mean_corrections.len(), 4);
