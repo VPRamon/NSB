@@ -165,15 +165,6 @@ pub struct ThresholdQueryResult {
     pub periods: Vec<Period<UTC>>,
 }
 
-/// Airglow model used by [`NsbEvaluator`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AirglowModel {
-    /// Current darknsb-compatible cubic polynomial in source altitude.
-    PythonPolynomial,
-    /// Wavelength-resolved SkyCalc continuum with Van Rhijn geometry.
-    SkyCalcContinuum,
-}
-
 /// Scattered-moonlight model used by [`NsbEvaluator`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoonlightModel {
@@ -186,27 +177,24 @@ pub enum MoonlightModel {
 /// Model-selection configuration for [`NsbEvaluator`].
 #[derive(Debug, Clone, Copy)]
 pub struct NsbModelConfig {
-    pub airglow_model: AirglowModel,
     pub moonlight_model: MoonlightModel,
-    pub solar_radio_flux_sfu: f64,
+    pub solar_radio_flux: airglow::SolarFluxUnits,
 }
 
 impl NsbModelConfig {
     /// Best validated science path. This is the default for new evaluators.
     pub fn best_science() -> Self {
         Self {
-            airglow_model: AirglowModel::SkyCalcContinuum,
             moonlight_model: MoonlightModel::Jones2013Spectral,
-            solar_radio_flux_sfu: airglow::DEFAULT_SOLAR_RADIO_FLUX_SFU,
+            solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
         }
     }
 
-    /// Darknsb-compatible behavior retained for regression and validation.
+    /// Historical preset retained for moonlight-model regression.
     pub fn python_parity() -> Self {
         Self {
-            airglow_model: AirglowModel::PythonPolynomial,
             moonlight_model: MoonlightModel::KrisciunasSchaefer1991,
-            solar_radio_flux_sfu: airglow::DEFAULT_SOLAR_RADIO_FLUX_SFU,
+            solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
         }
     }
 }
@@ -456,7 +444,7 @@ impl NsbEvaluator {
         }
         if prepared.components.contains(ComponentMask::AIRGLOW) {
             let out = self
-                .evaluate_airglow(time, hz.alt())
+                .evaluate_airglow(prepared.observer, time, prepared.target)
                 .expect("prepared airglow evaluation");
             total += out.integrated;
         }
@@ -516,7 +504,7 @@ impl NsbEvaluator {
             });
         }
         if query.components.contains(ComponentMask::AIRGLOW) {
-            let out = self.evaluate_airglow(time, hz.alt())?;
+            let out = self.evaluate_airglow(query.observer, time, query.target)?;
             total += out.integrated;
             b_total += out.b_flux_s10;
             v_total += out.v_flux_s10;
@@ -548,17 +536,15 @@ impl NsbEvaluator {
         })
     }
 
-    fn evaluate_airglow(&self, time: Time<UTC>, altitude: Degrees) -> Result<airglow::AgOutputs> {
-        let inputs = airglow::AgInputs { altitude };
-        match self.config.airglow_model {
-            AirglowModel::PythonPolynomial => airglow::compute(&inputs),
-            AirglowModel::SkyCalcContinuum => airglow::compute_skycalc_continuum(
-                &inputs,
-                &self.airglow_continuum,
-                time,
-                self.config.solar_radio_flux_sfu,
-            ),
-        }
+    fn evaluate_airglow(
+        &self,
+        location: Geodetic<ECEF>,
+        time: Time<UTC>,
+        target: Target,
+    ) -> Result<airglow::AirglowOutputs> {
+        airglow::Airglow::with_continuum(location, self.airglow_continuum.clone())
+            .with_solar_radio_flux(self.config.solar_radio_flux)
+            .compute(time, target)
     }
 
     fn evaluate_moonlight(

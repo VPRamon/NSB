@@ -32,11 +32,14 @@ pub mod site;
 pub mod sites;
 pub mod spectra;
 
+pub use components::airglow::{
+    Airglow, AirglowContinuum, AirglowOutputs, SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX,
+};
 pub use components::moonlight::{AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991};
 pub use error::{NsbError, Result};
 pub use evaluator::{
-    AirglowModel, ComponentMask, Location, MoonlightModel, NsbComponent, NsbEvaluator,
-    NsbModelConfig, NsbResult, PointQuery, Target, ThresholdQuery, ThresholdQueryResult,
+    ComponentMask, Location, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult,
+    PointQuery, Target, ThresholdQuery, ThresholdQueryResult,
 };
 pub use single_scatter::ScatterGrid;
 pub use site::Site;
