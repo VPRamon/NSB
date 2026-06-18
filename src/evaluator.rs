@@ -1,41 +1,15 @@
 //! NSB evaluator: point evaluation and threshold-period search.
 //!
-//! The threshold search runs an event-driven pipeline modelled on
-//! `siderust::event::stellar::altitude_periods`:
-//!
-//! 1. Optionally pre-filter to the intersection of *Sun below twilight*
-//!    and *target above horizon* sub-windows (cheap analytical engines
-//!    inside `siderust`).
-//! 2. Inside each surviving candidate window, run a coarse scan with
-//!    local bisection refinement to
-//!    locate the radiance crossings of `threshold`.
-//! 3. Take the complement (darker-than-threshold) inside each candidate
-//!    window and return the concatenated list.
-//!
-//! This collapses ~year-long searches from tens of thousands of full NSB
-//! evaluations down to a few hundred, while keeping the per-sample math
-//! identical to [`NsbEvaluator::evaluate`].
-//!
-//! Scientific role:
-//! this file is the "scientific orchestrator" of the crate. It does not define
-//! new physics by itself; instead, it combines the implemented component models
-//! into a site/time/target prediction of sky background.
-//!
-//! Contribution to the science:
-//! the evaluator is where the astronomy geometry becomes operational. It:
-//!
-//! * turns user inputs into observer and target geometry
-//! * computes target altitude and the relevant Sun/Moon geometry
-//! * invokes the zodiacal-light, starlight, airglow, and moonlight models
-//! * adds those contributions into a total background radiance
-//! * supports threshold-window searches that are scientifically equivalent to
-//!   repeated point evaluations, but much faster for long observing windows
+//! This module is the library-facing orchestration layer. It accepts typed
+//! observing inputs, invokes the physical component models, sums their
+//! radiances, and provides an event-driven planning search. CLI concerns such
+//! as named-site parsing and timestamp parsing intentionally live outside this
+//! crate.
 
+use crate::components::airglow::AirglowContinuum;
 use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalLight};
 use crate::components::{airglow, moonlight, starlight};
 use crate::error::{NsbError, Result};
-use crate::site::Site;
-use crate::components::airglow::AirglowContinuum;
 use crate::NSB_S10_ZP;
 use qtty::angular::Degrees;
 use qtty::photometry::{s10_to_surface_brightness, SurfaceBrightness};
@@ -68,34 +42,8 @@ bitflags::bitflags! {
     }
 }
 
-/// Observer location: a named CTAO site or arbitrary geodetic coordinates.
-#[derive(Debug, Clone, Copy)]
-pub enum Location {
-    NamedSite(Site),
-    Geodetic(Geodetic<ECEF>),
-}
-
-impl Location {
-    #[inline]
-    pub fn geodetic(self) -> Geodetic<ECEF> {
-        match self {
-            Self::NamedSite(site) => site.geodetic(),
-            Self::Geodetic(geodetic) => geodetic,
-        }
-    }
-}
-
-impl From<Site> for Location {
-    fn from(value: Site) -> Self {
-        Self::NamedSite(value)
-    }
-}
-
-impl From<Geodetic<ECEF>> for Location {
-    fn from(value: Geodetic<ECEF>) -> Self {
-        Self::Geodetic(value)
-    }
-}
+/// Ground observer geodetic location.
+pub type Observer = Geodetic<ECEF>;
 
 /// Equatorial (ICRS / J2000) target direction.
 pub type Target = SphericalDirection<EquatorialMeanJ2000>;
@@ -103,7 +51,7 @@ pub type Target = SphericalDirection<EquatorialMeanJ2000>;
 /// Single-instant NSB query.
 #[derive(Debug, Clone)]
 pub struct PointQuery {
-    pub location: Location,
+    pub observer: Observer,
     pub time: Time<UTC>,
     pub target: Target,
     pub components: ComponentMask,
@@ -112,12 +60,11 @@ pub struct PointQuery {
 /// Threshold-window NSB query: find sub-periods darker than `threshold`.
 ///
 /// The optional `sun_altitude_ceiling` and `target_altitude_floor` knobs
-/// pre-filter the search to dark, observable sub-windows. Set them to
-/// `None` to disable the pre-filter and recover the legacy uniform-scan
-/// semantics (useful for cross-validation).
+/// pre-filter the search to dark, observable sub-windows. Set them to `None`
+/// to disable the pre-filter and recover the legacy uniform-scan semantics.
 #[derive(Debug, Clone)]
 pub struct ThresholdQuery {
-    pub location: Location,
+    pub observer: Observer,
     pub target: Target,
     pub window: Period<UTC>,
     pub threshold: BandPhotonRadiance,
@@ -125,12 +72,10 @@ pub struct ThresholdQuery {
     /// Coarse scan cadence used to bracket threshold crossings.
     pub sample_step: Second,
     /// Pre-filter: keep only sub-windows where the Sun is at or below this
-    /// altitude (e.g. `-18°` for astronomical twilight). `None` disables
-    /// the filter.
+    /// altitude (e.g. `-18°` for astronomical twilight). `None` disables it.
     pub sun_altitude_ceiling: Option<Degrees>,
-    /// Pre-filter: keep only sub-windows where the target is at or above
-    /// this altitude (e.g. `0°` for the geometric horizon). `None`
-    /// disables the filter.
+    /// Pre-filter: keep only sub-windows where the target is at or above this
+    /// altitude (e.g. `0°` for the geometric horizon). `None` disables it.
     pub target_altitude_floor: Option<Degrees>,
 }
 
@@ -165,18 +110,14 @@ pub struct ThresholdQueryResult {
 /// Scattered-moonlight model used by [`NsbEvaluator`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MoonlightModel {
-    /// Krisciunas & Schaefer (1991), preserving the previous NSB behavior.
     KrisciunasSchaefer1991,
-    /// Jones et al. (2013)-style wavelength-resolved scattered moonlight.
     Jones2013Spectral,
 }
 
 /// Directional unresolved-starlight model used by [`NsbEvaluator`].
 #[derive(Debug, Clone)]
 pub enum StarlightModel {
-    /// Load the provenance-recorded standard Galactic map.
     StandardGalacticModel,
-    /// Use a caller-supplied Galactic-coordinate map.
     CustomMap(Box<starlight::StarlightMap>),
 }
 
@@ -192,16 +133,12 @@ pub struct NsbModelConfig {
     pub moonlight_model: MoonlightModel,
     pub starlight_model: StarlightModel,
     pub solar_radio_flux: airglow::SolarFluxUnits,
-    /// Atmospheric extinction strategy for the zodiacal-light component.
-    ///
-    /// Defaults to [`ZodiacalExtinction::Noll2012Approx`], which matches the
-    /// original NSB pipeline behaviour.
     pub zodiacal_extinction: ZodiacalExtinction,
 }
 
 impl NsbModelConfig {
-    /// Best validated science path. This is the default for new evaluators.
-    pub fn best_science() -> Self {
+    /// Standard science configuration for new evaluations.
+    pub fn standard() -> Self {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
             starlight_model: StarlightModel::StandardGalacticModel,
@@ -210,7 +147,13 @@ impl NsbModelConfig {
         }
     }
 
-    /// Historical preset retained for moonlight-model regression.
+    /// Backwards-compatible name for the standard configuration.
+    pub fn best_science() -> Self {
+        Self::standard()
+    }
+
+    /// Historical preset retained for regression tests.
+    #[doc(hidden)]
     pub fn python_parity() -> Self {
         Self {
             moonlight_model: MoonlightModel::KrisciunasSchaefer1991,
@@ -223,28 +166,26 @@ impl NsbModelConfig {
 
 impl Default for NsbModelConfig {
     fn default() -> Self {
-        Self::best_science()
+        Self::standard()
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 struct PreparedPointQuery {
-    observer: Geodetic<ECEF>,
+    observer: Observer,
     target: Target,
     components: ComponentMask,
 }
 
-/// Per-query precomputed values shared by all samples in the threshold loop.
 #[derive(Debug, Clone, Copy)]
 struct PreparedThresholdQuery {
-    observer: Geodetic<ECEF>,
+    observer: Observer,
     target: Target,
     components: ComponentMask,
-    /// Target-dependent starlight radiance cached once for the threshold query.
     starlight_integrated: BandPhotonRadiance,
 }
 
-/// Reusable evaluator with cached spectral inputs.
+/// Reusable NSB evaluator with cached spectral inputs.
 pub struct NsbEvaluator {
     zodiacal: ZodiacalLight,
     airglow_continuum: AirglowContinuum,
@@ -253,7 +194,7 @@ pub struct NsbEvaluator {
 
 impl NsbEvaluator {
     pub fn new() -> Result<Self> {
-        Self::with_config(NsbModelConfig::best_science())
+        Self::with_config(NsbModelConfig::standard())
     }
 
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
@@ -265,6 +206,7 @@ impl NsbEvaluator {
         })
     }
 
+    #[doc(hidden)]
     pub fn python_parity() -> Result<Self> {
         Self::with_config(NsbModelConfig::python_parity())
     }
@@ -274,25 +216,17 @@ impl NsbEvaluator {
     }
 
     pub fn evaluate(&self, query: &PointQuery) -> Result<NsbResult> {
-        let prepared = Self::prepare_point(query.location, query.target, query.components);
+        let prepared = Self::prepare_point(query.observer, query.target, query.components);
         self.evaluate_full(&prepared, query.time)
     }
 
-    /// Optimized threshold search.
-    ///
-    /// See module docs for the algorithm. When both pre-filter knobs on
-    /// [`ThresholdQuery`] are `None` this still benefits from the
-    /// allocation-free inner loop, but degenerates to a single coarse
-    /// scan over the full UTC window.
     pub fn periods_below_threshold(&self, query: &ThresholdQuery) -> Result<ThresholdQueryResult> {
         Self::validate_threshold(query)?;
 
         let prepared = self.prepare_threshold(query)?;
         let tt_window = utc_period_to_tt_mjd(query.window);
         let step = query.sample_step.to::<Day>();
-
         let candidate_windows = self.candidate_windows(query, &prepared, tt_window);
-
         let f = |mjd_tt: ModifiedJulianDate| -> BandPhotonRadiance {
             self.evaluate_integrated(&prepared, mjd_tt)
         };
@@ -300,8 +234,7 @@ impl NsbEvaluator {
         let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = Vec::new();
         for cw in candidate_windows {
             let brighter = above_threshold_periods(cw, step, &f, query.threshold);
-            let darker = complement_periods(cw, &brighter);
-            darker_periods.extend(darker);
+            darker_periods.extend(complement_periods(cw, &brighter));
         }
 
         Ok(ThresholdQueryResult {
@@ -313,9 +246,6 @@ impl NsbEvaluator {
         })
     }
 
-    /// Legacy uniform-scan threshold search, retained for cross-validation
-    /// and benches.  Equivalent to the pre-optimization implementation:
-    /// no pre-filter, full per-sample evaluation.
     #[doc(hidden)]
     pub fn periods_below_threshold_legacy(
         &self,
@@ -326,7 +256,7 @@ impl NsbEvaluator {
             self.evaluate_starlight(query.target)?;
         }
 
-        let prepared = Self::prepare_point(query.location, query.target, query.components);
+        let prepared = Self::prepare_point(query.observer, query.target, query.components);
         let tt_window = utc_period_to_tt_mjd(query.window);
         let step = query.sample_step.to::<Day>();
         let integrated_at = |mjd_tt: ModifiedJulianDate| -> BandPhotonRadiance {
@@ -366,27 +296,22 @@ impl NsbEvaluator {
         Ok(())
     }
 
-    fn prepare_point(
-        location: Location,
-        target: Target,
-        components: ComponentMask,
-    ) -> PreparedPointQuery {
+    fn prepare_point(observer: Observer, target: Target, components: ComponentMask) -> PreparedPointQuery {
         PreparedPointQuery {
-            observer: location.geodetic(),
+            observer,
             target,
             components,
         }
     }
 
     fn prepare_threshold(&self, query: &ThresholdQuery) -> Result<PreparedThresholdQuery> {
-        let observer = query.location.geodetic();
         let starlight_integrated = if query.components.contains(ComponentMask::STARLIGHT) {
             self.evaluate_starlight(query.target)?.integrated
         } else {
             BandPhotonRadiance::new(0.0)
         };
         Ok(PreparedThresholdQuery {
-            observer,
+            observer: query.observer,
             target: query.target,
             components: query.components,
             starlight_integrated,
@@ -426,20 +351,18 @@ impl NsbEvaluator {
         current
     }
 
-    /// Allocation-free integrated-only evaluation for the threshold inner loop.
     fn evaluate_integrated(
         &self,
         prepared: &PreparedThresholdQuery,
         mjd_tt: ModifiedJulianDate,
     ) -> BandPhotonRadiance {
         let time = tt_mjd_to_utc_time(mjd_tt);
-
         let mut total = BandPhotonRadiance::new(0.0);
 
         if prepared.components.contains(ComponentMask::ZODIACAL) {
-            if let Ok(out) =
-                self.zodiacal
-                    .compute_observed(time, prepared.observer, prepared.target)
+            if let Ok(out) = self
+                .zodiacal
+                .compute_observed(time, prepared.observer, prepared.target)
             {
                 total += out.integrated;
             }
@@ -448,16 +371,14 @@ impl NsbEvaluator {
             total += prepared.starlight_integrated;
         }
         if prepared.components.contains(ComponentMask::AIRGLOW) {
-            let out = self
-                .evaluate_airglow(prepared.observer, time, prepared.target)
-                .expect("prepared airglow evaluation");
-            total += out.integrated;
+            if let Ok(out) = self.evaluate_airglow(prepared.observer, time, prepared.target) {
+                total += out.integrated;
+            }
         }
         if prepared.components.contains(ComponentMask::MOON) {
-            let out = self
-                .evaluate_moonlight(prepared.observer, time, prepared.target)
-                .expect("prepared moon evaluation");
-            total += out.integrated;
+            if let Ok(out) = self.evaluate_moonlight(prepared.observer, time, prepared.target) {
+                total += out.integrated;
+            }
         }
 
         total
@@ -527,11 +448,11 @@ impl NsbEvaluator {
 
     fn evaluate_airglow(
         &self,
-        location: Geodetic<ECEF>,
+        observer: Observer,
         time: Time<UTC>,
         target: Target,
     ) -> Result<airglow::AirglowOutputs> {
-        airglow::Airglow::with_continuum(location, self.airglow_continuum.clone())
+        airglow::Airglow::with_continuum(observer, self.airglow_continuum.clone())
             .with_solar_radio_flux(self.config.solar_radio_flux)
             .compute(time, target)
     }
@@ -548,17 +469,16 @@ impl NsbEvaluator {
 
     fn evaluate_moonlight(
         &self,
-        location: Geodetic<ECEF>,
+        observer: Observer,
         time: Time<UTC>,
         target: Target,
     ) -> Result<moonlight::MoonOutputs> {
         match self.config.moonlight_model {
             MoonlightModel::KrisciunasSchaefer1991 => {
-                moonlight::KrisciunasSchaefer1991::standard_clear_sky(location)
-                    .compute(time, target)
+                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer).compute(time, target)
             }
             MoonlightModel::Jones2013Spectral => {
-                moonlight::Jones2013Spectral::standard_clear_sky(location).compute(time, target)
+                moonlight::Jones2013Spectral::standard_clear_sky(observer).compute(time, target)
             }
         }
     }
