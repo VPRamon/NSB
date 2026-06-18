@@ -53,6 +53,12 @@ that include `ComponentMask::STARLIGHT` therefore require an explicit custom
 `StarlightMap` or the future bundled production map; without one, they fail
 explicitly instead of silently using missing or proxy data.
 
+`ComponentMask::ALL` is production-safe and currently means zodiacal light,
+airglow, and scattered moonlight. It intentionally excludes starlight until a
+production catalogue-derived Galactic starlight map is bundled. Use
+`ComponentMask::ALL_SUPPORTED` only with a configuration that supplies an explicit
+starlight model.
+
 ```rust
 use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, ThresholdQuery, DEG};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
@@ -66,7 +72,7 @@ let r = evaluator.evaluate(&PointQuery {
     observer,
     time: /* tempoch::Time<UTC> */,
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-    components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
+    components: ComponentMask::ALL,
 })?;
 
 let w = evaluator.periods_below_threshold(&ThresholdQuery {
@@ -74,7 +80,7 @@ let w = evaluator.periods_below_threshold(&ThresholdQuery {
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
     window: Period::new(/* start */, /* end */),
     threshold: BandPhotonRadiance::new(1.0e3),
-    components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
+    components: ComponentMask::ALL,
     sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
     sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
     target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
@@ -96,7 +102,7 @@ cargo run -p nsb-cli -- point \
   --site CTAO-S \
   --ra 83.6331 \
   --dec 22.0145 \
-  --components zodiacal,airglow,moon
+  --components all
 
 cargo run -p nsb-cli -- window \
   --start 2026-06-18T20:00:00Z \
@@ -106,6 +112,7 @@ cargo run -p nsb-cli -- window \
   --dec 22.0145 \
   --min-nsb 0.02 \
   --max-nsb 0.25 \
+  --components all \
   --format csv
 ```
 
