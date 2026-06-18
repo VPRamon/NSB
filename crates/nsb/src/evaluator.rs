@@ -35,10 +35,22 @@ bitflags::bitflags! {
         const STARLIGHT = 0b0010;
         const AIRGLOW   = 0b0100;
         const MOON      = 0b1000;
-        const ALL       = Self::ZODIACAL.bits()
-                        | Self::STARLIGHT.bits()
+
+        /// Production-safe component set evaluable with bundled runtime data.
+        const DEFAULT   = Self::ZODIACAL.bits()
                         | Self::AIRGLOW.bits()
                         | Self::MOON.bits();
+
+        /// Production-safe alias for the default component set.
+        ///
+        /// This intentionally excludes unresolved Galactic starlight until a
+        /// production catalogue-derived map is bundled.
+        const ALL       = Self::DEFAULT.bits();
+
+        /// All implemented components, including opt-in components that may
+        /// require caller-supplied or future bundled data.
+        const ALL_SUPPORTED = Self::DEFAULT.bits()
+                            | Self::STARLIGHT.bits();
     }
 }
 
