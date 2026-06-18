@@ -1,32 +1,3 @@
-[package]
-name = "nsb"
-version = "0.1.0"
-edition = "2021"
-authors = ["VPRamon <vallespuigramon@gmail.com>"]
-description = "Night Sky Background model."
-license = "BSD-3-Clause"
-repository = "https://github.com/VPRamon/NSB"
-readme = "README.md"
-keywords = ["astronomy", "atmosphere", "sky-brightness", "ctao", "nsb"]
-categories = ["science"]
-
-[lib]
-name = "nsb"
-
-[dependencies]
-qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
-tempoch  = "0.6"
-optica   = "0.1"
-siderust = { version = "0.10", features = ["atmosphere", "photometry"] }
-
-thiserror = "2.0"
-bitflags  = "2.13"
-
-[dev-dependencies]
-approx = "0.5"
-chrono = "0.4"
-criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
-
-[[bench]]
-name = "threshold_window"
-harness = false
+[workspace]
+members = ["crates/nsb", "crates/nsb-cli", "crates/nsb-data-tools"]
+resolver = "2"
