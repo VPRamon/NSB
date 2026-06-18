@@ -60,10 +60,10 @@ data.
 Preset names intentionally encode maturity:
 
 - `generic_clear_sky()` is the current default baseline.
-- `SiteProfileId::CtaNorth` and `SiteProfileId::CtaSouth` are explicit CTAO
-  planning profiles with machine-readable atmospheric, airglow, and provenance
-  assumptions. They are not marked as fully site-calibrated until dedicated CTAO
-  validation data are bundled.
+- `NsbModelConfig::cta_n_planning()` and `NsbModelConfig::cta_s_planning()`
+  select explicit CTAO planning profiles with machine-readable atmospheric,
+  airglow, and provenance assumptions. They are not marked as fully
+  site-calibrated until dedicated CTAO validation data are bundled.
 - `python_parity()` is hidden and reserved for historical regression parity.
 - Names such as `standard` or `best_science` are not exposed until a complete,
   reproducible, and quantitatively validated model configuration exists.
@@ -72,8 +72,9 @@ Use named profiles at CTAO call sites instead of relying on generic fallback
 constructors:
 
 ```rust
-use nsb::{Airglow, Jones2013Spectral, SiteProfileId};
+use nsb::{Airglow, Jones2013Spectral, NsbEvaluator, NsbModelConfig, SiteProfileId};
 
+let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning())?;
 let moonlight = Jones2013Spectral::for_site_profile(observer, SiteProfileId::CtaSouth);
 let airglow = Airglow::for_site_profile(observer, SiteProfileId::CtaSouth)?;
 let profile = SiteProfileId::CtaSouth.profile(observer);
