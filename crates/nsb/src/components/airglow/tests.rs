@@ -42,6 +42,10 @@ fn cta_n() -> Geodetic<ECEF> {
     )
 }
 
+fn high_arctic(latitude_deg: f64) -> Geodetic<ECEF> {
+    Geodetic::new_raw(Degrees::new(0.0), Degrees::new(latitude_deg), Meters::new(0.0))
+}
+
 fn tt_mjd_to_utc(time: ModifiedJulianDate) -> Time<UTC> {
     Time::<TT>::from(time).to::<UTC>()
 }
@@ -202,17 +206,34 @@ fn twilight_edges_are_outside_airglow_calibration_domain() {
 }
 
 #[test]
-fn no_complete_astronomical_night_has_no_time_bin() {
-    let high_arctic_summer =
-        Geodetic::new_raw(Degrees::new(0.0), Degrees::new(78.0), Meters::new(0.0));
-
+fn polar_summer_without_astronomical_night_has_no_time_bin() {
     assert_eq!(
         super::temporal::time_of_night_bin_for_test(
             t("2023-06-21T12:00:00Z"),
-            high_arctic_summer,
+            high_arctic(78.0),
         ),
         None
     );
+}
+
+#[test]
+fn polar_winter_astronomical_night_preserves_airglow() {
+    let location = high_arctic(89.0);
+    let time = t("2023-12-21T12:00:00Z");
+
+    assert!(super::temporal::time_of_night_bin_for_test(time, location).is_some());
+
+    let continuum = load_builtin_standard().unwrap();
+    let out = super::continuum::evaluate_continuum(
+        &continuum,
+        time,
+        location,
+        Degrees::new(60.0),
+        DEFAULT_SOLAR_RADIO_FLUX,
+        1.0,
+    );
+
+    assert!(out.integrated > BandPhotonRadiance::zero());
 }
 
 #[test]
