@@ -16,13 +16,14 @@
 //! Siderust's default Rayleigh scale height, and uses a generic clear-sky Mie
 //! parameter set. It is not a site-calibrated atmosphere.
 //!
-//! For CTA science use, prefer an explicit [`AtmosphericConditions`] preset or a
-//! caller-provided profile over the generic fallback. The built-in CTA presets
-//! document the assumptions currently available in NSB and intentionally remain
-//! separate from `standard_clear_sky`.
+//! For CTAO use, prefer [`Jones2013Spectral::for_site_profile`] with an explicit
+//! [`crate::SiteProfileId`]. The built-in CTAO profiles document their current
+//! planning assumptions and calibration maturity instead of silently relying on
+//! `standard_clear_sky`.
 
 use crate::error::Result;
 use crate::reference::solar;
+use crate::site::SiteProfileId;
 use crate::NSB_S10_ZP;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
@@ -53,6 +54,19 @@ mod scattering;
 
 pub use jones_2013_spectral::Jones2013Spectral;
 pub use krisciunas_schaefer1991::KrisciunasSchaefer1991;
+
+impl Jones2013Spectral {
+    /// Build the Jones et al. (2013) moonlight model from a named NSB site profile.
+    ///
+    /// This keeps the query geometry tied to `location` while selecting the
+    /// profile's explicit pressure, Rayleigh, aerosol/Mie, and provenance-backed
+    /// assumptions. CTAO profiles are planning presets until dedicated CTAO
+    /// aerosol validation data are bundled.
+    pub fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Self {
+        let profile = site_profile.profile(location);
+        Self::new(location, profile.atmosphere)
+    }
+}
 
 /// Default V-band atmospheric extinction coefficient (mag/airmass) used by
 /// K&S 1991 in their published curves.
@@ -110,7 +124,7 @@ impl AtmosphericConditions {
         Self::from_profile_without_altitude(AtmosphereProfile::EL_PARANAL)
     }
 
-    /// CTA-S clear-sky preset.
+    /// CTA-S clear-sky planning preset.
     ///
     /// The current NSB preset intentionally aliases the Paranal-like profile
     /// because no dedicated CTA-S aerosol calibration has been bundled yet. It
