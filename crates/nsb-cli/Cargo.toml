@@ -9,7 +9,7 @@ name = "nsb"
 path = "src/main.rs"
 
 [dependencies]
-nsb = { path = "../.." }
+nsb = { path = "../nsb" }
 
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
