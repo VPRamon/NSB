@@ -1,8 +1,8 @@
 use super::*;
-use crate::site::Site;
 use super::calibration::load_builtin_standard;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
@@ -22,7 +22,7 @@ fn target(ra: f64, dec: f64) -> SphericalDirection<EquatorialMeanJ2000> {
 }
 
 fn paranal() -> Geodetic<ECEF> {
-    Site::Paranal.geodetic()
+    observatories::EL_PARANAL.geodetic()
 }
 
 #[test]
