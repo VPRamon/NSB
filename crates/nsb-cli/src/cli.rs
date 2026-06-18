@@ -11,9 +11,6 @@ pub struct Cli {
 
     #[arg(long, global = true, value_enum, default_value_t = OutputFormat::Table)]
     pub format: OutputFormat,
-
-    #[arg(long, global = true)]
-    pub config: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
