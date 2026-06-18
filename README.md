@@ -4,9 +4,9 @@ Rust library for ground-based night-sky background (NSB) photon flux in
 `ph/(cm² · ns · sr)`, plus integrated B and V band surface brightness in
 `mag/arcsec²`.
 
-This crate is intentionally library-only. Command-line parsing, named-site
-aliases, output formatting, and operational presets should live in a separate
-CLI crate that consumes `nsb`.
+The repository is a Cargo workspace. The root package remains the runtime
+library crate `nsb`; the operational command-line interface lives in the sibling
+crate `crates/nsb-cli` and depends on `nsb`.
 
 If you are new to astronomy or to the NSB domain, start with:
 
@@ -34,6 +34,13 @@ component composition, calibration assets, and planner windows.
 
 Shared reference inputs live in internal `reference` modules; component-specific
 calibrations and grids live inside their component modules.
+
+Dependency direction:
+
+```text
+nsb-cli -> nsb
+nsb     -> never depends on nsb-cli
+```
 
 ## Library
 
@@ -76,11 +83,37 @@ Runnable Rust examples live under `examples/`:
 - `cargo run --example point_query`
 - `cargo run --example threshold_window`
 
+## CLI
+
+The CLI is implemented by `crates/nsb-cli`:
+
+```bash
+cargo run -p nsb-cli -- point \
+  --time 2026-06-18T23:00:00Z \
+  --site CTAO-S \
+  --ra 83.6331 \
+  --dec 22.0145 \
+  --components zodiacal,airglow,moon
+
+cargo run -p nsb-cli -- window \
+  --start 2026-06-18T20:00:00Z \
+  --end 2026-06-19T06:00:00Z \
+  --site CTAO-S \
+  --ra 83.6331 \
+  --dec 22.0145 \
+  --min-nsb 0.02 \
+  --max-nsb 0.25 \
+  --format csv
+```
+
+Named-site aliases and user-facing parsing live only in the CLI crate, not in the
+runtime library.
+
 ## Build & test
 
 ```bash
-cargo build
-cargo test
+cargo build --workspace
+cargo test --workspace
 cargo bench   # Criterion benches under benches/threshold_window.rs
 ```
 
@@ -88,6 +121,7 @@ cargo bench   # Criterion benches under benches/threshold_window.rs
 
 ```text
 examples/              # Runnable library examples
+crates/nsb-cli/        # Operational CLI crate
 docs/                  # Supporting notes and historical reports
 src/
 ├── evaluator.rs       # NsbEvaluator + PointQuery + ThresholdQuery
