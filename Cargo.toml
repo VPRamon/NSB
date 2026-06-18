@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/nsb-cli"]
+resolver = "2"
+
 [package]
 name = "nsb"
 version = "0.1.0"
