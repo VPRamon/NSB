@@ -56,6 +56,6 @@ impl Starlight {
 fn data_missing() -> NsbError {
     NsbError::DataMissing {
         file: STANDARD_MAP_FILE,
-        message: "standard Galactic starlight map is not bundled; generate a provenance-recorded map with tools/build_starlight_map before enabling ComponentMask::STARLIGHT by default".to_string(),
+        message: "standard Galactic starlight map is not bundled; generate a provenance-recorded map with `cargo run -p nsb-data-tools --bin build_starlight_map -- ...` or provide one with Starlight::with_map(...)".to_string(),
     }
 }

@@ -1,0 +1,18 @@
+[package]
+name = "nsb-data-tools"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "build_starlight_map"
+path = "src/bin/build_starlight_map.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+csv = "1"
+
+[dev-dependencies]
+nsb = { path = "../nsb" }
+tempfile = "3"
