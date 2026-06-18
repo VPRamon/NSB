@@ -37,9 +37,9 @@ impl StarlightProvenance {
         }
     }
 
-    pub fn standard_galactic_model_v1() -> Self {
+    pub fn catalogue_galactic_model_v1() -> Self {
         Self::new(
-            "NSB standard Galactic starlight map",
+            "NSB catalogue-derived Galactic starlight map",
             "v1",
             "not generated",
             "not bundled",

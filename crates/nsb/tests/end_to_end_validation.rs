@@ -1,7 +1,7 @@
-//! End-to-end validation gates for the production NSB evaluator.
+//! End-to-end validation gates for the generic clear-sky NSB evaluator.
 //!
 //! These tests intentionally exercise the public `NsbEvaluator` API rather than
-//! component internals.  They cover point evaluation, component composition,
+//! component internals. They cover point evaluation, component composition,
 //! Galactic-contrast behaviour with an explicit starlight fixture, and threshold
 //! windows checked against independent sampled curves / observability intervals.
 
@@ -156,7 +156,7 @@ fn production_all_matches_reference_envelopes() {
 
 #[test]
 fn all_supported_with_fixture_starlight_preserves_galactic_contrast() {
-    let mut config = NsbModelConfig::standard();
+    let mut config = NsbModelConfig::generic_clear_sky();
     config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 

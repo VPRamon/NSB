@@ -136,10 +136,6 @@ pub struct ZodiacalLight {
 }
 
 impl ZodiacalLight {
-    pub fn standard() -> Result<Self> {
-        Self::leinert1998()
-    }
-
     pub fn leinert1998() -> Result<Self> {
         Ok(Self {
             brightness_model: ZodiacalBrightnessModel::Leinert1998,

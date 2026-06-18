@@ -18,7 +18,7 @@ Components:
   extinction, scaled solar spectrum.
 - **Integrated starlight** — directional Galactic-coordinate map model; disabled
   by default until a real catalogue-derived bundled product is generated with
-  provenance.
+  provenance and quantitative validation.
 - **Airglow continuum** — site-bound empirical continuum model with Van Rhijn
   geometry and solar/activity/time corrections.
 - **Scattered moonlight** — Jones et al. (2013) wavelength-resolved spectral
@@ -47,17 +47,26 @@ The public Rust API is built around a reusable `NsbEvaluator`. Queries take a
 `Geodetic<ECEF>` observer directly; named-site parsing is deliberately outside
 the library.
 
-`NsbEvaluator::new()` uses the generic clear-sky preset. Starlight is disabled in
-that preset because no production Galactic starlight map is bundled yet. Requests
-that include `ComponentMask::STARLIGHT` therefore require an explicit custom
-`StarlightMap` or the future bundled production map; without one, they fail
-explicitly instead of silently using missing or proxy data.
+`NsbEvaluator::new()` uses `NsbModelConfig::generic_clear_sky()`. This is an
+explicit generic clear-sky development/planning baseline, not a production-grade
+or CTAO-validated science preset. Starlight is disabled in that preset because
+no catalogue-derived Galactic starlight map is bundled and quantitatively
+validated yet. Requests that include `ComponentMask::STARLIGHT` therefore
+require an explicit custom `StarlightMap` or the future bundled catalogue map;
+without one, they fail explicitly instead of silently using missing or proxy
+data.
 
-`ComponentMask::ALL` is production-safe and currently means zodiacal light,
-airglow, and scattered moonlight. It intentionally excludes starlight until a
-production catalogue-derived Galactic starlight map is bundled. Use
-`ComponentMask::ALL_SUPPORTED` only with a configuration that supplies an explicit
-starlight model.
+Preset names intentionally encode maturity:
+
+- `generic_clear_sky()` is the current default baseline.
+- `python_parity()` is hidden and reserved for historical regression parity.
+- Names such as `standard` or `best_science` are not exposed until a complete,
+  reproducible, and quantitatively validated model configuration exists.
+
+`ComponentMask::ALL` currently means zodiacal light, airglow, and scattered
+moonlight. It intentionally excludes starlight until a catalogue-derived Galactic
+starlight map is bundled and validated. Use `ComponentMask::ALL_SUPPORTED` only
+with a configuration that supplies an explicit starlight model.
 
 ```rust
 use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, ThresholdQuery, DEG};
@@ -128,10 +137,11 @@ dependencies of `nsb`.
 ## Validation
 
 End-to-end validation is documented in `docs/VALIDATION.md`. The lightweight CI
-suite lives in `crates/nsb/tests/end_to_end_validation.rs` and checks production
-`ComponentMask::ALL` point cases, component-sum conservation, explicit starlight
-fixture behaviour, threshold-window classification against sampled point curves,
-and unrestrictive threshold windows against independent observability intervals.
+suite lives in `crates/nsb/tests/end_to_end_validation.rs` and checks generic
+clear-sky `ComponentMask::ALL` point cases, component-sum conservation, explicit
+starlight fixture behaviour, threshold-window classification against sampled
+point curves, and unrestrictive threshold windows against independent
+observability intervals.
 
 ```bash
 cargo test -p nsb --test end_to_end_validation

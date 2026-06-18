@@ -36,15 +36,15 @@ bitflags::bitflags! {
         const AIRGLOW   = 0b0100;
         const MOON      = 0b1000;
 
-        /// Production-safe component set evaluable with bundled runtime data.
+        /// Generic clear-sky component set evaluable with bundled runtime data.
         const DEFAULT   = Self::ZODIACAL.bits()
                         | Self::AIRGLOW.bits()
                         | Self::MOON.bits();
 
-        /// Production-safe alias for the default component set.
+        /// Generic clear-sky alias for the default component set.
         ///
         /// This intentionally excludes unresolved Galactic starlight until a
-        /// production catalogue-derived map is bundled.
+        /// catalogue-derived map with provenance is bundled and validated.
         const ALL       = Self::DEFAULT.bits();
 
         /// All implemented components, including opt-in components that may
@@ -138,14 +138,12 @@ pub enum StarlightModel {
     /// [`ComponentMask::STARLIGHT`] fail explicitly instead of silently loading
     /// a missing or proxy map.
     Disabled,
-    /// Load the bundled production Galactic starlight map.
+    /// Load the bundled catalogue-derived Galactic starlight map.
     ///
-    /// This variant is intentionally opt-in until `starlight_galactic_map_v1.csv`
-    /// is generated from a real catalogue with provenance and bundled with the
-    /// crate.
-    BundledStandardMap,
-    /// Backwards-compatible spelling for [`Self::BundledStandardMap`].
-    StandardGalacticModel,
+    /// This variant remains opt-in until `starlight_galactic_map_v1.csv` is
+    /// generated from a real catalogue with provenance, bundled with the crate,
+    /// and quantitatively validated for science use.
+    BundledCatalogueMap,
     /// Use a caller-supplied Galactic starlight map.
     CustomMap(Box<starlight::StarlightMap>),
 }
@@ -155,8 +153,8 @@ impl StarlightModel {
         Self::Disabled
     }
 
-    pub fn bundled_standard_map() -> Self {
-        Self::BundledStandardMap
+    pub fn bundled_catalogue_map() -> Self {
+        Self::BundledCatalogueMap
     }
 
     pub fn with_map(map: starlight::StarlightMap) -> Self {
@@ -174,17 +172,15 @@ pub struct NsbModelConfig {
 }
 
 impl NsbModelConfig {
-    /// Default generic clear-sky configuration for new evaluations.
+    /// Generic clear-sky configuration for new evaluations.
     ///
-    /// Starlight is disabled until a production catalogue-derived bundled map is
-    /// shipped. Callers that need starlight can opt into a custom map with
-    /// [`StarlightModel::with_map`] or into the future bundled map with
-    /// [`StarlightModel::BundledStandardMap`].
-    pub fn standard() -> Self {
-        Self::generic_clear_sky()
-    }
-
-    /// Generic clear-sky configuration without the unresolved-starlight map.
+    /// This is the library default used by [`NsbEvaluator::new`] and
+    /// [`Default`]. It is suitable as an explicit development/planning baseline,
+    /// not as a named validated science preset. Starlight is disabled until a
+    /// catalogue-derived bundled map is generated, bundled, and quantitatively
+    /// validated. Callers that need starlight can opt into a custom map with
+    /// [`StarlightModel::with_map`] or into the future bundled catalogue map
+    /// with [`StarlightModel::BundledCatalogueMap`].
     pub fn generic_clear_sky() -> Self {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
@@ -194,15 +190,10 @@ impl NsbModelConfig {
         }
     }
 
-    /// Backwards-compatible name for the default configuration.
-    ///
-    /// This preset is not a full production science model until the bundled
-    /// production starlight map exists.
-    pub fn best_science() -> Self {
-        Self::standard()
-    }
-
     /// Historical preset retained for regression tests.
+    ///
+    /// This intentionally selects legacy-compatible model choices and should not
+    /// be used as a current science or planning preset.
     #[doc(hidden)]
     pub fn python_parity() -> Self {
         Self {
@@ -216,7 +207,7 @@ impl NsbModelConfig {
 
 impl Default for NsbModelConfig {
     fn default() -> Self {
-        Self::standard()
+        Self::generic_clear_sky()
     }
 }
 
@@ -243,12 +234,13 @@ pub struct NsbEvaluator {
 }
 
 impl NsbEvaluator {
+    /// Create an evaluator with the explicit generic clear-sky configuration.
     pub fn new() -> Result<Self> {
-        Self::with_config(NsbModelConfig::standard())
+        Self::with_config(NsbModelConfig::generic_clear_sky())
     }
 
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
-        let zodiacal = ZodiacalLight::standard()?.with_extinction(config.zodiacal_extinction);
+        let zodiacal = ZodiacalLight::leinert1998()?.with_extinction(config.zodiacal_extinction);
         Ok(Self {
             zodiacal,
             airglow_continuum: airglow::load_builtin_standard()?,
@@ -517,15 +509,13 @@ impl NsbEvaluator {
                 return Err(NsbError::Unsupported(
                     concat!(
                         "starlight component requested but no starlight model is configured; ",
-                        "use StarlightModel::with_map(...) or StarlightModel::BundledStandardMap ",
-                        "after the production map is bundled"
+                        "use StarlightModel::with_map(...) or StarlightModel::BundledCatalogueMap ",
+                        "after the catalogue-derived map is bundled and validated"
                     )
                     .to_string(),
                 ));
             }
-            StarlightModel::BundledStandardMap | StarlightModel::StandardGalacticModel => {
-                starlight::Starlight::standard_galactic_model()?
-            }
+            StarlightModel::BundledCatalogueMap => starlight::Starlight::catalogue_galactic_model()?,
             StarlightModel::CustomMap(map) => starlight::Starlight::with_map((**map).clone()),
         };
         model.compute(target)
