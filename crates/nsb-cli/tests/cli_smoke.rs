@@ -65,5 +65,30 @@ fn invalid_nsb_range_errors() {
     ])
     .assert()
     .failure()
-    .stderr(predicate::str::contains("--min-nsb must be less than or equal to --max-nsb"));
+    .stderr(predicate::str::contains(
+        "--min-nsb must be less than or equal to --max-nsb",
+    ));
+}
+
+#[test]
+fn starlight_component_errors_until_map_loading_exists() {
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    cmd.args([
+        "point",
+        "--time",
+        "2026-06-18T23:00:00Z",
+        "--site",
+        "CTAO-S",
+        "--ra",
+        "83.0",
+        "--dec",
+        "22.0",
+        "--components",
+        "starlight",
+    ])
+    .assert()
+    .failure()
+    .stderr(predicate::str::contains(
+        "starlight requested but no standard starlight map is bundled yet",
+    ));
 }
