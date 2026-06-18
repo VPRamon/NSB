@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
+use std::ffi::OsStr;
 use std::f64::consts::PI;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
@@ -72,10 +73,8 @@ struct Args {
 
 #[derive(Debug, Clone, Copy, Default)]
 struct BinAccum {
-    b_flux_10mag_star_per_deg2_numerator: f64,
-    v_flux_10mag_star_per_deg2_numerator: f64,
-    source_count: u64,
-    total_weight: f64,
+    b_flux_10mag_star_numerator: f64,
+    v_flux_10mag_star_numerator: f64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -128,13 +127,10 @@ fn run(args: Args) -> Result<()> {
         let (lon, lat) = equatorial_to_galactic(star.ra_deg, star.dec_deg);
         let lon_idx = lon_bin_index(lon, args.lon_bin_deg, n_lon);
         let lat_idx = lat_bin_index(lat, args.lat_bin_deg, n_lat);
-        let idx = grid_index(n_lon, lon_idx, lat_idx);
+        let idx = grid_index_for(n_lat, lon_idx, lat_idx);
 
-        let weight = star.weight;
-        bins[idx].b_flux_10mag_star_per_deg2_numerator += weight * mag_to_10mag_flux(star.b_mag);
-        bins[idx].v_flux_10mag_star_per_deg2_numerator += weight * mag_to_10mag_flux(star.v_mag);
-        bins[idx].source_count += 1;
-        bins[idx].total_weight += weight;
+        bins[idx].b_flux_10mag_star_numerator += star.weight * mag_to_10mag_flux(star.b_mag);
+        bins[idx].v_flux_10mag_star_numerator += star.weight * mag_to_10mag_flux(star.v_mag);
         used_rows += 1;
     }
 
@@ -255,7 +251,7 @@ fn write_map(
     read_rows: u64,
     used_rows: u64,
 ) -> Result<()> {
-    let mut out: Box<dyn Write> = if args.output.as_os_str() == "-" {
+    let mut out: Box<dyn Write> = if args.output.as_os_str() == OsStr::new("-") {
         Box::new(BufWriter::new(io::stdout()))
     } else {
         Box::new(BufWriter::new(File::create(&args.output).with_context(|| {
@@ -294,15 +290,15 @@ fn write_map(
 
     for lon_idx in 0..n_lon {
         for lat_idx in 0..n_lat {
-            let idx = grid_index(n_lon, lon_idx, lat_idx);
+            let idx = grid_index_for(n_lat, lon_idx, lat_idx);
             let lon_center = (lon_idx as f64 + 0.5) * args.lon_bin_deg;
             let lat_min = -90.0 + lat_idx as f64 * args.lat_bin_deg;
             let lat_max = lat_min + args.lat_bin_deg;
             let lat_center = 0.5 * (lat_min + lat_max);
             let solid_angle = cell_solid_angle_sr(args.lon_bin_deg, lat_min, lat_max);
             let solid_angle_deg2 = solid_angle * RAD_TO_DEG * RAD_TO_DEG;
-            let b_s10 = bins[idx].b_flux_10mag_star_per_deg2_numerator / solid_angle_deg2;
-            let v_s10 = bins[idx].v_flux_10mag_star_per_deg2_numerator / solid_angle_deg2;
+            let b_s10 = bins[idx].b_flux_10mag_star_numerator / solid_angle_deg2;
+            let v_s10 = bins[idx].v_flux_10mag_star_numerator / solid_angle_deg2;
             let integrated = v_s10 * args.integrated_per_v_s10;
 
             writer.write_record([
@@ -321,18 +317,6 @@ fn write_map(
 
 fn format_float(value: f64) -> String {
     format!("{value:.12e}")
-}
-
-fn grid_index(n_lon: usize, lon_idx: usize, lat_idx: usize) -> usize {
-    lon_idx * n_lat_from_total(n_lon, lat_idx, lon_idx) + lat_idx
-}
-
-fn n_lat_from_total(_n_lon: usize, lat_idx: usize, lon_idx: usize) -> usize {
-    // This helper is intentionally not used for inference; it exists only to
-    // keep the layout expression at call sites explicit. The actual n_lat is
-    // encoded by the caller's bin vector dimensions through `grid_index_for`.
-    let _ = (lat_idx, lon_idx);
-    unreachable!("use grid_index_for instead")
 }
 
 fn grid_index_for(n_lat: usize, lon_idx: usize, lat_idx: usize) -> usize {
@@ -365,7 +349,6 @@ fn equatorial_to_galactic(ra_deg: f64, dec_deg: f64) -> (f64, f64) {
     let y_eq = dec.cos() * ra.sin();
     let z_eq = dec.sin();
 
-    // IAU 1958 / J2000 rotation matrix used by standard astrometry packages.
     let x_gal = -0.054_875_560_416_215_4 * x_eq
         - 0.873_437_090_234_885_0 * y_eq
         - 0.483_835_015_548_713_2 * z_eq;
