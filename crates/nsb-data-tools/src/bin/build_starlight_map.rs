@@ -52,6 +52,10 @@ struct Args {
     #[arg(long)]
     min_v_mag: Option<f64>,
 
+    /// Allow generating an all-zero map if no catalogue rows survive filters.
+    #[arg(long)]
+    allow_empty: bool,
+
     /// Source catalogue name recorded in output comments.
     #[arg(long, default_value = "unknown")]
     catalog_name: String,
@@ -130,6 +134,12 @@ fn run(args: Args) -> Result<()> {
         bins[idx].b_flux_10mag_star_numerator += star.weight * mag_to_10mag_flux(star.b_mag);
         bins[idx].v_flux_10mag_star_numerator += star.weight * mag_to_10mag_flux(star.v_mag);
         used_rows += 1;
+    }
+
+    if used_rows == 0 && !args.allow_empty {
+        bail!(
+            "no catalogue rows survived filters; refusing to generate an all-zero starlight map. Use --allow-empty only for tests/debug"
+        );
     }
 
     write_map(&args, n_lon, n_lat, &bins, read_rows, used_rows)
@@ -258,6 +268,8 @@ fn write_map(
     };
 
     writeln!(out, "# generated_by=nsb-data-tools build_starlight_map")?;
+    writeln!(out, "# calibration_status=proxy_not_production")?;
+    writeln!(out, "# photometry_model=v_s10_scaled_integrated_proxy")?;
     writeln!(out, "# source_catalog_name={}", args.catalog_name)?;
     if let Some(value) = &args.catalog_release {
         writeln!(out, "# source_catalog_release={value}")?;
@@ -373,6 +385,8 @@ fn normalize_degrees_360(deg: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nsb::{StarlightMap, StarlightProvenance};
+    use std::fs;
 
     #[test]
     fn galactic_center_is_near_zero_zero() {
@@ -385,5 +399,66 @@ mod tests {
     fn mag_ten_is_one_s10_numerator() {
         assert!((mag_to_10mag_flux(10.0) - 1.0).abs() < 1.0e-12);
         assert!((mag_to_10mag_flux(15.0) - 0.01).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn generated_map_loads_with_nsb_starlight_map() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("catalogue.csv");
+        let output = dir.path().join("map.csv");
+        fs::write(
+            &input,
+            "ra_deg,dec_deg,b_mag,v_mag\n266.4051,-28.936175,10.0,10.0\n",
+        )?;
+
+        run(Args {
+            input,
+            output: output.clone(),
+            lon_bin_deg: 180.0,
+            lat_bin_deg: 90.0,
+            max_v_mag: None,
+            min_v_mag: None,
+            allow_empty: false,
+            catalog_name: "test".to_string(),
+            catalog_release: Some("fixture".to_string()),
+            catalog_license: Some("test-only".to_string()),
+            catalog_checksum: Some("sha256:test".to_string()),
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+        })?;
+
+        let raw = fs::read_to_string(output)?;
+        StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture())?;
+        assert!(raw.contains("# calibration_status=proxy_not_production"));
+        Ok(())
+    }
+
+    #[test]
+    fn refuses_empty_output_without_explicit_override() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("catalogue.csv");
+        let output = dir.path().join("map.csv");
+        fs::write(
+            &input,
+            "ra_deg,dec_deg,b_mag,v_mag\n266.4051,-28.936175,10.0,10.0\n",
+        )?;
+
+        let err = run(Args {
+            input,
+            output,
+            lon_bin_deg: 180.0,
+            lat_bin_deg: 90.0,
+            max_v_mag: Some(0.0),
+            min_v_mag: None,
+            allow_empty: false,
+            catalog_name: "test".to_string(),
+            catalog_release: None,
+            catalog_license: None,
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+        })
+        .expect_err("empty filtered catalogue should fail");
+
+        assert!(err.to_string().contains("no catalogue rows survived filters"));
+        Ok(())
     }
 }
