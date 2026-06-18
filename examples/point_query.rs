@@ -1,13 +1,15 @@
-use anyhow::Result;
 use chrono::{DateTime, Utc};
-use nsb::{ComponentMask, Location, NsbEvaluator, PointQuery, Site, Target, DEG};
+use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
+use siderust::catalogs::observatories;
 use tempoch::{Time, UTC};
 
-fn main() -> Result<()> {
-    let time = DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")?.with_timezone(&Utc);
+fn main() -> nsb::Result<()> {
+    let time = DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+        .expect("valid example timestamp")
+        .with_timezone(&Utc);
 
     let query = PointQuery {
-        location: Location::NamedSite(Site::Paranal),
+        observer: observatories::EL_PARANAL.geodetic(),
         time: Time::<UTC>::from_chrono(time),
         target: Target::new(266.41683 * DEG, -29.00781 * DEG),
         components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,

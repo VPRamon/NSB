@@ -1,19 +1,13 @@
 //! `nsb` — Night Sky Background model.
 //!
-//! Computes the photon flux reaching a ground-based observatory from the dark
-//! sky as the sum of:
+//! Computes the photon flux reaching a ground-based observer from the dark sky
+//! as the sum of zodiacal light, integrated starlight, airglow, and scattered
+//! moonlight.
 //!
-//! * **Zodiacal light** (`components::zodiacal`)
-//! * **Integrated starlight** (`components::starlight`)
-//! * **Airglow** (`components::airglow`)
-//! * **Scattered moonlight** (`components::moonlight`)
-//!
-//! The library is built around a single [`NsbEvaluator`] that supports two
-//! query shapes:
-//!
-//! * [`PointQuery`] — NSB at a single `(time, location, target)`.
-//! * [`ThresholdQuery`] — UTC sub-periods within a window where the integrated
-//!   linear NSB is below a given radiance threshold.
+//! The library API is intentionally typed and CLI-free: callers pass
+//! `Geodetic<ECEF>` observers, `Time<UTC>` instants, and equatorial target
+//! directions directly. Named-site parsing, command-line flags, and output
+//! formatting belong in a separate CLI crate that consumes this library.
 //!
 //! # Architecture
 //!
@@ -21,8 +15,8 @@
 //! specific calibrations and grids live inside their component modules.
 //!
 //! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
-//! photometry, and passbands. NSB owns only NSB-specific tables, component
-//! composition, and planner windows.
+//! photometry, and passbands. NSB owns NSB-specific component composition and
+//! planning windows.
 
 #![forbid(unsafe_code)]
 
@@ -30,8 +24,6 @@ pub mod components;
 pub mod error;
 pub mod evaluator;
 mod reference;
-pub mod site;
-pub mod sites;
 
 pub use components::airglow::{
     Airglow, AirglowContinuum, AirglowOutputs, SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX,
@@ -44,13 +36,8 @@ pub use components::zodiacal::{
 };
 pub use error::{NsbError, Result};
 pub use evaluator::{
-    ComponentMask, Location, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult,
+    ComponentMask, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult, Observer,
     PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
-};
-pub use site::Site;
-pub use sites::{
-    CatalogSite, ALL_SITES, APACHE_POINT, CERRO_PARANAL, KITT_PEAK, MAUNA_KEA,
-    ROQUE_DE_LOS_MUCHACHOS, SUBURBAN_REFERENCE,
 };
 
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
