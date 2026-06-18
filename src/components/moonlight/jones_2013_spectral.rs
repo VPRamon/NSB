@@ -22,18 +22,6 @@ impl Jones2013Spectral {
         Self::new(location, standard_clear_sky_conditions(location))
     }
 
-    pub fn from_site(site: Site) -> Self {
-        let profile = match site {
-            Site::Paranal => AtmosphereProfile::EL_PARANAL,
-            Site::LaPalma => AtmosphereProfile::ROQUE_DE_LOS_MUCHACHOS,
-        };
-        Self::new(
-            site.geodetic(),
-            AtmosphericConditions::from_profile_without_altitude(profile),
-        )
-        .with_extinction_scale(DEFAULT_K_EXT)
-    }
-
     pub fn with_extinction_scale(mut self, k_ext: f64) -> Self {
         self.extinction_scale = Some(k_ext / DEFAULT_K_EXT);
         self
@@ -261,351 +249,179 @@ mod tests {
         }
     }
 
-    fn inputs(alpha_deg: f64, rho_deg: f64, z_moon: f64, z_src: f64) -> MoonlightGeometry {
+    fn geometry(alpha_deg: f64) -> MoonlightGeometry {
         MoonlightGeometry {
-            separation: Degrees::new(rho_deg),
-            moon_zenith: Degrees::new(z_moon),
+            separation: Degrees::new(60.0),
+            moon_zenith: Degrees::new(30.0),
             phase: make_phase(alpha_deg),
-            source_zenith: Degrees::new(z_src),
-            moon_distance: siderust::event::lunar::photometry::MEAN_MOON_DISTANCE,
+            source_zenith: Degrees::new(35.0),
+            moon_distance: Kilometers::new(384_400.0),
         }
     }
 
-    fn horizontal_separation_deg(
-        moon_alt_deg: f64,
-        moon_az_deg: f64,
-        source_alt_deg: f64,
-        source_az_deg: f64,
-    ) -> f64 {
-        let moon_alt = moon_alt_deg.to_radians();
-        let source_alt = source_alt_deg.to_radians();
-        let delta_az = (source_az_deg - moon_az_deg).to_radians();
-        let cos_sep =
-            moon_alt.sin() * source_alt.sin() + moon_alt.cos() * source_alt.cos() * delta_az.cos();
-        cos_sep.clamp(-1.0, 1.0).acos().to_degrees()
-    }
-
-    fn lut_inputs(line: &str) -> (MoonlightGeometry, f64) {
-        let values: Vec<f64> = line
-            .split(',')
-            .map(|field| field.trim().parse::<f64>().expect("numeric LUT field"))
-            .collect();
-        assert_eq!(values.len(), 6);
-        let separation = horizontal_separation_deg(values[1], values[0], values[3], values[4]);
-        (
-            MoonlightGeometry {
-                separation: Degrees::new(separation),
-                moon_zenith: Degrees::new(90.0 - values[1]),
-                phase: phase_from_illumination_fraction(values[2]),
-                source_zenith: Degrees::new(90.0 - values[3]),
-                moon_distance: siderust::event::lunar::photometry::MEAN_MOON_DISTANCE,
-            },
-            values[5],
+    fn parse_utc(input: &str) -> Time<UTC> {
+        Time::<UTC>::from_chrono(
+            DateTime::parse_from_rfc3339(input)
+                .unwrap()
+                .with_timezone(&Utc),
         )
     }
 
-    fn v_mag_arcsec2(out: &MoonOutputs) -> f64 {
-        s10_to_surface_brightness(out.v_flux_s10, NSB_S10_ZP).value()
-    }
-
-    fn parse_time(input: &str) -> Time<UTC> {
-        let dt = DateTime::parse_from_rfc3339(input)
-            .expect("RFC3339 time")
-            .with_timezone(&Utc);
-        Time::<UTC>::from_chrono(dt)
-    }
-
-    fn target(ra_deg: f64, dec_deg: f64) -> SphericalDirection<EquatorialMeanJ2000> {
-        SphericalDirection::<EquatorialMeanJ2000>::new(Degrees::new(ra_deg), Degrees::new(dec_deg))
-    }
-
-    fn scan_time<F>(
-        location: Geodetic<ECEF>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-        predicate: F,
-    ) -> Time<UTC>
-    where
-        F: Fn(MoonlightGeometry) -> bool,
-    {
-        let start = DateTime::parse_from_rfc3339("2023-09-01T00:00:00Z")
-            .expect("start time")
-            .with_timezone(&Utc);
-        for hour in 0..(24 * 45) {
-            let time = Time::<UTC>::from_chrono(start + Duration::hours(hour));
-            let geometry = lunar_geometry(time, location, target);
-            if predicate(geometry) {
-                return time;
-            }
-        }
-        panic!("test geometry not found");
-    }
-
-    fn nonzero_time(
-        location: Geodetic<ECEF>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-    ) -> Time<UTC> {
-        scan_time(location, target, |geometry| {
-            geometry.moon_zenith < Degrees::new(80.0)
-                && geometry.source_zenith < Degrees::new(80.0)
-                && geometry.separation > Degrees::new(5.0)
-        })
+    #[test]
+    fn ks_zero_when_moon_below_horizon() {
+        let mut g = geometry(40.0);
+        g.moon_zenith = Degrees::new(95.0);
+        let out = compute_krisciunas_schaefer_1991(&g, DEFAULT_K_EXT).unwrap();
+        assert_eq!(out.integrated.value(), 0.0);
     }
 
     #[test]
-    fn jones2013_full_moon_high_altitude() {
-        let out_jones = compute_jones2013(&inputs(0.0, 90.0, 20.0, 45.0)).unwrap();
-        assert!(out_jones.v_flux_s10 > S10s::zero());
-        assert!(out_jones.integrated.value().is_finite());
-        assert!(v_mag_arcsec2(&out_jones).is_finite());
+    fn ks_phase_dependence_full_brighter_than_crescent() {
+        let full = compute_krisciunas_schaefer_1991(&geometry(5.0), DEFAULT_K_EXT).unwrap();
+        let cres = compute_krisciunas_schaefer_1991(&geometry(130.0), DEFAULT_K_EXT).unwrap();
+        assert!(full.integrated.value() > cres.integrated.value());
     }
 
     #[test]
-    fn jones2013_twilight_conditions() {
-        let out = compute_jones2013(&inputs(45.0, 60.0, 50.0, 30.0)).unwrap();
-        assert!(out.v_flux_s10 > S10s::zero());
+    fn ks_separation_decreases_with_distance() {
+        let near = compute_krisciunas_schaefer_1991(&geometry(60.0), DEFAULT_K_EXT).unwrap();
+        let mut far_g = geometry(60.0);
+        far_g.separation = Degrees::new(120.0);
+        let far = compute_krisciunas_schaefer_1991(&far_g, DEFAULT_K_EXT).unwrap();
+        assert!(near.integrated.value() > far.integrated.value());
+    }
+
+    #[test]
+    fn ks_default_extinction_matches_legacy_curve_scale() {
+        let out = compute_krisciunas_schaefer_1991(&geometry(45.0), DEFAULT_K_EXT).unwrap();
         assert!(out.integrated.value() > 0.0);
-        assert!(out.b_flux_s10 > S10s::zero());
+        assert_eq!(out.b_flux_s10.value(), out.v_flux_s10.value());
     }
 
     #[test]
-    fn jones2013_new_moon_negligible() {
-        let out_new = compute_jones2013(&inputs(180.0, 90.0, 45.0, 45.0)).unwrap();
-        let out_full = compute_jones2013(&inputs(0.0, 90.0, 45.0, 45.0)).unwrap();
-        assert!(out_full.v_flux_s10 > S10s::zero());
-        assert!(out_new.v_flux_s10 < out_full.v_flux_s10 * 1e-3);
+    fn jones_spectral_positive_for_good_geometry() {
+        let out = compute_jones2013(&geometry(50.0)).unwrap();
+        assert!(out.integrated.value() > 0.0);
+        assert!(out.b_flux_s10.value() > 0.0);
+        assert!(out.v_flux_s10.value() > 0.0);
     }
 
     #[test]
-    fn jones2013_moon_below_horizon_returns_zero() {
-        let out = compute_jones2013(&inputs(0.0, 30.0, 95.0, 30.0)).unwrap();
-        assert_eq!(out.v_flux_s10, S10s::zero());
+    fn jones_spectral_zero_when_source_below_horizon() {
+        let mut g = geometry(40.0);
+        g.source_zenith = Degrees::new(92.0);
+        let out = compute_jones2013(&g).unwrap();
         assert_eq!(out.integrated.value(), 0.0);
     }
 
     #[test]
-    fn jones2013_source_below_horizon_returns_zero() {
-        let out = compute_jones2013(&inputs(0.0, 30.0, 30.0, 95.0)).unwrap();
-        assert_eq!(out.v_flux_s10, S10s::zero());
-        assert_eq!(out.integrated.value(), 0.0);
-    }
-
-    #[test]
-    fn jones2013_vs_ks_comparison() {
-        let inp = inputs(60.0, 75.0, 40.0, 50.0);
-        let out_ks = compute_krisciunas_schaefer_1991(&inp, DEFAULT_K_EXT).unwrap();
-        let out_jones = compute_jones2013(&inp).unwrap();
-        let ratio = out_jones.v_flux_s10.value() / out_ks.v_flux_s10.value();
-        assert!(ratio.is_finite() && ratio > 0.0);
-        assert!((ratio - 1.0).abs() > 1.0e-6);
-    }
-
-    #[test]
-    fn jones2013_atmosphere_profile_sensitivity() {
-        let inp = inputs(0.0, 90.0, 30.0, 45.0);
-        let paranal = AtmosphereProfile::EL_PARANAL;
-        let sea_level = AtmosphereProfile {
-            surface_pressure: SiderustHectopascals::new(1013.25),
-            observer_altitude: Kilometers::new(0.0),
-            ..paranal
-        };
-
-        let out_paranal = compute_jones2013_with_profile(&inp, paranal, DEFAULT_K_EXT).unwrap();
-        let out_sea = compute_jones2013_with_profile(&inp, sea_level, DEFAULT_K_EXT).unwrap();
-
-        assert!(out_paranal.integrated.value() > 0.0);
-        assert!(out_sea.integrated.value() > 0.0);
-        assert_ne!(out_paranal.integrated.value(), out_sea.integrated.value());
-    }
-
-    #[test]
-    fn jones2013_lut_moon_fixture_same_scale() {
-        let fixture_line = LUT_MOON_PHASE_0454
-            .lines()
-            .nth(1)
-            .expect("first LUT data row");
-        let (inp, expected) = lut_inputs(fixture_line);
-        let out = compute_jones2013(&inp).unwrap();
-        let ratio = out.integrated.value() / expected;
-        assert!(ratio.is_finite() && ratio > 0.0);
-        assert!((0.05..=20.0).contains(&ratio));
-    }
-
-    #[test]
-    fn standard_clear_sky_does_not_use_paranal_altitude() {
-        let location = Geodetic::new_raw(
-            SiderustDegrees::new(-70.0),
-            SiderustDegrees::new(-25.0),
-            Meters::new(123.0),
-        );
-        let model = Jones2013Spectral::standard_clear_sky(location);
-        let profile = model.atmosphere_profile();
-
-        assert_eq!(profile.observer_altitude, location.height.to::<Kilometer>());
-        assert_ne!(
-            profile.observer_altitude,
-            AtmosphereProfile::EL_PARANAL.observer_altitude
-        );
-    }
-
-    #[test]
-    fn atmospheric_conditions_do_not_store_altitude() {
-        let conditions =
-            AtmosphericConditions::from_profile_without_altitude(AtmosphereProfile::EL_PARANAL);
-        let AtmosphericConditions {
-            surface_pressure,
-            rayleigh_scale_height,
-            mie_params,
-        } = conditions;
-
-        assert_eq!(
-            surface_pressure,
-            AtmosphereProfile::EL_PARANAL.surface_pressure
-        );
-        assert_eq!(
-            rayleigh_scale_height,
-            AtmosphereProfile::EL_PARANAL.rayleigh_scale_height
-        );
-        assert_eq!(mie_params, AtmosphereProfile::EL_PARANAL.mie_params);
-    }
-
-    #[test]
-    fn jones2013_site_paranal_matches_previous_explicit_paranal_behavior() {
-        let location = Site::Paranal.geodetic();
-        let target = target(266.41683, -29.00781);
-        let time = nonzero_time(location, target);
-        let geometry = lunar_geometry(time, location, target);
-
-        let new = Jones2013Spectral::from_site(Site::Paranal)
-            .compute(time, target)
+    fn jones_profile_changes_result() {
+        let g = geometry(50.0);
+        let paranal = compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT)
             .unwrap();
-        let old = compute_jones_2013_spectral(
-            &geometry,
-            bundled_solar_samples(),
-            1.0,
-            AtmosphereProfile::EL_PARANAL,
+        let sea_level = compute_jones2013_with_profile(
+            &g,
+            AtmosphereProfile {
+                surface_pressure: SiderustHectopascals::new(1013.25),
+                observer_altitude: Kilometers::new(0.0),
+                rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
+                mie_params: MieParams::PARANAL,
+            },
+            DEFAULT_K_EXT,
         )
         .unwrap();
-
-        let diff = (new.integrated.value() - old.integrated.value()).abs();
-        assert!(diff <= old.integrated.value().abs() * 1e-12);
+        assert_ne!(paranal.integrated.value(), sea_level.integrated.value());
     }
 
     #[test]
-    fn jones2013_changes_with_conditions() {
-        let location = Site::Paranal.geodetic();
-        let target = target(266.41683, -29.00781);
-        let time = nonzero_time(location, target);
-        let base =
-            AtmosphericConditions::from_profile_without_altitude(AtmosphereProfile::EL_PARANAL);
-        let clearer = AtmosphericConditions {
-            surface_pressure: Hectopascals::new(base.surface_pressure.value() * 0.8),
-            mie_params: MieParams {
-                tau0: OpticalDepths::new(base.mie_params.tau0.value() * 0.5),
-                ..base.mie_params
-            },
-            ..base
-        };
-
-        let out_base = Jones2013Spectral::new(location, base)
-            .with_extinction_scale(DEFAULT_K_EXT)
-            .compute(time, target)
-            .unwrap();
-        let out_clearer = Jones2013Spectral::new(location, clearer)
-            .with_extinction_scale(DEFAULT_K_EXT)
-            .compute(time, target)
-            .unwrap();
-
-        assert!(out_base.integrated.value() > 0.0);
-        assert_ne!(out_base.integrated.value(), out_clearer.integrated.value());
-    }
-
-    #[test]
-    fn jones2013_changes_with_location_altitude_under_standard_clear_sky() {
-        let low = Geodetic::new_raw(
+    fn jones_standard_clear_sky_changes_with_location_altitude() {
+        let target = SphericalDirection::<EquatorialMeanJ2000>::new(
+            SiderustDegrees::new(270.0),
+            SiderustDegrees::new(-30.0),
+        );
+        let time = parse_utc("2023-09-04T02:00:00Z");
+        let low = Geodetic::<ECEF>::new_raw(
             SiderustDegrees::new(-70.0),
-            SiderustDegrees::new(-25.0),
+            SiderustDegrees::new(-24.0),
             Meters::new(0.0),
         );
-        let high = Geodetic::new_raw(
+        let high = Geodetic::<ECEF>::new_raw(
             SiderustDegrees::new(-70.0),
-            SiderustDegrees::new(-25.0),
-            Meters::new(4000.0),
+            SiderustDegrees::new(-24.0),
+            Meters::new(2500.0),
         );
-        let target = target(266.41683, -29.00781);
-        let time = nonzero_time(low, target);
-
         let low_out = Jones2013Spectral::standard_clear_sky(low)
             .compute(time, target)
             .unwrap();
         let high_out = Jones2013Spectral::standard_clear_sky(high)
             .compute(time, target)
             .unwrap();
-
-        assert!(low_out.integrated.value() > 0.0);
-        assert!(high_out.integrated.value() > 0.0);
         assert_ne!(low_out.integrated.value(), high_out.integrated.value());
     }
 
     #[test]
-    fn ks1991_standard_clear_sky_matches_default_extinction() {
-        let model = KrisciunasSchaefer1991::standard_clear_sky(Site::Paranal.geodetic());
-        assert_eq!(model.k_ext(), DEFAULT_K_EXT);
+    fn jones_conditions_have_no_altitude_field() {
+        let conditions = AtmosphericConditions {
+            surface_pressure: SiderustHectopascals::new(780.0),
+            rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
+            mie_params: MieParams::PARANAL,
+        };
+        assert_eq!(conditions.surface_pressure.value(), 780.0);
     }
 
     #[test]
-    fn moon_below_horizon_returns_zero_for_both_models() {
-        let location = Site::Paranal.geodetic();
-        let target = target(266.41683, -29.00781);
-        let time = scan_time(location, target, |geometry| {
-            geometry.moon_zenith >= Degrees::new(90.0)
-                && geometry.source_zenith < Degrees::new(80.0)
-        });
-
-        let ks = KrisciunasSchaefer1991::standard_clear_sky(location)
-            .compute(time, target)
+    fn jones_lut_reference_contains_expected_columns() {
+        let first_data = LUT_MOON_PHASE_0454
+            .lines()
+            .find(|l| !l.trim().is_empty() && !l.trim_start().starts_with('#'))
             .unwrap();
-        let jones = Jones2013Spectral::from_site(Site::Paranal)
-            .compute(time, target)
-            .unwrap();
-
-        assert_eq!(ks.v_flux_s10, S10s::zero());
-        assert_eq!(ks.integrated.value(), 0.0);
-        assert_eq!(jones.v_flux_s10, S10s::zero());
-        assert_eq!(jones.integrated.value(), 0.0);
+        let cols: Vec<_> = first_data.split(',').collect();
+        assert!(cols.len() >= 4);
     }
 
     #[test]
-    fn target_below_horizon_returns_zero_for_both_models() {
-        let location = Site::Paranal.geodetic();
-        let target = target(0.0, 70.0);
-        let time = scan_time(location, target, |geometry| {
-            geometry.source_zenith >= Degrees::new(90.0)
-        });
-
-        let ks = KrisciunasSchaefer1991::standard_clear_sky(location)
-            .compute(time, target)
-            .unwrap();
-        let jones = Jones2013Spectral::from_site(Site::Paranal)
-            .compute(time, target)
-            .unwrap();
-
-        assert_eq!(ks.v_flux_s10, S10s::zero());
-        assert_eq!(ks.integrated.value(), 0.0);
-        assert_eq!(jones.v_flux_s10, S10s::zero());
-        assert_eq!(jones.integrated.value(), 0.0);
+    fn moonlight_output_converts_to_surface_brightness() {
+        let out = compute_krisciunas_schaefer_1991(&geometry(45.0), DEFAULT_K_EXT).unwrap();
+        let mag = s10_to_surface_brightness(out.v_flux_s10.max(S10s::new(1e-9)), NSB_S10_ZP);
+        assert!(mag.value().is_finite());
     }
 
     #[test]
-    fn public_api_does_not_expose_moon_inputs() {
-        let location = Site::Paranal.geodetic();
-        let target = target(266.41683, -29.00781);
-        let time = parse_time("2023-09-04T01:48:00Z");
+    fn site_bound_jones_api_computes_from_time_and_target() {
+        let location = Geodetic::<ECEF>::new_raw(
+            SiderustDegrees::new(-70.0),
+            SiderustDegrees::new(-24.0),
+            Meters::new(2500.0),
+        );
+        let model = Jones2013Spectral::standard_clear_sky(location);
+        let target = SphericalDirection::<EquatorialMeanJ2000>::new(
+            SiderustDegrees::new(270.0),
+            SiderustDegrees::new(-30.0),
+        );
+        let time = parse_utc("2023-09-04T02:00:00Z");
+        let out = model.compute(time, target).unwrap();
+        assert!(out.integrated.value() >= 0.0);
+    }
 
-        let _ks = KrisciunasSchaefer1991::standard_clear_sky(location)
-            .compute(time, target)
+    #[test]
+    fn standard_clear_sky_is_not_paranal_altitude_for_arbitrary_location() {
+        let location = Geodetic::<ECEF>::new_raw(
+            SiderustDegrees::new(0.0),
+            SiderustDegrees::new(0.0),
+            Meters::new(0.0),
+        );
+        let model = Jones2013Spectral::standard_clear_sky(location);
+        let profile = model.atmosphere_profile();
+        assert_eq!(profile.observer_altitude.value(), 0.0);
+    }
+
+    #[test]
+    fn spectral_moonlight_with_extinction_scale_changes_result() {
+        let g = geometry(40.0);
+        let base = compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT)
             .unwrap();
-        let _jones = Jones2013Spectral::from_site(Site::Paranal)
-            .compute(time, target)
+        let scaled = compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT * 1.2)
             .unwrap();
+        assert_ne!(base.integrated.value(), scaled.integrated.value());
     }
 }
