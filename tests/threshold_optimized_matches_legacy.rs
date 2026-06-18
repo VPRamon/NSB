@@ -2,9 +2,10 @@
 //! uniform-scan path within tolerance.
 
 use chrono::{DateTime, Utc};
-use nsb::{ComponentMask, Location, NsbEvaluator, Site, Target, ThresholdQuery, DEG};
+use nsb::{ComponentMask, NsbEvaluator, Target, ThresholdQuery, DEG};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
+use siderust::catalogs::observatories;
 use tempoch::{Period, Time, UTC};
 
 fn parse(s: &str) -> Time<UTC> {
@@ -18,13 +19,11 @@ fn optimized_matches_legacy_within_tolerance() {
     let start = parse("2023-09-04T00:00:00Z");
     let end = parse("2023-09-05T00:00:00Z");
 
-    // Threshold chosen so the function actually crosses inside the
-    // window. ~0.21 ph/(cm² ns sr) is a typical bright-end cutoff.
     let target = Target::new(266.41683 * DEG, -29.00781 * DEG);
     let components = ComponentMask::ZODIACAL | ComponentMask::AIRGLOW;
 
     let legacy_query = ThresholdQuery {
-        location: Location::NamedSite(Site::Paranal),
+        observer: observatories::EL_PARANAL.geodetic(),
         target,
         window: Period::new(start, end),
         threshold: BandPhotonRadiance::new(0.21),
@@ -47,10 +46,6 @@ fn optimized_matches_legacy_within_tolerance() {
         .periods_below_threshold(&opt_query)
         .expect("optimized");
 
-    // The optimized result is a *subset* of the legacy result (legacy
-    // also reports daytime / below-horizon periods that the prefilter
-    // discards). Each optimized period must be contained in some legacy
-    // period within a 60 s tolerance on each endpoint.
     let tol_secs = 60.0;
     for opt_p in &opt.periods {
         let opt_start = opt_p.start.to_chrono().unwrap();
