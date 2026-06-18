@@ -102,20 +102,81 @@ impl ThresholdQuery {
     pub const DEFAULT_TARGET_ALTITUDE_FLOOR: Degrees = Degrees::new(0.0);
 }
 
+/// Calibration maturity for a reported NSB component.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CalibrationStatus {
+    /// Deterministic model or bundled dataset validated for the current release.
+    Production,
+    /// Generic clear-sky or planning assumption; not site-calibrated.
+    GenericClearSky,
+    /// Diagnostic approximation that must not be interpreted as full photometry.
+    Proxy,
+    /// Historical model retained for regression or parity.
+    Legacy,
+    /// Implemented but not yet production-calibrated.
+    Experimental,
+}
+
+/// Convention used for the B/V S10 diagnostics returned by component outputs.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BandDiagnostic {
+    /// Machine-readable convention name.
+    pub convention: &'static str,
+    /// B diagnostic reference wavelength in nanometres.
+    pub b_reference_nm: f64,
+    /// V diagnostic reference wavelength in nanometres.
+    pub v_reference_nm: f64,
+    /// Surface-brightness zero point used by `b_mag` and `v_mag` conversions.
+    pub zero_point: f64,
+}
+
+impl BandDiagnostic {
+    /// Current NSB B/V convention: monochromatic central-wavelength S10 proxies.
+    ///
+    /// These values are not Johnson B/V passband integrations. They are sampled
+    /// or interpolated near representative B/V wavelengths and converted through
+    /// the historical S10 zero point for diagnostics and legacy comparisons.
+    pub const MONOCHROMATIC_S10_PROXY: Self = Self {
+        convention: "monochromatic-central-wavelength-s10-proxy",
+        b_reference_nm: 445.0,
+        v_reference_nm: 551.0,
+        zero_point: NSB_S10_ZP,
+    };
+}
+
+/// Provenance and maturity metadata associated with one reported component.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NsbComponentMetadata {
+    pub status: CalibrationStatus,
+    pub provenance: &'static str,
+    pub validated_domain: &'static str,
+    pub band_diagnostic: BandDiagnostic,
+}
+
 #[derive(Debug, Clone)]
 pub struct NsbComponent {
     pub name: &'static str,
     pub integrated: BandPhotonRadiance,
     pub b_flux_s10: S10,
     pub v_flux_s10: S10,
+    /// Relative one-sigma uncertainty when the selected component exposes a
+    /// calibrated error estimate. `None` means no component-level uncertainty is
+    /// available for this output.
+    pub relative_uncertainty: Option<f64>,
+    pub metadata: NsbComponentMetadata,
 }
 
 #[derive(Debug, Clone)]
 pub struct NsbResult {
     pub integrated: BandPhotonRadiance,
+    /// Surface brightness derived from the summed monochromatic B diagnostic;
+    /// this is not Johnson-B passband photometry.
     pub b_mag: SurfaceBrightness,
+    /// Surface brightness derived from the summed monochromatic V diagnostic;
+    /// this is not Johnson-V passband photometry.
     pub v_mag: SurfaceBrightness,
     pub components: Vec<NsbComponent>,
+    pub band_diagnostic: BandDiagnostic,
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +500,8 @@ impl NsbEvaluator {
                 integrated: out.integrated,
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
+                relative_uncertainty: None,
+                metadata: zodiacal_metadata(),
             });
         }
         if query.components.contains(ComponentMask::STARLIGHT) {
@@ -451,6 +514,8 @@ impl NsbEvaluator {
                 integrated: out.integrated,
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
+                relative_uncertainty: None,
+                metadata: starlight_metadata(&self.config.starlight_model),
             });
         }
         if query.components.contains(ComponentMask::AIRGLOW) {
@@ -463,6 +528,8 @@ impl NsbEvaluator {
                 integrated: out.integrated,
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
+                relative_uncertainty: out.relative_uncertainty,
+                metadata: airglow_metadata(),
             });
         }
         if query.components.contains(ComponentMask::MOON) {
@@ -475,6 +542,8 @@ impl NsbEvaluator {
                 integrated: out.integrated,
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
+                relative_uncertainty: None,
+                metadata: moonlight_metadata(self.config.moonlight_model),
             });
         }
 
@@ -489,6 +558,7 @@ impl NsbEvaluator {
                 NSB_S10_ZP,
             ),
             components,
+            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         })
     }
 
@@ -535,6 +605,64 @@ impl NsbEvaluator {
                 moonlight::Jones2013Spectral::standard_clear_sky(observer).compute(time, target)
             }
         }
+    }
+}
+
+fn zodiacal_metadata() -> NsbComponentMetadata {
+    NsbComponentMetadata {
+        status: CalibrationStatus::GenericClearSky,
+        provenance: "Leinert+1998 zodiacal S10 table; Noll+2012 approximate extinction; bundled solar spectrum",
+        validated_domain: "exoatmospheric Leinert table geometry plus generic Noll-style clear-sky attenuation",
+        band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+    }
+}
+
+fn airglow_metadata() -> NsbComponentMetadata {
+    NsbComponentMetadata {
+        status: CalibrationStatus::GenericClearSky,
+        provenance: "bundled SkyCalc-derived empirical airglow continuum calibration: NSB/data/airglow_cont.dat",
+        validated_domain: "astronomical-night continuum template with seasonal, time-of-night, solar-activity, and Van Rhijn corrections",
+        band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+    }
+}
+
+fn starlight_metadata(model: &StarlightModel) -> NsbComponentMetadata {
+    match model {
+        StarlightModel::BundledCatalogueMap => NsbComponentMetadata {
+            status: CalibrationStatus::Experimental,
+            provenance: "future bundled catalogue-derived Galactic starlight map: data/starlight_galactic_map_v1.csv",
+            validated_domain: "not production-valid until the catalogue map is generated, bundled, and quantitatively validated",
+            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        },
+        StarlightModel::CustomMap(_) => NsbComponentMetadata {
+            status: CalibrationStatus::Experimental,
+            provenance: "caller-supplied Galactic starlight map",
+            validated_domain: "defined by the caller-provided map provenance and validation contract",
+            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        },
+        StarlightModel::Disabled => NsbComponentMetadata {
+            status: CalibrationStatus::Experimental,
+            provenance: "no starlight model configured",
+            validated_domain: "not evaluable",
+            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        },
+    }
+}
+
+fn moonlight_metadata(model: MoonlightModel) -> NsbComponentMetadata {
+    match model {
+        MoonlightModel::Jones2013Spectral => NsbComponentMetadata {
+            status: CalibrationStatus::GenericClearSky,
+            provenance: "Jones+2013 wavelength-resolved lunar radiance with Siderust lunar geometry and generic clear-sky atmosphere",
+            validated_domain: "generic clear-sky planning model; site aerosol calibration and external SkyCalc/observational validation remain explicit release gates",
+            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        },
+        MoonlightModel::KrisciunasSchaefer1991 => NsbComponentMetadata {
+            status: CalibrationStatus::Legacy,
+            provenance: "Krisciunas & Schaefer 1991 analytic V-band moonlight model",
+            validated_domain: "legacy regression/parity model, not the current wavelength-resolved default",
+            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        },
     }
 }
 
