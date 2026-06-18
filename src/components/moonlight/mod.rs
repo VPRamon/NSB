@@ -9,9 +9,7 @@
 //! * [`Jones2013Spectral`] is the wavelength-resolved scattered moonlight
 //!   model. It stores the observing location and [`AtmosphericConditions`],
 //!   builds a Siderust [`AtmosphereProfile`] internally, and derives observer
-//!   altitude only from the model location. It does not assume Paranal unless
-//!   constructed with [`Jones2013Spectral::from_site`] for
-//!   [`crate::Site::Paranal`] or equivalent explicit conditions.
+//!   altitude only from the model location.
 //!
 //! [`Jones2013Spectral::standard_clear_sky`] is a generic approximate
 //! clear-sky fallback: it estimates surface pressure from altitude, uses
@@ -20,8 +18,8 @@
 
 use crate::error::Result;
 use crate::reference::solar;
-use scattering::ScatterGrid;
 use crate::NSB_S10_ZP;
+use scattering::ScatterGrid;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
@@ -87,7 +85,7 @@ struct MoonlightGeometry {
     separation: Degrees,
     /// Moon zenith distance.
     moon_zenith: Degrees,
-    /// Geocentric (or topocentric) lunar phase geometry from siderust.
+    /// Geocentric lunar phase geometry from siderust.
     phase: MoonPhaseGeometry,
     /// Source zenith distance.
     source_zenith: Degrees,
@@ -120,32 +118,24 @@ fn lunar_geometry(
         moon_zenith,
         separation,
         phase,
-        moon_distance: moon_pos.distance,
+        moon_distance: moon_pos.norm().to::<Kilometer>(),
     }
 }
 
 fn zero_outputs() -> MoonOutputs {
     MoonOutputs {
-        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::zero(),
-        b_flux_s10: radiometry::S10s::zero(),
-        v_flux_s10: radiometry::S10s::zero(),
+        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(0.0),
+        b_flux_s10: radiometry::S10s::new(0.0),
+        v_flux_s10: radiometry::S10s::new(0.0),
     }
 }
 
 fn standard_clear_sky_conditions(location: Geodetic<ECEF>) -> AtmosphericConditions {
+    let altitude_m = location.height.value().max(0.0);
+    let pressure = 1013.25 * (-altitude_m / 8_400.0).exp();
     AtmosphericConditions {
-        surface_pressure: pressure_from_altitude(location.height.to::<Kilometer>()),
+        surface_pressure: Hectopascals::new(pressure),
         rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
-        mie_params: MieParams {
-            tau0: OpticalDepths::new(0.03),
-            alpha: -1.38,
-            lambda_ref: Nanometers::new(550.0),
-        },
+        mie_params: MieParams::PARANAL,
     }
-}
-
-fn pressure_from_altitude(altitude: Kilometers) -> Hectopascals {
-    let altitude_m = altitude.value() * 1000.0;
-    let pressure = 1013.25 * (1.0 - 2.25577e-5 * altitude_m).powf(5.25588);
-    Hectopascals::new(pressure.max(1.0))
 }
