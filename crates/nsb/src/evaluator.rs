@@ -498,10 +498,12 @@ impl NsbEvaluator {
         let model = match &self.config.starlight_model {
             StarlightModel::Disabled => {
                 return Err(NsbError::Unsupported(
-                    "starlight component requested but no starlight model is configured; use \
-                     StarlightModel::with_map(...) or StarlightModel::BundledStandardMap after the \
-                     production map is bundled"
-                        .to_string(),
+                    concat!(
+                        "starlight component requested but no starlight model is configured; ",
+                        "use StarlightModel::with_map(...) or StarlightModel::BundledStandardMap ",
+                        "after the production map is bundled"
+                    )
+                    .to_string(),
                 ));
             }
             StarlightModel::BundledStandardMap | StarlightModel::StandardGalacticModel => {
