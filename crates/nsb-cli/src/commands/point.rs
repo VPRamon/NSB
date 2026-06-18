@@ -1,14 +1,19 @@
 use crate::cli::{OutputFormat, PointArgs};
+use crate::error::CliError;
 use crate::output;
 use crate::parsing::{components, location, target, time};
 use anyhow::Result;
-use nsb::{MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits, ZodiacalExtinction};
+use nsb::{
+    ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits,
+    ZodiacalExtinction,
+};
 
 pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
     let observer = location::resolve_observer(&args.observer)?;
     let time = time::parse_utc(&args.time)?;
     let target = target::resolve_target(&args.target);
     let components = components::parse_components(&args.model.components)?;
+    reject_unsupported_starlight(components)?;
     let evaluator = NsbEvaluator::with_config(model_config(&args.model)?)?;
 
     let result = evaluator.evaluate(&PointQuery {
@@ -35,4 +40,11 @@ pub(crate) fn model_config(args: &crate::cli::ModelArgs) -> Result<NsbModelConfi
         crate::cli::ZodiacalExtinctionArg::None => ZodiacalExtinction::None,
     };
     Ok(config)
+}
+
+pub(crate) fn reject_unsupported_starlight(components: ComponentMask) -> Result<()> {
+    if components.contains(ComponentMask::STARLIGHT) {
+        return Err(CliError::UnsupportedStarlight.into());
+    }
+    Ok(())
 }
