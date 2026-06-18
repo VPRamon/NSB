@@ -37,7 +37,9 @@ The tool:
    degree.
 4. Writes every pixel, including empty pixels, so the output is rectangular and
    accepted by `StarlightMap::from_csv_str`.
-5. Records source catalogue provenance as CSV comments.
+5. Records source catalogue provenance and calibration status as CSV comments.
+6. Refuses to generate an all-zero map if no catalogue rows survive filters,
+   unless `--allow-empty` is passed explicitly for tests/debugging.
 
 Example:
 
@@ -60,7 +62,12 @@ The current integrated radiance is a transparent V-band proxy:
 integrated_ph_cm2_ns_sr = v_s10 * --integrated-per-v-s10
 ```
 
-with default `--integrated-per-v-s10 = 1.242e-3`.
+with default `--integrated-per-v-s10 = 1.242e-3`. Generated files are marked as:
+
+```text
+# calibration_status=proxy_not_production
+# photometry_model=v_s10_scaled_integrated_proxy
+```
 
 Before using a generated file as the bundled production map, record and review:
 
