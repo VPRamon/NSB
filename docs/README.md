@@ -2,12 +2,13 @@
 
 This directory holds supporting notes and historical reports for `nsb`.
 
-For the **current** crate API and CLI, start here first:
+For the **current** crate API, CLI, and validation contract, start here first:
 
 | Entry point | Purpose |
 |---|---|
 | `CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` | Beginner-oriented explanation of the astronomy vocabulary, NSB components, and what the crate implements today. |
-| `../README.md` | Current package overview, library API, CLI usage, and layout. |
+| `VALIDATION.md` | End-to-end validation contract, CI gates, tolerance policy, and external reference-data process. |
+| `../README.md` | Current package overview, library API, CLI usage, validation entry point, and layout. |
 | `../examples/point_query.rs` | Runnable point-in-time library example. |
 | `../examples/threshold_window.rs` | Runnable threshold-window library example. |
 

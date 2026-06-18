@@ -125,6 +125,18 @@ runtime library.
 including the planned `build_starlight_map` pipeline. These tools are not runtime
 dependencies of `nsb`.
 
+## Validation
+
+End-to-end validation is documented in `docs/VALIDATION.md`. The lightweight CI
+suite lives in `crates/nsb/tests/end_to_end_validation.rs` and checks production
+`ComponentMask::ALL` point cases, component-sum conservation, explicit starlight
+fixture behaviour, threshold-window classification against sampled point curves,
+and unrestrictive threshold windows against independent observability intervals.
+
+```bash
+cargo test -p nsb --test end_to_end_validation
+```
+
 ## Build & test
 
 ```bash
@@ -147,4 +159,6 @@ docs/                # Supporting notes and historical reports
 
 - `docs/CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` — beginner-oriented explanation
   of the domain concepts and the current implementation.
+- `docs/VALIDATION.md` — end-to-end validation contract, CI gates, and external
+  reference-data process.
 - `docs/README.md` — documentation index and pointers to historical reports.
