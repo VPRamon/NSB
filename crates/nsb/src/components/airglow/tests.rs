@@ -1,5 +1,5 @@
-use super::*;
 use super::calibration::load_builtin_standard;
+use super::*;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::catalogs::observatories;
@@ -7,6 +7,7 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::qtty::{Degrees, Meters};
+use siderust::time::{ModifiedJulianDate, TT};
 use tempoch::{Time, UTC};
 
 fn t(input: &str) -> Time<UTC> {
@@ -23,6 +24,45 @@ fn target(ra: f64, dec: f64) -> SphericalDirection<EquatorialMeanJ2000> {
 
 fn paranal() -> Geodetic<ECEF> {
     observatories::EL_PARANAL.geodetic()
+}
+
+fn cta_s() -> Geodetic<ECEF> {
+    Geodetic::new_raw(
+        Degrees::new(-70.406944),
+        Degrees::new(-24.627222),
+        Meters::new(2100.0),
+    )
+}
+
+fn cta_n() -> Geodetic<ECEF> {
+    Geodetic::new_raw(
+        Degrees::new(-17.892),
+        Degrees::new(28.762),
+        Meters::new(2396.0),
+    )
+}
+
+fn high_arctic(latitude_deg: f64) -> Geodetic<ECEF> {
+    Geodetic::new_raw(Degrees::new(0.0), Degrees::new(latitude_deg), Meters::new(0.0))
+}
+
+fn tt_mjd_to_utc(time: ModifiedJulianDate) -> Time<UTC> {
+    Time::<TT>::from(time).to::<UTC>()
+}
+
+fn night_phase_time(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Time<UTC> {
+    let night = super::temporal::astronomical_night_for_test(seed, location)
+        .expect("complete astronomical night");
+    let start = night.start.raw().value();
+    let end = night.end.raw().value();
+    tt_mjd_to_utc(ModifiedJulianDate::new(start + (end - start) * phase))
+}
+
+fn bin_at_phase(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Option<usize> {
+    super::temporal::time_of_night_bin_for_test(
+        night_phase_time(seed, location, phase),
+        location,
+    )
 }
 
 #[test]
@@ -107,16 +147,108 @@ fn custom_continuum_path_works() {
 }
 
 #[test]
-fn time_of_night_bin_is_not_utc_hour_based() {
-    let time = t("2023-09-04T01:00:00Z");
-    let greenwich = Geodetic::new_raw(Degrees::new(0.0), Degrees::new(0.0), Meters::new(0.0));
-    let west = Geodetic::new_raw(Degrees::new(-105.0), Degrees::new(0.0), Meters::new(0.0));
+fn time_of_night_bins_follow_cta_s_astronomical_night_phase() {
+    let location = cta_s();
+    let seed = t("2023-09-04T04:00:00Z");
 
-    let utc_like = super::temporal::time_of_night_bin_for_test(time, greenwich);
-    let local_west = super::temporal::time_of_night_bin_for_test(time, west);
+    assert_eq!(bin_at_phase(seed, location, 1.0 / 6.0), Some(1));
+    assert_eq!(bin_at_phase(seed, location, 0.5), Some(2));
+    assert_eq!(bin_at_phase(seed, location, 5.0 / 6.0), Some(3));
+}
 
-    assert_ne!(utc_like, local_west);
-    assert_eq!(local_west, 1);
+#[test]
+fn time_of_night_bins_follow_cta_n_astronomical_night_phase() {
+    let location = cta_n();
+    let seed = t("2023-09-04T02:00:00Z");
+
+    assert_eq!(bin_at_phase(seed, location, 1.0 / 6.0), Some(1));
+    assert_eq!(bin_at_phase(seed, location, 0.5), Some(2));
+    assert_eq!(bin_at_phase(seed, location, 5.0 / 6.0), Some(3));
+}
+
+#[test]
+fn twilight_edges_are_outside_airglow_calibration_domain() {
+    let location = cta_s();
+    let seed = t("2023-09-04T04:00:00Z");
+    let night = super::temporal::astronomical_night_for_test(seed, location)
+        .expect("complete astronomical night");
+    let one_minute_days = 1.0 / 1440.0;
+
+    let before_dusk = tt_mjd_to_utc(ModifiedJulianDate::new(
+        night.start.raw().value() - one_minute_days,
+    ));
+    let after_dusk = tt_mjd_to_utc(ModifiedJulianDate::new(
+        night.start.raw().value() + one_minute_days,
+    ));
+    let before_dawn = tt_mjd_to_utc(ModifiedJulianDate::new(
+        night.end.raw().value() - one_minute_days,
+    ));
+    let after_dawn = tt_mjd_to_utc(ModifiedJulianDate::new(
+        night.end.raw().value() + one_minute_days,
+    ));
+
+    assert_eq!(
+        super::temporal::time_of_night_bin_for_test(before_dusk, location),
+        None
+    );
+    assert_eq!(
+        super::temporal::time_of_night_bin_for_test(after_dusk, location),
+        Some(1)
+    );
+    assert_eq!(
+        super::temporal::time_of_night_bin_for_test(before_dawn, location),
+        Some(3)
+    );
+    assert_eq!(
+        super::temporal::time_of_night_bin_for_test(after_dawn, location),
+        None
+    );
+}
+
+#[test]
+fn polar_summer_without_astronomical_night_has_no_time_bin() {
+    assert_eq!(
+        super::temporal::time_of_night_bin_for_test(
+            t("2023-06-21T12:00:00Z"),
+            high_arctic(78.0),
+        ),
+        None
+    );
+}
+
+#[test]
+fn polar_winter_astronomical_night_preserves_airglow() {
+    let location = high_arctic(89.0);
+    let time = t("2023-12-21T12:00:00Z");
+
+    assert!(super::temporal::time_of_night_bin_for_test(time, location).is_some());
+
+    let continuum = load_builtin_standard().unwrap();
+    let out = super::continuum::evaluate_continuum(
+        &continuum,
+        time,
+        location,
+        Degrees::new(60.0),
+        DEFAULT_SOLAR_RADIO_FLUX,
+        1.0,
+    );
+
+    assert!(out.integrated > BandPhotonRadiance::zero());
+}
+
+#[test]
+fn daytime_airglow_continuum_is_zero_outside_calibration_domain() {
+    let continuum = load_builtin_standard().unwrap();
+    let out = super::continuum::evaluate_continuum(
+        &continuum,
+        t("2023-09-04T16:00:00Z"),
+        cta_s(),
+        Degrees::new(60.0),
+        DEFAULT_SOLAR_RADIO_FLUX,
+        1.0,
+    );
+
+    assert_eq!(out.integrated, BandPhotonRadiance::zero());
 }
 
 #[test]
