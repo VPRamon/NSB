@@ -210,3 +210,45 @@ fn standard_clear_sky_conditions(location: Geodetic<ECEF>) -> AtmosphericConditi
         mie_params: MieParams::PARANAL,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use siderust::qtty::{Degrees as SiderustDegrees, Meters};
+
+    fn cta_n() -> Geodetic<ECEF> {
+        Geodetic::new_raw(
+            SiderustDegrees::new(-17.892),
+            SiderustDegrees::new(28.762),
+            Meters::new(2_200.0),
+        )
+    }
+
+    #[test]
+    fn cta_n_moonlight_profile_changes_atmospheric_conditions() {
+        let location = cta_n();
+        let generic = standard_clear_sky_conditions(location);
+        let profile = SiteProfileId::CtaNorth.profile(location);
+
+        assert_ne!(generic.surface_pressure, profile.atmosphere.surface_pressure);
+        assert_eq!(profile.atmosphere.surface_pressure.value(), 770.0);
+    }
+
+    #[test]
+    fn jones_site_profile_constructor_is_explicit_api() {
+        let location = cta_n();
+        let model = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaNorth);
+        let target = SphericalDirection::<EquatorialMeanJ2000>::new(
+            SiderustDegrees::new(270.0),
+            SiderustDegrees::new(-30.0),
+        );
+        let time = Time::<UTC>::from_chrono(
+            chrono::DateTime::parse_from_rfc3339("2023-09-04T02:00:00Z")
+                .unwrap()
+                .with_timezone(&chrono::Utc),
+        );
+
+        let out = model.compute(time, target).unwrap();
+        assert!(out.integrated.value() >= 0.0);
+    }
+}
