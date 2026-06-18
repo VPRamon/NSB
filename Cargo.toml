@@ -3,7 +3,7 @@ name = "nsb"
 version = "0.1.0"
 edition = "2021"
 authors = ["VPRamon <vallespuigramon@gmail.com>"]
-description = "Night Sky Background model and CLI."
+description = "Night Sky Background model."
 license = "BSD-3-Clause"
 repository = "https://github.com/VPRamon/NSB"
 readme = "README.md"
@@ -13,24 +13,18 @@ categories = ["science"]
 [lib]
 name = "nsb"
 
-[[bin]]
-name = "nsb"
-path = "src/bin/nsb.rs"
-
 [dependencies]
 qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch  = "0.6"
 optica   = "0.1"
 siderust = { version = "0.10", features = ["atmosphere", "photometry"] }
 
-chrono    = "0.4"
 thiserror = "2.0"
 bitflags  = "2.13"
-clap      = { version = "4", features = ["derive"] }
-anyhow    = "1"
 
 [dev-dependencies]
 approx = "0.5"
+chrono = "0.4"
 criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
 
 [[bench]]
