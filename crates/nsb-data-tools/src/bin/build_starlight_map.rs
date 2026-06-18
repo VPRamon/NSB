@@ -1,3 +1,5 @@
+#![allow(clippy::excessive_precision)]
+
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
@@ -113,15 +115,11 @@ fn run(args: Args) -> Result<()> {
         let Some(star) = parse_star(&record, columns)? else {
             continue;
         };
-        if let Some(max_v_mag) = args.max_v_mag {
-            if star.v_mag > max_v_mag {
-                continue;
-            }
+        if args.max_v_mag.is_some_and(|max_v_mag| star.v_mag > max_v_mag) {
+            continue;
         }
-        if let Some(min_v_mag) = args.min_v_mag {
-            if star.v_mag < min_v_mag {
-                continue;
-            }
+        if args.min_v_mag.is_some_and(|min_v_mag| star.v_mag < min_v_mag) {
+            continue;
         }
 
         let (lon, lat) = equatorial_to_galactic(star.ra_deg, star.dec_deg);
