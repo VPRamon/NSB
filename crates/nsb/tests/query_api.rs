@@ -43,7 +43,7 @@ fn fixture_starlight_map() -> StarlightMap {
 }
 
 #[test]
-fn evaluator_defaults_to_standard_science_config() {
+fn evaluator_defaults_to_generic_clear_sky_config() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let config = evaluator.config();
     assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
@@ -51,7 +51,15 @@ fn evaluator_defaults_to_standard_science_config() {
 }
 
 #[test]
-fn all_components_is_production_safe_without_bundled_starlight() {
+fn default_model_config_is_generic_clear_sky() {
+    let default = NsbModelConfig::default();
+    let explicit = NsbModelConfig::generic_clear_sky();
+    assert_eq!(default.moonlight_model, explicit.moonlight_model);
+    assert!(matches!(default.starlight_model, StarlightModel::Disabled));
+}
+
+#[test]
+fn all_components_is_generic_clear_sky_safe_without_bundled_starlight() {
     assert!(!ComponentMask::ALL.contains(ComponentMask::STARLIGHT));
     assert!(ComponentMask::ALL_SUPPORTED.contains(ComponentMask::STARLIGHT));
 
@@ -63,7 +71,7 @@ fn all_components_is_production_safe_without_bundled_starlight() {
             target: sgr_a_star(),
             components: ComponentMask::ALL,
         })
-        .expect("production-safe ALL must not require starlight data");
+        .expect("generic clear-sky ALL must not require starlight data");
 
     assert!(result.integrated.value() > 0.0);
     assert!(result.components.iter().any(|component| component.name == "zodiacal"));
@@ -132,7 +140,7 @@ fn starlight_request_without_model_fails_explicitly() {
 
 #[test]
 fn custom_starlight_map_evaluates_when_explicitly_configured() {
-    let mut config = NsbModelConfig::standard();
+    let mut config = NsbModelConfig::generic_clear_sky();
     config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
@@ -219,7 +227,7 @@ fn threshold_query_returns_empty_for_zero_threshold() {
 
 #[test]
 fn threshold_starlight_is_target_dependent() {
-    let mut config = NsbModelConfig::best_science();
+    let mut config = NsbModelConfig::generic_clear_sky();
     config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let start = parse_obstime("2023-09-04 01:00:00");

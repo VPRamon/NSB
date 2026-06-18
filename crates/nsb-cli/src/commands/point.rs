@@ -27,7 +27,7 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
 }
 
 pub(crate) fn model_config(args: &crate::cli::ModelArgs) -> Result<NsbModelConfig> {
-    let mut config = NsbModelConfig::standard();
+    let mut config = NsbModelConfig::generic_clear_sky();
     config.moonlight_model = match args.moonlight_model {
         crate::cli::MoonlightModelArg::Jones2013 => MoonlightModel::Jones2013Spectral,
         crate::cli::MoonlightModelArg::Ks1991 => MoonlightModel::KrisciunasSchaefer1991,
