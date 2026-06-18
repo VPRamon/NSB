@@ -50,9 +50,12 @@ pub(crate) fn evaluate_continuum(
     .value();
     let solar_corr =
         continuum.solar_activity_const + continuum.solar_activity_slope * solar_radio_flux.value();
+    let Some(time_bin) = time_of_night_bin(time, location) else {
+        return AirglowOutputs::zero();
+    };
     let seasonal_corr = continuum
         .mean_corrections
-        .get(time_of_night_bin(time, location))
+        .get(time_bin)
         .and_then(|row| row.get(season_bin(time, location)))
         .copied()
         .unwrap_or(1.0);
