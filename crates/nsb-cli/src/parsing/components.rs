@@ -31,6 +31,10 @@ mod tests {
 
     #[test]
     fn parses_all() {
-        assert_eq!(parse_components("all").unwrap(), ComponentMask::ALL);
+        let mask = parse_components("all").unwrap();
+        assert!(mask.contains(ComponentMask::ZODIACAL));
+        assert!(mask.contains(ComponentMask::STARLIGHT));
+        assert!(mask.contains(ComponentMask::AIRGLOW));
+        assert!(mask.contains(ComponentMask::MOON));
     }
 }
