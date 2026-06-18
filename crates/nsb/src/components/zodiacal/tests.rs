@@ -37,6 +37,30 @@ fn leinert_grid2d_bitwise_parity_with_legacy() {
 }
 
 #[test]
+fn leinert_grid_matches_published_anchor_values() {
+    let cases: [(f64, f64, f64); 4] = [
+        // beta_deg, delta_lambda_deg, S10 at 500 nm.
+        (0.0, 180.0, 180.0),
+        (90.0, 180.0, 63.0),
+        (0.0, 90.0, 202.0),
+        (10.0, 30.0, 955.0),
+    ];
+
+    for (beta_deg, delta_lambda_deg, expected) in cases {
+        let got = Leinert1998Grid::lookup_s10(
+            Radians::new(beta_deg.to_radians()),
+            Radians::new(delta_lambda_deg.to_radians()),
+        )
+        .expect("Leinert anchor lookup")
+        .value();
+        assert_eq!(
+            got, expected,
+            "Leinert anchor mismatch at beta={beta_deg}°, delta_lambda={delta_lambda_deg}°"
+        );
+    }
+}
+
+#[test]
 fn leinert_lookup_beta_at_90_degrees_succeeds() {
     let s10 = Leinert1998Grid::lookup_s10(
         Radians::new(90_f64.to_radians()),
@@ -51,6 +75,21 @@ fn leinert_lookup_rejects_non_finite_inputs() {
     assert!(Leinert1998Grid::lookup_s10(Radians::new(f64::NAN), Radians::new(1.0)).is_err());
     assert!(Leinert1998Grid::lookup_s10(Radians::new(0.5), Radians::new(f64::INFINITY)).is_err());
     assert!(Leinert1998Grid::lookup_s10(Radians::new(91_f64.to_radians()), Radians::new(1.0)).is_err());
+}
+
+#[test]
+fn noll2012_extinction_matches_numeric_reference_value() {
+    let transmission =
+        ZodiacalExtinction::Noll2012Approx.transmission(1.0, 500.0, Degrees::new(0.0));
+    let expected = 0.848_018_597_129_593_2;
+    assert!(
+        (transmission - expected).abs() <= 1.0e-12,
+        "Noll-style extinction reference changed: got {transmission}, expected {expected}"
+    );
+    assert_eq!(
+        ZodiacalExtinction::None.transmission(1.0, 500.0, Degrees::new(60.0)),
+        1.0
+    );
 }
 
 #[test]
