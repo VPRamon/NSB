@@ -51,6 +51,28 @@ fn evaluator_defaults_to_standard_science_config() {
 }
 
 #[test]
+fn all_components_is_production_safe_without_bundled_starlight() {
+    assert!(!ComponentMask::ALL.contains(ComponentMask::STARLIGHT));
+    assert!(ComponentMask::ALL_SUPPORTED.contains(ComponentMask::STARLIGHT));
+
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let result = evaluator
+        .evaluate(&PointQuery {
+            observer: paranal(),
+            time: parse_obstime("2023-09-04 01:48:00"),
+            target: sgr_a_star(),
+            components: ComponentMask::ALL,
+        })
+        .expect("production-safe ALL must not require starlight data");
+
+    assert!(result.integrated.value() > 0.0);
+    assert!(result.components.iter().any(|component| component.name == "zodiacal"));
+    assert!(result.components.iter().any(|component| component.name == "airglow"));
+    assert!(result.components.iter().any(|component| component.name == "moon"));
+    assert!(!result.components.iter().any(|component| component.name == "starlight"));
+}
+
+#[test]
 fn python_parity_config_selects_legacy_moon_model() {
     let config = NsbModelConfig::python_parity();
     assert_eq!(
