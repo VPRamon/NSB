@@ -37,8 +37,9 @@ pub use components::zodiacal::{
 };
 pub use error::{NsbError, Result};
 pub use evaluator::{
-    ComponentMask, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult, Observer,
-    PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
+    BandDiagnostic, CalibrationStatus, ComponentMask, MoonlightModel, NsbComponent,
+    NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult, Observer, PointQuery,
+    StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
 
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
