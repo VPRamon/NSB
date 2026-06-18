@@ -15,11 +15,15 @@
 //! clear-sky fallback: it estimates surface pressure from altitude, uses
 //! Siderust's default Rayleigh scale height, and uses a generic clear-sky Mie
 //! parameter set. It is not a site-calibrated atmosphere.
+//!
+//! For CTA science use, prefer an explicit [`AtmosphericConditions`] preset or a
+//! caller-provided profile over the generic fallback. The built-in CTA presets
+//! document the assumptions currently available in NSB and intentionally remain
+//! separate from `standard_clear_sky`.
 
 use crate::error::Result;
 use crate::reference::solar;
 use crate::NSB_S10_ZP;
-use scattering::ScatterGrid;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
@@ -27,6 +31,7 @@ use qtty::radiometry::{
     self, spectral_radiance_to_photon_radiance_ns_nm,
     PhotonsPerSquareCentimeterNanosecondSteradian, WattsPerSquareMeterSteradianNanometer,
 };
+use scattering::ScatterGrid;
 use siderust::atmosphere::{
     airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,
     AtmosphereProfile, KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass, MieParams,
@@ -60,8 +65,20 @@ const B_FILTER_NM: f64 = 445.0;
 const V_FILTER_NM: f64 = 551.0;
 const S10_TO_W_M2_SR_UM: f64 = 1.28e-8;
 const HC_JOULE_METER: f64 = 1.986_445_857_148_968e-25;
+
+/// Empirical aerosol-scattering weight applied to the Jones 2013 Mie phase term.
+///
+/// This is not a physical constant. It is a calibration knob that compensates
+/// for the bundled Mie phase grid and the simplified single-scattering path used
+/// by this implementation. Site-calibrated profiles should be validated against
+/// reference spectra before changing this factor.
 const JONES_MIE_WEIGHT: f64 = 0.05;
 
+/// Atmospheric inputs used by the Jones 2013 spectral scattered-moonlight model.
+///
+/// The observer altitude is deliberately not stored here. It is always taken
+/// from the [`Geodetic`] location passed to [`Jones2013Spectral`], avoiding the
+/// ambiguity of mixing a site profile with an unrelated observer altitude.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AtmosphericConditions {
     pub surface_pressure: Hectopascals,
@@ -75,6 +92,46 @@ impl AtmosphericConditions {
             surface_pressure: profile.surface_pressure,
             rayleigh_scale_height: profile.rayleigh_scale_height,
             mie_params: profile.mie_params,
+        }
+    }
+
+    /// Generic clear-sky conditions for an arbitrary location.
+    ///
+    /// This is the atmosphere used by [`Jones2013Spectral::standard_clear_sky`].
+    /// Pressure is estimated from the supplied altitude and the Mie parameters
+    /// are the generic Paranal-like clear-sky values available from Siderust.
+    /// This is not a CTA site-calibrated atmosphere.
+    pub fn generic_clear_sky(location: Geodetic<ECEF>) -> Self {
+        standard_clear_sky_conditions(location)
+    }
+
+    /// Paranal-like average clear-sky conditions from Siderust's built-in profile.
+    pub fn paranal_average() -> Self {
+        Self::from_profile_without_altitude(AtmosphereProfile::EL_PARANAL)
+    }
+
+    /// CTA-S clear-sky preset.
+    ///
+    /// The current NSB preset intentionally aliases the Paranal-like profile
+    /// because no dedicated CTA-S aerosol calibration has been bundled yet. It
+    /// is nevertheless explicit at call sites, so science users can distinguish
+    /// it from the generic altitude-derived fallback and replace it with a
+    /// calibrated profile when available.
+    pub fn cta_s_clear_sky() -> Self {
+        Self::paranal_average()
+    }
+
+    /// CTA-N clear-sky planning preset.
+    ///
+    /// This uses a pressure representative of the La Palma/ORM altitude range
+    /// and the same bundled clear-sky Mie parameterization used elsewhere in
+    /// NSB. It should be treated as a planning preset until CTA-N aerosol phase
+    /// functions are bundled and validated.
+    pub fn cta_n_clear_sky() -> Self {
+        Self {
+            surface_pressure: Hectopascals::new(770.0),
+            rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
+            mie_params: MieParams::PARANAL,
         }
     }
 }
