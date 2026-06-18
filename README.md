@@ -137,10 +137,11 @@ dependencies of `nsb`.
 ## Validation
 
 End-to-end validation is documented in `docs/VALIDATION.md`. The lightweight CI
-suite lives in `crates/nsb/tests/end_to_end_validation.rs` and checks production
-`ComponentMask::ALL` point cases, component-sum conservation, explicit starlight
-fixture behaviour, threshold-window classification against sampled point curves,
-and unrestrictive threshold windows against independent observability intervals.
+suite lives in `crates/nsb/tests/end_to_end_validation.rs` and checks generic
+clear-sky `ComponentMask::ALL` point cases, component-sum conservation, explicit
+starlight fixture behaviour, threshold-window classification against sampled
+point curves, and unrestrictive threshold windows against independent
+observability intervals.
 
 ```bash
 cargo test -p nsb --test end_to_end_validation
