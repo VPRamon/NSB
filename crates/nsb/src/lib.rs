@@ -1,8 +1,9 @@
 //! `nsb` — Night Sky Background model.
 //!
-//! Computes the photon flux reaching a ground-based observer from the dark sky
-//! as the sum of zodiacal light, integrated starlight, airglow, and scattered
-//! moonlight.
+//! Computes the photon flux reaching a ground-based observer from a configurable
+//! sum of zodiacal light, integrated starlight, airglow, and scattered moonlight.
+//! Integrated starlight requires an explicit starlight map configuration until a
+//! production catalogue-derived bundled map is shipped.
 //!
 //! The library API is intentionally typed and CLI-free: callers pass
 //! `Geodetic<ECEF>` observers, `Time<UTC>` instants, and equatorial target
