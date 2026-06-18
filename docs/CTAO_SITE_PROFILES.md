@@ -1,7 +1,9 @@
 # CTAO site-profile assumptions
 
 NSB distinguishes generic clear-sky fallbacks from named site profiles through
-`SiteProfileId`, `SiteProfile`, and `CalibrationStatus`.
+`SiteProfileId`, `SiteProfile`, `CalibrationStatus`, and the
+`NsbModelConfig::cta_n_planning()` / `NsbModelConfig::cta_s_planning()` evaluator
+presets.
 
 The current CTAO entries are **planning presets**, not fully site-calibrated
 science products. They exist so CTAO call sites can select explicit assumptions
@@ -16,6 +18,16 @@ and inspect provenance instead of implicitly using `standard_clear_sky`.
 | `SiteProfileId::CtaSouth` | `PlanningPreset` | Paranal-like `AtmosphereProfile::EL_PARANAL` assumptions used explicitly for the Paranal/Atacama CTAO use case. | Bundled `NSB/data/airglow_cont.dat` continuum with neutral scale; no CTA-S-specific continuum calibration is bundled yet. |
 
 ## API usage
+
+Evaluator-level CTAO planning preset:
+
+```rust
+use nsb::{NsbEvaluator, NsbModelConfig};
+
+let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning())?;
+```
+
+Component-level explicit profile selection:
 
 ```rust
 use nsb::{Airglow, Jones2013Spectral, SiteProfileId};
