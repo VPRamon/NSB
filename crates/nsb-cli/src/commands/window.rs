@@ -3,11 +3,10 @@ use crate::commands::point::model_config;
 use crate::output;
 use crate::parsing::{components, location, radiance, target, time};
 use anyhow::Result;
-use nsb::{ComponentMask, NsbEvaluator, ThresholdQuery};
+use nsb::{NsbEvaluator, ThresholdQuery};
 use qtty::angular::Degrees;
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
-use tempoch::{Period, Time, UTC};
+use tempoch::{Period, UTC};
 
 pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let observer = location::resolve_observer(&args.observer)?;
@@ -83,14 +82,4 @@ fn subtract_one(period: Period<UTC>, cut: Period<UTC>) -> Vec<Period<UTC>> {
         out.push(Period::new(right_start, period.end));
     }
     out
-}
-
-#[allow(dead_code)]
-fn _assert_component_mask_copy(mask: ComponentMask) -> ComponentMask {
-    mask
-}
-
-#[allow(dead_code)]
-fn _assert_radiance_copy(radiance: BandPhotonRadiance) -> BandPhotonRadiance {
-    radiance
 }
