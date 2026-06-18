@@ -1,15 +1,15 @@
-use anyhow::Result;
 use chrono::{DateTime, Utc};
-use nsb::{ComponentMask, Location, NsbEvaluator, Site, Target, ThresholdQuery, DEG};
+use nsb::{ComponentMask, NsbEvaluator, Target, ThresholdQuery, DEG};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use siderust::catalogs::observatories;
 use tempoch::{Period, Time, UTC};
 
-fn main() -> Result<()> {
-    let start = parse_utc("2023-09-04T00:00:00Z")?;
-    let end = parse_utc("2023-09-04T12:00:00Z")?;
+fn main() -> nsb::Result<()> {
+    let start = parse_utc("2023-09-04T00:00:00Z");
+    let end = parse_utc("2023-09-04T12:00:00Z");
 
     let query = ThresholdQuery {
-        location: Location::NamedSite(Site::Paranal),
+        observer: observatories::EL_PARANAL.geodetic(),
         target: Target::new(266.41683 * DEG, -29.00781 * DEG),
         window: Period::new(start, end),
         threshold: BandPhotonRadiance::new(0.21),
@@ -42,9 +42,11 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn parse_utc(input: &str) -> Result<Time<UTC>> {
-    let time = DateTime::parse_from_rfc3339(input)?.with_timezone(&Utc);
-    Ok(Time::<UTC>::from_chrono(time))
+fn parse_utc(input: &str) -> Time<UTC> {
+    let time = DateTime::parse_from_rfc3339(input)
+        .expect("valid example timestamp")
+        .with_timezone(&Utc);
+    Time::<UTC>::from_chrono(time)
 }
 
 fn format_utc(time: Time<UTC>) -> String {
