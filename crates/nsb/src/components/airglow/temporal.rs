@@ -8,7 +8,15 @@ use siderust::time::{Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Time, MJD, UTC};
 
 const ASTRONOMICAL_TWILIGHT_DEG: f64 = -18.0;
-const NIGHT_SEARCH_RADIUS_DAYS: f64 = 2.0;
+const INITIAL_NIGHT_SEARCH_RADIUS_DAYS: f64 = 2.0;
+const MAX_NIGHT_SEARCH_RADIUS_DAYS: f64 = 200.0;
+const NIGHT_SEARCH_EXPANSION_FACTOR: f64 = 4.0;
+
+#[derive(Debug, Clone, Copy)]
+struct AstronomicalNight {
+    period: TimePeriod<ModifiedJulianDate>,
+    phase_bounded: bool,
+}
 
 pub(crate) fn season_bin(time: Time<UTC>, location: Geodetic<ECEF>) -> usize {
     let Some(dt) = local_solar_datetime(time, location) else {
@@ -33,18 +41,24 @@ pub(crate) fn season_bin(time: Time<UTC>, location: Geodetic<ECEF>) -> usize {
 /// Siderust solar-altitude events, normalize `time` to phase in that interval,
 /// and map `[0, 1/3)`, `[1/3, 2/3)`, `[2/3, 1]` to rows 1, 2, and 3.
 ///
-/// Returns `None` when `time` is outside a complete astronomical night, or when
-/// no dusk/dawn-bounded astronomical night exists in the search window.
+/// The search expands adaptively so high-latitude winter nights are not
+/// mistaken for missing airglow merely because the first local window is clipped.
+/// If a final expanded search still sees continuous night without both bounding
+/// crossings, row 0 (full-night correction) is used rather than returning zero.
 pub(crate) fn time_of_night_bin(time: Time<UTC>, location: Geodetic<ECEF>) -> Option<usize> {
     let time_tt = utc_time_to_tt_mjd(time);
     let night = astronomical_night_containing(time_tt, location)?;
 
-    let duration_days = night.end.raw().value() - night.start.raw().value();
+    if !night.phase_bounded {
+        return Some(0);
+    }
+
+    let duration_days = night.period.end.raw().value() - night.period.start.raw().value();
     if !duration_days.is_finite() || duration_days <= 0.0 {
         return None;
     }
 
-    let phase = ((time_tt.raw().value() - night.start.raw().value()) / duration_days)
+    let phase = ((time_tt.raw().value() - night.period.start.raw().value()) / duration_days)
         .clamp(0.0, 1.0);
 
     Some(if phase < 1.0 / 3.0 {
@@ -59,24 +73,42 @@ pub(crate) fn time_of_night_bin(time: Time<UTC>, location: Geodetic<ECEF>) -> Op
 fn astronomical_night_containing(
     time_tt: ModifiedJulianDate,
     location: Geodetic<ECEF>,
-) -> Option<TimePeriod<ModifiedJulianDate>> {
-    let search_window = TimePeriod::new(
-        ModifiedJulianDate::new(time_tt.raw().value() - NIGHT_SEARCH_RADIUS_DAYS),
-        ModifiedJulianDate::new(time_tt.raw().value() + NIGHT_SEARCH_RADIUS_DAYS),
-    );
+) -> Option<AstronomicalNight> {
+    let mut radius_days = INITIAL_NIGHT_SEARCH_RADIUS_DAYS;
 
-    SunBody
-        .below_threshold(
-            &location,
-            search_window,
-            Degrees::new(ASTRONOMICAL_TWILIGHT_DEG),
-            SearchOpts::default(),
-        )
-        .into_iter()
-        // A valid phase requires a complete night, bounded by both
-        // astronomical dusk and astronomical dawn inside the search window.
-        .filter(|night| night.start > search_window.start && night.end < search_window.end)
-        .find(|night| night.start < time_tt && time_tt < night.end)
+    loop {
+        let search_window = TimePeriod::new(
+            ModifiedJulianDate::new(time_tt.raw().value() - radius_days),
+            ModifiedJulianDate::new(time_tt.raw().value() + radius_days),
+        );
+
+        let night = SunBody
+            .below_threshold(
+                &location,
+                search_window,
+                Degrees::new(ASTRONOMICAL_TWILIGHT_DEG),
+                SearchOpts::default(),
+            )
+            .into_iter()
+            .find(|night| night.start < time_tt && time_tt < night.end)?;
+
+        if night.start > search_window.start && night.end < search_window.end {
+            return Some(AstronomicalNight {
+                period: night,
+                phase_bounded: true,
+            });
+        }
+
+        if radius_days >= MAX_NIGHT_SEARCH_RADIUS_DAYS {
+            return Some(AstronomicalNight {
+                period: night,
+                phase_bounded: false,
+            });
+        }
+
+        radius_days = (radius_days * NIGHT_SEARCH_EXPANSION_FACTOR)
+            .min(MAX_NIGHT_SEARCH_RADIUS_DAYS);
+    }
 }
 
 fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
@@ -105,5 +137,5 @@ pub(crate) fn astronomical_night_for_test(
     time: Time<UTC>,
     location: Geodetic<ECEF>,
 ) -> Option<TimePeriod<ModifiedJulianDate>> {
-    astronomical_night_containing(utc_time_to_tt_mjd(time), location)
+    astronomical_night_containing(utc_time_to_tt_mjd(time), location).map(|night| night.period)
 }
