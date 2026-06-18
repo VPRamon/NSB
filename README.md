@@ -16,9 +16,9 @@ Components:
 
 - **Zodiacal light** — Leinert (1998) brightness map, Noll (2012) reddening &
   extinction, scaled solar spectrum.
-- **Integrated starlight** — directional Galactic-coordinate map model; the
-  standard map is not bundled until a real catalogue-derived product is
-  generated with provenance.
+- **Integrated starlight** — directional Galactic-coordinate map model; disabled
+  by default until a real catalogue-derived bundled product is generated with
+  provenance.
 - **Airglow continuum** — site-bound empirical continuum model with Van Rhijn
   geometry and solar/activity/time corrections.
 - **Scattered moonlight** — Jones et al. (2013) wavelength-resolved spectral
@@ -46,6 +46,12 @@ nsb            -> never depends on nsb-cli or nsb-data-tools
 The public Rust API is built around a reusable `NsbEvaluator`. Queries take a
 `Geodetic<ECEF>` observer directly; named-site parsing is deliberately outside
 the library.
+
+`NsbEvaluator::new()` uses the generic clear-sky preset. Starlight is disabled in
+that preset because no production Galactic starlight map is bundled yet. Requests
+that include `ComponentMask::STARLIGHT` therefore require an explicit custom
+`StarlightMap` or the future bundled production map; without one, they fail
+explicitly instead of silently using missing or proxy data.
 
 ```rust
 use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, ThresholdQuery, DEG};

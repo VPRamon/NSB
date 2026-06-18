@@ -47,6 +47,7 @@ fn evaluator_defaults_to_standard_science_config() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let config = evaluator.config();
     assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
+    assert!(matches!(config.starlight_model, StarlightModel::Disabled));
 }
 
 #[test]
@@ -56,6 +57,7 @@ fn python_parity_config_selects_legacy_moon_model() {
         config.moonlight_model,
         MoonlightModel::KrisciunasSchaefer1991
     );
+    assert!(matches!(config.starlight_model, StarlightModel::Disabled));
 }
 
 #[test]
@@ -89,6 +91,41 @@ fn point_query_propagates_selected_component_error() {
         result.is_err(),
         "invalid selected component input must fail point evaluation"
     );
+}
+
+#[test]
+fn starlight_request_without_model_fails_explicitly() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let error = evaluator
+        .evaluate(&PointQuery {
+            observer: paranal(),
+            time: parse_obstime("2023-09-04 01:48:00"),
+            target: sgr_a_star(),
+            components: ComponentMask::STARLIGHT,
+        })
+        .expect_err("default config must not evaluate starlight without a map");
+
+    assert!(error.to_string().contains("starlight component requested"));
+}
+
+#[test]
+fn custom_starlight_map_evaluates_when_explicitly_configured() {
+    let mut config = NsbModelConfig::standard();
+    config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
+    let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
+
+    let result = evaluator
+        .evaluate(&PointQuery {
+            observer: paranal(),
+            time: parse_obstime("2023-09-04 01:48:00"),
+            target: sgr_a_star(),
+            components: ComponentMask::STARLIGHT,
+        })
+        .expect("explicit starlight map");
+
+    assert_eq!(result.components.len(), 1);
+    assert_eq!(result.components[0].name, "starlight");
+    assert!(result.integrated.value() > 0.0);
 }
 
 #[test]
