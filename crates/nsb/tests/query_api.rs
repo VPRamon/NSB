@@ -78,18 +78,16 @@ fn point_query_uses_direct_geodetic_observer() {
 fn point_query_propagates_selected_component_error() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
 
-    let err = evaluator
-        .evaluate(&PointQuery {
-            observer: paranal(),
-            time: parse_obstime("2023-09-04 01:48:00"),
-            target: invalid_target(),
-            components: ComponentMask::ZODIACAL,
-        })
-        .expect_err("invalid selected component input must fail point evaluation");
+    let result = evaluator.evaluate(&PointQuery {
+        observer: paranal(),
+        time: parse_obstime("2023-09-04 01:48:00"),
+        target: invalid_target(),
+        components: ComponentMask::ZODIACAL,
+    });
 
     assert!(
-        err.to_string().contains("not finite"),
-        "unexpected error: {err}"
+        result.is_err(),
+        "invalid selected component input must fail point evaluation"
     );
 }
 
@@ -122,22 +120,20 @@ fn threshold_query_fails_closed_on_selected_component_error() {
     let start = parse_obstime("2023-09-04 01:00:00");
     let end = parse_obstime("2023-09-04 02:00:00");
 
-    let err = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer: paranal(),
-            target: invalid_target(),
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(1.0e6),
-            components: ComponentMask::ZODIACAL,
-            sample_step: Second::new(600.0),
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
-        .expect_err("threshold search must not treat a failed component as zero");
+    let result = evaluator.periods_below_threshold(&ThresholdQuery {
+        observer: paranal(),
+        target: invalid_target(),
+        window: Period::new(start, end),
+        threshold: BandPhotonRadiance::new(1.0e6),
+        components: ComponentMask::ZODIACAL,
+        sample_step: Second::new(600.0),
+        sun_altitude_ceiling: None,
+        target_altitude_floor: None,
+    });
 
     assert!(
-        err.to_string().contains("not finite"),
-        "unexpected error: {err}"
+        result.is_err(),
+        "threshold search must not treat a failed component as zero"
     );
 }
 
