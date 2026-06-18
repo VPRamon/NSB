@@ -1,18 +1,22 @@
 //! Criterion benches for `NsbEvaluator::periods_below_threshold`.
-//!
-//! Compares the legacy uniform-scan path against the optimized
-//! event-driven pipeline across a range of window sizes.
 
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use nsb::{ComponentMask, Location, NsbEvaluator, PointQuery, Site, Target, ThresholdQuery, DEG};
+use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, ThresholdQuery, DEG};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
+use siderust::catalogs::observatories;
+use siderust::coordinates::centers::Geodetic;
+use siderust::coordinates::frames::ECEF;
 use tempoch::{Period, Time, UTC};
 
 fn parse(s: &str) -> Time<UTC> {
     let dt = DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc);
     Time::<UTC>::from_chrono(dt)
+}
+
+fn paranal() -> Geodetic<ECEF> {
+    observatories::EL_PARANAL.geodetic()
 }
 
 fn target_sgr_a() -> Target {
@@ -30,7 +34,7 @@ fn make_query(
     legacy: bool,
 ) -> ThresholdQuery {
     ThresholdQuery {
-        location: Location::NamedSite(Site::Paranal),
+        observer: paranal(),
         target: target_sgr_a(),
         window: Period::new(start, end),
         threshold: BandPhotonRadiance::new(0.21),
@@ -56,7 +60,7 @@ fn make_query(
 fn bench_point_eval(c: &mut Criterion) {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let query = PointQuery {
-        location: Location::NamedSite(Site::Paranal),
+        observer: paranal(),
         time: parse("2023-09-04T01:48:00Z"),
         target: target_sgr_a(),
         components: default_components(),
@@ -70,14 +74,7 @@ fn bench_window(c: &mut Criterion) {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse("2023-09-04T00:00:00Z");
 
-    let cases = [
-        ("1d", 1i64),
-        ("1w", 7),
-        ("1mo", 30),
-        // 1-year case: only run for the optimized path by default — the
-        // legacy uniform-scan path is too slow to bench routinely.
-        ("1y_opt_only", 365),
-    ];
+    let cases = [("1d", 1i64), ("1w", 7), ("1mo", 30), ("1y_opt_only", 365)];
 
     let mut group = c.benchmark_group("threshold_window");
     group.sample_size(10);
