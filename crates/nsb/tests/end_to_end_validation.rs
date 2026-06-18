@@ -134,7 +134,11 @@ fn production_all_matches_reference_envelopes() {
             case.accepted_max
         );
 
-        let component_names: Vec<_> = result.components.iter().map(|component| component.name).collect();
+        let component_names: Vec<_> = result
+            .components
+            .iter()
+            .map(|component| component.name)
+            .collect();
         assert_eq!(component_names, case.expected_components, "{}", case.name);
 
         let component_sum: f64 = result
@@ -251,7 +255,10 @@ fn threshold_windows_match_independent_sampled_curve() {
 
     assert!(saw_below, "reference curve should contain darker samples");
     assert!(saw_above, "reference curve should contain brighter samples");
-    assert!(!result.periods.is_empty(), "threshold search should report at least one dark window");
+    assert!(
+        !result.periods.is_empty(),
+        "threshold search should report at least one dark window"
+    );
 }
 
 #[test]
