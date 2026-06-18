@@ -62,6 +62,11 @@ pub struct PointQuery {
 /// The optional `sun_altitude_ceiling` and `target_altitude_floor` knobs
 /// pre-filter the search to dark, observable sub-windows. Set them to `None`
 /// to disable the pre-filter and recover the legacy uniform-scan semantics.
+///
+/// Threshold search is fail-closed and all-or-nothing: if any selected
+/// component cannot be evaluated at a sampled or refined timestamp,
+/// [`NsbEvaluator::periods_below_threshold`] returns `Err` and no observing
+/// windows are reported.
 #[derive(Debug, Clone)]
 pub struct ThresholdQuery {
     pub observer: Observer,
@@ -227,13 +232,13 @@ impl NsbEvaluator {
         let tt_window = utc_period_to_tt_mjd(query.window);
         let step = query.sample_step.to::<Day>();
         let candidate_windows = self.candidate_windows(query, &prepared, tt_window);
-        let f = |mjd_tt: ModifiedJulianDate| -> BandPhotonRadiance {
+        let f = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
             self.evaluate_integrated(&prepared, mjd_tt)
         };
 
         let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = Vec::new();
         for cw in candidate_windows {
-            let brighter = above_threshold_periods(cw, step, &f, query.threshold);
+            let brighter = above_threshold_periods(cw, step, &f, query.threshold)?;
             darker_periods.extend(complement_periods(cw, &brighter));
         }
 
@@ -259,15 +264,13 @@ impl NsbEvaluator {
         let prepared = Self::prepare_point(query.observer, query.target, query.components);
         let tt_window = utc_period_to_tt_mjd(query.window);
         let step = query.sample_step.to::<Day>();
-        let integrated_at = |mjd_tt: ModifiedJulianDate| -> BandPhotonRadiance {
+        let integrated_at = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
             let time_utc = tt_mjd_to_utc_time(mjd_tt);
-            self.evaluate_full(&prepared, time_utc)
-                .expect("prepared NSB threshold query must remain within the evaluator domain")
-                .integrated
+            Ok(self.evaluate_full(&prepared, time_utc)?.integrated)
         };
 
         let brighter_than_threshold =
-            above_threshold_periods(tt_window, step, &integrated_at, query.threshold);
+            above_threshold_periods(tt_window, step, &integrated_at, query.threshold)?;
         let darker_than_threshold = complement_periods(tt_window, &brighter_than_threshold);
 
         Ok(ThresholdQueryResult {
@@ -355,33 +358,29 @@ impl NsbEvaluator {
         &self,
         prepared: &PreparedThresholdQuery,
         mjd_tt: ModifiedJulianDate,
-    ) -> BandPhotonRadiance {
+    ) -> Result<BandPhotonRadiance> {
         let time = tt_mjd_to_utc_time(mjd_tt);
         let mut total = BandPhotonRadiance::new(0.0);
 
         if prepared.components.contains(ComponentMask::ZODIACAL) {
-            if let Ok(out) = self
+            let out = self
                 .zodiacal
-                .compute_observed(time, prepared.observer, prepared.target)
-            {
-                total += out.integrated;
-            }
+                .compute_observed(time, prepared.observer, prepared.target)?;
+            total += out.integrated;
         }
         if prepared.components.contains(ComponentMask::STARLIGHT) {
             total += prepared.starlight_integrated;
         }
         if prepared.components.contains(ComponentMask::AIRGLOW) {
-            if let Ok(out) = self.evaluate_airglow(prepared.observer, time, prepared.target) {
-                total += out.integrated;
-            }
+            let out = self.evaluate_airglow(prepared.observer, time, prepared.target)?;
+            total += out.integrated;
         }
         if prepared.components.contains(ComponentMask::MOON) {
-            if let Ok(out) = self.evaluate_moonlight(prepared.observer, time, prepared.target) {
-                total += out.integrated;
-            }
+            let out = self.evaluate_moonlight(prepared.observer, time, prepared.target)?;
+            total += out.integrated;
         }
 
-        total
+        Ok(total)
     }
 
     fn evaluate_full(&self, query: &PreparedPointQuery, time: Time<UTC>) -> Result<NsbResult> {
@@ -504,18 +503,18 @@ fn above_threshold_periods<V, F>(
     step: Days,
     f: &F,
     threshold: Quantity<V>,
-) -> Vec<TimePeriod<ModifiedJulianDate>>
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>>
 where
     V: Unit,
-    F: Fn(ModifiedJulianDate) -> Quantity<V>,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     if window.start >= window.end || step <= Days::new(0.0) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
 
     let mut periods = Vec::new();
     let mut t0 = window.start;
-    let mut y0 = f(t0);
+    let mut y0 = f(t0)?;
     let mut above0 = y0 > threshold;
     let mut open_start = above0.then_some(window.start);
 
@@ -525,10 +524,10 @@ where
             break;
         }
 
-        let y1 = f(t1);
+        let y1 = f(t1)?;
         let above1 = y1 > threshold;
         if above0 != above1 {
-            let crossing = refine_threshold_crossing(t0, y0, t1, y1, f, threshold);
+            let crossing = refine_threshold_crossing(t0, y0, t1, y1, f, threshold)?;
             if above0 {
                 if let Some(start) = open_start.take() {
                     push_non_empty_period(&mut periods, start, crossing);
@@ -547,7 +546,7 @@ where
         push_non_empty_period(&mut periods, start, window.end);
     }
 
-    periods
+    Ok(periods)
 }
 
 fn complement_periods(
@@ -578,10 +577,10 @@ fn refine_threshold_crossing<V, F>(
     mut y_hi: Quantity<V>,
     f: &F,
     threshold: Quantity<V>,
-) -> ModifiedJulianDate
+) -> Result<ModifiedJulianDate>
 where
     V: Unit,
-    F: Fn(ModifiedJulianDate) -> Quantity<V>,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     let lo_above = y_lo > threshold;
     for _ in 0..48 {
@@ -589,9 +588,9 @@ where
         if mid <= lo || mid >= hi {
             break;
         }
-        let y_mid = f(mid);
+        let y_mid = f(mid)?;
         if y_mid == threshold {
-            return mid;
+            return Ok(mid);
         }
         if (y_mid > threshold) == lo_above {
             lo = mid;
@@ -605,7 +604,7 @@ where
         }
     }
 
-    linear_crossing_estimate(lo, y_lo, hi, y_hi, threshold)
+    Ok(linear_crossing_estimate(lo, y_lo, hi, y_hi, threshold))
 }
 
 fn linear_crossing_estimate<V>(
