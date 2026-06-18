@@ -81,7 +81,7 @@ fn geometry_known_case_is_stable() {
 
 #[test]
 fn exoatmospheric_does_not_need_location() {
-    let model = ZodiacalLight::standard().expect("model");
+    let model = ZodiacalLight::leinert1998().expect("model");
     let time = parse_utc("2023-09-04T01:48:00Z");
     let target = sgr_a_star();
 
@@ -100,13 +100,13 @@ fn observed_extinction_reduces_or_preserves_flux() {
     let target = sgr_a_star();
     let observer = observatories::EL_PARANAL.geodetic();
 
-    let no_ext = ZodiacalLight::standard()
+    let no_ext = ZodiacalLight::leinert1998()
         .expect("model")
         .with_extinction(ZodiacalExtinction::None)
         .compute_observed(time, observer, target)
         .expect("no-extinction compute");
 
-    let with_ext = ZodiacalLight::standard()
+    let with_ext = ZodiacalLight::leinert1998()
         .expect("model")
         .with_extinction(ZodiacalExtinction::Noll2012Approx)
         .compute_observed(time, observer, target)
@@ -123,7 +123,7 @@ fn below_horizon_observed_returns_zero() {
     let target = Target::new(0.0 * DEG, 89.0 * DEG);
     let time = parse_utc("2023-09-04T01:48:00Z");
 
-    let out = ZodiacalLight::standard()
+    let out = ZodiacalLight::leinert1998()
         .expect("model")
         .compute_observed(time, observer, target)
         .expect("below-horizon compute should not error");
@@ -166,8 +166,8 @@ fn b_v_are_interpolated_not_nearest_sample() {
 }
 
 #[test]
-fn standard_compute_returns_positive_integrated() {
-    let model = ZodiacalLight::standard().expect("model");
+fn leinert1998_compute_returns_positive_integrated() {
+    let model = ZodiacalLight::leinert1998().expect("model");
     let time = parse_utc("2023-09-04T01:48:00Z");
     let observer = observatories::EL_PARANAL.geodetic();
     let target = sgr_a_star();
@@ -205,7 +205,7 @@ fn custom_grid_path_works() {
 
 #[test]
 fn regression_known_case_sgr_a_star_paranal() {
-    let model = ZodiacalLight::standard().expect("model");
+    let model = ZodiacalLight::leinert1998().expect("model");
     let time = parse_utc("2023-09-04T01:48:00Z");
     let observer = observatories::EL_PARANAL.geodetic();
     let target = sgr_a_star();
