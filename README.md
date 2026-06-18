@@ -1,12 +1,10 @@
 # nsb — Night Sky Background
 
-Rust library for ground-based night-sky background (NSB) photon flux in
-`ph/(cm² · ns · sr)`, plus integrated B and V band surface brightness in
-`mag/arcsec²`.
+Rust workspace for ground-based night-sky background (NSB) modelling and tools.
 
-The repository is a Cargo workspace. The root package remains the runtime
-library crate `nsb`; the operational command-line interface lives in the sibling
-crate `crates/nsb-cli` and depends on `nsb`.
+The runtime library crate is `crates/nsb`. The operational command-line
+interface lives in `crates/nsb-cli`. Offline data-generation tools live in
+`crates/nsb-data-tools`.
 
 If you are new to astronomy or to the NSB domain, start with:
 
@@ -38,8 +36,9 @@ calibrations and grids live inside their component modules.
 Dependency direction:
 
 ```text
-nsb-cli -> nsb
-nsb     -> never depends on nsb-cli
+nsb-cli        -> nsb
+nsb-data-tools -> nsb, when needed
+nsb            -> never depends on nsb-cli or nsb-data-tools
 ```
 
 ## Library
@@ -57,7 +56,6 @@ use tempoch::Period;
 let evaluator = NsbEvaluator::new()?;
 let observer = observatories::EL_PARANAL.geodetic();
 
-// 1) NSB at one (time, observer, target):
 let r = evaluator.evaluate(&PointQuery {
     observer,
     time: /* tempoch::Time<UTC> */,
@@ -65,7 +63,6 @@ let r = evaluator.evaluate(&PointQuery {
     components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
 })?;
 
-// 2) UTC sub-periods darker than a threshold within a window:
 let w = evaluator.periods_below_threshold(&ThresholdQuery {
     observer,
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
@@ -78,10 +75,10 @@ let w = evaluator.periods_below_threshold(&ThresholdQuery {
 })?;
 ```
 
-Runnable Rust examples live under `examples/`:
+Runnable Rust examples live under `crates/nsb/examples/`:
 
-- `cargo run --example point_query`
-- `cargo run --example threshold_window`
+- `cargo run -p nsb --example point_query`
+- `cargo run -p nsb --example threshold_window`
 
 ## CLI
 
@@ -109,35 +106,29 @@ cargo run -p nsb-cli -- window \
 Named-site aliases and user-facing parsing live only in the CLI crate, not in the
 runtime library.
 
+## Data tools
+
+`crates/nsb-data-tools` is reserved for offline generation and validation tools,
+including the planned `build_starlight_map` pipeline. These tools are not runtime
+dependencies of `nsb`.
+
 ## Build & test
 
 ```bash
 cargo build --workspace
 cargo test --workspace
-cargo bench   # Criterion benches under benches/threshold_window.rs
+cargo bench -p nsb
 ```
 
 ## Layout
 
 ```text
-examples/              # Runnable library examples
-crates/nsb-cli/        # Operational CLI crate
-docs/                  # Supporting notes and historical reports
-src/
-├── evaluator.rs       # NsbEvaluator + PointQuery + ThresholdQuery
-├── error.rs
-├── components/        # Zodiacal, starlight, airglow, moonlight models
-└── reference/         # Internal shared reference data
+crates/
+├── nsb/             # Runtime library crate, data assets, examples, tests, benches
+├── nsb-cli/         # Operational CLI crate
+└── nsb-data-tools/  # Offline data-generation tools
+docs/                # Supporting notes and historical reports
 ```
-
-## Sibling crates
-
-This crate depends on:
-
-- `qtty` — quantity / unit types
-- `tempoch` — astronomical time scales
-- `siderust` — coordinates, observatories, ephemerides, atmosphere
-- `optica` — spectra and grid interpolation
 
 ## Documentation
 
