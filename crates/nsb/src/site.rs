@@ -7,7 +7,6 @@
 //! are bundled with the crate.
 
 use crate::components::moonlight::AtmosphericConditions;
-use siderust::atmosphere::AtmosphereProfile;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Kilometer, Kilometers};
@@ -136,12 +135,6 @@ impl SiteProfileId {
 
     pub fn all() -> [Self; 3] {
         [Self::GenericClearSky, Self::CtaNorth, Self::CtaSouth]
-    }
-}
-
-impl From<AtmosphereProfile> for AtmosphericConditions {
-    fn from(profile: AtmosphereProfile) -> Self {
-        Self::from_profile_without_altitude(profile)
     }
 }
 
