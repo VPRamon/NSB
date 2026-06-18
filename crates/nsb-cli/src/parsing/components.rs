@@ -30,11 +30,11 @@ mod tests {
     }
 
     #[test]
-    fn parses_all() {
+    fn parses_all_as_production_safe_components() {
         let mask = parse_components("all").unwrap();
         assert!(mask.contains(ComponentMask::ZODIACAL));
-        assert!(mask.contains(ComponentMask::STARLIGHT));
         assert!(mask.contains(ComponentMask::AIRGLOW));
         assert!(mask.contains(ComponentMask::MOON));
+        assert!(!mask.contains(ComponentMask::STARLIGHT));
     }
 }
