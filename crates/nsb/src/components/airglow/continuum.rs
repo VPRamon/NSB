@@ -53,10 +53,11 @@ pub(crate) fn evaluate_continuum(
     let Some(time_bin) = time_of_night_bin(time, location) else {
         return AirglowOutputs::zero();
     };
+    let season_bin = season_bin(time, location);
     let seasonal_corr = continuum
         .mean_corrections
         .get(time_bin)
-        .and_then(|row| row.get(season_bin(time, location)))
+        .and_then(|row| row.get(season_bin))
         .copied()
         .unwrap_or(1.0);
     let scale = continuum.global_scale * solar_corr * seasonal_corr * van_rhijn * user_scale;
@@ -69,6 +70,33 @@ pub(crate) fn evaluate_continuum(
         .collect();
     let integrated = BandPhotonRadiance::new(algo::trapz_range(lam, &flux, WL_LOW_NM, WL_HIGH_NM));
 
+    let relative_uncertainty = continuum
+        .sigma_corrections
+        .get(time_bin)
+        .and_then(|row| row.get(season_bin))
+        .copied()
+        .and_then(|seasonal_sigma| {
+            let sigma_scale = continuum.global_scale
+                * solar_corr.abs()
+                * seasonal_sigma.abs()
+                * van_rhijn.abs()
+                * user_scale
+                * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR;
+            let sigma_flux: Vec<f64> = continuum
+                .uncertainty
+                .ys_raw()
+                .iter()
+                .map(|&sigma| sigma.abs() * sigma_scale)
+                .collect();
+            let sigma_integrated = algo::trapz_range(lam, &sigma_flux, WL_LOW_NM, WL_HIGH_NM).abs();
+            let integrated_value = integrated.value().abs();
+            if integrated_value > 0.0 && sigma_integrated.is_finite() {
+                Some(sigma_integrated / integrated_value)
+            } else {
+                None
+            }
+        });
+
     let b_density = algo::interp_linear(lam, &flux, B_FILTER_NM, OutOfRange::ClampToEndpoints)
         .expect("airglow B interpolation");
     let v_density = algo::interp_linear(lam, &flux, V_FILTER_NM, OutOfRange::ClampToEndpoints)
@@ -78,6 +106,7 @@ pub(crate) fn evaluate_continuum(
         integrated,
         b_flux_s10: spectral_photon_density_to_s10(b_density, Nanometers::new(B_FILTER_NM)),
         v_flux_s10: spectral_photon_density_to_s10(v_density, Nanometers::new(V_FILTER_NM)),
+        relative_uncertainty,
     }
 }
 
