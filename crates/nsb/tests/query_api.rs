@@ -26,6 +26,10 @@ fn sgr_a_star() -> Target {
     Target::new(266.41683 * DEG, -29.00781 * DEG)
 }
 
+fn invalid_target() -> Target {
+    Target::new(f64::NAN * DEG, 0.0 * DEG)
+}
+
 fn default_components() -> ComponentMask {
     ComponentMask::ZODIACAL | ComponentMask::AIRGLOW
 }
@@ -71,6 +75,25 @@ fn point_query_uses_direct_geodetic_observer() {
 }
 
 #[test]
+fn point_query_propagates_selected_component_error() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+
+    let err = evaluator
+        .evaluate(&PointQuery {
+            observer: paranal(),
+            time: parse_obstime("2023-09-04 01:48:00"),
+            target: invalid_target(),
+            components: ComponentMask::ZODIACAL,
+        })
+        .expect_err("invalid selected component input must fail point evaluation");
+
+    assert!(
+        err.to_string().contains("not finite"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn threshold_query_returns_full_window_for_large_threshold() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse_obstime("2023-09-04 01:00:00");
@@ -91,6 +114,31 @@ fn threshold_query_returns_full_window_for_large_threshold() {
     assert_eq!(result.periods.len(), 1);
     assert_eq!(result.periods[0].start, start);
     assert_eq!(result.periods[0].end, end);
+}
+
+#[test]
+fn threshold_query_fails_closed_on_selected_component_error() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let start = parse_obstime("2023-09-04 01:00:00");
+    let end = parse_obstime("2023-09-04 02:00:00");
+
+    let err = evaluator
+        .periods_below_threshold(&ThresholdQuery {
+            observer: paranal(),
+            target: invalid_target(),
+            window: Period::new(start, end),
+            threshold: BandPhotonRadiance::new(1.0e6),
+            components: ComponentMask::ZODIACAL,
+            sample_step: Second::new(600.0),
+            sun_altitude_ceiling: None,
+            target_altitude_floor: None,
+        })
+        .expect_err("threshold search must not treat a failed component as zero");
+
+    assert!(
+        err.to_string().contains("not finite"),
+        "unexpected error: {err}"
+    );
 }
 
 #[test]
