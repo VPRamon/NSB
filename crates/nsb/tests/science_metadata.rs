@@ -35,14 +35,22 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         BandDiagnostic::MONOCHROMATIC_S10_PROXY
     );
 
-    let zodiacal = result.components.iter().find(|c| c.name == "zodiacal").unwrap();
+    let zodiacal = result
+        .components
+        .iter()
+        .find(|c| c.name == "zodiacal")
+        .unwrap();
     assert_eq!(
         zodiacal.metadata.status,
         ComponentCalibrationStatus::GenericClearSky
     );
     assert!(zodiacal.metadata.provenance.contains("Leinert+1998"));
 
-    let airglow = result.components.iter().find(|c| c.name == "airglow").unwrap();
+    let airglow = result
+        .components
+        .iter()
+        .find(|c| c.name == "airglow")
+        .unwrap();
     assert_eq!(
         airglow.metadata.status,
         ComponentCalibrationStatus::GenericClearSky

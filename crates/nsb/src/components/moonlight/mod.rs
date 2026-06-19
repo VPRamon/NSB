@@ -43,7 +43,7 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::event::horizontal::star_horizontal;
-use siderust::qtty::{Hectopascals, Kilometer, Kilometers, Nanometers, OpticalDepths};
+use siderust::qtty::{Hectopascals, Kilometer, Kilometers, Nanometers};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
 use std::sync::OnceLock;
 use tempoch::{Period, Time, JD, TT, UTC};
@@ -230,7 +230,10 @@ mod tests {
         let generic = standard_clear_sky_conditions(location);
         let profile = SiteProfileId::CtaNorth.profile(location);
 
-        assert_ne!(generic.surface_pressure, profile.atmosphere.surface_pressure);
+        assert_ne!(
+            generic.surface_pressure,
+            profile.atmosphere.surface_pressure
+        );
         assert_eq!(profile.atmosphere.surface_pressure.value(), 770.0);
     }
 

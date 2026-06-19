@@ -5,9 +5,7 @@ use super::units::SolarFluxUnits;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
 use qtty::angular::Degrees;
-use qtty::radiometry::{
-    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
-};
+use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use siderust::atmosphere::van_rhijn_factor;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -98,10 +96,11 @@ pub(crate) fn evaluate_continuum(
                 algo::trapz_range(lam, &shape_sigma_flux, WL_LOW_NM, WL_HIGH_NM).abs();
             let level_relative_uncertainty = seasonal_sigma.abs() / seasonal_corr_value;
             let shape_relative_uncertainty = shape_sigma_integrated / integrated_value;
-            let relative_uncertainty =
-                level_relative_uncertainty.hypot(shape_relative_uncertainty);
+            let relative_uncertainty = level_relative_uncertainty.hypot(shape_relative_uncertainty);
 
-            relative_uncertainty.is_finite().then_some(relative_uncertainty)
+            relative_uncertainty
+                .is_finite()
+                .then_some(relative_uncertainty)
         });
 
     let b_density = algo::interp_linear(lam, &flux, B_FILTER_NM, OutOfRange::ClampToEndpoints)

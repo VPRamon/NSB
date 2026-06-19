@@ -106,8 +106,8 @@ fn astronomical_night_containing(
             });
         }
 
-        radius_days = (radius_days * NIGHT_SEARCH_EXPANSION_FACTOR)
-            .min(MAX_NIGHT_SEARCH_RADIUS_DAYS);
+        radius_days =
+            (radius_days * NIGHT_SEARCH_EXPANSION_FACTOR).min(MAX_NIGHT_SEARCH_RADIUS_DAYS);
     }
 }
 

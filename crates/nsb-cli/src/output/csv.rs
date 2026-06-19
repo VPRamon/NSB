@@ -43,7 +43,9 @@ pub fn write_window(periods: &[Period<UTC>]) -> Result<()> {
         writer.write_record([
             format_utc(p.start),
             format_utc(p.end),
-            duration_seconds(*p).map(|v| v.to_string()).unwrap_or_default(),
+            duration_seconds(*p)
+                .map(|v| v.to_string())
+                .unwrap_or_default(),
         ])?;
     }
     writer.flush()?;
@@ -52,14 +54,7 @@ pub fn write_window(periods: &[Period<UTC>]) -> Result<()> {
 
 pub fn write_sites(sites: &[SitePreset]) -> Result<()> {
     let mut writer = csv::Writer::from_writer(std::io::stdout());
-    writer.write_record([
-        "alias",
-        "name",
-        "lon_deg",
-        "lat_deg",
-        "height_m",
-        "aliases",
-    ])?;
+    writer.write_record(["alias", "name", "lon_deg", "lat_deg", "height_m", "aliases"])?;
     for site in sites {
         writer.write_record([
             site.canonical_alias.to_string(),

@@ -74,7 +74,9 @@ fn leinert_lookup_beta_at_90_degrees_succeeds() {
 fn leinert_lookup_rejects_non_finite_inputs() {
     assert!(Leinert1998Grid::lookup_s10(Radians::new(f64::NAN), Radians::new(1.0)).is_err());
     assert!(Leinert1998Grid::lookup_s10(Radians::new(0.5), Radians::new(f64::INFINITY)).is_err());
-    assert!(Leinert1998Grid::lookup_s10(Radians::new(91_f64.to_radians()), Radians::new(1.0)).is_err());
+    assert!(
+        Leinert1998Grid::lookup_s10(Radians::new(91_f64.to_radians()), Radians::new(1.0)).is_err()
+    );
 }
 
 #[test]

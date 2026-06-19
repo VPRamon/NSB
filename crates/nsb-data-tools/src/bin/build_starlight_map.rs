@@ -3,8 +3,8 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
-use std::ffi::OsStr;
 use std::f64::consts::PI;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
@@ -108,7 +108,10 @@ fn run(args: Args) -> Result<()> {
         .comment(Some(b'#'))
         .from_path(&args.input)
         .with_context(|| format!("failed to open input catalogue {}", args.input.display()))?;
-    let headers = reader.headers().context("failed to read CSV header")?.clone();
+    let headers = reader
+        .headers()
+        .context("failed to read CSV header")?
+        .clone();
     let columns = ColumnIndices::from_headers(&headers)?;
 
     let mut read_rows = 0_u64;
@@ -119,10 +122,16 @@ fn run(args: Args) -> Result<()> {
         let Some(star) = parse_star(&record, columns)? else {
             continue;
         };
-        if args.max_v_mag.is_some_and(|max_v_mag| star.v_mag > max_v_mag) {
+        if args
+            .max_v_mag
+            .is_some_and(|max_v_mag| star.v_mag > max_v_mag)
+        {
             continue;
         }
-        if args.min_v_mag.is_some_and(|min_v_mag| star.v_mag < min_v_mag) {
+        if args
+            .min_v_mag
+            .is_some_and(|min_v_mag| star.v_mag < min_v_mag)
+        {
             continue;
         }
 
@@ -198,7 +207,8 @@ impl ColumnIndices {
 }
 
 fn required_header(headers: &StringRecord, name: &str) -> Result<usize> {
-    optional_header(headers, name).ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
+    optional_header(headers, name)
+        .ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
 }
 
 fn optional_header(headers: &StringRecord, name: &str) -> Option<usize> {
@@ -262,9 +272,9 @@ fn write_map(
     let mut out: Box<dyn Write> = if args.output.as_os_str() == OsStr::new("-") {
         Box::new(BufWriter::new(io::stdout()))
     } else {
-        Box::new(BufWriter::new(File::create(&args.output).with_context(|| {
-            format!("failed to create output map {}", args.output.display())
-        })?))
+        Box::new(BufWriter::new(File::create(&args.output).with_context(
+            || format!("failed to create output map {}", args.output.display()),
+        )?))
     };
 
     writeln!(out, "# generated_by=nsb-data-tools build_starlight_map")?;
@@ -344,8 +354,7 @@ fn lat_bin_index(lat_deg: f64, bin_deg: f64, n_lat: usize) -> usize {
 }
 
 fn cell_solid_angle_sr(lon_bin_deg: f64, lat_min_deg: f64, lat_max_deg: f64) -> f64 {
-    lon_bin_deg * DEG_TO_RAD
-        * ((lat_max_deg * DEG_TO_RAD).sin() - (lat_min_deg * DEG_TO_RAD).sin())
+    lon_bin_deg * DEG_TO_RAD * ((lat_max_deg * DEG_TO_RAD).sin() - (lat_min_deg * DEG_TO_RAD).sin())
 }
 
 fn mag_to_10mag_flux(mag: f64) -> f64 {
@@ -362,11 +371,9 @@ fn equatorial_to_galactic(ra_deg: f64, dec_deg: f64) -> (f64, f64) {
     let x_gal = -0.054_875_560_416_215_4 * x_eq
         - 0.873_437_090_234_885_0 * y_eq
         - 0.483_835_015_548_713_2 * z_eq;
-    let y_gal = 0.494_109_427_875_583_7 * x_eq
-        - 0.444_829_629_960_011_2 * y_eq
+    let y_gal = 0.494_109_427_875_583_7 * x_eq - 0.444_829_629_960_011_2 * y_eq
         + 0.746_982_244_497_218_9 * z_eq;
-    let z_gal = -0.867_666_149_019_004_7 * x_eq
-        - 0.198_076_373_431_201_5 * y_eq
+    let z_gal = -0.867_666_149_019_004_7 * x_eq - 0.198_076_373_431_201_5 * y_eq
         + 0.455_983_776_175_066_9 * z_eq;
 
     let lon = normalize_degrees_360(y_gal.atan2(x_gal) * RAD_TO_DEG);
@@ -458,7 +465,9 @@ mod tests {
         })
         .expect_err("empty filtered catalogue should fail");
 
-        assert!(err.to_string().contains("no catalogue rows survived filters"));
+        assert!(err
+            .to_string()
+            .contains("no catalogue rows survived filters"));
         Ok(())
     }
 }
