@@ -1,5 +1,6 @@
 use super::calibration::load_builtin_standard;
 use super::*;
+use crate::site::SiteProfileId;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::catalogs::observatories;
@@ -59,10 +60,7 @@ fn night_phase_time(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Ti
 }
 
 fn bin_at_phase(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Option<usize> {
-    super::temporal::time_of_night_bin_for_test(
-        night_phase_time(seed, location, phase),
-        location,
-    )
+    super::temporal::time_of_night_bin_for_test(night_phase_time(seed, location, phase), location)
 }
 
 #[test]
@@ -126,6 +124,43 @@ fn scale_changes_result() {
 
     let ratio = scaled.integrated.value() / base.integrated.value();
     assert!((ratio - 2.0).abs() < 1e-12);
+}
+
+#[test]
+fn site_profile_airglow_constructor_matches_profile_scale() {
+    let location = cta_n();
+    let time = t("2023-09-04T02:00:00Z");
+    let target = target(266.41683, -29.00781);
+    let profile = SiteProfileId::CtaNorth.profile(location);
+
+    let from_profile = Airglow::for_site_profile(location, SiteProfileId::CtaNorth)
+        .unwrap()
+        .compute(time, target)
+        .unwrap();
+    let explicit = Airglow::with_continuum(location, load_builtin_standard().unwrap())
+        .with_scale(profile.airglow.scale)
+        .compute(time, target)
+        .unwrap();
+
+    assert_eq!(profile.airglow.scale, 1.0);
+    assert_eq!(from_profile.integrated.value(), explicit.integrated.value());
+}
+
+#[test]
+fn cta_site_profile_airglow_results_are_site_sensitive() {
+    let target = target(266.41683, -29.00781);
+    let north = Airglow::for_site_profile(cta_n(), SiteProfileId::CtaNorth)
+        .unwrap()
+        .compute(t("2023-09-04T02:00:00Z"), target)
+        .unwrap();
+    let south = Airglow::for_site_profile(cta_s(), SiteProfileId::CtaSouth)
+        .unwrap()
+        .compute(t("2023-09-04T04:00:00Z"), target)
+        .unwrap();
+
+    assert!(north.integrated > BandPhotonRadiance::zero());
+    assert!(south.integrated > BandPhotonRadiance::zero());
+    assert_ne!(north.integrated.value(), south.integrated.value());
 }
 
 #[test]

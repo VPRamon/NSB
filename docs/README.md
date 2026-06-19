@@ -7,6 +7,7 @@ For the **current** crate API, CLI, and validation contract, start here first:
 | Entry point | Purpose |
 |---|---|
 | `CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` | Beginner-oriented explanation of the astronomy vocabulary, NSB components, and what the crate implements today. |
+| `CTAO_SITE_PROFILES.md` | Machine-readable CTAO planning-profile assumptions, calibration maturity, and validation contract. |
 | `VALIDATION.md` | End-to-end validation contract, CI gates, tolerance policy, and external reference-data process. |
 | `../README.md` | Current package overview, library API, CLI usage, validation entry point, and layout. |
 | `../examples/point_query.rs` | Runnable point-in-time library example. |
