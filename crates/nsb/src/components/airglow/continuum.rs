@@ -76,25 +76,32 @@ pub(crate) fn evaluate_continuum(
         .and_then(|row| row.get(season_bin))
         .copied()
         .and_then(|seasonal_sigma| {
-            let sigma_scale = continuum.global_scale
+            let integrated_value = integrated.value().abs();
+            let seasonal_corr_value = seasonal_corr.abs();
+            if integrated_value <= 0.0 || seasonal_corr_value <= 0.0 {
+                return None;
+            }
+
+            let common_scale = continuum.global_scale.abs()
                 * solar_corr.abs()
-                * seasonal_sigma.abs()
+                * seasonal_corr_value
                 * van_rhijn.abs()
                 * user_scale
                 * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR;
-            let sigma_flux: Vec<f64> = continuum
+            let shape_sigma_flux: Vec<f64> = continuum
                 .uncertainty
                 .ys_raw()
                 .iter()
-                .map(|&sigma| sigma.abs() * sigma_scale)
+                .map(|&sigma| sigma.abs() * common_scale)
                 .collect();
-            let sigma_integrated = algo::trapz_range(lam, &sigma_flux, WL_LOW_NM, WL_HIGH_NM).abs();
-            let integrated_value = integrated.value().abs();
-            if integrated_value > 0.0 && sigma_integrated.is_finite() {
-                Some(sigma_integrated / integrated_value)
-            } else {
-                None
-            }
+            let shape_sigma_integrated =
+                algo::trapz_range(lam, &shape_sigma_flux, WL_LOW_NM, WL_HIGH_NM).abs();
+            let level_relative_uncertainty = seasonal_sigma.abs() / seasonal_corr_value;
+            let shape_relative_uncertainty = shape_sigma_integrated / integrated_value;
+            let relative_uncertainty =
+                level_relative_uncertainty.hypot(shape_relative_uncertainty);
+
+            relative_uncertainty.is_finite().then_some(relative_uncertainty)
         });
 
     let b_density = algo::interp_linear(lam, &flux, B_FILTER_NM, OutOfRange::ClampToEndpoints)
