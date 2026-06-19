@@ -267,6 +267,18 @@ mod tests {
         )
     }
 
+    fn profile_from_conditions(
+        location: Geodetic<ECEF>,
+        conditions: AtmosphericConditions,
+    ) -> AtmosphereProfile {
+        AtmosphereProfile {
+            surface_pressure: conditions.surface_pressure,
+            observer_altitude: location.height.to::<Kilometer>(),
+            rayleigh_scale_height: conditions.rayleigh_scale_height,
+            mie_params: conditions.mie_params,
+        }
+    }
+
     #[test]
     fn ks_zero_when_moon_below_horizon() {
         let mut g = geometry(40.0);
@@ -331,6 +343,30 @@ mod tests {
         )
         .unwrap();
         assert_ne!(paranal.integrated.value(), sea_level.integrated.value());
+    }
+
+    #[test]
+    fn cta_n_profile_changes_jones_result_against_generic_clear_sky() {
+        let location = Geodetic::<ECEF>::new_raw(
+            SiderustDegrees::new(-17.892),
+            SiderustDegrees::new(28.762),
+            Meters::new(2_200.0),
+        );
+        let g = geometry(50.0);
+        let generic = compute_jones2013_with_profile(
+            &g,
+            profile_from_conditions(location, AtmosphericConditions::generic_clear_sky(location)),
+            DEFAULT_K_EXT,
+        )
+        .unwrap();
+        let cta_n = compute_jones2013_with_profile(
+            &g,
+            profile_from_conditions(location, SiteProfileId::CtaNorth.profile(location).atmosphere),
+            DEFAULT_K_EXT,
+        )
+        .unwrap();
+
+        assert_ne!(generic.integrated.value(), cta_n.integrated.value());
     }
 
     #[test]

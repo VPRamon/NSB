@@ -16,8 +16,9 @@
 //! specific calibrations and grids live inside their component modules.
 //!
 //! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
-//! photometry, and passbands. NSB owns NSB-specific component composition and
-//! planning windows.
+//! photometry, and passbands. NSB owns NSB-specific component composition,
+//! planning windows, and site-profile metadata that distinguishes generic
+//! fallbacks from explicit named planning presets.
 
 #![forbid(unsafe_code)]
 
@@ -25,6 +26,7 @@ pub mod components;
 pub mod error;
 pub mod evaluator;
 mod reference;
+pub mod site;
 
 pub use components::airglow::{
     Airglow, AirglowContinuum, AirglowOutputs, SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX,
@@ -40,6 +42,7 @@ pub use evaluator::{
     ComponentMask, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult, Observer,
     PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
+pub use site::{AirglowSiteCalibration, CalibrationStatus, SiteProfile, SiteProfileId};
 
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
 pub use siderust::coordinates::spherical::Direction as SphericalDirection;

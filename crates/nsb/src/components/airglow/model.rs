@@ -1,9 +1,10 @@
+use super::calibration::{load_builtin_standard, AirglowContinuum};
 use super::continuum::evaluate_continuum;
 use super::geometry::target_altitude;
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
-use super::calibration::{load_builtin_standard, AirglowContinuum};
+use crate::site::SiteProfileId;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
@@ -20,6 +21,17 @@ pub struct Airglow {
 impl Airglow {
     pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Self> {
         Ok(Self::with_continuum(location, load_builtin_standard()?))
+    }
+
+    /// Build an airglow model from a named NSB site profile.
+    ///
+    /// CTAO profiles currently use the bundled SkyCalc-derived continuum with a
+    /// neutral site scale and explicit uncalibrated provenance. This constructor
+    /// is still preferred over `standard_clear_sky` for CTAO call sites because
+    /// the selected assumptions are machine-readable instead of implicit.
+    pub fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Result<Self> {
+        let profile = site_profile.profile(location);
+        Ok(Self::with_continuum(location, load_builtin_standard()?).with_scale(profile.airglow.scale))
     }
 
     pub fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {
