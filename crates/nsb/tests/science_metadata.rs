@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use nsb::{
-    BandDiagnostic, CalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target, DEG,
+    BandDiagnostic, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target,
+    DEG,
 };
 use siderust::catalogs::observatories;
 use tempoch::{Time, UTC};
@@ -43,7 +44,10 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .iter()
         .find(|component| component.name == "zodiacal")
         .expect("zodiacal component");
-    assert_eq!(zodiacal.metadata.status, CalibrationStatus::GenericClearSky);
+    assert_eq!(
+        zodiacal.metadata.status,
+        ComponentCalibrationStatus::GenericClearSky
+    );
     assert!(zodiacal.metadata.provenance.contains("Leinert+1998"));
     assert_eq!(
         zodiacal.metadata.band_diagnostic,
@@ -55,7 +59,10 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .iter()
         .find(|component| component.name == "airglow")
         .expect("airglow component");
-    assert_eq!(airglow.metadata.status, CalibrationStatus::GenericClearSky);
+    assert_eq!(
+        airglow.metadata.status,
+        ComponentCalibrationStatus::GenericClearSky
+    );
     assert!(airglow.metadata.provenance.contains("airglow_cont.dat"));
     let airglow_uncertainty = airglow
         .relative_uncertainty
@@ -70,7 +77,10 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .iter()
         .find(|component| component.name == "moon")
         .expect("moon component");
-    assert_eq!(moon.metadata.status, CalibrationStatus::GenericClearSky);
+    assert_eq!(
+        moon.metadata.status,
+        ComponentCalibrationStatus::GenericClearSky
+    );
     assert!(moon.metadata.provenance.contains("Jones+2013"));
-    assert!(moon.metadata.validated_domain.contains("generic clear-sky"));
+    assert!(moon.metadata.validated_domain.contains("generic-clear-sky"));
 }
