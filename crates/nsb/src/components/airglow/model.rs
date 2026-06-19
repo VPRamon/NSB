@@ -31,7 +31,8 @@ impl Airglow {
     /// the selected assumptions are machine-readable instead of implicit.
     pub fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Result<Self> {
         let profile = site_profile.profile(location);
-        Ok(Self::with_continuum(location, load_builtin_standard()?).with_scale(profile.airglow.scale))
+        Ok(Self::with_continuum(location, load_builtin_standard()?)
+            .with_scale(profile.airglow.scale))
     }
 
     pub fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {

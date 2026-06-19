@@ -53,7 +53,10 @@ fn site_presets_are_explicitly_distinct_from_generic_clear_sky() {
     let cta_s = AtmosphericConditions::cta_s_clear_sky();
     let cta_n = AtmosphericConditions::cta_n_clear_sky();
 
-    assert_eq!(paranal, cta_s, "CTA-S currently aliases the explicit Paranal-like preset");
+    assert_eq!(
+        paranal, cta_s,
+        "CTA-S currently aliases the explicit Paranal-like preset"
+    );
     assert_ne!(generic.surface_pressure, cta_n.surface_pressure);
     assert_ne!(cta_n.surface_pressure, cta_s.surface_pressure);
 }
@@ -87,9 +90,17 @@ fn quantitative_reference_fixture_is_well_formed() {
     let mut wavelengths_by_case: BTreeMap<&str, BTreeSet<u64>> = BTreeMap::new();
     let mut integrated_by_case: BTreeMap<&str, f64> = BTreeMap::new();
 
-    for line in fixture.lines().skip(1).filter(|line| !line.trim().is_empty()) {
+    for line in fixture
+        .lines()
+        .skip(1)
+        .filter(|line| !line.trim().is_empty())
+    {
         let columns: Vec<_> = line.split(',').collect();
-        assert_eq!(columns.len(), 12, "reference fixture schema changed: {line}");
+        assert_eq!(
+            columns.len(),
+            12,
+            "reference fixture schema changed: {line}"
+        );
 
         let case_id = columns[0];
         let phase_angle_deg: f64 = columns[2].parse().expect("phase angle");
@@ -130,7 +141,10 @@ fn quantitative_reference_fixture_is_well_formed() {
         checked += 1;
     }
 
-    assert!(checked >= 8, "reference fixture should cover multiple geometries and wavelengths");
+    assert!(
+        checked >= 8,
+        "reference fixture should cover multiple geometries and wavelengths"
+    );
     assert!(
         wavelengths_by_case.len() >= 3,
         "reference fixture should cover multiple moonlight geometries"

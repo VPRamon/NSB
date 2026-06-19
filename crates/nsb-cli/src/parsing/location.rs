@@ -100,10 +100,7 @@ pub fn resolve_site(alias: &str) -> Option<SitePreset> {
 }
 
 fn normalize_alias(alias: &str) -> String {
-    alias
-        .trim()
-        .to_ascii_uppercase()
-        .replace(['_', ' '], "-")
+    alias.trim().to_ascii_uppercase().replace(['_', ' '], "-")
 }
 
 #[cfg(test)]

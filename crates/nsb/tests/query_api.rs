@@ -68,11 +68,15 @@ fn cta_planning_configs_select_named_site_profiles() {
     assert_eq!(north.site_profile, SiteProfileId::CtaNorth);
     assert_eq!(south.site_profile, SiteProfileId::CtaSouth);
     assert_eq!(
-        SiteProfileId::CtaNorth.profile(paranal()).calibration_status,
+        SiteProfileId::CtaNorth
+            .profile(paranal())
+            .calibration_status,
         CalibrationStatus::PlanningPreset
     );
     assert_eq!(
-        SiteProfileId::CtaSouth.profile(paranal()).calibration_status,
+        SiteProfileId::CtaSouth
+            .profile(paranal())
+            .calibration_status,
         CalibrationStatus::PlanningPreset
     );
 }
@@ -93,10 +97,22 @@ fn all_components_is_generic_clear_sky_safe_without_bundled_starlight() {
         .expect("generic clear-sky ALL must not require starlight data");
 
     assert!(result.integrated.value() > 0.0);
-    assert!(result.components.iter().any(|component| component.name == "zodiacal"));
-    assert!(result.components.iter().any(|component| component.name == "airglow"));
-    assert!(result.components.iter().any(|component| component.name == "moon"));
-    assert!(!result.components.iter().any(|component| component.name == "starlight"));
+    assert!(result
+        .components
+        .iter()
+        .any(|component| component.name == "zodiacal"));
+    assert!(result
+        .components
+        .iter()
+        .any(|component| component.name == "airglow"));
+    assert!(result
+        .components
+        .iter()
+        .any(|component| component.name == "moon"));
+    assert!(!result
+        .components
+        .iter()
+        .any(|component| component.name == "starlight"));
 }
 
 #[test]

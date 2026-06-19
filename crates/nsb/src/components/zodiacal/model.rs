@@ -56,7 +56,8 @@ impl ZodiacalBrightnessGrid {
         if s10_values.len() != beta_axis.len() {
             return Err(NsbError::OutOfRange(format!(
                 "s10_values row count {} != beta_axis length {}",
-                s10_values.len(), beta_axis.len()
+                s10_values.len(),
+                beta_axis.len()
             )));
         }
         for (i, row) in s10_values.iter().enumerate() {
@@ -152,7 +153,10 @@ impl ZodiacalLight {
         })
     }
 
-    pub fn with_solar_spectrum(mut self, solar_spectrum: SampledSpectrum<Nanometer, Meter>) -> Self {
+    pub fn with_solar_spectrum(
+        mut self,
+        solar_spectrum: SampledSpectrum<Nanometer, Meter>,
+    ) -> Self {
         self.solar_spectrum = solar_spectrum;
         self
     }

@@ -576,14 +576,8 @@ impl NsbEvaluator {
 
         Ok(NsbResult {
             integrated: total,
-            b_mag: s10_to_surface_brightness(
-                b_total.max(S10::new(f64::MIN_POSITIVE)),
-                NSB_S10_ZP,
-            ),
-            v_mag: s10_to_surface_brightness(
-                v_total.max(S10::new(f64::MIN_POSITIVE)),
-                NSB_S10_ZP,
-            ),
+            b_mag: s10_to_surface_brightness(b_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
+            v_mag: s10_to_surface_brightness(v_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
             components,
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         })
@@ -614,7 +608,9 @@ impl NsbEvaluator {
                     .to_string(),
                 ));
             }
-            StarlightModel::BundledCatalogueMap => starlight::Starlight::catalogue_galactic_model()?,
+            StarlightModel::BundledCatalogueMap => {
+                starlight::Starlight::catalogue_galactic_model()?
+            }
             StarlightModel::CustomMap(map) => starlight::Starlight::with_map((**map).clone()),
         };
         model.compute(target)
@@ -628,7 +624,8 @@ impl NsbEvaluator {
     ) -> Result<moonlight::MoonOutputs> {
         match self.config.moonlight_model {
             MoonlightModel::KrisciunasSchaefer1991 => {
-                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer).compute(time, target)
+                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer)
+                    .compute(time, target)
             }
             MoonlightModel::Jones2013Spectral => {
                 moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile)

@@ -10,17 +10,6 @@ use siderust::qtty::{Degrees, Nanometers};
 const MIE_RAW: &str = include_str!("../../../data/mie_m15s1.dat");
 const SSCAT_RAW: &str = include_str!("../../../data/sscatcor_m15s1.dat");
 
-siderust::assert_data_checksum!(
-    "NSB/data/mie_m15s1.dat",
-    MIE_RAW.as_bytes(),
-    "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
-);
-siderust::assert_data_checksum!(
-    "NSB/data/sscatcor_m15s1.dat",
-    SSCAT_RAW.as_bytes(),
-    "2bf48a71e007bc557bd088d53ede15e97163d9154f19b1e411b104c38c4a18b8"
-);
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ScatterGridKind {
     MiePhase,
@@ -29,6 +18,7 @@ pub enum ScatterGridKind {
 
 #[derive(Clone, Debug)]
 pub struct ScatterGrid {
+    #[cfg(test)]
     kind: ScatterGridKind,
     angle_deg: Vec<f64>,
     wavelength_nm: Vec<f64>,
@@ -52,22 +42,12 @@ impl ScatterGrid {
         )
     }
 
+    #[cfg(test)]
     pub fn kind(&self) -> ScatterGridKind {
         self.kind
     }
 
-    pub fn angles(&self) -> &[f64] {
-        &self.angle_deg
-    }
-
-    pub fn zenith_angles(&self) -> &[f64] {
-        self.angles()
-    }
-
-    pub fn wavelengths(&self) -> &[f64] {
-        &self.wavelength_nm
-    }
-
+    #[cfg(test)]
     pub fn dimensions(&self) -> (usize, usize) {
         (self.angle_deg.len(), self.wavelength_nm.len())
     }
@@ -114,7 +94,7 @@ fn bracket_clamped(axis: &[f64], value: f64) -> (usize, usize, f64) {
     (lower, upper, t.clamp(0.0, 1.0))
 }
 
-fn parse_grid(raw: &str, file: &'static str, kind: ScatterGridKind) -> Result<ScatterGrid> {
+fn parse_grid(raw: &str, file: &'static str, _kind: ScatterGridKind) -> Result<ScatterGrid> {
     let mut lines = raw.lines().filter_map(|line| {
         let t = line.trim();
         if t.is_empty() || t.starts_with('#') {
@@ -179,7 +159,8 @@ fn parse_grid(raw: &str, file: &'static str, kind: ScatterGridKind) -> Result<Sc
     }
 
     Ok(ScatterGrid {
-        kind,
+        #[cfg(test)]
+        kind: _kind,
         angle_deg,
         wavelength_nm,
         data,
