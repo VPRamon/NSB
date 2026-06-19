@@ -28,7 +28,8 @@ Components:
 
 `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
 photometry, passbands, and observatory catalogues. NSB owns NSB-specific
-component composition, calibration assets, and planner windows.
+component composition, calibration assets, planner windows, and site-profile
+metadata.
 
 Shared reference inputs live in internal `reference` modules; component-specific
 calibrations and grids live inside their component modules.
@@ -59,9 +60,28 @@ data.
 Preset names intentionally encode maturity:
 
 - `generic_clear_sky()` is the current default baseline.
+- `NsbModelConfig::cta_n_planning()` and `NsbModelConfig::cta_s_planning()`
+  select explicit CTAO planning profiles with machine-readable atmospheric,
+  airglow, and provenance assumptions. They are not marked as fully
+  site-calibrated until dedicated CTAO validation data are bundled.
 - `python_parity()` is hidden and reserved for historical regression parity.
 - Names such as `standard` or `best_science` are not exposed until a complete,
   reproducible, and quantitatively validated model configuration exists.
+
+Use named profiles at CTAO call sites instead of relying on generic fallback
+constructors:
+
+```rust
+use nsb::{Airglow, Jones2013Spectral, NsbEvaluator, NsbModelConfig, SiteProfileId};
+
+let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning())?;
+let moonlight = Jones2013Spectral::for_site_profile(observer, SiteProfileId::CtaSouth);
+let airglow = Airglow::for_site_profile(observer, SiteProfileId::CtaSouth)?;
+let profile = SiteProfileId::CtaSouth.profile(observer);
+assert!(!profile.is_site_calibrated());
+```
+
+Detailed CTAO profile assumptions live in `docs/CTAO_SITE_PROFILES.md`.
 
 `ComponentMask::ALL` currently means zodiacal light, airglow, and scattered
 moonlight. It intentionally excludes starlight until a catalogue-derived Galactic
@@ -181,6 +201,8 @@ docs/                # Supporting notes and historical reports
   of the domain concepts and the current implementation.
 - `docs/SCIENTIFIC_METADATA.md` — calibration status, provenance, uncertainty,
   B/V proxy convention, and first-order component error budget.
+- `docs/CTAO_SITE_PROFILES.md` — machine-readable site-profile assumptions and
+  calibration maturity for CTAO planning presets.
 - `docs/VALIDATION.md` — end-to-end validation contract, CI gates, and external
   reference-data process.
 - `docs/README.md` — documentation index and pointers to historical reports.

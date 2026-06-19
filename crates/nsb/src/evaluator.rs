@@ -10,6 +10,7 @@ use crate::components::airglow::AirglowContinuum;
 use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalLight};
 use crate::components::{airglow, moonlight, starlight};
 use crate::error::{NsbError, Result};
+use crate::site::SiteProfileId;
 use crate::NSB_S10_ZP;
 use qtty::angular::Degrees;
 use qtty::photometry::{s10_to_surface_brightness, SurfaceBrightness};
@@ -227,6 +228,7 @@ impl StarlightModel {
 #[derive(Debug, Clone)]
 pub struct NsbModelConfig {
     pub moonlight_model: MoonlightModel,
+    pub site_profile: SiteProfileId,
     pub starlight_model: StarlightModel,
     pub solar_radio_flux: airglow::SolarFluxUnits,
     pub zodiacal_extinction: ZodiacalExtinction,
@@ -245,10 +247,34 @@ impl NsbModelConfig {
     pub fn generic_clear_sky() -> Self {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
+            site_profile: SiteProfileId::GenericClearSky,
             starlight_model: StarlightModel::Disabled,
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
             zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
         }
+    }
+
+    /// CTAO-North planning configuration.
+    ///
+    /// This selects explicit CTA-N profile metadata and component assumptions.
+    /// The profile is not marked as fully site-calibrated until dedicated CTAO
+    /// validation inputs are bundled.
+    pub fn cta_n_planning() -> Self {
+        Self::generic_clear_sky().with_site_profile(SiteProfileId::CtaNorth)
+    }
+
+    /// CTAO-South planning configuration.
+    ///
+    /// This selects explicit CTA-S profile metadata and component assumptions.
+    /// The profile is not marked as fully site-calibrated until dedicated CTAO
+    /// validation inputs are bundled.
+    pub fn cta_s_planning() -> Self {
+        Self::generic_clear_sky().with_site_profile(SiteProfileId::CtaSouth)
+    }
+
+    pub fn with_site_profile(mut self, site_profile: SiteProfileId) -> Self {
+        self.site_profile = site_profile;
+        self
     }
 
     /// Historical preset retained for regression tests.
@@ -259,6 +285,7 @@ impl NsbModelConfig {
     pub fn python_parity() -> Self {
         Self {
             moonlight_model: MoonlightModel::KrisciunasSchaefer1991,
+            site_profile: SiteProfileId::GenericClearSky,
             starlight_model: StarlightModel::Disabled,
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
             zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
@@ -568,8 +595,10 @@ impl NsbEvaluator {
         time: Time<UTC>,
         target: Target,
     ) -> Result<airglow::AirglowOutputs> {
+        let profile = self.config.site_profile.profile(observer);
         airglow::Airglow::with_continuum(observer, self.airglow_continuum.clone())
             .with_solar_radio_flux(self.config.solar_radio_flux)
+            .with_scale(profile.airglow.scale)
             .compute(time, target)
     }
 
@@ -602,7 +631,8 @@ impl NsbEvaluator {
                 moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer).compute(time, target)
             }
             MoonlightModel::Jones2013Spectral => {
-                moonlight::Jones2013Spectral::standard_clear_sky(observer).compute(time, target)
+                moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile)
+                    .compute(time, target)
             }
         }
     }

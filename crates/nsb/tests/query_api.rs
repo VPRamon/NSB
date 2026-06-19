@@ -1,7 +1,7 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::{
-    ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap,
-    StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
+    CalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
+    SiteProfileId, StarlightMap, StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -47,6 +47,7 @@ fn evaluator_defaults_to_generic_clear_sky_config() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let config = evaluator.config();
     assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
+    assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
     assert!(matches!(config.starlight_model, StarlightModel::Disabled));
 }
 
@@ -55,7 +56,25 @@ fn default_model_config_is_generic_clear_sky() {
     let default = NsbModelConfig::default();
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model, explicit.moonlight_model);
+    assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
     assert!(matches!(default.starlight_model, StarlightModel::Disabled));
+}
+
+#[test]
+fn cta_planning_configs_select_named_site_profiles() {
+    let north = NsbModelConfig::cta_n_planning();
+    let south = NsbModelConfig::cta_s_planning();
+
+    assert_eq!(north.site_profile, SiteProfileId::CtaNorth);
+    assert_eq!(south.site_profile, SiteProfileId::CtaSouth);
+    assert_eq!(
+        SiteProfileId::CtaNorth.profile(paranal()).calibration_status,
+        CalibrationStatus::PlanningPreset
+    );
+    assert_eq!(
+        SiteProfileId::CtaSouth.profile(paranal()).calibration_status,
+        CalibrationStatus::PlanningPreset
+    );
 }
 
 #[test]
@@ -87,6 +106,7 @@ fn python_parity_config_selects_legacy_moon_model() {
         config.moonlight_model,
         MoonlightModel::KrisciunasSchaefer1991
     );
+    assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
     assert!(matches!(config.starlight_model, StarlightModel::Disabled));
 }
 
