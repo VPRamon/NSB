@@ -1,3 +1,27 @@
+//! `nsb` — Night Sky Background model.
+//!
+//! Computes the photon flux reaching a ground-based observer from a configurable
+//! sum of zodiacal light, integrated starlight, airglow, and scattered moonlight.
+//! Integrated starlight requires an explicit starlight map configuration until a
+//! production catalogue-derived bundled map is shipped.
+//!
+//! The library API is intentionally typed and CLI-free: callers pass
+//! `Geodetic<ECEF>` observers, `Time<UTC>` instants, and equatorial target
+//! directions directly. Named-site parsing, command-line flags, and output
+//! formatting belong in a separate CLI crate that consumes this library.
+//!
+//! # Architecture
+//!
+//! Shared reference inputs live in internal `reference` modules; component-
+//! specific calibrations and grids live inside their component modules.
+//!
+//! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
+//! photometry, and passbands. NSB owns NSB-specific component composition,
+//! planning windows, and site-profile metadata that distinguishes generic
+//! fallbacks from explicit named planning presets.
+
+#![forbid(unsafe_code)]
+
 pub mod components;
 pub mod error;
 pub mod evaluator;
@@ -15,16 +39,14 @@ pub use components::zodiacal::{
 };
 pub use error::{NsbError, Result};
 pub use evaluator::{
-    BandDiagnostic, CalibrationStatus, ComponentMask, MoonlightModel, NsbComponent,
-    NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult, Observer, PointQuery,
-    StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
+    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, MoonlightModel,
+    NsbComponent, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult, Observer,
+    PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
 pub use site::{
-    AirglowSiteCalibration, CalibrationStatus as SiteCalibrationStatus, SiteProfile,
-    SiteProfileId,
+    AirglowSiteCalibration, CalibrationStatus, CalibrationStatus as SiteCalibrationStatus,
+    SiteProfile, SiteProfileId,
 };
-
-pub type ComponentCalibrationStatus = CalibrationStatus;
 
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
 pub use siderust::coordinates::spherical::Direction as SphericalDirection;

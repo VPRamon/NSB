@@ -1,18 +1,22 @@
 //! Empirical continuum airglow component.
 //!
 //! Airglow is terrestrial atmospheric emission and a natural part of the night
-//! sky background. NSB exposes a single site-bound empirical continuum model:
+//! sky background. NSB exposes a site-bound empirical continuum model:
 //!
 //! ```ignore
-//! let airglow = Airglow::standard_clear_sky(location)?;
+//! let airglow = Airglow::for_site_profile(location, SiteProfileId::CtaSouth)?;
 //! let out = airglow.compute(time, target)?;
 //! ```
 //!
-//! `standard_clear_sky` uses the bundled SkyCalc-derived empirical continuum
-//! template. It is suitable for generic clear-sky planning, but it is not a
-//! site-calibrated high-precision prediction for every observing location. For
-//! site-specific calibration, load or build an [`AirglowContinuum`] and pass it
-//! to [`Airglow::with_continuum`].
+//! `for_site_profile` records the named site assumptions used for the airglow
+//! continuum. CTAO profiles currently use the bundled SkyCalc-derived empirical
+//! continuum template with a neutral site scale and explicit uncalibrated
+//! provenance. `standard_clear_sky` remains available as a generic fallback, but
+//! CTAO callers should prefer named profiles so the calibration maturity is
+//! visible at the API boundary.
+//!
+//! For site-specific calibration, load or build an [`AirglowContinuum`] and pass
+//! it to [`Airglow::with_continuum`].
 
 pub(crate) mod calibration;
 mod continuum;
