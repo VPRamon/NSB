@@ -52,6 +52,15 @@ where
             } else {
                 open_start = Some(crossing);
             }
+        } else if let Some((entry, exit)) = complete_band_straddle_boundaries(y0, y1, min, max) {
+            let entry_time = refine_threshold_crossing(t0, y0, t1, y1, &value_at, entry)?;
+            let exit_time = refine_threshold_crossing(t0, y0, t1, y1, &value_at, exit)?;
+            let (start, end) = if entry_time <= exit_time {
+                (entry_time, exit_time)
+            } else {
+                (exit_time, entry_time)
+            };
+            push_non_empty_period(&mut periods, start, end);
         }
 
         t0 = t1;
@@ -129,6 +138,24 @@ where
     Ok(value >= min && value <= max)
 }
 
+fn complete_band_straddle_boundaries<V>(
+    y0: Quantity<V>,
+    y1: Quantity<V>,
+    min: Quantity<V>,
+    max: Quantity<V>,
+) -> Option<(Quantity<V>, Quantity<V>)>
+where
+    V: Unit,
+{
+    if y0 < min && y1 > max {
+        Some((min, max))
+    } else if y0 > max && y1 < min {
+        Some((max, min))
+    } else {
+        None
+    }
+}
+
 fn refine_range_crossing<V, F>(
     mut lo: DateTime<Utc>,
     mut y_lo: Quantity<V>,
@@ -165,6 +192,40 @@ where
     Ok(linear_boundary_estimate(lo, y_lo, hi, y_hi, min, max))
 }
 
+fn refine_threshold_crossing<V, F>(
+    mut lo: DateTime<Utc>,
+    mut y_lo: Quantity<V>,
+    mut hi: DateTime<Utc>,
+    mut y_hi: Quantity<V>,
+    value_at: &F,
+    threshold: Quantity<V>,
+) -> Result<DateTime<Utc>>
+where
+    V: Unit,
+    F: Fn(Time<UTC>) -> Result<Quantity<V>>,
+{
+    let lo_below = y_lo < threshold;
+    for _ in 0..48 {
+        let mid = midpoint(lo, hi);
+        if mid <= lo || mid >= hi {
+            break;
+        }
+        let y_mid = value_at_chrono(mid, value_at)?;
+        if (y_mid < threshold) == lo_below {
+            lo = mid;
+            y_lo = y_mid;
+        } else {
+            hi = mid;
+            y_hi = y_mid;
+        }
+        if microseconds_between(lo, hi).is_some_and(|us| us <= 1_000) {
+            break;
+        }
+    }
+
+    Ok(linear_threshold_estimate(lo, y_lo, hi, y_hi, threshold))
+}
+
 fn linear_boundary_estimate<V>(
     lo: DateTime<Utc>,
     y_lo: Quantity<V>,
@@ -179,6 +240,32 @@ where
     let Some(threshold) = crossed_boundary_value(y_lo, y_hi, min, max) else {
         return midpoint(lo, hi);
     };
+    linear_boundary_value_estimate(lo, y_lo, hi, y_hi, threshold)
+}
+
+fn linear_threshold_estimate<V>(
+    lo: DateTime<Utc>,
+    y_lo: Quantity<V>,
+    hi: DateTime<Utc>,
+    y_hi: Quantity<V>,
+    threshold: Quantity<V>,
+) -> DateTime<Utc>
+where
+    V: Unit,
+{
+    linear_boundary_value_estimate(lo, y_lo, hi, y_hi, threshold.value())
+}
+
+fn linear_boundary_value_estimate<V>(
+    lo: DateTime<Utc>,
+    y_lo: Quantity<V>,
+    hi: DateTime<Utc>,
+    y_hi: Quantity<V>,
+    threshold: f64,
+) -> DateTime<Utc>
+where
+    V: Unit,
+{
     let denom = y_hi.value() - y_lo.value();
     if !denom.is_finite() || denom == 0.0 {
         return midpoint(lo, hi);
@@ -255,5 +342,72 @@ fn push_non_empty_period(periods: &mut Vec<Period<UTC>>, start: DateTime<Utc>, e
             Time::<UTC>::from_chrono(start),
             Time::<UTC>::from_chrono(end),
         ));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{DateTime, Utc};
+    use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
+
+    fn parse_utc(input: &str) -> Time<UTC> {
+        Time::<UTC>::from_chrono(
+            DateTime::parse_from_rfc3339(input)
+                .unwrap()
+                .with_timezone(&Utc),
+        )
+    }
+
+    fn ten_minute_window() -> Period<UTC> {
+        Period::new(
+            parse_utc("2023-09-04T02:00:00Z"),
+            parse_utc("2023-09-04T02:10:00Z"),
+        )
+    }
+
+    fn assert_detects_complete_band_straddle(slope_sign: f64) {
+        let window = ten_minute_window();
+        let start = utc_to_chrono(window.start).unwrap();
+
+        let periods = periods_in_range(
+            window,
+            Second::new(600.0),
+            Radiance::new(8.0),
+            Radiance::new(12.0),
+            |time| {
+                let elapsed = utc_to_chrono(time)?
+                    .signed_duration_since(start)
+                    .num_seconds() as f64;
+                let ascending = elapsed / 30.0;
+                let value = if slope_sign.is_sign_positive() {
+                    ascending
+                } else {
+                    20.0 - ascending
+                };
+                Ok(Radiance::new(value))
+            },
+        )
+        .unwrap();
+
+        assert_eq!(periods.len(), 1);
+        assert_eq!(
+            utc_to_chrono(periods[0].start).unwrap(),
+            start + Duration::seconds(240)
+        );
+        assert_eq!(
+            utc_to_chrono(periods[0].end).unwrap(),
+            start + Duration::seconds(360)
+        );
+    }
+
+    #[test]
+    fn periods_in_range_detects_ascending_complete_band_straddle_between_samples() {
+        assert_detects_complete_band_straddle(1.0);
+    }
+
+    #[test]
+    fn periods_in_range_detects_descending_complete_band_straddle_between_samples() {
+        assert_detects_complete_band_straddle(-1.0);
     }
 }
