@@ -77,7 +77,8 @@ pub enum ZodiacalExtinctionArg {
 #[derive(Debug, Args)]
 pub struct ModelArgs {
     /// Components to include: comma-separated zodiacal,starlight,airglow,moon or all.
-    #[arg(long, default_value = "zodiacal,airglow")]
+    /// The default `all` maps to the library production-safe set: zodiacal, airglow, and moon.
+    #[arg(long, default_value = "all")]
     pub components: String,
 
     /// Moonlight model.
