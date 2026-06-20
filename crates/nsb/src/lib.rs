@@ -27,6 +27,7 @@ pub mod error;
 pub mod evaluator;
 mod reference;
 pub mod site;
+mod window_search;
 
 pub use components::airglow::{
     Airglow, AirglowContinuum, AirglowOutputs, SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX,

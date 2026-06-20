@@ -48,10 +48,18 @@ fn default_components_include_moonlight() {
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let components = value["components"].as_array().unwrap();
-    assert!(components.iter().any(|component| component["name"] == "zodiacal"));
-    assert!(components.iter().any(|component| component["name"] == "airglow"));
-    assert!(components.iter().any(|component| component["name"] == "moon"));
-    assert!(!components.iter().any(|component| component["name"] == "starlight"));
+    assert!(components
+        .iter()
+        .any(|component| component["name"] == "zodiacal"));
+    assert!(components
+        .iter()
+        .any(|component| component["name"] == "airglow"));
+    assert!(components
+        .iter()
+        .any(|component| component["name"] == "moon"));
+    assert!(!components
+        .iter()
+        .any(|component| component["name"] == "starlight"));
 }
 
 #[test]
