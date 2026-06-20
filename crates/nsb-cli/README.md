@@ -10,6 +10,12 @@ runtime library:
 - output formatting (`table`, `json`, `csv`);
 - operational defaults for point and planning queries.
 
+By default, `--components all` is used. In the library this maps to the
+production-safe component set: zodiacal light, airglow, and scattered moonlight.
+It intentionally excludes starlight until a validated starlight map is available.
+Use `--components zodiacal,airglow` only when a dark-sky-only diagnostic is
+intended.
+
 The dependency direction is:
 
 ```text
@@ -25,7 +31,7 @@ nsb point \
   --site CTAO-S \
   --ra 83.6331 \
   --dec 22.0145 \
-  --components zodiacal,airglow,moon \
+  --components all \
   --format json
 ```
 
