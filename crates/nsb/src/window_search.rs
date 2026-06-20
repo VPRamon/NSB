@@ -44,7 +44,7 @@ where
         let y1 = value_at_chrono(t1, &value_at)?;
         let inside1 = inside_range(y1, min, max)?;
         if inside0 != inside1 {
-            let crossing = refine_range_crossing(t0, y0, t1, y1, &value_at, min, max, inside0)?;
+            let crossing = refine_range_crossing(t0, y0, t1, y1, &value_at, (min, max), inside0)?;
             if inside0 {
                 if let Some(start) = open_start.take() {
                     push_non_empty_period(&mut periods, start, crossing);
@@ -162,14 +162,14 @@ fn refine_range_crossing<V, F>(
     mut hi: DateTime<Utc>,
     mut y_hi: Quantity<V>,
     value_at: &F,
-    min: Quantity<V>,
-    max: Quantity<V>,
+    bounds: (Quantity<V>, Quantity<V>),
     lo_inside: bool,
 ) -> Result<DateTime<Utc>>
 where
     V: Unit,
     F: Fn(Time<UTC>) -> Result<Quantity<V>>,
 {
+    let (min, max) = bounds;
     for _ in 0..48 {
         let mid = midpoint(lo, hi);
         if mid <= lo || mid >= hi {
