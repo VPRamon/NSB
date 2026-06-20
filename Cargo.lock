@@ -995,8 +995,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 [[package]]
 name = "siderust"
 version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f575d33bad6a36a8259320739525835f290ab5dc867fd645ffe9d77aa0c0c5dc"
+source = "git+https://github.com/Siderust/siderust.git?branch=feature%2Fgalactic-frame-transforms#75a8fed75077024adcca2783401c64a46fd19aab"
 dependencies = [
  "affn",
  "approx",

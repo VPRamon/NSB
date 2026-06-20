@@ -17,7 +17,7 @@ name = "nsb"
 qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch  = "0.6"
 optica   = "0.1"
-siderust = { version = "0.10", features = ["atmosphere", "photometry"] }
+siderust = { git = "https://github.com/Siderust/siderust.git", branch = "feature/galactic-frame-transforms", features = ["atmosphere", "photometry"] }
 
 thiserror = "2.0"
 bitflags  = "2.13"
