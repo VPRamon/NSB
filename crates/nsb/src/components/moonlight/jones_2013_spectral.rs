@@ -48,13 +48,7 @@ impl Jones2013Spectral {
         min: PhotonsPerSquareCentimeterNanosecondSteradian,
         max: PhotonsPerSquareCentimeterNanosecondSteradian,
     ) -> Result<Vec<Period<UTC>>> {
-        self.periods_in_range_with_step(
-            window,
-            target,
-            min,
-            max,
-            Self::DEFAULT_PERIOD_SEARCH_STEP,
-        )
+        self.periods_in_range_with_step(window, target, min, max, Self::DEFAULT_PERIOD_SEARCH_STEP)
     }
 
     pub fn periods_in_range_with_step(
