@@ -365,11 +365,6 @@ mod tests {
 
     #[test]
     fn jones_standard_clear_sky_changes_with_location_altitude() {
-        let target = SphericalDirection::<EquatorialMeanJ2000>::new(
-            SiderustDegrees::new(270.0),
-            SiderustDegrees::new(-30.0),
-        );
-        let time = parse_utc("2023-09-04T02:00:00Z");
         let low = Geodetic::<ECEF>::new_raw(
             SiderustDegrees::new(-70.0),
             SiderustDegrees::new(-24.0),
@@ -380,12 +375,21 @@ mod tests {
             SiderustDegrees::new(-24.0),
             Meters::new(2500.0),
         );
-        let low_out = Jones2013Spectral::standard_clear_sky(low)
-            .compute(time, target)
-            .unwrap();
-        let high_out = Jones2013Spectral::standard_clear_sky(high)
-            .compute(time, target)
-            .unwrap();
+        let g = geometry(50.0);
+        let low_out = compute_jones_2013_spectral(
+            &g,
+            bundled_solar_samples(),
+            1.0,
+            Jones2013Spectral::standard_clear_sky(low).atmosphere_profile(),
+        )
+        .unwrap();
+        let high_out = compute_jones_2013_spectral(
+            &g,
+            bundled_solar_samples(),
+            1.0,
+            Jones2013Spectral::standard_clear_sky(high).atmosphere_profile(),
+        )
+        .unwrap();
         assert_ne!(low_out.integrated.value(), high_out.integrated.value());
     }
 
