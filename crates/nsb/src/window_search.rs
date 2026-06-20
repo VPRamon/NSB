@@ -1,0 +1,259 @@
+use crate::error::{NsbError, Result};
+use chrono::{DateTime, Duration, Utc};
+use qtty::{Quantity, Second, Unit};
+use tempoch::{Period, Time, UTC};
+
+/// Find UTC sub-periods where a sampled scalar quantity stays within `[min, max]`.
+///
+/// The search brackets transitions with `sample_step` and refines each detected
+/// range boundary by bisection. It deliberately works over typed quantities so
+/// component models can reuse the same temporal-search semantics without
+/// duplicating unit-erasing code.
+pub(crate) fn periods_in_range<V, F>(
+    window: Period<UTC>,
+    sample_step: Second,
+    min: Quantity<V>,
+    max: Quantity<V>,
+    value_at: F,
+) -> Result<Vec<Period<UTC>>>
+where
+    V: Unit,
+    F: Fn(Time<UTC>) -> Result<Quantity<V>>,
+{
+    validate_range_inputs(window, sample_step, min, max)?;
+
+    let start = utc_to_chrono(window.start)?;
+    let end = utc_to_chrono(window.end)?;
+    if start >= end {
+        return Ok(Vec::new());
+    }
+
+    let step = duration_from_seconds(sample_step)?;
+    let mut periods = Vec::new();
+    let mut t0 = start;
+    let mut y0 = value_at_chrono(t0, &value_at)?;
+    let mut inside0 = inside_range(y0, min, max)?;
+    let mut open_start = inside0.then_some(start);
+
+    while t0 < end {
+        let t1 = add_step_clamped(t0, step, end);
+        if t1 <= t0 {
+            break;
+        }
+
+        let y1 = value_at_chrono(t1, &value_at)?;
+        let inside1 = inside_range(y1, min, max)?;
+        if inside0 != inside1 {
+            let crossing = refine_range_crossing(t0, y0, t1, y1, &value_at, min, max, inside0)?;
+            if inside0 {
+                if let Some(start) = open_start.take() {
+                    push_non_empty_period(&mut periods, start, crossing);
+                }
+            } else {
+                open_start = Some(crossing);
+            }
+        }
+
+        t0 = t1;
+        y0 = y1;
+        inside0 = inside1;
+    }
+
+    if let Some(start) = open_start {
+        push_non_empty_period(&mut periods, start, end);
+    }
+
+    Ok(periods)
+}
+
+fn validate_range_inputs<V>(
+    window: Period<UTC>,
+    sample_step: Second,
+    min: Quantity<V>,
+    max: Quantity<V>,
+) -> Result<()>
+where
+    V: Unit,
+{
+    if window.start > window.end {
+        return Err(NsbError::OutOfRange(
+            "query window start must not be after end".to_string(),
+        ));
+    }
+    if !sample_step.is_finite() || sample_step <= Second::new(0.0) {
+        return Err(NsbError::OutOfRange(
+            "sample_step must be finite and greater than zero".to_string(),
+        ));
+    }
+    if !min.is_finite() || !max.is_finite() {
+        return Err(NsbError::OutOfRange(
+            "range bounds must be finite".to_string(),
+        ));
+    }
+    if min < Quantity::new(0.0) || max < Quantity::new(0.0) {
+        return Err(NsbError::OutOfRange(
+            "radiance range bounds must be non-negative".to_string(),
+        ));
+    }
+    if min > max {
+        return Err(NsbError::OutOfRange(
+            "minimum radiance must be less than or equal to maximum radiance".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn value_at_chrono<V, F>(time: DateTime<Utc>, value_at: &F) -> Result<Quantity<V>>
+where
+    V: Unit,
+    F: Fn(Time<UTC>) -> Result<Quantity<V>>,
+{
+    let value = value_at(Time::<UTC>::from_chrono(time))?;
+    if !value.is_finite() {
+        return Err(NsbError::OutOfRange(
+            "sampled radiance must be finite".to_string(),
+        ));
+    }
+    Ok(value)
+}
+
+fn inside_range<V>(value: Quantity<V>, min: Quantity<V>, max: Quantity<V>) -> Result<bool>
+where
+    V: Unit,
+{
+    if !value.is_finite() {
+        return Err(NsbError::OutOfRange(
+            "sampled radiance must be finite".to_string(),
+        ));
+    }
+    Ok(value >= min && value <= max)
+}
+
+fn refine_range_crossing<V, F>(
+    mut lo: DateTime<Utc>,
+    mut y_lo: Quantity<V>,
+    mut hi: DateTime<Utc>,
+    mut y_hi: Quantity<V>,
+    value_at: &F,
+    min: Quantity<V>,
+    max: Quantity<V>,
+    lo_inside: bool,
+) -> Result<DateTime<Utc>>
+where
+    V: Unit,
+    F: Fn(Time<UTC>) -> Result<Quantity<V>>,
+{
+    for _ in 0..48 {
+        let mid = midpoint(lo, hi);
+        if mid <= lo || mid >= hi {
+            break;
+        }
+        let y_mid = value_at_chrono(mid, value_at)?;
+        let mid_inside = inside_range(y_mid, min, max)?;
+        if mid_inside == lo_inside {
+            lo = mid;
+            y_lo = y_mid;
+        } else {
+            hi = mid;
+            y_hi = y_mid;
+        }
+        if microseconds_between(lo, hi).is_some_and(|us| us <= 1_000) {
+            break;
+        }
+    }
+
+    Ok(linear_boundary_estimate(lo, y_lo, hi, y_hi, min, max))
+}
+
+fn linear_boundary_estimate<V>(
+    lo: DateTime<Utc>,
+    y_lo: Quantity<V>,
+    hi: DateTime<Utc>,
+    y_hi: Quantity<V>,
+    min: Quantity<V>,
+    max: Quantity<V>,
+) -> DateTime<Utc>
+where
+    V: Unit,
+{
+    let Some(threshold) = crossed_boundary_value(y_lo, y_hi, min, max) else {
+        return midpoint(lo, hi);
+    };
+    let denom = y_hi.value() - y_lo.value();
+    if !denom.is_finite() || denom == 0.0 {
+        return midpoint(lo, hi);
+    }
+    let Some(total_us) = microseconds_between(lo, hi) else {
+        return midpoint(lo, hi);
+    };
+    let frac = ((threshold - y_lo.value()) / denom).clamp(0.0, 1.0);
+    let offset_us = (total_us as f64 * frac).round() as i64;
+    let candidate = lo + Duration::microseconds(offset_us);
+    candidate.clamp(lo, hi)
+}
+
+fn crossed_boundary_value<V>(
+    y0: Quantity<V>,
+    y1: Quantity<V>,
+    min: Quantity<V>,
+    max: Quantity<V>,
+) -> Option<f64>
+where
+    V: Unit,
+{
+    let (a, b) = (y0.value(), y1.value());
+    let min = min.value();
+    let max = max.value();
+    if (a < min && b >= min) || (b < min && a >= min) {
+        Some(min)
+    } else if (a > max && b <= max) || (b > max && a <= max) {
+        Some(max)
+    } else {
+        None
+    }
+}
+
+fn duration_from_seconds(step: Second) -> Result<Duration> {
+    let microseconds = (step.value() * 1.0e6).round();
+    if !microseconds.is_finite() || microseconds <= 0.0 || microseconds > i64::MAX as f64 {
+        return Err(NsbError::OutOfRange(
+            "sample_step is outside the representable UTC duration range".to_string(),
+        ));
+    }
+    Ok(Duration::microseconds(microseconds as i64))
+}
+
+fn add_step_clamped(time: DateTime<Utc>, step: Duration, end: DateTime<Utc>) -> DateTime<Utc> {
+    let next = time + step;
+    if next > end {
+        end
+    } else {
+        next
+    }
+}
+
+fn midpoint(lo: DateTime<Utc>, hi: DateTime<Utc>) -> DateTime<Utc> {
+    let Some(us) = microseconds_between(lo, hi) else {
+        return lo;
+    };
+    lo + Duration::microseconds(us / 2)
+}
+
+fn microseconds_between(lo: DateTime<Utc>, hi: DateTime<Utc>) -> Option<i64> {
+    hi.signed_duration_since(lo).num_microseconds()
+}
+
+fn utc_to_chrono(time: Time<UTC>) -> Result<DateTime<Utc>> {
+    time.to_chrono().ok_or_else(|| {
+        NsbError::OutOfRange("UTC instant is outside chrono's representable range".to_string())
+    })
+}
+
+fn push_non_empty_period(periods: &mut Vec<Period<UTC>>, start: DateTime<Utc>, end: DateTime<Utc>) {
+    if start < end {
+        periods.push(Period::new(
+            Time::<UTC>::from_chrono(start),
+            Time::<UTC>::from_chrono(end),
+        ));
+    }
+}
