@@ -198,10 +198,7 @@ pub(super) fn compute_spectrum_with_s10(
     })
 }
 
-fn spectral_scale_from_s10(
-    s10_500: S10,
-    solar: &SampledSpectrum<Nanometer, Meter>,
-) -> Result<f64> {
+fn spectral_scale_from_s10(s10_500: S10, solar: &SampledSpectrum<Nanometer, Meter>) -> Result<f64> {
     if !s10_500.is_finite() || s10_500.value() < 0.0 {
         return Err(NsbError::OutOfRange(format!(
             "zodiacal 500 nm S10 brightness must be finite and non-negative, got {}",

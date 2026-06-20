@@ -44,7 +44,11 @@ fn cta_n() -> Geodetic<ECEF> {
 }
 
 fn high_arctic(latitude_deg: f64) -> Geodetic<ECEF> {
-    Geodetic::new_raw(Degrees::new(0.0), Degrees::new(latitude_deg), Meters::new(0.0))
+    Geodetic::new_raw(
+        Degrees::new(0.0),
+        Degrees::new(latitude_deg),
+        Meters::new(0.0),
+    )
 }
 
 fn tt_mjd_to_utc(time: ModifiedJulianDate) -> Time<UTC> {
@@ -243,10 +247,7 @@ fn twilight_edges_are_outside_airglow_calibration_domain() {
 #[test]
 fn polar_summer_without_astronomical_night_has_no_time_bin() {
     assert_eq!(
-        super::temporal::time_of_night_bin_for_test(
-            t("2023-06-21T12:00:00Z"),
-            high_arctic(78.0),
-        ),
+        super::temporal::time_of_night_bin_for_test(t("2023-06-21T12:00:00Z"), high_arctic(78.0),),
         None
     );
 }

@@ -145,7 +145,11 @@ mod tests {
     use siderust::qtty::{Degrees, Meters};
 
     fn observer(height_m: f64) -> Geodetic<ECEF> {
-        Geodetic::new_raw(Degrees::new(-17.89), Degrees::new(28.76), Meters::new(height_m))
+        Geodetic::new_raw(
+            Degrees::new(-17.89),
+            Degrees::new(28.76),
+            Meters::new(height_m),
+        )
     }
 
     #[test]
@@ -179,7 +183,10 @@ mod tests {
         let generic = SiteProfileId::GenericClearSky.profile(location);
         let cta_n = SiteProfileId::CtaNorth.profile(location);
 
-        assert_ne!(generic.atmosphere.surface_pressure, cta_n.atmosphere.surface_pressure);
+        assert_ne!(
+            generic.atmosphere.surface_pressure,
+            cta_n.atmosphere.surface_pressure
+        );
         assert_eq!(cta_n.atmosphere.surface_pressure.value(), 770.0);
     }
 }

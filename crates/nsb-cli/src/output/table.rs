@@ -47,7 +47,11 @@ pub fn write_window(
     max: BandPhotonRadiance,
     periods: &[Period<UTC>],
 ) -> Result<()> {
-    println!("min_nsb = {}", min.map(|v| v.value().to_string()).unwrap_or_else(|| "none".into()));
+    println!(
+        "min_nsb = {}",
+        min.map(|v| v.value().to_string())
+            .unwrap_or_else(|| "none".into())
+    );
     println!("max_nsb = {:.8e} ph cm^-2 ns^-1 sr^-1", max.value());
     if periods.is_empty() {
         println!("(no matching periods)");
@@ -71,11 +75,7 @@ pub fn write_sites(sites: &[SitePreset]) -> Result<()> {
     for site in sites {
         println!(
             "{:<26} {:<36} {:>10.6} {:>10.6} {:>10.1}",
-            site.canonical_alias,
-            site.display_name,
-            site.lon_deg,
-            site.lat_deg,
-            site.height_m
+            site.canonical_alias, site.display_name, site.lon_deg, site.lat_deg, site.height_m
         );
     }
     Ok(())
