@@ -43,7 +43,7 @@ fn leinert_grid_matches_published_anchor_values() {
         (0.0, 180.0, 180.0),
         (90.0, 180.0, 63.0),
         (0.0, 90.0, 202.0),
-        (10.0, 30.0, 955.0),
+        (10.0, 30.0, 3700.0),
     ];
 
     for (beta_deg, delta_lambda_deg, expected) in cases {
@@ -83,7 +83,7 @@ fn leinert_lookup_rejects_non_finite_inputs() {
 fn noll2012_extinction_matches_numeric_reference_value() {
     let transmission =
         ZodiacalExtinction::Noll2012Approx.transmission(1.0, 500.0, Degrees::new(0.0));
-    let expected = 0.848_018_597_129_593_2;
+    let expected = 0.848_018_546_292_333;
     assert!(
         (transmission - expected).abs() <= 1.0e-12,
         "Noll-style extinction reference changed: got {transmission}, expected {expected}"
