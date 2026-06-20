@@ -25,6 +25,36 @@ fn sites_show_json_is_valid() {
 }
 
 #[test]
+fn default_components_include_moonlight() {
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "json",
+            "point",
+            "--time",
+            "2026-06-18T23:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    let components = value["components"].as_array().unwrap();
+    assert!(components.iter().any(|component| component["name"] == "zodiacal"));
+    assert!(components.iter().any(|component| component["name"] == "airglow"));
+    assert!(components.iter().any(|component| component["name"] == "moon"));
+    assert!(!components.iter().any(|component| component["name"] == "starlight"));
+}
+
+#[test]
 fn invalid_site_errors() {
     let mut cmd = Command::cargo_bin("nsb").unwrap();
     cmd.args([
