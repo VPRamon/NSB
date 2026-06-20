@@ -39,15 +39,17 @@ pub use components::zodiacal::{
 };
 pub use error::{NsbError, Result};
 pub use evaluator::{
-    ComponentMask, MoonlightModel, NsbComponent, NsbEvaluator, NsbModelConfig, NsbResult, Observer,
+    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, MoonlightModel,
+    NsbComponent, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult, Observer,
     PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
-pub use site::{AirglowSiteCalibration, CalibrationStatus, SiteProfile, SiteProfileId};
+pub use site::{
+    AirglowSiteCalibration, CalibrationStatus, CalibrationStatus as SiteCalibrationStatus,
+    SiteProfile, SiteProfileId,
+};
 
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
 pub use siderust::coordinates::spherical::Direction as SphericalDirection;
 pub use siderust::qtty::DEG;
 
-/// V-band S10 zero-point used by `band_flux_to_surface_brightness` and by each
-/// component that converts between S10 surface brightness and AB magnitudes.
 pub(crate) const NSB_S10_ZP: f64 = 27.78;

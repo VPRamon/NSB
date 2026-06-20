@@ -26,8 +26,8 @@ mod output;
 mod temporal;
 mod units;
 
-pub use calibration::AirglowContinuum;
 pub(crate) use calibration::load_builtin_standard;
+pub use calibration::AirglowContinuum;
 pub use model::Airglow;
 pub use output::AirglowOutputs;
 pub use units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};

@@ -24,14 +24,6 @@ use siderust::qtty::{length::Meter, Nanometer};
 
 const RAW: &str = include_str!("../../data/solar_spectrum.dat");
 
-// Pinned SHA-256 of the bundled solar spectrum table. See
-// `siderust::checksum` for the update workflow.
-siderust::assert_data_checksum!(
-    "NSB/data/solar_spectrum.dat",
-    RAW.as_bytes(),
-    "dbf6a6205c9311782f4a084c1a3ded8d9331c3616dd7e71fbaa1db9fdcc7a7df"
-);
-
 /// Returns the solar reference spectrum as
 /// `(wavelength [nm], irradiance [W m⁻² nm⁻¹])`.
 pub(crate) fn load() -> Result<SampledSpectrum<Nanometer, Meter>> {

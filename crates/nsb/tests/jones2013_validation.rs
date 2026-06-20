@@ -4,6 +4,7 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Degrees as SiderustDegrees, Meters};
+use std::collections::{BTreeMap, BTreeSet};
 use tempoch::{Time, UTC};
 
 fn parse_utc(input: &str) -> Time<UTC> {
@@ -52,7 +53,10 @@ fn site_presets_are_explicitly_distinct_from_generic_clear_sky() {
     let cta_s = AtmosphericConditions::cta_s_clear_sky();
     let cta_n = AtmosphericConditions::cta_n_clear_sky();
 
-    assert_eq!(paranal, cta_s, "CTA-S currently aliases the explicit Paranal-like preset");
+    assert_eq!(
+        paranal, cta_s,
+        "CTA-S currently aliases the explicit Paranal-like preset"
+    );
     assert_ne!(generic.surface_pressure, cta_n.surface_pressure);
     assert_ne!(cta_n.surface_pressure, cta_s.surface_pressure);
 }
@@ -83,11 +87,22 @@ fn jones2013_computes_with_all_explicit_atmosphere_presets() {
 fn quantitative_reference_fixture_is_well_formed() {
     let fixture = include_str!("data/jones2013_reference_cases.csv");
     let mut checked = 0usize;
+    let mut wavelengths_by_case: BTreeMap<&str, BTreeSet<u64>> = BTreeMap::new();
+    let mut integrated_by_case: BTreeMap<&str, f64> = BTreeMap::new();
 
-    for line in fixture.lines().skip(1).filter(|line| !line.trim().is_empty()) {
+    for line in fixture
+        .lines()
+        .skip(1)
+        .filter(|line| !line.trim().is_empty())
+    {
         let columns: Vec<_> = line.split(',').collect();
-        assert_eq!(columns.len(), 12, "reference fixture schema changed: {line}");
+        assert_eq!(
+            columns.len(),
+            12,
+            "reference fixture schema changed: {line}"
+        );
 
+        let case_id = columns[0];
         let phase_angle_deg: f64 = columns[2].parse().expect("phase angle");
         let separation_deg: f64 = columns[3].parse().expect("moon-target separation");
         let moon_zenith_deg: f64 = columns[4].parse().expect("moon zenith");
@@ -108,8 +123,36 @@ fn quantitative_reference_fixture_is_well_formed() {
             tolerance.is_finite() && tolerance > 0.0 && tolerance <= 0.20,
             "fixture tolerances must remain scientifically meaningful"
         );
+
+        wavelengths_by_case
+            .entry(case_id)
+            .or_default()
+            .insert(wavelength_nm.round() as u64);
+        integrated_by_case
+            .entry(case_id)
+            .and_modify(|previous| {
+                assert_eq!(
+                    previous.to_bits(),
+                    expected_integrated.to_bits(),
+                    "integrated fixture target must be stable within a case"
+                );
+            })
+            .or_insert(expected_integrated);
         checked += 1;
     }
 
-    assert!(checked >= 8, "reference fixture should cover multiple geometries and wavelengths");
+    assert!(
+        checked >= 8,
+        "reference fixture should cover multiple geometries and wavelengths"
+    );
+    assert!(
+        wavelengths_by_case.len() >= 3,
+        "reference fixture should cover multiple moonlight geometries"
+    );
+    for (case_id, wavelengths) in wavelengths_by_case {
+        assert!(
+            wavelengths.len() >= 4,
+            "case {case_id} should include representative spectral-density samples"
+        );
+    }
 }

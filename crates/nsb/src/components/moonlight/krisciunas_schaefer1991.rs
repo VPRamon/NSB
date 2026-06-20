@@ -32,11 +32,6 @@ impl KrisciunasSchaefer1991 {
     ) -> Result<Vec<Period<UTC>>> {
         unimplemented!("moonlight-only period search is not implemented yet")
     }
-
-    #[cfg(test)]
-    pub(super) fn k_ext(&self) -> f64 {
-        self.k_ext
-    }
 }
 
 pub(super) fn compute_krisciunas_schaefer_1991(

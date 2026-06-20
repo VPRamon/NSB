@@ -21,10 +21,10 @@ siderust = { version = "0.10", features = ["atmosphere", "photometry"] }
 
 thiserror = "2.0"
 bitflags  = "2.13"
+chrono    = "0.4"
 
 [dev-dependencies]
 approx = "0.5"
-chrono = "0.4"
 criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
 
 [[bench]]

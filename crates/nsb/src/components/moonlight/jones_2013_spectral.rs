@@ -216,7 +216,7 @@ fn spectral_photon_density_to_s10(density: f64, wavelength: Nanometers) -> radio
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, Duration, Utc};
+    use chrono::{DateTime, Utc};
     use qtty::angular::Radians;
     use qtty::photometry::s10_to_surface_brightness;
     use qtty::radiometry::S10s;
@@ -234,16 +234,6 @@ mod tests {
             illuminated_fraction: IlluminationFractions::new(
                 0.5 * (1.0 + alpha_deg.to_radians().cos()),
             ),
-            elongation: Radians::new(0.0),
-            waxing: true,
-        }
-    }
-
-    fn phase_from_illumination_fraction(fraction: f64) -> MoonPhaseGeometry {
-        let phase_angle = (2.0 * fraction - 1.0).clamp(-1.0, 1.0).acos();
-        MoonPhaseGeometry {
-            phase_angle: Radians::new(phase_angle),
-            illuminated_fraction: IlluminationFractions::new(fraction),
             elongation: Radians::new(0.0),
             waxing: true,
         }
@@ -329,8 +319,9 @@ mod tests {
     #[test]
     fn jones_profile_changes_result() {
         let g = geometry(50.0);
-        let paranal = compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT)
-            .unwrap();
+        let paranal =
+            compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT)
+                .unwrap();
         let sea_level = compute_jones2013_with_profile(
             &g,
             AtmosphereProfile {
@@ -361,7 +352,10 @@ mod tests {
         .unwrap();
         let cta_n = compute_jones2013_with_profile(
             &g,
-            profile_from_conditions(location, SiteProfileId::CtaNorth.profile(location).atmosphere),
+            profile_from_conditions(
+                location,
+                SiteProfileId::CtaNorth.profile(location).atmosphere,
+            ),
             DEFAULT_K_EXT,
         )
         .unwrap();
@@ -371,11 +365,6 @@ mod tests {
 
     #[test]
     fn jones_standard_clear_sky_changes_with_location_altitude() {
-        let target = SphericalDirection::<EquatorialMeanJ2000>::new(
-            SiderustDegrees::new(270.0),
-            SiderustDegrees::new(-30.0),
-        );
-        let time = parse_utc("2023-09-04T02:00:00Z");
         let low = Geodetic::<ECEF>::new_raw(
             SiderustDegrees::new(-70.0),
             SiderustDegrees::new(-24.0),
@@ -386,12 +375,21 @@ mod tests {
             SiderustDegrees::new(-24.0),
             Meters::new(2500.0),
         );
-        let low_out = Jones2013Spectral::standard_clear_sky(low)
-            .compute(time, target)
-            .unwrap();
-        let high_out = Jones2013Spectral::standard_clear_sky(high)
-            .compute(time, target)
-            .unwrap();
+        let g = geometry(50.0);
+        let low_out = compute_jones_2013_spectral(
+            &g,
+            bundled_solar_samples(),
+            1.0,
+            Jones2013Spectral::standard_clear_sky(low).atmosphere_profile(),
+        )
+        .unwrap();
+        let high_out = compute_jones_2013_spectral(
+            &g,
+            bundled_solar_samples(),
+            1.0,
+            Jones2013Spectral::standard_clear_sky(high).atmosphere_profile(),
+        )
+        .unwrap();
         assert_ne!(low_out.integrated.value(), high_out.integrated.value());
     }
 
@@ -456,8 +454,9 @@ mod tests {
         let g = geometry(40.0);
         let base = compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT)
             .unwrap();
-        let scaled = compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT * 1.2)
-            .unwrap();
+        let scaled =
+            compute_jones2013_with_profile(&g, AtmosphereProfile::EL_PARANAL, DEFAULT_K_EXT * 1.2)
+                .unwrap();
         assert_ne!(base.integrated.value(), scaled.integrated.value());
     }
 }

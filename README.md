@@ -88,6 +88,14 @@ moonlight. It intentionally excludes starlight until a catalogue-derived Galacti
 starlight map is bundled and validated. Use `ComponentMask::ALL_SUPPORTED` only
 with a configuration that supplies an explicit starlight model.
 
+Every `NsbComponent` carries `NsbComponentMetadata`: calibration status,
+provenance, validated-domain notes, and the B/V diagnostic convention. The
+current B/V S10 fields and `b_mag`/`v_mag` totals are explicitly
+monochromatic central-wavelength diagnostics at 445 nm and 551 nm, not Johnson
+B/V passband integrations. Airglow also exposes a relative one-sigma uncertainty
+when the empirical continuum calibration provides one. See
+`docs/SCIENTIFIC_METADATA.md` for the error-budget and provenance contract.
+
 ```rust
 use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, ThresholdQuery, DEG};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
@@ -161,7 +169,9 @@ suite lives in `crates/nsb/tests/end_to_end_validation.rs` and checks generic
 clear-sky `ComponentMask::ALL` point cases, component-sum conservation, explicit
 starlight fixture behaviour, threshold-window classification against sampled
 point curves, and unrestrictive threshold windows against independent
-observability intervals.
+observability intervals. Component-level validation also covers Jones 2013
+reference-fixture structure, zodiacal Leinert anchor values, Noll-style
+extinction numerics, and the public science metadata contract.
 
 ```bash
 cargo test -p nsb --test end_to_end_validation
@@ -189,6 +199,8 @@ docs/                # Supporting notes and historical reports
 
 - `docs/CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` — beginner-oriented explanation
   of the domain concepts and the current implementation.
+- `docs/SCIENTIFIC_METADATA.md` — calibration status, provenance, uncertainty,
+  B/V proxy convention, and first-order component error budget.
 - `docs/CTAO_SITE_PROFILES.md` — machine-readable site-profile assumptions and
   calibration maturity for CTAO planning presets.
 - `docs/VALIDATION.md` — end-to-end validation contract, CI gates, and external

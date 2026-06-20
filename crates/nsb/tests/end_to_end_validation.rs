@@ -222,7 +222,10 @@ fn threshold_windows_match_independent_sampled_curve() {
         .iter()
         .map(|(_, value)| *value)
         .fold(f64::NEG_INFINITY, f64::max);
-    assert!(max > min, "sampled reference curve must vary over the night");
+    assert!(
+        max > min,
+        "sampled reference curve must vary over the night"
+    );
 
     let threshold = BandPhotonRadiance::new(0.5 * (min + max));
     let result = evaluator
@@ -284,7 +287,10 @@ fn unrestrictive_threshold_windows_match_independent_observability_intervals() {
         .expect("threshold query");
     let expected = independent_observability_intervals(&query);
 
-    assert!(!expected.is_empty(), "expected at least one observable interval");
+    assert!(
+        !expected.is_empty(),
+        "expected at least one observable interval"
+    );
     assert_eq!(
         actual.periods.len(),
         expected.len(),
@@ -364,7 +370,10 @@ fn independent_observability_intervals(
 }
 
 fn utc_period_to_tt_mjd(window: &Period<UTC>) -> TimePeriod<ModifiedJulianDate> {
-    TimePeriod::new(utc_time_to_tt_mjd(window.start), utc_time_to_tt_mjd(window.end))
+    TimePeriod::new(
+        utc_time_to_tt_mjd(window.start),
+        utc_time_to_tt_mjd(window.end),
+    )
 }
 
 fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
