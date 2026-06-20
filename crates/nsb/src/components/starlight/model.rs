@@ -1,10 +1,11 @@
-use super::coordinates::equatorial_to_galactic;
 use super::map::StarlightMap;
 use super::output::StarlightOutputs;
 use super::photometry::scale_outputs;
 use super::provenance::StarlightProvenance;
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
+use siderust::coordinates::spherical::direction;
+use siderust::coordinates::transform::TransformFrame;
 use std::io::ErrorKind;
 use std::path::Path;
 
@@ -42,9 +43,9 @@ impl Starlight {
                 "starlight scale must be finite and non-negative".to_string(),
             ));
         }
-        let galactic = equatorial_to_galactic(target);
+        let galactic: direction::Galactic = target.to_frame();
         Ok(scale_outputs(
-            self.map.lookup(galactic.lon, galactic.lat),
+            self.map.lookup(galactic.azimuth, galactic.polar),
             self.scale,
         ))
     }

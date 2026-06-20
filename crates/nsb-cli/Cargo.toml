@@ -22,7 +22,7 @@ toml = "0.9"
 
 qtty = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch = "0.6"
-siderust = { version = "0.10", features = ["atmosphere", "photometry"] }
+siderust = { git = "https://github.com/Siderust/siderust.git", branch = "feature/galactic-frame-transforms", features = ["atmosphere", "photometry"] }
 
 [dev-dependencies]
 assert_cmd = "2"

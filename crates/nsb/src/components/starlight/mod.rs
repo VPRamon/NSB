@@ -5,14 +5,12 @@
 //! generated and bundled. The previous direction-independent spectrum is not
 //! used here.
 
-mod coordinates;
 mod map;
 mod model;
 mod output;
 mod photometry;
 mod provenance;
 
-pub use coordinates::{equatorial_to_galactic, GalacticCoordinates};
 pub use map::{StarlightMap, StarlightPixel};
 pub use model::Starlight;
 pub use output::StarlightOutputs;
