@@ -66,6 +66,9 @@ cargo run -p nsb-data-tools --bin build_starlight_map -- \
   --require-science-diagnostics
 ```
 
+Use an actual UTC generation timestamp for production maps; the timestamp above
+is only an example literal.
+
 The current integrated radiance is a transparent V-band proxy:
 
 ```text
