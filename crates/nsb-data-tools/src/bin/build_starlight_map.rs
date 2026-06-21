@@ -71,8 +71,15 @@ struct Args {
     integrated_per_v_s10: f64,
 
     /// UTC generation timestamp written to provenance metadata.
-    #[arg(long, default_value = "2026-06-21T00:00:00Z")]
+    #[arg(long)]
     generation_date_utc: String,
+
+    /// Require all full-sky scientific diagnostics to pass.
+    ///
+    /// Small deterministic fixtures may not satisfy all regional diagnostics,
+    /// but production catalogue maps should enable this flag in CI.
+    #[arg(long)]
+    require_science_diagnostics: bool,
 
     /// Allow generating an all-zero map if no catalogue rows survive filters.
     #[arg(long)]
@@ -116,17 +123,7 @@ fn run(args: Args) -> Result<()> {
     let max_v_mag = args.max_v_mag.map(ApparentMagnitude::new).transpose()?;
     let provenance = provenance(&args);
 
-    let records = read_records(&args.input)?;
-    let input_b_flux_sum = records
-        .iter()
-        .filter(|record| passes_v_cut(record.v_mag, min_v_mag, max_v_mag))
-        .filter_map(|record| record.b_mag.map(|mag| flux_10mag_units(mag) * record.weight))
-        .sum::<f64>();
-    let input_v_flux_sum = records
-        .iter()
-        .filter(|record| passes_v_cut(record.v_mag, min_v_mag, max_v_mag))
-        .filter_map(|record| record.v_mag.map(|mag| flux_10mag_units(mag) * record.weight))
-        .sum::<f64>();
+    let (records, input_b_flux_sum, input_v_flux_sum) = read_records(&args.input, min_v_mag, max_v_mag)?;
 
     let builder = StellarSurfaceBrightnessMapBuilder {
         grid,
@@ -142,12 +139,7 @@ fn run(args: Args) -> Result<()> {
     };
 
     validate_flux_conservation(input_b_flux_sum, input_v_flux_sum, map.healpix_map(), 1.0e-9)?;
-    // Full-sky science validators are intentionally delegated to Siderust. Tiny
-    // deterministic fixtures may not populate every diagnostic region, so only
-    // flux conservation is hard-fail here; the diagnostic validators are still
-    // executed and reported by callers/CI when their preconditions are met.
-    let _ = validate_no_longitude_wrap_artifact(map.healpix_map(), 1.0);
-    let _ = validate_plane_pole_contrast(map.healpix_map(), 0.0);
+    run_science_diagnostics(&map, args.require_science_diagnostics)?;
 
     write_output(&args.output, &stellar_map_to_csv(&map))
 }
@@ -164,10 +156,17 @@ fn validate_args(args: &Args) -> Result<()> {
     if !args.integrated_per_v_s10.is_finite() || args.integrated_per_v_s10 < 0.0 {
         bail!("--integrated-per-v-s10 must be finite and non-negative");
     }
+    if args.generation_date_utc.trim().is_empty() {
+        bail!("--generation-date-utc must not be empty");
+    }
     Ok(())
 }
 
-fn read_records(input: &PathBuf) -> Result<Vec<StellarCatalogueRecord>> {
+fn read_records(
+    input: &PathBuf,
+    min_v_mag: Option<ApparentMagnitude>,
+    max_v_mag: Option<ApparentMagnitude>,
+) -> Result<(Vec<StellarCatalogueRecord>, f64, f64)> {
     let mut reader = ReaderBuilder::new()
         .comment(Some(b'#'))
         .from_path(input)
@@ -176,13 +175,23 @@ fn read_records(input: &PathBuf) -> Result<Vec<StellarCatalogueRecord>> {
     let columns = ColumnIndices::from_headers(&headers)?;
 
     let mut records = Vec::new();
+    let mut input_b_flux_sum = 0.0;
+    let mut input_v_flux_sum = 0.0;
     for row in reader.records() {
         let row = row.context("failed to read input CSV record")?;
         if let Some(record) = parse_record(&row, columns)? {
+            if passes_v_cut(record.v_mag, min_v_mag, max_v_mag) {
+                if let Some(mag) = record.b_mag {
+                    input_b_flux_sum += flux_10mag_units(mag) * record.weight;
+                }
+                if let Some(mag) = record.v_mag {
+                    input_v_flux_sum += flux_10mag_units(mag) * record.weight;
+                }
+            }
             records.push(record);
         }
     }
-    Ok(records)
+    Ok((records, input_b_flux_sum, input_v_flux_sum))
 }
 
 impl ColumnIndices {
@@ -321,6 +330,34 @@ fn provenance(args: &Args) -> StellarMapProvenance {
     }
 }
 
+fn run_science_diagnostics(map: &StellarSurfaceBrightnessMap, require: bool) -> Result<()> {
+    handle_science_diagnostic(
+        "longitude-wrap artifact",
+        validate_no_longitude_wrap_artifact(map.healpix_map(), 1.0),
+        require,
+    )?;
+    handle_science_diagnostic(
+        "plane/pole contrast",
+        validate_plane_pole_contrast(map.healpix_map(), 0.0),
+        require,
+    )
+}
+
+fn handle_science_diagnostic<E: std::fmt::Display>(
+    name: &str,
+    result: std::result::Result<(), E>,
+    require: bool,
+) -> Result<()> {
+    match result {
+        Ok(()) => Ok(()),
+        Err(err) if require => Err(anyhow::anyhow!("starlight diagnostic {name} failed: {err}")),
+        Err(err) => {
+            eprintln!("warning: starlight diagnostic {name} did not pass: {err}");
+            Ok(())
+        }
+    }
+}
+
 fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
     let mut out = String::new();
     let provenance = map.provenance();
@@ -422,6 +459,7 @@ mod tests {
             catalog_checksum: Some("sha256:test".to_string()),
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            require_science_diagnostics: false,
             allow_empty: false,
         })?;
 
@@ -456,6 +494,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            require_science_diagnostics: false,
             allow_empty: false,
         })
         .expect_err("empty filtered catalogue should fail");
