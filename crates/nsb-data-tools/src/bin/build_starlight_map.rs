@@ -5,10 +5,10 @@ use siderust::coordinates::cartesian::Direction;
 use siderust::coordinates::frames::EquatorialMeanJ2000;
 use siderust::healpix::{HealpixGrid, HealpixMap, HealpixOrdering, Nside};
 use siderust::starlight::{
-    flux_10mag_units, stellar_map_to_csv, validate_flux_conservation,
+    csv as starlight_csv, flux_10mag_units, validate_flux_conservation,
     validate_no_longitude_wrap_artifact, validate_plane_pole_contrast, ApparentMagnitude,
     StellarCatalogueRecord, StellarMapError, StellarMapProvenance, StellarSurfaceBrightness,
-    StellarSurfaceBrightnessMapBuilder,
+    StellarSurfaceBrightnessMap, StellarSurfaceBrightnessMapBuilder,
 };
 use std::ffi::OsStr;
 use std::fs::File;
@@ -49,10 +49,6 @@ struct Args {
     /// Optional inclusive faint-end V magnitude cut.
     #[arg(long)]
     max_v_mag: Option<f64>,
-
-    /// Optional smoothing FWHM in degrees. Currently passed to Siderust, which rejects unsupported v1 smoothing.
-    #[arg(long)]
-    smoothing_fwhm_deg: Option<f64>,
 
     /// Source catalogue name recorded in output comments.
     #[arg(long)]
@@ -137,24 +133,23 @@ fn run(args: Args) -> Result<()> {
         min_v_mag,
         max_v_mag,
         integrated_per_v_s10: args.integrated_per_v_s10,
-        smoothing_fwhm_deg: args.smoothing_fwhm_deg,
     };
 
     let map = match builder.build(records, provenance.clone()) {
         Ok(map) => map,
-        Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => empty_map(grid)?,
+        Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => empty_map(grid, provenance.clone())?,
         Err(err) => return Err(err.into()),
     };
 
-    validate_flux_conservation(input_b_flux_sum, input_v_flux_sum, &map, 1.0e-9)?;
+    validate_flux_conservation(input_b_flux_sum, input_v_flux_sum, map.healpix_map(), 1.0e-9)?;
     // Full-sky science validators are intentionally delegated to Siderust. Tiny
     // deterministic fixtures may not populate every diagnostic region, so only
     // flux conservation is hard-fail here; the diagnostic validators are still
     // executed and reported by callers/CI when their preconditions are met.
-    let _ = validate_no_longitude_wrap_artifact(&map, 1.0);
-    let _ = validate_plane_pole_contrast(&map, 0.0);
+    let _ = validate_no_longitude_wrap_artifact(map.healpix_map(), 1.0);
+    let _ = validate_plane_pole_contrast(map.healpix_map(), 0.0);
 
-    write_output(&args.output, &stellar_map_to_csv(&map, &provenance))
+    write_output(&args.output, &stellar_map_to_csv(&map))
 }
 
 fn validate_args(args: &Args) -> Result<()> {
@@ -168,11 +163,6 @@ fn validate_args(args: &Args) -> Result<()> {
     }
     if !args.integrated_per_v_s10.is_finite() || args.integrated_per_v_s10 < 0.0 {
         bail!("--integrated-per-v-s10 must be finite and non-negative");
-    }
-    if let Some(smoothing) = args.smoothing_fwhm_deg {
-        if !smoothing.is_finite() || smoothing < 0.0 {
-            bail!("--smoothing-fwhm-deg must be finite and non-negative");
-        }
     }
     Ok(())
 }
@@ -301,9 +291,10 @@ fn passes_v_cut(
     }
 }
 
-fn empty_map(grid: HealpixGrid) -> Result<HealpixMap<siderust::coordinates::frames::Galactic, StellarSurfaceBrightness>> {
+fn empty_map(grid: HealpixGrid, provenance: StellarMapProvenance) -> Result<StellarSurfaceBrightnessMap> {
     let values = vec![StellarSurfaceBrightness::zero(); usize::try_from(grid.npix())?];
-    Ok(HealpixMap::new(grid, values)?)
+    let map = HealpixMap::new(grid, values)?;
+    Ok(StellarSurfaceBrightnessMap::new(map, provenance))
 }
 
 fn provenance(args: &Args) -> StellarMapProvenance {
@@ -325,8 +316,67 @@ fn provenance(args: &Args) -> StellarMapProvenance {
         magnitude_limit: Some(magnitude_limit),
         band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics".to_string(),
         photometry_model: "v_s10_scaled_integrated_v1".to_string(),
-        smoothing: args.smoothing_fwhm_deg.map(|value| format!("{value} deg FWHM")),
+        smoothing: None,
         generator: "nsb-data-tools build_starlight_map using siderust feature/healpix-stellar-maps".to_string(),
+    }
+}
+
+fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
+    let mut out = String::new();
+    let provenance = map.provenance();
+    let grid = map.grid();
+    let ordering = ordering_name(grid.ordering());
+
+    push_metadata(&mut out, "map_type", "healpix");
+    push_metadata(&mut out, "coordinate_frame", "galactic");
+    push_metadata(&mut out, "nside", &grid.nside().get().to_string());
+    push_metadata(&mut out, "ordering", ordering);
+    push_metadata(
+        &mut out,
+        "map_resolution",
+        &format!("HEALPix nside={} ordering={ordering}", grid.nside().get()),
+    );
+    push_metadata(&mut out, "dataset_name", &provenance.dataset_name);
+    push_metadata(&mut out, "version", &provenance.version);
+    push_metadata(&mut out, "generation_date_utc", &provenance.generation_date_utc);
+    push_metadata(&mut out, "source_catalogue", &provenance.source_catalogue);
+    if let Some(value) = &provenance.source_catalogue_release {
+        push_metadata(&mut out, "source_catalogue_release", value);
+    }
+    if let Some(value) = &provenance.source_catalogue_license {
+        push_metadata(&mut out, "source_catalogue_license", value);
+    }
+    if let Some(value) = &provenance.source_catalogue_checksum {
+        push_metadata(&mut out, "source_catalogue_checksum", value);
+    }
+    if let Some(value) = &provenance.magnitude_limit {
+        push_metadata(&mut out, "magnitude_limit", value);
+    }
+    push_metadata(&mut out, "band_definition", &provenance.band_definition);
+    push_metadata(&mut out, "photometry_model", &provenance.photometry_model);
+    if let Some(value) = &provenance.smoothing {
+        push_metadata(&mut out, "smoothing", value);
+    }
+    push_metadata(&mut out, "generated_by", &provenance.generator);
+
+    out.push_str("healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n");
+    out.push_str(&starlight_csv::to_csv(map));
+    out
+}
+
+fn push_metadata(out: &mut String, key: &str, value: &str) {
+    let sanitized = value.replace('\n', " ").replace('\r', " ");
+    out.push_str("# ");
+    out.push_str(key);
+    out.push('=');
+    out.push_str(&sanitized);
+    out.push('\n');
+}
+
+fn ordering_name(ordering: HealpixOrdering) -> &'static str {
+    match ordering {
+        HealpixOrdering::Ring => "ring",
+        HealpixOrdering::Nested => "nested",
     }
 }
 
@@ -366,7 +416,6 @@ mod tests {
             ordering: OrderingArg::Ring,
             min_v_mag: None,
             max_v_mag: None,
-            smoothing_fwhm_deg: None,
             catalog_name: "test".to_string(),
             catalog_release: Some("fixture".to_string()),
             catalog_license: Some("test-only".to_string()),
@@ -379,6 +428,7 @@ mod tests {
         let raw = fs::read_to_string(output)?;
         let map = StarlightMap::from_csv_str(&raw, nsb::StarlightProvenance::test_fixture())?;
         assert!(raw.contains("# map_type=healpix"));
+        assert!(raw.contains("healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10"));
         assert_eq!(map.provenance().source_catalogue, "test");
         Ok(())
     }
@@ -400,7 +450,6 @@ mod tests {
             ordering: OrderingArg::Ring,
             min_v_mag: None,
             max_v_mag: Some(0.0),
-            smoothing_fwhm_deg: None,
             catalog_name: "test".to_string(),
             catalog_release: None,
             catalog_license: None,
