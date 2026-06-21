@@ -16,6 +16,7 @@ use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 
 const S10_V_TO_INTEGRATED_PH_CM2_NS_SR: f64 = 1.242e-3;
+const HEALPIX_CSV_HEADER: &str = "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10";
 
 /// Build a Galactic HEALPix starlight map from a local catalogue CSV.
 ///
@@ -424,8 +425,17 @@ fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
     }
     push_metadata(&mut out, "generated_by", &provenance.generator);
 
-    out.push_str("healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n");
-    out.push_str(&starlight_csv::to_csv(map));
+    let data = starlight_csv::to_csv(map);
+    if data.lines().next().is_some_and(|line| line.trim() == HEALPIX_CSV_HEADER) {
+        out.push_str(&data);
+    } else {
+        out.push_str(HEALPIX_CSV_HEADER);
+        out.push('\n');
+        out.push_str(&data);
+    }
+    if !out.ends_with('\n') {
+        out.push('\n');
+    }
     out
 }
 
@@ -494,7 +504,8 @@ mod tests {
         let raw = fs::read_to_string(output)?;
         let map = StarlightMap::from_csv_str(&raw, nsb::StarlightProvenance::test_fixture())?;
         assert!(raw.contains("# map_type=healpix"));
-        assert!(raw.contains("healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10"));
+        assert!(raw.contains(HEALPIX_CSV_HEADER));
+        assert_eq!(raw.matches(HEALPIX_CSV_HEADER).count(), 1);
         assert_eq!(map.provenance().source_catalogue, "test");
         Ok(())
     }
