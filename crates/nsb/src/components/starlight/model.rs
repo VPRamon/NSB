@@ -6,10 +6,9 @@ use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
-use std::io::ErrorKind;
-use std::path::Path;
 
 const CATALOGUE_MAP_FILE: &str = "data/starlight_galactic_map_v1.csv";
+const BUNDLED_STARLIGHT_MAP: &str = include_str!("../../../data/starlight_galactic_map_v1.csv");
 
 #[derive(Debug, Clone)]
 pub struct Starlight {
@@ -19,13 +18,11 @@ pub struct Starlight {
 
 impl Starlight {
     pub fn catalogue_galactic_model() -> Result<Self> {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(CATALOGUE_MAP_FILE);
-        match StarlightMap::from_csv_path(path, StarlightProvenance::catalogue_galactic_model_v1())
-        {
-            Ok(map) => Ok(Self::with_map(map)),
-            Err(NsbError::Io(err)) if err.kind() == ErrorKind::NotFound => Err(data_missing()),
-            Err(err) => Err(err),
-        }
+        let map = StarlightMap::from_csv_str(
+            BUNDLED_STARLIGHT_MAP,
+            StarlightProvenance::catalogue_galactic_model_v1(),
+        )?;
+        Ok(Self::with_map(map))
     }
 
     pub fn with_map(map: StarlightMap) -> Self {
@@ -55,9 +52,10 @@ impl Starlight {
     }
 }
 
+#[allow(dead_code)]
 fn data_missing() -> NsbError {
     NsbError::DataMissing {
         file: CATALOGUE_MAP_FILE,
-        message: "catalogue-derived Galactic starlight map is not bundled; generate a provenance-recorded map with `cargo run -p nsb-data-tools --bin build_starlight_map -- ...` or provide one with Starlight::with_map(...)".to_string(),
+        message: "catalogue-derived Galactic starlight map is bundled with the crate; rebuild NSB if this compile-time asset is missing".to_string(),
     }
 }
