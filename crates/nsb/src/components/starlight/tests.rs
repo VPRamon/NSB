@@ -15,9 +15,13 @@ fn target(ra: f64, dec: f64) -> Target {
 }
 
 #[test]
-fn catalogue_model_reports_missing_data_until_real_map_is_bundled() {
-    let err = Starlight::catalogue_galactic_model().unwrap_err();
-    assert!(matches!(err, crate::NsbError::DataMissing { .. }));
+fn catalogue_model_loads_bundled_healpix_map() {
+    let model = Starlight::catalogue_galactic_model().unwrap();
+    assert_eq!(model.map().provenance().version, "v1");
+    assert_eq!(
+        model.map().provenance().photometry_model.as_deref(),
+        Some("v_s10_scaled_integrated_v1")
+    );
 }
 
 #[test]
