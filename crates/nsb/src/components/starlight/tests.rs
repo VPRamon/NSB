@@ -59,15 +59,18 @@ fn catalogue_model_fails_until_real_map_is_bundled() {
 
 #[test]
 fn healpix_csv_fixture_loads_from_test_data_only() {
-    let map = StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture())
-        .unwrap();
+    let map =
+        StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
 
     assert_eq!(map.pixels().len(), 12);
     assert_eq!(
         map.provenance().dataset_name,
         "NSB synthetic test-only HEALPix starlight fixture"
     );
-    assert_eq!(map.provenance().photometry_model.as_deref(), Some("fixture"));
+    assert_eq!(
+        map.provenance().photometry_model.as_deref(),
+        Some("fixture")
+    );
 
     let output = map.lookup(Degrees::new(0.0), Degrees::new(0.0));
     assert!(output.integrated.value().is_finite());

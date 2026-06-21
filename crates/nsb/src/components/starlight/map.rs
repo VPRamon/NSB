@@ -200,7 +200,8 @@ impl StarlightMap {
                 )
             }
             StarlightMapKind::Healpix { grid, pixels } => {
-                let direction = galactic_cartesian_direction(galactic_lon.value(), galactic_lat.value());
+                let direction =
+                    galactic_cartesian_direction(galactic_lon.value(), galactic_lat.value());
                 let index = grid
                     .direction_to_pixel(direction)
                     .expect("validated HEALPix lookup direction is finite");
@@ -215,9 +216,8 @@ impl StarlightMap {
 
     pub fn pixels(&self) -> &[StarlightPixel] {
         match &self.kind {
-            StarlightMapKind::Rectangular { pixels, .. } | StarlightMapKind::Healpix { pixels, .. } => {
-                pixels
-            }
+            StarlightMapKind::Rectangular { pixels, .. }
+            | StarlightMapKind::Healpix { pixels, .. } => pixels,
         }
     }
 
@@ -282,7 +282,10 @@ impl StarlightMap {
                 file: "starlight map csv",
                 message: format!("invalid HEALPix nside: {err}"),
             })?;
-        let ordering = match required_metadata(&metadata, "ordering")?.to_ascii_lowercase().as_str() {
+        let ordering = match required_metadata(&metadata, "ordering")?
+            .to_ascii_lowercase()
+            .as_str()
+        {
             "ring" => HealpixOrdering::Ring,
             "nested" => HealpixOrdering::Nested,
             other => {
@@ -300,8 +303,11 @@ impl StarlightMap {
             });
         }
 
-        let grid = HealpixGrid::new(Nside::new(nside).map_err(|err| invalid_map(err.to_string()))?, ordering)
-            .map_err(|err| invalid_map(err.to_string()))?;
+        let grid = HealpixGrid::new(
+            Nside::new(nside).map_err(|err| invalid_map(err.to_string()))?,
+            ordering,
+        )
+        .map_err(|err| invalid_map(err.to_string()))?;
         let npix = usize::try_from(grid.npix()).expect("HEALPix npix fits usize");
         let mut pixels = vec![None; npix];
         let mut reader = ReaderBuilder::new()
@@ -349,13 +355,17 @@ impl StarlightMap {
             );
             pixel.validate()?;
             if pixels[slot].replace(pixel).is_some() {
-                return Err(invalid_map(format!("duplicate HEALPix pixel index {index}")));
+                return Err(invalid_map(format!(
+                    "duplicate HEALPix pixel index {index}"
+                )));
             }
         }
 
         let mut validated = Vec::with_capacity(npix);
         for (index, pixel) in pixels.into_iter().enumerate() {
-            validated.push(pixel.ok_or_else(|| invalid_map(format!("missing HEALPix pixel index {index}")))?);
+            validated.push(
+                pixel.ok_or_else(|| invalid_map(format!("missing HEALPix pixel index {index}")))?,
+            );
         }
 
         Ok(Self {
@@ -411,7 +421,12 @@ fn validate_healpix_header(headers: &StringRecord) -> Result<()> {
     Ok(())
 }
 
-fn record_field<'a>(record: &'a StringRecord, idx: usize, row: usize, name: &str) -> Result<&'a str> {
+fn record_field<'a>(
+    record: &'a StringRecord,
+    idx: usize,
+    row: usize,
+    name: &str,
+) -> Result<&'a str> {
     record.get(idx).ok_or_else(|| NsbError::DataParse {
         file: "starlight map csv",
         message: format!("HEALPix CSV row {row} is missing field {name}"),
@@ -419,17 +434,21 @@ fn record_field<'a>(record: &'a StringRecord, idx: usize, row: usize, name: &str
 }
 
 fn parse_record_u64(record: &StringRecord, idx: usize, row: usize, name: &str) -> Result<u64> {
-    record_field(record, idx, row, name)?.parse::<u64>().map_err(|err| NsbError::DataParse {
-        file: "starlight map csv",
-        message: format!("HEALPix CSV row {row} invalid {name}: {err}"),
-    })
+    record_field(record, idx, row, name)?
+        .parse::<u64>()
+        .map_err(|err| NsbError::DataParse {
+            file: "starlight map csv",
+            message: format!("HEALPix CSV row {row} invalid {name}: {err}"),
+        })
 }
 
 fn parse_record_f64(record: &StringRecord, idx: usize, row: usize, name: &str) -> Result<f64> {
-    record_field(record, idx, row, name)?.parse::<f64>().map_err(|err| NsbError::DataParse {
-        file: "starlight map csv",
-        message: format!("HEALPix CSV row {row} invalid {name}: {err}"),
-    })
+    record_field(record, idx, row, name)?
+        .parse::<f64>()
+        .map_err(|err| NsbError::DataParse {
+            file: "starlight map csv",
+            message: format!("HEALPix CSV row {row} invalid {name}: {err}"),
+        })
 }
 
 fn healpix_pixel_lon_lat_deg(grid: HealpixGrid, index: HealpixIndex) -> Result<(f64, f64)> {
@@ -446,7 +465,11 @@ fn galactic_cartesian_direction(lon_deg: f64, lat_deg: f64) -> CartesianDirectio
     let lon = lon_deg.to_radians();
     let lat = lat_deg.to_radians();
     let cos_lat = lat.cos();
-    CartesianDirection::<Galactic>::from_array([cos_lat * lon.cos(), cos_lat * lon.sin(), lat.sin()])
+    CartesianDirection::<Galactic>::from_array([
+        cos_lat * lon.cos(),
+        cos_lat * lon.sin(),
+        lat.sin(),
+    ])
 }
 
 fn bracket_clamped(values: &[f64], x: f64) -> (usize, usize, f64) {

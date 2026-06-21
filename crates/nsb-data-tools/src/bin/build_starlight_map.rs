@@ -123,7 +123,8 @@ fn run(args: Args) -> Result<()> {
     let max_v_mag = args.max_v_mag.map(ApparentMagnitude::new).transpose()?;
     let provenance = provenance(&args);
 
-    let (records, input_b_flux_sum, input_v_flux_sum) = read_records(&args.input, min_v_mag, max_v_mag)?;
+    let (records, input_b_flux_sum, input_v_flux_sum) =
+        read_records(&args.input, min_v_mag, max_v_mag)?;
 
     let builder = StellarSurfaceBrightnessMapBuilder {
         grid,
@@ -134,11 +135,18 @@ fn run(args: Args) -> Result<()> {
 
     let map = match builder.build(records, provenance.clone()) {
         Ok(map) => map,
-        Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => empty_map(grid, provenance.clone())?,
+        Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => {
+            empty_map(grid, provenance.clone())?
+        }
         Err(err) => return Err(err.into()),
     };
 
-    validate_flux_conservation(input_b_flux_sum, input_v_flux_sum, map.healpix_map(), 1.0e-9)?;
+    validate_flux_conservation(
+        input_b_flux_sum,
+        input_v_flux_sum,
+        map.healpix_map(),
+        1.0e-9,
+    )?;
     run_science_diagnostics(&map, args.require_science_diagnostics)?;
 
     write_output(&args.output, &stellar_map_to_csv(&map))
@@ -171,7 +179,10 @@ fn read_records(
         .comment(Some(b'#'))
         .from_path(input)
         .with_context(|| format!("failed to open input catalogue {}", input.display()))?;
-    let headers = reader.headers().context("failed to read CSV header")?.clone();
+    let headers = reader
+        .headers()
+        .context("failed to read CSV header")?
+        .clone();
     let columns = ColumnIndices::from_headers(&headers)?;
 
     let mut records = Vec::new();
@@ -208,14 +219,18 @@ impl ColumnIndices {
 }
 
 fn required_header(headers: &StringRecord, name: &str) -> Result<usize> {
-    optional_header(headers, name).ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
+    optional_header(headers, name)
+        .ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
 }
 
 fn optional_header(headers: &StringRecord, name: &str) -> Option<usize> {
     headers.iter().position(|h| h.trim() == name)
 }
 
-fn parse_record(row: &StringRecord, columns: ColumnIndices) -> Result<Option<StellarCatalogueRecord>> {
+fn parse_record(
+    row: &StringRecord,
+    columns: ColumnIndices,
+) -> Result<Option<StellarCatalogueRecord>> {
     let ra_deg = parse_required_f64(row, columns.ra_deg, "ra_deg")?;
     let dec_deg = parse_required_f64(row, columns.dec_deg, "dec_deg")?;
     let b_mag = parse_optional_mag(row, columns.b_mag, "b_mag")?;
@@ -262,7 +277,11 @@ fn parse_required_f64(row: &StringRecord, idx: usize, name: &str) -> Result<f64>
         .with_context(|| format!("invalid numeric field {name:?}"))
 }
 
-fn parse_optional_mag(row: &StringRecord, idx: usize, name: &str) -> Result<Option<ApparentMagnitude>> {
+fn parse_optional_mag(
+    row: &StringRecord,
+    idx: usize,
+    name: &str,
+) -> Result<Option<ApparentMagnitude>> {
     let raw = row
         .get(idx)
         .ok_or_else(|| anyhow::anyhow!("missing field {name:?}"))?
@@ -293,14 +312,17 @@ fn passes_v_cut(
 ) -> bool {
     match magnitude {
         Some(value) => {
-            min_v_mag.map_or(true, |min| value.value() >= min.value())
-                && max_v_mag.map_or(true, |max| value.value() <= max.value())
+            min_v_mag.is_none_or(|min| value.value() >= min.value())
+                && max_v_mag.is_none_or(|max| value.value() <= max.value())
         }
         None => min_v_mag.is_none() && max_v_mag.is_none(),
     }
 }
 
-fn empty_map(grid: HealpixGrid, provenance: StellarMapProvenance) -> Result<StellarSurfaceBrightnessMap> {
+fn empty_map(
+    grid: HealpixGrid,
+    provenance: StellarMapProvenance,
+) -> Result<StellarSurfaceBrightnessMap> {
     let values = vec![StellarSurfaceBrightness::zero(); usize::try_from(grid.npix())?];
     let map = HealpixMap::new(grid, values)?;
     Ok(StellarSurfaceBrightnessMap::new(map, provenance))
@@ -323,10 +345,12 @@ fn provenance(args: &Args) -> StellarMapProvenance {
         source_catalogue_license: args.catalog_license.clone(),
         source_catalogue_checksum: args.catalog_checksum.clone(),
         magnitude_limit: Some(magnitude_limit),
-        band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics".to_string(),
+        band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics"
+            .to_string(),
         photometry_model: "v_s10_scaled_integrated_v1".to_string(),
         smoothing: None,
-        generator: "nsb-data-tools build_starlight_map using siderust feature/healpix-stellar-maps".to_string(),
+        generator: "nsb-data-tools build_starlight_map using siderust feature/healpix-stellar-maps"
+            .to_string(),
     }
 }
 
@@ -375,7 +399,11 @@ fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
     );
     push_metadata(&mut out, "dataset_name", &provenance.dataset_name);
     push_metadata(&mut out, "version", &provenance.version);
-    push_metadata(&mut out, "generation_date_utc", &provenance.generation_date_utc);
+    push_metadata(
+        &mut out,
+        "generation_date_utc",
+        &provenance.generation_date_utc,
+    );
     push_metadata(&mut out, "source_catalogue", &provenance.source_catalogue);
     if let Some(value) = &provenance.source_catalogue_release {
         push_metadata(&mut out, "source_catalogue_release", value);
@@ -402,7 +430,7 @@ fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
 }
 
 fn push_metadata(out: &mut String, key: &str, value: &str) {
-    let sanitized = value.replace('\n', " ").replace('\r', " ");
+    let sanitized = value.replace(['\n', '\r'], " ");
     out.push_str("# ");
     out.push_str(key);
     out.push('=');
@@ -421,9 +449,9 @@ fn write_output(path: &PathBuf, raw: &str) -> Result<()> {
     let mut out: Box<dyn Write> = if path.as_os_str() == OsStr::new("-") {
         Box::new(BufWriter::new(io::stdout()))
     } else {
-        Box::new(BufWriter::new(
-            File::create(path).with_context(|| format!("failed to create output map {}", path.display()))?,
-        ))
+        Box::new(BufWriter::new(File::create(path).with_context(|| {
+            format!("failed to create output map {}", path.display())
+        })?))
     };
     out.write_all(raw.as_bytes())?;
     out.flush()?;
@@ -499,7 +527,9 @@ mod tests {
         })
         .expect_err("empty filtered catalogue should fail");
 
-        assert!(err.to_string().contains("no stellar catalogue records survived filtering"));
+        assert!(err
+            .to_string()
+            .contains("no stellar catalogue records survived filtering"));
         Ok(())
     }
 }

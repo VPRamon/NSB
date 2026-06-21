@@ -54,7 +54,9 @@ impl StarlightProvenance {
             .get("map_resolution")
             .cloned()
             .or_else(|| match (nside, ordering) {
-                (Some(nside), Some(ordering)) => Some(format!("HEALPix nside={nside} ordering={ordering}")),
+                (Some(nside), Some(ordering)) => {
+                    Some(format!("HEALPix nside={nside} ordering={ordering}"))
+                }
                 (Some(nside), None) => Some(format!("HEALPix nside={nside}")),
                 _ => None,
             })
@@ -123,7 +125,8 @@ impl StarlightProvenance {
             source_catalogue: "read from bundled map header".to_string(),
             license: "read from bundled map header".to_string(),
             magnitude_limit: "read from bundled map header".to_string(),
-            band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics".to_string(),
+            band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics"
+                .to_string(),
             map_resolution: "read from bundled map header".to_string(),
             checksum: None,
             source_catalogue_release: None,
