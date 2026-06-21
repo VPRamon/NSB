@@ -2,6 +2,7 @@ use super::output::StarlightOutputs;
 use super::photometry::bilinear_outputs;
 use super::provenance::StarlightProvenance;
 use crate::error::{NsbError, Result};
+use csv::{ReaderBuilder, StringRecord};
 use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
@@ -303,31 +304,32 @@ impl StarlightMap {
             .map_err(|err| invalid_map(err.to_string()))?;
         let npix = usize::try_from(grid.npix()).expect("HEALPix npix fits usize");
         let mut pixels = vec![None; npix];
-        let mut saw_header = false;
+        let mut reader = ReaderBuilder::new()
+            .comment(Some(b'#'))
+            .trim(csv::Trim::All)
+            .from_reader(raw.as_bytes());
+        let headers = reader.headers().map_err(|err| NsbError::DataParse {
+            file: "starlight map csv",
+            message: format!("failed to read HEALPix CSV header: {err}"),
+        })?;
+        validate_healpix_header(headers)?;
 
-        for (line_idx, line) in raw.lines().enumerate() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if !saw_header && line.starts_with("healpix_index,") {
-                saw_header = true;
-                continue;
-            }
-            saw_header = true;
-
-            let fields: Vec<&str> = line.split(',').map(str::trim).collect();
-            if fields.len() != 4 {
+        for (row_idx, record) in reader.records().enumerate() {
+            let record = record.map_err(|err| NsbError::DataParse {
+                file: "starlight map csv",
+                message: format!("failed to read HEALPix CSV row {}: {err}", row_idx + 1),
+            })?;
+            if record.len() != 4 {
                 return Err(NsbError::DataParse {
                     file: "starlight map csv",
                     message: format!(
-                        "line {} has {} fields, expected 4",
-                        line_idx + 1,
-                        fields.len()
+                        "HEALPix CSV row {} has {} fields, expected 4",
+                        row_idx + 1,
+                        record.len()
                     ),
                 });
             }
-            let index = parse_u64(fields[0], line_idx + 1, "healpix_index")?;
+            let index = parse_record_u64(&record, 0, row_idx + 1, "healpix_index")?;
             grid.validate_index(HealpixIndex::new(index))
                 .map_err(|err| invalid_map(err.to_string()))?;
             let slot = usize::try_from(index).expect("pixel index fits usize");
@@ -336,9 +338,14 @@ impl StarlightMap {
                 Degrees::new(lon),
                 Degrees::new(lat),
                 grid.pixel_area_sr(),
-                BandPhotonRadiance::new(parse_f64(fields[1], line_idx + 1, "integrated_ph_cm2_ns_sr")?),
-                S10s::new(parse_f64(fields[2], line_idx + 1, "b_s10")?),
-                S10s::new(parse_f64(fields[3], line_idx + 1, "v_s10")?),
+                BandPhotonRadiance::new(parse_record_f64(
+                    &record,
+                    1,
+                    row_idx + 1,
+                    "integrated_ph_cm2_ns_sr",
+                )?),
+                S10s::new(parse_record_f64(&record, 2, row_idx + 1, "b_s10")?),
+                S10s::new(parse_record_f64(&record, 3, row_idx + 1, "v_s10")?),
             );
             pixel.validate()?;
             if pixels[slot].replace(pixel).is_some() {
@@ -384,17 +391,44 @@ fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> R
         .ok_or_else(|| invalid_map(format!("missing required HEALPix metadata key {key:?}")))
 }
 
-fn parse_u64(raw: &str, line: usize, name: &str) -> Result<u64> {
-    raw.parse::<u64>().map_err(|err| NsbError::DataParse {
+fn validate_healpix_header(headers: &StringRecord) -> Result<()> {
+    let expected = ["healpix_index", "integrated_ph_cm2_ns_sr", "b_s10", "v_s10"];
+    if headers.len() != expected.len()
+        || !headers
+            .iter()
+            .zip(expected)
+            .all(|(actual, expected)| actual.trim() == expected)
+    {
+        return Err(NsbError::DataParse {
+            file: "starlight map csv",
+            message: format!(
+                "unsupported HEALPix starlight map header {:?}; expected {}",
+                headers.iter().collect::<Vec<_>>(),
+                expected.join(",")
+            ),
+        });
+    }
+    Ok(())
+}
+
+fn record_field<'a>(record: &'a StringRecord, idx: usize, row: usize, name: &str) -> Result<&'a str> {
+    record.get(idx).ok_or_else(|| NsbError::DataParse {
         file: "starlight map csv",
-        message: format!("line {line} invalid {name}: {err}"),
+        message: format!("HEALPix CSV row {row} is missing field {name}"),
     })
 }
 
-fn parse_f64(raw: &str, line: usize, name: &str) -> Result<f64> {
-    raw.parse::<f64>().map_err(|err| NsbError::DataParse {
+fn parse_record_u64(record: &StringRecord, idx: usize, row: usize, name: &str) -> Result<u64> {
+    record_field(record, idx, row, name)?.parse::<u64>().map_err(|err| NsbError::DataParse {
         file: "starlight map csv",
-        message: format!("line {line} invalid {name}: {err}"),
+        message: format!("HEALPix CSV row {row} invalid {name}: {err}"),
+    })
+}
+
+fn parse_record_f64(record: &StringRecord, idx: usize, row: usize, name: &str) -> Result<f64> {
+    record_field(record, idx, row, name)?.parse::<f64>().map_err(|err| NsbError::DataParse {
+        file: "starlight map csv",
+        message: format!("HEALPix CSV row {row} invalid {name}: {err}"),
     })
 }
 
