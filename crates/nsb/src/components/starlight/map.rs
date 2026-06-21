@@ -4,6 +4,10 @@ use super::provenance::StarlightProvenance;
 use crate::error::{NsbError, Result};
 use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use siderust::coordinates::cartesian::Direction as CartesianDirection;
+use siderust::coordinates::frames::Galactic;
+use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 const EPS: f64 = 1.0e-10;
@@ -75,9 +79,20 @@ impl StarlightPixel {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StarlightMap {
     provenance: StarlightProvenance,
-    lon_values_deg: Vec<f64>,
-    lat_values_deg: Vec<f64>,
-    pixels: Vec<StarlightPixel>,
+    kind: StarlightMapKind,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum StarlightMapKind {
+    Rectangular {
+        lon_values_deg: Vec<f64>,
+        lat_values_deg: Vec<f64>,
+        pixels: Vec<StarlightPixel>,
+    },
+    Healpix {
+        grid: HealpixGrid,
+        pixels: Vec<StarlightPixel>,
+    },
 }
 
 impl StarlightMap {
@@ -134,13 +149,78 @@ impl StarlightMap {
 
         Ok(Self {
             provenance,
-            lon_values_deg: lon_values,
-            lat_values_deg: lat_values,
-            pixels,
+            kind: StarlightMapKind::Rectangular {
+                lon_values_deg: lon_values,
+                lat_values_deg: lat_values,
+                pixels,
+            },
         })
     }
 
     pub fn from_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
+        let metadata = parse_header_metadata(raw);
+        let provenance = StarlightProvenance::from_header_metadata(&metadata, provenance);
+        let data_header = first_data_header(raw)?;
+
+        if data_header.starts_with("healpix_index,") {
+            Self::from_healpix_csv_str(raw, metadata, provenance)
+        } else if data_header.starts_with("galactic_lon_deg,") {
+            Self::from_rectangular_csv_str(raw, provenance)
+        } else {
+            Err(NsbError::DataParse {
+                file: "starlight map csv",
+                message: format!("unsupported starlight map header {data_header:?}"),
+            })
+        }
+    }
+
+    pub fn from_csv_path(path: impl AsRef<Path>, provenance: StarlightProvenance) -> Result<Self> {
+        let raw = std::fs::read_to_string(path)?;
+        Self::from_csv_str(&raw, provenance)
+    }
+
+    pub fn lookup(&self, galactic_lon: Degrees, galactic_lat: Degrees) -> StarlightOutputs {
+        match &self.kind {
+            StarlightMapKind::Rectangular {
+                lon_values_deg,
+                lat_values_deg,
+                pixels,
+            } => {
+                let (lon0, lon1, tx) = lon_bracket(lon_values_deg, galactic_lon.value());
+                let (lat0, lat1, ty) = bracket_clamped(lat_values_deg, galactic_lat.value());
+
+                bilinear_outputs(
+                    pixels[grid_index(lon_values_deg.len(), lon0, lat0)].output(),
+                    pixels[grid_index(lon_values_deg.len(), lon1, lat0)].output(),
+                    pixels[grid_index(lon_values_deg.len(), lon0, lat1)].output(),
+                    pixels[grid_index(lon_values_deg.len(), lon1, lat1)].output(),
+                    tx,
+                    ty,
+                )
+            }
+            StarlightMapKind::Healpix { grid, pixels } => {
+                let direction = galactic_cartesian_direction(galactic_lon.value(), galactic_lat.value());
+                let index = grid
+                    .direction_to_pixel(direction)
+                    .expect("validated HEALPix lookup direction is finite");
+                pixels[usize::try_from(index.get()).expect("pixel index fits usize")].output()
+            }
+        }
+    }
+
+    pub fn provenance(&self) -> &StarlightProvenance {
+        &self.provenance
+    }
+
+    pub fn pixels(&self) -> &[StarlightPixel] {
+        match &self.kind {
+            StarlightMapKind::Rectangular { pixels, .. } | StarlightMapKind::Healpix { pixels, .. } => {
+                pixels
+            }
+        }
+    }
+
+    fn from_rectangular_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
         let mut pixels = Vec::new();
         let mut saw_header = false;
 
@@ -190,76 +270,149 @@ impl StarlightMap {
         Self::from_pixels(pixels, provenance)
     }
 
-    pub fn from_csv_path(path: impl AsRef<Path>, provenance: StarlightProvenance) -> Result<Self> {
-        let raw = std::fs::read_to_string(path)?;
-        Self::from_csv_str(&raw, provenance)
-    }
-
-    pub fn lookup(&self, galactic_lon: Degrees, galactic_lat: Degrees) -> StarlightOutputs {
-        let (lon0, lon1, tx) = self.lon_bracket(galactic_lon.value());
-        let (lat0, lat1, ty) = bracket_clamped(&self.lat_values_deg, galactic_lat.value());
-
-        bilinear_outputs(
-            self.pixel(lon0, lat0).output(),
-            self.pixel(lon1, lat0).output(),
-            self.pixel(lon0, lat1).output(),
-            self.pixel(lon1, lat1).output(),
-            tx,
-            ty,
-        )
-    }
-
-    pub fn provenance(&self) -> &StarlightProvenance {
-        &self.provenance
-    }
-
-    pub fn pixels(&self) -> &[StarlightPixel] {
-        &self.pixels
-    }
-
-    fn pixel(&self, lon_idx: usize, lat_idx: usize) -> StarlightPixel {
-        self.pixels[grid_index(self.lon_values_deg.len(), lon_idx, lat_idx)]
-    }
-
-    fn lon_bracket(&self, lon_deg: f64) -> (usize, usize, f64) {
-        if self.lon_values_deg.len() == 1 {
-            return (0, 0, 0.0);
+    fn from_healpix_csv_str(
+        raw: &str,
+        metadata: BTreeMap<String, String>,
+        provenance: StarlightProvenance,
+    ) -> Result<Self> {
+        let nside = required_metadata(&metadata, "nside")?
+            .parse::<u32>()
+            .map_err(|err| NsbError::DataParse {
+                file: "starlight map csv",
+                message: format!("invalid HEALPix nside: {err}"),
+            })?;
+        let ordering = match required_metadata(&metadata, "ordering")?.to_ascii_lowercase().as_str() {
+            "ring" => HealpixOrdering::Ring,
+            "nested" => HealpixOrdering::Nested,
+            other => {
+                return Err(NsbError::DataParse {
+                    file: "starlight map csv",
+                    message: format!("unsupported HEALPix ordering {other:?}"),
+                })
+            }
+        };
+        let frame = required_metadata(&metadata, "coordinate_frame")?.to_ascii_lowercase();
+        if frame != "galactic" {
+            return Err(NsbError::DataParse {
+                file: "starlight map csv",
+                message: format!("expected coordinate_frame=galactic, got {frame:?}"),
+            });
         }
 
-        let x = normalize_lon_deg(lon_deg);
-        let last = self.lon_values_deg.len() - 1;
-        for i in 0..self.lon_values_deg.len() {
-            let j = if i == last { 0 } else { i + 1 };
-            let lo = self.lon_values_deg[i];
-            let mut hi = self.lon_values_deg[j];
-            let mut x_adj = x;
-            if i == last {
-                hi += 360.0;
-                if x_adj < lo {
-                    x_adj += 360.0;
-                }
+        let grid = HealpixGrid::new(Nside::new(nside).map_err(|err| invalid_map(err.to_string()))?, ordering)
+            .map_err(|err| invalid_map(err.to_string()))?;
+        let npix = usize::try_from(grid.npix()).expect("HEALPix npix fits usize");
+        let mut pixels = vec![None; npix];
+        let mut saw_header = false;
+
+        for (line_idx, line) in raw.lines().enumerate() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
             }
-            if x_adj + EPS >= lo && x_adj <= hi + EPS {
-                let tx = if (hi - lo).abs() <= EPS {
-                    0.0
-                } else {
-                    ((x_adj - lo) / (hi - lo)).clamp(0.0, 1.0)
-                };
-                return (i, j, tx);
+            if !saw_header && line.starts_with("healpix_index,") {
+                saw_header = true;
+                continue;
+            }
+            saw_header = true;
+
+            let fields: Vec<&str> = line.split(',').map(str::trim).collect();
+            if fields.len() != 4 {
+                return Err(NsbError::DataParse {
+                    file: "starlight map csv",
+                    message: format!(
+                        "line {} has {} fields, expected 4",
+                        line_idx + 1,
+                        fields.len()
+                    ),
+                });
+            }
+            let index = parse_u64(fields[0], line_idx + 1, "healpix_index")?;
+            grid.validate_index(HealpixIndex::new(index))
+                .map_err(|err| invalid_map(err.to_string()))?;
+            let slot = usize::try_from(index).expect("pixel index fits usize");
+            let (lon, lat) = healpix_pixel_lon_lat_deg(grid, HealpixIndex::new(index))?;
+            let pixel = StarlightPixel::new(
+                Degrees::new(lon),
+                Degrees::new(lat),
+                grid.pixel_area_sr(),
+                BandPhotonRadiance::new(parse_f64(fields[1], line_idx + 1, "integrated_ph_cm2_ns_sr")?),
+                S10s::new(parse_f64(fields[2], line_idx + 1, "b_s10")?),
+                S10s::new(parse_f64(fields[3], line_idx + 1, "v_s10")?),
+            );
+            pixel.validate()?;
+            if pixels[slot].replace(pixel).is_some() {
+                return Err(invalid_map(format!("duplicate HEALPix pixel index {index}")));
             }
         }
 
-        let nearest = self
-            .lon_values_deg
-            .iter()
-            .enumerate()
-            .min_by(|(_, a), (_, b)| {
-                circular_distance(**a, x).total_cmp(&circular_distance(**b, x))
-            })
-            .map(|(idx, _)| idx)
-            .expect("validated map has at least one longitude");
-        (nearest, nearest, 0.0)
+        let mut validated = Vec::with_capacity(npix);
+        for (index, pixel) in pixels.into_iter().enumerate() {
+            validated.push(pixel.ok_or_else(|| invalid_map(format!("missing HEALPix pixel index {index}")))?);
+        }
+
+        Ok(Self {
+            provenance,
+            kind: StarlightMapKind::Healpix {
+                grid,
+                pixels: validated,
+            },
+        })
     }
+}
+
+fn first_data_header(raw: &str) -> Result<&str> {
+    raw.lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty() && !line.starts_with('#'))
+        .ok_or_else(|| invalid_map("starlight map csv has no data header"))
+}
+
+fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
+    raw.lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('#'))
+        .filter_map(|line| line.trim_start_matches('#').trim().split_once('='))
+        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+        .collect()
+}
+
+fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> Result<&'a str> {
+    metadata
+        .get(key)
+        .map(String::as_str)
+        .ok_or_else(|| invalid_map(format!("missing required HEALPix metadata key {key:?}")))
+}
+
+fn parse_u64(raw: &str, line: usize, name: &str) -> Result<u64> {
+    raw.parse::<u64>().map_err(|err| NsbError::DataParse {
+        file: "starlight map csv",
+        message: format!("line {line} invalid {name}: {err}"),
+    })
+}
+
+fn parse_f64(raw: &str, line: usize, name: &str) -> Result<f64> {
+    raw.parse::<f64>().map_err(|err| NsbError::DataParse {
+        file: "starlight map csv",
+        message: format!("line {line} invalid {name}: {err}"),
+    })
+}
+
+fn healpix_pixel_lon_lat_deg(grid: HealpixGrid, index: HealpixIndex) -> Result<(f64, f64)> {
+    let direction: CartesianDirection<Galactic> = grid
+        .pixel_center(index)
+        .map_err(|err| invalid_map(err.to_string()))?;
+    let [x, y, z] = direction.as_array();
+    let lon = normalize_lon_deg(y.atan2(x).to_degrees());
+    let lat = z.clamp(-1.0, 1.0).asin().to_degrees();
+    Ok((lon, lat))
+}
+
+fn galactic_cartesian_direction(lon_deg: f64, lat_deg: f64) -> CartesianDirection<Galactic> {
+    let lon = lon_deg.to_radians();
+    let lat = lat_deg.to_radians();
+    let cos_lat = lat.cos();
+    CartesianDirection::<Galactic>::from_array([cos_lat * lon.cos(), cos_lat * lon.sin(), lat.sin()])
 }
 
 fn bracket_clamped(values: &[f64], x: f64) -> (usize, usize, f64) {
@@ -282,6 +435,43 @@ fn bracket_clamped(values: &[f64], x: f64) -> (usize, usize, f64) {
         }
     }
     (last, last, 0.0)
+}
+
+fn lon_bracket(values: &[f64], lon_deg: f64) -> (usize, usize, f64) {
+    if values.len() == 1 {
+        return (0, 0, 0.0);
+    }
+
+    let x = normalize_lon_deg(lon_deg);
+    let last = values.len() - 1;
+    for i in 0..values.len() {
+        let j = if i == last { 0 } else { i + 1 };
+        let lo = values[i];
+        let mut hi = values[j];
+        let mut x_adj = x;
+        if i == last {
+            hi += 360.0;
+            if x_adj < lo {
+                x_adj += 360.0;
+            }
+        }
+        if x_adj + EPS >= lo && x_adj <= hi + EPS {
+            let tx = if (hi - lo).abs() <= EPS {
+                0.0
+            } else {
+                ((x_adj - lo) / (hi - lo)).clamp(0.0, 1.0)
+            };
+            return (i, j, tx);
+        }
+    }
+
+    let nearest = values
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| circular_distance(**a, x).total_cmp(&circular_distance(**b, x)))
+        .map(|(idx, _)| idx)
+        .expect("validated map has at least one longitude");
+    (nearest, nearest, 0.0)
 }
 
 fn sort_dedup(values: &mut Vec<f64>) {
