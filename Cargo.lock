@@ -4,34 +4,13 @@ version = 4
 
 [[package]]
 name = "affn"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c87b9ab9380ca5e99f103892edf0d608fd693aee15445e76d9669500ae6560a4"
-dependencies = [
- "affn-derive 0.7.3",
- "qtty",
-]
-
-[[package]]
-name = "affn"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f3b930c8e20e9f26940bb2272eca1010e94c24866394d5433d3f543f3f512da"
 dependencies = [
- "affn-derive 0.8.0",
+ "affn-derive",
  "qtty",
  "serde",
-]
-
-[[package]]
-name = "affn-derive"
-version = "0.7.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b0de78baee7e6ec28ef4f556d50a710a2fde9dcb89da1bd80e4cc4a36643984"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -608,7 +587,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05b913c38a04f8454177e4b67afd274fed6dbd5111539804e931116b2b5eb041"
 dependencies = [
- "affn 0.8.0",
+ "affn",
  "qtty",
  "thiserror",
 ]
@@ -658,7 +637,7 @@ dependencies = [
  "chrono",
  "criterion",
  "csv",
- "optica 0.1.0",
+ "optica",
  "qtty",
  "siderust",
  "tempoch",
@@ -726,22 +705,11 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "optica"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3db16cd3cd4995021a990026aa928d0afbdfd0e7c7567870e79d4beadacc0e13"
-dependencies = [
- "affn 0.7.3",
- "qtty",
- "thiserror",
-]
-
-[[package]]
-name = "optica"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44ef525c65abec3ef62c57c59390c0b053f79bf8e8340f6ee403acbdb2c837f4"
 dependencies = [
- "affn 0.8.0",
+ "affn",
  "qtty",
  "thiserror",
 ]
@@ -804,7 +772,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9c0871c2b8bf62a2cfef427a4b51c9d4faa070b704f3b8ae965d5355720f085"
 dependencies = [
- "affn 0.8.0",
+ "affn",
  "qtty",
  "tempoch",
  "thiserror",
@@ -1020,14 +988,14 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 [[package]]
 name = "siderust"
 version = "0.10.1"
-source = "git+https://github.com/Siderust/siderust.git?branch=feature%2Fhealpix-stellar-maps#4b77e4807be2f96c87b03c2d4427944b3e4c2c71"
+source = "git+https://github.com/Siderust/siderust.git?branch=main#8d94b8375ae23c26d00346f74951e52cd1b595cc"
 dependencies = [
- "affn 0.8.0",
+ "affn",
  "approx",
  "cheby",
  "chrono",
  "keplerian",
- "optica 0.2.0",
+ "optica",
  "paste",
  "principia",
  "qtty",
@@ -1107,7 +1075,7 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a0a0d25de8d969e76c6aaeb24cdcb3ef0502aea7647d6baff78f951f2b0db90"
 dependencies = [
- "affn 0.8.0",
+ "affn",
  "chrono",
  "qtty",
  "serde",
