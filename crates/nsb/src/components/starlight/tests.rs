@@ -47,14 +47,21 @@ fn target(ra: f64, dec: f64) -> Target {
 }
 
 #[test]
-fn catalogue_model_fails_until_real_map_is_bundled() {
-    let err = Starlight::catalogue_galactic_model().unwrap_err();
-    match err {
-        crate::NsbError::DataMissing { file, .. } => {
-            assert_eq!(file, "data/starlight_galactic_map_v1.csv");
-        }
-        other => panic!("expected missing catalogue map, got {other:?}"),
-    }
+fn catalogue_model_loads_bundled_experimental_map() {
+    let model = Starlight::catalogue_galactic_model().unwrap();
+    let provenance = model.map().provenance();
+
+    assert_eq!(
+        provenance.dataset_name,
+        "NSB experimental catalogue-derived Galactic starlight map"
+    );
+    assert_eq!(provenance.version, "v1-experimental-seed");
+    assert_eq!(provenance.photometry_model.as_deref(), Some("v_s10_scaled_integrated_v1"));
+    assert_eq!(model.map().pixels().len(), 12);
+
+    let output = model.compute(target(266.4051, -28.936175)).unwrap();
+    assert!(output.integrated.value().is_finite());
+    assert!(output.integrated.value() > 0.0);
 }
 
 #[test]
