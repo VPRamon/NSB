@@ -1,6 +1,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
@@ -187,7 +188,7 @@ fn tycho_to_johnson_bv(bt_mag: f64, vt_mag: f64) -> (f64, f64) {
 }
 
 fn output_writer(path: &PathBuf) -> Result<Box<dyn Write>> {
-    if path.as_os_str() == "-" {
+    if path.as_os_str() == OsStr::new("-") {
         Ok(Box::new(BufWriter::new(io::stdout())))
     } else {
         Ok(Box::new(BufWriter::new(File::create(path).with_context(|| {
