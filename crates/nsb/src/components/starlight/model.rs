@@ -1,12 +1,14 @@
 use super::map::StarlightMap;
 use super::output::StarlightOutputs;
 use super::photometry::scale_outputs;
+use super::provenance::StarlightProvenance;
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
 
 const CATALOGUE_MAP_FILE: &str = "data/starlight_galactic_map_v1.csv";
+const BUNDLED_CATALOGUE_MAP: &str = include_str!("../../../data/starlight_galactic_map_v1.csv");
 
 #[derive(Debug, Clone)]
 pub struct Starlight {
@@ -16,7 +18,15 @@ pub struct Starlight {
 
 impl Starlight {
     pub fn catalogue_galactic_model() -> Result<Self> {
-        Err(data_missing())
+        let map = StarlightMap::from_csv_str(
+            BUNDLED_CATALOGUE_MAP,
+            StarlightProvenance::catalogue_galactic_model_v1(),
+        )?;
+        Ok(Self::with_map(map))
+    }
+
+    pub fn bundled_catalogue_provenance() -> Result<StarlightProvenance> {
+        Ok(Self::catalogue_galactic_model()?.map().provenance().clone())
     }
 
     pub fn with_map(map: StarlightMap) -> Self {
@@ -46,9 +56,10 @@ impl Starlight {
     }
 }
 
+#[allow(dead_code)]
 fn data_missing() -> NsbError {
     NsbError::DataMissing {
         file: CATALOGUE_MAP_FILE,
-        message: "catalogue-derived Galactic starlight map is not bundled yet; generate a real provenance-backed map before enabling BundledCatalogueMap".to_string(),
+        message: "catalogue-derived Galactic starlight map is not bundled".to_string(),
     }
 }
