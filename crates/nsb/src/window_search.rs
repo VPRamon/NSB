@@ -24,6 +24,7 @@ where
 
     let start = utc_to_chrono(window.start)?;
     let end = utc_to_chrono(window.end)?;
+    let chrono_window = (start, end);
     if start >= end {
         return Ok(Vec::new());
     }
@@ -47,7 +48,7 @@ where
             let crossing = refine_range_crossing(t0, y0, t1, y1, &value_at, (min, max), inside0)?;
             if inside0 {
                 if let Some(start) = open_start.take() {
-                    push_non_empty_period(&mut periods, start, crossing);
+                    push_non_empty_period(&mut periods, start, crossing, window, chrono_window);
                 }
             } else {
                 open_start = Some(crossing);
@@ -60,7 +61,7 @@ where
             } else {
                 (exit_time, entry_time)
             };
-            push_non_empty_period(&mut periods, start, end);
+            push_non_empty_period(&mut periods, start, end, window, chrono_window);
         }
 
         t0 = t1;
@@ -69,7 +70,7 @@ where
     }
 
     if let Some(start) = open_start {
-        push_non_empty_period(&mut periods, start, end);
+        push_non_empty_period(&mut periods, start, end, window, chrono_window);
     }
 
     Ok(periods)
@@ -336,12 +337,25 @@ fn utc_to_chrono(time: Time<UTC>) -> Result<DateTime<Utc>> {
     })
 }
 
-fn push_non_empty_period(periods: &mut Vec<Period<UTC>>, start: DateTime<Utc>, end: DateTime<Utc>) {
+fn push_non_empty_period(
+    periods: &mut Vec<Period<UTC>>,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    window: Period<UTC>,
+    chrono_window: (DateTime<Utc>, DateTime<Utc>),
+) {
     if start < end {
-        periods.push(Period::new(
-            Time::<UTC>::from_chrono(start),
-            Time::<UTC>::from_chrono(end),
-        ));
+        let start = if start == chrono_window.0 {
+            window.start
+        } else {
+            Time::<UTC>::from_chrono(start)
+        };
+        let end = if end == chrono_window.1 {
+            window.end
+        } else {
+            Time::<UTC>::from_chrono(end)
+        };
+        periods.push(Period::new(start, end));
     }
 }
 
@@ -378,7 +392,10 @@ mod tests {
             |time| {
                 let elapsed = utc_to_chrono(time)?
                     .signed_duration_since(start)
-                    .num_seconds() as f64;
+                    .num_microseconds()
+                    .expect("ten-minute test interval fits in i64 microseconds")
+                    as f64
+                    / 1.0e6;
                 let ascending = elapsed / 30.0;
                 let value = if slope_sign.is_sign_positive() {
                     ascending
@@ -391,13 +408,21 @@ mod tests {
         .unwrap();
 
         assert_eq!(periods.len(), 1);
-        assert_eq!(
-            utc_to_chrono(periods[0].start).unwrap(),
-            start + Duration::seconds(240)
+        let expected_start = start + Duration::seconds(240);
+        let expected_end = start + Duration::seconds(360);
+        assert!(
+            utc_to_chrono(periods[0].start)
+                .unwrap()
+                .signed_duration_since(expected_start)
+                .abs()
+                <= Duration::milliseconds(1)
         );
-        assert_eq!(
-            utc_to_chrono(periods[0].end).unwrap(),
-            start + Duration::seconds(360)
+        assert!(
+            utc_to_chrono(periods[0].end)
+                .unwrap()
+                .signed_duration_since(expected_end)
+                .abs()
+                <= Duration::milliseconds(1)
         );
     }
 

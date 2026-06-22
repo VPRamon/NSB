@@ -6,6 +6,38 @@ use siderust::qtty::Degrees;
 
 const FIXTURE: &str = include_str!("../../../tests/data/starlight_fixture_map.csv");
 
+const HEALPIX_FIXTURE: &str = r#"# map_type=healpix
+# nside=1
+# ordering=ring
+# coordinate_frame=galactic
+# dataset_name=NSB synthetic test-only HEALPix starlight fixture
+# version=fixture
+# generation_date_utc=2026-06-21T00:00:00Z
+# source_catalogue=synthetic unit-test fixture
+# source_catalogue_release=test
+# source_catalogue_license=test-only
+# source_catalogue_checksum=sha256:fixture
+# magnitude_limit=test-only
+# map_resolution=HEALPix nside=1 ring 12 pixels
+# photometry_model=fixture
+# band_definition=integrated 300-650 nm photon radiance plus B/V S10 diagnostics
+# smoothing_fwhm_deg=none
+# generated_by=unit test
+healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10
+0,1.0,10.0,5.0
+1,2.0,20.0,10.0
+2,3.0,30.0,15.0
+3,4.0,40.0,20.0
+4,5.0,50.0,25.0
+5,6.0,60.0,30.0
+6,7.0,70.0,35.0
+7,8.0,80.0,40.0
+8,9.0,90.0,45.0
+9,10.0,100.0,50.0
+10,11.0,110.0,55.0
+11,12.0,120.0,60.0
+"#;
+
 fn fixture_map() -> StarlightMap {
     StarlightMap::from_csv_str(FIXTURE, StarlightProvenance::test_fixture()).unwrap()
 }
@@ -15,9 +47,34 @@ fn target(ra: f64, dec: f64) -> Target {
 }
 
 #[test]
-fn catalogue_model_reports_missing_data_until_real_map_is_bundled() {
+fn catalogue_model_fails_until_real_map_is_bundled() {
     let err = Starlight::catalogue_galactic_model().unwrap_err();
-    assert!(matches!(err, crate::NsbError::DataMissing { .. }));
+    match err {
+        crate::NsbError::DataMissing { file, .. } => {
+            assert_eq!(file, "data/starlight_galactic_map_v1.csv");
+        }
+        other => panic!("expected missing catalogue map, got {other:?}"),
+    }
+}
+
+#[test]
+fn healpix_csv_fixture_loads_from_test_data_only() {
+    let map =
+        StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
+
+    assert_eq!(map.pixels().len(), 12);
+    assert_eq!(
+        map.provenance().dataset_name,
+        "NSB synthetic test-only HEALPix starlight fixture"
+    );
+    assert_eq!(
+        map.provenance().photometry_model.as_deref(),
+        Some("fixture")
+    );
+
+    let output = map.lookup(Degrees::new(0.0), Degrees::new(0.0));
+    assert!(output.integrated.value().is_finite());
+    assert!(output.integrated.value() > 0.0);
 }
 
 #[test]
