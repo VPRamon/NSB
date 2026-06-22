@@ -1,6 +1,6 @@
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
-use crate::components::{airglow, starlight};
 use crate::components::zodiacal::ZodiacalExtinction;
+use crate::components::{airglow, starlight};
 use crate::site::SiteProfileId;
 use qtty::angular::Degrees;
 use qtty::photometry::SurfaceBrightness;
@@ -24,9 +24,10 @@ bitflags::bitflags! {
         const DEFAULT   = Self::ZODIACAL.bits()
                         | Self::AIRGLOW.bits()
                         | Self::MOON.bits();
-        const ALL       = Self::DEFAULT.bits();
-        const ALL_SUPPORTED = Self::DEFAULT.bits()
-                            | Self::STARLIGHT.bits();
+        const ALL       = Self::DEFAULT.bits()
+                        | Self::STARLIGHT.bits();
+        #[deprecated(note = "use ComponentMask::ALL; ALL now includes STARLIGHT")]
+        const ALL_SUPPORTED = Self::ALL.bits();
     }
 }
 
@@ -125,7 +126,7 @@ impl NsbModelConfig {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
             site_profile: SiteProfileId::GenericClearSky,
-            starlight_model: StarlightModel::Disabled,
+            starlight_model: StarlightModel::BundledCatalogueMap,
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
             zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
         }
@@ -141,6 +142,11 @@ impl NsbModelConfig {
 
     pub fn with_site_profile(mut self, site_profile: SiteProfileId) -> Self {
         self.site_profile = site_profile;
+        self
+    }
+
+    pub fn with_starlight_model(mut self, starlight_model: StarlightModel) -> Self {
+        self.starlight_model = starlight_model;
         self
     }
 
