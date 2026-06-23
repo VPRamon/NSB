@@ -8,6 +8,10 @@ publish = false
 name = "build_starlight_map"
 path = "src/bin/build_starlight_map.rs"
 
+[[bin]]
+name = "prepare_tycho_starlight_catalogue"
+path = "src/bin/prepare_tycho_starlight_catalogue.rs"
+
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }

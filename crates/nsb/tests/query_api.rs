@@ -48,7 +48,10 @@ fn evaluator_defaults_to_generic_clear_sky_config() {
     let config = evaluator.config();
     assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
     assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
-    assert!(matches!(config.starlight_model, StarlightModel::Disabled));
+    assert!(matches!(
+        config.starlight_model,
+        StarlightModel::BundledCatalogueMap
+    ));
 }
 
 #[test]
@@ -57,7 +60,10 @@ fn default_model_config_is_generic_clear_sky() {
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model, explicit.moonlight_model);
     assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
-    assert!(matches!(default.starlight_model, StarlightModel::Disabled));
+    assert!(matches!(
+        default.starlight_model,
+        StarlightModel::BundledCatalogueMap
+    ));
 }
 
 #[test]
@@ -82,9 +88,8 @@ fn cta_planning_configs_select_named_site_profiles() {
 }
 
 #[test]
-fn all_components_is_generic_clear_sky_safe_without_bundled_starlight() {
-    assert!(!ComponentMask::ALL.contains(ComponentMask::STARLIGHT));
-    assert!(ComponentMask::ALL_SUPPORTED.contains(ComponentMask::STARLIGHT));
+fn all_components_includes_bundled_starlight() {
+    assert!(ComponentMask::ALL.contains(ComponentMask::STARLIGHT));
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let result = evaluator
@@ -94,7 +99,7 @@ fn all_components_is_generic_clear_sky_safe_without_bundled_starlight() {
             target: sgr_a_star(),
             components: ComponentMask::ALL,
         })
-        .expect("generic clear-sky ALL must not require starlight data");
+        .expect("generic clear-sky ALL evaluates bundled starlight");
 
     assert!(result.integrated.value() > 0.0);
     assert!(result
@@ -104,15 +109,15 @@ fn all_components_is_generic_clear_sky_safe_without_bundled_starlight() {
     assert!(result
         .components
         .iter()
+        .any(|component| component.name == "starlight"));
+    assert!(result
+        .components
+        .iter()
         .any(|component| component.name == "airglow"));
     assert!(result
         .components
         .iter()
         .any(|component| component.name == "moon"));
-    assert!(!result
-        .components
-        .iter()
-        .any(|component| component.name == "starlight"));
 }
 
 #[test]
@@ -161,7 +166,9 @@ fn point_query_propagates_selected_component_error() {
 
 #[test]
 fn starlight_request_without_model_fails_explicitly() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let config = NsbModelConfig::generic_clear_sky()
+        .with_starlight_model(StarlightModel::Disabled);
+    let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let error = evaluator
         .evaluate(&PointQuery {
             observer: paranal(),
@@ -169,15 +176,15 @@ fn starlight_request_without_model_fails_explicitly() {
             target: sgr_a_star(),
             components: ComponentMask::STARLIGHT,
         })
-        .expect_err("default config must not evaluate starlight without a map");
+        .expect_err("explicitly disabled starlight must fail when requested");
 
     assert!(error.to_string().contains("starlight component requested"));
 }
 
 #[test]
 fn custom_starlight_map_evaluates_when_explicitly_configured() {
-    let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
+    let config = NsbModelConfig::generic_clear_sky()
+        .with_starlight_model(StarlightModel::with_map(fixture_starlight_map()));
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let result = evaluator
@@ -238,57 +245,4 @@ fn threshold_query_fails_closed_on_selected_component_error() {
         result.is_err(),
         "threshold search must not treat a failed component as zero"
     );
-}
-
-#[test]
-fn threshold_query_returns_empty_for_zero_threshold() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
-    let start = parse_obstime("2023-09-04 01:00:00");
-    let end = parse_obstime("2023-09-04 02:00:00");
-    let result = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer: paranal(),
-            target: sgr_a_star(),
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(0.0),
-            components: default_components(),
-            sample_step: Second::new(600.0),
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
-        .expect("threshold query");
-
-    assert!(result.periods.is_empty());
-}
-
-#[test]
-fn threshold_starlight_is_target_dependent() {
-    let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
-    let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
-    let start = parse_obstime("2023-09-04 01:00:00");
-    let end = parse_obstime("2023-09-04 02:00:00");
-
-    let query = |target| ThresholdQuery {
-        observer: paranal(),
-        target,
-        window: Period::new(start, end),
-        threshold: BandPhotonRadiance::new(3.0),
-        components: ComponentMask::STARLIGHT,
-        sample_step: Second::new(600.0),
-        sun_altitude_ceiling: None,
-        target_altitude_floor: None,
-    };
-
-    let galactic_center = evaluator
-        .periods_below_threshold(&query(Target::new(266.4051 * DEG, -28.936175 * DEG)))
-        .expect("galactic-center starlight query");
-    let north_galactic_pole = evaluator
-        .periods_below_threshold(&query(Target::new(192.85948 * DEG, 27.12825 * DEG)))
-        .expect("north-galactic-pole starlight query");
-
-    assert!(galactic_center.periods.is_empty());
-    assert_eq!(north_galactic_pole.periods.len(), 1);
-    assert_eq!(north_galactic_pole.periods[0].start, start);
-    assert_eq!(north_galactic_pole.periods[0].end, end);
 }

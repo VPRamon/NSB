@@ -1,4 +1,5 @@
 use super::{MoonlightModel, Observer, StarlightModel};
+use crate::components::starlight::Starlight;
 use crate::site::SiteProfileId;
 use crate::NSB_S10_ZP;
 use std::borrow::Cow;
@@ -76,37 +77,19 @@ pub(super) fn airglow_metadata(site_profile: SiteProfileId, observer: Observer) 
 
 pub(super) fn starlight_metadata(model: &StarlightModel) -> NsbComponentMetadata {
     match model {
-        StarlightModel::BundledCatalogueMap => NsbComponentMetadata {
-            status: ComponentCalibrationStatus::Experimental,
-            provenance: "future bundled catalogue-derived Galactic starlight map: data/starlight_galactic_map_v1.csv".into(),
-            validated_domain: "not production-valid until the catalogue map is generated, bundled, and quantitatively validated".into(),
-            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-        },
-        StarlightModel::CustomMap(map) => {
-            let provenance = map.provenance();
-            let checksum = provenance.checksum.as_deref().unwrap_or("not recorded");
-            NsbComponentMetadata {
+        StarlightModel::BundledCatalogueMap => match Starlight::bundled_catalogue_provenance() {
+            Ok(provenance) => starlight_map_metadata(&provenance, "bundled experimental map"),
+            Err(err) => NsbComponentMetadata {
                 status: ComponentCalibrationStatus::Experimental,
                 provenance: Cow::Owned(format!(
-                    "{}; version {}; generated {}; source {}; license {}; magnitude limit {}; band {}; resolution {}; checksum {}",
-                    provenance.dataset_name.as_str(),
-                    provenance.version.as_str(),
-                    provenance.generation_date.as_str(),
-                    provenance.source_catalogue.as_str(),
-                    provenance.license.as_str(),
-                    provenance.magnitude_limit.as_str(),
-                    provenance.band_definition.as_str(),
-                    provenance.map_resolution.as_str(),
-                    checksum
+                    "bundled catalogue-derived Galactic starlight map failed to load: {err}"
                 )),
-                validated_domain: Cow::Owned(format!(
-                    "caller-provided map provenance: dataset {}; version {}; checksum {}",
-                    provenance.dataset_name.as_str(),
-                    provenance.version.as_str(),
-                    checksum
-                )),
+                validated_domain: "not evaluable; bundled starlight map failed to parse".into(),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-            }
+            },
+        },
+        StarlightModel::CustomMap(map) => {
+            starlight_map_metadata(map.provenance(), "caller-provided map")
         }
         StarlightModel::Disabled => NsbComponentMetadata {
             status: ComponentCalibrationStatus::Experimental,
@@ -114,6 +97,39 @@ pub(super) fn starlight_metadata(model: &StarlightModel) -> NsbComponentMetadata
             validated_domain: "not evaluable".into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         },
+    }
+}
+
+fn starlight_map_metadata(
+    provenance: &crate::components::starlight::StarlightProvenance,
+    source: &'static str,
+) -> NsbComponentMetadata {
+    let checksum = provenance.checksum.as_deref().unwrap_or("not recorded");
+    NsbComponentMetadata {
+        status: ComponentCalibrationStatus::Experimental,
+        provenance: Cow::Owned(format!(
+            "{}; version {}; generated {}; source {}; release {}; license {}; magnitude limit {}; band {}; resolution {}; photometry {}; smoothing {}; checksum {}; {}",
+            provenance.dataset_name.as_str(),
+            provenance.version.as_str(),
+            provenance.generation_date.as_str(),
+            provenance.source_catalogue.as_str(),
+            provenance.source_catalogue_release.as_deref().unwrap_or("not recorded"),
+            provenance.license.as_str(),
+            provenance.magnitude_limit.as_str(),
+            provenance.band_definition.as_str(),
+            provenance.map_resolution.as_str(),
+            provenance.photometry_model.as_deref().unwrap_or("not recorded"),
+            provenance.smoothing.as_deref().unwrap_or("not recorded"),
+            checksum,
+            source,
+        )),
+        validated_domain: Cow::Owned(format!(
+            "experimental catalogue-derived starlight map; dataset {}; version {}; checksum {}; external validation remains required before production use",
+            provenance.dataset_name.as_str(),
+            provenance.version.as_str(),
+            checksum,
+        )),
+        band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
     }
 }
 
