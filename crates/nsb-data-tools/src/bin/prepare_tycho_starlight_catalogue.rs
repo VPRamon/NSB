@@ -1,6 +1,8 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use csv::{ReaderBuilder, StringRecord, WriterBuilder};
+use serde::Serialize;
+use siderust::checksum::{sha256, to_hex};
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
@@ -46,6 +48,21 @@ struct Columns {
     source_id: Option<usize>,
 }
 
+#[derive(Debug, Serialize)]
+struct Diagnostics<'a> {
+    schema_version: u32,
+    catalogue_name: &'a str,
+    catalogue_release: Option<&'a str>,
+    catalogue_license: Option<&'a str>,
+    input_checksum: String,
+    photometry_model: &'static str,
+    calibration_status: &'static str,
+    min_v_mag: Option<f64>,
+    max_v_mag: Option<f64>,
+    rows_read: usize,
+    rows_used: usize,
+}
+
 fn main() -> Result<()> {
     run(Args::parse())
 }
@@ -59,13 +76,29 @@ fn run(args: Args) -> Result<()> {
             bail!("magnitude cuts must be finite and satisfy min <= max");
         }
     }
+    let input_bytes = std::fs::read(&args.input)
+        .with_context(|| format!("failed to checksum {}", args.input.display()))?;
+    let input_checksum = format!("sha256:{}", to_hex(&sha256(&input_bytes)));
+    if let Some(expected) = args.input_checksum.as_deref() {
+        let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
+        let actual = input_checksum.trim_start_matches("sha256:");
+        if expected != actual {
+            bail!(
+                "input checksum mismatch for {}: expected sha256:{expected}, actual {input_checksum}",
+                args.input.display()
+            );
+        }
+    }
 
     let mut reader = ReaderBuilder::new()
         .comment(Some(b'#'))
         .trim(csv::Trim::All)
         .from_path(&args.input)
         .with_context(|| format!("failed to open input catalogue {}", args.input.display()))?;
-    let headers = reader.headers().context("failed to read input CSV header")?.clone();
+    let headers = reader
+        .headers()
+        .context("failed to read input CSV header")?
+        .clone();
     let columns = Columns::from_headers(&headers)?;
 
     let mut rows_read = 0usize;
@@ -84,27 +117,21 @@ fn run(args: Args) -> Result<()> {
     writer.flush()?;
 
     if let Some(path) = &args.diagnostics_output {
-        let diagnostics = format!(
-            concat!(
-                "catalogue_name={}\n",
-                "catalogue_release={}\n",
-                "catalogue_license={}\n",
-                "input_checksum={}\n",
-                "photometry_model=tycho_bt_vt_to_johnson_bv_proxy_v1\n",
-                "filters=min_v_mag={:?};max_v_mag={:?}\n",
-                "rows_read={}\n",
-                "rows_used={}\n"
-            ),
-            args.catalog_name,
-            args.catalog_release.as_deref().unwrap_or("not recorded"),
-            args.catalog_license.as_deref().unwrap_or("not recorded"),
-            args.input_checksum.as_deref().unwrap_or("not recorded"),
-            args.min_v_mag,
-            args.max_v_mag,
+        let diagnostics = Diagnostics {
+            schema_version: 1,
+            catalogue_name: &args.catalog_name,
+            catalogue_release: args.catalog_release.as_deref(),
+            catalogue_license: args.catalog_license.as_deref(),
+            input_checksum,
+            photometry_model: "tycho_bt_vt_to_johnson_bv_proxy_v1",
+            calibration_status: "experimental-proxy",
+            min_v_mag: args.min_v_mag,
+            max_v_mag: args.max_v_mag,
             rows_read,
             rows_used,
-        );
-        std::fs::write(path, diagnostics)
+        };
+        let raw = serde_json::to_string_pretty(&diagnostics)?;
+        std::fs::write(path, format!("{raw}\n"))
             .with_context(|| format!("failed to write diagnostics {}", path.display()))?;
     }
 
@@ -125,7 +152,8 @@ impl Columns {
 }
 
 fn required_header(headers: &StringRecord, name: &str) -> Result<usize> {
-    optional_header(headers, name).ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
+    optional_header(headers, name)
+        .ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
 }
 
 fn optional_header(headers: &StringRecord, name: &str) -> Option<usize> {
@@ -152,7 +180,9 @@ fn convert_row(row: &StringRecord, columns: Columns, args: &Args) -> Result<Opti
     }
 
     let (b_mag, v_mag) = tycho_to_johnson_bv(bt_mag, vt_mag);
-    if args.min_v_mag.is_some_and(|min| v_mag < min) || args.max_v_mag.is_some_and(|max| v_mag > max) {
+    if args.min_v_mag.is_some_and(|min| v_mag < min)
+        || args.max_v_mag.is_some_and(|max| v_mag > max)
+    {
         return Ok(None);
     }
     let source_id = columns
@@ -191,8 +221,50 @@ fn output_writer(path: &PathBuf) -> Result<Box<dyn Write>> {
     if path.as_os_str() == OsStr::new("-") {
         Ok(Box::new(BufWriter::new(io::stdout())))
     } else {
-        Ok(Box::new(BufWriter::new(File::create(path).with_context(|| {
-            format!("failed to create output catalogue {}", path.display())
-        })?)))
+        Ok(Box::new(BufWriter::new(File::create(path).with_context(
+            || format!("failed to create output catalogue {}", path.display()),
+        )?)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preparation_writes_canonical_rows_and_json_diagnostics() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("tycho.csv");
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        std::fs::write(
+            &input,
+            "ra_deg,dec_deg,bt_mag,vt_mag,source_id\n10.0,20.0,6.0,5.5,T1\n",
+        )?;
+
+        run(Args {
+            input,
+            output: output.clone(),
+            diagnostics_output: Some(diagnostics.clone()),
+            catalog_name: "Tycho fixture".to_string(),
+            catalog_release: Some("test".to_string()),
+            catalog_license: Some("test-only".to_string()),
+            input_checksum: None,
+            min_v_mag: None,
+            max_v_mag: Some(11.5),
+        })?;
+
+        let canonical = std::fs::read_to_string(output)?;
+        assert!(canonical.starts_with("ra_deg,dec_deg,b_mag,v_mag,weight,source_id"));
+        let report: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(diagnostics)?)?;
+        assert_eq!(report["schema_version"], 1);
+        assert_eq!(report["rows_read"], 1);
+        assert_eq!(report["rows_used"], 1);
+        assert_eq!(report["calibration_status"], "experimental-proxy");
+        assert!(report["input_checksum"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("sha256:")));
+        Ok(())
     }
 }

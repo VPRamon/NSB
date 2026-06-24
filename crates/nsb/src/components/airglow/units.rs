@@ -5,14 +5,17 @@
 pub struct SolarFluxUnits(f64);
 
 impl SolarFluxUnits {
+    /// Construct an F10.7 value in solar flux units.
     pub const fn new(value: f64) -> Self {
         Self(value)
     }
 
+    /// Return the numeric value in solar flux units.
     pub const fn value(self) -> f64 {
         self.0
     }
 
+    /// Return whether the value is finite and positive.
     pub fn is_valid(self) -> bool {
         self.0.is_finite() && self.0 > 0.0
     }

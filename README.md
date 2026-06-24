@@ -1,208 +1,166 @@
-# nsb — Night Sky Background
+# NSB
 
-Rust workspace for ground-based night-sky background (NSB) modelling and tools.
+NSB is a typed Rust library and CLI for modelling ground-based night-sky
+background and finding observing windows. The repository separates runtime
+evaluation (`nsb`), operational presentation (`nsb-cli`), and offline scientific
+data preparation (`nsb-data-tools`).
 
-The runtime library crate is `crates/nsb`. The operational command-line
-interface lives in `crates/nsb-cli`. Offline data-generation tools live in
-`crates/nsb-data-tools`.
+The software and release gates are production-oriented. Scientific maturity is
+component-specific and is never inferred from software quality: the default is a
+generic/planning model, not a site-calibrated CTAO product.
 
-If you are new to astronomy or to the NSB domain, start with:
+## Model contract
 
-- `docs/CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` — plain-language explanation of
-  the astronomy terms, the query model, and what each implemented component
-  means.
+`ComponentMask::ALL`, `ComponentMask::DEFAULT`, and CLI `--components all` are
+identical:
 
-Components:
+- zodiacal light;
+- airglow continuum;
+- scattered moonlight.
 
-- **Zodiacal light** — Leinert (1998) brightness map, Noll (2012) reddening &
-  extinction, scaled solar spectrum.
-- **Integrated starlight** — directional Galactic-coordinate map model; disabled
-  by default until a real catalogue-derived bundled product is generated with
-  provenance and quantitative validation.
-- **Airglow continuum** — site-bound empirical continuum model with Van Rhijn
-  geometry and solar/activity/time corrections.
-- **Scattered moonlight** — Jones et al. (2013) wavelength-resolved spectral
-  model (default) or Krisciunas & Schaefer (1991) analytic model.
+Integrated starlight is outside that set. The repository contains a
+low-resolution manual seed only for pipeline and lookup tests. Library users
+must opt into `StarlightModel::bundled_experimental_seed()` for that seed.
+Production starlight uses `StarlightModel::validated_external(...)`, which can
+only be constructed from a checksum-pinned map and complete validation sidecar.
+CLI `starlight` requires both `--starlight-map` and `--starlight-manifest`;
+`experimental-starlight` names only the seed. There is no fallback between them.
 
-## Architecture
+| Component | Default implementation | Maturity |
+|---|---|---|
+| Zodiacal light | Leinert (1998), solar spectrum, Noll-style extinction | Generic clear sky |
+| Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic or planning preset |
+| Moonlight | Jones et al. (2013) spectral model | Generic or planning preset |
+| KS91 moonlight | Published analytic V-band alternate | Published reference |
+| Integrated starlight | Validated external map or bundled manual seed | Production only when sidecar admission passes; otherwise experimental; non-default |
+| CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning preset, not calibrated |
 
-`siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
-photometry, passbands, and observatory catalogues. NSB owns NSB-specific
-component composition, calibration assets, planner windows, and site-profile
-metadata.
+The integrated output is photon radiance over 300–650 nm. B/V S10 and magnitude
+fields are diagnostic central-wavelength proxies, not validated Johnson B/V
+passband integrations. JSON and CSV preserve this distinction.
 
-Shared reference inputs live in internal `reference` modules; component-specific
-calibrations and grids live inside their component modules.
+See [model maturity](docs/MODEL_MATURITY.md) and
+[validation](docs/VALIDATION.md) before using results scientifically.
 
-Dependency direction:
-
-```text
-nsb-cli        -> nsb
-nsb-data-tools -> nsb, when needed
-nsb            -> never depends on nsb-cli or nsb-data-tools
-```
-
-## Library
-
-The public Rust API is built around a reusable `NsbEvaluator`. Queries take a
-`Geodetic<ECEF>` observer directly; named-site parsing is deliberately outside
-the library.
-
-`NsbEvaluator::new()` uses `NsbModelConfig::generic_clear_sky()`. This is an
-explicit generic clear-sky development/planning baseline, not a production-grade
-or CTAO-validated science preset. Starlight is disabled in that preset because
-no catalogue-derived Galactic starlight map is bundled and quantitatively
-validated yet. Requests that include `ComponentMask::STARLIGHT` therefore
-require an explicit custom `StarlightMap` or the future bundled catalogue map;
-without one, they fail explicitly instead of silently using missing or proxy
-data.
-
-Preset names intentionally encode maturity:
-
-- `generic_clear_sky()` is the current default baseline.
-- `NsbModelConfig::cta_n_planning()` and `NsbModelConfig::cta_s_planning()`
-  select explicit CTAO planning profiles with machine-readable atmospheric,
-  airglow, and provenance assumptions. They are not marked as fully
-  site-calibrated until dedicated CTAO validation data are bundled.
-- `python_parity()` is hidden and reserved for historical regression parity.
-- Names such as `standard` or `best_science` are not exposed until a complete,
-  reproducible, and quantitatively validated model configuration exists.
-
-Use named profiles at CTAO call sites instead of relying on generic fallback
-constructors:
-
-```rust
-use nsb::{Airglow, Jones2013Spectral, NsbEvaluator, NsbModelConfig, SiteProfileId};
-
-let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning())?;
-let moonlight = Jones2013Spectral::for_site_profile(observer, SiteProfileId::CtaSouth);
-let airglow = Airglow::for_site_profile(observer, SiteProfileId::CtaSouth)?;
-let profile = SiteProfileId::CtaSouth.profile(observer);
-assert!(!profile.is_site_calibrated());
-```
-
-Detailed CTAO profile assumptions live in `docs/CTAO_SITE_PROFILES.md`.
-
-`ComponentMask::ALL` currently means zodiacal light, airglow, and scattered
-moonlight. It intentionally excludes starlight until a catalogue-derived Galactic
-starlight map is bundled and validated. Use `ComponentMask::ALL_SUPPORTED` only
-with a configuration that supplies an explicit starlight model.
-
-Every `NsbComponent` carries `NsbComponentMetadata`: calibration status,
-provenance, validated-domain notes, and the B/V diagnostic convention. The
-current B/V S10 fields and `b_mag`/`v_mag` totals are explicitly
-monochromatic central-wavelength diagnostics at 445 nm and 551 nm, not Johnson
-B/V passband integrations. Airglow also exposes a relative one-sigma uncertainty
-when the empirical continuum calibration provides one. See
-`docs/SCIENTIFIC_METADATA.md` for the error-budget and provenance contract.
-
-```rust
-use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, ThresholdQuery, DEG};
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use siderust::catalogs::observatories;
-use tempoch::Period;
-
-let evaluator = NsbEvaluator::new()?;
-let observer = observatories::EL_PARANAL.geodetic();
-
-let r = evaluator.evaluate(&PointQuery {
-    observer,
-    time: /* tempoch::Time<UTC> */,
-    target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-    components: ComponentMask::ALL,
-})?;
-
-let w = evaluator.periods_below_threshold(&ThresholdQuery {
-    observer,
-    target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-    window: Period::new(/* start */, /* end */),
-    threshold: BandPhotonRadiance::new(1.0e3),
-    components: ComponentMask::ALL,
-    sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
-    sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
-    target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
-})?;
-```
-
-Runnable Rust examples live under `crates/nsb/examples/`:
-
-- `cargo run -p nsb --example point_query`
-- `cargo run -p nsb --example threshold_window`
-
-## CLI
-
-The CLI is implemented by `crates/nsb-cli`:
+## Rust quickstart
 
 ```bash
-cargo run -p nsb-cli -- point \
+cargo run -p nsb --example point_query
+```
+
+Expected output begins with the component breakdown and ends approximately as:
+
+```text
+    total: 1.947374e-1 ph/(cm² ns sr)
+       B = 22.340 mag/arcsec²
+       V = 22.015 mag/arcsec²
+```
+
+Library construction is reusable; immutable calibration data are parsed once:
+
+```rust,no_run
+use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
+use siderust::catalogs::observatories;
+
+# fn evaluate(time: tempoch::Time<tempoch::UTC>) -> nsb::Result<()> {
+let evaluator = NsbEvaluator::new()?;
+let result = evaluator.evaluate(&PointQuery {
+    observer: observatories::EL_PARANAL.geodetic(),
+    time,
+    target: Target::new(266.41683 * DEG, -29.00781 * DEG),
+    components: ComponentMask::ALL,
+})?;
+assert_eq!(result.components.len(), 3);
+# Ok(())
+# }
+```
+
+## CLI quickstart
+
+Global output options precede the subcommand:
+
+```bash
+cargo run -p nsb-cli -- --format json point \
   --time 2026-06-18T23:00:00Z \
   --site CTAO-S \
   --ra 83.6331 \
   --dec 22.0145 \
   --components all
-
-cargo run -p nsb-cli -- window \
-  --start 2026-06-18T20:00:00Z \
-  --end 2026-06-19T06:00:00Z \
-  --site CTAO-S \
-  --ra 83.6331 \
-  --dec 22.0145 \
-  --min-nsb 0.02 \
-  --max-nsb 0.25 \
-  --components all \
-  --format csv
 ```
 
-Named-site aliases and user-facing parsing live only in the CLI crate, not in the
-runtime library.
+Expected JSON contains these audit fields in addition to numeric results:
 
-## Data tools
+```json
+{
+  "schema_version": "nsb-cli-point-json-v1",
+  "version": {
+    "model_version": "nsb-model-2026.1",
+    "siderust_revision": "8d94b8375ae23c26d00346f74951e52cd1b595cc",
+    "asset_manifest_schema": 1
+  },
+  "model": { "preset": "ctao-south-planning" },
+  "components": [
+    { "name": "zodiacal", "metadata": { "calibration_status": "generic-clear-sky" } }
+  ]
+}
+```
 
-`crates/nsb-data-tools` is reserved for offline generation and validation tools,
-including the planned `build_starlight_map` pipeline. These tools are not runtime
-dependencies of `nsb`.
+The stable CSV schemas are documented in [CLI schemas](docs/CLI_SCHEMAS.md).
 
-## Validation
+## Reproducibility and assets
 
-End-to-end validation is documented in `docs/VALIDATION.md`. The lightweight CI
-suite lives in `crates/nsb/tests/end_to_end_validation.rs` and checks generic
-clear-sky `ComponentMask::ALL` point cases, component-sum conservation, explicit
-starlight fixture behaviour, threshold-window classification against sampled
-point curves, and unrestrictive threshold windows against independent
-observability intervals. Component-level validation also covers Jones 2013
-reference-fixture structure, zodiacal Leinert anchor values, Noll-style
-extinction numerics, and the public science metadata contract.
+Siderust is pinned to revision
+`8d94b8375ae23c26d00346f74951e52cd1b595cc` (release 0.10.1). All CI builds use
+`Cargo.lock`. Compatibility and update policy are in
+[SIDERUST_COMPATIBILITY.md](docs/SIDERUST_COMPATIBILITY.md).
+
+Every file under `crates/nsb/data` is registered in
+`crates/nsb/data/manifest.toml`. Verify files, checksums, required provenance,
+and starlight header consistency with:
 
 ```bash
-cargo test -p nsb --test end_to_end_validation
+cargo run --locked -p nsb-data-tools --bin verify_assets -- \
+  --manifest crates/nsb/data/manifest.toml
 ```
 
-## Build & test
+The manifest honestly records provenance gaps in inherited files. Such gaps
+prevent a component from being promoted to calibrated production science.
+Externally supplied production starlight is not a bundled asset and therefore
+uses its own strict sidecar contract documented in
+[external starlight manifests](docs/EXTERNAL_STARLIGHT_MANIFEST.md).
+
+## Quality gates
+
+MSRV is Rust 1.89, matching pinned Siderust's SIMD dependency floor. Pull
+requests run:
 
 ```bash
-cargo build --workspace
-cargo test --workspace
-cargo bench -p nsb
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace --locked
+cargo test --workspace --doc --locked
+RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+cargo build --workspace --release --locked
+cargo deny check
 ```
 
-## Layout
-
-```text
-crates/
-├── nsb/             # Runtime library crate, data assets, examples, tests, benches
-├── nsb-cli/         # Operational CLI crate
-└── nsb-data-tools/  # Offline data-generation tools
-docs/                # Supporting notes and historical reports
-```
+Benchmarks are scheduled/manual and cover point components, experimental
+starlight lookup, full composition, and window searches.
 
 ## Documentation
 
-- `docs/CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` — beginner-oriented explanation
-  of the domain concepts and the current implementation.
-- `docs/SCIENTIFIC_METADATA.md` — calibration status, provenance, uncertainty,
-  B/V proxy convention, and first-order component error budget.
-- `docs/CTAO_SITE_PROFILES.md` — machine-readable site-profile assumptions and
-  calibration maturity for CTAO planning presets.
-- `docs/VALIDATION.md` — end-to-end validation contract, CI gates, and external
-  reference-data process.
-- `docs/README.md` — documentation index and pointers to historical reports.
+- [Production roadmap](docs/PRODUCTION_ROADMAP.md)
+- [Performance contract](docs/PERFORMANCE.md)
+- [Model maturity](docs/MODEL_MATURITY.md)
+- [Scientific metadata](docs/SCIENTIFIC_METADATA.md)
+- [Validation matrix](docs/VALIDATION.md)
+- [Starlight pipeline](docs/STELLAR_MAP_GENERATION.md)
+- [CTAO planning profiles](docs/CTAO_SITE_PROFILES.md)
+- [Release checklist](docs/RELEASE_CHECKLIST.md)
+- [Changelog](CHANGELOG.md)
+
+NSB source uses BSD-3-Clause. The dependency graph intentionally includes
+AGPL-3.0-only astronomy crates, including Siderust; distributors of combined
+binaries must comply with those dependency terms. Individual scientific assets
+have separate manifest records. Unknown upstream terms are treated as release
+limitations, not guessed.

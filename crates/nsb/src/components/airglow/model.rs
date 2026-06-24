@@ -8,17 +8,20 @@ use crate::site::SiteProfileId;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
+use std::sync::Arc;
 use tempoch::{Time, UTC};
 
 #[derive(Debug, Clone)]
+/// Site-bound empirical airglow continuum evaluator.
 pub struct Airglow {
     location: Geodetic<ECEF>,
-    continuum: AirglowContinuum,
+    continuum: Arc<AirglowContinuum>,
     solar_radio_flux: SolarFluxUnits,
     scale: f64,
 }
 
 impl Airglow {
+    /// Build the generic clear-sky airglow model.
     pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Self> {
         Ok(Self::with_continuum(location, load_builtin_standard()?))
     }
@@ -35,7 +38,15 @@ impl Airglow {
             .with_scale(profile.airglow.scale))
     }
 
+    /// Build an airglow model with caller-provided continuum calibration.
     pub fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {
+        Self::with_shared_continuum(location, Arc::new(continuum))
+    }
+
+    pub(crate) fn with_shared_continuum(
+        location: Geodetic<ECEF>,
+        continuum: Arc<AirglowContinuum>,
+    ) -> Self {
         Self {
             location,
             continuum,
@@ -44,20 +55,24 @@ impl Airglow {
         }
     }
 
+    /// Set the F10.7 solar-radio-flux input.
     pub fn with_solar_radio_flux(mut self, flux: SolarFluxUnits) -> Self {
         self.solar_radio_flux = flux;
         self
     }
 
+    /// Alias for [`Self::with_solar_radio_flux`].
     pub fn with_f10_7(self, flux: SolarFluxUnits) -> Self {
         self.with_solar_radio_flux(flux)
     }
 
+    /// Apply an explicit multiplicative continuum scale.
     pub fn with_scale(mut self, scale: f64) -> Self {
         self.scale = scale;
         self
     }
 
+    /// Evaluate airglow toward a target at one UTC instant.
     pub fn compute(
         &self,
         time: Time<UTC>,

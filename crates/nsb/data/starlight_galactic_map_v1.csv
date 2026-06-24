@@ -3,7 +3,7 @@
 # nside=1
 # ordering=ring
 # map_resolution=HEALPix nside=1 ordering=ring
-# dataset_name=NSB experimental catalogue-derived Galactic starlight map
+# dataset_name=NSB experimental manual Galactic starlight seed
 # version=v1-experimental-seed
 # generation_date_utc=2026-06-22T00:00:00Z
 # source_catalogue=curated Tycho/Hipparcos-style bright-star seed catalogue
@@ -12,10 +12,10 @@
 # source_catalogue_checksum=sha256:manual-seed-not-production
 # magnitude_limit=bright-star seed only; not complete
 # calibration_status=Experimental
-# photometry_model=v_s10_scaled_integrated_v1
+# photometry_model=v_s10_scaled_integrated_proxy_v1
 # band_definition=integrated 300-650 nm photon radiance plus B/V S10 diagnostics
 # smoothing_fwhm_deg=none
-# generated_by=nsb-data-tools build_starlight_map using siderust; values retained as experimental seed until full catalogue regeneration
+# generated_by=nsb-data-tools-compatible manual seed workflow using siderust HEALPix schema
 healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10
 0,0.0020,1.60,1.60
 1,0.0022,1.75,1.75

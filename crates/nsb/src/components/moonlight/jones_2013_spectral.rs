@@ -1,6 +1,7 @@
 use super::*;
 use qtty::Second;
 
+/// Wavelength-resolved Jones et al. (2013) scattered-moonlight evaluator.
 pub struct Jones2013Spectral {
     location: Geodetic<ECEF>,
     conditions: AtmosphericConditions,
@@ -8,8 +9,10 @@ pub struct Jones2013Spectral {
 }
 
 impl Jones2013Spectral {
+    /// Default coarse scan step for range searches.
     pub const DEFAULT_PERIOD_SEARCH_STEP: Second = Second::new(600.0);
 
+    /// Build with explicit observer and atmospheric conditions.
     pub fn new(location: Geodetic<ECEF>, conditions: AtmosphericConditions) -> Self {
         Self {
             location,
@@ -18,15 +21,18 @@ impl Jones2013Spectral {
         }
     }
 
+    /// Build with generic altitude-derived clear-sky conditions.
     pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
         Self::new(location, standard_clear_sky_conditions(location))
     }
 
+    /// Override the default extinction coefficient by relative scaling.
     pub fn with_extinction_scale(mut self, k_ext: f64) -> Self {
         self.extinction_scale = Some(k_ext / DEFAULT_K_EXT);
         self
     }
 
+    /// Evaluate scattered moonlight toward a target at one UTC instant.
     pub fn compute(
         &self,
         time: Time<UTC>,
@@ -41,6 +47,7 @@ impl Jones2013Spectral {
         )
     }
 
+    /// Find periods whose integrated moonlight lies in the inclusive range.
     pub fn periods_in_range(
         &self,
         window: Period<UTC>,
@@ -51,6 +58,7 @@ impl Jones2013Spectral {
         self.periods_in_range_with_step(window, target, min, max, Self::DEFAULT_PERIOD_SEARCH_STEP)
     }
 
+    /// Find in-range periods with an explicit coarse scan step.
     pub fn periods_in_range_with_step(
         &self,
         window: Period<UTC>,

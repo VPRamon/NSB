@@ -16,10 +16,14 @@
 use crate::error::{NsbError, Result};
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
-use optica::spectrum::{Interpolation, SampledSpectrum};
+use optica::spectrum::{algo, Interpolation, SampledSpectrum};
 use siderust::qtty::{length::Meter, Nanometer};
 
 const RAW: &str = include_str!("../../../data/airglow_cont.dat");
+const WL_LOW_NM: f64 = 300.0;
+const WL_HIGH_NM: f64 = 650.0;
+const B_FILTER_NM: f64 = 445.0;
+const V_FILTER_NM: f64 = 551.0;
 
 // Pinned SHA-256 of the airglow continuum reference file.
 siderust::assert_data_checksum!(
@@ -47,13 +51,18 @@ pub struct AirglowContinuum {
     /// Uncertainty correction factors with the same shape as
     /// [`mean_corrections`](Self::mean_corrections).
     pub sigma_corrections: Vec<Vec<f64>>,
-    /// Wavelength [nm] vs relative mean radiance.
+    /// Wavelength in nm versus relative mean radiance.
     pub spectrum: SampledSpectrum<Nanometer, Meter>,
-    /// Wavelength [nm] vs relative uncertainty.
+    /// Wavelength in nm versus relative uncertainty.
     pub uncertainty: SampledSpectrum<Nanometer, Meter>,
     /// Number of seasons / time windows in the file.
     pub n_season: usize,
+    /// Number of time-of-night bins in the file.
     pub n_time: usize,
+    pub(crate) integrated_relative_300_650: f64,
+    pub(crate) integrated_uncertainty_abs_300_650: f64,
+    pub(crate) b_relative: f64,
+    pub(crate) v_relative: f64,
 }
 
 /// Load the built-in empirical airglow continuum calibration.
@@ -206,6 +215,33 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         file: "airglow_cont.dat",
         message: e.to_string(),
     })?;
+    let integrated_relative_300_650 =
+        algo::trapz_range(spectrum.xs_raw(), spectrum.ys_raw(), WL_LOW_NM, WL_HIGH_NM);
+    let uncertainty_abs: Vec<f64> = uncertainty
+        .ys_raw()
+        .iter()
+        .map(|value| value.abs())
+        .collect();
+    let integrated_uncertainty_abs_300_650 = algo::trapz_range(
+        uncertainty.xs_raw(),
+        &uncertainty_abs,
+        WL_LOW_NM,
+        WL_HIGH_NM,
+    );
+    let b_relative = algo::interp_linear(
+        spectrum.xs_raw(),
+        spectrum.ys_raw(),
+        B_FILTER_NM,
+        OutOfRange::ClampToEndpoints,
+    )
+    .expect("validated airglow spectrum covers B diagnostic");
+    let v_relative = algo::interp_linear(
+        spectrum.xs_raw(),
+        spectrum.ys_raw(),
+        V_FILTER_NM,
+        OutOfRange::ClampToEndpoints,
+    )
+    .expect("validated airglow spectrum covers V diagnostic");
     Ok(AirglowContinuum {
         global_scale,
         emission_height_km,
@@ -217,6 +253,10 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         uncertainty,
         n_season,
         n_time,
+        integrated_relative_300_650,
+        integrated_uncertainty_abs_300_650,
+        b_relative,
+        v_relative,
     })
 }
 

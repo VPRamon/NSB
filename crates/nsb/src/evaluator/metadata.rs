@@ -1,28 +1,55 @@
 use super::{MoonlightModel, Observer, StarlightModel};
-use crate::components::starlight::Starlight;
+use crate::components::starlight::StarlightProvenance;
 use crate::site::SiteProfileId;
 use crate::NSB_S10_ZP;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Scientific calibration/maturity classification.
 pub enum ComponentCalibrationStatus {
+    /// Validated for its stated release domain.
     Production,
+    /// Generic clear-sky assumptions, not site-calibrated.
     GenericClearSky,
+    /// Named planning assumptions without dedicated calibration.
     PlanningPreset,
+    /// Approximate conversion or engineering diagnostic.
     Proxy,
-    Legacy,
+    /// Supported published comparison model.
+    PublishedReference,
+    /// Capability without a production validation contract.
     Experimental,
 }
 
+impl ComponentCalibrationStatus {
+    /// Stable lowercase status identifier.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Production => "production",
+            Self::GenericClearSky => "generic-clear-sky",
+            Self::PlanningPreset => "planning-preset",
+            Self::Proxy => "proxy",
+            Self::PublishedReference => "published-reference",
+            Self::Experimental => "experimental",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// Meaning and zero point of reported B/V diagnostics.
 pub struct BandDiagnostic {
+    /// Stable diagnostic convention identifier.
     pub convention: &'static str,
+    /// B diagnostic reference wavelength in nm.
     pub b_reference_nm: f64,
+    /// V diagnostic reference wavelength in nm.
     pub v_reference_nm: f64,
+    /// S10-to-surface-brightness zero point.
     pub zero_point: f64,
 }
 
 impl BandDiagnostic {
+    /// Central-wavelength S10 proxy used by current B/V fields.
     pub const MONOCHROMATIC_S10_PROXY: Self = Self {
         convention: "monochromatic-central-wavelength-s10-proxy",
         b_reference_nm: 445.0,
@@ -32,10 +59,15 @@ impl BandDiagnostic {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Scientific interpretation attached to a component result.
 pub struct NsbComponentMetadata {
+    /// Calibration/maturity classification.
     pub status: ComponentCalibrationStatus,
+    /// Source model and data provenance.
     pub provenance: Cow<'static, str>,
+    /// Domain for which validation evidence exists.
     pub validated_domain: Cow<'static, str>,
+    /// Meaning of B/V fields.
     pub band_diagnostic: BandDiagnostic,
 }
 
@@ -59,7 +91,10 @@ pub(super) fn zodiacal_metadata() -> NsbComponentMetadata {
     }
 }
 
-pub(super) fn airglow_metadata(site_profile: SiteProfileId, observer: Observer) -> NsbComponentMetadata {
+pub(super) fn airglow_metadata(
+    site_profile: SiteProfileId,
+    observer: Observer,
+) -> NsbComponentMetadata {
     let profile = site_profile.profile(observer);
     NsbComponentMetadata {
         status: component_status_for_site_profile(site_profile),
@@ -75,23 +110,30 @@ pub(super) fn airglow_metadata(site_profile: SiteProfileId, observer: Observer) 
     }
 }
 
-pub(super) fn starlight_metadata(model: &StarlightModel) -> NsbComponentMetadata {
+pub(super) fn starlight_metadata(
+    model: Option<&StarlightModel>,
+    provenance: Option<&StarlightProvenance>,
+) -> NsbComponentMetadata {
     match model {
-        StarlightModel::BundledCatalogueMap => match Starlight::bundled_catalogue_provenance() {
-            Ok(provenance) => starlight_map_metadata(&provenance, "bundled experimental map"),
-            Err(err) => NsbComponentMetadata {
-                status: ComponentCalibrationStatus::Experimental,
-                provenance: Cow::Owned(format!(
-                    "bundled catalogue-derived Galactic starlight map failed to load: {err}"
-                )),
-                validated_domain: "not evaluable; bundled starlight map failed to parse".into(),
-                band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-            },
-        },
-        StarlightModel::CustomMap(map) => {
-            starlight_map_metadata(map.provenance(), "caller-provided map")
-        }
-        StarlightModel::Disabled => NsbComponentMetadata {
+        Some(StarlightModel::BundledExperimentalSeed) => starlight_map_metadata(
+            provenance.expect("bundled experimental seed is loaded during evaluator construction"),
+            "bundled experimental seed",
+            ComponentCalibrationStatus::Experimental,
+            "experimental seed only; no external scientific calibration",
+        ),
+        Some(StarlightModel::ExperimentalMap(_)) => starlight_map_metadata(
+            provenance.expect("custom map is loaded during evaluator construction"),
+            "caller-provided map",
+            ComponentCalibrationStatus::Experimental,
+            "caller-provided map without the production manifest contract",
+        ),
+        Some(StarlightModel::ValidatedExternalMap(_)) => starlight_map_metadata(
+            provenance.expect("validated external map is loaded during evaluator construction"),
+            "validated external map",
+            ComponentCalibrationStatus::Production,
+            "complete HEALPix coverage, finite/nonnegative values, checksum/header consistency, flux-conservation evidence, plane/pole contrast, longitude wrap, and independent comparison",
+        ),
+        None => NsbComponentMetadata {
             status: ComponentCalibrationStatus::Experimental,
             provenance: "no starlight model configured".into(),
             validated_domain: "not evaluable".into(),
@@ -103,31 +145,43 @@ pub(super) fn starlight_metadata(model: &StarlightModel) -> NsbComponentMetadata
 fn starlight_map_metadata(
     provenance: &crate::components::starlight::StarlightProvenance,
     source: &'static str,
+    status: ComponentCalibrationStatus,
+    validated_domain: &'static str,
 ) -> NsbComponentMetadata {
     let checksum = provenance.checksum.as_deref().unwrap_or("not recorded");
+    let map_checksum = provenance.map_checksum.as_deref().unwrap_or("not recorded");
     NsbComponentMetadata {
-        status: ComponentCalibrationStatus::Experimental,
+        status,
         provenance: Cow::Owned(format!(
-            "{}; version {}; generated {}; source {}; release {}; license {}; magnitude limit {}; band {}; resolution {}; photometry {}; smoothing {}; checksum {}; {}",
+            "{}; version {}; generated {}; source {}; release {}; license {}; source selection {}; magnitude limit {}; band {}; resolution {}; photometry {}; smoothing {}; source checksum {}; map checksum {}; generator {}; command {}; validation report {}; independent comparison {}; calibration status {}; {}",
             provenance.dataset_name.as_str(),
             provenance.version.as_str(),
             provenance.generation_date.as_str(),
             provenance.source_catalogue.as_str(),
             provenance.source_catalogue_release.as_deref().unwrap_or("not recorded"),
             provenance.license.as_str(),
+            provenance.source_selection.as_deref().unwrap_or("not recorded"),
             provenance.magnitude_limit.as_str(),
             provenance.band_definition.as_str(),
             provenance.map_resolution.as_str(),
             provenance.photometry_model.as_deref().unwrap_or("not recorded"),
             provenance.smoothing.as_deref().unwrap_or("not recorded"),
             checksum,
+            map_checksum,
+            provenance.generated_by.as_deref().unwrap_or("not recorded"),
+            provenance.generation_command.as_deref().unwrap_or("not recorded"),
+            provenance.validation_report.as_deref().unwrap_or("not recorded"),
+            provenance.independent_comparison.as_deref().unwrap_or("not recorded"),
+            provenance.calibration_status.as_deref().unwrap_or("not recorded"),
             source,
         )),
         validated_domain: Cow::Owned(format!(
-            "experimental catalogue-derived starlight map; dataset {}; version {}; checksum {}; external validation remains required before production use",
+            "{}; dataset {}; version {}; source checksum {}; map checksum {}",
+            validated_domain,
             provenance.dataset_name.as_str(),
             provenance.version.as_str(),
             checksum,
+            map_checksum,
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
     }
@@ -155,9 +209,11 @@ pub(super) fn moonlight_metadata(
             }
         }
         MoonlightModel::KrisciunasSchaefer1991 => NsbComponentMetadata {
-            status: ComponentCalibrationStatus::Legacy,
+            status: ComponentCalibrationStatus::PublishedReference,
             provenance: "Krisciunas & Schaefer 1991 analytic V-band moonlight model".into(),
-            validated_domain: "legacy regression/parity model, not the current wavelength-resolved default".into(),
+            validated_domain:
+                "published analytic V-band reference model; not the wavelength-resolved default"
+                    .into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         },
     }

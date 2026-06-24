@@ -1,132 +1,116 @@
-# Stellar map generation
+# Starlight data-product pipeline
 
-NSB models integrated starlight as a direction-dependent sky map rather than a runtime scalar formula. The stellar background is concentrated around the Galactic plane, varies strongly with Galactic longitude, and depends on catalogue depth, photometry, masking, and map resolution. For that reason the runtime library consumes a bundled map, while the expensive catalogue preparation and map construction live in `crates/nsb-data-tools`.
+Integrated starlight is directional and catalogue-dependent, so NSB consumes a
+Galactic HEALPix map generated offline. Runtime code never downloads catalogues.
 
-## Status of the bundled v1 map
+## Current bundled seed
 
-`crates/nsb/data/starlight_galactic_map_v1.csv` is bundled so that `StarlightModel::BundledCatalogueMap` and `ComponentMask::ALL` can evaluate without runtime downloads or local data paths. The current asset is explicitly labelled `Experimental` in the CSV header. It is not a production CTAO calibration and must not be cited as an externally validated sky-brightness product.
+`starlight_galactic_map_v1.csv` is a 12-pixel, manually curated seed. It is
+registered as `experimental`, excluded from `ComponentMask::ALL`, and available
+only through explicit experimental naming. It is not a production catalogue
+product and cannot be promoted because its source selection is incomplete and
+redistribution terms have not been reviewed.
 
-Promotion beyond `Experimental` requires a regenerated catalogue-derived product with reviewed source-catalogue provenance, checksums, validation diagnostics, and comparison against independent references or site measurements.
+Runtime loading is compile-time embedded, checksum-pinned, and checked against
+manifest header expectations. Integrity does not imply scientific validity.
 
-## Data flow
+## Production-safe external path
 
-The intended offline pipeline is:
+NSB does not currently have a legally cleared, independently validated catalogue
+product to bundle. Issue #45 therefore uses the validated-external outcome.
+`ValidatedStarlightMap::from_files(map, manifest)` is the only caller-supplied
+path that receives `Production` metadata. It requires a Galactic HEALPix map,
+complete provenance, exact map checksum, an exact header contract, calibrated
+non-proxy photometry, flux-conservation evidence, a validation report, and an
+independent comparison. Runtime admission reruns complete-coverage,
+finite/nonnegative, plane/pole, longitude-wrap, and (when source totals are
+provided) flux-conservation checks.
+
+The separate `StarlightModel::with_experimental_map(...)` API never receives a
+production label. See [the sidecar schema](EXTERNAL_STARLIGHT_MANIFEST.md).
+
+## Reproducible replacement pipeline
 
 ```text
-local reviewed stellar catalogue
+reviewed local Tycho-like release
   -> prepare_tycho_starlight_catalogue
-  -> canonical catalogue CSV
-  -> build_starlight_map
-  -> crates/nsb/data/starlight_galactic_map_v1.csv
-  -> nsb::StarlightModel::BundledCatalogueMap
+  -> canonical CSV + JSON preparation diagnostics
+  -> build_starlight_map using Siderust
+  -> HEALPix CSV + JSON validation diagnostics
+  -> manifest checksum/header update
+  -> independent validation
+  -> maturity review
 ```
 
-Runtime code must not download Gaia, Tycho, Hipparcos, or other external catalogues. The bundled CSV is loaded at compile time with `include_str!`, so a missing asset fails during build rather than at runtime through `CARGO_MANIFEST_DIR` path lookup.
+Canonical input columns are:
 
-## Canonical catalogue schema
-
-`build_starlight_map` consumes:
-
-```csv
+```text
 ra_deg,dec_deg,b_mag,v_mag,weight,source_id
 ```
 
-- `ra_deg`, `dec_deg`: ICRS/J2000 equatorial coordinates in degrees.
-- `b_mag`, `v_mag`: Johnson-like B/V magnitudes; blank values are accepted where supported by the builder.
-- `weight`: non-negative multiplicative source weight. Omitted values default to `1` in preparation tools.
-- `source_id`: optional source identifier for traceability.
-
-## Tycho preparation tool
-
-`prepare_tycho_starlight_catalogue` converts a local Tycho/Hipparcos-style CSV extract into the canonical schema:
+The preparation tool expects `bt_mag`/`vt_mag` and labels its conversion
+`tycho_bt_vt_to_johnson_bv_proxy_v1`. It computes and optionally verifies the
+input SHA-256 and writes machine-readable counts, filters, catalogue metadata,
+and maturity.
 
 ```bash
-cargo run -p nsb-data-tools --bin prepare_tycho_starlight_catalogue -- \
+cargo run --locked -p nsb-data-tools --bin prepare_tycho_starlight_catalogue -- \
   --input tycho_extract.csv \
   --output catalogue_for_starlight.csv \
-  --diagnostics-output catalogue_for_starlight.diagnostics.txt \
+  --diagnostics-output catalogue_for_starlight.diagnostics.json \
   --catalog-name "Tycho-2" \
-  --catalog-release "2000" \
-  --catalog-license "REVIEW-ME" \
-  --input-checksum "sha256:REPLACE_ME" \
+  --catalog-release "reviewed release" \
+  --catalog-license "reviewed redistribution terms" \
+  --input-checksum "sha256:<actual checksum>" \
   --max-v-mag 11.5
 ```
 
-The preparation tool expects local input columns:
-
-```csv
-ra_deg,dec_deg,bt_mag,vt_mag,weight,source_id
-```
-
-`weight` and `source_id` are optional. The BT/VT to Johnson-like B/V transform is an approximate proxy labelled `tycho_bt_vt_to_johnson_bv_proxy_v1`. It is suitable for an experimental first pipeline but not for production passband calibration.
-
-## Map generation
-
-`build_starlight_map` remains the main map builder:
+Map generation delegates coordinate transforms, HEALPix, map building, and
+validators to Siderust:
 
 ```bash
-cargo run -p nsb-data-tools --bin build_starlight_map -- \
+cargo run --locked -p nsb-data-tools --bin build_starlight_map -- \
   --input catalogue_for_starlight.csv \
-  --output crates/nsb/data/starlight_galactic_map_v1.csv \
+  --output starlight_galactic_map_candidate.csv \
+  --diagnostics-output starlight_galactic_map_candidate.diagnostics.json \
   --nside 64 \
   --ordering ring \
   --max-v-mag 11.5 \
   --catalog-name "Tycho-2" \
-  --catalog-release "2000" \
-  --catalog-license "REVIEW-ME" \
-  --catalog-checksum "sha256:REPLACE_ME" \
-  --generation-date-utc "REPLACE_WITH_ACTUAL_UTC_TIMESTAMP" \
+  --catalog-release "reviewed release" \
+  --catalog-license "reviewed redistribution terms" \
+  --catalog-checksum "sha256:<canonical input checksum>" \
+  --generation-date-utc "<actual RFC3339 UTC>" \
   --require-science-diagnostics
 ```
 
-The builder is an orchestration layer. Siderust owns the generic HEALPix grid, EquatorialMeanJ2000-to-Galactic conversion, stellar surface-brightness map construction, flux-conservation validation, plane/pole checks, and longitude-wrap diagnostics.
+Production-style diagnostics require release, license, and checksum metadata.
+The tool verifies the input checksum and hard-fails flux conservation,
+plane/pole contrast, or longitude-wrap diagnostics when requested. Output JSON
+contains counts, totals, empty pixels, pass/fail fields, photometry model, and
+output checksum.
 
-## Output schema and metadata
+## Photometry limitation
 
-The bundled map is a Galactic HEALPix CSV:
+The available Siderust builder uses
+`v_s10_scaled_integrated_proxy_v1`. B/V values are diagnostics and the integrated
+factor is not passband/spectral synthesis. A candidate remains experimental
+until a passband-aware conversion and independent comparison are validated.
 
-```csv
-# map_type=healpix
-# nside=64
-# ordering=ring
-# coordinate_frame=galactic
-# dataset_name=...
-# version=v1
-# generation_date_utc=...
-# source_catalogue=...
-# source_catalogue_release=...
-# source_catalogue_license=...
-# source_catalogue_checksum=...
-# magnitude_limit=...
-# calibration_status=Experimental
-# photometry_model=v_s10_scaled_integrated_v1
-# band_definition=integrated 300-650 nm photon radiance plus B/V S10 diagnostics
-# generated_by=nsb-data-tools build_starlight_map using siderust
-healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10
-```
+## Promotion gates
 
-The runtime loader parses these header values into `StarlightProvenance`, and component metadata reports the map as `Experimental`.
+Promotion requires all of the following:
 
-## Validation expectations
+1. released source catalogue and immutable checksum;
+2. reviewed license permitting the derived bundled product;
+3. documented magnitude selection and completeness;
+4. deterministic generation command and JSON report;
+5. full-pixel, finite, nonnegative, flux, plane/pole, center/reference, wrap,
+   and bright-region diagnostics;
+6. independent astrophysical validation with units/bands/tolerances;
+7. passband-aware integrated radiance or an explicitly non-production proxy;
+8. manifest update and runtime metadata review.
 
-The generation pipeline should verify:
-
-- every expected HEALPix pixel is present;
-- all values are finite;
-- all integrated radiance and S10 values are non-negative;
-- source flux is conserved within the configured tolerance;
-- Galactic-plane brightness exceeds Galactic-pole brightness for production-style builds;
-- longitude wrapping around `l = 0 / 360 deg` does not introduce an empty or discontinuous seam;
-- provenance fields are complete enough to reproduce the product.
-
-`--require-science-diagnostics` should be used for any candidate bundled release asset. If diagnostics fail, keep the result out of production workflows and leave the metadata status as `Experimental`.
-
-## Limitations of v1
-
-The current v1 photometry model uses a transparent V-S10-scaled integrated-radiance proxy:
-
-```text
-integrated_ph_cm2_ns_sr = v_s10 * integrated_per_v_s10
-```
-
-This is not full spectral/passband synthesis. Future work should replace it with passband-aware integration and validate the resulting map against SkyCalc-style references, published dark-sky measurements, or site-specific observations.
+Until a redistributable product passes those gates, starlight remains outside
+`ComponentMask::ALL`. Production use fails closed around the external sidecar;
+the experimental seed is never selected as a fallback.

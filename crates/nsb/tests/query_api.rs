@@ -48,10 +48,7 @@ fn evaluator_defaults_to_generic_clear_sky_config() {
     let config = evaluator.config();
     assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
     assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
-    assert!(matches!(
-        config.starlight_model,
-        StarlightModel::BundledCatalogueMap
-    ));
+    assert!(config.starlight_model.is_none());
 }
 
 #[test]
@@ -60,10 +57,7 @@ fn default_model_config_is_generic_clear_sky() {
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model, explicit.moonlight_model);
     assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
-    assert!(matches!(
-        default.starlight_model,
-        StarlightModel::BundledCatalogueMap
-    ));
+    assert!(default.starlight_model.is_none());
 }
 
 #[test]
@@ -88,8 +82,8 @@ fn cta_planning_configs_select_named_site_profiles() {
 }
 
 #[test]
-fn all_components_includes_bundled_starlight() {
-    assert!(ComponentMask::ALL.contains(ComponentMask::STARLIGHT));
+fn all_components_are_the_production_safe_default() {
+    assert!(!ComponentMask::ALL.contains(ComponentMask::STARLIGHT));
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let result = evaluator
@@ -99,14 +93,14 @@ fn all_components_includes_bundled_starlight() {
             target: sgr_a_star(),
             components: ComponentMask::ALL,
         })
-        .expect("generic clear-sky ALL evaluates bundled starlight");
+        .expect("generic clear-sky ALL evaluates");
 
     assert!(result.integrated.value() > 0.0);
     assert!(result
         .components
         .iter()
         .any(|component| component.name == "zodiacal"));
-    assert!(result
+    assert!(!result
         .components
         .iter()
         .any(|component| component.name == "starlight"));
@@ -118,17 +112,6 @@ fn all_components_includes_bundled_starlight() {
         .components
         .iter()
         .any(|component| component.name == "moon"));
-}
-
-#[test]
-fn python_parity_config_selects_legacy_moon_model() {
-    let config = NsbModelConfig::python_parity();
-    assert_eq!(
-        config.moonlight_model,
-        MoonlightModel::KrisciunasSchaefer1991
-    );
-    assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
-    assert!(matches!(config.starlight_model, StarlightModel::Disabled));
 }
 
 #[test]
@@ -166,8 +149,7 @@ fn point_query_propagates_selected_component_error() {
 
 #[test]
 fn starlight_request_without_model_fails_explicitly() {
-    let config = NsbModelConfig::generic_clear_sky()
-        .with_starlight_model(StarlightModel::Disabled);
+    let config = NsbModelConfig::generic_clear_sky();
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let error = evaluator
         .evaluate(&PointQuery {
@@ -176,15 +158,16 @@ fn starlight_request_without_model_fails_explicitly() {
             target: sgr_a_star(),
             components: ComponentMask::STARLIGHT,
         })
-        .expect_err("explicitly disabled starlight must fail when requested");
+        .expect_err("unconfigured starlight must fail when requested");
 
     assert!(error.to_string().contains("starlight component requested"));
 }
 
 #[test]
 fn custom_starlight_map_evaluates_when_explicitly_configured() {
-    let config = NsbModelConfig::generic_clear_sky()
-        .with_starlight_model(StarlightModel::with_map(fixture_starlight_map()));
+    let config = NsbModelConfig::generic_clear_sky().with_starlight_model(
+        StarlightModel::with_experimental_map(fixture_starlight_map()),
+    );
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let result = evaluator

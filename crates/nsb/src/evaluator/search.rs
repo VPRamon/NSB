@@ -1,8 +1,11 @@
 use crate::error::Result;
 use qtty::{Quantity, Unit};
-use siderust::qtty::{Day, Days};
+use siderust::qtty::Days;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Period, Time, MJD, UTC};
+
+const MAX_CROSSING_REFINEMENTS: usize = 24;
+const CROSSING_TOLERANCE_DAYS: f64 = 1.0e-5;
 
 pub(super) fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
     ModifiedJulianDate::from(time.to::<TT>().to::<MJD>())
@@ -104,7 +107,7 @@ where
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     let lo_above = y_lo > threshold;
-    for _ in 0..48 {
+    for _ in 0..MAX_CROSSING_REFINEMENTS {
         let mid = midpoint_mjd(lo, hi);
         if mid <= lo || mid >= hi {
             break;
@@ -120,7 +123,7 @@ where
             hi = mid;
             y_hi = y_mid;
         }
-        if (hi.raw() - lo.raw()).abs() <= Days::new(1.0e-10) {
+        if (hi.raw() - lo.raw()).abs() <= Days::new(CROSSING_TOLERANCE_DAYS) {
             break;
         }
     }

@@ -36,7 +36,7 @@ pub struct ZodiacalOutputs {
 
 /// Zodiacal-light output including the full wavelength-resolved spectrum.
 ///
-/// Returned by [`ZodiacalLight::compute_spectrum`]. Prefer [`ZodiacalOutputs`]
+/// Returned by [`crate::components::zodiacal::ZodiacalLight::compute_spectrum`]. Prefer [`ZodiacalOutputs`]
 /// when only scalar summaries are needed, since this type allocates a full
 /// sampled spectrum.
 #[derive(Debug, Clone)]

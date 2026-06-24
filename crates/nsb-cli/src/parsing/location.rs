@@ -1,5 +1,6 @@
 use crate::cli::ObserverArgs;
 use crate::error::CliError;
+use nsb::SiteProfileId;
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -97,6 +98,14 @@ pub fn resolve_site(alias: &str) -> Option<SitePreset> {
             .iter()
             .any(|candidate| normalize_alias(candidate) == normalized)
     })
+}
+
+pub fn site_profile(args: &ObserverArgs) -> SiteProfileId {
+    match args.site.as_deref().and_then(resolve_site) {
+        Some(site) if site.canonical_alias == "CTAO-N" => SiteProfileId::CtaNorth,
+        Some(site) if site.canonical_alias == "CTAO-S" => SiteProfileId::CtaSouth,
+        _ => SiteProfileId::GenericClearSky,
+    }
 }
 
 fn normalize_alias(alias: &str) -> String {

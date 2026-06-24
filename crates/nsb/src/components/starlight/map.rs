@@ -1,29 +1,42 @@
 use super::output::StarlightOutputs;
 use super::photometry::bilinear_outputs;
 use super::provenance::StarlightProvenance;
+use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
 use csv::{ReaderBuilder, StringRecord};
 use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
-use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixMap, HealpixOrdering, Nside};
+use siderust::starlight::{
+    validate_flux_conservation, validate_no_longitude_wrap_artifact, validate_plane_pole_contrast,
+    validate_stellar_map_values, StellarSurfaceBrightness,
+};
 use std::collections::BTreeMap;
 use std::path::Path;
 
 const EPS: f64 = 1.0e-10;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// One directional starlight-map sample.
 pub struct StarlightPixel {
+    /// Galactic longitude of the sample centre.
     pub galactic_lon: Degrees,
+    /// Galactic latitude of the sample centre.
     pub galactic_lat: Degrees,
+    /// Pixel solid angle in steradians.
     pub solid_angle_sr: f64,
+    /// Integrated 300–650 nm photon radiance.
     pub integrated: BandPhotonRadiance,
+    /// B-reference S10 diagnostic.
     pub b_flux_s10: S10s,
+    /// V-reference S10 diagnostic.
     pub v_flux_s10: S10s,
 }
 
 impl StarlightPixel {
+    /// Construct a map sample.
     pub fn new(
         galactic_lon: Degrees,
         galactic_lat: Degrees,
@@ -78,6 +91,7 @@ impl StarlightPixel {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Validated rectangular or HEALPix Galactic starlight map.
 pub struct StarlightMap {
     provenance: StarlightProvenance,
     kind: StarlightMapKind,
@@ -97,6 +111,7 @@ enum StarlightMapKind {
 }
 
 impl StarlightMap {
+    /// Build a complete rectangular map from directional pixels.
     pub fn from_pixels(
         pixels: Vec<StarlightPixel>,
         provenance: StarlightProvenance,
@@ -158,6 +173,7 @@ impl StarlightMap {
         })
     }
 
+    /// Parse rectangular or HEALPix CSV text and merge header provenance.
     pub fn from_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
         let metadata = parse_header_metadata(raw);
         let provenance = StarlightProvenance::from_header_metadata(&metadata, provenance);
@@ -175,11 +191,13 @@ impl StarlightMap {
         }
     }
 
+    /// Read and parse a map from a filesystem path.
     pub fn from_csv_path(path: impl AsRef<Path>, provenance: StarlightProvenance) -> Result<Self> {
         let raw = std::fs::read_to_string(path)?;
         Self::from_csv_str(&raw, provenance)
     }
 
+    /// Look up radiance in Galactic coordinates.
     pub fn lookup(&self, galactic_lon: Degrees, galactic_lat: Degrees) -> StarlightOutputs {
         match &self.kind {
             StarlightMapKind::Rectangular {
@@ -210,15 +228,64 @@ impl StarlightMap {
         }
     }
 
+    /// Return map provenance.
     pub fn provenance(&self) -> &StarlightProvenance {
         &self.provenance
     }
 
+    /// Return validated pixels in storage order.
     pub fn pixels(&self) -> &[StarlightPixel] {
         match &self.kind {
             StarlightMapKind::Rectangular { pixels, .. }
             | StarlightMapKind::Healpix { pixels, .. } => pixels,
         }
+    }
+
+    pub(super) fn validate_production_diagnostics(
+        &self,
+        input_b_flux_sum: Option<f64>,
+        input_v_flux_sum: Option<f64>,
+        flux_tolerance: Option<f64>,
+    ) -> Result<StarlightValidationDiagnostics> {
+        let StarlightMapKind::Healpix { grid, pixels } = &self.kind else {
+            return Err(invalid_map(
+                "validated production starlight requires a complete HEALPix map",
+            ));
+        };
+        let values = pixels
+            .iter()
+            .map(|pixel| StellarSurfaceBrightness {
+                integrated_ph_cm2_ns_sr: pixel.integrated.value(),
+                b_s10: pixel.b_flux_s10.value(),
+                v_s10: pixel.v_flux_s10.value(),
+            })
+            .collect();
+        let map = HealpixMap::<Galactic, _>::new(*grid, values)
+            .map_err(|err| invalid_map(err.to_string()))?;
+        validate_stellar_map_values(&map).map_err(|err| invalid_map(err.to_string()))?;
+        validate_plane_pole_contrast(&map, 1.0)
+            .map_err(|err| invalid_map(format!("plane/pole validation failed: {err}")))?;
+        validate_no_longitude_wrap_artifact(&map, 1.0)
+            .map_err(|err| invalid_map(format!("longitude-wrap validation failed: {err}")))?;
+
+        let flux_conservation_recomputed = if let (Some(b), Some(v), Some(tolerance)) =
+            (input_b_flux_sum, input_v_flux_sum, flux_tolerance)
+        {
+            validate_flux_conservation(b, v, &map, tolerance).map_err(|err| {
+                invalid_map(format!("flux-conservation validation failed: {err}"))
+            })?;
+            true
+        } else {
+            false
+        };
+
+        let (plane_pole_ratio, longitude_wrap_relative_jump) = diagnostic_values(pixels)?;
+        Ok(StarlightValidationDiagnostics {
+            pixel_count: pixels.len(),
+            plane_pole_ratio,
+            longitude_wrap_relative_jump,
+            flux_conservation_recomputed,
+        })
     }
 
     fn from_rectangular_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
@@ -385,13 +452,61 @@ fn first_data_header(raw: &str) -> Result<&str> {
         .ok_or_else(|| invalid_map("starlight map csv has no data header"))
 }
 
-fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
+pub(super) fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
     raw.lines()
         .map(str::trim)
         .filter(|line| line.starts_with('#'))
         .filter_map(|line| line.trim_start_matches('#').trim().split_once('='))
         .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
         .collect()
+}
+
+fn diagnostic_values(pixels: &[StarlightPixel]) -> Result<(f64, f64)> {
+    let mean = |values: &[f64]| -> Result<f64> {
+        if values.is_empty() {
+            return Err(invalid_map("starlight diagnostic region is empty"));
+        }
+        Ok(values.iter().sum::<f64>() / values.len() as f64)
+    };
+    let plane: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| pixel.galactic_lat.value().abs() <= 10.0)
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let pole: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| pixel.galactic_lat.value().abs() >= 60.0)
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let low: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| {
+            pixel.galactic_lat.value().abs() <= 30.0 && pixel.galactic_lon.value() <= 10.0
+        })
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let high: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| {
+            pixel.galactic_lat.value().abs() <= 30.0 && pixel.galactic_lon.value() >= 350.0
+        })
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let plane_mean = mean(&plane)?;
+    let pole_mean = mean(&pole)?;
+    let ratio = if pole_mean == 0.0 {
+        if plane_mean > 0.0 {
+            f64::INFINITY
+        } else {
+            1.0
+        }
+    } else {
+        plane_mean / pole_mean
+    };
+    let low_mean = mean(&low)?;
+    let high_mean = mean(&high)?;
+    let jump = (low_mean - high_mean).abs() / low_mean.abs().max(high_mean.abs()).max(1.0);
+    Ok((ratio, jump))
 }
 
 fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> Result<&'a str> {

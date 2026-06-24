@@ -14,33 +14,57 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
+/// Failures returned by NSB model construction and evaluation.
 pub enum NsbError {
+    /// A bundled or caller-provided data file could not be parsed.
     #[error("data parse error in {file}: {message}")]
-    DataParse { file: &'static str, message: String },
+    DataParse {
+        /// Logical data-file name.
+        file: &'static str,
+        /// Parse failure detail.
+        message: String,
+    },
 
+    /// Required scientific data were unavailable.
     #[error("required data missing: {file}: {message}")]
-    DataMissing { file: &'static str, message: String },
+    DataMissing {
+        /// Logical data-file name.
+        file: &'static str,
+        /// Missing-data detail.
+        message: String,
+    },
 
+    /// A starlight map failed schema or value validation.
     #[error("invalid starlight map: {message}")]
-    InvalidMap { message: String },
+    InvalidMap {
+        /// Validation failure detail.
+        message: String,
+    },
 
+    /// An input lies outside the supported numeric/domain range.
     #[error("input out of range: {0}")]
     OutOfRange(String),
 
+    /// The selected model configuration is not evaluable.
     #[error("unsupported configuration: {0}")]
     Unsupported(String),
 
+    /// An upstream ephemeris computation failed.
     #[error("ephemeris error: {0}")]
     Ephemeris(String),
 
+    /// A table interpolation failed.
     #[error("interpolation error: {0}")]
     Interpolation(String),
 
+    /// A named site identifier was unknown.
     #[error("unknown site: {0}")]
     UnknownSite(String),
 
+    /// Filesystem input/output failure.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 }
 
+/// Crate result alias.
 pub type Result<T> = std::result::Result<T, NsbError>;

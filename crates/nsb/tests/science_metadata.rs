@@ -65,5 +65,5 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         ComponentCalibrationStatus::GenericClearSky
     );
     assert!(moon.metadata.provenance.contains("Jones+2013"));
-    assert!(moon.metadata.validated_domain.contains("generic clear-sky"));
+    assert!(moon.metadata.validated_domain.contains("generic-clear-sky"));
 }
