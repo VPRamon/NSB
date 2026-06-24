@@ -274,8 +274,8 @@ fn read_records(
                 if let Some(mag) = record.v_mag {
                     input_v_flux_sum += flux_10mag_units(mag) * record.weight;
                 }
+                records.push(record);
             }
-            records.push(record);
         }
     }
     Ok((records, input_b_flux_sum, input_v_flux_sum))
@@ -642,6 +642,63 @@ mod tests {
         assert!(diagnostics["output_sha256"]
             .as_str()
             .is_some_and(|value| value.starts_with("sha256:")));
+        Ok(())
+    }
+
+    #[test]
+    fn magnitude_cuts_filter_records_and_diagnostics_source_count() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("catalogue.csv");
+        let output = dir.path().join("map.csv");
+        let diagnostics = dir.path().join("map.diagnostics.json");
+        fs::write(
+            &input,
+            concat!(
+                "ra_deg,dec_deg,b_mag,v_mag,weight,source_id\n",
+                "266.4051,-28.936175,10.0,10.0,1.0,accepted\n",
+                "10.0,10.0,0.0,0.0,1.0,excluded_bright\n",
+            ),
+        )?;
+
+        run(Args {
+            input,
+            output: output.clone(),
+            nside: 1,
+            ordering: OrderingArg::Ring,
+            min_v_mag: Some(9.0),
+            max_v_mag: Some(11.0),
+            catalog_name: "test".to_string(),
+            catalog_release: Some("fixture".to_string()),
+            catalog_license: Some("test-only".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: Some(diagnostics.clone()),
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })?;
+
+        let raw = fs::read_to_string(output)?;
+        let map = StarlightMap::from_csv_str(&raw, nsb::StarlightProvenance::test_fixture())?;
+        let expected_v = flux_10mag_units(ApparentMagnitude::new(10.0)?);
+        let expected_integrated = expected_v * S10_V_TO_INTEGRATED_PH_CM2_NS_SR;
+        let total_v: f64 = map.values().iter().map(|value| value.v_s10).sum();
+        let total_integrated: f64 = map
+            .values()
+            .iter()
+            .map(|value| value.integrated_ph_cm2_ns_sr)
+            .sum();
+
+        assert!((total_v - expected_v).abs() <= 1.0e-12 * expected_v.max(1.0));
+        assert!(
+            (total_integrated - expected_integrated).abs()
+                <= 1.0e-12 * expected_integrated.max(1.0)
+        );
+
+        let diagnostics: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(diagnostics)?)?;
+        assert_eq!(diagnostics["sources_used"], 1);
+        assert_eq!(diagnostics["total_v_s10"].as_f64().unwrap(), total_v);
         Ok(())
     }
 
