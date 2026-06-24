@@ -5,7 +5,7 @@ pub fn parse_components(input: &str) -> Result<ComponentMask, CliError> {
     let mut mask = ComponentMask::empty();
     for token in input.split(',').map(str::trim).filter(|s| !s.is_empty()) {
         match token.to_ascii_lowercase().as_str() {
-            "all" => return Ok(ComponentMask::ALL),
+            "all" => mask |= ComponentMask::ALL,
             "zodiacal" | "zl" => mask |= ComponentMask::ZODIACAL,
             "experimental-starlight" | "experimental-sl" => mask |= ComponentMask::STARLIGHT,
             "airglow" | "ag" => mask |= ComponentMask::AIRGLOW,
@@ -36,6 +36,15 @@ mod tests {
         assert!(mask.contains(ComponentMask::AIRGLOW));
         assert!(mask.contains(ComponentMask::MOON));
         assert!(!mask.contains(ComponentMask::STARLIGHT));
+    }
+
+    #[test]
+    fn all_can_be_combined_with_explicit_experimental_starlight() {
+        let mask = parse_components("all,experimental-starlight").unwrap();
+        assert!(mask.contains(ComponentMask::ZODIACAL));
+        assert!(mask.contains(ComponentMask::AIRGLOW));
+        assert!(mask.contains(ComponentMask::MOON));
+        assert!(mask.contains(ComponentMask::STARLIGHT));
     }
 
     #[test]
