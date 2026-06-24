@@ -311,7 +311,7 @@ fn default_solar_radio_flux_is_neutral() {
 }
 
 #[test]
-fn legacy_polynomial_public_api_removed() {
+fn removed_polynomial_api_stays_private() {
     let model = Airglow::standard_clear_sky(paranal()).unwrap();
     let _ = model
         .compute(t("2023-09-04T01:48:00Z"), target(266.41683, -29.00781))

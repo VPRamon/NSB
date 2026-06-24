@@ -14,14 +14,17 @@ use super::output::{ZodiacalOutputs, ZodiacalSpectrum};
 use super::spectrum as zl_spectrum;
 
 #[derive(Debug, Clone)]
+/// Caller-defined zodiacal surface-brightness grid.
 pub struct ZodiacalBrightnessGrid {
     pub(super) beta_axis: Vec<f64>,
     pub(super) delta_lambda_axis: Vec<f64>,
     pub(super) s10_values: Vec<Vec<f64>>,
+    /// Optional source/provenance note for the custom grid.
     pub provenance: Option<String>,
 }
 
 impl ZodiacalBrightnessGrid {
+    /// Validate and construct a rectangular grid in degrees and S10 units.
     pub fn new(
         beta_axis: Vec<f64>,
         delta_lambda_axis: Vec<f64>,
@@ -124,12 +127,16 @@ fn bilinear(v00: f64, v01: f64, v10: f64, v11: f64, tx: f64, ty: f64) -> f64 {
 }
 
 #[derive(Debug, Clone)]
+/// Directional zodiacal surface-brightness source.
 pub enum ZodiacalBrightnessModel {
+    /// Built-in Leinert et al. (1998) table.
     Leinert1998,
+    /// Caller-provided validated rectangular grid.
     CustomGrid(ZodiacalBrightnessGrid),
 }
 
 #[derive(Debug, Clone)]
+/// Zodiacal-light spectral and integrated-radiance evaluator.
 pub struct ZodiacalLight {
     brightness_model: ZodiacalBrightnessModel,
     solar_spectrum: SampledSpectrum<Nanometer, Meter>,
@@ -137,6 +144,7 @@ pub struct ZodiacalLight {
 }
 
 impl ZodiacalLight {
+    /// Build with the Leinert table and bundled solar spectrum.
     pub fn leinert1998() -> Result<Self> {
         Ok(Self {
             brightness_model: ZodiacalBrightnessModel::Leinert1998,
@@ -145,6 +153,7 @@ impl ZodiacalLight {
         })
     }
 
+    /// Build with an explicit brightness source and bundled solar spectrum.
     pub fn with_brightness_model(model: ZodiacalBrightnessModel) -> Result<Self> {
         Ok(Self {
             brightness_model: model,
@@ -153,6 +162,7 @@ impl ZodiacalLight {
         })
     }
 
+    /// Replace the solar reference spectrum.
     pub fn with_solar_spectrum(
         mut self,
         solar_spectrum: SampledSpectrum<Nanometer, Meter>,
@@ -161,11 +171,13 @@ impl ZodiacalLight {
         self
     }
 
+    /// Select atmospheric attenuation for observed computations.
     pub fn with_extinction(mut self, extinction: ZodiacalExtinction) -> Self {
         self.extinction = extinction;
         self
     }
 
+    /// Evaluate observed zodiacal radiance at a ground location.
     pub fn compute(
         &self,
         time: Time<UTC>,
@@ -175,6 +187,7 @@ impl ZodiacalLight {
         self.compute_observed(time, location, target)
     }
 
+    /// Evaluate exoatmospheric zodiacal radiance.
     pub fn compute_exoatmospheric(
         &self,
         time: Time<UTC>,
@@ -184,6 +197,7 @@ impl ZodiacalLight {
         self.evaluate_geometry(&geom, ZodiacalExtinction::None)
     }
 
+    /// Evaluate observed zodiacal radiance with atmospheric attenuation.
     pub fn compute_observed(
         &self,
         time: Time<UTC>,
@@ -197,6 +211,7 @@ impl ZodiacalLight {
         self.evaluate_geometry(&geom, self.extinction)
     }
 
+    /// Return the observed wavelength-resolved spectrum.
     pub fn compute_spectrum(
         &self,
         time: Time<UTC>,
@@ -210,6 +225,7 @@ impl ZodiacalLight {
         self.evaluate_geometry_spectrum(&geom, self.extinction)
     }
 
+    /// Return the exoatmospheric wavelength-resolved spectrum.
     pub fn compute_spectrum_exoatmospheric(
         &self,
         time: Time<UTC>,

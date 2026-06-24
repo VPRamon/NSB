@@ -1,6 +1,8 @@
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
 use csv::{ReaderBuilder, StringRecord};
+use serde::Serialize;
+use siderust::checksum::{sha256, to_hex};
 use siderust::coordinates::cartesian::Direction;
 use siderust::coordinates::frames::EquatorialMeanJ2000;
 use siderust::healpix::{HealpixGrid, HealpixMap, HealpixOrdering, Nside};
@@ -75,6 +77,10 @@ struct Args {
     #[arg(long)]
     generation_date_utc: String,
 
+    /// Optional JSON diagnostics report written beside the map.
+    #[arg(long)]
+    diagnostics_output: Option<PathBuf>,
+
     /// Require all full-sky scientific diagnostics to pass.
     ///
     /// Small deterministic fixtures may not satisfy all regional diagnostics,
@@ -112,12 +118,32 @@ struct ColumnIndices {
     source_id: Option<usize>,
 }
 
+#[derive(Debug, Serialize)]
+struct Diagnostics {
+    schema_version: u32,
+    sources_used: usize,
+    nside: u32,
+    ordering: &'static str,
+    expected_pixels: usize,
+    empty_pixels: usize,
+    total_integrated_ph_cm2_ns_sr: f64,
+    total_b_s10: f64,
+    total_v_s10: f64,
+    flux_conservation_pass: bool,
+    plane_pole_pass: bool,
+    longitude_wrap_pass: bool,
+    output_sha256: String,
+    photometry_model: &'static str,
+    calibration_status: &'static str,
+}
+
 fn main() -> Result<()> {
     run(Args::parse())
 }
 
 fn run(args: Args) -> Result<()> {
     validate_args(&args)?;
+    verify_catalog_checksum(&args)?;
 
     let grid = HealpixGrid::new(Nside::new(args.nside)?, args.ordering.into())?;
     let min_v_mag = args.min_v_mag.map(ApparentMagnitude::new).transpose()?;
@@ -126,11 +152,14 @@ fn run(args: Args) -> Result<()> {
 
     let (records, input_b_flux_sum, input_v_flux_sum) =
         read_records(&args.input, min_v_mag, max_v_mag)?;
+    let sources_used = records.len();
 
     let builder = StellarSurfaceBrightnessMapBuilder {
         grid,
-        min_v_mag,
-        max_v_mag,
+        // `read_records` is the single filtering boundary so map input,
+        // conservation sums, and `sources_used` cannot diverge.
+        min_v_mag: None,
+        max_v_mag: None,
         integrated_per_v_s10: args.integrated_per_v_s10,
     };
 
@@ -148,9 +177,30 @@ fn run(args: Args) -> Result<()> {
         map.healpix_map(),
         1.0e-9,
     )?;
-    run_science_diagnostics(&map, args.require_science_diagnostics)?;
+    let (longitude_wrap_pass, plane_pole_pass) =
+        run_science_diagnostics(&map, args.require_science_diagnostics)?;
 
-    write_output(&args.output, &stellar_map_to_csv(&map))
+    let generation_command = std::env::args().collect::<Vec<_>>().join(" ");
+    let validation_report = args
+        .diagnostics_output
+        .as_ref()
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|| "not emitted for this non-production run".to_string());
+    let csv = stellar_map_to_csv(&map, &generation_command, &validation_report);
+    write_output(&args.output, &csv)?;
+    if let Some(path) = &args.diagnostics_output {
+        let diagnostics = diagnostics(
+            &map,
+            sources_used,
+            longitude_wrap_pass,
+            plane_pole_pass,
+            &csv,
+        );
+        let raw = serde_json::to_string_pretty(&diagnostics)?;
+        std::fs::write(path, format!("{raw}\n"))
+            .with_context(|| format!("failed to write diagnostics {}", path.display()))?;
+    }
+    Ok(())
 }
 
 fn validate_args(args: &Args) -> Result<()> {
@@ -167,6 +217,33 @@ fn validate_args(args: &Args) -> Result<()> {
     }
     if args.generation_date_utc.trim().is_empty() {
         bail!("--generation-date-utc must not be empty");
+    }
+    if args.require_science_diagnostics
+        && (args.catalog_release.as_deref().is_none_or(str::is_empty)
+            || args.catalog_license.as_deref().is_none_or(str::is_empty)
+            || args.catalog_checksum.as_deref().is_none_or(str::is_empty)
+            || args.diagnostics_output.is_none())
+    {
+        bail!(
+            "--require-science-diagnostics also requires --catalog-release, --catalog-license, --catalog-checksum, and --diagnostics-output"
+        );
+    }
+    Ok(())
+}
+
+fn verify_catalog_checksum(args: &Args) -> Result<()> {
+    let Some(expected) = args.catalog_checksum.as_deref() else {
+        return Ok(());
+    };
+    let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
+    let bytes = std::fs::read(&args.input)
+        .with_context(|| format!("failed to checksum {}", args.input.display()))?;
+    let actual = to_hex(&sha256(&bytes));
+    if expected != actual {
+        bail!(
+            "catalogue checksum mismatch for {}: expected sha256:{expected}, actual sha256:{actual}",
+            args.input.display()
+        );
     }
     Ok(())
 }
@@ -199,8 +276,8 @@ fn read_records(
                 if let Some(mag) = record.v_mag {
                     input_v_flux_sum += flux_10mag_units(mag) * record.weight;
                 }
+                records.push(record);
             }
-            records.push(record);
         }
     }
     Ok((records, input_b_flux_sum, input_v_flux_sum))
@@ -348,24 +425,24 @@ fn provenance(args: &Args) -> StellarMapProvenance {
         magnitude_limit: Some(magnitude_limit),
         band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics"
             .to_string(),
-        photometry_model: "v_s10_scaled_integrated_v1".to_string(),
+        photometry_model: "v_s10_scaled_integrated_proxy_v1".to_string(),
         smoothing: None,
         generator: "nsb-data-tools build_starlight_map using siderust feature/healpix-stellar-maps"
             .to_string(),
     }
 }
 
-fn run_science_diagnostics(map: &StellarSurfaceBrightnessMap, require: bool) -> Result<()> {
-    handle_science_diagnostic(
-        "longitude-wrap artifact",
-        validate_no_longitude_wrap_artifact(map.healpix_map(), 1.0),
-        require,
-    )?;
-    handle_science_diagnostic(
-        "plane/pole contrast",
-        validate_plane_pole_contrast(map.healpix_map(), 0.0),
-        require,
-    )
+fn run_science_diagnostics(
+    map: &StellarSurfaceBrightnessMap,
+    require: bool,
+) -> Result<(bool, bool)> {
+    let longitude_wrap = validate_no_longitude_wrap_artifact(map.healpix_map(), 1.0);
+    let longitude_wrap_pass = longitude_wrap.is_ok();
+    handle_science_diagnostic("longitude-wrap artifact", longitude_wrap, require)?;
+    let plane_pole = validate_plane_pole_contrast(map.healpix_map(), 1.0);
+    let plane_pole_pass = plane_pole.is_ok();
+    handle_science_diagnostic("plane/pole contrast", plane_pole, require)?;
+    Ok((longitude_wrap_pass, plane_pole_pass))
 }
 
 fn handle_science_diagnostic<E: std::fmt::Display>(
@@ -383,7 +460,11 @@ fn handle_science_diagnostic<E: std::fmt::Display>(
     }
 }
 
-fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
+fn stellar_map_to_csv(
+    map: &StellarSurfaceBrightnessMap,
+    generation_command: &str,
+    validation_report: &str,
+) -> String {
     let mut out = String::new();
     let provenance = map.provenance();
     let grid = map.grid();
@@ -400,6 +481,7 @@ fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
     );
     push_metadata(&mut out, "dataset_name", &provenance.dataset_name);
     push_metadata(&mut out, "version", &provenance.version);
+    push_metadata(&mut out, "calibration_status", "Experimental");
     push_metadata(
         &mut out,
         "generation_date_utc",
@@ -424,9 +506,15 @@ fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
         push_metadata(&mut out, "smoothing", value);
     }
     push_metadata(&mut out, "generated_by", &provenance.generator);
+    push_metadata(&mut out, "generation_command", generation_command);
+    push_metadata(&mut out, "validation_report", validation_report);
 
     let data = starlight_csv::to_csv(map);
-    if data.lines().next().is_some_and(|line| line.trim() == HEALPIX_CSV_HEADER) {
+    if data
+        .lines()
+        .next()
+        .is_some_and(|line| line.trim() == HEALPIX_CSV_HEADER)
+    {
         out.push_str(&data);
     } else {
         out.push_str(HEALPIX_CSV_HEADER);
@@ -437,6 +525,41 @@ fn stellar_map_to_csv(map: &StellarSurfaceBrightnessMap) -> String {
         out.push('\n');
     }
     out
+}
+
+fn diagnostics(
+    map: &StellarSurfaceBrightnessMap,
+    sources_used: usize,
+    longitude_wrap_pass: bool,
+    plane_pole_pass: bool,
+    csv: &str,
+) -> Diagnostics {
+    let values = map.values();
+    Diagnostics {
+        schema_version: 1,
+        sources_used,
+        nside: map.grid().nside().get(),
+        ordering: ordering_name(map.grid().ordering()),
+        expected_pixels: values.len(),
+        empty_pixels: values
+            .iter()
+            .filter(|value| {
+                value.integrated_ph_cm2_ns_sr == 0.0 && value.b_s10 == 0.0 && value.v_s10 == 0.0
+            })
+            .count(),
+        total_integrated_ph_cm2_ns_sr: values
+            .iter()
+            .map(|value| value.integrated_ph_cm2_ns_sr)
+            .sum(),
+        total_b_s10: values.iter().map(|value| value.b_s10).sum(),
+        total_v_s10: values.iter().map(|value| value.v_s10).sum(),
+        flux_conservation_pass: true,
+        plane_pole_pass,
+        longitude_wrap_pass,
+        output_sha256: format!("sha256:{}", to_hex(&sha256(csv.as_bytes()))),
+        photometry_model: "v_s10_scaled_integrated_proxy_v1",
+        calibration_status: "experimental-until-independent-validation",
+    }
 }
 
 fn push_metadata(out: &mut String, key: &str, value: &str) {
@@ -479,13 +602,14 @@ mod tests {
         let dir = tempfile::tempdir()?;
         let input = dir.path().join("catalogue.csv");
         let output = dir.path().join("map.csv");
+        let diagnostics = dir.path().join("map.diagnostics.json");
         fs::write(
             &input,
             "ra_deg,dec_deg,b_mag,v_mag,weight,source_id\n266.4051,-28.936175,10.0,10.0,1.0,gc\n",
         )?;
 
         run(Args {
-            input,
+            input: input.clone(),
             output: output.clone(),
             nside: 1,
             ordering: OrderingArg::Ring,
@@ -494,9 +618,10 @@ mod tests {
             catalog_name: "test".to_string(),
             catalog_release: Some("fixture".to_string()),
             catalog_license: Some("test-only".to_string()),
-            catalog_checksum: Some("sha256:test".to_string()),
+            catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: Some(diagnostics.clone()),
             require_science_diagnostics: false,
             allow_empty: false,
         })?;
@@ -504,9 +629,120 @@ mod tests {
         let raw = fs::read_to_string(output)?;
         let map = StarlightMap::from_csv_str(&raw, nsb::StarlightProvenance::test_fixture())?;
         assert!(raw.contains("# map_type=healpix"));
+        assert!(raw.contains("# calibration_status=Experimental"));
+        assert!(raw.contains("# generation_command="));
+        assert!(raw.contains("# validation_report="));
+        assert!(raw.contains("# photometry_model=v_s10_scaled_integrated_proxy_v1"));
         assert!(raw.contains(HEALPIX_CSV_HEADER));
         assert_eq!(raw.matches(HEALPIX_CSV_HEADER).count(), 1);
         assert_eq!(map.provenance().source_catalogue, "test");
+        let diagnostics: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(diagnostics)?)?;
+        assert_eq!(diagnostics["schema_version"], 1);
+        assert_eq!(diagnostics["sources_used"], 1);
+        assert_eq!(diagnostics["expected_pixels"], 12);
+        assert!(diagnostics["output_sha256"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("sha256:")));
+        Ok(())
+    }
+
+    #[test]
+    fn magnitude_cuts_filter_records_and_diagnostics_source_count() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("catalogue.csv");
+        let output = dir.path().join("map.csv");
+        let diagnostics = dir.path().join("map.diagnostics.json");
+        fs::write(
+            &input,
+            concat!(
+                "ra_deg,dec_deg,b_mag,v_mag,weight,source_id\n",
+                "266.4051,-28.936175,10.0,10.0,1.0,accepted\n",
+                "10.0,10.0,0.0,0.0,1.0,excluded_bright\n",
+            ),
+        )?;
+
+        run(Args {
+            input: input.clone(),
+            output: output.clone(),
+            nside: 1,
+            ordering: OrderingArg::Ring,
+            min_v_mag: Some(9.0),
+            max_v_mag: Some(11.0),
+            catalog_name: "test".to_string(),
+            catalog_release: Some("fixture".to_string()),
+            catalog_license: Some("test-only".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: Some(diagnostics.clone()),
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })?;
+
+        let raw = fs::read_to_string(output)?;
+        let map = StarlightMap::from_csv_str(&raw, nsb::StarlightProvenance::test_fixture())?;
+        let expected_v = flux_10mag_units(ApparentMagnitude::new(10.0)?);
+        let expected_integrated = expected_v * S10_V_TO_INTEGRATED_PH_CM2_NS_SR;
+        let pixel_area_deg2 =
+            map.pixels()[0].solid_angle_sr * (180.0 / std::f64::consts::PI).powi(2);
+        let total_v: f64 = map
+            .pixels()
+            .iter()
+            .map(|value| value.v_flux_s10.value())
+            .sum();
+        let total_integrated: f64 = map
+            .pixels()
+            .iter()
+            .map(|value| value.integrated.value())
+            .sum();
+
+        assert!(
+            (total_v - expected_v / pixel_area_deg2).abs()
+                <= 1.0e-12 * (expected_v / pixel_area_deg2).max(1.0)
+        );
+        assert!(
+            (total_integrated - expected_integrated / pixel_area_deg2).abs()
+                <= 1.0e-12 * (expected_integrated / pixel_area_deg2).max(1.0)
+        );
+
+        let diagnostics: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(diagnostics)?)?;
+        assert_eq!(diagnostics["sources_used"], 1);
+        assert_eq!(diagnostics["flux_conservation_pass"], true);
+        assert_eq!(diagnostics["total_v_s10"].as_f64().unwrap(), total_v);
+
+        fs::write(
+            &input,
+            concat!(
+                "ra_deg,dec_deg,b_mag,v_mag,weight,source_id\n",
+                "266.4051,-28.936175,10.0,10.0,1.0,accepted\n",
+                "10.0,10.0,-20.0,-20.0,1.0,excluded_extremely_bright\n",
+            ),
+        )?;
+        let second_output = dir.path().join("map-second.csv");
+        run(Args {
+            input,
+            output: second_output.clone(),
+            nside: 1,
+            ordering: OrderingArg::Ring,
+            min_v_mag: Some(9.0),
+            max_v_mag: Some(11.0),
+            catalog_name: "test".to_string(),
+            catalog_release: Some("fixture".to_string()),
+            catalog_license: Some("test-only".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })?;
+        let second_map = StarlightMap::from_csv_str(
+            &fs::read_to_string(second_output)?,
+            nsb::StarlightProvenance::test_fixture(),
+        )?;
+        assert_eq!(map.pixels(), second_map.pixels());
         Ok(())
     }
 
@@ -533,6 +769,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: None,
             require_science_diagnostics: false,
             allow_empty: false,
         })
@@ -542,5 +779,28 @@ mod tests {
             .to_string()
             .contains("no stellar catalogue records survived filtering"));
         Ok(())
+    }
+
+    #[test]
+    fn production_diagnostics_require_complete_catalogue_provenance() {
+        let args = Args {
+            input: PathBuf::from("unused.csv"),
+            output: PathBuf::from("unused-map.csv"),
+            nside: 64,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: Some(11.5),
+            catalog_name: "Tycho-2".to_string(),
+            catalog_release: None,
+            catalog_license: None,
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            generation_date_utc: "2026-06-24T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: true,
+            allow_empty: false,
+        };
+        let error = validate_args(&args).expect_err("incomplete provenance must fail closed");
+        assert!(error.to_string().contains("--catalog-release"));
     }
 }

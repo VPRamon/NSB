@@ -46,7 +46,7 @@ The distinction between generic and site/planning presets is intentional. Produc
 case_id,reference,phase_angle_deg,moon_target_sep_deg,moon_zenith_deg,source_zenith_deg,moon_distance_km,atmosphere,wavelength_nm,expected_ph_cm2_ns_sr_nm,expected_integrated_300_650,relative_tolerance
 ```
 
-The initial fixture is seeded from the legacy moonlight LUT already bundled in NSB. It is useful as a regression/compatibility manifest for integrated scattered moonlight values, but it is not a substitute for a full SkyCalc or Jones-table validation campaign. A later calibration PR should replace or augment these rows with independently generated SkyCalc/Jones spectral densities for the same geometry and atmospheric profiles.
+The initial fixture is seeded from the historical darknsb moonlight LUT. It is useful as a deterministic regression manifest for integrated scattered moonlight values, but it is not an independent SkyCalc or Jones-table validation campaign. Calibration requires independently generated spectral densities for matching geometry and atmospheric profiles.
 
 ## Expected accuracy
 

@@ -3,9 +3,15 @@
 //! Airglow is terrestrial atmospheric emission and a natural part of the night
 //! sky background. NSB exposes a site-bound empirical continuum model:
 //!
-//! ```ignore
-//! let airglow = Airglow::for_site_profile(location, SiteProfileId::CtaSouth)?;
-//! let out = airglow.compute(time, target)?;
+//! ```no_run
+//! use nsb::{Airglow, Observer, SiteProfileId, Target};
+//! use tempoch::{Time, UTC};
+//!
+//! fn evaluate(location: Observer, time: Time<UTC>, target: Target) -> nsb::Result<()> {
+//!     let airglow = Airglow::for_site_profile(location, SiteProfileId::CtaSouth)?;
+//!     let _output = airglow.compute(time, target)?;
+//!     Ok(())
+//! }
 //! ```
 //!
 //! `for_site_profile` records the named site assumptions used for the airglow

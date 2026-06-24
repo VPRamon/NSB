@@ -47,16 +47,19 @@ fn target(ra: f64, dec: f64) -> Target {
 }
 
 #[test]
-fn catalogue_model_loads_bundled_experimental_map() {
-    let model = Starlight::catalogue_galactic_model().unwrap();
+fn experimental_seed_is_explicitly_labelled() {
+    let model = Starlight::experimental_seed_model().unwrap();
     let provenance = model.map().provenance();
 
     assert_eq!(
         provenance.dataset_name,
-        "NSB experimental catalogue-derived Galactic starlight map"
+        "NSB experimental manual Galactic starlight seed"
     );
     assert_eq!(provenance.version, "v1-experimental-seed");
-    assert_eq!(provenance.photometry_model.as_deref(), Some("v_s10_scaled_integrated_v1"));
+    assert_eq!(
+        provenance.photometry_model.as_deref(),
+        Some("v_s10_scaled_integrated_proxy_v1")
+    );
     assert_eq!(model.map().pixels().len(), 12);
 
     let output = model.compute(target(266.4051, -28.936175)).unwrap();

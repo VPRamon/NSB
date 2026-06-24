@@ -1,23 +1,50 @@
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Provenance carried by every starlight map.
 pub struct StarlightProvenance {
+    /// Human-readable dataset name.
     pub dataset_name: String,
+    /// Dataset version identifier.
     pub version: String,
+    /// UTC generation date or timestamp.
     pub generation_date: String,
+    /// Source stellar catalogue.
     pub source_catalogue: String,
+    /// Source catalogue or derived-product license.
     pub license: String,
+    /// Applied magnitude selection.
     pub magnitude_limit: String,
+    /// Integrated and diagnostic band definition.
     pub band_definition: String,
+    /// Map grid resolution and ordering.
     pub map_resolution: String,
+    /// Source catalogue checksum when supplied.
     pub checksum: Option<String>,
+    /// Checksum of the generated map bytes.
+    pub map_checksum: Option<String>,
+    /// Source catalogue release identifier.
     pub source_catalogue_release: Option<String>,
+    /// Photometric conversion model identifier.
     pub photometry_model: Option<String>,
+    /// Angular smoothing description.
     pub smoothing: Option<String>,
+    /// Generator program and version information.
     pub generated_by: Option<String>,
+    /// Source-selection and filtering rules.
+    pub source_selection: Option<String>,
+    /// Reproducible generation command.
+    pub generation_command: Option<String>,
+    /// Validation report identifier or path.
+    pub validation_report: Option<String>,
+    /// Stable calibration-status identifier.
+    pub calibration_status: Option<String>,
+    /// Independent comparison used to support calibration status.
+    pub independent_comparison: Option<String>,
 }
 
 impl StarlightProvenance {
+    /// Construct required provenance fields for a caller-provided map.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         dataset_name: impl Into<String>,
@@ -40,13 +67,20 @@ impl StarlightProvenance {
             band_definition: band_definition.into(),
             map_resolution: map_resolution.into(),
             checksum: checksum.map(Into::into),
+            map_checksum: None,
             source_catalogue_release: None,
             photometry_model: None,
             smoothing: None,
             generated_by: None,
+            source_selection: None,
+            generation_command: None,
+            validation_report: None,
+            calibration_status: None,
+            independent_comparison: None,
         }
     }
 
+    /// Merge machine-readable CSV header metadata over fallback provenance.
     pub fn from_header_metadata(metadata: &BTreeMap<String, String>, fallback: Self) -> Self {
         let nside = metadata.get("nside");
         let ordering = metadata.get("ordering");
@@ -97,6 +131,9 @@ impl StarlightProvenance {
                 .or_else(|| metadata.get("checksum"))
                 .cloned()
                 .or(fallback.checksum),
+            // The exact map checksum is supplied out-of-band. Embedding it in
+            // the checksummed bytes would be self-referential.
+            map_checksum: fallback.map_checksum,
             source_catalogue_release: metadata
                 .get("source_catalogue_release")
                 .cloned()
@@ -114,10 +151,31 @@ impl StarlightProvenance {
                 .get("generated_by")
                 .cloned()
                 .or(fallback.generated_by),
+            source_selection: metadata
+                .get("source_selection")
+                .cloned()
+                .or(fallback.source_selection),
+            generation_command: metadata
+                .get("generation_command")
+                .cloned()
+                .or(fallback.generation_command),
+            validation_report: metadata
+                .get("validation_report")
+                .cloned()
+                .or(fallback.validation_report),
+            calibration_status: metadata
+                .get("calibration_status")
+                .cloned()
+                .or(fallback.calibration_status),
+            independent_comparison: metadata
+                .get("independent_comparison")
+                .cloned()
+                .or(fallback.independent_comparison),
         }
     }
 
-    pub fn catalogue_galactic_model_v1() -> Self {
+    /// Fallback provenance contract for the bundled experimental seed.
+    pub fn experimental_seed_v1() -> Self {
         Self {
             dataset_name: "NSB catalogue-derived Galactic starlight map".to_string(),
             version: "v1".to_string(),
@@ -129,13 +187,20 @@ impl StarlightProvenance {
                 .to_string(),
             map_resolution: "read from bundled map header".to_string(),
             checksum: None,
+            map_checksum: None,
             source_catalogue_release: None,
             photometry_model: Some("v_s10_scaled_integrated_v1".to_string()),
             smoothing: None,
             generated_by: Some("nsb-data-tools using siderust".to_string()),
+            source_selection: None,
+            generation_command: None,
+            validation_report: None,
+            calibration_status: Some("experimental".to_string()),
+            independent_comparison: None,
         }
     }
 
+    /// Provenance for deterministic test-only maps.
     pub fn test_fixture() -> Self {
         Self {
             dataset_name: "NSB test fixture starlight map".to_string(),
@@ -147,10 +212,16 @@ impl StarlightProvenance {
             band_definition: "integrated 300-650 nm photon radiance plus B/V S10".to_string(),
             map_resolution: "90 deg lon x 45 deg lat".to_string(),
             checksum: None,
+            map_checksum: None,
             source_catalogue_release: Some("test".to_string()),
             photometry_model: Some("fixture".to_string()),
             smoothing: None,
             generated_by: Some("test".to_string()),
+            source_selection: Some("synthetic fixture".to_string()),
+            generation_command: Some("test fixture generation".to_string()),
+            validation_report: Some("test-only".to_string()),
+            calibration_status: Some("experimental".to_string()),
+            independent_comparison: None,
         }
     }
 }

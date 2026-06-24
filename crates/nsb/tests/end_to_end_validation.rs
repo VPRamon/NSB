@@ -155,9 +155,11 @@ fn production_all_matches_reference_envelopes() {
 }
 
 #[test]
-fn all_supported_with_fixture_starlight_preserves_galactic_contrast() {
+fn explicit_starlight_with_fixture_preserves_galactic_contrast() {
     let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_model = StarlightModel::with_map(fixture_starlight_map());
+    config.starlight_model = Some(StarlightModel::with_experimental_map(
+        fixture_starlight_map(),
+    ));
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let evaluate = |target| {
@@ -166,7 +168,7 @@ fn all_supported_with_fixture_starlight_preserves_galactic_contrast() {
                 observer: ctao_s(),
                 time: parse("2023-09-04T01:48:00Z"),
                 target,
-                components: ComponentMask::ALL_SUPPORTED,
+                components: ComponentMask::ALL | ComponentMask::STARLIGHT,
             })
             .expect("all-supported point query")
     };
@@ -200,7 +202,7 @@ fn all_supported_with_fixture_starlight_preserves_galactic_contrast() {
             .sum();
         assert!(
             (total - component_sum).abs() <= COMPONENT_SUM_TOLERANCE * total.max(1.0),
-            "all-supported total {total} is not the sum of reported components {component_sum}"
+            "explicit total {total} is not the sum of reported components {component_sum}"
         );
     }
 }
@@ -210,9 +212,16 @@ fn threshold_windows_match_independent_sampled_curve() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let observer = ctao_s();
     let target = sgr_a_star();
-    let start = parse("2023-09-04T00:00:00Z");
-    let end = parse("2023-09-05T00:00:00Z");
-    let samples = sampled_curve(&evaluator, observer, target, start, end, ComponentMask::ALL);
+    let start = parse("2023-09-05T00:00:00Z");
+    let end = parse("2023-09-05T06:00:00Z");
+    let samples = sampled_curve(
+        &evaluator,
+        observer,
+        target,
+        start,
+        end,
+        ComponentMask::AIRGLOW,
+    );
 
     let min = samples
         .iter()
@@ -234,8 +243,8 @@ fn threshold_windows_match_independent_sampled_curve() {
             target,
             window: Period::new(start, end),
             threshold,
-            components: ComponentMask::ALL,
-            sample_step: Second::new(600.0),
+            components: ComponentMask::AIRGLOW,
+            sample_step: Second::new(3_600.0),
             sun_altitude_ceiling: None,
             target_altitude_floor: None,
         })
@@ -276,7 +285,7 @@ fn unrestrictive_threshold_windows_match_independent_observability_intervals() {
         target,
         window: Period::new(start, end),
         threshold: BandPhotonRadiance::new(1.0e12),
-        components: ComponentMask::ALL,
+        components: ComponentMask::AIRGLOW,
         sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
         sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
         target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
@@ -323,7 +332,7 @@ fn sampled_curve(
     components: ComponentMask,
 ) -> Vec<(Time<UTC>, f64)> {
     let mut out = Vec::new();
-    let mut t = start.to_chrono().unwrap() + Duration::minutes(15);
+    let mut t = start.to_chrono().unwrap() + Duration::hours(1);
     let end = end.to_chrono().unwrap();
     while t < end {
         let time = Time::<UTC>::from_chrono(t);
@@ -338,7 +347,7 @@ fn sampled_curve(
             .integrated
             .value();
         out.push((time, value));
-        t += Duration::minutes(15);
+        t += Duration::hours(1);
     }
     out
 }

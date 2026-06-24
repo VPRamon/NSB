@@ -1,7 +1,7 @@
 //! Tests for the zodiacal-light module.
 
 use super::extinction::ZodiacalExtinction;
-use super::leinert::{legacy_lookup_s10_for_test, Leinert1998Grid};
+use super::leinert::{reference_lookup_s10_for_test, Leinert1998Grid};
 use super::model::{ZodiacalBrightnessGrid, ZodiacalBrightnessModel, ZodiacalLight};
 use crate::evaluator::Target;
 use qtty::angular::{Degrees, Radians};
@@ -10,7 +10,7 @@ use siderust::qtty::DEG;
 use tempoch::{Time, UTC};
 
 #[test]
-fn leinert_grid2d_bitwise_parity_with_legacy() {
+fn leinert_grid2d_matches_historical_reference() {
     let dl_degs = [0.5_f64, 1.0, 5.0, 10.0, 27.3, 90.0, 124.5, 175.0, 179.9];
     let beta_degs = [0.5_f64, 5.0, 10.0, 27.3, 45.0, 60.0, 89.5, 89.99];
 
@@ -19,7 +19,7 @@ fn leinert_grid2d_bitwise_parity_with_legacy() {
             let dl_rad = dl.to_radians();
             let beta_rad = beta.to_radians();
 
-            let legacy = match legacy_lookup_s10_for_test(beta_rad, dl_rad) {
+            let reference = match reference_lookup_s10_for_test(beta_rad, dl_rad) {
                 Some(v) => v,
                 None => continue,
             };
@@ -29,8 +29,8 @@ fn leinert_grid2d_bitwise_parity_with_legacy() {
 
             assert_eq!(
                 got.to_bits(),
-                legacy.to_bits(),
-                "bit mismatch at dl={dl}°, β={beta}°: Grid2D={got}, legacy={legacy}"
+                reference.to_bits(),
+                "bit mismatch at dl={dl}°, β={beta}°: Grid2D={got}, reference={reference}"
             );
         }
     }

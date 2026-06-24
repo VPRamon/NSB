@@ -2,6 +2,7 @@
 name = "nsb"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.89"
 authors = ["VPRamon <vallespuigramon@gmail.com>"]
 description = "Night Sky Background model."
 license = "BSD-3-Clause"
@@ -17,12 +18,14 @@ name = "nsb"
 qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch  = "0.6"
 optica   = "0.2"
-siderust = { git = "https://github.com/Siderust/siderust.git", branch = "main", features = ["atmosphere", "photometry"] }
+siderust = { version = "=0.10.1", git = "https://github.com/Siderust/siderust.git", rev = "8d94b8375ae23c26d00346f74951e52cd1b595cc", features = ["atmosphere", "photometry"] }
 
 thiserror = "2.0"
 bitflags  = "2.13"
 chrono    = "0.4"
 csv       = "1"
+serde     = { version = "1", features = ["derive"] }
+toml      = "1.1.2"
 
 [dev-dependencies]
 approx = "0.5"

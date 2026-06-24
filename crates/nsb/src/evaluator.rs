@@ -13,10 +13,10 @@ mod types;
 
 pub use core::NsbEvaluator;
 pub use metadata::{
-    BandDiagnostic, ComponentCalibrationStatus,
-    ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
+    BandDiagnostic, ComponentCalibrationStatus, ComponentCalibrationStatus as CalibrationStatus,
+    NsbComponentMetadata,
 };
 pub use types::{
-    ComponentMask, MoonlightModel, NsbComponent, NsbModelConfig, NsbResult, Observer, PointQuery,
-    StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
+    ComponentMask, MoonlightModel, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult,
+    Observer, PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };

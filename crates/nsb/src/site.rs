@@ -64,22 +64,39 @@ impl AirglowSiteCalibration {
 /// Complete atmospheric and airglow assumptions for a built-in site profile.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SiteProfile {
+    /// Stable profile identifier.
     pub id: SiteProfileId,
+    /// Human-readable maturity-bearing profile name.
     pub name: &'static str,
+    /// Site calibration maturity.
     pub calibration_status: CalibrationStatus,
+    /// Altitude represented by the atmospheric assumptions.
     pub representative_altitude: Kilometers,
+    /// Rayleigh/Mie atmospheric conditions.
     pub atmosphere: AtmosphericConditions,
+    /// Source and limitations of atmospheric assumptions.
     pub atmosphere_provenance: &'static str,
+    /// Airglow calibration assumptions.
     pub airglow: AirglowSiteCalibration,
 }
 
 impl SiteProfile {
+    /// Return true only for a dedicated validated site calibration.
     pub fn is_site_calibrated(&self) -> bool {
         self.calibration_status == CalibrationStatus::Calibrated
     }
 }
 
 impl SiteProfileId {
+    /// Stable maturity-bearing profile identifier.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::GenericClearSky => "generic-clear-sky",
+            Self::CtaNorth => "ctao-north-planning",
+            Self::CtaSouth => "ctao-south-planning",
+        }
+    }
+
     /// Resolve this identifier to the concrete profile used for a query observer.
     ///
     /// [`SiteProfileId::GenericClearSky`] derives pressure from the supplied
@@ -133,6 +150,7 @@ impl SiteProfileId {
         }
     }
 
+    /// Return every built-in profile identifier.
     pub fn all() -> [Self; 3] {
         [Self::GenericClearSky, Self::CtaNorth, Self::CtaSouth]
     }

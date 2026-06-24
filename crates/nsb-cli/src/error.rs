@@ -8,8 +8,8 @@ pub enum CliError {
     UnknownSite(String),
     #[error("unknown component {0:?}")]
     UnknownComponent(String),
-    #[error("starlight requested but no standard starlight map is bundled yet; generate one with `cargo run -p nsb-data-tools --bin build_starlight_map -- ...` and add CLI map loading in a follow-up, or remove `starlight` from --components")]
-    UnsupportedStarlight,
+    #[error("invalid component selection: {0}")]
+    InvalidComponentSelection(String),
     #[error("--max-nsb must be finite and non-negative")]
     InvalidMaxNsb,
     #[error("--min-nsb must be finite and non-negative")]
