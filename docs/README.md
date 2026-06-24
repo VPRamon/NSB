@@ -1,28 +1,18 @@
-# NSB documentation
+# Documentation index
 
-This directory holds supporting notes and historical reports for `nsb`.
+- [Concepts and implementation](CONCEPTS_AND_IMPLEMENTATION_GUIDE.md)
+- [Model maturity](MODEL_MATURITY.md)
+- [Scientific metadata](SCIENTIFIC_METADATA.md)
+- [Validation matrix](VALIDATION.md)
+- [Starlight generation](STELLAR_MAP_GENERATION.md)
+- [CTAO site profiles](CTAO_SITE_PROFILES.md)
+- [Jones 2013 moonlight](moonlight_jones2013.md)
+- [CLI schemas](CLI_SCHEMAS.md)
+- [Siderust compatibility](SIDERUST_COMPATIBILITY.md)
+- [Production roadmap](PRODUCTION_ROADMAP.md)
+- [Performance contract](PERFORMANCE.md)
+- [Release checklist](RELEASE_CHECKLIST.md)
 
-For the **current** crate API, CLI, and validation contract, start here first:
-
-| Entry point | Purpose |
-|---|---|
-| `CONCEPTS_AND_IMPLEMENTATION_GUIDE.md` | Beginner-oriented explanation of the astronomy vocabulary, NSB components, and what the crate implements today. |
-| `CTAO_SITE_PROFILES.md` | Machine-readable CTAO planning-profile assumptions, calibration maturity, and validation contract. |
-| `VALIDATION.md` | End-to-end validation contract, CI gates, tolerance policy, and external reference-data process. |
-| `../README.md` | Current package overview, library API, CLI usage, validation entry point, and layout. |
-| `../examples/point_query.rs` | Runnable point-in-time library example. |
-| `../examples/threshold_window.rs` | Runnable threshold-window library example. |
-
-Several documents below were written during the earlier `darknsb`-porting phase.
-They are still useful as provenance and design background, but they may refer to
-surfaces that no longer exist in the simplified crate (Python bindings, vendored
-`darknsb`, named-target catalog, compatibility wrappers, and Python golden
-tests).
-
-| Document | Purpose |
-|---|---|
-| `DARKNSB_REPORT.md` | Historical inspection report for the original Python `darknsb` model and data. |
-| `SIDERUST_REIMPLEMENTATION_REPORT.md` | Historical assessment of how `darknsb` mapped onto the SideRust ecosystem. |
-| `NSB_STAGED_IMPLEMENTATION_PLAN.md` | Historical staged plan from the original port and API-shaping work. |
-| `NSB_CONCEPT_PROVENANCE_AND_SIDERUST_REUSE_REPORT.md` | Provenance notes for NSB concepts, data sources, and possible upstream reuse. |
-| `TODO_SIDERUST.md` | Current notes on what, if anything, still makes sense to upstream from NSB. |
+Obsolete architecture and migration reports were removed from the working tree
+because they contradicted current defaults. Their historical content remains
+available in Git history.

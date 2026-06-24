@@ -1,5 +1,4 @@
 use crate::cli::{OutputFormat, PointArgs};
-use crate::error::CliError;
 use crate::output;
 use crate::parsing::{components, location, target, time};
 use anyhow::Result;
@@ -13,8 +12,11 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
     let time = time::parse_utc(&args.time)?;
     let target = target::resolve_target(&args.target);
     let components = components::parse_components(&args.model.components)?;
-    reject_unsupported_starlight(components)?;
-    let evaluator = NsbEvaluator::with_config(model_config(&args.model)?)?;
+    let evaluator = NsbEvaluator::with_config(model_config(
+        &args.model,
+        components,
+        location::site_profile(&args.observer),
+    )?)?;
 
     let result = evaluator.evaluate(&PointQuery {
         observer,
@@ -23,11 +25,16 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
         components,
     })?;
 
-    output::write_point(format, time, observer, target, &result)
+    output::write_point(format, time, observer, target, &evaluator.config(), &result)
 }
 
-pub(crate) fn model_config(args: &crate::cli::ModelArgs) -> Result<NsbModelConfig> {
+pub(crate) fn model_config(
+    args: &crate::cli::ModelArgs,
+    components: ComponentMask,
+    site_profile: nsb::SiteProfileId,
+) -> Result<NsbModelConfig> {
     let mut config = NsbModelConfig::generic_clear_sky();
+    config.site_profile = site_profile;
     config.moonlight_model = match args.moonlight_model {
         crate::cli::MoonlightModelArg::Jones2013 => MoonlightModel::Jones2013Spectral,
         crate::cli::MoonlightModelArg::Ks1991 => MoonlightModel::KrisciunasSchaefer1991,
@@ -39,12 +46,8 @@ pub(crate) fn model_config(args: &crate::cli::ModelArgs) -> Result<NsbModelConfi
         crate::cli::ZodiacalExtinctionArg::Noll2012 => ZodiacalExtinction::Noll2012Approx,
         crate::cli::ZodiacalExtinctionArg::None => ZodiacalExtinction::None,
     };
-    Ok(config)
-}
-
-pub(crate) fn reject_unsupported_starlight(components: ComponentMask) -> Result<()> {
     if components.contains(ComponentMask::STARLIGHT) {
-        return Err(CliError::UnsupportedStarlight.into());
+        config.starlight_model = Some(nsb::StarlightModel::bundled_experimental_seed());
     }
-    Ok(())
+    Ok(config)
 }

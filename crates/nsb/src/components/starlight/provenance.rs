@@ -1,23 +1,38 @@
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Provenance carried by every starlight map.
 pub struct StarlightProvenance {
+    /// Human-readable dataset name.
     pub dataset_name: String,
+    /// Dataset version identifier.
     pub version: String,
+    /// UTC generation date or timestamp.
     pub generation_date: String,
+    /// Source stellar catalogue.
     pub source_catalogue: String,
+    /// Source catalogue or derived-product license.
     pub license: String,
+    /// Applied magnitude selection.
     pub magnitude_limit: String,
+    /// Integrated and diagnostic band definition.
     pub band_definition: String,
+    /// Map grid resolution and ordering.
     pub map_resolution: String,
+    /// Source catalogue checksum when supplied.
     pub checksum: Option<String>,
+    /// Source catalogue release identifier.
     pub source_catalogue_release: Option<String>,
+    /// Photometric conversion model identifier.
     pub photometry_model: Option<String>,
+    /// Angular smoothing description.
     pub smoothing: Option<String>,
+    /// Generator program and version information.
     pub generated_by: Option<String>,
 }
 
 impl StarlightProvenance {
+    /// Construct required provenance fields for a caller-provided map.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         dataset_name: impl Into<String>,
@@ -47,6 +62,7 @@ impl StarlightProvenance {
         }
     }
 
+    /// Merge machine-readable CSV header metadata over fallback provenance.
     pub fn from_header_metadata(metadata: &BTreeMap<String, String>, fallback: Self) -> Self {
         let nside = metadata.get("nside");
         let ordering = metadata.get("ordering");
@@ -117,7 +133,8 @@ impl StarlightProvenance {
         }
     }
 
-    pub fn catalogue_galactic_model_v1() -> Self {
+    /// Fallback provenance contract for the bundled experimental seed.
+    pub fn experimental_seed_v1() -> Self {
         Self {
             dataset_name: "NSB catalogue-derived Galactic starlight map".to_string(),
             version: "v1".to_string(),
@@ -136,6 +153,7 @@ impl StarlightProvenance {
         }
     }
 
+    /// Provenance for deterministic test-only maps.
     pub fn test_fixture() -> Self {
         Self {
             dataset_name: "NSB test fixture starlight map".to_string(),

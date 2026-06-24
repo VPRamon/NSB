@@ -1,22 +1,27 @@
 use super::*;
 use qtty::Second;
 
+/// Published analytic V-band moonlight reference model.
 pub struct KrisciunasSchaefer1991 {
     location: Geodetic<ECEF>,
     k_ext: f64,
 }
 
 impl KrisciunasSchaefer1991 {
+    /// Default coarse scan step for range searches.
     pub const DEFAULT_PERIOD_SEARCH_STEP: Second = Second::new(600.0);
 
+    /// Build with an explicit extinction coefficient.
     pub fn new(location: Geodetic<ECEF>, k_ext: f64) -> Self {
         Self { location, k_ext }
     }
 
+    /// Build with the standard clear-sky extinction coefficient.
     pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
         Self::new(location, DEFAULT_K_EXT)
     }
 
+    /// Evaluate analytic scattered moonlight toward a target.
     pub fn compute(
         &self,
         time: Time<UTC>,
@@ -26,6 +31,7 @@ impl KrisciunasSchaefer1991 {
         compute_krisciunas_schaefer_1991(&geometry, self.k_ext)
     }
 
+    /// Find periods whose integrated moonlight lies in the inclusive range.
     pub fn periods_in_range(
         &self,
         window: Period<UTC>,
@@ -36,6 +42,7 @@ impl KrisciunasSchaefer1991 {
         self.periods_in_range_with_step(window, target, min, max, Self::DEFAULT_PERIOD_SEARCH_STEP)
     }
 
+    /// Find in-range periods with an explicit coarse scan step.
     pub fn periods_in_range_with_step(
         &self,
         window: Period<UTC>,
@@ -201,12 +208,24 @@ mod tests {
 
     #[test]
     fn full_moon_reference_geometry_matches_published_brightness() {
+        let fixture = include_str!("../../../tests/data/external_reference_cases.csv");
+        let row = fixture.lines().nth(1).expect("external reference row");
+        let columns: Vec<_> = row.split(',').collect();
+        assert_eq!(columns.len(), 10, "external fixture schema changed");
+        assert_eq!(columns[0], "ks91_full_moon_zenith_90deg");
+        assert!(columns[1].contains("Krisciunas and Schaefer 1991"));
+        assert_eq!(columns[4], "mag_per_arcsec2");
+        assert_eq!(columns[5], "Johnson-V-approximation");
+        assert_eq!(columns[9], "model-choice");
+        let expected: f64 = columns[6].parse().expect("expected value");
+        let tolerance: f64 = columns[7].parse().expect("absolute tolerance");
+
         let out = compute(&inputs(0.0, 90.0, 45.0, 45.0)).unwrap();
         assert!(out.v_flux_s10 > S10s::zero());
         let v_mag = v_mag_arcsec2(&out);
         assert!(
-            (v_mag - 18.0).abs() < 0.7,
-            "V_sky = {v_mag:.2} mag/arcsec² not within 0.7 of published ~18"
+            (v_mag - expected).abs() < tolerance,
+            "V_sky = {v_mag:.2} mag/arcsec² not within {tolerance} of published {expected}"
         );
     }
 

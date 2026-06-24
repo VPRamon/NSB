@@ -1,0 +1,2 @@
+case_id,reference_source,reference_locator,quantity,unit,band,expected_value,absolute_tolerance,model_assumptions,deviation_class
+ks91_full_moon_zenith_90deg,Krisciunas and Schaefer 1991 PASP 103 1033,full-Moon benchmark discussed with Eq. 18-21,sky_surface_brightness,mag_per_arcsec2,Johnson-V-approximation,18.0,0.7,full Moon at zenith; target zenith angle 45 deg; Moon-target separation 90 deg; standard extinction,model-choice

@@ -2,7 +2,7 @@
 //!
 //! This module exposes two site-bound models:
 //!
-//! * [`KrisciunasSchaefer1991`] is the analytic V-band legacy model. It stores
+//! * [`KrisciunasSchaefer1991`] is the published analytic V-band reference model. It stores
 //!   the observing location and `k_ext`, then computes lunar phase, Moon
 //!   zenith, Moon-target separation, source zenith, and Moon distance
 //!   internally from `(time, target)`.
@@ -95,12 +95,16 @@ const JONES_MIE_WEIGHT: f64 = 0.05;
 /// ambiguity of mixing a site profile with an unrelated observer altitude.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AtmosphericConditions {
+    /// Surface pressure used for Rayleigh scattering.
     pub surface_pressure: Hectopascals,
+    /// Rayleigh atmospheric scale height.
     pub rayleigh_scale_height: Kilometers,
+    /// Aerosol optical-depth and phase-function parameters.
     pub mie_params: MieParams,
 }
 
 impl AtmosphericConditions {
+    /// Convert a Siderust profile while intentionally discarding its altitude.
     pub fn from_profile_without_altitude(profile: AtmosphereProfile) -> Self {
         Self {
             surface_pressure: profile.surface_pressure,
@@ -165,9 +169,13 @@ struct MoonlightGeometry {
 }
 
 #[derive(Debug, Clone)]
+/// Integrated scattered-moonlight radiance and diagnostic B/V values.
 pub struct MoonOutputs {
+    /// Photon radiance integrated over 300–650 nm.
     pub integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian,
+    /// Monochromatic B-reference S10 diagnostic.
     pub b_flux_s10: radiometry::S10s,
+    /// Monochromatic V-reference S10 diagnostic.
     pub v_flux_s10: radiometry::S10s,
 }
 

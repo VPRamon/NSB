@@ -14,16 +14,24 @@ use std::path::Path;
 const EPS: f64 = 1.0e-10;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+/// One directional starlight-map sample.
 pub struct StarlightPixel {
+    /// Galactic longitude of the sample centre.
     pub galactic_lon: Degrees,
+    /// Galactic latitude of the sample centre.
     pub galactic_lat: Degrees,
+    /// Pixel solid angle in steradians.
     pub solid_angle_sr: f64,
+    /// Integrated 300–650 nm photon radiance.
     pub integrated: BandPhotonRadiance,
+    /// B-reference S10 diagnostic.
     pub b_flux_s10: S10s,
+    /// V-reference S10 diagnostic.
     pub v_flux_s10: S10s,
 }
 
 impl StarlightPixel {
+    /// Construct a map sample.
     pub fn new(
         galactic_lon: Degrees,
         galactic_lat: Degrees,
@@ -78,6 +86,7 @@ impl StarlightPixel {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+/// Validated rectangular or HEALPix Galactic starlight map.
 pub struct StarlightMap {
     provenance: StarlightProvenance,
     kind: StarlightMapKind,
@@ -97,6 +106,7 @@ enum StarlightMapKind {
 }
 
 impl StarlightMap {
+    /// Build a complete rectangular map from directional pixels.
     pub fn from_pixels(
         pixels: Vec<StarlightPixel>,
         provenance: StarlightProvenance,
@@ -158,6 +168,7 @@ impl StarlightMap {
         })
     }
 
+    /// Parse rectangular or HEALPix CSV text and merge header provenance.
     pub fn from_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
         let metadata = parse_header_metadata(raw);
         let provenance = StarlightProvenance::from_header_metadata(&metadata, provenance);
@@ -175,11 +186,13 @@ impl StarlightMap {
         }
     }
 
+    /// Read and parse a map from a filesystem path.
     pub fn from_csv_path(path: impl AsRef<Path>, provenance: StarlightProvenance) -> Result<Self> {
         let raw = std::fs::read_to_string(path)?;
         Self::from_csv_str(&raw, provenance)
     }
 
+    /// Look up radiance in Galactic coordinates.
     pub fn lookup(&self, galactic_lon: Degrees, galactic_lat: Degrees) -> StarlightOutputs {
         match &self.kind {
             StarlightMapKind::Rectangular {
@@ -210,10 +223,12 @@ impl StarlightMap {
         }
     }
 
+    /// Return map provenance.
     pub fn provenance(&self) -> &StarlightProvenance {
         &self.provenance
     }
 
+    /// Return validated pixels in storage order.
     pub fn pixels(&self) -> &[StarlightPixel] {
         match &self.kind {
             StarlightMapKind::Rectangular { pixels, .. }

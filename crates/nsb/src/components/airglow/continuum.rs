@@ -2,8 +2,6 @@ use super::calibration::AirglowContinuum;
 use super::output::AirglowOutputs;
 use super::temporal::{season_bin, time_of_night_bin};
 use super::units::SolarFluxUnits;
-use optica::grid::OutOfRange;
-use optica::spectrum::algo;
 use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use siderust::atmosphere::van_rhijn_factor;
@@ -12,8 +10,6 @@ use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Kilometers, Nanometers, Radian};
 use tempoch::{Time, UTC};
 
-const WL_LOW_NM: f64 = 300.0;
-const WL_HIGH_NM: f64 = 650.0;
 const B_FILTER_NM: f64 = 445.0;
 const V_FILTER_NM: f64 = 551.0;
 const ARCSEC2_PER_SR: f64 = 4.254_517_029_022_576e10;
@@ -60,13 +56,9 @@ pub(crate) fn evaluate_continuum(
         .unwrap_or(1.0);
     let scale = continuum.global_scale * solar_corr * seasonal_corr * van_rhijn * user_scale;
 
-    let lam = continuum.spectrum.xs_raw();
-    let rel = continuum.spectrum.ys_raw();
-    let flux: Vec<f64> = rel
-        .iter()
-        .map(|&r| r * scale * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR)
-        .collect();
-    let integrated = BandPhotonRadiance::new(algo::trapz_range(lam, &flux, WL_LOW_NM, WL_HIGH_NM));
+    let radiance_scale = scale * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR;
+    let integrated =
+        BandPhotonRadiance::new(continuum.integrated_relative_300_650 * radiance_scale);
 
     let relative_uncertainty = continuum
         .sigma_corrections
@@ -86,14 +78,8 @@ pub(crate) fn evaluate_continuum(
                 * van_rhijn.abs()
                 * user_scale
                 * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR;
-            let shape_sigma_flux: Vec<f64> = continuum
-                .uncertainty
-                .ys_raw()
-                .iter()
-                .map(|&sigma| sigma.abs() * common_scale)
-                .collect();
             let shape_sigma_integrated =
-                algo::trapz_range(lam, &shape_sigma_flux, WL_LOW_NM, WL_HIGH_NM).abs();
+                continuum.integrated_uncertainty_abs_300_650 * common_scale;
             let level_relative_uncertainty = seasonal_sigma.abs() / seasonal_corr_value;
             let shape_relative_uncertainty = shape_sigma_integrated / integrated_value;
             let relative_uncertainty = level_relative_uncertainty.hypot(shape_relative_uncertainty);
@@ -103,10 +89,8 @@ pub(crate) fn evaluate_continuum(
                 .then_some(relative_uncertainty)
         });
 
-    let b_density = algo::interp_linear(lam, &flux, B_FILTER_NM, OutOfRange::ClampToEndpoints)
-        .expect("airglow B interpolation");
-    let v_density = algo::interp_linear(lam, &flux, V_FILTER_NM, OutOfRange::ClampToEndpoints)
-        .expect("airglow V interpolation");
+    let b_density = continuum.b_relative * radiance_scale;
+    let v_density = continuum.v_relative * radiance_scale;
 
     AirglowOutputs {
         integrated,

@@ -29,9 +29,9 @@
 //!
 //! The implementation distinguishes two conceptual steps:
 //!
-//! - **Source model** ([`leinert`], [`geometry`], [`spectrum`], [`reddening`]):
+//! - **Source model** (`leinert`, `geometry`, `spectrum`, `reddening`):
 //!   computes what the zodiacal sky looks like above the atmosphere.
-//! - **Atmospheric propagation** ([`extinction`]):
+//! - **Atmospheric propagation** (`extinction`):
 //!   attenuates the signal as it passes through the atmosphere.
 //!
 //! Use [`ZodiacalLight::compute_exoatmospheric`] for the celestial component

@@ -7,7 +7,7 @@ pub fn parse_components(input: &str) -> Result<ComponentMask, CliError> {
         match token.to_ascii_lowercase().as_str() {
             "all" => return Ok(ComponentMask::ALL),
             "zodiacal" | "zl" => mask |= ComponentMask::ZODIACAL,
-            "starlight" | "sl" => mask |= ComponentMask::STARLIGHT,
+            "experimental-starlight" | "experimental-sl" => mask |= ComponentMask::STARLIGHT,
             "airglow" | "ag" => mask |= ComponentMask::AIRGLOW,
             "moon" | "moonlight" => mask |= ComponentMask::MOON,
             other => return Err(CliError::UnknownComponent(other.to_string())),
@@ -36,5 +36,14 @@ mod tests {
         assert!(mask.contains(ComponentMask::AIRGLOW));
         assert!(mask.contains(ComponentMask::MOON));
         assert!(!mask.contains(ComponentMask::STARLIGHT));
+    }
+
+    #[test]
+    fn experimental_starlight_requires_explicit_name() {
+        assert!(parse_components("starlight").is_err());
+        assert_eq!(
+            parse_components("experimental-starlight").unwrap(),
+            ComponentMask::STARLIGHT
+        );
     }
 }

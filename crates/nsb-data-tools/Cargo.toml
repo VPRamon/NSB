@@ -2,22 +2,34 @@
 name = "nsb-data-tools"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.89"
 publish = false
+license = "BSD-3-Clause"
 
 [[bin]]
 name = "build_starlight_map"
 path = "src/bin/build_starlight_map.rs"
+doc = false
 
 [[bin]]
 name = "prepare_tycho_starlight_catalogue"
 path = "src/bin/prepare_tycho_starlight_catalogue.rs"
+doc = false
+
+[[bin]]
+name = "verify_assets"
+path = "src/bin/verify_assets.rs"
+doc = false
 
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
-siderust = { git = "https://github.com/Siderust/siderust.git", branch = "main", features = ["atmosphere", "photometry"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+siderust = { version = "=0.10.1", git = "https://github.com/Siderust/siderust.git", rev = "8d94b8375ae23c26d00346f74951e52cd1b595cc", features = ["atmosphere", "photometry"] }
+toml = "1.1.2"
 
 [dev-dependencies]
-nsb = { path = "../nsb" }
+nsb = { version = "=0.1.0", path = "../nsb" }
 tempfile = "3"

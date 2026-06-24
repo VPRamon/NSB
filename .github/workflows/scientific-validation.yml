@@ -1,0 +1,30 @@
+name: Scientific validation
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  schedule:
+    - cron: "41 4 1 * *"
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Verify scientific assets
+        run: cargo run --locked -p nsb-data-tools --bin verify_assets -- --manifest crates/nsb/data/manifest.toml
+      - name: Run external and end-to-end validation matrices
+        run: |
+          cargo test --locked -p nsb full_moon_reference_geometry_matches_published_brightness
+          cargo test --locked -p nsb --test end_to_end_validation
+          cargo test --locked -p nsb --test jones2013_validation
+          cargo test --locked -p nsb --test science_metadata

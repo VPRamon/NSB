@@ -15,7 +15,7 @@
 //!
 //! The internal [`Grid2D`] stores the y-axis (λ − λ_sun) in ascending order
 //! via [`Grid2D::from_raw_row_major_y_descending`] so that the standard
-//! bilinear interpolation path is identical to the legacy hand-rolled
+//! bilinear interpolation path is identical to the historical hand-rolled
 //! `lt = (180 − dl_deg − 5·l0)/5` arithmetic (bit-for-bit equality).
 //!
 //! # Corner extrapolation
@@ -288,13 +288,13 @@ fn grid() -> &'static LeinertGrid {
     })
 }
 
-/// Legacy hand-rolled bilinear lookup — preserved for bit-for-bit parity tests.
+/// Historical hand-rolled bilinear lookup retained only for unit comparisons.
 ///
 /// Returns `None` for inputs outside the valid range (β ∉ [0°, 90°) or
 /// |λ−λ_sun| ∉ [0°, 180°]). The corner-region clamps mirror the three
 /// branches in the original Python `GetZodiacalLight`.
 #[cfg(test)]
-pub(crate) fn legacy_lookup_s10_for_test(beta_rad: f64, delta_lambda_rad: f64) -> Option<f64> {
+pub(crate) fn reference_lookup_s10_for_test(beta_rad: f64, delta_lambda_rad: f64) -> Option<f64> {
     let beta_deg = beta_rad.to_degrees().abs();
     let dl_deg = delta_lambda_rad.to_degrees().abs().min(180.0);
     if !(0.0..90.0).contains(&beta_deg) {

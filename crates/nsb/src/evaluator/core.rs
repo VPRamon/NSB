@@ -1,4 +1,6 @@
-use super::metadata::{airglow_metadata, moonlight_metadata, starlight_metadata, zodiacal_metadata};
+use super::metadata::{
+    airglow_metadata, moonlight_metadata, starlight_metadata, zodiacal_metadata,
+};
 use super::search::{
     above_threshold_periods, complement_periods, tt_mjd_period_to_utc, tt_mjd_to_utc_time,
     utc_period_to_tt_mjd,
@@ -13,48 +15,110 @@ use qtty::photometry::s10_to_surface_brightness;
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
-use qtty::{Quantity, Second};
+use qtty::Second;
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::spherical::direction;
 use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
-use siderust::qtty::{Day, Days};
+use siderust::qtty::Day;
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
+use std::sync::Arc;
 use tempoch::{Time, UTC};
 
+/// Reusable evaluator with parsed immutable component data.
 pub struct NsbEvaluator {
     zodiacal: ZodiacalLight,
-    airglow_continuum: AirglowContinuum,
+    airglow_continuum: Arc<AirglowContinuum>,
+    starlight: Option<starlight::Starlight>,
     config: NsbModelConfig,
 }
 
 impl NsbEvaluator {
+    /// Construct the generic production-safe planning configuration.
     pub fn new() -> Result<Self> {
         Self::with_config(NsbModelConfig::generic_clear_sky())
     }
 
+    /// Construct from explicit immutable model choices.
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
         let zodiacal = ZodiacalLight::leinert1998()?.with_extinction(config.zodiacal_extinction);
+        let starlight = match config.starlight_model.as_ref() {
+            None => None,
+            Some(StarlightModel::BundledExperimentalSeed) => {
+                Some(starlight::Starlight::experimental_seed_model()?)
+            }
+            Some(StarlightModel::CustomMap(map)) => {
+                Some(starlight::Starlight::with_map((**map).clone()))
+            }
+        };
         Ok(Self {
             zodiacal,
-            airglow_continuum: airglow::load_builtin_standard()?,
+            airglow_continuum: Arc::new(airglow::load_builtin_standard()?),
+            starlight,
             config,
         })
     }
 
-    #[doc(hidden)]
-    pub fn python_parity() -> Result<Self> {
-        Self::with_config(NsbModelConfig::python_parity())
-    }
-
+    /// Return a clone of the evaluator configuration.
     pub fn config(&self) -> NsbModelConfig {
         self.config.clone()
     }
 
+    /// Describe selected components without performing a time-dependent
+    /// radiance evaluation.
+    pub fn describe_components(
+        &self,
+        observer: Observer,
+        components: ComponentMask,
+    ) -> Result<Vec<NsbComponentDescriptor>> {
+        let mut descriptions = Vec::new();
+        if components.contains(ComponentMask::ZODIACAL) {
+            descriptions.push(NsbComponentDescriptor {
+                name: "zodiacal",
+                metadata: zodiacal_metadata(),
+            });
+        }
+        if components.contains(ComponentMask::STARLIGHT) {
+            if self.starlight.is_none() {
+                return Err(NsbError::Unsupported(
+                    "starlight component requested but no starlight model is configured".into(),
+                ));
+            }
+            descriptions.push(NsbComponentDescriptor {
+                name: "starlight",
+                metadata: starlight_metadata(
+                    self.config.starlight_model.as_ref(),
+                    self.starlight
+                        .as_ref()
+                        .map(|model| model.map().provenance()),
+                ),
+            });
+        }
+        if components.contains(ComponentMask::AIRGLOW) {
+            descriptions.push(NsbComponentDescriptor {
+                name: "airglow",
+                metadata: airglow_metadata(self.config.site_profile, observer),
+            });
+        }
+        if components.contains(ComponentMask::MOON) {
+            descriptions.push(NsbComponentDescriptor {
+                name: "moon",
+                metadata: moonlight_metadata(
+                    self.config.moonlight_model,
+                    self.config.site_profile,
+                    observer,
+                ),
+            });
+        }
+        Ok(descriptions)
+    }
+
+    /// Evaluate selected components for one point query.
     pub fn evaluate(&self, query: &PointQuery) -> Result<NsbResult> {
         let prepared = Self::prepare_point(query.observer, query.target, query.components);
         self.evaluate_full(&prepared, query.time)
     }
 
+    /// Find filtered UTC periods whose integrated radiance is at or below the threshold.
     pub fn periods_below_threshold(&self, query: &ThresholdQuery) -> Result<ThresholdQueryResult> {
         Self::validate_threshold(query)?;
 
@@ -77,37 +141,6 @@ impl NsbEvaluator {
             periods: darker_periods
                 .into_iter()
                 .map(|p| tt_mjd_period_to_utc(p, tt_window, query.window))
-                .collect(),
-        })
-    }
-
-    #[doc(hidden)]
-    pub fn periods_below_threshold_legacy(
-        &self,
-        query: &ThresholdQuery,
-    ) -> Result<ThresholdQueryResult> {
-        Self::validate_threshold(query)?;
-        if query.components.contains(ComponentMask::STARLIGHT) {
-            self.evaluate_starlight(query.target)?;
-        }
-
-        let prepared = Self::prepare_point(query.observer, query.target, query.components);
-        let tt_window = utc_period_to_tt_mjd(query.window);
-        let step = query.sample_step.to::<Day>();
-        let integrated_at = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
-            let time_utc = tt_mjd_to_utc_time(mjd_tt);
-            Ok(self.evaluate_full(&prepared, time_utc)?.integrated)
-        };
-
-        let brighter_than_threshold =
-            above_threshold_periods(tt_window, step, &integrated_at, query.threshold)?;
-        let darker_than_threshold = complement_periods(tt_window, &brighter_than_threshold);
-
-        Ok(ThresholdQueryResult {
-            threshold: query.threshold,
-            periods: darker_than_threshold
-                .into_iter()
-                .map(|period| tt_mjd_period_to_utc(period, tt_window, query.window))
                 .collect(),
         })
     }
@@ -247,7 +280,12 @@ impl NsbEvaluator {
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
                 relative_uncertainty: None,
-                metadata: starlight_metadata(&self.config.starlight_model),
+                metadata: starlight_metadata(
+                    self.config.starlight_model.as_ref(),
+                    self.starlight
+                        .as_ref()
+                        .map(|model| model.map().provenance()),
+                ),
             });
         }
         if query.components.contains(ComponentMask::AIRGLOW) {
@@ -285,14 +323,8 @@ impl NsbEvaluator {
 
         Ok(NsbResult {
             integrated: total,
-            b_mag: s10_to_surface_brightness(
-                b_total.max(S10::new(f64::MIN_POSITIVE)),
-                NSB_S10_ZP,
-            ),
-            v_mag: s10_to_surface_brightness(
-                v_total.max(S10::new(f64::MIN_POSITIVE)),
-                NSB_S10_ZP,
-            ),
+            b_mag: s10_to_surface_brightness(b_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
+            v_mag: s10_to_surface_brightness(v_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
             components,
             band_diagnostic: super::BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         })
@@ -305,27 +337,23 @@ impl NsbEvaluator {
         target: Target,
     ) -> Result<airglow::AirglowOutputs> {
         let profile = self.config.site_profile.profile(observer);
-        airglow::Airglow::with_continuum(observer, self.airglow_continuum.clone())
+        airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
             .with_solar_radio_flux(self.config.solar_radio_flux)
             .with_scale(profile.airglow.scale)
             .compute(time, target)
     }
 
     fn evaluate_starlight(&self, target: Target) -> Result<starlight::StarlightOutputs> {
-        let model = match &self.config.starlight_model {
-            StarlightModel::Disabled => {
-                return Err(NsbError::Unsupported(
-                    concat!(
-                        "starlight component requested but no starlight model is configured; ",
-                        "use StarlightModel::with_map(...) or StarlightModel::BundledCatalogueMap ",
-                        "after the catalogue-derived map is bundled and validated"
-                    )
-                    .to_string(),
-                ));
-            }
-            StarlightModel::BundledCatalogueMap => starlight::Starlight::catalogue_galactic_model()?,
-            StarlightModel::CustomMap(map) => starlight::Starlight::with_map((**map).clone()),
-        };
+        let model = self.starlight.as_ref().ok_or_else(|| {
+            NsbError::Unsupported(
+                concat!(
+                    "starlight component requested but no starlight model is configured; ",
+                    "provide a provenance-backed map with StarlightModel::with_map(...), or ",
+                    "explicitly opt into StarlightModel::bundled_experimental_seed()"
+                )
+                .to_string(),
+            )
+        })?;
         model.compute(target)
     }
 
@@ -337,7 +365,8 @@ impl NsbEvaluator {
     ) -> Result<moonlight::MoonOutputs> {
         match self.config.moonlight_model {
             MoonlightModel::KrisciunasSchaefer1991 => {
-                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer).compute(time, target)
+                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer)
+                    .compute(time, target)
             }
             MoonlightModel::Jones2013Spectral => {
                 moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile)

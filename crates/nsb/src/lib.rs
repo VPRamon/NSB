@@ -21,7 +21,9 @@
 //! fallbacks from explicit named planning presets.
 
 #![forbid(unsafe_code)]
+#![warn(missing_docs)]
 
+pub mod assets;
 pub mod components;
 pub mod error;
 pub mod evaluator;
@@ -41,8 +43,8 @@ pub use components::zodiacal::{
 pub use error::{NsbError, Result};
 pub use evaluator::{
     BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, MoonlightModel,
-    NsbComponent, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult, Observer,
-    PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
+    NsbComponent, NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig,
+    NsbResult, Observer, PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
 pub use site::{
     AirglowSiteCalibration, CalibrationStatus, CalibrationStatus as SiteCalibrationStatus,
@@ -54,3 +56,12 @@ pub use siderust::coordinates::spherical::Direction as SphericalDirection;
 pub use siderust::qtty::DEG;
 
 pub(crate) const NSB_S10_ZP: f64 = 27.78;
+
+/// Version of the NSB library crate.
+pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Versioned model-composition contract used in operational metadata.
+pub const MODEL_VERSION: &str = "nsb-model-2026.1";
+/// Siderust release represented by the pinned dependency revision.
+pub const SIDERUST_VERSION: &str = "0.10.1";
+/// Exact Siderust Git revision used for reproducible builds.
+pub const SIDERUST_REVISION: &str = "8d94b8375ae23c26d00346f74951e52cd1b595cc";

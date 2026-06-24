@@ -3,6 +3,9 @@ use chrono::{DateTime, Duration, Utc};
 use qtty::{Quantity, Second, Unit};
 use tempoch::{Period, Time, UTC};
 
+const MAX_CROSSING_REFINEMENTS: usize = 24;
+const CROSSING_TOLERANCE_MICROSECONDS: i64 = 1_000_000;
+
 /// Find UTC sub-periods where a sampled scalar quantity stays within `[min, max]`.
 ///
 /// The search brackets transitions with `sample_step` and refines each detected
@@ -171,7 +174,7 @@ where
     F: Fn(Time<UTC>) -> Result<Quantity<V>>,
 {
     let (min, max) = bounds;
-    for _ in 0..48 {
+    for _ in 0..MAX_CROSSING_REFINEMENTS {
         let mid = midpoint(lo, hi);
         if mid <= lo || mid >= hi {
             break;
@@ -185,7 +188,7 @@ where
             hi = mid;
             y_hi = y_mid;
         }
-        if microseconds_between(lo, hi).is_some_and(|us| us <= 1_000) {
+        if microseconds_between(lo, hi).is_some_and(|us| us <= CROSSING_TOLERANCE_MICROSECONDS) {
             break;
         }
     }
@@ -206,7 +209,7 @@ where
     F: Fn(Time<UTC>) -> Result<Quantity<V>>,
 {
     let lo_below = y_lo < threshold;
-    for _ in 0..48 {
+    for _ in 0..MAX_CROSSING_REFINEMENTS {
         let mid = midpoint(lo, hi);
         if mid <= lo || mid >= hi {
             break;
@@ -219,7 +222,7 @@ where
             hi = mid;
             y_hi = y_mid;
         }
-        if microseconds_between(lo, hi).is_some_and(|us| us <= 1_000) {
+        if microseconds_between(lo, hi).is_some_and(|us| us <= CROSSING_TOLERANCE_MICROSECONDS) {
             break;
         }
     }

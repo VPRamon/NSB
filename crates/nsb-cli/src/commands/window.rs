@@ -1,5 +1,5 @@
 use crate::cli::{OutputFormat, WindowArgs};
-use crate::commands::point::{model_config, reject_unsupported_starlight};
+use crate::commands::point::model_config;
 use crate::output;
 use crate::parsing::{components, location, radiance, target, time};
 use anyhow::Result;
@@ -16,8 +16,11 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let max = radiance::parse_max_nsb(args.max_nsb)?;
     let min = radiance::parse_min_nsb(args.min_nsb, args.max_nsb)?;
     let components = components::parse_components(&args.model.components)?;
-    reject_unsupported_starlight(components)?;
-    let evaluator = NsbEvaluator::with_config(model_config(&args.model)?)?;
+    let evaluator = NsbEvaluator::with_config(model_config(
+        &args.model,
+        components,
+        location::site_profile(&args.observer),
+    )?)?;
 
     let (sun_altitude_ceiling, target_altitude_floor) = if args.no_pre_filter {
         (None, None)
@@ -51,7 +54,20 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         max_result.periods
     };
 
-    output::write_window(format, start, end, min, max, components, &periods)
+    let descriptions = evaluator.describe_components(observer, components)?;
+    output::write_window(
+        format,
+        &output::WindowOutput {
+            start,
+            end,
+            min,
+            max,
+            components,
+            config: &evaluator.config(),
+            descriptions: &descriptions,
+            periods: &periods,
+        },
+    )
 }
 
 fn subtract_periods(base: &[Period<UTC>], remove: &[Period<UTC>]) -> Vec<Period<UTC>> {
