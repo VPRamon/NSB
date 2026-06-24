@@ -8,6 +8,8 @@ pub enum CliError {
     UnknownSite(String),
     #[error("unknown component {0:?}")]
     UnknownComponent(String),
+    #[error("invalid component selection: {0}")]
+    InvalidComponentSelection(String),
     #[error("--max-nsb must be finite and non-negative")]
     InvalidMaxNsb,
     #[error("--min-nsb must be finite and non-negative")]

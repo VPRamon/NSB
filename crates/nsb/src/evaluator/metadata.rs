@@ -118,10 +118,20 @@ pub(super) fn starlight_metadata(
         Some(StarlightModel::BundledExperimentalSeed) => starlight_map_metadata(
             provenance.expect("bundled experimental seed is loaded during evaluator construction"),
             "bundled experimental seed",
+            ComponentCalibrationStatus::Experimental,
+            "experimental seed only; no external scientific calibration",
         ),
-        Some(StarlightModel::CustomMap(_)) => starlight_map_metadata(
+        Some(StarlightModel::ExperimentalMap(_)) => starlight_map_metadata(
             provenance.expect("custom map is loaded during evaluator construction"),
             "caller-provided map",
+            ComponentCalibrationStatus::Experimental,
+            "caller-provided map without the production manifest contract",
+        ),
+        Some(StarlightModel::ValidatedExternalMap(_)) => starlight_map_metadata(
+            provenance.expect("validated external map is loaded during evaluator construction"),
+            "validated external map",
+            ComponentCalibrationStatus::Production,
+            "complete HEALPix coverage, finite/nonnegative values, checksum/header consistency, flux-conservation evidence, plane/pole contrast, longitude wrap, and independent comparison",
         ),
         None => NsbComponentMetadata {
             status: ComponentCalibrationStatus::Experimental,
@@ -135,31 +145,43 @@ pub(super) fn starlight_metadata(
 fn starlight_map_metadata(
     provenance: &crate::components::starlight::StarlightProvenance,
     source: &'static str,
+    status: ComponentCalibrationStatus,
+    validated_domain: &'static str,
 ) -> NsbComponentMetadata {
     let checksum = provenance.checksum.as_deref().unwrap_or("not recorded");
+    let map_checksum = provenance.map_checksum.as_deref().unwrap_or("not recorded");
     NsbComponentMetadata {
-        status: ComponentCalibrationStatus::Experimental,
+        status,
         provenance: Cow::Owned(format!(
-            "{}; version {}; generated {}; source {}; release {}; license {}; magnitude limit {}; band {}; resolution {}; photometry {}; smoothing {}; checksum {}; {}",
+            "{}; version {}; generated {}; source {}; release {}; license {}; source selection {}; magnitude limit {}; band {}; resolution {}; photometry {}; smoothing {}; source checksum {}; map checksum {}; generator {}; command {}; validation report {}; independent comparison {}; calibration status {}; {}",
             provenance.dataset_name.as_str(),
             provenance.version.as_str(),
             provenance.generation_date.as_str(),
             provenance.source_catalogue.as_str(),
             provenance.source_catalogue_release.as_deref().unwrap_or("not recorded"),
             provenance.license.as_str(),
+            provenance.source_selection.as_deref().unwrap_or("not recorded"),
             provenance.magnitude_limit.as_str(),
             provenance.band_definition.as_str(),
             provenance.map_resolution.as_str(),
             provenance.photometry_model.as_deref().unwrap_or("not recorded"),
             provenance.smoothing.as_deref().unwrap_or("not recorded"),
             checksum,
+            map_checksum,
+            provenance.generated_by.as_deref().unwrap_or("not recorded"),
+            provenance.generation_command.as_deref().unwrap_or("not recorded"),
+            provenance.validation_report.as_deref().unwrap_or("not recorded"),
+            provenance.independent_comparison.as_deref().unwrap_or("not recorded"),
+            provenance.calibration_status.as_deref().unwrap_or("not recorded"),
             source,
         )),
         validated_domain: Cow::Owned(format!(
-            "experimental catalogue-derived starlight map; dataset {}; version {}; checksum {}; external validation remains required before production use",
+            "{}; dataset {}; version {}; source checksum {}; map checksum {}",
+            validated_domain,
             provenance.dataset_name.as_str(),
             provenance.version.as_str(),
             checksum,
+            map_checksum,
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
     }

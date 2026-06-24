@@ -12,6 +12,10 @@ Top-level fields are `schema_version`, `version`, `model`, `time_utc`,
 component includes radiance, B/V diagnostics, relative uncertainty, calibration
 status, provenance, validated domain, and band convention. `version` includes
 NSB/model/Siderust versions and every runtime asset checksum.
+For validated external starlight, component provenance also carries source/map
+checksums, licence/release, selection, photometry, generation command,
+validation report, independent comparison, and calibration status. The external
+checksum is component provenance rather than a bundled `data_assets` entry.
 
 ## Window JSON v1
 

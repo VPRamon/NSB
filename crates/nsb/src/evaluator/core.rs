@@ -46,8 +46,11 @@ impl NsbEvaluator {
             Some(StarlightModel::BundledExperimentalSeed) => {
                 Some(starlight::Starlight::experimental_seed_model()?)
             }
-            Some(StarlightModel::CustomMap(map)) => {
+            Some(StarlightModel::ExperimentalMap(map)) => {
                 Some(starlight::Starlight::with_map((**map).clone()))
+            }
+            Some(StarlightModel::ValidatedExternalMap(map)) => {
+                Some(starlight::Starlight::with_map(map.map().clone()))
             }
         };
         Ok(Self {
@@ -348,7 +351,7 @@ impl NsbEvaluator {
             NsbError::Unsupported(
                 concat!(
                     "starlight component requested but no starlight model is configured; ",
-                    "provide a provenance-backed map with StarlightModel::with_map(...), or ",
+                    "provide a validated map with StarlightModel::validated_external(...), or ",
                     "explicitly opt into StarlightModel::bundled_experimental_seed()"
                 )
                 .to_string(),

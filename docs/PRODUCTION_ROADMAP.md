@@ -15,7 +15,7 @@ all workstreams ─> #42 release decision
 | Order | Issue | Release role | Current disposition |
 |---:|---|---|---|
 | 1 | #30 | Blocking | Coherent production-safe default; starlight explicitly outside it |
-| 2 | #31, #26, #28 | Blocking for starlight claims | Pipeline complete; real licensed catalogue product still required |
+| 2 | #31, #26, #28, #45 | Blocking for bundled starlight claims | Validated external production path complete; real licensed bundled product still required |
 | 3 | #32 | Blocking | Removed compatibility public API |
 | 4 | #34, #33 | Blocking | Exact dependency and release gates |
 | 5 | #40 | Blocking | Registry and verifier implemented |
@@ -29,6 +29,11 @@ all workstreams ─> #42 release decision
 Minimum software release: all CI gates pass, default claims remain generic or
 planning-grade, experimental starlight is opt-in, and no calibrated CTAO or
 passband claim is made.
+
+Outcome B for #45 is complete: callers can use a validated external map through
+a fail-closed manifest contract. Starlight stays outside defaults because NSB
+does not bundle the referenced catalogue, license, calibration report, or
+independent comparison.
 
 Minimum calibrated-science release: add independently licensed catalogue/site
 assets, recover inherited-asset licenses, implement validated passband

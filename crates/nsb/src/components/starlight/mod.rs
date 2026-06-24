@@ -10,11 +10,13 @@ mod model;
 mod output;
 mod photometry;
 mod provenance;
+mod validated;
 
 pub use map::{StarlightMap, StarlightPixel};
 pub use model::Starlight;
 pub use output::StarlightOutputs;
 pub use provenance::StarlightProvenance;
+pub use validated::{StarlightValidationDiagnostics, ValidatedStarlightMap};
 
 #[cfg(test)]
 mod tests;

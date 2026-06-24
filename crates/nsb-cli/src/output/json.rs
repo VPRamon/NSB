@@ -236,7 +236,8 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
         starlight_model: match config.starlight_model.as_ref() {
             None => "not-configured-non-production-component",
             Some(StarlightModel::BundledExperimentalSeed) => "bundled-experimental-seed",
-            Some(StarlightModel::CustomMap(_)) => "caller-provided-map",
+            Some(StarlightModel::ExperimentalMap(_)) => "caller-provided-experimental-map",
+            Some(StarlightModel::ValidatedExternalMap(_)) => "validated-external-map",
         },
         solar_radio_flux_sfu: config.solar_radio_flux.value(),
         zodiacal_extinction: match config.zodiacal_extinction {

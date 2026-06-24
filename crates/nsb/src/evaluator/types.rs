@@ -164,8 +164,10 @@ pub enum StarlightModel {
     /// This asset is incomplete and must not be represented as production
     /// catalogue science.
     BundledExperimentalSeed,
-    /// Use a caller-supplied map with caller-controlled provenance.
-    CustomMap(Box<starlight::StarlightMap>),
+    /// Use a caller-supplied map for experiments without a production claim.
+    ExperimentalMap(Box<starlight::StarlightMap>),
+    /// Use an external map admitted through the production manifest contract.
+    ValidatedExternalMap(Box<starlight::ValidatedStarlightMap>),
 }
 
 impl StarlightModel {
@@ -174,9 +176,14 @@ impl StarlightModel {
         Self::BundledExperimentalSeed
     }
 
-    /// Select a caller-provided map.
-    pub fn with_map(map: starlight::StarlightMap) -> Self {
-        Self::CustomMap(Box::new(map))
+    /// Select a caller-provided map without a production validation claim.
+    pub fn with_experimental_map(map: starlight::StarlightMap) -> Self {
+        Self::ExperimentalMap(Box::new(map))
+    }
+
+    /// Select a manifest-validated external production map.
+    pub fn validated_external(map: starlight::ValidatedStarlightMap) -> Self {
+        Self::ValidatedExternalMap(Box::new(map))
     }
 }
 

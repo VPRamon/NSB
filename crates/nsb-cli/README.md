@@ -5,7 +5,22 @@ schemas, and operational metadata.
 
 `--components all` is exactly `ComponentMask::ALL`: zodiacal, airglow, and
 moonlight. The incomplete seed requires the explicit component name
-`experimental-starlight`.
+`experimental-starlight`. Production starlight is a separate, fail-closed path:
+
+```bash
+nsb --format json point \
+  --time 2026-06-18T23:00:00Z \
+  --site CTAO-S \
+  --ra 83.6331 \
+  --dec 22.0145 \
+  --components starlight \
+  --starlight-map /data/starlight.csv \
+  --starlight-manifest /data/starlight.toml
+```
+
+Both files are required. The manifest contract is documented in
+`docs/EXTERNAL_STARLIGHT_MANIFEST.md`; validation failure is fatal and never
+selects the experimental seed.
 
 ```bash
 nsb --format json point \

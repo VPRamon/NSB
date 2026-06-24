@@ -35,7 +35,10 @@ pub use components::airglow::{
     Airglow, AirglowContinuum, AirglowOutputs, SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX,
 };
 pub use components::moonlight::{AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991};
-pub use components::starlight::{Starlight, StarlightMap, StarlightOutputs, StarlightProvenance};
+pub use components::starlight::{
+    Starlight, StarlightMap, StarlightOutputs, StarlightProvenance, StarlightValidationDiagnostics,
+    ValidatedStarlightMap,
+};
 pub use components::zodiacal::{
     ZodiacalBrightnessGrid, ZodiacalBrightnessModel, ZodiacalExtinction, ZodiacalLight,
     ZodiacalOutputs, ZodiacalSpectrum,

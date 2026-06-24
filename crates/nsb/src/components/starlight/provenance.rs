@@ -21,6 +21,8 @@ pub struct StarlightProvenance {
     pub map_resolution: String,
     /// Source catalogue checksum when supplied.
     pub checksum: Option<String>,
+    /// Checksum of the generated map bytes.
+    pub map_checksum: Option<String>,
     /// Source catalogue release identifier.
     pub source_catalogue_release: Option<String>,
     /// Photometric conversion model identifier.
@@ -29,6 +31,16 @@ pub struct StarlightProvenance {
     pub smoothing: Option<String>,
     /// Generator program and version information.
     pub generated_by: Option<String>,
+    /// Source-selection and filtering rules.
+    pub source_selection: Option<String>,
+    /// Reproducible generation command.
+    pub generation_command: Option<String>,
+    /// Validation report identifier or path.
+    pub validation_report: Option<String>,
+    /// Stable calibration-status identifier.
+    pub calibration_status: Option<String>,
+    /// Independent comparison used to support calibration status.
+    pub independent_comparison: Option<String>,
 }
 
 impl StarlightProvenance {
@@ -55,10 +67,16 @@ impl StarlightProvenance {
             band_definition: band_definition.into(),
             map_resolution: map_resolution.into(),
             checksum: checksum.map(Into::into),
+            map_checksum: None,
             source_catalogue_release: None,
             photometry_model: None,
             smoothing: None,
             generated_by: None,
+            source_selection: None,
+            generation_command: None,
+            validation_report: None,
+            calibration_status: None,
+            independent_comparison: None,
         }
     }
 
@@ -113,6 +131,9 @@ impl StarlightProvenance {
                 .or_else(|| metadata.get("checksum"))
                 .cloned()
                 .or(fallback.checksum),
+            // The exact map checksum is supplied out-of-band. Embedding it in
+            // the checksummed bytes would be self-referential.
+            map_checksum: fallback.map_checksum,
             source_catalogue_release: metadata
                 .get("source_catalogue_release")
                 .cloned()
@@ -130,6 +151,26 @@ impl StarlightProvenance {
                 .get("generated_by")
                 .cloned()
                 .or(fallback.generated_by),
+            source_selection: metadata
+                .get("source_selection")
+                .cloned()
+                .or(fallback.source_selection),
+            generation_command: metadata
+                .get("generation_command")
+                .cloned()
+                .or(fallback.generation_command),
+            validation_report: metadata
+                .get("validation_report")
+                .cloned()
+                .or(fallback.validation_report),
+            calibration_status: metadata
+                .get("calibration_status")
+                .cloned()
+                .or(fallback.calibration_status),
+            independent_comparison: metadata
+                .get("independent_comparison")
+                .cloned()
+                .or(fallback.independent_comparison),
         }
     }
 
@@ -146,10 +187,16 @@ impl StarlightProvenance {
                 .to_string(),
             map_resolution: "read from bundled map header".to_string(),
             checksum: None,
+            map_checksum: None,
             source_catalogue_release: None,
             photometry_model: Some("v_s10_scaled_integrated_v1".to_string()),
             smoothing: None,
             generated_by: Some("nsb-data-tools using siderust".to_string()),
+            source_selection: None,
+            generation_command: None,
+            validation_report: None,
+            calibration_status: Some("experimental".to_string()),
+            independent_comparison: None,
         }
     }
 
@@ -165,10 +212,16 @@ impl StarlightProvenance {
             band_definition: "integrated 300-650 nm photon radiance plus B/V S10".to_string(),
             map_resolution: "90 deg lon x 45 deg lat".to_string(),
             checksum: None,
+            map_checksum: None,
             source_catalogue_release: Some("test".to_string()),
             photometry_model: Some("fixture".to_string()),
             smoothing: None,
             generated_by: Some("test".to_string()),
+            source_selection: Some("synthetic fixture".to_string()),
+            generation_command: Some("test fixture generation".to_string()),
+            validation_report: Some("test-only".to_string()),
+            calibration_status: Some("experimental".to_string()),
+            independent_comparison: None,
         }
     }
 }

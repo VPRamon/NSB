@@ -14,6 +14,21 @@ redistribution terms have not been reviewed.
 Runtime loading is compile-time embedded, checksum-pinned, and checked against
 manifest header expectations. Integrity does not imply scientific validity.
 
+## Production-safe external path
+
+NSB does not currently have a legally cleared, independently validated catalogue
+product to bundle. Issue #45 therefore uses the validated-external outcome.
+`ValidatedStarlightMap::from_files(map, manifest)` is the only caller-supplied
+path that receives `Production` metadata. It requires a Galactic HEALPix map,
+complete provenance, exact map checksum, an exact header contract, calibrated
+non-proxy photometry, flux-conservation evidence, a validation report, and an
+independent comparison. Runtime admission reruns complete-coverage,
+finite/nonnegative, plane/pole, longitude-wrap, and (when source totals are
+provided) flux-conservation checks.
+
+The separate `StarlightModel::with_experimental_map(...)` API never receives a
+production label. See [the sidecar schema](EXTERNAL_STARLIGHT_MANIFEST.md).
+
 ## Reproducible replacement pipeline
 
 ```text
@@ -96,4 +111,6 @@ Promotion requires all of the following:
 7. passband-aware integrated radiance or an explicitly non-production proxy;
 8. manifest update and runtime metadata review.
 
-Until then, production/default evaluation fails closed by excluding starlight.
+Until a redistributable product passes those gates, starlight remains outside
+`ComponentMask::ALL`. Production use fails closed around the external sidecar;
+the experimental seed is never selected as a fallback.

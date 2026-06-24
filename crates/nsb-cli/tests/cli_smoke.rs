@@ -1,5 +1,10 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
+use siderust::checksum::{sha256, to_hex};
+use siderust::coordinates::cartesian::Direction;
+use siderust::coordinates::frames::Galactic;
+use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+use std::fs;
 
 #[test]
 fn sites_list_prints_ctao_s() {
@@ -117,7 +122,7 @@ fn invalid_nsb_range_errors() {
 }
 
 #[test]
-fn starlight_requires_explicit_experimental_name() {
+fn validated_starlight_requires_map_and_manifest() {
     let mut cmd = Command::cargo_bin("nsb").unwrap();
     cmd.args([
         "point",
@@ -134,7 +139,148 @@ fn starlight_requires_explicit_experimental_name() {
     ])
     .assert()
     .failure()
-    .stderr(predicate::str::contains("unknown component \"starlight\""));
+    .stderr(predicate::str::contains(
+        "validated starlight requires --starlight-map and --starlight-manifest",
+    ));
+}
+
+#[test]
+fn validated_external_starlight_is_production_labelled_in_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let map_path = dir.path().join("starlight.csv");
+    let manifest_path = dir.path().join("starlight.toml");
+    write_validated_fixture(&map_path, &manifest_path);
+
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "json",
+            "point",
+            "--time",
+            "2026-06-18T23:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--components",
+            "starlight",
+            "--starlight-map",
+            map_path.to_str().unwrap(),
+            "--starlight-manifest",
+            manifest_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["model"]["starlight_model"], "validated-external-map");
+    assert_eq!(
+        value["components"][0]["metadata"]["calibration_status"],
+        "production"
+    );
+    let provenance = value["components"][0]["metadata"]["provenance"]
+        .as_str()
+        .unwrap();
+    assert!(provenance.contains(
+        "source checksum sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    ));
+    assert!(provenance.contains("validation report test admission report"));
+}
+
+fn write_validated_fixture(map_path: &std::path::Path, manifest_path: &std::path::Path) {
+    let grid = HealpixGrid::new(Nside::new(8).unwrap(), HealpixOrdering::Ring).unwrap();
+    let mut map = String::from(concat!(
+        "# map_type=healpix\n",
+        "# coordinate_frame=galactic\n",
+        "# nside=8\n",
+        "# ordering=ring\n",
+        "# dataset_name=CLI validated fixture\n",
+        "# version=fixture-v1\n",
+        "# generation_date_utc=2026-06-24T00:00:00Z\n",
+        "# source_catalogue=synthetic fixture catalogue\n",
+        "# source_catalogue_release=fixture-release\n",
+        "# source_catalogue_license=CC0-1.0\n",
+        "# source_catalogue_checksum=sha256:1111111111111111111111111111111111111111111111111111111111111111\n",
+        "# source_selection=complete synthetic plane-enhanced fixture\n",
+        "# magnitude_limit=not applicable\n",
+        "# map_resolution=HEALPix nside=8 ordering=ring\n",
+        "# calibration_status=production\n",
+        "# photometry_model=synthetic-passband-integrated-v1\n",
+        "# band_definition=synthetic integrated 300-650 nm test band\n",
+        "# smoothing=none\n",
+        "# generated_by=CLI integration test\n",
+        "# generation_command=synthetic fixture builder\n",
+        "# validation_report=test admission report\n",
+        "# independent_comparison=synthetic trusted reference fixture\n",
+        "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n",
+    ));
+    let mut source_flux = 0.0;
+    for index in 0..grid.npix() {
+        let direction: Direction<Galactic> = grid.pixel_center(HealpixIndex::new(index)).unwrap();
+        let latitude = direction.as_array()[2].asin().to_degrees().abs();
+        let value = if latitude <= 10.0 { 2.0 } else { 1.0 };
+        source_flux += value * grid.pixel_area_deg2();
+        map.push_str(&format!("{index},{value},{value},{value}\n"));
+    }
+    let checksum = format!("sha256:{}", to_hex(&sha256(map.as_bytes())));
+    fs::write(map_path, &map).unwrap();
+    let manifest = format!(
+        r#"schema_version = 1
+calibration_status = "production"
+dataset_name = "CLI validated fixture"
+version = "fixture-v1"
+generation_date = "2026-06-24T00:00:00Z"
+source_catalogue = "synthetic fixture catalogue"
+source_catalogue_release = "fixture-release"
+source_catalogue_license = "CC0-1.0"
+source_catalogue_checksum = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+source_selection = "complete synthetic plane-enhanced fixture"
+magnitude_limit = "not applicable"
+map_resolution = "HEALPix nside=8 ordering=ring"
+photometry_model = "synthetic-passband-integrated-v1"
+band_definition = "synthetic integrated 300-650 nm test band"
+smoothing = "none"
+generated_by = "CLI integration test"
+generation_command = "synthetic fixture builder"
+map_sha256 = "{checksum}"
+validation_report = "test admission report"
+independent_comparison = "synthetic trusted reference fixture"
+flux_conservation_validated = true
+input_b_flux_sum = {source_flux:.17}
+input_v_flux_sum = {source_flux:.17}
+flux_conservation_tolerance = 0.000000001
+
+[header]
+map_type = "healpix"
+coordinate_frame = "galactic"
+nside = "8"
+ordering = "ring"
+dataset_name = "CLI validated fixture"
+version = "fixture-v1"
+generation_date_utc = "2026-06-24T00:00:00Z"
+source_catalogue = "synthetic fixture catalogue"
+source_catalogue_release = "fixture-release"
+source_catalogue_license = "CC0-1.0"
+source_catalogue_checksum = "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+source_selection = "complete synthetic plane-enhanced fixture"
+magnitude_limit = "not applicable"
+map_resolution = "HEALPix nside=8 ordering=ring"
+calibration_status = "production"
+photometry_model = "synthetic-passband-integrated-v1"
+band_definition = "synthetic integrated 300-650 nm test band"
+smoothing = "none"
+generated_by = "CLI integration test"
+generation_command = "synthetic fixture builder"
+validation_report = "test admission report"
+independent_comparison = "synthetic trusted reference fixture"
+"#,
+    );
+    fs::write(manifest_path, manifest).unwrap();
 }
 
 #[test]

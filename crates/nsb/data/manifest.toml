@@ -1,5 +1,10 @@
 schema_version = 1
 
+# This registry covers bundled bytes only. Production starlight is intentionally
+# external until a catalogue-derived asset has cleared redistribution and
+# independent validation; its mandatory sidecar schema is documented in
+# docs/EXTERNAL_STARLIGHT_MANIFEST.md.
+
 [[assets]]
 path = "airglow_cont.dat"
 schema = "skycalc-airglow-continuum-v1"

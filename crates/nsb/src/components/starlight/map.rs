@@ -1,13 +1,18 @@
 use super::output::StarlightOutputs;
 use super::photometry::bilinear_outputs;
 use super::provenance::StarlightProvenance;
+use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
 use csv::{ReaderBuilder, StringRecord};
 use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
-use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixMap, HealpixOrdering, Nside};
+use siderust::starlight::{
+    validate_flux_conservation, validate_no_longitude_wrap_artifact, validate_plane_pole_contrast,
+    validate_stellar_map_values, StellarSurfaceBrightness,
+};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -236,6 +241,53 @@ impl StarlightMap {
         }
     }
 
+    pub(super) fn validate_production_diagnostics(
+        &self,
+        input_b_flux_sum: Option<f64>,
+        input_v_flux_sum: Option<f64>,
+        flux_tolerance: Option<f64>,
+    ) -> Result<StarlightValidationDiagnostics> {
+        let StarlightMapKind::Healpix { grid, pixels } = &self.kind else {
+            return Err(invalid_map(
+                "validated production starlight requires a complete HEALPix map",
+            ));
+        };
+        let values = pixels
+            .iter()
+            .map(|pixel| StellarSurfaceBrightness {
+                integrated_ph_cm2_ns_sr: pixel.integrated.value(),
+                b_s10: pixel.b_flux_s10.value(),
+                v_s10: pixel.v_flux_s10.value(),
+            })
+            .collect();
+        let map = HealpixMap::<Galactic, _>::new(*grid, values)
+            .map_err(|err| invalid_map(err.to_string()))?;
+        validate_stellar_map_values(&map).map_err(|err| invalid_map(err.to_string()))?;
+        validate_plane_pole_contrast(&map, 1.0)
+            .map_err(|err| invalid_map(format!("plane/pole validation failed: {err}")))?;
+        validate_no_longitude_wrap_artifact(&map, 1.0)
+            .map_err(|err| invalid_map(format!("longitude-wrap validation failed: {err}")))?;
+
+        let flux_conservation_recomputed = if let (Some(b), Some(v), Some(tolerance)) =
+            (input_b_flux_sum, input_v_flux_sum, flux_tolerance)
+        {
+            validate_flux_conservation(b, v, &map, tolerance).map_err(|err| {
+                invalid_map(format!("flux-conservation validation failed: {err}"))
+            })?;
+            true
+        } else {
+            false
+        };
+
+        let (plane_pole_ratio, longitude_wrap_relative_jump) = diagnostic_values(pixels)?;
+        Ok(StarlightValidationDiagnostics {
+            pixel_count: pixels.len(),
+            plane_pole_ratio,
+            longitude_wrap_relative_jump,
+            flux_conservation_recomputed,
+        })
+    }
+
     fn from_rectangular_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
         let mut pixels = Vec::new();
         let mut saw_header = false;
@@ -400,13 +452,61 @@ fn first_data_header(raw: &str) -> Result<&str> {
         .ok_or_else(|| invalid_map("starlight map csv has no data header"))
 }
 
-fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
+pub(super) fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
     raw.lines()
         .map(str::trim)
         .filter(|line| line.starts_with('#'))
         .filter_map(|line| line.trim_start_matches('#').trim().split_once('='))
         .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
         .collect()
+}
+
+fn diagnostic_values(pixels: &[StarlightPixel]) -> Result<(f64, f64)> {
+    let mean = |values: &[f64]| -> Result<f64> {
+        if values.is_empty() {
+            return Err(invalid_map("starlight diagnostic region is empty"));
+        }
+        Ok(values.iter().sum::<f64>() / values.len() as f64)
+    };
+    let plane: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| pixel.galactic_lat.value().abs() <= 10.0)
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let pole: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| pixel.galactic_lat.value().abs() >= 60.0)
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let low: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| {
+            pixel.galactic_lat.value().abs() <= 30.0 && pixel.galactic_lon.value() <= 10.0
+        })
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let high: Vec<f64> = pixels
+        .iter()
+        .filter(|pixel| {
+            pixel.galactic_lat.value().abs() <= 30.0 && pixel.galactic_lon.value() >= 350.0
+        })
+        .map(|pixel| pixel.v_flux_s10.value())
+        .collect();
+    let plane_mean = mean(&plane)?;
+    let pole_mean = mean(&pole)?;
+    let ratio = if pole_mean == 0.0 {
+        if plane_mean > 0.0 {
+            f64::INFINITY
+        } else {
+            1.0
+        }
+    } else {
+        plane_mean / pole_mean
+    };
+    let low_mean = mean(&low)?;
+    let high_mean = mean(&high)?;
+    let jump = (low_mean - high_mean).abs() / low_mean.abs().max(high_mean.abs()).max(1.0);
+    Ok((ratio, jump))
 }
 
 fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> Result<&'a str> {

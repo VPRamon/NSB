@@ -40,6 +40,13 @@ spectral tables support it. Zodiacal, moonlight, and starlight currently expose
 `None`; consumers must propagate maturity and provenance instead of interpreting
 missing uncertainty as zero.
 
+Validated external starlight metadata includes dataset/release/license, source
+selection and checksum, map checksum/resolution, photometry model, generation
+command, validation report, independent comparison, and calibration status.
+The library and CLI emit `Production` only after the strict external manifest
+contract passes. A photometry model containing `proxy` or `experimental` is
+rejected from that path and can only use experimental APIs.
+
 Principal unquantified terms are catalogue completeness, aerosol/atmosphere
 mismatch, intrinsic airglow variability, solar-spectrum provenance, scattering
 approximations, and target geometry near model boundaries.
@@ -50,3 +57,5 @@ approximations, and target geometry near model boundaries.
 source, license, generator, generation command, validation report, calibration
 status, and runtime inclusion. Runtime JSON exposes checksums for every embedded
 asset. Incomplete inherited provenance is an explicit scientific limitation.
+External starlight uses the equivalent sidecar contract because its bytes are
+not part of the bundled registry.

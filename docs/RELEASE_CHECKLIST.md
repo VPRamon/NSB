@@ -5,6 +5,7 @@
 - [ ] `Cargo.lock` is committed and the Siderust revision matches the compatibility matrix.
 - [ ] Asset verifier passes and every data file has source, license, checksum, schema, generator, command, validation report, and maturity.
 - [ ] Runtime starlight header checks agree with the manifest.
+- [ ] Validated external starlight rejects incomplete provenance, checksum/header drift, proxy photometry, incomplete HEALPix maps, failed diagnostics, and missing independent-comparison evidence.
 - [ ] External-reference fixtures state source, locator, unit, band, tolerance, assumptions, and deviation class.
 - [ ] Model maturity and known limitations match CLI metadata.
 - [ ] CTAO profiles remain uncalibrated unless dedicated validation data justify promotion.

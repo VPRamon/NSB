@@ -157,7 +157,9 @@ fn production_all_matches_reference_envelopes() {
 #[test]
 fn explicit_starlight_with_fixture_preserves_galactic_contrast() {
     let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_model = Some(StarlightModel::with_map(fixture_starlight_map()));
+    config.starlight_model = Some(StarlightModel::with_experimental_map(
+        fixture_starlight_map(),
+    ));
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let evaluate = |target| {

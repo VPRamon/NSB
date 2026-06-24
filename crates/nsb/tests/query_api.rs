@@ -165,8 +165,9 @@ fn starlight_request_without_model_fails_explicitly() {
 
 #[test]
 fn custom_starlight_map_evaluates_when_explicitly_configured() {
-    let config = NsbModelConfig::generic_clear_sky()
-        .with_starlight_model(StarlightModel::with_map(fixture_starlight_map()));
+    let config = NsbModelConfig::generic_clear_sky().with_starlight_model(
+        StarlightModel::with_experimental_map(fixture_starlight_map()),
+    );
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let result = evaluator

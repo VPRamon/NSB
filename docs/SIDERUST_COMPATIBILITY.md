@@ -5,6 +5,10 @@
 | 0.1.x | 0.10.1 | `8d94b8375ae23c26d00346f74951e52cd1b595cc` | 1.89 | Supported |
 
 All workspace crates use the same exact revision. Moving branches are forbidden.
+The validated external starlight admission path depends on this revision's
+typed HEALPix completeness/value, flux-conservation, plane/pole, and
+longitude-wrap validators; a revision update therefore requires rerunning its
+admission and CLI fixtures, not only compiling the API.
 
 To update Siderust:
 

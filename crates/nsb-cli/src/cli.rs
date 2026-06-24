@@ -76,11 +76,19 @@ pub enum ZodiacalExtinctionArg {
 
 #[derive(Debug, Args)]
 pub struct ModelArgs {
-    /// Components: comma-separated zodiacal, experimental-starlight, airglow,
-    /// moon, or all. `all` is the production-safe set and excludes the
-    /// incomplete experimental starlight seed.
+    /// Components: comma-separated zodiacal, starlight, experimental-starlight,
+    /// airglow, moon, or all. `starlight` requires a validated external map;
+    /// `all` excludes both explicit starlight modes.
     #[arg(long, default_value = "all")]
     pub components: String,
+
+    /// Production starlight HEALPix CSV selected by `--components starlight`.
+    #[arg(long, requires = "starlight_manifest")]
+    pub starlight_map: Option<PathBuf>,
+
+    /// TOML provenance/validation sidecar for `--starlight-map`.
+    #[arg(long, requires = "starlight_map")]
+    pub starlight_manifest: Option<PathBuf>,
 
     /// Moonlight model.
     #[arg(long, value_enum, default_value_t = MoonlightModelArg::Jones2013)]

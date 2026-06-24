@@ -17,6 +17,8 @@ once a stable public release is cut.
   `8d94b8375ae23c26d00346f74951e52cd1b595cc`.
 - Expanded JSON and CSV with version, model, maturity, provenance, uncertainty,
   band-diagnostic, and asset-checksum metadata.
+- Fixed magnitude cuts so the generated map, conservation sums, and
+  `sources_used` diagnostics consume exactly the same filtered catalogue rows.
 
 ### Added
 
@@ -26,6 +28,9 @@ once a stable public release is cut.
 - Formatting, clippy, locked tests, doctests, docs, release build, MSRV, license,
   advisory, source, and stale-API CI gates.
 - Model maturity, roadmap, CLI schema, compatibility, and release documents.
+- Fail-closed `ValidatedExternalMap` API and CLI path with checksum, provenance,
+  header, HEALPix, flux-evidence, plane/pole, seam, photometry, and independent-
+  comparison admission checks.
 
 ### Removed
 

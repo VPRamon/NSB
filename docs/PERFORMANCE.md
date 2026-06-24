@@ -3,8 +3,8 @@
 `NsbEvaluator` is the reuse boundary for production workloads.
 
 - Zodiacal tables, the starlight map, and airglow calibration are parsed once.
-- Custom starlight maps are cloned once during evaluator construction, never per
-  lookup.
+- Experimental or validated external starlight maps are validated/parsed before
+  evaluator construction and cloned once into the evaluator, never per lookup.
 - Airglow 300–650 nm integrals, uncertainty integrals, and B/V samples are
   precomputed once; point evaluation performs scalar scaling without temporary
   spectral vectors.

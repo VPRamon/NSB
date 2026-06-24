@@ -25,7 +25,9 @@ coordinates.
 
 `ALL` is the complete default three-component planning model. Experimental
 starlight is excluded because the bundled seed is incomplete. A caller-supplied
-map or explicit experimental seed can still exercise the directional component.
+experimental map or explicit seed can still exercise the directional component.
+A separately named validated-external path admits production metadata only after
+its map and provenance sidecar pass the complete fail-closed contract.
 
 ## Point and window evaluation
 

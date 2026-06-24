@@ -20,9 +20,11 @@ identical:
 
 Integrated starlight is outside that set. The repository contains a
 low-resolution manual seed only for pipeline and lookup tests. Library users
-must opt into `StarlightModel::bundled_experimental_seed()` or provide a map;
-CLI users must spell `--components experimental-starlight`. Neither path is
-production catalogue science.
+must opt into `StarlightModel::bundled_experimental_seed()` for that seed.
+Production starlight uses `StarlightModel::validated_external(...)`, which can
+only be constructed from a checksum-pinned map and complete validation sidecar.
+CLI `starlight` requires both `--starlight-map` and `--starlight-manifest`;
+`experimental-starlight` names only the seed. There is no fallback between them.
 
 | Component | Default implementation | Maturity |
 |---|---|---|
@@ -30,7 +32,7 @@ production catalogue science.
 | Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic or planning preset |
 | Moonlight | Jones et al. (2013) spectral model | Generic or planning preset |
 | KS91 moonlight | Published analytic V-band alternate | Published reference |
-| Integrated starlight | Caller map or bundled manual seed | Experimental, non-default |
+| Integrated starlight | Validated external map or bundled manual seed | Production only when sidecar admission passes; otherwise experimental; non-default |
 | CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning preset, not calibrated |
 
 The integrated output is photon radiance over 300–650 nm. B/V S10 and magnitude
@@ -123,6 +125,9 @@ cargo run --locked -p nsb-data-tools --bin verify_assets -- \
 
 The manifest honestly records provenance gaps in inherited files. Such gaps
 prevent a component from being promoted to calibrated production science.
+Externally supplied production starlight is not a bundled asset and therefore
+uses its own strict sidecar contract documented in
+[external starlight manifests](docs/EXTERNAL_STARLIGHT_MANIFEST.md).
 
 ## Quality gates
 

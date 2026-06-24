@@ -156,8 +156,10 @@ fn run(args: Args) -> Result<()> {
 
     let builder = StellarSurfaceBrightnessMapBuilder {
         grid,
-        min_v_mag,
-        max_v_mag,
+        // `read_records` is the single filtering boundary so map input,
+        // conservation sums, and `sources_used` cannot diverge.
+        min_v_mag: None,
+        max_v_mag: None,
         integrated_per_v_s10: args.integrated_per_v_s10,
     };
 
@@ -607,7 +609,7 @@ mod tests {
         )?;
 
         run(Args {
-            input,
+            input: input.clone(),
             output: output.clone(),
             nside: 1,
             ordering: OrderingArg::Ring,
@@ -661,7 +663,7 @@ mod tests {
         )?;
 
         run(Args {
-            input,
+            input: input.clone(),
             output: output.clone(),
             nside: 1,
             ordering: OrderingArg::Ring,
@@ -682,23 +684,65 @@ mod tests {
         let map = StarlightMap::from_csv_str(&raw, nsb::StarlightProvenance::test_fixture())?;
         let expected_v = flux_10mag_units(ApparentMagnitude::new(10.0)?);
         let expected_integrated = expected_v * S10_V_TO_INTEGRATED_PH_CM2_NS_SR;
-        let total_v: f64 = map.values().iter().map(|value| value.v_s10).sum();
-        let total_integrated: f64 = map
-            .values()
+        let pixel_area_deg2 =
+            map.pixels()[0].solid_angle_sr * (180.0 / std::f64::consts::PI).powi(2);
+        let total_v: f64 = map
+            .pixels()
             .iter()
-            .map(|value| value.integrated_ph_cm2_ns_sr)
+            .map(|value| value.v_flux_s10.value())
+            .sum();
+        let total_integrated: f64 = map
+            .pixels()
+            .iter()
+            .map(|value| value.integrated.value())
             .sum();
 
-        assert!((total_v - expected_v).abs() <= 1.0e-12 * expected_v.max(1.0));
         assert!(
-            (total_integrated - expected_integrated).abs()
-                <= 1.0e-12 * expected_integrated.max(1.0)
+            (total_v - expected_v / pixel_area_deg2).abs()
+                <= 1.0e-12 * (expected_v / pixel_area_deg2).max(1.0)
+        );
+        assert!(
+            (total_integrated - expected_integrated / pixel_area_deg2).abs()
+                <= 1.0e-12 * (expected_integrated / pixel_area_deg2).max(1.0)
         );
 
         let diagnostics: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(diagnostics)?)?;
         assert_eq!(diagnostics["sources_used"], 1);
+        assert_eq!(diagnostics["flux_conservation_pass"], true);
         assert_eq!(diagnostics["total_v_s10"].as_f64().unwrap(), total_v);
+
+        fs::write(
+            &input,
+            concat!(
+                "ra_deg,dec_deg,b_mag,v_mag,weight,source_id\n",
+                "266.4051,-28.936175,10.0,10.0,1.0,accepted\n",
+                "10.0,10.0,-20.0,-20.0,1.0,excluded_extremely_bright\n",
+            ),
+        )?;
+        let second_output = dir.path().join("map-second.csv");
+        run(Args {
+            input,
+            output: second_output.clone(),
+            nside: 1,
+            ordering: OrderingArg::Ring,
+            min_v_mag: Some(9.0),
+            max_v_mag: Some(11.0),
+            catalog_name: "test".to_string(),
+            catalog_release: Some("fixture".to_string()),
+            catalog_license: Some("test-only".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })?;
+        let second_map = StarlightMap::from_csv_str(
+            &fs::read_to_string(second_output)?,
+            nsb::StarlightProvenance::test_fixture(),
+        )?;
+        assert_eq!(map.pixels(), second_map.pixels());
         Ok(())
     }
 

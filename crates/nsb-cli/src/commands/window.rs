@@ -15,10 +15,11 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let end = time::parse_utc(&args.end)?;
     let max = radiance::parse_max_nsb(args.max_nsb)?;
     let min = radiance::parse_min_nsb(args.min_nsb, args.max_nsb)?;
-    let components = components::parse_components(&args.model.components)?;
+    let selection = components::parse_components(&args.model.components)?;
+    let components = selection.mask;
     let evaluator = NsbEvaluator::with_config(model_config(
         &args.model,
-        components,
+        selection,
         location::site_profile(&args.observer),
     )?)?;
 

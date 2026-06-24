@@ -13,6 +13,7 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | KS91 full Moon | `external_reference_cases.csv` citing PASP 103, 1033 | approximate Johnson V mag arcsec⁻² | 0.7 mag | Model choice |
 | Airglow | deterministic temporal/domain checks | 300–650 nm plus 445/551 nm diagnostics | implementation-specific | Implementation error |
 | Experimental starlight | synthetic contrast and HEALPix completeness | proxy radiance plus S10 diagnostics | deterministic | Implementation error only; no science claim |
+| Validated external starlight admission | caller map plus TOML sidecar | declared calibrated integrated band plus B/V diagnostics | exact integrity/header checks; plane/pole >= 1; seam jump <= 1; declared flux tolerance | Implementation error or rejected caller evidence |
 | Jones spectral fixture | inherited darknsb regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |
 | CTAO-N/S | explicit assumptions only | atmosphere and airglow profile | none | Data limitation |
 
@@ -57,6 +58,20 @@ diagnostic pass/fail values, photometry model, maturity, and output checksum.
 These diagnostics validate construction, not astrophysical calibration. A real
 catalogue release with reviewed redistribution terms plus independent sky
 brightness comparison is required before starlight enters defaults.
+
+## Validated external starlight
+
+The production API accepts no bundled substitute. Admission verifies SHA-256,
+manifest schema/completeness, exact header values, full Galactic HEALPix
+coverage, finite/nonnegative values, plane/pole contrast, and longitude-wrap
+continuity. If input B/V flux totals and tolerance are present together, flux
+conservation is recomputed. Otherwise the sidecar must still attest that flux
+conservation was validated and point to its report. Production admission also
+requires a non-proxy photometry identifier and an independent comparison.
+
+These checks establish a fail-closed evidence contract; they do not make an
+unreviewed caller claim true. Scientific users remain responsible for reviewing
+the referenced catalogue license, calibration, and comparison report.
 
 ## Missing external campaigns
 
