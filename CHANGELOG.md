@@ -13,7 +13,8 @@ once a stable public release is cut.
   explicitly opt-in.
 - Cached parsed starlight and shared airglow calibration state inside
   `NsbEvaluator`.
-- Pinned Siderust 0.10.1 to Git revision
+- Switched Siderust 0.10.1 resolution to the local workspace checkout at
+  `../../siderust`; the compatibility baseline remains revision
   `8d94b8375ae23c26d00346f74951e52cd1b595cc`.
 - Expanded JSON and CSV with version, model, maturity, provenance, uncertainty,
   band-diagnostic, and asset-checksum metadata.
@@ -22,6 +23,11 @@ once a stable public release is cut.
 
 ### Added
 
+- NSB-side Gaia DR3 starlight release pipeline harness: documented Gaia
+  extraction recipe, Gaia XP passband source preparation, Gaia photon-flux
+  HEALPix map generation path, validation report command, and candidate asset
+  packer. The real bundled production asset remains pending real Gaia
+  extraction and independent validation.
 - Versioned scientific asset manifest and checksum/header verifier.
 - Independent published KS91 validation fixture with units and tolerance.
 - Point/component/window benchmarks and scheduled/manual benchmark workflow.

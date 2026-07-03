@@ -73,6 +73,14 @@ These checks establish a fail-closed evidence contract; they do not make an
 unreviewed caller claim true. Scientific users remain responsible for reviewing
 the referenced catalogue license, calibration, and comparison report.
 
+## Gaia DR3 bundled starlight candidate
+
+The Gaia DR3 release pipeline now has maintainer tooling for extraction
+documentation, passband source preparation, HEALPix map generation, validation
+reporting, and asset packing. CI uses tiny fixtures only. A real bundled asset
+is not production until the Gaia extract checksum, canonical input checksum, map
+checksum, validation report, and independent comparison are all reviewed.
+
 ## Missing external campaigns
 
 No cleared fixtures currently validate dark-sky totals, Jones spectral moonlight,

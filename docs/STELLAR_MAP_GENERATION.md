@@ -29,7 +29,69 @@ provided) flux-conservation checks.
 The separate `StarlightModel::with_experimental_map(...)` API never receives a
 production label. See [the sidecar schema](EXTERNAL_STARLIGHT_MANIFEST.md).
 
-## Reproducible replacement pipeline
+## Gaia DR3 release pipeline
+
+Normal users do not download Gaia DR3 and do not provide source CSV files. The
+Gaia extract and canonical source table are maintainer release artifacts. Only
+the derived, checksum-pinned starlight map is intended to ship with NSB.
+
+```bash
+mkdir -p target/starlight-release
+
+# Run the documented ADQL query and Gaia DataLink XP retrieval as a maintainer
+# operation. The query recipe lives at docs/queries/gaia_dr3_starlight_extract.adql.
+
+sha256sum target/starlight-release/gaia_dr3_starlight_extract.csv
+
+cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --input target/starlight-release/gaia_dr3_starlight_extract.csv \
+  --output target/starlight-release/canonical_gaia_starlight_sources.csv \
+  --diagnostics-output target/starlight-release/canonical_gaia_starlight_sources.diagnostics.json \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "<reviewed-license-or-derived-product-policy>" \
+  --source-checksum "sha256:<raw-extract-checksum>" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
+  --band-min-nm 330 \
+  --band-max-nm 650 \
+  --require-passband-photometry
+
+sha256sum target/starlight-release/canonical_gaia_starlight_sources.csv
+
+cargo run --locked -p nsb-data-tools --bin build_starlight_map -- \
+  --input target/starlight-release/canonical_gaia_starlight_sources.csv \
+  --output target/starlight-release/starlight_galactic_map_v1.csv \
+  --diagnostics-output target/starlight-release/starlight_galactic_map_v1.diagnostics.json \
+  --nside <chosen-nside> \
+  --ordering ring \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "<reviewed-license-or-derived-product-policy>" \
+  --catalog-checksum "sha256:<canonical-input-checksum>" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
+  --band-min-nm 330 \
+  --band-max-nm 650 \
+  --generation-date-utc "<RFC3339 UTC>" \
+  --require-science-diagnostics
+
+cargo run --locked -p nsb-data-tools --bin validate_starlight_map -- \
+  --input target/starlight-release/starlight_galactic_map_v1.csv \
+  --diagnostics target/starlight-release/starlight_galactic_map_v1.diagnostics.json \
+  --output target/starlight-release/starlight_galactic_map_v1.validation.json
+
+cargo run --locked -p nsb-data-tools --bin pack_starlight_asset -- \
+  --input target/starlight-release/starlight_galactic_map_v1.csv \
+  --diagnostics target/starlight-release/starlight_galactic_map_v1.diagnostics.json \
+  --validation target/starlight-release/starlight_galactic_map_v1.validation.json \
+  --output crates/nsb/data/starlight_galactic_map_v1.bin.zst \
+  --manifest crates/nsb/data/starlight_galactic_map_v1.manifest.toml
+```
+
+The packer emits a candidate framed asset and manifest. The current CI fixtures
+do not provide independent astrophysical comparison evidence, so the bundled
+production asset is still pending.
+
+## Legacy Tycho proxy pipeline
 
 ```text
 reviewed local Tycho-like release

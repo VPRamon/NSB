@@ -20,7 +20,7 @@ all workstreams ─> #42 release decision
 | 4 | #34, #33 | Blocking | Exact dependency and release gates |
 | 5 | #40 | Blocking | Registry and verifier implemented |
 | 6 | #35 | Blocking for calibrated claims | Published KS91 case present; broader external campaign required |
-| 7 | #36 | Blocking for starlight claims | Proxy isolated from defaults; passband synthesis remains future work |
+| 7 | #36 | Blocking for starlight claims | Siderust Gaia DR3/passband primitives wired into NSB release tools; production Gaia asset and independent validation remain release-blocking |
 | 8 | #37 | Blocking | Cached data and realistic benchmarks implemented |
 | 9 | #38 | Post-release planning enhancement | Remains planning until cleared CTAO data exist |
 | 10 | #39 | Blocking | Audit-complete JSON and stable CSV v1 |

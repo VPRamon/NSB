@@ -1,0 +1,52 @@
+-- Gaia DR3 starlight release extract recipe for NSB.
+--
+-- Source catalogue:
+--   ESA Gaia Archive, Gaia DR3, table gaiadr3.gaia_source.
+--
+-- XP spectra:
+--   Gaia XP sampled spectra are retrieved separately through Gaia DataLink for
+--   the selected source_id values. They are written into the release extract as
+--   semicolon-separated arrays:
+--
+--     xp_wavelength_nm
+--     xp_flux_w_m2_nm
+--
+-- Required output columns consumed by prepare_gaia_starlight_catalogue:
+--
+--   source_id, ra, dec, ref_epoch, pmra, pmdec, parallax, radial_velocity,
+--   phot_g_mean_mag, phot_bp_mean_mag, phot_rp_mean_mag, duplicated_source,
+--   xp_wavelength_nm, xp_flux_w_m2_nm
+--
+-- Quality and completeness policy:
+--   * Gaia DR3 is the authoritative source catalogue.
+--   * duplicated_source = false is selected for the production candidate.
+--   * astrometric coordinates must be finite and inside Gaia RA/Dec ranges.
+--   * XP sampled spectra must cover the 330-650 nm integration band.
+--   * phot_g_mean_mag <= :max_g_mag is the release-time completeness cut.
+--   * The actual row count and SHA-256 of the final local extract must be
+--     recorded in gaia_dr3_starlight_extract.diagnostics.json.
+--
+-- This query is documentation for a maintainer release artifact. It is not
+-- invoked by the nsb library or CLI at runtime, and raw Gaia DR3 data are not
+-- embedded in the crate.
+
+SELECT
+  source_id,
+  ra,
+  dec,
+  ref_epoch,
+  pmra,
+  pmdec,
+  parallax,
+  radial_velocity,
+  phot_g_mean_mag,
+  phot_bp_mean_mag,
+  phot_rp_mean_mag,
+  duplicated_source
+FROM gaiadr3.gaia_source
+WHERE duplicated_source = 'false'
+  AND phot_g_mean_mag IS NOT NULL
+  AND phot_g_mean_mag <= 20.0
+  AND ra IS NOT NULL
+  AND dec IS NOT NULL
+  AND ref_epoch IS NOT NULL

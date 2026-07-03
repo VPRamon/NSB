@@ -2,7 +2,7 @@
 
 - [ ] `ComponentMask::ALL`, CLI `all`, examples, and docs agree.
 - [ ] No removed compatibility API appears under `crates/*/src`.
-- [ ] `Cargo.lock` is committed and the Siderust revision matches the compatibility matrix.
+- [ ] `Cargo.lock` is committed and the local Siderust checkout matches the compatibility matrix.
 - [ ] Asset verifier passes and every data file has source, license, checksum, schema, generator, command, validation report, and maturity.
 - [ ] Runtime starlight header checks agree with the manifest.
 - [ ] Validated external starlight rejects incomplete provenance, checksum/header drift, proxy photometry, incomplete HEALPix maps, failed diagnostics, and missing independent-comparison evidence.

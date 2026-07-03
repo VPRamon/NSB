@@ -21,10 +21,14 @@ identical:
 Integrated starlight is outside that set. The repository contains a
 low-resolution manual seed only for pipeline and lookup tests. Library users
 must opt into `StarlightModel::bundled_experimental_seed()` for that seed.
-Production starlight uses `StarlightModel::validated_external(...)`, which can
-only be constructed from a checksum-pinned map and complete validation sidecar.
-CLI `starlight` requires both `--starlight-map` and `--starlight-manifest`;
-`experimental-starlight` names only the seed. There is no fallback between them.
+Production starlight currently uses `StarlightModel::validated_external(...)`,
+which can only be constructed from a checksum-pinned map and complete validation
+sidecar. A maintainer-only Gaia DR3 XP release pipeline can derive a bundled map
+candidate from local Gaia extracts, but raw Gaia rows are not embedded and the
+bundled Gaia asset remains pending until release validation and independent
+comparison evidence are complete. CLI `starlight` requires both
+`--starlight-map` and `--starlight-manifest`; `experimental-starlight` names
+only the seed. There is no fallback between them.
 
 | Component | Default implementation | Maturity |
 |---|---|---|
@@ -32,7 +36,7 @@ CLI `starlight` requires both `--starlight-map` and `--starlight-manifest`;
 | Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic or planning preset |
 | Moonlight | Jones et al. (2013) spectral model | Generic or planning preset |
 | KS91 moonlight | Published analytic V-band alternate | Published reference |
-| Integrated starlight | Validated external map or bundled manual seed | Production only when sidecar admission passes; otherwise experimental; non-default |
+| Integrated starlight | Validated external map, future bundled Gaia-derived map, or bundled manual seed | Production only when sidecar admission passes or Gaia asset validation is complete; otherwise experimental; non-default |
 | CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning preset, not calibrated |
 
 The integrated output is photon radiance over 300–650 nm. B/V S10 and magnitude
@@ -109,9 +113,10 @@ The stable CSV schemas are documented in [CLI schemas](docs/CLI_SCHEMAS.md).
 
 ## Reproducibility and assets
 
-Siderust is pinned to revision
-`8d94b8375ae23c26d00346f74951e52cd1b595cc` (release 0.10.1). All CI builds use
-`Cargo.lock`. Compatibility and update policy are in
+Siderust 0.10.1 is resolved from the local workspace checkout at
+`../../siderust`; the current compatibility baseline is revision
+`8d94b8375ae23c26d00346f74951e52cd1b595cc`. All CI builds use `Cargo.lock`.
+Compatibility and update policy are in
 [SIDERUST_COMPATIBILITY.md](docs/SIDERUST_COMPATIBILITY.md).
 
 Every file under `crates/nsb/data` is registered in
