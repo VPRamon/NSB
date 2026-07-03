@@ -828,9 +828,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.40.1"
+version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2474bd2e5029e7ccb6abb2ba48cf2383a333851dedf495901544281590c7da7f"
+checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
 dependencies = [
  "memchr",
 ]
@@ -994,7 +994,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 [[package]]
 name = "siderust"
 version = "0.10.1"
-source = "git+https://github.com/Siderust/siderust?rev=3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c#3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c"
+source = "git+https://github.com/Siderust/siderust?branch=gaia#36e62e0ad3630a4a325d762ff288a7a1d27b2f7c"
 dependencies = [
  "affn",
  "approx",

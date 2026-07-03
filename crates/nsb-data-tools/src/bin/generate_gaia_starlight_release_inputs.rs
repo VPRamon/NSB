@@ -191,19 +191,34 @@ fn run(args: Args) -> Result<()> {
     };
 
     if args.skip_xp_download {
-        eprintln!("skip-xp-download: using existing XP chunks in {}", xp_dir.display());
+        eprintln!(
+            "skip-xp-download: using existing XP chunks in {}",
+            xp_dir.display()
+        );
     } else {
         match xp_mode {
             XpRetrievalMode::None => {
                 write_xp_template_note(&paths.xp_dir)?;
-                eprintln!("XP retrieval disabled; using any existing chunks in {}", xp_dir.display());
+                eprintln!(
+                    "XP retrieval disabled; using any existing chunks in {}",
+                    xp_dir.display()
+                );
             }
             XpRetrievalMode::NormalizedChunks => {
-                eprintln!("using existing normalized XP chunks in {}", xp_dir.display());
+                eprintln!(
+                    "using existing normalized XP chunks in {}",
+                    xp_dir.display()
+                );
             }
             XpRetrievalMode::GaiaDatalink => {
                 if let Some(template) = args.datalink_template.as_deref() {
-                    let xp_counts = download_xp_chunks(template, &source_ids, args.chunk_size, &paths.xp_dir, args.resume)?;
+                    let xp_counts = download_xp_chunks(
+                        template,
+                        &source_ids,
+                        args.chunk_size,
+                        &paths.xp_dir,
+                        args.resume,
+                    )?;
                     diagnostics.xp_chunks_requested = xp_counts.requested;
                     diagnostics.xp_chunks_completed = xp_counts.completed;
                     diagnostics.xp_chunks_failed = xp_counts.failed;
@@ -238,7 +253,10 @@ fn run(args: Args) -> Result<()> {
     let checksum = checksum_file(&paths.extract)?;
     diagnostics.extract_sha256 = Some(checksum.clone());
     fs::write(&paths.checksum, format!("{checksum}  {EXTRACT_FILE}\n"))?;
-    fs::write(&paths.diagnostics, format!("{}\n", serde_json::to_string_pretty(&diagnostics)?))?;
+    fs::write(
+        &paths.diagnostics,
+        format!("{}\n", serde_json::to_string_pretty(&diagnostics)?),
+    )?;
     write_env_file(&paths, &args, &checksum)?;
 
     println!("generated {}", paths.extract.display());
@@ -308,7 +326,8 @@ impl Paths {
             checksum: out_dir.join("gaia_dr3_starlight_extract.sha256"),
             policy: out_dir.join("gaia_derived_product_policy.txt"),
             env: out_dir.join("starlight_release_inputs.env"),
-            validation_template: out_dir.join("starlight_independent_validation_reference.template.json"),
+            validation_template: out_dir
+                .join("starlight_independent_validation_reference.template.json"),
         }
     }
 }
@@ -337,12 +356,16 @@ fn print_dry_run(args: &Args, paths: &Paths, adql: &str) {
 fn validate_policy_and_reference(args: &Args, paths: &Paths) -> Result<()> {
     match args.license_policy_file.as_ref() {
         Some(path) => {
-            let policy = fs::read_to_string(path).with_context(|| format!("failed to read policy {}", path.display()))?;
+            let policy = fs::read_to_string(path)
+                .with_context(|| format!("failed to read policy {}", path.display()))?;
             validate_text_field("license policy", &policy, args.production)?;
             fs::write(&paths.policy, policy)?;
         }
         None if args.production => bail!("--production requires --license-policy-file"),
-        None => fs::write(&paths.policy, "TODO: reviewed Gaia-derived product redistribution and attribution policy.\n")?,
+        None => fs::write(
+            &paths.policy,
+            "TODO: reviewed Gaia-derived product redistribution and attribution policy.\n",
+        )?,
     }
 
     match args.validation_reference.as_ref() {
@@ -359,7 +382,13 @@ fn validate_text_field(name: &str, value: &str, production: bool) -> Result<()> 
     }
     if production {
         let lower = value.to_ascii_lowercase();
-        for blocked in ["todo", "unknown", "pending", "review required", "unreviewed"] {
+        for blocked in [
+            "todo",
+            "unknown",
+            "pending",
+            "review required",
+            "unreviewed",
+        ] {
             if lower.contains(blocked) {
                 bail!("{name} contains production placeholder {blocked:?}");
             }
@@ -369,11 +398,13 @@ fn validate_text_field(name: &str, value: &str, production: bool) -> Result<()> 
 }
 
 fn validate_validation_reference(path: &Path, production: bool) -> Result<()> {
-    let raw = fs::read_to_string(path).with_context(|| format!("failed to read validation reference {}", path.display()))?;
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("failed to read validation reference {}", path.display()))?;
     if production {
         validate_text_field("validation reference", &raw, true)?;
     }
-    let parsed: ValidationReference = serde_json::from_str(&raw).with_context(|| format!("failed to parse validation reference {}", path.display()))?;
+    let parsed: ValidationReference = serde_json::from_str(&raw)
+        .with_context(|| format!("failed to parse validation reference {}", path.display()))?;
     if production {
         if !parsed.production_use {
             bail!("production validation reference must set production_use=true");
@@ -431,7 +462,13 @@ struct XpDownloadCounts {
     normalized_written: usize,
 }
 
-fn download_xp_chunks(template: &str, source_ids: &[String], chunk_size: usize, xp_dir: &Path, resume: bool) -> Result<XpDownloadCounts> {
+fn download_xp_chunks(
+    template: &str,
+    source_ids: &[String],
+    chunk_size: usize,
+    xp_dir: &Path,
+    resume: bool,
+) -> Result<XpDownloadCounts> {
     fs::create_dir_all(xp_dir)?;
     let mut counts = XpDownloadCounts::default();
     for (chunk_idx, chunk) in source_ids.chunks(chunk_size).enumerate() {
@@ -443,20 +480,41 @@ fn download_xp_chunks(template: &str, source_ids: &[String], chunk_size: usize, 
             continue;
         }
         let joined = chunk.join(",");
-        let url = template.replace("{source_ids}", &joined).replace("{chunk}", &chunk_idx.to_string());
-        let status = Command::new("curl").arg("--fail").arg("--location").arg("--silent").arg("--show-error").arg(&url).arg("-o").arg(&path).status().with_context(|| format!("failed to execute curl for XP chunk {chunk_idx}"))?;
+        let url = template
+            .replace("{source_ids}", &joined)
+            .replace("{chunk}", &chunk_idx.to_string());
+        let status = Command::new("curl")
+            .arg("--fail")
+            .arg("--location")
+            .arg("--silent")
+            .arg("--show-error")
+            .arg(&url)
+            .arg("-o")
+            .arg(&path)
+            .status()
+            .with_context(|| format!("failed to execute curl for XP chunk {chunk_idx}"))?;
         if status.success() {
             counts.completed += 1;
             counts.raw_written += 1;
         } else {
             counts.failed += 1;
-            fs::write(xp_dir.join(format!("xp_chunk_{chunk_idx:06}.error.txt")), format!("curl failed with status {status}\nurl={url}\n"))?;
+            fs::write(
+                xp_dir.join(format!("xp_chunk_{chunk_idx:06}.error.txt")),
+                format!("curl failed with status {status}\nurl={url}\n"),
+            )?;
         }
     }
     Ok(counts)
 }
 
-fn download_gaia_datalink_xp(datalink_url: &str, source_ids: &[String], chunk_size: usize, xp_dir: &Path, raw_dir: &Path, resume: bool) -> Result<XpDownloadCounts> {
+fn download_gaia_datalink_xp(
+    datalink_url: &str,
+    source_ids: &[String],
+    chunk_size: usize,
+    xp_dir: &Path,
+    raw_dir: &Path,
+    resume: bool,
+) -> Result<XpDownloadCounts> {
     fs::create_dir_all(xp_dir)?;
     fs::create_dir_all(raw_dir)?;
     let mut counts = XpDownloadCounts::default();
@@ -475,7 +533,10 @@ fn download_gaia_datalink_xp(datalink_url: &str, source_ids: &[String], chunk_si
             if !(resume && raw.exists()) {
                 if let Err(err) = download_one_gaia_datalink_source(datalink_url, source_id, &raw) {
                     chunk_failed = true;
-                    fs::write(raw_dir.join(format!("xp_source_{source_id}.error.txt")), format!("{err:#}\n"))?;
+                    fs::write(
+                        raw_dir.join(format!("xp_source_{source_id}.error.txt")),
+                        format!("{err:#}\n"),
+                    )?;
                     continue;
                 }
                 counts.raw_written += 1;
@@ -486,13 +547,19 @@ fn download_gaia_datalink_xp(datalink_url: &str, source_ids: &[String], chunk_si
                 Err(err) => {
                     chunk_failed = true;
                     let preview = preview_file(&raw).unwrap_or_default();
-                    fs::write(raw_dir.join(format!("xp_source_{source_id}.parse-error.txt")), format!("{err:#}\n\nfirst_bytes:\n{preview}\n"))?;
+                    fs::write(
+                        raw_dir.join(format!("xp_source_{source_id}.parse-error.txt")),
+                        format!("{err:#}\n\nfirst_bytes:\n{preview}\n"),
+                    )?;
                 }
             }
         }
         if chunk_products.is_empty() {
             counts.failed += 1;
-            fs::write(xp_dir.join(format!("xp_chunk_{chunk_idx:06}.error.txt")), "no parseable XP products in chunk\n")?;
+            fs::write(
+                xp_dir.join(format!("xp_chunk_{chunk_idx:06}.error.txt")),
+                "no parseable XP products in chunk\n",
+            )?;
             continue;
         }
         write_normalized_xp_chunk(&normalized, &chunk_products)?;
@@ -506,7 +573,11 @@ fn download_gaia_datalink_xp(datalink_url: &str, source_ids: &[String], chunk_si
     Ok(counts)
 }
 
-fn download_one_gaia_datalink_source(datalink_url: &str, source_id: &str, output: &Path) -> Result<()> {
+fn download_one_gaia_datalink_source(
+    datalink_url: &str,
+    source_id: &str,
+    output: &Path,
+) -> Result<()> {
     let status = Command::new("curl")
         .arg("--fail")
         .arg("--location")
@@ -542,14 +613,22 @@ fn write_normalized_xp_chunk(path: &Path, products: &BTreeMap<String, XpProduct>
     let mut writer = WriterBuilder::new().from_path(path)?;
     writer.write_record(["source_id", "xp_wavelength_nm", "xp_flux_w_m2_nm"])?;
     for (source_id, product) in products {
-        writer.write_record([source_id.as_str(), product.wavelengths.as_str(), product.fluxes.as_str()])?;
+        writer.write_record([
+            source_id.as_str(),
+            product.wavelengths.as_str(),
+            product.fluxes.as_str(),
+        ])?;
     }
     writer.flush()?;
     Ok(())
 }
 
 fn read_metadata(path: &Path) -> Result<Vec<MetadataRow>> {
-    let mut reader = ReaderBuilder::new().comment(Some(b'#')).trim(csv::Trim::All).from_path(path).with_context(|| format!("failed to open metadata CSV {}", path.display()))?;
+    let mut reader = ReaderBuilder::new()
+        .comment(Some(b'#'))
+        .trim(csv::Trim::All)
+        .from_path(path)
+        .with_context(|| format!("failed to open metadata CSV {}", path.display()))?;
     let headers = reader.headers()?.clone();
     for required in ["source_id", "ra", "dec", "ref_epoch"] {
         require_header(&headers, required)?;
@@ -557,7 +636,11 @@ fn read_metadata(path: &Path) -> Result<Vec<MetadataRow>> {
     let mut rows = Vec::new();
     for record in reader.records() {
         let record = record?;
-        let fields = headers.iter().zip(record.iter()).map(|(key, value)| (key.trim().to_string(), value.trim().to_string())).collect();
+        let fields = headers
+            .iter()
+            .zip(record.iter())
+            .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+            .collect();
         rows.push(MetadataRow { fields });
     }
     if rows.is_empty() {
@@ -566,7 +649,10 @@ fn read_metadata(path: &Path) -> Result<Vec<MetadataRow>> {
     Ok(rows)
 }
 
-fn read_xp_products(dir: &Path, diagnostics: &mut Diagnostics) -> Result<BTreeMap<String, XpProduct>> {
+fn read_xp_products(
+    dir: &Path,
+    diagnostics: &mut Diagnostics,
+) -> Result<BTreeMap<String, XpProduct>> {
     let mut products = BTreeMap::new();
     if !dir.exists() {
         return Ok(products);
@@ -574,7 +660,10 @@ fn read_xp_products(dir: &Path, diagnostics: &mut Diagnostics) -> Result<BTreeMa
     for entry in fs::read_dir(dir).with_context(|| format!("failed to list {}", dir.display()))? {
         let entry = entry?;
         let path = entry.path();
-        if !path.is_file() || path.extension() == Some(OsStr::new("txt")) || path.file_name() == Some(OsStr::new("README.txt")) {
+        if !path.is_file()
+            || path.extension() == Some(OsStr::new("txt"))
+            || path.file_name() == Some(OsStr::new("README.txt"))
+        {
             continue;
         }
         diagnostics.xp_products_seen += 1;
@@ -589,7 +678,10 @@ fn read_xp_products(dir: &Path, diagnostics: &mut Diagnostics) -> Result<BTreeMa
                 products.extend(found);
             }
             Err(err) => {
-                *diagnostics.rejection_reasons.entry(format!("unparsed XP chunk: {err}")).or_default() += 1;
+                *diagnostics
+                    .rejection_reasons
+                    .entry(format!("unparsed XP chunk: {err}"))
+                    .or_default() += 1;
             }
         }
     }
@@ -600,11 +692,21 @@ fn read_xp_csv(path: &Path) -> Result<BTreeMap<String, XpProduct>> {
     read_xp_csv_with_fallback(path, None)
 }
 
-fn read_xp_csv_with_fallback(path: &Path, fallback_source_id: Option<&str>) -> Result<BTreeMap<String, XpProduct>> {
-    let mut reader = ReaderBuilder::new().comment(Some(b'#')).trim(csv::Trim::All).from_path(path)?;
+fn read_xp_csv_with_fallback(
+    path: &Path,
+    fallback_source_id: Option<&str>,
+) -> Result<BTreeMap<String, XpProduct>> {
+    let mut reader = ReaderBuilder::new()
+        .comment(Some(b'#'))
+        .trim(csv::Trim::All)
+        .from_path(path)?;
     let headers = reader.headers()?.clone();
 
-    if let (Ok(source_idx), Ok(wave_idx), Ok(flux_idx)) = (require_header(&headers, "source_id"), require_header(&headers, "xp_wavelength_nm"), require_header(&headers, "xp_flux_w_m2_nm")) {
+    if let (Ok(source_idx), Ok(wave_idx), Ok(flux_idx)) = (
+        require_header(&headers, "source_id"),
+        require_header(&headers, "xp_wavelength_nm"),
+        require_header(&headers, "xp_flux_w_m2_nm"),
+    ) {
         let mut out = BTreeMap::new();
         for row in reader.records() {
             let row = row?;
@@ -612,14 +714,28 @@ fn read_xp_csv_with_fallback(path: &Path, fallback_source_id: Option<&str>) -> R
             let wavelengths = row.get(wave_idx).unwrap_or_default().trim().to_string();
             let fluxes = row.get(flux_idx).unwrap_or_default().trim().to_string();
             if !source_id.is_empty() {
-                out.insert(source_id, XpProduct { wavelengths, fluxes });
+                out.insert(
+                    source_id,
+                    XpProduct {
+                        wavelengths,
+                        fluxes,
+                    },
+                );
             }
         }
         return Ok(out);
     }
 
-    let wave_idx = find_any_header(&headers, &["wavelength", "wavelength_nm", "lambda", "lambda_nm", "wl"]).ok_or_else(|| anyhow::anyhow!("missing XP wavelength column in {}", path.display()))?;
-    let flux_idx = find_any_header(&headers, &["flux", "flux_w_m2_nm", "flux_density", "flux_lambda"]).ok_or_else(|| anyhow::anyhow!("missing XP flux column in {}", path.display()))?;
+    let wave_idx = find_any_header(
+        &headers,
+        &["wavelength", "wavelength_nm", "lambda", "lambda_nm", "wl"],
+    )
+    .ok_or_else(|| anyhow::anyhow!("missing XP wavelength column in {}", path.display()))?;
+    let flux_idx = find_any_header(
+        &headers,
+        &["flux", "flux_w_m2_nm", "flux_density", "flux_lambda"],
+    )
+    .ok_or_else(|| anyhow::anyhow!("missing XP flux column in {}", path.display()))?;
     let source_idx = find_any_header(&headers, &["source_id", "sourceid", "source"]);
     let mut grouped: BTreeMap<String, (Vec<f64>, Vec<f64>)> = BTreeMap::new();
     for row in reader.records() {
@@ -646,8 +762,16 @@ fn read_xp_csv_with_fallback(path: &Path, fallback_source_id: Option<&str>) -> R
             out.insert(
                 source_id,
                 XpProduct {
-                    wavelengths: waves.iter().map(|v| format!("{v:.8}")).collect::<Vec<_>>().join(";"),
-                    fluxes: fluxes.iter().map(|v| format!("{v:.8e}")).collect::<Vec<_>>().join(";"),
+                    wavelengths: waves
+                        .iter()
+                        .map(|v| format!("{v:.8}"))
+                        .collect::<Vec<_>>()
+                        .join(";"),
+                    fluxes: fluxes
+                        .iter()
+                        .map(|v| format!("{v:.8e}"))
+                        .collect::<Vec<_>>()
+                        .join(";"),
                 },
             );
         }
@@ -661,7 +785,9 @@ fn read_xp_csv_with_fallback(path: &Path, fallback_source_id: Option<&str>) -> R
 fn find_any_header(headers: &StringRecord, names: &[&str]) -> Option<usize> {
     headers.iter().position(|header| {
         let header = header.trim().to_ascii_lowercase();
-        names.iter().any(|candidate| header == *candidate || header.contains(candidate))
+        names
+            .iter()
+            .any(|candidate| header == *candidate || header.contains(candidate))
     })
 }
 
@@ -677,12 +803,25 @@ fn extract_source_id_from_path(path: &Path) -> Option<String> {
             current.clear();
         }
     }
-    if current.len() >= 10 { Some(current) } else { None }
+    if current.len() >= 10 {
+        Some(current)
+    } else {
+        None
+    }
 }
 
 fn parse_maybe_series(raw: &str) -> Result<Vec<f64>> {
-    let cleaned = raw.trim().trim_matches('[').trim_matches(']').trim_matches('"').replace(',', ";").replace(' ', ";");
-    cleaned.split(';').filter(|value| !value.trim().is_empty()).map(|value| value.trim().parse::<f64>().map_err(Into::into)).collect()
+    let cleaned = raw
+        .trim()
+        .trim_matches('[')
+        .trim_matches(']')
+        .trim_matches('"')
+        .replace([',', ' '], ";");
+    cleaned
+        .split(';')
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.trim().parse::<f64>().map_err(Into::into))
+        .collect()
 }
 
 fn read_xp_json(path: &Path) -> Result<BTreeMap<String, XpProduct>> {
@@ -690,19 +829,37 @@ fn read_xp_json(path: &Path) -> Result<BTreeMap<String, XpProduct>> {
     let value: Value = serde_json::from_str(&raw)?;
     let mut out = BTreeMap::new();
     collect_xp_json(&value, &mut out);
-    if out.is_empty() { bail!("no source_id/xp_wavelength_nm/xp_flux_w_m2_nm objects found in JSON"); }
+    if out.is_empty() {
+        bail!("no source_id/xp_wavelength_nm/xp_flux_w_m2_nm objects found in JSON");
+    }
     Ok(out)
 }
 
 fn collect_xp_json(value: &Value, out: &mut BTreeMap<String, XpProduct>) {
     match value {
         Value::Object(map) => {
-            if let (Some(source_id), Some(wavelengths), Some(fluxes)) = (json_string(map.get("source_id")), json_series(map.get("xp_wavelength_nm")), json_series(map.get("xp_flux_w_m2_nm"))) {
-                out.insert(source_id, XpProduct { wavelengths, fluxes });
+            if let (Some(source_id), Some(wavelengths), Some(fluxes)) = (
+                json_string(map.get("source_id")),
+                json_series(map.get("xp_wavelength_nm")),
+                json_series(map.get("xp_flux_w_m2_nm")),
+            ) {
+                out.insert(
+                    source_id,
+                    XpProduct {
+                        wavelengths,
+                        fluxes,
+                    },
+                );
             }
-            for child in map.values() { collect_xp_json(child, out); }
+            for child in map.values() {
+                collect_xp_json(child, out);
+            }
         }
-        Value::Array(values) => { for child in values { collect_xp_json(child, out); } }
+        Value::Array(values) => {
+            for child in values {
+                collect_xp_json(child, out);
+            }
+        }
         _ => {}
     }
 }
@@ -733,19 +890,46 @@ fn json_series(value: Option<&Value>) -> Option<String> {
     }
 }
 
-fn merge_extract(metadata: &[MetadataRow], xp: &BTreeMap<String, XpProduct>, output: &Path, args: &Args, diagnostics: &mut Diagnostics) -> Result<()> {
+fn merge_extract(
+    metadata: &[MetadataRow],
+    xp: &BTreeMap<String, XpProduct>,
+    output: &Path,
+    args: &Args,
+    diagnostics: &mut Diagnostics,
+) -> Result<()> {
     let mut writer = WriterBuilder::new().from_path(output)?;
-    writer.write_record(["source_id", "ra", "dec", "ref_epoch", "pmra", "pmdec", "parallax", "radial_velocity", "phot_g_mean_mag", "phot_bp_mean_mag", "phot_rp_mean_mag", "duplicated_source", "xp_wavelength_nm", "xp_flux_w_m2_nm"])?;
+    writer.write_record([
+        "source_id",
+        "ra",
+        "dec",
+        "ref_epoch",
+        "pmra",
+        "pmdec",
+        "parallax",
+        "radial_velocity",
+        "phot_g_mean_mag",
+        "phot_bp_mean_mag",
+        "phot_rp_mean_mag",
+        "duplicated_source",
+        "xp_wavelength_nm",
+        "xp_flux_w_m2_nm",
+    ])?;
 
     for row in metadata {
         let Some(source_id) = row.fields.get("source_id") else {
             diagnostics.rejected_rows += 1;
-            *diagnostics.rejection_reasons.entry("missing source_id".into()).or_default() += 1;
+            *diagnostics
+                .rejection_reasons
+                .entry("missing source_id".into())
+                .or_default() += 1;
             continue;
         };
         let Some(product) = xp.get(source_id) else {
             diagnostics.rejected_rows += 1;
-            *diagnostics.rejection_reasons.entry("missing XP product".into()).or_default() += 1;
+            *diagnostics
+                .rejection_reasons
+                .entry("missing XP product".into())
+                .or_default() += 1;
             continue;
         };
         match validate_xp_product(product, args.band_min_nm, args.band_max_nm) {
@@ -757,34 +941,78 @@ fn merge_extract(metadata: &[MetadataRow], xp: &BTreeMap<String, XpProduct>, out
             }
         }
         diagnostics.accepted_rows += 1;
-        writer.write_record([field(row, "source_id"), field(row, "ra"), field(row, "dec"), field(row, "ref_epoch"), field(row, "pmra"), field(row, "pmdec"), field(row, "parallax"), field(row, "radial_velocity"), field(row, "phot_g_mean_mag"), field(row, "phot_bp_mean_mag"), field(row, "phot_rp_mean_mag"), field(row, "duplicated_source"), product.wavelengths.as_str(), product.fluxes.as_str()])?;
+        writer.write_record([
+            field(row, "source_id"),
+            field(row, "ra"),
+            field(row, "dec"),
+            field(row, "ref_epoch"),
+            field(row, "pmra"),
+            field(row, "pmdec"),
+            field(row, "parallax"),
+            field(row, "radial_velocity"),
+            field(row, "phot_g_mean_mag"),
+            field(row, "phot_bp_mean_mag"),
+            field(row, "phot_rp_mean_mag"),
+            field(row, "duplicated_source"),
+            product.wavelengths.as_str(),
+            product.fluxes.as_str(),
+        ])?;
     }
     writer.flush()?;
     diagnostics.merged_rows = diagnostics.accepted_rows;
-    if args.production && diagnostics.accepted_rows == 0 { bail!("production Gaia extract has no accepted rows"); }
+    if args.production && diagnostics.accepted_rows == 0 {
+        bail!("production Gaia extract has no accepted rows");
+    }
     Ok(())
 }
 
-fn validate_xp_product(product: &XpProduct, band_min_nm: f64, band_max_nm: f64) -> std::result::Result<(), String> {
-    let wavelengths = parse_series(&product.wavelengths).map_err(|_| "invalid XP wavelength array".to_string())?;
+fn validate_xp_product(
+    product: &XpProduct,
+    band_min_nm: f64,
+    band_max_nm: f64,
+) -> std::result::Result<(), String> {
+    let wavelengths = parse_series(&product.wavelengths)
+        .map_err(|_| "invalid XP wavelength array".to_string())?;
     let fluxes = parse_series(&product.fluxes).map_err(|_| "invalid XP flux array".to_string())?;
-    if wavelengths.len() != fluxes.len() { return Err("XP wavelength/flux length mismatch".to_string()); }
-    if wavelengths.is_empty() { return Err("empty XP arrays".to_string()); }
-    if fluxes.iter().any(|value| !value.is_finite() || *value < 0.0) { return Err("invalid XP flux value".to_string()); }
+    if wavelengths.len() != fluxes.len() {
+        return Err("XP wavelength/flux length mismatch".to_string());
+    }
+    if wavelengths.is_empty() {
+        return Err("empty XP arrays".to_string());
+    }
+    if fluxes
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
+        return Err("invalid XP flux value".to_string());
+    }
     let min_wave = wavelengths.iter().copied().fold(f64::INFINITY, f64::min);
-    let max_wave = wavelengths.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    if min_wave > band_min_nm || max_wave < band_max_nm { return Err("XP spectrum does not cover requested band".to_string()); }
+    let max_wave = wavelengths
+        .iter()
+        .copied()
+        .fold(f64::NEG_INFINITY, f64::max);
+    if min_wave > band_min_nm || max_wave < band_max_nm {
+        return Err("XP spectrum does not cover requested band".to_string());
+    }
     Ok(())
 }
 
 fn parse_series(raw: &str) -> std::result::Result<Vec<f64>, std::num::ParseFloatError> {
-    raw.split(';').filter(|value| !value.trim().is_empty()).map(|value| value.trim().parse::<f64>()).collect()
+    raw.split(';')
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| value.trim().parse::<f64>())
+        .collect()
 }
 
-fn field<'a>(row: &'a MetadataRow, key: &str) -> &'a str { row.fields.get(key).map(String::as_str).unwrap_or("") }
+fn field<'a>(row: &'a MetadataRow, key: &str) -> &'a str {
+    row.fields.get(key).map(String::as_str).unwrap_or("")
+}
 
 fn require_header(headers: &StringRecord, name: &str) -> Result<usize> {
-    headers.iter().position(|header| header.trim() == name).ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
+    headers
+        .iter()
+        .position(|header| header.trim() == name)
+        .ok_or_else(|| anyhow::anyhow!("missing required column {name:?}"))
 }
 
 fn checksum_file(path: &Path) -> Result<String> {
@@ -793,23 +1021,52 @@ fn checksum_file(path: &Path) -> Result<String> {
 }
 
 fn ensure_file(path: &Path, description: &str) -> Result<()> {
-    if !path.is_file() { bail!("missing {description}: {}", path.display()); }
+    if !path.is_file() {
+        bail!("missing {description}: {}", path.display());
+    }
     Ok(())
 }
 
 fn write_env_file(paths: &Paths, args: &Args, checksum: &str) -> Result<()> {
     let policy = fs::read_to_string(&paths.policy).unwrap_or_default();
-    let validation = args.validation_reference.as_ref().map(|path| path.canonicalize().unwrap_or_else(|_| path.clone())).unwrap_or_else(|| paths.validation_template.clone());
-    let extract = paths.extract.canonicalize().unwrap_or_else(|_| paths.extract.clone());
+    let validation = args
+        .validation_reference
+        .as_ref()
+        .map(|path| path.canonicalize().unwrap_or_else(|_| path.clone()))
+        .unwrap_or_else(|| paths.validation_template.clone());
+    let extract = paths
+        .extract
+        .canonicalize()
+        .unwrap_or_else(|_| paths.extract.clone());
     let mut file = fs::File::create(&paths.env)?;
-    writeln!(file, "export GAIA_DR3_STARLIGHT_EXTRACT=\"{}\"", shell_escape(&extract.display().to_string()))?;
-    writeln!(file, "export GAIA_DR3_STARLIGHT_EXTRACT_SHA256=\"{checksum}\"")?;
-    writeln!(file, "export GAIA_DERIVED_PRODUCT_LICENSE_POLICY=\"{}\"", shell_escape(policy.trim()))?;
-    writeln!(file, "export STARLIGHT_INDEPENDENT_VALIDATION_REFERENCE=\"{}\"", shell_escape(&validation.display().to_string()))?;
+    writeln!(
+        file,
+        "export GAIA_DR3_STARLIGHT_EXTRACT=\"{}\"",
+        shell_escape(&extract.display().to_string())
+    )?;
+    writeln!(
+        file,
+        "export GAIA_DR3_STARLIGHT_EXTRACT_SHA256=\"{checksum}\""
+    )?;
+    writeln!(
+        file,
+        "export GAIA_DERIVED_PRODUCT_LICENSE_POLICY=\"{}\"",
+        shell_escape(policy.trim())
+    )?;
+    writeln!(
+        file,
+        "export STARLIGHT_INDEPENDENT_VALIDATION_REFERENCE=\"{}\"",
+        shell_escape(&validation.display().to_string())
+    )?;
     Ok(())
 }
 
-fn shell_escape(value: &str) -> String { value.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n") }
+fn shell_escape(value: &str) -> String {
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
+}
 
 fn write_xp_template_note(dir: &Path) -> Result<()> {
     fs::create_dir_all(dir)?;
@@ -883,14 +1140,23 @@ mod tests {
 
     #[test]
     fn xp_validation_rejects_mismatched_arrays() {
-        let product = XpProduct { wavelengths: "330;400;650".into(), fluxes: "1;2".into() };
+        let product = XpProduct {
+            wavelengths: "330;400;650".into(),
+            fluxes: "1;2".into(),
+        };
         assert!(validate_xp_product(&product, 330.0, 650.0).is_err());
     }
 
     #[test]
     fn xp_validation_requires_band_coverage() {
-        let product = XpProduct { wavelengths: "400;500;600".into(), fluxes: "1;2;3".into() };
-        assert_eq!(validate_xp_product(&product, 330.0, 650.0).unwrap_err(), "XP spectrum does not cover requested band");
+        let product = XpProduct {
+            wavelengths: "400;500;600".into(),
+            fluxes: "1;2;3".into(),
+        };
+        assert_eq!(
+            validate_xp_product(&product, 330.0, 650.0).unwrap_err(),
+            "XP spectrum does not cover requested band"
+        );
     }
 
     #[test]
@@ -900,6 +1166,9 @@ mod tests {
 
     #[test]
     fn parses_series_with_commas_and_spaces() {
-        assert_eq!(parse_maybe_series("[330, 400 650]").unwrap(), vec![330.0, 400.0, 650.0]);
+        assert_eq!(
+            parse_maybe_series("[330, 400 650]").unwrap(),
+            vec![330.0, 400.0, 650.0]
+        );
     }
 }
