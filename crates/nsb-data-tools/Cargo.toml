@@ -41,6 +41,11 @@ name = "sweep_starlight_nside"
 path = "src/bin/sweep_starlight_nside.rs"
 doc = false
 
+[[bin]]
+name = "generate_gaia_starlight_release_inputs"
+path = "src/bin/generate_gaia_starlight_release_inputs.rs"
+doc = false
+
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
