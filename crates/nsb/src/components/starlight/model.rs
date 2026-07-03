@@ -8,13 +8,13 @@ use crate::evaluator::Target;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
 
-const BUNDLED_EXPERIMENTAL_SEED: &str = include_str!("../../../data/starlight_galactic_map_v1.csv");
-const BUNDLED_EXPERIMENTAL_SEED_PATH: &str = "starlight_galactic_map_v1.csv";
+const BUNDLED_EXPERIMENTAL_SEED: &str = include_str!("../../../data/starlight_manual_seed_v1.csv");
+const BUNDLED_EXPERIMENTAL_SEED_PATH: &str = "starlight_manual_seed_v1.csv";
 const BUNDLED_EXPERIMENTAL_SEED_SHA256: &str =
     "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668";
 
 siderust::assert_data_checksum!(
-    "NSB/data/starlight_galactic_map_v1.csv",
+    "NSB/data/starlight_manual_seed_v1.csv",
     BUNDLED_EXPERIMENTAL_SEED.as_bytes(),
     "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
 );
@@ -101,7 +101,7 @@ fn verify_experimental_seed_registry() -> Result<()> {
             .find_map(|(actual_key, value)| (actual_key.trim() == key).then(|| value.trim()));
         if actual != Some(expected.as_str()) {
             return Err(NsbError::DataParse {
-                file: "starlight_galactic_map_v1.csv",
+                file: "starlight_manual_seed_v1.csv",
                 message: format!(
                     "header key {key:?} does not match data/manifest.toml: expected {expected:?}, got {actual:?}"
                 ),

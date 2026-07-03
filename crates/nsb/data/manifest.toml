@@ -54,7 +54,7 @@ calibration_status = "planning-proxy"
 runtime_embedded = true
 
 [[assets]]
-path = "starlight_galactic_map_v1.csv"
+path = "starlight_manual_seed_v1.csv"
 schema = "nsb-healpix-starlight-v1"
 sha256 = "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
 source = "manually curated Tycho/Hipparcos-style bright-star seed; not a complete external catalogue product"

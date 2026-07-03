@@ -56,7 +56,7 @@ fn default_components_include_moonlight() {
     assert_eq!(value["version"]["model_version"], "nsb-model-2026.1");
     assert_eq!(
         value["version"]["siderust_revision"],
-        "8d94b8375ae23c26d00346f74951e52cd1b595cc"
+        "3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert!(value["version"]["data_assets"].as_array().unwrap().len() >= 5);
@@ -178,7 +178,8 @@ fn validated_external_starlight_is_production_labelled_in_json() {
         .stdout
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
-    assert_eq!(value["model"]["starlight_model"], "validated-external-map");
+    assert_eq!(value["model"]["starlight_model"], "validated-starlight");
+    assert_eq!(value["components"][0]["name"], "validated-starlight");
     assert_eq!(
         value["components"][0]["metadata"]["calibration_status"],
         "production"
@@ -190,6 +191,59 @@ fn validated_external_starlight_is_production_labelled_in_json() {
         "source checksum sha256:1111111111111111111111111111111111111111111111111111111111111111"
     ));
     assert!(provenance.contains("validation report test admission report"));
+}
+
+#[test]
+fn validated_external_starlight_is_labelled_in_window_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let map_path = dir.path().join("starlight.csv");
+    let manifest_path = dir.path().join("starlight.toml");
+    write_validated_fixture(&map_path, &manifest_path);
+
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "json",
+            "window",
+            "--start",
+            "2026-06-18T23:00:00Z",
+            "--end",
+            "2026-06-19T00:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--max-nsb",
+            "1000000",
+            "--step",
+            "3600",
+            "--no-pre-filter",
+            "--components",
+            "starlight",
+            "--starlight-map",
+            map_path.to_str().unwrap(),
+            "--starlight-manifest",
+            manifest_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["model"]["starlight_model"], "validated-starlight");
+    assert_eq!(value["selected_components"][0], "validated-starlight");
+    assert_eq!(
+        value["component_metadata"][0]["name"],
+        "validated-starlight"
+    );
+    assert_eq!(
+        value["component_metadata"][0]["metadata"]["calibration_status"],
+        "production"
+    );
 }
 
 fn write_validated_fixture(map_path: &std::path::Path, manifest_path: &std::path::Path) {
@@ -308,11 +362,64 @@ fn explicit_experimental_starlight_is_labelled_in_json() {
         .stdout
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
-    assert_eq!(value["components"][0]["name"], "starlight");
+    assert_eq!(value["model"]["starlight_model"], "experimental-starlight");
+    assert_eq!(value["components"][0]["name"], "experimental-starlight");
     assert_eq!(
         value["components"][0]["metadata"]["calibration_status"],
         "experimental"
     );
+}
+
+#[test]
+fn starlight_csv_uses_validated_or_experimental_component_labels() {
+    let dir = tempfile::tempdir().unwrap();
+    let map_path = dir.path().join("starlight.csv");
+    let manifest_path = dir.path().join("starlight.toml");
+    write_validated_fixture(&map_path, &manifest_path);
+
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    cmd.args([
+        "--format",
+        "csv",
+        "point",
+        "--time",
+        "2026-06-18T23:00:00Z",
+        "--site",
+        "CTAO-S",
+        "--ra",
+        "83.0",
+        "--dec",
+        "22.0",
+        "--components",
+        "starlight",
+        "--starlight-map",
+        map_path.to_str().unwrap(),
+        "--starlight-manifest",
+        manifest_path.to_str().unwrap(),
+    ])
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("validated-starlight"));
+
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    cmd.args([
+        "--format",
+        "csv",
+        "point",
+        "--time",
+        "2026-06-18T23:00:00Z",
+        "--site",
+        "CTAO-S",
+        "--ra",
+        "83.0",
+        "--dec",
+        "22.0",
+        "--components",
+        "experimental-starlight",
+    ])
+    .assert()
+    .success()
+    .stdout(predicate::str::contains("experimental-starlight"));
 }
 
 #[test]

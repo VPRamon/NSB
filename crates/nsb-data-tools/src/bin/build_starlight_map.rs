@@ -32,7 +32,8 @@ const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_330_650nm_v1";
 #[command(name = "build_starlight_map")]
 #[command(about = "Generate an NSB starlight HEALPix CSV from a local stellar catalogue")]
 struct Args {
-    /// Input stellar catalogue CSV: ra_deg,dec_deg,b_mag,v_mag,weight,source_id.
+    /// Input stellar catalogue CSV. Proxy inputs use ra_deg/dec_deg/b_mag/v_mag;
+    /// Gaia canonical inputs use icrs_ra_rad/icrs_dec_rad/photon_flux_330_650_ph_m2_s.
     #[arg(long)]
     input: PathBuf,
 
@@ -291,7 +292,7 @@ fn input_kind(input: &PathBuf) -> Result<InputKind> {
         .headers()
         .context("failed to read CSV header")?
         .clone();
-    if optional_header(&headers, "photon_flux_ph_m2_s").is_some() {
+    if optional_header(&headers, "photon_flux_330_650_ph_m2_s").is_some() {
         Ok(InputKind::GaiaPhotonFlux)
     } else {
         Ok(InputKind::ProxyMagnitudes)
@@ -452,18 +453,18 @@ fn equatorial_direction(ra_deg: f64, dec_deg: f64) -> Direction<EquatorialMeanJ2
 
 #[derive(Debug, Clone, Copy)]
 struct GaiaPhotonColumns {
-    ra_deg: usize,
-    dec_deg: usize,
-    photon_flux_ph_m2_s: usize,
+    icrs_ra_rad: usize,
+    icrs_dec_rad: usize,
+    photon_flux_330_650_ph_m2_s: usize,
     weight: Option<usize>,
 }
 
 impl GaiaPhotonColumns {
     fn from_headers(headers: &StringRecord) -> Result<Self> {
         Ok(Self {
-            ra_deg: required_header(headers, "ra_deg")?,
-            dec_deg: required_header(headers, "dec_deg")?,
-            photon_flux_ph_m2_s: required_header(headers, "photon_flux_ph_m2_s")?,
+            icrs_ra_rad: required_header(headers, "icrs_ra_rad")?,
+            icrs_dec_rad: required_header(headers, "icrs_dec_rad")?,
+            photon_flux_330_650_ph_m2_s: required_header(headers, "photon_flux_330_650_ph_m2_s")?,
             weight: optional_header(headers, "weight"),
         })
     }
@@ -493,22 +494,28 @@ fn build_gaia_photon_map(
 
     for row in reader.records() {
         let row = row.context("failed to read Gaia canonical CSV record")?;
-        let ra_deg = parse_required_f64(&row, columns.ra_deg, "ra_deg")?;
-        let dec_deg = parse_required_f64(&row, columns.dec_deg, "dec_deg")?;
-        let photon_flux =
-            parse_required_f64(&row, columns.photon_flux_ph_m2_s, "photon_flux_ph_m2_s")?;
+        let icrs_ra_rad = parse_required_f64(&row, columns.icrs_ra_rad, "icrs_ra_rad")?;
+        let icrs_dec_rad = parse_required_f64(&row, columns.icrs_dec_rad, "icrs_dec_rad")?;
+        let photon_flux = parse_required_f64(
+            &row,
+            columns.photon_flux_330_650_ph_m2_s,
+            "photon_flux_330_650_ph_m2_s",
+        )?;
         let weight = match columns.weight {
             Some(idx) => parse_required_f64(&row, idx, "weight")?,
             None => 1.0,
         };
-        if !ra_deg.is_finite()
-            || !dec_deg.is_finite()
+        if !icrs_ra_rad.is_finite()
+            || !icrs_dec_rad.is_finite()
             || !photon_flux.is_finite()
             || !weight.is_finite()
         {
             bail!("Gaia canonical rows must contain finite coordinates, fluxes, and weights");
         }
-        if !(0.0..360.0).contains(&ra_deg) || !(-90.0..=90.0).contains(&dec_deg) {
+        if !(0.0..std::f64::consts::TAU).contains(&icrs_ra_rad)
+            || !((-std::f64::consts::FRAC_PI_2)..=std::f64::consts::FRAC_PI_2)
+                .contains(&icrs_dec_rad)
+        {
             bail!("Gaia canonical coordinates are outside valid ICRS ranges");
         }
         if photon_flux < 0.0 || weight < 0.0 {
@@ -518,7 +525,7 @@ fn build_gaia_photon_map(
             continue;
         }
 
-        let direction = icrs_direction(ra_deg, dec_deg);
+        let direction = icrs_direction_from_radians(icrs_ra_rad, icrs_dec_rad);
         let galactic: Direction<Galactic> = direction.to_frame();
         let index = grid.direction_to_pixel(galactic)?;
         let pixel = &mut values[usize::try_from(index.get())?];
@@ -537,9 +544,7 @@ fn build_gaia_photon_map(
     ))
 }
 
-fn icrs_direction(ra_deg: f64, dec_deg: f64) -> Direction<ICRS> {
-    let ra = ra_deg.to_radians();
-    let dec = dec_deg.to_radians();
+fn icrs_direction_from_radians(ra: f64, dec: f64) -> Direction<ICRS> {
     Direction::<ICRS>::from_array([dec.cos() * ra.cos(), dec.cos() * ra.sin(), dec.sin()])
 }
 
@@ -1036,8 +1041,8 @@ mod tests {
         fs::write(
             &input,
             concat!(
-                "source_id,ra_deg,dec_deg,epoch_jyr,photon_flux_ph_m2_s,photometry_model,weight\n",
-                "42,266.4051,-28.936175,2016.0,1.0e6,",
+                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                "42,4.649644, -0.505386,2016.0,1.0e6,",
                 "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
             ),
         )?;
@@ -1072,6 +1077,108 @@ mod tests {
         assert!(report["total_integrated_ph_cm2_ns_sr"]
             .as_f64()
             .is_some_and(|value| value > 0.0));
+        Ok(())
+    }
+
+    #[test]
+    fn gaia_canonical_source_lands_in_expected_galactic_healpix_pixel() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("canonical-gaia.csv");
+        let output = dir.path().join("map.csv");
+        let nside = 8;
+        let ra_rad = 0.0_f64;
+        let dec_rad = 0.0_f64;
+        fs::write(
+            &input,
+            format!(
+                concat!(
+                    "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                    "42,{:.16},{:.16},2016.0,1.0e6,",
+                    "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+                ),
+                ra_rad, dec_rad
+            ),
+        )?;
+
+        run(Args {
+            input,
+            output: output.clone(),
+            nside,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: None,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: Some("DR3".to_string()),
+            catalog_license: Some("CC-BY-4.0-derived-policy-reviewed".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })?;
+
+        let grid = HealpixGrid::new(Nside::new(nside)?, HealpixOrdering::Ring)?;
+        let galactic: Direction<Galactic> = icrs_direction_from_radians(ra_rad, dec_rad).to_frame();
+        let expected_index = grid.direction_to_pixel(galactic)?.get();
+        let raw = fs::read_to_string(output)?;
+        let mut reader = ReaderBuilder::new()
+            .comment(Some(b'#'))
+            .from_reader(raw.as_bytes());
+        let mut nonzero = Vec::new();
+        for row in reader.records() {
+            let row = row?;
+            let index: u64 = row[0].parse()?;
+            let value: f64 = row[1].parse()?;
+            if value > 0.0 {
+                nonzero.push(index);
+            }
+        }
+        assert_eq!(nonzero, vec![expected_index]);
+        Ok(())
+    }
+
+    #[test]
+    fn gaia_canonical_radian_ranges_are_validated() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("canonical-gaia.csv");
+        let output = dir.path().join("map.csv");
+        fs::write(
+            &input,
+            concat!(
+                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                "42,6.283185307179586,0.0,2016.0,1.0e6,",
+                "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+            ),
+        )?;
+
+        let err = run(Args {
+            input,
+            output,
+            nside: 1,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: None,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: Some("DR3".to_string()),
+            catalog_license: Some("CC-BY-4.0-derived-policy-reviewed".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })
+        .expect_err("invalid RA radians must be rejected");
+        assert!(err
+            .to_string()
+            .contains("Gaia canonical coordinates are outside valid ICRS ranges"));
         Ok(())
     }
 

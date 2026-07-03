@@ -122,10 +122,10 @@ fn run(args: Args) -> Result<()> {
     let mut writer = WriterBuilder::new().from_writer(output_writer(&args.output)?);
     writer.write_record([
         "source_id",
-        "ra_deg",
-        "dec_deg",
+        "icrs_ra_rad",
+        "icrs_dec_rad",
         "epoch_jyr",
-        "photon_flux_ph_m2_s",
+        "photon_flux_330_650_ph_m2_s",
         "photometry_model",
         "weight",
     ])?;
@@ -274,6 +274,8 @@ fn convert_row(
         },
     };
 
+    let icrs_ra_rad = raw.ra_deg.to_radians();
+    let icrs_dec_rad = raw.dec_deg.to_radians();
     let source = GaiaDr3Source::try_from(raw).map_err(|err| anyhow::anyhow!(err.to_string()))?;
     let samples = parse_samples(row, columns)?;
     if samples.is_empty() {
@@ -294,8 +296,8 @@ fn convert_row(
 
     Ok(Some([
         stellar_source.source_id.to_string(),
-        format!("{:.10}", source.astrometry.direction.azimuth.value()),
-        format!("{:.10}", source.astrometry.direction.polar.value()),
+        format!("{icrs_ra_rad:.16}"),
+        format!("{icrs_dec_rad:.16}"),
         format!("{:.6}", stellar_source.epoch.value()),
         format!("{:.16e}", stellar_source.photon_flux.photons_m2_s()),
         args.photometry_model.clone(),
@@ -438,7 +440,7 @@ mod tests {
 
         let canonical = std::fs::read_to_string(output)?;
         assert!(canonical.starts_with(
-            "source_id,ra_deg,dec_deg,epoch_jyr,photon_flux_ph_m2_s,photometry_model,weight"
+            "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight"
         ));
         assert!(canonical.contains(GAIA_XP_MODEL));
         let report: serde_json::Value =
@@ -446,6 +448,45 @@ mod tests {
         assert_eq!(report["rows_read"], 1);
         assert_eq!(report["rows_used"], 1);
         assert_eq!(report["photometry_model"], GAIA_XP_MODEL);
+        Ok(())
+    }
+
+    #[test]
+    fn canonical_coordinates_are_icrs_radians() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("gaia.csv");
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        std::fs::write(
+            &input,
+            concat!(
+                "source_id,ra,dec,ref_epoch,xp_wavelength_nm,xp_flux_w_m2_nm\n",
+                "1,0.0,0.0,2016.0,330;650,1e-12;1e-12\n",
+                "2,90.0,0.0,2016.0,330;650,1e-12;1e-12\n",
+                "3,180.0,-30.0,2016.0,330;650,1e-12;1e-12\n",
+                "4,359.999,45.0,2016.0,330;650,1e-12;1e-12\n",
+            ),
+        )?;
+
+        run(args(input, output.clone(), diagnostics))?;
+
+        let raw = std::fs::read_to_string(output)?;
+        let mut reader = csv::Reader::from_reader(raw.as_bytes());
+        let rows = reader
+            .records()
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        let expected = [
+            (0.0_f64, 0.0_f64),
+            (90.0_f64.to_radians(), 0.0_f64),
+            (180.0_f64.to_radians(), (-30.0_f64).to_radians()),
+            (359.999_f64.to_radians(), 45.0_f64.to_radians()),
+        ];
+        for (row, (ra, dec)) in rows.iter().zip(expected) {
+            let actual_ra: f64 = row[1].parse()?;
+            let actual_dec: f64 = row[2].parse()?;
+            assert!((actual_ra - ra).abs() < 1.0e-14);
+            assert!((actual_dec - dec).abs() < 1.0e-14);
+        }
         Ok(())
     }
 

@@ -2,8 +2,8 @@ use crate::parsing::location::SitePreset;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
-    assets::asset_registry, ComponentMask, NsbModelConfig, NsbResult, MODEL_VERSION, NSB_VERSION,
-    SIDERUST_REVISION,
+    assets::asset_registry, ComponentMask, NsbModelConfig, NsbResult, StarlightModel,
+    MODEL_VERSION, NSB_VERSION, SIDERUST_REVISION,
 };
 use tempoch::{Period, UTC};
 
@@ -37,7 +37,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         writer.write_record([
             POINT_SCHEMA.to_string(),
             "component".to_string(),
-            component.name.to_string(),
+            component_label(component.name, config).to_string(),
             component.integrated.value().to_string(),
             component.b_flux_s10.value().to_string(),
             component.v_flux_s10.value().to_string(),
@@ -100,7 +100,7 @@ pub fn write_window(
         "model_preset",
         "asset_checksums",
     ])?;
-    let component_names = component_names(components).join(";");
+    let component_names = component_names(components, config).join(";");
     let assets = asset_checksums();
     for period in periods {
         writer.write_record([
@@ -149,13 +149,13 @@ fn asset_checksums() -> String {
         .join(";")
 }
 
-fn component_names(mask: ComponentMask) -> Vec<&'static str> {
+fn component_names(mask: ComponentMask, config: &NsbModelConfig) -> Vec<&'static str> {
     let mut names = Vec::new();
     if mask.contains(ComponentMask::ZODIACAL) {
         names.push("zodiacal");
     }
     if mask.contains(ComponentMask::STARLIGHT) {
-        names.push("experimental-starlight");
+        names.push(starlight_label(config));
     }
     if mask.contains(ComponentMask::AIRGLOW) {
         names.push("airglow");
@@ -164,6 +164,23 @@ fn component_names(mask: ComponentMask) -> Vec<&'static str> {
         names.push("moon");
     }
     names
+}
+
+fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str {
+    if name == "starlight" {
+        starlight_label(config)
+    } else {
+        name
+    }
+}
+
+fn starlight_label(config: &NsbModelConfig) -> &'static str {
+    match config.starlight_model.as_ref() {
+        Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
+        Some(StarlightModel::BundledExperimentalSeed)
+        | Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
+        None => "starlight",
+    }
 }
 
 fn duration_seconds(period: Period<UTC>) -> Option<f64> {

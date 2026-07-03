@@ -67,4 +67,4 @@ pub const MODEL_VERSION: &str = "nsb-model-2026.1";
 /// Siderust release represented by the pinned dependency revision.
 pub const SIDERUST_VERSION: &str = "0.10.1";
 /// Exact Siderust Git revision used for reproducible builds.
-pub const SIDERUST_REVISION: &str = "8d94b8375ae23c26d00346f74951e52cd1b595cc";
+pub const SIDERUST_REVISION: &str = "3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c";

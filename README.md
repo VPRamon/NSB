@@ -99,7 +99,7 @@ Expected JSON contains these audit fields in addition to numeric results:
   "schema_version": "nsb-cli-point-json-v1",
   "version": {
     "model_version": "nsb-model-2026.1",
-    "siderust_revision": "8d94b8375ae23c26d00346f74951e52cd1b595cc",
+    "siderust_revision": "3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c",
     "asset_manifest_schema": 1
   },
   "model": { "preset": "ctao-south-planning" },
@@ -113,9 +113,8 @@ The stable CSV schemas are documented in [CLI schemas](docs/CLI_SCHEMAS.md).
 
 ## Reproducibility and assets
 
-Siderust 0.10.1 is resolved from the local workspace checkout at
-`../../siderust`; the current compatibility baseline is revision
-`8d94b8375ae23c26d00346f74951e52cd1b595cc`. All CI builds use `Cargo.lock`.
+Siderust 0.10.1 is resolved from the immutable Git revision
+`3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c`. All CI builds use `Cargo.lock`.
 Compatibility and update policy are in
 [SIDERUST_COMPATIBILITY.md](docs/SIDERUST_COMPATIBILITY.md).
 

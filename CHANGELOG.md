@@ -13,9 +13,10 @@ once a stable public release is cut.
   explicitly opt-in.
 - Cached parsed starlight and shared airglow calibration state inside
   `NsbEvaluator`.
-- Switched Siderust 0.10.1 resolution to the local workspace checkout at
-  `../../siderust`; the compatibility baseline remains revision
-  `8d94b8375ae23c26d00346f74951e52cd1b595cc`.
+- Pinned Siderust 0.10.1 resolution to immutable revision
+  `3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c`.
+- Switched Gaia canonical starlight sources to explicit ICRS radian columns and
+  added production/candidate modes to `pack_starlight_asset`.
 - Expanded JSON and CSV with version, model, maturity, provenance, uncertainty,
   band-diagnostic, and asset-checksum metadata.
 - Fixed magnitude cuts so the generated map, conservation sums, and

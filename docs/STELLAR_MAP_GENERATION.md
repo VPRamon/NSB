@@ -5,7 +5,7 @@ Galactic HEALPix map generated offline. Runtime code never downloads catalogues.
 
 ## Current bundled seed
 
-`starlight_galactic_map_v1.csv` is a 12-pixel, manually curated seed. It is
+`starlight_manual_seed_v1.csv` is a 12-pixel, manually curated seed. It is
 registered as `experimental`, excluded from `ComponentMask::ALL`, and available
 only through explicit experimental naming. It is not a production catalogue
 product and cannot be promoted because its source selection is incomplete and
@@ -38,19 +38,25 @@ the derived, checksum-pinned starlight map is intended to ship with NSB.
 ```bash
 mkdir -p target/starlight-release
 
+export GAIA_DR3_STARLIGHT_EXTRACT=target/starlight-release/gaia_dr3_starlight_extract.csv
+export GAIA_DR3_STARLIGHT_EXTRACT_SHA256=sha256:<raw-extract-checksum>
+export GAIA_DERIVED_PRODUCT_LICENSE_POLICY="<reviewed-license-or-derived-product-policy>"
+export STARLIGHT_INDEPENDENT_VALIDATION_REFERENCE=target/starlight-release/independent_validation_reference.json
+export STARLIGHT_GENERATION_NSIDE=128
+
 # Run the documented ADQL query and Gaia DataLink XP retrieval as a maintainer
 # operation. The query recipe lives at docs/queries/gaia_dr3_starlight_extract.adql.
 
 sha256sum target/starlight-release/gaia_dr3_starlight_extract.csv
 
 cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
-  --input target/starlight-release/gaia_dr3_starlight_extract.csv \
+  --input "$GAIA_DR3_STARLIGHT_EXTRACT" \
   --output target/starlight-release/canonical_gaia_starlight_sources.csv \
   --diagnostics-output target/starlight-release/canonical_gaia_starlight_sources.diagnostics.json \
   --catalog-name "Gaia" \
   --catalog-release "DR3" \
-  --catalog-license "<reviewed-license-or-derived-product-policy>" \
-  --source-checksum "sha256:<raw-extract-checksum>" \
+  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
+  --source-checksum "$GAIA_DR3_STARLIGHT_EXTRACT_SHA256" \
   --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
   --band-min-nm 330 \
   --band-max-nm 650 \
@@ -58,15 +64,23 @@ cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
 
 sha256sum target/starlight-release/canonical_gaia_starlight_sources.csv
 
+cargo run --locked -p nsb-data-tools --bin sweep_starlight_nside -- \
+  --input target/starlight-release/canonical_gaia_starlight_sources.csv \
+  --output-dir target/starlight-release/sweep \
+  --reference "$STARLIGHT_INDEPENDENT_VALIDATION_REFERENCE" \
+  --catalog-checksum "sha256:<canonical-input-checksum>" \
+  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
+  --generation-date-utc "<RFC3339 UTC>"
+
 cargo run --locked -p nsb-data-tools --bin build_starlight_map -- \
   --input target/starlight-release/canonical_gaia_starlight_sources.csv \
-  --output target/starlight-release/starlight_galactic_map_v1.csv \
-  --diagnostics-output target/starlight-release/starlight_galactic_map_v1.diagnostics.json \
-  --nside <chosen-nside> \
+  --output target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.csv \
+  --diagnostics-output target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.diagnostics.json \
+  --nside "$STARLIGHT_GENERATION_NSIDE" \
   --ordering ring \
   --catalog-name "Gaia" \
   --catalog-release "DR3" \
-  --catalog-license "<reviewed-license-or-derived-product-policy>" \
+  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
   --catalog-checksum "sha256:<canonical-input-checksum>" \
   --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
   --band-min-nm 330 \
@@ -75,21 +89,27 @@ cargo run --locked -p nsb-data-tools --bin build_starlight_map -- \
   --require-science-diagnostics
 
 cargo run --locked -p nsb-data-tools --bin validate_starlight_map -- \
-  --input target/starlight-release/starlight_galactic_map_v1.csv \
-  --diagnostics target/starlight-release/starlight_galactic_map_v1.diagnostics.json \
-  --output target/starlight-release/starlight_galactic_map_v1.validation.json
+  --input target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.csv \
+  --diagnostics target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.diagnostics.json \
+  --reference "$STARLIGHT_INDEPENDENT_VALIDATION_REFERENCE" \
+  --output target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.validation.json \
+  --require-independent-comparison
 
 cargo run --locked -p nsb-data-tools --bin pack_starlight_asset -- \
-  --input target/starlight-release/starlight_galactic_map_v1.csv \
-  --diagnostics target/starlight-release/starlight_galactic_map_v1.diagnostics.json \
-  --validation target/starlight-release/starlight_galactic_map_v1.validation.json \
-  --output crates/nsb/data/starlight_galactic_map_v1.bin.zst \
-  --manifest crates/nsb/data/starlight_galactic_map_v1.manifest.toml
+  --input target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.csv \
+  --diagnostics target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.diagnostics.json \
+  --validation target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.validation.json \
+  --output crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.bin.zst \
+  --manifest crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.manifest.toml \
+  --production
 ```
 
-The packer emits a candidate framed asset and manifest. The current CI fixtures
-do not provide independent astrophysical comparison evidence, so the bundled
-production asset is still pending.
+The packer emits a production framed asset and manifest only in `--production`
+mode after `production_ready=true` and independent comparison evidence pass.
+Use `--candidate` only for review artifacts. The current repository does not
+ship the Gaia-derived production asset because the real Gaia extract, reviewed
+redistribution policy, and independent validation reference are not present in
+CI.
 
 ## Legacy Tycho proxy pipeline
 

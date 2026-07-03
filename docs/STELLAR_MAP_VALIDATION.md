@@ -4,9 +4,11 @@
 
 ```bash
 cargo run --locked -p nsb-data-tools --bin validate_starlight_map -- \
-  --input target/starlight-release/starlight_galactic_map_v1.csv \
-  --diagnostics target/starlight-release/starlight_galactic_map_v1.diagnostics.json \
-  --output target/starlight-release/starlight_galactic_map_v1.validation.json
+  --input target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.csv \
+  --diagnostics target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.diagnostics.json \
+  --reference "$STARLIGHT_INDEPENDENT_VALIDATION_REFERENCE" \
+  --output target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.validation.json \
+  --require-independent-comparison
 ```
 
 The harness verifies parseability, finite/nonnegative radiance fields, pixel
@@ -15,6 +17,6 @@ comparison evidence is available. Production calibration is not claimed unless
 `production_ready=true` in the validation report, which requires independent
 comparison evidence outside the tiny CI fixtures.
 
-Without that evidence, `pack_starlight_asset` can produce a candidate derived
-asset, but NSB must not promote it into `ComponentMask::ALL` or label it as
-bundled production starlight.
+Without that evidence, `pack_starlight_asset --candidate` can produce a clearly
+labelled review artifact, but `--production` fails. NSB must not promote such an
+artifact into `ComponentMask::ALL` or label it as bundled production starlight.
