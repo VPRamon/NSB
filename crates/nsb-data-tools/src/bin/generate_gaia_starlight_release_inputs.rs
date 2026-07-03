@@ -240,10 +240,7 @@ fn run(args: Args) -> Result<()> {
     merge_extract(&metadata, &xp, &paths.extract, &args, &mut diagnostics)?;
     let checksum = checksum_file(&paths.extract)?;
     diagnostics.extract_sha256 = Some(checksum.clone());
-    fs::write(
-        &paths.checksum,
-        format!("{checksum}  {EXTRACT_FILE}\n"),
-    )?;
+    fs::write(&paths.checksum, format!("{checksum}  {EXTRACT_FILE}\n"))?;
     fs::write(
         &paths.diagnostics,
         format!("{}\n", serde_json::to_string_pretty(&diagnostics)?),
@@ -288,7 +285,8 @@ impl Paths {
             checksum: out_dir.join("gaia_dr3_starlight_extract.sha256"),
             policy: out_dir.join("gaia_derived_product_policy.txt"),
             env: out_dir.join("starlight_release_inputs.env"),
-            validation_template: out_dir.join("starlight_independent_validation_reference.template.json"),
+            validation_template: out_dir
+                .join("starlight_independent_validation_reference.template.json"),
         }
     }
 }
@@ -342,7 +340,13 @@ fn validate_text_field(name: &str, value: &str, production: bool) -> Result<()> 
     }
     if production {
         let lower = value.to_ascii_lowercase();
-        for blocked in ["todo", "unknown", "pending", "review required", "unreviewed"] {
+        for blocked in [
+            "todo",
+            "unknown",
+            "pending",
+            "review required",
+            "unreviewed",
+        ] {
             if lower.contains(blocked) {
                 bail!("{name} contains production placeholder {blocked:?}");
             }
@@ -483,7 +487,10 @@ fn read_metadata(path: &Path) -> Result<Vec<MetadataRow>> {
     Ok(rows)
 }
 
-fn read_xp_products(dir: &Path, diagnostics: &mut Diagnostics) -> Result<BTreeMap<String, XpProduct>> {
+fn read_xp_products(
+    dir: &Path,
+    diagnostics: &mut Diagnostics,
+) -> Result<BTreeMap<String, XpProduct>> {
     let mut products = BTreeMap::new();
     if !dir.exists() {
         return Ok(products);
@@ -532,7 +539,13 @@ fn read_xp_csv(path: &Path) -> Result<BTreeMap<String, XpProduct>> {
         let wavelengths = row.get(wave_idx).unwrap_or_default().trim().to_string();
         let fluxes = row.get(flux_idx).unwrap_or_default().trim().to_string();
         if !source_id.is_empty() {
-            out.insert(source_id, XpProduct { wavelengths, fluxes });
+            out.insert(
+                source_id,
+                XpProduct {
+                    wavelengths,
+                    fluxes,
+                },
+            );
         }
     }
     Ok(out)
@@ -557,7 +570,13 @@ fn collect_xp_json(value: &Value, out: &mut BTreeMap<String, XpProduct>) {
                 json_series(map.get("xp_wavelength_nm")),
                 json_series(map.get("xp_flux_w_m2_nm")),
             ) {
-                out.insert(source_id, XpProduct { wavelengths, fluxes });
+                out.insert(
+                    source_id,
+                    XpProduct {
+                        wavelengths,
+                        fluxes,
+                    },
+                );
             }
             for child in map.values() {
                 collect_xp_json(child, out);
@@ -626,12 +645,18 @@ fn merge_extract(
     for row in metadata {
         let Some(source_id) = row.fields.get("source_id") else {
             diagnostics.rejected_rows += 1;
-            *diagnostics.rejection_reasons.entry("missing source_id".into()).or_default() += 1;
+            *diagnostics
+                .rejection_reasons
+                .entry("missing source_id".into())
+                .or_default() += 1;
             continue;
         };
         let Some(product) = xp.get(source_id) else {
             diagnostics.rejected_rows += 1;
-            *diagnostics.rejection_reasons.entry("missing XP product".into()).or_default() += 1;
+            *diagnostics
+                .rejection_reasons
+                .entry("missing XP product".into())
+                .or_default() += 1;
             continue;
         };
         match validate_xp_product(product, args.band_min_nm, args.band_max_nm) {
@@ -668,8 +693,13 @@ fn merge_extract(
     Ok(())
 }
 
-fn validate_xp_product(product: &XpProduct, band_min_nm: f64, band_max_nm: f64) -> std::result::Result<(), String> {
-    let wavelengths = parse_series(&product.wavelengths).map_err(|_| "invalid XP wavelength array".to_string())?;
+fn validate_xp_product(
+    product: &XpProduct,
+    band_min_nm: f64,
+    band_max_nm: f64,
+) -> std::result::Result<(), String> {
+    let wavelengths = parse_series(&product.wavelengths)
+        .map_err(|_| "invalid XP wavelength array".to_string())?;
     let fluxes = parse_series(&product.fluxes).map_err(|_| "invalid XP flux array".to_string())?;
     if wavelengths.len() != fluxes.len() {
         return Err("XP wavelength/flux length mismatch".to_string());
@@ -677,11 +707,17 @@ fn validate_xp_product(product: &XpProduct, band_min_nm: f64, band_max_nm: f64) 
     if wavelengths.is_empty() {
         return Err("empty XP arrays".to_string());
     }
-    if fluxes.iter().any(|value| !value.is_finite() || *value < 0.0) {
+    if fluxes
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
         return Err("invalid XP flux value".to_string());
     }
     let min_wave = wavelengths.iter().copied().fold(f64::INFINITY, f64::min);
-    let max_wave = wavelengths.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let max_wave = wavelengths
+        .iter()
+        .copied()
+        .fold(f64::NEG_INFINITY, f64::max);
     if min_wave > band_min_nm || max_wave < band_max_nm {
         return Err("XP spectrum does not cover requested band".to_string());
     }
@@ -725,14 +761,20 @@ fn write_env_file(paths: &Paths, args: &Args, checksum: &str) -> Result<()> {
         .as_ref()
         .map(|path| path.canonicalize().unwrap_or_else(|_| path.clone()))
         .unwrap_or_else(|| paths.validation_template.clone());
-    let extract = paths.extract.canonicalize().unwrap_or_else(|_| paths.extract.clone());
+    let extract = paths
+        .extract
+        .canonicalize()
+        .unwrap_or_else(|_| paths.extract.clone());
     let mut file = fs::File::create(&paths.env)?;
     writeln!(
         file,
         "export GAIA_DR3_STARLIGHT_EXTRACT=\"{}\"",
         shell_escape(&extract.display().to_string())
     )?;
-    writeln!(file, "export GAIA_DR3_STARLIGHT_EXTRACT_SHA256=\"{checksum}\"")?;
+    writeln!(
+        file,
+        "export GAIA_DR3_STARLIGHT_EXTRACT_SHA256=\"{checksum}\""
+    )?;
     writeln!(
         file,
         "export GAIA_DERIVED_PRODUCT_LICENSE_POLICY=\"{}\"",
@@ -747,7 +789,10 @@ fn write_env_file(paths: &Paths, args: &Args, checksum: &str) -> Result<()> {
 }
 
 fn shell_escape(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+    value
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
 }
 
 fn write_xp_template_note(dir: &Path) -> Result<()> {
