@@ -4,12 +4,12 @@ use csv::{ReaderBuilder, StringRecord, WriterBuilder};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use siderust::checksum::{sha256, to_hex};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 const DEFAULT_TAP_URL: &str = "https://gea.esac.esa.int/tap-server/tap/sync";
 const EXTRACT_FILE: &str = "gaia_dr3_starlight_extract.csv";
@@ -656,8 +656,8 @@ fn merge_extract(
             field(row, "phot_bp_mean_mag"),
             field(row, "phot_rp_mean_mag"),
             field(row, "duplicated_source"),
-            &product.wavelengths,
-            &product.fluxes,
+            product.wavelengths.as_str(),
+            product.fluxes.as_str(),
         ])?;
     }
     writer.flush()?;
