@@ -1,7 +1,28 @@
 # Starlight data-product pipeline
 
+Status: Maintainer workflow for candidate and release starlight map generation.
+Audience: Maintainers preparing derived starlight artifacts.
+Scope: Offline catalogue preparation, map generation, validation handoff, and
+asset packing.
+Non-goals: This document does not approve a generated map for production; see
+[Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md) and
+[Starlight map validation](STELLAR_MAP_VALIDATION.md).
+
 Integrated starlight is directional and catalogue-dependent, so NSB consumes a
 Galactic HEALPix map generated offline. Runtime code never downloads catalogues.
+
+## Reading Path
+
+```text
+requirements -> generation -> validation -> packing -> maturity metadata
+```
+
+The requirements are in
+[Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md). This file
+describes how maintainers create map candidates. Validation report semantics are
+defined in [Starlight map validation](STELLAR_MAP_VALIDATION.md). Caller-supplied
+production maps use the separate
+[external manifest contract](EXTERNAL_STARLIGHT_MANIFEST.md).
 
 ## Current bundled seed
 
@@ -105,7 +126,9 @@ cargo run --locked -p nsb-data-tools --bin pack_starlight_asset -- \
 ```
 
 The packer emits a production framed asset and manifest only in `--production`
-mode after `production_ready=true` and independent comparison evidence pass.
+mode after `production_ready=true`, the longitude seam diagnostic passes, and
+the validation tool has computed passing structured independent regional
+comparisons. Boolean claims supplied by external reference files are not trusted.
 Use `--candidate` only for review artifacts. The current repository does not
 ship the Gaia-derived production asset because the real Gaia extract, reviewed
 redistribution policy, and independent validation reference are not present in

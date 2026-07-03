@@ -1,5 +1,13 @@
 # Validation matrix
 
+Status: Current repository validation map.
+Audience: Scientific reviewers, maintainers, and downstream users evaluating
+fitness for use.
+Scope: Evidence, units, tolerances, deviation classes, and known missing
+external campaigns.
+Non-goals: This document does not certify any future bundled starlight asset or
+site-calibrated CTAO product.
+
 NSB distinguishes implementation identities, published references, external
 observations, and sanity envelopes. A broad envelope is not external validation.
 
@@ -79,7 +87,10 @@ The Gaia DR3 release pipeline now has maintainer tooling for extraction
 documentation, passband source preparation, HEALPix map generation, validation
 reporting, and asset packing. CI uses tiny fixtures only. A real bundled asset
 is not production until the Gaia extract checksum, canonical input checksum, map
-checksum, validation report, and independent comparison are all reviewed.
+checksum, validation report, longitude seam diagnostic, and structured
+independent regional comparison are all reviewed. The independent reference file
+declares regions and expected radiance ranges; it does not provide trusted pass
+booleans.
 
 ## Missing external campaigns
 

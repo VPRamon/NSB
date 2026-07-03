@@ -1,5 +1,13 @@
 # Validated external starlight manifest
 
+Status: Current fail-closed sidecar contract.
+Audience: Integrators supplying external starlight maps and maintainers reviewing
+their evidence.
+Scope: Manifest fields, runtime admission checks, and the limits of external
+production metadata.
+Non-goals: This document does not validate any specific external catalogue or
+license.
+
 NSB uses this sidecar contract because no legally cleared, independently
 validated catalogue map is bundled. CLI `--components starlight` requires a map
 and manifest. The library equivalent is `ValidatedStarlightMap::from_files`.

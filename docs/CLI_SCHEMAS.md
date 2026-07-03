@@ -1,5 +1,11 @@
 # Stable CLI schemas
 
+Status: Stable v1 schema contract for the current CLI.
+Audience: CLI consumers, downstream parsers, and maintainers.
+Scope: JSON and CSV field contracts emitted by `nsb-cli`.
+Non-goals: This document does not define scientific calibration requirements or
+the Rust API.
+
 Schema identifiers change only when fields are removed, renamed, retyped, or
 their scientific meaning changes. Fields may be added compatibly to JSON.
 

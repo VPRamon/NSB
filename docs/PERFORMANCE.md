@@ -1,5 +1,12 @@
 # Performance contract
 
+Status: Current performance guidance and benchmark scope.
+Audience: Maintainers and reviewers of runtime or benchmark changes.
+Scope: Evaluator reuse boundaries, benchmark workloads, and performance review
+rules.
+Non-goals: This document is not a scientific validation substitute and does not
+set portable pass/fail timing thresholds.
+
 `NsbEvaluator` is the reuse boundary for production workloads.
 
 - Zodiacal tables, the starlight map, and airglow calibration are parsed once.

@@ -1,9 +1,26 @@
 # Starlight science requirements
 
+Status: Production requirements for future bundled starlight products.
+Audience: Scientific reviewers and maintainers.
+Scope: Release-blocking evidence before starlight can be bundled or treated as
+production by default.
+Non-goals: This document is not a generation recipe or a validation report; see
+[Starlight data-product pipeline](STELLAR_MAP_GENERATION.md) and
+[Starlight map validation](STELLAR_MAP_VALIDATION.md).
+
 Production starlight is a derived, validated map product, not a user-supplied
 Gaia workflow. Maintainers retrieve official Gaia DR3 data at release time,
 process it through Siderust Gaia/passband APIs, validate the result, and embed
 only the derived map asset.
+
+## Document Path
+
+Use this document to decide whether a product is scientifically admissible. Use
+[Starlight data-product pipeline](STELLAR_MAP_GENERATION.md) for maintainer
+commands, [Starlight map validation](STELLAR_MAP_VALIDATION.md) for validation
+report semantics, [Validated external starlight manifest](EXTERNAL_STARLIGHT_MANIFEST.md)
+for caller-supplied maps, and [Model maturity](MODEL_MATURITY.md) for the
+metadata exposed to users.
 
 Release-blocking requirements:
 

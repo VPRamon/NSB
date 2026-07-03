@@ -56,7 +56,7 @@ fn default_components_include_moonlight() {
     assert_eq!(value["version"]["model_version"], "nsb-model-2026.1");
     assert_eq!(
         value["version"]["siderust_revision"],
-        "3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c"
+        "36e62e0ad3630a4a325d762ff288a7a1d27b2f7c"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert!(value["version"]["data_assets"].as_array().unwrap().len() >= 5);

@@ -64,7 +64,7 @@ pub(crate) const NSB_S10_ZP: f64 = 27.78;
 pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Versioned model-composition contract used in operational metadata.
 pub const MODEL_VERSION: &str = "nsb-model-2026.1";
-/// Siderust release represented by the pinned dependency revision.
+/// Siderust package version represented by the locked dependency.
 pub const SIDERUST_VERSION: &str = "0.10.1";
-/// Exact Siderust Git revision used for reproducible builds.
-pub const SIDERUST_REVISION: &str = "3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c";
+/// Siderust Git revision currently recorded in Cargo.lock.
+pub const SIDERUST_REVISION: &str = "36e62e0ad3630a4a325d762ff288a7a1d27b2f7c";

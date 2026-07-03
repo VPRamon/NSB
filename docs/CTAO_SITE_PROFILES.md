@@ -1,5 +1,11 @@
 # CTAO site-profile assumptions
 
+Status: Current planning-preset contract.
+Audience: CTAO planning users, reviewers, and maintainers.
+Scope: Built-in site profile assumptions, exposed metadata, and promotion
+requirements.
+Non-goals: This document does not claim site calibration for CTAO-N or CTAO-S.
+
 NSB distinguishes generic clear-sky fallbacks from named site profiles through
 `SiteProfileId`, `SiteProfile`, `CalibrationStatus`, and the
 `NsbModelConfig::cta_n_planning()` / `NsbModelConfig::cta_s_planning()` evaluator

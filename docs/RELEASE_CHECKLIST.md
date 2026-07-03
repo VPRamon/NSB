@@ -1,5 +1,12 @@
 # Release checklist
 
+Status: Maintainer checklist for release review.
+Audience: Release maintainers and reviewers.
+Scope: Repository, validation, documentation, dependency, and distribution gates
+that must be checked before tagging.
+Non-goals: This checklist does not replace the validation matrix or create
+scientific calibration evidence.
+
 - [ ] `ComponentMask::ALL`, CLI `all`, examples, and docs agree.
 - [ ] No removed compatibility API appears under `crates/*/src`.
 - [ ] `Cargo.lock` is committed and the local Siderust checkout matches the compatibility matrix.

@@ -99,7 +99,7 @@ Expected JSON contains these audit fields in addition to numeric results:
   "schema_version": "nsb-cli-point-json-v1",
   "version": {
     "model_version": "nsb-model-2026.1",
-    "siderust_revision": "3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c",
+    "siderust_revision": "36e62e0ad3630a4a325d762ff288a7a1d27b2f7c",
     "asset_manifest_schema": 1
   },
   "model": { "preset": "ctao-south-planning" },
@@ -113,8 +113,10 @@ The stable CSV schemas are documented in [CLI schemas](docs/CLI_SCHEMAS.md).
 
 ## Reproducibility and assets
 
-Siderust 0.10.1 is resolved from the immutable Git revision
-`3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c`. All CI builds use `Cargo.lock`.
+Siderust 0.10.1 is declared from the `gaia` Git branch in the workspace
+manifests. `Cargo.lock` currently resolves revision
+`36e62e0ad3630a4a325d762ff288a7a1d27b2f7c`, but the manifest source is still a
+moving branch and must not be described as immutable release pinning.
 Compatibility and update policy are in
 [SIDERUST_COMPATIBILITY.md](docs/SIDERUST_COMPATIBILITY.md).
 
@@ -135,11 +137,11 @@ uses its own strict sidecar contract documented in
 
 ## Quality gates
 
-MSRV is Rust 1.89, matching pinned Siderust's SIMD dependency floor. Pull
+MSRV is Rust 1.89, matching the current Siderust SIMD dependency floor. Pull
 requests run:
 
 ```bash
-cargo fmt --all --check
+cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --locked
 cargo test --workspace --doc --locked
@@ -153,6 +155,7 @@ starlight lookup, full composition, and window searches.
 
 ## Documentation
 
+- [Documentation hub](docs/README.md)
 - [Production roadmap](docs/PRODUCTION_ROADMAP.md)
 - [Performance contract](docs/PERFORMANCE.md)
 - [Model maturity](docs/MODEL_MATURITY.md)

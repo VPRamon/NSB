@@ -1,5 +1,12 @@
 # Production-readiness roadmap
 
+Status: Maintainer roadmap for the current release branch.
+Audience: Maintainers and release reviewers.
+Scope: Issue-level workstreams, blocking release evidence, and remaining
+scientific gaps.
+Non-goals: This roadmap is not a user-facing guarantee or a calibrated-science
+claim.
+
 ```text
 #30 coherent defaults
   ├─> #31 production starlight ─> #35 external validation ─> #36 photometry

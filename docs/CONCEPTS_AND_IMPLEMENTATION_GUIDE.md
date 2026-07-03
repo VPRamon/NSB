@@ -1,5 +1,11 @@
 # Concepts and implementation
 
+Status: Current overview of the runtime model.
+Audience: Library users, CLI users, and new contributors.
+Scope: Core quantities, component selection, evaluator behavior, and scientific
+interpretation boundaries.
+Non-goals: This guide is not a validation report or a release checklist.
+
 Night-sky background is photon radiance arriving from diffuse and unresolved
 sources. NSB reports the sum over 300–650 nm in photons per square centimetre per
 nanosecond per steradian.

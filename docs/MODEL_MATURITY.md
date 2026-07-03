@@ -1,5 +1,12 @@
 # Model maturity
 
+Status: Current maturity policy exposed through API and CLI metadata.
+Audience: Scientific users, reviewers, and downstream consumers.
+Scope: Component maturity labels, validated domains, and allowed production
+claims.
+Non-goals: This document does not provide the validation evidence itself; see
+[Validation matrix](VALIDATION.md).
+
 Software release readiness and scientific calibration are separate axes.
 
 | Surface | Status | Validated domain | Production claim allowed |
