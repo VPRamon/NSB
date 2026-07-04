@@ -640,7 +640,7 @@ dependencies = [
  "optica",
  "qtty",
  "serde",
- "siderust 0.11.0",
+ "siderust",
  "tempoch",
  "thiserror",
  "toml",
@@ -660,7 +660,7 @@ dependencies = [
  "qtty",
  "serde",
  "serde_json",
- "siderust 0.11.0",
+ "siderust",
  "tempfile",
  "tempoch",
  "thiserror",
@@ -677,7 +677,7 @@ dependencies = [
  "nsb",
  "serde",
  "serde_json",
- "siderust 0.10.1",
+ "siderust",
  "tempfile",
  "toml",
 ]
@@ -990,29 +990,6 @@ name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
-
-[[package]]
-name = "siderust"
-version = "0.10.1"
-source = "git+https://github.com/Siderust/siderust?branch=gaia#36e62e0ad3630a4a325d762ff288a7a1d27b2f7c"
-dependencies = [
- "affn",
- "approx",
- "cheby",
- "chrono",
- "keplerian",
- "optica",
- "paste",
- "principia",
- "qtty",
- "quick-xml",
- "serde",
- "serde_json",
- "siderust-archive",
- "tempoch",
- "thiserror",
- "wide",
-]
 
 [[package]]
 name = "siderust"
