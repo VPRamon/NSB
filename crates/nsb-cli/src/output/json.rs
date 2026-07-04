@@ -5,7 +5,7 @@ use anyhow::Result;
 use nsb::{
     assets::asset_registry, BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig,
     NsbResult, StarlightModel, Target, ZodiacalExtinction, MODEL_VERSION, NSB_VERSION,
-    SIDERUST_REVISION, SIDERUST_VERSION,
+    SIDERUST_SOURCE, SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
@@ -44,7 +44,7 @@ struct VersionJson {
     nsb_version: &'static str,
     model_version: &'static str,
     siderust_version: &'static str,
-    siderust_revision: &'static str,
+    siderust_source: &'static str,
     asset_manifest_schema: u32,
     data_assets: Vec<AssetJson>,
 }
@@ -213,7 +213,7 @@ fn version_json() -> VersionJson {
         nsb_version: NSB_VERSION,
         model_version: MODEL_VERSION,
         siderust_version: SIDERUST_VERSION,
-        siderust_revision: SIDERUST_REVISION,
+        siderust_source: SIDERUST_SOURCE,
         asset_manifest_schema: registry.schema_version,
         data_assets: registry
             .assets

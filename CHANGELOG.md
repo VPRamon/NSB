@@ -13,8 +13,8 @@ once a stable public release is cut.
   explicitly opt-in.
 - Cached parsed starlight and shared airglow calibration state inside
   `NsbEvaluator`.
-- Pinned Siderust 0.10.1 resolution to immutable revision
-  `3b079f950b22d5c5bb7bddedf3a3bdd3f842b07c`.
+- Standardized Siderust metadata on crates.io `siderust = 0.11.0` and the
+  public source identity `crates.io:siderust:0.11.0`.
 - Switched Gaia canonical starlight sources to explicit ICRS radian columns and
   added production/candidate modes to `pack_starlight_asset`.
 - Expanded JSON and CSV with version, model, maturity, provenance, uncertainty,

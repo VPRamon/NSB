@@ -120,15 +120,18 @@ cargo run --locked -p nsb-data-tools --bin pack_starlight_asset -- \
   --input target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.csv \
   --diagnostics target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.diagnostics.json \
   --validation target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.validation.json \
-  --output crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.bin.zst \
+  --output crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.release.csv \
   --manifest crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.manifest.toml \
   --production
 ```
 
-The packer emits a production framed asset and manifest only in `--production`
-mode after `production_ready=true`, the longitude seam diagnostic passes, and
-the validation tool has computed passing structured independent regional
-comparisons. Boolean claims supplied by external reference files are not trusted.
+The packer emits a raw UTF-8 HEALPix release CSV and runtime manifest only in
+`--production` mode after `production_ready=true`, integrated flux conservation
+passes, the longitude seam diagnostic passes, and the validation tool has
+computed passing structured independent regional comparisons. Production packing
+self-loads the emitted CSV/TOML pair through the runtime `ValidatedStarlightMap`
+loader before returning success. Boolean claims supplied by external reference
+files are not trusted.
 Use `--candidate` only for review artifacts. The current repository does not
 ship the Gaia-derived production asset because the real Gaia extract, reviewed
 redistribution policy, and independent validation reference are not present in

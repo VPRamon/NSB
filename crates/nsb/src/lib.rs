@@ -65,6 +65,6 @@ pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Versioned model-composition contract used in operational metadata.
 pub const MODEL_VERSION: &str = "nsb-model-2026.1";
 /// Siderust package version represented by the locked dependency.
-pub const SIDERUST_VERSION: &str = "0.10.1";
-/// Siderust Git revision currently recorded in Cargo.lock.
-pub const SIDERUST_REVISION: &str = "36e62e0ad3630a4a325d762ff288a7a1d27b2f7c";
+pub const SIDERUST_VERSION: &str = "0.11.0";
+/// Truthful package-source identity for the Siderust dependency.
+pub const SIDERUST_SOURCE: &str = "crates.io:siderust:0.11.0";

@@ -143,6 +143,8 @@ struct Diagnostics {
     expected_pixels: usize,
     empty_pixels: usize,
     total_integrated_ph_cm2_ns_sr: f64,
+    input_integrated_flux_sum_ph_cm2_ns: f64,
+    integrated_flux_conservation_pass: bool,
     total_b_s10: f64,
     total_v_s10: f64,
     flux_conservation_pass: bool,
@@ -159,6 +161,16 @@ enum InputKind {
     GaiaPhotonFlux,
 }
 
+struct DiagnosticsContext<'a> {
+    sources_used: usize,
+    longitude_wrap_pass: bool,
+    plane_pole_pass: bool,
+    csv: &'a str,
+    args: &'a Args,
+    input_kind: InputKind,
+    input_integrated_flux_sum: f64,
+}
+
 fn main() -> Result<()> {
     run(Args::parse())
 }
@@ -171,49 +183,66 @@ fn run(args: Args) -> Result<()> {
     let input_kind = input_kind(&args.input)?;
     let provenance = provenance(&args, input_kind);
 
-    let (map, sources_used, longitude_wrap_pass, plane_pole_pass) = match input_kind {
-        InputKind::ProxyMagnitudes => {
-            let min_v_mag = args.min_v_mag.map(ApparentMagnitude::new).transpose()?;
-            let max_v_mag = args.max_v_mag.map(ApparentMagnitude::new).transpose()?;
-            let (records, input_b_flux_sum, input_v_flux_sum) =
-                read_records(&args.input, min_v_mag, max_v_mag)?;
-            let sources_used = records.len();
+    let (map, sources_used, input_integrated_flux_sum, longitude_wrap_pass, plane_pole_pass) =
+        match input_kind {
+            InputKind::ProxyMagnitudes => {
+                let min_v_mag = args.min_v_mag.map(ApparentMagnitude::new).transpose()?;
+                let max_v_mag = args.max_v_mag.map(ApparentMagnitude::new).transpose()?;
+                let (records, input_b_flux_sum, input_v_flux_sum) =
+                    read_records(&args.input, min_v_mag, max_v_mag)?;
+                let sources_used = records.len();
 
-            let builder = StellarSurfaceBrightnessMapBuilder {
-                grid,
-                // `read_records` is the single filtering boundary so map input,
-                // conservation sums, and `sources_used` cannot diverge.
-                min_v_mag: None,
-                max_v_mag: None,
-                integrated_per_v_s10: args.integrated_per_v_s10,
-            };
+                let builder = StellarSurfaceBrightnessMapBuilder {
+                    grid,
+                    // `read_records` is the single filtering boundary so map input,
+                    // conservation sums, and `sources_used` cannot diverge.
+                    min_v_mag: None,
+                    max_v_mag: None,
+                    integrated_per_v_s10: args.integrated_per_v_s10,
+                };
 
-            let map = match builder.build(records, provenance.clone()) {
-                Ok(map) => map,
-                Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => {
-                    empty_map(grid, provenance.clone())?
-                }
-                Err(err) => return Err(err.into()),
-            };
+                let map = match builder.build(records, provenance.clone()) {
+                    Ok(map) => map,
+                    Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => {
+                        empty_map(grid, provenance.clone())?
+                    }
+                    Err(err) => return Err(err.into()),
+                };
 
-            validate_flux_conservation(
-                input_b_flux_sum,
-                input_v_flux_sum,
-                map.healpix_map(),
-                1.0e-9,
-            )?;
-            let (longitude_wrap_pass, plane_pole_pass) =
-                run_science_diagnostics(&map, args.require_science_diagnostics)?;
-            (map, sources_used, longitude_wrap_pass, plane_pole_pass)
-        }
-        InputKind::GaiaPhotonFlux => {
-            let (map, sources_used) = build_gaia_photon_map(&args.input, grid, provenance)?;
-            validate_stellar_map_values(map.healpix_map())?;
-            let (longitude_wrap_pass, plane_pole_pass) =
-                run_integrated_science_diagnostics(&map, args.require_science_diagnostics)?;
-            (map, sources_used, longitude_wrap_pass, plane_pole_pass)
-        }
-    };
+                validate_flux_conservation(
+                    input_b_flux_sum,
+                    input_v_flux_sum,
+                    map.healpix_map(),
+                    1.0e-9,
+                )?;
+                let input_integrated_flux_sum =
+                    input_v_flux_sum * args.integrated_per_v_s10 * map.grid().pixel_area_deg2();
+                let (longitude_wrap_pass, plane_pole_pass) =
+                    run_science_diagnostics(&map, args.require_science_diagnostics)?;
+                (
+                    map,
+                    sources_used,
+                    input_integrated_flux_sum,
+                    longitude_wrap_pass,
+                    plane_pole_pass,
+                )
+            }
+            InputKind::GaiaPhotonFlux => {
+                let (map, sources_used, input_integrated_flux_sum) =
+                    build_gaia_photon_map(&args.input, grid, provenance)?;
+                validate_stellar_map_values(map.healpix_map())?;
+                validate_integrated_flux_conservation(&map, input_integrated_flux_sum, 1.0e-9)?;
+                let (longitude_wrap_pass, plane_pole_pass) =
+                    run_integrated_science_diagnostics(&map, args.require_science_diagnostics)?;
+                (
+                    map,
+                    sources_used,
+                    input_integrated_flux_sum,
+                    longitude_wrap_pass,
+                    plane_pole_pass,
+                )
+            }
+        };
 
     let generation_command = std::env::args().collect::<Vec<_>>().join(" ");
     let validation_report = args
@@ -226,12 +255,15 @@ fn run(args: Args) -> Result<()> {
     if let Some(path) = &args.diagnostics_output {
         let diagnostics = diagnostics(
             &map,
-            sources_used,
-            longitude_wrap_pass,
-            plane_pole_pass,
-            &csv,
-            &args,
-            input_kind,
+            DiagnosticsContext {
+                sources_used,
+                longitude_wrap_pass,
+                plane_pole_pass,
+                csv: &csv,
+                args: &args,
+                input_kind,
+                input_integrated_flux_sum,
+            },
         );
         let raw = serde_json::to_string_pretty(&diagnostics)?;
         std::fs::write(path, format!("{raw}\n"))
@@ -474,7 +506,7 @@ fn build_gaia_photon_map(
     input: &PathBuf,
     grid: HealpixGrid,
     provenance: StellarMapProvenance,
-) -> Result<(StellarSurfaceBrightnessMap, usize)> {
+) -> Result<(StellarSurfaceBrightnessMap, usize, f64)> {
     let mut reader = ReaderBuilder::new()
         .comment(Some(b'#'))
         .from_path(input)
@@ -491,6 +523,7 @@ fn build_gaia_photon_map(
     let columns = GaiaPhotonColumns::from_headers(&headers)?;
     let mut values = vec![StellarSurfaceBrightness::zero(); usize::try_from(grid.npix())?];
     let mut sources_used = 0usize;
+    let mut input_integrated_flux_sum = 0.0;
 
     for row in reader.records() {
         let row = row.context("failed to read Gaia canonical CSV record")?;
@@ -529,7 +562,9 @@ fn build_gaia_photon_map(
         let galactic: Direction<Galactic> = direction.to_frame();
         let index = grid.direction_to_pixel(galactic)?;
         let pixel = &mut values[usize::try_from(index.get())?];
-        pixel.integrated_ph_cm2_ns_sr += photon_flux * weight * 1.0e-13 / grid.pixel_area_sr();
+        let integrated_flux = photon_flux * weight * 1.0e-13;
+        pixel.integrated_ph_cm2_ns_sr += integrated_flux / grid.pixel_area_sr();
+        input_integrated_flux_sum += integrated_flux;
         sources_used += 1;
     }
 
@@ -541,6 +576,7 @@ fn build_gaia_photon_map(
     Ok((
         StellarSurfaceBrightnessMap::new(healpix_map, provenance),
         sources_used,
+        input_integrated_flux_sum,
     ))
 }
 
@@ -659,6 +695,33 @@ fn integrated_longitude_wrap_pass(map: &StellarSurfaceBrightnessMap) -> bool {
     })
 }
 
+fn validate_integrated_flux_conservation(
+    map: &StellarSurfaceBrightnessMap,
+    expected_flux: f64,
+    tolerance: f64,
+) -> Result<()> {
+    let actual_flux = map
+        .values()
+        .iter()
+        .map(|value| value.integrated_ph_cm2_ns_sr * map.grid().pixel_area_sr())
+        .sum::<f64>();
+    let scale = expected_flux.abs().max(actual_flux.abs()).max(1.0);
+    let relative_error = (actual_flux - expected_flux).abs() / scale;
+    if relative_error > tolerance {
+        bail!(
+            "integrated flux conservation failed: expected {expected_flux}, actual {actual_flux}, relative error {relative_error}, tolerance {tolerance}"
+        );
+    }
+    Ok(())
+}
+
+fn integrated_flux_conservation_pass(
+    map: &StellarSurfaceBrightnessMap,
+    expected_flux: f64,
+) -> bool {
+    validate_integrated_flux_conservation(map, expected_flux, 1.0e-9).is_ok()
+}
+
 fn run_science_diagnostics(
     map: &StellarSurfaceBrightnessMap,
     require: bool,
@@ -759,19 +822,11 @@ fn stellar_map_to_csv(
     out
 }
 
-fn diagnostics(
-    map: &StellarSurfaceBrightnessMap,
-    sources_used: usize,
-    longitude_wrap_pass: bool,
-    plane_pole_pass: bool,
-    csv: &str,
-    args: &Args,
-    input_kind: InputKind,
-) -> Diagnostics {
+fn diagnostics(map: &StellarSurfaceBrightnessMap, context: DiagnosticsContext<'_>) -> Diagnostics {
     let values = map.values();
     Diagnostics {
         schema_version: 1,
-        sources_used,
+        sources_used: context.sources_used,
         nside: map.grid().nside().get(),
         ordering: ordering_name(map.grid().ordering()),
         expected_pixels: values.len(),
@@ -785,14 +840,19 @@ fn diagnostics(
             .iter()
             .map(|value| value.integrated_ph_cm2_ns_sr)
             .sum(),
+        input_integrated_flux_sum_ph_cm2_ns: context.input_integrated_flux_sum,
+        integrated_flux_conservation_pass: integrated_flux_conservation_pass(
+            map,
+            context.input_integrated_flux_sum,
+        ),
         total_b_s10: values.iter().map(|value| value.b_s10).sum(),
         total_v_s10: values.iter().map(|value| value.v_s10).sum(),
         flux_conservation_pass: true,
-        plane_pole_pass,
-        longitude_wrap_pass,
-        output_sha256: format!("sha256:{}", to_hex(&sha256(csv.as_bytes()))),
-        photometry_model: args.photometry_model.clone(),
-        calibration_status: match input_kind {
+        plane_pole_pass: context.plane_pole_pass,
+        longitude_wrap_pass: context.longitude_wrap_pass,
+        output_sha256: format!("sha256:{}", to_hex(&sha256(context.csv.as_bytes()))),
+        photometry_model: context.args.photometry_model.clone(),
+        calibration_status: match context.input_kind {
             InputKind::ProxyMagnitudes => "experimental-until-independent-validation".to_string(),
             InputKind::GaiaPhotonFlux => {
                 "production-candidate-until-independent-validation".to_string()

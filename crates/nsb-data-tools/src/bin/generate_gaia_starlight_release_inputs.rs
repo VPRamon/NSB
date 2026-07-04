@@ -242,22 +242,21 @@ fn run(args: Args) -> Result<()> {
     }
 
     let xp = read_xp_products(&xp_dir, &mut diagnostics)?;
-    if args.production && xp.is_empty() {
-        bail!("--production requires parsed XP products");
-    }
-    if args.production && diagnostics.xp_chunks_failed > 0 {
-        bail!("--production requires all XP chunks to download and parse successfully");
-    }
 
     merge_extract(&metadata, &xp, &paths.extract, &args, &mut diagnostics)?;
     let checksum = checksum_file(&paths.extract)?;
     diagnostics.extract_sha256 = Some(checksum.clone());
+    let production_failure = production_failure(&args, &diagnostics);
     fs::write(&paths.checksum, format!("{checksum}  {EXTRACT_FILE}\n"))?;
     fs::write(
         &paths.diagnostics,
         format!("{}\n", serde_json::to_string_pretty(&diagnostics)?),
     )?;
     write_env_file(&paths, &args, &checksum)?;
+
+    if let Some(message) = production_failure {
+        bail!("{message}");
+    }
 
     println!("generated {}", paths.extract.display());
     println!("generated {}", paths.diagnostics.display());
@@ -961,9 +960,40 @@ fn merge_extract(
     writer.flush()?;
     diagnostics.merged_rows = diagnostics.accepted_rows;
     if args.production && diagnostics.accepted_rows == 0 {
-        bail!("production Gaia extract has no accepted rows");
+        *diagnostics
+            .rejection_reasons
+            .entry("zero accepted production rows".into())
+            .or_default() += 1;
     }
     Ok(())
+}
+
+fn production_failure(args: &Args, diagnostics: &Diagnostics) -> Option<String> {
+    if !args.production {
+        return None;
+    }
+    if diagnostics.xp_chunks_failed > 0 {
+        return Some(
+            "--production requires all XP products to download and parse successfully".to_string(),
+        );
+    }
+    if diagnostics.accepted_rows == 0 {
+        return Some("--production requires at least one accepted Gaia XP source".to_string());
+    }
+    if diagnostics.rejected_rows > 0 {
+        return Some(format!(
+            "--production rejected {} selected Gaia rows; all selected sources require valid XP products",
+            diagnostics.rejected_rows
+        ));
+    }
+    if diagnostics
+        .rejection_reasons
+        .keys()
+        .any(|reason| reason.starts_with("unparsed XP chunk"))
+    {
+        return Some("--production rejects malformed or unparsable XP products".to_string());
+    }
+    None
 }
 
 fn validate_xp_product(
@@ -1160,6 +1190,56 @@ mod tests {
     }
 
     #[test]
+    fn production_failure_rejects_missing_xp_products() {
+        let args = test_args(true);
+        let diagnostics = Diagnostics {
+            production_mode: true,
+            metadata_rows: 2,
+            accepted_rows: 1,
+            rejected_rows: 1,
+            rejection_reasons: BTreeMap::from([("missing XP product".to_string(), 1)]),
+            ..Diagnostics::default()
+        };
+        let message = production_failure(&args, &diagnostics).unwrap();
+        assert!(message.contains("all selected sources require valid XP products"));
+    }
+
+    #[test]
+    fn production_failure_rejects_malformed_xp_products() {
+        let args = test_args(true);
+        let diagnostics = Diagnostics {
+            production_mode: true,
+            metadata_rows: 1,
+            accepted_rows: 0,
+            rejected_rows: 1,
+            rejection_reasons: BTreeMap::from([("invalid XP flux value".to_string(), 1)]),
+            ..Diagnostics::default()
+        };
+        let message = production_failure(&args, &diagnostics).unwrap();
+        assert!(message.contains("at least one accepted Gaia XP source"));
+        assert_eq!(
+            diagnostics.rejection_reasons.get("invalid XP flux value"),
+            Some(&1)
+        );
+    }
+
+    #[test]
+    fn candidate_mode_keeps_non_production_diagnostics_non_blocking() {
+        let args = test_args(false);
+        let diagnostics = Diagnostics {
+            production_mode: false,
+            metadata_rows: 2,
+            accepted_rows: 1,
+            rejected_rows: 1,
+            rejection_reasons: BTreeMap::from([("missing XP product".to_string(), 1)]),
+            ..Diagnostics::default()
+        };
+        assert!(production_failure(&args, &diagnostics).is_none());
+        assert_eq!(diagnostics.accepted_rows, 1);
+        assert_eq!(diagnostics.rejected_rows, 1);
+    }
+
+    #[test]
     fn shell_escape_escapes_quotes_and_newlines() {
         assert_eq!(shell_escape("a\"b\nc"), "a\\\"b\\nc");
     }
@@ -1170,5 +1250,29 @@ mod tests {
             parse_maybe_series("[330, 400 650]").unwrap(),
             vec![330.0, 400.0, 650.0]
         );
+    }
+
+    fn test_args(production: bool) -> Args {
+        Args {
+            out_dir: PathBuf::from("unused"),
+            max_g_mag: 20.0,
+            limit: None,
+            chunk_size: 5000,
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
+            tap_url: DEFAULT_TAP_URL.to_string(),
+            datalink_url: DEFAULT_DATALINK_URL.to_string(),
+            xp_retrieval: Some(XpRetrievalMode::NormalizedChunks),
+            datalink_template: None,
+            xp_dir: None,
+            license_policy_file: None,
+            validation_reference: None,
+            resume: false,
+            candidate: !production,
+            production,
+            dry_run: false,
+            skip_metadata_download: false,
+            skip_xp_download: false,
+        }
     }
 }

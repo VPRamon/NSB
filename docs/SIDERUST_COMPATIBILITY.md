@@ -2,33 +2,32 @@
 
 Status: Current dependency record for the release branch.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
-Scope: Siderust dependency source, lockfile revision, update rules, and release
+Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
-Non-goals: This document does not claim reproducible dependency resolution until
-the manifests use an immutable Siderust source.
+Non-goals: This document does not claim a Git revision for registry dependencies.
 
 ## Current State
 
-| NSB | Siderust package | Manifest source | Lockfile revision | Rust MSRV | Status |
+| NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.10.1 | `git` branch `gaia` | `36e62e0ad3630a4a325d762ff288a7a1d27b2f7c` | 1.89 | Development branch dependency |
+| 0.1.x | 0.11.0 | crates.io registry | `crates.io:siderust:0.11.0` | 1.89 | Locked registry dependency |
 
-All three workspace crates currently declare Siderust from the same Git branch:
+All three workspace crates currently declare Siderust from the same crates.io
+package release:
 
 ```toml
-siderust = { git = "https://github.com/Siderust/siderust", branch = "gaia", features = ["atmosphere", "photometry"] }
+siderust = { version = "0.11.0", features = ["atmosphere", "photometry"] }
 ```
 
-`Cargo.lock` records the resolved commit above for locked local builds. The
-manifest itself remains a moving branch dependency, so release documentation and
-distribution notes must not describe Siderust as pinned or immutable until the
-manifests change to a tag, crates.io release, or exact Git revision.
+`Cargo.lock` records the resolved crates.io package version and checksum.
+Release documentation and CLI metadata must use the source identity above and
+must not invent a Git revision for this dependency.
 
 ## Release Requirement
 
 A release that claims reproducible dependency resolution must satisfy all of:
 
-1. every workspace manifest uses the same immutable Siderust source;
+1. every workspace manifest uses the same Siderust source;
 2. `Cargo.lock` is committed and matches that source;
 3. `cargo deny check` passes with the locked graph;
 4. CLI version metadata and this matrix report the same dependency identity;

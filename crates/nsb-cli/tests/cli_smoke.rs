@@ -54,9 +54,10 @@ fn default_components_include_moonlight() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
     assert_eq!(value["version"]["model_version"], "nsb-model-2026.1");
+    assert_eq!(value["version"]["siderust_version"], "0.11.0");
     assert_eq!(
-        value["version"]["siderust_revision"],
-        "36e62e0ad3630a4a325d762ff288a7a1d27b2f7c"
+        value["version"]["siderust_source"],
+        "crates.io:siderust:0.11.0"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert!(value["version"]["data_assets"].as_array().unwrap().len() >= 5);
@@ -278,7 +279,7 @@ fn write_validated_fixture(map_path: &std::path::Path, manifest_path: &std::path
         let direction: Direction<Galactic> = grid.pixel_center(HealpixIndex::new(index)).unwrap();
         let latitude = direction.as_array()[2].asin().to_degrees().abs();
         let value = if latitude <= 10.0 { 2.0 } else { 1.0 };
-        source_flux += value * grid.pixel_area_deg2();
+        source_flux += value * grid.pixel_area_sr();
         map.push_str(&format!("{index},{value},{value},{value}\n"));
     }
     let checksum = format!("sha256:{}", to_hex(&sha256(map.as_bytes())));
@@ -305,9 +306,8 @@ map_sha256 = "{checksum}"
 validation_report = "test admission report"
 independent_comparison = "synthetic trusted reference fixture"
 flux_conservation_validated = true
-input_b_flux_sum = {source_flux:.17}
-input_v_flux_sum = {source_flux:.17}
-flux_conservation_tolerance = 0.000000001
+input_integrated_flux_sum = {source_flux:.17}
+integrated_flux_conservation_tolerance = 0.000000001
 
 [header]
 map_type = "healpix"
@@ -441,7 +441,7 @@ fn point_csv_v1_header_is_stable() {
     .assert()
     .success()
     .stdout(predicate::str::starts_with(
-        "schema_version,record_type,component,integrated_ph_cm2_ns_sr,b_s10_diagnostic,v_s10_diagnostic,b_mag_arcsec2_diagnostic,v_mag_arcsec2_diagnostic,relative_uncertainty,calibration_status,provenance,validated_domain,band_convention,nsb_version,model_version,siderust_revision,model_preset,asset_checksums",
+        "schema_version,record_type,component,integrated_ph_cm2_ns_sr,b_s10_diagnostic,v_s10_diagnostic,b_mag_arcsec2_diagnostic,v_mag_arcsec2_diagnostic,relative_uncertainty,calibration_status,provenance,validated_domain,band_convention,nsb_version,model_version,siderust_source,model_preset,asset_checksums",
     ));
 }
 

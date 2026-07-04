@@ -37,7 +37,7 @@ struct NsideSummary {
     nside: u32,
     pixels: u64,
     map_csv_bytes: u64,
-    packed_asset_bytes: u64,
+    release_csv_bytes: u64,
     generation_seconds: f64,
     pack_seconds: f64,
     runtime_load_seconds: f64,
@@ -90,8 +90,8 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
     let map = dir.join("starlight_map.csv");
     let diagnostics = dir.join("diagnostics.json");
     let validation = dir.join("validation.json");
-    let packed = dir.join("packed-candidate.bin.zst");
-    let manifest = dir.join("packed-candidate.manifest.toml");
+    let release = dir.join("starlight_map.release.csv");
+    let manifest = dir.join("starlight_map.release.toml");
 
     let started = Instant::now();
     cargo_tool(
@@ -154,7 +154,7 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
             "--validation".to_string(),
             path_str(&validation)?.to_string(),
             "--output".to_string(),
-            path_str(&packed)?.to_string(),
+            path_str(&release)?.to_string(),
             "--manifest".to_string(),
             path_str(&manifest)?.to_string(),
             "--candidate".to_string(),
@@ -168,7 +168,7 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
         nside,
         pixels: 12 * u64::from(nside) * u64::from(nside),
         map_csv_bytes: file_len(&map)?,
-        packed_asset_bytes: file_len(&packed)?,
+        release_csv_bytes: file_len(&release)?,
         generation_seconds,
         pack_seconds,
         runtime_load_seconds: 0.0,
@@ -200,14 +200,14 @@ fn recommend(summaries: &[NsideSummary]) -> Option<u32> {
     let n128 = summaries.iter().find(|summary| summary.nside == 128)?;
     let n64 = summaries.iter().find(|summary| summary.nside == 64)?;
     let n256 = summaries.iter().find(|summary| summary.nside == 256)?;
-    if n128.packed_asset_bytes > 0
+    if n128.release_csv_bytes > 0
         && n64.production_ready
-        && n64.packed_asset_bytes * 2 < n128.packed_asset_bytes
+        && n64.release_csv_bytes * 2 < n128.release_csv_bytes
     {
         Some(64)
     } else if n256.production_ready
         && n256.empty_pixels < n128.empty_pixels
-        && n256.packed_asset_bytes <= n128.packed_asset_bytes * 4
+        && n256.release_csv_bytes <= n128.release_csv_bytes * 4
     {
         Some(256)
     } else {

@@ -42,7 +42,7 @@ schema_version,record_type,component,integrated_ph_cm2_ns_sr,
 b_s10_diagnostic,v_s10_diagnostic,b_mag_arcsec2_diagnostic,
 v_mag_arcsec2_diagnostic,relative_uncertainty,calibration_status,
 provenance,validated_domain,band_convention,nsb_version,model_version,
-siderust_revision,model_preset,asset_checksums
+siderust_source,model_preset,asset_checksums
 ```
 
 ## Window CSV v1
@@ -51,7 +51,7 @@ Identifier in every row: `nsb-cli-window-csv-v1`.
 
 ```text
 schema_version,start_utc,end_utc,duration_seconds,components,nsb_version,
-model_version,siderust_revision,model_preset,asset_checksums
+model_version,siderust_source,model_preset,asset_checksums
 ```
 
 The `asset_checksums` field is a semicolon-separated `path=sha256` list. CSV

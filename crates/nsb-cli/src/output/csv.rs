@@ -3,7 +3,7 @@ use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
     assets::asset_registry, ComponentMask, NsbModelConfig, NsbResult, StarlightModel,
-    MODEL_VERSION, NSB_VERSION, SIDERUST_REVISION,
+    MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
 };
 use tempoch::{Period, UTC};
 
@@ -28,7 +28,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         "band_convention",
         "nsb_version",
         "model_version",
-        "siderust_revision",
+        "siderust_source",
         "model_preset",
         "asset_checksums",
     ])?;
@@ -53,7 +53,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
             component.metadata.band_diagnostic.convention.to_string(),
             NSB_VERSION.to_string(),
             MODEL_VERSION.to_string(),
-            SIDERUST_REVISION.to_string(),
+            SIDERUST_SOURCE.to_string(),
             config.site_profile.as_str().to_string(),
             assets.clone(),
         ])?;
@@ -74,7 +74,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         result.band_diagnostic.convention.to_string(),
         NSB_VERSION.to_string(),
         MODEL_VERSION.to_string(),
-        SIDERUST_REVISION.to_string(),
+        SIDERUST_SOURCE.to_string(),
         config.site_profile.as_str().to_string(),
         assets,
     ])?;
@@ -96,7 +96,7 @@ pub fn write_window(
         "components",
         "nsb_version",
         "model_version",
-        "siderust_revision",
+        "siderust_source",
         "model_preset",
         "asset_checksums",
     ])?;
@@ -113,7 +113,7 @@ pub fn write_window(
             component_names.clone(),
             NSB_VERSION.to_string(),
             MODEL_VERSION.to_string(),
-            SIDERUST_REVISION.to_string(),
+            SIDERUST_SOURCE.to_string(),
             config.site_profile.as_str().to_string(),
             assets.clone(),
         ])?;

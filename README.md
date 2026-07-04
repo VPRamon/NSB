@@ -99,7 +99,8 @@ Expected JSON contains these audit fields in addition to numeric results:
   "schema_version": "nsb-cli-point-json-v1",
   "version": {
     "model_version": "nsb-model-2026.1",
-    "siderust_revision": "36e62e0ad3630a4a325d762ff288a7a1d27b2f7c",
+    "siderust_version": "0.11.0",
+    "siderust_source": "crates.io:siderust:0.11.0",
     "asset_manifest_schema": 1
   },
   "model": { "preset": "ctao-south-planning" },
@@ -113,10 +114,10 @@ The stable CSV schemas are documented in [CLI schemas](docs/CLI_SCHEMAS.md).
 
 ## Reproducibility and assets
 
-Siderust 0.10.1 is declared from the `gaia` Git branch in the workspace
-manifests. `Cargo.lock` currently resolves revision
-`36e62e0ad3630a4a325d762ff288a7a1d27b2f7c`, but the manifest source is still a
-moving branch and must not be described as immutable release pinning.
+Siderust is declared consistently as the crates.io package
+`siderust = 0.11.0` in the workspace manifests. Public NSB metadata reports the
+source identity as `crates.io:siderust:0.11.0`; it does not expose a Git
+revision for the registry dependency.
 Compatibility and update policy are in
 [SIDERUST_COMPATIBILITY.md](docs/SIDERUST_COMPATIBILITY.md).
 

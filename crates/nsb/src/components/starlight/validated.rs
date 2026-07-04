@@ -14,9 +14,11 @@ const MANIFEST_SCHEMA_VERSION: u32 = 1;
 pub struct StarlightValidationDiagnostics {
     /// Number of complete HEALPix pixels.
     pub pixel_count: usize,
-    /// Mean V-S10 brightness ratio between the Galactic plane and poles.
+    /// Radiance field used by production validation.
+    pub radiance_field: &'static str,
+    /// Mean integrated-radiance brightness ratio between the Galactic plane and poles.
     pub plane_pole_ratio: f64,
-    /// Relative V-S10 jump across the Galactic longitude seam.
+    /// Relative integrated-radiance jump across the Galactic longitude seam.
     pub longitude_wrap_relative_jump: f64,
     /// Whether flux conservation was validated from recorded source totals.
     pub flux_conservation_recomputed: bool,
@@ -53,6 +55,8 @@ struct ExternalManifest {
     validation_report: String,
     independent_comparison: String,
     flux_conservation_validated: bool,
+    input_integrated_flux_sum: Option<f64>,
+    integrated_flux_conservation_tolerance: Option<f64>,
     input_b_flux_sum: Option<f64>,
     input_v_flux_sum: Option<f64>,
     flux_conservation_tolerance: Option<f64>,
@@ -89,6 +93,8 @@ impl ValidatedStarlightMap {
         let provenance = manifest.provenance(actual_checksum);
         let map = StarlightMap::from_csv_str(raw, provenance)?;
         let diagnostics = map.validate_production_diagnostics(
+            manifest.input_integrated_flux_sum,
+            manifest.integrated_flux_conservation_tolerance,
             manifest.input_b_flux_sum,
             manifest.input_v_flux_sum,
             manifest.flux_conservation_tolerance,
@@ -176,13 +182,29 @@ impl ExternalManifest {
                 "validated external starlight requires flux_conservation_validated=true",
             ));
         }
-        let supplied_flux_fields = [
+        let supplied_integrated_flux_fields = [
+            self.input_integrated_flux_sum.is_some(),
+            self.integrated_flux_conservation_tolerance.is_some(),
+        ];
+        if supplied_integrated_flux_fields.iter().any(|value| *value)
+            && !supplied_integrated_flux_fields.iter().all(|value| *value)
+        {
+            return Err(invalid(
+                "input_integrated_flux_sum and integrated_flux_conservation_tolerance must be supplied together",
+            ));
+        }
+        if self.input_integrated_flux_sum.is_none() {
+            return Err(invalid(
+                "validated external starlight requires integrated flux-conservation inputs",
+            ));
+        }
+        let supplied_legacy_flux_fields = [
             self.input_b_flux_sum.is_some(),
             self.input_v_flux_sum.is_some(),
             self.flux_conservation_tolerance.is_some(),
         ];
-        if supplied_flux_fields.iter().any(|value| *value)
-            && !supplied_flux_fields.iter().all(|value| *value)
+        if supplied_legacy_flux_fields.iter().any(|value| *value)
+            && !supplied_legacy_flux_fields.iter().all(|value| *value)
         {
             return Err(invalid(
                 "input_b_flux_sum, input_v_flux_sum, and flux_conservation_tolerance must be supplied together",
@@ -389,7 +411,7 @@ mod tests {
                 grid.pixel_center(HealpixIndex::new(index)).unwrap();
             let latitude = direction.as_array()[2].asin().to_degrees().abs();
             let value = if latitude <= 10.0 { 2.0 } else { 1.0 };
-            source_flux += value * grid.pixel_area_deg2();
+            source_flux += value * grid.pixel_area_sr();
             raw.push_str(&format!("{index},{value},{value},{value}\n"));
         }
         let checksum = format!("sha256:{}", to_hex(&sha256(raw.as_bytes())));
@@ -415,9 +437,8 @@ map_sha256 = "{checksum}"
 validation_report = "test admission report"
 independent_comparison = "synthetic trusted reference fixture"
 flux_conservation_validated = true
-input_b_flux_sum = {source_flux:.17}
-input_v_flux_sum = {source_flux:.17}
-flux_conservation_tolerance = 0.000000001
+input_integrated_flux_sum = {source_flux:.17}
+integrated_flux_conservation_tolerance = 0.000000001
 
 [header]
 map_type = "healpix"
@@ -452,6 +473,10 @@ independent_comparison = "synthetic trusted reference fixture"
         let (map, manifest) = fixture();
         let validated = ValidatedStarlightMap::from_bytes_and_manifest(&map, &manifest).unwrap();
         assert_eq!(validated.diagnostics().pixel_count, 768);
+        assert_eq!(
+            validated.diagnostics().radiance_field,
+            "integrated_ph_cm2_ns_sr"
+        );
         assert!(validated.diagnostics().plane_pole_ratio > 1.0);
         assert!(validated.diagnostics().longitude_wrap_relative_jump < 0.1);
         assert!(validated.diagnostics().flux_conservation_recomputed);

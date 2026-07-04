@@ -36,6 +36,11 @@ struct ValidationReport {
     diagnostics: Option<String>,
     pixel_count: usize,
     finite_nonnegative_pass: bool,
+    radiance_field: &'static str,
+    flux_conservation_pass: Option<bool>,
+    input_integrated_flux_sum_ph_cm2_ns: Option<f64>,
+    output_integrated_flux_sum_ph_cm2_ns: f64,
+    integrated_flux_conservation_tolerance: Option<f64>,
     plane_pole_pass: bool,
     longitude_wrap_pass: bool,
     longitude_wrap_metric: f64,
@@ -97,6 +102,13 @@ struct LongitudeWrapDiagnostics {
     control_pixel_count: usize,
 }
 
+#[derive(Debug, Deserialize)]
+struct BuildDiagnostics {
+    input_integrated_flux_sum_ph_cm2_ns: Option<f64>,
+    #[serde(default)]
+    integrated_flux_conservation_pass: Option<bool>,
+}
+
 fn main() -> Result<()> {
     run(Args::parse())
 }
@@ -105,6 +117,7 @@ fn run(args: Args) -> Result<()> {
     let raw = std::fs::read_to_string(&args.input)
         .with_context(|| format!("failed to read map {}", args.input.display()))?;
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture())?;
+    let build_diagnostics = read_build_diagnostics(args.diagnostics.as_ref())?;
     let finite_nonnegative_pass = map.pixels().iter().all(|pixel| {
         pixel.integrated.value().is_finite()
             && pixel.integrated.value() >= 0.0
@@ -112,6 +125,30 @@ fn run(args: Args) -> Result<()> {
             && pixel.b_flux_s10.value() >= 0.0
             && pixel.v_flux_s10.value().is_finite()
             && pixel.v_flux_s10.value() >= 0.0
+    });
+    let output_integrated_flux_sum_ph_cm2_ns = map
+        .pixels()
+        .iter()
+        .map(|pixel| pixel.integrated.value() * pixel.solid_angle_sr)
+        .sum::<f64>();
+    let integrated_flux_conservation_tolerance =
+        build_diagnostics.as_ref().and_then(|diagnostics| {
+            diagnostics
+                .input_integrated_flux_sum_ph_cm2_ns
+                .map(|_| 1.0e-9)
+        });
+    let flux_conservation_pass = build_diagnostics.as_ref().and_then(|diagnostics| {
+        diagnostics
+            .input_integrated_flux_sum_ph_cm2_ns
+            .map(|expected| {
+                integrated_flux_conservation_pass(
+                    output_integrated_flux_sum_ph_cm2_ns,
+                    expected,
+                    1.0e-9,
+                ) && diagnostics
+                    .integrated_flux_conservation_pass
+                    .unwrap_or(true)
+            })
     });
     let plane_pole_pass = integrated_plane_pole_pass(&map);
     let longitude_wrap = validate_longitude_wrap(&map);
@@ -123,6 +160,7 @@ fn run(args: Args) -> Result<()> {
         bail!("structured independent starlight comparison did not pass");
     }
     let production_ready = finite_nonnegative_pass
+        && flux_conservation_pass.unwrap_or(false)
         && plane_pole_pass
         && longitude_wrap.pass
         && independent_comparison_pass;
@@ -135,6 +173,9 @@ fn run(args: Args) -> Result<()> {
     }
     if !plane_pole_pass {
         limitations.push("integrated plane/pole contrast did not pass on this input".to_string());
+    }
+    if !flux_conservation_pass.unwrap_or(false) {
+        limitations.push("integrated flux conservation did not pass on this input".to_string());
     }
     if !longitude_wrap.pass {
         limitations.push("longitude seam/wrap diagnostic did not pass on this input".to_string());
@@ -149,6 +190,13 @@ fn run(args: Args) -> Result<()> {
             .map(|path| path.display().to_string()),
         pixel_count: map.pixels().len(),
         finite_nonnegative_pass,
+        radiance_field: "integrated_ph_cm2_ns_sr",
+        flux_conservation_pass,
+        input_integrated_flux_sum_ph_cm2_ns: build_diagnostics
+            .as_ref()
+            .and_then(|diagnostics| diagnostics.input_integrated_flux_sum_ph_cm2_ns),
+        output_integrated_flux_sum_ph_cm2_ns,
+        integrated_flux_conservation_tolerance,
         plane_pole_pass,
         longitude_wrap_pass: longitude_wrap.pass,
         longitude_wrap_metric: longitude_wrap.metric,
@@ -168,6 +216,25 @@ fn run(args: Args) -> Result<()> {
         )
     })?;
     Ok(())
+}
+
+fn read_build_diagnostics(path: Option<&PathBuf>) -> Result<Option<BuildDiagnostics>> {
+    let Some(path) = path else {
+        return Ok(None);
+    };
+    let raw = std::fs::read_to_string(path)
+        .with_context(|| format!("failed to read diagnostics {}", path.display()))?;
+    let diagnostics: BuildDiagnostics =
+        serde_json::from_str(&raw).context("failed to parse build diagnostics")?;
+    Ok(Some(diagnostics))
+}
+
+fn integrated_flux_conservation_pass(actual: f64, expected: f64, tolerance: f64) -> bool {
+    if !actual.is_finite() || !expected.is_finite() || !tolerance.is_finite() || tolerance < 0.0 {
+        return false;
+    }
+    let scale = actual.abs().max(expected.abs()).max(1.0);
+    (actual - expected).abs() / scale <= tolerance
 }
 
 fn validate_longitude_wrap(map: &StarlightMap) -> LongitudeWrapDiagnostics {
@@ -489,6 +556,54 @@ mod tests {
     }
 
     #[test]
+    fn integrated_only_map_can_be_production_ready_with_flux_diagnostics() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("map.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let reference = dir.path().join("reference.json");
+        let output = dir.path().join("validation.json");
+        let raw = rectangular_map_with_bv(1.0, 0.0, 0.0);
+        std::fs::write(&input, &raw)?;
+        std::fs::write(&diagnostics, diagnostics_json(0.22, true))?;
+        std::fs::write(&reference, reference_json(0.5, 2.0))?;
+        run(Args {
+            input,
+            diagnostics: Some(diagnostics),
+            reference: Some(reference),
+            output: output.clone(),
+            require_independent_comparison: true,
+        })?;
+        let report: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(output)?)?;
+        assert_eq!(report["radiance_field"], "integrated_ph_cm2_ns_sr");
+        assert_eq!(report["flux_conservation_pass"], true);
+        assert_eq!(report["production_ready"], true);
+        Ok(())
+    }
+
+    #[test]
+    fn integrated_flux_conservation_failure_blocks_production() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("map.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let reference = dir.path().join("reference.json");
+        let output = dir.path().join("validation.json");
+        std::fs::write(&input, rectangular_map_with_bv(1.0, 0.0, 0.0))?;
+        std::fs::write(&diagnostics, diagnostics_json(0.25, true))?;
+        std::fs::write(&reference, reference_json(0.5, 2.0))?;
+        run(Args {
+            input,
+            diagnostics: Some(diagnostics),
+            reference: Some(reference),
+            output: output.clone(),
+            require_independent_comparison: true,
+        })?;
+        let report: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(output)?)?;
+        assert_eq!(report["flux_conservation_pass"], false);
+        assert_eq!(report["production_ready"], false);
+        Ok(())
+    }
+
+    #[test]
     fn blind_boolean_reference_is_rejected_when_required() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let input = dir.path().join("map.csv");
@@ -590,6 +705,10 @@ mod tests {
     }
 
     fn rectangular_map(seam_value: f64) -> String {
+        rectangular_map_with_bv(seam_value, seam_value, seam_value)
+    }
+
+    fn rectangular_map_with_bv(seam_value: f64, b_s10: f64, v_s10: f64) -> String {
         let mut raw = String::from(
             "galactic_lon_deg,galactic_lat_deg,solid_angle_sr,integrated_ph_cm2_ns_sr,b_s10,v_s10\n",
         );
@@ -602,10 +721,20 @@ mod tests {
                 } else {
                     1.0
                 };
-                raw.push_str(&format!("{lon},{lat},0.01,{value},{value},{value}\n"));
+                raw.push_str(&format!("{lon},{lat},0.01,{value},{b_s10},{v_s10}\n"));
             }
         }
         raw
+    }
+
+    fn diagnostics_json(input_integrated_flux_sum: f64, pass: bool) -> String {
+        format!(
+            r#"{{
+  "input_integrated_flux_sum_ph_cm2_ns": {input_integrated_flux_sum},
+  "integrated_flux_conservation_pass": {pass}
+}}
+"#
+        )
     }
 
     fn reference_json(expected_min: f64, expected_max: f64) -> String {
