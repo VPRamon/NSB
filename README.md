@@ -150,8 +150,11 @@ cargo build --workspace --release --locked
 cargo deny check
 ```
 
-Benchmarks are scheduled/manual and cover point components, experimental
-starlight lookup, full composition, and window searches.
+`cargo test --workspace --all-targets` runs only a bounded benchmark smoke query.
+Full Criterion benchmarks are scheduled/manual through
+`cargo bench -p nsb --bench threshold_window` and cover point components,
+experimental starlight lookup, full composition, Moon/target edge cases, and
+window searches.
 
 ## Documentation
 

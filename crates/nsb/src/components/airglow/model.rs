@@ -1,5 +1,5 @@
 use super::calibration::{load_builtin_standard, AirglowContinuum};
-use super::continuum::evaluate_continuum;
+use super::continuum::{evaluate_continuum, evaluate_continuum_with_time_bin};
 use super::geometry::target_altitude;
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
@@ -86,6 +86,24 @@ impl Airglow {
             altitude,
             self.solar_radio_flux,
             self.scale,
+        ))
+    }
+
+    pub(crate) fn compute_with_time_of_night_bin(
+        &self,
+        time: Time<UTC>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+        time_bin: usize,
+    ) -> Result<AirglowOutputs> {
+        let altitude = target_altitude(time, self.location, target);
+        Ok(evaluate_continuum_with_time_bin(
+            &self.continuum,
+            time,
+            self.location,
+            altitude,
+            self.solar_radio_flux,
+            self.scale,
+            time_bin,
         ))
     }
 }

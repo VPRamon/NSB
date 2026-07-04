@@ -6,6 +6,10 @@ use tempoch::{Period, Time, MJD, UTC};
 
 const MAX_CROSSING_REFINEMENTS: usize = 24;
 const CROSSING_TOLERANCE_DAYS: f64 = 1.0e-5;
+const MAX_ADAPTIVE_SUBDIVISIONS: usize = 18;
+const MAX_ADAPTIVE_ACCEPT_SPAN_DAYS: f64 = 1.0;
+const SMOOTHNESS_SAFETY_FACTOR: f64 = 8.0;
+const SMOOTHNESS_RELATIVE_MARGIN: f64 = 1.0e-8;
 
 pub(super) fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
     ModifiedJulianDate::from(time.to::<TT>().to::<MJD>())
@@ -73,6 +77,39 @@ where
     Ok(periods)
 }
 
+pub(super) fn adaptive_above_threshold_periods<V, F>(
+    window: TimePeriod<ModifiedJulianDate>,
+    fallback_step: Days,
+    f: &F,
+    threshold: Quantity<V>,
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
+    if window.start >= window.end || fallback_step <= Days::new(0.0) {
+        return Ok(Vec::new());
+    }
+    if interval_width_days(window.start, window.end) <= 4.0 * fallback_step.value() {
+        return above_threshold_periods(window, fallback_step, f, threshold);
+    }
+
+    let start = threshold_sample(window.start, f, threshold)?;
+    let end = threshold_sample(window.end, f, threshold)?;
+    let mut periods = Vec::new();
+    collect_adaptive_above(
+        start,
+        end,
+        fallback_step.value(),
+        f,
+        threshold,
+        0,
+        &mut periods,
+    )?;
+    coalesce_periods(&mut periods);
+    Ok(periods)
+}
+
 pub(super) fn complement_periods(
     window: TimePeriod<ModifiedJulianDate>,
     periods: &[TimePeriod<ModifiedJulianDate>],
@@ -92,6 +129,156 @@ pub(super) fn complement_periods(
 
     push_non_empty_period(&mut out, cursor, window.end);
     out
+}
+
+#[derive(Clone, Copy)]
+struct ThresholdSample<V: Unit> {
+    time: ModifiedJulianDate,
+    value: Quantity<V>,
+    above: bool,
+}
+
+fn collect_adaptive_above<V, F>(
+    lo: ThresholdSample<V>,
+    hi: ThresholdSample<V>,
+    fallback_step_days: f64,
+    f: &F,
+    threshold: Quantity<V>,
+    depth: usize,
+    periods: &mut Vec<TimePeriod<ModifiedJulianDate>>,
+) -> Result<()>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
+    let width_days = interval_width_days(lo.time, hi.time);
+    if width_days <= 0.0 {
+        return Ok(());
+    }
+    if width_days <= fallback_step_days {
+        collect_terminal_pair(lo, hi, f, threshold, periods)?;
+        return Ok(());
+    }
+
+    let mid_time = midpoint_mjd(lo.time, hi.time);
+    if mid_time <= lo.time || mid_time >= hi.time {
+        collect_terminal_pair(lo, hi, f, threshold, periods)?;
+        return Ok(());
+    }
+
+    let mid = threshold_sample(mid_time, f, threshold)?;
+    if depth >= MAX_ADAPTIVE_SUBDIVISIONS || width_days <= 2.0 * CROSSING_TOLERANCE_DAYS {
+        collect_terminal_pair(lo, mid, f, threshold, periods)?;
+        collect_terminal_pair(mid, hi, f, threshold, periods)?;
+        return Ok(());
+    }
+
+    let same_side = lo.above == mid.above && mid.above == hi.above;
+    if same_side
+        && width_days <= MAX_ADAPTIVE_ACCEPT_SPAN_DAYS
+        && samples_are_smooth_and_clear(lo, mid, hi, threshold)
+    {
+        if lo.above {
+            push_non_empty_period(periods, lo.time, hi.time);
+        }
+        return Ok(());
+    }
+
+    collect_adaptive_above(
+        lo,
+        mid,
+        fallback_step_days,
+        f,
+        threshold,
+        depth + 1,
+        periods,
+    )?;
+    collect_adaptive_above(
+        mid,
+        hi,
+        fallback_step_days,
+        f,
+        threshold,
+        depth + 1,
+        periods,
+    )
+}
+
+fn collect_terminal_pair<V, F>(
+    lo: ThresholdSample<V>,
+    hi: ThresholdSample<V>,
+    f: &F,
+    threshold: Quantity<V>,
+    periods: &mut Vec<TimePeriod<ModifiedJulianDate>>,
+) -> Result<()>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
+    if hi.time <= lo.time {
+        return Ok(());
+    }
+    if lo.above != hi.above {
+        let crossing =
+            refine_threshold_crossing(lo.time, lo.value, hi.time, hi.value, f, threshold)?;
+        if lo.above {
+            push_non_empty_period(periods, lo.time, crossing);
+        } else {
+            push_non_empty_period(periods, crossing, hi.time);
+        }
+    } else if lo.above {
+        push_non_empty_period(periods, lo.time, hi.time);
+    }
+    Ok(())
+}
+
+fn threshold_sample<V, F>(
+    time: ModifiedJulianDate,
+    f: &F,
+    threshold: Quantity<V>,
+) -> Result<ThresholdSample<V>>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
+    let value = f(time)?;
+    Ok(ThresholdSample {
+        time,
+        value,
+        above: value > threshold,
+    })
+}
+
+fn samples_are_smooth_and_clear<V>(
+    lo: ThresholdSample<V>,
+    mid: ThresholdSample<V>,
+    hi: ThresholdSample<V>,
+    threshold: Quantity<V>,
+) -> bool
+where
+    V: Unit,
+{
+    let lo_value = lo.value.value();
+    let mid_value = mid.value.value();
+    let hi_value = hi.value.value();
+    if !lo_value.is_finite() || !mid_value.is_finite() || !hi_value.is_finite() {
+        return false;
+    }
+
+    let linear_mid = 0.5 * (lo_value + hi_value);
+    let curvature = (mid_value - linear_mid).abs();
+    let sample_min = lo_value.min(mid_value).min(hi_value);
+    let sample_max = lo_value.max(mid_value).max(hi_value);
+    let threshold_value = threshold.value();
+    let margin = if lo.above {
+        sample_min - threshold_value
+    } else {
+        threshold_value - sample_max
+    };
+    let required_margin = SMOOTHNESS_SAFETY_FACTOR * curvature
+        + SMOOTHNESS_RELATIVE_MARGIN * threshold_value.abs().max(1.0);
+
+    margin.is_finite() && margin > required_margin
 }
 
 fn refine_threshold_crossing<V, F>(
@@ -155,6 +342,10 @@ fn midpoint_mjd(lo: ModifiedJulianDate, hi: ModifiedJulianDate) -> ModifiedJulia
     ModifiedJulianDate::new(0.5 * (lo.raw().value() + hi.raw().value()))
 }
 
+fn interval_width_days(start: ModifiedJulianDate, end: ModifiedJulianDate) -> f64 {
+    end.raw().value() - start.raw().value()
+}
+
 fn add_days_clamped(
     time: ModifiedJulianDate,
     delta: Days,
@@ -174,6 +365,25 @@ fn push_non_empty_period(
     }
 }
 
+pub(super) fn coalesce_periods(periods: &mut Vec<TimePeriod<ModifiedJulianDate>>) {
+    if periods.len() <= 1 {
+        return;
+    }
+
+    periods.sort_by(|lhs, rhs| lhs.start.raw().value().total_cmp(&rhs.start.raw().value()));
+    let mut out: Vec<TimePeriod<ModifiedJulianDate>> = Vec::with_capacity(periods.len());
+    for period in periods.drain(..) {
+        if let Some(last) = out.last_mut() {
+            if period.start <= last.end {
+                last.end = last.end.max(period.end);
+                continue;
+            }
+        }
+        out.push(period);
+    }
+    *periods = out;
+}
+
 pub(super) fn tt_mjd_period_to_utc(
     window: TimePeriod<ModifiedJulianDate>,
     query_window_tt: TimePeriod<ModifiedJulianDate>,
@@ -190,4 +400,79 @@ pub(super) fn tt_mjd_period_to_utc(
         tt_mjd_to_utc_time(window.end)
     };
     Period::new(start, end)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+    use std::cell::Cell;
+
+    fn test_window() -> TimePeriod<ModifiedJulianDate> {
+        TimePeriod::new(
+            ModifiedJulianDate::new(60_000.0),
+            ModifiedJulianDate::new(60_001.0),
+        )
+    }
+
+    #[test]
+    fn adaptive_search_accepts_clear_smooth_intervals_with_fewer_samples() {
+        let window = test_window();
+        let threshold = BandPhotonRadiance::new(1.0);
+        let step = Days::new(1.0 / 144.0);
+
+        let adaptive_calls = Cell::new(0);
+        let adaptive = adaptive_above_threshold_periods(
+            window,
+            step,
+            &|time| {
+                adaptive_calls.set(adaptive_calls.get() + 1);
+                let dt = time.raw().value() - 60_000.5;
+                Ok(BandPhotonRadiance::new(0.2 + 0.001 * dt * dt))
+            },
+            threshold,
+        )
+        .unwrap();
+
+        let scan_calls = Cell::new(0);
+        let scan = above_threshold_periods(
+            window,
+            step,
+            &|time| {
+                scan_calls.set(scan_calls.get() + 1);
+                let dt = time.raw().value() - 60_000.5;
+                Ok(BandPhotonRadiance::new(0.2 + 0.001 * dt * dt))
+            },
+            threshold,
+        )
+        .unwrap();
+
+        assert!(adaptive.is_empty());
+        assert!(scan.is_empty());
+        assert!(
+            adaptive_calls.get() * 10 < scan_calls.get(),
+            "adaptive calls {}, scan calls {}",
+            adaptive_calls.get(),
+            scan_calls.get()
+        );
+    }
+
+    #[test]
+    fn adaptive_search_refines_bracketed_crossings_with_exact_evaluations() {
+        let window = test_window();
+        let threshold = BandPhotonRadiance::new(0.5);
+        let step = Days::new(1.0);
+
+        let periods = adaptive_above_threshold_periods(
+            window,
+            step,
+            &|time| Ok(BandPhotonRadiance::new(time.raw().value() - 60_000.0)),
+            threshold,
+        )
+        .unwrap();
+
+        assert_eq!(periods.len(), 1);
+        assert!((periods[0].start.raw().value() - 60_000.5).abs() <= CROSSING_TOLERANCE_DAYS);
+        assert_eq!(periods[0].end, window.end);
+    }
 }
