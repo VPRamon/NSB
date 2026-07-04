@@ -2,8 +2,8 @@
 //!
 //! Computes the photon flux reaching a ground-based observer from a configurable
 //! sum of zodiacal light, integrated starlight, airglow, and scattered moonlight.
-//! Integrated starlight requires an explicit starlight map configuration until a
-//! production catalogue-derived bundled map is shipped.
+//! Integrated starlight is included in defaults only when the build embeds a
+//! validated production catalogue-derived map.
 //!
 //! The library API is intentionally typed and CLI-free: callers pass
 //! `Geodetic<ECEF>` observers, `Time<UTC>` instants, and equatorial target

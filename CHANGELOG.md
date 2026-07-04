@@ -8,7 +8,8 @@ once a stable public release is cut.
 ### Changed
 
 - Made library `ALL`, library `DEFAULT`, and CLI `all` the same production-safe
-  three-component set.
+  set, with starlight included only when a validated bundled production asset is
+  embedded at build time.
 - Renamed the bundled starlight path as an experimental seed and made access
   explicitly opt-in.
 - Cached parsed starlight and shared airglow calibration state inside
@@ -29,6 +30,9 @@ once a stable public release is cut.
   HEALPix map generation path, validation report command, and candidate asset
   packer. The real bundled production asset remains pending real Gaia
   extraction and independent validation.
+- Build-script plumbing for the Gaia DR3 bundled production starlight CSV/TOML:
+  exactly one registered production release pair is checksum-embedded and loaded
+  through the runtime validated-map contract; absent assets fail closed.
 - Versioned scientific asset manifest and checksum/header verifier.
 - Independent published KS91 validation fixture with units and tolerance.
 - Point/component/window benchmarks and scheduled/manual benchmark workflow.

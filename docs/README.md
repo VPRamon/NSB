@@ -48,8 +48,10 @@ science requirements
 | [Gaia DR3 starlight ADQL query](queries/gaia_dr3_starlight_extract.adql) | Maintainers | Records the Gaia DR3 source-selection query used by the release input workflow. |
 
 The bundled manual starlight seed is experimental. `ComponentMask::ALL` and CLI
-`--components all` exclude starlight unless the caller also selects an explicit
-starlight mode.
+`--components all` include starlight only when a reviewed Gaia DR3 XP production
+CSV and runtime manifest are registered as embedded production assets. Until
+then, explicit `starlight` requests fail closed unless a validated external map
+and manifest override are supplied.
 
 ## CLI And Output Contracts
 

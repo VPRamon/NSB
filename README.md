@@ -12,23 +12,28 @@ generic/planning model, not a site-calibrated CTAO product.
 ## Model contract
 
 `ComponentMask::ALL`, `ComponentMask::DEFAULT`, and CLI `--components all` are
-identical:
+identical. In the current repository, before the Gaia DR3 production pair is
+committed, they contain:
 
 - zodiacal light;
 - airglow continuum;
 - scattered moonlight.
 
-Integrated starlight is outside that set. The repository contains a
-low-resolution manual seed only for pipeline and lookup tests. Library users
-must opt into `StarlightModel::bundled_experimental_seed()` for that seed.
-Production starlight currently uses `StarlightModel::validated_external(...)`,
-which can only be constructed from a checksum-pinned map and complete validation
-sidecar. A maintainer-only Gaia DR3 XP release pipeline can derive a bundled map
-candidate from local Gaia extracts, but raw Gaia rows are not embedded and the
-bundled Gaia asset remains pending until release validation and independent
-comparison evidence are complete. CLI `starlight` requires both
-`--starlight-map` and `--starlight-manifest`; `experimental-starlight` names
-only the seed. There is no fallback between them.
+When a reviewed Gaia DR3 XP production release CSV and runtime manifest are
+registered under `crates/nsb/data/manifest.toml`, the `nsb` build script embeds
+both files and `ComponentMask::ALL` / CLI `--components all` include production
+starlight. Until then, bundled production starlight fails closed with a missing
+asset error.
+
+The repository contains a low-resolution manual seed only for pipeline and
+lookup tests. Library users must opt into
+`StarlightModel::bundled_experimental_seed()` for that seed. Production
+starlight uses either `StarlightModel::bundled_production_gaia_dr3()` or
+`StarlightModel::validated_external(...)`, which can only be constructed from a
+checksum-pinned map and complete validation sidecar. CLI `starlight` selects the
+bundled production map by default; `--starlight-map` plus
+`--starlight-manifest` provide a validated external override.
+`experimental-starlight` names only the seed. There is no fallback between them.
 
 | Component | Default implementation | Maturity |
 |---|---|---|
@@ -36,7 +41,7 @@ only the seed. There is no fallback between them.
 | Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic or planning preset |
 | Moonlight | Jones et al. (2013) spectral model | Generic or planning preset |
 | KS91 moonlight | Published analytic V-band alternate | Published reference |
-| Integrated starlight | Validated external map, future bundled Gaia-derived map, or bundled manual seed | Production only when sidecar admission passes or Gaia asset validation is complete; otherwise experimental; non-default |
+| Integrated starlight | Bundled Gaia-derived map, validated external override, or bundled manual seed | Production only when sidecar admission passes or Gaia asset validation is complete; otherwise experimental; default only after bundled Gaia asset is embedded |
 | CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning preset, not calibrated |
 
 The integrated output is photon radiance over 300–650 nm. B/V S10 and magnitude
@@ -74,7 +79,7 @@ let result = evaluator.evaluate(&PointQuery {
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
     components: ComponentMask::ALL,
 })?;
-assert_eq!(result.components.len(), 3);
+assert!(result.components.len() >= 3);
 # Ok(())
 # }
 ```
@@ -132,8 +137,10 @@ cargo run --locked -p nsb-data-tools --bin verify_assets -- \
 
 The manifest honestly records provenance gaps in inherited files. Such gaps
 prevent a component from being promoted to calibrated production science.
-Externally supplied production starlight is not a bundled asset and therefore
-uses its own strict sidecar contract documented in
+Bundled production starlight is generated offline and embedded only when the
+derived release CSV and runtime manifest are registered as production assets.
+Externally supplied production starlight uses the same strict sidecar admission
+contract documented in
 [external starlight manifests](docs/EXTERNAL_STARLIGHT_MANIFEST.md).
 
 ## Quality gates

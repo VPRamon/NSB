@@ -27,6 +27,10 @@ csv       = "1"
 serde     = { version = "1", features = ["derive"] }
 toml      = "1.1.2"
 
+[build-dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "1.1.2"
+
 [dev-dependencies]
 approx = "0.5"
 criterion = { version = "0.8", default-features = false, features = ["html_reports"] }

@@ -71,9 +71,12 @@ fn default_components_include_moonlight() {
     assert!(components
         .iter()
         .any(|component| component["name"] == "moon"));
-    assert!(!components
-        .iter()
-        .any(|component| component["name"] == "starlight"));
+    assert_eq!(
+        components
+            .iter()
+            .any(|component| component["name"] == "starlight"),
+        nsb::Starlight::bundled_production_available()
+    );
 }
 
 #[test]
@@ -123,26 +126,30 @@ fn invalid_nsb_range_errors() {
 }
 
 #[test]
-fn validated_starlight_requires_map_and_manifest() {
+fn starlight_uses_bundled_production_or_reports_missing_asset() {
     let mut cmd = Command::cargo_bin("nsb").unwrap();
-    cmd.args([
-        "point",
-        "--time",
-        "2026-06-18T23:00:00Z",
-        "--site",
-        "CTAO-S",
-        "--ra",
-        "83.0",
-        "--dec",
-        "22.0",
-        "--components",
-        "starlight",
-    ])
-    .assert()
-    .failure()
-    .stderr(predicate::str::contains(
-        "validated starlight requires --starlight-map and --starlight-manifest",
-    ));
+    let assertion = cmd
+        .args([
+            "point",
+            "--time",
+            "2026-06-18T23:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--components",
+            "starlight",
+        ])
+        .assert();
+    if nsb::Starlight::bundled_production_available() {
+        assertion.success();
+    } else {
+        assertion.failure().stderr(predicate::str::contains(
+            "bundled production starlight asset is not registered",
+        ));
+    }
 }
 
 #[test]
@@ -477,7 +484,15 @@ fn window_json_v1_contains_audit_metadata() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-window-json-v1");
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
-    assert_eq!(value["component_metadata"].as_array().unwrap().len(), 3);
+    let expected_component_count = if nsb::Starlight::bundled_production_available() {
+        4
+    } else {
+        3
+    };
+    assert_eq!(
+        value["component_metadata"].as_array().unwrap().len(),
+        expected_component_count
+    );
 }
 
 #[test]

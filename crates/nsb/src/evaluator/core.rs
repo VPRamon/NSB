@@ -44,6 +44,9 @@ impl NsbEvaluator {
         let zodiacal = ZodiacalLight::leinert1998()?.with_extinction(config.zodiacal_extinction);
         let starlight = match config.starlight_model.as_ref() {
             None => None,
+            Some(StarlightModel::BundledProductionGaiaDr3) => {
+                Some(starlight::Starlight::bundled_production_model()?)
+            }
             Some(StarlightModel::BundledExperimentalSeed) => {
                 Some(starlight::Starlight::experimental_seed_model()?)
             }
@@ -406,7 +409,8 @@ impl NsbEvaluator {
             NsbError::Unsupported(
                 concat!(
                     "starlight component requested but no starlight model is configured; ",
-                    "provide a validated map with StarlightModel::validated_external(...), or ",
+                    "provide a validated map with StarlightModel::validated_external(...), ",
+                    "use StarlightModel::bundled_production_gaia_dr3(), or ",
                     "explicitly opt into StarlightModel::bundled_experimental_seed()"
                 )
                 .to_string(),

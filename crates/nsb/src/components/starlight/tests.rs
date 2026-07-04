@@ -68,6 +68,25 @@ fn experimental_seed_is_explicitly_labelled() {
 }
 
 #[test]
+fn bundled_production_model_is_available_only_with_registered_release_assets() {
+    if Starlight::bundled_production_available() {
+        let model = Starlight::bundled_production_model().unwrap();
+        let provenance = model.map().provenance();
+        assert_eq!(provenance.calibration_status.as_deref(), Some("production"));
+        assert_eq!(
+            provenance.photometry_model.as_deref(),
+            Some("gaia_dr3_xp_photon_radiance_330_650nm_v1")
+        );
+        assert!(model.map().pixels().len() > 12);
+    } else {
+        let error = Starlight::bundled_production_model().unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("bundled production starlight asset is not registered"));
+    }
+}
+
+#[test]
 fn healpix_csv_fixture_loads_from_test_data_only() {
     let map =
         StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();

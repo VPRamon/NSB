@@ -2,6 +2,8 @@ use super::map::StarlightMap;
 use super::output::StarlightOutputs;
 use super::photometry::scale_outputs;
 use super::provenance::StarlightProvenance;
+#[cfg(nsb_bundled_production_starlight)]
+use super::validated::ValidatedStarlightMap;
 use crate::assets::asset_registry;
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
@@ -18,6 +20,8 @@ siderust::assert_data_checksum!(
     BUNDLED_EXPERIMENTAL_SEED.as_bytes(),
     "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
 );
+
+include!(concat!(env!("OUT_DIR"), "/bundled_starlight_assets.rs"));
 
 #[derive(Debug, Clone)]
 /// Directional starlight evaluator backed by one immutable map.
@@ -43,6 +47,37 @@ impl Starlight {
     /// Return provenance from the checksum-verified bundled seed.
     pub fn bundled_experimental_provenance() -> Result<StarlightProvenance> {
         Ok(Self::experimental_seed_model()?.map().provenance().clone())
+    }
+
+    /// Return whether a validated production Gaia DR3 starlight map is bundled.
+    pub const fn bundled_production_available() -> bool {
+        BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE
+    }
+
+    /// Load the bundled production Gaia DR3 XP-derived starlight map.
+    ///
+    /// This succeeds only when a release CSV and runtime manifest are both
+    /// registered in `crates/nsb/data/manifest.toml`, checksum-pinned, embedded
+    /// by the build script, and admitted by [`ValidatedStarlightMap`].
+    #[cfg(nsb_bundled_production_starlight)]
+    pub fn bundled_production_model() -> Result<Self> {
+        verify_production_registry()?;
+        let validated = ValidatedStarlightMap::from_bytes_and_manifest(
+            BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
+            BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
+        )?;
+        Ok(Self::with_map(validated.map().clone()))
+    }
+
+    /// Report a missing bundled production starlight asset.
+    #[cfg(not(nsb_bundled_production_starlight))]
+    pub fn bundled_production_model() -> Result<Self> {
+        Err(missing_bundled_production_asset())
+    }
+
+    /// Return provenance from the checksum-verified bundled production map.
+    pub fn bundled_production_provenance() -> Result<StarlightProvenance> {
+        Ok(Self::bundled_production_model()?.map().provenance().clone())
     }
 
     /// Build from a caller-provided validated map.
@@ -74,6 +109,59 @@ impl Starlight {
     pub fn map(&self) -> &StarlightMap {
         &self.map
     }
+}
+
+fn missing_bundled_production_asset() -> NsbError {
+    NsbError::DataMissing {
+        file: "data/manifest.toml",
+        message: concat!(
+            "bundled production starlight asset is not registered; generate and commit ",
+            "the Gaia DR3 XP nside=128 release CSV and runtime manifest, then register both ",
+            "as runtime_embedded production assets"
+        )
+        .to_string(),
+    }
+}
+
+#[cfg(nsb_bundled_production_starlight)]
+fn verify_production_registry() -> Result<()> {
+    verify_registered_asset(
+        BUNDLED_PRODUCTION_STARLIGHT_MAP_PATH,
+        BUNDLED_PRODUCTION_STARLIGHT_MAP_SHA256,
+        "nsb-healpix-starlight-v1",
+    )?;
+    verify_registered_asset(
+        BUNDLED_PRODUCTION_STARLIGHT_MANIFEST_PATH,
+        BUNDLED_PRODUCTION_STARLIGHT_MANIFEST_SHA256,
+        "nsb-starlight-runtime-manifest-v1",
+    )
+}
+
+#[cfg(nsb_bundled_production_starlight)]
+fn verify_registered_asset(
+    path: &'static str,
+    sha256: &'static str,
+    schema: &'static str,
+) -> Result<()> {
+    let asset = asset_registry()
+        .asset(path)
+        .ok_or_else(|| NsbError::DataMissing {
+            file: "data/manifest.toml",
+            message: format!("missing registry entry for {path}"),
+        })?;
+    if asset.sha256 != sha256
+        || asset.schema != schema
+        || !asset.calibration_status.eq_ignore_ascii_case("production")
+        || !asset.runtime_embedded
+    {
+        return Err(NsbError::DataParse {
+            file: "data/manifest.toml",
+            message: format!(
+                "production starlight registry metadata does not match embedded asset {path}"
+            ),
+        });
+    }
+    Ok(())
 }
 
 fn verify_experimental_seed_registry() -> Result<()> {

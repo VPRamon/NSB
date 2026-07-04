@@ -7,8 +7,8 @@
 
 use chrono::{DateTime, Duration, Utc};
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap, StarlightModel,
-    StarlightProvenance, Target, ThresholdQuery, DEG,
+    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, Starlight, StarlightMap,
+    StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -68,6 +68,14 @@ fn fixture_starlight_map() -> StarlightMap {
     .expect("starlight fixture")
 }
 
+fn expected_all_components() -> &'static [&'static str] {
+    if Starlight::bundled_production_available() {
+        &["zodiacal", "starlight", "airglow", "moon"]
+    } else {
+        &["zodiacal", "airglow", "moon"]
+    }
+}
+
 #[test]
 fn production_all_matches_reference_envelopes() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
@@ -79,7 +87,7 @@ fn production_all_matches_reference_envelopes() {
             components: ComponentMask::ALL,
             accepted_min: 1.0e-8,
             accepted_max: 1.0e9,
-            expected_components: &["zodiacal", "airglow", "moon"],
+            expected_components: expected_all_components(),
         },
         ReferenceEnvelope {
             name: "near Galactic plane planning field",
@@ -88,7 +96,7 @@ fn production_all_matches_reference_envelopes() {
             components: ComponentMask::ALL,
             accepted_min: 1.0e-8,
             accepted_max: 1.0e9,
-            expected_components: &["zodiacal", "airglow", "moon"],
+            expected_components: expected_all_components(),
         },
         ReferenceEnvelope {
             name: "bright-Moon field",
@@ -97,7 +105,7 @@ fn production_all_matches_reference_envelopes() {
             components: ComponentMask::ALL,
             accepted_min: 1.0e-8,
             accepted_max: 1.0e12,
-            expected_components: &["zodiacal", "airglow", "moon"],
+            expected_components: expected_all_components(),
         },
         ReferenceEnvelope {
             name: "astronomical-twilight boundary",
@@ -106,7 +114,7 @@ fn production_all_matches_reference_envelopes() {
             components: ComponentMask::ALL,
             accepted_min: 1.0e-8,
             accepted_max: 1.0e12,
-            expected_components: &["zodiacal", "airglow", "moon"],
+            expected_components: expected_all_components(),
         },
     ];
 

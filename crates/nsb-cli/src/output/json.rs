@@ -235,6 +235,7 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
         moonlight_model: config.moonlight_model.as_str(),
         starlight_model: match config.starlight_model.as_ref() {
             None => "not-configured-non-production-component",
+            Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
             Some(StarlightModel::BundledExperimentalSeed) => "experimental-starlight",
             Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
             Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
@@ -293,6 +294,7 @@ fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str 
 
 fn starlight_label(config: &NsbModelConfig) -> &'static str {
     match config.starlight_model.as_ref() {
+        Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
         Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         Some(StarlightModel::BundledExperimentalSeed)
         | Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",

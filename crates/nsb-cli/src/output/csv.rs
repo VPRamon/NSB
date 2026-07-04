@@ -176,6 +176,7 @@ fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str 
 
 fn starlight_label(config: &NsbModelConfig) -> &'static str {
     match config.starlight_model.as_ref() {
+        Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
         Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         Some(StarlightModel::BundledExperimentalSeed)
         | Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",

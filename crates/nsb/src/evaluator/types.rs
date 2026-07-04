@@ -17,9 +17,8 @@ use tempoch::{Period, Time, UTC};
 bitflags::bitflags! {
     /// Components that can be composed by [`NsbEvaluator`](super::NsbEvaluator).
     ///
-    /// [`Self::ALL`] is the complete production-safe default set. Integrated
-    /// starlight is intentionally opt-in while the bundled seed remains an
-    /// experimental, incomplete catalogue product.
+    /// [`Self::ALL`] is the complete production-safe default set. It includes
+    /// starlight only when a validated production map is bundled at build time.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ComponentMask: u8 {
         /// Zodiacal-light component.
@@ -32,6 +31,13 @@ bitflags::bitflags! {
         const MOON      = 0b1000;
 
         /// Production-safe default component composition.
+        #[cfg(nsb_bundled_production_starlight)]
+        const DEFAULT   = Self::ZODIACAL.bits()
+                        | Self::STARLIGHT.bits()
+                        | Self::AIRGLOW.bits()
+                        | Self::MOON.bits();
+        /// Production-safe default component composition.
+        #[cfg(not(nsb_bundled_production_starlight))]
         const DEFAULT   = Self::ZODIACAL.bits()
                         | Self::AIRGLOW.bits()
                         | Self::MOON.bits();
@@ -160,6 +166,8 @@ impl MoonlightModel {
 #[derive(Debug, Clone)]
 /// Explicit starlight data-product selection.
 pub enum StarlightModel {
+    /// Use the validated bundled Gaia DR3 XP-derived production map.
+    BundledProductionGaiaDr3,
     /// Use the bundled low-resolution seed for experiments and plumbing tests.
     ///
     /// This asset is incomplete and must not be represented as production
@@ -172,6 +180,11 @@ pub enum StarlightModel {
 }
 
 impl StarlightModel {
+    /// Select the bundled production Gaia DR3 XP-derived map.
+    pub fn bundled_production_gaia_dr3() -> Self {
+        Self::BundledProductionGaiaDr3
+    }
+
     /// Select the bundled manual seed for experiments only.
     pub fn bundled_experimental_seed() -> Self {
         Self::BundledExperimentalSeed
@@ -209,7 +222,7 @@ impl NsbModelConfig {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
             site_profile: SiteProfileId::GenericClearSky,
-            starlight_model: None,
+            starlight_model: default_starlight_model(),
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
             zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
         }
@@ -242,6 +255,16 @@ impl Default for NsbModelConfig {
     fn default() -> Self {
         Self::generic_clear_sky()
     }
+}
+
+#[cfg(nsb_bundled_production_starlight)]
+fn default_starlight_model() -> Option<StarlightModel> {
+    Some(StarlightModel::BundledProductionGaiaDr3)
+}
+
+#[cfg(not(nsb_bundled_production_starlight))]
+fn default_starlight_model() -> Option<StarlightModel> {
+    None
 }
 
 #[derive(Debug, Clone, Copy)]
