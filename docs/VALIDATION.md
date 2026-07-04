@@ -25,6 +25,27 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | Jones spectral fixture | inherited darknsb regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |
 | CTAO-N/S | explicit assumptions only | atmosphere and airglow profile | none | Data limitation |
 
+## Threshold Window Contract
+
+Threshold-window search uses prepared physical intervals to reduce repeated
+event work:
+
+- Sun-altitude and target-visible periods define candidate windows;
+- astronomical-night periods define airglow time-of-night bins during threshold
+  sampling;
+- Moon-up periods skip moonlight evaluation only when the Moon is below the
+  horizon by the same Siderust event machinery used elsewhere.
+
+These intervals are search acceleration, not replacement science. When a sample
+or crossing is evaluated inside a relevant interval, NSB calls the exact
+component evaluator. Candidate windows are further split at airglow phase and
+Moon-visibility boundaries before adaptive search, so no smoothness assumption
+crosses a physical regime boundary. Adaptive acceptance is limited to exact
+samples that are clear of the threshold; short or unclear intervals use the
+bounded scan fallback. Boundary refinements remain bounded by the documented
+event/crossing tolerance; changes larger than that are treated as implementation
+defects unless a reviewed upstream event-refinement change explains them.
+
 ## Independent reference fixture
 
 `crates/nsb/tests/data/external_reference_cases.csv` stores source, locator,

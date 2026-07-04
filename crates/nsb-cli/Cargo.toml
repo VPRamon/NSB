@@ -25,7 +25,7 @@ toml = "1.1.2"
 
 qtty = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch = "0.6"
-siderust = { git = "https://github.com/Siderust/siderust", branch = "gaia", features = ["atmosphere", "photometry"] }
+siderust = { version = "0.11.0" , features = ["atmosphere", "photometry"] }
 
 [dev-dependencies]
 assert_cmd = "2"

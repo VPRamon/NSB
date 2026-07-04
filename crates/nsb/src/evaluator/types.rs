@@ -11,6 +11,7 @@ use qtty::Second;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
+use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 use tempoch::{Period, Time, UTC};
 
 bitflags::bitflags! {
@@ -250,10 +251,17 @@ pub(super) struct PreparedPointQuery {
     pub(super) components: ComponentMask,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(super) struct PreparedThresholdQuery {
     pub(super) observer: Observer,
     pub(super) target: Target,
     pub(super) components: ComponentMask,
     pub(super) starlight_integrated: BandPhotonRadiance,
+    pub(super) tt_window: TimePeriod<ModifiedJulianDate>,
+    pub(super) sun_filter_periods: Vec<TimePeriod<ModifiedJulianDate>>,
+    pub(super) astronomical_night_periods: Vec<airglow::temporal::AstronomicalNightPeriod>,
+    pub(super) target_visible_periods: Vec<TimePeriod<ModifiedJulianDate>>,
+    pub(super) candidate_windows: Vec<TimePeriod<ModifiedJulianDate>>,
+    pub(super) airglow_phase_periods: Vec<airglow::temporal::AirglowPhasePeriod>,
+    pub(super) moon_visible_periods: Option<Vec<TimePeriod<ModifiedJulianDate>>>,
 }
