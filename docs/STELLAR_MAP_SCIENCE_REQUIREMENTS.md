@@ -25,7 +25,9 @@ metadata exposed to users.
 Release-blocking requirements:
 
 1. Gaia DR3 source catalogue with recorded release, license/policy, row count,
-   and SHA-256.
+   and SHA-256. Production source selection must require
+   `has_xp_sampled = 'true'`, `duplicated_source = 'false'`, finite
+   coordinates/ref epoch, and the reviewed `phot_g_mean_mag` cut.
 2. Raw Gaia extracts are release artifacts only and are not embedded in `nsb`.
 3. Photometry model is `gaia_dr3_xp_photon_radiance_330_650nm_v1`.
 4. Wavelength band is 330-650 nm unless an explicitly validated extension is
@@ -40,7 +42,7 @@ Release-blocking requirements:
    where feasible, and independent astrophysical comparison.
 9. Production metadata rejects proxy, experimental, placeholder, manual-seed,
    or missing validation evidence.
-10. `ComponentMask::ALL` remains conservative until a real bundled production
-    asset and validation report are present.
+10. `ComponentMask::ALL` may include starlight only after a real bundled
+    production asset and validation report are present.
 
 The existing manual seed remains an experimental fixture for plumbing tests.

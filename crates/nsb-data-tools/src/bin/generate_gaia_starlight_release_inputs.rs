@@ -333,7 +333,7 @@ impl Paths {
 
 fn build_adql(max_g_mag: f64, limit: Option<usize>) -> String {
     let top = limit.map(|n| format!("TOP {n} ")).unwrap_or_default();
-    format!("SELECT {top}\n  source_id,\n  ra,\n  dec,\n  ref_epoch,\n  pmra,\n  pmdec,\n  parallax,\n  radial_velocity,\n  phot_g_mean_mag,\n  phot_bp_mean_mag,\n  phot_rp_mean_mag,\n  duplicated_source\nFROM gaiadr3.gaia_source\nWHERE duplicated_source = 'false'\n  AND phot_g_mean_mag IS NOT NULL\n  AND ra IS NOT NULL\n  AND dec IS NOT NULL\n  AND ref_epoch IS NOT NULL\n  AND phot_g_mean_mag <= {max_g_mag}\n")
+    format!("SELECT {top}\n  source_id,\n  ra,\n  dec,\n  ref_epoch,\n  pmra,\n  pmdec,\n  parallax,\n  radial_velocity,\n  phot_g_mean_mag,\n  phot_bp_mean_mag,\n  phot_rp_mean_mag,\n  duplicated_source,\n  has_xp_sampled\nFROM gaiadr3.gaia_source\nWHERE duplicated_source = 'false'\n  AND has_xp_sampled = 'true'\n  AND phot_g_mean_mag IS NOT NULL\n  AND ra IS NOT NULL\n  AND dec IS NOT NULL\n  AND ref_epoch IS NOT NULL\n  AND phot_g_mean_mag <= {max_g_mag}\n")
 }
 
 fn print_dry_run(args: &Args, paths: &Paths, adql: &str) {
@@ -1166,6 +1166,7 @@ mod tests {
         let adql = build_adql(12.5, Some(42));
         assert!(adql.contains("SELECT TOP 42"));
         assert!(adql.contains("phot_g_mean_mag <= 12.5"));
+        assert!(adql.contains("has_xp_sampled = 'true'"));
     }
 
     #[test]

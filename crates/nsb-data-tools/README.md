@@ -21,8 +21,8 @@ Offline, non-runtime tools for scientific data products.
 - `sweep_starlight_nside`: runs candidate map builds for multiple HEALPix
   resolutions and writes a summary used to choose the final bundled resolution.
 - `validate_starlight_map`: emits a validation report for generated maps.
-- `pack_starlight_asset`: frames a generated map and writes a checksum manifest
-  for a derived bundled asset candidate or production asset.
+- `pack_starlight_asset`: writes a raw release HEALPix CSV and runtime TOML
+  manifest for a derived bundled asset candidate or production asset.
 - `verify_assets`: verifies the asset registry, required metadata, schemas,
   checksums, file coverage, and configured headers.
 
@@ -58,8 +58,9 @@ cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_input
   --chunk-size 5000 \
   --band-min-nm 330 \
   --band-max-nm 650 \
-  --license-policy-file docs/GAIA_DERIVED_PRODUCT_POLICY.md \
+  --license-policy-file docs/policies/gaia_dr3_starlight_derived_product_policy.txt \
   --validation-reference validation/starlight_independent_reference_v1.json \
+  --xp-retrieval gaia-datalink \
   --production \
   --resume
 ```
@@ -101,7 +102,8 @@ cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
   --require-passband-photometry
 ```
 
-Production-style Gaia starlight generation must use
+Production-style Gaia starlight generation selects `has_xp_sampled = 'true'`
+sources and must use
 `gaia_dr3_xp_photon_radiance_330_650nm_v1`, pass `--require-science-diagnostics`,
 and then pass the validation and packing stages. The legacy
 `v_s10_scaled_integrated_proxy_v1` path remains experimental. See

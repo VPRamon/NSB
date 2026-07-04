@@ -20,6 +20,8 @@
 -- Quality and completeness policy:
 --   * Gaia DR3 is the authoritative source catalogue.
 --   * duplicated_source = false is selected for the production candidate.
+--   * has_xp_sampled = true restricts production selection to Gaia sources
+--     with XP sampled spectra available through DataLink.
 --   * astrometric coordinates must be finite and inside Gaia RA/Dec ranges.
 --   * XP sampled spectra must cover the 330-650 nm integration band.
 --   * phot_g_mean_mag <= :max_g_mag is the release-time completeness cut.
@@ -42,9 +44,11 @@ SELECT
   phot_g_mean_mag,
   phot_bp_mean_mag,
   phot_rp_mean_mag,
-  duplicated_source
+  duplicated_source,
+  has_xp_sampled
 FROM gaiadr3.gaia_source
 WHERE duplicated_source = 'false'
+  AND has_xp_sampled = 'true'
   AND phot_g_mean_mag IS NOT NULL
   AND phot_g_mean_mag <= 20.0
   AND ra IS NOT NULL
