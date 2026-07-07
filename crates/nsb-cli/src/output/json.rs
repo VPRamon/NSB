@@ -5,7 +5,7 @@ use anyhow::Result;
 use nsb::{
     assets::asset_registry, BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig,
     NsbResult, StarlightModel, Target, ZodiacalExtinction, MODEL_VERSION, NSB_VERSION,
-    SIDERUST_REVISION, SIDERUST_VERSION,
+    SIDERUST_SOURCE, SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
@@ -44,7 +44,7 @@ struct VersionJson {
     nsb_version: &'static str,
     model_version: &'static str,
     siderust_version: &'static str,
-    siderust_revision: &'static str,
+    siderust_source: &'static str,
     asset_manifest_schema: u32,
     data_assets: Vec<AssetJson>,
 }
@@ -151,7 +151,7 @@ pub fn write_point(
             .components
             .iter()
             .map(|component| ComponentJson {
-                name: component.name,
+                name: component_label(component.name, config),
                 integrated_ph_cm2_ns_sr: component.integrated.value(),
                 b_s10_diagnostic: component.b_flux_s10.value(),
                 v_s10_diagnostic: component.v_flux_s10.value(),
@@ -179,12 +179,12 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
         end_utc: format_utc(output.end),
         min_nsb_ph_cm2_ns_sr: output.min.map(|value| value.value()),
         max_nsb_ph_cm2_ns_sr: output.max.value(),
-        selected_components: component_names(output.components),
+        selected_components: component_names(output.components, output.config),
         component_metadata: output
             .descriptions
             .iter()
             .map(|description| ComponentDescriptorJson {
-                name: description.name,
+                name: component_label(description.name, output.config),
                 metadata: component_metadata_json(&description.metadata),
             })
             .collect(),
@@ -213,7 +213,7 @@ fn version_json() -> VersionJson {
         nsb_version: NSB_VERSION,
         model_version: MODEL_VERSION,
         siderust_version: SIDERUST_VERSION,
-        siderust_revision: SIDERUST_REVISION,
+        siderust_source: SIDERUST_SOURCE,
         asset_manifest_schema: registry.schema_version,
         data_assets: registry
             .assets
@@ -235,9 +235,10 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
         moonlight_model: config.moonlight_model.as_str(),
         starlight_model: match config.starlight_model.as_ref() {
             None => "not-configured-non-production-component",
-            Some(StarlightModel::BundledExperimentalSeed) => "bundled-experimental-seed",
-            Some(StarlightModel::ExperimentalMap(_)) => "caller-provided-experimental-map",
-            Some(StarlightModel::ValidatedExternalMap(_)) => "validated-external-map",
+            Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
+            Some(StarlightModel::BundledExperimentalSeed) => "experimental-starlight",
+            Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
+            Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         },
         solar_radio_flux_sfu: config.solar_radio_flux.value(),
         zodiacal_extinction: match config.zodiacal_extinction {
@@ -266,13 +267,13 @@ fn band_diagnostic_json(diagnostic: BandDiagnostic) -> BandDiagnosticJson {
     }
 }
 
-fn component_names(mask: ComponentMask) -> Vec<&'static str> {
+fn component_names(mask: ComponentMask, config: &NsbModelConfig) -> Vec<&'static str> {
     let mut names = Vec::new();
     if mask.contains(ComponentMask::ZODIACAL) {
         names.push("zodiacal");
     }
     if mask.contains(ComponentMask::STARLIGHT) {
-        names.push("experimental-starlight");
+        names.push(starlight_label(config));
     }
     if mask.contains(ComponentMask::AIRGLOW) {
         names.push("airglow");
@@ -281,6 +282,24 @@ fn component_names(mask: ComponentMask) -> Vec<&'static str> {
         names.push("moon");
     }
     names
+}
+
+fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str {
+    if name == "starlight" {
+        starlight_label(config)
+    } else {
+        name
+    }
+}
+
+fn starlight_label(config: &NsbModelConfig) -> &'static str {
+    match config.starlight_model.as_ref() {
+        Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
+        Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
+        Some(StarlightModel::BundledExperimentalSeed)
+        | Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
+        None => "starlight",
+    }
 }
 
 fn duration_seconds(period: Period<UTC>) -> Option<f64> {

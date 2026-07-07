@@ -77,12 +77,13 @@ pub enum ZodiacalExtinctionArg {
 #[derive(Debug, Args)]
 pub struct ModelArgs {
     /// Components: comma-separated zodiacal, starlight, experimental-starlight,
-    /// airglow, moon, or all. `starlight` requires a validated external map;
-    /// `all` excludes both explicit starlight modes.
+    /// airglow, moon, or all. `starlight` uses the bundled production map;
+    /// `--starlight-map` and `--starlight-manifest` provide a validated
+    /// external override.
     #[arg(long, default_value = "all")]
     pub components: String,
 
-    /// Production starlight HEALPix CSV selected by `--components starlight`.
+    /// Production starlight HEALPix CSV override selected with starlight.
     #[arg(long, requires = "starlight_manifest")]
     pub starlight_map: Option<PathBuf>,
 

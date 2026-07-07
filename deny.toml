@@ -4,8 +4,8 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-# Siderust 0.10.1 uses `paste`; RUSTSEC-2024-0436 is an unmaintained notice,
-# not a vulnerability, and no compatible upstream replacement revision exists.
+# Siderust 0.11.0 uses `paste`; RUSTSEC-2024-0436 is an unmaintained notice,
+# not a vulnerability, and no compatible upstream replacement is available yet.
 ignore = ["RUSTSEC-2024-0436"]
 
 [licenses]
@@ -29,4 +29,3 @@ highlight = "all"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = ["https://github.com/Siderust/siderust.git"]

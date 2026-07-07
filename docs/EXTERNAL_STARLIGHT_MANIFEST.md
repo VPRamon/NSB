@@ -1,8 +1,18 @@
 # Validated external starlight manifest
 
-NSB uses this sidecar contract because no legally cleared, independently
-validated catalogue map is bundled. CLI `--components starlight` requires a map
-and manifest. The library equivalent is `ValidatedStarlightMap::from_files`.
+Status: Current fail-closed sidecar contract.
+Audience: Integrators supplying external starlight maps and maintainers reviewing
+their evidence.
+Scope: Manifest fields, runtime admission checks, and the limits of external
+production metadata.
+Non-goals: This document does not validate any specific external catalogue or
+license.
+
+NSB uses this sidecar contract for caller-provided production starlight and for
+the bundled Gaia DR3 release manifest. CLI `--components starlight` uses the
+bundled production asset when one is registered; `--starlight-map` plus
+`--starlight-manifest` provide a validated external override. The library
+equivalent for external files is `ValidatedStarlightMap::from_files`.
 
 The manifest uses schema version 1 and denies unknown fields. All string fields
 below are mandatory and non-empty. `calibration_status` must be `production`;

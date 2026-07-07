@@ -29,7 +29,7 @@ mod continuum;
 mod geometry;
 mod model;
 mod output;
-mod temporal;
+pub(crate) mod temporal;
 mod units;
 
 pub(crate) use calibration::load_builtin_standard;

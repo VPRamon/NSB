@@ -1,5 +1,13 @@
 # Validation matrix
 
+Status: Current repository validation map.
+Audience: Scientific reviewers, maintainers, and downstream users evaluating
+fitness for use.
+Scope: Evidence, units, tolerances, deviation classes, and known missing
+external campaigns.
+Non-goals: This document does not certify any future bundled starlight asset or
+site-calibrated CTAO product.
+
 NSB distinguishes implementation identities, published references, external
 observations, and sanity envelopes. A broad envelope is not external validation.
 
@@ -16,6 +24,27 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | Validated external starlight admission | caller map plus TOML sidecar | declared calibrated integrated band plus B/V diagnostics | exact integrity/header checks; plane/pole >= 1; seam jump <= 1; declared flux tolerance | Implementation error or rejected caller evidence |
 | Jones spectral fixture | inherited darknsb regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |
 | CTAO-N/S | explicit assumptions only | atmosphere and airglow profile | none | Data limitation |
+
+## Threshold Window Contract
+
+Threshold-window search uses prepared physical intervals to reduce repeated
+event work:
+
+- Sun-altitude and target-visible periods define candidate windows;
+- astronomical-night periods define airglow time-of-night bins during threshold
+  sampling;
+- Moon-up periods skip moonlight evaluation only when the Moon is below the
+  horizon by the same Siderust event machinery used elsewhere.
+
+These intervals are search acceleration, not replacement science. When a sample
+or crossing is evaluated inside a relevant interval, NSB calls the exact
+component evaluator. Candidate windows are further split at airglow phase and
+Moon-visibility boundaries before adaptive search, so no smoothness assumption
+crosses a physical regime boundary. Adaptive acceptance is limited to exact
+samples that are clear of the threshold; short or unclear intervals use the
+bounded scan fallback. Boundary refinements remain bounded by the documented
+event/crossing tolerance; changes larger than that are treated as implementation
+defects unless a reviewed upstream event-refinement change explains them.
 
 ## Independent reference fixture
 
@@ -72,6 +101,17 @@ requires a non-proxy photometry identifier and an independent comparison.
 These checks establish a fail-closed evidence contract; they do not make an
 unreviewed caller claim true. Scientific users remain responsible for reviewing
 the referenced catalogue license, calibration, and comparison report.
+
+## Gaia DR3 bundled starlight candidate
+
+The Gaia DR3 release pipeline now has maintainer tooling for extraction
+documentation, passband source preparation, HEALPix map generation, validation
+reporting, and asset packing. CI uses tiny fixtures only. A real bundled asset
+is not production until the Gaia extract checksum, canonical input checksum, map
+checksum, validation report, longitude seam diagnostic, and structured
+independent regional comparison are all reviewed. The independent reference file
+declares regions and expected radiance ranges; it does not provide trusted pass
+booleans.
 
 ## Missing external campaigns
 

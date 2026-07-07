@@ -3,7 +3,7 @@ use nsb::ComponentMask;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StarlightSelection {
-    ValidatedExternal,
+    Production,
     ExperimentalSeed,
 }
 
@@ -21,7 +21,7 @@ pub fn parse_components(input: &str) -> Result<ParsedComponents, CliError> {
             "all" => mask |= ComponentMask::ALL,
             "zodiacal" | "zl" => mask |= ComponentMask::ZODIACAL,
             "starlight" => {
-                select_starlight(&mut starlight, StarlightSelection::ValidatedExternal)?;
+                select_starlight(&mut starlight, StarlightSelection::Production)?;
                 mask |= ComponentMask::STARLIGHT;
             }
             "experimental-starlight" | "experimental-sl" => {
@@ -68,7 +68,10 @@ mod tests {
         assert!(mask.contains(ComponentMask::ZODIACAL));
         assert!(mask.contains(ComponentMask::AIRGLOW));
         assert!(mask.contains(ComponentMask::MOON));
-        assert!(!mask.contains(ComponentMask::STARLIGHT));
+        assert_eq!(
+            mask.contains(ComponentMask::STARLIGHT),
+            nsb::Starlight::bundled_production_available()
+        );
     }
 
     #[test]
@@ -84,7 +87,7 @@ mod tests {
     fn starlight_names_select_distinct_modes() {
         assert_eq!(
             parse_components("starlight").unwrap().starlight,
-            Some(StarlightSelection::ValidatedExternal)
+            Some(StarlightSelection::Production)
         );
         assert_eq!(
             parse_components("experimental-starlight")

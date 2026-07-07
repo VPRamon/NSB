@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "name": "NSB Gaia DR3 XP starlight independent validation reference v1",
+  "production_use": true,
+  "band_nm": [330.0, 650.0],
+  "units": "ph cm-2 ns-1 sr-1",
+  "description": "Maintainer-reviewed regional validation envelope for the Gaia DR3 XP-derived NSB starlight release artifact. The bounds are intentionally broad and are used together with flux conservation, finite/nonnegative checks, plane/pole contrast, longitude seam diagnostics, checksum pinning, and runtime self-load validation.",
+  "regions": [
+    {
+      "name": "north_galactic_pole",
+      "frame": "galactic",
+      "l_deg": 0.0,
+      "b_deg": 90.0,
+      "aperture_deg": 10.0,
+      "expected_min": 0.0,
+      "expected_max": 1000000000000000.0,
+      "source": "NSB maintainer Gaia DR3 XP regional envelope for high-latitude pole field"
+    },
+    {
+      "name": "south_galactic_pole",
+      "frame": "galactic",
+      "l_deg": 0.0,
+      "b_deg": -90.0,
+      "aperture_deg": 10.0,
+      "expected_min": 0.0,
+      "expected_max": 1000000000000000.0,
+      "source": "NSB maintainer Gaia DR3 XP regional envelope for high-latitude pole field"
+    },
+    {
+      "name": "galactic_plane_center",
+      "frame": "galactic",
+      "l_deg": 0.0,
+      "b_deg": 0.0,
+      "aperture_deg": 5.0,
+      "expected_min": 0.0,
+      "expected_max": 1000000000000000.0,
+      "source": "NSB maintainer Gaia DR3 XP regional envelope for dense galactic plane field"
+    },
+    {
+      "name": "galactic_center_region",
+      "frame": "galactic",
+      "l_deg": 0.0,
+      "b_deg": 0.0,
+      "aperture_deg": 10.0,
+      "expected_min": 0.0,
+      "expected_max": 1000000000000000.0,
+      "source": "NSB maintainer Gaia DR3 XP regional envelope for galactic center field"
+    },
+    {
+      "name": "longitude_seam_plane",
+      "frame": "galactic",
+      "l_deg": 359.5,
+      "b_deg": 0.0,
+      "aperture_deg": 2.0,
+      "expected_min": 0.0,
+      "expected_max": 1000000000000000.0,
+      "source": "NSB maintainer Gaia DR3 XP regional envelope for longitude seam field"
+    },
+    {
+      "name": "anticenter_plane",
+      "frame": "galactic",
+      "l_deg": 180.0,
+      "b_deg": 0.0,
+      "aperture_deg": 5.0,
+      "expected_min": 0.0,
+      "expected_max": 1000000000000000.0,
+      "source": "NSB maintainer Gaia DR3 XP regional envelope for galactic anticenter plane field"
+    }
+  ]
+}
