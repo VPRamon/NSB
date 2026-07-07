@@ -1,7 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::{
     CalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
-    SiteProfileId, StarlightMap, StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
+    SiteProfileId, Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target,
+    ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -48,7 +49,10 @@ fn evaluator_defaults_to_generic_clear_sky_config() {
     let config = evaluator.config();
     assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
     assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
-    assert!(config.starlight_model.is_none());
+    assert_eq!(
+        config.starlight_model.is_some(),
+        Starlight::bundled_production_available()
+    );
 }
 
 #[test]
@@ -57,7 +61,10 @@ fn default_model_config_is_generic_clear_sky() {
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model, explicit.moonlight_model);
     assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
-    assert!(default.starlight_model.is_none());
+    assert_eq!(
+        default.starlight_model.is_some(),
+        Starlight::bundled_production_available()
+    );
 }
 
 #[test]
@@ -83,7 +90,10 @@ fn cta_planning_configs_select_named_site_profiles() {
 
 #[test]
 fn all_components_are_the_production_safe_default() {
-    assert!(!ComponentMask::ALL.contains(ComponentMask::STARLIGHT));
+    assert_eq!(
+        ComponentMask::ALL.contains(ComponentMask::STARLIGHT),
+        Starlight::bundled_production_available()
+    );
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let result = evaluator
@@ -100,10 +110,17 @@ fn all_components_are_the_production_safe_default() {
         .components
         .iter()
         .any(|component| component.name == "zodiacal"));
-    assert!(!result
+    let starlight = result
         .components
         .iter()
-        .any(|component| component.name == "starlight"));
+        .find(|component| component.name == "starlight");
+    assert_eq!(
+        starlight.is_some(),
+        Starlight::bundled_production_available()
+    );
+    if let Some(component) = starlight {
+        assert!(component.integrated.value() > 0.0);
+    }
     assert!(result
         .components
         .iter()
@@ -149,7 +166,8 @@ fn point_query_propagates_selected_component_error() {
 
 #[test]
 fn starlight_request_without_model_fails_explicitly() {
-    let config = NsbModelConfig::generic_clear_sky();
+    let mut config = NsbModelConfig::generic_clear_sky();
+    config.starlight_model = None;
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let error = evaluator
         .evaluate(&PointQuery {

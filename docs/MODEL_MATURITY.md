@@ -1,5 +1,12 @@
 # Model maturity
 
+Status: Current maturity policy exposed through API and CLI metadata.
+Audience: Scientific users, reviewers, and downstream consumers.
+Scope: Component maturity labels, validated domains, and allowed production
+claims.
+Non-goals: This document does not provide the validation evidence itself; see
+[Validation matrix](VALIDATION.md).
+
 Software release readiness and scientific calibration are separate axes.
 
 | Surface | Status | Validated domain | Production claim allowed |
@@ -11,6 +18,7 @@ Software release readiness and scientific calibration are separate axes.
 | KS91 moonlight | Published reference | Approximate Johnson-V analytic benchmark | Reference-model use |
 | CTAO-N and CTAO-S | Planning preset | Explicit pressure/aerosol/airglow assumptions | No calibrated-site claim |
 | Bundled starlight seed | Experimental proxy | Loader, HEALPix completeness, directional plumbing | No scientific claim |
+| Gaia DR3 bundled starlight candidate | Pending production validation | Release-time Gaia XP/passband pipeline harness | Not yet; requires real Gaia extract, packed derived asset, and independent comparison |
 | Validated external starlight | Production for the sidecar-declared domain | Runtime integrity, schema, HEALPix, flux evidence, contrast/seam, calibrated photometry, and independent-comparison contract | Yes, only as justified by the reviewed external evidence |
 | Caller experimental starlight map | Experimental | Map schema/value checks | No production claim |
 | B/V S10 and magnitudes | Proxy diagnostic | 445/551 nm central-wavelength convention | No passband-photometry claim |

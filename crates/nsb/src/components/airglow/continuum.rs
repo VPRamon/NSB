@@ -26,6 +26,29 @@ pub(crate) fn evaluate_continuum(
     solar_radio_flux: SolarFluxUnits,
     user_scale: f64,
 ) -> AirglowOutputs {
+    let Some(time_bin) = time_of_night_bin(time, location) else {
+        return AirglowOutputs::zero();
+    };
+    evaluate_continuum_with_time_bin(
+        continuum,
+        time,
+        location,
+        altitude,
+        solar_radio_flux,
+        user_scale,
+        time_bin,
+    )
+}
+
+pub(crate) fn evaluate_continuum_with_time_bin(
+    continuum: &AirglowContinuum,
+    time: Time<UTC>,
+    location: Geodetic<ECEF>,
+    altitude: Degrees,
+    solar_radio_flux: SolarFluxUnits,
+    user_scale: f64,
+    time_bin: usize,
+) -> AirglowOutputs {
     let alt = altitude.value();
     if !alt.is_finite()
         || alt <= -90.0
@@ -44,9 +67,6 @@ pub(crate) fn evaluate_continuum(
     .value();
     let solar_corr =
         continuum.solar_activity_const + continuum.solar_activity_slope * solar_radio_flux.value();
-    let Some(time_bin) = time_of_night_bin(time, location) else {
-        return AirglowOutputs::zero();
-    };
     let season_bin = season_bin(time, location);
     let seasonal_corr = continuum
         .mean_corrections

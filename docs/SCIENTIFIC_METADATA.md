@@ -1,5 +1,13 @@
 # Scientific metadata and uncertainty
 
+Status: Current metadata contract for API and CLI outputs.
+Audience: Users interpreting NSB results and maintainers changing output
+metadata.
+Scope: Component maturity, provenance, uncertainty, B/V diagnostics, and asset
+audit fields.
+Non-goals: This document does not promote any component beyond the evidence
+listed in [Validation matrix](VALIDATION.md).
+
 Every `NsbComponent` includes a maturity status, provenance, validated domain,
 band diagnostic, and optional relative uncertainty. CLI JSON preserves those
 fields; CSV v1 provides equivalent columns.

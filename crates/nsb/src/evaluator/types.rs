@@ -11,14 +11,14 @@ use qtty::Second;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
+use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 use tempoch::{Period, Time, UTC};
 
 bitflags::bitflags! {
     /// Components that can be composed by [`NsbEvaluator`](super::NsbEvaluator).
     ///
-    /// [`Self::ALL`] is the complete production-safe default set. Integrated
-    /// starlight is intentionally opt-in while the bundled seed remains an
-    /// experimental, incomplete catalogue product.
+    /// [`Self::ALL`] is the complete production-safe default set. It includes
+    /// starlight only when a validated production map is bundled at build time.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ComponentMask: u8 {
         /// Zodiacal-light component.
@@ -31,6 +31,13 @@ bitflags::bitflags! {
         const MOON      = 0b1000;
 
         /// Production-safe default component composition.
+        #[cfg(nsb_bundled_production_starlight)]
+        const DEFAULT   = Self::ZODIACAL.bits()
+                        | Self::STARLIGHT.bits()
+                        | Self::AIRGLOW.bits()
+                        | Self::MOON.bits();
+        /// Production-safe default component composition.
+        #[cfg(not(nsb_bundled_production_starlight))]
         const DEFAULT   = Self::ZODIACAL.bits()
                         | Self::AIRGLOW.bits()
                         | Self::MOON.bits();
@@ -159,6 +166,8 @@ impl MoonlightModel {
 #[derive(Debug, Clone)]
 /// Explicit starlight data-product selection.
 pub enum StarlightModel {
+    /// Use the validated bundled Gaia DR3 XP-derived production map.
+    BundledProductionGaiaDr3,
     /// Use the bundled low-resolution seed for experiments and plumbing tests.
     ///
     /// This asset is incomplete and must not be represented as production
@@ -171,6 +180,11 @@ pub enum StarlightModel {
 }
 
 impl StarlightModel {
+    /// Select the bundled production Gaia DR3 XP-derived map.
+    pub fn bundled_production_gaia_dr3() -> Self {
+        Self::BundledProductionGaiaDr3
+    }
+
     /// Select the bundled manual seed for experiments only.
     pub fn bundled_experimental_seed() -> Self {
         Self::BundledExperimentalSeed
@@ -208,7 +222,7 @@ impl NsbModelConfig {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
             site_profile: SiteProfileId::GenericClearSky,
-            starlight_model: None,
+            starlight_model: default_starlight_model(),
             solar_radio_flux: airglow::DEFAULT_SOLAR_RADIO_FLUX,
             zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
         }
@@ -243,6 +257,16 @@ impl Default for NsbModelConfig {
     }
 }
 
+#[cfg(nsb_bundled_production_starlight)]
+fn default_starlight_model() -> Option<StarlightModel> {
+    Some(StarlightModel::BundledProductionGaiaDr3)
+}
+
+#[cfg(not(nsb_bundled_production_starlight))]
+fn default_starlight_model() -> Option<StarlightModel> {
+    None
+}
+
 #[derive(Debug, Clone, Copy)]
 pub(super) struct PreparedPointQuery {
     pub(super) observer: Observer,
@@ -250,10 +274,17 @@ pub(super) struct PreparedPointQuery {
     pub(super) components: ComponentMask,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(super) struct PreparedThresholdQuery {
     pub(super) observer: Observer,
     pub(super) target: Target,
     pub(super) components: ComponentMask,
     pub(super) starlight_integrated: BandPhotonRadiance,
+    pub(super) tt_window: TimePeriod<ModifiedJulianDate>,
+    pub(super) sun_filter_periods: Vec<TimePeriod<ModifiedJulianDate>>,
+    pub(super) astronomical_night_periods: Vec<airglow::temporal::AstronomicalNightPeriod>,
+    pub(super) target_visible_periods: Vec<TimePeriod<ModifiedJulianDate>>,
+    pub(super) candidate_windows: Vec<TimePeriod<ModifiedJulianDate>>,
+    pub(super) airglow_phase_periods: Vec<airglow::temporal::AirglowPhasePeriod>,
+    pub(super) moon_visible_periods: Option<Vec<TimePeriod<ModifiedJulianDate>>>,
 }

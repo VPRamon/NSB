@@ -115,6 +115,12 @@ pub(super) fn starlight_metadata(
     provenance: Option<&StarlightProvenance>,
 ) -> NsbComponentMetadata {
     match model {
+        Some(StarlightModel::BundledProductionGaiaDr3) => starlight_map_metadata(
+            provenance.expect("bundled production map is loaded during evaluator construction"),
+            "bundled Gaia DR3 XP production map",
+            ComponentCalibrationStatus::Production,
+            "bundled validated Gaia DR3 XP-derived HEALPix map with checksum/header consistency, flux-conservation evidence, plane/pole contrast, longitude wrap, and independent comparison",
+        ),
         Some(StarlightModel::BundledExperimentalSeed) => starlight_map_metadata(
             provenance.expect("bundled experimental seed is loaded during evaluator construction"),
             "bundled experimental seed",

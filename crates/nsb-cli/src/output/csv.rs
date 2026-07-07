@@ -2,8 +2,8 @@ use crate::parsing::location::SitePreset;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
-    assets::asset_registry, ComponentMask, NsbModelConfig, NsbResult, MODEL_VERSION, NSB_VERSION,
-    SIDERUST_REVISION,
+    assets::asset_registry, ComponentMask, NsbModelConfig, NsbResult, StarlightModel,
+    MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
 };
 use tempoch::{Period, UTC};
 
@@ -28,7 +28,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         "band_convention",
         "nsb_version",
         "model_version",
-        "siderust_revision",
+        "siderust_source",
         "model_preset",
         "asset_checksums",
     ])?;
@@ -37,7 +37,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         writer.write_record([
             POINT_SCHEMA.to_string(),
             "component".to_string(),
-            component.name.to_string(),
+            component_label(component.name, config).to_string(),
             component.integrated.value().to_string(),
             component.b_flux_s10.value().to_string(),
             component.v_flux_s10.value().to_string(),
@@ -53,7 +53,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
             component.metadata.band_diagnostic.convention.to_string(),
             NSB_VERSION.to_string(),
             MODEL_VERSION.to_string(),
-            SIDERUST_REVISION.to_string(),
+            SIDERUST_SOURCE.to_string(),
             config.site_profile.as_str().to_string(),
             assets.clone(),
         ])?;
@@ -74,7 +74,7 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         result.band_diagnostic.convention.to_string(),
         NSB_VERSION.to_string(),
         MODEL_VERSION.to_string(),
-        SIDERUST_REVISION.to_string(),
+        SIDERUST_SOURCE.to_string(),
         config.site_profile.as_str().to_string(),
         assets,
     ])?;
@@ -96,11 +96,11 @@ pub fn write_window(
         "components",
         "nsb_version",
         "model_version",
-        "siderust_revision",
+        "siderust_source",
         "model_preset",
         "asset_checksums",
     ])?;
-    let component_names = component_names(components).join(";");
+    let component_names = component_names(components, config).join(";");
     let assets = asset_checksums();
     for period in periods {
         writer.write_record([
@@ -113,7 +113,7 @@ pub fn write_window(
             component_names.clone(),
             NSB_VERSION.to_string(),
             MODEL_VERSION.to_string(),
-            SIDERUST_REVISION.to_string(),
+            SIDERUST_SOURCE.to_string(),
             config.site_profile.as_str().to_string(),
             assets.clone(),
         ])?;
@@ -149,13 +149,13 @@ fn asset_checksums() -> String {
         .join(";")
 }
 
-fn component_names(mask: ComponentMask) -> Vec<&'static str> {
+fn component_names(mask: ComponentMask, config: &NsbModelConfig) -> Vec<&'static str> {
     let mut names = Vec::new();
     if mask.contains(ComponentMask::ZODIACAL) {
         names.push("zodiacal");
     }
     if mask.contains(ComponentMask::STARLIGHT) {
-        names.push("experimental-starlight");
+        names.push(starlight_label(config));
     }
     if mask.contains(ComponentMask::AIRGLOW) {
         names.push("airglow");
@@ -164,6 +164,24 @@ fn component_names(mask: ComponentMask) -> Vec<&'static str> {
         names.push("moon");
     }
     names
+}
+
+fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str {
+    if name == "starlight" {
+        starlight_label(config)
+    } else {
+        name
+    }
+}
+
+fn starlight_label(config: &NsbModelConfig) -> &'static str {
+    match config.starlight_model.as_ref() {
+        Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
+        Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
+        Some(StarlightModel::BundledExperimentalSeed)
+        | Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
+        None => "starlight",
+    }
 }
 
 fn duration_seconds(period: Period<UTC>) -> Option<f64> {

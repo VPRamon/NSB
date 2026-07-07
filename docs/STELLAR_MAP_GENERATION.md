@@ -1,11 +1,32 @@
 # Starlight data-product pipeline
 
+Status: Maintainer workflow for candidate and release starlight map generation.
+Audience: Maintainers preparing derived starlight artifacts.
+Scope: Offline catalogue preparation, map generation, validation handoff, and
+asset packing.
+Non-goals: This document does not approve a generated map for production; see
+[Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md) and
+[Starlight map validation](STELLAR_MAP_VALIDATION.md).
+
 Integrated starlight is directional and catalogue-dependent, so NSB consumes a
 Galactic HEALPix map generated offline. Runtime code never downloads catalogues.
 
+## Reading Path
+
+```text
+requirements -> generation -> validation -> packing -> maturity metadata
+```
+
+The requirements are in
+[Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md). This file
+describes how maintainers create map candidates. Validation report semantics are
+defined in [Starlight map validation](STELLAR_MAP_VALIDATION.md). Caller-supplied
+production maps use the separate
+[external manifest contract](EXTERNAL_STARLIGHT_MANIFEST.md).
+
 ## Current bundled seed
 
-`starlight_galactic_map_v1.csv` is a 12-pixel, manually curated seed. It is
+`starlight_manual_seed_v1.csv` is a 12-pixel, manually curated seed. It is
 registered as `experimental`, excluded from `ComponentMask::ALL`, and available
 only through explicit experimental naming. It is not a production catalogue
 product and cannot be promoted because its source selection is incomplete and
@@ -17,7 +38,8 @@ manifest header expectations. Integrity does not imply scientific validity.
 ## Production-safe external path
 
 NSB does not currently have a legally cleared, independently validated catalogue
-product to bundle. Issue #45 therefore uses the validated-external outcome.
+product to bundle. The validated-external outcome remains available for
+integrators and for testing the same runtime admission contract.
 `ValidatedStarlightMap::from_files(map, manifest)` is the only caller-supplied
 path that receives `Production` metadata. It requires a Galactic HEALPix map,
 complete provenance, exact map checksum, an exact header contract, calibrated
@@ -29,7 +51,107 @@ provided) flux-conservation checks.
 The separate `StarlightModel::with_experimental_map(...)` API never receives a
 production label. See [the sidecar schema](EXTERNAL_STARLIGHT_MANIFEST.md).
 
-## Reproducible replacement pipeline
+## Gaia DR3 release pipeline
+
+Normal users do not download Gaia DR3 and do not provide source CSV files. The
+Gaia extract and canonical source table are maintainer release artifacts. Only
+the derived, checksum-pinned starlight map is intended to ship with NSB.
+
+```bash
+OUT=target/starlight-gaia-release
+POLICY=docs/policies/gaia_dr3_starlight_derived_product_policy.txt
+REF=validation/starlight_independent_reference_v1.json
+LICENSE="<reviewed-derived-product-policy-string>"
+DATE_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+NSIDE=128
+
+cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_inputs -- \
+  --out-dir "$OUT" \
+  --max-g-mag 20 \
+  --production \
+  --license-policy-file "$POLICY" \
+  --validation-reference "$REF" \
+  --xp-retrieval gaia-datalink
+
+GAIA_DR3_STARLIGHT_EXTRACT="$OUT/gaia_dr3_starlight_extract.csv"
+GAIA_DR3_STARLIGHT_EXTRACT_SHA256="sha256:$(sha256sum "$GAIA_DR3_STARLIGHT_EXTRACT" | cut -d' ' -f1)"
+
+cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --input "$GAIA_DR3_STARLIGHT_EXTRACT" \
+  --output "$OUT/gaia_dr3_starlight_sources.csv" \
+  --diagnostics-output "$OUT/gaia_dr3_starlight_sources.diagnostics.json" \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "$LICENSE" \
+  --source-checksum "$GAIA_DR3_STARLIGHT_EXTRACT_SHA256" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
+  --band-min-nm 330 \
+  --band-max-nm 650 \
+  --require-passband-photometry
+
+GAIA_DR3_STARLIGHT_SOURCES_SHA256="sha256:$(sha256sum "$OUT/gaia_dr3_starlight_sources.csv" | cut -d' ' -f1)"
+
+cargo run --locked -p nsb-data-tools --bin build_starlight_map -- \
+  --input "$OUT/gaia_dr3_starlight_sources.csv" \
+  --output "$OUT/nsb_gaia_dr3_starlight_healpix.csv" \
+  --diagnostics-output "$OUT/nsb_gaia_dr3_starlight_healpix.diagnostics.json" \
+  --nside "$NSIDE" \
+  --ordering ring \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "$LICENSE" \
+  --catalog-checksum "$GAIA_DR3_STARLIGHT_SOURCES_SHA256" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
+  --band-min-nm 330 \
+  --band-max-nm 650 \
+  --generation-date-utc "$DATE_UTC" \
+  --require-science-diagnostics
+
+cargo run --locked -p nsb-data-tools --bin validate_starlight_map -- \
+  --input "$OUT/nsb_gaia_dr3_starlight_healpix.csv" \
+  --diagnostics "$OUT/nsb_gaia_dr3_starlight_healpix.diagnostics.json" \
+  --reference "$REF" \
+  --output "$OUT/nsb_gaia_dr3_starlight_healpix.validation.json" \
+  --require-independent-comparison
+
+cargo run --locked -p nsb-data-tools --bin pack_starlight_asset -- \
+  --input "$OUT/nsb_gaia_dr3_starlight_healpix.csv" \
+  --diagnostics "$OUT/nsb_gaia_dr3_starlight_healpix.diagnostics.json" \
+  --validation "$OUT/nsb_gaia_dr3_starlight_healpix.validation.json" \
+  --output "$OUT/nsb_gaia_dr3_starlight_healpix.release.csv" \
+  --manifest "$OUT/nsb_gaia_dr3_starlight_healpix.manifest.toml" \
+  --production
+```
+
+If redistribution policy permits bundling and the derived files are within the
+release size budget, copy only the packed runtime files into `crates/nsb/data/`
+as:
+
+```text
+crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.release.csv
+crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.manifest.toml
+```
+
+Register the CSV with schema `nsb-healpix-starlight-v1` and the sidecar with
+schema `nsb-starlight-runtime-manifest-v1`, both with
+`calibration_status = "production"` and `runtime_embedded = true`. The `nsb`
+build script then embeds both files, emits the
+`nsb_bundled_production_starlight` cfg, and `ComponentMask::ALL` / CLI
+`--components all` include the production starlight component.
+
+The packer emits a raw UTF-8 HEALPix release CSV and runtime manifest only in
+`--production` mode after `production_ready=true`, integrated flux conservation
+passes, the longitude seam diagnostic passes, and the validation tool has
+computed passing structured independent regional comparisons. Production packing
+self-loads the emitted CSV/TOML pair through the runtime `ValidatedStarlightMap`
+loader before returning success. Boolean claims supplied by external reference
+files are not trusted.
+Use `--candidate` only for review artifacts. The current repository does not
+ship the Gaia-derived production asset because the real Gaia extract, reviewed
+redistribution policy, and independent validation reference are not present in
+CI.
+
+## Legacy Tycho proxy pipeline
 
 ```text
 reviewed local Tycho-like release
@@ -111,6 +233,8 @@ Promotion requires all of the following:
 7. passband-aware integrated radiance or an explicitly non-production proxy;
 8. manifest update and runtime metadata review.
 
-Until a redistributable product passes those gates, starlight remains outside
-`ComponentMask::ALL`. Production use fails closed around the external sidecar;
-the experimental seed is never selected as a fallback.
+Until a redistributable product passes those gates, no bundled production
+starlight asset is embedded and `ComponentMask::ALL` remains the non-starlight
+planning set. Explicit production starlight requests fail closed unless a
+validated external override is supplied; the experimental seed is never selected
+as a fallback.

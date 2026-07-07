@@ -2,8 +2,8 @@
 //!
 //! Computes the photon flux reaching a ground-based observer from a configurable
 //! sum of zodiacal light, integrated starlight, airglow, and scattered moonlight.
-//! Integrated starlight requires an explicit starlight map configuration until a
-//! production catalogue-derived bundled map is shipped.
+//! Integrated starlight is included in defaults only when the build embeds a
+//! validated production catalogue-derived map.
 //!
 //! The library API is intentionally typed and CLI-free: callers pass
 //! `Geodetic<ECEF>` observers, `Time<UTC>` instants, and equatorial target
@@ -64,7 +64,7 @@ pub(crate) const NSB_S10_ZP: f64 = 27.78;
 pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Versioned model-composition contract used in operational metadata.
 pub const MODEL_VERSION: &str = "nsb-model-2026.1";
-/// Siderust release represented by the pinned dependency revision.
-pub const SIDERUST_VERSION: &str = "0.10.1";
-/// Exact Siderust Git revision used for reproducible builds.
-pub const SIDERUST_REVISION: &str = "8d94b8375ae23c26d00346f74951e52cd1b595cc";
+/// Siderust package version represented by the locked dependency.
+pub const SIDERUST_VERSION: &str = "0.11.0";
+/// Truthful package-source identity for the Siderust dependency.
+pub const SIDERUST_SOURCE: &str = "crates.io:siderust:0.11.0";

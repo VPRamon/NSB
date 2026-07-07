@@ -55,27 +55,35 @@ pub(crate) fn model_config(
             }
             config.starlight_model = Some(nsb::StarlightModel::bundled_experimental_seed());
         }
-        Some(components::StarlightSelection::ValidatedExternal) => {
-            let map_path = args.starlight_map.as_ref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "validated starlight requires --starlight-map and --starlight-manifest"
-                )
-            })?;
-            let manifest_path = args.starlight_manifest.as_ref().ok_or_else(|| {
-                anyhow::anyhow!(
-                    "validated starlight requires --starlight-map and --starlight-manifest"
-                )
-            })?;
-            let map = nsb::ValidatedStarlightMap::from_files(map_path, manifest_path)?;
-            config.starlight_model = Some(nsb::StarlightModel::validated_external(map));
+        Some(components::StarlightSelection::Production) => {
+            config.starlight_model = Some(match (&args.starlight_map, &args.starlight_manifest) {
+                (Some(_), Some(_)) => validated_external_starlight(args)?,
+                (None, None) => nsb::StarlightModel::bundled_production_gaia_dr3(),
+                _ => anyhow::bail!(
+                    "--starlight-map and --starlight-manifest must be provided together"
+                ),
+            });
         }
         None => {
             if args.starlight_map.is_some() || args.starlight_manifest.is_some() {
-                anyhow::bail!(
-                    "--starlight-map/--starlight-manifest require --components starlight"
-                );
+                if components.mask.contains(nsb::ComponentMask::STARLIGHT) {
+                    config.starlight_model = Some(validated_external_starlight(args)?);
+                } else {
+                    anyhow::bail!(
+                        "--starlight-map/--starlight-manifest require --components starlight"
+                    );
+                }
             }
         }
     }
     Ok(config)
+}
+
+fn validated_external_starlight(args: &crate::cli::ModelArgs) -> Result<nsb::StarlightModel> {
+    let (Some(map_path), Some(manifest_path)) = (&args.starlight_map, &args.starlight_manifest)
+    else {
+        anyhow::bail!("--starlight-map and --starlight-manifest must be provided together");
+    };
+    let map = nsb::ValidatedStarlightMap::from_files(map_path, manifest_path)?;
+    Ok(nsb::StarlightModel::validated_external(map))
 }

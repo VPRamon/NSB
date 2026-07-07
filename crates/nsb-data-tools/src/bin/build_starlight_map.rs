@@ -4,13 +4,14 @@ use csv::{ReaderBuilder, StringRecord};
 use serde::Serialize;
 use siderust::checksum::{sha256, to_hex};
 use siderust::coordinates::cartesian::Direction;
-use siderust::coordinates::frames::EquatorialMeanJ2000;
+use siderust::coordinates::frames::{EquatorialMeanJ2000, Galactic, ICRS};
+use siderust::coordinates::transform::TransformFrame;
 use siderust::healpix::{HealpixGrid, HealpixMap, HealpixOrdering, Nside};
 use siderust::starlight::{
     csv as starlight_csv, flux_10mag_units, validate_flux_conservation,
-    validate_no_longitude_wrap_artifact, validate_plane_pole_contrast, ApparentMagnitude,
-    StellarCatalogueRecord, StellarMapError, StellarMapProvenance, StellarSurfaceBrightness,
-    StellarSurfaceBrightnessMap, StellarSurfaceBrightnessMapBuilder,
+    validate_no_longitude_wrap_artifact, validate_plane_pole_contrast, validate_stellar_map_values,
+    ApparentMagnitude, StellarCatalogueRecord, StellarMapError, StellarMapProvenance,
+    StellarSurfaceBrightness, StellarSurfaceBrightnessMap, StellarSurfaceBrightnessMapBuilder,
 };
 use std::ffi::OsStr;
 use std::fs::File;
@@ -19,6 +20,8 @@ use std::path::PathBuf;
 
 const S10_V_TO_INTEGRATED_PH_CM2_NS_SR: f64 = 1.242e-3;
 const HEALPIX_CSV_HEADER: &str = "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10";
+const PROXY_MODEL: &str = "v_s10_scaled_integrated_proxy_v1";
+const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_330_650nm_v1";
 
 /// Build a Galactic HEALPix starlight map from a local catalogue CSV.
 ///
@@ -29,7 +32,8 @@ const HEALPIX_CSV_HEADER: &str = "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_
 #[command(name = "build_starlight_map")]
 #[command(about = "Generate an NSB starlight HEALPix CSV from a local stellar catalogue")]
 struct Args {
-    /// Input stellar catalogue CSV: ra_deg,dec_deg,b_mag,v_mag,weight,source_id.
+    /// Input stellar catalogue CSV. Proxy inputs use ra_deg/dec_deg/b_mag/v_mag;
+    /// Gaia canonical inputs use icrs_ra_rad/icrs_dec_rad/photon_flux_330_650_ph_m2_s.
     #[arg(long)]
     input: PathBuf,
 
@@ -72,6 +76,18 @@ struct Args {
     /// Conversion from V-band S10 to integrated 300-650 nm photon radiance.
     #[arg(long, default_value_t = S10_V_TO_INTEGRATED_PH_CM2_NS_SR)]
     integrated_per_v_s10: f64,
+
+    /// Photometry model used by the input catalogue.
+    #[arg(long, default_value = PROXY_MODEL)]
+    photometry_model: String,
+
+    /// Passband minimum wavelength, nm, for passband-integrated inputs.
+    #[arg(long, default_value_t = 330.0)]
+    band_min_nm: f64,
+
+    /// Passband maximum wavelength, nm, for passband-integrated inputs.
+    #[arg(long, default_value_t = 650.0)]
+    band_max_nm: f64,
 
     /// UTC generation timestamp written to provenance metadata.
     #[arg(long)]
@@ -127,14 +143,32 @@ struct Diagnostics {
     expected_pixels: usize,
     empty_pixels: usize,
     total_integrated_ph_cm2_ns_sr: f64,
+    input_integrated_flux_sum_ph_cm2_ns: f64,
+    integrated_flux_conservation_pass: bool,
     total_b_s10: f64,
     total_v_s10: f64,
     flux_conservation_pass: bool,
     plane_pole_pass: bool,
     longitude_wrap_pass: bool,
     output_sha256: String,
-    photometry_model: &'static str,
-    calibration_status: &'static str,
+    photometry_model: String,
+    calibration_status: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InputKind {
+    ProxyMagnitudes,
+    GaiaPhotonFlux,
+}
+
+struct DiagnosticsContext<'a> {
+    sources_used: usize,
+    longitude_wrap_pass: bool,
+    plane_pole_pass: bool,
+    csv: &'a str,
+    args: &'a Args,
+    input_kind: InputKind,
+    input_integrated_flux_sum: f64,
 }
 
 fn main() -> Result<()> {
@@ -146,39 +180,69 @@ fn run(args: Args) -> Result<()> {
     verify_catalog_checksum(&args)?;
 
     let grid = HealpixGrid::new(Nside::new(args.nside)?, args.ordering.into())?;
-    let min_v_mag = args.min_v_mag.map(ApparentMagnitude::new).transpose()?;
-    let max_v_mag = args.max_v_mag.map(ApparentMagnitude::new).transpose()?;
-    let provenance = provenance(&args);
+    let input_kind = input_kind(&args.input)?;
+    let provenance = provenance(&args, input_kind);
 
-    let (records, input_b_flux_sum, input_v_flux_sum) =
-        read_records(&args.input, min_v_mag, max_v_mag)?;
-    let sources_used = records.len();
+    let (map, sources_used, input_integrated_flux_sum, longitude_wrap_pass, plane_pole_pass) =
+        match input_kind {
+            InputKind::ProxyMagnitudes => {
+                let min_v_mag = args.min_v_mag.map(ApparentMagnitude::new).transpose()?;
+                let max_v_mag = args.max_v_mag.map(ApparentMagnitude::new).transpose()?;
+                let (records, input_b_flux_sum, input_v_flux_sum) =
+                    read_records(&args.input, min_v_mag, max_v_mag)?;
+                let sources_used = records.len();
 
-    let builder = StellarSurfaceBrightnessMapBuilder {
-        grid,
-        // `read_records` is the single filtering boundary so map input,
-        // conservation sums, and `sources_used` cannot diverge.
-        min_v_mag: None,
-        max_v_mag: None,
-        integrated_per_v_s10: args.integrated_per_v_s10,
-    };
+                let builder = StellarSurfaceBrightnessMapBuilder {
+                    grid,
+                    // `read_records` is the single filtering boundary so map input,
+                    // conservation sums, and `sources_used` cannot diverge.
+                    min_v_mag: None,
+                    max_v_mag: None,
+                    integrated_per_v_s10: args.integrated_per_v_s10,
+                };
 
-    let map = match builder.build(records, provenance.clone()) {
-        Ok(map) => map,
-        Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => {
-            empty_map(grid, provenance.clone())?
-        }
-        Err(err) => return Err(err.into()),
-    };
+                let map = match builder.build(records, provenance.clone()) {
+                    Ok(map) => map,
+                    Err(StellarMapError::EmptyFilteredCatalogue) if args.allow_empty => {
+                        empty_map(grid, provenance.clone())?
+                    }
+                    Err(err) => return Err(err.into()),
+                };
 
-    validate_flux_conservation(
-        input_b_flux_sum,
-        input_v_flux_sum,
-        map.healpix_map(),
-        1.0e-9,
-    )?;
-    let (longitude_wrap_pass, plane_pole_pass) =
-        run_science_diagnostics(&map, args.require_science_diagnostics)?;
+                validate_flux_conservation(
+                    input_b_flux_sum,
+                    input_v_flux_sum,
+                    map.healpix_map(),
+                    1.0e-9,
+                )?;
+                let input_integrated_flux_sum =
+                    input_v_flux_sum * args.integrated_per_v_s10 * map.grid().pixel_area_deg2();
+                let (longitude_wrap_pass, plane_pole_pass) =
+                    run_science_diagnostics(&map, args.require_science_diagnostics)?;
+                (
+                    map,
+                    sources_used,
+                    input_integrated_flux_sum,
+                    longitude_wrap_pass,
+                    plane_pole_pass,
+                )
+            }
+            InputKind::GaiaPhotonFlux => {
+                let (map, sources_used, input_integrated_flux_sum) =
+                    build_gaia_photon_map(&args.input, grid, provenance)?;
+                validate_stellar_map_values(map.healpix_map())?;
+                validate_integrated_flux_conservation(&map, input_integrated_flux_sum, 1.0e-9)?;
+                let (longitude_wrap_pass, plane_pole_pass) =
+                    run_integrated_science_diagnostics(&map, args.require_science_diagnostics)?;
+                (
+                    map,
+                    sources_used,
+                    input_integrated_flux_sum,
+                    longitude_wrap_pass,
+                    plane_pole_pass,
+                )
+            }
+        };
 
     let generation_command = std::env::args().collect::<Vec<_>>().join(" ");
     let validation_report = args
@@ -191,10 +255,15 @@ fn run(args: Args) -> Result<()> {
     if let Some(path) = &args.diagnostics_output {
         let diagnostics = diagnostics(
             &map,
-            sources_used,
-            longitude_wrap_pass,
-            plane_pole_pass,
-            &csv,
+            DiagnosticsContext {
+                sources_used,
+                longitude_wrap_pass,
+                plane_pole_pass,
+                csv: &csv,
+                args: &args,
+                input_kind,
+                input_integrated_flux_sum,
+            },
         );
         let raw = serde_json::to_string_pretty(&diagnostics)?;
         std::fs::write(path, format!("{raw}\n"))
@@ -215,6 +284,21 @@ fn validate_args(args: &Args) -> Result<()> {
     if !args.integrated_per_v_s10.is_finite() || args.integrated_per_v_s10 < 0.0 {
         bail!("--integrated-per-v-s10 must be finite and non-negative");
     }
+    if args.photometry_model.trim().is_empty() {
+        bail!("--photometry-model must not be empty");
+    }
+    if args.require_science_diagnostics
+        && (args.photometry_model.contains("proxy")
+            || args.photometry_model.contains("experimental"))
+    {
+        bail!("production diagnostics reject proxy or experimental photometry models");
+    }
+    if !args.band_min_nm.is_finite()
+        || !args.band_max_nm.is_finite()
+        || args.band_min_nm >= args.band_max_nm
+    {
+        bail!("band bounds must be finite and satisfy min < max");
+    }
     if args.generation_date_utc.trim().is_empty() {
         bail!("--generation-date-utc must not be empty");
     }
@@ -229,6 +313,22 @@ fn validate_args(args: &Args) -> Result<()> {
         );
     }
     Ok(())
+}
+
+fn input_kind(input: &PathBuf) -> Result<InputKind> {
+    let mut reader = ReaderBuilder::new()
+        .comment(Some(b'#'))
+        .from_path(input)
+        .with_context(|| format!("failed to open input catalogue {}", input.display()))?;
+    let headers = reader
+        .headers()
+        .context("failed to read CSV header")?
+        .clone();
+    if optional_header(&headers, "photon_flux_330_650_ph_m2_s").is_some() {
+        Ok(InputKind::GaiaPhotonFlux)
+    } else {
+        Ok(InputKind::ProxyMagnitudes)
+    }
 }
 
 fn verify_catalog_checksum(args: &Args) -> Result<()> {
@@ -383,6 +483,107 @@ fn equatorial_direction(ra_deg: f64, dec_deg: f64) -> Direction<EquatorialMeanJ2
     ])
 }
 
+#[derive(Debug, Clone, Copy)]
+struct GaiaPhotonColumns {
+    icrs_ra_rad: usize,
+    icrs_dec_rad: usize,
+    photon_flux_330_650_ph_m2_s: usize,
+    weight: Option<usize>,
+}
+
+impl GaiaPhotonColumns {
+    fn from_headers(headers: &StringRecord) -> Result<Self> {
+        Ok(Self {
+            icrs_ra_rad: required_header(headers, "icrs_ra_rad")?,
+            icrs_dec_rad: required_header(headers, "icrs_dec_rad")?,
+            photon_flux_330_650_ph_m2_s: required_header(headers, "photon_flux_330_650_ph_m2_s")?,
+            weight: optional_header(headers, "weight"),
+        })
+    }
+}
+
+fn build_gaia_photon_map(
+    input: &PathBuf,
+    grid: HealpixGrid,
+    provenance: StellarMapProvenance,
+) -> Result<(StellarSurfaceBrightnessMap, usize, f64)> {
+    let mut reader = ReaderBuilder::new()
+        .comment(Some(b'#'))
+        .from_path(input)
+        .with_context(|| {
+            format!(
+                "failed to open Gaia canonical source table {}",
+                input.display()
+            )
+        })?;
+    let headers = reader
+        .headers()
+        .context("failed to read Gaia canonical CSV header")?
+        .clone();
+    let columns = GaiaPhotonColumns::from_headers(&headers)?;
+    let mut values = vec![StellarSurfaceBrightness::zero(); usize::try_from(grid.npix())?];
+    let mut sources_used = 0usize;
+    let mut input_integrated_flux_sum = 0.0;
+
+    for row in reader.records() {
+        let row = row.context("failed to read Gaia canonical CSV record")?;
+        let icrs_ra_rad = parse_required_f64(&row, columns.icrs_ra_rad, "icrs_ra_rad")?;
+        let icrs_dec_rad = parse_required_f64(&row, columns.icrs_dec_rad, "icrs_dec_rad")?;
+        let photon_flux = parse_required_f64(
+            &row,
+            columns.photon_flux_330_650_ph_m2_s,
+            "photon_flux_330_650_ph_m2_s",
+        )?;
+        let weight = match columns.weight {
+            Some(idx) => parse_required_f64(&row, idx, "weight")?,
+            None => 1.0,
+        };
+        if !icrs_ra_rad.is_finite()
+            || !icrs_dec_rad.is_finite()
+            || !photon_flux.is_finite()
+            || !weight.is_finite()
+        {
+            bail!("Gaia canonical rows must contain finite coordinates, fluxes, and weights");
+        }
+        if !(0.0..std::f64::consts::TAU).contains(&icrs_ra_rad)
+            || !((-std::f64::consts::FRAC_PI_2)..=std::f64::consts::FRAC_PI_2)
+                .contains(&icrs_dec_rad)
+        {
+            bail!("Gaia canonical coordinates are outside valid ICRS ranges");
+        }
+        if photon_flux < 0.0 || weight < 0.0 {
+            bail!("Gaia photon flux and weight must be non-negative");
+        }
+        if photon_flux == 0.0 || weight == 0.0 {
+            continue;
+        }
+
+        let direction = icrs_direction_from_radians(icrs_ra_rad, icrs_dec_rad);
+        let galactic: Direction<Galactic> = direction.to_frame();
+        let index = grid.direction_to_pixel(galactic)?;
+        let pixel = &mut values[usize::try_from(index.get())?];
+        let integrated_flux = photon_flux * weight * 1.0e-13;
+        pixel.integrated_ph_cm2_ns_sr += integrated_flux / grid.pixel_area_sr();
+        input_integrated_flux_sum += integrated_flux;
+        sources_used += 1;
+    }
+
+    if sources_used == 0 {
+        bail!("no Gaia passband-integrated sources survived filtering");
+    }
+
+    let healpix_map = HealpixMap::<Galactic, _>::new(grid, values)?;
+    Ok((
+        StellarSurfaceBrightnessMap::new(healpix_map, provenance),
+        sources_used,
+        input_integrated_flux_sum,
+    ))
+}
+
+fn icrs_direction_from_radians(ra: f64, dec: f64) -> Direction<ICRS> {
+    Direction::<ICRS>::from_array([dec.cos() * ra.cos(), dec.cos() * ra.sin(), dec.sin()])
+}
+
 fn passes_v_cut(
     magnitude: Option<ApparentMagnitude>,
     min_v_mag: Option<ApparentMagnitude>,
@@ -406,12 +607,22 @@ fn empty_map(
     Ok(StellarSurfaceBrightnessMap::new(map, provenance))
 }
 
-fn provenance(args: &Args) -> StellarMapProvenance {
+fn provenance(args: &Args, input_kind: InputKind) -> StellarMapProvenance {
     let magnitude_limit = match (args.min_v_mag, args.max_v_mag) {
         (Some(min), Some(max)) => format!("{min} <= V <= {max}"),
         (Some(min), None) => format!("V >= {min}"),
         (None, Some(max)) => format!("V <= {max}"),
         (None, None) => "none".to_string(),
+    };
+
+    let band_definition = match input_kind {
+        InputKind::ProxyMagnitudes => {
+            "integrated 300-650 nm photon radiance plus B/V S10 diagnostics".to_string()
+        }
+        InputKind::GaiaPhotonFlux => format!(
+            "Gaia DR3 XP passband-integrated {}-{} nm photon radiance",
+            args.band_min_nm, args.band_max_nm
+        ),
     };
 
     StellarMapProvenance {
@@ -423,13 +634,92 @@ fn provenance(args: &Args) -> StellarMapProvenance {
         source_catalogue_license: args.catalog_license.clone(),
         source_catalogue_checksum: args.catalog_checksum.clone(),
         magnitude_limit: Some(magnitude_limit),
-        band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics"
-            .to_string(),
-        photometry_model: "v_s10_scaled_integrated_proxy_v1".to_string(),
+        band_definition,
+        photometry_model: args.photometry_model.clone(),
         smoothing: None,
         generator: "nsb-data-tools build_starlight_map using siderust feature/healpix-stellar-maps"
             .to_string(),
     }
+}
+
+fn run_integrated_science_diagnostics(
+    map: &StellarSurfaceBrightnessMap,
+    require: bool,
+) -> Result<(bool, bool)> {
+    let longitude_wrap_pass = integrated_longitude_wrap_pass(map);
+    if require && !longitude_wrap_pass {
+        bail!("starlight diagnostic integrated longitude-wrap artifact failed");
+    }
+    let plane_pole_pass = integrated_plane_pole_pass(map);
+    if require && !plane_pole_pass {
+        bail!("starlight diagnostic integrated plane/pole contrast failed");
+    }
+    Ok((longitude_wrap_pass, plane_pole_pass))
+}
+
+fn integrated_plane_pole_pass(map: &StellarSurfaceBrightnessMap) -> bool {
+    let mut plane_sum = 0.0;
+    let mut plane_count = 0usize;
+    let mut pole_sum = 0.0;
+    let mut pole_count = 0usize;
+    for (idx, value) in map.values().iter().enumerate() {
+        let Ok(center) = map
+            .grid()
+            .pixel_center::<Galactic>(siderust::healpix::HealpixIndex::new(idx as u64))
+        else {
+            return false;
+        };
+        let latitude = center.z().asin().to_degrees();
+        if latitude.abs() <= 10.0 {
+            plane_sum += value.integrated_ph_cm2_ns_sr;
+            plane_count += 1;
+        } else if latitude.abs() >= 60.0 {
+            pole_sum += value.integrated_ph_cm2_ns_sr;
+            pole_count += 1;
+        }
+    }
+    plane_count > 0
+        && pole_count > 0
+        && (plane_sum / plane_count as f64) >= (pole_sum / pole_count as f64)
+}
+
+fn integrated_longitude_wrap_pass(map: &StellarSurfaceBrightnessMap) -> bool {
+    let values = map.values();
+    let max = values
+        .iter()
+        .map(|value| value.integrated_ph_cm2_ns_sr)
+        .fold(0.0_f64, f64::max);
+    values.iter().all(|value| {
+        value.integrated_ph_cm2_ns_sr.is_finite()
+            && value.integrated_ph_cm2_ns_sr <= max.max(1.0) * 1.0e12
+    })
+}
+
+fn validate_integrated_flux_conservation(
+    map: &StellarSurfaceBrightnessMap,
+    expected_flux: f64,
+    tolerance: f64,
+) -> Result<()> {
+    let actual_flux = map
+        .values()
+        .iter()
+        .map(|value| value.integrated_ph_cm2_ns_sr * map.grid().pixel_area_sr())
+        .sum::<f64>();
+    let scale = expected_flux.abs().max(actual_flux.abs()).max(1.0);
+    let relative_error = (actual_flux - expected_flux).abs() / scale;
+    if relative_error > tolerance {
+        bail!(
+            "integrated flux conservation failed: expected {expected_flux}, actual {actual_flux}, relative error {relative_error}, tolerance {tolerance}"
+        );
+    }
+    Ok(())
+}
+
+fn integrated_flux_conservation_pass(
+    map: &StellarSurfaceBrightnessMap,
+    expected_flux: f64,
+) -> bool {
+    validate_integrated_flux_conservation(map, expected_flux, 1.0e-9).is_ok()
 }
 
 fn run_science_diagnostics(
@@ -481,7 +771,12 @@ fn stellar_map_to_csv(
     );
     push_metadata(&mut out, "dataset_name", &provenance.dataset_name);
     push_metadata(&mut out, "version", &provenance.version);
-    push_metadata(&mut out, "calibration_status", "Experimental");
+    let calibration_status = if provenance.photometry_model == GAIA_XP_MODEL {
+        "production-candidate"
+    } else {
+        "Experimental"
+    };
+    push_metadata(&mut out, "calibration_status", calibration_status);
     push_metadata(
         &mut out,
         "generation_date_utc",
@@ -527,17 +822,11 @@ fn stellar_map_to_csv(
     out
 }
 
-fn diagnostics(
-    map: &StellarSurfaceBrightnessMap,
-    sources_used: usize,
-    longitude_wrap_pass: bool,
-    plane_pole_pass: bool,
-    csv: &str,
-) -> Diagnostics {
+fn diagnostics(map: &StellarSurfaceBrightnessMap, context: DiagnosticsContext<'_>) -> Diagnostics {
     let values = map.values();
     Diagnostics {
         schema_version: 1,
-        sources_used,
+        sources_used: context.sources_used,
         nside: map.grid().nside().get(),
         ordering: ordering_name(map.grid().ordering()),
         expected_pixels: values.len(),
@@ -551,14 +840,24 @@ fn diagnostics(
             .iter()
             .map(|value| value.integrated_ph_cm2_ns_sr)
             .sum(),
+        input_integrated_flux_sum_ph_cm2_ns: context.input_integrated_flux_sum,
+        integrated_flux_conservation_pass: integrated_flux_conservation_pass(
+            map,
+            context.input_integrated_flux_sum,
+        ),
         total_b_s10: values.iter().map(|value| value.b_s10).sum(),
         total_v_s10: values.iter().map(|value| value.v_s10).sum(),
         flux_conservation_pass: true,
-        plane_pole_pass,
-        longitude_wrap_pass,
-        output_sha256: format!("sha256:{}", to_hex(&sha256(csv.as_bytes()))),
-        photometry_model: "v_s10_scaled_integrated_proxy_v1",
-        calibration_status: "experimental-until-independent-validation",
+        plane_pole_pass: context.plane_pole_pass,
+        longitude_wrap_pass: context.longitude_wrap_pass,
+        output_sha256: format!("sha256:{}", to_hex(&sha256(context.csv.as_bytes()))),
+        photometry_model: context.args.photometry_model.clone(),
+        calibration_status: match context.input_kind {
+            InputKind::ProxyMagnitudes => "experimental-until-independent-validation".to_string(),
+            InputKind::GaiaPhotonFlux => {
+                "production-candidate-until-independent-validation".to_string()
+            }
+        },
     }
 }
 
@@ -620,6 +919,9 @@ mod tests {
             catalog_license: Some("test-only".to_string()),
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: PROXY_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: Some(diagnostics.clone()),
             require_science_diagnostics: false,
@@ -674,6 +976,9 @@ mod tests {
             catalog_license: Some("test-only".to_string()),
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: PROXY_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: Some(diagnostics.clone()),
             require_science_diagnostics: false,
@@ -733,6 +1038,9 @@ mod tests {
             catalog_license: Some("test-only".to_string()),
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: PROXY_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: None,
             require_science_diagnostics: false,
@@ -768,6 +1076,9 @@ mod tests {
             catalog_license: None,
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: PROXY_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: None,
             require_science_diagnostics: false,
@@ -778,6 +1089,156 @@ mod tests {
         assert!(err
             .to_string()
             .contains("no stellar catalogue records survived filtering"));
+        Ok(())
+    }
+
+    #[test]
+    fn gaia_photon_flux_fixture_builds_healpix_map() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("canonical-gaia.csv");
+        let output = dir.path().join("map.csv");
+        let diagnostics = dir.path().join("map.diagnostics.json");
+        fs::write(
+            &input,
+            concat!(
+                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                "42,4.649644, -0.505386,2016.0,1.0e6,",
+                "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+            ),
+        )?;
+
+        run(Args {
+            input,
+            output: output.clone(),
+            nside: 1,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: None,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: Some("DR3".to_string()),
+            catalog_license: Some("CC-BY-4.0-derived-policy-reviewed".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: Some(diagnostics.clone()),
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })?;
+
+        let raw = fs::read_to_string(output)?;
+        assert!(raw.contains("# calibration_status=production-candidate"));
+        assert!(raw.contains("# photometry_model=gaia_dr3_xp_photon_radiance_330_650nm_v1"));
+        let report: serde_json::Value = serde_json::from_str(&fs::read_to_string(diagnostics)?)?;
+        assert_eq!(report["sources_used"], 1);
+        assert_eq!(report["photometry_model"], GAIA_XP_MODEL);
+        assert!(report["total_integrated_ph_cm2_ns_sr"]
+            .as_f64()
+            .is_some_and(|value| value > 0.0));
+        Ok(())
+    }
+
+    #[test]
+    fn gaia_canonical_source_lands_in_expected_galactic_healpix_pixel() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("canonical-gaia.csv");
+        let output = dir.path().join("map.csv");
+        let nside = 8;
+        let ra_rad = 0.0_f64;
+        let dec_rad = 0.0_f64;
+        fs::write(
+            &input,
+            format!(
+                concat!(
+                    "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                    "42,{:.16},{:.16},2016.0,1.0e6,",
+                    "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+                ),
+                ra_rad, dec_rad
+            ),
+        )?;
+
+        run(Args {
+            input,
+            output: output.clone(),
+            nside,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: None,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: Some("DR3".to_string()),
+            catalog_license: Some("CC-BY-4.0-derived-policy-reviewed".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })?;
+
+        let grid = HealpixGrid::new(Nside::new(nside)?, HealpixOrdering::Ring)?;
+        let galactic: Direction<Galactic> = icrs_direction_from_radians(ra_rad, dec_rad).to_frame();
+        let expected_index = grid.direction_to_pixel(galactic)?.get();
+        let raw = fs::read_to_string(output)?;
+        let mut reader = ReaderBuilder::new()
+            .comment(Some(b'#'))
+            .from_reader(raw.as_bytes());
+        let mut nonzero = Vec::new();
+        for row in reader.records() {
+            let row = row?;
+            let index: u64 = row[0].parse()?;
+            let value: f64 = row[1].parse()?;
+            if value > 0.0 {
+                nonzero.push(index);
+            }
+        }
+        assert_eq!(nonzero, vec![expected_index]);
+        Ok(())
+    }
+
+    #[test]
+    fn gaia_canonical_radian_ranges_are_validated() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("canonical-gaia.csv");
+        let output = dir.path().join("map.csv");
+        fs::write(
+            &input,
+            concat!(
+                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                "42,6.283185307179586,0.0,2016.0,1.0e6,",
+                "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+            ),
+        )?;
+
+        let err = run(Args {
+            input,
+            output,
+            nside: 1,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: None,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: Some("DR3".to_string()),
+            catalog_license: Some("CC-BY-4.0-derived-policy-reviewed".to_string()),
+            catalog_checksum: None,
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
+            generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: false,
+            allow_empty: false,
+        })
+        .expect_err("invalid RA radians must be rejected");
+        assert!(err
+            .to_string()
+            .contains("Gaia canonical coordinates are outside valid ICRS ranges"));
         Ok(())
     }
 
@@ -795,6 +1256,9 @@ mod tests {
             catalog_license: None,
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: 330.0,
+            band_max_nm: 650.0,
             generation_date_utc: "2026-06-24T00:00:00Z".to_string(),
             diagnostics_output: None,
             require_science_diagnostics: true,

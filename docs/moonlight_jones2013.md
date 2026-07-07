@@ -1,6 +1,16 @@
 # Jones 2013 spectral moonlight validation
 
-`Jones2013Spectral` implements wavelength-resolved scattered moonlight using the Jones et al. 2013 lunar reflectance/scattering formulation as provided through Siderust lunar photometry plus NSB's bundled solar spectrum, Mie phase grid, and multiple-scattering correction grid.
+Status: Current validation notes for the default spectral moonlight model.
+Audience: Scientific reviewers and maintainers changing moonlight behavior.
+Scope: Validated domain, atmospheric assumptions, regression fixtures, and known
+accuracy limits.
+Non-goals: This document does not claim CTAO site calibration or independent
+SkyCalc agreement for every geometry.
+
+`Jones2013Spectral` implements wavelength-resolved scattered moonlight using the
+Jones et al. 2013 lunar reflectance/scattering formulation as provided through
+Siderust lunar photometry plus NSB's bundled solar spectrum, Mie phase grid, and
+multiple-scattering correction grid.
 
 ## Validated domain
 
@@ -27,10 +37,16 @@ It does not contain observer altitude. Altitude is taken from the `Geodetic<ECEF
 
 The available constructors are:
 
-- `AtmosphericConditions::generic_clear_sky(location)`: altitude-derived fallback; not site calibrated;
-- `AtmosphericConditions::paranal_average()`: Siderust's built-in Paranal-like average atmosphere;
-- `AtmosphericConditions::cta_s_clear_sky()`: explicit CTA-S planning preset; currently aliases the Paranal-like profile until dedicated CTA-S aerosol calibration data are bundled;
-- `AtmosphericConditions::cta_n_clear_sky()`: explicit CTA-N planning preset using a La Palma/ORM-range pressure with the currently bundled clear-sky Mie parameterization.
+- `AtmosphericConditions::generic_clear_sky(location)`: altitude-derived
+  fallback; not site calibrated;
+- `AtmosphericConditions::paranal_average()`: Siderust's built-in Paranal-like
+  average atmosphere;
+- `AtmosphericConditions::cta_s_clear_sky()`: explicit CTA-S planning preset;
+  currently aliases the Paranal-like profile until dedicated CTA-S aerosol
+  calibration data are bundled;
+- `AtmosphericConditions::cta_n_clear_sky()`: explicit CTA-N planning preset
+  using a La Palma/ORM-range pressure with the currently bundled clear-sky Mie
+  parameterization.
 
 The distinction between generic and site/planning presets is intentional. Production CTA science should use explicit presets or externally calibrated atmospheric profiles rather than relying on `standard_clear_sky`.
 

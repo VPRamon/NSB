@@ -12,18 +12,27 @@ generic/planning model, not a site-calibrated CTAO product.
 ## Model contract
 
 `ComponentMask::ALL`, `ComponentMask::DEFAULT`, and CLI `--components all` are
-identical:
+identical. In the current repository, before the Gaia DR3 production pair is
+committed, they contain:
 
 - zodiacal light;
 - airglow continuum;
 - scattered moonlight.
 
-Integrated starlight is outside that set. The repository contains a
-low-resolution manual seed only for pipeline and lookup tests. Library users
-must opt into `StarlightModel::bundled_experimental_seed()` for that seed.
-Production starlight uses `StarlightModel::validated_external(...)`, which can
-only be constructed from a checksum-pinned map and complete validation sidecar.
-CLI `starlight` requires both `--starlight-map` and `--starlight-manifest`;
+When a reviewed Gaia DR3 XP production release CSV and runtime manifest are
+registered under `crates/nsb/data/manifest.toml`, the `nsb` build script embeds
+both files and `ComponentMask::ALL` / CLI `--components all` include production
+starlight. Until then, bundled production starlight fails closed with a missing
+asset error.
+
+The repository contains a low-resolution manual seed only for pipeline and
+lookup tests. Library users must opt into
+`StarlightModel::bundled_experimental_seed()` for that seed. Production
+starlight uses either `StarlightModel::bundled_production_gaia_dr3()` or
+`StarlightModel::validated_external(...)`, which can only be constructed from a
+checksum-pinned map and complete validation sidecar. CLI `starlight` selects the
+bundled production map by default; `--starlight-map` plus
+`--starlight-manifest` provide a validated external override.
 `experimental-starlight` names only the seed. There is no fallback between them.
 
 | Component | Default implementation | Maturity |
@@ -32,7 +41,7 @@ CLI `starlight` requires both `--starlight-map` and `--starlight-manifest`;
 | Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic or planning preset |
 | Moonlight | Jones et al. (2013) spectral model | Generic or planning preset |
 | KS91 moonlight | Published analytic V-band alternate | Published reference |
-| Integrated starlight | Validated external map or bundled manual seed | Production only when sidecar admission passes; otherwise experimental; non-default |
+| Integrated starlight | Bundled Gaia-derived map, validated external override, or bundled manual seed | Production only when sidecar admission passes or Gaia asset validation is complete; otherwise experimental; default only after bundled Gaia asset is embedded |
 | CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning preset, not calibrated |
 
 The integrated output is photon radiance over 300–650 nm. B/V S10 and magnitude
@@ -70,7 +79,7 @@ let result = evaluator.evaluate(&PointQuery {
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
     components: ComponentMask::ALL,
 })?;
-assert_eq!(result.components.len(), 3);
+assert!(result.components.len() >= 3);
 # Ok(())
 # }
 ```
@@ -95,7 +104,8 @@ Expected JSON contains these audit fields in addition to numeric results:
   "schema_version": "nsb-cli-point-json-v1",
   "version": {
     "model_version": "nsb-model-2026.1",
-    "siderust_revision": "8d94b8375ae23c26d00346f74951e52cd1b595cc",
+    "siderust_version": "0.11.0",
+    "siderust_source": "crates.io:siderust:0.11.0",
     "asset_manifest_schema": 1
   },
   "model": { "preset": "ctao-south-planning" },
@@ -109,9 +119,11 @@ The stable CSV schemas are documented in [CLI schemas](docs/CLI_SCHEMAS.md).
 
 ## Reproducibility and assets
 
-Siderust is pinned to revision
-`8d94b8375ae23c26d00346f74951e52cd1b595cc` (release 0.10.1). All CI builds use
-`Cargo.lock`. Compatibility and update policy are in
+Siderust is declared consistently as the crates.io package
+`siderust = 0.11.0` in the workspace manifests. Public NSB metadata reports the
+source identity as `crates.io:siderust:0.11.0`; it does not expose a Git
+revision for the registry dependency.
+Compatibility and update policy are in
 [SIDERUST_COMPATIBILITY.md](docs/SIDERUST_COMPATIBILITY.md).
 
 Every file under `crates/nsb/data` is registered in
@@ -125,17 +137,19 @@ cargo run --locked -p nsb-data-tools --bin verify_assets -- \
 
 The manifest honestly records provenance gaps in inherited files. Such gaps
 prevent a component from being promoted to calibrated production science.
-Externally supplied production starlight is not a bundled asset and therefore
-uses its own strict sidecar contract documented in
+Bundled production starlight is generated offline and embedded only when the
+derived release CSV and runtime manifest are registered as production assets.
+Externally supplied production starlight uses the same strict sidecar admission
+contract documented in
 [external starlight manifests](docs/EXTERNAL_STARLIGHT_MANIFEST.md).
 
 ## Quality gates
 
-MSRV is Rust 1.89, matching pinned Siderust's SIMD dependency floor. Pull
+MSRV is Rust 1.89, matching the current Siderust SIMD dependency floor. Pull
 requests run:
 
 ```bash
-cargo fmt --all --check
+cargo fmt --all -- --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace --locked
 cargo test --workspace --doc --locked
@@ -144,11 +158,15 @@ cargo build --workspace --release --locked
 cargo deny check
 ```
 
-Benchmarks are scheduled/manual and cover point components, experimental
-starlight lookup, full composition, and window searches.
+`cargo test --workspace --all-targets` runs only a bounded benchmark smoke query.
+Full Criterion benchmarks are scheduled/manual through
+`cargo bench -p nsb --bench threshold_window` and cover point components,
+experimental starlight lookup, full composition, Moon/target edge cases, and
+window searches.
 
 ## Documentation
 
+- [Documentation hub](docs/README.md)
 - [Production roadmap](docs/PRODUCTION_ROADMAP.md)
 - [Performance contract](docs/PERFORMANCE.md)
 - [Model maturity](docs/MODEL_MATURITY.md)
