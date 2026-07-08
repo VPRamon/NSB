@@ -68,13 +68,19 @@ fn parse_level_filter(value: &str) -> Option<LevelFilter> {
             continue;
         }
         if let Some((target, level)) = directive.rsplit_once('=') {
-            let parsed = parse_level(level.trim())?;
+            let Some(parsed) = parse_level(level.trim()) else {
+                continue;
+            };
             let target = target.trim().replace('-', "_");
-            if target == "nsb" || target == "nsb_cli" || target.starts_with("nsb::") {
+            if target == "nsb"
+                || target == "nsb_cli"
+                || target.starts_with("nsb::")
+                || target.starts_with("nsb_cli::")
+            {
                 nsb_specific = Some(parsed);
             }
-        } else {
-            global = parse_level(directive);
+        } else if let Some(level) = parse_level(directive) {
+            global = Some(level);
         }
     }
 
@@ -134,6 +140,10 @@ mod tests {
         assert_eq!(
             parse_level_filter("warn,nsb-cli=trace"),
             Some(LevelFilter::Trace)
+        );
+        assert_eq!(
+            parse_level_filter("other=bogus,nsb_cli::commands=debug"),
+            Some(LevelFilter::Debug)
         );
     }
 }
