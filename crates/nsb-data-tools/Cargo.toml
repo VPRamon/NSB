@@ -50,6 +50,7 @@ doc = false
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
+log = "0.4"
 nsb = { version = "=0.1.0", path = "../nsb" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -57,4 +58,4 @@ siderust = { version = "0.11.0", features = ["atmosphere", "photometry"] }
 toml = "1.1.2"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = "3"}
