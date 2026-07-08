@@ -6,13 +6,13 @@ mod logging;
 mod output;
 mod parsing;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use cli::{Cli, Command};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let level = logging::init(cli.log_level, cli.verbose)?;
+    let level = logging::init(cli.log_level, cli.verbose).context("failed to initialize logging")?;
     log::debug!("logging initialized at {level:?}");
 
     let result = match cli.command {
