@@ -1,4 +1,5 @@
-use clap::{Args, Parser, Subcommand, ValueEnum};
+use crate::logging::LogLevel;
+use clap::{ArgAction, Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -11,6 +12,14 @@ pub struct Cli {
 
     #[arg(long, global = true, value_enum, default_value_t = OutputFormat::Table)]
     pub format: OutputFormat,
+
+    /// Set logging level. Defaults to NSB_LOG/RUST_LOG when present, otherwise warn.
+    #[arg(long, global = true, value_enum)]
+    pub log_level: Option<LogLevel>,
+
+    /// Increase log verbosity: -v=info, -vv=debug, -vvv=trace.
+    #[arg(short = 'v', long, global = true, action = ArgAction::Count)]
+    pub verbose: u8,
 }
 
 #[derive(Debug, Subcommand)]

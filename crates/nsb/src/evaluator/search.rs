@@ -1,4 +1,5 @@
 use crate::error::Result;
+use log::{debug, trace};
 use qtty::{Quantity, Unit};
 use siderust::qtty::Days;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate, TT};
@@ -37,14 +38,30 @@ where
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     if window.start >= window.end || step <= Days::new(0.0) {
+        debug!(
+            "skipping scan threshold search: non-positive window or step; start_mjd={}, end_mjd={}, step_days={}",
+            window.start.raw().value(),
+            window.end.raw().value(),
+            step.value()
+        );
         return Ok(Vec::new());
     }
+
+    debug!(
+        "running scan threshold search: start_mjd={}, end_mjd={}, step_days={}, threshold={}",
+        window.start.raw().value(),
+        window.end.raw().value(),
+        step.value(),
+        threshold.value()
+    );
 
     let mut periods = Vec::new();
     let mut t0 = window.start;
     let mut y0 = f(t0)?;
     let mut above0 = y0 > threshold;
     let mut open_start = above0.then_some(window.start);
+    let mut samples = 1usize;
+    let mut crossings = 0usize;
 
     while t0 < window.end {
         let t1 = add_days_clamped(t0, step, window.end);
@@ -53,8 +70,10 @@ where
         }
 
         let y1 = f(t1)?;
+        samples += 1;
         let above1 = y1 > threshold;
         if above0 != above1 {
+            crossings += 1;
             let crossing = refine_threshold_crossing(t0, y0, t1, y1, f, threshold)?;
             if above0 {
                 if let Some(start) = open_start.take() {
@@ -74,6 +93,13 @@ where
         push_non_empty_period(&mut periods, start, window.end);
     }
 
+    debug!(
+        "completed scan threshold search: samples={}, crossings={}, above_periods={}",
+        samples,
+        crossings,
+        periods.len()
+    );
+
     Ok(periods)
 }
 
@@ -88,11 +114,30 @@ where
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     if window.start >= window.end || fallback_step <= Days::new(0.0) {
+        debug!(
+            "skipping adaptive threshold search: non-positive window or step; start_mjd={}, end_mjd={}, fallback_step_days={}",
+            window.start.raw().value(),
+            window.end.raw().value(),
+            fallback_step.value()
+        );
         return Ok(Vec::new());
     }
     if interval_width_days(window.start, window.end) <= 4.0 * fallback_step.value() {
+        debug!(
+            "falling back to scan threshold search for short interval: width_days={}, fallback_step_days={}",
+            interval_width_days(window.start, window.end),
+            fallback_step.value()
+        );
         return above_threshold_periods(window, fallback_step, f, threshold);
     }
+
+    debug!(
+        "running adaptive threshold search: start_mjd={}, end_mjd={}, fallback_step_days={}, threshold={}",
+        window.start.raw().value(),
+        window.end.raw().value(),
+        fallback_step.value(),
+        threshold.value()
+    );
 
     let start = threshold_sample(window.start, f, threshold)?;
     let end = threshold_sample(window.end, f, threshold)?;
@@ -107,6 +152,10 @@ where
         &mut periods,
     )?;
     coalesce_periods(&mut periods);
+    debug!(
+        "completed adaptive threshold search: above_periods={}",
+        periods.len()
+    );
     Ok(periods)
 }
 
@@ -168,6 +217,11 @@ where
 
     let mid = threshold_sample(mid_time, f, threshold)?;
     if depth >= MAX_ADAPTIVE_SUBDIVISIONS || width_days <= 2.0 * CROSSING_TOLERANCE_DAYS {
+        trace!(
+            "adaptive threshold search reached refinement limit: depth={}, width_days={}",
+            depth,
+            width_days
+        );
         collect_terminal_pair(lo, mid, f, threshold, periods)?;
         collect_terminal_pair(mid, hi, f, threshold, periods)?;
         return Ok(());
@@ -178,6 +232,12 @@ where
         && width_days <= MAX_ADAPTIVE_ACCEPT_SPAN_DAYS
         && samples_are_smooth_and_clear(lo, mid, hi, threshold)
     {
+        trace!(
+            "adaptive threshold search accepted smooth interval: depth={}, width_days={}, above={}",
+            depth,
+            width_days,
+            lo.above
+        );
         if lo.above {
             push_non_empty_period(periods, lo.time, hi.time);
         }
@@ -294,13 +354,16 @@ where
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     let lo_above = y_lo > threshold;
+    let mut refinements = 0usize;
     for _ in 0..MAX_CROSSING_REFINEMENTS {
         let mid = midpoint_mjd(lo, hi);
         if mid <= lo || mid >= hi {
             break;
         }
         let y_mid = f(mid)?;
+        refinements += 1;
         if y_mid == threshold {
+            trace!("threshold crossing exactly sampled after {refinements} refinements");
             return Ok(mid);
         }
         if (y_mid > threshold) == lo_above {
@@ -315,6 +378,7 @@ where
         }
     }
 
+    trace!("threshold crossing refined with {refinements} samples");
     Ok(linear_crossing_estimate(lo, y_lo, hi, y_hi, threshold))
 }
 
