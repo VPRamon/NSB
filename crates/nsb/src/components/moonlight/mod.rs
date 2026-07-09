@@ -30,7 +30,9 @@ use optica::spectrum::algo;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
 use qtty::radiometry::{
     self, spectral_radiance_to_photon_radiance_ns_nm,
-    PhotonsPerSquareCentimeterNanosecondSteradian, WattsPerSquareMeterSteradianNanometer,
+    PhotonsPerSquareCentimeterNanosecondSteradian,
+    PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
+    WattsPerSquareMeterSteradianNanometer,
 };
 use scattering::ScatterGrid;
 use siderust::atmosphere::{
@@ -73,12 +75,10 @@ impl Jones2013Spectral {
 pub const DEFAULT_K_EXT: f64 = 0.172;
 
 const S10_V_TO_INTEGRATED_PH: f64 = 1.242e-3;
-const WL_LOW_NM: f64 = 300.0;
-const WL_HIGH_NM: f64 = 650.0;
-const B_FILTER_NM: f64 = 445.0;
-const V_FILTER_NM: f64 = 551.0;
-const S10_TO_W_M2_SR_UM: f64 = 1.28e-8;
-const HC_JOULE_METER: f64 = 1.986_445_857_148_968e-25;
+const WL_LOW: Nanometers = Nanometers::new(300.0);
+const WL_HIGH: Nanometers = Nanometers::new(650.0);
+const B_FILTER: Nanometers = Nanometers::new(445.0);
+const V_FILTER: Nanometers = Nanometers::new(551.0);
 
 /// Empirical aerosol-scattering weight applied to the Jones 2013 Mie phase term.
 ///

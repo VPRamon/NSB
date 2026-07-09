@@ -17,7 +17,7 @@ use crate::error::{NsbError, Result};
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
 use optica::spectrum::{algo, Interpolation, SampledSpectrum};
-use siderust::qtty::{length::Meter, Kilometers, Nanometer};
+use siderust::qtty::{length::Meter, Kilometers, Micrometers, Nanometer};
 
 const RAW: &str = include_str!("../../../data/airglow_cont.dat");
 const WL_LOW_NM: f64 = 300.0;
@@ -190,7 +190,7 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
                 file: "airglow_cont.dat",
                 message: "rel_sigma".into(),
             })?;
-        lam.push(l_um * 1000.0);
+        lam.push(Micrometers::new(l_um).to::<Nanometer>().value());
         rel.push(r);
         sig.push(dr);
     }

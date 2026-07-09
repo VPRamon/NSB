@@ -29,6 +29,7 @@ pub mod error;
 pub mod evaluator;
 mod reference;
 pub mod site;
+pub(crate) mod units;
 mod window_search;
 
 pub use components::airglow::{

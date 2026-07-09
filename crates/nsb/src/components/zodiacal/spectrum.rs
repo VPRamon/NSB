@@ -11,6 +11,7 @@
 //! computed by interpolation at exactly 445 nm and 551 nm respectively.
 
 use crate::error::{NsbError, Result};
+use crate::units::{s10_for_spectral_photon_radiance, S10_TO_W_M2_SR_NM};
 use optica::spectrum::SampledSpectrum;
 
 use super::extinction::ZodiacalExtinction;
@@ -25,8 +26,9 @@ use optica::spectrum::{algo, Interpolation};
 use qtty::angular::Degrees;
 use qtty::radiometry::{
     spectral_radiance_to_photon_radiance_ns_nm,
-    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
-    WattsPerSquareMeterSteradianNanometer,
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
+    PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
+    S10s as S10, WattsPerSquareMeterSteradianNanometer,
 };
 use siderust::qtty::{length::Meter, Nanometer, Nanometers};
 
@@ -34,6 +36,7 @@ pub(super) const WL_LOW_NM: f64 = 300.0;
 pub(super) const WL_HIGH_NM: f64 = 650.0;
 pub(super) const B_FILTER_NM: f64 = 445.0;
 pub(super) const V_FILTER_NM: f64 = 551.0;
+const S10_SCALE_WAVELENGTH: Nanometers = Nanometers::new(500.0);
 
 /// Compute scalar zodiacal outputs using the default Leinert brightness source.
 pub(super) fn compute_outputs(
@@ -71,12 +74,16 @@ pub(super) fn compute_outputs_with_s10(
         if !(WL_LOW_NM..=WL_HIGH_NM).contains(&l) {
             continue;
         }
+        let wavelength = Nanometers::new(l);
         let f_sun_sr = solar_ys[i] / std::f64::consts::PI;
-        let zl = f_sun_sr * k * reddening_factor(geom.beta, geom.delta_lambda, l);
-        let zl_w_m2_sr_um = zl * 1000.0;
-        let trans = extinction.transmission(zl_w_m2_sr_um, l, zenith);
+        let zl = WattsPerSquareMeterSteradianNanometer::new(
+            f_sun_sr * k * reddening_factor(geom.beta, geom.delta_lambda, l),
+        );
+        let trans = extinction.transmission_for_spectral_radiance(zl, wavelength, zenith);
         let zl_ext = zl * trans;
-        let zl_ext_um = zl_ext * 1000.0;
+        let zl_ext_um = zl_ext
+            .to::<crate::units::WattPerSquareMeterSteradianMicrometer>()
+            .value();
 
         if (l - B_FILTER_NM).abs() < b_dist {
             b_dist = (l - B_FILTER_NM).abs();
@@ -87,11 +94,7 @@ pub(super) fn compute_outputs_with_s10(
             v_zl_um = zl_ext_um;
         }
 
-        let ph = spectral_radiance_to_photon_radiance_ns_nm(
-            WattsPerSquareMeterSteradianNanometer::new(zl_ext),
-            Nanometers::new(l),
-        )
-        .value();
+        let ph = spectral_radiance_to_photon_radiance_ns_nm(zl_ext, wavelength).value();
         lam_buf.push(l);
         ph_buf.push(ph);
     }
@@ -146,12 +149,16 @@ pub(super) fn compute_spectrum_with_s10(
         if !(WL_LOW_NM..=WL_HIGH_NM).contains(&l) {
             continue;
         }
+        let wavelength = Nanometers::new(l);
         let f_sun_sr = solar_ys[i] / std::f64::consts::PI;
-        let zl = f_sun_sr * k * reddening_factor(geom.beta, geom.delta_lambda, l);
-        let zl_w_m2_sr_um = zl * 1000.0;
-        let trans = extinction.transmission(zl_w_m2_sr_um, l, zenith);
+        let zl = WattsPerSquareMeterSteradianNanometer::new(
+            f_sun_sr * k * reddening_factor(geom.beta, geom.delta_lambda, l),
+        );
+        let trans = extinction.transmission_for_spectral_radiance(zl, wavelength, zenith);
         let zl_ext = zl * trans;
-        let zl_ext_um = zl_ext * 1000.0;
+        let zl_ext_um = zl_ext
+            .to::<crate::units::WattPerSquareMeterSteradianMicrometer>()
+            .value();
 
         if (l - B_FILTER_NM).abs() < b_dist {
             b_dist = (l - B_FILTER_NM).abs();
@@ -162,11 +169,7 @@ pub(super) fn compute_spectrum_with_s10(
             v_zl_um = zl_ext_um;
         }
 
-        let ph = spectral_radiance_to_photon_radiance_ns_nm(
-            WattsPerSquareMeterSteradianNanometer::new(zl_ext),
-            Nanometers::new(l),
-        )
-        .value();
+        let ph = spectral_radiance_to_photon_radiance_ns_nm(zl_ext, wavelength).value();
         lam_buf.push(l);
         ph_buf.push(ph);
     }
@@ -205,8 +208,8 @@ fn spectral_scale_from_s10(s10_500: S10, solar: &SampledSpectrum<Nanometer, Mete
             s10_500.value()
         )));
     }
-    let zl_500_wmsrum = s10_500.value() * LEINERT_S10_TO_W_M2_SR_UM;
-    let f_sun_500 = solar.interp_at(Nanometers::new(500.0)).value();
+    let target_500 = (S10_TO_W_M2_SR_NM * s10_500.value()).value();
+    let f_sun_500 = solar.interp_at(S10_SCALE_WAVELENGTH).value();
     let f_sun_500_sr = f_sun_500 / std::f64::consts::PI;
     if !f_sun_500_sr.is_finite() || f_sun_500_sr <= 0.0 {
         return Err(NsbError::DataParse {
@@ -214,7 +217,6 @@ fn spectral_scale_from_s10(s10_500: S10, solar: &SampledSpectrum<Nanometer, Mete
             message: "non-positive flux at 500 nm".into(),
         });
     }
-    let target_500 = zl_500_wmsrum / 1000.0; // W m⁻² sr⁻¹ nm⁻¹
     Ok(target_500 / f_sun_500_sr)
 }
 
@@ -225,8 +227,6 @@ fn interpolate_bv(lam: &[f64], ph: &[f64], b_zl_um: f64, v_zl_um: f64) -> (S10, 
 }
 
 fn interp_linear_or_nearest(lam: &[f64], ph: &[f64], target_nm: f64, fallback_zl_um: f64) -> S10 {
-    const HC_JOULE_METER: f64 = 1.986_445_857_148_968e-25;
-
     let pos = lam.partition_point(|&x| x < target_nm);
     if pos > 0 && pos < lam.len() {
         let x0 = lam[pos - 1];
@@ -236,14 +236,11 @@ fn interp_linear_or_nearest(lam: &[f64], ph: &[f64], target_nm: f64, fallback_zl
         if x1 > x0 {
             let t = (target_nm - x0) / (x1 - x0);
             let ph_interp = y0 + t * (y1 - y0);
-            let lambda_m = target_nm * 1e-9;
-            let denom = lambda_m * 1e-13;
-            if denom > 0.0 {
-                let zl_ext_nm = ph_interp * HC_JOULE_METER / denom;
-                let zl_ext_um = zl_ext_nm * 1000.0;
-                return S10::new(zl_ext_um / LEINERT_S10_TO_W_M2_SR_UM);
-            }
+            return s10_for_spectral_photon_radiance(
+                SpectralBandPhotonRadiance::new(ph_interp),
+                Nanometers::new(target_nm),
+            );
         }
     }
-    S10::new(fallback_zl_um / LEINERT_S10_TO_W_M2_SR_UM)
+    S10::new(fallback_zl_um / LEINERT_S10_TO_W_M2_SR_UM.value())
 }

@@ -202,11 +202,8 @@ const LEINERT_S10: [[f64; 19]; 37] = [
     ], //   0
 ];
 
-/// Conversion factor: 1 S10 → W m⁻² sr⁻¹ µm⁻¹ at 500 nm (Leinert).
-pub(crate) const S10_TO_W_M2_SR_UM: f64 = 1.28e-8;
-
 /// Re-exported as the canonical name used by zodiacal spectrum calculations.
-pub(super) use S10_TO_W_M2_SR_UM as LEINERT_S10_TO_W_M2_SR_UM;
+pub(super) use crate::units::S10_TO_W_M2_SR_UM as LEINERT_S10_TO_W_M2_SR_UM;
 
 /// Maximum-value clamps used by the Python `GetZodiacalLight` for the
 /// unmeasured corners of the table (`λ-λ_sun` close to 0, low `β`).
