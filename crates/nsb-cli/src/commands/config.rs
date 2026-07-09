@@ -16,7 +16,11 @@ pub fn run(args: ConfigArgs) -> Result<()> {
             info!("validating configuration file: {}", path.display());
             let text = fs::read_to_string(&path)
                 .with_context(|| format!("failed to read config file {}", path.display()))?;
-            debug!("read configuration file: path={}, bytes={}", path.display(), text.len());
+            debug!(
+                "read configuration file: path={}, bytes={}",
+                path.display(),
+                text.len()
+            );
             let _: CliConfig = toml::from_str(&text)
                 .with_context(|| format!("invalid config file {}", path.display()))?;
             println!("ok: {}", path.display());
