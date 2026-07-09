@@ -22,8 +22,17 @@ pub(crate) fn bilinear_outputs(
     let w11 = tx * ty;
 
     StarlightOutputs::new(
-        q00.integrated * w00 + q10.integrated * w10 + q01.integrated * w01 + q11.integrated * w11,
-        q00.b_flux_s10 * w00 + q10.b_flux_s10 * w10 + q01.b_flux_s10 * w01 + q11.b_flux_s10 * w11,
-        q00.v_flux_s10 * w00 + q10.v_flux_s10 * w10 + q01.v_flux_s10 * w01 + q11.v_flux_s10 * w11,
+        q00.integrated * w00
+            + q10.integrated * w10
+            + q01.integrated * w01
+            + q11.integrated * w11,
+        q00.b_flux_s10 * w00
+            + q10.b_flux_s10 * w10
+            + q01.b_flux_s10 * w01
+            + q11.b_flux_s10 * w11,
+        q00.v_flux_s10 * w00
+            + q10.v_flux_s10 * w10
+            + q01.v_flux_s10 * w01
+            + q11.v_flux_s10 * w11,
     )
 }
