@@ -17,7 +17,7 @@ use crate::error::{NsbError, Result};
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
 use optica::spectrum::{algo, Interpolation, SampledSpectrum};
-use siderust::qtty::{length::Meter, Nanometer};
+use siderust::qtty::{length::Meter, Kilometers, Nanometer};
 
 const RAW: &str = include_str!("../../../data/airglow_cont.dat");
 const WL_LOW_NM: f64 = 300.0;
@@ -38,7 +38,7 @@ pub struct AirglowContinuum {
     /// Global scale factor (`scale` block in the file).
     pub global_scale: f64,
     /// Typical continuum emission height.
-    pub emission_height_km: f64,
+    pub emission_height_km: Kilometers,
     /// Solar radio-flux correction intercept.
     pub solar_activity_const: f64,
     /// Solar radio-flux correction slope.
@@ -115,13 +115,14 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
                 file: "airglow_cont.dat",
                 message: "ndat".into(),
             })?;
-    let emission_height_km: f64 =
-        iter.next()
-            .and_then(|x| x.parse().ok())
-            .ok_or_else(|| NsbError::DataParse {
-                file: "airglow_cont.dat",
-                message: "height".into(),
-            })?;
+    let emission_height_km = iter
+        .next()
+        .and_then(|x| x.parse::<f64>().ok())
+        .map(Kilometers::new)
+        .ok_or_else(|| NsbError::DataParse {
+            file: "airglow_cont.dat",
+            message: "height".into(),
+        })?;
     let global_scale: f64 =
         iter.next()
             .and_then(|x| x.parse().ok())
@@ -301,6 +302,7 @@ fn parse_matrix<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use siderust::qtty::Kilometer;
 
     #[test]
     fn airglow_builtin_calibration_checksum_matches() {
@@ -321,7 +323,7 @@ mod tests {
         assert_eq!(c.sigma_corrections.len(), 4);
         assert_eq!(c.spectrum.len(), 46);
         assert_eq!(c.uncertainty.len(), 46);
-        assert!((c.emission_height_km - 90.0).abs() < 1.0e-12);
+        assert!((c.emission_height_km.to::<Kilometer>().value() - 90.0).abs() < 1.0e-12);
         assert!((c.global_scale - 79.829).abs() < 1.0e-12);
     }
 }

@@ -3,20 +3,28 @@ use super::output::AirglowOutputs;
 use super::temporal::{season_bin, time_of_night_bin};
 use super::units::SolarFluxUnits;
 use qtty::angular::Degrees;
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use qtty::radiometry::{
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
+    PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance, S10s,
+    WattsPerSquareMeterSteradianMeter, WattsPerSquareMeterSteradianNanometer,
+};
+use qtty::area::SquareCentimeters;
+use qtty::solid_angle::Steradians;
+use qtty::time::Nanoseconds;
+use qtty::{unit, Quantity};
 use siderust::atmosphere::van_rhijn_factor;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Kilometers, Nanometers, Radian};
+use siderust::qtty::{Meter, Nanometers, Radian};
 use tempoch::{Time, UTC};
 
-const B_FILTER_NM: f64 = 445.0;
-const V_FILTER_NM: f64 = 551.0;
-const ARCSEC2_PER_SR: f64 = 4.254_517_029_022_576e10;
-const SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR: f64 =
-    1.0e-9 * 1.0e-4 * 1.0e-3 * ARCSEC2_PER_SR;
-const HC_JOULE_METER: f64 = 1.986_445_857_148_968e-25;
-const S10_TO_W_M2_SR_UM: f64 = 1.28e-8;
+type JouleMeters = Quantity<unit::Prod<unit::Joule, unit::Meter>>;
+
+const B_FILTER: Nanometers = Nanometers::new(445.0);
+const V_FILTER: Nanometers = Nanometers::new(551.0);
+const HC: JouleMeters = JouleMeters::new(1.986_445_857_148_968e-25);
+const S10_TO_W_M2_SR_NM: WattsPerSquareMeterSteradianNanometer =
+    WattsPerSquareMeterSteradianNanometer::new(1.28e-11);
 
 pub(crate) fn evaluate_continuum(
     continuum: &AirglowContinuum,
@@ -62,7 +70,7 @@ pub(crate) fn evaluate_continuum_with_time_bin(
     let zenith = (90.0 - alt).clamp(0.0, 90.0);
     let van_rhijn = van_rhijn_factor(
         Degrees::new(zenith).to::<Radian>(),
-        Kilometers::new(continuum.emission_height_km),
+        continuum.emission_height_km,
     )
     .value();
     let solar_corr =
@@ -76,7 +84,7 @@ pub(crate) fn evaluate_continuum_with_time_bin(
         .unwrap_or(1.0);
     let scale = continuum.global_scale * solar_corr * seasonal_corr * van_rhijn * user_scale;
 
-    let radiance_scale = scale * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR;
+    let radiance_scale = skycalc_spectral_photon_radiance(scale).value();
     let integrated =
         BandPhotonRadiance::new(continuum.integrated_relative_300_650 * radiance_scale);
 
@@ -96,10 +104,10 @@ pub(crate) fn evaluate_continuum_with_time_bin(
                 * solar_corr.abs()
                 * seasonal_corr_value
                 * van_rhijn.abs()
-                * user_scale
-                * SKYCALC_PH_PER_S_M2_UM_ARCSEC2_TO_PH_PER_NS_CM2_NM_SR;
+                * user_scale;
             let shape_sigma_integrated =
-                continuum.integrated_uncertainty_abs_300_650 * common_scale;
+                continuum.integrated_uncertainty_abs_300_650
+                    * skycalc_spectral_photon_radiance(common_scale).value();
             let level_relative_uncertainty = seasonal_sigma.abs() / seasonal_corr_value;
             let shape_relative_uncertainty = shape_sigma_integrated / integrated_value;
             let relative_uncertainty = level_relative_uncertainty.hypot(shape_relative_uncertainty);
@@ -114,16 +122,46 @@ pub(crate) fn evaluate_continuum_with_time_bin(
 
     AirglowOutputs {
         integrated,
-        b_flux_s10: spectral_photon_density_to_s10(b_density, Nanometers::new(B_FILTER_NM)),
-        v_flux_s10: spectral_photon_density_to_s10(v_density, Nanometers::new(V_FILTER_NM)),
+        b_flux_s10: spectral_photon_density_to_s10(
+            SpectralBandPhotonRadiance::new(b_density),
+            B_FILTER,
+        ),
+        v_flux_s10: spectral_photon_density_to_s10(
+            SpectralBandPhotonRadiance::new(v_density),
+            V_FILTER,
+        ),
         relative_uncertainty,
     }
 }
 
-fn spectral_photon_density_to_s10(density: f64, wavelength: Nanometers) -> S10s {
-    let lambda_m = wavelength.value() * 1.0e-9;
-    let photon_energy = HC_JOULE_METER / lambda_m;
-    let w_m2_sr_nm = density * 1.0e13 * photon_energy;
-    let w_m2_sr_um = w_m2_sr_nm * 1.0e3;
-    S10s::new(w_m2_sr_um / S10_TO_W_M2_SR_UM)
+fn skycalc_spectral_photon_radiance(
+    value_ph_per_s_m2_um_arcsec2: f64,
+) -> SpectralBandPhotonRadiance {
+    SpectralBandPhotonRadiance::new(
+        value_ph_per_s_m2_um_arcsec2
+            * Nanoseconds::new(1.0).to::<unit::Second>().value()
+            * SquareCentimeters::new(1.0)
+                .to::<unit::SquareMeter>()
+                .value()
+            * Nanometers::new(1.0).to::<unit::Micrometer>().value()
+            * Steradians::new(1.0).to::<unit::SquareArcsecond>().value(),
+    )
+}
+
+fn spectral_photon_density_to_s10(
+    density: SpectralBandPhotonRadiance,
+    wavelength: Nanometers,
+) -> S10s {
+    let wavelength_m = wavelength.to::<Meter>();
+    let photon_energy = qtty::energy::Joules::new(HC.value() / wavelength_m.value());
+    let spectral_radiance_per_m = WattsPerSquareMeterSteradianMeter::new(
+        density
+            .to::<unit::PhotonPerSquareMeterSecondSteradianMeter>()
+            .value()
+            * photon_energy.value(),
+    );
+    let spectral_radiance_per_nm =
+        spectral_radiance_per_m.to::<unit::WattPerSquareMeterSteradianNanometer>();
+
+    S10s::new(spectral_radiance_per_nm.value() / S10_TO_W_M2_SR_NM.value())
 }
