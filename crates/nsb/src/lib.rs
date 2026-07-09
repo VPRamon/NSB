@@ -28,6 +28,7 @@ pub mod components;
 pub mod error;
 pub mod evaluator;
 mod reference;
+pub(crate) mod spectrum;
 pub mod site;
 pub(crate) mod units;
 mod window_search;
