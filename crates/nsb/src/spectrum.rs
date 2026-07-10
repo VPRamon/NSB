@@ -63,7 +63,10 @@ pub(crate) fn interpolate_spectral_photon_radiance_nm(
 
 /// Erase typed wavelengths to nanometre scalars for `optica::SampledSpectrum`.
 pub(crate) fn wavelength_values_nm(wavelengths: &[Nanometers]) -> Vec<f64> {
-    wavelengths.iter().map(|wavelength| wavelength.value()).collect()
+    wavelengths
+        .iter()
+        .map(|wavelength| wavelength.value())
+        .collect()
 }
 
 /// Erase typed spectral photon radiance values for low-level numeric kernels.
