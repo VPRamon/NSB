@@ -2,6 +2,7 @@ use super::*;
 use crate::evaluator::Target;
 use crate::DEG;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use qtty::solid_angle::Steradians;
 use siderust::qtty::Degrees;
 
 const FIXTURE: &str = include_str!("../../../tests/data/starlight_fixture_map.csv");
@@ -134,7 +135,7 @@ fn custom_scale_changes_outputs() {
         .compute(target(266.4051, -28.936175))
         .unwrap();
     let scaled = Starlight::with_map(fixture_map())
-        .with_scale(2.0)
+        .with_scale(crate::ScaleFactors::new(2.0))
         .compute(target(266.4051, -28.936175))
         .unwrap();
 
@@ -149,7 +150,7 @@ fn invalid_maps_are_rejected() {
         StarlightPixel::new(
             Degrees::new(0.0),
             Degrees::new(0.0),
-            1.0,
+            Steradians::new(1.0),
             BandPhotonRadiance::new(1.0),
             S10s::new(1.0),
             S10s::new(1.0),
@@ -157,7 +158,7 @@ fn invalid_maps_are_rejected() {
         StarlightPixel::new(
             Degrees::new(360.0),
             Degrees::new(0.0),
-            1.0,
+            Steradians::new(1.0),
             BandPhotonRadiance::new(2.0),
             S10s::new(2.0),
             S10s::new(2.0),

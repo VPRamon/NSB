@@ -24,6 +24,7 @@
 use crate::error::Result;
 use crate::reference::solar;
 use crate::site::SiteProfileId;
+use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
 use optica::grid::OutOfRange;
 use optica::spectrum::algo;
@@ -72,9 +73,10 @@ impl Jones2013Spectral {
 
 /// Default V-band atmospheric extinction coefficient (mag/airmass) used by
 /// K&S 1991 in their published curves.
-pub const DEFAULT_K_EXT: f64 = 0.172;
+pub const DEFAULT_K_EXT: MagnitudesPerAirmass = MagnitudesPerAirmass::new(0.172);
 
-const S10_V_TO_INTEGRATED_PH: f64 = 1.242e-3;
+const S10_V_TO_INTEGRATED_PH: PhotonsPerSquareCentimeterNanosecondSteradian =
+    PhotonsPerSquareCentimeterNanosecondSteradian::new(1.242e-3);
 const WL_LOW: Nanometers = Nanometers::new(300.0);
 const WL_HIGH: Nanometers = Nanometers::new(650.0);
 const B_FILTER: Nanometers = Nanometers::new(445.0);

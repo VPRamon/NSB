@@ -2,6 +2,7 @@ use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use crate::reference::solar;
 use optica::spectrum::SampledSpectrum;
+use qtty::angular::Degrees;
 use qtty::radiometry::S10s as S10;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -16,9 +17,9 @@ use super::spectrum as zl_spectrum;
 #[derive(Debug, Clone)]
 /// Caller-defined zodiacal surface-brightness grid.
 pub struct ZodiacalBrightnessGrid {
-    pub(super) beta_axis: Vec<f64>,
-    pub(super) delta_lambda_axis: Vec<f64>,
-    pub(super) s10_values: Vec<Vec<f64>>,
+    pub(super) beta_axis: Vec<Degrees>,
+    pub(super) delta_lambda_axis: Vec<Degrees>,
+    pub(super) s10_values: Vec<Vec<S10>>,
     /// Optional source/provenance note for the custom grid.
     pub provenance: Option<String>,
 }
@@ -26,9 +27,9 @@ pub struct ZodiacalBrightnessGrid {
 impl ZodiacalBrightnessGrid {
     /// Validate and construct a rectangular grid in degrees and S10 units.
     pub fn new(
-        beta_axis: Vec<f64>,
-        delta_lambda_axis: Vec<f64>,
-        s10_values: Vec<Vec<f64>>,
+        beta_axis: Vec<Degrees>,
+        delta_lambda_axis: Vec<Degrees>,
+        s10_values: Vec<Vec<S10>>,
         provenance: Option<String>,
     ) -> Result<Self> {
         if beta_axis.len() < 2 || delta_lambda_axis.len() < 2 {
@@ -46,12 +47,16 @@ impl ZodiacalBrightnessGrid {
                 "delta_lambda_axis must be strictly increasing".to_string(),
             ));
         }
-        if *beta_axis.first().unwrap() < 0.0 || *beta_axis.last().unwrap() > 90.0 {
+        if *beta_axis.first().unwrap() < Degrees::new(0.0)
+            || *beta_axis.last().unwrap() > Degrees::new(90.0)
+        {
             return Err(NsbError::OutOfRange(
                 "beta_axis values must be in [0, 90] degrees".to_string(),
             ));
         }
-        if *delta_lambda_axis.first().unwrap() < 0.0 || *delta_lambda_axis.last().unwrap() > 180.0 {
+        if *delta_lambda_axis.first().unwrap() < Degrees::new(0.0)
+            || *delta_lambda_axis.last().unwrap() > Degrees::new(180.0)
+        {
             return Err(NsbError::OutOfRange(
                 "delta_lambda_axis values must be in [0, 180] degrees".to_string(),
             ));
@@ -73,9 +78,10 @@ impl ZodiacalBrightnessGrid {
                 )));
             }
             for &v in row {
-                if !v.is_finite() || v < 0.0 {
+                if !v.is_finite() || v < S10::new(0.0) {
                     return Err(NsbError::OutOfRange(format!(
-                        "s10_values[{i}] contains non-finite or negative value: {v}"
+                        "s10_values[{i}] contains non-finite or negative value: {}",
+                        v.value()
                     )));
                 }
             }
@@ -88,42 +94,42 @@ impl ZodiacalBrightnessGrid {
         })
     }
 
-    pub(super) fn lookup_s10(&self, beta_deg: f64, delta_lambda_deg: f64) -> Result<S10> {
-        let beta_deg = beta_deg.abs().min(90.0);
-        let delta_lambda_deg = delta_lambda_deg.abs().min(180.0);
-        let (ib0, ib1, tb) = bracket(&self.beta_axis, beta_deg);
-        let (il0, il1, tl) = bracket(&self.delta_lambda_axis, delta_lambda_deg);
-        Ok(S10::new(bilinear(
+    pub(super) fn lookup_s10(&self, beta: Degrees, delta_lambda: Degrees) -> Result<S10> {
+        let beta = beta.abs().min(Degrees::new(90.0));
+        let delta_lambda = delta_lambda.abs().min(Degrees::new(180.0));
+        let (ib0, ib1, tb) = bracket(&self.beta_axis, beta);
+        let (il0, il1, tl) = bracket(&self.delta_lambda_axis, delta_lambda);
+        Ok(bilinear(
             self.s10_values[ib0][il0],
             self.s10_values[ib0][il1],
             self.s10_values[ib1][il0],
             self.s10_values[ib1][il1],
             tb,
             tl,
-        )))
+        ))
     }
 }
 
-fn is_strictly_increasing(v: &[f64]) -> bool {
+fn is_strictly_increasing(v: &[Degrees]) -> bool {
     v.windows(2).all(|w| w[1] > w[0])
 }
 
-fn bracket(axis: &[f64], value: f64) -> (usize, usize, f64) {
+fn bracket(axis: &[Degrees], value: Degrees) -> (usize, usize, f64) {
     let pos = axis.partition_point(|&x| x <= value);
     let i1 = pos.min(axis.len() - 1);
     let i0 = if i1 == 0 { 0 } else { i1 - 1 };
     let t = if axis[i1] > axis[i0] {
-        (value - axis[i0]) / (axis[i1] - axis[i0])
+        (value - axis[i0]).value() / (axis[i1] - axis[i0]).value()
     } else {
         0.0
     };
     (i0, i1, t.clamp(0.0, 1.0))
 }
 
-fn bilinear(v00: f64, v01: f64, v10: f64, v11: f64, tx: f64, ty: f64) -> f64 {
-    let r0 = v00 + tx * (v10 - v00);
-    let r1 = v01 + tx * (v11 - v01);
-    r0 + ty * (r1 - r0)
+fn bilinear(v00: S10, v01: S10, v10: S10, v11: S10, tx: f64, ty: f64) -> S10 {
+    let r0 = v00 + (v10 - v00) * tx;
+    let r1 = v01 + (v11 - v01) * tx;
+    r0 + (r1 - r0) * ty
 }
 
 #[derive(Debug, Clone)]
@@ -282,10 +288,10 @@ impl ZodiacalLight {
         geom: &geometry::ZodiacalGeometry,
         grid: &ZodiacalBrightnessGrid,
     ) -> Result<S10> {
-        use qtty::angular::Degree;
-        let beta_deg = geom.beta.abs().to::<Degree>().value();
-        let dl_deg = geom.delta_lambda.to::<Degree>().value().abs().min(180.0);
-        grid.lookup_s10(beta_deg, dl_deg)
+        grid.lookup_s10(
+            geom.beta.abs().to::<qtty::angular::Degree>(),
+            geom.delta_lambda.to::<qtty::angular::Degree>(),
+        )
     }
 }
 

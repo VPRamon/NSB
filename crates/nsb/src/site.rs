@@ -7,6 +7,7 @@
 //! are bundled with the crate.
 
 use crate::components::moonlight::AtmosphericConditions;
+use crate::units::ScaleFactors;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Kilometer, Kilometers};
@@ -37,7 +38,7 @@ pub enum CalibrationStatus {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AirglowSiteCalibration {
     /// Multiplicative scale applied to the bundled continuum template.
-    pub scale: f64,
+    pub scale: ScaleFactors,
     /// Continuum template used by the profile.
     pub template: &'static str,
     /// Machine-readable provenance note for the template and scale.
@@ -49,7 +50,7 @@ pub struct AirglowSiteCalibration {
 impl AirglowSiteCalibration {
     fn skycalc_neutral() -> Self {
         Self {
-            scale: 1.0,
+            scale: ScaleFactors::new(1.0),
             template: "NSB/data/airglow_cont.dat",
             provenance: "Bundled SkyCalc-derived empirical continuum template; neutral site scale.",
             assumptions: concat!(
@@ -179,8 +180,8 @@ mod tests {
         assert_eq!(south.calibration_status, CalibrationStatus::PlanningPreset);
         assert!(!north.is_site_calibrated());
         assert!(!south.is_site_calibrated());
-        assert_eq!(north.airglow.scale, 1.0);
-        assert_eq!(south.airglow.scale, 1.0);
+        assert_eq!(north.airglow.scale, ScaleFactors::new(1.0));
+        assert_eq!(south.airglow.scale, ScaleFactors::new(1.0));
         assert!(north.atmosphere_provenance.contains("CTAO-North"));
         assert!(south.atmosphere_provenance.contains("CTAO-South"));
     }

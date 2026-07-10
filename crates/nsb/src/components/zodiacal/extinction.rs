@@ -35,6 +35,7 @@
 
 use crate::units::{WattPerSquareMeterSteradianMicrometer, WattsPerSquareMeterSteradianMicrometer};
 use qtty::angular::{Degrees, Radian};
+use qtty::dimensionless::Transmittances;
 use qtty::radiometry::WattsPerSquareMeterSteradianNanometer;
 use qtty::unit;
 use siderust::atmosphere::{airmass, Young1994};
@@ -68,14 +69,15 @@ impl ZodiacalExtinction {
     /// parametric extinction model.
     ///
     /// Returns `1.0` for [`ZodiacalExtinction::None`].
-    pub fn transmission(&self, zl_value_w_m2_sr_um: f64, lambda_nm: f64, zenith: Degrees) -> f64 {
-        let spectral_radiance = WattsPerSquareMeterSteradianMicrometer::new(zl_value_w_m2_sr_um)
-            .to::<unit::WattPerSquareMeterSteradianNanometer>();
-        self.transmission_for_spectral_radiance(
-            spectral_radiance,
-            Nanometers::new(lambda_nm),
-            zenith,
-        )
+    pub fn transmission(
+        &self,
+        spectral_radiance: WattsPerSquareMeterSteradianMicrometer,
+        wavelength: Nanometers,
+        zenith: Degrees,
+    ) -> Transmittances {
+        let spectral_radiance =
+            spectral_radiance.to::<unit::WattPerSquareMeterSteradianNanometer>();
+        self.transmission_for_spectral_radiance(spectral_radiance, wavelength, zenith)
     }
 
     pub(crate) fn transmission_for_spectral_radiance(
@@ -83,9 +85,9 @@ impl ZodiacalExtinction {
         spectral_radiance: WattsPerSquareMeterSteradianNanometer,
         wavelength: Nanometers,
         zenith: Degrees,
-    ) -> f64 {
+    ) -> Transmittances {
         match self {
-            Self::None => 1.0,
+            Self::None => Transmittances::new(1.0),
             Self::Noll2012Approx => noll2012_transmission(spectral_radiance, wavelength, zenith),
         }
     }
@@ -95,7 +97,7 @@ fn noll2012_transmission(
     spectral_radiance: WattsPerSquareMeterSteradianNanometer,
     wavelength: Nanometers,
     zenith: Degrees,
-) -> f64 {
+) -> Transmittances {
     let zl_value_w_m2_sr_um = spectral_radiance
         .to::<WattPerSquareMeterSteradianMicrometer>()
         .value();
@@ -120,5 +122,5 @@ fn noll2012_transmission(
     let tau0 = (10f64).powf(-0.4 * kaer).ln();
     let am = airmass::<Young1994>(zenith.to::<Radian>());
     let tau_eff = tau0 * (fext_r + fext_m) * am.value();
-    (-tau_eff).exp()
+    Transmittances::new((-tau_eff).exp())
 }

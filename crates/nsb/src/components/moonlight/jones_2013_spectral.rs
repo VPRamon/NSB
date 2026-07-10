@@ -1,12 +1,13 @@
 use super::*;
 use crate::units::s10_for_spectral_photon_radiance;
+use crate::units::ScaleFactors;
 use qtty::Second;
 
 /// Wavelength-resolved Jones et al. (2013) scattered-moonlight evaluator.
 pub struct Jones2013Spectral {
     location: Geodetic<ECEF>,
     conditions: AtmosphericConditions,
-    extinction_scale: Option<f64>,
+    extinction_scale: Option<ScaleFactors>,
 }
 
 impl Jones2013Spectral {
@@ -28,8 +29,8 @@ impl Jones2013Spectral {
     }
 
     /// Override the default extinction coefficient by relative scaling.
-    pub fn with_extinction_scale(mut self, k_ext: f64) -> Self {
-        self.extinction_scale = Some(k_ext / DEFAULT_K_EXT);
+    pub fn with_extinction_scale(mut self, k_ext: MagnitudesPerAirmass) -> Self {
+        self.extinction_scale = Some(ScaleFactors::new(k_ext.value() / DEFAULT_K_EXT.value()));
         self
     }
 
@@ -43,7 +44,7 @@ impl Jones2013Spectral {
         compute_jones_2013_spectral(
             &geometry,
             bundled_solar_samples(),
-            self.extinction_scale.unwrap_or(1.0),
+            self.extinction_scale.unwrap_or(ScaleFactors::new(1.0)),
             self.atmosphere_profile(),
         )
     }
@@ -86,7 +87,7 @@ impl Jones2013Spectral {
 fn compute_jones_2013_spectral(
     inp: &MoonlightGeometry,
     solar_samples: &[(f64, f64)],
-    tau_scale: f64,
+    tau_scale: ScaleFactors,
     profile: AtmosphereProfile,
 ) -> Result<MoonOutputs> {
     if !inp.moon_zenith.is_finite()
@@ -111,6 +112,7 @@ fn compute_jones_2013_spectral(
     let correction = correction_grid();
     let am_moon = airmass::<KrisciunasSchaeferAirmass>(inp.moon_zenith.to::<Radian>());
     let am_src = airmass::<KrisciunasSchaeferAirmass>(inp.source_zenith.to::<Radian>());
+    let tau_scale = tau_scale.value();
 
     let mut lam = Vec::new();
     let mut density = Vec::new();

@@ -11,6 +11,9 @@ use qtty::radiometry::{
 use qtty::{unit, Quantity};
 use siderust::qtty::{Meter, Nanometers};
 
+/// A generic multiplicative scale factor.
+pub type ScaleFactors = qtty::dimensionless::Ratios;
+
 /// Quantity type for Planck's constant times the speed of light, in joule metre.
 pub(crate) type JouleMeters = Quantity<unit::Prod<unit::Joule, unit::Meter>>;
 
@@ -40,11 +43,61 @@ pub(crate) type SkyCalcSpectralPhotonRadiance =
     dimension = qtty::radiometry::SpectralRadiance,
     ratio = 1.0e6
 )]
-pub(crate) struct WattPerSquareMeterSteradianMicrometer;
+pub struct WattPerSquareMeterSteradianMicrometer;
 
 /// Spectral radiance in W m⁻² sr⁻¹ µm⁻¹.
-pub(crate) type WattsPerSquareMeterSteradianMicrometer =
-    Quantity<WattPerSquareMeterSteradianMicrometer>;
+pub type WattsPerSquareMeterSteradianMicrometer = Quantity<WattPerSquareMeterSteradianMicrometer>;
+
+/// Solar radio flux unit:
+/// 1 SFU = 10⁻²² W m⁻² Hz⁻¹.
+///
+/// `qtty` currently has no spectral-flux-density dimension, so this is kept as
+/// a dimensionless convention unit until the upstream dimensional catalogue can
+/// represent W m⁻² Hz⁻¹.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[unit(
+    crate = qtty,
+    symbol = "SFU",
+    dimension = qtty::dimensionless::Dimensionless,
+    ratio = 1.0
+)]
+pub struct SolarFluxUnit;
+
+/// Solar radio flux in solar flux units.
+pub type SolarFluxUnits = Quantity<SolarFluxUnit>;
+
+/// Atmospheric extinction coefficient in magnitudes per airmass.
+///
+/// This is a dimensionless atmospheric convention. The name preserves the
+/// domain meaning while allowing qtty-style construction and comparison.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[unit(
+    crate = qtty,
+    symbol = "mag·airmass⁻¹",
+    dimension = qtty::dimensionless::Dimensionless,
+    ratio = 1.0
+)]
+pub struct MagnitudePerAirmass;
+
+/// Atmospheric extinction coefficients in mag per airmass.
+pub type MagnitudesPerAirmass = Quantity<MagnitudePerAirmass>;
+
+/// Luminance convention used by Krisciunas & Schaefer: nanolamberts.
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[unit(
+    crate = qtty,
+    symbol = "nL",
+    dimension = qtty::dimensionless::Dimensionless,
+    ratio = 1.0
+)]
+pub(crate) struct Nanolambert;
+
+/// Brightness in nanolamberts.
+pub(crate) type Nanolamberts = Quantity<Nanolambert>;
+
+/// Integrated photon flux over a pixel solid angle.
+pub(crate) type PixelIntegratedPhotonFlux =
+    Quantity<unit::Prod<unit::PhotonPerSquareCentimeterNanosecondSteradian, unit::Steradian>>;
 
 /// Photometric calibration: 1 S10 → W m⁻² sr⁻¹ µm⁻¹.
 ///

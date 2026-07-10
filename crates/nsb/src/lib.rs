@@ -55,12 +55,17 @@ pub use site::{
     AirglowSiteCalibration, CalibrationStatus, CalibrationStatus as SiteCalibrationStatus,
     SiteProfile, SiteProfileId,
 };
+pub use units::{
+    MagnitudePerAirmass, MagnitudesPerAirmass, ScaleFactors, SolarFluxUnit,
+    WattPerSquareMeterSteradianMicrometer, WattsPerSquareMeterSteradianMicrometer,
+};
 
 pub use siderust::coordinates::frames::EquatorialMeanJ2000;
 pub use siderust::coordinates::spherical::Direction as SphericalDirection;
 pub use siderust::qtty::DEG;
 
-pub(crate) const NSB_S10_ZP: f64 = 27.78;
+pub(crate) const NSB_S10_ZP: qtty::photometry::SurfaceBrightness =
+    qtty::photometry::SurfaceBrightness::new(27.78);
 
 /// Version of the NSB library crate.
 pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");

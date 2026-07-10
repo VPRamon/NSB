@@ -1,7 +1,8 @@
 use super::calibration::AirglowContinuum;
 use super::output::AirglowOutputs;
 use super::temporal::{season_bin, time_of_night_bin};
-use super::units::SolarFluxUnits;
+use super::units::{is_valid_solar_flux, SolarFluxUnits};
+use crate::units::ScaleFactors;
 use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
 use qtty::angular::Degrees;
 use qtty::radiometry::{
@@ -24,7 +25,7 @@ pub(crate) fn evaluate_continuum(
     location: Geodetic<ECEF>,
     altitude: Degrees,
     solar_radio_flux: SolarFluxUnits,
-    user_scale: f64,
+    user_scale: ScaleFactors,
 ) -> AirglowOutputs {
     let Some(time_bin) = time_of_night_bin(time, location) else {
         return AirglowOutputs::zero();
@@ -46,15 +47,15 @@ pub(crate) fn evaluate_continuum_with_time_bin(
     location: Geodetic<ECEF>,
     altitude: Degrees,
     solar_radio_flux: SolarFluxUnits,
-    user_scale: f64,
+    user_scale: ScaleFactors,
     time_bin: usize,
 ) -> AirglowOutputs {
     let alt = altitude.value();
     if !alt.is_finite()
         || alt <= -90.0
-        || !solar_radio_flux.is_valid()
+        || !is_valid_solar_flux(solar_radio_flux)
         || !user_scale.is_finite()
-        || user_scale < 0.0
+        || user_scale < ScaleFactors::new(0.0)
     {
         return AirglowOutputs::zero();
     }
@@ -74,7 +75,9 @@ pub(crate) fn evaluate_continuum_with_time_bin(
         .and_then(|row| row.get(season_bin))
         .copied()
         .unwrap_or(1.0);
-    let scale = continuum.global_scale * solar_corr * seasonal_corr * van_rhijn * user_scale;
+    let user_scale = user_scale.value();
+    let scale =
+        continuum.global_scale.value() * solar_corr * seasonal_corr * van_rhijn * user_scale;
 
     let radiance_scale = SkyCalcSpectralPhotonRadiance::new(scale)
         .to::<unit::PhotonPerSquareCentimeterNanosecondSteradianNanometer>()
@@ -94,7 +97,7 @@ pub(crate) fn evaluate_continuum_with_time_bin(
                 return None;
             }
 
-            let common_scale = continuum.global_scale.abs()
+            let common_scale = continuum.global_scale.abs().value()
                 * solar_corr.abs()
                 * seasonal_corr_value
                 * van_rhijn.abs()

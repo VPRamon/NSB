@@ -5,7 +5,9 @@ use super::leinert::{reference_lookup_s10_for_test, Leinert1998Grid};
 use super::model::{ZodiacalBrightnessGrid, ZodiacalBrightnessModel, ZodiacalLight};
 use crate::evaluator::Target;
 use qtty::angular::{Degrees, Radians};
+use qtty::radiometry::S10s;
 use siderust::catalogs::observatories;
+use siderust::qtty::Nanometers;
 use siderust::qtty::DEG;
 use tempoch::{Time, UTC};
 
@@ -81,15 +83,26 @@ fn leinert_lookup_rejects_non_finite_inputs() {
 
 #[test]
 fn noll2012_extinction_matches_numeric_reference_value() {
-    let transmission =
-        ZodiacalExtinction::Noll2012Approx.transmission(1.0, 500.0, Degrees::new(0.0));
+    let transmission = ZodiacalExtinction::Noll2012Approx
+        .transmission(
+            crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0),
+            Nanometers::new(500.0),
+            Degrees::new(0.0),
+        )
+        .value();
     let expected = 0.848_018_546_292_333;
     assert!(
         (transmission - expected).abs() <= 1.0e-12,
         "Noll-style extinction reference changed: got {transmission}, expected {expected}"
     );
     assert_eq!(
-        ZodiacalExtinction::None.transmission(1.0, 500.0, Degrees::new(60.0)),
+        ZodiacalExtinction::None
+            .transmission(
+                crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0),
+                Nanometers::new(500.0),
+                Degrees::new(60.0),
+            )
+            .value(),
         1.0
     );
 }
@@ -222,9 +235,12 @@ fn leinert1998_compute_returns_positive_integrated() {
 #[test]
 fn custom_grid_path_works() {
     let grid = ZodiacalBrightnessGrid::new(
-        vec![0.0, 90.0],
-        vec![0.0, 180.0],
-        vec![vec![100.0, 50.0], vec![63.0, 63.0]],
+        vec![Degrees::new(0.0), Degrees::new(90.0)],
+        vec![Degrees::new(0.0), Degrees::new(180.0)],
+        vec![
+            vec![S10s::new(100.0), S10s::new(50.0)],
+            vec![S10s::new(63.0), S10s::new(63.0)],
+        ],
         Some("test-grid".to_string()),
     )
     .expect("custom grid");

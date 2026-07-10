@@ -149,7 +149,7 @@ fn zodiacal_samples(
             f_sun_sr * scale * reddening_factor(geom.beta, geom.delta_lambda, lambda_nm),
         );
         let trans = extinction.transmission_for_spectral_radiance(zl, wavelength, zenith);
-        let zl_ext = zl * trans;
+        let zl_ext = zl * trans.value();
         let zl_ext_um = zl_ext
             .to::<crate::units::WattPerSquareMeterSteradianMicrometer>()
             .value();

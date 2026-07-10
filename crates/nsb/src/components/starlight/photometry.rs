@@ -1,6 +1,8 @@
 use super::output::StarlightOutputs;
+use crate::units::ScaleFactors;
 
-pub(crate) fn scale_outputs(out: StarlightOutputs, scale: f64) -> StarlightOutputs {
+pub(crate) fn scale_outputs(out: StarlightOutputs, scale: ScaleFactors) -> StarlightOutputs {
+    let scale = scale.value();
     StarlightOutputs::new(
         out.integrated * scale,
         out.b_flux_s10 * scale,

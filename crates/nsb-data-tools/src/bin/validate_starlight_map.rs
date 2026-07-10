@@ -129,7 +129,7 @@ fn run(args: Args) -> Result<()> {
     let output_integrated_flux_sum_ph_cm2_ns = map
         .pixels()
         .iter()
-        .map(|pixel| pixel.integrated.value() * pixel.solid_angle_sr)
+        .map(|pixel| pixel.integrated.value() * pixel.solid_angle.value())
         .sum::<f64>();
     let integrated_flux_conservation_tolerance =
         build_diagnostics.as_ref().and_then(|diagnostics| {
