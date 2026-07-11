@@ -35,8 +35,7 @@ cargo run --locked -p nsb-data-tools --bin verify_assets -- \
 
 ## Gaia DR3 release input generation
 
-Smoke/candidate run, suitable for checking local plumbing before a full Gaia
-release extraction:
+Smoke/candidate run for the legacy DataLink input generator (fallback path only):
 
 ```bash
 cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_inputs -- \
@@ -44,21 +43,20 @@ cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_input
   --max-g-mag 12.0 \
   --limit 1000 \
   --chunk-size 100 \
-  --band-min-nm 330 \
+  --band-min-nm 336 \
   --band-max-nm 650 \
   --candidate \
   --resume
 ```
 
-Production-style run, once reviewed policy and independent validation files
-exist:
+Production-style DataLink retrieval (fallback when official bulk is unavailable):
 
 ```bash
 cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_inputs -- \
   --out-dir target/starlight-release \
   --max-g-mag 20.0 \
   --chunk-size 5000 \
-  --band-min-nm 330 \
+  --band-min-nm 336 \
   --band-max-nm 650 \
   --license-policy-file docs/policies/gaia_dr3_starlight_derived_product_policy.txt \
   --validation-reference validation/starlight_independent_reference_v1.json \
@@ -122,15 +120,26 @@ exist. To regenerate only the sidecar from the official bulk inventory without
 rewriting the canonical catalogue:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
-  --bulk-dir "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_xp_sampled_bulk" \
+OUT="$HOME/nsb-data/starlight-gaia-release"
+BULK="$OUT/gaia_dr3_xp_sampled_bulk"
+LICENSE='Gaia DR3 data are open and free to use with credit to ESA/Gaia/DPAC; NSB redistributes only a derived validated runtime starlight map'
+
+cargo run --locked --release -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --bulk-dir "$BULK" \
   --exclusions-only \
-  --exclusions-output "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_starlight_exclusions.csv" \
-  --diagnostics-output "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_starlight_exclusions.diagnostics.json" \
+  --exclusions-output "$OUT/gaia_dr3_starlight_exclusions.csv" \
+  --diagnostics-output "$OUT/gaia_dr3_starlight_exclusions.diagnostics.json" \
   --catalog-name "Gaia" \
   --catalog-release "DR3" \
-  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY"
+  --catalog-license "$LICENSE" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
+  --band-min-nm 336 \
+  --band-max-nm 650
 ```
+
+This command re-reads the bulk inventory, writes only the exclusions sidecar and
+its diagnostics, and must yield exactly 10 scientific exclusions for the
+validated 2026-07-11 run.
 
 The validated canonical catalogue for the 2026-07-11 release run must not be
 regenerated unnecessarily. Its streaming SHA-256 is:
@@ -164,9 +173,14 @@ Reassess existing artefacts without rereading the 4.7 GiB catalogue or
 rebuilding maps:
 
 ```bash
+OUT="$HOME/nsb-data/starlight-gaia-release"
+SWEEP="$OUT/sweep"
+CATALOG_SHA="1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30"
+
 cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
-  --output-dir "$HOME/nsb-data/starlight-gaia-release/sweep" \
-  --assess-existing
+  --output-dir "$SWEEP" \
+  --assess-existing \
+  --catalog-checksum "sha256:$CATALOG_SHA"
 ```
 
 Observed 2026-07-11 reassessment:
@@ -185,28 +199,7 @@ Use `--require-production-ready` only when an automated production promotion
 is intended; the default candidate assessment exits successfully when a
 candidate recommendation exists even if production is blocked.
 
-After generation, source the env file and run the remaining pipeline:
-
-```bash
-source target/starlight-release/starlight_release_inputs.env
-
-cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
-  --input "$GAIA_DR3_STARLIGHT_EXTRACT" \
-  --output target/starlight-release/canonical_gaia_starlight_sources.csv \
-  --diagnostics-output target/starlight-release/canonical_gaia_starlight_sources.diagnostics.json \
-  --catalog-name "Gaia" \
-  --catalog-release "DR3" \
-  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
-  --source-checksum "$GAIA_DR3_STARLIGHT_EXTRACT_SHA256" \
-  --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
-  --band-min-nm 330 \
-  --band-max-nm 650 \
-  --require-passband-photometry
-```
-
-Production-style Gaia starlight generation selects `has_xp_sampled = 'true'`
-sources and must use
-`gaia_dr3_xp_photon_radiance_330_650nm_v1`, pass `--require-science-diagnostics`,
-and then pass the validation and packing stages. The legacy
-`v_s10_scaled_integrated_proxy_v1` path remains experimental. See
-`docs/STELLAR_MAP_GENERATION.md` for commands and promotion criteria.
+The normalized DataLink fallback (`--input` to `prepare_gaia_starlight_catalogue`)
+remains for controlled validation or repair when the official bulk inventory is
+unavailable. See `docs/STELLAR_MAP_GENERATION.md` for the validated 336–650 nm
+bulk workflow and candidate `nside=256` sweep outcome.
