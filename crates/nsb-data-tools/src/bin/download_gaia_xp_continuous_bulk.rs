@@ -56,9 +56,13 @@ async fn main() -> Result<()> {
     let paths = BulkPaths::continuous(&args.download_dir);
     let downloader = BulkDownloader::continuous(config)?;
     let report = downloader.download(&paths, args.resume).await?;
-    write_report(&args.report_json.unwrap_or_else(|| {
-        args.download_dir.join("gaia_xp_continuous_bulk_report.json")
-    }), &report)?;
+    write_report(
+        &args.report_json.unwrap_or_else(|| {
+            args.download_dir
+                .join("gaia_xp_continuous_bulk_report.json")
+        }),
+        &report,
+    )?;
     report.ensure_complete()?;
     Ok(())
 }

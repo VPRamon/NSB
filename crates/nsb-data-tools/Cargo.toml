@@ -109,6 +109,16 @@ path = "src/bin/train_starlight_photometry_models.rs"
 doc = false
 
 [[bin]]
+name = "run_phase5b_cross_comparison"
+path = "src/bin/run_phase5b_cross_comparison.rs"
+doc = false
+
+[[bin]]
+name = "run_phase5b_mini_pilot"
+path = "src/bin/run_phase5b_mini_pilot.rs"
+doc = false
+
+[[bin]]
 name = "audit_gaia_starlight_exclusions"
 path = "src/bin/audit_gaia_starlight_exclusions.rs"
 doc = false
