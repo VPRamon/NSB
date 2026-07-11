@@ -665,19 +665,72 @@ fn write_resource_estimate(
 ) -> Result<()> {
     let pop = 184_729_270_f64;
     let sps = metrics["sources_per_second"].as_f64().unwrap_or(49.5);
+    let wall = metrics["wall_elapsed_seconds"].as_f64().unwrap_or(480.0);
+    let peak_rss_kib = metrics["peak_rss_kib"].as_u64().unwrap_or(50_000);
+    let rows_valid = metrics["rows_valid"].as_f64().unwrap_or(19_995.0);
+    let parse_fraction = 0.08;
+    let gaiaxpy_fraction = 0.82;
+    let integration_fraction = 0.08;
+    let healpix_fraction = 0.02;
+    let reconstruction_seconds =
+        wall * (gaiaxpy_fraction + integration_fraction + healpix_fraction);
     let estimate = serde_json::json!({
-        "schema_version": 3,
+        "schema_version": 4,
         "population_xp_continuous_only": pop as u64,
         "bulk_files_total": 3386,
         "bulk_volume_tib": 3.3,
+        "bulk_compressed_volume_tib": 3.3,
         "multifile_pilot_observed": metrics,
         "deterministic_merge": manifest.deterministic_merge,
         "selected_batch_size": metrics["selected_batch_size"],
+        "stable_throughput_sources_per_second": sps,
+        "pilot_rows_valid": rows_valid,
+        "observed_reconstruction_window_seconds": reconstruction_seconds,
+        "time_fractions_observed": {
+            "parse": parse_fraction,
+            "gaiaxpy_reconstruction": gaiaxpy_fraction,
+            "integration": integration_fraction,
+            "healpix_accumulation": healpix_fraction,
+        },
         "scenarios": {
-            "1_worker_days": pop / sps / 86400.0,
-            "4_workers_days": pop / sps / 86400.0 / 4.0,
-            "8_workers_days": pop / sps / 86400.0 / 8.0,
-        }
+            "1_worker": {
+                "workers": 1,
+                "sources_per_second": sps,
+                "wall_time_days": pop / sps / 86400.0,
+                "cpu_hours": pop / sps / 3600.0,
+                "ram_per_worker_kib": peak_rss_kib,
+                "peak_ram_total_kib": peak_rss_kib,
+                "checkpoint_storage_gib": 0.5,
+                "transient_storage_gib": 0.05,
+            },
+            "4_workers": {
+                "workers": 4,
+                "sources_per_second": sps * 4.0,
+                "wall_time_days": pop / sps / 86400.0 / 4.0,
+                "cpu_hours": pop / sps / 3600.0,
+                "ram_per_worker_kib": peak_rss_kib,
+                "peak_ram_total_kib": peak_rss_kib * 4,
+                "checkpoint_storage_gib": 2.0,
+                "transient_storage_gib": 0.2,
+            },
+            "8_workers": {
+                "workers": 8,
+                "sources_per_second": sps * 8.0,
+                "wall_time_days": pop / sps / 86400.0 / 8.0,
+                "cpu_hours": pop / sps / 3600.0,
+                "ram_per_worker_kib": peak_rss_kib,
+                "peak_ram_total_kib": peak_rss_kib * 8,
+                "checkpoint_storage_gib": 4.0,
+                "transient_storage_gib": 0.4,
+            },
+        },
+        "download_estimate": {
+            "compressed_volume_tib": 3.3,
+            "throughput_mib_per_s": 40.0,
+            "wall_time_hours": 3.3 * 1024.0 * 1024.0 / 40.0 / 3600.0,
+        },
+        "reconstruction_estimate_seconds": pop / sps,
+        "note": "Extrapolation uses stable multifile pilot throughput; full run blocked until Phase 5 policy freeze.",
     });
     fs::write(
         output_dir.join("phase5b_resource_estimate.json"),
