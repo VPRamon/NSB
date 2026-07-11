@@ -6,6 +6,7 @@ pub mod gaia_datalink;
 pub mod gaia_tap;
 pub mod gaia_xp;
 pub mod gaia_xp_continuous;
+pub mod gaia_xp_continuous_canonical;
 pub mod starlight_approval;
 pub mod starlight_integrated;
 pub mod starlight_phase5;

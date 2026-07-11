@@ -3,9 +3,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use nsb_data_tools::checksum_io::sha256_file;
-use nsb_data_tools::gaia_xp_continuous::{
-    parse_continuous_coefficient_csv, write_canonical_coefficient_csv,
-};
+use nsb_data_tools::gaia_xp_continuous::{parse_datalink_gaiaxpy_csv, write_gaiaxpy_datalink_csv};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -68,19 +66,21 @@ fn main() -> Result<()> {
         );
         let raw_bytes = fs::read(&path)?;
         let raw_sha256 = sha256_file(&path)?;
-        let status = match parse_continuous_coefficient_csv(&raw_bytes, &source_id) {
-            Ok(mut coeffs) => {
-                coeffs.input_checksum = Some(raw_sha256.clone());
-                coeffs.retrieval_batch = Some(args.retrieval_batch.clone());
+        let status = match parse_datalink_gaiaxpy_csv(&raw_bytes, &source_id) {
+            Ok(mut record) => {
+                record.source_checksum = Some(raw_sha256.clone());
+                record
+                    .quality_flags
+                    .push(format!("retrieval_batch:{}", args.retrieval_batch));
                 let out = args.output_dir.join(format!("{source_id}.csv"));
-                write_canonical_coefficient_csv(&out, &coeffs)?;
+                write_gaiaxpy_datalink_csv(&out, &record)?;
                 let canonical_sha256 = sha256_file(&out)?;
                 entries.push(CoefficientManifestEntry {
                     source_id: source_id.clone(),
                     raw_sha256,
                     canonical_sha256,
-                    bp_n_parameters: coeffs.bp_n_parameters,
-                    rp_n_parameters: coeffs.rp_n_parameters,
+                    bp_n_parameters: record.bp_n_parameters,
+                    rp_n_parameters: record.rp_n_parameters,
                     status: "valid".to_string(),
                 });
                 "valid"
