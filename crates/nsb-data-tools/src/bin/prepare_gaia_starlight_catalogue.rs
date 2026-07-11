@@ -41,12 +41,18 @@ struct Args {
     /// Directory containing official Gaia XP sampled `*.csv.gz` bulk files.
     #[arg(long)]
     bulk_dir: Option<PathBuf>,
-    /// Canonical derived source CSV, written atomically.
+    /// Canonical derived source CSV, written atomically (not used with --exclusions-only).
     #[arg(long)]
-    output: PathBuf,
+    output: Option<PathBuf>,
     /// Optional JSON diagnostics report (required with --production).
     #[arg(long)]
     diagnostics_output: Option<PathBuf>,
+    /// CSV sidecar listing scientifically excluded source IDs.
+    #[arg(long)]
+    exclusions_output: Option<PathBuf>,
+    /// Regenerate only the scientific-exclusions sidecar from bulk input.
+    #[arg(long)]
+    exclusions_only: bool,
     /// Source catalogue name, normally "Gaia".
     #[arg(long)]
     catalog_name: String,
@@ -159,6 +165,12 @@ struct Diagnostics<'a> {
     rejection_reasons: BTreeMap<String, usize>,
     scientific_exclusion_reasons: BTreeMap<String, usize>,
     unexpected_rejection_reasons: BTreeMap<String, usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scientific_exclusions_output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scientific_exclusions_sha256: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    scientific_exclusions_count: Option<usize>,
     integrated_spectra: usize,
     sources_with_negative_flux_samples: usize,
     flux_samples_in_band: usize,
@@ -213,6 +225,7 @@ enum Conversion {
         integral: PhotonFluxIntegral,
     },
     ScientificallyExcluded {
+        source_id: u64,
         reason: &'static str,
         integral: PhotonFluxIntegral,
     },
@@ -233,30 +246,67 @@ fn run(args: Args) -> Result<()> {
     let input = select_input(&args)?;
     let checksum_algorithm = input.checksum_algorithm();
     let input_mode = input.mode();
-    let (mut writer, pending_output) = transactional_output_writer(&args.output)?;
-    write_output_header(&mut writer)?;
+
+    let mut catalogue_writer = None;
+    let mut pending_output = None;
+    if !args.exclusions_only {
+        let output = args
+            .output
+            .as_ref()
+            .context("missing --output unless --exclusions-only is set")?;
+        let (mut writer, pending) = transactional_output_writer(output)?;
+        write_output_header(&mut writer)?;
+        catalogue_writer = Some(writer);
+        pending_output = Some(pending);
+    }
+
+    let mut exclusions_writer = None;
+    let mut exclusions_pending = None;
+    if let Some(path) = &args.exclusions_output {
+        let (writer, pending) = transactional_exclusions_writer(path)?;
+        exclusions_writer = Some(writer);
+        exclusions_pending = Some(pending);
+    }
 
     let mut counters = Counters::default();
     let input_checksum = match &input {
         InputSelection::Normalized(path) => {
             let digest = checksum_file(path)?;
             verify_source_checksum(&digest, args.source_checksum.as_deref())?;
-            process_normalized(path, &args, &mut writer, &mut counters)?;
+            process_normalized(
+                path,
+                &args,
+                &mut catalogue_writer,
+                &mut exclusions_writer,
+                &mut counters,
+            )?;
             format!("sha256:{digest}")
         }
         InputSelection::Bulk { files } => {
             let digest = process_bulk(
                 files,
                 &args,
-                &mut writer,
+                &mut catalogue_writer,
+                &mut exclusions_writer,
                 &mut counters,
                 args.source_checksum.as_deref(),
             )?;
             format!("sha256:{digest}")
         }
     };
-    writer.flush()?;
-    drop(writer);
+    if let Some(writer) = catalogue_writer.as_mut() {
+        writer.flush()?;
+    }
+    if let Some(writer) = exclusions_writer.as_mut() {
+        writer.flush()?;
+    }
+    drop(catalogue_writer);
+    drop(exclusions_writer);
+
+    let exclusions_sha256 = exclusions_pending
+        .as_ref()
+        .map(|pending| checksum_file(&pending.temporary_path))
+        .transpose()?;
 
     let all_sources_accounted = counters.sources_read
         == counters.rows_used + counters.scientifically_excluded + counters.unexpectedly_rejected;
@@ -271,10 +321,34 @@ fn run(args: Args) -> Result<()> {
         all_sources_accounted,
         strict_gate_passed,
         &counters,
+        args.exclusions_output.as_deref(),
+        exclusions_sha256.as_deref(),
     );
     if let Some(path) = &args.diagnostics_output {
         let raw = serde_json::to_string_pretty(&diagnostics)?;
         write_atomic(path, format!("{raw}\n").as_bytes())?;
+    }
+
+    if args.production && counters.scientifically_excluded > 0 && args.exclusions_output.is_none() {
+        bail!(
+            "--production requires --exclusions-output when {} scientific exclusions are present",
+            counters.scientifically_excluded
+        );
+    }
+    if let Some(path) = args.exclusions_output.as_ref() {
+        let expected_count = counters.scientifically_excluded;
+        if expected_count == 0 && path.exists() {
+            let lines = std::fs::read_to_string(path)?
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .count();
+            if lines > 1 {
+                bail!(
+                    "scientific exclusions sidecar has {} data rows but diagnostics expect zero",
+                    lines - 1
+                );
+            }
+        }
     }
 
     if !all_sources_accounted {
@@ -289,11 +363,16 @@ fn run(args: Args) -> Result<()> {
             counters.unexpectedly_rejected
         );
     }
-    if counters.rows_used == 0 {
+    if !args.exclusions_only && counters.rows_used == 0 {
         bail!("Gaia preparation produced no represented starlight sources");
     }
 
-    pending_output.commit()?;
+    if let Some(pending) = exclusions_pending {
+        pending.commit()?;
+    }
+    if let Some(pending) = pending_output {
+        pending.commit()?;
+    }
     Ok(())
 }
 
@@ -323,15 +402,41 @@ fn validate_args(args: &Args) -> Result<()> {
     if args.production && args.diagnostics_output.is_none() {
         bail!("--production requires --diagnostics-output");
     }
-    if args.output.as_os_str() == "-" {
+    if args.exclusions_only {
+        if args.bulk_dir.is_none() {
+            bail!("--exclusions-only requires --bulk-dir");
+        }
+        if args.exclusions_output.is_none() {
+            bail!("--exclusions-only requires --exclusions-output");
+        }
+        if args.output.is_some() {
+            bail!(
+                "--exclusions-only must not write --output; regenerate only the exclusions sidecar"
+            );
+        }
+    } else if args.output.is_none() {
+        bail!("--output is required unless --exclusions-only is set");
+    }
+    if args
+        .output
+        .as_ref()
+        .is_some_and(|path| path.as_os_str() == "-")
+    {
         bail!("--output must be a file so the strict result can be committed atomically");
     }
     if args
         .diagnostics_output
         .as_ref()
-        .is_some_and(|path| path == &args.output)
+        .is_some_and(|path| args.output.as_ref() == Some(path))
     {
         bail!("--output and --diagnostics-output must be different files");
+    }
+    if args
+        .exclusions_output
+        .as_ref()
+        .is_some_and(|path| args.output.as_ref() == Some(path))
+    {
+        bail!("--output and --exclusions-output must be different files");
     }
     Ok(())
 }
@@ -426,7 +531,8 @@ fn copy_into_hasher(reader: &mut impl Read, hasher: &mut Sha256) -> Result<()> {
 fn process_normalized(
     path: &Path,
     args: &Args,
-    writer: &mut Writer<Box<dyn Write>>,
+    writer: &mut Option<Writer<Box<dyn Write>>>,
+    exclusions_writer: &mut Option<Writer<Box<dyn Write>>>,
     counters: &mut Counters,
 ) -> Result<()> {
     let mut reader = ReaderBuilder::new()
@@ -458,7 +564,7 @@ fn process_normalized(
         }
         counters.unique_source_ids_read += 1;
         match convert_normalized_row(&headers, &row, columns, args) {
-            Ok(conversion) => counters.handle_conversion(conversion, writer)?,
+            Ok(conversion) => counters.handle_conversion(conversion, writer, exclusions_writer)?,
             Err(error) => counters.reject_unexpected(error.to_string()),
         }
     }
@@ -468,7 +574,8 @@ fn process_normalized(
 fn process_bulk(
     files: &[PathBuf],
     args: &Args,
-    writer: &mut Writer<Box<dyn Write>>,
+    writer: &mut Option<Writer<Box<dyn Write>>>,
+    exclusions_writer: &mut Option<Writer<Box<dyn Write>>>,
     counters: &mut Counters,
     expected_checksum: Option<&str>,
 ) -> Result<String> {
@@ -542,7 +649,9 @@ fn process_bulk(
                 &mut flux_buf,
                 &mut error_buf,
             ) {
-                Ok(conversion) => counters.handle_conversion(conversion, writer)?,
+                Ok(conversion) => {
+                    counters.handle_conversion(conversion, writer, exclusions_writer)?
+                }
                 Err(error) => counters.reject_unexpected(error.to_string()),
             }
             progress.maybe_report(counters, files.len());
@@ -616,6 +725,7 @@ fn convert_bulk_row(
     validate_integral(integral)?;
     if integral.total_ph_m2_s <= 0.0 {
         return Ok(Conversion::ScientificallyExcluded {
+            source_id,
             reason: NON_POSITIVE_INTEGRAL_REASON,
             integral,
         });
@@ -764,18 +874,19 @@ fn convert_source(raw: GaiaDr3RawSourceRow, product: XpProduct, args: &Args) -> 
             product.source_id
         );
     }
-    let icrs_ra_rad = raw.ra_deg.to_radians();
-    let icrs_dec_rad = raw.dec_deg.to_radians();
-    let source =
-        GaiaDr3Source::try_from(raw).map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let integral = gaia_xp::integrate_photon_flux(&product)?;
     validate_integral(integral)?;
     if integral.total_ph_m2_s <= 0.0 {
         return Ok(Conversion::ScientificallyExcluded {
+            source_id: raw.source_id,
             reason: NON_POSITIVE_INTEGRAL_REASON,
             integral,
         });
     }
+    let icrs_ra_rad = raw.ra_deg.to_radians();
+    let icrs_dec_rad = raw.dec_deg.to_radians();
+    let source =
+        GaiaDr3Source::try_from(raw).map_err(|error| anyhow::anyhow!(error.to_string()))?;
 
     Ok(Conversion::Accepted {
         output: [
@@ -872,15 +983,23 @@ impl Counters {
     fn handle_conversion(
         &mut self,
         conversion: Conversion,
-        writer: &mut Writer<Box<dyn Write>>,
+        writer: &mut Option<Writer<Box<dyn Write>>>,
+        exclusions_writer: &mut Option<Writer<Box<dyn Write>>>,
     ) -> Result<()> {
         match conversion {
             Conversion::Accepted { output, integral } => {
                 self.science.observe(integral);
+                let writer = writer
+                    .as_mut()
+                    .context("accepted Gaia source encountered without catalogue writer")?;
                 writer.write_record(output)?;
                 self.rows_used += 1;
             }
-            Conversion::ScientificallyExcluded { reason, integral } => {
+            Conversion::ScientificallyExcluded {
+                source_id,
+                reason,
+                integral,
+            } => {
                 self.science.observe(integral);
                 self.scientifically_excluded += 1;
                 *self
@@ -891,6 +1010,17 @@ impl Counters {
                     .rejection_reasons
                     .entry(reason.to_string())
                     .or_default() += 1;
+                if let Some(writer) = exclusions_writer.as_mut() {
+                    writer.write_record([
+                        source_id.to_string(),
+                        reason.to_string(),
+                        format!("{:.16e}", integral.total_ph_m2_s),
+                        format!("{:.16e}", integral.positive_ph_m2_s),
+                        format!("{:.16e}", integral.negative_ph_m2_s),
+                        integral.negative_samples.to_string(),
+                        integral.band_samples.to_string(),
+                    ])?;
+                }
             }
         }
         Ok(())
@@ -964,6 +1094,8 @@ fn build_diagnostics<'a>(
     all_sources_accounted: bool,
     strict_gate_passed: bool,
     counters: &Counters,
+    exclusions_output: Option<&Path>,
+    exclusions_sha256: Option<&str>,
 ) -> Diagnostics<'a> {
     let (bulk_reference_epoch_jyr, astrometry_epoch_provenance) = match input {
         InputSelection::Normalized(_) => (None, "per-source ref_epoch from normalized input"),
@@ -1005,6 +1137,9 @@ fn build_diagnostics<'a>(
         rejection_reasons: counters.rejection_reasons.clone(),
         scientific_exclusion_reasons: counters.scientific_exclusion_reasons.clone(),
         unexpected_rejection_reasons: counters.unexpected_rejection_reasons.clone(),
+        scientific_exclusions_output: exclusions_output.map(|path| path.display().to_string()),
+        scientific_exclusions_sha256: exclusions_sha256.map(|digest| format!("sha256:{digest}")),
+        scientific_exclusions_count: exclusions_output.map(|_| counters.scientifically_excluded),
         integrated_spectra: counters.science.integrated_spectra,
         sources_with_negative_flux_samples: counters.science.sources_with_negative_flux_samples,
         flux_samples_in_band: counters.science.band_samples,
@@ -1026,6 +1161,16 @@ fn build_diagnostics<'a>(
     }
 }
 
+const EXCLUSIONS_HEADER: [&str; 7] = [
+    "source_id",
+    "reason",
+    "integrated_photon_flux_ph_m2_s",
+    "positive_contribution_ph_m2_s",
+    "negative_contribution_ph_m2_s",
+    "negative_samples",
+    "band_samples",
+];
+
 fn write_output_header(writer: &mut Writer<Box<dyn Write>>) -> Result<()> {
     writer.write_record([
         "source_id",
@@ -1037,6 +1182,31 @@ fn write_output_header(writer: &mut Writer<Box<dyn Write>>) -> Result<()> {
         "weight",
     ])?;
     Ok(())
+}
+
+fn transactional_exclusions_writer(path: &Path) -> Result<(Writer<Box<dyn Write>>, PendingOutput)> {
+    let temporary_path = temporary_path(path)?;
+    let file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary_path)
+        .with_context(|| {
+            format!(
+                "failed to create temporary exclusions sidecar {}",
+                temporary_path.display()
+            )
+        })?;
+    let mut writer =
+        WriterBuilder::new().from_writer(Box::new(BufWriter::new(file)) as Box<dyn Write>);
+    writer.write_record(EXCLUSIONS_HEADER)?;
+    Ok((
+        writer,
+        PendingOutput {
+            temporary_path,
+            final_path: path.to_path_buf(),
+            committed: false,
+        },
+    ))
 }
 
 fn transactional_output_writer(path: &Path) -> Result<(Writer<Box<dyn Write>>, PendingOutput)> {
@@ -1185,8 +1355,10 @@ mod tests {
         Args {
             input: Some(input),
             bulk_dir: None,
-            output,
+            output: Some(output),
             diagnostics_output: Some(diagnostics),
+            exclusions_output: None,
+            exclusions_only: false,
             catalog_name: "Gaia".to_string(),
             catalog_release: "DR3".to_string(),
             catalog_license: "CC-BY-4.0-derived-policy-reviewed".to_string(),
@@ -1373,6 +1545,73 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn scientific_exclusions_sidecar_records_source_ids() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("gaia.csv");
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let exclusions = dir.path().join("exclusions.csv");
+        write_normalized(
+            &input,
+            concat!(
+                "1,0,0,2016,336;500;650,1e-12;1e-12;1e-12,1e-14;1e-14;1e-14\n",
+                "2,0,0,2016,336;500;650,0;0;0,1e-14;1e-14;1e-14\n",
+            ),
+        )?;
+        let mut args = args(input, output.clone(), diagnostics.clone());
+        args.exclusions_output = Some(exclusions.clone());
+        run(args)?;
+
+        let sidecar = std::fs::read_to_string(&exclusions)?;
+        assert!(sidecar.contains("2,non-positive integrated photon flux"));
+        let diagnostics = report(&diagnostics)?;
+        assert_eq!(diagnostics["scientific_exclusions_count"], 1);
+        assert_eq!(
+            diagnostics["scientific_exclusions_output"],
+            exclusions.display().to_string()
+        );
+        assert!(diagnostics["scientific_exclusions_sha256"]
+            .as_str()
+            .is_some_and(|value| value.starts_with("sha256:")));
+        Ok(())
+    }
+
+    #[test]
+    fn exclusions_only_mode_writes_sidecar_without_catalogue() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir_all(&bulk)?;
+        let file = bulk.join("sample.csv.gz");
+        write_gzip(
+            &file,
+            &format!("{BULK_HEADER}{}", bulk_row(42, 0.0, 0.0, -1.0e-12, 1.0e-14)),
+        )?;
+        let exclusions = dir.path().join("exclusions.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        run(Args {
+            input: None,
+            bulk_dir: Some(bulk),
+            output: None,
+            diagnostics_output: Some(diagnostics.clone()),
+            exclusions_output: Some(exclusions.clone()),
+            exclusions_only: true,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: "DR3".to_string(),
+            catalog_license: "CC-BY-4.0-derived-policy-reviewed".to_string(),
+            source_checksum: None,
+            photometry_model: PHOTOMETRY_MODEL.to_string(),
+            band_min_nm: BAND_MIN_NM,
+            band_max_nm: BAND_MAX_NM,
+            production: false,
+        })?;
+        assert!(!dir.path().join("canonical.csv").exists());
+        assert!(exclusions.is_file());
+        let diagnostics = report(&diagnostics)?;
+        assert_eq!(diagnostics["rows_scientifically_excluded"], 1);
+        Ok(())
+    }
+
     const BULK_HEADER: &str =
         "# %ECSV 1.0\n# ---\n# delimiter: ','\nsource_id,solution_id,ra,dec,flux,flux_error\n";
 
@@ -1402,8 +1641,10 @@ mod tests {
         Args {
             input: None,
             bulk_dir: Some(bulk),
-            output,
+            output: Some(output),
             diagnostics_output: Some(diagnostics),
+            exclusions_output: None,
+            exclusions_only: false,
             catalog_name: "Gaia".to_string(),
             catalog_release: "DR3".to_string(),
             catalog_license: "CC-BY-4.0-derived-policy-reviewed".to_string(),
