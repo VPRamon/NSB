@@ -814,7 +814,7 @@ mod tests {
         let mut left = XpContinuousHealpixAccumulator::new(64)?;
         left.accumulate_valid(0, 1.0, 0.1, 0.0)?;
         let mut right = XpContinuousHealpixAccumulator::new(64)?;
-        right.accumulate_valid((1_u64 << 43) | 1, 2.0, 0.2, 0.0)?;
+        right.accumulate_valid(1 << 12, 2.0, 0.2, 0.0)?;
         let report = validate_deterministic_merge(&[left, right])?;
         assert!(report.passed);
         Ok(())
