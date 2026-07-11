@@ -52,6 +52,20 @@ Artifacts live under `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase4_
 
 Code: `starlight_sampling.rs`, `consolidate_gaia_starlight_samples`, extended `gaia_tap` tests.
 
+## Phase 5 — XP continuous reconstruction (in progress)
+
+Scaffold landed on branch:
+
+| Component | Status |
+|-----------|--------|
+| GaiaXPy 2.1.4 offline tool | `tools/starlight-xp-continuous/` |
+| XP_CONTINUOUS DataLink retrieval | `DatalinkRetrievalType::XpContinuous` |
+| Coefficient CSV validation | `gaia_xp_continuous.rs` |
+| Overlap validation binary | `validate_xp_continuous_reconstruction` |
+| Smoke test (1 overlap source) | median relative error ≈ 0 |
+
+Remaining: batch coefficient download for overlap/continuous-only strata, full bias audit by G/colour/SN/sky, normalized contributions for continuous-only population.
+
 ## Residual blockers for PRODUCTION READY
 
 1. XP continuous reconstruction + validation (Phase 5)

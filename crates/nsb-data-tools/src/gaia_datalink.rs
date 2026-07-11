@@ -5,6 +5,7 @@ use crate::gaia_xp::{
     contains_service_error, format_series, parse_gaia_datalink_csv, XpProduct,
     NORMALIZED_FLUX_COLUMN, NORMALIZED_FLUX_ERROR_COLUMN, NORMALIZED_WAVELENGTH_COLUMN,
 };
+use crate::gaia_xp_continuous::validate_continuous_coefficient_csv;
 use anyhow::{bail, Context, Result};
 use futures_util::{stream, StreamExt};
 use reqwest::header::{HeaderMap, RETRY_AFTER};
@@ -115,12 +116,28 @@ pub struct NormalizationReport {
     pub failures: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DatalinkRetrievalType {
+    XpSampled,
+    XpContinuous,
+}
+
+impl DatalinkRetrievalType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::XpSampled => "XP_SAMPLED",
+            Self::XpContinuous => "XP_CONTINUOUS",
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DatalinkDownloader {
     base_url: String,
     client: reqwest::Client,
     config: DatalinkConfig,
     limiter: Arc<AdaptiveRateLimiter>,
+    retrieval_type: DatalinkRetrievalType,
 }
 
 impl DatalinkDownloader {
@@ -144,7 +161,13 @@ impl DatalinkDownloader {
             client,
             limiter: Arc::new(AdaptiveRateLimiter::new(config.max_rps)),
             config,
+            retrieval_type: DatalinkRetrievalType::XpSampled,
         })
+    }
+
+    pub fn with_retrieval_type(mut self, retrieval_type: DatalinkRetrievalType) -> Self {
+        self.retrieval_type = retrieval_type;
+        self
     }
 
     pub async fn download(
@@ -180,7 +203,7 @@ impl DatalinkDownloader {
             let final_path = raw_path(&paths.raw_dir, source_id);
             let part_path = part_path(&paths.raw_dir, source_id);
             if resume {
-                match validate_existing(&final_path, source_id) {
+                match validate_existing(&final_path, source_id, self.retrieval_type) {
                     Ok(size) => {
                         checkpoint.append(
                             source_id,
@@ -215,7 +238,7 @@ impl DatalinkDownloader {
                     Err(_) => {}
                 }
                 if part_path.exists() {
-                    match validate_existing(&part_path, source_id) {
+                    match validate_existing(&part_path, source_id, self.retrieval_type) {
                         Ok(size) => {
                             atomic_replace(&part_path, &final_path)?;
                             checkpoint.append(
@@ -339,7 +362,7 @@ impl DatalinkDownloader {
                 .get(&self.base_url)
                 .query(&[
                     ("ID", format!("Gaia DR3 {source_id}")),
-                    ("RETRIEVAL_TYPE", "XP_SAMPLED".to_string()),
+                    ("RETRIEVAL_TYPE", self.retrieval_type.as_str().to_string()),
                     ("DATA_STRUCTURE", "INDIVIDUAL".to_string()),
                     ("FORMAT", "csv".to_string()),
                 ])
@@ -383,24 +406,49 @@ impl DatalinkDownloader {
                                     ),
                                 }
                             } else {
-                                match parse_gaia_datalink_csv(&body, &source_id) {
-                                    Ok(product) => AttemptResult::Success {
-                                        product,
-                                        body,
-                                        status: status.as_u16(),
-                                    },
-                                    Err(err) => AttemptResult::Failure {
-                                        // A nominally successful but truncated or malformed
-                                        // response can be transient and is safe to retry.
-                                        retryable: true,
-                                        retry_after: retry_after_value,
-                                        status: Some(status.as_u16()),
-                                        headers,
-                                        body,
-                                        detail: format!(
-                                            "source_id={source_id} attempt={attempt} status={status} invalid CSV: {err:#}"
-                                        ),
-                                    },
+                                match self.retrieval_type {
+                                    DatalinkRetrievalType::XpSampled => {
+                                        match parse_gaia_datalink_csv(&body, &source_id) {
+                                            Ok(product) => AttemptResult::Success {
+                                                detail: format!(
+                                                    "{} samples",
+                                                    product.wavelengths_nm.len()
+                                                ),
+                                                body,
+                                                status: status.as_u16(),
+                                            },
+                                            Err(err) => AttemptResult::Failure {
+                                                retryable: true,
+                                                retry_after: retry_after_value,
+                                                status: Some(status.as_u16()),
+                                                headers,
+                                                body,
+                                                detail: format!(
+                                                    "source_id={source_id} attempt={attempt} status={status} invalid CSV: {err:#}"
+                                                ),
+                                            },
+                                        }
+                                    }
+                                    DatalinkRetrievalType::XpContinuous => {
+                                        match validate_continuous_coefficient_csv(&body, &source_id)
+                                        {
+                                            Ok(()) => AttemptResult::Success {
+                                                detail: "XP continuous coefficients".to_string(),
+                                                body,
+                                                status: status.as_u16(),
+                                            },
+                                            Err(err) => AttemptResult::Failure {
+                                                retryable: true,
+                                                retry_after: retry_after_value,
+                                                status: Some(status.as_u16()),
+                                                headers,
+                                                body,
+                                                detail: format!(
+                                                    "source_id={source_id} attempt={attempt} status={status} invalid coefficient CSV: {err:#}"
+                                                ),
+                                            },
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -440,7 +488,7 @@ impl DatalinkDownloader {
 
             match result {
                 AttemptResult::Success {
-                    product,
+                    detail,
                     body,
                     status,
                 } => {
@@ -451,13 +499,13 @@ impl DatalinkDownloader {
                         attempt,
                         "atomic-part-written",
                     )?;
-                    validate_existing(&part_path, &source_id)?;
+                    validate_existing(&part_path, &source_id, self.retrieval_type)?;
                     atomic_replace(&part_path, &final_path)?;
                     checkpoint.append(
                         &source_id,
                         SourceState::Validated,
                         attempt,
-                        &format!("{} samples", product.wavelengths_nm.len()),
+                        &detail,
                     )?;
                     self.limiter.record_success().await;
                     let mut report = shared.lock().expect("download report mutex poisoned");
@@ -560,7 +608,7 @@ impl DatalinkDownloader {
 
 enum AttemptResult {
     Success {
-        product: XpProduct,
+        detail: String,
         body: Vec<u8>,
         status: u16,
     },
@@ -979,9 +1027,20 @@ fn count_part_files(dir: &Path) -> Result<usize> {
     Ok(count)
 }
 
-fn validate_existing(path: &Path, source_id: &str) -> Result<u64> {
+fn validate_existing(
+    path: &Path,
+    source_id: &str,
+    retrieval_type: DatalinkRetrievalType,
+) -> Result<u64> {
     let bytes = fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
-    parse_gaia_datalink_csv(&bytes, source_id)?;
+    match retrieval_type {
+        DatalinkRetrievalType::XpSampled => {
+            parse_gaia_datalink_csv(&bytes, source_id)?;
+        }
+        DatalinkRetrievalType::XpContinuous => {
+            validate_continuous_coefficient_csv(&bytes, source_id)?;
+        }
+    }
     Ok(bytes.len() as u64)
 }
 
