@@ -51,9 +51,41 @@ HEALPix accumulators, and reproducible commands — not a 184M-row CSV.
 | Component | Path |
 | --- | --- |
 | Bulk downloader | `download_gaia_xp_continuous_bulk` |
+| Canonical adapter | `crates/nsb-data-tools/src/gaia_xp_continuous_canonical.rs` |
+| Bulk/DataLink cross-check | `run_phase5b_cross_comparison` |
+| Streaming mini-pilot | `run_phase5b_mini_pilot` |
 | Shared bulk engine | `crates/nsb-data-tools/src/gaia_bulk.rs` |
+| GaiaXPy flux validation | `tools/starlight-xp-continuous/phase5b_gaiaxpy_flux_validate.py` |
+| Schema audit emitter | `tools/starlight-xp-continuous/emit_phase5b_schema_artifacts.py` |
 | Pilot orchestrator | `tools/starlight-xp-continuous/run_pilot_bulk_continuous.sh` |
-| Pilot batch processor | `tools/starlight-xp-continuous/pilot_bulk_continuous.py` |
+| Pilot wrapper | `tools/starlight-xp-continuous/pilot_bulk_continuous.py` |
+
+## Phase 5B pilot status (2026-07-11)
+
+Pilot gate on prefix file `XpContinuousMeanSpectrum_000000-003111.csv.gz`:
+
+| Gate | Result |
+| --- | --- |
+| Bulk ECSV streaming parser | PASS — `csv` reader with `#` comment skip, 512 KiB buffer |
+| Canonical bulk ↔ DataLink equivalence (4 overlap sources) | PASS — max abs diff 0.0 on coefficients, errors, correlations |
+| GaiaXPy 2.1.4 accepts bulk-derived CSV | PASS — 4/4 sources calibrate |
+| 336–650 nm flux equivalence bulk vs DataLink | PASS — relative flux diff ≤ 1e-8 |
+| Mini-pilot streaming (1,000 sources) | PASS — ~37 sources/s, no full-file RAM load |
+| Resume correctness | PASS — identical flux checksum interrupted vs uninterrupted |
+
+Evidence artifacts (outside repo): `~/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/phase5b_*.{json,csv,md}`.
+
+Architecture:
+
+```text
+bulk ECSV row ──→ parse_bulk_ecsv_record ──→ CanonicalXpContinuousRecord ←── parse_datalink_gaiaxpy_csv
+                                                      │
+                                                      ▼
+                                        write_gaiaxpy_datalink_csv(_batch)
+                                                      │
+                                                      ▼
+                                           GaiaXPy 2.1.4 calibrate → integrate 336–650 nm
+```
 
 Download example:
 
