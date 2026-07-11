@@ -52,72 +52,93 @@ HEALPix accumulators, and reproducible commands — not a 184M-row CSV.
 | --- | --- |
 | Bulk downloader | `download_gaia_xp_continuous_bulk` |
 | Canonical adapter | `crates/nsb-data-tools/src/gaia_xp_continuous_canonical.rs` |
+| Bulk file index | `index_gaia_xp_continuous_bulk` |
 | Bulk/DataLink cross-check | `run_phase5b_cross_comparison` |
 | Streaming mini-pilot | `run_phase5b_mini_pilot` |
+| Chunk benchmark | `run_phase5b_chunk_benchmark` |
+| Merge validation | `run_phase5b_merge_validation` |
+| Resume validation | `run_phase5b_resume_validation` |
+| HEALPix accumulator | `crates/nsb-data-tools/src/gaia_xp_continuous_healpix.rs` |
+| Bulk index library | `crates/nsb-data-tools/src/gaia_xp_continuous_bulk_index.rs` |
 | Shared bulk engine | `crates/nsb-data-tools/src/gaia_bulk.rs` |
 | GaiaXPy flux validation | `tools/starlight-xp-continuous/phase5b_gaiaxpy_flux_validate.py` |
 | Schema audit emitter | `tools/starlight-xp-continuous/emit_phase5b_schema_artifacts.py` |
-| Pilot orchestrator | `tools/starlight-xp-continuous/run_pilot_bulk_continuous.sh` |
-| Pilot wrapper | `tools/starlight-xp-continuous/pilot_bulk_continuous.py` |
 
 ## Phase 5B pilot status (2026-07-11)
 
-Pilot gate on prefix file `XpContinuousMeanSpectrum_000000-003111.csv.gz`:
+Operational mini-pilot on prefix file `XpContinuousMeanSpectrum_000000-003111.csv.gz`
+(~1.33 GiB compressed). **This is throughput/resume validation, not the final
+scientific overlap gate** (that remains Phase 5 DataLink sample acquisition).
 
 | Gate | Result |
 | --- | --- |
-| Bulk ECSV streaming parser | PASS — `csv` reader with `#` comment skip, 512 KiB buffer |
-| Canonical bulk ↔ DataLink equivalence (4 overlap sources) | PASS — max abs diff 0.0 on coefficients, errors, correlations |
-| GaiaXPy 2.1.4 accepts bulk-derived CSV | PASS — 4/4 sources calibrate |
-| 336–650 nm flux equivalence bulk vs DataLink | PASS — relative flux diff ≤ 1e-8 |
-| Mini-pilot streaming (1,000 sources) | PASS — ~37 sources/s, no full-file RAM load |
-| Resume correctness | PASS — identical flux checksum interrupted vs uninterrupted |
+| Canonical adapter 4/4 bulk ↔ DataLink | PASS — task 306212 superseded |
+| Bulk ECSV schema (`bp_n_parameters=55`, 1485 correlations) | PASS |
+| Mini-pilot streaming (10,000 rows / 9,998 valid) | PASS — ~49.5 sources/s, peak RSS ~49 MiB |
+| Full-file RAM avoidance | PASS — streaming gzip ECSV |
+| HEALPix accumulation (`nside=64`) | PASS — checksum `230556b6947732ec…` |
+| Resume (5,000 + 5,000 rows) | PASS — identical HEALPix and flux checksums |
+| Multi-worker merge (5,000 ∥ 5,000) | PASS — identical to single-worker reference |
+| Chunk benchmark (100 / 500 / 1000) | PASS — selected batch size **500** |
+| Bulk file index (3,386 files) | PASS — `source_id → bulk file` routing |
+| Second prefix smoke test | PASS — `XpContinuousMeanSpectrum_003112-005263.csv.gz` |
+| Reconciliation (`valid + excluded + failed = handled`) | PASS — 2 non-positive flux exclusions logged |
+| Resource estimate (184,729,270 sources) | PASS — ~43 d (1 worker), ~11 d (4 workers) at stable pilot rate |
 
-Evidence artifacts (outside repo): `~/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/phase5b_*.{json,csv,md}`.
+Evidence artifacts (outside repo):
+`~/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/phase5b_*.{json,csv,md}`.
 
 Architecture:
 
 ```text
-bulk ECSV row ──→ parse_bulk_ecsv_record ──→ CanonicalXpContinuousRecord ←── parse_datalink_gaiaxpy_csv
+bulk ECSV row ──→ parse_bulk_ecsv_record ──→ CanonicalXpContinuousRecord
                                                       │
                                                       ▼
                                         write_gaiaxpy_datalink_csv(_batch)
                                                       │
                                                       ▼
-                                           GaiaXPy 2.1.4 calibrate → integrate 336–650 nm
+                                           GaiaXPy 2.1.4 → integrate 336–650 nm
+                                                      │
+                                                      ▼
+                              XpContinuousHealpixAccumulator (checkpoint / merge)
 ```
 
-Download example:
+Mini-pilot example:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin download_gaia_xp_continuous_bulk -- \
-  --download-dir ~/nsb-data/starlight-gaia-release/gaia_dr3_xp_continuous_bulk \
-  --resume
+cargo run --locked -p nsb-data-tools --bin run_phase5b_mini_pilot -- \
+  --bulk-gz ~/nsb-data/.../XpContinuousMeanSpectrum_000000-003111.csv.gz \
+  --output-dir ~/nsb-data/.../mini_pilot_run \
+  --row-limit 10000 \
+  --batch-size 500 \
+  --gaiaxpy-environment ~/nsb-data/.../gaiaxpy_environment.json \
+  --skip-normalized-output
 ```
 
-Pilot example (representative prefix, restartable):
+Index example:
 
 ```bash
-FILE_LIMIT=3 ROW_LIMIT=128 \
-  tools/starlight-xp-continuous/run_pilot_bulk_continuous.sh
+cargo run --locked -p nsb-data-tools --bin index_gaia_xp_continuous_bulk -- \
+  --md5-manifest bulk/_MD5SUM.txt \
+  --download-dir bulk \
+  --output-dir ~/nsb-data/.../ \
+  locate --source-id 4295806720
 ```
 
-## Resource estimates (pre-full-run)
+## Resource estimates (184,729,270 XP continuous-only sources)
 
-From CDN metadata and sampled file sizes:
+From stable mini-pilot throughput (~49.5 valid sources/s, ~6.8 MiB/s read,
+peak RSS ~50 MiB per worker, batch size 500):
 
-| Metric | Estimate |
-| --- | --- |
-| Inventory files | 3,386 |
-| Compressed total | ~3.3 TiB |
-| Transfer at 40 MiB/s | ~24 h (transfer only) |
-| Per-file compressed size | ~0.2–1.5 GiB typical |
-| Reconstruction | CPU-bound; pilot measures sources/s and peak RSS |
+| Scenario | Wall time (reconstruction only) | Notes |
+| --- | --- | --- |
+| 1 worker | ~43 days | CPU-bound GaiaXPy |
+| 4 workers | ~11 days | one bulk file per worker, deterministic merge |
+| 8 workers | ~5.4 days | RAM-safe; avoid oversubscribing GaiaXPy |
+| Bulk download (3.3 TiB @ 40 MiB/s) | ~24 h | transfer only, resumable MD5 |
 
-Full-population duration is recorded by the pilot report
-(`estimated_full_population_seconds`) after a representative run. Until the
-pilot completes on multiple bulk files with restart/resume, treat throughput
-numbers as **candidate** rather than production commitments.
+Checkpoint storage is O(active pixels) per worker; transient disk is one
+coefficient batch CSV per chunk (~500 rows), not full spectra.
 
 ## Coverage and fallback
 
@@ -133,4 +154,6 @@ is incomplete after inventory reconciliation, the deficit must be:
 Phase 5 overlap/continuous-only **sample** acquisition (12,198 targets) uses
 DataLink with checkpoint resume for validation against the XP sampled canonical
 catalogue. That path is independent of bulk processing and must not be restarted
-while an active downloader is advancing.
+while an active downloader is advancing. The bulk pipeline must verify
+`phase5_frozen_validation_policy.json` before production scale-up once Phase 5
+overlap validation completes.
