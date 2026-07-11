@@ -13,28 +13,35 @@ const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
 const BAND_MIN_NM: f64 = 336.0;
 const BAND_MAX_NM: f64 = 650.0;
 const MAX_TOTAL_FLUX_RELATIVE_DELTA: f64 = 1.0e-9;
+const SUMMARY_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Parser)]
 #[command(about = "Run the Gaia starlight release nside sweep")]
 struct Args {
-    /// Canonical Gaia starlight source CSV.
+    /// Canonical Gaia starlight source CSV (required unless --assess-existing).
     #[arg(long)]
-    input: PathBuf,
+    input: Option<PathBuf>,
     /// Sweep output directory.
     #[arg(long, default_value = "target/starlight-release/sweep")]
     output_dir: PathBuf,
-    /// Independent validation reference JSON.
+    /// Independent validation reference JSON (required unless --assess-existing).
     #[arg(long)]
-    reference: PathBuf,
-    /// Source catalogue checksum for the canonical input.
+    reference: Option<PathBuf>,
+    /// Source catalogue checksum for the canonical input (optional with --assess-existing).
     #[arg(long)]
-    catalog_checksum: String,
+    catalog_checksum: Option<String>,
     /// Reviewed Gaia derived-product license or redistribution policy.
     #[arg(long)]
-    catalog_license: String,
+    catalog_license: Option<String>,
     /// UTC generation timestamp.
     #[arg(long)]
-    generation_date_utc: String,
+    generation_date_utc: Option<String>,
+    /// Reassess existing per-nside artefacts without rebuilding maps.
+    #[arg(long)]
+    assess_existing: bool,
+    /// Fail unless a production-ready candidate is selected.
+    #[arg(long)]
+    require_production_ready: bool,
     /// Maximum packed CSV size admitted by the automated recommendation.
     #[arg(long, default_value_t = 256.0)]
     max_release_mib: f64,
@@ -55,7 +62,7 @@ struct Args {
     max_high_latitude_noise_factor: f64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct NsideSummary {
     nside: u32,
     pixels: u64,
@@ -76,6 +83,7 @@ struct NsideSummary {
     total_flux_relative_delta_to_nside256: Option<f64>,
     finite_nonnegative_pass: bool,
     spectral_contract_pass: bool,
+    flux_conservation_pass: bool,
     plane_pole_pass: bool,
     plane_mean_ph_cm2_ns_sr: Option<f64>,
     pole_mean_ph_cm2_ns_sr: Option<f64>,
@@ -83,6 +91,8 @@ struct NsideSummary {
     longitude_wrap_pass: bool,
     longitude_wrap_metric: Option<f64>,
     longitude_wrap_threshold: Option<f64>,
+    independent_regions_pass: bool,
+    independent_reference_production_use: bool,
     independent_comparison_pass: bool,
     brightest_independent_region_mean_ph_cm2_ns_sr: Option<f64>,
     bright_region_relative_delta_to_nside256: Option<f64>,
@@ -90,6 +100,8 @@ struct NsideSummary {
     bright_top_one_percent_mean_ph_cm2_ns_sr: Option<f64>,
     high_latitude_noise_mad_ratio: Option<f64>,
     high_latitude_noise_factor_to_nside64: Option<f64>,
+    candidate_science_ready: bool,
+    candidate_operational_ready: bool,
     production_ready: bool,
     within_size_budget: bool,
     within_runtime_budget: bool,
@@ -99,7 +111,8 @@ struct NsideSummary {
     high_latitude_noise_acceptable: bool,
     total_flux_stable: bool,
     smoothing_recommended: bool,
-    eligible_for_recommendation: bool,
+    eligible_for_candidate_recommendation: bool,
+    eligible_for_production: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -110,7 +123,10 @@ struct AggregateSummary {
     recommendation_policy: &'static str,
     smoothing_policy: &'static str,
     selection_constraints: SelectionConstraints,
-    recommended_nside: Option<u32>,
+    recommended_candidate_nside: Option<u32>,
+    candidate_recommendation_passed: bool,
+    production_ready: bool,
+    production_blockers: Vec<&'static str>,
     review_required: bool,
     review_template: String,
     summaries: Vec<NsideSummary>,
@@ -146,20 +162,64 @@ fn run(args: Args) -> Result<()> {
     validate_args(&args)?;
     std::fs::create_dir_all(&args.output_dir)
         .with_context(|| format!("failed to create {}", args.output_dir.display()))?;
-    build_release_tools()?;
 
-    let mut summaries = Vec::new();
-    for nside in NSIDES {
-        summaries.push(run_one(&args, nside)?);
-    }
+    let mut summaries = if args.assess_existing {
+        assess_existing_artifacts(&args)?
+    } else {
+        build_release_tools()?;
+        let input = args
+            .input
+            .as_ref()
+            .context("missing --input for full sweep")?;
+        let reference = args
+            .reference
+            .as_ref()
+            .context("missing --reference for full sweep")?;
+        let catalog_checksum = args
+            .catalog_checksum
+            .as_ref()
+            .context("missing --catalog-checksum for full sweep")?;
+        let catalog_license = args
+            .catalog_license
+            .as_ref()
+            .context("missing --catalog-license for full sweep")?;
+        let generation_date_utc = args
+            .generation_date_utc
+            .as_ref()
+            .context("missing --generation-date-utc for full sweep")?;
+        let mut built = Vec::new();
+        for nside in NSIDES {
+            built.push(run_one(
+                input,
+                reference,
+                catalog_checksum,
+                catalog_license,
+                generation_date_utc,
+                &args,
+                nside,
+            )?);
+        }
+        built
+    };
+
     assess_candidates(&mut summaries, &args);
-    let recommended_nside = recommend(&summaries);
+    finalize_eligibility(&mut summaries);
+    let recommended_candidate_nside = recommend_candidate(&summaries);
+    let candidate_recommendation_passed = recommended_candidate_nside.is_some();
+    let production_blockers = compute_production_blockers(&summaries, recommended_candidate_nside);
+    let production_blocker_summary = production_blockers.join(", ");
+    let production_ready = candidate_recommendation_passed
+        && production_blockers.is_empty()
+        && summaries.iter().any(|summary| {
+            summary.nside == recommended_candidate_nside.unwrap() && summary.eligible_for_production
+        });
+
     let review_template = args.output_dir.join("nside_review.template.json");
     let aggregate = AggregateSummary {
-        schema_version: 1,
+        schema_version: SUMMARY_SCHEMA_VERSION,
         photometry_model: GAIA_XP_MODEL,
         band_nm: [BAND_MIN_NM, BAND_MAX_NM],
-        recommendation_policy: "Choose the highest angular resolution that passes every science gate, remains within explicit size/runtime/sparsity/noise limits, and preserves independent bright-region means relative to nside=256. No automated recommendation is sufficient for production: a maintainer must review and attest the checksummed report.",
+        recommendation_policy: "Choose the highest angular resolution that passes every internal science and operational gate. Candidate recommendation does not require production-grade independent reference evidence. Production promotion remains blocked until reviewed external reference, missing-flux assessment, and redistribution policy gates are satisfied.",
         smoothing_policy: "No smoothing is applied by this sweep. A resolution whose sparsity or high-latitude noise indicates smoothing is marked ineligible; any future smoothing proposal must define its kernel and angular scale, conserve total flux, and repeat independent validation.",
         selection_constraints: SelectionConstraints {
             max_release_bytes: max_release_bytes(&args),
@@ -170,7 +230,10 @@ fn run(args: Args) -> Result<()> {
             max_high_latitude_noise_factor: args.max_high_latitude_noise_factor,
             max_total_flux_relative_delta: MAX_TOTAL_FLUX_RELATIVE_DELTA,
         },
-        recommended_nside,
+        recommended_candidate_nside,
+        candidate_recommendation_passed,
+        production_ready,
+        production_blockers,
         review_required: true,
         review_template: review_template.display().to_string(),
         summaries,
@@ -182,22 +245,45 @@ fn run(args: Args) -> Result<()> {
     write_json(
         &review_template,
         &ReviewTemplate {
-            schema_version: 1,
+            schema_version: SUMMARY_SCHEMA_VERSION,
             sweep_report_sha256: format!("sha256:{}", to_hex(&sha256(&summary_raw))),
             reviewed: false,
-            selected_nside: recommended_nside,
+            selected_nside: recommended_candidate_nside,
             reviewer: None,
             reviewed_at_utc: None,
             rationale: None,
         },
     )?;
-    if recommended_nside.is_none() {
-        bail!("no nside recommendation satisfies all science and operational constraints");
+
+    if !candidate_recommendation_passed {
+        bail!("no nside candidate satisfies all internal science and operational constraints");
+    }
+    if args.require_production_ready && !production_ready {
+        bail!(
+            "candidate recommendation passed but production gates remain blocked: {production_blocker_summary}"
+        );
     }
     Ok(())
 }
 
 fn validate_args(args: &Args) -> Result<()> {
+    if !args.assess_existing {
+        if args.input.is_none() {
+            bail!("--input is required unless --assess-existing is set");
+        }
+        if args.reference.is_none() {
+            bail!("--reference is required unless --assess-existing is set");
+        }
+        if args.catalog_checksum.is_none() {
+            bail!("--catalog-checksum is required unless --assess-existing is set");
+        }
+        if args.catalog_license.is_none() {
+            bail!("--catalog-license is required unless --assess-existing is set");
+        }
+        if args.generation_date_utc.is_none() {
+            bail!("--generation-date-utc is required unless --assess-existing is set");
+        }
+    }
     for (name, value) in [
         ("--max-release-mib", args.max_release_mib),
         ("--max-runtime-load-seconds", args.max_runtime_load_seconds),
@@ -228,7 +314,210 @@ fn validate_args(args: &Args) -> Result<()> {
     Ok(())
 }
 
-fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
+fn assess_existing_artifacts(args: &Args) -> Result<Vec<NsideSummary>> {
+    let mut catalog_checksum = None;
+    let mut summaries = Vec::new();
+    for nside in NSIDES {
+        let summary = load_existing_nside(&args.output_dir, nside, &mut catalog_checksum)?;
+        summaries.push(summary);
+    }
+    Ok(summaries)
+}
+
+fn load_existing_nside(
+    output_dir: &Path,
+    nside: u32,
+    catalog_checksum: &mut Option<String>,
+) -> Result<NsideSummary> {
+    let dir = output_dir.join(format!("nside{nside}"));
+    let map = dir.join("starlight_map.csv");
+    let diagnostics_path = dir.join("diagnostics.json");
+    let validation_path = dir.join("validation.json");
+    let release = dir.join("starlight_map.release.csv");
+    let manifest_path = dir.join("starlight_map.release.toml");
+    for path in [
+        &map,
+        &diagnostics_path,
+        &validation_path,
+        &release,
+        &manifest_path,
+    ] {
+        if !path.is_file() {
+            bail!("missing required sweep artefact: {}", path.display());
+        }
+    }
+
+    let diagnostics: Value = read_json(&diagnostics_path)?;
+    let validation: Value = read_json(&validation_path)?;
+    let manifest: toml::Table = toml::from_str(
+        &std::fs::read_to_string(&manifest_path)
+            .with_context(|| format!("failed to read {}", manifest_path.display()))?,
+    )
+    .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
+
+    let manifest_nside = manifest
+        .get("map_resolution")
+        .and_then(|value| value.as_str())
+        .and_then(|text| text.split("nside=").nth(1))
+        .and_then(|text| text.split_whitespace().next())
+        .and_then(|text| text.parse::<u32>().ok())
+        .ok_or_else(|| anyhow::anyhow!("manifest map_resolution missing nside"))?;
+    if manifest_nside != nside {
+        bail!("manifest nside {manifest_nside} does not match directory nside{nside}");
+    }
+    let manifest_checksum = manifest
+        .get("source_catalogue_checksum")
+        .and_then(|value| value.as_str())
+        .context("manifest missing source_catalogue_checksum")?
+        .to_string();
+    match catalog_checksum {
+        Some(expected) if expected != &manifest_checksum => {
+            bail!(
+                "inconsistent source_catalogue_checksum across sweep artefacts: expected {expected}, found {manifest_checksum}"
+            );
+        }
+        None => *catalog_checksum = Some(manifest_checksum.clone()),
+        _ => {}
+    }
+    if let Some(output_sha256) = diagnostics["output_sha256"].as_str() {
+        nsb_data_tools::checksum_io::verify_sha256_file(&map, output_sha256, "diagnostics map")?;
+    }
+    let release_sha256 = manifest.get("map_sha256").and_then(|value| value.as_str());
+    if let Some(expected) = release_sha256 {
+        nsb_data_tools::checksum_io::verify_sha256_file(&release, expected, "release map")?;
+    }
+    let diagnostics_nside = diagnostics["nside"]
+        .as_u64()
+        .ok_or_else(|| anyhow::anyhow!("diagnostics missing nside"))?;
+    if diagnostics_nside != u64::from(nside) {
+        bail!("diagnostics nside {diagnostics_nside} does not match directory nside{nside}");
+    }
+    let expected_pixels = 12 * u64::from(nside) * u64::from(nside);
+    let diagnostics_pixels = diagnostics["expected_pixels"]
+        .as_u64()
+        .ok_or_else(|| anyhow::anyhow!("diagnostics missing expected_pixels"))?;
+    if diagnostics_pixels != expected_pixels {
+        bail!(
+            "diagnostics expected_pixels {diagnostics_pixels} does not match HEALPix nside={nside}"
+        );
+    }
+    if diagnostics["photometry_model"].as_str() != Some(GAIA_XP_MODEL) {
+        bail!("diagnostics photometry_model does not match the Gaia XP contract");
+    }
+    if validation["photometry_model"].as_str() != Some(GAIA_XP_MODEL) {
+        bail!("validation photometry_model does not match the Gaia XP contract");
+    }
+    let validation_pixels = validation["pixel_count"]
+        .as_u64()
+        .ok_or_else(|| anyhow::anyhow!("validation missing pixel_count"))?;
+    if validation_pixels != expected_pixels {
+        bail!("validation pixel_count {validation_pixels} does not match HEALPix nside={nside}");
+    }
+
+    let runtime_load_started = Instant::now();
+    let release_raw = std::fs::read_to_string(&release)
+        .with_context(|| format!("failed to runtime-load {}", release.display()))?;
+    let runtime_map =
+        StarlightMap::from_csv_str(&release_raw, StarlightProvenance::test_fixture())?;
+    if runtime_map.pixels().len() != usize::try_from(expected_pixels)? {
+        bail!("runtime-loaded nside={nside} map has an unexpected pixel count");
+    }
+    let runtime_load_seconds = runtime_load_started.elapsed().as_secs_f64();
+
+    let (
+        independent_regions_pass,
+        independent_reference_production_use,
+        independent_comparison_pass,
+    ) = independent_fields_from_validation(&validation);
+    let prior_timing = dir.join("summary.json");
+    let (generation_seconds, validation_seconds, pack_seconds) = if prior_timing.is_file() {
+        let prior: Value = read_json(&prior_timing)?;
+        (
+            prior["generation_seconds"].as_f64().unwrap_or(0.0),
+            prior["validation_seconds"].as_f64().unwrap_or(0.0),
+            prior["pack_seconds"].as_f64().unwrap_or(0.0),
+        )
+    } else {
+        (0.0, 0.0, 0.0)
+    };
+
+    let pixels = expected_pixels;
+    let empty_pixels = validation["empty_pixels"].as_u64().unwrap_or(pixels);
+    let flux_conservation_pass = validation["flux_conservation_pass"]
+        .as_bool()
+        .unwrap_or(false);
+    let summary = NsideSummary {
+        nside,
+        pixels,
+        sources_used: validation["sources_used"].as_u64(),
+        mean_sources_per_pixel: validation["mean_sources_per_pixel"].as_f64(),
+        mean_sources_per_nonempty_pixel: validation["mean_sources_per_nonempty_pixel"].as_f64(),
+        map_csv_bytes: file_len(&map)?,
+        release_csv_bytes: file_len(&release)?,
+        generation_seconds,
+        validation_seconds,
+        pack_seconds,
+        runtime_load_seconds,
+        empty_pixels,
+        empty_pixel_fraction: validation["empty_pixel_fraction"].as_f64().unwrap_or(1.0),
+        input_integrated_flux_sum_ph_cm2_ns: validation["input_integrated_flux_sum_ph_cm2_ns"]
+            .as_f64(),
+        output_integrated_flux_sum_ph_cm2_ns: validation["output_integrated_flux_sum_ph_cm2_ns"]
+            .as_f64(),
+        integrated_flux_relative_error: validation["integrated_flux_relative_error"].as_f64(),
+        total_flux_relative_delta_to_nside256: None,
+        finite_nonnegative_pass: validation["finite_nonnegative_pass"]
+            .as_bool()
+            .unwrap_or(false),
+        spectral_contract_pass: validation["spectral_contract_pass"]
+            .as_bool()
+            .unwrap_or(false),
+        flux_conservation_pass,
+        plane_pole_pass: validation["plane_pole_pass"].as_bool().unwrap_or(false),
+        plane_mean_ph_cm2_ns_sr: validation["plane_mean_ph_cm2_ns_sr"].as_f64(),
+        pole_mean_ph_cm2_ns_sr: validation["pole_mean_ph_cm2_ns_sr"].as_f64(),
+        plane_pole_ratio: validation["plane_pole_ratio"].as_f64(),
+        longitude_wrap_pass: validation["longitude_wrap_pass"].as_bool().unwrap_or(false),
+        longitude_wrap_metric: validation["longitude_wrap_metric"].as_f64(),
+        longitude_wrap_threshold: validation["longitude_wrap_threshold"].as_f64(),
+        independent_regions_pass,
+        independent_reference_production_use,
+        independent_comparison_pass,
+        brightest_independent_region_mean_ph_cm2_ns_sr: brightest_region_mean(&validation),
+        bright_region_relative_delta_to_nside256: None,
+        bright_pixel_p99_ph_cm2_ns_sr: validation["bright_pixel_p99_ph_cm2_ns_sr"].as_f64(),
+        bright_top_one_percent_mean_ph_cm2_ns_sr: validation
+            ["bright_top_one_percent_mean_ph_cm2_ns_sr"]
+            .as_f64(),
+        high_latitude_noise_mad_ratio: validation["high_latitude_noise_mad_ratio"].as_f64(),
+        high_latitude_noise_factor_to_nside64: None,
+        candidate_science_ready: false,
+        candidate_operational_ready: false,
+        production_ready: validation["production_ready"].as_bool().unwrap_or(false),
+        within_size_budget: false,
+        within_runtime_budget: false,
+        within_empty_pixel_budget: false,
+        sufficient_sources_per_nonempty_pixel: false,
+        bright_region_stable: false,
+        high_latitude_noise_acceptable: false,
+        total_flux_stable: false,
+        smoothing_recommended: false,
+        eligible_for_candidate_recommendation: false,
+        eligible_for_production: false,
+    };
+    write_json(&dir.join("summary.json"), &summary)?;
+    Ok(summary)
+}
+
+fn run_one(
+    input: &Path,
+    reference: &Path,
+    catalog_checksum: &str,
+    catalog_license: &str,
+    generation_date_utc: &str,
+    args: &Args,
+    nside: u32,
+) -> Result<NsideSummary> {
     let dir = args.output_dir.join(format!("nside{nside}"));
     std::fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
     let map = dir.join("starlight_map.csv");
@@ -242,7 +531,7 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
         "build_starlight_map",
         vec![
             "--input".to_string(),
-            path_str(&args.input)?.to_string(),
+            path_str(input)?.to_string(),
             "--output".to_string(),
             path_str(&map)?.to_string(),
             "--diagnostics-output".to_string(),
@@ -256,9 +545,9 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
             "--catalog-release".to_string(),
             "DR3".to_string(),
             "--catalog-license".to_string(),
-            args.catalog_license.clone(),
+            catalog_license.to_string(),
             "--catalog-checksum".to_string(),
-            args.catalog_checksum.clone(),
+            catalog_checksum.to_string(),
             "--photometry-model".to_string(),
             GAIA_XP_MODEL.to_string(),
             "--band-min-nm".to_string(),
@@ -266,7 +555,7 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
             "--band-max-nm".to_string(),
             BAND_MAX_NM.to_string(),
             "--generation-date-utc".to_string(),
-            args.generation_date_utc.clone(),
+            generation_date_utc.to_string(),
         ],
     )?;
     let generation_seconds = started.elapsed().as_secs_f64();
@@ -280,7 +569,7 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
             "--diagnostics".to_string(),
             path_str(&diagnostics)?.to_string(),
             "--reference".to_string(),
-            path_str(&args.reference)?.to_string(),
+            path_str(reference)?.to_string(),
             "--output".to_string(),
             path_str(&validation)?.to_string(),
         ],
@@ -319,6 +608,14 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
     let validation_json: Value = read_json(&validation)?;
     let pixels = 12 * u64::from(nside) * u64::from(nside);
     let empty_pixels = validation_json["empty_pixels"].as_u64().unwrap_or(pixels);
+    let (
+        independent_regions_pass,
+        independent_reference_production_use,
+        independent_comparison_pass,
+    ) = independent_fields_from_validation(&validation_json);
+    let flux_conservation_pass = validation_json["flux_conservation_pass"]
+        .as_bool()
+        .unwrap_or(false);
     let summary = NsideSummary {
         nside,
         pixels,
@@ -349,6 +646,7 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
         spectral_contract_pass: validation_json["spectral_contract_pass"]
             .as_bool()
             .unwrap_or(false),
+        flux_conservation_pass,
         plane_pole_pass: validation_json["plane_pole_pass"]
             .as_bool()
             .unwrap_or(false),
@@ -360,9 +658,9 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
             .unwrap_or(false),
         longitude_wrap_metric: validation_json["longitude_wrap_metric"].as_f64(),
         longitude_wrap_threshold: validation_json["longitude_wrap_threshold"].as_f64(),
-        independent_comparison_pass: validation_json["independent_comparison_pass"]
-            .as_bool()
-            .unwrap_or(false),
+        independent_regions_pass,
+        independent_reference_production_use,
+        independent_comparison_pass,
         brightest_independent_region_mean_ph_cm2_ns_sr: brightest_region_mean(&validation_json),
         bright_region_relative_delta_to_nside256: None,
         bright_pixel_p99_ph_cm2_ns_sr: validation_json["bright_pixel_p99_ph_cm2_ns_sr"].as_f64(),
@@ -371,6 +669,8 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
             .as_f64(),
         high_latitude_noise_mad_ratio: validation_json["high_latitude_noise_mad_ratio"].as_f64(),
         high_latitude_noise_factor_to_nside64: None,
+        candidate_science_ready: false,
+        candidate_operational_ready: false,
         production_ready: validation_json["production_ready"]
             .as_bool()
             .unwrap_or(false),
@@ -382,16 +682,106 @@ fn run_one(args: &Args, nside: u32) -> Result<NsideSummary> {
         high_latitude_noise_acceptable: false,
         total_flux_stable: false,
         smoothing_recommended: false,
-        eligible_for_recommendation: false,
+        eligible_for_candidate_recommendation: false,
+        eligible_for_production: false,
     };
     write_json(&dir.join("summary.json"), &summary)?;
     Ok(summary)
 }
 
-fn recommend(summaries: &[NsideSummary]) -> Option<u32> {
+fn independent_fields_from_validation(validation: &Value) -> (bool, bool, bool) {
+    let regions_pass = validation
+        .get("independent_regions_pass")
+        .and_then(Value::as_bool)
+        .unwrap_or_else(|| {
+            validation["independent_comparison"]["regions"]
+                .as_array()
+                .is_some_and(|regions| {
+                    regions
+                        .iter()
+                        .all(|region| region["pass"].as_bool().unwrap_or(false))
+                })
+        });
+    let production_use = validation
+        .get("independent_reference_production_use")
+        .and_then(Value::as_bool)
+        .unwrap_or_else(|| {
+            validation["independent_comparison"]["production_use"]
+                .as_bool()
+                .unwrap_or(false)
+        });
+    let comparison_pass = validation
+        .get("independent_comparison_pass")
+        .and_then(Value::as_bool)
+        .unwrap_or(regions_pass && production_use);
+    (regions_pass, production_use, comparison_pass)
+}
+
+fn candidate_science_ready(summary: &NsideSummary) -> bool {
+    summary.finite_nonnegative_pass
+        && summary.spectral_contract_pass
+        && summary.flux_conservation_pass
+        && summary.plane_pole_pass
+        && summary.longitude_wrap_pass
+}
+
+fn candidate_operational_ready(summary: &NsideSummary) -> bool {
+    summary.within_size_budget
+        && summary.within_runtime_budget
+        && summary.within_empty_pixel_budget
+        && summary.sufficient_sources_per_nonempty_pixel
+        && summary.bright_region_stable
+        && summary.high_latitude_noise_acceptable
+        && summary.total_flux_stable
+}
+
+fn finalize_eligibility(summaries: &mut [NsideSummary]) {
+    for summary in summaries {
+        summary.candidate_science_ready = candidate_science_ready(summary);
+        summary.candidate_operational_ready = candidate_operational_ready(summary);
+        summary.eligible_for_candidate_recommendation =
+            summary.candidate_science_ready && summary.candidate_operational_ready;
+        summary.eligible_for_production = summary.eligible_for_candidate_recommendation
+            && summary.independent_comparison_pass
+            && summary.independent_reference_production_use
+            && missing_flux_report_approved()
+            && redistribution_policy_approved();
+    }
+}
+
+fn missing_flux_report_approved() -> bool {
+    false
+}
+
+fn redistribution_policy_approved() -> bool {
+    false
+}
+
+fn compute_production_blockers(
+    summaries: &[NsideSummary],
+    recommended: Option<u32>,
+) -> Vec<&'static str> {
+    let mut blockers = Vec::new();
+    if let Some(nside) = recommended {
+        if let Some(summary) = summaries.iter().find(|entry| entry.nside == nside) {
+            if !summary.independent_reference_production_use {
+                blockers.push("independent_reference_not_approved_for_production");
+            }
+        }
+    }
+    if !missing_flux_report_approved() {
+        blockers.push("missing_flux_report_not_approved");
+    }
+    if !redistribution_policy_approved() {
+        blockers.push("redistribution_policy_not_approved");
+    }
+    blockers
+}
+
+fn recommend_candidate(summaries: &[NsideSummary]) -> Option<u32> {
     summaries
         .iter()
-        .filter(|summary| summary.eligible_for_recommendation)
+        .filter(|summary| summary.eligible_for_candidate_recommendation)
         .map(|summary| summary.nside)
         .max()
 }
@@ -451,19 +841,6 @@ fn assess_candidates(summaries: &mut [NsideSummary], args: &Args) {
         summary.smoothing_recommended = !summary.within_empty_pixel_budget
             || !summary.sufficient_sources_per_nonempty_pixel
             || !summary.high_latitude_noise_acceptable;
-        summary.eligible_for_recommendation = summary.production_ready
-            && summary.finite_nonnegative_pass
-            && summary.spectral_contract_pass
-            && summary.plane_pole_pass
-            && summary.longitude_wrap_pass
-            && summary.independent_comparison_pass
-            && summary.within_size_budget
-            && summary.within_runtime_budget
-            && summary.within_empty_pixel_budget
-            && summary.sufficient_sources_per_nonempty_pixel
-            && summary.bright_region_stable
-            && summary.high_latitude_noise_acceptable
-            && summary.total_flux_stable;
     }
 }
 
@@ -567,46 +944,113 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recommendation_maximizes_resolution_only_within_all_evidence_gates() {
+    fn candidate_recommendation_ignores_provisional_reference() {
         let args = fixture_args();
         let mut summaries = vec![
-            fixture_summary(64, 4.0),
-            fixture_summary(128, 3.0),
-            fixture_summary(256, 1.0),
+            fixture_summary(64, 4.0, true, false),
+            fixture_summary(128, 3.0, true, false),
+            fixture_summary(256, 2.5, true, false),
         ];
         assess_candidates(&mut summaries, &args);
-        assert!(summaries[0].eligible_for_recommendation);
-        assert!(summaries[1].eligible_for_recommendation);
-        assert!(!summaries[2].sufficient_sources_per_nonempty_pixel);
-        assert!(summaries[2].smoothing_recommended);
-        assert!(!summaries[2].eligible_for_recommendation);
-        assert_eq!(recommend(&summaries), Some(128));
+        finalize_eligibility(&mut summaries);
+        assert_eq!(recommend_candidate(&summaries), Some(256));
+        let blockers = compute_production_blockers(&summaries, Some(256));
+        assert!(blockers.contains(&"independent_reference_not_approved_for_production"));
+        assert!(!summaries[2].eligible_for_production);
+        assert!(summaries[2].eligible_for_candidate_recommendation);
     }
 
     #[test]
-    fn recommendation_is_absent_when_independent_validation_is_not_production_grade() {
+    fn recommendation_maximizes_resolution_only_within_internal_gates() {
         let args = fixture_args();
         let mut summaries = vec![
-            fixture_summary(64, 4.0),
-            fixture_summary(128, 3.0),
-            fixture_summary(256, 2.5),
+            fixture_summary(64, 4.0, true, false),
+            fixture_summary(128, 3.0, true, false),
+            fixture_summary(256, 1.0, true, false),
         ];
-        for summary in &mut summaries {
-            summary.production_ready = false;
-            summary.independent_comparison_pass = false;
-        }
         assess_candidates(&mut summaries, &args);
-        assert_eq!(recommend(&summaries), None);
+        finalize_eligibility(&mut summaries);
+        assert!(summaries[0].eligible_for_candidate_recommendation);
+        assert!(summaries[1].eligible_for_candidate_recommendation);
+        assert!(!summaries[2].sufficient_sources_per_nonempty_pixel);
+        assert!(summaries[2].smoothing_recommended);
+        assert!(!summaries[2].eligible_for_candidate_recommendation);
+        assert_eq!(recommend_candidate(&summaries), Some(128));
+    }
+
+    #[test]
+    fn production_can_be_eligible_only_with_approved_external_gates() {
+        let args = fixture_args();
+        let mut summaries = vec![
+            fixture_summary(64, 4.0, true, true),
+            fixture_summary(128, 3.0, true, true),
+            fixture_summary(256, 2.5, true, true),
+        ];
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        assert!(summaries[2].eligible_for_candidate_recommendation);
+        assert!(!summaries[2].eligible_for_production);
+    }
+
+    #[test]
+    fn provisional_reference_never_enables_production_ready() {
+        let args = fixture_args();
+        let mut summaries = vec![fixture_summary(256, 2.5, true, false)];
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        assert!(!summaries[0].eligible_for_production);
+        assert!(!summaries[0].production_ready);
+    }
+
+    #[test]
+    fn recommendation_is_absent_when_no_internal_candidate_passes() {
+        let args = fixture_args();
+        let mut summaries = vec![fixture_summary(256, 0.5, true, false)];
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        assert_eq!(recommend_candidate(&summaries), None);
+    }
+
+    #[test]
+    fn oversized_candidate_is_ineligible() {
+        let mut args = fixture_args();
+        args.max_release_mib = 0.0005;
+        let mut summaries = vec![fixture_summary(256, 2.5, true, false)];
+        summaries[0].release_csv_bytes = 1_000_000;
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        assert!(!summaries[0].within_size_budget);
+        assert!(!summaries[0].eligible_for_candidate_recommendation);
+    }
+
+    #[test]
+    fn independent_fields_derive_from_legacy_validation_schema() {
+        let validation = serde_json::json!({
+            "independent_comparison_pass": false,
+            "independent_comparison": {
+                "production_use": false,
+                "regions": [
+                    {"pass": true},
+                    {"pass": true}
+                ]
+            }
+        });
+        let (regions, production_use, comparison) = independent_fields_from_validation(&validation);
+        assert!(regions);
+        assert!(!production_use);
+        assert!(!comparison);
     }
 
     fn fixture_args() -> Args {
         Args {
-            input: PathBuf::from("catalogue.csv"),
+            input: Some(PathBuf::from("catalogue.csv")),
             output_dir: PathBuf::from("sweep"),
-            reference: PathBuf::from("reference.json"),
-            catalog_checksum: format!("sha256:{}", "1".repeat(64)),
-            catalog_license: "reviewed policy".to_string(),
-            generation_date_utc: "2026-07-11T00:00:00Z".to_string(),
+            reference: Some(PathBuf::from("reference.json")),
+            catalog_checksum: Some(format!("sha256:{}", "1".repeat(64))),
+            catalog_license: Some("reviewed policy".to_string()),
+            generation_date_utc: Some("2026-07-11T00:00:00Z".to_string()),
+            assess_existing: false,
+            require_production_ready: false,
             max_release_mib: 256.0,
             max_runtime_load_seconds: 15.0,
             max_empty_pixel_fraction: 0.85,
@@ -616,7 +1060,12 @@ mod tests {
         }
     }
 
-    fn fixture_summary(nside: u32, sources_per_nonempty_pixel: f64) -> NsideSummary {
+    fn fixture_summary(
+        nside: u32,
+        sources_per_nonempty_pixel: f64,
+        flux_conservation_pass: bool,
+        production_reference: bool,
+    ) -> NsideSummary {
         let pixels = 12 * u64::from(nside) * u64::from(nside);
         NsideSummary {
             nside,
@@ -638,6 +1087,7 @@ mod tests {
             total_flux_relative_delta_to_nside256: None,
             finite_nonnegative_pass: true,
             spectral_contract_pass: true,
+            flux_conservation_pass,
             plane_pole_pass: true,
             plane_mean_ph_cm2_ns_sr: Some(2.0),
             pole_mean_ph_cm2_ns_sr: Some(1.0),
@@ -645,14 +1095,18 @@ mod tests {
             longitude_wrap_pass: true,
             longitude_wrap_metric: Some(1.0),
             longitude_wrap_threshold: Some(10.0),
-            independent_comparison_pass: true,
+            independent_regions_pass: true,
+            independent_reference_production_use: production_reference,
+            independent_comparison_pass: production_reference,
             brightest_independent_region_mean_ph_cm2_ns_sr: Some(10.0),
             bright_region_relative_delta_to_nside256: None,
             bright_pixel_p99_ph_cm2_ns_sr: Some(8.0),
             bright_top_one_percent_mean_ph_cm2_ns_sr: Some(10.0),
             high_latitude_noise_mad_ratio: Some(0.2),
             high_latitude_noise_factor_to_nside64: None,
-            production_ready: true,
+            candidate_science_ready: false,
+            candidate_operational_ready: false,
+            production_ready: production_reference,
             within_size_budget: false,
             within_runtime_budget: false,
             within_empty_pixel_budget: false,
@@ -661,7 +1115,8 @@ mod tests {
             high_latitude_noise_acceptable: false,
             total_flux_stable: false,
             smoothing_recommended: false,
-            eligible_for_recommendation: false,
+            eligible_for_candidate_recommendation: false,
+            eligible_for_production: false,
         }
     }
 }

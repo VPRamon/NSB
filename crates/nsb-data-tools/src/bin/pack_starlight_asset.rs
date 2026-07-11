@@ -83,6 +83,7 @@ struct NsideSweepReport {
     schema_version: u32,
     photometry_model: String,
     band_nm: [f64; 2],
+    #[serde(alias = "recommended_candidate_nside")]
     recommended_nside: Option<u32>,
     review_required: bool,
     summaries: Vec<NsideSweepCandidate>,
@@ -93,6 +94,7 @@ struct NsideSweepCandidate {
     nside: u32,
     production_ready: bool,
     spectral_contract_pass: bool,
+    #[serde(alias = "eligible_for_candidate_recommendation")]
     eligible_for_recommendation: bool,
 }
 
