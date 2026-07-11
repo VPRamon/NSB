@@ -51,105 +51,109 @@ provided) flux-conservation checks.
 The separate `StarlightModel::with_experimental_map(...)` API never receives a
 production label. See [the sidecar schema](EXTERNAL_STARLIGHT_MANIFEST.md).
 
-## Gaia DR3 release pipeline
+## Gaia DR3 release pipeline (validated 2026-07-11)
 
-Normal users do not download Gaia DR3 and do not provide source CSV files. The
-Gaia extract and canonical source table are maintainer release artifacts. Only
-the derived, checksum-pinned starlight map is intended to ship with NSB.
+The production path for the real Gaia DR3 XP release uses the official sampled
+bulk inventory, the fixed 336–650 nm photon-radiance contract
+(`gaia_dr3_xp_photon_radiance_336_650nm_v1`), and an nside sweep that selects
+**candidate** `nside=256`. Production promotion remains blocked until reviewed
+external reference, missing-flux assessment, and redistribution policy gates are
+satisfied.
+
+### 1. Prepare canonical sources from official bulk
 
 ```bash
-OUT=target/starlight-gaia-release
-POLICY=docs/policies/gaia_dr3_starlight_derived_product_policy.txt
-REF=validation/starlight_independent_reference_v1.json
-LICENSE="<reviewed-derived-product-policy-string>"
-DATE_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-NSIDE=128
+OUT="$HOME/nsb-data/starlight-gaia-release"
+BULK="$OUT/gaia_dr3_xp_sampled_bulk"
+LICENSE='Gaia DR3 data are open and free to use with credit to ESA/Gaia/DPAC; NSB redistributes only a derived validated runtime starlight map'
 
+cargo run --locked --release -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --bulk-dir "$BULK" \
+  --output "$OUT/gaia_dr3_starlight_sources.csv" \
+  --diagnostics-output "$OUT/gaia_dr3_starlight_sources.diagnostics.json" \
+  --exclusions-output "$OUT/gaia_dr3_starlight_exclusions.csv" \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "$LICENSE" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
+  --band-min-nm 336 \
+  --band-max-nm 650
+```
+
+Do not regenerate the validated 4.7 GiB canonical catalogue unless the bulk
+inventory or scientific contract changes. Canonical SHA-256:
+
+```text
+1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30
+```
+
+### 2. Regenerate only the scientific-exclusions sidecar
+
+Re-reads bulk; does not rewrite the canonical catalogue or rebuild maps:
+
+```bash
+cargo run --locked --release -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --bulk-dir "$BULK" \
+  --exclusions-only \
+  --exclusions-output "$OUT/gaia_dr3_starlight_exclusions.csv" \
+  --diagnostics-output "$OUT/gaia_dr3_starlight_exclusions.diagnostics.json" \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "$LICENSE" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
+  --band-min-nm 336 \
+  --band-max-nm 650
+```
+
+Expected for the validated run: `rows_scientifically_excluded = 10`,
+`rows_unexpectedly_rejected = 0`.
+
+### 3. Nside sweep and reassessment
+
+Full sweep rebuilds maps. Reassessment reuses persisted artefacts:
+
+```bash
+SWEEP="$OUT/sweep"
+CATALOG_SHA="1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30"
+
+cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
+  --output-dir "$SWEEP" \
+  --assess-existing \
+  --catalog-checksum "sha256:$CATALOG_SHA"
+```
+
+Observed candidate outcome: `recommended_candidate_nside = 256`,
+`candidate_recommendation_passed = true`, `production_ready = false`.
+
+### Normalized DataLink fallback (repair / controlled validation only)
+
+The normalized one-row-per-source DataLink CSV (`--input`) remains available for
+controlled validation or repair when the official bulk inventory is unavailable.
+It is not the primary workflow for the validated 2026-07-11 release.
+
+```bash
 cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_inputs -- \
   --out-dir "$OUT" \
   --max-g-mag 20 \
-  --production \
-  --license-policy-file "$POLICY" \
-  --validation-reference "$REF" \
+  --license-policy-file docs/policies/gaia_dr3_starlight_derived_product_policy.txt \
+  --validation-reference validation/starlight_independent_reference_v1.json \
   --xp-retrieval gaia-datalink
-
-GAIA_DR3_STARLIGHT_EXTRACT="$OUT/gaia_dr3_starlight_extract.csv"
-GAIA_DR3_STARLIGHT_EXTRACT_SHA256="sha256:$(sha256sum "$GAIA_DR3_STARLIGHT_EXTRACT" | cut -d' ' -f1)"
-
-cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
-  --input "$GAIA_DR3_STARLIGHT_EXTRACT" \
-  --output "$OUT/gaia_dr3_starlight_sources.csv" \
-  --diagnostics-output "$OUT/gaia_dr3_starlight_sources.diagnostics.json" \
-  --catalog-name "Gaia" \
-  --catalog-release "DR3" \
-  --catalog-license "$LICENSE" \
-  --source-checksum "$GAIA_DR3_STARLIGHT_EXTRACT_SHA256" \
-  --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
-  --band-min-nm 330 \
-  --band-max-nm 650 \
-  --require-passband-photometry
-
-GAIA_DR3_STARLIGHT_SOURCES_SHA256="sha256:$(sha256sum "$OUT/gaia_dr3_starlight_sources.csv" | cut -d' ' -f1)"
-
-cargo run --locked -p nsb-data-tools --bin build_starlight_map -- \
-  --input "$OUT/gaia_dr3_starlight_sources.csv" \
-  --output "$OUT/nsb_gaia_dr3_starlight_healpix.csv" \
-  --diagnostics-output "$OUT/nsb_gaia_dr3_starlight_healpix.diagnostics.json" \
-  --nside "$NSIDE" \
-  --ordering ring \
-  --catalog-name "Gaia" \
-  --catalog-release "DR3" \
-  --catalog-license "$LICENSE" \
-  --catalog-checksum "$GAIA_DR3_STARLIGHT_SOURCES_SHA256" \
-  --photometry-model "gaia_dr3_xp_photon_radiance_330_650nm_v1" \
-  --band-min-nm 330 \
-  --band-max-nm 650 \
-  --generation-date-utc "$DATE_UTC" \
-  --require-science-diagnostics
-
-cargo run --locked -p nsb-data-tools --bin validate_starlight_map -- \
-  --input "$OUT/nsb_gaia_dr3_starlight_healpix.csv" \
-  --diagnostics "$OUT/nsb_gaia_dr3_starlight_healpix.diagnostics.json" \
-  --reference "$REF" \
-  --output "$OUT/nsb_gaia_dr3_starlight_healpix.validation.json" \
-  --require-independent-comparison
-
-cargo run --locked -p nsb-data-tools --bin pack_starlight_asset -- \
-  --input "$OUT/nsb_gaia_dr3_starlight_healpix.csv" \
-  --diagnostics "$OUT/nsb_gaia_dr3_starlight_healpix.diagnostics.json" \
-  --validation "$OUT/nsb_gaia_dr3_starlight_healpix.validation.json" \
-  --output "$OUT/nsb_gaia_dr3_starlight_healpix.release.csv" \
-  --manifest "$OUT/nsb_gaia_dr3_starlight_healpix.manifest.toml" \
-  --production
 ```
 
-If redistribution policy permits bundling and the derived files are within the
-release size budget, copy only the packed runtime files into `crates/nsb/data/`
-as:
+## Legacy Gaia DR3 release pipeline (obsolete)
 
-```text
-crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.release.csv
-crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.manifest.toml
+The following block described an earlier 330–650 nm, `nside=128`, DataLink-first
+workflow. It is retained only as historical context and must not be used for the
+current release:
+
+```bash
+# OBSOLETE — do not use for the validated Gaia DR3 XP release
+OUT=target/starlight-gaia-release
+NSIDE=128
+# photometry_model: gaia_dr3_xp_photon_radiance_330_650nm_v1
+# band: 330–650 nm
+# primary input: gaia-datalink normalized extract
 ```
-
-Register the CSV with schema `nsb-healpix-starlight-v1` and the sidecar with
-schema `nsb-starlight-runtime-manifest-v1`, both with
-`calibration_status = "production"` and `runtime_embedded = true`. The `nsb`
-build script then embeds both files, emits the
-`nsb_bundled_production_starlight` cfg, and `ComponentMask::ALL` / CLI
-`--components all` include the production starlight component.
-
-The packer emits a raw UTF-8 HEALPix release CSV and runtime manifest only in
-`--production` mode after `production_ready=true`, integrated flux conservation
-passes, the longitude seam diagnostic passes, and the validation tool has
-computed passing structured independent regional comparisons. Production packing
-self-loads the emitted CSV/TOML pair through the runtime `ValidatedStarlightMap`
-loader before returning success. Boolean claims supplied by external reference
-files are not trusted.
-Use `--candidate` only for review artifacts. The current repository does not
-ship the Gaia-derived production asset because the real Gaia extract, reviewed
-redistribution policy, and independent validation reference are not present in
-CI.
 
 ## Legacy Tycho proxy pipeline
 

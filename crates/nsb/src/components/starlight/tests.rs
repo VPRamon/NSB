@@ -76,7 +76,7 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
         assert_eq!(provenance.calibration_status.as_deref(), Some("production"));
         assert_eq!(
             provenance.photometry_model.as_deref(),
-            Some("gaia_dr3_xp_photon_radiance_330_650nm_v1")
+            Some("gaia_dr3_xp_photon_radiance_336_650nm_v1")
         );
         assert!(model.map().pixels().len() > 12);
     } else {
