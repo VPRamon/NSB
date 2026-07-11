@@ -181,9 +181,14 @@ pub fn parse_gaia_datalink_array_csv(bytes: &[u8], expected_source_id: &str) -> 
     if parsed_source != expected_source_id {
         bail!("Gaia XP source_id mismatch: expected {expected_source_id}, found {parsed_source}");
     }
-    let flux_w_m2_nm = parse_gaia_sampled_array(field(&row, flux, "flux")?, "flux", source_id, None)?;
-    let flux_error_w_m2_nm =
-        parse_gaia_sampled_array(field(&row, flux_error, "flux_error")?, "flux_error", source_id, None)?;
+    let flux_w_m2_nm =
+        parse_gaia_sampled_array(field(&row, flux, "flux")?, "flux", source_id, None)?;
+    let flux_error_w_m2_nm = parse_gaia_sampled_array(
+        field(&row, flux_error, "flux_error")?,
+        "flux_error",
+        source_id,
+        None,
+    )?;
     let wavelengths_nm = (0..XP_SAMPLED_GRID_LEN)
         .map(|index| XP_SAMPLED_GRID_START_NM + XP_SAMPLED_GRID_STEP_NM * index as f64)
         .collect();
@@ -239,7 +244,12 @@ pub fn parse_gaia_sampled_array_into(
                 .and_then(|value| value.strip_suffix(')'))
         })
         .ok_or_else(|| {
-            sampled_array_error(field, source_id, origin_file, "expected bracketed or parenthesized array")
+            sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                "expected bracketed or parenthesized array",
+            )
         })?;
     if inner.is_empty() {
         return Err(sampled_array_error(
@@ -300,6 +310,70 @@ pub fn parse_gaia_sampled_array_into(
         ));
     }
     Ok(())
+}
+
+/// Parse a parenthesized/bracketed Gaia tuple array with arbitrary length.
+pub fn parse_gaia_tuple_array(
+    raw: &str,
+    field: &str,
+    source_id: Option<u64>,
+    origin_file: Option<&Path>,
+) -> Result<Vec<f64>> {
+    let mut out = Vec::new();
+    let trimmed = raw.trim();
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .or_else(|| {
+            trimmed
+                .strip_prefix('(')
+                .and_then(|value| value.strip_suffix(')'))
+        })
+        .ok_or_else(|| {
+            sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                "expected bracketed or parenthesized array",
+            )
+        })?;
+    if inner.is_empty() {
+        return Err(sampled_array_error(
+            field,
+            source_id,
+            origin_file,
+            "empty array",
+        ));
+    }
+    for (index, token) in inner.split(',').enumerate() {
+        let token = token.trim();
+        if token.is_empty() {
+            return Err(sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("empty token at element index {index}"),
+            ));
+        }
+        let value = token.parse::<f64>().with_context(|| {
+            sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("invalid numeric token at element index {index}: {token:?}"),
+            )
+        })?;
+        if !value.is_finite() {
+            return Err(sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("non-finite value at element index {index}"),
+            ));
+        }
+        out.push(value);
+    }
+    Ok(out)
 }
 
 /// Parse an official Gaia XP sampled bulk array field into a new `Vec`.

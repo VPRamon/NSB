@@ -8,5 +8,6 @@ pub mod gaia_xp;
 pub mod gaia_xp_continuous;
 pub mod starlight_approval;
 pub mod starlight_integrated;
+pub mod starlight_phase5;
 pub mod starlight_sampling;
 pub mod starlight_science;

@@ -501,12 +501,7 @@ impl DatalinkDownloader {
                     )?;
                     validate_existing(&part_path, &source_id, self.retrieval_type)?;
                     atomic_replace(&part_path, &final_path)?;
-                    checkpoint.append(
-                        &source_id,
-                        SourceState::Validated,
-                        attempt,
-                        &detail,
-                    )?;
+                    checkpoint.append(&source_id, SourceState::Validated, attempt, &detail)?;
                     self.limiter.record_success().await;
                     let mut report = shared.lock().expect("download report mutex poisoned");
                     report.bytes_downloaded += body.len() as u64;
@@ -1112,8 +1107,12 @@ fn persist_error_attempt(
     Ok(vec![header_path, body_path])
 }
 
-fn raw_path(raw_dir: &Path, source_id: &str) -> PathBuf {
+pub fn datalink_raw_coefficient_path(raw_dir: &Path, source_id: &str) -> PathBuf {
     raw_dir.join(format!("xp_source_{source_id}.csv"))
+}
+
+fn raw_path(raw_dir: &Path, source_id: &str) -> PathBuf {
+    datalink_raw_coefficient_path(raw_dir, source_id)
 }
 
 fn part_path(raw_dir: &Path, source_id: &str) -> PathBuf {
