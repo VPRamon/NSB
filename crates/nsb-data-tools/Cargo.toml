@@ -46,8 +46,14 @@ name = "generate_gaia_starlight_release_inputs"
 path = "src/bin/generate_gaia_starlight_release_inputs.rs"
 doc = false
 
+[[bin]]
+name = "query_gaia_tap"
+path = "src/bin/query_gaia_tap.rs"
+doc = false
+
 [dependencies]
 anyhow = "1"
+chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 flate2 = "1"
