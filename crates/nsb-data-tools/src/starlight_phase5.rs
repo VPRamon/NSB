@@ -97,6 +97,11 @@ pub struct OverlapComparison {
     pub colour_bin: String,
     pub snr_bin: String,
     pub sky_region: String,
+    pub bp_rp_excess_bin: String,
+    pub crowding_bin: String,
+    pub duplicated_bin: String,
+    pub variable_bin: String,
+    pub qso_galaxy_bin: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -560,6 +565,641 @@ pub fn evaluate_gates(metrics: &MetricBundle, gates: &XpContinuousGates) -> Gate
     }
 }
 
+/// Minimum sampled-flux scale for stable relative-error denominators (ph m⁻² s⁻¹).
+pub const RELATIVE_ERROR_FLUX_FLOOR_PH_M2_S: f64 = 1.0e-6;
+
+/// Minimum stratum sample count before stratified gate evaluation is required.
+pub const STRATUM_MIN_SAMPLES: u64 = 30;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogueExclusion {
+    pub source_id: u64,
+    pub reason: String,
+    pub integrated_photon_flux_ph_m2_s: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FrozenValidationPolicy {
+    pub schema_version: u32,
+    pub photometry_model: String,
+    pub integration_band_nm: [f64; 2],
+    pub integration_rule: String,
+    pub relative_error_flux_floor_ph_m2_s: f64,
+    pub catastrophic_relative_error_threshold: f64,
+    pub uncertainty_inflation_formula: String,
+    pub uncertainty_inflation_factor: f64,
+    pub inflation_fit_split: String,
+    pub quality_filters: Vec<String>,
+    pub fallback_rules: Vec<String>,
+    pub gates: XpContinuousGates,
+    pub stratum_min_samples: u64,
+    pub generation_timestamp_utc: String,
+    pub software_commit: String,
+    pub train_input_hash: String,
+    pub validation_input_hash: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DownloadClassification {
+    DownloadedValid,
+    DownloadedInvalid,
+    Pending,
+    RetryableError,
+    NonretryableError,
+    MissingFromResponse,
+    MissingFromCanonicalReference,
+    Excluded,
+}
+
+impl DownloadClassification {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::DownloadedValid => "downloaded_valid",
+            Self::DownloadedInvalid => "downloaded_invalid",
+            Self::Pending => "pending",
+            Self::RetryableError => "retryable_error",
+            Self::NonretryableError => "nonretryable_error",
+            Self::MissingFromResponse => "missing_from_response",
+            Self::MissingFromCanonicalReference => "missing_from_canonical_reference",
+            Self::Excluded => "excluded",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadInventoryRow {
+    pub source_id: u64,
+    pub population: String,
+    pub split: String,
+    pub strata: String,
+    pub batch_id: String,
+    pub requested: bool,
+    pub response_present: bool,
+    pub response_sha256: String,
+    pub parse_status: String,
+    pub classification: String,
+    pub reconstruction_status: String,
+    pub validation_target_available: bool,
+    pub exclusion_reason: String,
+    pub retry_count: u32,
+    pub last_error: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadStatusReport {
+    pub schema_version: u32,
+    pub generation_timestamp_utc: String,
+    pub batch_id: String,
+    pub requested: u64,
+    pub downloaded_valid: u64,
+    pub downloaded_invalid: u64,
+    pub pending: u64,
+    pub retryable_error: u64,
+    pub nonretryable_error: u64,
+    pub missing_from_response: u64,
+    pub missing_from_canonical_reference: u64,
+    pub excluded: u64,
+    pub overlap_requested: u64,
+    pub overlap_downloaded_valid: u64,
+    pub continuous_only_requested: u64,
+    pub continuous_only_downloaded_valid: u64,
+    pub throughput_sources_per_second: f64,
+    pub last_progress_unix_millis: u128,
+    pub stalled: bool,
+    pub download_active: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Phase5ExclusionRow {
+    pub source_id: u64,
+    pub population: String,
+    pub split: String,
+    pub reason_code: String,
+    pub evidence: String,
+    pub canonical_lookup_result: String,
+    pub continuous_product_available: bool,
+    pub fallback_policy: String,
+    pub scientific_impact: String,
+}
+
+pub fn signed_relative_error(reconstructed: f64, sampled: f64) -> f64 {
+    let scale = sampled.abs().max(RELATIVE_ERROR_FLUX_FLOOR_PH_M2_S);
+    (reconstructed - sampled) / scale
+}
+
+pub fn load_sampled_catalogue_exclusions(path: &Path) -> Result<HashMap<u64, CatalogueExclusion>> {
+    let mut reader = ReaderBuilder::new().from_path(path)?;
+    let headers = reader.headers()?.clone();
+    let sid_idx = headers
+        .iter()
+        .position(|h| h == "source_id")
+        .context("source_id")?;
+    let reason_idx = headers
+        .iter()
+        .position(|h| h == "reason")
+        .context("reason")?;
+    let flux_idx = headers
+        .iter()
+        .position(|h| h == "integrated_photon_flux_ph_m2_s");
+    let mut map = HashMap::new();
+    for row in reader.records() {
+        let row = row?;
+        let source_id: u64 = row.get(sid_idx).context("sid")?.parse()?;
+        let reason = row.get(reason_idx).context("reason")?.to_string();
+        let integrated_photon_flux_ph_m2_s = flux_idx
+            .and_then(|i| row.get(i))
+            .and_then(|v| v.parse().ok());
+        map.insert(
+            source_id,
+            CatalogueExclusion {
+                source_id,
+                reason,
+                integrated_photon_flux_ph_m2_s,
+            },
+        );
+    }
+    Ok(map)
+}
+
+pub fn load_phase5_targets(path: &Path) -> Result<Vec<Phase5TargetRow>> {
+    let mut reader = ReaderBuilder::new().from_path(path)?;
+    let headers = reader.headers()?.clone();
+    let idx = |name: &str| headers.iter().position(|h| h == name);
+    let mut rows = Vec::new();
+    for record in reader.records() {
+        let record = record?;
+        rows.push(Phase5TargetRow {
+            source_id: record.get(idx("source_id").unwrap()).unwrap().parse()?,
+            population: record.get(idx("population").unwrap()).unwrap().to_string(),
+            split: record.get(idx("split").unwrap()).unwrap().to_string(),
+            spatial_cell: record.get(idx("spatial_cell").unwrap()).unwrap().parse()?,
+            strata: record.get(idx("strata").unwrap()).unwrap().to_string(),
+            phot_g_mean_mag: idx("phot_g_mean_mag")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            bp_rp: idx("bp_rp")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            phot_g_mean_flux_over_error: idx("phot_g_mean_flux_over_error")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            phot_bp_rp_excess_factor: idx("phot_bp_rp_excess_factor")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            phot_bp_n_blended_transits: idx("phot_bp_n_blended_transits")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            phot_rp_n_blended_transits: idx("phot_rp_n_blended_transits")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            l: idx("l")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            b: idx("b")
+                .and_then(|i| record.get(i))
+                .and_then(|v| v.parse().ok()),
+            duplicated_source: record
+                .get(idx("duplicated_source").unwrap())
+                .is_some_and(parse_bool),
+            phot_variable_flag: record
+                .get(idx("phot_variable_flag").unwrap())
+                .unwrap()
+                .to_string(),
+            in_qso_candidates: record
+                .get(idx("in_qso_candidates").unwrap())
+                .is_some_and(parse_bool),
+            in_galaxy_candidates: record
+                .get(idx("in_galaxy_candidates").unwrap())
+                .is_some_and(parse_bool),
+        });
+    }
+    Ok(rows)
+}
+
+pub fn bp_rp_excess_bin(value: Option<f64>) -> &'static str {
+    match value {
+        Some(v) if v < 1.2 => "excess_normal",
+        Some(v) if v < 1.5 => "excess_elevated",
+        Some(v) if v < 2.0 => "excess_high",
+        Some(_) => "excess_extreme",
+        None => "excess_missing",
+    }
+}
+
+pub fn crowding_bin(bp_blended: Option<u32>, rp_blended: Option<u32>) -> &'static str {
+    let crowding = bp_blended.unwrap_or(0).max(rp_blended.unwrap_or(0));
+    match crowding {
+        0 => "crowding_none",
+        1 => "crowding_low",
+        2..=5 => "crowding_moderate",
+        _ => "crowding_high",
+    }
+}
+
+pub fn build_frozen_validation_policy(
+    inflation: f64,
+    software_commit: &str,
+    train_hash: &str,
+    validation_hash: &str,
+) -> FrozenValidationPolicy {
+    FrozenValidationPolicy {
+        schema_version: 1,
+        photometry_model: crate::gaia_xp_continuous::PHOTOMETRY_MODEL.to_string(),
+        integration_band_nm: [336.0, 650.0],
+        integration_rule: "GaiaXPy 2.1.4 calibrated grid, photon-flux integral 336-650 nm, 2 nm step inclusive upper"
+            .to_string(),
+        relative_error_flux_floor_ph_m2_s: RELATIVE_ERROR_FLUX_FLOOR_PH_M2_S,
+        catastrophic_relative_error_threshold: CATASTROPHIC_RELATIVE_ERROR,
+        uncertainty_inflation_formula: "total_sigma = statistical_sigma * inflation_factor".to_string(),
+        uncertainty_inflation_factor: inflation,
+        inflation_fit_split: "train".to_string(),
+        quality_filters: vec![
+            "skip overlap sources without canonical sampled reference".to_string(),
+            "skip sources without normalized reconstruction CSV".to_string(),
+        ],
+        fallback_rules: vec![
+            "missing_from_canonical_sampled_reference: exclude from overlap validation only"
+                .to_string(),
+        ],
+        gates: XpContinuousGates::default(),
+        stratum_min_samples: STRATUM_MIN_SAMPLES,
+        generation_timestamp_utc: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        software_commit: software_commit.to_string(),
+        train_input_hash: train_hash.to_string(),
+        validation_input_hash: validation_hash.to_string(),
+    }
+}
+
+fn classify_download_row(
+    target: &Phase5TargetRow,
+    checkpoint: Option<&crate::gaia_datalink::CheckpointEntry>,
+    raw_path: &Path,
+    catalogue_exclusions: &HashMap<u64, CatalogueExclusion>,
+    canonical_flux: &HashMap<u64, f64>,
+) -> (DownloadClassification, String, String, String, u32, String) {
+    if target.population == "xp_sampled_overlap" {
+        if let Some(exclusion) = catalogue_exclusions.get(&target.source_id) {
+            return (
+                DownloadClassification::MissingFromCanonicalReference,
+                "invalid".to_string(),
+                "not_applicable".to_string(),
+                format!(
+                    "missing_from_canonical_sampled_reference: {}",
+                    exclusion.reason
+                ),
+                checkpoint.map(|c| c.attempt).unwrap_or(0),
+                exclusion.reason.clone(),
+            );
+        }
+        if !canonical_flux.contains_key(&target.source_id) {
+            return (
+                DownloadClassification::MissingFromCanonicalReference,
+                "invalid".to_string(),
+                "not_applicable".to_string(),
+                "missing_from_canonical_sampled_reference: absent from catalogue".to_string(),
+                checkpoint.map(|c| c.attempt).unwrap_or(0),
+                "absent from gaia_dr3_starlight_sources.csv".to_string(),
+            );
+        }
+    }
+
+    if raw_path.is_file() {
+        let bytes = match fs::read(raw_path) {
+            Ok(data) => data,
+            Err(err) => {
+                return (
+                    DownloadClassification::DownloadedInvalid,
+                    "read_error".to_string(),
+                    "pending".to_string(),
+                    String::new(),
+                    checkpoint.map(|c| c.attempt).unwrap_or(0),
+                    err.to_string(),
+                );
+            }
+        };
+        let sid = target.source_id.to_string();
+        match crate::gaia_xp_continuous::parse_continuous_coefficient_csv(&bytes, &sid) {
+            Ok(_) => (
+                DownloadClassification::DownloadedValid,
+                "valid".to_string(),
+                "pending".to_string(),
+                String::new(),
+                checkpoint.map(|c| c.attempt).unwrap_or(0),
+                String::new(),
+            ),
+            Err(err) => (
+                DownloadClassification::DownloadedInvalid,
+                format!("invalid: {err:#}"),
+                "blocked".to_string(),
+                String::new(),
+                checkpoint.map(|c| c.attempt).unwrap_or(0),
+                err.to_string(),
+            ),
+        }
+    } else if let Some(entry) = checkpoint {
+        let detail = entry.detail.to_ascii_lowercase();
+        let class = match entry.state {
+            crate::gaia_datalink::SourceState::Failed if detail.contains("400") => {
+                DownloadClassification::NonretryableError
+            }
+            crate::gaia_datalink::SourceState::Failed => DownloadClassification::RetryableError,
+            crate::gaia_datalink::SourceState::Pending
+            | crate::gaia_datalink::SourceState::Downloading
+            | crate::gaia_datalink::SourceState::Retrying => DownloadClassification::Pending,
+            crate::gaia_datalink::SourceState::Downloaded
+            | crate::gaia_datalink::SourceState::Validated => DownloadClassification::Pending,
+        };
+        (
+            class,
+            "missing".to_string(),
+            "pending".to_string(),
+            String::new(),
+            entry.attempt,
+            entry.detail.clone(),
+        )
+    } else {
+        (
+            DownloadClassification::MissingFromResponse,
+            "missing".to_string(),
+            "pending".to_string(),
+            String::new(),
+            0,
+            String::new(),
+        )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn audit_download_inventory(
+    targets: &[Phase5TargetRow],
+    raw_dir: &Path,
+    checkpoint_path: &Path,
+    batch_id: &str,
+    catalogue_exclusions: &HashMap<u64, CatalogueExclusion>,
+    canonical_flux: &HashMap<u64, f64>,
+    download_active: bool,
+    throughput_sources_per_second: f64,
+) -> Result<(DownloadStatusReport, Vec<DownloadInventoryRow>)> {
+    let checkpoint = crate::gaia_datalink::latest_checkpoint_entries(checkpoint_path)?;
+    let last_progress_unix_millis = checkpoint
+        .values()
+        .map(|e| e.unix_millis)
+        .max()
+        .unwrap_or(0);
+    let stalled = if download_active {
+        let age_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0)
+            .saturating_sub(last_progress_unix_millis);
+        age_ms > 300_000
+    } else {
+        false
+    };
+
+    let mut rows = Vec::with_capacity(targets.len());
+    let mut counts: HashMap<String, u64> = HashMap::new();
+    let mut overlap_requested = 0_u64;
+    let mut overlap_downloaded_valid = 0_u64;
+    let mut continuous_only_requested = 0_u64;
+    let mut continuous_only_downloaded_valid = 0_u64;
+
+    for target in targets {
+        let sid = target.source_id.to_string();
+        let raw_path = crate::gaia_datalink::datalink_raw_coefficient_path(raw_dir, &sid);
+        let cp = checkpoint.get(&sid);
+        let (
+            classification,
+            parse_status,
+            reconstruction_status,
+            exclusion_reason,
+            retry_count,
+            last_error,
+        ) = classify_download_row(target, cp, &raw_path, catalogue_exclusions, canonical_flux);
+        let response_present = raw_path.is_file();
+        let response_sha256 = if response_present {
+            sha256_file(&raw_path).unwrap_or_default()
+        } else {
+            String::new()
+        };
+        let validation_target_available = target.population == "xp_continuous_only"
+            || canonical_flux.contains_key(&target.source_id);
+        *counts
+            .entry(classification.as_str().to_string())
+            .or_default() += 1;
+        if target.population == "xp_sampled_overlap" {
+            overlap_requested += 1;
+            if classification == DownloadClassification::DownloadedValid {
+                overlap_downloaded_valid += 1;
+            }
+        } else {
+            continuous_only_requested += 1;
+            if classification == DownloadClassification::DownloadedValid {
+                continuous_only_downloaded_valid += 1;
+            }
+        }
+        rows.push(DownloadInventoryRow {
+            source_id: target.source_id,
+            population: target.population.clone(),
+            split: target.split.clone(),
+            strata: target.strata.clone(),
+            batch_id: batch_id.to_string(),
+            requested: true,
+            response_present,
+            response_sha256,
+            parse_status,
+            classification: classification.as_str().to_string(),
+            reconstruction_status,
+            validation_target_available,
+            exclusion_reason,
+            retry_count,
+            last_error,
+        });
+    }
+
+    let report = DownloadStatusReport {
+        schema_version: 1,
+        generation_timestamp_utc: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        batch_id: batch_id.to_string(),
+        requested: targets.len() as u64,
+        downloaded_valid: *counts.get("downloaded_valid").unwrap_or(&0),
+        downloaded_invalid: *counts.get("downloaded_invalid").unwrap_or(&0),
+        pending: *counts.get("pending").unwrap_or(&0),
+        retryable_error: *counts.get("retryable_error").unwrap_or(&0),
+        nonretryable_error: *counts.get("nonretryable_error").unwrap_or(&0),
+        missing_from_response: *counts.get("missing_from_response").unwrap_or(&0),
+        missing_from_canonical_reference: *counts
+            .get("missing_from_canonical_reference")
+            .unwrap_or(&0),
+        excluded: *counts.get("excluded").unwrap_or(&0),
+        overlap_requested,
+        overlap_downloaded_valid,
+        continuous_only_requested,
+        continuous_only_downloaded_valid,
+        throughput_sources_per_second,
+        last_progress_unix_millis,
+        stalled,
+        download_active,
+    };
+    Ok((report, rows))
+}
+
+pub fn write_download_inventory_csv(path: &Path, rows: &[DownloadInventoryRow]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let part = path.with_extension("csv.part");
+    let mut writer = WriterBuilder::new().from_path(&part)?;
+    writer.write_record([
+        "source_id",
+        "population",
+        "split",
+        "strata",
+        "batch_id",
+        "requested",
+        "response_present",
+        "response_sha256",
+        "parse_status",
+        "classification",
+        "reconstruction_status",
+        "validation_target_available",
+        "exclusion_reason",
+        "retry_count",
+        "last_error",
+    ])?;
+    for row in rows {
+        let source_id = row.source_id.to_string();
+        let requested = row.requested.to_string();
+        let response_present = row.response_present.to_string();
+        let validation_target = row.validation_target_available.to_string();
+        let retry_count = row.retry_count.to_string();
+        writer.write_record([
+            source_id.as_str(),
+            row.population.as_str(),
+            row.split.as_str(),
+            row.strata.as_str(),
+            row.batch_id.as_str(),
+            requested.as_str(),
+            response_present.as_str(),
+            row.response_sha256.as_str(),
+            row.parse_status.as_str(),
+            row.classification.as_str(),
+            row.reconstruction_status.as_str(),
+            validation_target.as_str(),
+            row.exclusion_reason.as_str(),
+            retry_count.as_str(),
+            row.last_error.as_str(),
+        ])?;
+    }
+    writer.flush()?;
+    drop(writer);
+    fs::rename(part, path)?;
+    Ok(())
+}
+
+pub fn write_phase5_exclusions_csv(path: &Path, rows: &[Phase5ExclusionRow]) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let part = path.with_extension("csv.part");
+    let mut writer = WriterBuilder::new().from_path(&part)?;
+    writer.write_record([
+        "source_id",
+        "population",
+        "split",
+        "reason_code",
+        "evidence",
+        "canonical_lookup_result",
+        "continuous_product_available",
+        "fallback_policy",
+        "scientific_impact",
+    ])?;
+    for row in rows {
+        let source_id = row.source_id.to_string();
+        let continuous = row.continuous_product_available.to_string();
+        writer.write_record([
+            source_id.as_str(),
+            row.population.as_str(),
+            row.split.as_str(),
+            row.reason_code.as_str(),
+            row.evidence.as_str(),
+            row.canonical_lookup_result.as_str(),
+            continuous.as_str(),
+            row.fallback_policy.as_str(),
+            row.scientific_impact.as_str(),
+        ])?;
+    }
+    writer.flush()?;
+    drop(writer);
+    fs::rename(part, path)?;
+    Ok(())
+}
+
+pub fn build_overlap_exclusions(
+    targets: &[Phase5TargetRow],
+    catalogue_exclusions: &HashMap<u64, CatalogueExclusion>,
+    inventory: &[DownloadInventoryRow],
+) -> Vec<Phase5ExclusionRow> {
+    let inventory_map: HashMap<u64, &DownloadInventoryRow> =
+        inventory.iter().map(|row| (row.source_id, row)).collect();
+    let mut out = Vec::new();
+    for target in targets {
+        if target.population != "xp_sampled_overlap" {
+            continue;
+        }
+        if let Some(exclusion) = catalogue_exclusions.get(&target.source_id) {
+            let flux = exclusion
+                .integrated_photon_flux_ph_m2_s
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+            out.push(Phase5ExclusionRow {
+                source_id: target.source_id,
+                population: target.population.clone(),
+                split: target.split.clone(),
+                reason_code: "missing_from_canonical_sampled_reference".to_string(),
+                evidence: format!(
+                    "gaia_dr3_starlight_exclusions.csv reason={}; integrated_photon_flux_ph_m2_s={flux}",
+                    exclusion.reason, flux = flux
+                ),
+                canonical_lookup_result: "absent_from_gaia_dr3_starlight_sources.csv".to_string(),
+                continuous_product_available: inventory_map
+                    .get(&target.source_id)
+                    .is_some_and(|row| row.classification == "downloaded_valid"),
+                fallback_policy:
+                    "exclude from overlap validation; do not treat as continuous reconstruction failure"
+                        .to_string(),
+                scientific_impact: "no canonical XP sampled 336-650 nm reference for bias audit"
+                    .to_string(),
+            });
+        }
+    }
+    out.sort_by_key(|row| row.source_id);
+    out
+}
+
+pub fn hash_sorted_source_ids(source_ids: &[u64]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut sorted = source_ids.to_vec();
+    sorted.sort_unstable();
+    let payload = sorted
+        .iter()
+        .map(|id| id.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let digest: [u8; 32] = Sha256::digest(payload.as_bytes()).into();
+    siderust::checksum::to_hex(&digest)
+}
+
+pub fn qso_galaxy_bin(in_qso: bool, in_galaxy: bool) -> &'static str {
+    match (in_qso, in_galaxy) {
+        (true, true) => "qso_and_galaxy_candidate",
+        (true, false) => "qso_candidate",
+        (false, true) => "galaxy_candidate",
+        (false, false) => "neither",
+    }
+}
+
 pub fn write_sha256sum(dir: &Path, files: &[PathBuf]) -> Result<()> {
     let mut lines = Vec::new();
     for path in files {
@@ -584,6 +1224,12 @@ mod tests {
     fn metrics_empty_is_zero() {
         let m = compute_metrics(&[], 1.0);
         assert_eq!(m.sample_count, 0);
+    }
+
+    #[test]
+    fn relative_error_uses_flux_floor() {
+        let err = signed_relative_error(1.0, 0.0);
+        assert!((err - 1.0e6).abs() < 1.0);
     }
 
     #[test]
