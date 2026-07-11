@@ -132,6 +132,14 @@ fn main() -> Result<()> {
         &args.output_dir.join("phase5b_cross_source_comparison.csv"),
         &rows,
     )?;
+    fs::write(
+        args.output_dir.join("phase5b_cross_source_notes.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "task_306212": "superseded by fixed canonical adapter validation",
+            "equivalent_sources": rows.iter().filter(|row| row.canonical_equivalent).count(),
+            "total_sources": rows.len(),
+        }))? + "\n",
+    )?;
     let passed = rows.iter().filter(|row| row.canonical_equivalent).count();
     println!(
         "phase5b cross comparison: {passed}/{} equivalent -> {}",
