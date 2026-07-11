@@ -6,9 +6,9 @@ use siderust::time::{Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Period, Time, MJD, UTC};
 
 const MAX_CROSSING_REFINEMENTS: usize = 24;
-const CROSSING_TOLERANCE_DAYS: f64 = 1.0e-5;
+const CROSSING_TOLERANCE: Days = Days::new(1.0e-5);
 const MAX_ADAPTIVE_SUBDIVISIONS: usize = 18;
-const MAX_ADAPTIVE_ACCEPT_SPAN_DAYS: f64 = 1.0;
+const MAX_ADAPTIVE_ACCEPT_SPAN: Days = Days::new(1.0);
 const SMOOTHNESS_SAFETY_FACTOR: f64 = 8.0;
 const SMOOTHNESS_RELATIVE_MARGIN: f64 = 1.0e-8;
 
@@ -122,10 +122,10 @@ where
         );
         return Ok(Vec::new());
     }
-    if interval_width_days(window.start, window.end) <= 4.0 * fallback_step.value() {
+    if interval_width_days(window.start, window.end) <= fallback_step * 4.0 {
         debug!(
             "falling back to scan threshold search for short interval: width_days={}, fallback_step_days={}",
-            interval_width_days(window.start, window.end),
+            interval_width_days(window.start, window.end).value(),
             fallback_step.value()
         );
         return above_threshold_periods(window, fallback_step, f, threshold);
@@ -142,15 +142,7 @@ where
     let start = threshold_sample(window.start, f, threshold)?;
     let end = threshold_sample(window.end, f, threshold)?;
     let mut periods = Vec::new();
-    collect_adaptive_above(
-        start,
-        end,
-        fallback_step.value(),
-        f,
-        threshold,
-        0,
-        &mut periods,
-    )?;
+    collect_adaptive_above(start, end, fallback_step, f, threshold, 0, &mut periods)?;
     coalesce_periods(&mut periods);
     debug!(
         "completed adaptive threshold search: above_periods={}",
@@ -190,7 +182,7 @@ struct ThresholdSample<V: Unit> {
 fn collect_adaptive_above<V, F>(
     lo: ThresholdSample<V>,
     hi: ThresholdSample<V>,
-    fallback_step_days: f64,
+    fallback_step: Days,
     f: &F,
     threshold: Quantity<V>,
     depth: usize,
@@ -200,11 +192,11 @@ where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
-    let width_days = interval_width_days(lo.time, hi.time);
-    if width_days <= 0.0 {
+    let width = interval_width_days(lo.time, hi.time);
+    if width <= Days::new(0.0) {
         return Ok(());
     }
-    if width_days <= fallback_step_days {
+    if width <= fallback_step {
         collect_terminal_pair(lo, hi, f, threshold, periods)?;
         return Ok(());
     }
@@ -216,11 +208,11 @@ where
     }
 
     let mid = threshold_sample(mid_time, f, threshold)?;
-    if depth >= MAX_ADAPTIVE_SUBDIVISIONS || width_days <= 2.0 * CROSSING_TOLERANCE_DAYS {
+    if depth >= MAX_ADAPTIVE_SUBDIVISIONS || width <= CROSSING_TOLERANCE * 2.0 {
         trace!(
             "adaptive threshold search reached refinement limit: depth={}, width_days={}",
             depth,
-            width_days
+            width.value()
         );
         collect_terminal_pair(lo, mid, f, threshold, periods)?;
         collect_terminal_pair(mid, hi, f, threshold, periods)?;
@@ -229,13 +221,13 @@ where
 
     let same_side = lo.above == mid.above && mid.above == hi.above;
     if same_side
-        && width_days <= MAX_ADAPTIVE_ACCEPT_SPAN_DAYS
+        && width <= MAX_ADAPTIVE_ACCEPT_SPAN
         && samples_are_smooth_and_clear(lo, mid, hi, threshold)
     {
         trace!(
             "adaptive threshold search accepted smooth interval: depth={}, width_days={}, above={}",
             depth,
-            width_days,
+            width.value(),
             lo.above
         );
         if lo.above {
@@ -244,24 +236,8 @@ where
         return Ok(());
     }
 
-    collect_adaptive_above(
-        lo,
-        mid,
-        fallback_step_days,
-        f,
-        threshold,
-        depth + 1,
-        periods,
-    )?;
-    collect_adaptive_above(
-        mid,
-        hi,
-        fallback_step_days,
-        f,
-        threshold,
-        depth + 1,
-        periods,
-    )
+    collect_adaptive_above(lo, mid, fallback_step, f, threshold, depth + 1, periods)?;
+    collect_adaptive_above(mid, hi, fallback_step, f, threshold, depth + 1, periods)
 }
 
 fn collect_terminal_pair<V, F>(
@@ -373,7 +349,7 @@ where
             hi = mid;
             y_hi = y_mid;
         }
-        if (hi.raw() - lo.raw()).abs() <= Days::new(CROSSING_TOLERANCE_DAYS) {
+        if (hi.raw() - lo.raw()).abs() <= CROSSING_TOLERANCE {
             break;
         }
     }
@@ -406,8 +382,8 @@ fn midpoint_mjd(lo: ModifiedJulianDate, hi: ModifiedJulianDate) -> ModifiedJulia
     ModifiedJulianDate::new(0.5 * (lo.raw().value() + hi.raw().value()))
 }
 
-fn interval_width_days(start: ModifiedJulianDate, end: ModifiedJulianDate) -> f64 {
-    end.raw().value() - start.raw().value()
+fn interval_width_days(start: ModifiedJulianDate, end: ModifiedJulianDate) -> Days {
+    end.raw() - start.raw()
 }
 
 fn add_days_clamped(
@@ -536,7 +512,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(periods.len(), 1);
-        assert!((periods[0].start.raw().value() - 60_000.5).abs() <= CROSSING_TOLERANCE_DAYS);
+        assert!((periods[0].start.raw().value() - 60_000.5).abs() <= CROSSING_TOLERANCE.value());
         assert_eq!(periods[0].end, window.end);
     }
 }

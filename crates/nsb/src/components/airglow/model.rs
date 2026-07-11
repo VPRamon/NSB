@@ -5,6 +5,7 @@ use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
 use crate::site::SiteProfileId;
+use crate::units::ScaleFactors;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
@@ -17,7 +18,7 @@ pub struct Airglow {
     location: Geodetic<ECEF>,
     continuum: Arc<AirglowContinuum>,
     solar_radio_flux: SolarFluxUnits,
-    scale: f64,
+    scale: ScaleFactors,
 }
 
 impl Airglow {
@@ -51,7 +52,7 @@ impl Airglow {
             location,
             continuum,
             solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
-            scale: 1.0,
+            scale: ScaleFactors::new(1.0),
         }
     }
 
@@ -67,7 +68,7 @@ impl Airglow {
     }
 
     /// Apply an explicit multiplicative continuum scale.
-    pub fn with_scale(mut self, scale: f64) -> Self {
+    pub fn with_scale(mut self, scale: ScaleFactors) -> Self {
         self.scale = scale;
         self
     }

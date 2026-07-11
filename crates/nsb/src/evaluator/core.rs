@@ -370,8 +370,14 @@ impl NsbEvaluator {
 
         Ok(NsbResult {
             integrated: total,
-            b_mag: s10_to_surface_brightness(b_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
-            v_mag: s10_to_surface_brightness(v_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP),
+            b_mag: s10_to_surface_brightness(
+                b_total.max(S10::new(f64::MIN_POSITIVE)),
+                NSB_S10_ZP.value(),
+            ),
+            v_mag: s10_to_surface_brightness(
+                v_total.max(S10::new(f64::MIN_POSITIVE)),
+                NSB_S10_ZP.value(),
+            ),
             components,
             band_diagnostic: super::BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         })

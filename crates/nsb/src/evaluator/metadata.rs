@@ -2,6 +2,8 @@ use super::{MoonlightModel, Observer, StarlightModel};
 use crate::components::starlight::StarlightProvenance;
 use crate::site::SiteProfileId;
 use crate::NSB_S10_ZP;
+use qtty::photometry::SurfaceBrightness;
+use siderust::qtty::Nanometers;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,19 +43,19 @@ pub struct BandDiagnostic {
     /// Stable diagnostic convention identifier.
     pub convention: &'static str,
     /// B diagnostic reference wavelength in nm.
-    pub b_reference_nm: f64,
+    pub b_reference: Nanometers,
     /// V diagnostic reference wavelength in nm.
-    pub v_reference_nm: f64,
+    pub v_reference: Nanometers,
     /// S10-to-surface-brightness zero point.
-    pub zero_point: f64,
+    pub zero_point: SurfaceBrightness,
 }
 
 impl BandDiagnostic {
     /// Central-wavelength S10 proxy used by current B/V fields.
     pub const MONOCHROMATIC_S10_PROXY: Self = Self {
         convention: "monochromatic-central-wavelength-s10-proxy",
-        b_reference_nm: 445.0,
-        v_reference_nm: 551.0,
+        b_reference: Nanometers::new(445.0),
+        v_reference: Nanometers::new(551.0),
         zero_point: NSB_S10_ZP,
     };
 }

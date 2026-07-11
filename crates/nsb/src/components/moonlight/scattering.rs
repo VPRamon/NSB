@@ -5,7 +5,7 @@
 //! provides the matching multiple-scattering correction grid.
 
 use crate::error::{NsbError, Result};
-use siderust::qtty::{Degrees, Nanometers};
+use siderust::qtty::{Degrees, Micrometers, Nanometer, Nanometers};
 
 const MIE_RAW: &str = include_str!("../../../data/mie_m15s1.dat");
 const SSCAT_RAW: &str = include_str!("../../../data/sscatcor_m15s1.dat");
@@ -123,7 +123,10 @@ fn parse_grid(raw: &str, file: &'static str, _kind: ScatterGridKind) -> Result<S
     if wavelength_um.len() != n_wavelength {
         return Err(parse_err(file, "wavelength axis length mismatch"));
     }
-    let wavelength_nm: Vec<f64> = wavelength_um.into_iter().map(|x| x * 1000.0).collect();
+    let wavelength_nm: Vec<f64> = wavelength_um
+        .into_iter()
+        .map(|x| Micrometers::new(x).to::<Nanometer>().value())
+        .collect();
 
     let angle_deg = parse_f64s(
         lines
@@ -232,6 +235,6 @@ mod tests {
         let grid = ScatterGrid::mie_phase().unwrap();
         let low = grid.lookup(Degrees::new(-10.0), Nanometers::new(100.0));
         let edge = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
-        assert_eq!(low, edge);
+        assert!((low - edge).abs() < 1.0e-12);
     }
 }

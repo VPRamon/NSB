@@ -1,10 +1,11 @@
 use super::*;
+use crate::units::Nanolamberts;
 use qtty::Second;
 
 /// Published analytic V-band moonlight reference model.
 pub struct KrisciunasSchaefer1991 {
     location: Geodetic<ECEF>,
-    k_ext: f64,
+    k_ext: MagnitudesPerAirmass,
 }
 
 impl KrisciunasSchaefer1991 {
@@ -12,7 +13,7 @@ impl KrisciunasSchaefer1991 {
     pub const DEFAULT_PERIOD_SEARCH_STEP: Second = Second::new(600.0);
 
     /// Build with an explicit extinction coefficient.
-    pub fn new(location: Geodetic<ECEF>, k_ext: f64) -> Self {
+    pub fn new(location: Geodetic<ECEF>, k_ext: MagnitudesPerAirmass) -> Self {
         Self { location, k_ext }
     }
 
@@ -59,7 +60,7 @@ impl KrisciunasSchaefer1991 {
 
 pub(super) fn compute_krisciunas_schaefer_1991(
     inp: &MoonlightGeometry,
-    k_ext: f64,
+    k_ext: MagnitudesPerAirmass,
 ) -> Result<MoonOutputs> {
     if !inp.moon_zenith.is_finite()
         || !inp.source_zenith.is_finite()
@@ -83,13 +84,13 @@ pub(super) fn compute_krisciunas_schaefer_1991(
         k_ext,
     );
 
-    if !b_nl.is_finite() || b_nl <= 0.0 {
+    if !b_nl.is_finite() || b_nl <= Nanolamberts::new(0.0) {
         return Ok(zero_outputs());
     }
 
     let v_mag_arcsec2 = v_mag_per_arcsec2_from_nl(b_nl);
-    let v_s10 = 10f64.powf(0.4 * (NSB_S10_ZP - v_mag_arcsec2));
-    let integrated = v_s10 * S10_V_TO_INTEGRATED_PH;
+    let v_s10 = 10f64.powf(0.4 * (NSB_S10_ZP.value() - v_mag_arcsec2.value()));
+    let integrated = S10_V_TO_INTEGRATED_PH.value() * v_s10;
 
     Ok(MoonOutputs {
         integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(integrated),
@@ -116,8 +117,8 @@ fn scattering_function(rho: Degrees) -> f64 {
 
 /// Convert moonlight brightness `B` (nanolamberts) into V-band surface
 /// brightness (mag/arcsec²) via the inverse of K&S eq. 1.
-fn v_mag_per_arcsec2_from_nl(b_nl: f64) -> f64 {
-    (20.7233 - (b_nl / 34.08).ln()) / 0.92104
+fn v_mag_per_arcsec2_from_nl(b_nl: Nanolamberts) -> qtty::photometry::SurfaceBrightness {
+    qtty::photometry::SurfaceBrightness::new((20.7233 - (b_nl.value() / 34.08).ln()) / 0.92104)
 }
 
 /// Scattered-moon surface brightness at the source location, in nanolamberts
@@ -127,15 +128,16 @@ fn scattered_brightness_nanolamberts(
     rho: Degrees,
     z_moon: Degrees,
     z_src: Degrees,
-    k_ext: f64,
-) -> f64 {
+    k_ext: MagnitudesPerAirmass,
+) -> Nanolamberts {
+    let k_ext = k_ext.value();
     let i_star = lunar_illuminance_outside_atmosphere(alpha);
     let f_rho = scattering_function(rho);
     let am_moon = airmass::<KrisciunasSchaeferAirmass>(z_moon.to::<Radian>());
     let am_src = airmass::<KrisciunasSchaeferAirmass>(z_src.to::<Radian>());
     let trans_moon = 10f64.powf(-0.4 * k_ext * am_moon.value());
     let absorb_path = 1.0 - 10f64.powf(-0.4 * k_ext * am_src.value());
-    f_rho * i_star * trans_moon * absorb_path
+    Nanolamberts::new(f_rho * i_star * trans_moon * absorb_path)
 }
 
 #[cfg(test)]
@@ -203,7 +205,7 @@ mod tests {
     }
 
     fn v_mag_arcsec2(out: &MoonOutputs) -> f64 {
-        s10_to_surface_brightness(out.v_flux_s10, NSB_S10_ZP).value()
+        s10_to_surface_brightness(out.v_flux_s10, NSB_S10_ZP.value()).value()
     }
 
     #[test]
