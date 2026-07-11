@@ -2,12 +2,17 @@ use anyhow::{bail, Context, Result};
 use clap::Parser;
 use nsb::{StarlightMap, StarlightProvenance};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 const SEAM_BAND_DEG: f64 = 15.0;
 const SEAM_CONTROL_MAX_DEG: f64 = 45.0;
 const LONGITUDE_WRAP_THRESHOLD: f64 = 10.0;
 const EPSILON: f64 = 1.0e-12;
+const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
+const GAIA_XP_BAND_MIN_NM: f64 = 336.0;
+const GAIA_XP_BAND_MAX_NM: f64 = 650.0;
+const GAIA_XP_BAND_DEFINITION: &str = "Gaia DR3 XP passband-integrated 336-650 nm photon radiance";
 
 /// Validate a generated starlight map and emit a machine-readable report.
 #[derive(Debug, Parser)]
@@ -35,18 +40,34 @@ struct ValidationReport {
     input: String,
     diagnostics: Option<String>,
     pixel_count: usize,
+    sources_used: Option<usize>,
+    mean_sources_per_pixel: Option<f64>,
+    mean_sources_per_nonempty_pixel: Option<f64>,
+    empty_pixels: usize,
+    empty_pixel_fraction: f64,
     finite_nonnegative_pass: bool,
+    spectral_contract_pass: bool,
+    photometry_model: Option<String>,
+    band_definition: Option<String>,
     radiance_field: &'static str,
     flux_conservation_pass: Option<bool>,
     input_integrated_flux_sum_ph_cm2_ns: Option<f64>,
     output_integrated_flux_sum_ph_cm2_ns: f64,
     integrated_flux_conservation_tolerance: Option<f64>,
+    integrated_flux_relative_error: Option<f64>,
     plane_pole_pass: bool,
+    plane_mean_ph_cm2_ns_sr: Option<f64>,
+    pole_mean_ph_cm2_ns_sr: Option<f64>,
+    plane_pole_ratio: Option<f64>,
     longitude_wrap_pass: bool,
     longitude_wrap_metric: f64,
     longitude_wrap_threshold: f64,
     seam_pixel_count: usize,
     control_pixel_count: usize,
+    bright_pixel_p99_ph_cm2_ns_sr: Option<f64>,
+    bright_top_one_percent_mean_ph_cm2_ns_sr: Option<f64>,
+    high_latitude_median_ph_cm2_ns_sr: Option<f64>,
+    high_latitude_noise_mad_ratio: Option<f64>,
     independent_comparison_pass: bool,
     independent_comparison: Option<IndependentComparisonReport>,
     production_ready: bool,
@@ -77,6 +98,7 @@ struct RegionComparisonReport {
 struct IndependentReference {
     schema_version: u32,
     production_use: bool,
+    band_nm: [f64; 2],
     units: String,
     regions: Vec<ReferenceRegion>,
 }
@@ -104,9 +126,27 @@ struct LongitudeWrapDiagnostics {
 
 #[derive(Debug, Deserialize)]
 struct BuildDiagnostics {
+    #[serde(default)]
+    sources_used: Option<usize>,
     input_integrated_flux_sum_ph_cm2_ns: Option<f64>,
     #[serde(default)]
     integrated_flux_conservation_pass: Option<bool>,
+}
+
+#[derive(Debug)]
+struct PlanePoleDiagnostics {
+    pass: bool,
+    plane_mean: Option<f64>,
+    pole_mean: Option<f64>,
+    ratio: Option<f64>,
+}
+
+#[derive(Debug)]
+struct BrightNoiseDiagnostics {
+    bright_pixel_p99: Option<f64>,
+    bright_top_one_percent_mean: Option<f64>,
+    high_latitude_median: Option<f64>,
+    high_latitude_noise_mad_ratio: Option<f64>,
 }
 
 fn main() -> Result<()> {
@@ -116,8 +156,15 @@ fn main() -> Result<()> {
 fn run(args: Args) -> Result<()> {
     let raw = std::fs::read_to_string(&args.input)
         .with_context(|| format!("failed to read map {}", args.input.display()))?;
+    let header = parse_header_metadata(&raw);
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture())?;
     let build_diagnostics = read_build_diagnostics(args.diagnostics.as_ref())?;
+    let photometry_model = header.get("photometry_model").cloned();
+    let band_definition = header.get("band_definition").cloned();
+    let spectral_contract_pass = photometry_model.as_deref() == Some(GAIA_XP_MODEL)
+        && band_definition
+            .as_deref()
+            .is_some_and(is_gaia_xp_band_definition);
     let finite_nonnegative_pass = map.pixels().iter().all(|pixel| {
         pixel.integrated.value().is_finite()
             && pixel.integrated.value() >= 0.0
@@ -126,6 +173,24 @@ fn run(args: Args) -> Result<()> {
             && pixel.v_flux_s10.value().is_finite()
             && pixel.v_flux_s10.value() >= 0.0
     });
+    let empty_pixels = map
+        .pixels()
+        .iter()
+        .filter(|pixel| {
+            pixel.integrated.value() == 0.0
+                && pixel.b_flux_s10.value() == 0.0
+                && pixel.v_flux_s10.value() == 0.0
+        })
+        .count();
+    let nonempty_pixels = map.pixels().len().saturating_sub(empty_pixels);
+    let sources_used = build_diagnostics
+        .as_ref()
+        .and_then(|diagnostics| diagnostics.sources_used);
+    let mean_sources_per_pixel =
+        sources_used.map(|sources| sources as f64 / map.pixels().len().max(1) as f64);
+    let mean_sources_per_nonempty_pixel = sources_used
+        .filter(|_| nonempty_pixels > 0)
+        .map(|sources| sources as f64 / nonempty_pixels as f64);
     let output_integrated_flux_sum_ph_cm2_ns = map
         .pixels()
         .iter()
@@ -137,6 +202,11 @@ fn run(args: Args) -> Result<()> {
                 .input_integrated_flux_sum_ph_cm2_ns
                 .map(|_| 1.0e-9)
         });
+    let integrated_flux_relative_error = build_diagnostics.as_ref().and_then(|diagnostics| {
+        diagnostics
+            .input_integrated_flux_sum_ph_cm2_ns
+            .map(|expected| relative_error(output_integrated_flux_sum_ph_cm2_ns, expected))
+    });
     let flux_conservation_pass = build_diagnostics.as_ref().and_then(|diagnostics| {
         diagnostics
             .input_integrated_flux_sum_ph_cm2_ns
@@ -150,28 +220,39 @@ fn run(args: Args) -> Result<()> {
                     .unwrap_or(true)
             })
     });
-    let plane_pole_pass = integrated_plane_pole_pass(&map);
+    let plane_pole = integrated_plane_pole_diagnostics(&map);
     let longitude_wrap = validate_longitude_wrap(&map);
+    let bright_noise = bright_noise_diagnostics(&map);
     let independent_comparison = compare_independent_reference(args.reference.as_ref(), &map)?;
-    let independent_comparison_pass = independent_comparison
-        .as_ref()
-        .is_some_and(|comparison| comparison.regions.iter().all(|region| region.pass));
+    let independent_comparison_pass = independent_comparison.as_ref().is_some_and(|comparison| {
+        comparison.production_use && comparison.regions.iter().all(|region| region.pass)
+    });
     if args.require_independent_comparison && !independent_comparison_pass {
         bail!("structured independent starlight comparison did not pass");
     }
     let production_ready = finite_nonnegative_pass
+        && spectral_contract_pass
         && flux_conservation_pass.unwrap_or(false)
-        && plane_pole_pass
+        && plane_pole.pass
         && longitude_wrap.pass
         && independent_comparison_pass;
     let mut limitations = Vec::new();
     if !independent_comparison_pass {
-        limitations.push(
-            "structured independent regional comparison is release-blocking and did not pass"
+        limitations.push(match independent_comparison.as_ref() {
+            Some(comparison) if !comparison.production_use => {
+                "comparison reference is explicitly non-production/provisional; a reviewed external 336-650 nm reference is release-blocking".to_string()
+            }
+            _ => "structured independent regional comparison is release-blocking and did not pass"
                 .to_string(),
-        );
+        });
     }
-    if !plane_pole_pass {
+    if !spectral_contract_pass {
+        limitations.push(format!(
+            "map metadata must declare photometry_model={GAIA_XP_MODEL} and the {}-{} nm band",
+            GAIA_XP_BAND_MIN_NM, GAIA_XP_BAND_MAX_NM
+        ));
+    }
+    if !plane_pole.pass {
         limitations.push("integrated plane/pole contrast did not pass on this input".to_string());
     }
     if !flux_conservation_pass.unwrap_or(false) {
@@ -189,7 +270,15 @@ fn run(args: Args) -> Result<()> {
             .as_ref()
             .map(|path| path.display().to_string()),
         pixel_count: map.pixels().len(),
+        sources_used,
+        mean_sources_per_pixel,
+        mean_sources_per_nonempty_pixel,
+        empty_pixels,
+        empty_pixel_fraction: empty_pixels as f64 / map.pixels().len().max(1) as f64,
         finite_nonnegative_pass,
+        spectral_contract_pass,
+        photometry_model,
+        band_definition,
         radiance_field: "integrated_ph_cm2_ns_sr",
         flux_conservation_pass,
         input_integrated_flux_sum_ph_cm2_ns: build_diagnostics
@@ -197,12 +286,20 @@ fn run(args: Args) -> Result<()> {
             .and_then(|diagnostics| diagnostics.input_integrated_flux_sum_ph_cm2_ns),
         output_integrated_flux_sum_ph_cm2_ns,
         integrated_flux_conservation_tolerance,
-        plane_pole_pass,
+        integrated_flux_relative_error,
+        plane_pole_pass: plane_pole.pass,
+        plane_mean_ph_cm2_ns_sr: plane_pole.plane_mean,
+        pole_mean_ph_cm2_ns_sr: plane_pole.pole_mean,
+        plane_pole_ratio: plane_pole.ratio,
         longitude_wrap_pass: longitude_wrap.pass,
         longitude_wrap_metric: longitude_wrap.metric,
         longitude_wrap_threshold: longitude_wrap.threshold,
         seam_pixel_count: longitude_wrap.seam_pixel_count,
         control_pixel_count: longitude_wrap.control_pixel_count,
+        bright_pixel_p99_ph_cm2_ns_sr: bright_noise.bright_pixel_p99,
+        bright_top_one_percent_mean_ph_cm2_ns_sr: bright_noise.bright_top_one_percent_mean,
+        high_latitude_median_ph_cm2_ns_sr: bright_noise.high_latitude_median,
+        high_latitude_noise_mad_ratio: bright_noise.high_latitude_noise_mad_ratio,
         independent_comparison_pass,
         independent_comparison,
         production_ready,
@@ -233,8 +330,27 @@ fn integrated_flux_conservation_pass(actual: f64, expected: f64, tolerance: f64)
     if !actual.is_finite() || !expected.is_finite() || !tolerance.is_finite() || tolerance < 0.0 {
         return false;
     }
+    relative_error(actual, expected) <= tolerance
+}
+
+fn relative_error(actual: f64, expected: f64) -> f64 {
     let scale = actual.abs().max(expected.abs()).max(1.0);
-    (actual - expected).abs() / scale <= tolerance
+    (actual - expected).abs() / scale
+}
+
+fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
+    raw.lines()
+        .filter_map(|line| line.strip_prefix('#'))
+        .filter_map(|line| line.trim().split_once('='))
+        .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
+        .collect()
+}
+
+fn is_gaia_xp_band_definition(value: &str) -> bool {
+    let normalized = value.replace(['–', '—'], "-");
+    normalized
+        .trim()
+        .eq_ignore_ascii_case(GAIA_XP_BAND_DEFINITION)
 }
 
 fn validate_longitude_wrap(map: &StarlightMap) -> LongitudeWrapDiagnostics {
@@ -332,14 +448,54 @@ fn validate_reference_schema(reference: &IndependentReference, path: String) -> 
     if reference.units.trim() != "ph cm-2 ns-1 sr-1" {
         bail!("independent validation reference units must be ph cm-2 ns-1 sr-1");
     }
-    if !reference.production_use {
-        bail!("independent validation reference must set production_use=true");
+    if reference.band_nm[0].to_bits() != GAIA_XP_BAND_MIN_NM.to_bits()
+        || reference.band_nm[1].to_bits() != GAIA_XP_BAND_MAX_NM.to_bits()
+    {
+        bail!(
+            "independent validation reference band must be [{GAIA_XP_BAND_MIN_NM}, {GAIA_XP_BAND_MAX_NM}] nm"
+        );
     }
     if reference.regions.is_empty() {
         bail!("independent validation reference must contain at least one region");
     }
     for region in &reference.regions {
         validate_region_schema(region)?;
+        if reference.production_use {
+            validate_production_reference_region(region)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_production_reference_region(region: &ReferenceRegion) -> Result<()> {
+    let source = region.source.to_ascii_lowercase();
+    for blocked in [
+        "nsb-internal",
+        "self-authored",
+        "not independent",
+        "smoke-test",
+    ] {
+        if source.contains(blocked) {
+            bail!(
+                "production independent validation region {:?} cites non-independent source marker {blocked:?}",
+                region.name
+            );
+        }
+    }
+    if !["https://", "http://", "doi:", "doi.org/"]
+        .iter()
+        .any(|marker| source.contains(marker))
+    {
+        bail!(
+            "production independent validation region {:?} source must identify an external URL or DOI",
+            region.name
+        );
+    }
+    if region.expected_min == 0.0 && region.expected_max >= 1.0e12 {
+        bail!(
+            "production independent validation region {:?} has a non-constraining envelope",
+            region.name
+        );
     }
     Ok(())
 }
@@ -442,7 +598,7 @@ fn compare_region(region: &ReferenceRegion, map: &StarlightMap) -> Result<Region
     })
 }
 
-fn integrated_plane_pole_pass(map: &StarlightMap) -> bool {
+fn integrated_plane_pole_diagnostics(map: &StarlightMap) -> PlanePoleDiagnostics {
     let mut plane_sum = 0.0;
     let mut plane_count = 0usize;
     let mut pole_sum = 0.0;
@@ -457,9 +613,62 @@ fn integrated_plane_pole_pass(map: &StarlightMap) -> bool {
             pole_count += 1;
         }
     }
-    plane_count > 0
-        && pole_count > 0
-        && (plane_sum / plane_count as f64) >= (pole_sum / pole_count as f64)
+    let plane_mean = (plane_count > 0).then(|| plane_sum / plane_count as f64);
+    let pole_mean = (pole_count > 0).then(|| pole_sum / pole_count as f64);
+    let ratio = match (plane_mean, pole_mean) {
+        (Some(plane), Some(pole)) if plane.is_finite() && pole.is_finite() && pole > EPSILON => {
+            Some(plane / pole)
+        }
+        _ => None,
+    };
+    PlanePoleDiagnostics {
+        pass: ratio.is_some_and(|value| value.is_finite() && value >= 1.0),
+        plane_mean,
+        pole_mean,
+        ratio,
+    }
+}
+
+fn bright_noise_diagnostics(map: &StarlightMap) -> BrightNoiseDiagnostics {
+    let mut all = map
+        .pixels()
+        .iter()
+        .map(|pixel| pixel.integrated.value())
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .collect::<Vec<_>>();
+    all.sort_by(f64::total_cmp);
+    let bright_start = all.len().saturating_sub(all.len().div_ceil(100).max(1));
+    let bright = all.get(bright_start..).unwrap_or_default();
+    let bright_pixel_p99 = (!all.is_empty()).then(|| all[bright_start]);
+    let bright_top_one_percent_mean =
+        (!bright.is_empty()).then(|| bright.iter().sum::<f64>() / bright.len() as f64);
+
+    let mut high_latitude = map
+        .pixels()
+        .iter()
+        .filter(|pixel| pixel.galactic_lat.value().abs() >= 60.0)
+        .map(|pixel| pixel.integrated.value())
+        .filter(|value| value.is_finite() && *value >= 0.0)
+        .collect::<Vec<_>>();
+    high_latitude.sort_by(f64::total_cmp);
+    let high_latitude_median = (!high_latitude.is_empty()).then(|| median_sorted(&high_latitude));
+    let high_latitude_noise_mad_ratio = high_latitude_median.map(|center| {
+        let mut deviations = high_latitude
+            .iter()
+            .map(|value| (value - center).abs())
+            .collect::<Vec<_>>();
+        deviations.sort_by(f64::total_cmp);
+        let mad = median_sorted(&deviations);
+        let mean = high_latitude.iter().sum::<f64>() / high_latitude.len() as f64;
+        1.4826 * mad / center.abs().max(mean.abs()).max(EPSILON)
+    });
+
+    BrightNoiseDiagnostics {
+        bright_pixel_p99,
+        bright_top_one_percent_mean,
+        high_latitude_median,
+        high_latitude_noise_mad_ratio,
+    }
 }
 
 fn angular_separation_deg(lon_a: f64, lat_a: f64, lon_b: f64, lat_b: f64) -> f64 {
@@ -649,6 +858,87 @@ mod tests {
     }
 
     #[test]
+    fn provisional_internal_reference_cannot_enable_production() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("map.csv");
+        let reference = dir.path().join("reference.json");
+        let output = dir.path().join("validation.json");
+        std::fs::write(&input, rectangular_map(1.0))?;
+        let provisional = reference_json(0.0, 1.0e15)
+            .replace("\"production_use\": true", "\"production_use\": false");
+        std::fs::write(&reference, provisional)?;
+        run(Args {
+            input,
+            diagnostics: None,
+            reference: Some(reference),
+            output: output.clone(),
+            require_independent_comparison: false,
+        })?;
+        let report: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(output)?)?;
+        assert_eq!(report["independent_comparison_pass"], false);
+        assert_eq!(report["independent_comparison"]["production_use"], false);
+        assert_eq!(report["production_ready"], false);
+        assert!(report["limitations"]
+            .as_array()
+            .is_some_and(|limitations| limitations.iter().any(|value| value
+                .as_str()
+                .is_some_and(|text| text.contains("reviewed external 336-650 nm reference")))));
+        Ok(())
+    }
+
+    #[test]
+    fn self_authored_unconstraining_reference_is_rejected_as_production_evidence() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("map.csv");
+        let reference = dir.path().join("reference.json");
+        let output = dir.path().join("validation.json");
+        std::fs::write(&input, rectangular_map(1.0))?;
+        std::fs::write(
+            &reference,
+            reference_json_with_source(
+                0.0,
+                1.0e15,
+                "NSB-internal self-authored smoke-test envelope; not independent",
+            ),
+        )?;
+        let err = run(Args {
+            input,
+            diagnostics: None,
+            reference: Some(reference),
+            output,
+            require_independent_comparison: false,
+        })
+        .expect_err("self-authored envelope must not become production evidence");
+        assert!(err.to_string().contains("non-independent source marker"));
+        Ok(())
+    }
+
+    #[test]
+    fn independent_reference_must_match_336_650_band() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("map.csv");
+        let reference = dir.path().join("reference.json");
+        let output = dir.path().join("validation.json");
+        std::fs::write(&input, rectangular_map(1.0))?;
+        std::fs::write(
+            &reference,
+            reference_json(0.5, 2.0).replace("[336.0, 650.0]", "[335.0, 650.0]"),
+        )?;
+        let err = run(Args {
+            input,
+            diagnostics: None,
+            reference: Some(reference),
+            output,
+            require_independent_comparison: false,
+        })
+        .expect_err("reference for a different spectral band must fail closed");
+        assert!(err
+            .to_string()
+            .contains("reference band must be [336, 650] nm"));
+        Ok(())
+    }
+
+    #[test]
     fn out_of_range_region_fails_independent_comparison() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let input = dir.path().join("map.csv");
@@ -709,9 +999,11 @@ mod tests {
     }
 
     fn rectangular_map_with_bv(seam_value: f64, b_s10: f64, v_s10: f64) -> String {
-        let mut raw = String::from(
+        let mut raw = String::from(concat!(
+            "# photometry_model=gaia_dr3_xp_photon_radiance_336_650nm_v1\n",
+            "# band_definition=Gaia DR3 XP passband-integrated 336-650 nm photon radiance\n",
             "galactic_lon_deg,galactic_lat_deg,solid_angle_sr,integrated_ph_cm2_ns_sr,b_s10,v_s10\n",
-        );
+        ));
         for lat in [-70.0_f64, -10.0, 0.0, 10.0, 70.0] {
             for lon in [0.0_f64, 10.0, 30.0, 330.0, 350.0] {
                 let value = if lon == 0.0 || lon == 350.0 {
@@ -738,7 +1030,11 @@ mod tests {
     }
 
     fn reference_json(expected_min: f64, expected_max: f64) -> String {
-        reference_json_with_source(expected_min, expected_max, "reviewed independent reference")
+        reference_json_with_source(
+            expected_min,
+            expected_max,
+            "https://example.invalid/reviewed-independent-reference fixture",
+        )
     }
 
     fn reference_json_with_source(expected_min: f64, expected_max: f64, source: &str) -> String {
@@ -746,6 +1042,7 @@ mod tests {
             r#"{{
   "schema_version": 1,
   "production_use": true,
+  "band_nm": [336.0, 650.0],
   "units": "ph cm-2 ns-1 sr-1",
   "regions": [
     {{

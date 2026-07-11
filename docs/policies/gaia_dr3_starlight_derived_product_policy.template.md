@@ -34,9 +34,11 @@ Record the exact Gaia products and access paths used for the release extraction.
 - Source catalogue: Gaia DR3
 - Source table: `gaiadr3.gaia_source`
 - XP product type: XP sampled spectra
-- Retrieval mode: Gaia DataLink XP sampled retrieval
-- Selection summary: `duplicated_source = false`, `has_xp_sampled = true`, non-null astrometry needed by the pipeline, and configured `phot_g_mean_mag` limit
-- Band used for the derived product: 330-650 nm passband-integrated photon radiance
+- Retrieval mode: official checksummed XP sampled bulk inventory; concurrent Gaia DataLink only for controlled validation or repair
+- Selection summary: `has_xp_sampled = true`, G <= 15, non-null source ID/coordinates, one row per published source ID; retain `duplicated_source` as a quality flag
+- Expected selected population: 34,468,373 unique source IDs, subject to exact release-time TAP and bulk reconciliation
+- Band used for the derived product: 336-650 nm passband-integrated photon radiance
+- Completeness limitation: sampled XP is a magnitude-limited subset of continuous XP; attach the reviewed missing-flux report
 
 Add the final ADQL file checksum and extraction diagnostics checksum here before approval.
 
@@ -58,8 +60,7 @@ The final production policy must include the specific attribution text and distr
 Only the following derived runtime artifacts may be considered for repository inclusion after approval and validation:
 
 ```text
-crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.release.csv
-crates/nsb/data/starlight_gaia_dr3_xp_330_650nm_nside128_v1.manifest.toml
+The final filenames must encode `336_650nm` and the nside selected by the reviewed 64/128/256 sweep. Record the exact paths only after that review.
 ```
 
 The following are not allowed in the repository unless a separate review explicitly approves them:
@@ -85,6 +86,8 @@ Before creating the final `.txt` policy file, attach or reference:
 7. SHA-256 checksums for the Gaia extract, canonical source CSV, release map CSV, runtime manifest, diagnostics, and validation report.
 8. Independent validation reference used for production comparison.
 9. Final decision on whether the runtime asset is bundled or distributed externally.
+10. Reviewed 336-650 nm missing-flux estimate, uncertainty, and global/plane/pole convergence evidence.
+11. Reviewed nside=64/128/256 sweep recommendation.
 
 ## Final-policy checklist
 

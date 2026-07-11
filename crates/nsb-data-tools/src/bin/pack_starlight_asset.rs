@@ -6,6 +6,11 @@ use siderust::checksum::{sha256, to_hex};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
+const GAIA_XP_BAND_MIN_NM: f64 = 336.0;
+const GAIA_XP_BAND_MAX_NM: f64 = 650.0;
+const GAIA_XP_BAND_DEFINITION: &str = "Gaia DR3 XP passband-integrated 336-650 nm photon radiance";
+
 /// Pack a validated starlight map into a checksummed release asset.
 #[derive(Debug, Parser)]
 #[command(group(
@@ -33,8 +38,14 @@ struct Args {
     #[arg(long)]
     candidate: bool,
     /// Pack a production artifact. Requires complete production validation evidence.
-    #[arg(long)]
+    #[arg(long, requires_all = ["nside_sweep_report", "nside_review"])]
     production: bool,
+    /// Checksummed nside sweep summary. Required for production.
+    #[arg(long, requires = "production")]
+    nside_sweep_report: Option<PathBuf>,
+    /// Maintainer review attestation bound to the nside sweep checksum. Required for production.
+    #[arg(long, requires = "production")]
+    nside_review: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,6 +59,8 @@ struct ValidationSummary {
     radiance_field: Option<String>,
     #[serde(default)]
     finite_nonnegative_pass: bool,
+    #[serde(default)]
+    spectral_contract_pass: bool,
     #[serde(default)]
     plane_pole_pass: bool,
     #[serde(default)]
@@ -63,6 +76,44 @@ struct DiagnosticsSummary {
     input_integrated_flux_sum_ph_cm2_ns: Option<f64>,
     #[serde(default)]
     integrated_flux_conservation_pass: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NsideSweepReport {
+    schema_version: u32,
+    photometry_model: String,
+    band_nm: [f64; 2],
+    recommended_nside: Option<u32>,
+    review_required: bool,
+    summaries: Vec<NsideSweepCandidate>,
+}
+
+#[derive(Debug, Deserialize)]
+struct NsideSweepCandidate {
+    nside: u32,
+    production_ready: bool,
+    spectral_contract_pass: bool,
+    eligible_for_recommendation: bool,
+}
+
+#[derive(Debug, Deserialize)]
+struct NsideReview {
+    schema_version: u32,
+    sweep_report_sha256: String,
+    reviewed: bool,
+    selected_nside: Option<u32>,
+    reviewer: Option<String>,
+    reviewed_at_utc: Option<String>,
+    rationale: Option<String>,
+}
+
+#[derive(Debug)]
+struct ReviewedNsideEvidence {
+    report_sha256: String,
+    review_sha256: String,
+    selected_nside: u32,
+    reviewer: String,
+    reviewed_at_utc: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -114,14 +165,24 @@ fn run(args: Args) -> Result<()> {
 
     let raw_map = std::str::from_utf8(&map).context("map must be UTF-8 CSV")?;
     let mut header = parse_header_metadata(raw_map);
-    if args.production {
-        enforce_production_gates(&validation_summary, &diagnostics_summary, &header)?;
+    let map_input_sha256 = format!("sha256:{}", to_hex(&sha256(&map)));
+    let nside_evidence = if args.production {
+        enforce_production_gates(
+            &validation_summary,
+            &diagnostics_summary,
+            &header,
+            &map_input_sha256,
+        )?;
+        Some(validate_nside_review(&args, &header)?)
     } else if header
         .get("photometry_model")
         .is_some_and(|model| is_proxy_or_experimental(model))
     {
         eprintln!("warning: packing candidate with proxy or experimental photometry model");
-    }
+        None
+    } else {
+        None
+    };
 
     let mode = if args.production {
         "production"
@@ -135,6 +196,7 @@ fn run(args: Args) -> Result<()> {
         &args,
         &validation_sha256,
         &validation_summary,
+        nside_evidence.as_ref(),
     )?;
     let release_csv = rewrite_csv_with_header(raw_map, &header)?;
     std::fs::write(&args.output, release_csv.as_bytes())
@@ -187,6 +249,7 @@ fn enforce_production_gates(
     validation: &ValidationSummary,
     diagnostics: &DiagnosticsSummary,
     header: &BTreeMap<String, String>,
+    map_input_sha256: &str,
 ) -> Result<()> {
     if !validation.production_ready {
         bail!("--production requires validation production_ready=true");
@@ -206,21 +269,25 @@ fn enforce_production_gates(
         bail!("--production requires diagnostics integrated flux-conservation evidence");
     }
     if !validation.finite_nonnegative_pass
+        || !validation.spectral_contract_pass
         || !validation.plane_pole_pass
         || !validation.longitude_wrap_pass
     {
-        bail!("--production requires finite/nonnegative, plane/pole, and longitude-wrap validation passes");
+        bail!("--production requires finite/nonnegative, 336-650 spectral-contract, plane/pole, and longitude-wrap validation passes");
     }
     if diagnostics.output_sha256.trim().is_empty() {
         bail!("--production requires diagnostics output_sha256");
     }
-    let photometry_model = required_header(header, "photometry_model")?;
-    if is_proxy_or_experimental(photometry_model) {
-        bail!("--production rejects proxy or experimental photometry models");
-    }
-    if !diagnostics.photometry_model.trim().is_empty()
-        && diagnostics.photometry_model != *photometry_model
+    if !normalize_checksum(&diagnostics.output_sha256)
+        .eq_ignore_ascii_case(normalize_checksum(map_input_sha256))
     {
+        bail!("--production requires diagnostics output_sha256 to match the input map");
+    }
+    let photometry_model = required_header(header, "photometry_model")?;
+    if photometry_model != GAIA_XP_MODEL {
+        bail!("--production requires photometry_model={GAIA_XP_MODEL}");
+    }
+    if diagnostics.photometry_model != *photometry_model {
         bail!("--production requires diagnostics photometry_model to match map header");
     }
     let calibration_status = required_header(header, "calibration_status")?;
@@ -241,10 +308,180 @@ fn enforce_production_gates(
         }
     }
     let band = required_header(header, "band_definition")?.to_ascii_lowercase();
-    if !(band.contains("330-650") || band.contains("330–650")) {
-        bail!("--production requires the explicitly validated 330-650 nm band");
+    let normalized_band = band.replace(['–', '—'], "-");
+    if !normalized_band.eq_ignore_ascii_case(GAIA_XP_BAND_DEFINITION) {
+        bail!("--production requires the explicitly validated 336-650 nm band");
     }
     Ok(())
+}
+
+fn validate_nside_review(
+    args: &Args,
+    header: &BTreeMap<String, String>,
+) -> Result<ReviewedNsideEvidence> {
+    let report_path = args
+        .nside_sweep_report
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--production requires --nside-sweep-report"))?;
+    let review_path = args
+        .nside_review
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("--production requires --nside-review"))?;
+    let report_raw = std::fs::read(report_path).with_context(|| {
+        format!(
+            "failed to read nside sweep report {}",
+            report_path.display()
+        )
+    })?;
+    let review_raw = std::fs::read(review_path)
+        .with_context(|| format!("failed to read nside review {}", review_path.display()))?;
+    let report: NsideSweepReport =
+        serde_json::from_slice(&report_raw).context("failed to parse nside sweep report")?;
+    let review: NsideReview =
+        serde_json::from_slice(&review_raw).context("failed to parse nside review")?;
+
+    if report.schema_version != 1 || review.schema_version != 1 {
+        bail!("--production requires nside sweep and review schema_version=1");
+    }
+    if report.photometry_model != GAIA_XP_MODEL
+        || report.band_nm[0].to_bits() != GAIA_XP_BAND_MIN_NM.to_bits()
+        || report.band_nm[1].to_bits() != GAIA_XP_BAND_MAX_NM.to_bits()
+    {
+        bail!("--production requires a 336-650 Gaia XP nside sweep report");
+    }
+    if !report.review_required {
+        bail!("--production requires a sweep report that explicitly requires maintainer review");
+    }
+    let report_sha256 = format!("sha256:{}", to_hex(&sha256(&report_raw)));
+    if !normalize_checksum(&review.sweep_report_sha256)
+        .eq_ignore_ascii_case(normalize_checksum(&report_sha256))
+    {
+        bail!("--production requires the nside review to match the sweep report checksum");
+    }
+    if !review.reviewed {
+        bail!("--production requires reviewed=true in the nside review attestation");
+    }
+    let recommended_nside = report.recommended_nside.ok_or_else(|| {
+        anyhow::anyhow!("--production requires an automated nside recommendation")
+    })?;
+    let selected_nside = review
+        .selected_nside
+        .ok_or_else(|| anyhow::anyhow!("--production requires a reviewed selected_nside"))?;
+    if selected_nside != recommended_nside {
+        bail!(
+            "--production requires reviewed selected_nside={selected_nside} to match automated recommendation {recommended_nside}"
+        );
+    }
+    let map_nside = required_header(header, "nside")?
+        .parse::<u32>()
+        .context("map header nside must be an integer")?;
+    if selected_nside != map_nside {
+        bail!(
+            "--production nside review selected {selected_nside}, but map header declares {map_nside}"
+        );
+    }
+    let selected = report
+        .summaries
+        .iter()
+        .find(|summary| summary.nside == selected_nside)
+        .ok_or_else(|| anyhow::anyhow!("selected nside is absent from the sweep summaries"))?;
+    if !selected.production_ready
+        || !selected.spectral_contract_pass
+        || !selected.eligible_for_recommendation
+    {
+        bail!("--production requires the reviewed nside to pass every sweep recommendation gate");
+    }
+
+    let reviewer = review
+        .reviewer
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("--production requires nside review reviewer"))?;
+    validate_review_text("reviewer", reviewer, 3)?;
+    let reviewed_at_utc = review
+        .reviewed_at_utc
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("--production requires nside review reviewed_at_utc"))?;
+    if !looks_like_utc_timestamp(reviewed_at_utc) {
+        bail!("--production requires reviewed_at_utc in RFC3339 UTC form");
+    }
+    let rationale = review
+        .rationale
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("--production requires nside review rationale"))?;
+    validate_review_text("rationale", rationale, 20)?;
+
+    Ok(ReviewedNsideEvidence {
+        report_sha256,
+        review_sha256: format!("sha256:{}", to_hex(&sha256(&review_raw))),
+        selected_nside,
+        reviewer: reviewer.to_string(),
+        reviewed_at_utc: reviewed_at_utc.to_string(),
+    })
+}
+
+fn validate_review_text(name: &str, value: &str, minimum_len: usize) -> Result<()> {
+    let trimmed = value.trim();
+    if trimmed.len() < minimum_len || trimmed.chars().any(char::is_control) {
+        bail!("--production requires a substantive nside review {name}");
+    }
+    let lower = trimmed.to_ascii_lowercase();
+    for blocked in ["todo", "placeholder", "pending", "unreviewed"] {
+        if lower.contains(blocked) {
+            bail!("--production nside review {name} contains blocked marker {blocked:?}");
+        }
+    }
+    if name == "reviewer"
+        && ["automatic", "automated", "ci bot", "pipeline bot"]
+            .iter()
+            .any(|blocked| lower.contains(blocked))
+    {
+        bail!("--production requires a human nside reviewer identity");
+    }
+    Ok(())
+}
+
+fn looks_like_utc_timestamp(value: &str) -> bool {
+    let Some(body) = value.strip_suffix('Z') else {
+        return false;
+    };
+    let Some((date, time)) = body.split_once('T') else {
+        return false;
+    };
+    if !date.is_ascii() || !time.is_ascii() {
+        return false;
+    }
+    if date.len() != 10 || date.as_bytes()[4] != b'-' || date.as_bytes()[7] != b'-' {
+        return false;
+    }
+    let (clock, fractional) = time
+        .split_once('.')
+        .map_or((time, None), |(clock, fraction)| (clock, Some(fraction)));
+    if clock.len() != 8 || clock.as_bytes()[2] != b':' || clock.as_bytes()[5] != b':' {
+        return false;
+    }
+    if fractional.is_some_and(|fraction| {
+        fraction.is_empty() || !fraction.bytes().all(|byte| byte.is_ascii_digit())
+    }) {
+        return false;
+    }
+    matches!(parse_ascii_u32(&date[0..4]), Some(1..=9999))
+        && matches!(parse_ascii_u32(&date[5..7]), Some(1..=12))
+        && matches!(parse_ascii_u32(&date[8..10]), Some(1..=31))
+        && matches!(parse_ascii_u32(&clock[0..2]), Some(0..=23))
+        && matches!(parse_ascii_u32(&clock[3..5]), Some(0..=59))
+        && matches!(parse_ascii_u32(&clock[6..8]), Some(0..=59))
+}
+
+fn parse_ascii_u32(value: &str) -> Option<u32> {
+    value
+        .bytes()
+        .all(|byte| byte.is_ascii_digit())
+        .then(|| value.parse().ok())
+        .flatten()
+}
+
+fn normalize_checksum(value: &str) -> &str {
+    value.trim().strip_prefix("sha256:").unwrap_or(value.trim())
 }
 
 fn complete_runtime_header(
@@ -253,6 +490,7 @@ fn complete_runtime_header(
     args: &Args,
     validation_sha256: &str,
     validation: &ValidationSummary,
+    nside_evidence: Option<&ReviewedNsideEvidence>,
 ) -> Result<()> {
     let nside = required_header(header, "nside")?.to_string();
     let ordering = required_header(header, "ordering")?.to_string();
@@ -289,6 +527,28 @@ fn complete_runtime_header(
         ),
     );
     header.insert("calibration_status".to_string(), mode.to_string());
+    if let Some(evidence) = nside_evidence {
+        header.insert(
+            "nside_sweep_report".to_string(),
+            format!("reviewed report {}", evidence.report_sha256),
+        );
+        header.insert(
+            "nside_sweep_review".to_string(),
+            format!("attestation {}", evidence.review_sha256),
+        );
+        header.insert(
+            "nside_sweep_selected_nside".to_string(),
+            evidence.selected_nside.to_string(),
+        );
+        header.insert(
+            "nside_sweep_reviewer".to_string(),
+            evidence.reviewer.clone(),
+        );
+        header.insert(
+            "nside_sweep_reviewed_at_utc".to_string(),
+            evidence.reviewed_at_utc.clone(),
+        );
+    }
     for required in [
         "generation_date_utc",
         "source_catalogue",
@@ -351,6 +611,21 @@ fn rewrite_csv_with_header(raw_map: &str, header: &BTreeMap<String, String>) -> 
         out.push_str(value);
         out.push('\n');
     }
+    for key in [
+        "nside_sweep_report",
+        "nside_sweep_review",
+        "nside_sweep_selected_nside",
+        "nside_sweep_reviewer",
+        "nside_sweep_reviewed_at_utc",
+    ] {
+        if let Some(value) = header.get(key) {
+            out.push_str("# ");
+            out.push_str(key);
+            out.push('=');
+            out.push_str(value);
+            out.push('\n');
+        }
+    }
     for line in &lines[data_start..] {
         out.push_str(line);
         out.push('\n');
@@ -404,7 +679,7 @@ mod tests {
         let manifest = dir.path().join("map.manifest.toml");
         std::fs::write(
             &input,
-            production_map("gaia_dr3_xp_photon_radiance_330_650nm_v1", "candidate"),
+            production_map("gaia_dr3_xp_photon_radiance_336_650nm_v1", "candidate"),
         )?;
         std::fs::write(&diagnostics, "{}\n")?;
         std::fs::write(&validation, "{\"production_ready\":false}\n")?;
@@ -417,6 +692,8 @@ mod tests {
             manifest: manifest.clone(),
             candidate: true,
             production: false,
+            nside_sweep_report: None,
+            nside_review: None,
         })?;
 
         let csv = std::fs::read_to_string(output)?;
@@ -437,6 +714,51 @@ mod tests {
     }
 
     #[test]
+    fn production_rejects_unreviewed_nside_recommendation() -> Result<()> {
+        let (args, _dir) = fixture_args(production_validation(), true)?;
+        let review = args.nside_review.as_ref().expect("production review path");
+        let raw =
+            std::fs::read_to_string(review)?.replace("\"reviewed\": true", "\"reviewed\": false");
+        std::fs::write(review, raw)?;
+        let err = run(args).expect_err("unreviewed nside recommendation must fail closed");
+        assert!(err
+            .to_string()
+            .contains("--production requires reviewed=true"));
+        Ok(())
+    }
+
+    #[test]
+    fn nside_review_timestamp_must_be_valid_utc_shape() {
+        assert!(looks_like_utc_timestamp("2026-07-11T12:34:56Z"));
+        assert!(looks_like_utc_timestamp("2026-07-11T12:34:56.123Z"));
+        assert!(!looks_like_utc_timestamp("2026-13-11T12:34:56Z"));
+        assert!(!looks_like_utc_timestamp("2026-07-11T25:34:56Z"));
+        assert!(!looks_like_utc_timestamp("2026-07-11T12:34:56+00:00"));
+    }
+
+    #[test]
+    fn production_cli_requires_sweep_report_and_review_paths() {
+        let error = Args::try_parse_from([
+            "pack_starlight_asset",
+            "--input",
+            "map.csv",
+            "--diagnostics",
+            "diagnostics.json",
+            "--validation",
+            "validation.json",
+            "--output",
+            "release.csv",
+            "--manifest",
+            "release.toml",
+            "--production",
+        ])
+        .expect_err("production CLI must require reviewed nside evidence");
+        let rendered = error.to_string();
+        assert!(rendered.contains("--nside-sweep-report"));
+        assert!(rendered.contains("--nside-review"));
+    }
+
+    #[test]
     fn production_rejects_not_ready_validation() -> Result<()> {
         let (args, _dir) = fixture_args("{\"production_ready\":false}\n", true)?;
         let err = run(args).expect_err("not production ready");
@@ -453,10 +775,15 @@ mod tests {
             &args.input,
             production_map("v_s10_scaled_integrated_proxy_v1", "production"),
         )?;
+        write_production_diagnostics(
+            &args.input,
+            &args.diagnostics,
+            "v_s10_scaled_integrated_proxy_v1",
+        )?;
         let err = run(args).expect_err("proxy photometry rejected");
-        assert!(err
-            .to_string()
-            .contains("--production rejects proxy or experimental photometry models"));
+        assert!(err.to_string().contains(
+            "--production requires photometry_model=gaia_dr3_xp_photon_radiance_336_650nm_v1"
+        ));
         Ok(())
     }
 
@@ -485,23 +812,45 @@ mod tests {
         let validation = dir.path().join("validation.json");
         let output = dir.path().join("map.release.csv");
         let manifest = dir.path().join("map.manifest.toml");
+        let sweep = dir.path().join("nside-sweep.json");
+        let review = dir.path().join("nside-review.json");
         std::fs::write(
             &input,
-            production_map("gaia_dr3_xp_photon_radiance_330_650nm_v1", "production"),
+            production_map("gaia_dr3_xp_photon_radiance_336_650nm_v1", "production"),
         )?;
+        write_production_diagnostics(&input, &diagnostics, GAIA_XP_MODEL)?;
+        std::fs::write(&validation, validation_raw)?;
+        let sweep_raw = r#"{
+  "schema_version": 1,
+  "photometry_model": "gaia_dr3_xp_photon_radiance_336_650nm_v1",
+  "band_nm": [336.0, 650.0],
+  "recommended_nside": 8,
+  "review_required": true,
+  "summaries": [{
+    "nside": 8,
+    "production_ready": true,
+    "spectral_contract_pass": true,
+    "eligible_for_recommendation": true
+  }]
+}
+"#;
+        std::fs::write(&sweep, sweep_raw)?;
+        let sweep_sha = format!("sha256:{}", to_hex(&sha256(sweep_raw.as_bytes())));
         std::fs::write(
-            &diagnostics,
+            &review,
             format!(
                 r#"{{
-  "output_sha256":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  "photometry_model":"gaia_dr3_xp_photon_radiance_330_650nm_v1",
-  "input_integrated_flux_sum_ph_cm2_ns": {:.17},
-  "integrated_flux_conservation_pass": true
-}}"#,
-                production_source_flux()
+  "schema_version": 1,
+  "sweep_report_sha256": "{sweep_sha}",
+  "reviewed": true,
+  "selected_nside": 8,
+  "reviewer": "NSB test maintainer",
+  "reviewed_at_utc": "2026-07-11T12:00:00Z",
+  "rationale": "Reviewed all resolution, flux, seam, noise, size, and runtime evidence."
+}}
+"#,
             ),
         )?;
-        std::fs::write(&validation, validation_raw)?;
         Ok((
             Args {
                 input,
@@ -511,6 +860,8 @@ mod tests {
                 manifest,
                 candidate: !production,
                 production,
+                nside_sweep_report: production.then_some(sweep),
+                nside_review: production.then_some(review),
             },
             dir,
         ))
@@ -523,6 +874,7 @@ mod tests {
   "radiance_field": "integrated_ph_cm2_ns_sr",
   "flux_conservation_pass": true,
   "finite_nonnegative_pass": true,
+  "spectral_contract_pass": true,
   "plane_pole_pass": true,
   "longitude_wrap_pass": true
 }
@@ -549,7 +901,7 @@ mod tests {
                 "# source_selection=synthetic Gaia XP fixture source selection\n",
                 "# magnitude_limit=G <= 20\n",
                 "# map_resolution=HEALPix nside=8 ordering=ring\n",
-                "# band_definition=Gaia DR3 XP passband-integrated 330-650 nm photon radiance\n",
+                "# band_definition=Gaia DR3 XP passband-integrated 336-650 nm photon radiance\n",
                 "# smoothing=none\n",
                 "# generated_by=pack_starlight_asset unit test\n",
                 "# generation_command=pack_starlight_asset fixture\n",
@@ -580,5 +932,23 @@ mod tests {
             source_flux += value * grid.pixel_area_sr();
         }
         source_flux
+    }
+
+    fn write_production_diagnostics(input: &PathBuf, path: &PathBuf, model: &str) -> Result<()> {
+        let input_raw = std::fs::read(input)?;
+        let checksum = format!("sha256:{}", to_hex(&sha256(&input_raw)));
+        std::fs::write(
+            path,
+            format!(
+                r#"{{
+  "output_sha256":"{checksum}",
+  "photometry_model":"{model}",
+  "input_integrated_flux_sum_ph_cm2_ns": {:.17},
+  "integrated_flux_conservation_pass": true
+}}"#,
+                production_source_flux()
+            ),
+        )?;
+        Ok(())
     }
 }

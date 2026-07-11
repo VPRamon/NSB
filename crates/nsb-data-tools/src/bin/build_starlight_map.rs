@@ -21,7 +21,9 @@ use std::path::PathBuf;
 const S10_V_TO_INTEGRATED_PH_CM2_NS_SR: f64 = 1.242e-3;
 const HEALPIX_CSV_HEADER: &str = "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10";
 const PROXY_MODEL: &str = "v_s10_scaled_integrated_proxy_v1";
-const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_330_650nm_v1";
+const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
+const GAIA_XP_BAND_MIN_NM: f64 = 336.0;
+const GAIA_XP_BAND_MAX_NM: f64 = 650.0;
 
 /// Build a Galactic HEALPix starlight map from a local catalogue CSV.
 ///
@@ -33,7 +35,7 @@ const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_330_650nm_v1";
 #[command(about = "Generate an NSB starlight HEALPix CSV from a local stellar catalogue")]
 struct Args {
     /// Input stellar catalogue CSV. Proxy inputs use ra_deg/dec_deg/b_mag/v_mag;
-    /// Gaia canonical inputs use icrs_ra_rad/icrs_dec_rad/photon_flux_330_650_ph_m2_s.
+    /// Gaia canonical inputs use icrs_ra_rad/icrs_dec_rad/photon_flux_336_650_ph_m2_s.
     #[arg(long)]
     input: PathBuf,
 
@@ -82,11 +84,11 @@ struct Args {
     photometry_model: String,
 
     /// Passband minimum wavelength, nm, for passband-integrated inputs.
-    #[arg(long, default_value_t = 330.0)]
+    #[arg(long, default_value_t = GAIA_XP_BAND_MIN_NM)]
     band_min_nm: f64,
 
     /// Passband maximum wavelength, nm, for passband-integrated inputs.
-    #[arg(long, default_value_t = 650.0)]
+    #[arg(long, default_value_t = GAIA_XP_BAND_MAX_NM)]
     band_max_nm: f64,
 
     /// UTC generation timestamp written to provenance metadata.
@@ -181,6 +183,7 @@ fn run(args: Args) -> Result<()> {
 
     let grid = HealpixGrid::new(Nside::new(args.nside)?, args.ordering.into())?;
     let input_kind = input_kind(&args.input)?;
+    validate_spectral_contract(&args, input_kind)?;
     let provenance = provenance(&args, input_kind);
 
     let (map, sources_used, input_integrated_flux_sum, longitude_wrap_pass, plane_pole_pass) =
@@ -324,11 +327,33 @@ fn input_kind(input: &PathBuf) -> Result<InputKind> {
         .headers()
         .context("failed to read CSV header")?
         .clone();
-    if optional_header(&headers, "photon_flux_330_650_ph_m2_s").is_some() {
+    if optional_header(&headers, "photon_flux_336_650_ph_m2_s").is_some() {
         Ok(InputKind::GaiaPhotonFlux)
     } else {
         Ok(InputKind::ProxyMagnitudes)
     }
+}
+
+fn validate_spectral_contract(args: &Args, input_kind: InputKind) -> Result<()> {
+    if input_kind != InputKind::GaiaPhotonFlux {
+        return Ok(());
+    }
+    if args.photometry_model != GAIA_XP_MODEL {
+        bail!(
+            "Gaia canonical inputs require --photometry-model={GAIA_XP_MODEL}; found {:?}",
+            args.photometry_model
+        );
+    }
+    if args.band_min_nm.to_bits() != GAIA_XP_BAND_MIN_NM.to_bits()
+        || args.band_max_nm.to_bits() != GAIA_XP_BAND_MAX_NM.to_bits()
+    {
+        bail!(
+            "Gaia canonical inputs require the measured {}-{} nm XP band",
+            GAIA_XP_BAND_MIN_NM,
+            GAIA_XP_BAND_MAX_NM
+        );
+    }
+    Ok(())
 }
 
 fn verify_catalog_checksum(args: &Args) -> Result<()> {
@@ -487,7 +512,8 @@ fn equatorial_direction(ra_deg: f64, dec_deg: f64) -> Direction<EquatorialMeanJ2
 struct GaiaPhotonColumns {
     icrs_ra_rad: usize,
     icrs_dec_rad: usize,
-    photon_flux_330_650_ph_m2_s: usize,
+    photon_flux_336_650_ph_m2_s: usize,
+    photometry_model: usize,
     weight: Option<usize>,
 }
 
@@ -496,7 +522,8 @@ impl GaiaPhotonColumns {
         Ok(Self {
             icrs_ra_rad: required_header(headers, "icrs_ra_rad")?,
             icrs_dec_rad: required_header(headers, "icrs_dec_rad")?,
-            photon_flux_330_650_ph_m2_s: required_header(headers, "photon_flux_330_650_ph_m2_s")?,
+            photon_flux_336_650_ph_m2_s: required_header(headers, "photon_flux_336_650_ph_m2_s")?,
+            photometry_model: required_header(headers, "photometry_model")?,
             weight: optional_header(headers, "weight"),
         })
     }
@@ -531,9 +558,18 @@ fn build_gaia_photon_map(
         let icrs_dec_rad = parse_required_f64(&row, columns.icrs_dec_rad, "icrs_dec_rad")?;
         let photon_flux = parse_required_f64(
             &row,
-            columns.photon_flux_330_650_ph_m2_s,
-            "photon_flux_330_650_ph_m2_s",
+            columns.photon_flux_336_650_ph_m2_s,
+            "photon_flux_336_650_ph_m2_s",
         )?;
+        let photometry_model = row
+            .get(columns.photometry_model)
+            .ok_or_else(|| anyhow::anyhow!("missing field \"photometry_model\""))?
+            .trim();
+        if photometry_model != GAIA_XP_MODEL {
+            bail!(
+                "Gaia canonical row photometry_model must be {GAIA_XP_MODEL:?}; found {photometry_model:?}"
+            );
+        }
         let weight = match columns.weight {
             Some(idx) => parse_required_f64(&row, idx, "weight")?,
             None => 1.0,
@@ -920,7 +956,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: PROXY_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: Some(diagnostics.clone()),
@@ -977,7 +1013,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: PROXY_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: Some(diagnostics.clone()),
@@ -1039,7 +1075,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: PROXY_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: None,
@@ -1077,7 +1113,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: PROXY_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: None,
@@ -1101,9 +1137,9 @@ mod tests {
         fs::write(
             &input,
             concat!(
-                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_336_650_ph_m2_s,photometry_model,weight\n",
                 "42,4.649644, -0.505386,2016.0,1.0e6,",
-                "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+                "gaia_dr3_xp_photon_radiance_336_650nm_v1,1.0\n",
             ),
         )?;
 
@@ -1120,7 +1156,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: GAIA_XP_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: Some(diagnostics.clone()),
@@ -1130,7 +1166,7 @@ mod tests {
 
         let raw = fs::read_to_string(output)?;
         assert!(raw.contains("# calibration_status=production-candidate"));
-        assert!(raw.contains("# photometry_model=gaia_dr3_xp_photon_radiance_330_650nm_v1"));
+        assert!(raw.contains("# photometry_model=gaia_dr3_xp_photon_radiance_336_650nm_v1"));
         let report: serde_json::Value = serde_json::from_str(&fs::read_to_string(diagnostics)?)?;
         assert_eq!(report["sources_used"], 1);
         assert_eq!(report["photometry_model"], GAIA_XP_MODEL);
@@ -1152,9 +1188,9 @@ mod tests {
             &input,
             format!(
                 concat!(
-                    "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                    "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_336_650_ph_m2_s,photometry_model,weight\n",
                     "42,{:.16},{:.16},2016.0,1.0e6,",
-                    "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+                    "gaia_dr3_xp_photon_radiance_336_650nm_v1,1.0\n",
                 ),
                 ra_rad, dec_rad
             ),
@@ -1173,7 +1209,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: GAIA_XP_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: None,
@@ -1209,9 +1245,9 @@ mod tests {
         fs::write(
             &input,
             concat!(
-                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_330_650_ph_m2_s,photometry_model,weight\n",
+                "source_id,icrs_ra_rad,icrs_dec_rad,epoch_jyr,photon_flux_336_650_ph_m2_s,photometry_model,weight\n",
                 "42,6.283185307179586,0.0,2016.0,1.0e6,",
-                "gaia_dr3_xp_photon_radiance_330_650nm_v1,1.0\n",
+                "gaia_dr3_xp_photon_radiance_336_650nm_v1,1.0\n",
             ),
         )?;
 
@@ -1228,7 +1264,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: GAIA_XP_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-21T00:00:00Z".to_string(),
             diagnostics_output: None,
@@ -1257,7 +1293,7 @@ mod tests {
             catalog_checksum: None,
             integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
             photometry_model: GAIA_XP_MODEL.to_string(),
-            band_min_nm: 330.0,
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
             band_max_nm: 650.0,
             generation_date_utc: "2026-06-24T00:00:00Z".to_string(),
             diagnostics_output: None,
@@ -1266,5 +1302,32 @@ mod tests {
         };
         let error = validate_args(&args).expect_err("incomplete provenance must fail closed");
         assert!(error.to_string().contains("--catalog-release"));
+    }
+
+    #[test]
+    fn gaia_input_rejects_any_band_other_than_measured_336_650_contract() {
+        let args = Args {
+            input: PathBuf::from("unused.csv"),
+            output: PathBuf::from("unused-map.csv"),
+            nside: 64,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: None,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: Some("DR3".to_string()),
+            catalog_license: Some("reviewed policy".to_string()),
+            catalog_checksum: Some(format!("sha256:{}", "1".repeat(64))),
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: 335.0,
+            band_max_nm: GAIA_XP_BAND_MAX_NM,
+            generation_date_utc: "2026-07-11T00:00:00Z".to_string(),
+            diagnostics_output: Some(PathBuf::from("unused-diagnostics.json")),
+            require_science_diagnostics: true,
+            allow_empty: false,
+        };
+        let error = validate_spectral_contract(&args, InputKind::GaiaPhotonFlux)
+            .expect_err("unmeasured lower band edge must fail closed");
+        assert!(error.to_string().contains("measured 336-650 nm XP band"));
     }
 }
