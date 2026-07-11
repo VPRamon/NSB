@@ -512,8 +512,9 @@ fn solve_linear_system(mut matrix: Vec<Vec<f64>>, mut rhs: Vec<f64>) -> Result<V
                 continue;
             }
             let factor = matrix[row][pivot];
-            for column in pivot..dimension {
-                matrix[row][column] -= factor * matrix[pivot][column];
+            let pivot_tail = matrix[pivot][pivot..].to_vec();
+            for (cell, pivot_cell) in matrix[row][pivot..].iter_mut().zip(pivot_tail) {
+                *cell -= factor * pivot_cell;
             }
             rhs[row] -= factor * rhs[pivot];
         }

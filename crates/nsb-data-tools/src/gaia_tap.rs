@@ -1854,16 +1854,17 @@ mod tests {
         let outcome = client.execute(&request).await?;
         server.await??;
 
-        let captured = requests.lock().expect("fixture mutex poisoned");
-        assert_eq!(request_path(&captured[0]), "/tap/async");
-        assert_eq!(
-            decoded_form(&captured[0]).get("PHASE").map(String::as_str),
-            Some("RUN")
-        );
-        assert_eq!(request_path(&captured[1]), "/tap/async/42/phase");
-        assert_eq!(request_path(&captured[2]), "/tap/async/42/phase");
-        assert_eq!(request_path(&captured[3]), "/tap/async/42/results/result");
-        drop(captured);
+        {
+            let captured = requests.lock().expect("fixture mutex poisoned");
+            assert_eq!(request_path(&captured[0]), "/tap/async");
+            assert_eq!(
+                decoded_form(&captured[0]).get("PHASE").map(String::as_str),
+                Some("RUN")
+            );
+            assert_eq!(request_path(&captured[1]), "/tap/async/42/phase");
+            assert_eq!(request_path(&captured[2]), "/tap/async/42/phase");
+            assert_eq!(request_path(&captured[3]), "/tap/async/42/results/result");
+        }
         let expected_job_url = format!("{endpoint}/async/42");
         assert_eq!(outcome.job_url.as_deref(), Some(expected_job_url.as_str()));
 
