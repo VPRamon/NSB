@@ -30,6 +30,11 @@ cargo run --locked -q -p nsb-data-tools --bin download_xp_continuous_phase5 -- \
   --manifest-json "$PHASE5/phase5_requests.manifest.json" \
   --resume
 
+echo "== Download inventory inspect =="
+cargo run --locked -q -p nsb-data-tools --bin inspect_phase5_download -- \
+  --phase5-root "$PHASE5" \
+  --targets-csv "$PHASE5/phase5_all_xp_continuous_targets.csv"
+
 echo "== Normalize coefficients =="
 mkdir -p "$PHASE5/coefficients/canonical"
 cargo run --locked -q -p nsb-data-tools --bin normalize_xp_continuous_coefficients -- \
@@ -51,10 +56,13 @@ cargo run --locked -q -p nsb-data-tools --bin run_starlight_phase5_overlap_valid
   --overlap-targets "$PHASE5/phase5_overlap_targets.csv" \
   --reconstructed-dir "$PHASE5/reconstruction/normalized" \
   --canonical-catalogue "$CATALOGUE" \
+  --exclusions-csv "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_starlight_exclusions.csv" \
   --output-json "$PHASE5/phase5_overlap_validation.json" \
   --output-md "$PHASE5/phase5_overlap_validation.md" \
   --predictions-csv "$PHASE5/phase5_overlap_predictions.csv" \
   --stratified-csv "$PHASE5/phase5_overlap_stratified_metrics.csv" \
+  --frozen-policy-json "$PHASE5/phase5_frozen_validation_policy.json" \
+  --phase5-exclusions-csv "$PHASE5/phase5_exclusions.csv" \
   --phase5-root "$PHASE5"
 
 echo "== Continuous-only contributions =="

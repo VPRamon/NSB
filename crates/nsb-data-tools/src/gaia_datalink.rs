@@ -72,14 +72,16 @@ pub enum SourceState {
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CheckpointEvent {
-    unix_millis: u128,
-    source_id: String,
-    state: SourceState,
-    attempt: u32,
-    detail: String,
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CheckpointEntry {
+    pub unix_millis: u128,
+    pub source_id: String,
+    pub state: SourceState,
+    pub attempt: u32,
+    pub detail: String,
 }
+
+type CheckpointEvent = CheckpointEntry;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct DownloadReport {
@@ -713,28 +715,41 @@ impl CheckpointLog {
     }
 }
 
-fn load_checkpoint(path: &Path) -> Result<BTreeMap<String, SourceState>> {
+/// Read all well-formed checkpoint JSONL records (ignores one torn tail line).
+pub fn read_checkpoint_entries(path: &Path) -> Result<Vec<CheckpointEntry>> {
     if !path.exists() {
-        return Ok(BTreeMap::new());
+        return Ok(Vec::new());
     }
     let file = File::open(path)?;
     let reader = BufReader::new(file);
-    let mut latest = BTreeMap::new();
+    let mut entries = Vec::new();
     for line in reader.lines() {
         let line = line?;
         if line.trim().is_empty() {
             continue;
         }
-        // A killed process can leave one incomplete final JSON line.  Raw-file
-        // validation is authoritative, so ignoring only that torn tail is safe.
-        match serde_json::from_str::<CheckpointEvent>(&line) {
-            Ok(event) => {
-                latest.insert(event.source_id, event.state);
-            }
+        match serde_json::from_str::<CheckpointEntry>(&line) {
+            Ok(event) => entries.push(event),
             Err(_) => break,
         }
     }
+    Ok(entries)
+}
+
+/// Latest checkpoint row per source_id.
+pub fn latest_checkpoint_entries(path: &Path) -> Result<BTreeMap<String, CheckpointEntry>> {
+    let mut latest = BTreeMap::new();
+    for event in read_checkpoint_entries(path)? {
+        latest.insert(event.source_id.clone(), event);
+    }
     Ok(latest)
+}
+
+fn load_checkpoint(path: &Path) -> Result<BTreeMap<String, SourceState>> {
+    Ok(latest_checkpoint_entries(path)?
+        .into_iter()
+        .map(|(source_id, entry)| (source_id, entry.state))
+        .collect())
 }
 
 #[derive(Debug)]
