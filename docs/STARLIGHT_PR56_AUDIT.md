@@ -1,125 +1,95 @@
 # PR #56 Phase 1 Audit — Starlight Production Foundation
 
-**Branch:** `starlight-production-foundation` @ `154dec7`  
+**Branch:** `starlight-production-foundation` @ `896cb30`  
 **Base:** `main` @ `b725763` (PR #55 merged)  
-**Date:** 2026-07-11
+**Date:** 2026-07-11 (updated 21:30 UTC)
 
 ## Executive summary
 
-The foundation PR implements a **fail-closed** approval and validation infrastructure targeting the normative **300–650 nm** integrated Starlight contract, while the active sweep path still built **336–650 nm Gaia XP sampled** maps. Production promotion was structurally impossible: validator spectral contract (336–650) contradicted packer production gates (300–650).
+The foundation PR implements a **fail-closed** approval and validation infrastructure targeting the normative **300–650 nm** integrated Starlight contract. The **336–650 nm** Gaia XP path is an intermediate reconstruction band only; production must integrate **300–336 nm UV**, photometric branches, and completeness before promotion.
 
-This audit drove Phase 2 alignment (see commits on this branch after audit).
+**Current conclusion:** `NOT PRODUCTION READY — Phase 5 DataLink acquisition incomplete (~35%); scientific policy not frozen; 184.7M bulk processing not started; integrated candidate not built.`
 
-## Checklist (Phase 1 findings → Phase 2 status)
+## Phase 5B — XP continuous bulk multifile pilot (CLOSED 2026-07-11)
 
-| Item | Finding | Status |
-|------|---------|--------|
-| Band contract | Dual 336–650 vs 300–650 | **Addressed** — validator/packer/sweep aligned |
-| `validate_starlight_map` | Hardcoded `gaia_dr3_xp_photon_radiance_336_650nm_v1` | **Addressed** — integrated contract + XP rejection |
-| `sweep_starlight_nside` | Called `build_starlight_map` (XP) | **Addressed** — calls `build_integrated_starlight_product` |
-| Missing binaries in Cargo.toml | 3 bins unregistered | **Addressed** |
-| `starlight_science` | No pipeline consumer | Open — Phases 5–10 |
-| Longitude-wrap thresholds | Validator 10 vs runtime 1 | Open — unify in follow-up |
-| Independent reference | Provisional 336–650 internal JSON | Open — requires external 300–650 reference |
-| Production asset | Not bundled | Open — Phase 16 |
-| Real Gaia pipeline CI | Synthetic only | Partial — `integrated_starlight_pipeline` fixture added |
+**Verdict:** `PHASE 5B MULTIFILE PILOT PASSED — READY FOR SCIENTIFIC POLICY`
 
-## Schema / wiring notes
+| Gate | Evidence |
+|------|----------|
+| Same adapter on 2 prefixes | `schema_comparison.compatible=true` in manifest |
+| ≥10 000 sources processed | 20 000 rows scanned / 19 995 valid |
+| Streaming (no full-file RAM) | peak RSS ~49 MiB |
+| Exact reconciliation | per-file `reconciliation_ok=true` |
+| Resume = uninterrupted | `phase5b_resume_validation.json` passed |
+| Order-independent merge | `order_12 == order_21` checksum |
+| Single ≈ multi-worker | `single_worker == multi_worker` |
+| Bulk index | `row_found=true` both prefixes |
+| Scale estimate | 184 729 270 population in `phase5b_resource_estimate.json` |
+| Checksums | `phase5b.sha256sum` (8 artifacts) |
 
-- **Integrated product** emits five artifacts via `build_integrated_starlight_product` (mean, uncertainty, completeness, diagnostics, manifest).
-- **Runtime** expects HEALPix v1/v2 with `integrated_ph_cm2_ns_sr`; packer converts integrated mean sidecar → runtime v2 with uncertainties.
-- **Approval DAG** requires `band_nm = [300, 650]`, human approvals, and nside sweep schema v2.
+Audit record: `$HOME/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/phase5b_multifile_pilot_audit.json`
 
-## Phase 4 — Stratified Gaia TAP sampling (2026-07-11)
+**Not authorized:** full 184.729.270 bulk run until `phase5_frozen_validation_policy.json` passes validation gates on DataLink test split.
 
-**Gate:** closed on branch after commit `feat: complete reproducible Gaia starlight sampling`.
+## Phase 5 — XP continuous DataLink (IN PROGRESS)
 
-| Check | Status |
-|-------|--------|
-| All jobs classified | 69 jobs (68 `completed_valid`, 1 `error_nonretryable` audit) |
-| COMPLETED results recovered | 67/67 stratified CSVs validated |
-| HTTP 400 explained | `02_invalid_original` — bare `true` boolean rejected by Gaia ADQL |
-| Required strata | 67/67 with 512 rows each |
-| Checksums | `phase4.sha256sum` + per-job inventory |
-| Deduplicated master | 20 041 unique `source_id` |
-| Memberships | 32 768 stratum rows |
-| Spatial split | HEALPix nside=64, disjoint train/validation/test |
-| Domain coverage | validation+test include blue, very red, faint, plane, centre, poles, seam, crowding, low S/N, partial/G-only/no photometry |
-| Population reconciliation | frozen totals in `phase4_inputs.manifest.json` |
-| TAP client tests | sync/async, 400 no-retry, 429/503 retry, UWS ERROR, HTML, overflow |
+**Downloader:** single active process (`download_xp_continuous_phase5`, resume-safe). **Do not start a second downloader.**
 
-Artifacts live under `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase4_*` (not versioned in git).
+| Metric | Value (2026-07-11 ~21:30 UTC) |
+|--------|----------------------------------|
+| Requested | 12 198 |
+| Downloaded valid | ~4 216 (~35%) |
+| Pending | ~7 981 |
+| Missing from canonical sampled reference | 1 (`4062484362784191744`, `missing_from_canonical_sampled_reference`) |
+| Errors | 0 |
+| ETA | ~6 h at ~0.35 sources/s |
 
-Code: `starlight_sampling.rs`, `consolidate_gaia_starlight_samples`, extended `gaia_tap` tests.
+Reconciliation: `4216 + 7981 + 1 = 12198` ✓
 
-## Phase 5 — XP continuous reconstruction (in progress, 2026-07-11)
+Incremental processing (without stopping download): `tools/starlight-xp-continuous/run_phase5_incremental.sh`
 
-**Gate:** not closed — batch DataLink download running (~12 198 sources, resume-safe checkpoint).
+**Overlap validation smoke** (20 sources only — **not** production gate): `phase5_overlap_validation.json` exists but `global.sample_count=20`. Full train/validation/test evaluation blocked until download completes.
 
-| Check | Status |
-|-------|--------|
-| Phase 4 inputs frozen | `phase5_phase4_inputs.snapshot.json` verified against `phase4.sha256sum` |
-| GaiaXPy environment | 2.1.4 pinned; 10 calibration CSVs checksummed in `phase5_gaiaxpy_environment.json` |
-| Overlap targets | 6 342 sources (`phase5_overlap_targets.csv`) |
-| Continuous-only targets | 5 856 sources (`phase5_continuous_only_targets.csv`) |
-| Batch XP_CONTINUOUS download | `download_xp_continuous_phase5` + checkpoint resume (in flight) |
-| Canonical coefficients | `normalize_xp_continuous_coefficients` (`xp_source_{id}.csv` → canonical) |
-| Offline reconstruction | GaiaXPy `reconstruct_and_integrate.py` → 336–650 nm normalized grids |
-| Overlap validation | `run_starlight_phase5_overlap_validation` vs canonical catalogue flux |
-| Uncertainty inflation | fit on train split only, frozen before test |
-| Production gates | flux-weighted bias ≤3%, median bias ≤5%, p95 ≤10%, coverage bands — pending full population |
-| Continuous-only contributions | `emit_phase5_continuous_contributions` → `phase5_continuous_only_336_650.csv` |
-| Reconciliation | `finalize_starlight_phase5` + `phase5_exclusions.csv` |
+## Phase 4 — Stratified Gaia TAP sampling (CLOSED)
 
-Known exclusions (documented, not metric-tuned):
+67/67 strata, 20 041 unique sources, disjoint HEALPix split — see prior audit sections.
 
-- `4062484362784191744` — present in Phase 4 overlap sample and Phase 5 targets, but **excluded from canonical `gaia_dr3_starlight_sources.csv`** because `gaia_dr3_starlight_exclusions.csv` records **non-positive integrated photon flux** (integrated = −34.04 ph m⁻² s⁻¹, 67 negative band samples). Reason code: `missing_from_canonical_sampled_reference`. Continuous coefficient retrieval may proceed; overlap validation correctly skips this source (no canonical sampled 336–650 nm reference).
+## Phase 6 — Photometric models (PARTIAL)
 
-Partial overlap smoke (subsample at checkpoint): pipeline runs end-to-end; gates not evaluable until download completes.
+`GBpRpColour` trained; fails production gates on overlap-only sample. `PartialColour` / `GOnly` need degraded-photometry training rows.
 
-Artifacts: `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/` (not versioned in git). Auto-resume pipeline: `tools/starlight-xp-continuous/run_phase5_pipeline.sh`.
+## Final gate checklist (2026-07-11)
 
-Code: `starlight_phase5.rs`, Phase 5 binaries, `gaia_xp_continuous.rs`, GaiaXPy audit tool.
+| Gate | Status |
+|------|--------|
+| Phase 5B audited | **PASS** |
+| DataLink download complete | **BLOCKED** (~35%) |
+| XP continuous vs sampled validation | **BLOCKED** (needs full download + policy) |
+| Frozen scientific policy | **BLOCKED** |
+| Test evaluated once | **BLOCKED** |
+| 184.7M bulk processed | **BLOCKED** (by policy) |
+| 1.59B no-XP models | **BLOCKED** |
+| UV 300–336 | **BLOCKED** |
+| Gaia completeness | **BLOCKED** |
+| Integrated candidate product | **BLOCKED** |
+| nside sweep on integrated product | **BLOCKED** |
+| Independent validation | **BLOCKED** |
+| Production bundle + ComponentMask::ALL | **BLOCKED** |
+| CI green (full workspace) | **PARTIAL** (nsb-data-tools Phase 5B tests pass) |
+| Issue #47 closable | **NO** |
 
-## Phase 5B — XP continuous bulk (design + pilot, 2026-07-11)
+## Residual blockers (ordered)
 
-**Gate:** not closed — pilot download/processing in progress; full 184.7M population not started.
+1. Complete Phase 5 DataLink download (12 198 targets).
+2. Normalize + reconstruct full sample; overlap train → validation → **freeze policy** → test once.
+3. Phase 5B full bulk run (184.7M) only after frozen policy checksum gate.
+4. Phases 6–10: no-XP photometry, UV 300–336, selection/completeness.
+5. Phases L–N: contributions, reconciliation 1.811.709.771, integrated candidate.
+6. Phases O–P: nside sweep + independent validation on **300–650 nm** product.
+7. Phases Q–R: approvals + production bundle (human/legal gate may remain).
 
-| Check | Status |
-|-------|--------|
-| Official product identified | `xp_continuous_mean_spectrum` coefficient bulk (~3.3 TiB, 3386 files, CDN MD5 manifest) |
-| Individual DataLink forbidden at scale | Documented; bulk path mandatory |
-| Resumable bulk downloader | `download_gaia_xp_continuous_bulk` (shared `gaia_bulk` engine) |
-| Streaming GaiaXPy pilot | `pilot_bulk_continuous.py` + `run_pilot_bulk_continuous.sh` |
-| Design doc | [`STARLIGHT_XP_CONTINUOUS_BULK.md`](STARLIGHT_XP_CONTINUOUS_BULK.md) |
-| Full population throughput | Pending representative pilot completion |
+## Conclusion
 
-Pilot artifacts: `$HOME/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/`.
+**NOT PRODUCTION READY — Phase 5 DataLink acquisition ~35% complete; scientific validation and integrated product pipeline not finished.**
 
-## Phase 6 — Photometric models (partial, 2026-07-11)
-
-**Gate:** not closed — `GBpRpColour` trained on Phase 4 XP overlap sample; `PartialColour` / `GOnly` require additional XP-valid training rows with degraded photometry (not present in overlap subsample).
-
-| Check | Status |
-|-------|--------|
-| Training binary | `train_starlight_photometry_models` |
-| Spatial split | Frozen Phase 4 train/validation/test |
-| Targets | Canonical 336–650 nm flux (XP sampled) |
-| Branches fitted | 1/3 (`GBpRpColour`: 3890 train / 1186 val) |
-| UV 300–336 | Explicitly deferred to Phase 7 |
-| Validation metrics (GBpRpColour) | RMSE ~18%, p95 ~27% — **fails production gates**; expected for log-linear smoke on overlap-only sample |
-
-Artifacts: `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase6/`.
-
-## Residual blockers for PRODUCTION READY
-
-1. **Phase 5 batch download + full overlap/continuous-only validation** (in progress, ~14% at 2026-07-11T19:15Z)
-2. **Phase 5B bulk pilot + full 184.7M continuous-only processing**
-3. Trained photometric / UV / selection models with checksum-pinned artifacts (Phases 6–10)
-3. Independent validation passing preregistered gates on held-out data
-4. Human approval artifacts (missing-flux, redistribution, nside review)
-5. Bundled production asset in `crates/nsb/data/manifest.toml`
-
-## Conclusion at audit time
-
-**TECHNICALLY IN PROGRESS** — infrastructure present; integrated product path wired in code; scientific population and production gates not yet satisfied.
+When all technical work is complete but human/legal approvals remain, the correct label will be: `TECHNICALLY COMPLETE — EXTERNAL HUMAN/LEGAL APPROVAL REQUIRED`.
