@@ -33,6 +33,7 @@ struct Args {
 
 #[derive(Debug, Clone)]
 struct ExpectedExclusion {
+    #[allow(dead_code)]
     source_id: u64,
     total: f64,
     positive: f64,

@@ -215,19 +215,15 @@ pub fn validate_approval(
 
     validate_optional_binding("map_sha256", approval.map_sha256.as_deref())?;
     validate_optional_binding("manifest_sha256", approval.manifest_sha256.as_deref())?;
-    match requirements.map_sha256 {
-        Some(required) => {
-            require_matching_binding("map_sha256", approval.map_sha256.as_deref(), required)?
-        }
-        None => {}
+    if let Some(required) = requirements.map_sha256 {
+        require_matching_binding("map_sha256", approval.map_sha256.as_deref(), required)?;
     }
-    match requirements.manifest_sha256 {
-        Some(required) => require_matching_binding(
+    if let Some(required) = requirements.manifest_sha256 {
+        require_matching_binding(
             "manifest_sha256",
             approval.manifest_sha256.as_deref(),
             required,
-        )?,
-        None => {}
+        )?;
     }
 
     if approval.input_files.is_empty() || approval.output_files.is_empty() {

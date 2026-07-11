@@ -6,6 +6,7 @@ use nsb_data_tools::starlight_approval::{
     ApprovalRequirements, ReviewerKind, StarlightApproval, APPROVAL_SCHEMA_VERSION,
     STARLIGHT_PRODUCTION_BAND_NM,
 };
+use nsb_data_tools::starlight_integrated::INTEGRATED_PHOTOMETRY_MODEL;
 use serde::Serialize;
 use serde_json::Value;
 use siderust::checksum::{sha256, to_hex};
@@ -14,18 +15,25 @@ use std::process::Command;
 use std::time::Instant;
 
 const NSIDES: [u32; 4] = [64, 128, 256, 512];
-const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
-const BAND_MIN_NM: f64 = 336.0;
-const BAND_MAX_NM: f64 = 650.0;
+const INTEGRATED_MEAN_FILE: &str = "starlight_mean.release.csv";
+const INTEGRATED_DIAGNOSTICS_FILE: &str = "starlight_source_contributions.diagnostics.json";
+const BAND_MIN_NM: f64 = STARLIGHT_PRODUCTION_BAND_NM[0];
+const BAND_MAX_NM: f64 = STARLIGHT_PRODUCTION_BAND_NM[1];
 const MAX_TOTAL_FLUX_RELATIVE_DELTA: f64 = 1.0e-9;
 const SUMMARY_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Parser)]
 #[command(about = "Run the Gaia starlight release nside sweep")]
 struct Args {
-    /// Canonical Gaia starlight source CSV (required unless --assess-existing).
+    /// Canonical Gaia starlight source CSV (legacy XP sweep; optional for integrated sweep).
     #[arg(long)]
     input: Option<PathBuf>,
+    /// Checksum-pinned normalized contributions manifest for integrated product build.
+    #[arg(long)]
+    contributions_manifest: Option<PathBuf>,
+    /// SHA-256 of the calibrated inference/completeness model (integrated sweep).
+    #[arg(long)]
+    model_checksum: Option<String>,
     /// Sweep output directory.
     #[arg(long, default_value = "target/starlight-release/sweep")]
     output_dir: PathBuf,
@@ -185,10 +193,18 @@ fn run(args: Args) -> Result<()> {
         assess_existing_artifacts(&args)?
     } else {
         build_release_tools()?;
-        let input = args
-            .input
+        let contributions_manifest = args
+            .contributions_manifest
             .as_ref()
-            .context("missing --input for full sweep")?;
+            .context("missing --contributions-manifest for full sweep")?;
+        let model_checksum = args
+            .model_checksum
+            .as_ref()
+            .context("missing --model-checksum for full sweep")?;
+        let release_id = args
+            .release_id
+            .as_ref()
+            .context("missing --release-id for full sweep")?;
         let reference = args
             .reference
             .as_ref()
@@ -208,7 +224,9 @@ fn run(args: Args) -> Result<()> {
         let mut built = Vec::new();
         for nside in NSIDES {
             built.push(run_one(
-                input,
+                contributions_manifest,
+                model_checksum,
+                release_id,
                 reference,
                 catalog_checksum,
                 catalog_license,
@@ -250,7 +268,7 @@ fn run(args: Args) -> Result<()> {
     let review_template = args.output_dir.join("nside_review.template.json");
     let aggregate = AggregateSummary {
         schema_version: SUMMARY_SCHEMA_VERSION,
-        photometry_model: GAIA_XP_MODEL,
+        photometry_model: INTEGRATED_PHOTOMETRY_MODEL,
         band_nm: report_band_nm,
         recommendation_policy: "Choose the minimum angular resolution that passes every internal science and operational gate. Candidate recommendation does not require production-grade approval artifacts. Production promotion remains blocked until the missing-flux, independent-validation, redistribution, and nside-review artifacts form a compatible checksummed approval DAG.",
         smoothing_policy: "No smoothing is applied by this sweep. A resolution whose sparsity or high-latitude noise indicates smoothing is marked ineligible; any future smoothing proposal must define its kernel and angular scale, conserve total flux, and repeat independent validation.",
@@ -297,8 +315,14 @@ fn run(args: Args) -> Result<()> {
 
 fn validate_args(args: &Args) -> Result<()> {
     if !args.assess_existing {
-        if args.input.is_none() {
-            bail!("--input is required unless --assess-existing is set");
+        if args.contributions_manifest.is_none() {
+            bail!("--contributions-manifest is required unless --assess-existing is set");
+        }
+        if args.model_checksum.is_none() {
+            bail!("--model-checksum is required unless --assess-existing is set");
+        }
+        if args.release_id.is_none() {
+            bail!("--release-id is required unless --assess-existing is set");
         }
         if args.reference.is_none() {
             bail!("--reference is required unless --assess-existing is set");
@@ -382,8 +406,8 @@ fn load_existing_nside(
     catalog_checksum: &mut Option<String>,
 ) -> Result<NsideSummary> {
     let dir = output_dir.join(format!("nside{nside}"));
-    let map = dir.join("starlight_map.csv");
-    let diagnostics_path = dir.join("diagnostics.json");
+    let map = dir.join(INTEGRATED_MEAN_FILE);
+    let diagnostics_path = dir.join(INTEGRATED_DIAGNOSTICS_FILE);
     let validation_path = dir.join("validation.json");
     let release = dir.join("starlight_map.release.csv");
     let manifest_path = dir.join("starlight_map.release.toml");
@@ -436,7 +460,11 @@ fn load_existing_nside(
         None => *catalog_checksum = Some(manifest_checksum.clone()),
         _ => {}
     }
-    if let Some(output_sha256) = diagnostics["output_sha256"].as_str() {
+    if let Some(output_sha256) = diagnostics["artifact_sha256"]
+        .get(INTEGRATED_MEAN_FILE)
+        .and_then(Value::as_str)
+        .or_else(|| diagnostics["output_sha256"].as_str())
+    {
         nsb_data_tools::checksum_io::verify_sha256_file(&map, output_sha256, "diagnostics map")?;
     }
     let release_sha256 = manifest.get("map_sha256").and_then(|value| value.as_str());
@@ -450,19 +478,26 @@ fn load_existing_nside(
         bail!("diagnostics nside {diagnostics_nside} does not match directory nside{nside}");
     }
     let expected_pixels = 12 * u64::from(nside) * u64::from(nside);
-    let diagnostics_pixels = diagnostics["expected_pixels"]
+    let diagnostics_pixels = diagnostics["coverage"]["expected_pixels"]
         .as_u64()
+        .or_else(|| diagnostics["expected_pixels"].as_u64())
         .ok_or_else(|| anyhow::anyhow!("diagnostics missing expected_pixels"))?;
     if diagnostics_pixels != expected_pixels {
         bail!(
             "diagnostics expected_pixels {diagnostics_pixels} does not match HEALPix nside={nside}"
         );
     }
-    if diagnostics["photometry_model"].as_str() != Some(GAIA_XP_MODEL) {
-        bail!("diagnostics photometry_model does not match the Gaia XP contract");
+    if diagnostics["product"].as_str() != Some("nsb.integrated_starlight_300_650nm")
+        && diagnostics.get("photometry_model").is_some()
+        && diagnostics["photometry_model"].as_str() != Some(INTEGRATED_PHOTOMETRY_MODEL)
+    {
+        bail!("diagnostics photometry_model does not match the integrated 300-650 nm contract");
     }
-    if validation["photometry_model"].as_str() != Some(GAIA_XP_MODEL) {
-        bail!("validation photometry_model does not match the Gaia XP contract");
+    if validation["spectral_contract_pass"]
+        .as_bool()
+        .is_some_and(|pass| !pass)
+    {
+        bail!("validation spectral_contract_pass is false for nside={nside}");
     }
     let validation_pixels = validation["pixel_count"]
         .as_u64()
@@ -482,7 +517,9 @@ fn load_existing_nside(
     {
         bail!("validation flux_conservation_pass is false for nside={nside}");
     }
-    if validation["sources_used"].as_u64().is_none() {
+    if validation["sources_used"].as_u64().is_none()
+        && diagnostics["unique_contribution_rows"].as_u64().is_none()
+    {
         bail!("validation missing sources_used for nside={nside}");
     }
 
@@ -585,8 +622,11 @@ fn load_existing_nside(
     Ok(summary)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_one(
-    input: &Path,
+    contributions_manifest: &Path,
+    model_checksum: &str,
+    release_id: &str,
     reference: &Path,
     catalog_checksum: &str,
     catalog_license: &str,
@@ -596,45 +636,33 @@ fn run_one(
 ) -> Result<NsideSummary> {
     let dir = args.output_dir.join(format!("nside{nside}"));
     std::fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
-    let map = dir.join("starlight_map.csv");
-    let diagnostics = dir.join("diagnostics.json");
+    let map = dir.join(INTEGRATED_MEAN_FILE);
+    let diagnostics = dir.join(INTEGRATED_DIAGNOSTICS_FILE);
     let validation = dir.join("validation.json");
     let release = dir.join("starlight_map.release.csv");
     let manifest = dir.join("starlight_map.release.toml");
 
     let started = Instant::now();
     cargo_tool(
-        "build_starlight_map",
+        "build_integrated_starlight_product",
         vec![
-            "--input".to_string(),
-            path_str(input)?.to_string(),
-            "--output".to_string(),
-            path_str(&map)?.to_string(),
-            "--diagnostics-output".to_string(),
-            path_str(&diagnostics)?.to_string(),
+            "--inputs-manifest".to_string(),
+            path_str(contributions_manifest)?.to_string(),
             "--nside".to_string(),
             nside.to_string(),
-            "--ordering".to_string(),
-            "ring".to_string(),
-            "--catalog-name".to_string(),
-            "Gaia".to_string(),
-            "--catalog-release".to_string(),
-            "DR3".to_string(),
-            "--catalog-license".to_string(),
-            catalog_license.to_string(),
-            "--catalog-checksum".to_string(),
-            catalog_checksum.to_string(),
-            "--photometry-model".to_string(),
-            GAIA_XP_MODEL.to_string(),
-            "--band-min-nm".to_string(),
-            BAND_MIN_NM.to_string(),
-            "--band-max-nm".to_string(),
-            BAND_MAX_NM.to_string(),
-            "--generation-date-utc".to_string(),
-            generation_date_utc.to_string(),
+            "--release-id".to_string(),
+            format!("{release_id}-nside{nside}"),
+            "--model-checksum".to_string(),
+            model_checksum.to_string(),
+            "--output-dir".to_string(),
+            path_str(&dir)?.to_string(),
+            "--candidate-only".to_string(),
         ],
     )?;
     let generation_seconds = started.elapsed().as_secs_f64();
+
+    // Enrich mean-map header with catalogue provenance for downstream packer.
+    enrich_integrated_mean_header(&map, catalog_checksum, catalog_license, generation_date_utc)?;
 
     let validation_started = Instant::now();
     cargo_tool(
@@ -767,6 +795,56 @@ fn run_one(
     };
     write_json(&dir.join("summary.json"), &summary)?;
     Ok(summary)
+}
+
+fn enrich_integrated_mean_header(
+    map_path: &Path,
+    catalog_checksum: &str,
+    catalog_license: &str,
+    generation_date_utc: &str,
+) -> Result<()> {
+    use nsb_data_tools::starlight_integrated::INTEGRATED_BAND_DEFINITION;
+    let raw = std::fs::read_to_string(map_path)
+        .with_context(|| format!("failed to read {}", map_path.display()))?;
+    if raw.contains("# source_catalogue=") {
+        return Ok(());
+    }
+    let extra = [
+        "# source_catalogue=Gaia".to_string(),
+        "# source_catalogue_release=DR3".to_string(),
+        format!("# source_catalogue_license={catalog_license}"),
+        format!("# source_catalogue_checksum={catalog_checksum}"),
+        format!("# generation_date_utc={generation_date_utc}"),
+        "# generated_by=nsb-data-tools sweep_starlight_nside".to_string(),
+        "# generation_command=build_integrated_starlight_product".to_string(),
+        format!("# photometry_model={INTEGRATED_PHOTOMETRY_MODEL}"),
+        format!("# band_definition={INTEGRATED_BAND_DEFINITION}"),
+        "# source_selection=integrated Gaia DR3 starlight contributions".to_string(),
+        "# magnitude_limit=Gaia DR3 release input selection".to_string(),
+    ];
+    let mut out = String::new();
+    let mut inserted = false;
+    for line in raw.lines() {
+        if !inserted && !line.trim().is_empty() && !line.trim().starts_with('#') {
+            for header_line in &extra {
+                out.push_str(header_line);
+                out.push('\n');
+            }
+            inserted = true;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    if !inserted {
+        for header_line in &extra {
+            out.push_str(header_line);
+            out.push('\n');
+        }
+        out.push_str(raw.trim_end());
+        out.push('\n');
+    }
+    std::fs::write(map_path, out)?;
+    Ok(())
 }
 
 fn independent_fields_from_validation(validation: &Value) -> (bool, bool, bool) {
@@ -1144,7 +1222,7 @@ fn build_release_tools() -> Result<()> {
             "-p",
             "nsb-data-tools",
             "--bin",
-            "build_starlight_map",
+            "build_integrated_starlight_product",
             "--bin",
             "validate_starlight_map",
             "--bin",
@@ -1207,7 +1285,7 @@ fn write_nside_review_template(
                 artifact_root,
                 &args
                     .output_dir
-                    .join(format!("nside{nside}/starlight_map.csv")),
+                    .join(format!("nside{nside}/{INTEGRATED_MEAN_FILE}")),
             ),
             sha256: summary.map_sha256.clone(),
         })
@@ -1561,6 +1639,8 @@ mod tests {
     fn fixture_args() -> Args {
         Args {
             input: Some(PathBuf::from("catalogue.csv")),
+            contributions_manifest: Some(PathBuf::from("contributions.toml")),
+            model_checksum: Some(format!("sha256:{}", "2".repeat(64))),
             output_dir: PathBuf::from("sweep"),
             reference: Some(PathBuf::from("reference.json")),
             catalog_checksum: Some(format!("sha256:{}", "1".repeat(64))),

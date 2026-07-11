@@ -1,6 +1,11 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use nsb::{StarlightMap, StarlightProvenance};
+use nsb_data_tools::starlight_integrated::{
+    convert_integrated_mean_to_runtime, detect_map_format, integrated_spectral_contract_pass,
+    is_xp_only_photometry_model, MapInputFormat, RUNTIME_RADIANCE_FIELD, XP_ONLY_PHOTOMETRY_MODEL,
+};
+use nsb_data_tools::starlight_science::{STARLIGHT_BAND_MAX_NM, STARLIGHT_BAND_MIN_NM};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -9,10 +14,6 @@ const SEAM_BAND_DEG: f64 = 15.0;
 const SEAM_CONTROL_MAX_DEG: f64 = 45.0;
 const LONGITUDE_WRAP_THRESHOLD: f64 = 10.0;
 const EPSILON: f64 = 1.0e-12;
-const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
-const GAIA_XP_BAND_MIN_NM: f64 = 336.0;
-const GAIA_XP_BAND_MAX_NM: f64 = 650.0;
-const GAIA_XP_BAND_DEFINITION: &str = "Gaia DR3 XP passband-integrated 336-650 nm photon radiance";
 
 /// Validate a generated starlight map and emit a machine-readable report.
 #[derive(Debug, Parser)]
@@ -135,6 +136,20 @@ struct BuildDiagnostics {
     integrated_flux_conservation_pass: Option<bool>,
 }
 
+#[derive(Debug, Deserialize)]
+struct IntegratedProductDiagnostics {
+    #[serde(default)]
+    unique_contribution_rows: Option<u64>,
+    #[serde(default)]
+    flux_accounting: Option<IntegratedFluxAccounting>,
+}
+
+#[derive(Debug, Deserialize)]
+struct IntegratedFluxAccounting {
+    input_total_300_650_ph_m2_s: Option<f64>,
+    conservation_pass: Option<bool>,
+}
+
 #[derive(Debug)]
 struct PlanePoleDiagnostics {
     pass: bool,
@@ -159,14 +174,32 @@ fn run(args: Args) -> Result<()> {
     let raw = std::fs::read_to_string(&args.input)
         .with_context(|| format!("failed to read map {}", args.input.display()))?;
     let header = parse_header_metadata(&raw);
-    let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture())?;
+    if header
+        .get("photometry_model")
+        .is_some_and(|model| is_xp_only_photometry_model(model))
+    {
+        bail!(
+            "XP-only map ({XP_ONLY_PHOTOMETRY_MODEL}) cannot be validated as the integrated 300-650 nm product"
+        );
+    }
+    let format = detect_map_format(&raw, &header)?;
+    let (map_raw, header) = match format {
+        MapInputFormat::IntegratedMean => {
+            let runtime = convert_integrated_mean_to_runtime(&raw, &header)?;
+            let runtime_header = parse_header_metadata(&runtime);
+            (runtime, runtime_header)
+        }
+        MapInputFormat::RuntimeHealpix => (raw, header),
+    };
+    let map = StarlightMap::from_csv_str(&map_raw, StarlightProvenance::test_fixture())?;
     let build_diagnostics = read_build_diagnostics(args.diagnostics.as_ref())?;
     let photometry_model = header.get("photometry_model").cloned();
     let band_definition = header.get("band_definition").cloned();
-    let spectral_contract_pass = photometry_model.as_deref() == Some(GAIA_XP_MODEL)
-        && band_definition
-            .as_deref()
-            .is_some_and(is_gaia_xp_band_definition);
+    let spectral_contract_pass = integrated_spectral_contract_pass(
+        photometry_model.as_deref(),
+        band_definition.as_deref(),
+        &header,
+    );
     let finite_nonnegative_pass = map.pixels().iter().all(|pixel| {
         pixel.integrated.value().is_finite()
             && pixel.integrated.value() >= 0.0
@@ -247,7 +280,7 @@ fn run(args: Args) -> Result<()> {
     if !independent_comparison_pass {
         limitations.push(match independent_comparison.as_ref() {
             Some(comparison) if !comparison.production_use => {
-                "comparison reference is explicitly non-production/provisional; a reviewed external 336-650 nm reference is release-blocking".to_string()
+                "comparison reference is explicitly non-production/provisional; a reviewed external 300-650 nm reference is release-blocking".to_string()
             }
             _ => "structured independent regional comparison is release-blocking and did not pass"
                 .to_string(),
@@ -255,8 +288,7 @@ fn run(args: Args) -> Result<()> {
     }
     if !spectral_contract_pass {
         limitations.push(format!(
-            "map metadata must declare photometry_model={GAIA_XP_MODEL} and the {}-{} nm band",
-            GAIA_XP_BAND_MIN_NM, GAIA_XP_BAND_MAX_NM
+            "map metadata must declare an integrated 300-650 nm photometry model and band (not {XP_ONLY_PHOTOMETRY_MODEL})"
         ));
     }
     if !plane_pole.pass {
@@ -286,7 +318,7 @@ fn run(args: Args) -> Result<()> {
         spectral_contract_pass,
         photometry_model,
         band_definition,
-        radiance_field: "integrated_ph_cm2_ns_sr",
+        radiance_field: RUNTIME_RADIANCE_FIELD,
         flux_conservation_pass,
         input_integrated_flux_sum_ph_cm2_ns: build_diagnostics
             .as_ref()
@@ -330,9 +362,23 @@ fn read_build_diagnostics(path: Option<&PathBuf>) -> Result<Option<BuildDiagnost
     };
     let raw = std::fs::read_to_string(path)
         .with_context(|| format!("failed to read diagnostics {}", path.display()))?;
-    let diagnostics: BuildDiagnostics =
+    if let Ok(diagnostics) = serde_json::from_str::<BuildDiagnostics>(&raw) {
+        if diagnostics.input_integrated_flux_sum_ph_cm2_ns.is_some() {
+            return Ok(Some(diagnostics));
+        }
+    }
+    let integrated: IntegratedProductDiagnostics =
         serde_json::from_str(&raw).context("failed to parse build diagnostics")?;
-    Ok(Some(diagnostics))
+    let flux = integrated.flux_accounting.as_ref();
+    Ok(Some(BuildDiagnostics {
+        sources_used: integrated
+            .unique_contribution_rows
+            .map(|rows| usize::try_from(rows).unwrap_or(usize::MAX)),
+        input_integrated_flux_sum_ph_cm2_ns: flux
+            .and_then(|accounting| accounting.input_total_300_650_ph_m2_s)
+            .map(|total| total * 1.0e-13),
+        integrated_flux_conservation_pass: flux.and_then(|accounting| accounting.conservation_pass),
+    }))
 }
 
 fn integrated_flux_conservation_pass(actual: f64, expected: f64, tolerance: f64) -> bool {
@@ -353,13 +399,6 @@ fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
         .filter_map(|line| line.trim().split_once('='))
         .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
         .collect()
-}
-
-fn is_gaia_xp_band_definition(value: &str) -> bool {
-    let normalized = value.replace(['–', '—'], "-");
-    normalized
-        .trim()
-        .eq_ignore_ascii_case(GAIA_XP_BAND_DEFINITION)
 }
 
 fn validate_longitude_wrap(map: &StarlightMap) -> LongitudeWrapDiagnostics {
@@ -457,11 +496,11 @@ fn validate_reference_schema(reference: &IndependentReference, path: String) -> 
     if reference.units.trim() != "ph cm-2 ns-1 sr-1" {
         bail!("independent validation reference units must be ph cm-2 ns-1 sr-1");
     }
-    if reference.band_nm[0].to_bits() != GAIA_XP_BAND_MIN_NM.to_bits()
-        || reference.band_nm[1].to_bits() != GAIA_XP_BAND_MAX_NM.to_bits()
+    if reference.band_nm[0].to_bits() != STARLIGHT_BAND_MIN_NM.to_bits()
+        || reference.band_nm[1].to_bits() != STARLIGHT_BAND_MAX_NM.to_bits()
     {
         bail!(
-            "independent validation reference band must be [{GAIA_XP_BAND_MIN_NM}, {GAIA_XP_BAND_MAX_NM}] nm"
+            "independent validation reference band must be [{STARLIGHT_BAND_MIN_NM}, {STARLIGHT_BAND_MAX_NM}] nm"
         );
     }
     if reference.regions.is_empty() {
@@ -893,7 +932,7 @@ mod tests {
             .as_array()
             .is_some_and(|limitations| limitations.iter().any(|value| value
                 .as_str()
-                .is_some_and(|text| text.contains("reviewed external 336-650 nm reference")))));
+                .is_some_and(|text| text.contains("reviewed external 300-650 nm reference")))));
         Ok(())
     }
 
@@ -925,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn independent_reference_must_match_336_650_band() -> Result<()> {
+    fn independent_reference_must_match_300_650_band() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let input = dir.path().join("map.csv");
         let reference = dir.path().join("reference.json");
@@ -933,7 +972,7 @@ mod tests {
         std::fs::write(&input, rectangular_map(1.0))?;
         std::fs::write(
             &reference,
-            reference_json(0.5, 2.0).replace("[336.0, 650.0]", "[335.0, 650.0]"),
+            reference_json(0.5, 2.0).replace("[300.0, 650.0]", "[335.0, 650.0]"),
         )?;
         let err = run(Args {
             input,
@@ -945,7 +984,25 @@ mod tests {
         .expect_err("reference for a different spectral band must fail closed");
         assert!(err
             .to_string()
-            .contains("reference band must be [336, 650] nm"));
+            .contains("reference band must be [300, 650] nm"));
+        Ok(())
+    }
+
+    #[test]
+    fn xp_only_map_is_rejected_as_integrated_product() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("map.csv");
+        let output = dir.path().join("validation.json");
+        std::fs::write(&input, xp_only_rectangular_map(1.0))?;
+        let err = run(Args {
+            input,
+            diagnostics: None,
+            reference: None,
+            output,
+            require_independent_comparison: false,
+        })
+        .expect_err("XP-only map must be rejected");
+        assert!(err.to_string().contains("XP-only map"));
         Ok(())
     }
 
@@ -1009,10 +1066,31 @@ mod tests {
         rectangular_map_with_bv(seam_value, seam_value, seam_value)
     }
 
-    fn rectangular_map_with_bv(seam_value: f64, b_s10: f64, v_s10: f64) -> String {
+    fn xp_only_rectangular_map(seam_value: f64) -> String {
         let mut raw = String::from(concat!(
             "# photometry_model=gaia_dr3_xp_photon_radiance_336_650nm_v1\n",
             "# band_definition=Gaia DR3 XP passband-integrated 336-650 nm photon radiance\n",
+            "galactic_lon_deg,galactic_lat_deg,solid_angle_sr,integrated_ph_cm2_ns_sr,b_s10,v_s10\n",
+        ));
+        for lat in [-70.0_f64, -10.0, 0.0, 10.0, 70.0] {
+            for lon in [0.0_f64, 10.0, 30.0, 330.0, 350.0] {
+                let value = if lon == 0.0 || lon == 350.0 {
+                    seam_value
+                } else if lat.abs() >= 60.0 {
+                    0.5
+                } else {
+                    1.0
+                };
+                raw.push_str(&format!("{lon},{lat},0.01,{value},0,0\n"));
+            }
+        }
+        raw
+    }
+
+    fn rectangular_map_with_bv(seam_value: f64, b_s10: f64, v_s10: f64) -> String {
+        let mut raw = String::from(concat!(
+            "# photometry_model=nsb_integrated_starlight_300_650nm_v1\n",
+            "# band_definition=exoatmospheric integrated 300-650 nm galactic direct starlight photon radiance\n",
             "galactic_lon_deg,galactic_lat_deg,solid_angle_sr,integrated_ph_cm2_ns_sr,b_s10,v_s10\n",
         ));
         for lat in [-70.0_f64, -10.0, 0.0, 10.0, 70.0] {
@@ -1053,7 +1131,7 @@ mod tests {
             r#"{{
   "schema_version": 1,
   "production_use": true,
-  "band_nm": [336.0, 650.0],
+  "band_nm": [300.0, 650.0],
   "units": "ph cm-2 ns-1 sr-1",
   "regions": [
     {{

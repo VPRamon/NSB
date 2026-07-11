@@ -51,6 +51,21 @@ name = "query_gaia_tap"
 path = "src/bin/query_gaia_tap.rs"
 doc = false
 
+[[bin]]
+name = "build_integrated_starlight_product"
+path = "src/bin/build_integrated_starlight_product.rs"
+doc = false
+
+[[bin]]
+name = "generate_starlight_sample_queries"
+path = "src/bin/generate_starlight_sample_queries.rs"
+doc = false
+
+[[bin]]
+name = "audit_gaia_starlight_exclusions"
+path = "src/bin/audit_gaia_starlight_exclusions.rs"
+doc = false
+
 [dependencies]
 anyhow = "1"
 chrono = "0.4"

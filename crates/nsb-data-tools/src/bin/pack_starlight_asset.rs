@@ -5,6 +5,9 @@ use nsb_data_tools::starlight_approval::{
     load_and_validate_approval, normalize_sha256, ApprovalArtifactType, ApprovalRequirements,
     StarlightApproval, VerifiedApproval, STARLIGHT_PRODUCTION_BAND_NM,
 };
+use nsb_data_tools::starlight_integrated::{
+    convert_integrated_mean_to_runtime, detect_map_format, MapInputFormat,
+};
 use serde::{Deserialize, Serialize};
 use siderust::checksum::{sha256, to_hex};
 use std::collections::BTreeMap;
@@ -189,7 +192,16 @@ fn run(args: Args) -> Result<()> {
 
     let raw_map = std::str::from_utf8(&map).context("map must be UTF-8 CSV")?;
     let mut header = parse_header_metadata(raw_map);
-    let map_input_sha256 = format!("sha256:{}", to_hex(&sha256(&map)));
+    let map_for_pack = match detect_map_format(raw_map, &header)? {
+        MapInputFormat::IntegratedMean => {
+            let runtime = convert_integrated_mean_to_runtime(raw_map, &header)?;
+            header = parse_header_metadata(&runtime);
+            runtime.into_bytes()
+        }
+        MapInputFormat::RuntimeHealpix => map.clone(),
+    };
+    ensure_integrated_runtime_header_defaults(&mut header);
+    let map_input_sha256 = format!("sha256:{}", to_hex(&sha256(&map_for_pack)));
     let approval_dag = if args.production {
         enforce_production_gates(
             &validation_summary,
@@ -227,7 +239,10 @@ fn run(args: Args) -> Result<()> {
         &validation_summary,
         approval_dag.as_ref().map(|dag| &dag.nside_evidence),
     )?;
-    let release_csv = rewrite_csv_with_header(raw_map, &header)?;
+    let release_csv = rewrite_csv_with_header(
+        std::str::from_utf8(&map_for_pack).context("converted map must be UTF-8")?,
+        &header,
+    )?;
 
     let map_sha256 = format!("sha256:{}", to_hex(&sha256(release_csv.as_bytes())));
     let manifest = RuntimeManifest {
@@ -424,8 +439,8 @@ fn validate_nside_review(
         bail!("--production requires nside sweep schema_version={NSIDE_SWEEP_SCHEMA_VERSION}");
     }
     if report.photometry_model != *required_header(header, "photometry_model")?
-        || report.band_nm[0].to_bits() != f64::from(STARLIGHT_PRODUCTION_BAND_NM[0]).to_bits()
-        || report.band_nm[1].to_bits() != f64::from(STARLIGHT_PRODUCTION_BAND_NM[1]).to_bits()
+        || report.band_nm[0].to_bits() != STARLIGHT_PRODUCTION_BAND_NM[0].to_bits()
+        || report.band_nm[1].to_bits() != STARLIGHT_PRODUCTION_BAND_NM[1].to_bits()
     {
         bail!("--production requires a map-compatible 300-650 nm nside sweep report");
     }
@@ -714,6 +729,76 @@ fn complete_runtime_header(
         required_header(header, required)?;
     }
     Ok(())
+}
+
+fn ensure_integrated_runtime_header_defaults(header: &mut BTreeMap<String, String>) {
+    use nsb_data_tools::starlight_integrated::INTEGRATED_BAND_DEFINITION;
+    set_default(header, "map_type", "healpix");
+    set_default(header, "coordinate_frame", "galactic");
+    set_default(
+        header,
+        "dataset_name",
+        "NSB Gaia DR3 integrated starlight map",
+    );
+    set_default(header, "version", "v1");
+    set_default(header, "source_catalogue", "Gaia");
+    set_default(header, "source_catalogue_release", "DR3");
+    set_default(
+        header,
+        "source_selection",
+        "integrated Gaia DR3 starlight contributions",
+    );
+    set_default(
+        header,
+        "magnitude_limit",
+        "Gaia DR3 release input selection",
+    );
+    set_default(header, "smoothing", "none");
+    set_default(
+        header,
+        "generated_by",
+        "nsb-data-tools build_integrated_starlight_product",
+    );
+    set_default(
+        header,
+        "generation_command",
+        "build_integrated_starlight_product",
+    );
+    set_default(
+        header,
+        "photometry_model",
+        nsb_data_tools::starlight_integrated::INTEGRATED_PHOTOMETRY_MODEL,
+    );
+    set_default(header, "band_definition", INTEGRATED_BAND_DEFINITION);
+    if !header.contains_key("generation_date_utc") {
+        header.insert(
+            "generation_date_utc".to_string(),
+            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        );
+    }
+    if !header.contains_key("source_catalogue_license") {
+        header.insert(
+            "source_catalogue_license".to_string(),
+            "pending redistribution review".to_string(),
+        );
+    }
+    if !header.contains_key("source_catalogue_checksum") {
+        header.insert(
+            "source_catalogue_checksum".to_string(),
+            "pending canonical catalogue checksum".to_string(),
+        );
+    }
+    if let Some(nside) = header.get("nside").cloned() {
+        let ordering = header
+            .get("ordering")
+            .cloned()
+            .unwrap_or_else(|| "ring".to_string());
+        set_default(
+            header,
+            "map_resolution",
+            &format!("HEALPix nside={nside} ordering={ordering}"),
+        );
+    }
 }
 
 fn set_default(header: &mut BTreeMap<String, String>, key: &str, value: &str) {
