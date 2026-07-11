@@ -64,10 +64,14 @@ def write_normalized_csv(
     part.replace(output_path)
 
 
+def source_id_from_stem(stem: str) -> str:
+    return stem.removeprefix("xp_source_")
+
+
 def reconstruct_one(coefficient_path: Path, output_path: Path) -> dict:
     if output_path.exists():
         return {
-            "source_id": coefficient_path.stem,
+            "source_id": source_id_from_stem(coefficient_path.stem),
             "status": "skipped_existing",
             "output_sha256": sha256_file(output_path),
         }
@@ -115,7 +119,8 @@ def main() -> None:
 
     entries = []
     for coefficient_path in coefficient_paths:
-        output_path = args.output_dir / f"{coefficient_path.stem}.csv"
+        source_id = source_id_from_stem(coefficient_path.stem)
+        output_path = args.output_dir / f"{source_id}.csv"
         entries.append(reconstruct_one(coefficient_path, output_path))
 
     manifest = {

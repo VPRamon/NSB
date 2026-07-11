@@ -5,11 +5,11 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use csv::ReaderBuilder;
 use nsb_data_tools::gaia_xp::integrate_photon_flux;
-use nsb_data_tools::gaia_xp_continuous::{
-    integrate_reconstructed_csv, PHOTOMETRY_MODEL, PINNED_GAIA_XPY_VERSION,
-};
 use nsb_data_tools::gaia_xp::{
     parse_gaia_datalink_array_csv, parse_gaia_datalink_csv, BAND_MAX_NM, BAND_MIN_NM,
+};
+use nsb_data_tools::gaia_xp_continuous::{
+    integrate_reconstructed_csv, PHOTOMETRY_MODEL, PINNED_GAIA_XPY_VERSION,
 };
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -173,7 +173,10 @@ fn main() -> Result<()> {
         });
     }
 
-    let relative_errors: Vec<f64> = comparisons.iter().map(|entry| entry.relative_error).collect();
+    let relative_errors: Vec<f64> = comparisons
+        .iter()
+        .map(|entry| entry.relative_error)
+        .collect();
     let mut g_mag_errors: BTreeMap<String, Vec<f64>> = BTreeMap::new();
     let mut colour_errors: BTreeMap<String, Vec<f64>> = BTreeMap::new();
     for entry in &comparisons {
