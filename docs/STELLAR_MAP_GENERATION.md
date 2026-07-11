@@ -162,7 +162,39 @@ Processing is streaming and fuses bulk SHA-256 verification with parsing so the
 inventory is not read twice.
 
 The normalized DataLink fallback (`--input`) remains for controlled validation or
-repair. It stores semicolon-separated explicit wavelength series per source.
+resumable retrieval when the bulk inventory is unavailable.
+
+### Nside sweep: candidate vs production
+
+`sweep_starlight_nside` writes `summary.json` schema version 2 with separate
+fields:
+
+- `recommended_candidate_nside` — highest `nside` passing internal science and
+  operational gates;
+- `candidate_recommendation_passed` — automated candidate selection succeeded;
+- `production_ready` — all production gates, including reviewed external
+  reference and policy attestations;
+- `production_blockers` — explicit reasons production remains blocked.
+
+Regional independent comparison (`independent_regions_pass`) is separated from
+reference approval (`independent_reference_production_use`). A provisional
+internal envelope may therefore support candidate `nside` selection while
+`production_ready` remains false.
+
+Reassess persisted sweep directories without rebuilding maps:
+
+```bash
+cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
+  --output-dir "$HOME/nsb-data/starlight-gaia-release/sweep" \
+  --assess-existing
+```
+
+Catalogue checksum verification during map builds uses streaming SHA-256; the
+4.7 GiB canonical catalogue is not loaded entirely into memory.
+
+The normalized DataLink fallback (`--input`) remains for controlled validation,
+repair, or resumable retrieval when the bulk inventory is unavailable. It stores
+semicolon-separated explicit wavelength series per source.
 
 ```bash
 cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \

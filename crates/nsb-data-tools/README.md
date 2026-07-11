@@ -19,7 +19,9 @@ Offline, non-runtime tools for scientific data products.
   It supports both the legacy proxy B/V input and Gaia passband photon-flux
   source tables.
 - `sweep_starlight_nside`: runs candidate map builds for multiple HEALPix
-  resolutions and writes a summary used to choose the final bundled resolution.
+  resolutions, writes `summary.json` schema v2 with separate candidate and
+  production gates, and supports `--assess-existing` to reevaluate persisted
+  sweep artefacts without rebuilding maps.
 - `validate_starlight_map`: emits a validation report for generated maps.
 - `pack_starlight_asset`: writes a raw release HEALPix CSV and runtime TOML
   manifest for a derived bundled asset candidate or production asset.
@@ -109,8 +111,79 @@ cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
   --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
   --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
   --band-min-nm 336 \
-  --band-max-nm 650
+  --band-max-nm 650 \
+  --exclusions-output target/starlight-release/gaia_dr3_starlight_exclusions.csv
 ```
+
+Scientific exclusions (non-positive passband integrals) are written to a
+deterministic CSV sidecar with `source_id`, signed integral diagnostics, and
+sample counts. Production runs require `--exclusions-output` when exclusions
+exist. To regenerate only the sidecar from the official bulk inventory without
+rewriting the canonical catalogue:
+
+```bash
+cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --bulk-dir "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_xp_sampled_bulk" \
+  --exclusions-only \
+  --exclusions-output "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_starlight_exclusions.csv" \
+  --diagnostics-output "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_starlight_exclusions.diagnostics.json" \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY"
+```
+
+The validated canonical catalogue for the 2026-07-11 release run must not be
+regenerated unnecessarily. Its streaming SHA-256 is:
+
+```text
+1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30
+```
+
+## Gaia DR3 nside sweep and reassessment
+
+Candidate recommendation and production promotion are separate. A provisional
+independent reference (`production_use: false` in
+`validation/starlight_independent_reference_v1.json`) may still support
+selecting the highest `nside` that passes internal science and operational
+gates, but production remains blocked until reviewed external reference,
+missing-flux assessment, and redistribution policy gates are satisfied.
+
+Full sweep (rebuilds maps):
+
+```bash
+cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
+  --input "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_starlight_sources.csv" \
+  --output-dir "$HOME/nsb-data/starlight-gaia-release/sweep" \
+  --reference validation/starlight_independent_reference_v1.json \
+  --catalog-checksum "sha256:1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30" \
+  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
+  --generation-date-utc "2026-07-11T14:02:43Z"
+```
+
+Reassess existing artefacts without rereading the 4.7 GiB catalogue or
+rebuilding maps:
+
+```bash
+cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
+  --output-dir "$HOME/nsb-data/starlight-gaia-release/sweep" \
+  --assess-existing
+```
+
+Observed 2026-07-11 reassessment:
+
+```text
+recommended_candidate_nside = 256
+candidate_recommendation_passed = true
+production_ready = false
+production_blockers:
+  independent_reference_not_approved_for_production
+  missing_flux_report_not_approved
+  redistribution_policy_not_approved
+```
+
+Use `--require-production-ready` only when an automated production promotion
+is intended; the default candidate assessment exits successfully when a
+candidate recommendation exists even if production is blocked.
 
 After generation, source the env file and run the remaining pipeline:
 

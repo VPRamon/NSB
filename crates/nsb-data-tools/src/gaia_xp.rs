@@ -18,12 +18,19 @@ use serde::{Deserialize, Serialize};
 use siderust::qtty::{Meter, Nanometers};
 use std::path::Path;
 
+/// Lower bound of the NSB Gaia XP integration band, nm.
 pub const BAND_MIN_NM: f64 = 336.0;
+/// Upper bound of the NSB Gaia XP integration band, nm.
 pub const BAND_MAX_NM: f64 = 650.0;
+/// Stable photometry-model identifier recorded in canonical outputs.
 pub const PHOTOMETRY_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
+/// Canonical CSV column name for passband-integrated photon flux.
 pub const PHOTON_FLUX_COLUMN: &str = "photon_flux_336_650_ph_m2_s";
+/// Normalized DataLink wavelength column name.
 pub const NORMALIZED_WAVELENGTH_COLUMN: &str = "xp_wavelength_nm";
+/// Normalized DataLink flux column name.
 pub const NORMALIZED_FLUX_COLUMN: &str = "xp_flux_w_m2_nm";
+/// Normalized DataLink flux-error column name.
 pub const NORMALIZED_FLUX_ERROR_COLUMN: &str = "xp_flux_error_w_m2_nm";
 
 /// First wavelength of the official XP sampled grid, nm.
@@ -44,26 +51,40 @@ type JouleSeconds = Quantity<unit::Prod<unit::Joule, unit::Second>>;
 /// Planck constant, exact in the 2019 SI definition.
 const PLANCK_CONSTANT: JouleSeconds = JouleSeconds::new(6.626_070_15e-34);
 
+/// Parsed Gaia XP spectrum for one source.
 #[derive(Debug, Clone, PartialEq)]
 pub struct XpProduct {
+    /// Gaia `source_id` as a decimal string.
     pub source_id: String,
+    /// Sample wavelengths in nanometres.
     pub wavelengths_nm: Vec<f64>,
+    /// Spectral flux samples in W m⁻² nm⁻¹.
     pub flux_w_m2_nm: Vec<f64>,
+    /// Optional per-sample flux errors in W m⁻² nm⁻¹.
     pub flux_error_w_m2_nm: Option<Vec<f64>>,
 }
 
+/// Passband-integrated photon flux and diagnostic counters for one source.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub struct PhotonFluxIntegral {
+    /// Signed passband integral in photons m⁻² s⁻¹.
     pub total_ph_m2_s: f64,
+    /// Positive sample contribution to the integral.
     pub positive_ph_m2_s: f64,
+    /// Negative sample contribution to the integral.
     pub negative_ph_m2_s: f64,
+    /// Ratio of negative to positive contributions.
     pub negative_contribution_ratio: f64,
+    /// Propagated integral uncertainty when per-sample errors are present.
     pub uncertainty_ph_m2_s: Option<f64>,
+    /// Number of negative flux samples inside the band.
     pub negative_samples: usize,
+    /// Number of flux samples inside the band.
     pub band_samples: usize,
 }
 
 impl PhotonFluxIntegral {
+    /// Fraction of in-band samples with negative flux.
     pub fn negative_sample_fraction(self) -> f64 {
         if self.band_samples == 0 {
             0.0
@@ -73,6 +94,7 @@ impl PhotonFluxIntegral {
     }
 }
 
+/// Detect common Gaia DataLink service-error markers in a raw HTTP response body.
 pub fn contains_service_error(bytes: &[u8]) -> bool {
     let text = String::from_utf8_lossy(bytes).to_ascii_lowercase();
     [
@@ -85,6 +107,7 @@ pub fn contains_service_error(bytes: &[u8]) -> bool {
     .any(|marker| text.contains(marker))
 }
 
+/// Parse a Gaia DataLink `XP_SAMPLED` CSV payload for one expected `source_id`.
 pub fn parse_gaia_datalink_csv(bytes: &[u8], expected_source_id: &str) -> Result<XpProduct> {
     if bytes.is_empty() {
         bail!("empty Gaia DataLink response");
@@ -128,6 +151,7 @@ pub fn parse_gaia_datalink_csv(bytes: &[u8], expected_source_id: &str) -> Result
     Ok(product)
 }
 
+/// Parse one normalized, one-row-per-source Gaia XP CSV record.
 pub fn parse_normalized_record(headers: &StringRecord, row: &StringRecord) -> Result<XpProduct> {
     let source = required_header(headers, "source_id")?;
     let wavelength = required_header(headers, NORMALIZED_WAVELENGTH_COLUMN)?;
@@ -226,6 +250,7 @@ pub fn parse_gaia_sampled_array_into(
     Ok(())
 }
 
+/// Parse an official Gaia XP sampled bulk array field into a new `Vec`.
 pub fn parse_gaia_sampled_array(
     raw: &str,
     field: &str,
@@ -237,6 +262,7 @@ pub fn parse_gaia_sampled_array(
     Ok(out)
 }
 
+/// Validate structural invariants of a parsed XP product.
 pub fn validate_product(product: &XpProduct) -> Result<()> {
     if product.source_id.trim().is_empty() {
         bail!("empty Gaia XP source_id");
@@ -545,6 +571,7 @@ fn accumulate_signed_linear_segment(
     }
 }
 
+/// Format a bracketed CSV floating-point series for normalized Gaia inputs.
 pub fn format_series(values: &[f64], scientific: bool) -> String {
     values
         .iter()
@@ -559,6 +586,7 @@ pub fn format_series(values: &[f64], scientific: bool) -> String {
         .join(";")
 }
 
+/// Parse a bracketed CSV floating-point series from normalized Gaia inputs.
 pub fn parse_series(raw: &str) -> Result<Vec<f64>> {
     if raw.trim().is_empty() {
         return Ok(Vec::new());

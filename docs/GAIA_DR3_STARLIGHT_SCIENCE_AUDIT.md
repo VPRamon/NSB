@@ -207,3 +207,37 @@ selected_sources
 
 Parse errors, missing files, duplicate IDs, partial files and unexpected
 rejections are never scientific exclusions and always block production.
+
+## 2026-07-11 release-run accounting
+
+Official bulk inventory:
+
+```text
+Gaia XP sampled bulk files:       3,386
+Input sources:                    34,468,373
+Accepted canonical sources:       34,468,363
+Scientific exclusions:            10
+Unexpected rejections:            0
+Canonical catalogue SHA-256:
+  1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30
+```
+
+Scientific exclusions are recorded in a CSV sidecar
+(`--exclusions-output`) with per-`source_id` signed integral diagnostics.
+Regenerate only the sidecar with `--exclusions-only` when the canonical
+catalogue must not be rewritten.
+
+Nside sweep reassessment (`summary.json` schema v2) on persisted artefacts:
+
+```text
+recommended_candidate_nside:      256
+candidate_recommendation_passed:  true
+production_ready:                 false
+smoothing required at nside 256:    no
+```
+
+Production blockers remain: provisional independent reference
+(`production_use: false`), missing-flux report not approved, redistribution
+policy not approved. Candidate recommendation previously required
+`production_ready`, which made selection impossible with the explicitly
+provisional reference even when every internal gate passed.
