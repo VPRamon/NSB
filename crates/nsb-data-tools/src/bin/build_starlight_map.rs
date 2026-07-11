@@ -990,7 +990,7 @@ mod tests {
         let expected_v = flux_10mag_units(ApparentMagnitude::new(10.0)?);
         let expected_integrated = expected_v * S10_V_TO_INTEGRATED_PH_CM2_NS_SR;
         let pixel_area_deg2 =
-            map.pixels()[0].solid_angle_sr * (180.0 / std::f64::consts::PI).powi(2);
+            map.pixels()[0].solid_angle.value() * (180.0 / std::f64::consts::PI).powi(2);
         let total_v: f64 = map
             .pixels()
             .iter()

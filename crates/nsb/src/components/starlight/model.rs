@@ -7,6 +7,7 @@ use super::validated::ValidatedStarlightMap;
 use crate::assets::asset_registry;
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
+use crate::units::ScaleFactors;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
 
@@ -27,7 +28,7 @@ include!(concat!(env!("OUT_DIR"), "/bundled_starlight_assets.rs"));
 /// Directional starlight evaluator backed by one immutable map.
 pub struct Starlight {
     map: StarlightMap,
-    scale: f64,
+    scale: ScaleFactors,
 }
 
 impl Starlight {
@@ -82,18 +83,21 @@ impl Starlight {
 
     /// Build from a caller-provided validated map.
     pub fn with_map(map: StarlightMap) -> Self {
-        Self { map, scale: 1.0 }
+        Self {
+            map,
+            scale: ScaleFactors::new(1.0),
+        }
     }
 
     /// Apply a non-negative multiplicative radiance scale.
-    pub fn with_scale(mut self, scale: f64) -> Self {
+    pub fn with_scale(mut self, scale: ScaleFactors) -> Self {
         self.scale = scale;
         self
     }
 
     /// Transform a target to Galactic coordinates and evaluate the map.
     pub fn compute(&self, target: Target) -> Result<StarlightOutputs> {
-        if !self.scale.is_finite() || self.scale < 0.0 {
+        if !self.scale.is_finite() || self.scale < ScaleFactors::new(0.0) {
             return Err(NsbError::OutOfRange(
                 "starlight scale must be finite and non-negative".to_string(),
             ));

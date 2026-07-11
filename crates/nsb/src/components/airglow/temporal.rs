@@ -4,14 +4,15 @@ use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
+use siderust::qtty::Days;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate, TT};
 #[cfg(test)]
 use std::cell::Cell;
 use tempoch::{Time, MJD, UTC};
 
-pub(crate) const ASTRONOMICAL_TWILIGHT_DEG: f64 = -18.0;
-const INITIAL_NIGHT_SEARCH_RADIUS_DAYS: f64 = 2.0;
-const MAX_NIGHT_SEARCH_RADIUS_DAYS: f64 = 200.0;
+pub(crate) const ASTRONOMICAL_TWILIGHT: Degrees = Degrees::new(-18.0);
+const INITIAL_NIGHT_SEARCH_RADIUS: Days = Days::new(2.0);
+const MAX_NIGHT_SEARCH_RADIUS: Days = Days::new(200.0);
 const NIGHT_SEARCH_EXPANSION_FACTOR: f64 = 4.0;
 
 #[derive(Debug, Clone, Copy)]
@@ -65,7 +66,7 @@ pub(crate) fn time_of_night_bin(time: Time<UTC>, location: Geodetic<ECEF>) -> Op
 }
 
 pub(crate) fn is_astronomical_twilight(threshold: Degrees) -> bool {
-    (threshold.value() - ASTRONOMICAL_TWILIGHT_DEG).abs() <= f64::EPSILON
+    (threshold - ASTRONOMICAL_TWILIGHT).abs() <= Degrees::new(f64::EPSILON)
 }
 
 pub(crate) fn astronomical_nights_for_window(
@@ -76,12 +77,12 @@ pub(crate) fn astronomical_nights_for_window(
         return Vec::new();
     }
 
-    let search_window = expand_window(window, MAX_NIGHT_SEARCH_RADIUS_DAYS);
+    let search_window = expand_window(window, MAX_NIGHT_SEARCH_RADIUS);
     SunBody
         .below_threshold(
             &location,
             search_window,
-            Degrees::new(ASTRONOMICAL_TWILIGHT_DEG),
+            ASTRONOMICAL_TWILIGHT,
             SearchOpts::default(),
         )
         .into_iter()
@@ -202,19 +203,19 @@ fn astronomical_night_containing(
         );
     });
 
-    let mut radius_days = INITIAL_NIGHT_SEARCH_RADIUS_DAYS;
+    let mut radius = INITIAL_NIGHT_SEARCH_RADIUS;
 
     loop {
         let search_window = TimePeriod::new(
-            ModifiedJulianDate::new(time_tt.raw().value() - radius_days),
-            ModifiedJulianDate::new(time_tt.raw().value() + radius_days),
+            ModifiedJulianDate::new(time_tt.raw().value() - radius.value()),
+            ModifiedJulianDate::new(time_tt.raw().value() + radius.value()),
         );
 
         let night = SunBody
             .below_threshold(
                 &location,
                 search_window,
-                Degrees::new(ASTRONOMICAL_TWILIGHT_DEG),
+                ASTRONOMICAL_TWILIGHT,
                 SearchOpts::default(),
             )
             .into_iter()
@@ -227,25 +228,24 @@ fn astronomical_night_containing(
             });
         }
 
-        if radius_days >= MAX_NIGHT_SEARCH_RADIUS_DAYS {
+        if radius >= MAX_NIGHT_SEARCH_RADIUS {
             return Some(AstronomicalNightPeriod {
                 period: night,
                 phase_bounded: false,
             });
         }
 
-        radius_days =
-            (radius_days * NIGHT_SEARCH_EXPANSION_FACTOR).min(MAX_NIGHT_SEARCH_RADIUS_DAYS);
+        radius = (radius * NIGHT_SEARCH_EXPANSION_FACTOR).min(MAX_NIGHT_SEARCH_RADIUS);
     }
 }
 
 fn expand_window(
     window: TimePeriod<ModifiedJulianDate>,
-    radius_days: f64,
+    radius: Days,
 ) -> TimePeriod<ModifiedJulianDate> {
     TimePeriod::new(
-        ModifiedJulianDate::new(window.start.raw().value() - radius_days),
-        ModifiedJulianDate::new(window.end.raw().value() + radius_days),
+        ModifiedJulianDate::new(window.start.raw().value() - radius.value()),
+        ModifiedJulianDate::new(window.end.raw().value() + radius.value()),
     )
 }
 

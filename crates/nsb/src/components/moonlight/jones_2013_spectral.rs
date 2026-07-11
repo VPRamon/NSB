@@ -1,11 +1,13 @@
 use super::*;
+use crate::units::s10_for_spectral_photon_radiance;
+use crate::units::ScaleFactors;
 use qtty::Second;
 
 /// Wavelength-resolved Jones et al. (2013) scattered-moonlight evaluator.
 pub struct Jones2013Spectral {
     location: Geodetic<ECEF>,
     conditions: AtmosphericConditions,
-    extinction_scale: Option<f64>,
+    extinction_scale: Option<ScaleFactors>,
 }
 
 impl Jones2013Spectral {
@@ -27,8 +29,8 @@ impl Jones2013Spectral {
     }
 
     /// Override the default extinction coefficient by relative scaling.
-    pub fn with_extinction_scale(mut self, k_ext: f64) -> Self {
-        self.extinction_scale = Some(k_ext / DEFAULT_K_EXT);
+    pub fn with_extinction_scale(mut self, k_ext: MagnitudesPerAirmass) -> Self {
+        self.extinction_scale = Some(ScaleFactors::new(k_ext.value() / DEFAULT_K_EXT.value()));
         self
     }
 
@@ -42,7 +44,7 @@ impl Jones2013Spectral {
         compute_jones_2013_spectral(
             &geometry,
             bundled_solar_samples(),
-            self.extinction_scale.unwrap_or(1.0),
+            self.extinction_scale.unwrap_or(ScaleFactors::new(1.0)),
             self.atmosphere_profile(),
         )
     }
@@ -85,7 +87,7 @@ impl Jones2013Spectral {
 fn compute_jones_2013_spectral(
     inp: &MoonlightGeometry,
     solar_samples: &[(f64, f64)],
-    tau_scale: f64,
+    tau_scale: ScaleFactors,
     profile: AtmosphereProfile,
 ) -> Result<MoonOutputs> {
     if !inp.moon_zenith.is_finite()
@@ -110,11 +112,12 @@ fn compute_jones_2013_spectral(
     let correction = correction_grid();
     let am_moon = airmass::<KrisciunasSchaeferAirmass>(inp.moon_zenith.to::<Radian>());
     let am_src = airmass::<KrisciunasSchaeferAirmass>(inp.source_zenith.to::<Radian>());
+    let tau_scale = tau_scale.value();
 
     let mut lam = Vec::new();
     let mut density = Vec::new();
     for &(lambda_nm, solar_irradiance) in solar_samples {
-        if !(WL_LOW_NM..=WL_HIGH_NM).contains(&lambda_nm) {
+        if !(WL_LOW.value()..=WL_HIGH.value()).contains(&lambda_nm) {
             continue;
         }
         let wavelength = Nanometers::new(lambda_nm);
@@ -130,8 +133,7 @@ fn compute_jones_2013_spectral(
         let lunar_ph = spectral_radiance_to_photon_radiance_ns_nm(
             WattsPerSquareMeterSteradianNanometer::new(lunar_radiance.value()),
             wavelength,
-        )
-        .value();
+        );
         let tau_r = rayleigh_optical_depth_bodhaine99(
             wavelength,
             profile.surface_pressure,
@@ -149,7 +151,7 @@ fn compute_jones_2013_spectral(
         let scatter = (tau_r * phase_r + tau_m * JONES_MIE_WEIGHT * phase_m).max(0.0);
         let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon_v + am_src_v)).exp();
         let source_path = 1.0 - (-(tau_r + tau_m) * am_src_v).exp();
-        let value = lunar_ph * scatter * transmission * source_path.max(0.0) * multi;
+        let value = (lunar_ph * scatter * transmission * source_path.max(0.0) * multi).value();
         if value.is_finite() && value > 0.0 {
             lam.push(lambda_nm);
             density.push(value);
@@ -160,16 +162,32 @@ fn compute_jones_2013_spectral(
         return Ok(zero_outputs());
     }
 
-    let integrated = algo::trapz_range(&lam, &density, WL_LOW_NM, WL_HIGH_NM);
-    let b_density = algo::interp_linear(&lam, &density, B_FILTER_NM, OutOfRange::ClampToEndpoints)
-        .unwrap_or(0.0);
-    let v_density = algo::interp_linear(&lam, &density, V_FILTER_NM, OutOfRange::ClampToEndpoints)
-        .unwrap_or(0.0);
+    let integrated = algo::trapz_range(&lam, &density, WL_LOW.value(), WL_HIGH.value());
+    let b_density = algo::interp_linear(
+        &lam,
+        &density,
+        B_FILTER.value(),
+        OutOfRange::ClampToEndpoints,
+    )
+    .unwrap_or(0.0);
+    let v_density = algo::interp_linear(
+        &lam,
+        &density,
+        V_FILTER.value(),
+        OutOfRange::ClampToEndpoints,
+    )
+    .unwrap_or(0.0);
 
     Ok(MoonOutputs {
         integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(integrated),
-        b_flux_s10: spectral_photon_density_to_s10(b_density, Nanometers::new(B_FILTER_NM)),
-        v_flux_s10: spectral_photon_density_to_s10(v_density, Nanometers::new(V_FILTER_NM)),
+        b_flux_s10: s10_for_spectral_photon_radiance(
+            SpectralBandPhotonRadiance::new(b_density),
+            B_FILTER,
+        ),
+        v_flux_s10: s10_for_spectral_photon_radiance(
+            SpectralBandPhotonRadiance::new(v_density),
+            V_FILTER,
+        ),
     })
 }
 
@@ -196,14 +214,6 @@ fn bundled_solar_samples() -> &'static Vec<(f64, f64)> {
             .zip(solar.ys_raw().iter().copied())
             .collect()
     })
-}
-
-fn spectral_photon_density_to_s10(density: f64, wavelength: Nanometers) -> radiometry::S10s {
-    let lambda_m = wavelength.value() * 1.0e-9;
-    let photon_energy = HC_JOULE_METER / lambda_m;
-    let w_m2_sr_nm = density * 1.0e13 * photon_energy;
-    let w_m2_sr_um = w_m2_sr_nm * 1.0e3;
-    radiometry::S10s::new(w_m2_sr_um / S10_TO_W_M2_SR_UM)
 }
 
 #[cfg(test)]

@@ -3,9 +3,11 @@ use super::photometry::bilinear_outputs;
 use super::provenance::StarlightProvenance;
 use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
+use crate::units::PixelIntegratedPhotonFlux;
 use csv::{ReaderBuilder, StringRecord};
 use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use qtty::solid_angle::Steradians;
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
 use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
@@ -22,7 +24,7 @@ pub struct StarlightPixel {
     /// Galactic latitude of the sample centre.
     pub galactic_lat: Degrees,
     /// Pixel solid angle in steradians.
-    pub solid_angle_sr: f64,
+    pub solid_angle: Steradians,
     /// Integrated 300–650 nm photon radiance.
     pub integrated: BandPhotonRadiance,
     /// B-reference S10 diagnostic.
@@ -36,7 +38,7 @@ impl StarlightPixel {
     pub fn new(
         galactic_lon: Degrees,
         galactic_lat: Degrees,
-        solid_angle_sr: f64,
+        solid_angle: Steradians,
         integrated: BandPhotonRadiance,
         b_flux_s10: S10s,
         v_flux_s10: S10s,
@@ -44,7 +46,7 @@ impl StarlightPixel {
         Self {
             galactic_lon,
             galactic_lat,
-            solid_angle_sr,
+            solid_angle,
             integrated,
             b_flux_s10,
             v_flux_s10,
@@ -72,7 +74,7 @@ impl StarlightPixel {
                 self.galactic_lat.value()
             )));
         }
-        if !self.solid_angle_sr.is_finite() || self.solid_angle_sr <= 0.0 {
+        if !self.solid_angle.is_finite() || self.solid_angle <= Steradians::new(0.0) {
             return Err(invalid_map(
                 "pixel solid_angle_sr must be finite and positive",
             ));
@@ -254,7 +256,11 @@ impl StarlightMap {
         let flux_conservation_recomputed = if let (Some(expected), Some(tolerance)) =
             (input_integrated_flux_sum, integrated_flux_tolerance)
         {
-            validate_integrated_flux_conservation(pixels, expected, tolerance)?;
+            validate_integrated_flux_conservation(
+                pixels,
+                PixelIntegratedPhotonFlux::new(expected),
+                tolerance,
+            )?;
             true
         } else if input_b_flux_sum.is_some()
             || input_v_flux_sum.is_some()
@@ -327,7 +333,7 @@ impl StarlightMap {
             pixels.push(StarlightPixel::new(
                 Degrees::new(parse(0, "galactic_lon_deg")?),
                 Degrees::new(parse(1, "galactic_lat_deg")?),
-                parse(2, "solid_angle_sr")?,
+                Steradians::new(parse(2, "solid_angle_sr")?),
                 BandPhotonRadiance::new(parse(3, "integrated_ph_cm2_ns_sr")?),
                 S10s::new(parse(4, "b_s10")?),
                 S10s::new(parse(5, "v_s10")?),
@@ -409,7 +415,7 @@ impl StarlightMap {
             let pixel = StarlightPixel::new(
                 Degrees::new(lon),
                 Degrees::new(lat),
-                grid.pixel_area_sr(),
+                Steradians::new(grid.pixel_area_sr()),
                 BandPhotonRadiance::new(parse_record_f64(
                     &record,
                     1,
@@ -522,10 +528,10 @@ fn validate_integrated_values(pixels: &[StarlightPixel]) -> Result<()> {
 
 fn validate_integrated_flux_conservation(
     pixels: &[StarlightPixel],
-    expected_flux: f64,
+    expected_flux: PixelIntegratedPhotonFlux,
     tolerance: f64,
 ) -> Result<()> {
-    if !expected_flux.is_finite() || expected_flux < 0.0 {
+    if !expected_flux.is_finite() || expected_flux < PixelIntegratedPhotonFlux::new(0.0) {
         return Err(invalid_map(
             "input_integrated_flux_sum must be finite and non-negative",
         ));
@@ -535,15 +541,20 @@ fn validate_integrated_flux_conservation(
             "integrated_flux_conservation_tolerance must be finite and non-negative",
         ));
     }
-    let actual_flux = pixels
+    let actual_flux: PixelIntegratedPhotonFlux = pixels
         .iter()
-        .map(|pixel| pixel.integrated.value() * pixel.solid_angle_sr)
-        .sum::<f64>();
-    let scale = expected_flux.abs().max(actual_flux.abs()).max(1.0);
-    let relative_error = (actual_flux - expected_flux).abs() / scale;
+        .map(|pixel| pixel.integrated * pixel.solid_angle)
+        .sum();
+    let scale = expected_flux
+        .abs()
+        .max(actual_flux.abs())
+        .max(PixelIntegratedPhotonFlux::new(1.0));
+    let relative_error = (actual_flux - expected_flux).abs().value() / scale.value();
     if relative_error > tolerance {
         return Err(invalid_map(format!(
-            "integrated flux-conservation validation failed: expected {expected_flux}, actual {actual_flux}, relative error {relative_error}, tolerance {tolerance}"
+            "integrated flux-conservation validation failed: expected {}, actual {}, relative error {relative_error}, tolerance {tolerance}",
+            expected_flux.value(),
+            actual_flux.value()
         )));
     }
     Ok(())

@@ -260,9 +260,9 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
 fn band_diagnostic_json(diagnostic: BandDiagnostic) -> BandDiagnosticJson {
     BandDiagnosticJson {
         convention: diagnostic.convention,
-        b_reference_nm: diagnostic.b_reference_nm,
-        v_reference_nm: diagnostic.v_reference_nm,
-        zero_point: diagnostic.zero_point,
+        b_reference_nm: diagnostic.b_reference.value(),
+        v_reference_nm: diagnostic.v_reference.value(),
+        zero_point: diagnostic.zero_point.value(),
         interpretation: "diagnostic monochromatic S10 proxy; not a validated passband integration",
     }
 }

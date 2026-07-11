@@ -122,7 +122,7 @@ fn scale_changes_result() {
         .unwrap();
     let scaled = Airglow::standard_clear_sky(location)
         .unwrap()
-        .with_scale(2.0)
+        .with_scale(crate::ScaleFactors::new(2.0))
         .compute(time, target)
         .unwrap();
 
@@ -146,7 +146,7 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
         .compute(time, target)
         .unwrap();
 
-    assert_eq!(profile.airglow.scale, 1.0);
+    assert_eq!(profile.airglow.scale, crate::ScaleFactors::new(1.0));
     assert_eq!(from_profile.integrated.value(), explicit.integrated.value());
 }
 
@@ -266,7 +266,7 @@ fn polar_winter_astronomical_night_preserves_airglow() {
         location,
         Degrees::new(60.0),
         DEFAULT_SOLAR_RADIO_FLUX,
-        1.0,
+        crate::ScaleFactors::new(1.0),
     );
 
     assert!(out.integrated > BandPhotonRadiance::zero());
@@ -281,7 +281,7 @@ fn daytime_airglow_continuum_is_zero_outside_calibration_domain() {
         cta_s(),
         Degrees::new(60.0),
         DEFAULT_SOLAR_RADIO_FLUX,
-        1.0,
+        crate::ScaleFactors::new(1.0),
     );
 
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
@@ -296,7 +296,7 @@ fn invalid_altitude_returns_zero_stable_result() {
         paranal(),
         Degrees::new(f64::NAN),
         DEFAULT_SOLAR_RADIO_FLUX,
-        1.0,
+        crate::ScaleFactors::new(1.0),
     );
 
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
