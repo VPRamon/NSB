@@ -99,6 +99,16 @@ path = "src/bin/validate_xp_continuous_reconstruction.rs"
 doc = false
 
 [[bin]]
+name = "download_gaia_xp_continuous_bulk"
+path = "src/bin/download_gaia_xp_continuous_bulk.rs"
+doc = false
+
+[[bin]]
+name = "train_starlight_photometry_models"
+path = "src/bin/train_starlight_photometry_models.rs"
+doc = false
+
+[[bin]]
 name = "audit_gaia_starlight_exclusions"
 path = "src/bin/audit_gaia_starlight_exclusions.rs"
 doc = false

@@ -45,7 +45,7 @@ cargo run --locked -q -p nsb-data-tools --bin normalize_xp_continuous_coefficien
 echo "== GaiaXPy reconstruction =="
 mkdir -p "$PHASE5/reconstruction/normalized"
 "$VENV" "$ROOT/tools/starlight-xp-continuous/reconstruct_and_integrate.py" \
-  --coefficients-dir "$PHASE5/coefficients/raw" \
+  --coefficients-dir "$PHASE5/coefficients/canonical" \
   --output-dir "$PHASE5/reconstruction/normalized" \
   --manifest "$PHASE5/phase5_reconstruction.manifest.json"
 
