@@ -68,6 +68,8 @@ struct ValidationReport {
     bright_top_one_percent_mean_ph_cm2_ns_sr: Option<f64>,
     high_latitude_median_ph_cm2_ns_sr: Option<f64>,
     high_latitude_noise_mad_ratio: Option<f64>,
+    independent_regions_pass: bool,
+    independent_reference_production_use: bool,
     independent_comparison_pass: bool,
     independent_comparison: Option<IndependentComparisonReport>,
     production_ready: bool,
@@ -224,9 +226,14 @@ fn run(args: Args) -> Result<()> {
     let longitude_wrap = validate_longitude_wrap(&map);
     let bright_noise = bright_noise_diagnostics(&map);
     let independent_comparison = compare_independent_reference(args.reference.as_ref(), &map)?;
-    let independent_comparison_pass = independent_comparison.as_ref().is_some_and(|comparison| {
-        comparison.production_use && comparison.regions.iter().all(|region| region.pass)
-    });
+    let independent_regions_pass = independent_comparison
+        .as_ref()
+        .is_some_and(|comparison| comparison.regions.iter().all(|region| region.pass));
+    let independent_reference_production_use = independent_comparison
+        .as_ref()
+        .is_some_and(|comparison| comparison.production_use);
+    let independent_comparison_pass =
+        independent_regions_pass && independent_reference_production_use;
     if args.require_independent_comparison && !independent_comparison_pass {
         bail!("structured independent starlight comparison did not pass");
     }
@@ -300,6 +307,8 @@ fn run(args: Args) -> Result<()> {
         bright_top_one_percent_mean_ph_cm2_ns_sr: bright_noise.bright_top_one_percent_mean,
         high_latitude_median_ph_cm2_ns_sr: bright_noise.high_latitude_median,
         high_latitude_noise_mad_ratio: bright_noise.high_latitude_noise_mad_ratio,
+        independent_regions_pass,
+        independent_reference_production_use,
         independent_comparison_pass,
         independent_comparison,
         production_ready,
@@ -876,6 +885,8 @@ mod tests {
         })?;
         let report: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(output)?)?;
         assert_eq!(report["independent_comparison_pass"], false);
+        assert_eq!(report["independent_regions_pass"], true);
+        assert_eq!(report["independent_reference_production_use"], false);
         assert_eq!(report["independent_comparison"]["production_use"], false);
         assert_eq!(report["production_ready"], false);
         assert!(report["limitations"]
