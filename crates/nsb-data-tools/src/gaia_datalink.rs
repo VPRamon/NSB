@@ -1,4 +1,5 @@
 //! Concurrent, restartable Gaia DataLink XP retrieval.
+#![allow(missing_docs)]
 
 use crate::gaia_xp::{
     contains_service_error, format_series, parse_gaia_datalink_csv, XpProduct,

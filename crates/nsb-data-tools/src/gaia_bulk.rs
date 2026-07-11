@@ -5,6 +5,7 @@
 //! and only then atomically renamed to their final name. The output manifest is
 //! deliberately written with every entry pending before downloads start so an
 //! interrupted run cannot be mistaken for a complete one.
+#![allow(missing_docs)]
 
 use anyhow::{bail, Context, Result};
 use futures_util::{stream, StreamExt};
