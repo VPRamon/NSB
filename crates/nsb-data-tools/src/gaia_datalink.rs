@@ -131,7 +131,11 @@ impl DatalinkDownloader {
             .pool_idle_timeout(Duration::from_secs(90))
             .pool_max_idle_per_host(config.concurrency)
             .tcp_keepalive(Duration::from_secs(30))
-            .user_agent(concat!("NSB/", env!("CARGO_PKG_VERSION"), " Gaia-DR3-release-tool"))
+            .user_agent(concat!(
+                "NSB/",
+                env!("CARGO_PKG_VERSION"),
+                " Gaia-DR3-release-tool"
+            ))
             .build()
             .context("failed to build Gaia DataLink HTTP client")?;
         Ok(Self {
@@ -177,7 +181,12 @@ impl DatalinkDownloader {
             if resume {
                 match validate_existing(&final_path, source_id) {
                     Ok(size) => {
-                        checkpoint.append(source_id, SourceState::Validated, 0, "resume-valid-raw")?;
+                        checkpoint.append(
+                            source_id,
+                            SourceState::Validated,
+                            0,
+                            "resume-valid-raw",
+                        )?;
                         let mut report = shared.lock().expect("download report mutex poisoned");
                         report.completed_sources += 1;
                         report.resumed_sources += 1;
@@ -412,9 +421,8 @@ impl DatalinkDownloader {
                     }
                 }
                 Err(err) => {
-                    last_error = format!(
-                        "source_id={source_id} attempt={attempt} transport error: {err}"
-                    );
+                    last_error =
+                        format!("source_id={source_id} attempt={attempt} transport error: {err}");
                     AttemptResult::Failure {
                         retryable: err.is_timeout()
                             || err.is_connect()
@@ -498,8 +506,8 @@ impl DatalinkDownloader {
                         self.limiter.record_throttle().await;
                     }
                     if retryable && attempt < self.config.max_attempts {
-                        let delay = retry_after
-                            .unwrap_or_else(|| self.retry_delay(&source_id, attempt));
+                        let delay =
+                            retry_after.unwrap_or_else(|| self.retry_delay(&source_id, attempt));
                         checkpoint.append(
                             &source_id,
                             SourceState::Retrying,
@@ -515,14 +523,14 @@ impl DatalinkDownloader {
         }
 
         if part_path.exists() {
-            let _ = quarantine_file(
-                &part_path,
-                &paths.error_dir,
-                &source_id,
-                "failed-part",
-            );
+            let _ = quarantine_file(&part_path, &paths.error_dir, &source_id, "failed-part");
         }
-        checkpoint.append(&source_id, SourceState::Failed, self.config.max_attempts, &last_error)?;
+        checkpoint.append(
+            &source_id,
+            SourceState::Failed,
+            self.config.max_attempts,
+            &last_error,
+        )?;
         let mut report = shared.lock().expect("download report mutex poisoned");
         report.failed_source_ids.push(source_id);
         Ok(())
@@ -537,7 +545,8 @@ impl DatalinkDownloader {
             .saturating_mul(1_u128 << exponent)
             .min(self.config.max_backoff.as_millis());
         let hash = source_id.bytes().fold(u64::from(attempt), |acc, byte| {
-            acc.wrapping_mul(1_099_511_628_211).wrapping_add(u64::from(byte))
+            acc.wrapping_mul(1_099_511_628_211)
+                .wrapping_add(u64::from(byte))
         });
         let jitter_permille = 800 + hash % 401;
         let jittered = base_ms
@@ -603,7 +612,9 @@ impl AdaptiveRateLimiter {
     async fn record_throttle(&self) {
         let mut state = self.state.lock().await;
         state.current_rps = (state.current_rps * 0.7).max(1.0);
-        state.next_request = state.next_request.max(Instant::now() + Duration::from_millis(250));
+        state.next_request = state
+            .next_request
+            .max(Instant::now() + Duration::from_millis(250));
     }
 
     async fn record_success(&self) {
@@ -957,7 +968,10 @@ fn count_part_files(dir: &Path) -> Result<usize> {
     let mut count = 0;
     for entry in fs::read_dir(dir)? {
         let path = entry?.path();
-        if path.extension().is_some_and(|extension| extension == "part") {
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "part")
+        {
             count += 1;
         }
     }
@@ -1001,7 +1015,10 @@ fn quarantine_file(
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("bin");
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("bin");
     let target = error_dir.join(format!(
         "xp_source_{source_id}.{reason}.{timestamp}.{extension}"
     ));
@@ -1022,7 +1039,8 @@ fn persist_error_attempt(
     let stem = format!("xp_source_{source_id}.attempt_{attempt:02}");
     let header_path = error_dir.join(format!("{stem}.headers.txt"));
     let body_path = error_dir.join(format!("{stem}.body"));
-    let mut header_text = format!("source_id={source_id}\nattempt={attempt}\nstatus={status:?}\n{detail}\n");
+    let mut header_text =
+        format!("source_id={source_id}\nattempt={attempt}\nstatus={status:?}\n{detail}\n");
     for (name, value) in headers {
         header_text.push_str(name.as_str());
         header_text.push_str(": ");
@@ -1163,12 +1181,7 @@ mod tests {
                         let default = default.clone();
                         tokio::spawn(async move {
                             let _ = serve_connection(
-                                stream,
-                                responses,
-                                default,
-                                requests,
-                                active,
-                                max_active,
+                                stream, responses, default, requests, active, max_active,
                             )
                             .await;
                         });
@@ -1217,7 +1230,11 @@ mod tests {
             requests.fetch_add(1, Ordering::SeqCst);
             let now_active = active.fetch_add(1, Ordering::SeqCst) + 1;
             max_active.fetch_max(now_active, Ordering::SeqCst);
-            let mut response = responses.lock().await.pop_front().unwrap_or_else(|| default.clone());
+            let mut response = responses
+                .lock()
+                .await
+                .pop_front()
+                .unwrap_or_else(|| default.clone());
             if response.status == 200 && response.body.is_empty() {
                 response.body = valid_csv(&request).into_bytes();
             }
@@ -1465,7 +1482,9 @@ mod tests {
             },
         ];
         for response in cases {
-            let server = MockServer::start(vec![response.clone(), response], MockResponse::status(500)).await?;
+            let server =
+                MockServer::start(vec![response.clone(), response], MockResponse::status(500))
+                    .await?;
             let dir = tempfile::tempdir()?;
             let mut config = test_config();
             config.timeout = Duration::from_millis(50);
@@ -1484,7 +1503,8 @@ mod tests {
 
     #[tokio::test]
     async fn non_transient_http_error_is_not_retried() -> Result<()> {
-        let server = MockServer::start(vec![MockResponse::status(400)], MockResponse::valid()).await?;
+        let server =
+            MockServer::start(vec![MockResponse::status(400)], MockResponse::valid()).await?;
         let dir = tempfile::tempdir()?;
         let report = Arc::new(DatalinkDownloader::new(&server.url, test_config())?)
             .download(&["42".to_string()], &test_paths(&dir), false, false)
@@ -1495,13 +1515,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn resume_valid_raw_and_valid_part_without_network_and_repairs_corrupt_raw() -> Result<()> {
+    async fn resume_valid_raw_and_valid_part_without_network_and_repairs_corrupt_raw() -> Result<()>
+    {
         let server = MockServer::start(Vec::new(), MockResponse::valid()).await?;
         let dir = tempfile::tempdir()?;
         let paths = test_paths(&dir);
         fs::create_dir_all(&paths.raw_dir)?;
-        fs::write(raw_path(&paths.raw_dir, "1"), valid_csv("GET /?ID=Gaia+DR3+1 HTTP/1.1\r\n"))?;
-        fs::write(part_path(&paths.raw_dir, "2"), valid_csv("GET /?ID=Gaia+DR3+2 HTTP/1.1\r\n"))?;
+        fs::write(
+            raw_path(&paths.raw_dir, "1"),
+            valid_csv("GET /?ID=Gaia+DR3+1 HTTP/1.1\r\n"),
+        )?;
+        fs::write(
+            part_path(&paths.raw_dir, "2"),
+            valid_csv("GET /?ID=Gaia+DR3+2 HTTP/1.1\r\n"),
+        )?;
         fs::write(raw_path(&paths.raw_dir, "3"), "truncated")?;
         let ids = vec!["1".to_string(), "2".to_string(), "3".to_string()];
         let report = Arc::new(DatalinkDownloader::new(&server.url, test_config())?)

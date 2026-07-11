@@ -283,9 +283,7 @@ async fn run(args: Args) -> Result<()> {
 
     let mut diagnostics = base_diagnostics(&args, &paths, mode, selected_sources);
     let operation_result = match mode {
-        XpRetrievalMode::GaiaBulk => {
-            run_bulk_mode(&args, &paths, &mut diagnostics).await
-        }
+        XpRetrievalMode::GaiaBulk => run_bulk_mode(&args, &paths, &mut diagnostics).await,
         XpRetrievalMode::GaiaDatalink => {
             run_datalink_mode(&args, &paths, &metadata, &mut diagnostics).await
         }
@@ -358,7 +356,10 @@ fn validate_args(args: &Args) -> Result<()> {
         bail!("bulk concurrency, timeouts, attempts, and backoff must be positive");
     }
     if args.production {
-        if args.xp_retrieval.is_some_and(|mode| mode != XpRetrievalMode::GaiaBulk) {
+        if args
+            .xp_retrieval
+            .is_some_and(|mode| mode != XpRetrievalMode::GaiaBulk)
+        {
             bail!("--production requires --xp-retrieval gaia-bulk");
         }
         if args.limit.is_some() || args.bulk_file_limit.is_some() {
@@ -551,7 +552,11 @@ async fn download_tap_csv(args: &Args, paths: &Paths, adql: &str) -> Result<()> 
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(args.datalink_connect_timeout_secs))
         .timeout(Duration::from_secs(args.datalink_timeout_secs))
-        .user_agent(concat!("NSB/", env!("CARGO_PKG_VERSION"), " Gaia-DR3-release-tool"))
+        .user_agent(concat!(
+            "NSB/",
+            env!("CARGO_PKG_VERSION"),
+            " Gaia-DR3-release-tool"
+        ))
         .build()?;
     let part = paths.metadata.with_extension("csv.part");
     let mut last_error = String::new();
@@ -571,9 +576,7 @@ async fn download_tap_csv(args: &Args, paths: &Paths, adql: &str) -> Result<()> 
                 let status = response.status();
                 let headers = response.headers().clone();
                 let body = response.bytes().await.unwrap_or_default().to_vec();
-                if status.is_success()
-                    && !nsb_data_tools::gaia_xp::contains_service_error(&body)
-                {
+                if status.is_success() && !nsb_data_tools::gaia_xp::contains_service_error(&body) {
                     atomic_write(&part, &body)?;
                     valid_metadata_file(&part, select_xp_retrieval_mode(args))?;
                     fs::rename(&part, &paths.metadata)?;
@@ -629,7 +632,9 @@ fn read_population_summary(path: &Path) -> Result<PopulationSummary> {
     let selected = required_header(&headers, "selected_sources")?;
     let min_g = required_header(&headers, "min_g")?;
     let max_g = required_header(&headers, "max_g")?;
-    let rows = reader.records().collect::<std::result::Result<Vec<_>, _>>()?;
+    let rows = reader
+        .records()
+        .collect::<std::result::Result<Vec<_>, _>>()?;
     if rows.len() != 1 {
         bail!("Gaia population preflight must contain exactly one row");
     }
@@ -676,7 +681,9 @@ fn read_metadata(path: &Path) -> Result<Vec<MetadataRow>> {
             .zip(row.iter())
             .map(|(key, value)| (key.trim().to_string(), value.trim().to_string()))
             .collect::<BTreeMap<_, _>>();
-        let source_id = fields.get("source_id").context("metadata row missing source_id")?;
+        let source_id = fields
+            .get("source_id")
+            .context("metadata row missing source_id")?;
         if !source_ids.insert(source_id.clone()) {
             bail!("duplicate metadata source_id {source_id}");
         }
@@ -863,9 +870,8 @@ fn copy_download_diagnostics(diagnostics: &mut Diagnostics, report: &DownloadRep
         report.throughput_overall_sources_per_second;
     diagnostics.throughput_recent_sources_per_second = report.throughput_recent_sources_per_second;
     diagnostics.elapsed_seconds = report.elapsed_seconds;
-    diagnostics.eta_seconds = (report.throughput_overall_sources_per_second > 0.0).then(|| {
-        report.pending_sources as f64 / report.throughput_overall_sources_per_second
-    });
+    diagnostics.eta_seconds = (report.throughput_overall_sources_per_second > 0.0)
+        .then(|| report.pending_sources as f64 / report.throughput_overall_sources_per_second);
     diagnostics.bytes_downloaded = report.bytes_downloaded;
     diagnostics.checkpoint_path = report.checkpoint_path.clone();
     diagnostics.representative_error_files = report.representative_error_files.clone();
@@ -1019,8 +1025,7 @@ fn finalize_derived_diagnostics(diagnostics: &mut Diagnostics) {
     };
     diagnostics.integrated_negative_contribution_ratio =
         if diagnostics.integrated_positive_ph_m2_s > 0.0 {
-            -diagnostics.integrated_negative_ph_m2_s
-                / diagnostics.integrated_positive_ph_m2_s
+            -diagnostics.integrated_negative_ph_m2_s / diagnostics.integrated_positive_ph_m2_s
         } else {
             0.0
         };
@@ -1031,11 +1036,7 @@ fn finalize_derived_diagnostics(diagnostics: &mut Diagnostics) {
     }
 }
 
-fn strict_failure(
-    args: &Args,
-    mode: XpRetrievalMode,
-    diagnostics: &Diagnostics,
-) -> Option<String> {
+fn strict_failure(args: &Args, mode: XpRetrievalMode, diagnostics: &Diagnostics) -> Option<String> {
     if diagnostics.partial_files > 0 {
         return Some(format!(
             "pipeline left {} partial files; resume before continuing",
@@ -1062,7 +1063,9 @@ fn strict_failure(
             || diagnostics.completed_sources != diagnostics.selected_sources
             || diagnostics.failed_sources > 0
         {
-            return Some("bulk XP sampled inventory is incomplete or failed validation".to_string());
+            return Some(
+                "bulk XP sampled inventory is incomplete or failed validation".to_string(),
+            );
         }
         if args.production && diagnostics.release_completeness_gate.starts_with("failed") {
             return Some("production missing-flux completeness gate did not pass".to_string());
@@ -1142,7 +1145,10 @@ fn checksum_file(path: &Path) -> Result<String> {
 }
 
 fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
-    let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("tmp");
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("tmp");
     let part = path.with_extension(format!("{extension}.part"));
     let mut file = File::create(&part)?;
     file.write_all(bytes)?;
@@ -1170,10 +1176,7 @@ fn persist_http_error(
         &dir.join(format!("{stem}.attempt_{attempt:02}.headers.txt")),
         header_text.as_bytes(),
     )?;
-    atomic_write(
-        &dir.join(format!("{stem}.attempt_{attempt:02}.body")),
-        body,
-    )
+    atomic_write(&dir.join(format!("{stem}.attempt_{attempt:02}.body")), body)
 }
 
 fn count_partial_files(dir: &Path) -> Result<usize> {
@@ -1184,7 +1187,10 @@ fn count_partial_files(dir: &Path) -> Result<usize> {
             let path = entry?.path();
             if path.is_dir() {
                 pending.push(path);
-            } else if path.extension().is_some_and(|extension| extension == "part") {
+            } else if path
+                .extension()
+                .is_some_and(|extension| extension == "part")
+            {
                 count += 1;
             }
         }
@@ -1194,8 +1200,7 @@ fn count_partial_files(dir: &Path) -> Result<usize> {
 
 fn exponential_delay(initial_ms: u64, max_secs: u64, attempt: u32) -> Duration {
     let multiplier = 1_u64 << attempt.saturating_sub(1).min(20);
-    Duration::from_millis(initial_ms.saturating_mul(multiplier))
-        .min(Duration::from_secs(max_secs))
+    Duration::from_millis(initial_ms.saturating_mul(multiplier)).min(Duration::from_secs(max_secs))
 }
 
 fn required_header(headers: &StringRecord, name: &str) -> Result<usize> {

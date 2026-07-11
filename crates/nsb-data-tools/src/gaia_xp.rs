@@ -93,9 +93,7 @@ pub fn parse_gaia_datalink_csv(bytes: &[u8], expected_source_id: &str) -> Result
         let row = row.with_context(|| format!("malformed Gaia XP CSV row {}", row_index + 2))?;
         let source_id = field(&row, source, "source_id")?;
         if source_id != expected_source_id {
-            bail!(
-                "Gaia XP source_id mismatch: expected {expected_source_id}, found {source_id}"
-            );
+            bail!("Gaia XP source_id mismatch: expected {expected_source_id}, found {source_id}");
         }
         wavelengths_nm.push(parse_f64(&row, wavelength, "wavelength")?);
         flux_w_m2_nm.push(parse_f64(&row, flux, "flux")?);
@@ -144,7 +142,10 @@ pub fn validate_product(product: &XpProduct) -> Result<()> {
         if errors.len() != product.wavelengths_nm.len() {
             bail!("Gaia XP wavelength/flux_error length mismatch");
         }
-        if errors.iter().any(|value| !value.is_finite() || *value < 0.0) {
+        if errors
+            .iter()
+            .any(|value| !value.is_finite() || *value < 0.0)
+        {
             bail!("Gaia XP flux_error values must be finite and non-negative");
         }
     }
@@ -374,7 +375,8 @@ mod tests {
 
     #[test]
     fn negative_sample_is_integrated_with_sign_when_total_is_positive() -> Result<()> {
-        let integrated = integrate_photon_flux(&product(vec![-1.0e-14, 1.0e-12, 1.0e-12, 1.0e-12]))?;
+        let integrated =
+            integrate_photon_flux(&product(vec![-1.0e-14, 1.0e-12, 1.0e-12, 1.0e-12]))?;
         assert!(integrated.total_ph_m2_s > 0.0);
         assert!(integrated.positive_ph_m2_s > 0.0);
         assert!(integrated.negative_ph_m2_s < 0.0);
