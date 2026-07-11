@@ -81,10 +81,41 @@ Artifacts: `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/` (not ver
 
 Code: `starlight_phase5.rs`, Phase 5 binaries, `gaia_xp_continuous.rs`, GaiaXPy audit tool.
 
+## Phase 5B — XP continuous bulk (design + pilot, 2026-07-11)
+
+**Gate:** not closed — pilot download/processing in progress; full 184.7M population not started.
+
+| Check | Status |
+|-------|--------|
+| Official product identified | `xp_continuous_mean_spectrum` coefficient bulk (~3.3 TiB, 3386 files, CDN MD5 manifest) |
+| Individual DataLink forbidden at scale | Documented; bulk path mandatory |
+| Resumable bulk downloader | `download_gaia_xp_continuous_bulk` (shared `gaia_bulk` engine) |
+| Streaming GaiaXPy pilot | `pilot_bulk_continuous.py` + `run_pilot_bulk_continuous.sh` |
+| Design doc | [`STARLIGHT_XP_CONTINUOUS_BULK.md`](STARLIGHT_XP_CONTINUOUS_BULK.md) |
+| Full population throughput | Pending representative pilot completion |
+
+Pilot artifacts: `$HOME/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/`.
+
+## Phase 6 — Photometric models (partial, 2026-07-11)
+
+**Gate:** not closed — `GBpRpColour` trained on Phase 4 XP overlap sample; `PartialColour` / `GOnly` require additional XP-valid training rows with degraded photometry (not present in overlap subsample).
+
+| Check | Status |
+|-------|--------|
+| Training binary | `train_starlight_photometry_models` |
+| Spatial split | Frozen Phase 4 train/validation/test |
+| Targets | Canonical 336–650 nm flux (XP sampled) |
+| Branches fitted | 1/3 (`GBpRpColour`: 3890 train / 1186 val) |
+| UV 300–336 | Explicitly deferred to Phase 7 |
+| Validation metrics (GBpRpColour) | RMSE ~18%, p95 ~27% — **fails production gates**; expected for log-linear smoke on overlap-only sample |
+
+Artifacts: `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase6/`.
+
 ## Residual blockers for PRODUCTION READY
 
-1. **Phase 5 batch download + full overlap/continuous-only validation** (in progress)
-2. Trained photometric / UV / selection models with checksum-pinned artifacts (Phases 6–10)
+1. **Phase 5 batch download + full overlap/continuous-only validation** (in progress, ~14% at 2026-07-11T19:15Z)
+2. **Phase 5B bulk pilot + full 184.7M continuous-only processing**
+3. Trained photometric / UV / selection models with checksum-pinned artifacts (Phases 6–10)
 3. Independent validation passing preregistered gates on held-out data
 4. Human approval artifacts (missing-flux, redistribution, nside review)
 5. Bundled production asset in `crates/nsb/data/manifest.toml`
