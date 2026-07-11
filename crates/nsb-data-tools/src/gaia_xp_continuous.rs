@@ -4,15 +4,16 @@
 //! Spectrum calibration uses pinned GaiaXPy offline; NSB integrates the resulting
 //! normalized grids with the same 336–650 nm photon-flux contract as sampled XP.
 
-use anyhow::{bail, Context, Result};
-use csv::{ReaderBuilder, WriterBuilder};
+use anyhow::{Context, Result};
+use csv::ReaderBuilder;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-pub use crate::gaia_xp::{
-    integrate_photon_flux, parse_gaia_tuple_array, parse_normalized_record, parse_series,
-    PhotonFluxIntegral, XpProduct, BAND_MAX_NM, BAND_MIN_NM, NORMALIZED_FLUX_COLUMN,
-    NORMALIZED_FLUX_ERROR_COLUMN, NORMALIZED_WAVELENGTH_COLUMN,
+use crate::gaia_xp::{integrate_photon_flux, parse_normalized_record, PhotonFluxIntegral};
+pub use crate::gaia_xp_continuous_canonical::{
+    parse_bulk_ecsv_record, parse_datalink_gaiaxpy_csv, stream_bulk_ecsv_gz,
+    write_gaiaxpy_datalink_csv, CanonicalXpContinuousRecord, FieldDiffSummary,
+    XpContinuousSourceFormat, CANONICAL_XP_CONTINUOUS_SCHEMA, CORRELATION_PACKING,
 };
 
 /// Stable identifier for GaiaXPy-reconstructed continuous XP integrated in 336–650 nm.
@@ -22,14 +23,6 @@ pub const PHOTOMETRY_MODEL: &str = "gaia_dr3_xp_continuous_reconstructed_336_650
 pub const PINNED_GAIA_XPY_VERSION: &str = "2.1.4";
 
 pub const CANONICAL_COEFFICIENT_SCHEMA: u32 = 1;
-
-const REQUIRED_COEFFICIENT_COLUMNS: [&str; 5] = [
-    "source_id",
-    "bp_coefficients",
-    "rp_coefficients",
-    "bp_coefficient_errors",
-    "rp_coefficient_errors",
-];
 
 /// Parsed XP continuous coefficient row from Gaia DataLink.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -66,24 +59,6 @@ pub struct ReconstructedContribution {
     pub branch: String,
 }
 
-fn required_header(headers: &csv::StringRecord, name: &str) -> Result<usize> {
-    headers
-        .iter()
-        .position(|entry| entry == name)
-        .ok_or_else(|| anyhow::anyhow!("XP continuous coefficient CSV missing column {name}"))
-}
-
-fn field<'a>(row: &'a csv::StringRecord, index: usize, name: &str) -> Result<&'a str> {
-    row.get(index)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| anyhow::anyhow!("missing Gaia XP continuous field {name}"))
-}
-
-fn parse_coefficient_array(raw: &str, field: &str, source_id: Option<u64>) -> Result<Vec<f64>> {
-    parse_gaia_tuple_array(raw, field, source_id, None)
-}
-
 /// Validate a raw Gaia DataLink `XP_CONTINUOUS` coefficient CSV for one source.
 pub fn validate_continuous_coefficient_csv(bytes: &[u8], expected_source_id: &str) -> Result<()> {
     parse_continuous_coefficient_csv(bytes, expected_source_id).map(|_| ())
@@ -94,175 +69,53 @@ pub fn parse_continuous_coefficient_csv(
     bytes: &[u8],
     expected_source_id: &str,
 ) -> Result<ContinuousCoefficients> {
-    if bytes.is_empty() {
-        bail!("empty XP continuous coefficient response");
-    }
-    if crate::gaia_xp::contains_service_error(bytes) {
-        bail!("XP continuous coefficient response contains SERVICE ERROR");
-    }
-    let text = String::from_utf8_lossy(bytes);
-    if text.trim_start().starts_with('<') {
-        bail!("XP continuous coefficient response looks like HTML/XML, not CSV");
-    }
-    let mut reader = ReaderBuilder::new()
-        .comment(Some(b'#'))
-        .trim(csv::Trim::All)
-        .from_reader(bytes);
-    let headers = reader.headers()?.clone();
-    for column in REQUIRED_COEFFICIENT_COLUMNS {
-        if !headers.iter().any(|entry| entry == column) {
-            bail!("XP continuous coefficient CSV missing column {column}");
-        }
-    }
-    let mut rows = reader.records();
-    let record = rows
-        .next()
-        .transpose()
-        .context("failed to read XP continuous coefficient row")?
-        .ok_or_else(|| anyhow::anyhow!("XP continuous coefficient CSV has no data rows"))?;
-    if rows.next().transpose()?.is_some() {
-        bail!("XP continuous coefficient CSV must contain exactly one row");
-    }
-    let source_idx = required_header(&headers, "source_id")?;
-    let source_id = field(&record, source_idx, "source_id")?;
-    if source_id != expected_source_id {
-        bail!(
-            "XP continuous coefficient source_id mismatch: expected {expected_source_id}, found {source_id}"
-        );
-    }
-    let sid = source_id.parse::<u64>().ok();
-    let bp_idx = required_header(&headers, "bp_coefficients")?;
-    let rp_idx = required_header(&headers, "rp_coefficients")?;
-    let bp_err_idx = required_header(&headers, "bp_coefficient_errors")?;
-    let rp_err_idx = required_header(&headers, "rp_coefficient_errors")?;
-    let bp_coefficients = parse_coefficient_array(
-        field(&record, bp_idx, "bp_coefficients")?,
-        "bp_coefficients",
-        sid,
-    )?;
-    let rp_coefficients = parse_coefficient_array(
-        field(&record, rp_idx, "rp_coefficients")?,
-        "rp_coefficients",
-        sid,
-    )?;
-    let bp_coefficient_errors = parse_coefficient_array(
-        field(&record, bp_err_idx, "bp_coefficient_errors")?,
-        "bp_coefficient_errors",
-        sid,
-    )?;
-    let rp_coefficient_errors = parse_coefficient_array(
-        field(&record, rp_err_idx, "rp_coefficient_errors")?,
-        "rp_coefficient_errors",
-        sid,
-    )?;
-    if bp_coefficients.len() != bp_coefficient_errors.len() {
-        bail!("BP coefficient/error length mismatch");
-    }
-    if rp_coefficients.len() != rp_coefficient_errors.len() {
-        bail!("RP coefficient/error length mismatch");
-    }
-    if bp_coefficients.is_empty() || rp_coefficients.is_empty() {
-        bail!("XP continuous coefficients must be non-empty");
-    }
-    validate_finite_arrays(
-        &bp_coefficients,
-        &rp_coefficients,
-        &bp_coefficient_errors,
-        &rp_coefficient_errors,
-    )?;
+    canonical_to_legacy(&parse_datalink_gaiaxpy_csv(bytes, expected_source_id)?)
+}
+
+fn canonical_to_legacy(record: &CanonicalXpContinuousRecord) -> Result<ContinuousCoefficients> {
     Ok(ContinuousCoefficients {
         schema_version: CANONICAL_COEFFICIENT_SCHEMA,
-        source_id: source_id.to_string(),
-        bp_n_parameters: bp_coefficients.len(),
-        rp_n_parameters: rp_coefficients.len(),
-        bp_coefficients,
-        rp_coefficients,
-        bp_coefficient_errors,
-        rp_coefficient_errors,
-        input_checksum: None,
+        source_id: record.source_id.clone(),
+        bp_n_parameters: record.bp_n_parameters,
+        rp_n_parameters: record.rp_n_parameters,
+        bp_coefficients: record.bp_coefficients.clone(),
+        rp_coefficients: record.rp_coefficients.clone(),
+        bp_coefficient_errors: record.bp_coefficient_errors.clone(),
+        rp_coefficient_errors: record.rp_coefficient_errors.clone(),
+        input_checksum: record.source_checksum.clone(),
         retrieval_batch: None,
     })
 }
 
-fn validate_finite_arrays(bp: &[f64], rp: &[f64], bp_err: &[f64], rp_err: &[f64]) -> Result<()> {
-    for (label, values) in [
-        ("bp_coefficients", bp),
-        ("rp_coefficients", rp),
-        ("bp_coefficient_errors", bp_err),
-        ("rp_coefficient_errors", rp_err),
-    ] {
-        if values.iter().any(|value| !value.is_finite()) {
-            bail!("non-finite values in {label}");
-        }
-    }
-    Ok(())
-}
-
-pub fn format_series(values: &[f64]) -> String {
-    values
-        .iter()
-        .map(|value| format!("{value:.8e}"))
-        .collect::<Vec<_>>()
-        .join(";")
-}
-
-pub fn write_canonical_coefficient_csv(path: &Path, coeffs: &ContinuousCoefficients) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let part = path.with_extension("csv.part");
-    let mut writer = WriterBuilder::new().from_path(&part)?;
-    writer.write_record([
-        "schema_version",
-        "source_id",
-        "bp_n_parameters",
-        "rp_n_parameters",
-        "bp_coefficients",
-        "rp_coefficients",
-        "bp_coefficient_errors",
-        "rp_coefficient_errors",
-        "input_checksum",
-        "retrieval_batch",
-    ])?;
-    writer.write_record([
-        coeffs.schema_version.to_string(),
-        coeffs.source_id.clone(),
-        coeffs.bp_n_parameters.to_string(),
-        coeffs.rp_n_parameters.to_string(),
-        format_series(&coeffs.bp_coefficients),
-        format_series(&coeffs.rp_coefficients),
-        format_series(&coeffs.bp_coefficient_errors),
-        format_series(&coeffs.rp_coefficient_errors),
-        coeffs.input_checksum.clone().unwrap_or_default(),
-        coeffs.retrieval_batch.clone().unwrap_or_default(),
-    ])?;
-    writer.flush()?;
-    drop(writer);
-    std::fs::rename(part, path)?;
-    Ok(())
+pub fn write_canonical_coefficient_csv(
+    path: &Path,
+    record: &CanonicalXpContinuousRecord,
+) -> Result<()> {
+    write_gaiaxpy_datalink_csv(path, record)
 }
 
 pub fn read_canonical_coefficient_csv(path: &Path) -> Result<ContinuousCoefficients> {
-    let mut reader = ReaderBuilder::new().from_path(path)?;
-    let mut records = reader.records();
-    let row = records
+    let bytes = std::fs::read(path).with_context(|| path.display().to_string())?;
+    let mut reader = ReaderBuilder::new()
+        .comment(Some(b'#'))
+        .trim(csv::Trim::All)
+        .from_reader(bytes.as_slice());
+    let headers = reader.headers()?.clone();
+    let source_idx = headers
+        .iter()
+        .position(|h| h == "source_id")
+        .context("source_id")?;
+    let row = reader
+        .records()
         .next()
         .transpose()
         .context("canonical coefficient row")?
         .ok_or_else(|| anyhow::anyhow!("empty canonical coefficient file"))?;
-    let _sid = row.get(1).context("source_id")?.parse::<u64>().ok();
-    Ok(ContinuousCoefficients {
-        schema_version: row.get(0).context("schema")?.parse()?,
-        source_id: row.get(1).context("source_id")?.to_string(),
-        bp_n_parameters: row.get(2).context("bp_n")?.parse()?,
-        rp_n_parameters: row.get(3).context("rp_n")?.parse()?,
-        bp_coefficients: parse_series(row.get(4).context("bp")?)?,
-        rp_coefficients: parse_series(row.get(5).context("rp")?)?,
-        bp_coefficient_errors: parse_series(row.get(6).context("bp_err")?)?,
-        rp_coefficient_errors: parse_series(row.get(7).context("rp_err")?)?,
-        input_checksum: row.get(8).filter(|v| !v.is_empty()).map(str::to_string),
-        retrieval_batch: row.get(9).filter(|v| !v.is_empty()).map(str::to_string),
-    })
+    let source_id = row.get(source_idx).context("source_id")?;
+    canonical_to_legacy(&parse_datalink_gaiaxpy_csv(
+        std::fs::read(path)?.as_slice(),
+        source_id,
+    )?)
 }
 
 /// Integrate a normalized reconstructed continuous spectrum CSV (GaiaXPy output).
@@ -321,45 +174,45 @@ mod tests {
         assert!(err.to_string().contains("HTML"));
     }
 
+    fn minimal_datalink_csv(source_id: &str, bp_errors: &str, rp_errors: &str) -> String {
+        format!(
+            concat!(
+                "source_id,bp_n_parameters,bp_standard_deviation,rp_n_parameters,rp_standard_deviation,",
+                "bp_coefficients,bp_coefficient_errors,bp_coefficient_correlations,",
+                "rp_coefficients,rp_coefficient_errors,rp_coefficient_correlations\n",
+                "{source_id},2,1.00000000e0,2,1.00000000e0,",
+                "\"(1.0,2.0)\",\"{bp_errors}\",\"(0.2)\",",
+                "\"(3.0,4.0)\",\"{rp_errors}\",\"(0.1)\"\n",
+            ),
+            source_id = source_id,
+            bp_errors = bp_errors,
+            rp_errors = rp_errors
+        )
+    }
+
     #[test]
     fn rejects_mismatched_bp_error_lengths() {
-        let raw = concat!(
-            "source_id,bp_coefficients,rp_coefficients,bp_coefficient_errors,rp_coefficient_errors\n",
-            "1,\"(1.0)\",\"(2.0)\",\"(0.1,0.2)\",\"(0.2)\"\n",
-        );
-        let err = parse_continuous_coefficient_csv(raw.as_bytes(), "1").expect_err("length");
-        assert!(err.to_string().contains("mismatch"));
+        let raw = minimal_datalink_csv("1", "(0.1)", "(0.3,0.4)");
+        assert!(parse_datalink_gaiaxpy_csv(raw.as_bytes(), "1").is_err());
     }
 
     #[test]
     fn rejects_duplicate_rows() {
-        let raw = concat!(
-            "source_id,bp_coefficients,rp_coefficients,bp_coefficient_errors,rp_coefficient_errors\n",
-            "42,\"(1.0)\",\"(2.0)\",\"(0.1)\",\"(0.2)\"\n",
-            "42,\"(1.0)\",\"(2.0)\",\"(0.1)\",\"(0.2)\"\n",
-        );
+        let row = minimal_datalink_csv("42", "(0.1,0.2)", "(0.3,0.4)");
+        let raw = format!("{row}{row}");
         let err = parse_continuous_coefficient_csv(raw.as_bytes(), "42").expect_err("dup");
         assert!(err.to_string().contains("exactly one row"));
     }
 
     #[test]
     fn canonical_roundtrip() {
-        let coeffs = ContinuousCoefficients {
-            schema_version: CANONICAL_COEFFICIENT_SCHEMA,
-            source_id: "99".to_string(),
-            bp_n_parameters: 2,
-            rp_n_parameters: 2,
-            bp_coefficients: vec![1.0, 2.0],
-            rp_coefficients: vec![3.0, 4.0],
-            bp_coefficient_errors: vec![0.1, 0.2],
-            rp_coefficient_errors: vec![0.3, 0.4],
-            input_checksum: Some("abc".to_string()),
-            retrieval_batch: Some("batch".to_string()),
-        };
+        let raw = minimal_datalink_csv("99", "(0.1,0.2)", "(0.3,0.4)");
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("99.csv");
-        write_canonical_coefficient_csv(&path, &coeffs).unwrap();
+        let record = parse_datalink_gaiaxpy_csv(raw.as_bytes(), "99").unwrap();
+        write_canonical_coefficient_csv(&path, &record).unwrap();
         let read = read_canonical_coefficient_csv(&path).unwrap();
-        assert_eq!(read, coeffs);
+        assert_eq!(read.source_id, "99");
+        assert_eq!(read.bp_coefficients, vec![1.0, 2.0]);
     }
 }
