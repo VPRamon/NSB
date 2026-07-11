@@ -360,17 +360,7 @@ fn verify_catalog_checksum(args: &Args) -> Result<()> {
     let Some(expected) = args.catalog_checksum.as_deref() else {
         return Ok(());
     };
-    let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
-    let bytes = std::fs::read(&args.input)
-        .with_context(|| format!("failed to checksum {}", args.input.display()))?;
-    let actual = to_hex(&sha256(&bytes));
-    if expected != actual {
-        bail!(
-            "catalogue checksum mismatch for {}: expected sha256:{expected}, actual sha256:{actual}",
-            args.input.display()
-        );
-    }
-    Ok(())
+    nsb_data_tools::checksum_io::verify_sha256_file(&args.input, expected, "catalogue")
 }
 
 fn read_records(
@@ -1329,5 +1319,40 @@ mod tests {
         let error = validate_spectral_contract(&args, InputKind::GaiaPhotonFlux)
             .expect_err("unmeasured lower band edge must fail closed");
         assert!(error.to_string().contains("measured 336-650 nm XP band"));
+    }
+
+    #[test]
+    fn streaming_catalogue_checksum_matches_sha256sum() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let input = dir.path().join("catalogue.csv");
+        std::fs::write(&input, b"source_id,ra_deg,dec_deg\n")?;
+        let expected = nsb_data_tools::checksum_io::sha256_file(&input)?;
+        let args = Args {
+            input: input.clone(),
+            output: dir.path().join("map.csv"),
+            nside: 64,
+            ordering: OrderingArg::Ring,
+            min_v_mag: None,
+            max_v_mag: None,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: Some("DR3".to_string()),
+            catalog_license: Some("reviewed".to_string()),
+            catalog_checksum: Some(format!("sha256:{expected}")),
+            integrated_per_v_s10: S10_V_TO_INTEGRATED_PH_CM2_NS_SR,
+            photometry_model: GAIA_XP_MODEL.to_string(),
+            band_min_nm: GAIA_XP_BAND_MIN_NM,
+            band_max_nm: GAIA_XP_BAND_MAX_NM,
+            generation_date_utc: "2026-07-11T00:00:00Z".to_string(),
+            diagnostics_output: None,
+            require_science_diagnostics: false,
+            allow_empty: true,
+        };
+        verify_catalog_checksum(&args)?;
+        let wrong = Args {
+            catalog_checksum: Some("sha256:deadbeef".to_string()),
+            ..args
+        };
+        verify_catalog_checksum(&wrong).expect_err("wrong checksum");
+        Ok(())
     }
 }
