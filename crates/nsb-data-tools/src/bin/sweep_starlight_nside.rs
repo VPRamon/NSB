@@ -321,7 +321,30 @@ fn assess_existing_artifacts(args: &Args) -> Result<Vec<NsideSummary>> {
         let summary = load_existing_nside(&args.output_dir, nside, &mut catalog_checksum)?;
         summaries.push(summary);
     }
+    if let Some(expected) = args.catalog_checksum.as_deref() {
+        let found = catalog_checksum.as_deref().context(
+            "assess-existing could not read source_catalogue_checksum from sweep manifests",
+        )?;
+        verify_expected_catalog_checksum(expected, found)?;
+    }
     Ok(summaries)
+}
+
+fn normalize_catalog_checksum(value: &str) -> Result<String> {
+    let hex = value.strip_prefix("sha256:").unwrap_or(value).trim();
+    if hex.len() != 64 || !hex.chars().all(|ch| ch.is_ascii_hexdigit()) {
+        bail!("invalid SHA-256 checksum format: expected 64 hexadecimal digits");
+    }
+    Ok(hex.to_ascii_lowercase())
+}
+
+fn verify_expected_catalog_checksum(expected: &str, found: &str) -> Result<()> {
+    let expected = normalize_catalog_checksum(expected)?;
+    let found = normalize_catalog_checksum(found)?;
+    if expected != found {
+        bail!("catalogue checksum mismatch: expected sha256:{expected}, found sha256:{found}");
+    }
+    Ok(())
 }
 
 fn load_existing_nside(
@@ -371,9 +394,14 @@ fn load_existing_nside(
         .context("manifest missing source_catalogue_checksum")?
         .to_string();
     match catalog_checksum {
-        Some(expected) if expected != &manifest_checksum => {
+        Some(expected)
+            if normalize_catalog_checksum(expected)?
+                != normalize_catalog_checksum(&manifest_checksum)? =>
+        {
             bail!(
-                "inconsistent source_catalogue_checksum across sweep artefacts: expected {expected}, found {manifest_checksum}"
+                "inconsistent source_catalogue_checksum across sweep artefacts: expected sha256:{}, found sha256:{}",
+                normalize_catalog_checksum(expected)?,
+                normalize_catalog_checksum(&manifest_checksum)?
             );
         }
         None => *catalog_checksum = Some(manifest_checksum.clone()),
@@ -412,6 +440,21 @@ fn load_existing_nside(
         .ok_or_else(|| anyhow::anyhow!("validation missing pixel_count"))?;
     if validation_pixels != expected_pixels {
         bail!("validation pixel_count {validation_pixels} does not match HEALPix nside={nside}");
+    }
+    if !validation["finite_nonnegative_pass"]
+        .as_bool()
+        .unwrap_or(false)
+    {
+        bail!("validation finite_nonnegative_pass is false for nside={nside}");
+    }
+    if !validation["flux_conservation_pass"]
+        .as_bool()
+        .unwrap_or(false)
+    {
+        bail!("validation flux_conservation_pass is false for nside={nside}");
+    }
+    if validation["sources_used"].as_u64().is_none() {
+        bail!("validation missing sources_used for nside={nside}");
     }
 
     let runtime_load_started = Instant::now();
@@ -693,15 +736,7 @@ fn independent_fields_from_validation(validation: &Value) -> (bool, bool, bool) 
     let regions_pass = validation
         .get("independent_regions_pass")
         .and_then(Value::as_bool)
-        .unwrap_or_else(|| {
-            validation["independent_comparison"]["regions"]
-                .as_array()
-                .is_some_and(|regions| {
-                    regions
-                        .iter()
-                        .all(|region| region["pass"].as_bool().unwrap_or(false))
-                })
-        });
+        .unwrap_or_else(|| regions_pass_from_comparison(validation));
     let production_use = validation
         .get("independent_reference_production_use")
         .and_then(Value::as_bool)
@@ -717,12 +752,24 @@ fn independent_fields_from_validation(validation: &Value) -> (bool, bool, bool) 
     (regions_pass, production_use, comparison_pass)
 }
 
+fn regions_pass_from_comparison(validation: &Value) -> bool {
+    validation["independent_comparison"]["regions"]
+        .as_array()
+        .is_some_and(|regions| {
+            !regions.is_empty()
+                && regions
+                    .iter()
+                    .all(|region| region["pass"].as_bool() == Some(true))
+        })
+}
+
 fn candidate_science_ready(summary: &NsideSummary) -> bool {
     summary.finite_nonnegative_pass
         && summary.spectral_contract_pass
         && summary.flux_conservation_pass
         && summary.plane_pole_pass
         && summary.longitude_wrap_pass
+        && summary.independent_regions_pass
 }
 
 fn candidate_operational_ready(summary: &NsideSummary) -> bool {
@@ -744,17 +791,33 @@ fn finalize_eligibility(summaries: &mut [NsideSummary]) {
         summary.eligible_for_production = summary.eligible_for_candidate_recommendation
             && summary.independent_comparison_pass
             && summary.independent_reference_production_use
-            && missing_flux_report_approved()
-            && redistribution_policy_approved();
+            && ProductionApprovalState::missing_flux_report_approved()
+            && ProductionApprovalState::redistribution_policy_approved();
+    }
+}
+
+/// Fail-closed production approval placeholders.
+///
+/// These gates remain blocked until maintainer-reviewed, checksummed approval
+/// artefacts exist. Wire signed approval JSON here; do not flip to `true` by hand.
+struct ProductionApprovalState;
+
+impl ProductionApprovalState {
+    fn missing_flux_report_approved() -> bool {
+        false
+    }
+
+    fn redistribution_policy_approved() -> bool {
+        false
     }
 }
 
 fn missing_flux_report_approved() -> bool {
-    false
+    ProductionApprovalState::missing_flux_report_approved()
 }
 
 fn redistribution_policy_approved() -> bool {
-    false
+    ProductionApprovalState::redistribution_policy_approved()
 }
 
 fn compute_production_blockers(
@@ -865,10 +928,12 @@ fn ratio_with_zero_baseline(value: f64, reference: f64) -> f64 {
 }
 
 fn brightest_region_mean(validation: &Value) -> Option<f64> {
+    if !regions_pass_from_comparison(validation) {
+        return None;
+    }
     validation["independent_comparison"]["regions"]
         .as_array()?
         .iter()
-        .filter(|region| region["pass"].as_bool().unwrap_or(false))
         .filter_map(|region| region["observed_mean"].as_f64())
         .max_by(f64::total_cmp)
 }
@@ -947,9 +1012,9 @@ mod tests {
     fn candidate_recommendation_ignores_provisional_reference() {
         let args = fixture_args();
         let mut summaries = vec![
-            fixture_summary(64, 4.0, true, false),
-            fixture_summary(128, 3.0, true, false),
-            fixture_summary(256, 2.5, true, false),
+            fixture_summary(64, 4.0, true, true, false),
+            fixture_summary(128, 3.0, true, true, false),
+            fixture_summary(256, 2.5, true, true, false),
         ];
         assess_candidates(&mut summaries, &args);
         finalize_eligibility(&mut summaries);
@@ -964,9 +1029,9 @@ mod tests {
     fn recommendation_maximizes_resolution_only_within_internal_gates() {
         let args = fixture_args();
         let mut summaries = vec![
-            fixture_summary(64, 4.0, true, false),
-            fixture_summary(128, 3.0, true, false),
-            fixture_summary(256, 1.0, true, false),
+            fixture_summary(64, 4.0, true, true, false),
+            fixture_summary(128, 3.0, true, true, false),
+            fixture_summary(256, 1.0, true, true, false),
         ];
         assess_candidates(&mut summaries, &args);
         finalize_eligibility(&mut summaries);
@@ -982,9 +1047,9 @@ mod tests {
     fn production_can_be_eligible_only_with_approved_external_gates() {
         let args = fixture_args();
         let mut summaries = vec![
-            fixture_summary(64, 4.0, true, true),
-            fixture_summary(128, 3.0, true, true),
-            fixture_summary(256, 2.5, true, true),
+            fixture_summary(64, 4.0, true, true, true),
+            fixture_summary(128, 3.0, true, true, true),
+            fixture_summary(256, 2.5, true, true, true),
         ];
         assess_candidates(&mut summaries, &args);
         finalize_eligibility(&mut summaries);
@@ -995,7 +1060,7 @@ mod tests {
     #[test]
     fn provisional_reference_never_enables_production_ready() {
         let args = fixture_args();
-        let mut summaries = vec![fixture_summary(256, 2.5, true, false)];
+        let mut summaries = vec![fixture_summary(256, 2.5, true, true, false)];
         assess_candidates(&mut summaries, &args);
         finalize_eligibility(&mut summaries);
         assert!(!summaries[0].eligible_for_production);
@@ -1005,7 +1070,7 @@ mod tests {
     #[test]
     fn recommendation_is_absent_when_no_internal_candidate_passes() {
         let args = fixture_args();
-        let mut summaries = vec![fixture_summary(256, 0.5, true, false)];
+        let mut summaries = vec![fixture_summary(256, 0.5, true, true, false)];
         assess_candidates(&mut summaries, &args);
         finalize_eligibility(&mut summaries);
         assert_eq!(recommend_candidate(&summaries), None);
@@ -1015,7 +1080,7 @@ mod tests {
     fn oversized_candidate_is_ineligible() {
         let mut args = fixture_args();
         args.max_release_mib = 0.0005;
-        let mut summaries = vec![fixture_summary(256, 2.5, true, false)];
+        let mut summaries = vec![fixture_summary(256, 2.5, true, true, false)];
         summaries[0].release_csv_bytes = 1_000_000;
         assess_candidates(&mut summaries, &args);
         finalize_eligibility(&mut summaries);
@@ -1041,6 +1106,96 @@ mod tests {
         assert!(!comparison);
     }
 
+    #[test]
+    fn provisional_reference_with_passing_regions_is_candidate_eligible() {
+        let args = fixture_args();
+        let mut summaries = vec![
+            fixture_summary(64, 4.0, true, true, false),
+            fixture_summary(128, 3.0, true, true, false),
+            fixture_summary(256, 2.5, true, true, false),
+        ];
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        assert!(summaries[2].independent_regions_pass);
+        assert!(!summaries[2].independent_reference_production_use);
+        assert!(summaries[2].candidate_science_ready);
+        assert!(summaries[2].eligible_for_candidate_recommendation);
+        assert!(!summaries[2].eligible_for_production);
+    }
+
+    #[test]
+    fn failed_independent_region_blocks_candidate_science_ready() {
+        let args = fixture_args();
+        let mut summaries = vec![fixture_summary(256, 2.5, true, false, false)];
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        assert!(!summaries[0].independent_regions_pass);
+        assert!(!summaries[0].candidate_science_ready);
+        assert!(!summaries[0].eligible_for_candidate_recommendation);
+    }
+
+    #[test]
+    fn missing_independent_regions_fail_closed() {
+        let validation = serde_json::json!({
+            "independent_comparison": {
+                "production_use": false
+            }
+        });
+        assert!(!regions_pass_from_comparison(&validation));
+        assert_eq!(brightest_region_mean(&validation), None);
+    }
+
+    #[test]
+    fn brightest_region_mean_is_absent_when_any_region_fails() {
+        let validation = serde_json::json!({
+            "independent_comparison": {
+                "production_use": false,
+                "regions": [
+                    {"pass": true, "observed_mean": 1.0},
+                    {"pass": false, "observed_mean": 100.0}
+                ]
+            }
+        });
+        assert!(!regions_pass_from_comparison(&validation));
+        assert_eq!(brightest_region_mean(&validation), None);
+    }
+
+    #[test]
+    fn catalog_checksum_verification_accepts_sha256_prefix() {
+        let digest = "a".repeat(64);
+        verify_expected_catalog_checksum(&format!("sha256:{digest}"), &digest).unwrap();
+        verify_expected_catalog_checksum(&digest, &format!("sha256:{digest}")).unwrap();
+    }
+
+    #[test]
+    fn catalog_checksum_verification_rejects_mismatch() {
+        let expected = "a".repeat(64);
+        let found = "b".repeat(64);
+        let error = verify_expected_catalog_checksum(&expected, &found).expect_err("mismatch");
+        assert!(error.to_string().contains("expected sha256:"));
+        assert!(error.to_string().contains("found sha256:"));
+    }
+
+    #[test]
+    fn catalog_checksum_verification_rejects_invalid_hex() {
+        let error = normalize_catalog_checksum("not-a-valid-checksum").expect_err("invalid");
+        assert!(error
+            .to_string()
+            .contains("invalid SHA-256 checksum format"));
+    }
+
+    #[test]
+    fn assess_existing_mode_skips_map_rebuild() {
+        assert!(!fixture_args().assess_existing);
+        assert!(
+            Args {
+                assess_existing: true,
+                ..fixture_args()
+            }
+            .assess_existing
+        );
+    }
+
     fn fixture_args() -> Args {
         Args {
             input: Some(PathBuf::from("catalogue.csv")),
@@ -1064,6 +1219,7 @@ mod tests {
         nside: u32,
         sources_per_nonempty_pixel: f64,
         flux_conservation_pass: bool,
+        independent_regions_pass: bool,
         production_reference: bool,
     ) -> NsideSummary {
         let pixels = 12 * u64::from(nside) * u64::from(nside);
@@ -1095,9 +1251,9 @@ mod tests {
             longitude_wrap_pass: true,
             longitude_wrap_metric: Some(1.0),
             longitude_wrap_threshold: Some(10.0),
-            independent_regions_pass: true,
+            independent_regions_pass,
             independent_reference_production_use: production_reference,
-            independent_comparison_pass: production_reference,
+            independent_comparison_pass: independent_regions_pass && production_reference,
             brightest_independent_region_mean_ph_cm2_ns_sr: Some(10.0),
             bright_region_relative_delta_to_nside256: None,
             bright_pixel_p99_ph_cm2_ns_sr: Some(8.0),
