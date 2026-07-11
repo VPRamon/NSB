@@ -121,7 +121,10 @@ fn load_headers(path: &Path) -> Result<HashMap<String, usize>> {
 fn load_splits(path: &Path) -> Result<HashMap<u64, (DataPartition, u64)>> {
     let mut reader = ReaderBuilder::new().from_path(path)?;
     let headers = reader.headers()?.clone();
-    let sid_idx = headers.iter().position(|h| h == "source_id").context("source_id")?;
+    let sid_idx = headers
+        .iter()
+        .position(|h| h == "source_id")
+        .context("source_id")?;
     let split_idx = headers.iter().position(|h| h == "split").context("split")?;
     let cell_idx = headers
         .iter()
@@ -148,10 +151,14 @@ fn features_from_row(
     headers: &HashMap<String, usize>,
 ) -> Result<PhotometryFeatures> {
     Ok(PhotometryFeatures {
-        g_flux_e_s: optional_field(record, headers, "phot_g_mean_flux").and_then(|v: &str| v.parse().ok()),
-        bp_flux_e_s: optional_field(record, headers, "phot_bp_mean_flux").and_then(|v: &str| v.parse().ok()),
-        rp_flux_e_s: optional_field(record, headers, "phot_rp_mean_flux").and_then(|v: &str| v.parse().ok()),
-        g_mag: optional_field(record, headers, "phot_g_mean_mag").and_then(|v: &str| v.parse().ok()),
+        g_flux_e_s: optional_field(record, headers, "phot_g_mean_flux")
+            .and_then(|v: &str| v.parse().ok()),
+        bp_flux_e_s: optional_field(record, headers, "phot_bp_mean_flux")
+            .and_then(|v: &str| v.parse().ok()),
+        rp_flux_e_s: optional_field(record, headers, "phot_rp_mean_flux")
+            .and_then(|v: &str| v.parse().ok()),
+        g_mag: optional_field(record, headers, "phot_g_mean_mag")
+            .and_then(|v: &str| v.parse().ok()),
         bp_rp: optional_field(record, headers, "bp_rp").and_then(|v: &str| v.parse().ok()),
         bp_rp_excess: optional_field(record, headers, "phot_bp_rp_excess_factor")
             .and_then(|v: &str| v.parse().ok()),
@@ -262,7 +269,9 @@ fn main() -> Result<()> {
         };
         match split {
             DataPartition::Train => train_by_branch.entry(branch).or_default().push(sample),
-            DataPartition::Validation => validation_by_branch.entry(branch).or_default().push(sample),
+            DataPartition::Validation => {
+                validation_by_branch.entry(branch).or_default().push(sample)
+            }
             DataPartition::Test => *test_counts.entry(branch).or_default() += 1,
         }
     }

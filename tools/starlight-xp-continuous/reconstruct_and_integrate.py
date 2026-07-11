@@ -68,6 +68,55 @@ def source_id_from_stem(stem: str) -> str:
     return stem.removeprefix("xp_source_")
 
 
+def reconstruct_file(coefficient_path: Path, output_dir: Path) -> list[dict]:
+    sampling = sampling_grid()
+    calibrated, _correlation = gaiaxpy.calibrate(
+        str(coefficient_path),
+        sampling=sampling,
+        save_file=False,
+        truncation=False,
+    )
+    entries = []
+    for _, row in calibrated.iterrows():
+        source_id = str(int(row["source_id"]))
+        output_path = output_dir / f"{source_id}.csv"
+        if output_path.exists():
+            entries.append(
+                {
+                    "source_id": source_id,
+                    "status": "skipped_existing",
+                    "output_sha256": sha256_file(output_path),
+                }
+            )
+            continue
+        flux = np.asarray(row["flux"], dtype=float)
+        flux_error = np.asarray(row["flux_error"], dtype=float)
+        if flux.shape != sampling.shape or flux_error.shape != sampling.shape:
+            raise RuntimeError(f"calibrated grid mismatch for {source_id}")
+        write_normalized_csv(output_path, source_id, sampling, flux, flux_error)
+        photon_energy_j = 6.62607015e-34 * 299792458.0 / (sampling * 1e-9)
+        photon_flux = flux / photon_energy_j
+        trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
+        flux_integral = float(trapz(photon_flux, sampling))
+        photon_unc = flux_error / photon_energy_j
+        uncertainty_integral = float(trapz(photon_unc, sampling))
+        entries.append(
+            {
+                "source_id": source_id,
+                "status": "reconstructed",
+                "output_path": str(output_path),
+                "coefficient_sha256": sha256_file(coefficient_path),
+                "output_sha256": sha256_file(output_path),
+                "band_nm": [BAND_MIN_NM, BAND_MAX_NM],
+                "grid_step_nm": GRID_STEP_NM,
+                "samples": int(len(sampling)),
+                "flux_336_650_ph_m2_s": flux_integral,
+                "statistical_uncertainty_336_650_ph_m2_s": uncertainty_integral,
+            }
+        )
+    return entries
+
+
 def reconstruct_one(coefficient_path: Path, output_path: Path) -> dict:
     if output_path.exists():
         return {
@@ -76,52 +125,36 @@ def reconstruct_one(coefficient_path: Path, output_path: Path) -> dict:
             "output_sha256": sha256_file(output_path),
         }
 
-    sampling = sampling_grid()
-    calibrated, _correlation = gaiaxpy.calibrate(
-        str(coefficient_path),
-        sampling=sampling,
-        save_file=False,
-        truncation=False,
-    )
-    if len(calibrated) != 1:
-        raise RuntimeError(f"expected one calibrated row for {coefficient_path}")
-    row = calibrated.iloc[0]
-    source_id = str(row["source_id"])
-    flux = np.asarray(row["flux"], dtype=float)
-    flux_error = np.asarray(row["flux_error"], dtype=float)
-    if flux.shape != sampling.shape or flux_error.shape != sampling.shape:
-        raise RuntimeError(f"calibrated grid mismatch for {source_id}")
-
-    write_normalized_csv(output_path, source_id, sampling, flux, flux_error)
-    return {
-        "source_id": source_id,
-        "status": "reconstructed",
-        "coefficient_sha256": sha256_file(coefficient_path),
-        "output_sha256": sha256_file(output_path),
-        "band_nm": [BAND_MIN_NM, BAND_MAX_NM],
-        "grid_step_nm": GRID_STEP_NM,
-        "samples": int(len(sampling)),
-    }
+    entries = reconstruct_file(coefficient_path, output_path.parent)
+    for entry in entries:
+        if entry["source_id"] == source_id_from_stem(coefficient_path.stem):
+            return entry
+    raise RuntimeError(f"no calibrated row for {coefficient_path}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--coefficients-dir", type=Path, required=True)
+    parser.add_argument("--coefficients-dir", type=Path, default=None)
+    parser.add_argument("--coefficient-file", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--limit", type=int, default=None)
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    coefficient_paths = sorted(args.coefficients_dir.glob("*.csv"))
-    if args.limit is not None:
-        coefficient_paths = coefficient_paths[: args.limit]
-
     entries = []
-    for coefficient_path in coefficient_paths:
-        source_id = source_id_from_stem(coefficient_path.stem)
-        output_path = args.output_dir / f"{source_id}.csv"
-        entries.append(reconstruct_one(coefficient_path, output_path))
+    if args.coefficient_file is not None:
+        entries.extend(reconstruct_file(args.coefficient_file, args.output_dir))
+    else:
+        if args.coefficients_dir is None:
+            raise SystemExit("either --coefficients-dir or --coefficient-file is required")
+        coefficient_paths = sorted(args.coefficients_dir.glob("*.csv"))
+        if args.limit is not None:
+            coefficient_paths = coefficient_paths[: args.limit]
+        for coefficient_path in coefficient_paths:
+            source_id = source_id_from_stem(coefficient_path.stem)
+            output_path = args.output_dir / f"{source_id}.csv"
+            entries.append(reconstruct_one(coefficient_path, output_path))
 
     manifest = {
         "schema_version": 1,
