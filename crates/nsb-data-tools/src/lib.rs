@@ -7,4 +7,5 @@ pub mod gaia_tap;
 pub mod gaia_xp;
 pub mod starlight_approval;
 pub mod starlight_integrated;
+pub mod starlight_sampling;
 pub mod starlight_science;

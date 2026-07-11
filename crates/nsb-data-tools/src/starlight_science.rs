@@ -1205,7 +1205,8 @@ pub struct SpatialSplitSpec {
 }
 
 impl SpatialSplitSpec {
-    fn validate(&self) -> Result<()> {
+    /// Validate bucket definitions and HEALPix nside.
+    pub fn validate(&self) -> Result<()> {
         if self.algorithm != "splitmix64_spatial_cell_v1"
             || self.spatial_nside == 0
             || !self.spatial_nside.is_power_of_two()
