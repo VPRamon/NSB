@@ -73,9 +73,9 @@ Code: `starlight_sampling.rs`, `consolidate_gaia_starlight_samples`, extended `g
 
 Known exclusions (documented, not metric-tuned):
 
-- `4062484362784191744` — overlap target absent from canonical `gaia_dr3_starlight_sources.csv` (catalogue reconciliation).
+- `4062484362784191744` — present in Phase 4 overlap sample and Phase 5 targets, but **excluded from canonical `gaia_dr3_starlight_sources.csv`** because `gaia_dr3_starlight_exclusions.csv` records **non-positive integrated photon flux** (integrated = −34.04 ph m⁻² s⁻¹, 67 negative band samples). Reason code: `missing_from_canonical_sampled_reference`. Continuous coefficient retrieval may proceed; overlap validation correctly skips this source (no canonical sampled 336–650 nm reference).
 
-Partial overlap smoke (20 reconstructed sources at checkpoint): pipeline runs end-to-end; gates not evaluable until download completes.
+Partial overlap smoke (subsample at checkpoint): pipeline runs end-to-end; gates not evaluable until download completes.
 
 Artifacts: `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/` (not versioned in git). Auto-resume pipeline: `tools/starlight-xp-continuous/run_phase5_pipeline.sh`.
 
