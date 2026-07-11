@@ -3,7 +3,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use nsb_data_tools::gaia_xp_continuous_bulk_index::{
-    build_index, locate_source_id, write_index_csv,
+    build_index, locate_and_verify_row, locate_source_id, write_index_csv,
 };
 use std::fs;
 use std::path::PathBuf;
@@ -27,6 +27,8 @@ enum Command {
     Locate {
         #[arg(long)]
         source_id: String,
+        #[arg(long, default_value_t = false)]
+        verify_row: bool,
     },
 }
 
@@ -45,11 +47,19 @@ fn main() -> Result<()> {
     let json_path = args.output_dir.join("phase5b_bulk_file_index.json");
     fs::write(&json_path, serde_json::to_string_pretty(&index)? + "\n")?;
     write_index_csv(&args.output_dir.join("phase5b_bulk_file_index.csv"), &index)?;
-    if let Some(Command::Locate { source_id }) = args.command {
+    if let Some(Command::Locate {
+        source_id,
+        verify_row,
+    }) = args.command
+    {
         let source_id = source_id
             .parse::<u64>()
             .with_context(|| format!("invalid source_id {source_id}"))?;
-        let located = locate_source_id(&index, source_id)?;
+        let located = if verify_row {
+            locate_and_verify_row(&index, source_id)?
+        } else {
+            locate_source_id(&index, source_id)?
+        };
         println!("{}", serde_json::to_string_pretty(&located)?);
     } else {
         println!(

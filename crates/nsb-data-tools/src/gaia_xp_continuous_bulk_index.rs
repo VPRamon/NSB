@@ -47,9 +47,16 @@ pub struct SourceLocateResult {
     pub source_id: String,
     pub healpix_index: u64,
     pub file_name: String,
+    pub source_id_min: u64,
+    pub source_id_max: u64,
+    pub healpix_index_min: u64,
+    pub healpix_index_max: u64,
     pub downloaded: bool,
     pub local_path: Option<String>,
     pub validation_status: BulkFileValidationStatus,
+    pub expected_checksum: String,
+    pub observed_checksum: Option<String>,
+    pub row_found: Option<bool>,
 }
 
 pub fn gaia_source_healpix_index(source_id: u64) -> u64 {
@@ -90,10 +97,55 @@ pub fn locate_source_id(index: &BulkFileIndex, source_id: u64) -> Result<SourceL
         source_id: source_id.to_string(),
         healpix_index,
         file_name: entry.file_name.clone(),
+        source_id_min: entry.source_id_min,
+        source_id_max: entry.source_id_max,
+        healpix_index_min: entry.healpix_index_min,
+        healpix_index_max: entry.healpix_index_max,
         downloaded: entry.downloaded,
         local_path: entry.local_path.clone(),
         validation_status: entry.validation_status.clone(),
+        expected_checksum: entry.checksum.clone(),
+        observed_checksum: None,
+        row_found: None,
     })
+}
+
+pub fn locate_and_verify_row(index: &BulkFileIndex, source_id: u64) -> Result<SourceLocateResult> {
+    let mut result = locate_source_id(index, source_id)?;
+    if let Some(local_path) = result.local_path.clone() {
+        let path = Path::new(&local_path);
+        let observed_matches = verify_md5(path, &result.expected_checksum)?;
+        result.observed_checksum = if path.is_file() {
+            Some(if observed_matches {
+                result.expected_checksum.clone()
+            } else {
+                compute_file_md5(path)?
+            })
+        } else {
+            None
+        };
+        if result.downloaded {
+            result.row_found = Some(
+                crate::gaia_xp_continuous_canonical::find_bulk_source(
+                    path,
+                    &source_id.to_string(),
+                )?
+                .is_some(),
+            );
+        }
+        if !observed_matches && path.is_file() {
+            result.validation_status = BulkFileValidationStatus::ChecksumMismatch;
+        }
+    }
+    Ok(result)
+}
+
+fn compute_file_md5(path: &Path) -> Result<String> {
+    use md5::{Digest, Md5};
+    let mut file = fs::File::open(path)?;
+    let mut hasher = Md5::new();
+    std::io::copy(&mut file, &mut hasher)?;
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 pub fn parse_official_md5_manifest(text: &str) -> Result<BTreeMap<String, (String, u64)>> {
@@ -236,6 +288,48 @@ mod tests {
     }
 
     #[test]
+    fn locate_second_prefix_healpix_range() {
+        let index = BulkFileIndex {
+            schema_version: 1,
+            inventory_total_files: 2,
+            entries: vec![
+                BulkFileIndexEntry {
+                    file_name: "XpContinuousMeanSpectrum_000000-003111.csv.gz".to_string(),
+                    source_id_min: 0,
+                    source_id_max: (3112 << GAIA_SOURCE_HEALPIX_SHIFT) - 1,
+                    healpix_index_min: 0,
+                    healpix_index_max: 3111,
+                    size_bytes: 1,
+                    checksum: "abc".to_string(),
+                    download_url: String::new(),
+                    downloaded: true,
+                    local_path: Some("/tmp/x1.csv.gz".to_string()),
+                    validation_status: BulkFileValidationStatus::ChecksumVerified,
+                },
+                BulkFileIndexEntry {
+                    file_name: "XpContinuousMeanSpectrum_003112-005263.csv.gz".to_string(),
+                    source_id_min: 3112 << GAIA_SOURCE_HEALPIX_SHIFT,
+                    source_id_max: ((5264) << GAIA_SOURCE_HEALPIX_SHIFT) - 1,
+                    healpix_index_min: 3112,
+                    healpix_index_max: 5263,
+                    size_bytes: 1,
+                    checksum: "def".to_string(),
+                    download_url: String::new(),
+                    downloaded: true,
+                    local_path: Some("/tmp/x2.csv.gz".to_string()),
+                    validation_status: BulkFileValidationStatus::ChecksumVerified,
+                },
+            ],
+        };
+        let second_prefix_source = 3112_u64 << GAIA_SOURCE_HEALPIX_SHIFT;
+        let located = locate_source_id(&index, second_prefix_source).unwrap();
+        assert_eq!(
+            located.file_name,
+            "XpContinuousMeanSpectrum_003112-005263.csv.gz"
+        );
+    }
+
+    #[test]
     fn locate_source_id_finds_first_file() {
         let index = BulkFileIndex {
             schema_version: 1,
@@ -259,5 +353,7 @@ mod tests {
             located.file_name,
             "XpContinuousMeanSpectrum_000000-003111.csv.gz"
         );
+        assert_eq!(located.expected_checksum, "abc");
+        assert_eq!(located.healpix_index_min, 0);
     }
 }
