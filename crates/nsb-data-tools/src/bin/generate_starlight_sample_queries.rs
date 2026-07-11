@@ -311,6 +311,10 @@ mod tests {
         assert!(query.contains("ABS(b) < 10"));
         assert!(query.contains("ORDER BY random_index"));
         assert!(!query.contains("random_index <"));
+        assert!(
+            !query.contains(" = true") && !query.contains(" = false"),
+            "Gaia ADQL rejects bare boolean literals; use 'True'/'False'"
+        );
     }
 
     #[test]

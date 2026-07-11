@@ -1937,6 +1937,98 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn http_429_is_retried_with_backoff() -> Result<()> {
+        let busy = http_response(
+            "429 Too Many Requests",
+            &[("Retry-After", "0")],
+            "rate limited",
+        );
+        let success = http_response(
+            "200 OK",
+            &[("Content-Type", "text/csv")],
+            "source_id\n1\n2\n",
+        );
+        let (endpoint, requests, server) = fixture_server(vec![busy, success]).await?;
+        let dir = tempfile::tempdir()?;
+        let request = request_in(&dir, "SELECT source_id FROM t", TapMode::Sync);
+        let client = GaiaTapClient::new(&endpoint, test_config())?;
+        let outcome = client.execute(&request).await?;
+        server.await??;
+
+        assert_eq!(outcome.row_count, Some(2));
+        assert_eq!(requests.lock().expect("fixture mutex poisoned").len(), 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn existing_output_is_not_overwritten_without_flag() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        fs::write(dir.path().join("result.csv"), "source_id\n99\n")?;
+        let request = request_in(&dir, "SELECT source_id FROM t", TapMode::Sync);
+        let client = GaiaTapClient::new("http://127.0.0.1:9/tap", test_config())?;
+        let error = client
+            .execute(&request)
+            .await
+            .expect_err("existing output must block");
+        assert!(error.to_string().contains("already exists"));
+        assert_eq!(
+            fs::read_to_string(dir.path().join("result.csv"))?,
+            "source_id\n99\n"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn uws_error_phase_is_not_retried() -> Result<()> {
+        let submitted = http_response("303 See Other", &[("Location", "/tap/async/99")], "");
+        let error_phase = http_response("200 OK", &[("Content-Type", "text/plain")], "ERROR\n");
+        let error_body = http_response(
+            "200 OK",
+            &[("Content-Type", "text/plain")],
+            "ADQL syntax error",
+        );
+        let (endpoint, requests, server) =
+            fixture_server(vec![submitted, error_phase, error_body]).await?;
+        let dir = tempfile::tempdir()?;
+        let request = request_in(&dir, "SELECT bad FROM t", TapMode::Async);
+        let client = GaiaTapClient::new(&endpoint, test_config())?;
+        let error = client
+            .execute(&request)
+            .await
+            .expect_err("UWS ERROR must fail closed");
+        server.await??;
+
+        assert!(error.to_string().contains("ERROR phase"));
+        assert_eq!(requests.lock().expect("fixture mutex poisoned").len(), 3);
+        assert!(
+            fs::read_to_string(dir.path().join("tap-run/body-error.bin"))?
+                .contains("ADQL syntax error")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn html_error_body_is_detected() -> Result<()> {
+        let response = http_response(
+            "200 OK",
+            &[("Content-Type", "text/html")],
+            "<html><body>TAP error</body></html>",
+        );
+        let (endpoint, _, server) = fixture_server(vec![response]).await?;
+        let dir = tempfile::tempdir()?;
+        let request = request_in(&dir, "SELECT source_id FROM t", TapMode::Sync);
+        let client = GaiaTapClient::new(&endpoint, test_config())?;
+        let error = client
+            .execute(&request)
+            .await
+            .expect_err("HTML must fail validation");
+        server.await??;
+
+        assert!(error.to_string().contains("TAP") || error.to_string().contains("malformed"));
+        Ok(())
+    }
+
     #[test]
     fn csv_reaching_maxrec_and_wrong_population_fail_closed() -> Result<()> {
         let dir = tempfile::tempdir()?;

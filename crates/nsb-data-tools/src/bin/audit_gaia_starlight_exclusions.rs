@@ -122,9 +122,9 @@ fn run(args: &Args) -> Result<()> {
     let mut negative_sum = 0.0;
     let mut variance_sum = 0.0;
     for (source_id, recorded) in &expected {
-        let (origin, integral) = found
-            .get(source_id)
-            .with_context(|| format!("excluded source {source_id} absent from selected bulk files"))?;
+        let (origin, integral) = found.get(source_id).with_context(|| {
+            format!("excluded source {source_id} absent from selected bulk files")
+        })?;
         let matches = integral_matches(*integral, recorded);
         parser_matches += usize::from(matches);
         if !matches {
@@ -221,12 +221,15 @@ fn run(args: &Args) -> Result<()> {
             .context("audit output filename is not UTF-8")?
     );
     write_atomic(&checksum_path, checksum_line.as_bytes())?;
-    println!("{}", serde_json::to_string_pretty(&serde_json::json!({
-        "output": args.output,
-        "sha256": digest,
-        "sources": expected.len(),
-        "production_use": false,
-    }))?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "output": args.output,
+            "sha256": digest,
+            "sources": expected.len(),
+            "production_use": false,
+        }))?
+    );
     Ok(())
 }
 
@@ -297,10 +300,7 @@ fn read_metadata(
     Ok(output)
 }
 
-fn select_bulk_files(
-    dir: &Path,
-    source_ids: impl Iterator<Item = u64>,
-) -> Result<Vec<PathBuf>> {
+fn select_bulk_files(dir: &Path, source_ids: impl Iterator<Item = u64>) -> Result<Vec<PathBuf>> {
     let indices: BTreeSet<u64> = source_ids
         .map(|source_id| source_id >> GAIA_SOURCE_HEALPIX_SHIFT)
         .collect();
@@ -310,7 +310,10 @@ fn select_bulk_files(
         let Some((lower, upper)) = bulk_range(&path) else {
             continue;
         };
-        if indices.iter().any(|index| lower <= *index && *index <= upper) {
+        if indices
+            .iter()
+            .any(|index| lower <= *index && *index <= upper)
+        {
             selected.insert(path);
         }
     }
@@ -375,7 +378,10 @@ fn scan_bulk_file(
             Some(path),
         )?;
         let integral = integrate_sampled_photon_flux(&flux_values, &error_values)?;
-        if found.insert(source_id, (path.to_path_buf(), integral)).is_some() {
+        if found
+            .insert(source_id, (path.to_path_buf(), integral))
+            .is_some()
+        {
             bail!("excluded source_id {source_id} appears more than once in official bulk files");
         }
     }

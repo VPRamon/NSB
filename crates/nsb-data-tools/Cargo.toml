@@ -62,6 +62,11 @@ path = "src/bin/generate_starlight_sample_queries.rs"
 doc = false
 
 [[bin]]
+name = "consolidate_gaia_starlight_samples"
+path = "src/bin/consolidate_gaia_starlight_samples.rs"
+doc = false
+
+[[bin]]
 name = "audit_gaia_starlight_exclusions"
 path = "src/bin/audit_gaia_starlight_exclusions.rs"
 doc = false
