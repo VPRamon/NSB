@@ -7,6 +7,7 @@ pub mod gaia_tap;
 pub mod gaia_xp;
 pub mod gaia_xp_continuous;
 pub mod gaia_xp_continuous_bulk_index;
+pub mod gaia_xp_continuous_bulk_schema;
 pub mod gaia_xp_continuous_canonical;
 pub mod gaia_xp_continuous_healpix;
 pub mod starlight_approval;
