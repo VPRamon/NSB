@@ -989,10 +989,9 @@ impl Counters {
         match conversion {
             Conversion::Accepted { output, integral } => {
                 self.science.observe(integral);
-                let writer = writer
-                    .as_mut()
-                    .context("accepted Gaia source encountered without catalogue writer")?;
-                writer.write_record(output)?;
+                if let Some(writer) = writer.as_mut() {
+                    writer.write_record(output)?;
+                }
                 self.rows_used += 1;
             }
             Conversion::ScientificallyExcluded {
@@ -1574,6 +1573,124 @@ mod tests {
         assert!(diagnostics["scientific_exclusions_sha256"]
             .as_str()
             .is_some_and(|value| value.starts_with("sha256:")));
+        Ok(())
+    }
+
+    #[test]
+    fn exclusions_only_mixed_bulk_counts_accepted_and_excluded() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir_all(&bulk)?;
+        let file = bulk.join("sample.csv.gz");
+        write_gzip(
+            &file,
+            &format!(
+                "{BULK_HEADER}{}{}",
+                bulk_row(1, 0.0, 0.0, 1.0e-12, 1.0e-14),
+                bulk_row(2, 0.0, 0.0, -1.0e-12, 1.0e-14),
+            ),
+        )?;
+        let exclusions = dir.path().join("exclusions.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let catalogue = dir.path().join("canonical.csv");
+        run(Args {
+            input: None,
+            bulk_dir: Some(bulk),
+            output: None,
+            diagnostics_output: Some(diagnostics.clone()),
+            exclusions_output: Some(exclusions.clone()),
+            exclusions_only: true,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: "DR3".to_string(),
+            catalog_license: "CC-BY-4.0-derived-policy-reviewed".to_string(),
+            source_checksum: None,
+            photometry_model: PHOTOMETRY_MODEL.to_string(),
+            band_min_nm: BAND_MIN_NM,
+            band_max_nm: BAND_MAX_NM,
+            production: false,
+        })?;
+        assert!(!catalogue.exists());
+        let sidecar = std::fs::read_to_string(&exclusions)?;
+        assert_eq!(sidecar.lines().count(), 2);
+        assert!(sidecar.contains("2,non-positive integrated photon flux"));
+        assert!(!sidecar.contains("\n1,"));
+        let diagnostics = report(&diagnostics)?;
+        assert_eq!(diagnostics["rows_used"], 1);
+        assert_eq!(diagnostics["rows_scientifically_excluded"], 1);
+        assert_eq!(diagnostics["rows_unexpectedly_rejected"], 0);
+        Ok(())
+    }
+
+    #[test]
+    fn exclusions_only_with_only_accepted_sources_writes_empty_sidecar() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir_all(&bulk)?;
+        let file = bulk.join("sample.csv.gz");
+        write_gzip(
+            &file,
+            &format!("{BULK_HEADER}{}", bulk_row(7, 0.0, 0.0, 1.0e-12, 1.0e-14)),
+        )?;
+        let exclusions = dir.path().join("exclusions.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        run(Args {
+            input: None,
+            bulk_dir: Some(bulk),
+            output: None,
+            diagnostics_output: Some(diagnostics.clone()),
+            exclusions_output: Some(exclusions.clone()),
+            exclusions_only: true,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: "DR3".to_string(),
+            catalog_license: "CC-BY-4.0-derived-policy-reviewed".to_string(),
+            source_checksum: None,
+            photometry_model: PHOTOMETRY_MODEL.to_string(),
+            band_min_nm: BAND_MIN_NM,
+            band_max_nm: BAND_MAX_NM,
+            production: false,
+        })?;
+        assert_eq!(std::fs::read_to_string(&exclusions)?.lines().count(), 1);
+        let diagnostics = report(&diagnostics)?;
+        assert_eq!(diagnostics["rows_scientifically_excluded"], 0);
+        assert_eq!(diagnostics["scientific_exclusions_count"], 0);
+        Ok(())
+    }
+
+    #[test]
+    fn exclusions_sidecar_is_not_committed_on_unexpected_failure() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir_all(&bulk)?;
+        let file = bulk.join("sample.csv.gz");
+        write_gzip(
+            &file,
+            &format!(
+                "{BULK_HEADER}{}{}",
+                bulk_row(1, 0.0, 0.0, -1.0e-12, 1.0e-14),
+                bulk_row(1, 0.0, 0.0, -1.0e-12, 1.0e-14),
+            ),
+        )?;
+        let exclusions = dir.path().join("exclusions.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let error = run(Args {
+            input: None,
+            bulk_dir: Some(bulk),
+            output: None,
+            diagnostics_output: Some(diagnostics),
+            exclusions_output: Some(exclusions.clone()),
+            exclusions_only: true,
+            catalog_name: "Gaia".to_string(),
+            catalog_release: "DR3".to_string(),
+            catalog_license: "CC-BY-4.0-derived-policy-reviewed".to_string(),
+            source_checksum: None,
+            photometry_model: PHOTOMETRY_MODEL.to_string(),
+            band_min_nm: BAND_MIN_NM,
+            band_max_nm: BAND_MAX_NM,
+            production: false,
+        })
+        .expect_err("duplicate source_id must fail closed");
+        assert!(error.to_string().contains("unexpected source rejections"));
+        assert!(!exclusions.exists());
         Ok(())
     }
 
