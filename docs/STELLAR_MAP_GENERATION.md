@@ -151,6 +151,32 @@ ship the Gaia-derived production asset because the real Gaia extract, reviewed
 redistribution policy, and independent validation reference are not present in
 CI.
 
+### Official XP sampled bulk input
+
+The preferred production input is the checksummed Gaia DR3 XP sampled bulk
+inventory (`--bulk-dir`). Files are ECSV `*.csv.gz` tables with one source per
+row. `flux` and `flux_error` are quoted bracketed arrays of 343 energy-flux
+samples on the implicit 336–1020 nm grid (2 nm step). NSB integrates the
+inclusive 336–650 nm band only; bulk rows do not carry a `wavelength` column.
+Processing is streaming and fuses bulk SHA-256 verification with parsing so the
+inventory is not read twice.
+
+The normalized DataLink fallback (`--input`) remains for controlled validation or
+repair. It stores semicolon-separated explicit wavelength series per source.
+
+```bash
+cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --bulk-dir "$OUT/gaia_dr3_xp_sampled_bulk" \
+  --output "$OUT/gaia_dr3_starlight_sources.csv" \
+  --diagnostics-output "$OUT/gaia_dr3_starlight_sources.diagnostics.json" \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "$LICENSE" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
+  --band-min-nm 336 \
+  --band-max-nm 650
+```
+
 ## Legacy Tycho proxy pipeline
 
 ```text

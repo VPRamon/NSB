@@ -5,12 +5,18 @@
 //! noisy measurements and are retained with their sign.  Only the final
 //! passband integral is required to be positive for a source to contribute to
 //! the starlight map.
+//!
+//! Official Gaia DR3 XP sampled bulk files (ECSV) store one row per source.
+//! `flux` and `flux_error` are bracketed comma-separated arrays with exactly
+//! [`XP_SAMPLED_GRID_LEN`] samples on the implicit grid 336–1020 nm (step 2 nm).
+//! NSB integrates the inclusive 336–650 nm band (indices 0..=157).
 
 use anyhow::{bail, Context, Result};
 use csv::{ReaderBuilder, StringRecord};
 use qtty::{unit, Quantity};
 use serde::{Deserialize, Serialize};
 use siderust::qtty::{Meter, Nanometers};
+use std::path::Path;
 
 pub const BAND_MIN_NM: f64 = 336.0;
 pub const BAND_MAX_NM: f64 = 650.0;
@@ -19,6 +25,19 @@ pub const PHOTON_FLUX_COLUMN: &str = "photon_flux_336_650_ph_m2_s";
 pub const NORMALIZED_WAVELENGTH_COLUMN: &str = "xp_wavelength_nm";
 pub const NORMALIZED_FLUX_COLUMN: &str = "xp_flux_w_m2_nm";
 pub const NORMALIZED_FLUX_ERROR_COLUMN: &str = "xp_flux_error_w_m2_nm";
+
+/// First wavelength of the official XP sampled grid, nm.
+pub const XP_SAMPLED_GRID_START_NM: f64 = 336.0;
+/// Uniform wavelength step of the official XP sampled grid, nm.
+pub const XP_SAMPLED_GRID_STEP_NM: f64 = 2.0;
+/// Number of samples on the official XP sampled grid.
+pub const XP_SAMPLED_GRID_LEN: usize = 343;
+/// Last wavelength of the official XP sampled grid, nm.
+pub const XP_SAMPLED_GRID_END_NM: f64 = 1020.0;
+/// Inclusive band start index for 336 nm on the XP sampled grid.
+pub const XP_SAMPLED_BAND_START_INDEX: usize = 0;
+/// Inclusive band end index for 650 nm on the XP sampled grid.
+pub const XP_SAMPLED_BAND_END_INDEX: usize = 157;
 
 type JouleSeconds = Quantity<unit::Prod<unit::Joule, unit::Second>>;
 
@@ -128,6 +147,96 @@ pub fn parse_normalized_record(headers: &StringRecord, row: &StringRecord) -> Re
     Ok(product)
 }
 
+/// Parse an official Gaia XP sampled bulk array field into `out`, reusing capacity.
+///
+/// The observed format is a bracketed comma-separated list of floating-point
+/// literals without interior whitespace, e.g. `[2.7225272E-17,1.8763725E-17,...]`.
+pub fn parse_gaia_sampled_array_into(
+    raw: &str,
+    field: &str,
+    out: &mut Vec<f64>,
+    source_id: Option<u64>,
+    origin_file: Option<&Path>,
+) -> Result<()> {
+    out.clear();
+    let trimmed = raw.trim();
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .ok_or_else(|| {
+            sampled_array_error(field, source_id, origin_file, "expected bracketed array")
+        })?;
+    if inner.is_empty() {
+        return Err(sampled_array_error(
+            field,
+            source_id,
+            origin_file,
+            "empty array",
+        ));
+    }
+    for (index, token) in inner.split(',').enumerate() {
+        if token.is_empty() {
+            return Err(sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("empty token at element index {index}"),
+            ));
+        }
+        let value = token.parse::<f64>().with_context(|| {
+            sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("invalid numeric token at element index {index}: {token:?}"),
+            )
+        })?;
+        match field {
+            "flux" if !value.is_finite() => {
+                return Err(sampled_array_error(
+                    field,
+                    source_id,
+                    origin_file,
+                    &format!("non-finite flux at element index {index}"),
+                ));
+            }
+            "flux_error" if !value.is_finite() || value < 0.0 => {
+                return Err(sampled_array_error(
+                    field,
+                    source_id,
+                    origin_file,
+                    &format!("flux_error must be finite and non-negative at element index {index}"),
+                ));
+            }
+            "flux" | "flux_error" => out.push(value),
+            _ => bail!("internal error: unsupported sampled array field {field:?}"),
+        }
+    }
+    if out.len() != XP_SAMPLED_GRID_LEN {
+        return Err(sampled_array_error(
+            field,
+            source_id,
+            origin_file,
+            &format!(
+                "expected exactly {XP_SAMPLED_GRID_LEN} elements, found {}",
+                out.len()
+            ),
+        ));
+    }
+    Ok(())
+}
+
+pub fn parse_gaia_sampled_array(
+    raw: &str,
+    field: &str,
+    source_id: Option<u64>,
+    origin_file: Option<&Path>,
+) -> Result<Vec<f64>> {
+    let mut out = Vec::with_capacity(XP_SAMPLED_GRID_LEN);
+    parse_gaia_sampled_array_into(raw, field, &mut out, source_id, origin_file)?;
+    Ok(out)
+}
+
 pub fn validate_product(product: &XpProduct) -> Result<()> {
     if product.source_id.trim().is_empty() {
         bail!("empty Gaia XP source_id");
@@ -182,15 +291,154 @@ pub fn integrate_photon_flux(product: &XpProduct) -> Result<PhotonFluxIntegral> 
         bail!("Gaia XP integration band contains fewer than two samples");
     }
 
-    let wavelengths = &product.wavelengths_nm[first..=last];
-    let fluxes = &product.flux_w_m2_nm[first..=last];
-    let errors = product
-        .flux_error_w_m2_nm
-        .as_ref()
-        .map(|values| &values[first..=last]);
+    integrate_photon_flux_trapezoid(
+        &product.wavelengths_nm[first..=last],
+        &product.flux_w_m2_nm[first..=last],
+        product
+            .flux_error_w_m2_nm
+            .as_ref()
+            .map(|values| &values[first..=last]),
+    )
+}
+
+/// Integrate the NSB 336–650 nm band on the official implicit XP sampled grid.
+pub fn integrate_sampled_photon_flux(
+    flux_w_m2_nm: &[f64],
+    flux_error_w_m2_nm: &[f64],
+) -> Result<PhotonFluxIntegral> {
+    if flux_w_m2_nm.len() != XP_SAMPLED_GRID_LEN {
+        bail!(
+            "Gaia XP sampled flux length mismatch: expected {XP_SAMPLED_GRID_LEN}, found {}",
+            flux_w_m2_nm.len()
+        );
+    }
+    if flux_error_w_m2_nm.len() != XP_SAMPLED_GRID_LEN {
+        bail!(
+            "Gaia XP sampled flux_error length mismatch: expected {XP_SAMPLED_GRID_LEN}, found {}",
+            flux_error_w_m2_nm.len()
+        );
+    }
+    integrate_implicit_grid_trapezoid(
+        XP_SAMPLED_GRID_START_NM,
+        XP_SAMPLED_GRID_STEP_NM,
+        XP_SAMPLED_BAND_START_INDEX,
+        XP_SAMPLED_BAND_END_INDEX,
+        flux_w_m2_nm,
+        flux_error_w_m2_nm,
+    )
+}
+
+fn integrate_implicit_grid_trapezoid(
+    grid_start_nm: f64,
+    grid_step_nm: f64,
+    start_index: usize,
+    end_index: usize,
+    flux_w_m2_nm: &[f64],
+    flux_error_w_m2_nm: &[f64],
+) -> Result<PhotonFluxIntegral> {
+    if end_index <= start_index {
+        bail!("Gaia XP integration band contains fewer than two samples");
+    }
+    if flux_w_m2_nm.len() <= end_index || flux_error_w_m2_nm.len() <= end_index {
+        bail!("Gaia XP sampled arrays are shorter than the integration band");
+    }
+
     let c_m_s = qtty::velocity::C.value();
     let hc_j_m = PLANCK_CONSTANT.value() * c_m_s;
-    let photon_density = wavelengths
+    let band_len = end_index - start_index + 1;
+    let negative_samples = flux_w_m2_nm[start_index..=end_index]
+        .iter()
+        .filter(|value| **value < 0.0)
+        .count();
+
+    let wavelength_nm = |index: usize| grid_start_nm + grid_step_nm * index as f64;
+    let photon_density = |index: usize| -> Result<f64> {
+        let flux = flux_w_m2_nm[index];
+        if !flux.is_finite() {
+            bail!("Gaia XP flux values must be finite");
+        }
+        let error = flux_error_w_m2_nm[index];
+        if !error.is_finite() || error < 0.0 {
+            bail!("Gaia XP flux_error values must be finite and non-negative");
+        }
+        let wavelength_m = Nanometers::new(wavelength_nm(index)).to::<Meter>();
+        Ok(flux * wavelength_m.value() / hc_j_m)
+    };
+
+    let mut total = 0.0;
+    let mut positive = 0.0;
+    let mut negative = 0.0;
+    for index in start_index..end_index {
+        let width_nm = grid_step_nm;
+        let density_pair = [photon_density(index)?, photon_density(index + 1)?];
+        let signed = 0.5 * (density_pair[0] + density_pair[1]) * width_nm;
+        total += signed;
+        accumulate_signed_linear_segment(
+            density_pair[0],
+            density_pair[1],
+            width_nm,
+            &mut positive,
+            &mut negative,
+        );
+    }
+    if !total.is_finite() {
+        bail!("Gaia XP integrated photon flux is not finite");
+    }
+
+    let mut variance = 0.0;
+    for offset in 0..band_len {
+        let index = start_index + offset;
+        let left_width = if index > start_index {
+            grid_step_nm
+        } else {
+            0.0
+        };
+        let right_width = if index < end_index { grid_step_nm } else { 0.0 };
+        let trapezoid_weight_nm = 0.5 * (left_width + right_width);
+        let wavelength_m = Nanometers::new(wavelength_nm(index)).to::<Meter>();
+        let photon_error_density = flux_error_w_m2_nm[index] * wavelength_m.value() / hc_j_m;
+        variance += (photon_error_density * trapezoid_weight_nm).powi(2);
+    }
+    let negative_magnitude = -negative;
+    let negative_contribution_ratio = if positive > 0.0 {
+        negative_magnitude / positive
+    } else if negative_magnitude > 0.0 {
+        f64::INFINITY
+    } else {
+        0.0
+    };
+
+    Ok(PhotonFluxIntegral {
+        total_ph_m2_s: total,
+        positive_ph_m2_s: positive,
+        negative_ph_m2_s: negative,
+        negative_contribution_ratio,
+        uncertainty_ph_m2_s: Some(variance.sqrt()),
+        negative_samples,
+        band_samples: band_len,
+    })
+}
+
+fn integrate_photon_flux_trapezoid(
+    wavelengths_nm: &[f64],
+    fluxes: &[f64],
+    errors: Option<&[f64]>,
+) -> Result<PhotonFluxIntegral> {
+    if wavelengths_nm.len() != fluxes.len() {
+        bail!("Gaia XP wavelength/flux length mismatch");
+    }
+    if wavelengths_nm.len() < 2 {
+        bail!("Gaia XP integration band contains fewer than two samples");
+    }
+    if let Some(errors) = errors {
+        if errors.len() != wavelengths_nm.len() {
+            bail!("Gaia XP wavelength/flux_error length mismatch");
+        }
+    }
+
+    let c_m_s = qtty::velocity::C.value();
+    let hc_j_m = PLANCK_CONSTANT.value() * c_m_s;
+    let photon_density = wavelengths_nm
         .iter()
         .zip(fluxes)
         .map(|(wavelength_nm, flux)| {
@@ -202,7 +450,7 @@ pub fn integrate_photon_flux(product: &XpProduct) -> Result<PhotonFluxIntegral> 
     let mut total = 0.0;
     let mut positive = 0.0;
     let mut negative = 0.0;
-    for (wave_pair, density_pair) in wavelengths.windows(2).zip(photon_density.windows(2)) {
+    for (wave_pair, density_pair) in wavelengths_nm.windows(2).zip(photon_density.windows(2)) {
         let width_nm = wave_pair[1] - wave_pair[0];
         let signed = 0.5 * (density_pair[0] + density_pair[1]) * width_nm;
         total += signed;
@@ -220,17 +468,17 @@ pub fn integrate_photon_flux(product: &XpProduct) -> Result<PhotonFluxIntegral> 
 
     let uncertainty_ph_m2_s = errors.map(|errors| {
         let mut variance = 0.0;
-        for sample_index in 0..wavelengths.len() {
+        for sample_index in 0..wavelengths_nm.len() {
             let left_width = sample_index
                 .checked_sub(1)
-                .map(|index| wavelengths[sample_index] - wavelengths[index])
+                .map(|index| wavelengths_nm[sample_index] - wavelengths_nm[index])
                 .unwrap_or(0.0);
-            let right_width = wavelengths
+            let right_width = wavelengths_nm
                 .get(sample_index + 1)
-                .map(|next| *next - wavelengths[sample_index])
+                .map(|next| *next - wavelengths_nm[sample_index])
                 .unwrap_or(0.0);
             let trapezoid_weight_nm = 0.5 * (left_width + right_width);
-            let wavelength_m = Nanometers::new(wavelengths[sample_index]).to::<Meter>();
+            let wavelength_m = Nanometers::new(wavelengths_nm[sample_index]).to::<Meter>();
             let photon_error_density = errors[sample_index] * wavelength_m.value() / hc_j_m;
             variance += (photon_error_density * trapezoid_weight_nm).powi(2);
         }
@@ -254,6 +502,22 @@ pub fn integrate_photon_flux(product: &XpProduct) -> Result<PhotonFluxIntegral> 
         negative_samples: fluxes.iter().filter(|value| **value < 0.0).count(),
         band_samples: fluxes.len(),
     })
+}
+
+fn sampled_array_error(
+    field: &str,
+    source_id: Option<u64>,
+    origin_file: Option<&Path>,
+    detail: &str,
+) -> anyhow::Error {
+    let mut message = format!("invalid Gaia XP sampled {field}: {detail}");
+    if let Some(source_id) = source_id {
+        message.push_str(&format!(" (source_id={source_id})"));
+    }
+    if let Some(path) = origin_file {
+        message.push_str(&format!(" in {}", path.display()));
+    }
+    anyhow::anyhow!(message)
 }
 
 fn accumulate_signed_linear_segment(
@@ -348,6 +612,101 @@ mod tests {
         }
     }
 
+    fn bracketed(values: &[f64]) -> String {
+        format!(
+            "[{}]",
+            values
+                .iter()
+                .map(|value| format!("{value:.8e}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+
+    fn constant_sampled_arrays(value: f64) -> (String, String) {
+        let values = vec![value; XP_SAMPLED_GRID_LEN];
+        (
+            bracketed(&values),
+            bracketed(&[1.0e-14; XP_SAMPLED_GRID_LEN]),
+        )
+    }
+
+    #[test]
+    fn xp_sampled_grid_constants_are_consistent() {
+        let computed_end =
+            XP_SAMPLED_GRID_START_NM + XP_SAMPLED_GRID_STEP_NM * (XP_SAMPLED_GRID_LEN - 1) as f64;
+        assert!((computed_end - XP_SAMPLED_GRID_END_NM).abs() < 1.0e-12);
+        let band_end_wavelength =
+            XP_SAMPLED_GRID_START_NM + XP_SAMPLED_GRID_STEP_NM * XP_SAMPLED_BAND_END_INDEX as f64;
+        assert!((band_end_wavelength - BAND_MAX_NM).abs() < 1.0e-12);
+        assert_eq!(
+            XP_SAMPLED_BAND_END_INDEX - XP_SAMPLED_BAND_START_INDEX + 1,
+            158
+        );
+    }
+
+    #[test]
+    fn parses_official_bracketed_sampled_arrays() -> Result<()> {
+        let (flux, error) = constant_sampled_arrays(2.5e-17);
+        let parsed_flux = parse_gaia_sampled_array(&flux, "flux", Some(42), None)?;
+        let parsed_error = parse_gaia_sampled_array(&error, "flux_error", Some(42), None)?;
+        assert_eq!(parsed_flux.len(), XP_SAMPLED_GRID_LEN);
+        assert_eq!(parsed_error.len(), XP_SAMPLED_GRID_LEN);
+        assert!((parsed_flux[0] - 2.5e-17).abs() < 1.0e-30);
+        Ok(())
+    }
+
+    #[test]
+    fn sampled_array_parser_rejects_wrong_lengths_and_malformed_tokens() {
+        let (flux, error) = constant_sampled_arrays(1.0e-17);
+        let short = format!("[{}]", "1.0,".repeat(341));
+        assert!(parse_gaia_sampled_array(&short, "flux", None, None).is_err());
+        let long = format!("[{}]", "1.0,".repeat(344));
+        assert!(parse_gaia_sampled_array(&long, "flux", None, None).is_err());
+        assert!(parse_gaia_sampled_array("", "flux", None, None).is_err());
+        assert!(parse_gaia_sampled_array("[]", "flux", None, None).is_err());
+        let bad = flux.replacen("1.00000000e-17", "not_a_number", 1);
+        assert!(parse_gaia_sampled_array(&bad, "flux", None, None).is_err());
+        let mut nan_values = vec![1.0e-17; XP_SAMPLED_GRID_LEN];
+        nan_values[5] = f64::NAN;
+        assert!(parse_gaia_sampled_array(&bracketed(&nan_values), "flux", None, None).is_err());
+        let mut inf_values = vec![1.0e-17; XP_SAMPLED_GRID_LEN];
+        inf_values[5] = f64::INFINITY;
+        assert!(parse_gaia_sampled_array(&bracketed(&inf_values), "flux", None, None).is_err());
+        let mut neg_errors = vec![1.0e-14; XP_SAMPLED_GRID_LEN];
+        neg_errors[3] = -1.0;
+        assert!(
+            parse_gaia_sampled_array(&bracketed(&neg_errors), "flux_error", None, None).is_err()
+        );
+        let mut mismatch = error.clone();
+        mismatch.push_str(",1.0");
+        assert!(parse_gaia_sampled_array(&mismatch, "flux_error", None, None).is_err());
+    }
+
+    #[test]
+    fn sampled_array_allows_negative_finite_flux() -> Result<()> {
+        let mut values = vec![1.0e-17; XP_SAMPLED_GRID_LEN];
+        values[10] = -1.0e-18;
+        let flux = bracketed(&values);
+        let parsed = parse_gaia_sampled_array(&flux, "flux", None, None)?;
+        assert!(parsed[10] < 0.0);
+        Ok(())
+    }
+
+    #[test]
+    fn analytic_constant_sampled_spectrum_matches_closed_form() -> Result<()> {
+        let flux = 2.5e-12;
+        let (flux_array, error_array) = constant_sampled_arrays(flux);
+        let flux = parse_gaia_sampled_array(&flux_array, "flux", None, None)?;
+        let error = parse_gaia_sampled_array(&error_array, "flux_error", None, None)?;
+        let integrated = integrate_sampled_photon_flux(&flux, &error)?;
+        let hc = PLANCK_CONSTANT.value() * qtty::velocity::C.value();
+        let expected = flux[0] * 0.5 * (BAND_MAX_NM.powi(2) - BAND_MIN_NM.powi(2)) * 1.0e-9 / hc;
+        let relative = (integrated.total_ph_m2_s - expected).abs() / expected;
+        assert!(relative < 1.0e-14, "relative error {relative}");
+        Ok(())
+    }
+
     #[test]
     fn parses_real_gaia_schema_and_preserves_error() -> Result<()> {
         let raw = concat!(
@@ -382,6 +741,13 @@ mod tests {
         assert!(integrated.negative_ph_m2_s < 0.0);
         assert_eq!(integrated.negative_samples, 1);
         assert!(integrated.negative_contribution_ratio > 0.0);
+
+        let mut flux = vec![1.0e-12; XP_SAMPLED_GRID_LEN];
+        flux[0] = -1.0e-14;
+        let errors = vec![1.0e-14; XP_SAMPLED_GRID_LEN];
+        let sampled = integrate_sampled_photon_flux(&flux, &errors)?;
+        assert!(sampled.total_ph_m2_s > 0.0);
+        assert_eq!(sampled.negative_samples, 1);
         Ok(())
     }
 

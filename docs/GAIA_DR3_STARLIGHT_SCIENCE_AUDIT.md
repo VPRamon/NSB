@@ -111,6 +111,12 @@ require roughly 42 MB/s for transfer alone. The release pipeline therefore uses
 checksummed sampled bulk files as its primary input and uses concurrent
 DataLink only to repair missing sources and for controlled benchmarks.
 
+Official bulk rows are ECSV with columns `source_id`, `solution_id`, `ra`,
+`dec`, `flux`, and `flux_error`. `flux` and `flux_error` are quoted CSV fields
+holding bracketed arrays of exactly 343 samples on the implicit XP sampled grid
+336–1020 nm (step 2 nm). NSB integrates the inclusive 336–650 nm band only;
+bulk files do not expose a per-row `wavelength` column.
+
 Gaia DataLink supports multiple IDs (up to 5,000) with
 `DATA_STRUCTURE=INDIVIDUAL`, returning an archive of individual products.
 `DATA_STRUCTURE=COMBINED` is deprecated and is not used. See [Gaia programmatic

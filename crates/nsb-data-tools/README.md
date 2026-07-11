@@ -11,9 +11,9 @@ Offline, non-runtime tools for scientific data products.
 - `prepare_tycho_starlight_catalogue`: converts local BT/VT catalogue rows to
   canonical rows, verifies input SHA-256, and emits JSON diagnostics. Its colour
   transform is explicitly experimental.
-- `prepare_gaia_starlight_catalogue`: converts a maintainer Gaia DR3 + XP
-  release extract into canonical passband-integrated source rows using Siderust
-  Gaia/passband APIs.
+- `prepare_gaia_starlight_catalogue`: converts official Gaia DR3 XP sampled bulk
+  files or a normalized DataLink fallback extract into canonical passband-
+  integrated source rows using Siderust Gaia/passband APIs.
 - `build_starlight_map`: delegates transforms, HEALPix, construction, and
   validators to Siderust; writes a complete map and optional JSON diagnostics.
   It supports both the legacy proxy B/V input and Gaia passband photon-flux
@@ -82,6 +82,35 @@ The XP chunk merger expects chunk files that expose `source_id`,
 `xp_wavelength_nm`, and `xp_flux_w_m2_nm` as CSV columns or equivalent JSON
 fields. If the Gaia DataLink response is stored in a different native layout,
 keep the raw chunks and adapt the parser before using `--production`.
+
+## Gaia DR3 XP sampled bulk preparation
+
+Production preparation reads the official ECSV `*.csv.gz` bulk inventory
+(one row per source). Each row exposes `source_id`, `solution_id`, `ra`, `dec`,
+`flux`, and `flux_error`. The spectral columns are quoted CSV fields containing
+bracketed comma-separated arrays with exactly 343 samples on the implicit XP
+sampled grid 336–1020 nm (step 2 nm). NSB integrates only the inclusive
+336–650 nm band (indices 0..=157). There is no per-row `wavelength` column in
+the bulk product.
+
+The tool streams each gzip file without loading the full inventory into memory,
+fuses bulk checksum verification with the parse pass, and rejects the deprecated
+long schema that assumed one CSV row per wavelength sample. The normalized
+DataLink fallback (`--input`) still uses explicit semicolon-separated wavelength
+series per source.
+
+```bash
+cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+  --bulk-dir "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_xp_sampled_bulk" \
+  --output target/starlight-release/gaia_dr3_starlight_sources.csv \
+  --diagnostics-output target/starlight-release/gaia_dr3_starlight_sources.diagnostics.json \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
+  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
+  --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
+  --band-min-nm 336 \
+  --band-max-nm 650
+```
 
 After generation, source the env file and run the remaining pipeline:
 

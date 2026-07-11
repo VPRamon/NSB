@@ -3,9 +3,9 @@ use clap::{ArgGroup, Parser};
 use csv::{ReaderBuilder, StringRecord, Writer, WriterBuilder};
 use flate2::read::GzDecoder;
 use nsb_data_tools::gaia_xp::{
-    self, PhotonFluxIntegral, XpProduct, BAND_MAX_NM, BAND_MIN_NM, NORMALIZED_FLUX_COLUMN,
-    NORMALIZED_FLUX_ERROR_COLUMN, NORMALIZED_WAVELENGTH_COLUMN, PHOTOMETRY_MODEL,
-    PHOTON_FLUX_COLUMN,
+    self, integrate_sampled_photon_flux, parse_gaia_sampled_array_into, PhotonFluxIntegral,
+    XpProduct, BAND_MAX_NM, BAND_MIN_NM, NORMALIZED_FLUX_COLUMN, NORMALIZED_FLUX_ERROR_COLUMN,
+    NORMALIZED_WAVELENGTH_COLUMN, PHOTOMETRY_MODEL, PHOTON_FLUX_COLUMN, XP_SAMPLED_GRID_LEN,
 };
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 const GAIA_DR3_REFERENCE_EPOCH_JYR: f64 = 2016.0;
 const NON_POSITIVE_INTEGRAL_REASON: &str = "non-positive integrated photon flux";
@@ -93,11 +94,14 @@ struct NormalizedColumns {
 }
 
 #[derive(Debug, Clone, Copy)]
+/// Column indices for official Gaia DR3 XP sampled bulk ECSV rows.
+///
+/// Each row is one source. `flux` and `flux_error` are quoted bracketed arrays of
+/// exactly [`XP_SAMPLED_GRID_LEN`] samples on the implicit 336–1020 nm grid.
 struct BulkColumns {
     source_id: usize,
     ra: usize,
     dec: usize,
-    wavelength: usize,
     flux: usize,
     flux_error: usize,
 }
@@ -214,16 +218,6 @@ enum Conversion {
     },
 }
 
-struct BulkSourceBuilder {
-    source_id: u64,
-    ra_deg: Option<f64>,
-    dec_deg: Option<f64>,
-    wavelengths_nm: Vec<f64>,
-    flux_w_m2_nm: Vec<f64>,
-    flux_error_w_m2_nm: Vec<f64>,
-    structural_error: Option<String>,
-}
-
 struct PendingOutput {
     temporary_path: PathBuf,
     final_path: PathBuf,
@@ -237,21 +231,30 @@ fn main() -> Result<()> {
 fn run(args: Args) -> Result<()> {
     validate_args(&args)?;
     let input = select_input(&args)?;
-    let input_checksum = checksum_input(&input, args.source_checksum.as_deref())?;
     let checksum_algorithm = input.checksum_algorithm();
     let input_mode = input.mode();
     let (mut writer, pending_output) = transactional_output_writer(&args.output)?;
     write_output_header(&mut writer)?;
 
     let mut counters = Counters::default();
-    match &input {
+    let input_checksum = match &input {
         InputSelection::Normalized(path) => {
+            let digest = checksum_file(path)?;
+            verify_source_checksum(&digest, args.source_checksum.as_deref())?;
             process_normalized(path, &args, &mut writer, &mut counters)?;
+            format!("sha256:{digest}")
         }
         InputSelection::Bulk { files } => {
-            process_bulk(files, &args, &mut writer, &mut counters)?;
+            let digest = process_bulk(
+                files,
+                &args,
+                &mut writer,
+                &mut counters,
+                args.source_checksum.as_deref(),
+            )?;
+            format!("sha256:{digest}")
         }
-    }
+    };
     writer.flush()?;
     drop(writer);
 
@@ -388,18 +391,14 @@ fn discover_bulk_files(directory: &Path) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-fn checksum_input(input: &InputSelection, expected: Option<&str>) -> Result<String> {
-    let digest = match input {
-        InputSelection::Normalized(path) => checksum_file(path)?,
-        InputSelection::Bulk { files } => checksum_bulk(files)?,
-    };
+fn verify_source_checksum(digest: &str, expected: Option<&str>) -> Result<()> {
     if let Some(expected) = expected {
         let expected = expected.strip_prefix("sha256:").unwrap_or(expected);
         if expected != digest {
             bail!("source checksum mismatch: expected sha256:{expected}, actual sha256:{digest}");
         }
     }
-    Ok(format!("sha256:{digest}"))
+    Ok(())
 }
 
 fn checksum_file(path: &Path) -> Result<String> {
@@ -408,29 +407,6 @@ fn checksum_file(path: &Path) -> Result<String> {
     );
     let mut hasher = Sha256::new();
     copy_into_hasher(&mut file, &mut hasher)?;
-    let digest: [u8; 32] = hasher.finalize().into();
-    Ok(to_hex(&digest))
-}
-
-fn checksum_bulk(files: &[PathBuf]) -> Result<String> {
-    let mut hasher = Sha256::new();
-    hasher.update(b"NSB_GAIA_XP_BULK_V1\0");
-    for path in files {
-        let name = path
-            .file_name()
-            .context("bulk path has no filename")?
-            .to_string_lossy();
-        let metadata = std::fs::metadata(path)
-            .with_context(|| format!("failed to stat bulk file {}", path.display()))?;
-        hasher.update((name.len() as u64).to_be_bytes());
-        hasher.update(name.as_bytes());
-        hasher.update(metadata.len().to_be_bytes());
-        let mut file = BufReader::new(
-            File::open(path)
-                .with_context(|| format!("failed to checksum bulk file {}", path.display()))?,
-        );
-        copy_into_hasher(&mut file, &mut hasher)?;
-    }
     let digest: [u8; 32] = hasher.finalize().into();
     Ok(to_hex(&digest))
 }
@@ -494,12 +470,31 @@ fn process_bulk(
     args: &Args,
     writer: &mut Writer<Box<dyn Write>>,
     counters: &mut Counters,
-) -> Result<()> {
+    expected_checksum: Option<&str>,
+) -> Result<String> {
+    let mut hasher = Sha256::new();
+    hasher.update(b"NSB_GAIA_XP_BULK_V1\0");
     let mut last_source_id = None;
+    let mut flux_buf = Vec::with_capacity(XP_SAMPLED_GRID_LEN);
+    let mut error_buf = Vec::with_capacity(XP_SAMPLED_GRID_LEN);
+    let mut progress = BulkProgress::new(files.len());
+
     for path in files {
+        let name = path
+            .file_name()
+            .context("bulk path has no filename")?
+            .to_string_lossy();
+        let metadata = std::fs::metadata(path)
+            .with_context(|| format!("failed to stat bulk file {}", path.display()))?;
+        hasher.update((name.len() as u64).to_be_bytes());
+        hasher.update(name.as_bytes());
+        hasher.update(metadata.len().to_be_bytes());
+        progress.compressed_bytes += metadata.len();
+
         let file = File::open(path)
             .with_context(|| format!("failed to open Gaia XP bulk file {}", path.display()))?;
-        let decoder = GzDecoder::new(BufReader::new(file));
+        let mut hashing_reader = HashingReader::new(BufReader::new(file), &mut hasher);
+        let decoder = GzDecoder::new(&mut hashing_reader);
         let mut reader = ReaderBuilder::new()
             .comment(Some(b'#'))
             .trim(csv::Trim::All)
@@ -509,7 +504,6 @@ fn process_bulk(
             .with_context(|| format!("failed to read bulk CSV header in {}", path.display()))?
             .clone();
         let columns = BulkColumns::from_headers(&headers)?;
-        let mut pending: Option<BulkSourceBuilder> = None;
 
         for row in reader.records() {
             let row = row.with_context(|| {
@@ -519,57 +513,213 @@ fn process_bulk(
                 )
             })?;
             counters.input_records_read += 1;
-            let source_id = parse_u64(&row, columns.source_id, "source_id")
-                .with_context(|| format!("invalid source_id in {}", path.display()))?;
-            if pending
-                .as_ref()
-                .is_some_and(|source| source.source_id != source_id)
-            {
-                process_bulk_source(
-                    pending.take().expect("pending source exists"),
-                    args,
-                    writer,
-                    counters,
-                    &mut last_source_id,
-                )?;
+            counters.sources_read += 1;
+            let source_id = match parse_u64(&row, columns.source_id, "source_id") {
+                Ok(source_id) => source_id,
+                Err(error) => {
+                    counters.reject_unexpected(format!("{} in {}", error, path.display()));
+                    continue;
+                }
+            };
+            if let Some(previous) = last_source_id {
+                if source_id == previous {
+                    counters.reject_unexpected("duplicate source_id");
+                    continue;
+                }
+                if source_id < previous {
+                    counters.reject_unexpected("bulk source_id order is not strictly increasing");
+                    continue;
+                }
             }
-            let source = pending.get_or_insert_with(|| BulkSourceBuilder::new(source_id));
-            source.push(&row, columns);
+            last_source_id = Some(source_id);
+            counters.unique_source_ids_read += 1;
+            match convert_bulk_row(
+                &row,
+                columns,
+                source_id,
+                path,
+                args,
+                &mut flux_buf,
+                &mut error_buf,
+            ) {
+                Ok(conversion) => counters.handle_conversion(conversion, writer)?,
+                Err(error) => counters.reject_unexpected(error.to_string()),
+            }
+            progress.maybe_report(counters, files.len());
         }
-        if let Some(source) = pending.take() {
-            process_bulk_source(source, args, writer, counters, &mut last_source_id)?;
-        }
+        progress.files_done += 1;
+        progress.maybe_report(counters, files.len());
     }
-    Ok(())
+
+    let digest: [u8; 32] = hasher.finalize().into();
+    let digest_hex = to_hex(&digest);
+    verify_source_checksum(&digest_hex, expected_checksum)?;
+    Ok(digest_hex)
 }
 
-fn process_bulk_source(
-    source: BulkSourceBuilder,
+fn convert_bulk_row(
+    row: &StringRecord,
+    columns: BulkColumns,
+    source_id: u64,
+    origin_file: &Path,
     args: &Args,
-    writer: &mut Writer<Box<dyn Write>>,
-    counters: &mut Counters,
-    last_source_id: &mut Option<u64>,
-) -> Result<()> {
-    counters.sources_read += 1;
-    if let Some(previous) = *last_source_id {
-        if source.source_id == previous {
-            counters.reject_unexpected("duplicate source_id");
-            return Ok(());
+    flux_buf: &mut Vec<f64>,
+    error_buf: &mut Vec<f64>,
+) -> Result<Conversion> {
+    let ra_deg = parse_required_f64(row, columns.ra, "ra")?;
+    let dec_deg = parse_required_f64(row, columns.dec, "dec")?;
+    if !ra_deg.is_finite() || !dec_deg.is_finite() {
+        bail!(
+            "non-finite astrometry for source_id {source_id} in {}",
+            origin_file.display()
+        );
+    }
+    let flux_raw = row
+        .get(columns.flux)
+        .ok_or_else(|| anyhow::anyhow!("missing field \"flux\""))?;
+    let error_raw = row
+        .get(columns.flux_error)
+        .ok_or_else(|| anyhow::anyhow!("missing field \"flux_error\""))?;
+    parse_gaia_sampled_array_into(
+        flux_raw,
+        "flux",
+        flux_buf,
+        Some(source_id),
+        Some(origin_file),
+    )?;
+    parse_gaia_sampled_array_into(
+        error_raw,
+        "flux_error",
+        error_buf,
+        Some(source_id),
+        Some(origin_file),
+    )?;
+
+    let raw = GaiaDr3RawSourceRow {
+        source_id,
+        ra_deg,
+        dec_deg,
+        ref_epoch_jyr: GAIA_DR3_REFERENCE_EPOCH_JYR,
+        pmra_mas_per_yr: None,
+        pmdec_mas_per_yr: None,
+        parallax_mas: None,
+        radial_velocity_km_s: None,
+        phot_g_mean_mag: None,
+        phot_bp_mean_mag: None,
+        phot_rp_mean_mag: None,
+        quality: GaiaDr3QualityFlags {
+            quality_ok: true,
+            duplicated_source: None,
+        },
+    };
+    let integral = integrate_sampled_photon_flux(flux_buf, error_buf)?;
+    validate_integral(integral)?;
+    if integral.total_ph_m2_s <= 0.0 {
+        return Ok(Conversion::ScientificallyExcluded {
+            reason: NON_POSITIVE_INTEGRAL_REASON,
+            integral,
+        });
+    }
+
+    let icrs_ra_rad = raw.ra_deg.to_radians();
+    let icrs_dec_rad = raw.dec_deg.to_radians();
+    let source =
+        GaiaDr3Source::try_from(raw).map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    Ok(Conversion::Accepted {
+        output: [
+            source.source_id.value().to_string(),
+            format!("{icrs_ra_rad:.16}"),
+            format!("{icrs_dec_rad:.16}"),
+            format!("{:.6}", source.astrometry.epoch.value()),
+            format!("{:.16e}", integral.total_ph_m2_s),
+            args.photometry_model.clone(),
+            "1.0000000000".to_string(),
+        ],
+        integral,
+    })
+}
+
+struct HashingReader<'a, R> {
+    inner: R,
+    hasher: &'a mut Sha256,
+}
+
+impl<'a, R: Read> HashingReader<'a, R> {
+    fn new(inner: R, hasher: &'a mut Sha256) -> Self {
+        Self { inner, hasher }
+    }
+}
+
+impl<R: Read> Read for HashingReader<'_, R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let read = self.inner.read(buf)?;
+        if read > 0 {
+            self.hasher.update(&buf[..read]);
         }
-        if source.source_id < previous {
-            counters.reject_unexpected("bulk source_id order is not strictly increasing");
-            return Ok(());
+        Ok(read)
+    }
+}
+
+struct BulkProgress {
+    started: Instant,
+    last_report: Instant,
+    files_done: usize,
+    compressed_bytes: u64,
+}
+
+impl BulkProgress {
+    fn new(files_total: usize) -> Self {
+        let started = Instant::now();
+        eprintln!(
+            "Gaia bulk preparation: {files_total} files | starting streaming pass (checksum fused with parse)"
+        );
+        Self {
+            started,
+            last_report: started,
+            files_done: 0,
+            compressed_bytes: 0,
         }
     }
-    *last_source_id = Some(source.source_id);
-    counters.unique_source_ids_read += 1;
-    match source.into_conversion(args) {
-        Ok(conversion) => counters.handle_conversion(conversion, writer),
-        Err(error) => {
-            counters.reject_unexpected(error.to_string());
-            Ok(())
+
+    fn maybe_report(&mut self, counters: &Counters, files_total: usize) {
+        if self.last_report.elapsed() < Duration::from_secs(30) {
+            return;
         }
+        self.last_report = Instant::now();
+        let elapsed = self.started.elapsed().as_secs_f64().max(0.001);
+        let sources_per_second = counters.sources_read as f64 / elapsed;
+        let mib_per_second = self.compressed_bytes as f64 / (1024.0 * 1024.0) / elapsed;
+        let remaining_files = files_total.saturating_sub(self.files_done);
+        let files_per_second = self.files_done as f64 / elapsed;
+        let eta = if files_per_second > 0.0 {
+            format_duration(Duration::from_secs_f64(
+                remaining_files as f64 / files_per_second,
+            ))
+        } else {
+            "unknown".to_string()
+        };
+        eprintln!(
+            "Gaia bulk preparation: files {}/{} | sources {} ({:.1}/s) | compressed {:.1} MiB ({:.1} MiB/s) | elapsed {} | ETA {} | unexpected rejections {} | scientific exclusions {}",
+            self.files_done,
+            files_total,
+            counters.sources_read,
+            sources_per_second,
+            self.compressed_bytes as f64 / (1024.0 * 1024.0),
+            mib_per_second,
+            format_duration(self.started.elapsed()),
+            eta,
+            counters.unexpectedly_rejected,
+            counters.scientifically_excluded,
+        );
     }
+}
+
+fn format_duration(duration: Duration) -> String {
+    let seconds = duration.as_secs();
+    let hours = seconds / 3600;
+    let minutes = (seconds % 3600) / 60;
+    let seconds = seconds % 60;
+    format!("{hours:02}:{minutes:02}:{seconds:02}")
 }
 
 fn convert_normalized_row(
@@ -698,89 +848,23 @@ impl NormalizedColumns {
 
 impl BulkColumns {
     fn from_headers(headers: &StringRecord) -> Result<Self> {
+        if optional_header(headers, "wavelength").is_some() {
+            bail!(
+                "deprecated long-schema bulk file with per-row wavelength column; official Gaia XP sampled bulk stores flux arrays on an implicit 336–1020 nm grid"
+            );
+        }
+        if optional_header(headers, NORMALIZED_WAVELENGTH_COLUMN).is_some() {
+            bail!(
+                "bulk file exposes normalized DataLink wavelength column; expected official XP sampled bulk arrays without wavelength"
+            );
+        }
         Ok(Self {
             source_id: required_header(headers, "source_id")?,
             ra: required_header(headers, "ra")?,
             dec: required_header(headers, "dec")?,
-            wavelength: required_header(headers, "wavelength")?,
             flux: required_header(headers, "flux")?,
             flux_error: required_header(headers, "flux_error")?,
         })
-    }
-}
-
-impl BulkSourceBuilder {
-    fn new(source_id: u64) -> Self {
-        Self {
-            source_id,
-            ra_deg: None,
-            dec_deg: None,
-            wavelengths_nm: Vec::with_capacity(343),
-            flux_w_m2_nm: Vec::with_capacity(343),
-            flux_error_w_m2_nm: Vec::with_capacity(343),
-            structural_error: None,
-        }
-    }
-
-    fn push(&mut self, row: &StringRecord, columns: BulkColumns) {
-        if let Err(error) = self.try_push(row, columns) {
-            if self.structural_error.is_none() {
-                self.structural_error = Some(error.to_string());
-            }
-        }
-    }
-
-    fn try_push(&mut self, row: &StringRecord, columns: BulkColumns) -> Result<()> {
-        let ra_deg = parse_required_f64(row, columns.ra, "ra")?;
-        let dec_deg = parse_required_f64(row, columns.dec, "dec")?;
-        if self.ra_deg.is_some_and(|value| value != ra_deg)
-            || self.dec_deg.is_some_and(|value| value != dec_deg)
-        {
-            bail!("inconsistent astrometry within Gaia XP bulk source");
-        }
-        self.ra_deg.get_or_insert(ra_deg);
-        self.dec_deg.get_or_insert(dec_deg);
-        self.wavelengths_nm
-            .push(parse_required_f64(row, columns.wavelength, "wavelength")?);
-        self.flux_w_m2_nm
-            .push(parse_required_f64(row, columns.flux, "flux")?);
-        self.flux_error_w_m2_nm
-            .push(parse_required_f64(row, columns.flux_error, "flux_error")?);
-        Ok(())
-    }
-
-    fn into_conversion(self, args: &Args) -> Result<Conversion> {
-        if let Some(error) = self.structural_error {
-            bail!("malformed Gaia XP bulk source: {error}");
-        }
-        let raw = GaiaDr3RawSourceRow {
-            source_id: self.source_id,
-            ra_deg: self
-                .ra_deg
-                .context("empty Gaia XP bulk source astrometry")?,
-            dec_deg: self
-                .dec_deg
-                .context("empty Gaia XP bulk source astrometry")?,
-            ref_epoch_jyr: GAIA_DR3_REFERENCE_EPOCH_JYR,
-            pmra_mas_per_yr: None,
-            pmdec_mas_per_yr: None,
-            parallax_mas: None,
-            radial_velocity_km_s: None,
-            phot_g_mean_mag: None,
-            phot_bp_mean_mag: None,
-            phot_rp_mean_mag: None,
-            quality: GaiaDr3QualityFlags {
-                quality_ok: true,
-                duplicated_source: None,
-            },
-        };
-        let product = XpProduct {
-            source_id: self.source_id.to_string(),
-            wavelengths_nm: self.wavelengths_nm,
-            flux_w_m2_nm: self.flux_w_m2_nm,
-            flux_error_w_m2_nm: Some(self.flux_error_w_m2_nm),
-        };
-        convert_source(raw, product, args)
     }
 }
 
@@ -1289,6 +1373,48 @@ mod tests {
         Ok(())
     }
 
+    const BULK_HEADER: &str =
+        "# %ECSV 1.0\n# ---\n# delimiter: ','\nsource_id,solution_id,ra,dec,flux,flux_error\n";
+
+    fn bracketed(values: &[f64]) -> String {
+        format!(
+            "[{}]",
+            values
+                .iter()
+                .map(|value| format!("{value:.8e}"))
+                .collect::<Vec<_>>()
+                .join(",")
+        )
+    }
+
+    fn constant_bulk_arrays(flux: f64, error: f64) -> (String, String) {
+        let flux_values = vec![flux; XP_SAMPLED_GRID_LEN];
+        let error_values = vec![error; XP_SAMPLED_GRID_LEN];
+        (bracketed(&flux_values), bracketed(&error_values))
+    }
+
+    fn bulk_row(source_id: u64, ra: f64, dec: f64, flux: f64, error: f64) -> String {
+        let (flux_array, error_array) = constant_bulk_arrays(flux, error);
+        format!("{source_id},1,{ra},{dec},\"{flux_array}\",\"{error_array}\"\n")
+    }
+
+    fn bulk_args(bulk: PathBuf, output: PathBuf, diagnostics: PathBuf) -> Args {
+        Args {
+            input: None,
+            bulk_dir: Some(bulk),
+            output,
+            diagnostics_output: Some(diagnostics),
+            catalog_name: "Gaia".to_string(),
+            catalog_release: "DR3".to_string(),
+            catalog_license: "CC-BY-4.0-derived-policy-reviewed".to_string(),
+            source_checksum: None,
+            photometry_model: PHOTOMETRY_MODEL.to_string(),
+            band_min_nm: BAND_MIN_NM,
+            band_max_nm: BAND_MAX_NM,
+            production: false,
+        }
+    }
+
     #[test]
     fn official_bulk_gzip_is_streamed_source_by_source() -> Result<()> {
         let dir = tempfile::tempdir()?;
@@ -1296,29 +1422,19 @@ mod tests {
         std::fs::create_dir(&bulk)?;
         write_gzip(
             &bulk.join("part-000.csv.gz"),
-            concat!(
-                "source_id,ra,dec,wavelength,flux,flux_error\n",
-                "1,10,-20,336,1e-12,1e-14\n",
-                "1,10,-20,650,1e-12,1e-14\n",
-                "2,20,30,336,2e-12,2e-14\n",
-                "2,20,30,650,2e-12,2e-14\n",
+            &format!(
+                "{BULK_HEADER}{}",
+                bulk_row(1, 10.0, -20.0, 1e-12, 1e-14) + &bulk_row(2, 20.0, 30.0, 2e-12, 2e-14)
             ),
         )?;
         let output = dir.path().join("canonical.csv");
         let diagnostics = dir.path().join("diagnostics.json");
-        let mut args = args(
-            dir.path().join("unused"),
-            output.clone(),
-            diagnostics.clone(),
-        );
-        args.input = None;
-        args.bulk_dir = Some(bulk);
-        run(args)?;
+        run(bulk_args(bulk, output.clone(), diagnostics.clone()))?;
 
         assert_eq!(std::fs::read_to_string(output)?.lines().count(), 3);
         let diagnostics = report(&diagnostics)?;
         assert_eq!(diagnostics["input_mode"], "official_bulk_xp_sampled");
-        assert_eq!(diagnostics["input_records_read"], 4);
+        assert_eq!(diagnostics["input_records_read"], 2);
         assert_eq!(diagnostics["rows_read"], 2);
         assert_eq!(diagnostics["unique_sources_represented"], 2);
         assert_eq!(
@@ -1329,28 +1445,165 @@ mod tests {
     }
 
     #[test]
+    fn bulk_fixture_without_wavelength_column_is_required() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        write_gzip(
+            &bulk.join("part-000.csv.gz"),
+            &format!("{BULK_HEADER}{}", bulk_row(1, 0.0, 0.0, 1e-12, 1e-14)),
+        )?;
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        run(bulk_args(bulk, output, diagnostics))?;
+        Ok(())
+    }
+
+    #[test]
+    fn deprecated_long_schema_bulk_is_rejected() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        write_gzip(
+            &bulk.join("part-000.csv.gz"),
+            concat!(
+                "source_id,ra,dec,wavelength,flux,flux_error\n",
+                "1,10,-20,336,1e-12,1e-14\n",
+            ),
+        )?;
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let error = run(bulk_args(bulk, output.clone(), diagnostics))
+            .expect_err("long schema must be rejected");
+        assert!(error.to_string().contains("deprecated long-schema"));
+        assert!(!output.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn bulk_negative_sample_with_positive_integral_is_accepted() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        let mut flux = vec![1.0e-12; XP_SAMPLED_GRID_LEN];
+        flux[0] = -1.0e-14;
+        let (flux_array, error_array) = (
+            bracketed(&flux),
+            bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN]),
+        );
+        write_gzip(
+            &bulk.join("part-000.csv.gz"),
+            &format!("{BULK_HEADER}42,1,10,0,\"{flux_array}\",\"{error_array}\"\n"),
+        )?;
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        run(bulk_args(bulk, output.clone(), diagnostics.clone()))?;
+        assert_eq!(std::fs::read_to_string(output)?.lines().count(), 2);
+        let diagnostics = report(&diagnostics)?;
+        assert_eq!(diagnostics["negative_flux_samples"], 1);
+        assert_eq!(diagnostics["rows_unexpectedly_rejected"], 0);
+        Ok(())
+    }
+
+    #[test]
+    fn bulk_array_length_and_token_errors_are_rejected() -> Result<()> {
+        let cases = [
+            ("short flux", {
+                let flux = vec![1.0e-12; XP_SAMPLED_GRID_LEN - 1];
+                let (flux_array, error_array) = (
+                    bracketed(&flux),
+                    bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN]),
+                );
+                format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{error_array}\"\n")
+            }),
+            ("long flux", {
+                let flux = vec![1.0e-12; XP_SAMPLED_GRID_LEN + 1];
+                let (flux_array, error_array) = (
+                    bracketed(&flux),
+                    bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN]),
+                );
+                format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{error_array}\"\n")
+            }),
+            ("mismatched error", {
+                let (flux_array, _error_array) = constant_bulk_arrays(1.0e-12, 1.0e-14);
+                let short_error = bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN - 1]);
+                format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{short_error}\"\n")
+            }),
+            (
+                "empty flux",
+                format!(
+                    "{BULK_HEADER}1,1,0,0,\"[]\",\"{}\"\n",
+                    bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN])
+                ),
+            ),
+            ("malformed token", {
+                let (mut flux_array, error_array) = constant_bulk_arrays(1.0e-12, 1.0e-14);
+                flux_array = flux_array.replacen("1.00000000e-12", "not_a_number", 1);
+                format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{error_array}\"\n")
+            }),
+            ("nan flux", {
+                let mut flux = vec![1.0e-12; XP_SAMPLED_GRID_LEN];
+                flux[5] = f64::NAN;
+                let (flux_array, error_array) = (
+                    bracketed(&flux),
+                    bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN]),
+                );
+                format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{error_array}\"\n")
+            }),
+            ("infinite flux", {
+                let mut flux = vec![1.0e-12; XP_SAMPLED_GRID_LEN];
+                flux[5] = f64::INFINITY;
+                let (flux_array, error_array) = (
+                    bracketed(&flux),
+                    bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN]),
+                );
+                format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{error_array}\"\n")
+            }),
+            ("negative error", {
+                let mut errors = vec![1.0e-14; XP_SAMPLED_GRID_LEN];
+                errors[3] = -1.0;
+                let (flux_array, error_array) = (
+                    bracketed(&vec![1.0e-12; XP_SAMPLED_GRID_LEN]),
+                    bracketed(&errors),
+                );
+                format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{error_array}\"\n")
+            }),
+            ("non-finite coordinates", {
+                let (flux_array, error_array) = constant_bulk_arrays(1.0e-12, 1.0e-14);
+                format!("{BULK_HEADER}1,1,NaN,0,\"{flux_array}\",\"{error_array}\"\n")
+            }),
+        ];
+        for (label, body) in cases {
+            let dir = tempfile::tempdir()?;
+            let bulk = dir.path().join("bulk");
+            std::fs::create_dir(&bulk)?;
+            write_gzip(&bulk.join("part-000.csv.gz"), &body)?;
+            let output = dir.path().join("canonical.csv");
+            let diagnostics = dir.path().join("diagnostics.json");
+            let error = run(bulk_args(bulk, output.clone(), diagnostics))
+                .expect_err(&format!("case {label} should fail strict gate"));
+            assert!(
+                error.to_string().contains("unexpected source rejections"),
+                "case {label}: {error}"
+            );
+            assert!(!output.exists(), "case {label} published partial output");
+        }
+        Ok(())
+    }
+
+    #[test]
     fn duplicate_bulk_source_fails_without_publishing_output() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let bulk = dir.path().join("bulk");
         std::fs::create_dir(&bulk)?;
-        let body = concat!(
-            "source_id,ra,dec,wavelength,flux,flux_error\n",
-            "1,10,-20,336,1e-12,1e-14\n",
-            "1,10,-20,650,1e-12,1e-14\n",
-        );
-        write_gzip(&bulk.join("part-000.csv.gz"), body)?;
-        write_gzip(&bulk.join("part-001.csv.gz"), body)?;
+        let body = format!("{BULK_HEADER}{}", bulk_row(1, 10.0, -20.0, 1e-12, 1e-14));
+        write_gzip(&bulk.join("part-000.csv.gz"), &body)?;
+        write_gzip(&bulk.join("part-001.csv.gz"), &body)?;
         let output = dir.path().join("canonical.csv");
         let diagnostics = dir.path().join("diagnostics.json");
-        let mut args = args(
-            dir.path().join("unused"),
-            output.clone(),
-            diagnostics.clone(),
-        );
-        args.input = None;
-        args.bulk_dir = Some(bulk);
 
-        let error = run(args).expect_err("duplicate source must fail strict gate");
+        let error = run(bulk_args(bulk, output.clone(), diagnostics.clone()))
+            .expect_err("duplicate source must fail strict gate");
         assert!(error.to_string().contains("unexpected source rejections"));
         assert!(!output.exists());
         let diagnostics = report(&diagnostics)?;
@@ -1362,27 +1615,146 @@ mod tests {
     }
 
     #[test]
+    fn out_of_order_bulk_source_ids_are_rejected() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        write_gzip(
+            &bulk.join("part-000.csv.gz"),
+            &format!(
+                "{BULK_HEADER}{}",
+                bulk_row(2, 0.0, 0.0, 1e-12, 1e-14) + &bulk_row(1, 0.0, 0.0, 1e-12, 1e-14)
+            ),
+        )?;
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let error = run(bulk_args(bulk, output.clone(), diagnostics.clone()))
+            .expect_err("out-of-order source_id must fail");
+        assert!(error.to_string().contains("unexpected source rejections"));
+        assert!(!output.exists());
+        let diagnostics = report(&diagnostics)?;
+        assert_eq!(
+            diagnostics["unexpected_rejection_reasons"]
+                ["bulk source_id order is not strictly increasing"],
+            1
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn multiple_bulk_files_are_processed_in_sorted_order() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        write_gzip(
+            &bulk.join("part-002.csv.gz"),
+            &format!("{BULK_HEADER}{}", bulk_row(2, 0.0, 0.0, 2e-12, 2e-14)),
+        )?;
+        write_gzip(
+            &bulk.join("part-001.csv.gz"),
+            &format!("{BULK_HEADER}{}", bulk_row(1, 0.0, 0.0, 1e-12, 1e-14)),
+        )?;
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        run(bulk_args(bulk, output.clone(), diagnostics.clone()))?;
+        let canonical = std::fs::read_to_string(output)?;
+        let lines: Vec<_> = canonical.lines().collect();
+        assert_eq!(lines.len(), 3);
+        assert!(lines[1].starts_with("1,"));
+        assert!(lines[2].starts_with("2,"));
+        Ok(())
+    }
+
+    #[test]
+    fn bulk_output_is_deterministic_byte_for_byte() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        write_gzip(
+            &bulk.join("part-000.csv.gz"),
+            &format!(
+                "{BULK_HEADER}{}",
+                bulk_row(1, 10.0, -20.0, 1e-12, 1e-14) + &bulk_row(2, 20.0, 30.0, 2e-12, 2e-14)
+            ),
+        )?;
+        let first_output = dir.path().join("first.csv");
+        let second_output = dir.path().join("second.csv");
+        let first_diag = dir.path().join("first.json");
+        let second_diag = dir.path().join("second.json");
+        run(bulk_args(bulk.clone(), first_output.clone(), first_diag))?;
+        run(bulk_args(bulk, second_output.clone(), second_diag))?;
+        assert_eq!(std::fs::read(first_output)?, std::fs::read(second_output)?);
+        Ok(())
+    }
+
+    #[test]
+    fn bulk_failure_does_not_promote_partial_output() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        let (flux_array, error_array) = constant_bulk_arrays(1.0e-12, 1.0e-14);
+        write_gzip(
+            &bulk.join("part-000.csv.gz"),
+            &format!("{BULK_HEADER}1,1,0,0,\"{flux_array}\",\"{error_array}\"\n"),
+        )?;
+        let mut bad_flux = vec![1.0e-12; XP_SAMPLED_GRID_LEN];
+        bad_flux[1] = f64::NAN;
+        write_gzip(
+            &bulk.join("part-001.csv.gz"),
+            &format!(
+                "{BULK_HEADER}2,1,0,0,\"{}\",\"{}\"\n",
+                bracketed(&bad_flux),
+                bracketed(&vec![1.0e-14; XP_SAMPLED_GRID_LEN])
+            ),
+        )?;
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let error = run(bulk_args(bulk, output.clone(), diagnostics))
+            .expect_err("invalid second source must fail gate");
+        assert!(error.to_string().contains("unexpected source rejections"));
+        assert!(!output.exists());
+        let partial = dir
+            .path()
+            .join(format!(".canonical.csv.tmp.{}", std::process::id()));
+        assert!(!partial.exists());
+        Ok(())
+    }
+
+    #[test]
     fn partial_bulk_file_fails_before_processing() -> Result<()> {
         let dir = tempfile::tempdir()?;
         let bulk = dir.path().join("bulk");
         std::fs::create_dir(&bulk)?;
         write_gzip(
             &bulk.join("part-000.csv.gz"),
-            concat!(
-                "source_id,ra,dec,wavelength,flux,flux_error\n",
-                "1,10,-20,336,1e-12,1e-14\n",
-                "1,10,-20,650,1e-12,1e-14\n",
-            ),
+            &format!("{BULK_HEADER}{}", bulk_row(1, 10.0, -20.0, 1e-12, 1e-14)),
         )?;
         std::fs::write(bulk.join("part-001.csv.gz.part"), b"incomplete")?;
         let output = dir.path().join("canonical.csv");
         let diagnostics = dir.path().join("diagnostics.json");
-        let mut args = args(dir.path().join("unused"), output.clone(), diagnostics);
-        args.input = None;
-        args.bulk_dir = Some(bulk);
 
-        let error = run(args).expect_err("partial bulk input must fail closed");
+        let error = run(bulk_args(bulk, output.clone(), diagnostics))
+            .expect_err("partial bulk input must fail closed");
         assert!(error.to_string().contains("partial Gaia XP bulk file"));
+        assert!(!output.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn bulk_checksum_mismatch_is_rejected() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk");
+        std::fs::create_dir(&bulk)?;
+        write_gzip(
+            &bulk.join("part-000.csv.gz"),
+            &format!("{BULK_HEADER}{}", bulk_row(1, 0.0, 0.0, 1e-12, 1e-14)),
+        )?;
+        let output = dir.path().join("canonical.csv");
+        let diagnostics = dir.path().join("diagnostics.json");
+        let mut args = bulk_args(bulk, output.clone(), diagnostics);
+        args.source_checksum = Some(format!("sha256:{}", "0".repeat(64)));
+        let error = run(args).expect_err("checksum mismatch");
+        assert!(error.to_string().contains("source checksum mismatch"));
         assert!(!output.exists());
         Ok(())
     }
