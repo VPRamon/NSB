@@ -64,6 +64,10 @@ doc = false
 [[bin]]
 name = "consolidate_gaia_starlight_samples"
 path = "src/bin/consolidate_gaia_starlight_samples.rs"
+
+[[bin]]
+name = "validate_xp_continuous_reconstruction"
+path = "src/bin/validate_xp_continuous_reconstruction.rs"
 doc = false
 
 [[bin]]
