@@ -10,6 +10,7 @@ pub mod gaia_xp_continuous_bulk_index;
 pub mod gaia_xp_continuous_bulk_schema;
 pub mod gaia_xp_continuous_canonical;
 pub mod gaia_xp_continuous_healpix;
+pub mod gaia_xp_continuous_pilot_io;
 pub mod starlight_approval;
 pub mod starlight_integrated;
 pub mod starlight_phase5;

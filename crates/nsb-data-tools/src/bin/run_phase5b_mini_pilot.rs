@@ -11,6 +11,9 @@ use nsb_data_tools::gaia_xp_continuous_canonical::{
 use nsb_data_tools::gaia_xp_continuous_healpix::{
     XpContinuousHealpixAccumulator, DEFAULT_PILOT_NSIDE,
 };
+use nsb_data_tools::gaia_xp_continuous_pilot_io::{
+    atomic_write_json, checkpoint_state_checksum, verify_checkpoint_state_checksum,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -73,11 +76,19 @@ struct MiniPilotCheckpoint {
     rows_valid: u64,
     rows_excluded: u64,
     rows_failed: u64,
+    processed_count: u64,
+    valid_count: u64,
+    excluded_count: u64,
+    failed_count: u64,
     healpix: XpContinuousHealpixAccumulator,
+    healpix_checksum: String,
+    nside: u32,
     exclusions: Vec<ExclusionRecord>,
     adapter_version: u32,
     software_commit: String,
+    gaiaxpy_version: Option<String>,
     gaiaxpy_environment_checksum: Option<String>,
+    state_checksum: String,
     timestamp_utc: String,
 }
 
@@ -116,7 +127,52 @@ fn file_md5(path: &Path) -> Result<String> {
 }
 
 fn software_commit() -> String {
-    std::env::var("STARLIGHT_SOFTWARE_COMMIT").unwrap_or_else(|_| "unknown".to_string())
+    if let Ok(value) = std::env::var("STARLIGHT_SOFTWARE_COMMIT") {
+        return value;
+    }
+    Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .ok()
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .map(|value| value.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn read_gaiaxpy_environment(explicit: Option<&Path>) -> Option<(String, String)> {
+    gaiaxpy_environment_paths(explicit)
+        .into_iter()
+        .find_map(|path| {
+            if !path.is_file() {
+                return None;
+            }
+            let text = fs::read_to_string(&path).ok()?;
+            let json: serde_json::Value = serde_json::from_str(&text).ok()?;
+            let checksum = json
+                .get("checksum_sha256")
+                .or_else(|| json.get("gaiaxpy_package_hash"))
+                .and_then(|value| value.as_str())
+                .map(str::to_string)?;
+            let version = json
+                .get("gaiaxpy_version")
+                .and_then(|value| value.as_str())
+                .map(str::to_string);
+            Some((checksum, version.unwrap_or_else(|| "unknown".to_string())))
+        })
+}
+
+fn gaiaxpy_environment_paths(explicit: Option<&Path>) -> Vec<PathBuf> {
+    explicit
+        .map(|path| vec![path.to_path_buf()])
+        .unwrap_or_default()
+        .into_iter()
+        .chain([
+            PathBuf::from("tools/starlight-xp-continuous/gaiaxpy_environment.json"),
+            PathBuf::from(
+                "/home/valles/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/gaiaxpy_environment.json",
+            ),
+        ])
+        .collect()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -132,10 +188,22 @@ fn load_checkpoint(
         if checkpoint.bulk_file != bulk_gz.display().to_string() {
             anyhow::bail!("checkpoint bulk file mismatch");
         }
+        if checkpoint.schema_version >= 3 && !checkpoint.state_checksum.is_empty() {
+            verify_checkpoint_state_checksum(
+                &checkpoint.bulk_checksum,
+                checkpoint.row_index,
+                checkpoint.rows_valid,
+                checkpoint.rows_excluded,
+                checkpoint.rows_failed,
+                &checkpoint.healpix_checksum,
+                &checkpoint.state_checksum,
+            )?;
+        }
         return Ok(checkpoint);
     }
+    let gaiaxpy = read_gaiaxpy_environment(gaiaxpy_environment);
     Ok(MiniPilotCheckpoint {
-        schema_version: 2,
+        schema_version: 3,
         bulk_file: bulk_gz.display().to_string(),
         bulk_checksum: file_md5(bulk_gz)?,
         row_index: 0,
@@ -146,56 +214,51 @@ fn load_checkpoint(
         rows_valid: 0,
         rows_excluded: 0,
         rows_failed: 0,
+        processed_count: 0,
+        valid_count: 0,
+        excluded_count: 0,
+        failed_count: 0,
         healpix: XpContinuousHealpixAccumulator::new(nside)?,
+        healpix_checksum: String::new(),
+        nside,
         exclusions: Vec::new(),
         adapter_version: CANONICAL_XP_CONTINUOUS_SCHEMA,
         software_commit: software_commit(),
-        gaiaxpy_environment_checksum: read_gaiaxpy_checksum(gaiaxpy_environment),
+        gaiaxpy_version: gaiaxpy.as_ref().map(|(_, version)| version.clone()),
+        gaiaxpy_environment_checksum: gaiaxpy.map(|(checksum, _)| checksum),
+        state_checksum: String::new(),
         timestamp_utc: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
     })
 }
 
-fn read_gaiaxpy_checksum(explicit: Option<&Path>) -> Option<String> {
-    let candidates: Vec<PathBuf> = explicit
-        .map(|path| vec![path.to_path_buf()])
-        .unwrap_or_default()
-        .into_iter()
-        .chain([
-            PathBuf::from("tools/starlight-xp-continuous/gaiaxpy_environment.json"),
-            PathBuf::from(
-                "/home/valles/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/gaiaxpy_environment.json",
-            ),
-        ])
-        .collect();
-    for path in candidates {
-        if !path.is_file() {
-            continue;
-        }
-        let text = fs::read_to_string(&path).ok()?;
-        let json: serde_json::Value = serde_json::from_str(&text).ok()?;
-        return json
-            .get("checksum_sha256")
-            .or_else(|| json.get("gaiaxpy_package_hash"))
-            .and_then(|value| value.as_str())
-            .map(str::to_string);
-    }
-    None
+fn sync_checkpoint_fields(checkpoint: &mut MiniPilotCheckpoint) {
+    checkpoint.processed_count = checkpoint.processed_source_ids.len() as u64;
+    checkpoint.valid_count = checkpoint.rows_valid;
+    checkpoint.excluded_count = checkpoint.rows_excluded;
+    checkpoint.failed_count = checkpoint.rows_failed;
+    checkpoint.rows_read = checkpoint.row_index;
+    checkpoint.healpix_checksum = checkpoint.healpix.checksum();
+    checkpoint.state_checksum = checkpoint_state_checksum(
+        &checkpoint.bulk_checksum,
+        checkpoint.row_index,
+        checkpoint.rows_valid,
+        checkpoint.rows_excluded,
+        checkpoint.rows_failed,
+        &checkpoint.healpix_checksum,
+    );
 }
 
 fn save_checkpoint(
     path: &Path,
     accumulator_path: &Path,
-    checkpoint: &MiniPilotCheckpoint,
+    checkpoint: &mut MiniPilotCheckpoint,
 ) -> Result<()> {
-    let ckpt_part = path.with_extension("json.part");
-    fs::write(&ckpt_part, serde_json::to_string_pretty(checkpoint)? + "\n")?;
-    fs::rename(&ckpt_part, path)?;
-    let acc_part = accumulator_path.with_extension("json.part");
-    fs::write(
-        &acc_part,
-        serde_json::to_string_pretty(&checkpoint.healpix)? + "\n",
+    sync_checkpoint_fields(checkpoint);
+    atomic_write_json(path, &(serde_json::to_string_pretty(checkpoint)? + "\n"))?;
+    atomic_write_json(
+        accumulator_path,
+        &(serde_json::to_string_pretty(&checkpoint.healpix)? + "\n"),
     )?;
-    fs::rename(&acc_part, accumulator_path)?;
     Ok(())
 }
 
@@ -335,7 +398,7 @@ fn main() -> Result<()> {
             batch_index += 1;
             processed.extend(checkpoint.processed_source_ids.iter().cloned());
             checkpoint.timestamp_utc = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-            save_checkpoint(&ckpt_path, &acc_path, &checkpoint)?;
+            save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint)?;
             peak_rss = peak_rss.max(peak_rss_kib());
         }
     }
@@ -351,7 +414,7 @@ fn main() -> Result<()> {
             &mut checkpoint,
             args.skip_normalized_output,
         )?;
-        save_checkpoint(&ckpt_path, &acc_path, &checkpoint)?;
+        save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint)?;
         peak_rss = peak_rss.max(peak_rss_kib());
     }
 
