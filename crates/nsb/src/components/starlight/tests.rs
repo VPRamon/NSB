@@ -43,6 +43,37 @@ fn fixture_map() -> StarlightMap {
     StarlightMap::from_csv_str(FIXTURE, StarlightProvenance::test_fixture()).unwrap()
 }
 
+fn healpix_uncertainty_fixture(
+    first_statistical: f64,
+    first_systematic: f64,
+    first_total: f64,
+) -> String {
+    let mut raw = String::from(concat!(
+        "# map_type=healpix\n",
+        "# nside=1\n",
+        "# ordering=ring\n",
+        "# coordinate_frame=galactic\n",
+        "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10,",
+        "statistical_uncertainty_ph_cm2_ns_sr,",
+        "systematic_uncertainty_ph_cm2_ns_sr,",
+        "total_uncertainty_ph_cm2_ns_sr\n",
+    ));
+    for index in 0..12 {
+        let integrated = index as f64 + 1.0;
+        let (statistical, systematic, total) = if index == 0 {
+            (first_statistical, first_systematic, first_total)
+        } else {
+            (integrated * 0.1, integrated * 0.2, integrated * 0.25)
+        };
+        raw.push_str(&format!(
+            "{index},{integrated},{},{},{statistical},{systematic},{total}\n",
+            integrated * 10.0,
+            integrated * 5.0,
+        ));
+    }
+    raw
+}
+
 fn target(ra: f64, dec: f64) -> Target {
     Target::new(ra * DEG, dec * DEG)
 }
@@ -105,6 +136,72 @@ fn healpix_csv_fixture_loads_from_test_data_only() {
     let output = map.lookup(Degrees::new(0.0), Degrees::new(0.0));
     assert!(output.integrated.value().is_finite());
     assert!(output.integrated.value() > 0.0);
+    assert!(output.statistical_uncertainty.is_none());
+    assert!(output.systematic_uncertainty.is_none());
+    assert!(output.total_uncertainty.is_none());
+}
+
+#[test]
+fn healpix_v2_uncertainties_parse_and_survive_lookup() {
+    let raw = healpix_uncertainty_fixture(0.1, 0.2, 0.25);
+    let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
+    let pixel = map.pixels()[7];
+    let output = map.lookup(pixel.galactic_lon, pixel.galactic_lat);
+
+    assert_eq!(output.integrated.value(), 8.0);
+    assert_eq!(output.statistical_uncertainty.unwrap().value(), 0.8);
+    assert_eq!(output.systematic_uncertainty.unwrap().value(), 1.6);
+    assert_eq!(output.total_uncertainty.unwrap().value(), 2.0);
+    assert_eq!(output.relative_uncertainty(), Some(0.25));
+}
+
+#[test]
+fn healpix_v2_rejects_negative_or_inconsistent_uncertainties() {
+    let negative = healpix_uncertainty_fixture(-0.1, 0.2, 0.25);
+    let error =
+        StarlightMap::from_csv_str(&negative, StarlightProvenance::test_fixture()).unwrap_err();
+    assert!(error.to_string().contains("uncertainty triplet"));
+
+    let total_below_component = healpix_uncertainty_fixture(0.1, 0.3, 0.2);
+    let error =
+        StarlightMap::from_csv_str(&total_below_component, StarlightProvenance::test_fixture())
+            .unwrap_err();
+    assert!(error.to_string().contains("total >= statistical"));
+}
+
+#[test]
+fn rectangular_lookup_interpolates_uncertainties() {
+    let make_pixel = |lon: f64, lat: f64, integrated: f64| {
+        StarlightPixel::new(
+            Degrees::new(lon),
+            Degrees::new(lat),
+            Steradians::new(1.0),
+            BandPhotonRadiance::new(integrated),
+            S10s::new(integrated),
+            S10s::new(integrated),
+        )
+        .with_uncertainties(
+            BandPhotonRadiance::new(integrated * 0.1),
+            BandPhotonRadiance::new(integrated * 0.2),
+            BandPhotonRadiance::new(integrated * 0.25),
+        )
+    };
+    let map = StarlightMap::from_pixels(
+        vec![
+            make_pixel(0.0, 0.0, 1.0),
+            make_pixel(90.0, 0.0, 3.0),
+            make_pixel(0.0, 90.0, 5.0),
+            make_pixel(90.0, 90.0, 7.0),
+        ],
+        StarlightProvenance::test_fixture(),
+    )
+    .unwrap();
+
+    let output = map.lookup(Degrees::new(45.0), Degrees::new(45.0));
+    assert!((output.integrated.value() - 4.0).abs() < 1.0e-12);
+    assert!((output.statistical_uncertainty.unwrap().value() - 0.4).abs() < 1.0e-12);
+    assert!((output.systematic_uncertainty.unwrap().value() - 0.8).abs() < 1.0e-12);
+    assert!((output.total_uncertainty.unwrap().value() - 1.0).abs() < 1.0e-12);
 }
 
 #[test]
@@ -142,6 +239,33 @@ fn custom_scale_changes_outputs() {
     assert!((scaled.integrated.value() / base.integrated.value() - 2.0).abs() < 1.0e-12);
     assert!((scaled.b_flux_s10.value() / base.b_flux_s10.value() - 2.0).abs() < 1.0e-12);
     assert!((scaled.v_flux_s10.value() / base.v_flux_s10.value() - 2.0).abs() < 1.0e-12);
+}
+
+#[test]
+fn custom_scale_changes_absolute_but_not_relative_uncertainty() {
+    let raw = healpix_uncertainty_fixture(0.1, 0.2, 0.25);
+    let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
+    let base = Starlight::with_map(map.clone())
+        .compute(target(266.4051, -28.936175))
+        .unwrap();
+    let scaled = Starlight::with_map(map)
+        .with_scale(crate::ScaleFactors::new(2.0))
+        .compute(target(266.4051, -28.936175))
+        .unwrap();
+
+    assert_eq!(
+        scaled.statistical_uncertainty.unwrap().value(),
+        base.statistical_uncertainty.unwrap().value() * 2.0
+    );
+    assert_eq!(
+        scaled.systematic_uncertainty.unwrap().value(),
+        base.systematic_uncertainty.unwrap().value() * 2.0
+    );
+    assert_eq!(
+        scaled.total_uncertainty.unwrap().value(),
+        base.total_uncertainty.unwrap().value() * 2.0
+    );
+    assert_eq!(scaled.relative_uncertainty(), base.relative_uncertainty());
 }
 
 #[test]

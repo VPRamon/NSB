@@ -1,6 +1,11 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use nsb::{StarlightMap, StarlightProvenance};
+use nsb_data_tools::starlight_approval::{
+    load_and_validate_approval, ApprovalArtifactType, ApprovalDecision, ApprovalFileDigest,
+    ApprovalRequirements, ReviewerKind, StarlightApproval, APPROVAL_SCHEMA_VERSION,
+    STARLIGHT_PRODUCTION_BAND_NM,
+};
 use serde::Serialize;
 use serde_json::Value;
 use siderust::checksum::{sha256, to_hex};
@@ -8,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
-const NSIDES: [u32; 3] = [64, 128, 256];
+const NSIDES: [u32; 4] = [64, 128, 256, 512];
 const GAIA_XP_MODEL: &str = "gaia_dr3_xp_photon_radiance_336_650nm_v1";
 const BAND_MIN_NM: f64 = 336.0;
 const BAND_MAX_NM: f64 = 650.0;
@@ -42,6 +47,28 @@ struct Args {
     /// Fail unless a production-ready candidate is selected.
     #[arg(long)]
     require_production_ready: bool,
+    /// Root containing approval JSON and every checksummed file it references.
+    #[arg(long, visible_alias = "artifact-root")]
+    approval_root: Option<PathBuf>,
+    /// Stable identifier shared by the map release and every approval.
+    #[arg(long)]
+    release_id: Option<String>,
+    /// Missing-flux approval path, relative to --approval-root.
+    #[arg(long, requires_all = ["approval_root", "release_id"])]
+    missing_flux_approval: Option<PathBuf>,
+    /// Independent-validation approval path, relative to --approval-root.
+    #[arg(long, requires_all = ["approval_root", "release_id"])]
+    independent_validation_approval: Option<PathBuf>,
+    /// Redistribution approval path, relative to --approval-root.
+    #[arg(long, requires_all = ["approval_root", "release_id"])]
+    redistribution_approval: Option<PathBuf>,
+    /// Nside review approval path, relative to --approval-root.
+    #[arg(
+        long,
+        visible_alias = "nside-review-approval",
+        requires_all = ["approval_root", "release_id"]
+    )]
+    nside_review: Option<PathBuf>,
     /// Maximum packed CSV size admitted by the automated recommendation.
     #[arg(long, default_value_t = 256.0)]
     max_release_mib: f64,
@@ -65,6 +92,8 @@ struct Args {
 #[derive(Debug, Clone, Serialize)]
 struct NsideSummary {
     nside: u32,
+    map_sha256: String,
+    band_nm: Option<[f64; 2]>,
     pixels: u64,
     sources_used: Option<u64>,
     mean_sources_per_pixel: Option<f64>,
@@ -126,7 +155,7 @@ struct AggregateSummary {
     recommended_candidate_nside: Option<u32>,
     candidate_recommendation_passed: bool,
     production_ready: bool,
-    production_blockers: Vec<&'static str>,
+    production_blockers: Vec<String>,
     review_required: bool,
     review_template: String,
     summaries: Vec<NsideSummary>,
@@ -141,17 +170,6 @@ struct SelectionConstraints {
     max_bright_region_relative_delta: f64,
     max_high_latitude_noise_factor: f64,
     max_total_flux_relative_delta: f64,
-}
-
-#[derive(Debug, Serialize)]
-struct ReviewTemplate {
-    schema_version: u32,
-    sweep_report_sha256: String,
-    reviewed: bool,
-    selected_nside: Option<u32>,
-    reviewer: Option<String>,
-    reviewed_at_utc: Option<String>,
-    rationale: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -206,20 +224,35 @@ fn run(args: Args) -> Result<()> {
     finalize_eligibility(&mut summaries);
     let recommended_candidate_nside = recommend_candidate(&summaries);
     let candidate_recommendation_passed = recommended_candidate_nside.is_some();
-    let production_blockers = compute_production_blockers(&summaries, recommended_candidate_nside);
+    let approval_dag = evaluate_approval_dag(&args, &summaries, recommended_candidate_nside);
+    apply_production_eligibility(
+        &mut summaries,
+        recommended_candidate_nside,
+        approval_dag.all_approved(),
+    );
+    let production_blockers =
+        compute_production_blockers(&summaries, recommended_candidate_nside, &approval_dag);
     let production_blocker_summary = production_blockers.join(", ");
     let production_ready = candidate_recommendation_passed
         && production_blockers.is_empty()
         && summaries.iter().any(|summary| {
             summary.nside == recommended_candidate_nside.unwrap() && summary.eligible_for_production
         });
+    let report_band_nm = recommended_candidate_nside
+        .and_then(|nside| {
+            summaries
+                .iter()
+                .find(|summary| summary.nside == nside)
+                .and_then(|summary| summary.band_nm)
+        })
+        .unwrap_or([BAND_MIN_NM, BAND_MAX_NM]);
 
     let review_template = args.output_dir.join("nside_review.template.json");
     let aggregate = AggregateSummary {
         schema_version: SUMMARY_SCHEMA_VERSION,
         photometry_model: GAIA_XP_MODEL,
-        band_nm: [BAND_MIN_NM, BAND_MAX_NM],
-        recommendation_policy: "Choose the highest angular resolution that passes every internal science and operational gate. Candidate recommendation does not require production-grade independent reference evidence. Production promotion remains blocked until reviewed external reference, missing-flux assessment, and redistribution policy gates are satisfied.",
+        band_nm: report_band_nm,
+        recommendation_policy: "Choose the minimum angular resolution that passes every internal science and operational gate. Candidate recommendation does not require production-grade approval artifacts. Production promotion remains blocked until the missing-flux, independent-validation, redistribution, and nside-review artifacts form a compatible checksummed approval DAG.",
         smoothing_policy: "No smoothing is applied by this sweep. A resolution whose sparsity or high-latitude noise indicates smoothing is marked ineligible; any future smoothing proposal must define its kernel and angular scale, conserve total flux, and repeat independent validation.",
         selection_constraints: SelectionConstraints {
             max_release_bytes: max_release_bytes(&args),
@@ -242,17 +275,13 @@ fn run(args: Args) -> Result<()> {
     write_json(&summary_path, &aggregate)?;
     let summary_raw = std::fs::read(&summary_path)
         .with_context(|| format!("failed to checksum {}", summary_path.display()))?;
-    write_json(
+    write_nside_review_template(
         &review_template,
-        &ReviewTemplate {
-            schema_version: SUMMARY_SCHEMA_VERSION,
-            sweep_report_sha256: format!("sha256:{}", to_hex(&sha256(&summary_raw))),
-            reviewed: false,
-            selected_nside: recommended_candidate_nside,
-            reviewer: None,
-            reviewed_at_utc: None,
-            rationale: None,
-        },
+        &args,
+        &aggregate.summaries,
+        recommended_candidate_nside,
+        &summary_path,
+        &summary_raw,
     )?;
 
     if !candidate_recommendation_passed {
@@ -491,6 +520,10 @@ fn load_existing_nside(
         .unwrap_or(false);
     let summary = NsideSummary {
         nside,
+        map_sha256: format!("sha256:{}", nsb_data_tools::checksum_io::sha256_file(&map)?),
+        band_nm: validation["band_definition"]
+            .as_str()
+            .and_then(parse_band_nm),
         pixels,
         sources_used: validation["sources_used"].as_u64(),
         mean_sources_per_pixel: validation["mean_sources_per_pixel"].as_f64(),
@@ -661,6 +694,10 @@ fn run_one(
         .unwrap_or(false);
     let summary = NsideSummary {
         nside,
+        map_sha256: format!("sha256:{}", nsb_data_tools::checksum_io::sha256_file(&map)?),
+        band_nm: validation_json["band_definition"]
+            .as_str()
+            .and_then(parse_band_nm),
         pixels,
         sources_used: validation_json["sources_used"].as_u64(),
         mean_sources_per_pixel: validation_json["mean_sources_per_pixel"].as_f64(),
@@ -763,6 +800,16 @@ fn regions_pass_from_comparison(validation: &Value) -> bool {
         })
 }
 
+fn parse_band_nm(definition: &str) -> Option<[f64; 2]> {
+    let normalized = definition.replace(['–', '—'], "-").to_ascii_lowercase();
+    let before_nm = normalized.split("nm").next()?.trim();
+    let range = before_nm.split_whitespace().next_back()?;
+    let (minimum, maximum) = range.split_once('-')?;
+    let minimum = minimum.parse::<f64>().ok()?;
+    let maximum = maximum.parse::<f64>().ok()?;
+    (minimum.is_finite() && maximum.is_finite() && minimum < maximum).then_some([minimum, maximum])
+}
+
 fn candidate_science_ready(summary: &NsideSummary) -> bool {
     summary.finite_nonnegative_pass
         && summary.spectral_contract_pass
@@ -788,56 +835,186 @@ fn finalize_eligibility(summaries: &mut [NsideSummary]) {
         summary.candidate_operational_ready = candidate_operational_ready(summary);
         summary.eligible_for_candidate_recommendation =
             summary.candidate_science_ready && summary.candidate_operational_ready;
-        summary.eligible_for_production = summary.eligible_for_candidate_recommendation
+        summary.eligible_for_production = false;
+    }
+}
+
+#[derive(Debug)]
+enum ApprovalGateState {
+    Approved,
+    Missing,
+    Invalid(String),
+}
+
+impl ApprovalGateState {
+    fn approved(&self) -> bool {
+        matches!(self, Self::Approved)
+    }
+
+    fn blocker(&self, name: &str) -> Option<String> {
+        match self {
+            Self::Approved => None,
+            Self::Missing => Some(format!("{name}_approval_missing")),
+            Self::Invalid(reason) => Some(format!("{name}_approval_invalid: {reason}")),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ApprovalDagState {
+    release_compatibility: ApprovalGateState,
+    missing_flux: ApprovalGateState,
+    independent_validation: ApprovalGateState,
+    redistribution: ApprovalGateState,
+    nside_review: ApprovalGateState,
+}
+
+impl ApprovalDagState {
+    fn all_approved(&self) -> bool {
+        self.release_compatibility.approved()
+            && self.missing_flux.approved()
+            && self.independent_validation.approved()
+            && self.redistribution.approved()
+            && self.nside_review.approved()
+    }
+
+    fn blockers(&self) -> Vec<String> {
+        let mut blockers: Vec<String> = [
+            ("missing_flux", &self.missing_flux),
+            ("independent_validation", &self.independent_validation),
+            ("redistribution", &self.redistribution),
+            ("nside_review", &self.nside_review),
+        ]
+        .into_iter()
+        .filter_map(|(name, state)| state.blocker(name))
+        .collect();
+        match &self.release_compatibility {
+            ApprovalGateState::Approved => {}
+            ApprovalGateState::Missing => {
+                blockers.push("release_compatibility_missing".to_string())
+            }
+            ApprovalGateState::Invalid(reason) => {
+                blockers.push(format!("release_compatibility_invalid: {reason}"))
+            }
+        }
+        blockers
+    }
+}
+
+fn evaluate_approval_dag(
+    args: &Args,
+    summaries: &[NsideSummary],
+    recommended: Option<u32>,
+) -> ApprovalDagState {
+    let selected =
+        recommended.and_then(|nside| summaries.iter().find(|entry| entry.nside == nside));
+    let map_sha256 = selected.map(|summary| summary.map_sha256.as_str());
+    ApprovalDagState {
+        release_compatibility: match selected.and_then(|summary| summary.band_nm) {
+            Some(band) if band == STARLIGHT_PRODUCTION_BAND_NM => ApprovalGateState::Approved,
+            Some(band) => ApprovalGateState::Invalid(format!(
+                "selected map band [{}, {}] does not match [300, 650]",
+                band[0], band[1]
+            )),
+            None => ApprovalGateState::Missing,
+        },
+        missing_flux: evaluate_approval(
+            args,
+            args.missing_flux_approval.as_deref(),
+            ApprovalArtifactType::MissingFlux,
+            None,
+            map_sha256,
+        ),
+        independent_validation: evaluate_approval(
+            args,
+            args.independent_validation_approval.as_deref(),
+            ApprovalArtifactType::IndependentValidation,
+            None,
+            map_sha256,
+        ),
+        redistribution: evaluate_approval(
+            args,
+            args.redistribution_approval.as_deref(),
+            ApprovalArtifactType::Redistribution,
+            None,
+            None,
+        ),
+        nside_review: evaluate_approval(
+            args,
+            args.nside_review.as_deref(),
+            ApprovalArtifactType::NsideReview,
+            recommended,
+            map_sha256,
+        ),
+    }
+}
+
+fn evaluate_approval(
+    args: &Args,
+    path: Option<&Path>,
+    artifact_type: ApprovalArtifactType,
+    nside: Option<u32>,
+    map_sha256: Option<&str>,
+) -> ApprovalGateState {
+    let Some(path) = path else {
+        return ApprovalGateState::Missing;
+    };
+    let Some(root) = args.approval_root.as_deref() else {
+        return ApprovalGateState::Invalid("--approval-root is required".to_string());
+    };
+    let Some(release_id) = args.release_id.as_deref() else {
+        return ApprovalGateState::Invalid("--release-id is required".to_string());
+    };
+    let requirements = ApprovalRequirements {
+        artifact_type,
+        release_id,
+        nside,
+        map_sha256,
+        manifest_sha256: None,
+        require_positive: true,
+    };
+    match load_and_validate_approval(root, path, requirements) {
+        Ok(_) => ApprovalGateState::Approved,
+        Err(error) => ApprovalGateState::Invalid(format!("{error:#}")),
+    }
+}
+
+fn apply_production_eligibility(
+    summaries: &mut [NsideSummary],
+    recommended: Option<u32>,
+    approvals_ready: bool,
+) {
+    for summary in summaries {
+        let validation_ready = summary.production_ready;
+        summary.eligible_for_production = Some(summary.nside) == recommended
+            && summary.eligible_for_candidate_recommendation
+            && validation_ready
             && summary.independent_comparison_pass
             && summary.independent_reference_production_use
-            && ProductionApprovalState::missing_flux_report_approved()
-            && ProductionApprovalState::redistribution_policy_approved();
+            && approvals_ready;
+        summary.production_ready = summary.eligible_for_production;
     }
-}
-
-/// Fail-closed production approval placeholders.
-///
-/// These gates remain blocked until maintainer-reviewed, checksummed approval
-/// artefacts exist. Wire signed approval JSON here; do not flip to `true` by hand.
-struct ProductionApprovalState;
-
-impl ProductionApprovalState {
-    fn missing_flux_report_approved() -> bool {
-        false
-    }
-
-    fn redistribution_policy_approved() -> bool {
-        false
-    }
-}
-
-fn missing_flux_report_approved() -> bool {
-    ProductionApprovalState::missing_flux_report_approved()
-}
-
-fn redistribution_policy_approved() -> bool {
-    ProductionApprovalState::redistribution_policy_approved()
 }
 
 fn compute_production_blockers(
     summaries: &[NsideSummary],
     recommended: Option<u32>,
-) -> Vec<&'static str> {
+    approval_dag: &ApprovalDagState,
+) -> Vec<String> {
     let mut blockers = Vec::new();
     if let Some(nside) = recommended {
         if let Some(summary) = summaries.iter().find(|entry| entry.nside == nside) {
             if !summary.independent_reference_production_use {
-                blockers.push("independent_reference_not_approved_for_production");
+                blockers.push("independent_reference_not_approved_for_production".to_string());
+            }
+            if !summary.independent_comparison_pass {
+                blockers.push("independent_comparison_not_ready_for_production".to_string());
             }
         }
+    } else {
+        blockers.push("no_eligible_nside_candidate".to_string());
     }
-    if !missing_flux_report_approved() {
-        blockers.push("missing_flux_report_not_approved");
-    }
-    if !redistribution_policy_approved() {
-        blockers.push("redistribution_policy_not_approved");
-    }
+    blockers.extend(approval_dag.blockers());
     blockers
 }
 
@@ -846,7 +1023,7 @@ fn recommend_candidate(summaries: &[NsideSummary]) -> Option<u32> {
         .iter()
         .filter(|summary| summary.eligible_for_candidate_recommendation)
         .map(|summary| summary.nside)
-        .max()
+        .min()
 }
 
 fn assess_candidates(summaries: &mut [NsideSummary], args: &Args) {
@@ -1004,6 +1181,76 @@ fn write_json(path: &Path, value: &impl Serialize) -> Result<()> {
         .with_context(|| format!("failed to write {}", path.display()))
 }
 
+fn write_nside_review_template(
+    template_path: &Path,
+    args: &Args,
+    summaries: &[NsideSummary],
+    selected_nside: Option<u32>,
+    summary_path: &Path,
+    summary_raw: &[u8],
+) -> Result<()> {
+    let artifact_root = args
+        .approval_root
+        .as_deref()
+        .unwrap_or(args.output_dir.as_path());
+    let summary_relative = relative_template_path(artifact_root, summary_path);
+    let summary_sha256 = format!("sha256:{}", to_hex(&sha256(summary_raw)));
+    let selected = selected_nside.and_then(|nside| {
+        summaries
+            .iter()
+            .find(|summary| summary.nside == nside)
+            .map(|summary| (nside, summary))
+    });
+    let output_files = selected
+        .map(|(nside, summary)| ApprovalFileDigest {
+            path: relative_template_path(
+                artifact_root,
+                &args
+                    .output_dir
+                    .join(format!("nside{nside}/starlight_map.csv")),
+            ),
+            sha256: summary.map_sha256.clone(),
+        })
+        .into_iter()
+        .collect();
+    let template = StarlightApproval {
+        schema_version: APPROVAL_SCHEMA_VERSION,
+        artifact_type: ApprovalArtifactType::NsideReview,
+        decision: ApprovalDecision::Pending,
+        production_use: false,
+        reviewer_kind: ReviewerKind::Human,
+        reviewer_name: "REQUIRED HUMAN REVIEWER".to_string(),
+        date: "REQUIRED RFC3339 REVIEW DATE".to_string(),
+        release_id: args
+            .release_id
+            .clone()
+            .unwrap_or_else(|| "REQUIRED RELEASE ID".to_string()),
+        band_nm: STARLIGHT_PRODUCTION_BAND_NM,
+        nside: selected_nside,
+        map_sha256: selected.map(|(_, summary)| summary.map_sha256.clone()),
+        manifest_sha256: None,
+        input_files: vec![ApprovalFileDigest {
+            path: summary_relative.clone(),
+            sha256: summary_sha256.clone(),
+        }],
+        output_files,
+        rationale: "REQUIRED SUBSTANTIVE HUMAN RATIONALE".to_string(),
+        references: vec![format!("{summary_relative} {summary_sha256}")],
+    };
+    write_json(template_path, &template)
+}
+
+fn relative_template_path(root: &Path, path: &Path) -> String {
+    let contained = root
+        .canonicalize()
+        .ok()
+        .zip(path.canonicalize().ok())
+        .and_then(|(root, path)| path.strip_prefix(root).ok().map(Path::to_path_buf));
+    contained
+        .and_then(|path| path.to_str().map(ToOwned::to_owned))
+        .unwrap_or_else(|| "REQUIRED PATH WITHIN APPROVAL ROOT".to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1018,15 +1265,21 @@ mod tests {
         ];
         assess_candidates(&mut summaries, &args);
         finalize_eligibility(&mut summaries);
-        assert_eq!(recommend_candidate(&summaries), Some(256));
-        let blockers = compute_production_blockers(&summaries, Some(256));
-        assert!(blockers.contains(&"independent_reference_not_approved_for_production"));
+        assert_eq!(recommend_candidate(&summaries), Some(64));
+        let dag = evaluate_approval_dag(&args, &summaries, Some(64));
+        let blockers = compute_production_blockers(&summaries, Some(64), &dag);
+        assert!(blockers
+            .iter()
+            .any(|blocker| blocker == "independent_reference_not_approved_for_production"));
+        assert!(blockers
+            .iter()
+            .any(|blocker| blocker == "missing_flux_approval_missing"));
         assert!(!summaries[2].eligible_for_production);
         assert!(summaries[2].eligible_for_candidate_recommendation);
     }
 
     #[test]
-    fn recommendation_maximizes_resolution_only_within_internal_gates() {
+    fn recommendation_selects_minimum_resolution_within_internal_gates() {
         let args = fixture_args();
         let mut summaries = vec![
             fixture_summary(64, 4.0, true, true, false),
@@ -1040,7 +1293,7 @@ mod tests {
         assert!(!summaries[2].sufficient_sources_per_nonempty_pixel);
         assert!(summaries[2].smoothing_recommended);
         assert!(!summaries[2].eligible_for_candidate_recommendation);
-        assert_eq!(recommend_candidate(&summaries), Some(128));
+        assert_eq!(recommend_candidate(&summaries), Some(64));
     }
 
     #[test]
@@ -1055,6 +1308,92 @@ mod tests {
         finalize_eligibility(&mut summaries);
         assert!(summaries[2].eligible_for_candidate_recommendation);
         assert!(!summaries[2].eligible_for_production);
+    }
+
+    #[test]
+    fn complete_synthetic_approval_dag_enables_only_minimum_selected_nside() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        for name in [
+            "map.csv",
+            "missing-input.json",
+            "missing-output.json",
+            "independent-input.json",
+            "independent-output.json",
+            "redistribution-input.json",
+            "redistribution-output.json",
+            "nside-input.json",
+            "nside-output.json",
+        ] {
+            std::fs::write(dir.path().join(name), format!("synthetic {name}\n"))?;
+        }
+        let map_sha256 = format!(
+            "sha256:{}",
+            nsb_data_tools::checksum_io::sha256_file(&dir.path().join("map.csv"))?
+        );
+        let mut args = fixture_args();
+        args.approval_root = Some(dir.path().to_path_buf());
+        args.release_id = Some("synthetic-release-v1".to_string());
+        args.missing_flux_approval = Some(PathBuf::from("missing.json"));
+        args.independent_validation_approval = Some(PathBuf::from("independent.json"));
+        args.redistribution_approval = Some(PathBuf::from("redistribution.json"));
+        args.nside_review = Some(PathBuf::from("nside.json"));
+        write_fixture_approval(
+            dir.path(),
+            "missing.json",
+            ApprovalArtifactType::MissingFlux,
+            None,
+            Some(map_sha256.clone()),
+            "missing-input.json",
+            "missing-output.json",
+        )?;
+        write_fixture_approval(
+            dir.path(),
+            "independent.json",
+            ApprovalArtifactType::IndependentValidation,
+            None,
+            Some(map_sha256.clone()),
+            "independent-input.json",
+            "independent-output.json",
+        )?;
+        write_fixture_approval(
+            dir.path(),
+            "redistribution.json",
+            ApprovalArtifactType::Redistribution,
+            None,
+            None,
+            "redistribution-input.json",
+            "redistribution-output.json",
+        )?;
+        write_fixture_approval(
+            dir.path(),
+            "nside.json",
+            ApprovalArtifactType::NsideReview,
+            Some(64),
+            Some(map_sha256.clone()),
+            "nside-input.json",
+            "nside-output.json",
+        )?;
+
+        let mut summaries = vec![
+            fixture_summary(64, 4.0, true, true, true),
+            fixture_summary(128, 3.0, true, true, true),
+            fixture_summary(256, 2.5, true, true, true),
+        ];
+        for summary in &mut summaries {
+            summary.map_sha256 = map_sha256.clone();
+        }
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        let recommended = recommend_candidate(&summaries);
+        assert_eq!(recommended, Some(64));
+        let dag = evaluate_approval_dag(&args, &summaries, recommended);
+        assert!(dag.all_approved());
+        apply_production_eligibility(&mut summaries, recommended, dag.all_approved());
+        assert!(compute_production_blockers(&summaries, recommended, &dag).is_empty());
+        assert!(summaries[0].eligible_for_production);
+        assert!(!summaries[1].eligible_for_production);
+        assert!(!summaries[2].eligible_for_production);
+        Ok(())
     }
 
     #[test]
@@ -1161,6 +1500,29 @@ mod tests {
     }
 
     #[test]
+    fn production_band_is_parsed_and_old_partial_band_blocks_approval_dag() {
+        assert_eq!(
+            parse_band_nm("integrated 300–650 nm photon radiance"),
+            Some([300.0, 650.0])
+        );
+        assert_eq!(
+            parse_band_nm("Gaia DR3 XP passband-integrated 336-650 nm photon radiance"),
+            Some([336.0, 650.0])
+        );
+        let args = fixture_args();
+        let mut summaries = vec![fixture_summary(64, 4.0, true, true, true)];
+        summaries[0].band_nm = Some([336.0, 650.0]);
+        assess_candidates(&mut summaries, &args);
+        finalize_eligibility(&mut summaries);
+        let dag = evaluate_approval_dag(&args, &summaries, Some(64));
+        assert!(!dag.all_approved());
+        assert!(dag
+            .blockers()
+            .iter()
+            .any(|blocker| blocker.starts_with("release_compatibility_invalid:")));
+    }
+
+    #[test]
     fn catalog_checksum_verification_accepts_sha256_prefix() {
         let digest = "a".repeat(64);
         verify_expected_catalog_checksum(&format!("sha256:{digest}"), &digest).unwrap();
@@ -1206,6 +1568,12 @@ mod tests {
             generation_date_utc: Some("2026-07-11T00:00:00Z".to_string()),
             assess_existing: false,
             require_production_ready: false,
+            approval_root: None,
+            release_id: None,
+            missing_flux_approval: None,
+            independent_validation_approval: None,
+            redistribution_approval: None,
+            nside_review: None,
             max_release_mib: 256.0,
             max_runtime_load_seconds: 15.0,
             max_empty_pixel_fraction: 0.85,
@@ -1225,6 +1593,8 @@ mod tests {
         let pixels = 12 * u64::from(nside) * u64::from(nside);
         NsideSummary {
             nside,
+            map_sha256: format!("sha256:{}", "a".repeat(64)),
+            band_nm: Some(STARLIGHT_PRODUCTION_BAND_NM),
             pixels,
             sources_used: Some(1000),
             mean_sources_per_pixel: Some(1000.0 / pixels as f64),
@@ -1274,5 +1644,52 @@ mod tests {
             eligible_for_candidate_recommendation: false,
             eligible_for_production: false,
         }
+    }
+
+    #[test]
+    fn sweep_includes_required_nside_control_set() {
+        assert_eq!(NSIDES, [64, 128, 256, 512]);
+    }
+
+    fn write_fixture_approval(
+        root: &Path,
+        approval_path: &str,
+        artifact_type: ApprovalArtifactType,
+        nside: Option<u32>,
+        map_sha256: Option<String>,
+        input: &str,
+        output: &str,
+    ) -> Result<()> {
+        let digest = |path: &str| -> Result<ApprovalFileDigest> {
+            Ok(ApprovalFileDigest {
+                path: path.to_string(),
+                sha256: format!(
+                    "sha256:{}",
+                    nsb_data_tools::checksum_io::sha256_file(&root.join(path))?
+                ),
+            })
+        };
+        let approval = StarlightApproval {
+            schema_version: APPROVAL_SCHEMA_VERSION,
+            artifact_type,
+            decision: ApprovalDecision::Approved,
+            production_use: true,
+            reviewer_kind: ReviewerKind::Human,
+            reviewer_name: "Synthetic fixture maintainer".to_string(),
+            date: "2026-07-11T12:00:00Z".to_string(),
+            release_id: "synthetic-release-v1".to_string(),
+            band_nm: STARLIGHT_PRODUCTION_BAND_NM,
+            nside,
+            map_sha256,
+            manifest_sha256: None,
+            input_files: vec![digest(input)?],
+            output_files: vec![digest(output)?],
+            rationale: format!(
+                "Synthetic fixture validates the {} sweep approval gate.",
+                artifact_type.as_str()
+            ),
+            references: vec!["synthetic-fixture-reference-v1".to_string()],
+        };
+        write_json(&root.join(approval_path), &approval)
     }
 }

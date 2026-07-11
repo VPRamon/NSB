@@ -32,17 +32,17 @@ jobs:
       - name: Formatting
         run: cargo fmt --all --check
       - name: Lints
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - name: Locked tests
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --all-targets --all-features --locked
       - name: Locked doctests
         run: cargo test --workspace --doc --locked
       - name: Documentation
         env:
-          RUSTDOCFLAGS: -D warnings -D missing-docs
-        run: cargo doc --workspace --no-deps --locked
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --all-features --no-deps --locked
       - name: Locked release build
-        run: cargo build --workspace --release --locked
+        run: cargo build --workspace --release --all-features --locked
       - name: Verify scientific assets
         run: cargo run --locked -p nsb-data-tools --bin verify_assets -- --manifest crates/nsb/data/manifest.toml
       - name: Reject removed production APIs
