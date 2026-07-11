@@ -52,6 +52,7 @@ struct Args {
 #[derive(Debug, Serialize, Deserialize)]
 struct ExclusionRecord {
     source_id: String,
+    bulk_file: String,
     row_number: u64,
     reason_code: String,
     evidence: String,
@@ -396,6 +397,7 @@ fn main() -> Result<()> {
         args.output_dir
             .join("phase5b_mini_pilot_reconciliation.json"),
         serde_json::to_string_pretty(&serde_json::json!({
+            "bulk_file": bulk_file_name(&checkpoint),
             "rows_scanned": checkpoint.row_index,
             "rows_valid": checkpoint.rows_valid,
             "rows_excluded": checkpoint.rows_excluded,
@@ -406,6 +408,7 @@ fn main() -> Result<()> {
             "exclusions": checkpoint.exclusions,
         }))? + "\n",
     )?;
+    write_reconciliation_csv(&args.output_dir, &checkpoint)?;
     println!(
         "phase5b mini pilot: {} valid / {} excluded / {} total sources -> {}",
         checkpoint.rows_valid,
@@ -505,6 +508,24 @@ fn skip_stream_rows(
     Ok(())
 }
 
+fn bulk_file_name(checkpoint: &MiniPilotCheckpoint) -> String {
+    Path::new(&checkpoint.bulk_file)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+fn write_reconciliation_csv(output_dir: &Path, checkpoint: &MiniPilotCheckpoint) -> Result<()> {
+    let path = output_dir.join("phase5b_mini_pilot_reconciliation.csv");
+    let mut writer = csv::WriterBuilder::new().from_path(path)?;
+    for row in &checkpoint.exclusions {
+        writer.serialize(row)?;
+    }
+    writer.flush()?;
+    Ok(())
+}
+
 fn register_failure(
     checkpoint: &mut MiniPilotCheckpoint,
     record: &CanonicalXpContinuousRecord,
@@ -523,6 +544,7 @@ fn register_failure(
     }
     checkpoint.exclusions.push(ExclusionRecord {
         source_id: record.source_id.clone(),
+        bulk_file: bulk_file_name(checkpoint),
         row_number: checkpoint.row_index,
         reason_code: reason_code.to_string(),
         evidence,
@@ -556,6 +578,7 @@ fn register_exclusion(
     }
     checkpoint.exclusions.push(ExclusionRecord {
         source_id: record.source_id.clone(),
+        bulk_file: bulk_file_name(checkpoint),
         row_number: checkpoint.row_index,
         reason_code: reason_code.to_string(),
         evidence,
