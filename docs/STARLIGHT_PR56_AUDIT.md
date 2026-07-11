@@ -52,23 +52,38 @@ Artifacts live under `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase4_
 
 Code: `starlight_sampling.rs`, `consolidate_gaia_starlight_samples`, extended `gaia_tap` tests.
 
-## Phase 5 — XP continuous reconstruction (in progress)
+## Phase 5 — XP continuous reconstruction (in progress, 2026-07-11)
 
-Scaffold landed on branch:
+**Gate:** not closed — batch DataLink download running (~12 198 sources, resume-safe checkpoint).
 
-| Component | Status |
-|-----------|--------|
-| GaiaXPy 2.1.4 offline tool | `tools/starlight-xp-continuous/` |
-| XP_CONTINUOUS DataLink retrieval | `DatalinkRetrievalType::XpContinuous` |
-| Coefficient CSV validation | `gaia_xp_continuous.rs` |
-| Overlap validation binary | `validate_xp_continuous_reconstruction` |
-| Smoke test (1 overlap source) | median relative error ≈ 0 |
+| Check | Status |
+|-------|--------|
+| Phase 4 inputs frozen | `phase5_phase4_inputs.snapshot.json` verified against `phase4.sha256sum` |
+| GaiaXPy environment | 2.1.4 pinned; 10 calibration CSVs checksummed in `phase5_gaiaxpy_environment.json` |
+| Overlap targets | 6 342 sources (`phase5_overlap_targets.csv`) |
+| Continuous-only targets | 5 856 sources (`phase5_continuous_only_targets.csv`) |
+| Batch XP_CONTINUOUS download | `download_xp_continuous_phase5` + checkpoint resume (in flight) |
+| Canonical coefficients | `normalize_xp_continuous_coefficients` (`xp_source_{id}.csv` → canonical) |
+| Offline reconstruction | GaiaXPy `reconstruct_and_integrate.py` → 336–650 nm normalized grids |
+| Overlap validation | `run_starlight_phase5_overlap_validation` vs canonical catalogue flux |
+| Uncertainty inflation | fit on train split only, frozen before test |
+| Production gates | flux-weighted bias ≤3%, median bias ≤5%, p95 ≤10%, coverage bands — pending full population |
+| Continuous-only contributions | `emit_phase5_continuous_contributions` → `phase5_continuous_only_336_650.csv` |
+| Reconciliation | `finalize_starlight_phase5` + `phase5_exclusions.csv` |
 
-Remaining: batch coefficient download for overlap/continuous-only strata, full bias audit by G/colour/SN/sky, normalized contributions for continuous-only population.
+Known exclusions (documented, not metric-tuned):
+
+- `4062484362784191744` — overlap target absent from canonical `gaia_dr3_starlight_sources.csv` (catalogue reconciliation).
+
+Partial overlap smoke (20 reconstructed sources at checkpoint): pipeline runs end-to-end; gates not evaluable until download completes.
+
+Artifacts: `$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/` (not versioned in git). Auto-resume pipeline: `tools/starlight-xp-continuous/run_phase5_pipeline.sh`.
+
+Code: `starlight_phase5.rs`, Phase 5 binaries, `gaia_xp_continuous.rs`, GaiaXPy audit tool.
 
 ## Residual blockers for PRODUCTION READY
 
-1. XP continuous reconstruction + validation (Phase 5)
+1. **Phase 5 batch download + full overlap/continuous-only validation** (in progress)
 2. Trained photometric / UV / selection models with checksum-pinned artifacts (Phases 6–10)
 3. Independent validation passing preregistered gates on held-out data
 4. Human approval artifacts (missing-flux, redistribution, nside review)
