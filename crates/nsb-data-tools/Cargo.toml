@@ -66,6 +66,30 @@ name = "consolidate_gaia_starlight_samples"
 path = "src/bin/consolidate_gaia_starlight_samples.rs"
 
 [[bin]]
+name = "prepare_starlight_phase5"
+path = "src/bin/prepare_starlight_phase5.rs"
+
+[[bin]]
+name = "download_xp_continuous_phase5"
+path = "src/bin/download_xp_continuous_phase5.rs"
+
+[[bin]]
+name = "normalize_xp_continuous_coefficients"
+path = "src/bin/normalize_xp_continuous_coefficients.rs"
+
+[[bin]]
+name = "run_starlight_phase5_overlap_validation"
+path = "src/bin/run_starlight_phase5_overlap_validation.rs"
+
+[[bin]]
+name = "emit_phase5_continuous_contributions"
+path = "src/bin/emit_phase5_continuous_contributions.rs"
+
+[[bin]]
+name = "finalize_starlight_phase5"
+path = "src/bin/finalize_starlight_phase5.rs"
+
+[[bin]]
 name = "validate_xp_continuous_reconstruction"
 path = "src/bin/validate_xp_continuous_reconstruction.rs"
 doc = false
