@@ -93,4 +93,4 @@ Changes to production orchestration must include tests proving:
 - checkpoint diagnostics and serialized size remain bounded;
 - unknown fields and unsupported schema versions fail closed.
 
-Fault-injection and end-to-end suites should build on these contracts rather than duplicating state decisions inside binaries.
+Fault-injection and end-to-end suites should build on these contracts rather than duplicating state decisions inside binaries. The architecture and pipeline contract tests are mandatory release gates for every retained orchestration change.
