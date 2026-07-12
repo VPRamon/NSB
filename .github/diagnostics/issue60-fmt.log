@@ -1,0 +1,23 @@
+Diff in /home/runner/work/NSB/NSB/crates/nsb-data-tools/src/pipeline/reconciliation.rs:202:
+         for partition in &partitions {
+             rows_scanned = checked_sum(rows_scanned, partition.rows_scanned, "rows_scanned")?;
+             rows_valid = checked_sum(rows_valid, partition.rows_valid, "rows_valid")?;
+-            rows_excluded =
+-                checked_sum(rows_excluded, partition.rows_excluded, "rows_excluded")?;
++            rows_excluded = checked_sum(rows_excluded, partition.rows_excluded, "rows_excluded")?;
+             rows_failed = checked_sum(rows_failed, partition.rows_failed, "rows_failed")?;
+         }
+         Ok(Self {
+Diff in /home/runner/work/NSB/NSB/crates/nsb-data-tools/tests/pipeline_recovery_contract.rs:64:
+ #[test]
+ fn reconciliation_rejects_duplicate_partial_and_inconsistent_partitions() -> Result<()> {
+     let duplicate = manifest("partition-a", 2, 0)?;
+-    assert!(ReconciliationManifest::from_partitions(vec![
+-        duplicate.clone(),
+-        duplicate
+-    ])
+-    .is_err());
++    assert!(ReconciliationManifest::from_partitions(vec![duplicate.clone(), duplicate]).is_err());
+ 
+     let mut partial = manifest("partition-b", 2, 0)?;
+     partial.completion = PartitionCompletion::Partial { rows_processed: 2 };
