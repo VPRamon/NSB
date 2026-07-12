@@ -12,9 +12,6 @@ pub mod state;
 pub use admission::{AdmissionDecision, ProductionAdmission};
 pub use checkpoint::{DiagnosticSample, PartitionCheckpoint, MAX_DIAGNOSTIC_SAMPLES};
 pub use contracts::{
-    Gate, GateStatus, PartitionCompletion, ProcessingMode, RowSelection,
-    PIPELINE_SCHEMA_VERSION,
+    Gate, GateStatus, PartitionCompletion, ProcessingMode, RowSelection, PIPELINE_SCHEMA_VERSION,
 };
-pub use state::{
-    CacheInputState, PartitionState, ResumeAction, TransitionEvidence,
-};
+pub use state::{CacheInputState, PartitionState, ResumeAction, TransitionEvidence};

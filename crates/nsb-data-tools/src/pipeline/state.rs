@@ -251,11 +251,9 @@ impl PartitionState {
             ) => {
                 updated.last_error = None;
             }
-            (
-                current,
-                CacheInputState::Failed,
-                TransitionEvidence::Failed { reason },
-            ) if current != CacheInputState::Deleted => {
+            (current, CacheInputState::Failed, TransitionEvidence::Failed { reason })
+                if current != CacheInputState::Deleted =>
+            {
                 if reason.trim().is_empty() {
                     bail!("failed transition requires a non-empty reason");
                 }
@@ -288,9 +286,9 @@ impl PartitionState {
                 }
                 updated.last_error = None;
             }
-            (current, requested, _) => bail!(
-                "illegal partition-state transition from {current:?} to {requested:?}"
-            ),
+            (current, requested, _) => {
+                bail!("illegal partition-state transition from {current:?} to {requested:?}")
+            }
         }
         updated.state = next;
         updated.validate()?;
@@ -330,7 +328,11 @@ impl PartitionState {
         if self.input_bytes == Some(0) {
             bail!("persisted input size must be non-zero");
         }
-        if self.last_error.as_ref().is_some_and(|value| value.trim().is_empty()) {
+        if self
+            .last_error
+            .as_ref()
+            .is_some_and(|value| value.trim().is_empty())
+        {
             bail!("persisted last_error must be non-empty");
         }
         if self.state == CacheInputState::Failed && self.last_error.is_none() {
@@ -346,12 +348,18 @@ impl PartitionState {
             completion.validate_for(selection)?;
         }
         if self.requires_input_checksum() && self.input_checksum.is_none() {
-            bail!("state {:?} requires verified input checksum evidence", self.state);
+            bail!(
+                "state {:?} requires verified input checksum evidence",
+                self.state
+            );
         }
         if self.requires_processing_configuration()
             && (self.processing_mode.is_none() || self.row_selection.is_none())
         {
-            bail!("state {:?} requires processing mode and row selection", self.state);
+            bail!(
+                "state {:?} requires processing mode and row selection",
+                self.state
+            );
         }
         if self.requires_completion() && self.completion.is_none() {
             bail!("state {:?} requires completion evidence", self.state);
@@ -362,7 +370,10 @@ impl PartitionState {
         if self.requires_reconciliation() && self.reconciliation_checksum.is_none() {
             bail!("state {:?} requires reconciliation evidence", self.state);
         }
-        if matches!(self.state, CacheInputState::Releasable | CacheInputState::Deleted) {
+        if matches!(
+            self.state,
+            CacheInputState::Releasable | CacheInputState::Deleted
+        ) {
             self.ensure_release_evidence()?;
         }
         Ok(())
@@ -375,7 +386,10 @@ impl PartitionState {
         if self.row_selection != Some(RowSelection::FullPartition) {
             bail!("bounded or sampled processing cannot authorize source release");
         }
-        if !self.completion.is_some_and(PartitionCompletion::is_complete) {
+        if !self
+            .completion
+            .is_some_and(PartitionCompletion::is_complete)
+        {
             bail!("source release requires complete partition processing evidence");
         }
         if self.input_checksum.is_none()
@@ -436,9 +450,7 @@ impl PartitionState {
     const fn requires_reconciliation(&self) -> bool {
         matches!(
             self.state,
-            CacheInputState::Reconciled
-                | CacheInputState::Releasable
-                | CacheInputState::Deleted
+            CacheInputState::Reconciled | CacheInputState::Releasable | CacheInputState::Deleted
         )
     }
 }

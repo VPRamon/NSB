@@ -1,10 +1,9 @@
 use anyhow::Result;
 use nsb_data_tools::checksum_io::{Checksum, ChecksumAlgorithm};
 use nsb_data_tools::pipeline::{
-    AdmissionDecision, CacheInputState, DiagnosticSample, Gate, GateStatus,
-    PartitionCheckpoint, PartitionCompletion, PartitionState, ProcessingMode,
-    ProductionAdmission, ResumeAction, RowSelection, TransitionEvidence,
-    MAX_DIAGNOSTIC_SAMPLES,
+    AdmissionDecision, CacheInputState, DiagnosticSample, Gate, GateStatus, PartitionCheckpoint,
+    PartitionCompletion, PartitionState, ProcessingMode, ProductionAdmission, ResumeAction,
+    RowSelection, TransitionEvidence, MAX_DIAGNOSTIC_SAMPLES,
 };
 
 fn md5(byte: char) -> Result<Checksum> {
@@ -69,10 +68,7 @@ fn skipped_required_gate_never_counts_as_passed() -> Result<()> {
 #[test]
 fn every_explicit_blocker_produces_a_failing_exit_code() -> Result<()> {
     let report = ProductionAdmission::new(Vec::new(), vec!["inventory unavailable".to_string()]);
-    assert!(matches!(
-        report.evaluate()?,
-        AdmissionDecision::Blocked(_)
-    ));
+    assert!(matches!(report.evaluate()?, AdmissionDecision::Blocked(_)));
     assert_eq!(report.evaluate()?.exit_code(), 2);
     Ok(())
 }
@@ -156,9 +152,7 @@ fn complete_production_evidence_can_authorize_release() -> Result<()> {
     state.transition(
         CacheInputState::Processed,
         TransitionEvidence::ProcessingCompleted {
-            completion: PartitionCompletion::Complete {
-                rows_processed: 42,
-            },
+            completion: PartitionCompletion::Complete { rows_processed: 42 },
         },
     )?;
     state.transition(
@@ -199,7 +193,10 @@ fn resume_semantics_cover_every_persisted_state() -> Result<()> {
         CacheInputState::Downloaded,
         TransitionEvidence::DownloadCompleted { bytes: 1 },
     )?;
-    assert_eq!(downloaded.resume_action(), ResumeAction::VerifyInputChecksum);
+    assert_eq!(
+        downloaded.resume_action(),
+        ResumeAction::VerifyInputChecksum
+    );
 
     let mut verified = downloaded.clone();
     verified.transition(

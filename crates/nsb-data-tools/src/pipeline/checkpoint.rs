@@ -130,9 +130,7 @@ impl PartitionCheckpoint {
             .and_then(|value| value.checked_add(rows_failed))
             .ok_or_else(|| anyhow::anyhow!("batch row counters overflowed"))?;
         if classified != rows_scanned {
-            bail!(
-                "batch row accounting mismatch: scanned={rows_scanned}, classified={classified}"
-            );
+            bail!("batch row accounting mismatch: scanned={rows_scanned}, classified={classified}");
         }
         if next_row_offset < self.next_row_offset || next_row_offset < rows_scanned {
             bail!("checkpoint row offset must advance monotonically");
