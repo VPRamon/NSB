@@ -39,7 +39,11 @@ A gate is one of:
 
 Every gate required for production must be `Passed`. Explicit blockers always reject admission. `ProductionAdmission::evaluate` returns exit code `0` only for `Ready`; every blocked decision maps to exit code `2`.
 
-Human-readable diagnostics belong on stderr or in structured reports. Stable machine output must not be contaminated by lifecycle logging.
+## Logging and machine output
+
+Every retained executable initializes `tool_logging` before invoking its service. `NSB_LOG` and `RUST_LOG` select the level, with `warn` as the default. Lifecycle, progress, warning, and failure events use the `log` facade and are emitted to stderr with a stable command target.
+
+Stdout is reserved for documented command results and machine-readable output. Adding operational context must never change a stable stdout schema or convert a failed typed outcome into a successful exit status.
 
 ## Transaction and cleanup order
 
