@@ -372,8 +372,13 @@ fn main() -> Result<()> {
     let mut peak_rss = peak_rss_kib();
 
     let mut rows_in_window = 0_u64;
+    let row_window = if args.row_limit == 0 {
+        u64::MAX
+    } else {
+        args.row_limit as u64
+    };
 
-    while rows_in_window < args.row_limit as u64 {
+    while rows_in_window < row_window {
         let Some(record) = stream.next_record()? else {
             break;
         };
@@ -384,7 +389,7 @@ fn main() -> Result<()> {
         }
         batch.push(record);
         let pending = batch.len();
-        if pending >= args.batch_size || rows_in_window >= args.row_limit as u64 {
+        if pending >= args.batch_size || rows_in_window >= row_window {
             process_batch(
                 &args.output_dir,
                 &coefficients_root,

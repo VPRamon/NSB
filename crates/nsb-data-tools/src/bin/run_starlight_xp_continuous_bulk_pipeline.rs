@@ -1,0 +1,1165 @@
+//! Production orchestrator for Gaia DR3 XP continuous bulk (issue #47 PR A).
+//!
+//! Runs USB/internal preflight, official inventory audit, representative rehearsal,
+//! kill/resume validation, and storage-plan generation. Full bulk is blocked until
+//! all preflight gates pass.
+
+use anyhow::{bail, Context, Result};
+use clap::Parser;
+use nsb_data_tools::gaia_storage_preflight::{
+    audit_official_inventory, directory_size_bytes, run_storage_preflight, write_storage_plan_json,
+    write_storage_plan_markdown, StoragePreflightConfig,
+};
+use nsb_data_tools::gaia_usb_cache::{
+    append_session_log, read_or_create_cache_root_marker, verify_usb_identity, UsbCacheLayout,
+    OFFICIAL_CHECKSUM_MANIFEST,
+};
+use nsb_data_tools::gaia_usb_cache_rotator::{
+    bulk_filename, filenames_checksum_verified, filenames_for_production, UsbCacheRotator,
+    UsbCacheRotatorConfig,
+};
+use nsb_data_tools::gaia_xp_continuous_bulk_reconciliation::{
+    build_partition_from_processing_output, PartitionReconciliationManifest,
+};
+use nsb_data_tools::gaia_xp_continuous_pilot_io::atomic_write_json;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+#[derive(Debug, Parser)]
+#[command(about = "Gaia DR3 XP continuous bulk production pipeline (preflight + rehearsal)")]
+struct Args {
+    #[arg(long)]
+    work_dir: Option<PathBuf>,
+    #[arg(long)]
+    checkpoint_dir: Option<PathBuf>,
+    #[arg(long)]
+    output_dir: Option<PathBuf>,
+    #[arg(long)]
+    manifest_dir: Option<PathBuf>,
+    #[arg(long)]
+    reconciliation_dir: Option<PathBuf>,
+    #[arg(long)]
+    input_cache_dir: Option<PathBuf>,
+    #[arg(long)]
+    usb_mountpoint: Option<PathBuf>,
+    #[arg(long)]
+    usb_cache_root: Option<PathBuf>,
+    #[arg(long, default_value_t = 20 * 1024 * 1024 * 1024)]
+    max_cache_bytes: u64,
+    #[arg(long)]
+    frozen_policy: Option<PathBuf>,
+    #[arg(long)]
+    official_checksum_manifest: Option<PathBuf>,
+    #[arg(long)]
+    rehearsal_bulk_gz: Option<PathBuf>,
+    #[arg(long, default_value_t = 2_000)]
+    rehearsal_row_limit: usize,
+    #[arg(long, default_value_t = 500)]
+    rehearsal_batch_size: usize,
+    /// Production streaming row limit (0 = entire bulk partition file).
+    #[arg(long, default_value_t = 0)]
+    production_row_limit: usize,
+    #[arg(long, default_value_t = 500)]
+    production_batch_size: usize,
+    #[arg(long)]
+    gaiaxpy_environment: Option<PathBuf>,
+    #[arg(long, default_value_t = false)]
+    preflight_only: bool,
+    #[arg(long, default_value_t = false)]
+    resume: bool,
+    #[arg(long, default_value_t = false)]
+    cleanup_verified_inputs: bool,
+    #[arg(long, default_value_t = false)]
+    dry_run: bool,
+    #[arg(long, default_value_t = false)]
+    init_usb_marker: bool,
+    #[arg(long, default_value_t = false)]
+    skip_rehearsal: bool,
+    #[arg(long, default_value_t = false)]
+    skip_resume_test: bool,
+    #[arg(long, default_value = "xp-continuous")]
+    cache_subdir: String,
+    /// Process up to N checksum-verified USB cache files through mini-pilot and mark releasable.
+    #[arg(long)]
+    process_verified_cache_limit: Option<usize>,
+    /// Per-file production loop: download (if needed) → process → HEALPix checkpoint → releasable.
+    #[arg(long)]
+    file_limit: Option<usize>,
+    /// Limit live cleanup deletes to N releasable files (dry-run still lists all candidates).
+    #[arg(long)]
+    cleanup_limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct SessionManifest {
+    schema_version: u32,
+    session_id: String,
+    software_commit: String,
+    work_dir: String,
+    checkpoint_dir: String,
+    output_dir: String,
+    manifest_dir: String,
+    input_cache_dir: String,
+    usb_mountpoint: Option<String>,
+    usb_cache_root: Option<String>,
+    max_cache_bytes: u64,
+    preflight_only: bool,
+    resume: bool,
+    cleanup_verified_inputs: bool,
+    dry_run: bool,
+    gates: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RehearsalReport {
+    bulk_gz: String,
+    row_limit: usize,
+    batch_size: usize,
+    wall_elapsed_seconds: f64,
+    sources_per_second: f64,
+    peak_rss_kib: u64,
+    rows_valid: u64,
+    rows_excluded: u64,
+    rows_failed: u64,
+    healpix_checksum: String,
+    flux_checksum: String,
+    passed: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProcessedCacheFileReport {
+    filename: String,
+    bulk_gz: String,
+    output_dir: String,
+    rows_valid: u64,
+    rows_failed: u64,
+    final_state: String,
+    passed: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProductionReconciliationReport {
+    status: String,
+    partition_manifest: String,
+    ledger_path: String,
+    rows_valid: u64,
+    rows_excluded: u64,
+    rows_failed: u64,
+    healpix_checksum: String,
+    reconciliation_ok: bool,
+    population_status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProductionStreamMetrics {
+    rows_scanned: u64,
+    rows_valid: u64,
+    rows_excluded: u64,
+    rows_failed: u64,
+    sources_per_second: f64,
+    wall_elapsed_seconds: f64,
+    peak_rss_kib: u64,
+    healpix_checksum: String,
+    flux_checksum: String,
+    row_limit: usize,
+    batch_size: usize,
+    full_file: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProductionFileReport {
+    filename: String,
+    initial_state: String,
+    downloaded: bool,
+    processed: bool,
+    stream_metrics: Option<ProductionStreamMetrics>,
+    healpix_checkpoint: Option<String>,
+    reconciliation: Option<ProductionReconciliationReport>,
+    final_state: String,
+    passed: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ProductionLoopReport {
+    file_limit: usize,
+    files: Vec<ProductionFileReport>,
+    passed: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PipelineReport {
+    schema_version: u32,
+    session_manifest: SessionManifest,
+    storage_plan_passed: bool,
+    rehearsal: Option<RehearsalReport>,
+    resume_validation: Option<serde_json::Value>,
+    deterministic_merge: Option<serde_json::Value>,
+    processed_cache_files: Vec<ProcessedCacheFileReport>,
+    production_loop: Option<ProductionLoopReport>,
+    cleanup_simulation: Option<serde_json::Value>,
+    all_preflight_gates_passed: bool,
+    ready_for_full_bulk: bool,
+    blockers: Vec<String>,
+}
+
+fn apply_env_defaults(args: &mut Args) {
+    if args.work_dir.is_none() {
+        args.work_dir = Some(env_path("STARLIGHT_WORK"));
+    }
+    if args.checkpoint_dir.is_none() {
+        args.checkpoint_dir = Some(env_path("STARLIGHT_CHECKPOINTS"));
+    }
+    if args.output_dir.is_none() {
+        args.output_dir = Some(env_path("STARLIGHT_OUTPUTS"));
+    }
+    if args.manifest_dir.is_none() {
+        args.manifest_dir = Some(env_path("GAIA_USB_MANIFESTS"));
+    }
+    if args.reconciliation_dir.is_none() {
+        args.reconciliation_dir = Some(env_path("GAIA_USB_RECONCILIATION"));
+    }
+    if args.input_cache_dir.is_none() {
+        args.input_cache_dir = Some(env_path("GAIA_USB_CACHE"));
+    }
+    if args.usb_mountpoint.is_none() {
+        args.usb_mountpoint = std::env::var_os("GAIA_USB_MOUNT").map(PathBuf::from);
+    }
+    if args.usb_cache_root.is_none() {
+        args.usb_cache_root = std::env::var_os("GAIA_USB_ROOT").map(PathBuf::from);
+    }
+    if args.frozen_policy.is_none() {
+        args.frozen_policy = std::env::var_os("STARLIGHT_FROZEN_POLICY").map(PathBuf::from);
+    }
+    if args.gaiaxpy_environment.is_none() {
+        args.gaiaxpy_environment = std::env::var_os("STARLIGHT_GAIAXPY_ENV").map(PathBuf::from);
+    }
+}
+
+fn env_path(name: &str) -> PathBuf {
+    std::env::var_os(name)
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn main() -> Result<()> {
+    let mut args = Args::parse();
+    apply_env_defaults(&mut args);
+    let work_dir = args.work_dir.clone().expect("work_dir");
+    let checkpoint_dir = args.checkpoint_dir.clone().expect("checkpoint_dir");
+    let output_dir = args.output_dir.clone().expect("output_dir");
+    let manifest_dir = args.manifest_dir.clone().expect("manifest_dir");
+    let input_cache_dir = args.input_cache_dir.clone().expect("input_cache_dir");
+    fs::create_dir_all(&work_dir)?;
+    fs::create_dir_all(&checkpoint_dir)?;
+    fs::create_dir_all(&output_dir)?;
+    fs::create_dir_all(&manifest_dir)?;
+    fs::create_dir_all(&input_cache_dir)?;
+
+    let official_checksum_manifest = args.official_checksum_manifest.clone().unwrap_or_else(|| {
+        if let Some(root) = &args.usb_cache_root {
+            root.join(&args.cache_subdir)
+                .join(OFFICIAL_CHECKSUM_MANIFEST)
+        } else {
+            input_cache_dir.join(OFFICIAL_CHECKSUM_MANIFEST)
+        }
+    });
+
+    let mut rotator = load_usb_rotator(&args, &official_checksum_manifest)?;
+
+    let measured_internal = directory_size_bytes(
+        &work_dir
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| work_dir.clone()),
+    )
+    .ok();
+
+    let preflight_config = StoragePreflightConfig {
+        work_dir: work_dir.clone(),
+        checkpoint_dir: checkpoint_dir.clone(),
+        output_dir: output_dir.clone(),
+        manifest_dir: manifest_dir.clone(),
+        input_cache_dir: input_cache_dir.clone(),
+        usb_mountpoint: args.usb_mountpoint.clone(),
+        usb_cache_root: args.usb_cache_root.clone(),
+        max_cache_bytes: args.max_cache_bytes,
+        frozen_policy: args.frozen_policy.clone(),
+        official_checksum_manifest: official_checksum_manifest.clone(),
+        measured_internal_existing_bytes: measured_internal,
+    };
+
+    let storage_plan = run_storage_preflight(&preflight_config)?;
+    let storage_plan_json = manifest_dir.join("storage_plan.json");
+    let storage_plan_md = manifest_dir.join("storage_plan.md");
+    write_storage_plan_json(&storage_plan_json, &storage_plan)?;
+    write_storage_plan_markdown(&storage_plan_md, &storage_plan)?;
+    println!(
+        "storage plan: {} ({})",
+        storage_plan.conclusion,
+        storage_plan_json.display()
+    );
+
+    let inventory = audit_official_inventory(&official_checksum_manifest)?;
+    let session = SessionManifest {
+        schema_version: 1,
+        session_id: format!("xp-continuous-bulk-{}", storage_plan.timestamp_utc),
+        software_commit: software_commit()?,
+        work_dir: work_dir.display().to_string(),
+        checkpoint_dir: checkpoint_dir.display().to_string(),
+        output_dir: output_dir.display().to_string(),
+        manifest_dir: manifest_dir.display().to_string(),
+        input_cache_dir: input_cache_dir.display().to_string(),
+        usb_mountpoint: args
+            .usb_mountpoint
+            .as_ref()
+            .map(|p| p.display().to_string()),
+        usb_cache_root: args
+            .usb_cache_root
+            .as_ref()
+            .map(|p| p.display().to_string()),
+        max_cache_bytes: args.max_cache_bytes,
+        preflight_only: args.preflight_only,
+        resume: args.resume,
+        cleanup_verified_inputs: args.cleanup_verified_inputs,
+        dry_run: args.dry_run,
+        gates: storage_plan
+            .preflight_gates
+            .iter()
+            .map(|gate| format!("{}:{}", gate.name, gate.passed))
+            .collect(),
+    };
+    let session_path = manifest_dir.join("session_manifest.json");
+    atomic_write_json(
+        &session_path,
+        &(serde_json::to_string_pretty(&session)? + "\n"),
+    )?;
+
+    let mut blockers = storage_plan
+        .preflight_gates
+        .iter()
+        .filter(|gate| !gate.passed)
+        .map(|gate| format!("{}: {}", gate.name, gate.detail))
+        .collect::<Vec<_>>();
+
+    let mut rehearsal = None;
+    let mut resume_validation: Option<serde_json::Value> = None;
+    let mut deterministic_merge = None;
+    let mut processed_cache_files = Vec::new();
+    let mut production_loop = None;
+    let mut cleanup_simulation = None;
+
+    if !args.preflight_only && !args.skip_rehearsal {
+        let bulk_gz =
+            resolve_rehearsal_bulk(&input_cache_dir, &work_dir, args.rehearsal_bulk_gz.as_ref())?;
+        let rehearsal_dir = work_dir.join("rehearsal");
+        if args.resume
+            && rehearsal_dir
+                .join("phase5b_mini_pilot_checkpoint.json")
+                .exists()
+        {
+            run_mini_pilot(
+                &bulk_gz,
+                &rehearsal_dir,
+                args.rehearsal_row_limit,
+                args.rehearsal_batch_size,
+                true,
+                &args,
+            )?;
+        } else if rehearsal_dir.exists() {
+            fs::remove_dir_all(&rehearsal_dir)?;
+        }
+        run_mini_pilot(
+            &bulk_gz,
+            &rehearsal_dir,
+            args.rehearsal_row_limit,
+            args.rehearsal_batch_size,
+            false,
+            &args,
+        )?;
+        if let Some(rotator) = rotator.as_mut() {
+            advance_cache_after_mini_pilot(rotator, &bulk_gz)?;
+        }
+        rehearsal = Some(read_rehearsal_report(
+            &rehearsal_dir,
+            &bulk_gz,
+            args.rehearsal_row_limit,
+            args.rehearsal_batch_size,
+        )?);
+        if let Some(report) = &rehearsal {
+            if !report.passed {
+                blockers.push(format!(
+                    "representative_rehearsal: throughput={:.2} src/s peak_rss_kib={}",
+                    report.sources_per_second, report.peak_rss_kib
+                ));
+            }
+        }
+
+        if !args.skip_resume_test {
+            let uninterrupted = work_dir.join("resume_test_uninterrupted");
+            let resumed = work_dir.join("resume_test_resumed");
+            for dir in [&uninterrupted, &resumed] {
+                if dir.exists() {
+                    fs::remove_dir_all(dir)?;
+                }
+            }
+            let half = args.rehearsal_row_limit / 2;
+            run_mini_pilot(
+                &bulk_gz,
+                &uninterrupted,
+                args.rehearsal_row_limit,
+                args.rehearsal_batch_size,
+                false,
+                &args,
+            )?;
+            run_mini_pilot(
+                &bulk_gz,
+                &resumed,
+                half,
+                args.rehearsal_batch_size,
+                false,
+                &args,
+            )?;
+            run_mini_pilot(
+                &bulk_gz,
+                &resumed,
+                half,
+                args.rehearsal_batch_size,
+                true,
+                &args,
+            )?;
+            let resume_output = manifest_dir.join("resume_validation.json");
+            resume_validation = Some(run_resume_validation(
+                &uninterrupted,
+                &resumed,
+                &resume_output,
+            )?);
+            if let Some(value) = &resume_validation {
+                if value.get("passed").and_then(|v| v.as_bool()) != Some(true) {
+                    blockers.push("kill_resume: resume validation failed".to_string());
+                }
+            }
+        }
+
+        if storage_plan.passed {
+            deterministic_merge = read_existing_merge_report(&work_dir);
+        }
+    }
+
+    if !args.preflight_only {
+        if let (Some(rotator), Some(limit)) = (rotator.as_mut(), args.process_verified_cache_limit)
+        {
+            processed_cache_files = process_verified_cache_files(rotator, &work_dir, limit, &args)?;
+            println!(
+                "processed {} verified USB cache files",
+                processed_cache_files.len()
+            );
+        }
+
+        if let (Some(rotator), Some(limit)) = (rotator.as_mut(), args.file_limit) {
+            let reconciliation_dir = args
+                .reconciliation_dir
+                .clone()
+                .unwrap_or_else(|| rotator.layout.reconciliation_dir.clone());
+            production_loop = Some(run_production_loop(
+                rotator,
+                &work_dir,
+                &checkpoint_dir,
+                &reconciliation_dir,
+                limit,
+                &args,
+            )?);
+            if let Some(loop_report) = &production_loop {
+                println!(
+                    "production loop: {} file(s), passed={}",
+                    loop_report.files.len(),
+                    loop_report.passed
+                );
+            }
+        }
+    }
+
+    if args.cleanup_verified_inputs {
+        if let Some(rotator) = rotator.as_mut() {
+            rotator.reload_manifest()?;
+            let cleanup = rotator.run_input_cleanup(args.dry_run, args.cleanup_limit)?;
+            let cleanup_path = manifest_dir.join("cleanup_simulation.json");
+            atomic_write_json(
+                &cleanup_path,
+                &(serde_json::to_string_pretty(&cleanup)? + "\n"),
+            )?;
+            println!(
+                "cleanup {}: {} candidates, {} bytes reclaimable -> {}",
+                if args.dry_run { "dry-run" } else { "live" },
+                cleanup.candidates.len(),
+                cleanup.bytes_reclaimed,
+                cleanup_path.display()
+            );
+            for candidate in &cleanup.candidates {
+                let verb = if args.dry_run {
+                    "would delete"
+                } else {
+                    "deleted"
+                };
+                println!("  {verb}: {candidate}");
+            }
+            cleanup_simulation = Some(serde_json::to_value(&cleanup)?);
+        } else {
+            blockers.push("cleanup_verified_inputs: USB cache rotator not configured".to_string());
+        }
+    }
+
+    let rehearsal_gate = rehearsal
+        .as_ref()
+        .map(|r| r.passed)
+        .unwrap_or(args.skip_rehearsal);
+    let resume_gate = resume_validation
+        .as_ref()
+        .and_then(|v| v.get("passed").and_then(|b| b.as_bool()))
+        .unwrap_or(args.skip_resume_test);
+    let all_preflight_gates_passed = storage_plan.passed
+        && inventory.passed
+        && rehearsal_gate
+        && resume_gate
+        && blockers.is_empty();
+    let ready_for_full_bulk = all_preflight_gates_passed;
+
+    let report = PipelineReport {
+        schema_version: 1,
+        session_manifest: session,
+        storage_plan_passed: storage_plan.passed,
+        rehearsal,
+        resume_validation,
+        deterministic_merge,
+        processed_cache_files,
+        production_loop,
+        cleanup_simulation,
+        all_preflight_gates_passed,
+        ready_for_full_bulk,
+        blockers: blockers.clone(),
+    };
+    let report_path = manifest_dir.join("pipeline_report.json");
+    atomic_write_json(
+        &report_path,
+        &(serde_json::to_string_pretty(&report)? + "\n"),
+    )?;
+
+    if args.preflight_only {
+        println!("preflight-only complete; rehearsal skipped");
+    }
+
+    if !ready_for_full_bulk {
+        println!("NOT READY for full bulk. Blockers:");
+        for blocker in &blockers {
+            println!("  - {blocker}");
+        }
+        if !storage_plan.passed {
+            std::process::exit(2);
+        }
+    } else {
+        println!("ALL PREFLIGHT GATES PASSED — ready for full bulk orchestration");
+    }
+
+    Ok(())
+}
+
+fn resolve_rehearsal_bulk(
+    input_cache_dir: &Path,
+    work_dir: &Path,
+    rehearsal_bulk_gz: Option<&PathBuf>,
+) -> Result<PathBuf> {
+    if let Some(path) = rehearsal_bulk_gz {
+        return Ok(path.clone());
+    }
+    let mut candidates: Vec<PathBuf> = fs::read_dir(input_cache_dir)
+        .ok()
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension().and_then(|ext| ext.to_str()) == Some("gz")
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.starts_with("XpContinuousMeanSpectrum_"))
+        })
+        .collect();
+    if candidates.is_empty() {
+        let pilot_bulk = work_dir
+            .parent()
+            .map(|parent| parent.join("pilot-xp-continuous-bulk/bulk"))
+            .filter(|path| path.exists());
+        if let Some(path) = pilot_bulk {
+            candidates = fs::read_dir(&path)?
+                .filter_map(|entry| entry.ok())
+                .map(|entry| entry.path())
+                .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("gz"))
+                .collect();
+        }
+    }
+    candidates.sort();
+    candidates
+        .into_iter()
+        .next()
+        .with_context(|| "no rehearsal bulk .csv.gz found in input cache or pilot directory")
+}
+
+fn run_mini_pilot(
+    bulk_gz: &Path,
+    output_dir: &Path,
+    row_limit: usize,
+    batch_size: usize,
+    resume: bool,
+    args: &Args,
+) -> Result<()> {
+    fs::create_dir_all(output_dir)?;
+    let mut cmd = Command::new("cargo");
+    cmd.args([
+        "run",
+        "--locked",
+        "-q",
+        "-p",
+        "nsb-data-tools",
+        "--bin",
+        "run_phase5b_mini_pilot",
+        "--",
+        "--bulk-gz",
+    ])
+    .arg(bulk_gz)
+    .args(["--output-dir"])
+    .arg(output_dir)
+    .args(["--row-limit"])
+    .arg(row_limit.to_string())
+    .args(["--batch-size"])
+    .arg(batch_size.to_string());
+    if let Some(policy) = &args.frozen_policy {
+        cmd.args(["--frozen-policy"]).arg(policy);
+    }
+    if let Some(env) = &args.gaiaxpy_environment {
+        cmd.args(["--gaiaxpy-environment"]).arg(env);
+    }
+    if resume {
+        cmd.arg("--resume");
+    }
+    let status = cmd
+        .status()
+        .context("failed to launch run_phase5b_mini_pilot")?;
+    if !status.success() {
+        bail!("run_phase5b_mini_pilot failed with status {status}");
+    }
+    Ok(())
+}
+
+fn read_rehearsal_report(
+    output_dir: &Path,
+    bulk_gz: &Path,
+    row_limit: usize,
+    batch_size: usize,
+) -> Result<RehearsalReport> {
+    let metrics: serde_json::Value = serde_json::from_str(&fs::read_to_string(
+        output_dir.join("phase5b_mini_pilot_metrics.json"),
+    )?)?;
+    let wall = metrics["wall_elapsed_seconds"].as_f64().unwrap_or(0.0);
+    let rows_valid = metrics["rows_valid"].as_u64().unwrap_or(0);
+    let sources_per_second = if wall > 0.0 {
+        rows_valid as f64 / wall
+    } else {
+        0.0
+    };
+    Ok(RehearsalReport {
+        bulk_gz: bulk_gz.display().to_string(),
+        row_limit,
+        batch_size,
+        wall_elapsed_seconds: wall,
+        sources_per_second,
+        peak_rss_kib: metrics["peak_rss_kib"].as_u64().unwrap_or(0),
+        rows_valid,
+        rows_excluded: metrics["rows_excluded"].as_u64().unwrap_or(0),
+        rows_failed: metrics["rows_failed"].as_u64().unwrap_or(0),
+        healpix_checksum: metrics["healpix_checksum"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        flux_checksum: metrics["flux_checksum"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        passed: rows_valid > 0 && sources_per_second > 0.0,
+    })
+}
+
+fn run_resume_validation(
+    uninterrupted_dir: &Path,
+    resumed_dir: &Path,
+    output_json: &Path,
+) -> Result<serde_json::Value> {
+    let status = Command::new("cargo")
+        .args([
+            "run",
+            "--locked",
+            "-q",
+            "-p",
+            "nsb-data-tools",
+            "--bin",
+            "run_phase5b_resume_validation",
+            "--",
+            "--uninterrupted-dir",
+        ])
+        .arg(uninterrupted_dir)
+        .args(["--resumed-dir"])
+        .arg(resumed_dir)
+        .args(["--output-json"])
+        .arg(output_json)
+        .status()
+        .context("failed to launch run_phase5b_resume_validation")?;
+    let report: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(output_json).with_context(|| {
+            format!(
+                "failed to read resume validation report at {}",
+                output_json.display()
+            )
+        })?)?;
+    if !status.success() && report.get("passed").and_then(|v| v.as_bool()) != Some(true) {
+        // Non-zero exit is expected when validation fails; report is still authoritative.
+    }
+    Ok(report)
+}
+
+fn read_existing_merge_report(work_dir: &Path) -> Option<serde_json::Value> {
+    let path = work_dir.parent().map(|parent| {
+        parent
+            .join("pilot-xp-continuous-bulk/multifile_pilot/phase5b_multifile_pilot_manifest.json")
+    })?;
+    serde_json::from_str(&fs::read_to_string(path).ok()?)
+        .ok()
+        .and_then(|manifest: serde_json::Value| manifest.get("deterministic_merge").cloned())
+}
+
+fn software_commit() -> Result<String> {
+    let output = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .context("failed to resolve git HEAD")?;
+    if !output.status.success() {
+        bail!("git rev-parse HEAD failed");
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+fn load_usb_rotator(
+    args: &Args,
+    official_checksum_manifest: &Path,
+) -> Result<Option<UsbCacheRotator>> {
+    let (Some(mount), Some(root)) = (&args.usb_mountpoint, &args.usb_cache_root) else {
+        return Ok(None);
+    };
+
+    let layout = UsbCacheLayout::from_env(mount, root, &args.cache_subdir);
+    if args.init_usb_marker {
+        let marker = read_or_create_cache_root_marker(&layout, true)?;
+        append_session_log(
+            &layout,
+            &format!("initialized cache root marker uuid={}", marker.cache_uuid),
+        )?;
+        println!(
+            "USB cache root marker initialized: {} ({})",
+            layout.marker_path().display(),
+            marker.cache_uuid
+        );
+    }
+    let identity = verify_usb_identity(&layout)?;
+    if !identity.passed {
+        bail!(
+            "USB identity preflight failed: {}",
+            identity.failures.join("; ")
+        );
+    }
+
+    let rotator = UsbCacheRotator::prepare(UsbCacheRotatorConfig {
+        layout,
+        max_cache_bytes: args.max_cache_bytes,
+        init_usb_marker: false,
+    })?;
+
+    if !official_checksum_manifest.is_file() {
+        bail!(
+            "official checksum manifest missing at {}",
+            official_checksum_manifest.display()
+        );
+    }
+
+    Ok(Some(rotator))
+}
+
+fn advance_cache_after_mini_pilot(rotator: &mut UsbCacheRotator, bulk_gz: &Path) -> Result<()> {
+    let Some(filename) = bulk_filename(bulk_gz) else {
+        return Ok(());
+    };
+    if rotator.entry_state(&filename).is_none() {
+        return Ok(());
+    }
+    rotator.advance_after_mini_pilot(&filename)
+}
+
+fn process_verified_cache_files(
+    rotator: &mut UsbCacheRotator,
+    work_dir: &Path,
+    limit: usize,
+    args: &Args,
+) -> Result<Vec<ProcessedCacheFileReport>> {
+    let filenames = filenames_checksum_verified(&rotator.manifest, Some(limit));
+    let mut reports = Vec::with_capacity(filenames.len());
+    let process_root = work_dir.join("verified_cache_process");
+    fs::create_dir_all(&process_root)?;
+
+    for filename in filenames {
+        let bulk_gz = rotator.layout.cache_dir.join(&filename);
+        if !bulk_gz.is_file() {
+            bail!(
+                "checksum_verified cache file missing on disk: {}",
+                bulk_gz.display()
+            );
+        }
+        let output_dir = process_root.join(filename.trim_end_matches(".csv.gz"));
+        if output_dir.exists() {
+            fs::remove_dir_all(&output_dir)?;
+        }
+        rotator.mark_processing(&filename)?;
+        run_mini_pilot(
+            &bulk_gz,
+            &output_dir,
+            args.rehearsal_row_limit,
+            args.rehearsal_batch_size,
+            false,
+            args,
+        )?;
+        rotator.advance_after_mini_pilot(&filename)?;
+        let metrics: serde_json::Value = serde_json::from_str(&fs::read_to_string(
+            output_dir.join("phase5b_mini_pilot_metrics.json"),
+        )?)?;
+        let rows_valid = metrics["rows_valid"].as_u64().unwrap_or(0);
+        let rows_failed = metrics["rows_failed"].as_u64().unwrap_or(0);
+        let final_state = rotator
+            .entry_state(&filename)
+            .map(cache_state_label)
+            .unwrap_or_else(|| "unknown".to_string());
+        reports.push(ProcessedCacheFileReport {
+            filename: filename.clone(),
+            bulk_gz: bulk_gz.display().to_string(),
+            output_dir: output_dir.display().to_string(),
+            rows_valid,
+            rows_failed,
+            final_state: final_state.clone(),
+            passed: rows_valid > 0 && rows_failed == 0 && final_state == "releasable",
+        });
+    }
+    Ok(reports)
+}
+
+fn run_production_loop(
+    rotator: &mut UsbCacheRotator,
+    work_dir: &Path,
+    checkpoint_dir: &Path,
+    reconciliation_dir: &Path,
+    file_limit: usize,
+    args: &Args,
+) -> Result<ProductionLoopReport> {
+    if args
+        .frozen_policy
+        .as_ref()
+        .is_none_or(|path| !path.is_file())
+    {
+        bail!("production loop requires --frozen-policy (or STARLIGHT_FROZEN_POLICY)");
+    }
+    if args
+        .gaiaxpy_environment
+        .as_ref()
+        .is_none_or(|path| !path.is_file())
+    {
+        bail!("production loop requires --gaiaxpy-environment (or STARLIGHT_GAIAXPY_ENV)");
+    }
+
+    rotator.reload_manifest()?;
+    let filenames = filenames_for_production(&rotator.manifest, Some(file_limit));
+    let production_root = work_dir.join("production_loop");
+    fs::create_dir_all(&production_root)?;
+    fs::create_dir_all(checkpoint_dir)?;
+    fs::create_dir_all(reconciliation_dir)?;
+
+    let cache_uuid = rotator.manifest.cache_uuid.clone();
+    let partitions_pending = rotator
+        .manifest
+        .entries
+        .iter()
+        .filter(|entry| {
+            !matches!(
+                entry.state,
+                nsb_data_tools::gaia_usb_cache::CacheInputState::Releasable
+                    | nsb_data_tools::gaia_usb_cache::CacheInputState::Deleted
+            )
+        })
+        .count() as u32;
+
+    let mut files = Vec::with_capacity(filenames.len());
+    for filename in filenames {
+        let initial_state = rotator
+            .entry_state(&filename)
+            .map(cache_state_label)
+            .unwrap_or_else(|| "unknown".to_string());
+        let mut downloaded = false;
+        let mut processed = false;
+        let mut stream_metrics = None;
+        let mut healpix_checkpoint = None;
+        let mut reconciliation = None;
+
+        if matches!(
+            rotator.entry_state(&filename),
+            Some(nsb_data_tools::gaia_usb_cache::CacheInputState::Planned)
+                | Some(nsb_data_tools::gaia_usb_cache::CacheInputState::Failed)
+        ) {
+            download_cache_file(&filename, args)?;
+            rotator.reload_manifest()?;
+            downloaded = true;
+        }
+
+        let bulk_gz = rotator.layout.cache_dir.join(&filename);
+        if rotator.entry_state(&filename)
+            == Some(nsb_data_tools::gaia_usb_cache::CacheInputState::ChecksumVerified)
+        {
+            let output_dir = production_root.join(filename.trim_end_matches(".csv.gz"));
+            if output_dir.exists() {
+                fs::remove_dir_all(&output_dir)?;
+            }
+            rotator.mark_processing(&filename)?;
+            stream_metrics = Some(run_production_stream(
+                &bulk_gz,
+                &output_dir,
+                args.production_row_limit,
+                args.production_batch_size,
+                args.resume,
+                args,
+            )?);
+            healpix_checkpoint = Some(write_healpix_checkpoint(
+                &filename,
+                &output_dir,
+                checkpoint_dir,
+            )?);
+            let (manifest, manifest_path, ledger_path) = build_partition_from_processing_output(
+                reconciliation_dir,
+                &cache_uuid,
+                &filename,
+                &output_dir,
+                partitions_pending,
+            )?;
+            reconciliation = Some(production_reconciliation_report(
+                &manifest,
+                &manifest_path,
+                &ledger_path,
+            ));
+            processed = true;
+        }
+
+        if processed {
+            rotator.advance_after_mini_pilot(&filename)?;
+        }
+
+        let final_state = rotator
+            .entry_state(&filename)
+            .map(cache_state_label)
+            .unwrap_or_else(|| "unknown".to_string());
+        let passed = final_state == "releasable"
+            && processed
+            && reconciliation
+                .as_ref()
+                .is_some_and(|report| report.reconciliation_ok);
+        files.push(ProductionFileReport {
+            filename,
+            initial_state,
+            downloaded,
+            processed,
+            stream_metrics,
+            healpix_checkpoint,
+            reconciliation,
+            final_state: final_state.clone(),
+            passed,
+        });
+    }
+
+    let passed = !files.is_empty() && files.iter().all(|file| file.passed);
+    Ok(ProductionLoopReport {
+        file_limit,
+        files,
+        passed,
+    })
+}
+
+fn production_reconciliation_report(
+    manifest: &PartitionReconciliationManifest,
+    manifest_path: &Path,
+    ledger_path: &Path,
+) -> ProductionReconciliationReport {
+    ProductionReconciliationReport {
+        status: "partition_complete".to_string(),
+        partition_manifest: manifest_path.display().to_string(),
+        ledger_path: ledger_path.display().to_string(),
+        rows_valid: manifest.source_counts.rows_valid,
+        rows_excluded: manifest.source_counts.rows_excluded,
+        rows_failed: manifest.source_counts.rows_failed,
+        healpix_checksum: manifest.accumulator.healpix_checksum.clone(),
+        reconciliation_ok: manifest.reconciliation_ok,
+        population_status: manifest.population_status.clone(),
+    }
+}
+
+/// Stream a bulk partition through the canonical adapter, GaiaXPy, and HEALPix
+/// accumulator (`run_phase5b_mini_pilot` with production row/batch limits).
+fn run_production_stream(
+    bulk_gz: &Path,
+    output_dir: &Path,
+    row_limit: usize,
+    batch_size: usize,
+    resume: bool,
+    args: &Args,
+) -> Result<ProductionStreamMetrics> {
+    fs::create_dir_all(output_dir)?;
+    let mut cmd = Command::new("cargo");
+    cmd.args([
+        "run",
+        "--locked",
+        "-q",
+        "-p",
+        "nsb-data-tools",
+        "--bin",
+        "run_phase5b_mini_pilot",
+        "--",
+        "--bulk-gz",
+    ])
+    .arg(bulk_gz)
+    .args(["--output-dir"])
+    .arg(output_dir)
+    .args(["--row-limit"])
+    .arg(row_limit.to_string())
+    .args(["--batch-size"])
+    .arg(batch_size.to_string());
+    if let Some(policy) = &args.frozen_policy {
+        cmd.args(["--frozen-policy"]).arg(policy);
+    }
+    if let Some(env) = &args.gaiaxpy_environment {
+        cmd.args(["--gaiaxpy-environment"]).arg(env);
+    }
+    if resume {
+        cmd.arg("--resume");
+    }
+    let status = cmd
+        .status()
+        .context("failed to launch run_phase5b_mini_pilot production stream")?;
+    if !status.success() {
+        bail!("production stream failed with status {status}");
+    }
+
+    let metrics: serde_json::Value = serde_json::from_str(&fs::read_to_string(
+        output_dir.join("phase5b_mini_pilot_metrics.json"),
+    )?)?;
+    Ok(ProductionStreamMetrics {
+        rows_scanned: metrics["rows_scanned"].as_u64().unwrap_or(0),
+        rows_valid: metrics["rows_valid"].as_u64().unwrap_or(0),
+        rows_excluded: metrics["rows_excluded"].as_u64().unwrap_or(0),
+        rows_failed: metrics["rows_failed"].as_u64().unwrap_or(0),
+        sources_per_second: metrics["sources_per_second"].as_f64().unwrap_or(0.0),
+        wall_elapsed_seconds: metrics["wall_elapsed_seconds"].as_f64().unwrap_or(0.0),
+        peak_rss_kib: metrics["peak_rss_kib"].as_u64().unwrap_or(0),
+        healpix_checksum: metrics["healpix_checksum"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        flux_checksum: metrics["flux_checksum"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string(),
+        row_limit,
+        batch_size,
+        full_file: row_limit == 0,
+    })
+}
+
+fn download_cache_file(filename: &str, args: &Args) -> Result<()> {
+    let mut cmd = Command::new("cargo");
+    cmd.args([
+        "run",
+        "--locked",
+        "-q",
+        "-p",
+        "nsb-data-tools",
+        "--bin",
+        "download_gaia_xp_continuous_bulk",
+        "--",
+    ]);
+    if let Some(mount) = &args.usb_mountpoint {
+        cmd.args(["--usb-mountpoint"]).arg(mount);
+    }
+    if let Some(root) = &args.usb_cache_root {
+        cmd.args(["--usb-cache-root"]).arg(root);
+    }
+    cmd.args(["--cache-subdir"])
+        .arg(&args.cache_subdir)
+        .args(["--max-cache-bytes"])
+        .arg(args.max_cache_bytes.to_string())
+        .args(["--only-filename"])
+        .arg(filename);
+    if args.resume {
+        cmd.arg("--resume");
+    }
+    let status = cmd
+        .status()
+        .with_context(|| format!("failed to download cache file {filename}"))?;
+    if !status.success() {
+        bail!("download_gaia_xp_continuous_bulk failed for {filename} with status {status}");
+    }
+    Ok(())
+}
+
+fn write_healpix_checkpoint(
+    filename: &str,
+    output_dir: &Path,
+    checkpoint_dir: &Path,
+) -> Result<String> {
+    let source = output_dir.join("phase5b_healpix_accumulator.json");
+    if !source.is_file() {
+        bail!(
+            "HEALPix accumulator missing at {} after processing {}",
+            source.display(),
+            filename
+        );
+    }
+    let stem = filename.trim_end_matches(".csv.gz");
+    let dest = checkpoint_dir.join(format!("{stem}_healpix_accumulator.json"));
+    fs::copy(&source, &dest).with_context(|| {
+        format!(
+            "failed to copy HEALPix checkpoint from {} to {}",
+            source.display(),
+            dest.display()
+        )
+    })?;
+    Ok(dest.display().to_string())
+}
+
+fn cache_state_label(state: nsb_data_tools::gaia_usb_cache::CacheInputState) -> String {
+    match state {
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Planned => "planned".to_string(),
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Downloading => "downloading".to_string(),
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Downloaded => "downloaded".to_string(),
+        nsb_data_tools::gaia_usb_cache::CacheInputState::ChecksumVerified => {
+            "checksum_verified".to_string()
+        }
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Processing => "processing".to_string(),
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Processed => "processed".to_string(),
+        nsb_data_tools::gaia_usb_cache::CacheInputState::OutputVerified => {
+            "output_verified".to_string()
+        }
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Releasable => "releasable".to_string(),
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Deleted => "deleted".to_string(),
+        nsb_data_tools::gaia_usb_cache::CacheInputState::Failed => "failed".to_string(),
+    }
+}

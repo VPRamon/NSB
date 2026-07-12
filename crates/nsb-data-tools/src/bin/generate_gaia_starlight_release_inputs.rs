@@ -755,6 +755,7 @@ async fn run_bulk_mode(args: &Args, paths: &Paths, diagnostics: &mut Diagnostics
         max_backoff: Duration::from_secs(args.bulk_max_backoff_secs),
         progress_interval: Duration::from_secs(args.progress_interval_secs),
         file_limit: args.bulk_file_limit,
+        filename_allowlist: None,
     };
     let bulk_paths = BulkPaths {
         download_dir: paths.bulk_dir.clone(),

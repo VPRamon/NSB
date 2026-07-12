@@ -128,3 +128,120 @@ peak RSS ~50 MiB per worker):
 
 Do **not** launch full-population processing until Phase 5 scientific policy is
 frozen and verified on the DataLink validation sample.
+
+## USB rotating cache (issue #47 PR A)
+
+Production bulk uses a **rotating USB cache** on vfat-safe file sizes (≤ 4 GiB
+per file). Official coefficient files are downloaded to USB, processed on
+internal storage, checkpointed, then deleted from USB once marked **releasable**.
+
+### Layout
+
+| Path | Purpose |
+| --- | --- |
+| `$GAIA_USB_ROOT/.nsb-gaia-cache-root.json` | Cache root marker (UUID) |
+| `$GAIA_USB_ROOT/xp-continuous/` | Rotating `.csv.gz` inputs |
+| `$GAIA_USB_ROOT/manifests/cache_state_manifest.json` | Per-file cache state machine |
+| `$GAIA_USB_ROOT/manifests/storage_plan.json` | Preflight storage plan |
+| `$STARLIGHT_CHECKPOINTS/` | Per-file HEALPix accumulator checkpoints |
+
+Set via environment (no hardcoded home paths in library code):
+
+```bash
+export GAIA_USB_MOUNT=/path/to/external-storage
+export GAIA_USB_ROOT=$GAIA_USB_MOUNT/nsb-data/gaia-bulk
+export GAIA_USB_CACHE=$GAIA_USB_ROOT/xp-continuous
+export GAIA_USB_MANIFESTS=$GAIA_USB_ROOT/manifests
+export STARLIGHT_WORK=$HOME/nsb-data/starlight-gaia-release/xp-continuous-bulk/work
+export STARLIGHT_CHECKPOINTS=$HOME/nsb-data/starlight-gaia-release/xp-continuous-bulk/checkpoints
+export STARLIGHT_OUTPUTS=$HOME/nsb-data/starlight-gaia-release/xp-continuous-bulk/outputs
+```
+
+### Cache state machine
+
+```text
+planned → downloading → downloaded → checksum_verified
+  → processing → processed → output_verified → releasable → deleted
+failed (retry from planned/download)
+```
+
+### Orchestrator (`run_starlight_xp_continuous_bulk_pipeline`)
+
+Preflight, rehearsal, verified-cache processing, per-file production loop, and
+input cleanup:
+
+```bash
+cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipeline -- \
+  --preflight-only \
+  --usb-mountpoint "$GAIA_USB_MOUNT" \
+  --usb-cache-root "$GAIA_USB_ROOT"
+```
+
+| Flag | Purpose |
+| --- | --- |
+| `--preflight-only` | Storage plan + inventory audit only (skip rehearsal) |
+| `--skip-rehearsal` | Skip representative mini-pilot and resume test |
+| `--skip-resume-test` | Skip kill/resume validation |
+| `--process-verified-cache-limit N` | Process N `checksum_verified` files → `releasable` |
+| `--production-row-limit N` | Production streaming row cap (`0` = entire partition file) |
+| `--production-batch-size` | GaiaXPy batch size for production streaming (default 500) |
+| `--file-limit N` | Per-file production loop (download → process → HEALPix checkpoint → releasable) |
+| `--cleanup-verified-inputs` | Delete `releasable` inputs from USB cache |
+| `--cleanup-limit N` | Live cleanup: delete at most N releasable files |
+| `--dry-run` | With cleanup: list candidates without deleting |
+| `--cache-subdir xp-continuous` | USB cache subdirectory (default) |
+| `--max-cache-bytes` | USB cache footprint cap (default 20 GiB) |
+| `--init-usb-marker` | Create `.nsb-gaia-cache-root.json` on first use |
+
+Controlled cleanup (1 file live delete):
+
+```bash
+cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipeline -- \
+  --skip-rehearsal --cleanup-verified-inputs --cleanup-limit 1 \
+  --usb-mountpoint "$GAIA_USB_MOUNT" --usb-cache-root "$GAIA_USB_ROOT"
+```
+
+Production loop skeleton (1 file):
+
+```bash
+cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipeline -- \
+  --skip-rehearsal --file-limit 1 \
+  --usb-mountpoint "$GAIA_USB_MOUNT" --usb-cache-root "$GAIA_USB_ROOT" \
+  --gaiaxpy-environment "$STARLIGHT_ROOT/pilot-xp-continuous-bulk/gaiaxpy_environment.json"
+```
+
+### Downloader (`download_gaia_xp_continuous_bulk`)
+
+USB cache mode wires downloads into the state machine:
+
+```bash
+cargo run --locked -p nsb-data-tools --bin download_gaia_xp_continuous_bulk -- \
+  --usb-mountpoint "$GAIA_USB_MOUNT" \
+  --usb-cache-root "$GAIA_USB_ROOT" \
+  --file-limit 4
+```
+
+| Flag | Purpose |
+| --- | --- |
+| `--file-limit N` | Download first N pending inventory files |
+| `--only-filename NAME` | Download a single named file |
+| `--resume` | Resume partial `.part` downloads |
+| `--report-json PATH` | Write combined bulk + cache sync report |
+
+Reports land under `$GAIA_USB_ROOT/manifests/` (e.g.
+`gaia_xp_continuous_usb_cache_download_report.json`,
+`cleanup_simulation.json`, `pipeline_report.json`).
+
+### Reconciliation scaffold
+
+Per-partition manifests and a rolling ledger are written under
+`$GAIA_USB_RECONCILIATION/` (default: `$GAIA_USB_ROOT/reconciliation`):
+
+| Artifact | Purpose |
+| --- | --- |
+| `{partition}.reconciliation.json` | Per-file valid/excluded/failed counts + HEALPix totals |
+| `bulk_reconciliation_ledger.json` | Cumulative partition accounting (184.7M close deferred) |
+
+Production streaming uses `run_phase5b_mini_pilot` (canonical adapter +
+GaiaXPy + HEALPix) with `--production-row-limit 0` for full partition files.
+Rehearsal uses the same binary with a bounded `--rehearsal-row-limit`.
