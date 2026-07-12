@@ -17,12 +17,10 @@ struct Args {
     output_dir: PathBuf,
     #[arg(long, default_value_t = 500)]
     row_limit: usize,
-    #[arg(long, default_value = "100,500,1000")]
+    #[arg(long, default_value = "100,500,1000,2000")]
     chunk_sizes: String,
-    #[arg(long)]
-    python: Option<PathBuf>,
-    #[arg(long)]
-    reconstruct_script: Option<PathBuf>,
+    #[arg(long, default_value_t = 1)]
+    workers: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -37,12 +35,6 @@ struct ChunkBenchmarkRow {
 fn main() -> Result<()> {
     let args = Args::parse();
     fs::create_dir_all(&args.output_dir)?;
-    let python = args
-        .python
-        .unwrap_or_else(|| PathBuf::from("tools/starlight-xp-continuous/.venv/bin/python"));
-    let reconstruct_script = args.reconstruct_script.unwrap_or_else(|| {
-        PathBuf::from("tools/starlight-xp-continuous/reconstruct_and_integrate.py")
-    });
     let mut rows = Vec::new();
     for chunk in args
         .chunk_sizes
@@ -51,18 +43,20 @@ fn main() -> Result<()> {
     {
         let out = args.output_dir.join(format!("chunk_{chunk}"));
         let started = Instant::now();
-        let status = Command::new("cargo")
-            .args([
-                "run",
-                "--locked",
-                "-q",
-                "-p",
-                "nsb-data-tools",
-                "--bin",
-                "run_phase5b_mini_pilot",
-                "--",
-                "--bulk-gz",
-            ])
+        let mut command = Command::new("cargo");
+        command.args([
+            "run",
+            "--release",
+            "--locked",
+            "-q",
+            "-p",
+            "nsb-data-tools",
+            "--bin",
+            "run_phase5b_mini_pilot",
+            "--",
+            "--bulk-gz",
+        ]);
+        let status = command
             .arg(&args.bulk_gz)
             .arg("--output-dir")
             .arg(&out)
@@ -70,11 +64,10 @@ fn main() -> Result<()> {
             .arg(args.row_limit.to_string())
             .arg("--batch-size")
             .arg(chunk.to_string())
-            .arg("--python")
-            .arg(&python)
-            .arg("--reconstruct-script")
-            .arg(&reconstruct_script)
+            .arg("--workers")
+            .arg(args.workers.to_string())
             .arg("--skip-normalized-output")
+            .arg("--light-checkpoint")
             .status()?;
         if !status.success() {
             anyhow::bail!("chunk benchmark failed for chunk_size={chunk}");

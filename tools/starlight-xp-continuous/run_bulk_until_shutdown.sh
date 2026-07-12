@@ -21,7 +21,7 @@ mountpoint -q "$GAIA_USB_MOUNT" || { echo "USB not mounted"; exit 1; }
 
 cd "$NSB_REPO"
 WORKERS="${PRODUCTION_WORKERS:-0}"
-echo "production_workers=${WORKERS} (0=auto)"
+echo "production_workers=${WORKERS} (0=auto: min(cores-4, 18); 22-core host -> 18)"
 
 cargo build --release --locked -p nsb-data-tools \
   --bin run_starlight_xp_continuous_bulk_pipeline \
@@ -35,10 +35,12 @@ while true; do
     --bin run_starlight_xp_continuous_bulk_pipeline -- \
     --skip-rehearsal \
     --skip-resume-test \
+    --resume \
     --file-limit 1 \
     --production-row-limit 0 \
-    --production-batch-size 500 \
+    --production-batch-size 1000 \
     --production-workers "$WORKERS" \
+    --production-checkpoint-interval 4 \
     --frozen-policy "$STARLIGHT_FROZEN_POLICY" \
     --gaiaxpy-environment "$STARLIGHT_GAIAXPY_ENV" \
     --usb-mountpoint "$GAIA_USB_MOUNT" \

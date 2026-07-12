@@ -42,12 +42,13 @@ cargo run --locked -q -p nsb-data-tools --bin normalize_xp_continuous_coefficien
   --output-dir "$PHASE5/coefficients/canonical" \
   --manifest-json "$PHASE5/phase5_coefficients.manifest.json"
 
-echo "== GaiaXPy reconstruction =="
+echo "== Rust in-process reconstruction =="
 mkdir -p "$PHASE5/reconstruction/normalized"
-"$VENV" "$ROOT/tools/starlight-xp-continuous/reconstruct_and_integrate.py" \
+cargo run --release --locked -q -p nsb-data-tools --bin reconstruct_canonical_coefficients -- \
   --coefficients-dir "$PHASE5/coefficients/canonical" \
   --output-dir "$PHASE5/reconstruction/normalized" \
-  --manifest "$PHASE5/phase5_reconstruction.manifest.json"
+  --manifest "$PHASE5/phase5_reconstruction.manifest.json" \
+  --gaiaxpy-environment "$PHASE5/phase5_gaiaxpy_environment.json"
 
 CAL_SHA="$(grep -o '^[0-9a-f]\{64\}' "$PHASE5/phase5_gaiaxpy_environment.sha256" | head -1)"
 

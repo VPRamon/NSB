@@ -1,15 +1,18 @@
 //! Gaia DR3 XP continuous coefficient products and reconstructed-spectrum metadata.
 //!
 //! Coefficient CSV files are retrieved via Gaia DataLink (`RETRIEVAL_TYPE=XP_CONTINUOUS`).
-//! Spectrum calibration uses pinned GaiaXPy offline; NSB integrates the resulting
-//! normalized grids with the same 336–650 nm photon-flux contract as sampled XP.
+//! Production calibration is in-process Rust (`gaia_xp_continuous_calibrate`); GaiaXPy
+//! Python is retained only for oracle fixtures and environment audit.
 
-use anyhow::{Context, Result};
-use csv::ReaderBuilder;
+use anyhow::{bail, Context, Result};
+use csv::{ReaderBuilder, WriterBuilder};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::Path;
 
-use crate::gaia_xp::{integrate_photon_flux, parse_normalized_record, PhotonFluxIntegral};
+use crate::gaia_xp::{
+    integrate_photon_flux, parse_normalized_record, PhotonFluxIntegral, XpProduct,
+};
 pub use crate::gaia_xp_continuous_canonical::{
     parse_bulk_ecsv_record, parse_datalink_gaiaxpy_csv, stream_bulk_ecsv_gz,
     write_gaiaxpy_datalink_csv, CanonicalXpContinuousRecord, FieldDiffSummary,
@@ -136,6 +139,72 @@ pub fn integrate_reconstructed_csv(path: &Path) -> Result<(String, PhotonFluxInt
     let product = parse_normalized_record(&headers, &record)?;
     let integral = integrate_photon_flux(&product)?;
     Ok((product.source_id, integral))
+}
+
+/// Write one NSB normalized continuous spectrum CSV (GaiaXPy-compatible layout).
+pub fn write_normalized_spectrum_csv(path: &Path, product: &XpProduct) -> Result<()> {
+    let errors = product
+        .flux_error_w_m2_nm
+        .as_ref()
+        .context("normalized spectrum requires per-sample flux errors")?;
+    if product.wavelengths_nm.len() != product.flux_w_m2_nm.len()
+        || product.flux_w_m2_nm.len() != errors.len()
+    {
+        bail!("normalized spectrum sample length mismatch");
+    }
+    for (label, values) in [
+        ("wavelength", &product.wavelengths_nm),
+        ("flux", &product.flux_w_m2_nm),
+        ("flux_error", errors),
+    ] {
+        for value in values {
+            if !value.is_finite() {
+                bail!(
+                    "non-finite {label} in normalized spectrum for {}",
+                    product.source_id
+                );
+            }
+        }
+    }
+    let part = path.with_extension(format!(
+        "{}.part",
+        path.extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("csv")
+    ));
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let mut writer = WriterBuilder::new().has_headers(true).from_path(&part)?;
+    writer.write_record([
+        "source_id",
+        "xp_wavelength_nm",
+        "xp_flux_w_m2_nm",
+        "xp_flux_error_w_m2_nm",
+    ])?;
+    writer.write_record([
+        product.source_id.as_str(),
+        &format_series(&product.wavelengths_nm, false),
+        &format_series(&product.flux_w_m2_nm, true),
+        &format_series(errors, true),
+    ])?;
+    writer.flush()?;
+    fs::rename(&part, path)?;
+    Ok(())
+}
+
+fn format_series(values: &[f64], scientific: bool) -> String {
+    values
+        .iter()
+        .map(|value| {
+            if scientific {
+                format!("{value:.8e}")
+            } else {
+                format!("{value:.8}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(";")
 }
 
 pub fn integral_to_contribution(

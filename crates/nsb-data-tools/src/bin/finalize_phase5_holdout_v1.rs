@@ -259,20 +259,32 @@ fn main() -> Result<()> {
     if !args.skip_reconstruct {
         fs::create_dir_all(&reconstructed_dir)?;
         let recon_manifest = holdout_root.join("phase5_holdout_v1_reconstruction.manifest.json");
-        let venv = repo_root.join("tools/starlight-xp-continuous/.venv/bin/python");
-        let script = repo_root.join("tools/starlight-xp-continuous/reconstruct_and_integrate.py");
-        let status = Command::new(&venv)
-            .arg(&script)
-            .arg("--coefficients-dir")
+        let gaiaxpy_env = repo_root.join("tools/starlight-xp-continuous/gaiaxpy_environment.json");
+        let status = Command::new("cargo")
+            .current_dir(&repo_root)
+            .args([
+                "run",
+                "--release",
+                "--locked",
+                "-q",
+                "-p",
+                "nsb-data-tools",
+                "--bin",
+                "reconstruct_canonical_coefficients",
+                "--",
+                "--coefficients-dir",
+            ])
             .arg(&canonical_dir)
-            .arg("--output-dir")
+            .args(["--output-dir"])
             .arg(&reconstructed_dir)
-            .arg("--manifest")
+            .args(["--manifest"])
             .arg(&recon_manifest)
+            .args(["--gaiaxpy-environment"])
+            .arg(&gaiaxpy_env)
             .status()
             .context("reconstruct holdout")?;
         if !status.success() {
-            anyhow::bail!("GaiaXPy reconstruction failed");
+            anyhow::bail!("Rust holdout reconstruction failed");
         }
     }
 

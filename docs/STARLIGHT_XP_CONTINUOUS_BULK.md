@@ -35,7 +35,7 @@ forbidden. The production path is:
 official bulk coefficient files
   → resumable MD5-validated download
   → streaming ECSV batch read
-  → GaiaXPy reconstruction (pinned 2.1.4)
+  → Rust in-process GaiaXPy-parity calibration (pinned 2.1.4 design matrices)
   → integrate 336–650 nm
   → apply frozen Phase 5 quality policy
   → accumulate HEALPix (mean, variance, counts)
@@ -56,6 +56,7 @@ HEALPix accumulators, and reproducible commands — not a 184M-row CSV.
 | Bulk file index | `index_gaia_xp_continuous_bulk` |
 | Multifile pilot | `run_phase5b_multifile_pilot` |
 | Streaming mini-pilot | `run_phase5b_mini_pilot` |
+| Canonical coefficient reconstruction | `reconstruct_canonical_coefficients` |
 | Chunk benchmark | `run_phase5b_chunk_benchmark` |
 | Merge / resume validation | `run_phase5b_merge_validation`, `run_phase5b_resume_validation` |
 | HEALPix accumulator | `crates/nsb-data-tools/src/gaia_xp_continuous_healpix.rs` |

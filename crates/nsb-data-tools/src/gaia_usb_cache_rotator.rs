@@ -466,7 +466,13 @@ pub fn filenames_for_production(
     manifest: &CacheStateManifest,
     file_limit: Option<usize>,
 ) -> Vec<String> {
-    let mut names: Vec<String> = manifest
+    let mut processing: Vec<String> = manifest
+        .entries
+        .iter()
+        .filter(|entry| entry.state == CacheInputState::Processing)
+        .map(|entry| entry.filename.clone())
+        .collect();
+    let mut rest: Vec<String> = manifest
         .entries
         .iter()
         .filter(|entry| {
@@ -479,11 +485,13 @@ pub fn filenames_for_production(
         })
         .map(|entry| entry.filename.clone())
         .collect();
-    names.sort();
+    processing.sort();
+    rest.sort();
+    processing.append(&mut rest);
     if let Some(limit) = file_limit {
-        names.truncate(limit);
+        processing.truncate(limit);
     }
-    names
+    processing
 }
 
 pub fn bulk_filename(path: &Path) -> Option<String> {
@@ -496,12 +504,46 @@ pub fn bulk_filename(path: &Path) -> Option<String> {
 mod tests {
     use super::*;
     use crate::gaia_usb_cache::{
-        planned_entries_from_inventory, write_cache_state_manifest, MAX_USB_FILE_BYTES,
+        planned_entries_from_inventory, write_cache_state_manifest, CacheStateEntry,
+        MAX_USB_FILE_BYTES,
     };
     use std::path::Path;
 
     fn test_layout(dir: &Path) -> UsbCacheLayout {
         UsbCacheLayout::from_env(dir, dir.join("gaia-bulk"), "xp-continuous")
+    }
+
+    #[test]
+    fn filenames_for_production_prioritizes_processing() {
+        let manifest = CacheStateManifest {
+            schema_version: 1,
+            cache_uuid: "test".to_string(),
+            cache_dir: "/tmp".to_string(),
+            max_cache_bytes: MAX_USB_FILE_BYTES,
+            max_usb_file_bytes: MAX_USB_FILE_BYTES,
+            entries: vec![
+                CacheStateEntry {
+                    filename: "b.csv.gz".to_string(),
+                    official_md5: "b".to_string(),
+                    size_bytes: None,
+                    state: CacheInputState::Planned,
+                    local_path: "b.csv.gz".to_string(),
+                    updated_at_utc: "0".to_string(),
+                    error: None,
+                },
+                CacheStateEntry {
+                    filename: "a.csv.gz".to_string(),
+                    official_md5: "a".to_string(),
+                    size_bytes: None,
+                    state: CacheInputState::Processing,
+                    local_path: "a.csv.gz".to_string(),
+                    updated_at_utc: "0".to_string(),
+                    error: None,
+                },
+            ],
+        };
+        let names = filenames_for_production(&manifest, None);
+        assert_eq!(names, vec!["a.csv.gz", "b.csv.gz"]);
     }
 
     #[test]
