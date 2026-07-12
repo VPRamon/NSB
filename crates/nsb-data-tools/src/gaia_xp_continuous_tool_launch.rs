@@ -47,6 +47,7 @@ pub fn append_mini_pilot_args(
     resume: bool,
     frozen_policy: Option<&Path>,
     gaiaxpy_environment: Option<&Path>,
+    checkpoint_interval: usize,
 ) {
     command
         .arg("--bulk-gz")
@@ -58,9 +59,12 @@ pub fn append_mini_pilot_args(
         .args(["--batch-size"])
         .arg(batch_size.to_string())
         .args(["--workers"])
-        .arg(workers.to_string());
+        .arg(workers.to_string())
+        .args(["--checkpoint-interval"])
+        .arg(checkpoint_interval.to_string());
     if skip_normalized_output {
         command.arg("--skip-normalized-output");
+        command.arg("--light-checkpoint");
     }
     if let Some(policy) = frozen_policy {
         command.args(["--frozen-policy"]).arg(policy);
@@ -85,6 +89,7 @@ pub fn run_mini_pilot_command(
     resume: bool,
     frozen_policy: Option<&Path>,
     gaiaxpy_environment: Option<&Path>,
+    checkpoint_interval: usize,
 ) -> Result<()> {
     let binary = resolve_mini_pilot_binary();
     let mut command = if release_binary_available(&binary) {
@@ -115,6 +120,7 @@ pub fn run_mini_pilot_command(
         resume,
         frozen_policy,
         gaiaxpy_environment,
+        checkpoint_interval,
     );
     let status = command
         .status()

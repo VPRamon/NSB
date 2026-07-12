@@ -182,6 +182,10 @@ name = "run_starlight_xp_continuous_bulk_pipeline"
 path = "src/bin/run_starlight_xp_continuous_bulk_pipeline.rs"
 doc = false
 
+[[bin]]
+name = "reconstruct_canonical_coefficients"
+path = "src/bin/reconstruct_canonical_coefficients.rs"
+
 [dependencies]
 anyhow = "1"
 chrono = "0.4"

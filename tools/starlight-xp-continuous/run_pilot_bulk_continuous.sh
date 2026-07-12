@@ -7,6 +7,8 @@ PILOT_ROOT="${PILOT_ROOT:-$HOME/nsb-data/starlight-gaia-release/pilot-xp-continu
 VENV="${ROOT}/tools/starlight-xp-continuous/.venv/bin/python"
 FILE_LIMIT="${FILE_LIMIT:-3}"
 ROW_LIMIT="${ROW_LIMIT:-128}"
+BATCH_SIZE="${BATCH_SIZE:-64}"
+WORKERS="${WORKERS:-2}"
 
 cd "$ROOT"
 
@@ -24,13 +26,21 @@ echo "== GaiaXPy environment audit =="
   --output-json "$PILOT_ROOT/gaiaxpy_environment.json" \
   --output-sha256 "$PILOT_ROOT/gaiaxpy_environment.sha256"
 
-echo "== Streaming bulk reconstruction pilot =="
-"$VENV" "$ROOT/tools/starlight-xp-continuous/pilot_bulk_continuous.py" \
-  --bulk-dir "$PILOT_ROOT/bulk" \
-  --checkpoint "$PILOT_ROOT/reconstruction_checkpoint.jsonl" \
-  --report-json "$PILOT_ROOT/pilot_report.json" \
-  --file-limit "$FILE_LIMIT" \
+BULK_GZ="$(find "$PILOT_ROOT/bulk" -maxdepth 1 -name 'XpContinuousMeanSpectrum_*.csv.gz' | sort | head -1)"
+if [[ -z "$BULK_GZ" ]]; then
+  echo "no bulk gzip under $PILOT_ROOT/bulk"
+  exit 1
+fi
+
+echo "== Streaming bulk reconstruction pilot (Rust in-process) =="
+mkdir -p "$PILOT_ROOT/reconstruction"
+cargo run --release --locked -q -p nsb-data-tools --bin run_phase5b_mini_pilot -- \
+  --bulk-gz "$BULK_GZ" \
+  --output-dir "$PILOT_ROOT/reconstruction" \
   --row-limit "$ROW_LIMIT" \
+  --batch-size "$BATCH_SIZE" \
+  --workers "$WORKERS" \
+  --gaiaxpy-environment "$PILOT_ROOT/gaiaxpy_environment.json" \
   --resume
 
 echo "Pilot complete -> $PILOT_ROOT"

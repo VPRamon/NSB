@@ -66,11 +66,14 @@ struct Args {
     /// Production streaming row limit (0 = entire bulk partition file).
     #[arg(long, default_value_t = 0)]
     production_row_limit: usize,
-    #[arg(long, default_value_t = 500)]
+    #[arg(long, default_value_t = 1000)]
     production_batch_size: usize,
-    /// Parallel GaiaXPy workers per partition (0 = auto: min(cores-2, 8)).
+    /// Parallel reconstruction workers per partition (0 = auto: min(cores-4, 18)).
     #[arg(long, default_value_t = 0)]
     production_workers: usize,
+    /// Save mini-pilot checkpoint every N batch waves in production.
+    #[arg(long, default_value_t = 4)]
+    production_checkpoint_interval: usize,
     #[arg(long)]
     gaiaxpy_environment: Option<PathBuf>,
     #[arg(long, default_value_t = false)]
@@ -682,9 +685,10 @@ fn production_workers(args: &Args) -> usize {
     if args.production_workers > 0 {
         return args.production_workers;
     }
+    // Leave headroom for OS, USB download, Rust orchestrator, and IDE.
     std::thread::available_parallelism()
-        .map(|count| count.get().saturating_sub(2).clamp(1, 8))
-        .unwrap_or(4)
+        .map(|count| count.get().saturating_sub(4).clamp(1, 18))
+        .unwrap_or(8)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -709,6 +713,7 @@ fn run_mini_pilot(
         resume,
         args.frozen_policy.as_deref(),
         args.gaiaxpy_environment.as_deref(),
+        args.production_checkpoint_interval,
     )
 }
 
@@ -920,6 +925,18 @@ fn process_verified_cache_files(
     Ok(reports)
 }
 
+fn mini_pilot_checkpoint_path(output_dir: &Path) -> PathBuf {
+    output_dir.join("phase5b_mini_pilot_checkpoint.json")
+}
+
+fn prepare_production_output_dir(output_dir: &Path, resume: bool) -> Result<()> {
+    let can_resume = resume && mini_pilot_checkpoint_path(output_dir).is_file();
+    if output_dir.exists() && !can_resume {
+        fs::remove_dir_all(output_dir)?;
+    }
+    Ok(())
+}
+
 fn run_production_loop(
     rotator: &mut UsbCacheRotator,
     work_dir: &Path,
@@ -987,21 +1004,38 @@ fn run_production_loop(
         }
 
         let bulk_gz = rotator.layout.cache_dir.join(&filename);
-        if rotator.entry_state(&filename)
-            == Some(nsb_data_tools::gaia_usb_cache::CacheInputState::ChecksumVerified)
-        {
-            let output_dir = production_root.join(filename.trim_end_matches(".csv.gz"));
-            if output_dir.exists() {
-                fs::remove_dir_all(&output_dir)?;
+        let output_dir = production_root.join(filename.trim_end_matches(".csv.gz"));
+        let entry_state = rotator.entry_state(&filename);
+        let can_resume = args.resume && mini_pilot_checkpoint_path(&output_dir).is_file();
+        let ready_to_process = matches!(
+            entry_state,
+            Some(nsb_data_tools::gaia_usb_cache::CacheInputState::ChecksumVerified)
+                | Some(nsb_data_tools::gaia_usb_cache::CacheInputState::Processing)
+        );
+
+        if ready_to_process {
+            if !bulk_gz.is_file() {
+                bail!(
+                    "production input missing on disk for {}: {}",
+                    filename,
+                    bulk_gz.display()
+                );
             }
-            rotator.mark_processing(&filename)?;
+            if entry_state
+                == Some(nsb_data_tools::gaia_usb_cache::CacheInputState::ChecksumVerified)
+            {
+                prepare_production_output_dir(&output_dir, args.resume)?;
+                rotator.mark_processing(&filename)?;
+            } else {
+                prepare_production_output_dir(&output_dir, args.resume)?;
+            }
             stream_metrics = Some(run_production_stream(
                 &bulk_gz,
                 &output_dir,
                 args.production_row_limit,
                 args.production_batch_size,
                 production_workers(args),
-                args.resume,
+                can_resume,
                 args,
             )?);
             healpix_checkpoint = Some(write_healpix_checkpoint(

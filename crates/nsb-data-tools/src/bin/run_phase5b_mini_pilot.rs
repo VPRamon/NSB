@@ -1,12 +1,12 @@
-//! Phase 5B operational mini-pilot: stream bulk ECSV with HEALPix accumulation.
+//! Phase 5B operational mini-pilot: stream bulk ECSV with in-process Rust calibration and HEALPix accumulation.
 
 use anyhow::{Context, Result};
 use clap::Parser;
 use md5::{Digest, Md5};
 use nsb_data_tools::gaia_xp_continuous_bulk_index::gaia_source_healpix_index;
+use nsb_data_tools::gaia_xp_continuous_calibrate::GaiaXpContinuousCalibrator;
 use nsb_data_tools::gaia_xp_continuous_canonical::{
-    stream_bulk_ecsv_gz, write_gaiaxpy_datalink_csv_batch, CanonicalXpContinuousRecord,
-    CANONICAL_XP_CONTINUOUS_SCHEMA,
+    stream_bulk_ecsv_gz, CanonicalXpContinuousRecord, CANONICAL_XP_CONTINUOUS_SCHEMA,
 };
 use nsb_data_tools::gaia_xp_continuous_healpix::{
     XpContinuousHealpixAccumulator, DEFAULT_PILOT_NSIDE,
@@ -19,11 +19,12 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Arc;
 use std::time::Instant;
 
 #[derive(Debug, Parser)]
 #[command(
-    about = "Stream Gaia bulk XP continuous rows through canonical adapter, GaiaXPy, and HEALPix accumulation"
+    about = "Stream Gaia bulk XP continuous rows through canonical adapter, Rust calibrate, and HEALPix accumulation"
 )]
 struct Args {
     #[arg(long)]
@@ -34,7 +35,7 @@ struct Args {
     row_limit: usize,
     #[arg(long, default_value_t = 500)]
     batch_size: usize,
-    /// Parallel GaiaXPy batch workers (wave size). Each worker runs one Python batch.
+    /// Parallel reconstruction batch workers (wave size).
     #[arg(long, default_value_t = 1)]
     workers: usize,
     #[arg(long, default_value_t = 64)]
@@ -44,18 +45,22 @@ struct Args {
     #[arg(long)]
     resume: bool,
     #[arg(long)]
-    python: Option<PathBuf>,
-    #[arg(long)]
-    reconstruct_script: Option<PathBuf>,
-    #[arg(long)]
     frozen_policy: Option<PathBuf>,
     #[arg(long)]
     gaiaxpy_environment: Option<PathBuf>,
     #[arg(long)]
     skip_normalized_output: bool,
+    #[arg(long)]
+    design_fixture: Option<PathBuf>,
+    /// Omit per-source flux map from checkpoint JSON (production default with --skip-normalized-output).
+    #[arg(long)]
+    light_checkpoint: bool,
+    /// Save checkpoint every N batch waves (1 = every wave).
+    #[arg(long, default_value_t = 1)]
+    checkpoint_interval: usize,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ExclusionRecord {
     source_id: String,
     bulk_file: String,
@@ -66,7 +71,7 @@ struct ExclusionRecord {
     scientific_impact: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct MiniPilotCheckpoint {
     schema_version: u32,
     bulk_file: String,
@@ -255,9 +260,16 @@ fn save_checkpoint(
     path: &Path,
     accumulator_path: &Path,
     checkpoint: &mut MiniPilotCheckpoint,
+    light_checkpoint: bool,
 ) -> Result<()> {
     sync_checkpoint_fields(checkpoint);
-    atomic_write_json(path, &(serde_json::to_string_pretty(checkpoint)? + "\n"))?;
+    if light_checkpoint {
+        let mut light = checkpoint.clone();
+        light.flux_by_source_id.clear();
+        atomic_write_json(path, &(serde_json::to_string_pretty(&light)? + "\n"))?;
+    } else {
+        atomic_write_json(path, &(serde_json::to_string_pretty(checkpoint)? + "\n"))?;
+    }
     atomic_write_json(
         accumulator_path,
         &(serde_json::to_string_pretty(&checkpoint.healpix)? + "\n"),
@@ -276,58 +288,6 @@ fn flux_checksum(flux_by_source_id: &HashMap<String, f64>) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-fn run_python_batch(
-    python: &Path,
-    script: &Path,
-    coefficient_csv: &Path,
-    output_dir: &Path,
-    skip_output: bool,
-) -> Result<HashMap<String, ReconstructionOutcome>> {
-    if !skip_output {
-        fs::create_dir_all(output_dir)?;
-    }
-    let manifest = output_dir.join("batch_manifest.json");
-    let mut command = Command::new(python);
-    command
-        .env("OMP_NUM_THREADS", "1")
-        .env("OPENBLAS_NUM_THREADS", "1")
-        .env("MKL_NUM_THREADS", "1")
-        .env("NUMEXPR_NUM_THREADS", "1")
-        .arg(script)
-        .arg("--coefficient-file")
-        .arg(coefficient_csv)
-        .arg("--manifest")
-        .arg(&manifest)
-        .arg("--output-dir")
-        .arg(output_dir);
-    let status = command
-        .status()
-        .with_context(|| format!("invoke {}", script.display()))?;
-    if !status.success() {
-        anyhow::bail!(
-            "python reconstruction failed for {}",
-            coefficient_csv.display()
-        );
-    }
-    let entries: serde_json::Value = serde_json::from_str(&fs::read_to_string(&manifest)?)?;
-    let mut outcomes = HashMap::new();
-    for entry in entries["entries"].as_array().into_iter().flatten() {
-        let source_id = entry["source_id"].as_str().unwrap_or_default().to_string();
-        if source_id.is_empty() {
-            continue;
-        }
-        if let (Some(flux), Some(uncertainty)) = (
-            entry.get("flux_336_650_ph_m2_s").and_then(|v| v.as_f64()),
-            entry
-                .get("statistical_uncertainty_336_650_ph_m2_s")
-                .and_then(|v| v.as_f64()),
-        ) {
-            outcomes.insert(source_id, ReconstructionOutcome { flux, uncertainty });
-        }
-    }
-    Ok(outcomes)
-}
-
 fn verify_frozen_policy(path: &Path) -> Result<()> {
     let _policy: serde_json::Value = serde_json::from_str(&fs::read_to_string(path)?)?;
     Ok(())
@@ -342,15 +302,20 @@ fn main() -> Result<()> {
         verify_frozen_policy(policy)?;
     }
     fs::create_dir_all(&args.output_dir)?;
-    let coefficients_root = args.output_dir.join("coefficients");
-    fs::create_dir_all(&coefficients_root)?;
-
-    let python = args
-        .python
-        .unwrap_or_else(|| PathBuf::from("tools/starlight-xp-continuous/.venv/bin/python"));
-    let reconstruct_script = args.reconstruct_script.unwrap_or_else(|| {
-        PathBuf::from("tools/starlight-xp-continuous/reconstruct_and_integrate.py")
-    });
+    let light_checkpoint = args.light_checkpoint || args.skip_normalized_output;
+    let checkpoint_interval = args.checkpoint_interval.max(1);
+    let fixture = GaiaXpContinuousCalibrator::resolve_design_fixture_path(
+        args.design_fixture.as_deref(),
+        args.gaiaxpy_environment.as_deref(),
+    );
+    let calibrator = Arc::new(
+        GaiaXpContinuousCalibrator::from_design_fixture(&fixture).with_context(|| {
+            format!(
+                "load GaiaXPy design fixture for rust calibrate ({})",
+                fixture.display()
+            )
+        })?,
+    );
 
     let ckpt_path = checkpoint_path(&args.output_dir);
     let acc_path = accumulator_path(&args.output_dir);
@@ -378,6 +343,7 @@ fn main() -> Result<()> {
         .len()
         .div_ceil(args.batch_size) as u64;
     let mut peak_rss = peak_rss_kib();
+    let mut waves_since_checkpoint = 0_usize;
 
     let mut rows_in_window = 0_u64;
     let row_window = if args.row_limit == 0 {
@@ -411,41 +377,22 @@ fn main() -> Result<()> {
             break;
         }
 
-        let python_path = python.clone();
-        let script_path = reconstruct_script.clone();
-        let coefficients_root_path = coefficients_root.to_path_buf();
-        let output_dir_path = args.output_dir.clone();
-        let skip_output = args.skip_normalized_output;
+        let calibrator_ref = calibrator.clone();
 
         let mut wave_results = if workers == 1 {
             let (index, records) = wave.pop().expect("non-empty wave");
-            vec![run_batch_gaiaxpy(
-                &coefficients_root_path,
-                &output_dir_path,
-                &python_path,
-                &script_path,
+            vec![run_batch_rust_calibrate(
+                calibrator_ref.as_ref(),
                 index,
                 records,
-                skip_output,
             )]
         } else {
             std::thread::scope(|scope| {
                 wave.into_iter()
                     .map(|(index, records)| {
-                        let coefficients_root_path = coefficients_root_path.clone();
-                        let output_dir_path = output_dir_path.clone();
-                        let python_path = python_path.clone();
-                        let script_path = script_path.clone();
+                        let calibrator_ref = calibrator_ref.clone();
                         scope.spawn(move || {
-                            run_batch_gaiaxpy(
-                                &coefficients_root_path,
-                                &output_dir_path,
-                                &python_path,
-                                &script_path,
-                                index,
-                                records,
-                                skip_output,
-                            )
+                            run_batch_rust_calibrate(calibrator_ref.as_ref(), index, records)
                         })
                     })
                     .map(|handle| handle.join().expect("batch worker panicked"))
@@ -454,12 +401,20 @@ fn main() -> Result<()> {
         };
         wave_results.sort_by_key(|result| result.batch_index);
         for result in wave_results {
-            apply_batch_outcomes(&mut checkpoint, result)?;
+            apply_batch_outcomes(&mut checkpoint, result, light_checkpoint)?;
         }
         checkpoint.timestamp_utc = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-        save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint)?;
+        waves_since_checkpoint += 1;
+        if waves_since_checkpoint >= checkpoint_interval {
+            save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint, light_checkpoint)?;
+            waves_since_checkpoint = 0;
+        }
         processed.extend(checkpoint.processed_source_ids.iter().cloned());
         peak_rss = peak_rss.max(peak_rss_kib());
+    }
+
+    if waves_since_checkpoint > 0 {
+        save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint, light_checkpoint)?;
     }
 
     let elapsed = started.elapsed().as_secs_f64();
@@ -485,6 +440,9 @@ fn main() -> Result<()> {
         "checkpoint_interval": args.batch_size,
         "chunk_size": args.batch_size,
         "workers": workers,
+        "reconstruct_backend": "rust",
+        "light_checkpoint": light_checkpoint,
+        "checkpoint_interval": checkpoint_interval,
         "flux_checksum": flux_checksum(&checkpoint.flux_by_source_id),
         "healpix_checksum": checkpoint.healpix.checksum(),
         "integrated_flux_checksum": flux_checksum(&checkpoint.flux_by_source_id),
@@ -527,39 +485,39 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-struct BatchGaiaxpyResult {
+struct BatchResult {
     batch_index: u64,
     records: Vec<CanonicalXpContinuousRecord>,
     outcomes: Result<HashMap<String, ReconstructionOutcome>>,
 }
 
-fn run_batch_gaiaxpy(
-    coefficients_root: &Path,
-    output_dir: &Path,
-    python: &Path,
-    reconstruct_script: &Path,
+fn run_batch_rust_calibrate(
+    calibrator: &GaiaXpContinuousCalibrator,
     batch_index: u64,
     records: Vec<CanonicalXpContinuousRecord>,
-    skip_normalized_output: bool,
-) -> BatchGaiaxpyResult {
-    let batch_csv = coefficients_root.join(format!("batch_{batch_index:05}.csv"));
+) -> BatchResult {
     let outcomes = (|| -> Result<HashMap<String, ReconstructionOutcome>> {
-        write_gaiaxpy_datalink_csv_batch(&batch_csv, &records)?;
-        let recon_dir = output_dir.join(format!("normalized_batch_{batch_index:05}"));
-        let outcomes = run_python_batch(
-            python,
-            reconstruct_script,
-            &batch_csv,
-            &recon_dir,
-            skip_normalized_output,
-        )?;
-        if skip_normalized_output {
-            let _ = fs::remove_dir_all(recon_dir);
-            let _ = fs::remove_file(batch_csv);
+        let mut outcomes = HashMap::with_capacity(records.len());
+        for record in &records {
+            match calibrator.calibrate_record(record) {
+                Ok(flux) => {
+                    outcomes.insert(
+                        record.source_id.clone(),
+                        ReconstructionOutcome {
+                            flux: flux.flux_336_650_ph_m2_s,
+                            uncertainty: flux.statistical_uncertainty_336_650_ph_m2_s,
+                        },
+                    );
+                }
+                Err(error) => {
+                    let source_id = record.source_id.clone();
+                    eprintln!("rust calibrate failed for {source_id}: {error:#}");
+                }
+            }
         }
         Ok(outcomes)
     })();
-    BatchGaiaxpyResult {
+    BatchResult {
         batch_index,
         records,
         outcomes,
@@ -568,7 +526,8 @@ fn run_batch_gaiaxpy(
 
 fn apply_batch_outcomes(
     checkpoint: &mut MiniPilotCheckpoint,
-    result: BatchGaiaxpyResult,
+    result: BatchResult,
+    light_checkpoint: bool,
 ) -> Result<()> {
     match result.outcomes {
         Ok(outcomes) => {
@@ -582,9 +541,11 @@ fn apply_batch_outcomes(
                             outcome.uncertainty,
                             0.0,
                         )?;
-                        checkpoint
-                            .flux_by_source_id
-                            .insert(record.source_id.clone(), outcome.flux);
+                        if !light_checkpoint {
+                            checkpoint
+                                .flux_by_source_id
+                                .insert(record.source_id.clone(), outcome.flux);
+                        }
                         checkpoint
                             .processed_source_ids
                             .push(record.source_id.clone());
@@ -603,8 +564,8 @@ fn apply_batch_outcomes(
                         register_exclusion(
                             checkpoint,
                             &record,
-                            "missing_gaiaxpy_outcome",
-                            "GaiaXPy batch did not return this source".to_string(),
+                            "missing_reconstruction_outcome",
+                            "batch did not return this source".to_string(),
                         )?;
                     }
                 }
@@ -615,7 +576,7 @@ fn apply_batch_outcomes(
                 register_failure(
                     checkpoint,
                     &record,
-                    "gaiaxpy_batch_failed",
+                    "reconstruction_batch_failed",
                     error.to_string(),
                 )?;
             }
