@@ -18,8 +18,12 @@ use nsb_data_tools::gaia_usb_cache_rotator::{
     bulk_filename, filenames_checksum_verified, filenames_for_production, UsbCacheRotator,
     UsbCacheRotatorConfig,
 };
+use nsb_data_tools::gaia_xp_continuous_bulk_healpix_merge::{
+    bulk_accumulator_path, merge_all_partition_checkpoints, BulkHealpixMergeReport,
+};
 use nsb_data_tools::gaia_xp_continuous_bulk_reconciliation::{
-    build_partition_from_processing_output, PartitionReconciliationManifest,
+    backfill_reconciliation_from_verified_cache, build_partition_from_processing_output,
+    sync_ledger_from_merge_state, write_root_manifest, PartitionReconciliationManifest,
 };
 use nsb_data_tools::gaia_xp_continuous_pilot_io::atomic_write_json;
 use serde::{Deserialize, Serialize};
@@ -90,6 +94,12 @@ struct Args {
     /// Limit live cleanup deletes to N releasable files (dry-run still lists all candidates).
     #[arg(long)]
     cleanup_limit: Option<usize>,
+    /// Merge discovered partition HEALPix checkpoints into bulk_healpix_accumulator.json.
+    #[arg(long, default_value_t = false)]
+    merge_partition_checkpoints: bool,
+    /// Backfill partition reconciliation manifests from verified_cache_process outputs.
+    #[arg(long, default_value_t = false)]
+    backfill_reconciliation: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -198,6 +208,8 @@ struct PipelineReport {
     deterministic_merge: Option<serde_json::Value>,
     processed_cache_files: Vec<ProcessedCacheFileReport>,
     production_loop: Option<ProductionLoopReport>,
+    bulk_healpix_merge: Option<BulkHealpixMergeReport>,
+    reconciliation_backfill: Option<serde_json::Value>,
     cleanup_simulation: Option<serde_json::Value>,
     all_preflight_gates_passed: bool,
     ready_for_full_bulk: bool,
@@ -348,6 +360,8 @@ fn main() -> Result<()> {
     let mut deterministic_merge = None;
     let mut processed_cache_files = Vec::new();
     let mut production_loop = None;
+    let mut bulk_healpix_merge = None;
+    let mut reconciliation_backfill = None;
     let mut cleanup_simulation = None;
 
     if !args.preflight_only && !args.skip_rehearsal {
@@ -480,6 +494,48 @@ fn main() -> Result<()> {
         }
     }
 
+    if args.backfill_reconciliation {
+        let reconciliation_dir = args.reconciliation_dir.clone().unwrap_or_else(|| {
+            args.usb_cache_root
+                .as_ref()
+                .map(|root| root.join("reconciliation"))
+                .unwrap_or_else(|| checkpoint_dir.join("reconciliation"))
+        });
+        let cache_uuid = rotator
+            .as_ref()
+            .map(|rotator| rotator.manifest.cache_uuid.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+        reconciliation_backfill = Some(run_reconciliation_backfill(
+            &reconciliation_dir,
+            &cache_uuid,
+            &work_dir,
+            &checkpoint_dir,
+        )?);
+    }
+
+    if args.merge_partition_checkpoints || production_loop.is_some() {
+        let reconciliation_dir = args.reconciliation_dir.clone().unwrap_or_else(|| {
+            args.usb_cache_root
+                .as_ref()
+                .map(|root| root.join("reconciliation"))
+                .unwrap_or_else(|| checkpoint_dir.join("reconciliation"))
+        });
+        bulk_healpix_merge = Some(run_bulk_healpix_merge(
+            &checkpoint_dir,
+            &work_dir,
+            &reconciliation_dir,
+        )?);
+        if let Some(report) = &bulk_healpix_merge {
+            println!(
+                "bulk HEALPix merge: {} partitions merged ({} new), checksum {} passed={}",
+                report.total_partitions_merged,
+                report.partitions_merged_this_run,
+                report.global_healpix_checksum,
+                report.passed
+            );
+        }
+    }
+
     if args.cleanup_verified_inputs {
         if let Some(rotator) = rotator.as_mut() {
             rotator.reload_manifest()?;
@@ -534,6 +590,8 @@ fn main() -> Result<()> {
         deterministic_merge,
         processed_cache_files,
         production_loop,
+        bulk_healpix_merge,
+        reconciliation_backfill,
         cleanup_simulation,
         all_preflight_gates_passed,
         ready_for_full_bulk,
@@ -1143,6 +1201,104 @@ fn write_healpix_checkpoint(
         )
     })?;
     Ok(dest.display().to_string())
+}
+
+fn run_reconciliation_backfill(
+    reconciliation_dir: &Path,
+    cache_uuid: &str,
+    work_dir: &Path,
+    checkpoint_dir: &Path,
+) -> Result<serde_json::Value> {
+    let search_roots = reconciliation_search_roots(work_dir);
+    let (ledger, backfilled) = backfill_reconciliation_from_verified_cache(
+        reconciliation_dir,
+        cache_uuid,
+        &search_roots,
+        3381,
+    )?;
+    let merge_checksum = fs::read_to_string(
+        nsb_data_tools::gaia_xp_continuous_bulk_healpix_merge::merge_state_path(checkpoint_dir),
+    )
+    .ok()
+    .and_then(|text| {
+        serde_json::from_str::<
+            nsb_data_tools::gaia_xp_continuous_bulk_healpix_merge::BulkHealpixMergeState,
+        >(&text)
+        .ok()
+        .map(|state| state.global_healpix_checksum)
+    });
+    write_root_manifest(
+        reconciliation_dir,
+        &ledger,
+        merge_checksum.as_deref(),
+        Some(&bulk_accumulator_path(checkpoint_dir)),
+    )?;
+    println!(
+        "reconciliation backfill: {} manifests, ledger valid={} progress {:.6}%",
+        backfilled.len(),
+        ledger.population_accumulated_valid,
+        ledger.population_progress_fraction * 100.0
+    );
+    Ok(serde_json::json!({
+        "partitions_backfilled": backfilled.iter().map(|manifest| {
+            serde_json::json!({
+                "partition_filename": manifest.partition_filename,
+                "rows_valid": manifest.source_counts.rows_valid,
+                "rows_excluded": manifest.source_counts.rows_excluded,
+                "rows_failed": manifest.source_counts.rows_failed,
+                "healpix_checksum": manifest.accumulator.healpix_checksum,
+            })
+        }).collect::<Vec<_>>(),
+        "ledger_valid": ledger.population_accumulated_valid,
+        "ledger_progress_fraction": ledger.population_progress_fraction,
+    }))
+}
+
+fn reconciliation_search_roots(work_dir: &Path) -> Vec<PathBuf> {
+    let mut search_roots = vec![work_dir.to_path_buf()];
+    if let Some(parent) = work_dir.parent() {
+        let sibling_work = parent.join("work");
+        if sibling_work.is_dir() && sibling_work != *work_dir {
+            search_roots.push(sibling_work);
+        }
+        if let Some(starlight_root) = parent.parent() {
+            let legacy_work = starlight_root.join("work");
+            if legacy_work.is_dir() && !search_roots.contains(&legacy_work) {
+                search_roots.push(legacy_work);
+            }
+        }
+    }
+    search_roots
+}
+
+fn run_bulk_healpix_merge(
+    checkpoint_dir: &Path,
+    work_dir: &Path,
+    reconciliation_dir: &Path,
+) -> Result<BulkHealpixMergeReport> {
+    let search_roots = reconciliation_search_roots(work_dir);
+    let report = merge_all_partition_checkpoints(checkpoint_dir, &search_roots)?;
+    let merge_state: nsb_data_tools::gaia_xp_continuous_bulk_healpix_merge::BulkHealpixMergeState =
+        serde_json::from_str(&fs::read_to_string(
+            nsb_data_tools::gaia_xp_continuous_bulk_healpix_merge::merge_state_path(checkpoint_dir),
+        )?)?;
+    let (ledger, root_path) = sync_ledger_from_merge_state(
+        reconciliation_dir,
+        &merge_state,
+        &bulk_accumulator_path(checkpoint_dir),
+    )?;
+    write_root_manifest(
+        reconciliation_dir,
+        &ledger,
+        Some(&report.global_healpix_checksum),
+        Some(&bulk_accumulator_path(checkpoint_dir)),
+    )?;
+    println!(
+        "reconciliation root manifest: {} (progress {:.6}%)",
+        root_path.display(),
+        ledger.population_progress_fraction * 100.0
+    );
+    Ok(report)
 }
 
 fn cache_state_label(state: nsb_data_tools::gaia_usb_cache::CacheInputState) -> String {

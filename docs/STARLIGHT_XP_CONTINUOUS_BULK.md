@@ -187,7 +187,7 @@ cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipe
 | `--production-batch-size` | GaiaXPy batch size for production streaming (default 500) |
 | `--file-limit N` | Per-file production loop (download → process → HEALPix checkpoint → releasable) |
 | `--cleanup-verified-inputs` | Delete `releasable` inputs from USB cache |
-| `--cleanup-limit N` | Live cleanup: delete at most N releasable files |
+| `--merge-partition-checkpoints` | Merge partition HEALPix checkpoints into global bulk accumulator |
 | `--dry-run` | With cleanup: list candidates without deleting |
 | `--cache-subdir xp-continuous` | USB cache subdirectory (default) |
 | `--max-cache-bytes` | USB cache footprint cap (default 20 GiB) |
@@ -241,6 +241,8 @@ Per-partition manifests and a rolling ledger are written under
 | --- | --- |
 | `{partition}.reconciliation.json` | Per-file valid/excluded/failed counts + HEALPix totals |
 | `bulk_reconciliation_ledger.json` | Cumulative partition accounting (184.7M close deferred) |
+| `root_manifest.json` | Root reconciliation stub with per-partition checksums + global merge |
+| `$STARLIGHT_CHECKPOINTS/bulk_healpix_accumulator.json` | Global merged HEALPix accumulator |
 
 Production streaming uses `run_phase5b_mini_pilot` (canonical adapter +
 GaiaXPy + HEALPix) with `--production-row-limit 0` for full partition files.
