@@ -1,6 +1,5 @@
 use nsb_data_tools::scientific_contract::{
-    authoritative_gaia_xp_photon_contract, gaia_xp_photon_contract,
-    gaia_xp_photon_contracts_match,
+    authoritative_gaia_xp_photon_contract, gaia_xp_photon_contract, gaia_xp_photon_contracts_match,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
