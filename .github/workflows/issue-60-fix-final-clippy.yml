@@ -1,0 +1,47 @@
+name: Issue 60 final Clippy fix
+
+on:
+  push:
+    branches: [agent/resolve-issue-60]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resolve-issue-60
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/nsb-data-tools/src/pipeline/state.rs')
+          source = path.read_text()
+          source = source.replace(
+              '    DownloadCompleted { bytes: u64 },',
+              '    DownloadCompleted {\n        /// Durable size of the completed download in bytes.\n        bytes: u64,\n    },',
+          )
+          source = source.replace(
+              '    Failed { reason: String },',
+              '    Failed {\n        /// Non-empty diagnostic explaining the failed operation.\n        reason: String,\n    },',
+          )
+          path.write_text(source)
+          PY
+          cargo fmt --all
+          cargo clippy -p nsb-data-tools --all-targets --all-features --locked -- -D warnings
+          rm -f .github/diagnostics/issue60-clippy-errors.log
+          rm .github/workflows/issue-60-fix-final-clippy.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "docs: complete pipeline transition evidence"
+          git push origin HEAD:agent/resolve-issue-60
