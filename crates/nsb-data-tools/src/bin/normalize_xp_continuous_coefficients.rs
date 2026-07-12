@@ -99,7 +99,7 @@ fn main() -> Result<()> {
         };
         eprintln!("{source_id}: {status}");
     }
-    entries.sort_by(|a, b| a.source_id.cmp(&b.source_id));
+    entries.sort_by_key(|entry| entry.source_id.clone());
     let manifest = CoefficientManifest {
         schema_version: 1,
         retrieval_batch: args.retrieval_batch.clone(),

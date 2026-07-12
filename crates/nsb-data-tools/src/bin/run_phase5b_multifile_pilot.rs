@@ -785,7 +785,7 @@ fn write_sha256sum(output_dir: &Path) -> Result<()> {
             .collect::<String>();
         entries.push((name.to_string(), digest));
     }
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
+    entries.sort_by_key(|(name, _)| name.clone());
     let body = entries
         .iter()
         .map(|(name, digest)| format!("{digest}  {name}"))
