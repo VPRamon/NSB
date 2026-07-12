@@ -1,5 +1,6 @@
 name: Issue 60 format and lockfile repair
 
+# Self-removing repair run.
 on:
   push:
     branches: [agent/resolve-issue-60]
