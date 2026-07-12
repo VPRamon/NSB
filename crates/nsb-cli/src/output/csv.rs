@@ -7,12 +7,28 @@ use nsb::{
 };
 use tempoch::{Period, UTC};
 
-const POINT_SCHEMA: &str = "nsb-cli-point-csv-v1";
+const POINT_SCHEMA_V1: &str = "nsb-cli-point-csv-v1";
+const POINT_SCHEMA_V2: &str = "nsb-cli-point-csv-v2";
 const WINDOW_SCHEMA: &str = "nsb-cli-window-csv-v1";
 
 pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
     let mut writer = csv::Writer::from_writer(std::io::stdout());
-    writer.write_record([
+    write_point_to(&mut writer, config, result)?;
+    writer.flush()?;
+    Ok(())
+}
+
+fn write_point_to<W: std::io::Write>(
+    writer: &mut csv::Writer<W>,
+    config: &NsbModelConfig,
+    result: &NsbResult,
+) -> Result<()> {
+    let has_absolute_uncertainty = result.components.iter().any(|component| {
+        component.statistical_uncertainty.is_some()
+            || component.systematic_uncertainty.is_some()
+            || component.total_uncertainty.is_some()
+    });
+    let mut header = vec![
         "schema_version",
         "record_type",
         "component",
@@ -31,11 +47,24 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         "siderust_source",
         "model_preset",
         "asset_checksums",
-    ])?;
+    ];
+    if has_absolute_uncertainty {
+        header.extend([
+            "statistical_uncertainty_ph_cm2_ns_sr",
+            "systematic_uncertainty_ph_cm2_ns_sr",
+            "total_uncertainty_ph_cm2_ns_sr",
+        ]);
+    }
+    writer.write_record(header)?;
+    let point_schema = if has_absolute_uncertainty {
+        POINT_SCHEMA_V2
+    } else {
+        POINT_SCHEMA_V1
+    };
     let assets = asset_checksums();
     for component in &result.components {
-        writer.write_record([
-            POINT_SCHEMA.to_string(),
+        let mut row = vec![
+            point_schema.to_string(),
             "component".to_string(),
             component_label(component.name, config).to_string(),
             component.integrated.value().to_string(),
@@ -56,10 +85,27 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
             SIDERUST_SOURCE.to_string(),
             config.site_profile.as_str().to_string(),
             assets.clone(),
-        ])?;
+        ];
+        if has_absolute_uncertainty {
+            row.extend([
+                component
+                    .statistical_uncertainty
+                    .map(|value| value.value().to_string())
+                    .unwrap_or_default(),
+                component
+                    .systematic_uncertainty
+                    .map(|value| value.value().to_string())
+                    .unwrap_or_default(),
+                component
+                    .total_uncertainty
+                    .map(|value| value.value().to_string())
+                    .unwrap_or_default(),
+            ]);
+        }
+        writer.write_record(row)?;
     }
-    writer.write_record([
-        POINT_SCHEMA.to_string(),
+    let mut total_row = vec![
+        point_schema.to_string(),
         "total".to_string(),
         "total".to_string(),
         result.integrated.value().to_string(),
@@ -77,8 +123,11 @@ pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
         SIDERUST_SOURCE.to_string(),
         config.site_profile.as_str().to_string(),
         assets,
-    ])?;
-    writer.flush()?;
+    ];
+    if has_absolute_uncertainty {
+        total_row.extend([String::new(), String::new(), String::new()]);
+    }
+    writer.write_record(total_row)?;
     Ok(())
 }
 

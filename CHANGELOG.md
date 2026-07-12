@@ -25,6 +25,13 @@ once a stable public release is cut.
 
 ### Added
 
+- Starlight production foundation (PR #56): normative 300–650 nm contract,
+  deterministic Gaia sampling, XP continuous acquisition/reconstruction tooling,
+  dual overlap/absolute uncertainty contract, frozen Phase 5 policy v1, independent
+  holdout validation (`PHASE 5 SCIENTIFIC VALIDATION PASSED`), fail-closed approval
+  and candidate infrastructure, validation/packing/runtime foundations.
+  Global Starlight integrated product remains pending (#47).
+
 - NSB-side Gaia DR3 starlight release pipeline harness: documented Gaia
   extraction recipe, Gaia XP passband source preparation, Gaia photon-flux
   HEALPix map generation path, validation report command, and candidate asset

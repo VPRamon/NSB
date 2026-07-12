@@ -132,7 +132,7 @@ fn verify_production_registry() -> Result<()> {
     verify_registered_asset(
         BUNDLED_PRODUCTION_STARLIGHT_MAP_PATH,
         BUNDLED_PRODUCTION_STARLIGHT_MAP_SHA256,
-        "nsb-healpix-starlight-v1",
+        "nsb-healpix-starlight-v2",
     )?;
     verify_registered_asset(
         BUNDLED_PRODUCTION_STARLIGHT_MANIFEST_PATH,

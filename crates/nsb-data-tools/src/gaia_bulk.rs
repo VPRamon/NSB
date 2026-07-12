@@ -25,6 +25,12 @@ use tokio::sync::Mutex as AsyncMutex;
 
 pub const OFFICIAL_GAIA_XP_SAMPLED_BASE_URL: &str =
     "https://cdn.gea.esac.esa.int/Gaia/gdr3/Spectroscopy/xp_sampled_mean_spectrum/";
+/// Official Gaia DR3 XP continuous coefficient bulk (not TAP-accessible).
+pub const OFFICIAL_GAIA_XP_CONTINUOUS_BASE_URL: &str =
+    "https://cdn.gea.esac.esa.int/Gaia/gdr3/Spectroscopy/xp_continuous_mean_spectrum/";
+pub const GAIA_XP_SAMPLED_PRODUCT: &str = "Gaia DR3 XP sampled mean spectrum";
+pub const GAIA_XP_CONTINUOUS_PRODUCT: &str =
+    "Gaia DR3 XP continuous mean spectrum (basis-function coefficients)";
 pub const OFFICIAL_CHECKSUM_MANIFEST: &str = "_MD5SUM.txt";
 
 const OUTPUT_MANIFEST_SCHEMA_VERSION: u32 = 1;
@@ -96,11 +102,25 @@ pub struct BulkPaths {
 
 impl BulkPaths {
     pub fn new(download_dir: impl Into<PathBuf>) -> Self {
+        Self::sampled(download_dir)
+    }
+
+    pub fn sampled(download_dir: impl Into<PathBuf>) -> Self {
         let download_dir = download_dir.into();
         Self {
             error_dir: download_dir.join("errors"),
             checksum_manifest_path: download_dir.join(OFFICIAL_CHECKSUM_MANIFEST),
             output_manifest_path: download_dir.join("gaia_xp_sampled_bulk_manifest.json"),
+            download_dir,
+        }
+    }
+
+    pub fn continuous(download_dir: impl Into<PathBuf>) -> Self {
+        let download_dir = download_dir.into();
+        Self {
+            error_dir: download_dir.join("errors"),
+            checksum_manifest_path: download_dir.join(OFFICIAL_CHECKSUM_MANIFEST),
+            output_manifest_path: download_dir.join("gaia_xp_continuous_bulk_manifest.json"),
             download_dir,
         }
     }
@@ -194,6 +214,7 @@ impl BulkReport {
 #[derive(Debug)]
 pub struct BulkDownloader {
     base_url: reqwest::Url,
+    product_name: String,
     client: reqwest::Client,
     config: BulkConfig,
     limiter: Arc<AdaptiveRateLimiter>,
@@ -201,6 +222,22 @@ pub struct BulkDownloader {
 
 impl BulkDownloader {
     pub fn new(base_url: impl AsRef<str>, config: BulkConfig) -> Result<Self> {
+        Self::with_product(base_url, config, GAIA_XP_SAMPLED_PRODUCT)
+    }
+
+    pub fn continuous(config: BulkConfig) -> Result<Self> {
+        Self::with_product(
+            OFFICIAL_GAIA_XP_CONTINUOUS_BASE_URL,
+            config,
+            GAIA_XP_CONTINUOUS_PRODUCT,
+        )
+    }
+
+    fn with_product(
+        base_url: impl AsRef<str>,
+        config: BulkConfig,
+        product_name: &str,
+    ) -> Result<Self> {
         config.validate()?;
         let mut base = base_url.as_ref().to_string();
         if !base.ends_with('/') {
@@ -213,6 +250,9 @@ impl BulkDownloader {
         }
         if base_url.query().is_some() || base_url.fragment().is_some() {
             bail!("Gaia bulk base URL must not contain a query or fragment");
+        }
+        if product_name.trim().is_empty() {
+            bail!("Gaia bulk product name must not be empty");
         }
 
         let client = reqwest::Client::builder()
@@ -232,6 +272,7 @@ impl BulkDownloader {
 
         Ok(Self {
             base_url,
+            product_name: product_name.to_string(),
             client,
             limiter: Arc::new(AdaptiveRateLimiter::new(config.concurrency as f64)),
             config,
@@ -268,7 +309,12 @@ impl BulkDownloader {
         )?;
         write_output_manifest(
             &paths.output_manifest_path,
-            pending_output_manifest(&self.base_url, &requested_files, inventory_total_files),
+            pending_output_manifest(
+                &self.base_url,
+                &self.product_name,
+                &requested_files,
+                inventory_total_files,
+            ),
         )?;
 
         let tasks = stream::iter(requested_files.iter().cloned())
@@ -313,6 +359,7 @@ impl BulkDownloader {
             .count();
         let output_manifest = completed_output_manifest(
             &self.base_url,
+            &self.product_name,
             &outcomes,
             partial_files,
             inventory_total_files,
@@ -1448,12 +1495,13 @@ async fn collect_limited_body(
 
 fn pending_output_manifest(
     base_url: &reqwest::Url,
+    product_name: &str,
     files: &[BulkFile],
     inventory_total_files: usize,
 ) -> BulkOutputManifest {
     BulkOutputManifest {
         schema_version: OUTPUT_MANIFEST_SCHEMA_VERSION,
-        product: "Gaia DR3 XP sampled mean spectrum".to_string(),
+        product: product_name.to_string(),
         source_url: base_url.as_str().to_string(),
         checksum_algorithm: "MD5 (official ESA manifest)".to_string(),
         inventory_total_files,
@@ -1475,6 +1523,7 @@ fn pending_output_manifest(
 
 fn completed_output_manifest(
     base_url: &reqwest::Url,
+    product_name: &str,
     outcomes: &[FileOutcome],
     partial_files: usize,
     inventory_total_files: usize,
@@ -1498,7 +1547,7 @@ fn completed_output_manifest(
         });
     BulkOutputManifest {
         schema_version: OUTPUT_MANIFEST_SCHEMA_VERSION,
-        product: "Gaia DR3 XP sampled mean spectrum".to_string(),
+        product: product_name.to_string(),
         source_url: base_url.as_str().to_string(),
         checksum_algorithm: "MD5 (official ESA manifest)".to_string(),
         inventory_total_files,

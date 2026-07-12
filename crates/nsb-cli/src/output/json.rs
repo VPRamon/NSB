@@ -86,6 +86,12 @@ struct ComponentJson {
     b_s10_diagnostic: f64,
     v_s10_diagnostic: f64,
     relative_uncertainty: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    statistical_uncertainty_ph_cm2_ns_sr: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    systematic_uncertainty_ph_cm2_ns_sr: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_uncertainty_ph_cm2_ns_sr: Option<f64>,
     metadata: ComponentMetadataJson,
 }
 
@@ -156,6 +162,15 @@ pub fn write_point(
                 b_s10_diagnostic: component.b_flux_s10.value(),
                 v_s10_diagnostic: component.v_flux_s10.value(),
                 relative_uncertainty: component.relative_uncertainty,
+                statistical_uncertainty_ph_cm2_ns_sr: component
+                    .statistical_uncertainty
+                    .map(|value| value.value()),
+                systematic_uncertainty_ph_cm2_ns_sr: component
+                    .systematic_uncertainty
+                    .map(|value| value.value()),
+                total_uncertainty_ph_cm2_ns_sr: component
+                    .total_uncertainty
+                    .map(|value| value.value()),
                 metadata: component_metadata_json(&component.metadata),
             })
             .collect(),

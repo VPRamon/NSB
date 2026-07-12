@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const GENERATED: &str = "bundled_starlight_assets.rs";
-const MAP_SCHEMA: &str = "nsb-healpix-starlight-v1";
+const MAP_SCHEMA: &str = "nsb-healpix-starlight-v2";
 const MANIFEST_SCHEMA: &str = "nsb-starlight-runtime-manifest-v1";
 
 #[derive(Debug, Deserialize)]

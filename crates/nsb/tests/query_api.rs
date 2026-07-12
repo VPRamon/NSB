@@ -1,10 +1,12 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
+use nsb::components::starlight::StarlightPixel;
 use nsb::{
     CalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
     SiteProfileId, Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target,
     ThresholdQuery, DEG,
 };
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use qtty::solid_angle::Steradians;
 use qtty::Second;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
@@ -41,6 +43,24 @@ fn fixture_starlight_map() -> StarlightMap {
         StarlightProvenance::test_fixture(),
     )
     .expect("starlight fixture")
+}
+
+fn fixture_starlight_map_with_uncertainty() -> StarlightMap {
+    let pixel = StarlightPixel::new(
+        0.0 * DEG,
+        0.0 * DEG,
+        Steradians::new(1.0),
+        BandPhotonRadiance::new(4.0),
+        S10s::new(2.0),
+        S10s::new(1.0),
+    )
+    .with_uncertainties(
+        BandPhotonRadiance::new(0.4),
+        BandPhotonRadiance::new(0.8),
+        BandPhotonRadiance::new(1.0),
+    );
+    StarlightMap::from_pixels(vec![pixel], StarlightProvenance::test_fixture())
+        .expect("uncertainty fixture")
 }
 
 #[test]
@@ -200,6 +220,28 @@ fn custom_starlight_map_evaluates_when_explicitly_configured() {
     assert_eq!(result.components.len(), 1);
     assert_eq!(result.components[0].name, "starlight");
     assert!(result.integrated.value() > 0.0);
+}
+
+#[test]
+fn starlight_uncertainties_reach_nsb_component() {
+    let config = NsbModelConfig::generic_clear_sky().with_starlight_model(
+        StarlightModel::with_experimental_map(fixture_starlight_map_with_uncertainty()),
+    );
+    let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
+    let result = evaluator
+        .evaluate(&PointQuery {
+            observer: paranal(),
+            time: parse_obstime("2023-09-04 01:48:00"),
+            target: sgr_a_star(),
+            components: ComponentMask::STARLIGHT,
+        })
+        .expect("starlight uncertainty evaluation");
+
+    let component = &result.components[0];
+    assert_eq!(component.statistical_uncertainty.unwrap().value(), 0.4);
+    assert_eq!(component.systematic_uncertainty.unwrap().value(), 0.8);
+    assert_eq!(component.total_uncertainty.unwrap().value(), 1.0);
+    assert_eq!(component.relative_uncertainty, Some(0.25));
 }
 
 #[test]
