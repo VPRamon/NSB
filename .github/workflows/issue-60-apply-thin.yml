@@ -1,0 +1,194 @@
+name: Issue 60 apply thin command adapters
+
+on:
+  push:
+    branches: [agent/resolve-issue-60]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resolve-issue-60
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('crates/nsb-data-tools')
+          names = [
+              'build_starlight_map', 'prepare_tycho_starlight_catalogue',
+              'prepare_gaia_starlight_catalogue', 'validate_starlight_map',
+              'pack_starlight_asset', 'verify_assets', 'sweep_starlight_nside',
+              'generate_gaia_starlight_release_inputs', 'query_gaia_tap',
+              'build_integrated_starlight_product', 'generate_starlight_sample_queries',
+              'consolidate_gaia_starlight_samples', 'normalize_xp_continuous_coefficients',
+              'validate_xp_continuous_reconstruction', 'train_starlight_photometry_models',
+              'index_gaia_xp_continuous_bulk', 'audit_gaia_starlight_exclusions',
+          ]
+          services = root / 'src' / 'tool_services'
+          services.mkdir(parents=True, exist_ok=True)
+          pattern = re.compile(
+              r'(?m)^(?P<indent>[ \t]*)(?P<async>async\s+)?fn\s+main\s*\(\s*\)'
+              r'(?P<ret>\s*->\s*[^\{\n]+)?\s*\{'
+          )
+          for name in names:
+              binary = root / 'src' / 'bin' / f'{name}.rs'
+              source = binary.read_text()
+              matches = list(pattern.finditer(source))
+              if len(matches) != 1:
+                  raise SystemExit(f'{binary}: expected one main, found {len(matches)}')
+              match = matches[0]
+              ret = (match.group('ret') or '').strip()
+              if 'Result' not in ret:
+                  raise SystemExit(f'{binary}: unsupported main return type {ret!r}')
+              source = (
+                  source[:match.start()]
+                  + f'{match.group("indent")}/// Run the `{name}` command using process arguments.\n'
+                  + f'{match.group("indent")}pub {match.group("async") or ""}fn run_cli() {ret} {{'
+                  + source[match.end():]
+              )
+              source = source.replace('eprintln!();', 'log::info!("");')
+              source = source.replace('eprintln!', 'log::info!')
+              (services / f'{name}.rs').write_text(source)
+              binary.write_text(f'''//! Thin executable adapter for `{name}`.\n\nfn main() -> anyhow::Result<()> {{\n    nsb_data_tools::tool_logging::init_from_env()\n        .map_err(|error| anyhow::anyhow!("failed to initialize logging: {{error}}"))?;\n    log::info!(target: "nsb_data_tools::{name}", "starting command");\n    let result = nsb_data_tools::tool_services::{name}::run_cli();\n    if let Err(error) = &result {{\n        log::error!(target: "nsb_data_tools::{name}", "command failed: {{error:#}}");\n    }}\n    result\n}}\n''')
+
+          (services / 'mod.rs').write_text(
+              '//! Retained data-product command implementations exposed as library services.\n\n'
+              + ''.join(f'pub mod {name};\n' for name in names)
+          )
+          (root / 'src' / 'tool_logging.rs').write_text(r'''//! Stderr logger for data-product executable adapters.
+//!
+//! Reusable services emit through the `log` facade. Executable adapters call
+//! [`init_from_env`] once, preserving stdout for stable machine-readable data.
+
+use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
+use std::env;
+
+static LOGGER: StderrLogger = StderrLogger;
+
+/// Initialize the process logger from `NSB_LOG` or `RUST_LOG`.
+///
+/// The default level is `warn`, matching the public NSB logging contract.
+pub fn init_from_env() -> Result<LevelFilter, SetLoggerError> {
+    let level = env_level().unwrap_or(LevelFilter::Warn);
+    log::set_logger(&LOGGER)?;
+    log::set_max_level(level);
+    Ok(level)
+}
+
+fn env_level() -> Option<LevelFilter> {
+    env::var("NSB_LOG")
+        .ok()
+        .and_then(|value| parse_level_filter(&value))
+        .or_else(|| env::var("RUST_LOG").ok().and_then(|value| parse_level_filter(&value)))
+}
+
+fn parse_level_filter(value: &str) -> Option<LevelFilter> {
+    let mut global = None;
+    let mut data_tools = None;
+    for directive in value.split(',').map(str::trim).filter(|value| !value.is_empty()) {
+        if let Some((target, level)) = directive.rsplit_once('=') {
+            let target = target.trim().replace('-', "_");
+            if matches!(target.as_str(), "nsb" | "nsb_data_tools")
+                || target.starts_with("nsb::")
+                || target.starts_with("nsb_data_tools::")
+            {
+                data_tools = parse_level(level);
+            }
+        } else {
+            global = parse_level(directive);
+        }
+    }
+    data_tools.or(global)
+}
+
+fn parse_level(value: &str) -> Option<LevelFilter> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "off" => Some(LevelFilter::Off),
+        "error" => Some(LevelFilter::Error),
+        "warn" | "warning" => Some(LevelFilter::Warn),
+        "info" => Some(LevelFilter::Info),
+        "debug" => Some(LevelFilter::Debug),
+        "trace" => Some(LevelFilter::Trace),
+        _ => None,
+    }
+}
+
+struct StderrLogger;
+
+impl Log for StderrLogger {
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
+        metadata.level() <= log::max_level()
+    }
+
+    fn log(&self, record: &Record<'_>) {
+        if self.enabled(record.metadata()) {
+            eprintln!(
+                "[{level} {target}] {message}",
+                level = record.level(),
+                target = record.target(),
+                message = record.args()
+            );
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_plain_and_targeted_levels() {
+        assert_eq!(parse_level_filter("debug"), Some(LevelFilter::Debug));
+        assert_eq!(
+            parse_level_filter("warn,nsb-data-tools=trace"),
+            Some(LevelFilter::Trace)
+        );
+        assert_eq!(
+            parse_level_filter("info,other=trace,nsb_data_tools::pipeline=debug"),
+            Some(LevelFilter::Debug)
+        );
+    }
+}
+''')
+
+          lib = root / 'src' / 'lib.rs'
+          text = lib.read_text()
+          text = text.replace(
+              '//! Shared implementation for NSB maintainer data-product tools.\n',
+              '//! Shared implementation for NSB maintainer data-product tools.\n\n'
+              '#![forbid(unsafe_code)]\n#![warn(missing_docs)]\n\n'
+              'extern crate self as nsb_data_tools;\n',
+              1,
+          )
+          text += '\npub mod tool_logging;\npub mod tool_services;\n'
+          lib.write_text(text)
+
+          cargo = root / 'Cargo.toml'
+          text = cargo.read_text()
+          if '\nlog = "0.4"\n' not in text:
+              marker = '[dev-dependencies]'
+              text = text.replace(marker, 'log = "0.4"\n\n' + marker, 1)
+          cargo.write_text(text)
+          PY
+          cargo fmt --all
+          rm .github/workflows/issue-60-apply-thin.yml
+          rm .github/workflows/issue-60-thin-binaries.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "refactor: move retained commands behind library services"
+          git push origin HEAD:agent/resolve-issue-60
