@@ -1,0 +1,172 @@
+name: Fix issue 59 scientific contract comparison
+
+on:
+  push:
+    branches:
+      - agent/resolve-issue-59
+    paths:
+      - .github/workflows/issue59-contract-float-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resolve-issue-59
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@1.89.0
+        with:
+          components: rustfmt
+
+      - name: Apply semantic float comparison
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          scientific = Path("crates/nsb-data-tools/src/scientific_contract.rs")
+          text = scientific.read_text(encoding="utf-8")
+
+          marker = '''}
+
+/// Parse and strictly validate a versioned Gaia XP scientific contract.
+'''
+          helper = '''}
+
+fn same_contract_float(left: f64, right: f64) -> bool {
+    if left == right {
+        return true;
+    }
+    if !left.is_finite() || !right.is_finite() {
+        return false;
+    }
+    let scale = left.abs().max(right.abs());
+    scale > 0.0 && (left - right).abs() <= 4.0 * f64::EPSILON * scale
+}
+
+/// Compare two contracts while allowing only serialization-scale floating-point rounding.
+///
+/// Schema versions, identifiers, policies, indices and lengths must match exactly.
+/// Floating-point fields may differ by at most four ULP-scale relative epsilons, which
+/// accommodates decimal JSON parsing without accepting scientifically meaningful drift.
+pub fn gaia_xp_photon_contracts_match(
+    left: &GaiaXpPhotonIntegrationContract,
+    right: &GaiaXpPhotonIntegrationContract,
+) -> bool {
+    left.schema_version == right.schema_version
+        && left.contract_id == right.contract_id
+        && same_contract_float(left.band.min_nm, right.band.min_nm)
+        && same_contract_float(left.band.max_nm, right.band.max_nm)
+        && left.band.boundary_policy == right.band.boundary_policy
+        && same_contract_float(left.sampled_grid.start_nm, right.sampled_grid.start_nm)
+        && same_contract_float(left.sampled_grid.end_nm, right.sampled_grid.end_nm)
+        && same_contract_float(left.sampled_grid.step_nm, right.sampled_grid.step_nm)
+        && left.sampled_grid.length == right.sampled_grid.length
+        && left.sampled_grid.band_start_index == right.sampled_grid.band_start_index
+        && left.sampled_grid.band_end_index == right.sampled_grid.band_end_index
+        && left.integration == right.integration
+        && left.identifiers == right.identifiers
+        && same_contract_float(
+            left.parity_tolerances.spectral_flux_relative,
+            right.parity_tolerances.spectral_flux_relative,
+        )
+        && same_contract_float(
+            left.parity_tolerances.integrated_flux_relative,
+            right.parity_tolerances.integrated_flux_relative,
+        )
+        && same_contract_float(
+            left.parity_tolerances.integrated_uncertainty_relative,
+            right.parity_tolerances.integrated_uncertainty_relative,
+        )
+        && same_contract_float(
+            left.parity_tolerances.absolute_floor,
+            right.parity_tolerances.absolute_floor,
+        )
+}
+
+/// Parse and strictly validate a versioned Gaia XP scientific contract.
+'''
+          if marker not in text:
+              raise RuntimeError("scientific contract insertion marker changed")
+          text = text.replace(marker, helper, 1)
+
+          old_test = '''    #[test]
+    fn generated_contract_matches_production_rust_authority() {
+        assert_eq!(
+            gaia_xp_photon_contract(),
+            &authoritative_gaia_xp_photon_contract()
+        );
+    }
+'''
+          new_test = '''    #[test]
+    fn generated_contract_matches_production_rust_authority() {
+        assert!(gaia_xp_photon_contracts_match(
+            gaia_xp_photon_contract(),
+            &authoritative_gaia_xp_photon_contract(),
+        ));
+    }
+
+    #[test]
+    fn meaningful_tolerance_drift_is_rejected() {
+        let generated = gaia_xp_photon_contract();
+        let mut drifted = authoritative_gaia_xp_photon_contract();
+        drifted.parity_tolerances.absolute_floor *= 2.0;
+        assert!(!gaia_xp_photon_contracts_match(generated, &drifted));
+    }
+'''
+          if old_test not in text:
+              raise RuntimeError("scientific contract test template changed")
+          text = text.replace(old_test, new_test, 1)
+          scientific.write_text(text, encoding="utf-8")
+
+          integration = Path("crates/nsb-data-tools/tests/deduplication_contract.rs")
+          text = integration.read_text(encoding="utf-8")
+          text = text.replace(
+              '''use nsb_data_tools::scientific_contract::{
+    authoritative_gaia_xp_photon_contract, gaia_xp_photon_contract,
+};
+''',
+              '''use nsb_data_tools::scientific_contract::{
+    authoritative_gaia_xp_photon_contract, gaia_xp_photon_contract,
+    gaia_xp_photon_contracts_match,
+};
+''',
+              1,
+          )
+          text = text.replace(
+              '''    assert_eq!(
+        gaia_xp_photon_contract(),
+        &authoritative_gaia_xp_photon_contract()
+    );
+''',
+              '''    assert!(gaia_xp_photon_contracts_match(
+        gaia_xp_photon_contract(),
+        &authoritative_gaia_xp_photon_contract(),
+    ));
+''',
+              1,
+          )
+          integration.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Format
+        run: cargo fmt --all
+
+      - name: Verify focused tests
+        run: |
+          cargo test --locked -p nsb-data-tools --lib scientific_contract::tests
+          cargo test --locked -p nsb-data-tools --test deduplication_contract generated_scientific_contract_matches_rust_authority
+
+      - name: Commit fix and remove one-shot workflow
+        run: |
+          git rm .github/workflows/issue59-contract-float-fix.yml
+          git config user.name "VPRamon"
+          git config user.email "74069811+VPRamon@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: compare generated scientific contract semantically"
+          git push origin HEAD:agent/resolve-issue-59
