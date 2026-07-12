@@ -1,5 +1,6 @@
 name: Issue 60 debug thin adapter transform
 
+# Diagnostic workflow is intentionally self-removing.
 on:
   push:
     branches: [agent/resolve-issue-60]
