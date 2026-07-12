@@ -105,6 +105,7 @@ csv = "1"
 flate2 = "1"
 futures-util = "0.3"
 httpdate = "1"
+log = "0.4"
 md-5 = "0.10"
 nsb = { version = "=0.1.0", path = "../nsb" }
 qtty = { version = "0.8", features = ["astro", "radiometry"] }
