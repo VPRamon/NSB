@@ -34,12 +34,7 @@ fn typed_pipeline_boundary_rejects_legacy_orchestration_patterns() {
         "serde_json::Value",
         "Command::new(\"cargo\")",
     ];
-    for filename in [
-        "admission.rs",
-        "checkpoint.rs",
-        "contracts.rs",
-        "state.rs",
-    ] {
+    for filename in ["admission.rs", "checkpoint.rs", "contracts.rs", "state.rs"] {
         let path = pipeline_root.join(filename);
         let source = read(&path);
         for pattern in forbidden {
