@@ -148,6 +148,26 @@ name = "audit_gaia_starlight_exclusions"
 path = "src/bin/audit_gaia_starlight_exclusions.rs"
 doc = false
 
+[[bin]]
+name = "archive_phase5_policy_v0"
+path = "src/bin/archive_phase5_policy_v0.rs"
+
+[[bin]]
+name = "freeze_phase5_validation_policy_v1"
+path = "src/bin/freeze_phase5_validation_policy_v1.rs"
+
+[[bin]]
+name = "prepare_phase5_holdout_v1"
+path = "src/bin/prepare_phase5_holdout_v1.rs"
+
+[[bin]]
+name = "run_phase5_holdout_v1_validation"
+path = "src/bin/run_phase5_holdout_v1_validation.rs"
+
+[[bin]]
+name = "audit_phase5_coefficient_reconciliation"
+path = "src/bin/audit_phase5_coefficient_reconciliation.rs"
+
 [dependencies]
 anyhow = "1"
 chrono = "0.4"
