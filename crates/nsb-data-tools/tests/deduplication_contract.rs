@@ -1,5 +1,6 @@
 use nsb_data_tools::scientific_contract::{
     authoritative_gaia_xp_photon_contract, gaia_xp_photon_contract,
+    gaia_xp_photon_contracts_match,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,10 +31,10 @@ fn rust_files(root: &Path) -> Vec<PathBuf> {
 
 #[test]
 fn generated_scientific_contract_matches_rust_authority() {
-    assert_eq!(
+    assert!(gaia_xp_photon_contracts_match(
         gaia_xp_photon_contract(),
-        &authoritative_gaia_xp_photon_contract()
-    );
+        &authoritative_gaia_xp_photon_contract(),
+    ));
 }
 
 #[test]
