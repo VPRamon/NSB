@@ -202,8 +202,7 @@ impl ReconciliationManifest {
         for partition in &partitions {
             rows_scanned = checked_sum(rows_scanned, partition.rows_scanned, "rows_scanned")?;
             rows_valid = checked_sum(rows_valid, partition.rows_valid, "rows_valid")?;
-            rows_excluded =
-                checked_sum(rows_excluded, partition.rows_excluded, "rows_excluded")?;
+            rows_excluded = checked_sum(rows_excluded, partition.rows_excluded, "rows_excluded")?;
             rows_failed = checked_sum(rows_failed, partition.rows_failed, "rows_failed")?;
         }
         Ok(Self {

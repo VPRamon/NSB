@@ -64,11 +64,7 @@ fn reconciliation_is_deterministic_across_processing_order() -> Result<()> {
 #[test]
 fn reconciliation_rejects_duplicate_partial_and_inconsistent_partitions() -> Result<()> {
     let duplicate = manifest("partition-a", 2, 0)?;
-    assert!(ReconciliationManifest::from_partitions(vec![
-        duplicate.clone(),
-        duplicate
-    ])
-    .is_err());
+    assert!(ReconciliationManifest::from_partitions(vec![duplicate.clone(), duplicate]).is_err());
 
     let mut partial = manifest("partition-b", 2, 0)?;
     partial.completion = PartitionCompletion::Partial { rows_processed: 2 };
