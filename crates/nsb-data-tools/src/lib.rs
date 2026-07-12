@@ -3,6 +3,7 @@
 pub mod artifact_io;
 pub mod checksum_io;
 pub mod gaia_bulk;
+pub mod gaia_bulk_service;
 pub mod gaia_datalink;
 pub mod gaia_tap;
 pub mod gaia_xp;
