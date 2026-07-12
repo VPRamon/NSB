@@ -109,4 +109,4 @@ Changes to production orchestration must include tests proving:
 - checkpoint diagnostics and serialized size remain bounded;
 - unknown fields and unsupported schema versions fail closed.
 
-The architecture, recovery, reconciliation, and pipeline contract tests are mandatory release gates for every retained orchestration change.
+The architecture, recovery, reconciliation, and pipeline contract tests are mandatory release gates for every retained orchestration change. A validation command that is skipped, cancelled, or incomplete must never be represented as a successful production gate.
