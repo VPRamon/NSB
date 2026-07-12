@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Validate GaiaXPy 336–650 nm flux equivalence for bulk vs DataLink canonical CSV pairs."""
+"""Migration-only GaiaXPy spectral parity for bulk/DataLink canonical pairs.
+
+This oracle compares calibrated samples only. Integrated photon flux and
+uncertainty are validated by the authoritative Rust implementation.
+"""
 
 from __future__ import annotations
 
@@ -11,15 +15,27 @@ from pathlib import Path
 import gaiaxpy
 import numpy as np
 
-BAND_MIN_NM = 336.0
-BAND_MAX_NM = 650.0
-GRID_STEP_NM = 2.0
-FLUX_RTOL = 1.0e-8
-UNCERTAINTY_RTOL = 1.0e-6
+CONTRACT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "crates/nsb-data-tools/contracts/gaia_xp_photon_integration_v1.json"
+)
 
 
-def sampling_grid() -> np.ndarray:
-    return np.arange(BAND_MIN_NM, BAND_MAX_NM + GRID_STEP_NM * 0.5, GRID_STEP_NM)
+def load_contract() -> dict:
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    if contract.get("schema_version") != 1:
+        raise RuntimeError("unsupported Gaia XP scientific contract schema")
+    return contract
+
+
+def sampling_grid(contract: dict) -> np.ndarray:
+    band = contract["band"]
+    grid = contract["sampled_grid"]
+    count = grid["band_end_index"] - grid["band_start_index"] + 1
+    sampling = band["min_nm"] + np.arange(count, dtype=float) * grid["step_nm"]
+    if not np.isclose(sampling[-1], band["max_nm"]):
+        raise RuntimeError("generated contract has inconsistent Gaia XP band grid")
+    return sampling
 
 
 def inspect_table(path: Path) -> list[dict]:
@@ -48,45 +64,23 @@ def inspect_table(path: Path) -> list[dict]:
     return rows
 
 
-def _trapz(y: np.ndarray, x: np.ndarray) -> float:
-    trapz = getattr(np, "trapezoid", None) or getattr(np, "trapz")
-    return float(trapz(y, x))
-
-
-def integrate_flux_ph_m2_s(flux_w_m2_nm: np.ndarray, wavelengths_nm: np.ndarray) -> float:
-    photon_energy_j = 6.62607015e-34 * 299792458.0 / (wavelengths_nm * 1e-9)
-    photon_flux = flux_w_m2_nm / photon_energy_j
-    return _trapz(photon_flux, wavelengths_nm)
-
-
-def integrate_uncertainty_ph_m2_s(
-    flux_error_w_m2_nm: np.ndarray, wavelengths_nm: np.ndarray
-) -> float:
-    photon_energy_j = 6.62607015e-34 * 299792458.0 / (wavelengths_nm * 1e-9)
-    photon_unc = flux_error_w_m2_nm / photon_energy_j
-    return _trapz(photon_unc, wavelengths_nm)
-
-
-def reconstruct(path: Path, sampling: np.ndarray) -> tuple[float, float]:
+def reconstruct(path: Path, sampling: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     calibrated, _ = gaiaxpy.calibrate(
-        str(path),
-        sampling=sampling,
-        save_file=False,
-        truncation=False,
+        str(path), sampling=sampling, save_file=False, truncation=False
     )
     if len(calibrated) != 1:
         raise RuntimeError(f"expected one calibrated row for {path}, found {len(calibrated)}")
     row = calibrated.iloc[0]
     flux = np.asarray(row["flux"], dtype=float)
     flux_error = np.asarray(row["flux_error"], dtype=float)
-    integral = integrate_flux_ph_m2_s(flux, sampling)
-    uncertainty = integrate_uncertainty_ph_m2_s(flux_error, sampling)
-    return integral, uncertainty
+    if flux.shape != sampling.shape or flux_error.shape != sampling.shape:
+        raise RuntimeError(f"calibrated grid mismatch for {path}")
+    return flux, flux_error
 
 
-def relative_diff(left: float, right: float) -> float:
-    denom = max(abs(left), abs(right), 1.0e-30)
-    return abs(left - right) / denom
+def relative_max(left: np.ndarray, right: np.ndarray, floor: float) -> float:
+    denominator = np.maximum(np.maximum(np.abs(left), np.abs(right)), floor)
+    return float(np.max(np.abs(left - right) / denominator))
 
 
 def main() -> None:
@@ -98,8 +92,11 @@ def main() -> None:
     parser.add_argument("--inspect-json", type=Path, required=True)
     args = parser.parse_args()
 
+    contract = load_contract()
+    tolerance = contract["parity_tolerances"]["spectral_flux_relative"]
+    floor = contract["parity_tolerances"]["absolute_floor"]
     comparison = json.loads(args.comparison_json.read_text(encoding="utf-8"))
-    sampling = sampling_grid()
+    sampling = sampling_grid(contract)
     inspect_rows: list[dict] = []
     enriched: list[dict] = []
 
@@ -113,26 +110,27 @@ def main() -> None:
             entry["gaiaxpy_equivalent"] = False
             enriched.append(entry)
             continue
-
         if not inspect_rows:
             inspect_rows.extend(inspect_table(bulk_path))
 
         bulk_flux, bulk_unc = reconstruct(bulk_path, sampling)
-        dl_flux, dl_unc = reconstruct(datalink_path, sampling)
-        flux_rel = relative_diff(bulk_flux, dl_flux)
-        unc_rel = relative_diff(bulk_unc, dl_unc)
-        gaiaxpy_ok = flux_rel <= FLUX_RTOL and unc_rel <= UNCERTAINTY_RTOL
+        datalink_flux, datalink_unc = reconstruct(datalink_path, sampling)
+        flux_relative_max = relative_max(bulk_flux, datalink_flux, floor)
+        uncertainty_relative_max = relative_max(bulk_unc, datalink_unc, floor)
+        equivalent = (
+            flux_relative_max <= tolerance and uncertainty_relative_max <= tolerance
+        )
         entry.update(
             {
-                "reconstructed_flux_bulk": bulk_flux,
-                "reconstructed_flux_datalink": dl_flux,
-                "absolute_flux_diff": abs(bulk_flux - dl_flux),
-                "relative_flux_diff": flux_rel,
-                "uncertainty_bulk": bulk_unc,
-                "uncertainty_datalink": dl_unc,
-                "relative_uncertainty_diff": unc_rel,
-                "gaiaxpy_equivalent": gaiaxpy_ok,
-                "status": "equivalent" if gaiaxpy_ok and entry.get("canonical_equivalent") else "flux_mismatch",
+                "spectral_flux_relative_max": flux_relative_max,
+                "spectral_uncertainty_relative_max": uncertainty_relative_max,
+                "gaiaxpy_equivalent": equivalent,
+                "integration_owner": contract["integration"]["owner"],
+                "status": (
+                    "equivalent"
+                    if equivalent and entry.get("canonical_equivalent")
+                    else "spectral_mismatch"
+                ),
             }
         )
         enriched.append(entry)
@@ -140,7 +138,6 @@ def main() -> None:
     args.output_json.parent.mkdir(parents=True, exist_ok=True)
     args.output_json.write_text(json.dumps(enriched, indent=2) + "\n", encoding="utf-8")
     args.inspect_json.write_text(json.dumps(inspect_rows, indent=2) + "\n", encoding="utf-8")
-
     fieldnames = list(enriched[0].keys()) if enriched else []
     with args.output_csv.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -148,9 +145,7 @@ def main() -> None:
         writer.writerows(enriched)
 
     passed = sum(1 for row in enriched if row.get("gaiaxpy_equivalent"))
-    print(
-        f"phase5b GaiaXPy flux validation: {passed}/{len(enriched)} equivalent -> {args.output_json}"
-    )
+    print(f"GaiaXPy spectral parity: {passed}/{len(enriched)} equivalent -> {args.output_json}")
 
 
 if __name__ == "__main__":
