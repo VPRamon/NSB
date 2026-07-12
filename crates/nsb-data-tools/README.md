@@ -28,6 +28,19 @@ Offline, non-runtime tools for scientific data products.
 - `verify_assets`: verifies the asset registry, required metadata, schemas,
   checksums, file coverage, and configured headers.
 
+## Phase 5 XP continuous (PR #56)
+
+Phase 5 scientific validation is **closed** on independent holdout v1
+(`PHASE 5 SCIENTIFIC VALIDATION PASSED`). Policy v1 is frozen at checksum
+`c525de3ec6d0022a6ed468f8f2bde2515e8f8364915f5a7a02492eee21947b74`.
+Bulk 184.7M XP continuous-only processing and the integrated production map are
+**not** part of this PR; see issue #47.
+
+Key binaries: `prepare_starlight_phase5`, `download_xp_continuous_phase5`,
+`finalize_phase5_holdout_v1`, `run_phase5_holdout_v1_validation`,
+`freeze_phase5_validation_policy_v1`, `pack_starlight_asset` (candidate-only
+until production approvals complete).
+
 ```bash
 cargo run --locked -p nsb-data-tools --bin verify_assets -- \
   --manifest crates/nsb/data/manifest.toml
