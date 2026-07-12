@@ -41,6 +41,12 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    nsb_data_tools::tool_logging::init_from_env()
+        .map_err(|error| anyhow::anyhow!("failed to initialize logging: {error}"))?;
+    log::info!(
+        target: "nsb_data_tools::download_gaia_xp_continuous_bulk",
+        "starting command"
+    );
     let args = Args::parse();
     let report_path = args.report_json.clone().unwrap_or_else(|| {
         args.download_dir
