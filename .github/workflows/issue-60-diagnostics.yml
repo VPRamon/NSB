@@ -1,0 +1,35 @@
+name: Issue 60 focused diagnostics
+
+on:
+  push:
+    branches: [agent/resolve-issue-60]
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resolve-issue-60
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.89
+        with:
+          components: rustfmt
+      - shell: bash
+        run: |
+          set +e
+          mkdir -p .github/diagnostics
+          cargo fmt --all -- --check > .github/diagnostics/issue60-fmt.log 2>&1
+          echo "fmt_status=$?" >> .github/diagnostics/issue60-status.log
+          cargo check --locked -p nsb-data-tools --lib > .github/diagnostics/issue60-msrv.log 2>&1
+          echo "check_status=$?" >> .github/diagnostics/issue60-status.log
+          rm .github/workflows/issue-60-diagnostics.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "ci: capture focused issue 60 diagnostics"
+          git push origin HEAD:agent/resolve-issue-60
