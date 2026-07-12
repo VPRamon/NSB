@@ -7,6 +7,10 @@ once a stable public release is cut.
 
 ### Changed
 
+- Consolidated `nsb-data-tools` from 36 compiled binaries to 18 durable,
+  capability-oriented commands; removed Phase 5/5B one-shot executables, shell
+  orchestration and the deprecated Python pilot wrapper; added a normative tool
+  registry and CI-enforced documentation/maturity contracts (#58).
 - Made library `ALL`, library `DEFAULT`, and CLI `all` the same production-safe
   set, with starlight included only when a validated bundled production asset is
   embedded at build time.
@@ -43,25 +47,3 @@ once a stable public release is cut.
 - Versioned scientific asset manifest and checksum/header verifier.
 - Independent published KS91 validation fixture with units and tolerance.
 - Point/component/window benchmarks and scheduled/manual benchmark workflow.
-- Formatting, clippy, locked tests, doctests, docs, release build, MSRV, license,
-  advisory, source, and stale-API CI gates.
-- Model maturity, roadmap, CLI schema, compatibility, and release documents.
-- Fail-closed `ValidatedExternalMap` API and CLI path with checksum, provenance,
-  header, HEALPix, flux-evidence, plane/pole, seam, photometry, and independent-
-  comparison admission checks.
-
-### Removed
-
-- `ComponentMask::ALL_SUPPORTED`.
-- `NsbEvaluator::python_parity` and `NsbModelConfig::python_parity`.
-- `NsbEvaluator::periods_below_threshold_legacy` and its production benchmark.
-- Obsolete historical implementation reports that contradicted the current
-  architecture; history remains available through Git.
-
-### Scientific limitations
-
-- The bundled starlight file remains a manual, incomplete experimental seed.
-- Starlight B/V-to-integrated conversion remains an explicitly named proxy.
-- CTAO profiles remain planning presets pending cleared site calibration data.
-- Several inherited atmospheric assets lack recoverable upstream release and
-  license metadata; the manifest records this as a promotion blocker.
