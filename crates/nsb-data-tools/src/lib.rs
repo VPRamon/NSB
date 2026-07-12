@@ -9,6 +9,7 @@ pub mod gaia_usb_cache;
 pub mod gaia_usb_cache_rotator;
 pub mod gaia_xp;
 pub mod gaia_xp_continuous;
+pub mod gaia_xp_continuous_bulk_healpix_merge;
 pub mod gaia_xp_continuous_bulk_index;
 pub mod gaia_xp_continuous_bulk_reconciliation;
 pub mod gaia_xp_continuous_bulk_schema;
