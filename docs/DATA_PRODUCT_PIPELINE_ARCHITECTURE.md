@@ -16,7 +16,7 @@ The reusable library boundary is split as follows:
 - `checksum_io`: algorithm-qualified streaming checksum authority;
 - scientific Gaia/Starlight modules: transformation and validation algorithms only.
 
-Dependencies flow from executables to services, from services to pipeline/scientific modules, and from those modules to persistence/checksum primitives. Scientific modules must not spawn executables.
+Dependencies flow from executables to services, from services to pipeline/scientific modules, and from those modules to persistence/checksum primitives. Scientific modules must not spawn executables. Every command retained in the tool registry must enter through a documented library service and a thin executable adapter.
 
 ## Typed coverage and run intent
 
