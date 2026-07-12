@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "policy_id": "phase5_frozen_validation_policy_v1_test",
+  "status": "frozen",
+  "uncertainty_model": {
+    "overlap_difference": {
+      "formula_id": "overlap_difference_v1",
+      "difference_uncertainty_formula": "sigma_diff = inflation * hypot(sqrt(2)*sigma_recon*sqrt(1-rho), max(floor, relative_scale*|sampled|))",
+      "correlation_assumptions": "fixture",
+      "correlation_rho": 0.999999,
+      "relative_residual_scale": 4.8542527374783e-6,
+      "systematic_floor_ph_m2_s": 0.05,
+      "inflation_factor": 0.59
+    },
+    "absolute_physical": {
+      "formula_id": "absolute_physical_v1",
+      "absolute_uncertainty_formula": "sigma_abs = hypot(sigma_recon_stat, max(floor, fraction*|flux|))",
+      "reconstruction_systematic_fraction": 0.01,
+      "systematic_floor_ph_m2_s": 0.05
+    },
+    "coverage_gate_kind": "overlap_difference"
+  },
+  "quality_filters": [],
+  "systematic_floor_ph_m2_s": 0.05,
+  "outlier_policy": "catastrophic if |relative_error| > 0.5",
+  "fallbacks": [],
+  "train_checksum": "81cf0fbbb91118f19e06c0262df6bd3e42df6ec4ef5c31625a15d38f912168dc",
+  "validation_checksum": "aae7c59497e2b29b701abedff6a0753dd92d6c3fefc17bb979b1c23091bc16ed",
+  "software_commit": "deadbeef",
+  "gaiaxpy_version": "2.1.4",
+  "adapter_version": "gaia_xp_continuous_canonical_v1",
+  "photometry_model": "gaia_dr3_xp_continuous_reconstructed_336_650nm_v1",
+  "integration_band_nm": [336.0, 650.0],
+  "gates": {
+    "max_flux_weighted_abs_bias": 0.03,
+    "max_median_abs_relative_bias": 0.05,
+    "max_p95_abs_relative_error": 0.1,
+    "coverage_68_min": 0.63,
+    "coverage_68_max": 0.73,
+    "coverage_95_min": 0.9,
+    "coverage_95_max": 0.98
+  },
+  "created_at": "2026-07-12T08:08:18Z",
+  "archived_exploratory_policy": "phase5-policy-v0-exploratory-no-explicit-uncertainty-model"
+}
