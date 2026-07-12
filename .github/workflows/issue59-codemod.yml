@@ -7,9 +7,17 @@ on:
     paths:
       - tools/issue59_codemod.py
       - .github/workflows/issue59-codemod.yml
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   codemod:
