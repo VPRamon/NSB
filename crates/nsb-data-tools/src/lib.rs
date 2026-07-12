@@ -1,5 +1,10 @@
 //! Shared implementation for NSB maintainer data-product tools.
 
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+
+extern crate self as nsb_data_tools;
+
 pub mod artifact_io;
 pub mod checksum_io;
 pub mod gaia_bulk;
@@ -23,3 +28,5 @@ pub mod starlight_phase5_holdout;
 pub mod starlight_phase5_uncertainty;
 pub mod starlight_sampling;
 pub mod starlight_science;
+pub mod tool_logging;
+pub mod tool_services;
