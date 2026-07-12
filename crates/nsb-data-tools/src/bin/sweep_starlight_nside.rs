@@ -192,7 +192,6 @@ fn run(args: Args) -> Result<()> {
     let mut summaries = if args.assess_existing {
         assess_existing_artifacts(&args)?
     } else {
-        build_release_tools()?;
         let contributions_manifest = args
             .contributions_manifest
             .as_ref()
@@ -643,7 +642,7 @@ fn run_one(
     let manifest = dir.join("starlight_map.release.toml");
 
     let started = Instant::now();
-    cargo_tool(
+    run_sibling_tool(
         "build_integrated_starlight_product",
         vec![
             "--inputs-manifest".to_string(),
@@ -665,7 +664,7 @@ fn run_one(
     enrich_integrated_mean_header(&map, catalog_checksum, catalog_license, generation_date_utc)?;
 
     let validation_started = Instant::now();
-    cargo_tool(
+    run_sibling_tool(
         "validate_starlight_map",
         vec![
             "--input".to_string(),
@@ -681,7 +680,7 @@ fn run_one(
     let validation_seconds = validation_started.elapsed().as_secs_f64();
 
     let pack_started = Instant::now();
-    cargo_tool(
+    run_sibling_tool(
         "pack_starlight_asset",
         vec![
             "--input".to_string(),
@@ -1193,47 +1192,36 @@ fn brightest_region_mean(validation: &Value) -> Option<f64> {
         .max_by(f64::total_cmp)
 }
 
-fn cargo_tool(bin: &str, args: Vec<String>) -> Result<()> {
-    let mut command = Command::new("cargo");
-    command.args([
-        "run",
-        "--locked",
-        "--release",
-        "-p",
-        "nsb-data-tools",
-        "--bin",
-        bin,
-        "--",
-    ]);
-    command.args(args);
-    let status = command.status().context("failed to spawn cargo")?;
+fn run_sibling_tool(bin: &str, args: Vec<String>) -> Result<()> {
+    let executable = sibling_tool_path(bin)?;
+    let status = Command::new(&executable)
+        .args(args)
+        .status()
+        .with_context(|| format!("failed to run sibling tool {}", executable.display()))?;
     if !status.success() {
-        bail!("sweep subcommand failed with status {status}");
+        bail!("sweep subcommand {bin} failed with status {status}");
     }
     Ok(())
 }
 
-fn build_release_tools() -> Result<()> {
-    let status = Command::new("cargo")
-        .args([
-            "build",
-            "--locked",
-            "--release",
-            "-p",
-            "nsb-data-tools",
-            "--bin",
-            "build_integrated_starlight_product",
-            "--bin",
-            "validate_starlight_map",
-            "--bin",
-            "pack_starlight_asset",
-        ])
-        .status()
-        .context("failed to build release-mode starlight tools before timing")?;
-    if !status.success() {
-        bail!("release-mode starlight tool build failed with status {status}");
+fn sibling_tool_path(bin: &str) -> Result<PathBuf> {
+    let current = std::env::current_exe().context("failed to resolve sweep executable path")?;
+    let directory = current
+        .parent()
+        .context("sweep executable path has no parent directory")?;
+    let file_name = if cfg!(windows) {
+        format!("{bin}.exe")
+    } else {
+        bin.to_string()
+    };
+    let executable = directory.join(file_name);
+    if !executable.is_file() {
+        bail!(
+            "required sibling tool {} is missing; install or build all nsb-data-tools binaries together",
+            executable.display()
+        );
     }
-    Ok(())
+    Ok(executable)
 }
 
 fn path_str(path: &Path) -> Result<&str> {
