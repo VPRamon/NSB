@@ -1,8 +1,11 @@
 //! Resumable downloader for the official Gaia DR3 XP continuous coefficient bulk.
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Parser;
-use nsb_data_tools::gaia_bulk::{BulkConfig, BulkDownloader, BulkPaths, BulkReport};
+use nsb_data_tools::gaia_bulk_service::{
+    run_continuous_bulk_download, ContinuousBulkDownloadConfig,
+};
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -15,9 +18,9 @@ struct Args {
     download_dir: PathBuf,
     #[arg(long)]
     resume: bool,
-    /// Deterministic prefix of the official inventory for pilots and tests.
+    /// Deterministic non-zero prefix of the official inventory for pilots and tests.
     #[arg(long)]
-    file_limit: Option<usize>,
+    file_limit: Option<NonZeroUsize>,
     #[arg(long, default_value_t = 4)]
     concurrency: usize,
     #[arg(long, default_value_t = 3600)]
@@ -39,11 +42,14 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<()> {
     let args = Args::parse();
-    if args.download_dir.as_os_str().is_empty() {
-        bail!("download_dir must not be empty");
-    }
-
-    let config = BulkConfig {
+    let report_path = args.report_json.clone().unwrap_or_else(|| {
+        args.download_dir
+            .join("gaia_xp_continuous_bulk_report.json")
+    });
+    let report = run_continuous_bulk_download(ContinuousBulkDownloadConfig {
+        download_dir: args.download_dir,
+        resume: args.resume,
+        file_limit: args.file_limit,
         concurrency: args.concurrency,
         timeout: Duration::from_secs(args.timeout_secs),
         connect_timeout: Duration::from_secs(args.connect_timeout_secs),
@@ -51,35 +57,15 @@ async fn main() -> Result<()> {
         initial_backoff: Duration::from_millis(args.initial_backoff_ms),
         max_backoff: Duration::from_secs(args.max_backoff_secs),
         progress_interval: Duration::from_secs(args.progress_interval_secs),
-        file_limit: args.file_limit,
-    };
-    let paths = BulkPaths::continuous(&args.download_dir);
-    let downloader = BulkDownloader::continuous(config)?;
-    let report = downloader.download(&paths, args.resume).await?;
-    write_report(
-        &args.report_json.unwrap_or_else(|| {
-            args.download_dir
-                .join("gaia_xp_continuous_bulk_report.json")
-        }),
-        &report,
-    )?;
-    report.ensure_complete()?;
-    Ok(())
-}
-
-fn write_report(path: &PathBuf, report: &BulkReport) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
-    let mut bytes = serde_json::to_vec_pretty(report)?;
-    bytes.push(b'\n');
-    std::fs::write(path, bytes)?;
+        report_json: args.report_json,
+    })
+    .await?;
     println!(
         "Gaia XP continuous bulk: {}/{} files complete, {:.2} MiB/s, report -> {}",
         report.completed_files,
         report.expected_files,
         report.throughput_bytes_per_second / (1024.0 * 1024.0),
-        path.display()
+        report_path.display()
     );
     Ok(())
 }
