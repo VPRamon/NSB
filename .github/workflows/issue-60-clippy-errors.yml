@@ -1,0 +1,37 @@
+name: Issue 60 concise Clippy errors
+
+on:
+  push:
+    branches: [agent/resolve-issue-60]
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resolve-issue-60
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - shell: bash
+        run: |
+          set +e
+          cargo clippy -p nsb-data-tools --all-targets --all-features --locked -- -D warnings > /tmp/issue60-clippy-full.log 2>&1
+          status=$?
+          mkdir -p .github/diagnostics
+          sed -r 's/\x1B\[[0-9;]*[mK]//g' /tmp/issue60-clippy-full.log > /tmp/issue60-clippy-clean.log
+          grep -n -B 3 -A 8 '^error' /tmp/issue60-clippy-clean.log | head -n 400 > .github/diagnostics/issue60-clippy-errors.log
+          printf 'clippy_status=%s\n' "$status" >> .github/diagnostics/issue60-clippy-errors.log
+          rm .github/workflows/issue-60-clippy-errors.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "ci: capture concise issue 60 Clippy errors"
+          git push origin HEAD:agent/resolve-issue-60
