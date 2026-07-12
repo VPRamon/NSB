@@ -33,7 +33,6 @@ struct Args {
 
 #[derive(Debug, Clone)]
 struct ExpectedExclusion {
-    #[allow(dead_code)]
     source_id: u64,
     total: f64,
     positive: f64,
@@ -156,7 +155,7 @@ fn run(args: &Args) -> Result<()> {
             )
         };
         sources.push(SourceAudit {
-            source_id: *source_id,
+            source_id: recorded.source_id,
             origin_file: origin.display().to_string(),
             integral_total_ph_m2_s: integral.total_ph_m2_s,
             positive_contribution_ph_m2_s: integral.positive_ph_m2_s,
