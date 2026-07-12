@@ -204,14 +204,11 @@ impl GaiaXpPhotonIntegrationContract {
 }
 
 fn same_contract_float(left: f64, right: f64) -> bool {
-    if left == right {
-        return true;
-    }
     if !left.is_finite() || !right.is_finite() {
         return false;
     }
     let scale = left.abs().max(right.abs());
-    scale > 0.0 && (left - right).abs() <= 4.0 * f64::EPSILON * scale
+    (left - right).abs() <= 4.0 * f64::EPSILON * scale
 }
 
 /// Compare two contracts while allowing only serialization-scale floating-point rounding.
