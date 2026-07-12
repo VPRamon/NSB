@@ -51,6 +51,20 @@ passband integrations. JSON and CSV preserve this distinction.
 See [model maturity](docs/MODEL_MATURITY.md) and
 [validation](docs/VALIDATION.md) before using results scientifically.
 
+### Starlight production foundation (PR #56)
+
+This branch delivers the **production and scientific infrastructure** for Gaia DR3
+XP continuous starlight: normative 300–650 nm contract, deterministic sampling,
+acquisition/reconstruction tooling, dual uncertainty contract, frozen Phase 5
+policy v1, and independent holdout validation (`PHASE 5 SCIENTIFIC VALIDATION
+PASSED`). It does **not** deliver the full-sky integrated Starlight production
+product; bulk XP continuous processing, no-XP populations, UV 300–336 nm,
+completeness, integrated candidate, and production bundle remain tracked in
+[#47](https://github.com/VPRamon/NSB/issues/47).
+
+See [PR #56 audit](docs/STARLIGHT_PR56_AUDIT.md) and
+[Phase 5 uncertainty](docs/STARLIGHT_PHASE5_UNCERTAINTY.md).
+
 ## Rust quickstart
 
 ```bash

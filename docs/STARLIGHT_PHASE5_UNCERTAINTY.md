@@ -22,7 +22,7 @@ Coverage gates apply **only** to `overlap_difference_uncertainty`.
 
 1. **Train:** `relative_residual_scale = p68(|Δ/sampled|)`.
 2. **Validation:** grid-fit `inflation_factor` to target 68% difference coverage.
-3. **Holdout v1:** single evaluation with frozen `phase5_frozen_validation_policy_v1.json`.
+3. **Holdout v1:** single evaluation with frozen `phase5_frozen_validation_policy_v1.json` — **PASS** (`phase5_holdout_v1-official-001`, n=160, coverage_68=0.669, coverage_95=0.944).
 
 Exploratory v0 archived under:
 `phase5-policy-v0-exploratory-no-explicit-uncertainty-model/`.
