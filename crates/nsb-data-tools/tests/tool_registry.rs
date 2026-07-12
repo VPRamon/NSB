@@ -3,17 +3,12 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn read_toml(path: &Path) -> toml::Value {
-    let raw = fs::read_to_string(path)
-        .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-    toml::from_str(&raw)
-        .unwrap_or_else(|error| panic!("parse {}: {error}", path.display()))
+    let raw =
+        fs::read_to_string(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+    toml::from_str(&raw).unwrap_or_else(|error| panic!("parse {}: {error}", path.display()))
 }
 
-fn required_string<'a>(
-    table: &'a toml::value::Table,
-    key: &str,
-    context: &str,
-) -> &'a str {
+fn required_string<'a>(table: &'a toml::value::Table, key: &str, context: &str) -> &'a str {
     table
         .get(key)
         .and_then(toml::Value::as_str)
@@ -53,15 +48,11 @@ fn every_compiled_binary_is_registered_and_documented() {
         .expect("Cargo.toml must declare explicit [[bin]] entries");
     let mut expected = BTreeMap::new();
     for value in cargo_bins {
-        let table = value
-            .as_table()
-            .expect("each [[bin]] must be a table");
+        let table = value.as_table().expect("each [[bin]] must be a table");
         let name = required_string(table, "name", "Cargo binary");
         let path = required_string(table, "path", name);
         assert!(
-            expected
-                .insert(name.to_owned(), path.to_owned())
-                .is_none(),
+            expected.insert(name.to_owned(), path.to_owned()).is_none(),
             "duplicate Cargo binary `{name}`"
         );
     }
@@ -173,8 +164,7 @@ fn every_python_or_shell_program_is_explicitly_temporary() {
             "duplicate registry entry for `{path}`"
         );
 
-        let source = fs::read_to_string(repo.join(path))
-            .expect("read registered script");
+        let source = fs::read_to_string(repo.join(path)).expect("read registered script");
         assert!(
             !source.contains("/home/valles/") && !source.contains("C:\\Users\\"),
             "registered script `{path}` contains a developer-specific absolute path"
