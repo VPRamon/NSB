@@ -200,7 +200,7 @@ pub fn build_index(
             validation_status,
         });
     }
-    entries.sort_by(|a, b| a.healpix_index_min.cmp(&b.healpix_index_min));
+    entries.sort_by_key(|entry| entry.healpix_index_min);
     Ok(BulkFileIndex {
         schema_version: 1,
         inventory_total_files: entries.len(),
