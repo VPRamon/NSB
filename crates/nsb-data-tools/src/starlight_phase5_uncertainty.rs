@@ -1,6 +1,8 @@
 //! Overlap difference vs absolute physical uncertainty contracts for Phase 5.
 
-use crate::starlight_phase5::{OverlapComparison, MetricBundle, XpContinuousGates, CATASTROPHIC_RELATIVE_ERROR, percentile};
+use crate::starlight_phase5::{
+    percentile, MetricBundle, OverlapComparison, XpContinuousGates, CATASTROPHIC_RELATIVE_ERROR,
+};
 use serde::{Deserialize, Serialize};
 
 /// How overlap validation coverage gates are evaluated.
@@ -56,7 +58,8 @@ impl Default for AbsolutePhysicalUncertaintyModel {
     fn default() -> Self {
         Self {
             formula_id: "absolute_physical_v1".to_string(),
-            absolute_uncertainty_formula: "sigma_abs = hypot(sigma_recon_stat, max(floor, fraction*|flux|))".to_string(),
+            absolute_uncertainty_formula:
+                "sigma_abs = hypot(sigma_recon_stat, max(floor, fraction*|flux|))".to_string(),
             reconstruction_systematic_fraction: 0.01,
             systematic_floor_ph_m2_s: 0.05,
         }
@@ -108,13 +111,19 @@ pub struct FrozenValidationPolicyV1 {
     pub archived_exploratory_policy: String,
 }
 
-pub fn overlap_difference_sigma(row: &OverlapComparison, model: &OverlapDifferenceUncertaintyModel) -> f64 {
+pub fn overlap_difference_sigma(
+    row: &OverlapComparison,
+    model: &OverlapDifferenceUncertaintyModel,
+) -> f64 {
     let stat = row.statistical_uncertainty_ph_m2_s;
-    let stat_diff = (2.0 * stat * stat * (1.0 - model.correlation_rho)).max(0.0).sqrt();
-    let empirical = model
-        .relative_residual_scale
-        * row.sampled_flux_ph_m2_s.abs()
-        .max(crate::starlight_phase5::RELATIVE_ERROR_FLUX_FLOOR_PH_M2_S);
+    let stat_diff = (2.0 * stat * stat * (1.0 - model.correlation_rho))
+        .max(0.0)
+        .sqrt();
+    let empirical = model.relative_residual_scale
+        * row
+            .sampled_flux_ph_m2_s
+            .abs()
+            .max(crate::starlight_phase5::RELATIVE_ERROR_FLUX_FLOOR_PH_M2_S);
     let core = stat_diff.hypot(empirical.max(model.systematic_floor_ph_m2_s));
     (core * model.inflation_factor).max(model.systematic_floor_ph_m2_s)
 }
@@ -147,7 +156,10 @@ pub fn fit_relative_residual_scale(train: &[OverlapComparison]) -> f64 {
     percentile(&rel, 0.68)
 }
 
-pub fn fit_difference_inflation(validation: &[OverlapComparison], model: &mut OverlapDifferenceUncertaintyModel) {
+pub fn fit_difference_inflation(
+    validation: &[OverlapComparison],
+    model: &mut OverlapDifferenceUncertaintyModel,
+) {
     let target_68 = 0.68_f64;
     let mut best = 1.0_f64;
     let mut best_err = f64::MAX;
@@ -327,7 +339,7 @@ mod tests {
     #[test]
     fn difference_sigma_is_smaller_than_absolute_for_correlated_products() {
         let row = sample_row(1.0e5, 1.0e5 + 0.1, 150.0);
-        let mut model = OverlapDifferenceUncertaintyModel {
+        let model = OverlapDifferenceUncertaintyModel {
             relative_residual_scale: 1.0e-5,
             ..Default::default()
         };
@@ -347,8 +359,10 @@ mod tests {
             sample_row(2.1e4, 2.1e4 - 0.12, 110.0),
             sample_row(5.1e3, 5.1e3 + 0.08, 70.0),
         ];
-        let mut model = OverlapDifferenceUncertaintyModel::default();
-        model.relative_residual_scale = fit_relative_residual_scale(&train);
+        let mut model = OverlapDifferenceUncertaintyModel {
+            relative_residual_scale: fit_relative_residual_scale(&train),
+            ..Default::default()
+        };
         fit_difference_inflation(&validation, &mut model);
         let metrics = compute_overlap_metrics(&validation, &model);
         assert!(metrics.coverage_68 > 0.0);

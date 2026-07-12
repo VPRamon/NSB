@@ -171,8 +171,10 @@ fn main() -> Result<()> {
         .cloned()
         .collect();
 
-    let mut overlap_model = OverlapDifferenceUncertaintyModel::default();
-    overlap_model.relative_residual_scale = fit_relative_residual_scale(&train);
+    let mut overlap_model = OverlapDifferenceUncertaintyModel {
+        relative_residual_scale: fit_relative_residual_scale(&train),
+        ..Default::default()
+    };
     fit_difference_inflation(&validation, &mut overlap_model);
 
     let uncertainty_model = UncertaintyModelBundle {
@@ -210,9 +212,7 @@ fn main() -> Result<()> {
             "skip sources without normalized reconstruction CSV".to_string(),
         ],
         systematic_floor_ph_m2_s: overlap_model.systematic_floor_ph_m2_s,
-        outlier_policy: format!(
-            "catastrophic if |relative_error| > {CATASTROPHIC_RELATIVE_ERROR}"
-        ),
+        outlier_policy: format!("catastrophic if |relative_error| > {CATASTROPHIC_RELATIVE_ERROR}"),
         fallbacks: vec![
             "missing_from_canonical_sampled_reference: exclude from overlap validation only"
                 .to_string(),
