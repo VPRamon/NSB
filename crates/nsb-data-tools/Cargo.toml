@@ -46,8 +46,135 @@ name = "generate_gaia_starlight_release_inputs"
 path = "src/bin/generate_gaia_starlight_release_inputs.rs"
 doc = false
 
+[[bin]]
+name = "query_gaia_tap"
+path = "src/bin/query_gaia_tap.rs"
+doc = false
+
+[[bin]]
+name = "build_integrated_starlight_product"
+path = "src/bin/build_integrated_starlight_product.rs"
+doc = false
+
+[[bin]]
+name = "generate_starlight_sample_queries"
+path = "src/bin/generate_starlight_sample_queries.rs"
+doc = false
+
+[[bin]]
+name = "consolidate_gaia_starlight_samples"
+path = "src/bin/consolidate_gaia_starlight_samples.rs"
+
+[[bin]]
+name = "prepare_starlight_phase5"
+path = "src/bin/prepare_starlight_phase5.rs"
+
+[[bin]]
+name = "download_xp_continuous_phase5"
+path = "src/bin/download_xp_continuous_phase5.rs"
+
+[[bin]]
+name = "normalize_xp_continuous_coefficients"
+path = "src/bin/normalize_xp_continuous_coefficients.rs"
+
+[[bin]]
+name = "run_starlight_phase5_overlap_validation"
+path = "src/bin/run_starlight_phase5_overlap_validation.rs"
+
+[[bin]]
+name = "emit_phase5_continuous_contributions"
+path = "src/bin/emit_phase5_continuous_contributions.rs"
+
+[[bin]]
+name = "finalize_starlight_phase5"
+path = "src/bin/finalize_starlight_phase5.rs"
+
+[[bin]]
+name = "inspect_phase5_download"
+path = "src/bin/inspect_phase5_download.rs"
+
+[[bin]]
+name = "validate_xp_continuous_reconstruction"
+path = "src/bin/validate_xp_continuous_reconstruction.rs"
+doc = false
+
+[[bin]]
+name = "download_gaia_xp_continuous_bulk"
+path = "src/bin/download_gaia_xp_continuous_bulk.rs"
+doc = false
+
+[[bin]]
+name = "train_starlight_photometry_models"
+path = "src/bin/train_starlight_photometry_models.rs"
+doc = false
+
+[[bin]]
+name = "run_phase5b_cross_comparison"
+path = "src/bin/run_phase5b_cross_comparison.rs"
+doc = false
+
+[[bin]]
+name = "run_phase5b_mini_pilot"
+path = "src/bin/run_phase5b_mini_pilot.rs"
+doc = false
+
+[[bin]]
+name = "index_gaia_xp_continuous_bulk"
+path = "src/bin/index_gaia_xp_continuous_bulk.rs"
+doc = false
+
+[[bin]]
+name = "run_phase5b_chunk_benchmark"
+path = "src/bin/run_phase5b_chunk_benchmark.rs"
+doc = false
+
+[[bin]]
+name = "run_phase5b_merge_validation"
+path = "src/bin/run_phase5b_merge_validation.rs"
+doc = false
+
+[[bin]]
+name = "run_phase5b_resume_validation"
+path = "src/bin/run_phase5b_resume_validation.rs"
+doc = false
+
+[[bin]]
+name = "run_phase5b_multifile_pilot"
+path = "src/bin/run_phase5b_multifile_pilot.rs"
+doc = false
+
+[[bin]]
+name = "audit_gaia_starlight_exclusions"
+path = "src/bin/audit_gaia_starlight_exclusions.rs"
+doc = false
+
+[[bin]]
+name = "archive_phase5_policy_v0"
+path = "src/bin/archive_phase5_policy_v0.rs"
+
+[[bin]]
+name = "freeze_phase5_validation_policy_v1"
+path = "src/bin/freeze_phase5_validation_policy_v1.rs"
+
+[[bin]]
+name = "prepare_phase5_holdout_v1"
+path = "src/bin/prepare_phase5_holdout_v1.rs"
+
+[[bin]]
+name = "run_phase5_holdout_v1_validation"
+path = "src/bin/run_phase5_holdout_v1_validation.rs"
+
+[[bin]]
+name = "finalize_phase5_holdout_v1"
+path = "src/bin/finalize_phase5_holdout_v1.rs"
+
+[[bin]]
+name = "audit_phase5_coefficient_reconciliation"
+path = "src/bin/audit_phase5_coefficient_reconciliation.rs"
+
 [dependencies]
 anyhow = "1"
+chrono = "0.4"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 flate2 = "1"

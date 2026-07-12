@@ -151,6 +151,57 @@ pub fn parse_gaia_datalink_csv(bytes: &[u8], expected_source_id: &str) -> Result
     Ok(product)
 }
 
+/// Parse a Gaia DataLink `XP_SAMPLED` CSV payload with one row and tuple/array flux columns.
+pub fn parse_gaia_datalink_array_csv(bytes: &[u8], expected_source_id: &str) -> Result<XpProduct> {
+    if bytes.is_empty() {
+        bail!("empty Gaia DataLink response");
+    }
+    if contains_service_error(bytes) {
+        bail!("Gaia DataLink response contains SERVICE ERROR");
+    }
+    let mut reader = ReaderBuilder::new()
+        .comment(Some(b'#'))
+        .trim(csv::Trim::All)
+        .from_reader(bytes);
+    let headers = reader.headers()?.clone();
+    let source = required_header(&headers, "source_id")?;
+    let flux = required_header(&headers, "flux")?;
+    let flux_error = required_header(&headers, "flux_error")?;
+    let source_id = expected_source_id.parse::<u64>().ok();
+    let mut rows = reader.records();
+    let row = rows
+        .next()
+        .transpose()
+        .context("failed to read Gaia XP array CSV row")?
+        .ok_or_else(|| anyhow::anyhow!("Gaia XP array CSV has no data rows"))?;
+    if rows.next().transpose()?.is_some() {
+        bail!("Gaia XP array CSV must contain exactly one row");
+    }
+    let parsed_source = field(&row, source, "source_id")?;
+    if parsed_source != expected_source_id {
+        bail!("Gaia XP source_id mismatch: expected {expected_source_id}, found {parsed_source}");
+    }
+    let flux_w_m2_nm =
+        parse_gaia_sampled_array(field(&row, flux, "flux")?, "flux", source_id, None)?;
+    let flux_error_w_m2_nm = parse_gaia_sampled_array(
+        field(&row, flux_error, "flux_error")?,
+        "flux_error",
+        source_id,
+        None,
+    )?;
+    let wavelengths_nm = (0..XP_SAMPLED_GRID_LEN)
+        .map(|index| XP_SAMPLED_GRID_START_NM + XP_SAMPLED_GRID_STEP_NM * index as f64)
+        .collect();
+    let product = XpProduct {
+        source_id: expected_source_id.to_string(),
+        wavelengths_nm,
+        flux_w_m2_nm,
+        flux_error_w_m2_nm: Some(flux_error_w_m2_nm),
+    };
+    validate_product(&product)?;
+    Ok(product)
+}
+
 /// Parse one normalized, one-row-per-source Gaia XP CSV record.
 pub fn parse_normalized_record(headers: &StringRecord, row: &StringRecord) -> Result<XpProduct> {
     let source = required_header(headers, "source_id")?;
@@ -187,8 +238,18 @@ pub fn parse_gaia_sampled_array_into(
     let inner = trimmed
         .strip_prefix('[')
         .and_then(|value| value.strip_suffix(']'))
+        .or_else(|| {
+            trimmed
+                .strip_prefix('(')
+                .and_then(|value| value.strip_suffix(')'))
+        })
         .ok_or_else(|| {
-            sampled_array_error(field, source_id, origin_file, "expected bracketed array")
+            sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                "expected bracketed or parenthesized array",
+            )
         })?;
     if inner.is_empty() {
         return Err(sampled_array_error(
@@ -199,6 +260,7 @@ pub fn parse_gaia_sampled_array_into(
         ));
     }
     for (index, token) in inner.split(',').enumerate() {
+        let token = token.trim();
         if token.is_empty() {
             return Err(sampled_array_error(
                 field,
@@ -248,6 +310,70 @@ pub fn parse_gaia_sampled_array_into(
         ));
     }
     Ok(())
+}
+
+/// Parse a parenthesized/bracketed Gaia tuple array with arbitrary length.
+pub fn parse_gaia_tuple_array(
+    raw: &str,
+    field: &str,
+    source_id: Option<u64>,
+    origin_file: Option<&Path>,
+) -> Result<Vec<f64>> {
+    let mut out = Vec::new();
+    let trimmed = raw.trim();
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|value| value.strip_suffix(']'))
+        .or_else(|| {
+            trimmed
+                .strip_prefix('(')
+                .and_then(|value| value.strip_suffix(')'))
+        })
+        .ok_or_else(|| {
+            sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                "expected bracketed or parenthesized array",
+            )
+        })?;
+    if inner.is_empty() {
+        return Err(sampled_array_error(
+            field,
+            source_id,
+            origin_file,
+            "empty array",
+        ));
+    }
+    for (index, token) in inner.split(',').enumerate() {
+        let token = token.trim();
+        if token.is_empty() {
+            return Err(sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("empty token at element index {index}"),
+            ));
+        }
+        let value = token.parse::<f64>().with_context(|| {
+            sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("invalid numeric token at element index {index}: {token:?}"),
+            )
+        })?;
+        if !value.is_finite() {
+            return Err(sampled_array_error(
+                field,
+                source_id,
+                origin_file,
+                &format!("non-finite value at element index {index}"),
+            ));
+        }
+        out.push(value);
+    }
+    Ok(out)
 }
 
 /// Parse an official Gaia XP sampled bulk array field into a new `Vec`.
@@ -628,6 +754,25 @@ fn parse_f64(row: &StringRecord, index: usize, name: &str) -> Result<f64> {
 }
 
 #[cfg(test)]
+mod datalink_array_tests {
+    use super::*;
+    use std::fs;
+    use std::path::Path;
+
+    #[test]
+    fn parses_real_datalink_sampled_file_when_present() -> Result<()> {
+        let path = Path::new("/tmp/xp_sampled_test.csv");
+        if !path.is_file() {
+            return Ok(());
+        }
+        let raw = fs::read(path)?;
+        let parsed = parse_gaia_datalink_array_csv(&raw, "4150127323607486336")?;
+        assert_eq!(parsed.flux_w_m2_nm.len(), XP_SAMPLED_GRID_LEN);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -732,6 +877,17 @@ mod tests {
         let expected = flux[0] * 0.5 * (BAND_MAX_NM.powi(2) - BAND_MIN_NM.powi(2)) * 1.0e-9 / hc;
         let relative = (integrated.total_ph_m2_s - expected).abs() / expected;
         assert!(relative < 1.0e-14, "relative error {relative}");
+        Ok(())
+    }
+
+    #[test]
+    fn parses_datalink_parenthesized_sampled_arrays() -> Result<()> {
+        let raw = concat!(
+            "source_id,solution_id,ra,dec,flux,flux_error\n",
+            "42,1,0,0,\"(1.0,1.0)\",\"(0.1,0.1)\"\n",
+        );
+        let err = parse_gaia_datalink_array_csv(raw.as_bytes(), "42").expect_err("short array");
+        assert!(err.to_string().contains("343"));
         Ok(())
     }
 

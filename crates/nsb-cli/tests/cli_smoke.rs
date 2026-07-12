@@ -255,6 +255,21 @@ fn validated_external_starlight_is_labelled_in_window_json() {
 }
 
 fn write_validated_fixture(map_path: &std::path::Path, manifest_path: &std::path::Path) {
+    write_validated_fixture_schema(map_path, manifest_path, false);
+}
+
+fn write_validated_uncertainty_fixture(
+    map_path: &std::path::Path,
+    manifest_path: &std::path::Path,
+) {
+    write_validated_fixture_schema(map_path, manifest_path, true);
+}
+
+fn write_validated_fixture_schema(
+    map_path: &std::path::Path,
+    manifest_path: &std::path::Path,
+    with_uncertainty: bool,
+) {
     let grid = HealpixGrid::new(Nside::new(8).unwrap(), HealpixOrdering::Ring).unwrap();
     let mut map = String::from(concat!(
         "# map_type=healpix\n",
@@ -279,15 +294,33 @@ fn write_validated_fixture(map_path: &std::path::Path, manifest_path: &std::path
         "# generation_command=synthetic fixture builder\n",
         "# validation_report=test admission report\n",
         "# independent_comparison=synthetic trusted reference fixture\n",
-        "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n",
     ));
+    if with_uncertainty {
+        map.push_str(concat!(
+            "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10,",
+            "statistical_uncertainty_ph_cm2_ns_sr,",
+            "systematic_uncertainty_ph_cm2_ns_sr,",
+            "total_uncertainty_ph_cm2_ns_sr\n",
+        ));
+    } else {
+        map.push_str("healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n");
+    }
     let mut source_flux = 0.0;
     for index in 0..grid.npix() {
         let direction: Direction<Galactic> = grid.pixel_center(HealpixIndex::new(index)).unwrap();
         let latitude = direction.as_array()[2].asin().to_degrees().abs();
         let value = if latitude <= 10.0 { 2.0 } else { 1.0 };
         source_flux += value * grid.pixel_area_sr();
-        map.push_str(&format!("{index},{value},{value},{value}\n"));
+        if with_uncertainty {
+            map.push_str(&format!(
+                "{index},{value},{value},{value},{},{},{}\n",
+                value * 0.1,
+                value * 0.2,
+                value * 0.25,
+            ));
+        } else {
+            map.push_str(&format!("{index},{value},{value},{value}\n"));
+        }
     }
     let checksum = format!("sha256:{}", to_hex(&sha256(map.as_bytes())));
     fs::write(map_path, &map).unwrap();
@@ -342,6 +375,82 @@ independent_comparison = "synthetic trusted reference fixture"
 "#,
     );
     fs::write(manifest_path, manifest).unwrap();
+}
+
+#[test]
+fn starlight_uncertainties_are_serialized_in_json_and_csv_v2() {
+    let dir = tempfile::tempdir().unwrap();
+    let map_path = dir.path().join("starlight-v2.csv");
+    let manifest_path = dir.path().join("starlight-v2.toml");
+    write_validated_uncertainty_fixture(&map_path, &manifest_path);
+    let common_args = [
+        "point",
+        "--time",
+        "2026-06-18T23:00:00Z",
+        "--site",
+        "CTAO-S",
+        "--ra",
+        "83.0",
+        "--dec",
+        "22.0",
+        "--components",
+        "starlight",
+        "--starlight-map",
+        map_path.to_str().unwrap(),
+        "--starlight-manifest",
+        manifest_path.to_str().unwrap(),
+    ];
+
+    let mut json_cmd = Command::cargo_bin("nsb").unwrap();
+    let json_output = json_cmd
+        .arg("--format")
+        .arg("json")
+        .args(common_args)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&json_output).unwrap();
+    let component = &value["components"][0];
+    let statistical = component["statistical_uncertainty_ph_cm2_ns_sr"]
+        .as_f64()
+        .unwrap();
+    let systematic = component["systematic_uncertainty_ph_cm2_ns_sr"]
+        .as_f64()
+        .unwrap();
+    let total = component["total_uncertainty_ph_cm2_ns_sr"]
+        .as_f64()
+        .unwrap();
+    assert!(statistical >= 0.0);
+    assert!(systematic >= 0.0);
+    assert!(total >= statistical && total >= systematic);
+    assert_eq!(component["relative_uncertainty"].as_f64(), Some(0.25));
+
+    let mut csv_cmd = Command::cargo_bin("nsb").unwrap();
+    let csv_output = csv_cmd
+        .arg("--format")
+        .arg("csv")
+        .args(common_args)
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let mut reader = csv::Reader::from_reader(csv_output.as_slice());
+    let headers = reader.headers().unwrap().clone();
+    assert_eq!(
+        headers.get(18),
+        Some("statistical_uncertainty_ph_cm2_ns_sr")
+    );
+    assert_eq!(headers.get(19), Some("systematic_uncertainty_ph_cm2_ns_sr"));
+    assert_eq!(headers.get(20), Some("total_uncertainty_ph_cm2_ns_sr"));
+    let row = reader.records().next().unwrap().unwrap();
+    assert_eq!(row.get(0), Some("nsb-cli-point-csv-v2"));
+    assert_eq!(row.get(8).unwrap().parse::<f64>().unwrap(), 0.25);
+    assert_eq!(row.get(18).unwrap().parse::<f64>().unwrap(), statistical);
+    assert_eq!(row.get(19).unwrap().parse::<f64>().unwrap(), systematic);
+    assert_eq!(row.get(20).unwrap().parse::<f64>().unwrap(), total);
 }
 
 #[test]

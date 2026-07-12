@@ -313,6 +313,9 @@ impl NsbEvaluator {
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
                 relative_uncertainty: None,
+                statistical_uncertainty: None,
+                systematic_uncertainty: None,
+                total_uncertainty: None,
                 metadata: zodiacal_metadata(),
             });
         }
@@ -326,7 +329,10 @@ impl NsbEvaluator {
                 integrated: out.integrated,
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
-                relative_uncertainty: None,
+                relative_uncertainty: out.relative_uncertainty(),
+                statistical_uncertainty: out.statistical_uncertainty,
+                systematic_uncertainty: out.systematic_uncertainty,
+                total_uncertainty: out.total_uncertainty,
                 metadata: starlight_metadata(
                     self.config.starlight_model.as_ref(),
                     self.starlight
@@ -346,6 +352,9 @@ impl NsbEvaluator {
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
                 relative_uncertainty: out.relative_uncertainty,
+                statistical_uncertainty: None,
+                systematic_uncertainty: None,
+                total_uncertainty: None,
                 metadata: airglow_metadata(self.config.site_profile, query.observer),
             });
         }
@@ -360,6 +369,9 @@ impl NsbEvaluator {
                 b_flux_s10: out.b_flux_s10,
                 v_flux_s10: out.v_flux_s10,
                 relative_uncertainty: None,
+                statistical_uncertainty: None,
+                systematic_uncertainty: None,
+                total_uncertainty: None,
                 metadata: moonlight_metadata(
                     self.config.moonlight_model,
                     self.config.site_profile,

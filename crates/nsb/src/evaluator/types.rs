@@ -107,6 +107,12 @@ pub struct NsbComponent {
     pub v_flux_s10: S10,
     /// Relative one-sigma uncertainty when defined.
     pub relative_uncertainty: Option<f64>,
+    /// Statistical one-sigma uncertainty of the integrated photon radiance.
+    pub statistical_uncertainty: Option<BandPhotonRadiance>,
+    /// Systematic one-sigma uncertainty of the integrated photon radiance.
+    pub systematic_uncertainty: Option<BandPhotonRadiance>,
+    /// Total one-sigma uncertainty of the integrated photon radiance.
+    pub total_uncertainty: Option<BandPhotonRadiance>,
     /// Scientific maturity and provenance.
     pub metadata: NsbComponentMetadata,
 }

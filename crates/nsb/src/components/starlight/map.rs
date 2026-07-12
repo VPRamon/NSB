@@ -31,6 +31,12 @@ pub struct StarlightPixel {
     pub b_flux_s10: S10s,
     /// V-reference S10 diagnostic.
     pub v_flux_s10: S10s,
+    /// Statistical one-sigma uncertainty of the integrated photon radiance.
+    pub statistical_uncertainty: Option<BandPhotonRadiance>,
+    /// Systematic one-sigma uncertainty of the integrated photon radiance.
+    pub systematic_uncertainty: Option<BandPhotonRadiance>,
+    /// Total one-sigma uncertainty of the integrated photon radiance.
+    pub total_uncertainty: Option<BandPhotonRadiance>,
 }
 
 impl StarlightPixel {
@@ -50,11 +56,37 @@ impl StarlightPixel {
             integrated,
             b_flux_s10,
             v_flux_s10,
+            statistical_uncertainty: None,
+            systematic_uncertainty: None,
+            total_uncertainty: None,
         }
     }
 
+    /// Attach a complete absolute-uncertainty triplet to this sample.
+    pub fn with_uncertainties(
+        mut self,
+        statistical: BandPhotonRadiance,
+        systematic: BandPhotonRadiance,
+        total: BandPhotonRadiance,
+    ) -> Self {
+        self.statistical_uncertainty = Some(statistical);
+        self.systematic_uncertainty = Some(systematic);
+        self.total_uncertainty = Some(total);
+        self
+    }
+
     fn output(self) -> StarlightOutputs {
-        StarlightOutputs::new(self.integrated, self.b_flux_s10, self.v_flux_s10)
+        let output = StarlightOutputs::new(self.integrated, self.b_flux_s10, self.v_flux_s10);
+        match (
+            self.statistical_uncertainty,
+            self.systematic_uncertainty,
+            self.total_uncertainty,
+        ) {
+            (Some(statistical), Some(systematic), Some(total)) => {
+                output.with_uncertainties(statistical, systematic, total)
+            }
+            _ => output,
+        }
     }
 
     fn normalized(self) -> Self {
@@ -79,9 +111,12 @@ impl StarlightPixel {
                 "pixel solid_angle_sr must be finite and positive",
             ));
         }
-        if !self.output().is_finite_non_negative() {
+        if !self.output().is_finite_non_negative()
+            || self.statistical_uncertainty.is_some() != self.systematic_uncertainty.is_some()
+            || self.statistical_uncertainty.is_some() != self.total_uncertainty.is_some()
+        {
             return Err(invalid_map(
-                "pixel radiance and S10 values must be finite and non-negative",
+                "pixel radiance, S10 values, and any uncertainty triplet must be finite, non-negative, complete, and satisfy total >= statistical and total >= systematic",
             ));
         }
         Ok(())
@@ -121,8 +156,14 @@ impl StarlightMap {
         let mut normalized = Vec::with_capacity(pixels.len());
         let mut lon_values = Vec::with_capacity(pixels.len());
         let mut lat_values = Vec::with_capacity(pixels.len());
+        let has_uncertainties = pixels[0].output().has_uncertainties();
         for pixel in pixels {
             pixel.validate()?;
+            if pixel.output().has_uncertainties() != has_uncertainties {
+                return Err(invalid_map(
+                    "all starlight pixels must use the same uncertainty schema",
+                ));
+            }
             let pixel = pixel.normalized();
             lon_values.push(pixel.galactic_lon.value());
             lat_values.push(pixel.galactic_lat.value());
@@ -390,20 +431,21 @@ impl StarlightMap {
             file: "starlight map csv",
             message: format!("failed to read HEALPix CSV header: {err}"),
         })?;
-        validate_healpix_header(headers)?;
+        let schema = validate_healpix_header(headers)?;
 
         for (row_idx, record) in reader.records().enumerate() {
             let record = record.map_err(|err| NsbError::DataParse {
                 file: "starlight map csv",
                 message: format!("failed to read HEALPix CSV row {}: {err}", row_idx + 1),
             })?;
-            if record.len() != 4 {
+            if record.len() != schema.field_count() {
                 return Err(NsbError::DataParse {
                     file: "starlight map csv",
                     message: format!(
-                        "HEALPix CSV row {} has {} fields, expected 4",
+                        "HEALPix CSV row {} has {} fields, expected {}",
                         row_idx + 1,
-                        record.len()
+                        record.len(),
+                        schema.field_count()
                     ),
                 });
             }
@@ -425,6 +467,29 @@ impl StarlightMap {
                 S10s::new(parse_record_f64(&record, 2, row_idx + 1, "b_s10")?),
                 S10s::new(parse_record_f64(&record, 3, row_idx + 1, "v_s10")?),
             );
+            let pixel = match schema {
+                HealpixCsvSchema::V1 => pixel,
+                HealpixCsvSchema::V2 => pixel.with_uncertainties(
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        4,
+                        row_idx + 1,
+                        "statistical_uncertainty_ph_cm2_ns_sr",
+                    )?),
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        5,
+                        row_idx + 1,
+                        "systematic_uncertainty_ph_cm2_ns_sr",
+                    )?),
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        6,
+                        row_idx + 1,
+                        "total_uncertainty_ph_cm2_ns_sr",
+                    )?),
+                ),
+            };
             pixel.validate()?;
             if pixels[slot].replace(pixel).is_some() {
                 return Err(invalid_map(format!(
@@ -567,24 +632,54 @@ fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> R
         .ok_or_else(|| invalid_map(format!("missing required HEALPix metadata key {key:?}")))
 }
 
-fn validate_healpix_header(headers: &StringRecord) -> Result<()> {
-    let expected = ["healpix_index", "integrated_ph_cm2_ns_sr", "b_s10", "v_s10"];
-    if headers.len() != expected.len()
-        || !headers
-            .iter()
-            .zip(expected)
-            .all(|(actual, expected)| actual.trim() == expected)
-    {
-        return Err(NsbError::DataParse {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HealpixCsvSchema {
+    V1,
+    V2,
+}
+
+impl HealpixCsvSchema {
+    const fn field_count(self) -> usize {
+        match self {
+            Self::V1 => 4,
+            Self::V2 => 7,
+        }
+    }
+}
+
+fn validate_healpix_header(headers: &StringRecord) -> Result<HealpixCsvSchema> {
+    const V1: [&str; 4] = ["healpix_index", "integrated_ph_cm2_ns_sr", "b_s10", "v_s10"];
+    const V2: [&str; 7] = [
+        "healpix_index",
+        "integrated_ph_cm2_ns_sr",
+        "b_s10",
+        "v_s10",
+        "statistical_uncertainty_ph_cm2_ns_sr",
+        "systematic_uncertainty_ph_cm2_ns_sr",
+        "total_uncertainty_ph_cm2_ns_sr",
+    ];
+    let matches = |expected: &[&str]| {
+        headers.len() == expected.len()
+            && headers
+                .iter()
+                .zip(expected)
+                .all(|(actual, expected)| actual.trim() == *expected)
+    };
+    if matches(&V1) {
+        Ok(HealpixCsvSchema::V1)
+    } else if matches(&V2) {
+        Ok(HealpixCsvSchema::V2)
+    } else {
+        Err(NsbError::DataParse {
             file: "starlight map csv",
             message: format!(
-                "unsupported HEALPix starlight map header {:?}; expected {}",
+                "unsupported HEALPix starlight map header {:?}; expected v1 {} or v2 {}",
                 headers.iter().collect::<Vec<_>>(),
-                expected.join(",")
+                V1.join(","),
+                V2.join(",")
             ),
-        });
+        })
     }
-    Ok(())
 }
 
 fn record_field<'a>(
