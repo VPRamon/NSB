@@ -172,9 +172,15 @@ path = "src/bin/finalize_phase5_holdout_v1.rs"
 name = "audit_phase5_coefficient_reconciliation"
 path = "src/bin/audit_phase5_coefficient_reconciliation.rs"
 
+[[bin]]
+name = "run_starlight_xp_continuous_bulk_pipeline"
+path = "src/bin/run_starlight_xp_continuous_bulk_pipeline.rs"
+doc = false
+
 [dependencies]
 anyhow = "1"
 chrono = "0.4"
+libc = "0.2"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 flate2 = "1"
