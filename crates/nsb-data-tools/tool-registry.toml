@@ -1,0 +1,273 @@
+schema_version = 1
+
+# This registry is normative. Every compiled binary and every Python or shell
+# program under tools/starlight-xp-continuous must be listed exactly once.
+# Status values:
+# - supported: durable release-maintainer capability
+# - experimental: real capability whose scientific contract is not production approved
+# - migration-only: temporary implementation retained only until the linked removal issue
+# - test-only: test helper, never a supported product command
+
+[[binaries]]
+name = "build_starlight_map"
+path = "src/bin/build_starlight_map.rs"
+owner = "starlight-generation"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Generate a deterministic HEALPix Starlight map from a canonical source catalogue using Siderust-owned coordinate and HEALPix primitives."
+inputs = "Canonical source catalogue, explicit HEALPix configuration, catalogue provenance and checksums."
+outputs = "HEALPix CSV data product and optional versioned diagnostics report."
+resume = "No implicit resume; output generation is deterministic and callers must use a new output path or replace intentionally."
+exit_codes = "Zero only after all parsing, map-construction and validation steps succeed; non-zero on malformed input, incomplete coverage or I/O failure."
+documentation = "crates/nsb-data-tools/README.md#starlight-generation-and-validation"
+
+[[binaries]]
+name = "prepare_tycho_starlight_catalogue"
+path = "src/bin/prepare_tycho_starlight_catalogue.rs"
+owner = "catalogue-preparation"
+audience = "researcher"
+status = "experimental"
+purpose = "Convert local Tycho BT/VT catalogue rows into the canonical Starlight source schema for controlled experiments."
+inputs = "Local Tycho catalogue, verified input checksum and explicit metadata."
+outputs = "Canonical source catalogue and diagnostics."
+resume = "No resume; deterministic full conversion."
+exit_codes = "Zero only for a complete validated conversion; non-zero on checksum, schema, coordinate or photometry failure."
+documentation = "crates/nsb-data-tools/README.md#catalogue-preparation"
+
+[[binaries]]
+name = "prepare_gaia_starlight_catalogue"
+path = "src/bin/prepare_gaia_starlight_catalogue.rs"
+owner = "catalogue-preparation"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Convert official Gaia DR3 XP sampled bulk data or a normalized fallback extract into canonical passband-integrated Starlight source rows."
+inputs = "Official Gaia XP sampled bulk inventory or normalized fallback, provenance, passband and output policy."
+outputs = "Canonical source catalogue, exclusions sidecar and versioned diagnostics."
+resume = "Streaming conversion; exclusions-only mode may regenerate diagnostics without replacing the validated catalogue."
+exit_codes = "Zero only when source accounting, checksums and production requirements pass; non-zero on malformed spectra, missing provenance or inconsistent counts."
+documentation = "crates/nsb-data-tools/README.md#catalogue-preparation"
+
+[[binaries]]
+name = "validate_starlight_map"
+path = "src/bin/validate_starlight_map.rs"
+owner = "starlight-validation"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Validate a generated Starlight map against structural, scientific and independent-reference requirements."
+inputs = "Generated map, provenance metadata and validation reference."
+outputs = "Versioned validation report with explicit pass, fail and blocker evidence."
+resume = "No resume; validation is read-only and deterministic."
+exit_codes = "Zero only when the requested validation policy passes; non-zero for invalid maps, missing evidence or failed production gates."
+documentation = "crates/nsb-data-tools/README.md#starlight-generation-and-validation"
+
+[[binaries]]
+name = "pack_starlight_asset"
+path = "src/bin/pack_starlight_asset.rs"
+owner = "asset-release"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Package a validated Starlight map and runtime manifest without weakening candidate or production admission policy."
+inputs = "Validated map, validation evidence, catalogue provenance and requested maturity."
+outputs = "Runtime HEALPix asset and manifest suitable for review or release."
+resume = "No resume; packaging is deterministic from immutable inputs."
+exit_codes = "Zero only after checksum, metadata and maturity-policy validation; non-zero when production evidence is incomplete."
+documentation = "crates/nsb-data-tools/README.md#asset-verification-and-release"
+
+[[binaries]]
+name = "verify_assets"
+path = "src/bin/verify_assets.rs"
+owner = "asset-release"
+audience = "external-user-and-release-maintainer"
+status = "supported"
+purpose = "Verify the NSB scientific asset registry, schemas, checksums, required metadata and file coverage."
+inputs = "Runtime asset manifest and referenced repository assets."
+outputs = "Human-readable verification result and process exit status."
+resume = "Not applicable; read-only verification."
+exit_codes = "Zero only when every registered asset passes; non-zero on missing files, checksum mismatch, schema error or incomplete coverage."
+documentation = "crates/nsb-data-tools/README.md#asset-verification-and-release"
+
+[[binaries]]
+name = "sweep_starlight_nside"
+path = "src/bin/sweep_starlight_nside.rs"
+owner = "starlight-validation"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Build or reassess Starlight map candidates across HEALPix resolutions and separate candidate recommendation from production admission."
+inputs = "Canonical catalogue or persisted sweep artefacts, checksums and validation references."
+outputs = "Per-resolution artefacts and a versioned sweep summary."
+resume = "Use assess-existing mode to reevaluate persisted artefacts without rebuilding maps."
+exit_codes = "Zero when the requested candidate or production condition is satisfied; non-zero when explicitly required gates fail."
+documentation = "crates/nsb-data-tools/README.md#starlight-generation-and-validation"
+
+[[binaries]]
+name = "generate_gaia_starlight_release_inputs"
+path = "src/bin/generate_gaia_starlight_release_inputs.rs"
+owner = "gaia-acquisition"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Generate the documented Gaia DR3 metadata query, retrieve or merge normalized XP inputs, verify provenance and emit downstream release configuration."
+inputs = "Gaia query policy, output directory, retrieval mode, license policy and validation reference."
+outputs = "ADQL, metadata, normalized chunks, diagnostics, checksums and release-input environment file."
+resume = "Explicit --resume preserves already verified downloads and normalized chunks."
+exit_codes = "Zero only when the requested candidate or production acquisition contract is complete; production fails closed on missing XP products or provenance."
+documentation = "crates/nsb-data-tools/README.md#gaia-acquisition-and-indexing"
+
+[[binaries]]
+name = "query_gaia_tap"
+path = "src/bin/query_gaia_tap.rs"
+owner = "gaia-acquisition"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Execute reproducible Gaia TAP jobs with persisted manifests, retries, diagnostics and resumable result retrieval."
+inputs = "ADQL query, TAP endpoint policy, output paths and retry configuration."
+outputs = "TAP result, request/status evidence and versioned manifest."
+resume = "Explicit resume continues a persisted asynchronous job or reuses a verified result."
+exit_codes = "Zero only for a complete verified result; non-zero for terminal service errors, invalid result schema or exhausted retries."
+documentation = "crates/nsb-data-tools/README.md#gaia-acquisition-and-indexing"
+
+[[binaries]]
+name = "build_integrated_starlight_product"
+path = "src/bin/build_integrated_starlight_product.rs"
+owner = "starlight-generation"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Build the integrated Starlight candidate from approved population contributions and produce explicit production blockers."
+inputs = "Population contributions, frozen policies, validation references, provenance and output configuration."
+outputs = "Integrated candidate map, diagnostics, approval evidence and release metadata."
+resume = "No hidden resume; reusable persisted inputs are supplied explicitly."
+exit_codes = "Zero only for the requested candidate or production condition; production admission fails closed."
+documentation = "crates/nsb-data-tools/README.md#starlight-generation-and-validation"
+
+[[binaries]]
+name = "generate_starlight_sample_queries"
+path = "src/bin/generate_starlight_sample_queries.rs"
+owner = "starlight-sampling"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Generate deterministic stratified Gaia sampling queries from the versioned Starlight science contract."
+inputs = "Sampling policy, population definitions and output directory."
+outputs = "ADQL query set and versioned sampling manifest."
+resume = "No resume; deterministic regeneration is expected."
+exit_codes = "Zero only when every required stratum has a generated query and consistent manifest."
+documentation = "crates/nsb-data-tools/README.md#sampling-and-model-development"
+
+[[binaries]]
+name = "consolidate_gaia_starlight_samples"
+path = "src/bin/consolidate_gaia_starlight_samples.rs"
+owner = "starlight-sampling"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Validate, deduplicate and spatially split completed Gaia sampling results into canonical modelling datasets."
+inputs = "Persisted TAP job manifests/results and the frozen split specification."
+outputs = "Consolidated canonical samples, inventory, exclusions and split diagnostics."
+resume = "Read-only inventory plus deterministic consolidation; reruns reuse completed TAP results."
+exit_codes = "Zero only after required-stratum, deduplication, source-accounting and split validation."
+documentation = "crates/nsb-data-tools/README.md#sampling-and-model-development"
+
+[[binaries]]
+name = "normalize_xp_continuous_coefficients"
+path = "src/bin/normalize_xp_continuous_coefficients.rs"
+owner = "gaia-xp-continuous"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Normalize official or DataLink Gaia XP continuous coefficient records into the versioned canonical Rust schema."
+inputs = "Raw Gaia XP continuous records and source provenance."
+outputs = "Canonical coefficient records and manifest with exact rejection accounting."
+resume = "Existing verified canonical outputs may be reused by the caller; the command itself performs deterministic normalization."
+exit_codes = "Zero only for complete schema-valid normalization; non-zero on dimension, correlation, provenance or checksum failure."
+documentation = "crates/nsb-data-tools/README.md#gaia-xp-continuous-contract"
+
+[[binaries]]
+name = "validate_xp_continuous_reconstruction"
+path = "src/bin/validate_xp_continuous_reconstruction.rs"
+owner = "gaia-xp-continuous"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Validate reconstructed Gaia XP continuous spectra and integrated photon flux against the frozen scientific contract."
+inputs = "Canonical coefficients, reconstructed output, calibration provenance and tolerances."
+outputs = "Versioned parity and validation report."
+resume = "Not applicable; read-only deterministic validation."
+exit_codes = "Zero only when spectral, integrated-flux, uncertainty and provenance tolerances pass."
+documentation = "crates/nsb-data-tools/README.md#gaia-xp-continuous-contract"
+
+[[binaries]]
+name = "download_gaia_xp_continuous_bulk"
+path = "src/bin/download_gaia_xp_continuous_bulk.rs"
+owner = "gaia-acquisition"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Download official Gaia DR3 XP continuous bulk partitions with retries, inventory checksums and resumable storage."
+inputs = "Official bulk inventory, destination, storage policy and retry configuration."
+outputs = "Verified bulk partitions and acquisition manifest."
+resume = "Explicit resume reuses only checksum-verified partitions and continues incomplete downloads."
+exit_codes = "Zero only when the requested inventory subset is checksum verified; non-zero on corruption, missing inventory or exhausted retries."
+documentation = "crates/nsb-data-tools/README.md#gaia-acquisition-and-indexing"
+
+[[binaries]]
+name = "train_starlight_photometry_models"
+path = "src/bin/train_starlight_photometry_models.rs"
+owner = "starlight-modelling"
+audience = "researcher"
+status = "experimental"
+purpose = "Train and evaluate candidate Starlight photometry models from frozen, spatially split Gaia samples."
+inputs = "Canonical train/validation/test samples and versioned modelling policy."
+outputs = "Candidate model coefficients, diagnostics and holdout metrics."
+resume = "No implicit resume; model training is deterministic for a fixed policy and input checksum."
+exit_codes = "Zero only when dataset validation and requested model checks pass; output remains experimental until independently approved."
+documentation = "crates/nsb-data-tools/README.md#sampling-and-model-development"
+
+[[binaries]]
+name = "index_gaia_xp_continuous_bulk"
+path = "src/bin/index_gaia_xp_continuous_bulk.rs"
+owner = "gaia-acquisition"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Index official Gaia XP continuous bulk partitions for deterministic source lookup and partition planning."
+inputs = "Checksum-verified official bulk partitions."
+outputs = "Versioned partition/source index and diagnostics."
+resume = "Existing verified index partitions may be reused; rebuilding is deterministic."
+exit_codes = "Zero only when all indexed partitions and counts reconcile with the input inventory."
+documentation = "crates/nsb-data-tools/README.md#gaia-acquisition-and-indexing"
+
+[[binaries]]
+name = "audit_gaia_starlight_exclusions"
+path = "src/bin/audit_gaia_starlight_exclusions.rs"
+owner = "starlight-validation"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Audit Gaia Starlight scientific exclusions against the canonical source inventory and documented rejection policy."
+inputs = "Canonical catalogue, exclusions sidecar and source checksums."
+outputs = "Versioned exclusion audit report and exact reconciliation evidence."
+resume = "Not applicable; read-only deterministic audit."
+exit_codes = "Zero only when every exclusion is justified, unique and reconciled with the source inventory."
+documentation = "crates/nsb-data-tools/README.md#starlight-generation-and-validation"
+
+[[scripts]]
+path = "tools/starlight-xp-continuous/audit_gaiaxpy_environment.py"
+status = "migration-only"
+purpose = "Freeze GaiaXPy package and calibration-data provenance while the pure-Rust reconstruction tracked by #61 is developed."
+removal_issue = "#61"
+
+[[scripts]]
+path = "tools/starlight-xp-continuous/emit_phase5b_schema_artifacts.py"
+status = "migration-only"
+purpose = "Emit legacy cross-language schema evidence until the canonical schema is generated from Rust under #61."
+removal_issue = "#61"
+
+[[scripts]]
+path = "tools/starlight-xp-continuous/phase5b_gaiaxpy_flux_validate.py"
+status = "migration-only"
+purpose = "Generate independent GaiaXPy parity evidence until equivalent frozen Rust tests replace it under #61."
+removal_issue = "#61"
+
+[[scripts]]
+path = "tools/starlight-xp-continuous/reconstruct_and_integrate.py"
+status = "migration-only"
+purpose = "Provide pinned GaiaXPy reconstruction only for migration validation until the supported pure-Rust implementation in #61 is complete."
+removal_issue = "#61"
+
+[[scripts]]
+path = "tools/starlight-xp-continuous/test_audit_environment.py"
+status = "test-only"
+purpose = "Test the temporary GaiaXPy environment audit during the #61 migration."
+removal_issue = "#61"
