@@ -12,6 +12,8 @@ The reusable library boundary is split as follows:
 - `pipeline::admission`: fail-closed production admission and deterministic exit status;
 - `pipeline::checkpoint`: compact partition-oriented resume state with bounded diagnostics;
 - `pipeline::state`: evidence-driven cache transitions and recovery action for every persisted state;
+- `pipeline::store`: transactional persistence for strict partition-state records;
+- `pipeline::reconciliation`: canonical ordering, duplicate rejection, and checked aggregate accounting;
 - `artifact_io`: transactional JSON/byte persistence;
 - `checksum_io`: algorithm-qualified streaming checksum authority;
 - scientific Gaia/Starlight modules: transformation and validation algorithms only.
@@ -54,7 +56,7 @@ The durable order for a production partition is:
 9. transition the input to `Releasable` only after all release evidence is present;
 10. optionally delete the source input and persist `Deleted`.
 
-A crash between any two boundaries resumes through `PartitionState::resume_action`. The state machine covers `Planned`, `Downloading`, `Downloaded`, `ChecksumVerified`, `Processing`, `Processed`, `OutputVerified`, `Reconciled`, `Releasable`, `Deleted`, and `Failed` explicitly.
+A crash between any two boundaries resumes through `PartitionState::resume_action`. The state machine covers `Planned`, `Downloading`, `Downloaded`, `ChecksumVerified`, `Processing`, `Processed`, `OutputVerified`, `Reconciled`, `Releasable`, `Deleted`, and `Failed` explicitly. `write_partition_state` validates before an atomic write, and `read_partition_state` rejects corrupted or incompatible records before recovery proceeds.
 
 `Releasable` requires all of the following:
 
@@ -66,6 +68,12 @@ A crash between any two boundaries resumes through `PartitionState::resume_actio
 - committed reconciliation checksum.
 
 Partial, pilot, or candidate processing cannot satisfy this contract.
+
+## Deterministic reconciliation
+
+Each `PartitionManifest` proves full production coverage, exact row classification, the official input checksum, a SHA-256 output checksum, and a SHA-256 HEALPix checksum. `ReconciliationManifest` sorts partitions by immutable identifier, rejects duplicates, uses checked arithmetic for every aggregate, and validates persisted totals against the partition set.
+
+Canonical JSON is therefore independent of partition completion order or worker concurrency. Duplicate partitions, partial runs, inconsistent counts, unknown fields, unsupported schemas, and modified aggregate totals fail closed.
 
 ## Checkpoint scalability
 
@@ -90,7 +98,11 @@ Changes to production orchestration must include tests proving:
 - pilot or partial processing cannot become releasable;
 - complete production evidence can become releasable;
 - every persisted state has a deterministic resume action;
+- every durable state round-trips transactionally;
+- corrupted and unknown state fields fail closed;
+- reconciliation is invariant to processing order;
+- duplicate, partial, and inconsistent partition manifests are rejected;
 - checkpoint diagnostics and serialized size remain bounded;
 - unknown fields and unsupported schema versions fail closed.
 
-Fault-injection and end-to-end suites should build on these contracts rather than duplicating state decisions inside binaries. The architecture and pipeline contract tests are mandatory release gates for every retained orchestration change.
+The architecture, recovery, reconciliation, and pipeline contract tests are mandatory release gates for every retained orchestration change.
