@@ -14,5 +14,6 @@ pub mod gaia_xp_continuous_pilot_io;
 pub mod starlight_approval;
 pub mod starlight_integrated;
 pub mod starlight_phase5;
+pub mod starlight_phase5_uncertainty;
 pub mod starlight_sampling;
 pub mod starlight_science;
