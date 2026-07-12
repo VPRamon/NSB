@@ -30,18 +30,44 @@ jobs:
       - name: Format
         run: cargo fmt --all
       - name: Compile library and integration tests
-        run: cargo check --locked -p nsb-data-tools --lib --tests
-      - name: Lint data tools
-        run: cargo clippy --locked -p nsb-data-tools --lib --tests -- -D warnings
-      - name: Remove one-shot workflow and publish result
+        id: check
         shell: bash
         run: |
-          rm .github/workflows/issue-60-one-shot.yml
+          set +e
+          cargo check --locked -p nsb-data-tools --lib --tests > issue60-check.log 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Lint data tools
+        id: clippy
+        shell: bash
+        run: |
+          set +e
+          cargo clippy --locked -p nsb-data-tools --lib --tests -- -D warnings > issue60-clippy.log 2>&1
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Publish formatted result and diagnostics
+        if: always()
+        shell: bash
+        run: |
+          check_status='${{ steps.check.outputs.status }}'
+          clippy_status='${{ steps.clippy.outputs.status }}'
+          if [[ "$check_status" == 0 && "$clippy_status" == 0 ]]; then
+            rm -f issue60-check.log issue60-clippy.log
+            rm .github/workflows/issue-60-one-shot.yml
+          else
+            mkdir -p .github/diagnostics
+            mv issue60-check.log .github/diagnostics/issue60-check.log
+            mv issue60-clippy.log .github/diagnostics/issue60-clippy.log
+          fi
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
-          if git diff --cached --quiet; then
-            exit 0
+          if ! git diff --cached --quiet; then
+            git commit -m "style: format pipeline contracts and capture diagnostics"
+            git push origin HEAD:agent/resolve-issue-60
           fi
-          git commit -m "style: format and validate pipeline contracts"
-          git push origin HEAD:agent/resolve-issue-60
+          if [[ "$check_status" != 0 || "$clippy_status" != 0 ]]; then
+            exit 1
+          fi
