@@ -203,6 +203,57 @@ impl GaiaXpPhotonIntegrationContract {
     }
 }
 
+fn same_contract_float(left: f64, right: f64) -> bool {
+    if left == right {
+        return true;
+    }
+    if !left.is_finite() || !right.is_finite() {
+        return false;
+    }
+    let scale = left.abs().max(right.abs());
+    scale > 0.0 && (left - right).abs() <= 4.0 * f64::EPSILON * scale
+}
+
+/// Compare two contracts while allowing only serialization-scale floating-point rounding.
+///
+/// Schema versions, identifiers, policies, indices and lengths must match exactly.
+/// Floating-point fields may differ by at most four relative machine epsilons,
+/// accommodating decimal JSON parsing without accepting scientifically meaningful drift.
+pub fn gaia_xp_photon_contracts_match(
+    left: &GaiaXpPhotonIntegrationContract,
+    right: &GaiaXpPhotonIntegrationContract,
+) -> bool {
+    left.schema_version == right.schema_version
+        && left.contract_id == right.contract_id
+        && same_contract_float(left.band.min_nm, right.band.min_nm)
+        && same_contract_float(left.band.max_nm, right.band.max_nm)
+        && left.band.boundary_policy == right.band.boundary_policy
+        && same_contract_float(left.sampled_grid.start_nm, right.sampled_grid.start_nm)
+        && same_contract_float(left.sampled_grid.end_nm, right.sampled_grid.end_nm)
+        && same_contract_float(left.sampled_grid.step_nm, right.sampled_grid.step_nm)
+        && left.sampled_grid.length == right.sampled_grid.length
+        && left.sampled_grid.band_start_index == right.sampled_grid.band_start_index
+        && left.sampled_grid.band_end_index == right.sampled_grid.band_end_index
+        && left.integration == right.integration
+        && left.identifiers == right.identifiers
+        && same_contract_float(
+            left.parity_tolerances.spectral_flux_relative,
+            right.parity_tolerances.spectral_flux_relative,
+        )
+        && same_contract_float(
+            left.parity_tolerances.integrated_flux_relative,
+            right.parity_tolerances.integrated_flux_relative,
+        )
+        && same_contract_float(
+            left.parity_tolerances.integrated_uncertainty_relative,
+            right.parity_tolerances.integrated_uncertainty_relative,
+        )
+        && same_contract_float(
+            left.parity_tolerances.absolute_floor,
+            right.parity_tolerances.absolute_floor,
+        )
+}
+
 /// Parse and strictly validate a versioned Gaia XP scientific contract.
 pub fn parse_gaia_xp_photon_contract(raw: &str) -> Result<GaiaXpPhotonIntegrationContract> {
     let contract: GaiaXpPhotonIntegrationContract =
@@ -269,10 +320,18 @@ mod tests {
 
     #[test]
     fn generated_contract_matches_production_rust_authority() {
-        assert_eq!(
+        assert!(gaia_xp_photon_contracts_match(
             gaia_xp_photon_contract(),
-            &authoritative_gaia_xp_photon_contract()
-        );
+            &authoritative_gaia_xp_photon_contract(),
+        ));
+    }
+
+    #[test]
+    fn meaningful_tolerance_drift_is_rejected() {
+        let generated = gaia_xp_photon_contract();
+        let mut drifted = authoritative_gaia_xp_photon_contract();
+        drifted.parity_tolerances.absolute_floor *= 2.0;
+        assert!(!gaia_xp_photon_contracts_match(generated, &drifted));
     }
 
     #[test]
