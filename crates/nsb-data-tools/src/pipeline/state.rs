@@ -64,7 +64,10 @@ pub enum TransitionEvidence {
     /// Acquisition was intentionally started.
     DownloadStarted,
     /// Download completed with the given non-zero durable size.
-    DownloadCompleted { bytes: u64 },
+    DownloadCompleted {
+        /// Durable size of the completed download in bytes.
+        bytes: u64,
+    },
     /// Official checksum and recomputed checksum matched.
     ChecksumMatched {
         /// Checksum from the authoritative inventory.
@@ -99,7 +102,10 @@ pub enum TransitionEvidence {
     /// Cleanup deleted the source input.
     Deleted,
     /// Operation failed with a non-empty diagnostic.
-    Failed { reason: String },
+    Failed {
+        /// Non-empty diagnostic explaining the failed operation.
+        reason: String,
+    },
     /// Retry acquisition after a recorded failure.
     RetryDownload,
     /// Retry processing after a recorded failure with verified input evidence.
