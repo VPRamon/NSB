@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use nsb_data_tools::checksum_io::sha256_file;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
 struct Args {

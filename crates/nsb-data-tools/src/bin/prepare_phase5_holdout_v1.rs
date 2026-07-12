@@ -1,6 +1,6 @@
 //! Prepare independent Phase 5 holdout v1 with spatial cells disjoint from Phase 4.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use clap::{Parser, Subcommand};
 use csv::{ReaderBuilder, WriterBuilder};
 use nsb_data_tools::checksum_io::sha256_file;
@@ -109,7 +109,9 @@ fn parse_bool(value: &str) -> bool {
     matches!(value.trim().to_ascii_lowercase().as_str(), "true" | "1")
 }
 
-fn load_forbidden_sets(missing_flux_root: &Path) -> Result<(HashSet<u64>, HashSet<u32>, HashSet<u64>)> {
+fn load_forbidden_sets(
+    missing_flux_root: &Path,
+) -> Result<(HashSet<u64>, HashSet<u32>, HashSet<u64>)> {
     let splits = load_split_map(&missing_flux_root.join(PHASE4_SPLITS))?;
     let mut phase4_source_ids = HashSet::new();
     let mut phase4_cells = HashSet::new();
@@ -118,10 +120,14 @@ fn load_forbidden_sets(missing_flux_root: &Path) -> Result<(HashSet<u64>, HashSe
         phase4_cells.insert(*cell);
     }
     let mut overlap_ids = HashSet::new();
-    let mut reader = ReaderBuilder::new().from_path(missing_flux_root.join("phase4_sample_sources.csv"))?;
+    let mut reader =
+        ReaderBuilder::new().from_path(missing_flux_root.join("phase4_sample_sources.csv"))?;
     let headers = reader.headers()?.clone();
     let sid_idx = headers.iter().position(|h| h == "source_id").unwrap();
-    let hc = headers.iter().position(|h| h == "has_xp_continuous").unwrap();
+    let hc = headers
+        .iter()
+        .position(|h| h == "has_xp_continuous")
+        .unwrap();
     let hs = headers.iter().position(|h| h == "has_xp_sampled").unwrap();
     for row in reader.records() {
         let row = row?;
@@ -161,7 +167,11 @@ fn generate_queries(holdout_root: &Path) -> Result<()> {
         holdout_root.join("phase5_holdout_v1_query_manifest.json"),
         serde_json::to_string_pretty(&manifest)? + "\n",
     )?;
-    println!("wrote {} holdout queries -> {}", entries.len(), jobs.display());
+    println!(
+        "wrote {} holdout queries -> {}",
+        entries.len(),
+        jobs.display()
+    );
     Ok(())
 }
 
@@ -179,11 +189,7 @@ struct HoldoutSplitManifest {
     generation_timestamp_utc: String,
 }
 
-fn consolidate(
-    missing_flux_root: &Path,
-    holdout_root: &Path,
-    results_dir: &str,
-) -> Result<()> {
+fn consolidate(missing_flux_root: &Path, holdout_root: &Path, results_dir: &str) -> Result<()> {
     let (phase4_source_ids, phase4_cells, phase4_overlap_ids) =
         load_forbidden_sets(missing_flux_root)?;
     let grid = HealpixGrid::new(Nside::new(HOLDOUT_NSIDE)?, HealpixOrdering::Ring)?;
@@ -225,20 +231,45 @@ fn consolidate(
                 split: "holdout_v1".to_string(),
                 spatial_cell: cell,
                 strata: stratum.name.to_string(),
-                phot_g_mean_mag: record.get(idx("phot_g_mean_mag").unwrap()).and_then(|v| v.parse().ok()),
-                bp_rp: record.get(idx("bp_rp").unwrap()).and_then(|v| v.parse().ok()),
-                phot_g_mean_flux_over_error: record.get(idx("phot_g_mean_flux_over_error").unwrap()).and_then(|v| v.parse().ok()),
-                phot_bp_rp_excess_factor: record.get(idx("phot_bp_rp_excess_factor").unwrap()).and_then(|v| v.parse().ok()),
-                phot_bp_n_blended_transits: record.get(idx("phot_bp_n_blended_transits").unwrap()).and_then(|v| v.parse().ok()),
-                phot_rp_n_blended_transits: record.get(idx("phot_rp_n_blended_transits").unwrap()).and_then(|v| v.parse().ok()),
+                phot_g_mean_mag: record
+                    .get(idx("phot_g_mean_mag").unwrap())
+                    .and_then(|v| v.parse().ok()),
+                bp_rp: record
+                    .get(idx("bp_rp").unwrap())
+                    .and_then(|v| v.parse().ok()),
+                phot_g_mean_flux_over_error: record
+                    .get(idx("phot_g_mean_flux_over_error").unwrap())
+                    .and_then(|v| v.parse().ok()),
+                phot_bp_rp_excess_factor: record
+                    .get(idx("phot_bp_rp_excess_factor").unwrap())
+                    .and_then(|v| v.parse().ok()),
+                phot_bp_n_blended_transits: record
+                    .get(idx("phot_bp_n_blended_transits").unwrap())
+                    .and_then(|v| v.parse().ok()),
+                phot_rp_n_blended_transits: record
+                    .get(idx("phot_rp_n_blended_transits").unwrap())
+                    .and_then(|v| v.parse().ok()),
                 l: Some(l),
                 b: Some(b),
-                duplicated_source: record.get(idx("duplicated_source").unwrap()).is_some_and(parse_bool),
-                phot_variable_flag: record.get(idx("phot_variable_flag").unwrap()).unwrap_or("").to_string(),
-                in_qso_candidates: record.get(idx("in_qso_candidates").unwrap()).is_some_and(parse_bool),
-                in_galaxy_candidates: record.get(idx("in_galaxy_candidates").unwrap()).is_some_and(parse_bool),
+                duplicated_source: record
+                    .get(idx("duplicated_source").unwrap())
+                    .is_some_and(parse_bool),
+                phot_variable_flag: record
+                    .get(idx("phot_variable_flag").unwrap())
+                    .unwrap_or("")
+                    .to_string(),
+                in_qso_candidates: record
+                    .get(idx("in_qso_candidates").unwrap())
+                    .is_some_and(parse_bool),
+                in_galaxy_candidates: record
+                    .get(idx("in_galaxy_candidates").unwrap())
+                    .is_some_and(parse_bool),
             };
-            memberships.push((source_id, "xp_sampled_overlap".to_string(), stratum.name.to_string()));
+            memberships.push((
+                source_id,
+                "xp_sampled_overlap".to_string(),
+                stratum.name.to_string(),
+            ));
             selected.insert(source_id, row);
             picked += 1;
         }
@@ -246,16 +277,24 @@ fn consolidate(
     }
 
     if selected.is_empty() {
-        anyhow::bail!("no holdout sources selected; run TAP queries into {}", results_root.display());
+        anyhow::bail!(
+            "no holdout sources selected; run TAP queries into {}",
+            results_root.display()
+        );
     }
 
     let rows: Vec<_> = selected.into_values().collect();
     write_targets_csv(&holdout_root.join("phase5_holdout_v1_sources.csv"), &rows)?;
 
-    let mut membership_writer = WriterBuilder::new().from_path(holdout_root.join("phase5_holdout_v1_memberships.csv"))?;
+    let mut membership_writer =
+        WriterBuilder::new().from_path(holdout_root.join("phase5_holdout_v1_memberships.csv"))?;
     membership_writer.write_record(["source_id", "population", "stratum"])?;
     for (source_id, population, stratum) in &memberships {
-        membership_writer.write_record([source_id.to_string(), population.clone(), stratum.clone()])?;
+        membership_writer.write_record([
+            source_id.to_string(),
+            population.clone(),
+            stratum.clone(),
+        ])?;
     }
     membership_writer.flush()?;
 
