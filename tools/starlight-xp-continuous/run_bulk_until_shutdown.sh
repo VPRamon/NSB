@@ -20,6 +20,13 @@ echo "repo=$NSB_REPO commit=$(git -C "$NSB_REPO" rev-parse HEAD)"
 mountpoint -q "$GAIA_USB_MOUNT" || { echo "USB not mounted"; exit 1; }
 
 cd "$NSB_REPO"
+WORKERS="${PRODUCTION_WORKERS:-0}"
+echo "production_workers=${WORKERS} (0=auto)"
+
+cargo build --release --locked -p nsb-data-tools \
+  --bin run_starlight_xp_continuous_bulk_pipeline \
+  --bin run_phase5b_mini_pilot 2>&1 | tail -3
+
 ITER=0
 while true; do
   ITER=$((ITER + 1))
@@ -31,6 +38,7 @@ while true; do
     --file-limit 1 \
     --production-row-limit 0 \
     --production-batch-size 500 \
+    --production-workers "$WORKERS" \
     --frozen-policy "$STARLIGHT_FROZEN_POLICY" \
     --gaiaxpy-environment "$STARLIGHT_GAIAXPY_ENV" \
     --usb-mountpoint "$GAIA_USB_MOUNT" \

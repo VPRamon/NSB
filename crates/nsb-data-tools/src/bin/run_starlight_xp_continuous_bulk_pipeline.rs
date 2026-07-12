@@ -26,6 +26,7 @@ use nsb_data_tools::gaia_xp_continuous_bulk_reconciliation::{
     sync_ledger_from_merge_state, write_root_manifest, PartitionReconciliationManifest,
 };
 use nsb_data_tools::gaia_xp_continuous_pilot_io::atomic_write_json;
+use nsb_data_tools::gaia_xp_continuous_tool_launch::run_mini_pilot_command;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -67,6 +68,9 @@ struct Args {
     production_row_limit: usize,
     #[arg(long, default_value_t = 500)]
     production_batch_size: usize,
+    /// Parallel GaiaXPy workers per partition (0 = auto: min(cores-2, 8)).
+    #[arg(long, default_value_t = 0)]
+    production_workers: usize,
     #[arg(long)]
     gaiaxpy_environment: Option<PathBuf>,
     #[arg(long, default_value_t = false)]
@@ -378,6 +382,8 @@ fn main() -> Result<()> {
                 &rehearsal_dir,
                 args.rehearsal_row_limit,
                 args.rehearsal_batch_size,
+                1,
+                false,
                 true,
                 &args,
             )?;
@@ -389,6 +395,8 @@ fn main() -> Result<()> {
             &rehearsal_dir,
             args.rehearsal_row_limit,
             args.rehearsal_batch_size,
+            1,
+            false,
             false,
             &args,
         )?;
@@ -424,6 +432,8 @@ fn main() -> Result<()> {
                 &uninterrupted,
                 args.rehearsal_row_limit,
                 args.rehearsal_batch_size,
+                1,
+                false,
                 false,
                 &args,
             )?;
@@ -432,6 +442,8 @@ fn main() -> Result<()> {
                 &resumed,
                 half,
                 args.rehearsal_batch_size,
+                1,
+                false,
                 false,
                 &args,
             )?;
@@ -440,6 +452,8 @@ fn main() -> Result<()> {
                 &resumed,
                 half,
                 args.rehearsal_batch_size,
+                1,
+                false,
                 true,
                 &args,
             )?;
@@ -664,50 +678,38 @@ fn resolve_rehearsal_bulk(
         .with_context(|| "no rehearsal bulk .csv.gz found in input cache or pilot directory")
 }
 
+fn production_workers(args: &Args) -> usize {
+    if args.production_workers > 0 {
+        return args.production_workers;
+    }
+    std::thread::available_parallelism()
+        .map(|count| count.get().saturating_sub(2).clamp(1, 8))
+        .unwrap_or(4)
+}
+
+#[allow(clippy::too_many_arguments)]
 fn run_mini_pilot(
     bulk_gz: &Path,
     output_dir: &Path,
     row_limit: usize,
     batch_size: usize,
+    workers: usize,
+    skip_normalized_output: bool,
     resume: bool,
     args: &Args,
 ) -> Result<()> {
     fs::create_dir_all(output_dir)?;
-    let mut cmd = Command::new("cargo");
-    cmd.args([
-        "run",
-        "--locked",
-        "-q",
-        "-p",
-        "nsb-data-tools",
-        "--bin",
-        "run_phase5b_mini_pilot",
-        "--",
-        "--bulk-gz",
-    ])
-    .arg(bulk_gz)
-    .args(["--output-dir"])
-    .arg(output_dir)
-    .args(["--row-limit"])
-    .arg(row_limit.to_string())
-    .args(["--batch-size"])
-    .arg(batch_size.to_string());
-    if let Some(policy) = &args.frozen_policy {
-        cmd.args(["--frozen-policy"]).arg(policy);
-    }
-    if let Some(env) = &args.gaiaxpy_environment {
-        cmd.args(["--gaiaxpy-environment"]).arg(env);
-    }
-    if resume {
-        cmd.arg("--resume");
-    }
-    let status = cmd
-        .status()
-        .context("failed to launch run_phase5b_mini_pilot")?;
-    if !status.success() {
-        bail!("run_phase5b_mini_pilot failed with status {status}");
-    }
-    Ok(())
+    run_mini_pilot_command(
+        bulk_gz,
+        output_dir,
+        row_limit,
+        batch_size,
+        workers,
+        skip_normalized_output,
+        resume,
+        args.frozen_policy.as_deref(),
+        args.gaiaxpy_environment.as_deref(),
+    )
 }
 
 fn read_rehearsal_report(
@@ -890,6 +892,8 @@ fn process_verified_cache_files(
             &output_dir,
             args.rehearsal_row_limit,
             args.rehearsal_batch_size,
+            1,
+            false,
             false,
             args,
         )?;
@@ -996,6 +1000,7 @@ fn run_production_loop(
                 &output_dir,
                 args.production_row_limit,
                 args.production_batch_size,
+                production_workers(args),
                 args.resume,
                 args,
             )?);
@@ -1017,6 +1022,9 @@ fn run_production_loop(
                 &ledger_path,
             ));
             processed = true;
+            if output_dir.exists() {
+                fs::remove_dir_all(&output_dir)?;
+            }
         }
 
         if processed {
@@ -1078,44 +1086,13 @@ fn run_production_stream(
     output_dir: &Path,
     row_limit: usize,
     batch_size: usize,
+    workers: usize,
     resume: bool,
     args: &Args,
 ) -> Result<ProductionStreamMetrics> {
-    fs::create_dir_all(output_dir)?;
-    let mut cmd = Command::new("cargo");
-    cmd.args([
-        "run",
-        "--locked",
-        "-q",
-        "-p",
-        "nsb-data-tools",
-        "--bin",
-        "run_phase5b_mini_pilot",
-        "--",
-        "--bulk-gz",
-    ])
-    .arg(bulk_gz)
-    .args(["--output-dir"])
-    .arg(output_dir)
-    .args(["--row-limit"])
-    .arg(row_limit.to_string())
-    .args(["--batch-size"])
-    .arg(batch_size.to_string());
-    if let Some(policy) = &args.frozen_policy {
-        cmd.args(["--frozen-policy"]).arg(policy);
-    }
-    if let Some(env) = &args.gaiaxpy_environment {
-        cmd.args(["--gaiaxpy-environment"]).arg(env);
-    }
-    if resume {
-        cmd.arg("--resume");
-    }
-    let status = cmd
-        .status()
-        .context("failed to launch run_phase5b_mini_pilot production stream")?;
-    if !status.success() {
-        bail!("production stream failed with status {status}");
-    }
+    run_mini_pilot(
+        bulk_gz, output_dir, row_limit, batch_size, workers, true, resume, args,
+    )?;
 
     let metrics: serde_json::Value = serde_json::from_str(&fs::read_to_string(
         output_dir.join("phase5b_mini_pilot_metrics.json"),
@@ -1146,6 +1123,7 @@ fn download_cache_file(filename: &str, args: &Args) -> Result<()> {
     let mut cmd = Command::new("cargo");
     cmd.args([
         "run",
+        "--release",
         "--locked",
         "-q",
         "-p",

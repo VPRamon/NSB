@@ -34,6 +34,9 @@ struct Args {
     row_limit: usize,
     #[arg(long, default_value_t = 500)]
     batch_size: usize,
+    /// Parallel GaiaXPy batch workers (wave size). Each worker runs one Python batch.
+    #[arg(long, default_value_t = 1)]
+    workers: usize,
     #[arg(long, default_value_t = 64)]
     nside: u32,
     #[arg(long, default_value_t = 0)]
@@ -286,6 +289,10 @@ fn run_python_batch(
     let manifest = output_dir.join("batch_manifest.json");
     let mut command = Command::new(python);
     command
+        .env("OMP_NUM_THREADS", "1")
+        .env("OPENBLAS_NUM_THREADS", "1")
+        .env("MKL_NUM_THREADS", "1")
+        .env("NUMEXPR_NUM_THREADS", "1")
         .arg(script)
         .arg("--coefficient-file")
         .arg(coefficient_csv)
@@ -364,6 +371,7 @@ fn main() -> Result<()> {
     } else if args.start_row > 0 {
         skip_stream_rows(&mut stream, args.start_row)?;
     }
+    let workers = args.workers.max(1);
     let mut batch: Vec<CanonicalXpContinuousRecord> = Vec::with_capacity(args.batch_size);
     let mut batch_index = checkpoint
         .processed_source_ids
@@ -379,47 +387,78 @@ fn main() -> Result<()> {
     };
 
     while rows_in_window < row_window {
-        let Some(record) = stream.next_record()? else {
-            break;
-        };
-        checkpoint.row_index += 1;
-        rows_in_window += 1;
-        if processed.contains(&record.source_id) {
-            continue;
-        }
-        batch.push(record);
-        let pending = batch.len();
-        if pending >= args.batch_size || rows_in_window >= row_window {
-            process_batch(
-                &args.output_dir,
-                &coefficients_root,
-                &python,
-                &reconstruct_script,
-                &mut batch,
-                batch_index,
-                &mut checkpoint,
-                args.skip_normalized_output,
-            )?;
+        let mut wave: Vec<(u64, Vec<CanonicalXpContinuousRecord>)> = Vec::with_capacity(workers);
+        while wave.len() < workers && rows_in_window < row_window {
+            while batch.len() < args.batch_size && rows_in_window < row_window {
+                let Some(record) = stream.next_record()? else {
+                    rows_in_window = row_window;
+                    break;
+                };
+                checkpoint.row_index += 1;
+                rows_in_window += 1;
+                if processed.contains(&record.source_id) {
+                    continue;
+                }
+                batch.push(record);
+            }
+            if batch.is_empty() {
+                break;
+            }
+            wave.push((batch_index, std::mem::take(&mut batch)));
             batch_index += 1;
-            processed.extend(checkpoint.processed_source_ids.iter().cloned());
-            checkpoint.timestamp_utc = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
-            save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint)?;
-            peak_rss = peak_rss.max(peak_rss_kib());
         }
-    }
+        if wave.is_empty() {
+            break;
+        }
 
-    if !batch.is_empty() {
-        process_batch(
-            &args.output_dir,
-            &coefficients_root,
-            &python,
-            &reconstruct_script,
-            &mut batch,
-            batch_index,
-            &mut checkpoint,
-            args.skip_normalized_output,
-        )?;
+        let python_path = python.clone();
+        let script_path = reconstruct_script.clone();
+        let coefficients_root_path = coefficients_root.to_path_buf();
+        let output_dir_path = args.output_dir.clone();
+        let skip_output = args.skip_normalized_output;
+
+        let mut wave_results = if workers == 1 {
+            let (index, records) = wave.pop().expect("non-empty wave");
+            vec![run_batch_gaiaxpy(
+                &coefficients_root_path,
+                &output_dir_path,
+                &python_path,
+                &script_path,
+                index,
+                records,
+                skip_output,
+            )]
+        } else {
+            std::thread::scope(|scope| {
+                wave.into_iter()
+                    .map(|(index, records)| {
+                        let coefficients_root_path = coefficients_root_path.clone();
+                        let output_dir_path = output_dir_path.clone();
+                        let python_path = python_path.clone();
+                        let script_path = script_path.clone();
+                        scope.spawn(move || {
+                            run_batch_gaiaxpy(
+                                &coefficients_root_path,
+                                &output_dir_path,
+                                &python_path,
+                                &script_path,
+                                index,
+                                records,
+                                skip_output,
+                            )
+                        })
+                    })
+                    .map(|handle| handle.join().expect("batch worker panicked"))
+                    .collect::<Vec<_>>()
+            })
+        };
+        wave_results.sort_by_key(|result| result.batch_index);
+        for result in wave_results {
+            apply_batch_outcomes(&mut checkpoint, result)?;
+        }
+        checkpoint.timestamp_utc = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint)?;
+        processed.extend(checkpoint.processed_source_ids.iter().cloned());
         peak_rss = peak_rss.max(peak_rss_kib());
     }
 
@@ -445,6 +484,7 @@ fn main() -> Result<()> {
         "peak_rss_kib": peak_rss,
         "checkpoint_interval": args.batch_size,
         "chunk_size": args.batch_size,
+        "workers": workers,
         "flux_checksum": flux_checksum(&checkpoint.flux_by_source_id),
         "healpix_checksum": checkpoint.healpix.checksum(),
         "integrated_flux_checksum": flux_checksum(&checkpoint.flux_by_source_id),
@@ -487,30 +527,91 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-fn process_batch(
-    output_dir: &Path,
+struct BatchGaiaxpyResult {
+    batch_index: u64,
+    records: Vec<CanonicalXpContinuousRecord>,
+    outcomes: Result<HashMap<String, ReconstructionOutcome>>,
+}
+
+fn run_batch_gaiaxpy(
     coefficients_root: &Path,
+    output_dir: &Path,
     python: &Path,
     reconstruct_script: &Path,
-    batch: &mut Vec<CanonicalXpContinuousRecord>,
     batch_index: u64,
-    checkpoint: &mut MiniPilotCheckpoint,
+    records: Vec<CanonicalXpContinuousRecord>,
     skip_normalized_output: bool,
-) -> Result<()> {
+) -> BatchGaiaxpyResult {
     let batch_csv = coefficients_root.join(format!("batch_{batch_index:05}.csv"));
-    write_gaiaxpy_datalink_csv_batch(&batch_csv, batch)?;
-    let recon_dir = output_dir.join(format!("normalized_batch_{batch_index:05}"));
-    let outcomes = match run_python_batch(
-        python,
-        reconstruct_script,
-        &batch_csv,
-        &recon_dir,
-        skip_normalized_output,
-    ) {
-        Ok(outcomes) => outcomes,
+    let outcomes = (|| -> Result<HashMap<String, ReconstructionOutcome>> {
+        write_gaiaxpy_datalink_csv_batch(&batch_csv, &records)?;
+        let recon_dir = output_dir.join(format!("normalized_batch_{batch_index:05}"));
+        let outcomes = run_python_batch(
+            python,
+            reconstruct_script,
+            &batch_csv,
+            &recon_dir,
+            skip_normalized_output,
+        )?;
+        if skip_normalized_output {
+            let _ = fs::remove_dir_all(recon_dir);
+            let _ = fs::remove_file(batch_csv);
+        }
+        Ok(outcomes)
+    })();
+    BatchGaiaxpyResult {
+        batch_index,
+        records,
+        outcomes,
+    }
+}
+
+fn apply_batch_outcomes(
+    checkpoint: &mut MiniPilotCheckpoint,
+    result: BatchGaiaxpyResult,
+) -> Result<()> {
+    match result.outcomes {
+        Ok(outcomes) => {
+            for record in result.records {
+                let healpix_index = gaia_source_healpix_index(record.source_id.parse::<u64>()?);
+                match outcomes.get(&record.source_id) {
+                    Some(outcome) if outcome.flux.is_finite() && outcome.flux > 0.0 => {
+                        checkpoint.healpix.accumulate_valid(
+                            healpix_index,
+                            outcome.flux,
+                            outcome.uncertainty,
+                            0.0,
+                        )?;
+                        checkpoint
+                            .flux_by_source_id
+                            .insert(record.source_id.clone(), outcome.flux);
+                        checkpoint
+                            .processed_source_ids
+                            .push(record.source_id.clone());
+                        checkpoint.rows_valid += 1;
+                        checkpoint.last_source_id = Some(record.source_id);
+                    }
+                    Some(outcome) => {
+                        register_exclusion(
+                            checkpoint,
+                            &record,
+                            "non_positive_flux",
+                            format!("flux={}", outcome.flux),
+                        )?;
+                    }
+                    None => {
+                        register_exclusion(
+                            checkpoint,
+                            &record,
+                            "missing_gaiaxpy_outcome",
+                            "GaiaXPy batch did not return this source".to_string(),
+                        )?;
+                    }
+                }
+            }
+        }
         Err(error) => {
-            for record in batch.drain(..) {
+            for record in result.records {
                 register_failure(
                     checkpoint,
                     &record,
@@ -518,48 +619,7 @@ fn process_batch(
                     error.to_string(),
                 )?;
             }
-            return Ok(());
         }
-    };
-    for record in batch.drain(..) {
-        let healpix_index = gaia_source_healpix_index(record.source_id.parse::<u64>()?);
-        match outcomes.get(&record.source_id) {
-            Some(outcome) if outcome.flux.is_finite() && outcome.flux > 0.0 => {
-                checkpoint.healpix.accumulate_valid(
-                    healpix_index,
-                    outcome.flux,
-                    outcome.uncertainty,
-                    0.0,
-                )?;
-                checkpoint
-                    .flux_by_source_id
-                    .insert(record.source_id.clone(), outcome.flux);
-                checkpoint
-                    .processed_source_ids
-                    .push(record.source_id.clone());
-                checkpoint.rows_valid += 1;
-                checkpoint.last_source_id = Some(record.source_id);
-            }
-            Some(outcome) => {
-                register_exclusion(
-                    checkpoint,
-                    &record,
-                    "non_positive_flux",
-                    format!("flux={}", outcome.flux),
-                )?;
-            }
-            None => {
-                register_exclusion(
-                    checkpoint,
-                    &record,
-                    "missing_gaiaxpy_outcome",
-                    "GaiaXPy batch did not return this source".to_string(),
-                )?;
-            }
-        }
-    }
-    if skip_normalized_output {
-        let _ = fs::remove_dir_all(recon_dir);
     }
     Ok(())
 }
