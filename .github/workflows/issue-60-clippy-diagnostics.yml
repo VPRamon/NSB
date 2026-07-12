@@ -1,5 +1,6 @@
 name: Issue 60 Clippy diagnostics
 
+# Self-removing diagnostic run.
 on:
   push:
     branches: [agent/resolve-issue-60]
