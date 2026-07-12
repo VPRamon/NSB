@@ -1,0 +1,42 @@
+name: Issue 60 format and lockfile repair
+
+on:
+  push:
+    branches: [agent/resolve-issue-60]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/resolve-issue-60
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@1.89
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - shell: bash
+        run: |
+          set +e
+          cargo fmt --all
+          cargo check -p nsb-data-tools --lib > issue60-repair.log 2>&1
+          status=$?
+          rm -rf .github/diagnostics
+          rm .github/workflows/issue-60-format-lock.yml
+          if [[ $status != 0 ]]; then
+            mkdir -p .github/diagnostics
+            mv issue60-repair.log .github/diagnostics/issue60-repair.log
+          else
+            rm issue60-repair.log
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "style: format issue 60 changes and refresh lockfile"
+          git push origin HEAD:agent/resolve-issue-60
+          exit $status
