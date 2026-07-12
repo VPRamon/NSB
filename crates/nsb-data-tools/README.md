@@ -1,218 +1,256 @@
 # nsb-data-tools
 
-Offline, non-runtime tools for scientific data products.
+Offline Rust tools for building, validating and releasing NSB scientific data
+products. Runtime NSB never invokes this crate.
 
-- `generate_gaia_starlight_release_inputs`: maintainer-only Gaia DR3 release
-  input generator. It writes the Gaia metadata query, optionally downloads Gaia
-  metadata through TAP, merges parsed XP chunk files, computes the Gaia extract
-  checksum, writes diagnostics, and emits a `starlight_release_inputs.env` file
-  for the downstream starlight release pipeline. Runtime NSB never calls this
-  tool.
-- `prepare_tycho_starlight_catalogue`: converts local BT/VT catalogue rows to
-  canonical rows, verifies input SHA-256, and emits JSON diagnostics. Its colour
-  transform is explicitly experimental.
-- `prepare_gaia_starlight_catalogue`: converts official Gaia DR3 XP sampled bulk
-  files or a normalized DataLink fallback extract into canonical passband-
-  integrated source rows using Siderust Gaia/passband APIs.
-- `build_starlight_map`: delegates transforms, HEALPix, construction, and
-  validators to Siderust; writes a complete map and optional JSON diagnostics.
-  It supports both the legacy proxy B/V input and Gaia passband photon-flux
-  source tables.
-- `sweep_starlight_nside`: runs candidate map builds for multiple HEALPix
-  resolutions, writes `summary.json` schema v2 with separate candidate and
-  production gates, and supports `--assess-existing` to reevaluate persisted
-  sweep artefacts without rebuilding maps.
-- `validate_starlight_map`: emits a validation report for generated maps.
-- `pack_starlight_asset`: writes a raw release HEALPix CSV and runtime TOML
-  manifest for a derived bundled asset candidate or production asset.
-- `verify_assets`: verifies the asset registry, required metadata, schemas,
-  checksums, file coverage, and configured headers.
+The normative command inventory is
+[`tool-registry.toml`](tool-registry.toml). Every compiled binary must be listed
+there with its owner, audience, maturity, purpose, input/output contract, resume
+semantics, exit-code contract and documentation anchor. CI rejects undocumented
+commands, phase-numbered binaries, unregistered Python/shell programs,
+developer-specific absolute paths and generated machine reports committed as
+source.
 
-## Phase 5 XP continuous (PR #56)
+## Design policy
 
-Phase 5 scientific validation is **closed** on independent holdout v1
-(`PHASE 5 SCIENTIFIC VALIDATION PASSED`). Policy v1 is frozen at checksum
-`c525de3ec6d0022a6ed468f8f2bde2515e8f8364915f5a7a02492eee21947b74`.
-Bulk 184.7M XP continuous-only processing and the integrated production map are
-**not** part of this PR; see issue #47.
+A retained command must provide a durable capability useful to an external user,
+researcher or release maintainer. Historical development steps, one-off policy
+freezes, pilot runners and phase-finalization executables are not part of the
+supported command surface. Their reusable algorithms remain library code and
+their scientific evidence remains as frozen fixtures or documentation.
 
-Key binaries: `prepare_starlight_phase5`, `download_xp_continuous_phase5`,
-`finalize_phase5_holdout_v1`, `run_phase5_holdout_v1_validation`,
-`freeze_phase5_validation_policy_v1`, `pack_starlight_asset` (candidate-only
-until production approvals complete).
+All compiled commands are Rust. The remaining Python files are explicitly
+migration-only or test-only reference implementations for GaiaXPy parity and are
+tracked for removal by issue #61. Shell orchestration is not supported.
+
+The command boundary should stay thin:
+
+1. parse arguments;
+2. initialize logging;
+3. construct typed configuration;
+4. call reusable library code;
+5. return a stable success or failure status.
+
+Generated products and operational reports belong under a caller-selected output
+directory, never at the repository root.
+
+## Maturity levels
+
+- **supported**: durable maintainer capability with a fail-closed contract;
+- **experimental**: useful research capability whose scientific output is not
+  production approved;
+- **migration-only**: temporary non-Rust reference required only while #61 is
+  open;
+- **test-only**: helper used exclusively to verify temporary migration evidence.
+
+Candidate generation and production admission are separate. A successful
+candidate command does not imply that a product is approved for runtime use.
+
+## Asset verification and release
+
+### `verify_assets`
+
+Verifies the runtime asset registry, file coverage, schemas, required metadata
+and checksums.
 
 ```bash
 cargo run --locked -p nsb-data-tools --bin verify_assets -- \
   --manifest crates/nsb/data/manifest.toml
 ```
 
-## Gaia DR3 release input generation
+This command is suitable for CI and external release verification. It exits zero
+only when every registered asset passes.
 
-Smoke/candidate run for the legacy DataLink input generator (fallback path only):
+### `pack_starlight_asset`
 
-```bash
-cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_inputs -- \
-  --out-dir target/starlight-smoke \
-  --max-g-mag 12.0 \
-  --limit 1000 \
-  --chunk-size 100 \
-  --band-min-nm 336 \
-  --band-max-nm 650 \
-  --candidate \
-  --resume
-```
+Packages a validated Starlight map and its runtime manifest. Production mode is
+fail-closed: incomplete provenance, missing validation evidence or inconsistent
+checksums must prevent packaging as a production asset.
 
-Production-style DataLink retrieval (fallback when official bulk is unavailable):
+The command is deterministic from immutable inputs and has no implicit resume
+state.
 
-```bash
-cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_inputs -- \
-  --out-dir target/starlight-release \
-  --max-g-mag 20.0 \
-  --chunk-size 5000 \
-  --band-min-nm 336 \
-  --band-max-nm 650 \
-  --license-policy-file docs/policies/gaia_dr3_starlight_derived_product_policy.txt \
-  --validation-reference validation/starlight_independent_reference_v1.json \
-  --xp-retrieval gaia-datalink \
-  --production \
-  --resume
-```
+## Catalogue preparation
 
-The tool writes:
+### `prepare_gaia_starlight_catalogue`
 
-```text
-target/starlight-release/gaia_dr3_starlight_extract.adql
-target/starlight-release/gaia_dr3_metadata.csv
-target/starlight-release/gaia_dr3_xp_chunks/
-target/starlight-release/gaia_dr3_starlight_extract.csv
-target/starlight-release/gaia_dr3_starlight_extract.diagnostics.json
-target/starlight-release/gaia_dr3_starlight_extract.sha256
-target/starlight-release/gaia_derived_product_policy.txt
-target/starlight-release/starlight_release_inputs.env
-```
-
-The XP chunk merger expects chunk files that expose `source_id`,
-`xp_wavelength_nm`, and `xp_flux_w_m2_nm` as CSV columns or equivalent JSON
-fields. If the Gaia DataLink response is stored in a different native layout,
-keep the raw chunks and adapt the parser before using `--production`.
-
-## Gaia DR3 XP sampled bulk preparation
-
-Production preparation reads the official ECSV `*.csv.gz` bulk inventory
-(one row per source). Each row exposes `source_id`, `solution_id`, `ra`, `dec`,
-`flux`, and `flux_error`. The spectral columns are quoted CSV fields containing
-bracketed comma-separated arrays with exactly 343 samples on the implicit XP
-sampled grid 336–1020 nm (step 2 nm). NSB integrates only the inclusive
-336–650 nm band (indices 0..=157). There is no per-row `wavelength` column in
-the bulk product.
-
-The tool streams each gzip file without loading the full inventory into memory,
-fuses bulk checksum verification with the parse pass, and rejects the deprecated
-long schema that assumed one CSV row per wavelength sample. The normalized
-DataLink fallback (`--input`) still uses explicit semicolon-separated wavelength
-series per source.
+Converts official Gaia DR3 XP sampled bulk files, or a normalized controlled
+fallback, into canonical passband-integrated Starlight source rows. It streams
+gzip inputs, verifies source provenance and writes deterministic exclusions and
+diagnostics.
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
-  --bulk-dir "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_xp_sampled_bulk" \
-  --output target/starlight-release/gaia_dr3_starlight_sources.csv \
-  --diagnostics-output target/starlight-release/gaia_dr3_starlight_sources.diagnostics.json \
-  --catalog-name "Gaia" \
-  --catalog-release "DR3" \
+cargo run --locked --release -p nsb-data-tools \
+  --bin prepare_gaia_starlight_catalogue -- \
+  --bulk-dir /data/gaia-dr3-xp-sampled \
+  --output /data/starlight/gaia_dr3_starlight_sources.csv \
+  --diagnostics-output /data/starlight/gaia_dr3_starlight_sources.diagnostics.json \
+  --exclusions-output /data/starlight/gaia_dr3_starlight_exclusions.csv \
+  --catalog-name Gaia \
+  --catalog-release DR3 \
   --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
-  --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
-  --band-min-nm 336 \
-  --band-max-nm 650 \
-  --exclusions-output target/starlight-release/gaia_dr3_starlight_exclusions.csv
-```
-
-Scientific exclusions (non-positive passband integrals) are written to a
-deterministic CSV sidecar with `source_id`, signed integral diagnostics, and
-sample counts. Production runs require `--exclusions-output` when exclusions
-exist. To regenerate only the sidecar from the official bulk inventory without
-rewriting the canonical catalogue:
-
-```bash
-OUT="$HOME/nsb-data/starlight-gaia-release"
-BULK="$OUT/gaia_dr3_xp_sampled_bulk"
-LICENSE='Gaia DR3 data are open and free to use with credit to ESA/Gaia/DPAC; NSB redistributes only a derived validated runtime starlight map'
-
-cargo run --locked --release -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
-  --bulk-dir "$BULK" \
-  --exclusions-only \
-  --exclusions-output "$OUT/gaia_dr3_starlight_exclusions.csv" \
-  --diagnostics-output "$OUT/gaia_dr3_starlight_exclusions.diagnostics.json" \
-  --catalog-name "Gaia" \
-  --catalog-release "DR3" \
-  --catalog-license "$LICENSE" \
-  --photometry-model "gaia_dr3_xp_photon_radiance_336_650nm_v1" \
+  --photometry-model gaia_dr3_xp_photon_radiance_336_650nm_v1 \
   --band-min-nm 336 \
   --band-max-nm 650
 ```
 
-This command re-reads the bulk inventory, writes only the exclusions sidecar and
-its diagnostics, and must yield exactly 10 scientific exclusions for the
-validated 2026-07-11 run.
+Production conversion rejects malformed spectra, incomplete provenance,
+inconsistent source accounting and invalid photometry. `--exclusions-only` may
+regenerate the deterministic exclusions evidence without rewriting an already
+validated canonical catalogue.
 
-The validated canonical catalogue for the 2026-07-11 release run must not be
-regenerated unnecessarily. Its streaming SHA-256 is:
+### `prepare_tycho_starlight_catalogue`
 
-```text
-1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30
-```
+Experimental converter for controlled Tycho BT/VT studies. Its photometric
+transform is not a production Starlight calibration. The command verifies the
+input checksum and writes canonical rows plus diagnostics.
 
-## Gaia DR3 nside sweep and reassessment
+## Gaia acquisition and indexing
 
-Candidate recommendation and production promotion are separate. A provisional
-independent reference (`production_use: false` in
-`validation/starlight_independent_reference_v1.json`) may still support
-selecting the highest `nside` that passes internal science and operational
-gates, but production remains blocked until reviewed external reference,
-missing-flux assessment, and redistribution policy gates are satisfied.
+### `query_gaia_tap`
 
-Full sweep (rebuilds maps):
+Executes reproducible Gaia TAP jobs with persisted manifests, retries, result
+validation and explicit resume behavior. A resumed job may reuse only a
+persisted valid result or continue the same asynchronous service job.
 
-```bash
-cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
-  --input "$HOME/nsb-data/starlight-gaia-release/gaia_dr3_starlight_sources.csv" \
-  --output-dir "$HOME/nsb-data/starlight-gaia-release/sweep" \
-  --reference validation/starlight_independent_reference_v1.json \
-  --catalog-checksum "sha256:1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30" \
-  --catalog-license "$GAIA_DERIVED_PRODUCT_LICENSE_POLICY" \
-  --generation-date-utc "2026-07-11T14:02:43Z"
-```
+### `generate_gaia_starlight_release_inputs`
 
-Reassess existing artefacts without rereading the 4.7 GiB catalogue or
-rebuilding maps:
+Generates the Gaia metadata query, optionally retrieves metadata, merges
+normalized XP inputs, computes checksums and emits the downstream release-input
+configuration. The official bulk path is preferred; Gaia DataLink is a
+controlled fallback.
 
 ```bash
-OUT="$HOME/nsb-data/starlight-gaia-release"
-SWEEP="$OUT/sweep"
-CATALOG_SHA="1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30"
+cargo run --locked -p nsb-data-tools \
+  --bin generate_gaia_starlight_release_inputs -- \
+  --out-dir /data/starlight/release-inputs \
+  --max-g-mag 20.0 \
+  --band-min-nm 336 \
+  --band-max-nm 650 \
+  --license-policy-file docs/policies/gaia_dr3_starlight_derived_product_policy.txt \
+  --validation-reference validation/starlight_independent_reference_v1.json \
+  --production \
+  --resume
+```
 
-cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
-  --output-dir "$SWEEP" \
+Production mode fails on missing products, parse failures, missing provenance or
+unreconciled source counts.
+
+### `download_gaia_xp_continuous_bulk`
+
+Downloads official Gaia DR3 XP continuous bulk partitions from a pinned
+inventory. Resume reuses only checksum-verified partitions. Partial, truncated
+or checksum-mismatched files are never promoted as complete.
+
+### `index_gaia_xp_continuous_bulk`
+
+Builds a deterministic partition/source index from checksum-verified official
+bulk files. The index must reconcile with the inventory before the command exits
+successfully.
+
+## Gaia XP continuous contract
+
+### `normalize_xp_continuous_coefficients`
+
+Normalizes official bulk or DataLink coefficient records into the versioned
+canonical Rust schema. It validates coefficient dimensions, errors, packed
+correlations, source provenance and exact rejection accounting.
+
+### `validate_xp_continuous_reconstruction`
+
+Validates reconstructed spectra, integrated photon flux, uncertainty and
+calibration provenance against frozen scientific tolerances. It is read-only and
+deterministic.
+
+GaiaXPy-based reconstruction and parity scripts remain temporary migration
+evidence only. They are not a supported user interface and will be removed by
+#61 after the pure-Rust reconstruction passes the frozen oracle corpus.
+
+## Sampling and model development
+
+### `generate_starlight_sample_queries`
+
+Generates deterministic stratified Gaia ADQL queries from the versioned sampling
+contract.
+
+### `consolidate_gaia_starlight_samples`
+
+Inventories completed jobs, validates results, deduplicates sources and applies
+the frozen spatial split. Reruns reuse persisted TAP results but recompute the
+canonical consolidated outputs deterministically.
+
+### `train_starlight_photometry_models`
+
+Experimental model-development command. It consumes frozen train, validation and
+test splits and writes candidate coefficients plus holdout metrics. Its outputs
+are not production approved without the independent validation and admission
+steps tracked by issue #47.
+
+## Starlight generation and validation
+
+### `build_starlight_map`
+
+Builds a full-sky deterministic HEALPix map from a canonical source catalogue.
+Coordinate transforms, HEALPix primitives and generic validators are delegated
+to Siderust.
+
+### `sweep_starlight_nside`
+
+Builds candidate maps at multiple HEALPix resolutions or reassesses persisted
+artefacts without rereading the source catalogue.
+
+```bash
+cargo run --locked --release -p nsb-data-tools \
+  --bin sweep_starlight_nside -- \
+  --output-dir /data/starlight/sweep \
   --assess-existing \
   --catalog-checksum "sha256:$CATALOG_SHA"
 ```
 
-Observed 2026-07-11 reassessment:
+Candidate recommendation and production admission remain separate. Use
+`--require-production-ready` only when a failing production gate must produce a
+non-zero status.
 
-```text
-recommended_candidate_nside = 256
-candidate_recommendation_passed = true
-production_ready = false
-production_blockers:
-  independent_reference_not_approved_for_production
-  missing_flux_report_not_approved
-  redistribution_policy_not_approved
-```
+### `validate_starlight_map`
 
-Use `--require-production-ready` only when an automated production promotion
-is intended; the default candidate assessment exits successfully when a
-candidate recommendation exists even if production is blocked.
+Produces the structural, scientific and independent-reference validation report
+for a generated map. Missing evidence and failed requested gates are errors.
 
-The normalized DataLink fallback (`--input` to `prepare_gaia_starlight_catalogue`)
-remains for controlled validation or repair when the official bulk inventory is
-unavailable. See `docs/STELLAR_MAP_GENERATION.md` for the validated 336–650 nm
-bulk workflow and candidate `nside=256` sweep outcome.
+### `audit_gaia_starlight_exclusions`
+
+Reconciles the scientific exclusions sidecar against the canonical Gaia source
+inventory. Every exclusion must be unique, justified and accounted for.
+
+### `build_integrated_starlight_product`
+
+Combines approved population contributions into an integrated Starlight
+candidate and records explicit production blockers. It must not present a
+candidate as production-ready while any admission gate remains unresolved.
+
+## Removed historical commands
+
+Phase-numbered executables and shell wrappers were removed because they encoded
+completed development steps rather than durable capabilities. This includes
+Phase 5 preparation/finalization, holdout freezing/finalization, pilot runners,
+chunk benchmarks, merge/resume probes and one-off reconciliation audits.
+
+Reusable parsing, uncertainty, validation and modelling code remains in library
+modules and automated tests. Frozen policy files, reports and scientific fixtures
+remain available for reproducibility.
+
+Do not reintroduce a historical command under a new name. Add a new command only
+when it has a durable audience and outcome, then register it in
+`tool-registry.toml` with complete contracts.
+
+## Complete command contracts
+
+The full machine-readable contract for every retained command is maintained in
+[`tool-registry.toml`](tool-registry.toml). That file is the source of truth for:
+
+- ownership and intended audience;
+- maturity;
+- purpose;
+- input and output contracts;
+- resume/idempotency behavior;
+- exit-code semantics;
+- documentation location.
