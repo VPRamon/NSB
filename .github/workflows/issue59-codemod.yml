@@ -6,6 +6,7 @@ on:
       - agent/resolve-issue-59
     paths:
       - tools/issue59_codemod.py
+      - tools/issue59_fixup.py
       - .github/workflows/issue59-codemod.yml
   pull_request:
     branches:
@@ -34,7 +35,9 @@ jobs:
           components: rustfmt
 
       - name: Apply deterministic transformation
-        run: python3 tools/issue59_codemod.py
+        run: |
+          python3 tools/issue59_codemod.py
+          python3 tools/issue59_fixup.py
 
       - name: Format workspace
         run: cargo fmt --all
@@ -67,7 +70,7 @@ jobs:
 
       - name: Remove one-shot automation
         if: success()
-        run: git rm tools/issue59_codemod.py .github/workflows/issue59-codemod.yml
+        run: git rm tools/issue59_codemod.py tools/issue59_fixup.py .github/workflows/issue59-codemod.yml
 
       - name: Commit generated patch
         if: success()
