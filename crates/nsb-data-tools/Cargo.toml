@@ -165,6 +165,10 @@ name = "run_phase5_holdout_v1_validation"
 path = "src/bin/run_phase5_holdout_v1_validation.rs"
 
 [[bin]]
+name = "finalize_phase5_holdout_v1"
+path = "src/bin/finalize_phase5_holdout_v1.rs"
+
+[[bin]]
 name = "audit_phase5_coefficient_reconciliation"
 path = "src/bin/audit_phase5_coefficient_reconciliation.rs"
 
