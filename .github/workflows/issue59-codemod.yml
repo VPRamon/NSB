@@ -47,20 +47,23 @@ jobs:
           cargo test --locked -p nsb-data-tools --lib --tests --no-run > /tmp/issue59-build.log 2>&1
           status=$?
           if [ "$status" -ne 0 ]; then
-            tail -n 300 /tmp/issue59-build.log > issue59_build_failure.log
+            tail -n 400 /tmp/issue59-build.log > issue59_build_failure.log
+            git diff --binary > issue59_generated.patch
             cat issue59_build_failure.log
             exit "$status"
           fi
           tail -n 40 /tmp/issue59-build.log
 
-      - name: Persist failed generated patch for repair
+      - name: Upload failed patch and compiler diagnostics
         if: failure()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore: capture issue 59 build diagnostics"
-          git push origin HEAD:agent/resolve-issue-59
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue59-build-diagnostics
+          path: |
+            issue59_build_failure.log
+            issue59_generated.patch
+          if-no-files-found: error
+          retention-days: 3
 
       - name: Remove one-shot automation
         if: success()
