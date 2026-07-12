@@ -123,8 +123,8 @@ pub struct JobInventoryEntry {
 #[derive(Debug, Clone, Deserialize)]
 struct TapJobManifest {
     status: String,
-    #[allow(dead_code)]
-    query_path: Option<String>,
+    #[serde(default, rename = "query_path")]
+    _query_path: Option<String>,
     output_path: Option<String>,
     job_url: Option<String>,
     http_status: Option<u16>,
