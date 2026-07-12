@@ -6,12 +6,21 @@ on:
       - agent/resolve-issue-59
     paths:
       - .github/workflows/issue59-contract-float-fix.yml
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 permissions:
   contents: write
+  pull-requests: read
 
 jobs:
   fix:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
