@@ -1,4 +1,10 @@
-# Gaia DR3 XP continuous bulk processing (Phase 5B)
+# Gaia DR3 XP continuous bulk processing
+
+> Phase 5B pilot executables were removed by issue #58 after their evidence was
+> frozen. This document preserves the scientific and operational conclusions of
+> those runs, but removed command names are not current usage instructions. See
+> [data-tool migration](DATA_TOOL_MIGRATION.md) and the normative
+> [`nsb-data-tools` registry](../crates/nsb-data-tools/tool-registry.toml).
 
 ## Official product
 
@@ -20,111 +26,72 @@ Primary documentation:
 - [xp_continuous_mean_spectrum datamodel](https://gea.esac.esa.int/archive/documentation/GDR3/Gaia_archive/chap_datamodel/sec_dm_spectroscopic_tables/ssec_dm_xp_continuous_mean_spectrum.html)
 - [Gaia archive programmatic access](https://www.cosmos.esa.int/web/gaia-users/archive/programmatic-access)
 
-Each bulk row contains `source_id`, BP/RP coefficient arrays, coefficient
-errors, and quality metadata. NSB reconstructs spectra offline with pinned
-GaiaXPy 2.1.4 and integrates the inclusive **336–650 nm** photon-flux band.
-This is **not** labelled as the integrated 300–650 nm product until the
-independently validated 300–336 nm correction (Phase 7) is applied.
+Each bulk row contains `source_id`, BP/RP coefficient arrays, coefficient errors
+and quality metadata. The migration reference reconstructs spectra offline with
+pinned GaiaXPy 2.1.4 and integrates the inclusive **336–650 nm** photon-flux
+band. GaiaXPy is temporary reference infrastructure tracked for replacement by
+pure Rust in #61.
 
-## Mandatory strategy
+The 336–650 nm result is **not** labelled as the integrated 300–650 nm product
+until the independently validated 300–336 nm correction is applied.
+
+## Mandatory production strategy
 
 Individual DataLink requests for 184,729,270 continuous-only sources are
-forbidden. The production path is:
+forbidden. The required capability pipeline is:
 
 ```text
 official bulk coefficient files
   → resumable MD5-validated download
-  → streaming ECSV batch read
-  → GaiaXPy reconstruction (pinned 2.1.4)
+  → canonical versioned coefficient records
+  → validated spectral reconstruction
   → integrate 336–650 nm
-  → apply frozen Phase 5 quality policy
-  → accumulate HEALPix (mean, variance, counts)
-  → checkpoint per bulk file / batch
-  → discard transient coefficient batches
+  → apply the frozen quality policy
+  → accumulate deterministic HEALPix contributions
+  → compact partition checkpoints and exact reconciliation
+  → discard transient coefficient batches only after durable verification
 ```
 
-Persistent outputs are manifests, checksums, batch accounting, rejected rows,
-HEALPix accumulators, and reproducible commands — not a 184M-row CSV.
+Persistent outputs are manifests, checksums, partition accounting, rejected-row
+evidence, HEALPix accumulators and reproducible commands—not a 184M-row CSV.
 
-## NSB tooling
+## Current supported tooling
 
-| Component | Path |
+| Capability | Current owner |
 | --- | --- |
-| Bulk downloader | `download_gaia_xp_continuous_bulk` |
-| Canonical adapter | `crates/nsb-data-tools/src/gaia_xp_continuous_canonical.rs` |
-| Prefix schema inspection | `crates/nsb-data-tools/src/gaia_xp_continuous_bulk_schema.rs` |
-| Bulk file index | `index_gaia_xp_continuous_bulk` |
-| Multifile pilot | `run_phase5b_multifile_pilot` |
-| Streaming mini-pilot | `run_phase5b_mini_pilot` |
-| Chunk benchmark | `run_phase5b_chunk_benchmark` |
-| Merge / resume validation | `run_phase5b_merge_validation`, `run_phase5b_resume_validation` |
-| HEALPix accumulator | `crates/nsb-data-tools/src/gaia_xp_continuous_healpix.rs` |
+| Official bulk download and checksum verification | `download_gaia_xp_continuous_bulk` |
+| Bulk partition/source index | `index_gaia_xp_continuous_bulk` |
+| Canonical coefficient normalization | `normalize_xp_continuous_coefficients` and `gaia_xp_continuous_canonical.rs` |
+| Reconstruction parity validation | `validate_xp_continuous_reconstruction` |
+| HEALPix accumulator implementation | `gaia_xp_continuous_healpix.rs` |
+| Integrated candidate construction | `build_integrated_starlight_product` |
+| Tool purpose and maturity | `crates/nsb-data-tools/tool-registry.toml` |
 
-## Phase 5B multifile pilot (2026-07-11)
+There is deliberately no supported command named after Phase 5 or Phase 5B.
+A production bulk orchestrator must be introduced only after #60 defines the
+state machine, compact checkpoints, transactional cleanup and crash/resume test
+contract. It must use a durable capability name and reusable library services.
+
+## Historical Phase 5B multifile pilot (2026-07-11)
 
 **PHASE 5B MULTIFILE PILOT PASSED — READY FOR SCIENTIFIC POLICY**
 
-Two downloaded prefixes (~2.75 GiB compressed):
+Two downloaded prefixes (~2.75 GiB compressed) were used:
 
 ```text
 XpContinuousMeanSpectrum_000000-003111.csv.gz
 XpContinuousMeanSpectrum_003112-005263.csv.gz
 ```
 
-| Gate | Result |
+| Gate | Recorded result |
 | --- | --- |
-| Same adapter / schema on both prefixes | PASS — identical headers, `bp_n_parameters=55`, 1485 correlations |
+| Same adapter/schema on both prefixes | PASS — identical headers, `bp_n_parameters=55`, 1485 correlations |
 | Multifile streaming (20,000 rows / 19,995 valid) | PASS — peak RSS ~50 MiB |
 | Per-file reconciliation | PASS — all exclusions logged (`non_positive_flux`) |
 | Resume (10k uninterrupted vs 5k+5k) | PASS |
 | Merge order independence (1→2 vs 2→1) | PASS — checksum `a875a1b0d0c302c…` |
-| Single-worker vs multi-worker merge | PASS |
-| Bulk index + row verification | PASS — both prefixes |
-| Chunk benchmark | **500** selected (100 / 500 / 1000) |
-| Resource estimate (184,729,270 sources) | ~44 d (1 worker), ~11 d (4 workers) at ~41.6 src/s |
 
-This validates **operational scalability** only. Final scientific policy still
-requires Phase 5 DataLink overlap train/validation/test and
-`phase5_frozen_validation_policy.json`.
-
-Evidence: `~/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/phase5b_multifile_*`
-
-Multifile pilot example:
-
-```bash
-cargo run --locked -p nsb-data-tools --bin run_phase5b_multifile_pilot -- \
-  --bulk-dir ~/nsb-data/.../bulk \
-  --output-dir ~/nsb-data/.../multifile_pilot \
-  --row-limit 10000 \
-  --batch-size 500 \
-  --gaiaxpy-environment ~/nsb-data/.../gaiaxpy_environment.json
-```
-
-Index locate with row verification:
-
-```bash
-cargo run --locked -p nsb-data-tools --bin index_gaia_xp_continuous_bulk -- \
-  --download-dir bulk --output-dir ~/nsb-data/.../ \
-  locate --source-id 4295806720 --verify-row
-```
-
-## Phase 5 DataLink (parallel)
-
-12,198-target stratified sample uses DataLink with a **single** resumable
-downloader. Do not start a second downloader. Bulk production must wait for
-`phase5_frozen_validation_policy.json` after overlap validation on test.
-
-## Resource estimates (184,729,270 XP continuous-only sources)
-
-From multifile pilot stable throughput (~41.6 valid sources/s, batch 500,
-peak RSS ~50 MiB per worker):
-
-| Scenario | Wall time (reconstruction) |
-| --- | --- |
-| 1 worker | ~44 days |
-| 4 workers | ~11 days |
-| 8 workers | ~5.5 days |
-| Bulk download (3.3 TiB @ 40 MiB/s) | ~24 h (transfer only) |
-
-Do **not** launch full-population processing until Phase 5 scientific policy is
-frozen and verified on the DataLink validation sample.
+These results remain historical evidence about the parser, reconstruction and
+accumulator. They are not evidence that the removed pilot architecture is safe
+for the full 184.7M-source production run. Production scalability and recovery
+must be demonstrated under #60.
