@@ -52,6 +52,11 @@ path = "src/bin/query_gaia_tap.rs"
 doc = false
 
 [[bin]]
+name = "export_starlight_healpix_to_contributions"
+path = "src/bin/export_starlight_healpix_to_contributions.rs"
+doc = false
+
+[[bin]]
 name = "build_integrated_starlight_product"
 path = "src/bin/build_integrated_starlight_product.rs"
 doc = false
