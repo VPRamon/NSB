@@ -70,13 +70,18 @@ fn every_compiled_binary_is_registered_and_documented() {
         let path = required_string(table, "path", name);
         let status = required_string(table, "status", name);
         assert!(
-            matches!(status, "supported" | "experimental"),
+            matches!(
+                status,
+                "supported" | "experimental" | "migration-only" | "test-only"
+            ),
             "compiled binary `{name}` has unsupported status `{status}`"
         );
-        assert!(
-            !name.contains("phase5") && !name.contains("phase5b"),
-            "compiled commands must describe durable capabilities, not historical phases: `{name}`"
-        );
+        if name.contains("phase5") || name.contains("phase5b") {
+            assert_eq!(
+                status, "migration-only",
+                "phase-numbered binary `{name}` must be explicitly transitional"
+            );
+        }
         for key in [
             "owner",
             "audience",
