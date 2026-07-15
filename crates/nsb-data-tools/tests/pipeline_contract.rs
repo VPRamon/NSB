@@ -1,6 +1,6 @@
 use anyhow::Result;
-use nsb_data_tools::checksum_io::{Checksum, ChecksumAlgorithm};
-use nsb_data_tools::pipeline::{
+use nsb_data_tools::platform::checksum_io::{Checksum, ChecksumAlgorithm};
+use nsb_data_tools::platform::pipeline::{
     AdmissionDecision, CacheInputState, DiagnosticSample, Gate, GateStatus, PartitionCheckpoint,
     PartitionCompletion, PartitionState, ProcessingMode, ProductionAdmission, ResumeAction,
     RowSelection, TransitionEvidence, MAX_DIAGNOSTIC_SAMPLES,

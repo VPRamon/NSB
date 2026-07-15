@@ -76,7 +76,7 @@ cargo deny check
 Run the asset and tool inventories independently:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin verify_assets -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- assets verify \
   --manifest crates/nsb/data/manifest.toml
 cargo test --locked -p nsb-data-tools --test tool_registry
 ```

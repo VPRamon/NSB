@@ -13,9 +13,9 @@ cargo build --locked --release -p nsb-data-tools
 Then invoke the compiled capabilities directly:
 
 ```text
-target/release/normalize_xp_continuous_coefficients ...
-target/release/reconstruct_canonical_coefficients ...
-target/release/validate_xp_continuous_reconstruction ...
+nsb-data starlight xp-continuous normalize ...
+nsb-data starlight xp-continuous reconstruct ...
+nsb-data starlight xp-continuous validate ...
 ```
 
 No command launches Python, GaiaXPy, `cargo run`, or another maintainer executable as a subprocess.
@@ -47,6 +47,6 @@ The frozen oracle under `crates/nsb-data-tools/tests/fixtures/gaiaxpy_oracle/` w
 
 ## Provenance
 
-`reconstruct_canonical_coefficients` writes a versioned manifest containing the Rust implementation identifier, pinned GaiaXPy reference version, BP/RP model identifiers, design-fixture path and SHA-256, band/grid contract, integration implementation, input checksums, output checksums, and signed-sample diagnostics.
+`nsb-data starlight xp-continuous reconstruct` writes a versioned manifest containing the Rust implementation identifier, pinned GaiaXPy reference version, BP/RP model identifiers, design-fixture path and SHA-256, band/grid contract, integration implementation, input checksums, output checksums, and signed-sample diagnostics.
 
 The authoritative photon integration and uncertainty propagation are owned by `gaia_xp::integrate_photon_flux`; reconstruction does not carry a second integration algorithm.

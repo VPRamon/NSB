@@ -104,10 +104,11 @@ models, coordinate algorithms, or window-search logic.
 ### Architectural layers
 
 ```text
-src/bin/*
-  -> tool_services/*
-      -> scientific modules and pipeline modules
-          -> artifact/checksum/provenance primitives
+src/bin/nsb-data.rs
+  -> cli/
+      -> starlight/ actions and science
+      -> gaia/ acquisition and XP primitives
+      -> platform/ persistence, pipeline, logging, and registry
 ```
 
 A binary parses arguments, initializes logging, constructs typed configuration,
@@ -118,17 +119,16 @@ algorithms and persisted state machines belong below the executable boundary.
 
 | Module group | Responsibility |
 | --- | --- |
-| `tool_services` | Reusable entry services for every retained command |
-| `pipeline` | Processing modes, gates, admission, checkpoints, persisted state, stores, and reconciliation |
-| `artifact_io` / `checksum_io` | Transactional persistence and algorithm-qualified checksums |
-| `provenance` / `scientific_contract` | Versioned scientific and provenance contracts |
-| `gaia_*` | Gaia TAP, DataLink, bulk acquisition, XP sampled/continuous normalization, calibration, indexing, and reconciliation |
-| `starlight_*` | Sampling, modelling, uncertainty, approval, integration, generation, and validation behaviour |
+| `platform` | Persistence, checksums, logging, tool registry, and the durable pipeline framework |
+| `gaia::acquisition` | Gaia TAP, DataLink, and official bulk acquisition |
+| `gaia::xp` | XP sampled/continuous parsing, canonical data, calibration, indexing, and the versioned integration contract |
+| `starlight` | Science policy plus actions for acquisition, catalogue, XP processing, sampling, map, quality, product, and release |
 
 The normative executable inventory is
 `crates/nsb-data-tools/tool-registry.toml`. Every compiled command must have an
 owner, audience, maturity, purpose, input/output contract, resume semantics,
-exit-code contract, and documentation anchor.
+exit-code contract, and documentation anchor. No flat domain-prefixed modules,
+aliases, phase implementations, or ad-hoc executable scripts are retained.
 
 ## Data and asset boundaries
 

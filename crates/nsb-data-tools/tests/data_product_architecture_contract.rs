@@ -1,26 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const SERVICE_COMMANDS: &[&str] = &[
-    "audit_gaia_starlight_exclusions",
-    "build_integrated_starlight_product",
-    "build_starlight_map",
-    "consolidate_gaia_starlight_samples",
-    "generate_gaia_starlight_release_inputs",
-    "generate_starlight_sample_queries",
-    "index_gaia_xp_continuous_bulk",
-    "normalize_xp_continuous_coefficients",
-    "pack_starlight_asset",
-    "prepare_gaia_starlight_catalogue",
-    "prepare_tycho_starlight_catalogue",
-    "query_gaia_tap",
-    "sweep_starlight_nside",
-    "train_starlight_photometry_models",
-    "validate_starlight_map",
-    "validate_xp_continuous_reconstruction",
-    "verify_assets",
-];
-
 fn crate_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -32,59 +12,54 @@ fn read(path: impl AsRef<Path>) -> String {
 }
 
 #[test]
-fn every_registered_command_has_a_thin_adapter() {
+fn hierarchical_cli_is_the_only_thin_adapter() {
     let manifest = read(crate_root().join("Cargo.toml"));
-    for name in SERVICE_COMMANDS {
-        assert!(
-            manifest.contains(&format!("name = \"{name}\"")),
-            "service command {name} is absent from Cargo.toml"
-        );
-        let path = crate_root().join(format!("src/bin/{name}.rs"));
-        let source = read(&path);
-        assert!(
-            source.lines().count() < 30,
-            "{} owns command behavior instead of adapting a service",
-            path.display()
-        );
-        assert!(source.contains("tool_logging::init_from_env"));
-        assert!(source.contains(&format!("tool_services::{name}::run_cli")));
-        for forbidden in [
-            "clap::Parser",
-            "serde_json::Value",
-            "Command::new",
-            "struct Args",
-        ] {
-            assert!(
-                !source.contains(forbidden),
-                "{} reintroduced executable-owned behavior {forbidden:?}",
-                path.display()
-            );
-        }
+    assert_eq!(manifest.matches("[[bin]]").count(), 1);
+    let path = crate_root().join("src/bin/nsb-data.rs");
+    let source = read(&path);
+    assert!(source.lines().count() < 10);
+    assert!(source.contains("nsb_data_tools::cli::run"));
+    let cli = read(crate_root().join("src/cli/mod.rs"));
+    assert!(cli.contains("starlight map build"));
+    assert!(cli.contains("RenderToolReference"));
+}
 
-        let service = read(crate_root().join(format!("src/tool_services/{name}.rs")));
+#[test]
+fn flat_or_legacy_module_surfaces_are_absent() {
+    let source_root = crate_root().join("src");
+    for forbidden in ["phase5", "phase5b", "pilot_io", "/home/"] {
+        let output = std::process::Command::new("rg")
+            .arg("-l")
+            .arg(forbidden)
+            .arg(&source_root)
+            .output()
+            .expect("run rg");
         assert!(
-            service.contains("pub fn run_cli") || service.contains("pub async fn run_cli"),
-            "service {name} does not expose a documented CLI entrypoint"
+            output.stdout.is_empty(),
+            "legacy surface {forbidden:?} remains: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+    }
+
+    for file in [
+        "gaia_xp.rs",
+        "gaia_xp_continuous.rs",
+        "gaia_tap.rs",
+        "starlight_sampling.rs",
+        "tool_services",
+        "domains",
+        "provenance.rs",
+    ] {
+        assert!(
+            !source_root.join(file).exists(),
+            "flat or obsolete source surface {file:?} remains"
         );
     }
 }
 
 #[test]
-fn continuous_bulk_binary_remains_a_thin_adapter() {
-    let source = read(crate_root().join("src/bin/download_gaia_xp_continuous_bulk.rs"));
-    assert!(
-        source.lines().count() < 100,
-        "supported binary grew orchestration logic"
-    );
-    assert!(source.contains("run_continuous_bulk_download"));
-    assert!(!source.contains("BulkDownloader"));
-    assert!(!source.contains("serde_json::Value"));
-    assert!(!source.contains("Command::new"));
-}
-
-#[test]
 fn typed_pipeline_boundary_rejects_legacy_orchestration_patterns() {
-    let pipeline_root = crate_root().join("src/pipeline");
+    let pipeline_root = crate_root().join("src/platform/pipeline");
     let forbidden = [
         "row_limit == 0",
         "unwrap_or(args.skip",

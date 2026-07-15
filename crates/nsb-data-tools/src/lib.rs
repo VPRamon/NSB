@@ -4,32 +4,37 @@
 
 extern crate self as nsb_data_tools;
 
-pub mod artifact_io;
-pub mod checksum_io;
-pub mod gaia_bulk;
-#[deny(missing_docs)]
-pub mod gaia_bulk_service;
-pub mod gaia_datalink;
-pub mod gaia_tap;
-pub mod gaia_xp;
-pub mod gaia_xp_continuous;
-pub mod gaia_xp_continuous_bulk_index;
-pub mod gaia_xp_continuous_bulk_schema;
-pub mod gaia_xp_continuous_calibrate;
-pub mod gaia_xp_continuous_canonical;
-pub mod gaia_xp_continuous_healpix;
-pub mod gaia_xp_continuous_pilot_io;
-#[deny(missing_docs)]
-pub mod pipeline;
-pub mod provenance;
-pub mod scientific_contract;
-pub mod starlight_approval;
-pub mod starlight_integrated;
-pub mod starlight_phase5;
-pub mod starlight_phase5_holdout;
-pub mod starlight_phase5_uncertainty;
-pub mod starlight_sampling;
-pub mod starlight_science;
-#[deny(missing_docs)]
-pub mod tool_logging;
-pub mod tool_services;
+pub mod cli;
+pub mod gaia;
+pub mod platform;
+pub mod starlight;
+
+use clap::Parser;
+use std::cell::RefCell;
+use std::ffi::OsString;
+
+thread_local! {
+    static COMMAND_ARGUMENTS: RefCell<Option<Vec<OsString>>> = const { RefCell::new(None) };
+}
+
+/// Parse the arguments supplied by the hierarchical `nsb-data` command.
+///
+/// Action implementations retain their own typed argument schemas while the
+/// root CLI owns command discovery and routing.
+pub fn parse_command_args<T: Parser>() -> T {
+    COMMAND_ARGUMENTS.with(|stored| match stored.borrow().as_ref() {
+        Some(arguments) => T::parse_from(arguments),
+        None => T::parse(),
+    })
+}
+
+/// Run one action with its command-local argument vector.
+pub fn with_command_args<T>(arguments: Vec<OsString>, run: impl FnOnce() -> T) -> T {
+    COMMAND_ARGUMENTS.with(|stored| {
+        assert!(stored.borrow().is_none(), "nested nsb-data action dispatch");
+        *stored.borrow_mut() = Some(arguments);
+        let result = run();
+        *stored.borrow_mut() = None;
+        result
+    })
+}

@@ -1,12 +1,12 @@
 //! Frozen GaiaXPy 2.1.4 parity gate for in-process XP continuous calibration.
 
-use nsb_data_tools::gaia_xp::integrate_photon_flux;
-use nsb_data_tools::gaia_xp_continuous::PINNED_GAIA_XPY_VERSION;
-use nsb_data_tools::gaia_xp_continuous_calibrate::GaiaXpContinuousCalibrator;
-use nsb_data_tools::gaia_xp_continuous_canonical::{
+use nsb_data_tools::gaia::xp::calibrate::GaiaXpContinuousCalibrator;
+use nsb_data_tools::gaia::xp::canonical::{
     packed_correlation_len, CanonicalXpContinuousRecord, XpContinuousSourceFormat,
     CANONICAL_XP_CONTINUOUS_SCHEMA,
 };
+use nsb_data_tools::gaia::xp::continuous::PINNED_GAIA_XPY_VERSION;
+use nsb_data_tools::gaia::xp::sampled::integrate_photon_flux;
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
