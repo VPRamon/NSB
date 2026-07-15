@@ -1,25 +1,4 @@
-use anyhow::{bail, Context, Result};
-use clap::{Parser, ValueEnum};
-use csv::{ReaderBuilder, StringRecord, WriterBuilder};
-use nsb_data_tools::gaia_bulk::{BulkConfig, BulkDownloader, BulkPaths};
-use nsb_data_tools::gaia_datalink::{
-    rebuild_normalized_chunks, DatalinkConfig, DatalinkDownloader, DownloadPaths, DownloadReport,
-    NormalizationReport,
-};
-use nsb_data_tools::gaia_xp::{
-    integrate_photon_flux, parse_normalized_record, PhotonFluxIntegral, XpProduct, BAND_MAX_NM,
-    BAND_MIN_NM, NORMALIZED_FLUX_COLUMN, NORMALIZED_FLUX_ERROR_COLUMN,
-    NORMALIZED_WAVELENGTH_COLUMN,
-};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use sha2::{Digest, Sha256};
-use std::collections::{BTreeMap, BTreeSet};
-use std::fs::{self, File};
-use std::io::{Read, Write};
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
-use std::time::Duration;
+//! Thin executable adapter for `generate_gaia_starlight_release_inputs`.
 
 const DEFAULT_TAP_URL: &str = "https://gea.esac.esa.int/tap-server/tap/sync";
 const DEFAULT_DATALINK_URL: &str = "https://gea.esac.esa.int/data-server/data";

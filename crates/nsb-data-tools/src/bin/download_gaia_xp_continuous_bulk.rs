@@ -3,7 +3,7 @@
 //! When USB cache arguments are supplied, downloads run through the rotating USB
 //! cache state machine with vfat-safe size limits and transactional writes.
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use clap::Parser;
 use nsb_data_tools::gaia_bulk::{BulkConfig, BulkDownloader, BulkPaths, BulkReport};
 use nsb_data_tools::gaia_usb_cache::UsbCacheLayout;
@@ -24,9 +24,9 @@ struct Args {
     download_dir: Option<PathBuf>,
     #[arg(long)]
     resume: bool,
-    /// Deterministic prefix of the official inventory for pilots and tests.
+    /// Deterministic non-zero prefix of the official inventory for pilots and tests.
     #[arg(long)]
-    file_limit: Option<usize>,
+    file_limit: Option<NonZeroUsize>,
     #[arg(long, default_value_t = 4)]
     concurrency: usize,
     #[arg(long, default_value_t = 3600)]
@@ -195,13 +195,6 @@ fn write_report(path: &PathBuf, report: &BulkReport) -> Result<()> {
     let mut bytes = serde_json::to_vec_pretty(report)?;
     bytes.push(b'\n');
     fs::write(path, bytes)?;
-    println!(
-        "Gaia XP continuous bulk: {}/{} files complete, {:.2} MiB/s, report -> {}",
-        report.completed_files,
-        report.expected_files,
-        report.throughput_bytes_per_second / (1024.0 * 1024.0),
-        path.display()
-    );
     Ok(())
 }
 
