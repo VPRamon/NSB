@@ -7,6 +7,11 @@ once a stable public release is cut.
 
 ### Changed
 
+- Consolidated `nsb-data-tools` from 36 compiled binaries to 19 durable,
+  capability-oriented Rust commands; removed Phase 5/5B one-shot executables,
+  shell orchestration, and Python data-product programs; added pure-Rust Gaia XP
+  continuous reconstruction, a normative tool registry, and CI-enforced
+  documentation and maturity contracts (#58, #61).
 - Consolidated `nsb-data-tools` from 36 compiled binaries to 18 durable,
   capability-oriented commands; removed Phase 5/5B one-shot executables, shell
   orchestration and the deprecated Python pilot wrapper; added a normative tool
@@ -31,16 +36,15 @@ once a stable public release is cut.
 
 - Starlight production foundation (PR #56): normative 300–650 nm contract,
   deterministic Gaia sampling, XP continuous acquisition/reconstruction tooling,
-  dual overlap/absolute uncertainty contract, frozen Phase 5 policy v1, independent
-  holdout validation (`PHASE 5 SCIENTIFIC VALIDATION PASSED`), fail-closed approval
-  and candidate infrastructure, validation/packing/runtime foundations.
-  Global Starlight integrated product remains pending (#47).
-
+  dual overlap/absolute uncertainty contract, frozen Phase 5 policy v1,
+  independent holdout validation, fail-closed approval and candidate
+  infrastructure, validation/packing/runtime foundations. The global integrated
+  starlight product remains pending (#47).
 - NSB-side Gaia DR3 starlight release pipeline harness: documented Gaia
   extraction recipe, Gaia XP passband source preparation, Gaia photon-flux
   HEALPix map generation path, validation report command, and candidate asset
-  packer. The real bundled production asset remains pending real Gaia
-  extraction and independent validation.
+  packer. The real bundled production asset remains pending real Gaia extraction
+  and independent validation.
 - Build-script plumbing for the Gaia DR3 bundled production starlight CSV/TOML:
   exactly one registered production release pair is checksum-embedded and loaded
   through the runtime validated-map contract; absent assets fail closed.

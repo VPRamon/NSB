@@ -53,10 +53,10 @@ candidate command does not imply that a product is approved for runtime use.
 Verifies the runtime asset registry, file coverage, schemas, required metadata
 and checksums.
 
-```bash
-cargo run --locked -p nsb-data-tools --bin verify_assets -- \
-  --manifest crates/nsb/data/manifest.toml
-```
+The normative command inventory is
+[`tool-registry.toml`](tool-registry.toml). The complete human-readable reference
+is [Data-tool reference](../../docs/maintainer-guide/tools.md), and the end-to-end
+operational procedure is [Updating scientific data](../../docs/maintainer-guide/updating-data.md).
 
 This command is suitable for CI and external release verification. It exits zero
 only when every registered asset passes.
