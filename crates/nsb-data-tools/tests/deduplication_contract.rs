@@ -1,4 +1,4 @@
-use nsb_data_tools::scientific_contract::{
+use nsb_data_tools::gaia::xp::contract::{
     authoritative_gaia_xp_photon_contract, gaia_xp_photon_contract, gaia_xp_photon_contracts_match,
 };
 use std::fs;
@@ -53,7 +53,7 @@ fn python_scientific_implementations_are_removed() {
 #[test]
 fn canonical_xp_continuous_schema_has_no_legacy_parallel_model() {
     let root = repository_root();
-    let text = fs::read_to_string(root.join("crates/nsb-data-tools/src/gaia_xp_continuous.rs"))
+    let text = fs::read_to_string(root.join("crates/nsb-data-tools/src/gaia/xp/continuous.rs"))
         .expect("XP continuous module");
     assert!(!text.contains("ContinuousCoefficients"));
     assert!(!text.contains("canonical_to_legacy"));
@@ -71,7 +71,7 @@ fn production_rust_has_one_sha256_file_implementation() {
         })
         .collect::<Vec<_>>();
     assert_eq!(definitions.len(), 1, "SHA-256 helpers: {definitions:?}");
-    assert!(definitions[0].0.ends_with("checksum_io.rs"));
+    assert!(definitions[0].0.ends_with("platform/checksum_io.rs"));
     assert_eq!(definitions[0].1, 1);
 }
 
