@@ -19,16 +19,16 @@ planning product to calibrated science.
 1. [Updating scientific data](updating-data.md)
 2. [Data-product workflow](data-products.md)
 3. [Data-tool reference](tools.md)
-4. [Data-product pipeline architecture](../DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
-5. [Validation matrix](../VALIDATION.md)
-6. [Release checklist](../RELEASE_CHECKLIST.md)
+4. [Data-product pipeline architecture](../specifications/data-product-pipeline.md)
+5. [Validation matrix](../specifications/validation.md)
+6. [Release checklist](../operations/release-checklist.md)
 
 For starlight work, continue with:
 
-- [Starlight science requirements](../STELLAR_MAP_SCIENCE_REQUIREMENTS.md)
-- [Starlight generation](../STELLAR_MAP_GENERATION.md)
-- [Starlight validation](../STELLAR_MAP_VALIDATION.md)
-- [External starlight manifest](../EXTERNAL_STARLIGHT_MANIFEST.md)
+- [Starlight science requirements](../nsb_components/starlight/science-requirements.md)
+- [Starlight generation](../nsb_components/starlight/map-generation.md)
+- [Starlight validation](../nsb_components/starlight/map-validation.md)
+- [External starlight manifest](../nsb_components/starlight/external-manifest.md)
 
 For implementation ownership, use the
 [complete module reference](../developer-guide/module-reference.md).
@@ -81,7 +81,7 @@ cargo run --locked -p nsb-data-tools --bin verify_assets -- \
 cargo test --locked -p nsb-data-tools --test tool_registry
 ```
 
-Use the full [Release checklist](../RELEASE_CHECKLIST.md) before tagging or
+Use the full [Release checklist](../operations/release-checklist.md) before tagging or
 distributing a release.
 
 ## Authoritative records
@@ -93,14 +93,7 @@ distributing a release.
 | Module ownership and intent | `docs/developer-guide/module-reference.md` plus rustdoc |
 | Data-update procedure | `docs/maintainer-guide/updating-data.md` |
 | Public machine output | Versioned JSON/CSV schema documentation and tests |
-| Scientific maturity | Runtime metadata plus `MODEL_MATURITY.md` |
-| Scientific evidence | Validation fixtures, reports, and `VALIDATION.md` |
+| Scientific maturity | Runtime metadata plus `docs/specifications/model-maturity.md` |
+| Scientific evidence | Validation fixtures, reports, and `docs/specifications/validation.md` |
 | Dependency identity | Cargo manifests, lockfile, and compatibility documentation |
 | Release history | `CHANGELOG.md` and immutable tags |
-
-## Historical and audit material
-
-Audits, migration reports, uncertainty studies, and duplication registers are
-valuable evidence but are not primary user instructions. Link them from the
-relevant maintainer or scientific reference page, mark their date and status
-clearly, and do not copy historical commands into current workflows.

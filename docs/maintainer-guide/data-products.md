@@ -58,7 +58,7 @@ Before processing data, freeze the relevant contract:
 - redistribution and attribution policy.
 
 For integrated starlight, start with
-[Starlight science requirements](../STELLAR_MAP_SCIENCE_REQUIREMENTS.md).
+[Starlight science requirements](../nsb_components/starlight/science-requirements.md).
 
 ## 2. Acquire and verify inputs
 
@@ -129,7 +129,7 @@ band definition, generation command, map checksum, validation report, independen
 comparison, and exact header expectations.
 
 External production maps use the same fail-closed sidecar contract documented in
-[Validated external starlight manifest](../EXTERNAL_STARLIGHT_MANIFEST.md).
+[Validated external starlight manifest](../nsb_components/starlight/external-manifest.md).
 
 ## 7. Register and release
 
@@ -145,7 +145,7 @@ The registry must cover every file, checksum, required provenance field, schema,
 license statement, and maturity declaration. Build-time checks and runtime
 metadata must agree with the manifest.
 
-Complete the [Release checklist](../RELEASE_CHECKLIST.md) and update the
+Complete the [Release checklist](../operations/release-checklist.md) and update the
 changelog, model maturity, validation matrix, and user-facing component
 behaviour when the default composition changes.
 

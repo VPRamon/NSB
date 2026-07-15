@@ -167,4 +167,4 @@ fields when storing or comparing results:
 - asset checksums and manifest schema;
 - the diagnostic meaning of B/V fields.
 
-The stable output contract is documented in [CLI schemas](../CLI_SCHEMAS.md).
+The stable output contract is documented in [CLI schemas](../specifications/cli-schemas.md).

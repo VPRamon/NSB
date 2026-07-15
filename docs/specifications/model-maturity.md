@@ -5,7 +5,7 @@ Audience: Scientific users, reviewers, and downstream consumers.
 Scope: Component maturity labels, validated domains, and allowed production
 claims.
 Non-goals: This document does not provide the validation evidence itself; see
-[Validation matrix](VALIDATION.md).
+[Validation matrix](validation.md).
 
 Software release readiness and scientific calibration are separate axes.
 

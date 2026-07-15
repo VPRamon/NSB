@@ -6,9 +6,9 @@ satisfies this contract.
 Audience: scientific reviewers, release maintainers, and authors of generation
 tools.
 
-Related documents: [generation](STELLAR_MAP_GENERATION.md),
-[validation](STELLAR_MAP_VALIDATION.md), [model maturity](MODEL_MATURITY.md),
-and [external manifest](EXTERNAL_STARLIGHT_MANIFEST.md).
+Related documents: [generation](map-generation.md),
+[validation](map-validation.md), [model maturity](../../specifications/model-maturity.md),
+and [external manifest](external-manifest.md).
 
 ## Scientific definition
 

@@ -41,8 +41,8 @@ site-calibrated. Always inspect component maturity and provenance in the output.
 1. [Getting started](getting-started.md)
 2. [Runtime components](components.md)
 3. [Observatory configuration and customisation](observatory-customization.md)
-4. [Scientific metadata](../SCIENTIFIC_METADATA.md)
-5. [Model maturity](../MODEL_MATURITY.md)
+4. [Scientific metadata](../specifications/scientific-metadata.md)
+5. [Model maturity](../specifications/model-maturity.md)
 
 For implementation details, continue with the
 [developer guide](../developer-guide/README.md). For data generation, validation,
@@ -60,5 +60,5 @@ and releases, continue with the [maintainer guide](../maintainer-guide/README.md
   provenance, version, uncertainty, or asset-checksum fields in downstream
   systems.
 
-See the [validation matrix](../VALIDATION.md) before using NSB output as a
+See the [validation matrix](../specifications/validation.md) before using NSB output as a
 scientific reference or operational acceptance criterion.

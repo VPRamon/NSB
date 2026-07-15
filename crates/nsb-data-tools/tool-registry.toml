@@ -170,7 +170,7 @@ inputs = "Raw Gaia XP continuous records and source provenance."
 outputs = "Canonical coefficient records and exact accounting manifest."
 resume = "Caller may reuse verified canonical outputs; normalization is deterministic."
 exit_codes = "Zero only for complete schema-valid normalization."
-documentation = "docs/GAIA_XP_CONTINUOUS_RUST.md"
+documentation = "docs/nsb_components/starlight/gaia-xp-continuous-rust.md"
 
 [[binaries]]
 name = "reconstruct_canonical_coefficients"
@@ -183,7 +183,7 @@ inputs = "Canonical coefficient CSVs and the frozen design-matrix fixture."
 outputs = "Normalized spectra and a provenance-rich reconstruction manifest."
 resume = "Existing outputs are reused only when explicitly present and checksummed."
 exit_codes = "Zero only after calibration, integration and manifest publication succeed."
-documentation = "docs/GAIA_XP_CONTINUOUS_RUST.md"
+documentation = "docs/nsb_components/starlight/gaia-xp-continuous-rust.md"
 
 [[binaries]]
 name = "validate_xp_continuous_reconstruction"
@@ -196,7 +196,7 @@ inputs = "Canonical coefficients, reconstruction and calibration provenance."
 outputs = "Versioned parity and validation report."
 resume = "Read-only deterministic validation."
 exit_codes = "Zero only when spectral, flux, uncertainty and provenance gates pass."
-documentation = "docs/GAIA_XP_CONTINUOUS_RUST.md"
+documentation = "docs/nsb_components/starlight/gaia-xp-continuous-rust.md"
 
 [[binaries]]
 name = "download_gaia_xp_continuous_bulk"

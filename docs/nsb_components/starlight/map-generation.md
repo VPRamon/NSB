@@ -5,8 +5,8 @@ Audience: Maintainers preparing derived starlight artifacts.
 Scope: Offline catalogue preparation, map generation, validation handoff, and
 asset packing.
 Non-goals: This document does not approve a generated map for production; see
-[Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md) and
-[Starlight map validation](STELLAR_MAP_VALIDATION.md).
+[Starlight science requirements](science-requirements.md) and
+[Starlight map validation](map-validation.md).
 
 Integrated starlight is directional and catalogue-dependent, so NSB consumes a
 Galactic HEALPix map generated offline. Runtime code never downloads catalogues.
@@ -18,11 +18,11 @@ requirements -> generation -> validation -> packing -> maturity metadata
 ```
 
 The requirements are in
-[Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md). This file
+[Starlight science requirements](science-requirements.md). This file
 describes how maintainers create map candidates. Validation report semantics are
-defined in [Starlight map validation](STELLAR_MAP_VALIDATION.md). Caller-supplied
+defined in [Starlight map validation](map-validation.md). Caller-supplied
 production maps use the separate
-[external manifest contract](EXTERNAL_STARLIGHT_MANIFEST.md).
+[external manifest contract](external-manifest.md).
 
 ## Current bundled seed
 
@@ -49,7 +49,7 @@ finite/nonnegative, plane/pole, longitude-wrap, and (when source totals are
 provided) flux-conservation checks.
 
 The separate `StarlightModel::with_experimental_map(...)` API never receives a
-production label. See [the sidecar schema](EXTERNAL_STARLIGHT_MANIFEST.md).
+production label. See [the sidecar schema](external-manifest.md).
 
 ## Gaia DR3 release pipeline (validated 2026-07-11)
 

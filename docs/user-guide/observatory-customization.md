@@ -57,7 +57,7 @@ let north = NsbEvaluator::with_config(NsbModelConfig::cta_n_planning())?;
 # }
 ```
 
-See [CTAO site-profile assumptions](../CTAO_SITE_PROFILES.md) for the exact
+See [CTAO site-profile assumptions](../specifications/ctao-site-profiles.md) for the exact
 pressure, aerosol, and airglow limitations.
 
 ## Level 3: adjust supported runtime parameters
@@ -108,7 +108,7 @@ provenance, validation references, calibration status, and other production
 gates. Failure is fatal and never selects the experimental seed.
 
 The complete sidecar schema is documented in
-[Validated external starlight manifest](../EXTERNAL_STARLIGHT_MANIFEST.md).
+[Validated external starlight manifest](../nsb_components/starlight/external-manifest.md).
 
 ## Level 5: add a new named observatory alias
 

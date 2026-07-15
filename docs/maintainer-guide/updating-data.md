@@ -119,7 +119,7 @@ Every transformation must emit or be accompanied by:
 - explicit limitations.
 
 For XP continuous reconstruction, follow
-[Pure-Rust Gaia XP continuous reconstruction](../GAIA_XP_CONTINUOUS_RUST.md).
+[Pure-Rust Gaia XP continuous reconstruction](../nsb_components/starlight/gaia-xp-continuous-rust.md).
 
 ## 5. Build the candidate product
 
@@ -186,7 +186,7 @@ For a reviewed production proposal:
 1. add or replace the runtime asset under `crates/nsb/data/`;
 2. update `crates/nsb/data/manifest.toml` in the same change;
 3. add immutable validation fixtures or compact review evidence;
-4. update `MODEL_MATURITY.md`, `VALIDATION.md`, and relevant scientific docs;
+4. update the model-maturity and validation specifications and relevant scientific docs;
 5. update the changelog;
 6. verify no generated working directories or machine-specific paths are staged.
 
@@ -201,7 +201,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 cargo build --workspace --release --locked
 ```
 
-Use the full [release checklist](../RELEASE_CHECKLIST.md) before tagging or
+Use the full [release checklist](../operations/release-checklist.md) before tagging or
 distributing the result.
 
 ## 9. Preserve the update record
@@ -226,10 +226,10 @@ and its manifest as one unit, then rerun `verify_assets` and the workspace tests
 
 - [Data-product workflow](data-products.md)
 - [Data-tool reference](tools.md)
-- [Data-product pipeline architecture](../DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
-- [Pure-Rust Gaia XP continuous reconstruction](../GAIA_XP_CONTINUOUS_RUST.md)
-- [Starlight science requirements](../STELLAR_MAP_SCIENCE_REQUIREMENTS.md)
-- [Starlight generation](../STELLAR_MAP_GENERATION.md)
-- [Starlight validation](../STELLAR_MAP_VALIDATION.md)
-- [Model maturity](../MODEL_MATURITY.md)
-- [Validation matrix](../VALIDATION.md)
+- [Data-product pipeline architecture](../specifications/data-product-pipeline.md)
+- [Pure-Rust Gaia XP continuous reconstruction](../nsb_components/starlight/gaia-xp-continuous-rust.md)
+- [Starlight science requirements](../nsb_components/starlight/science-requirements.md)
+- [Starlight generation](../nsb_components/starlight/map-generation.md)
+- [Starlight validation](../nsb_components/starlight/map-validation.md)
+- [Model maturity](../specifications/model-maturity.md)
+- [Validation matrix](../specifications/validation.md)

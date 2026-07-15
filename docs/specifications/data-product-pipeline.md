@@ -20,6 +20,21 @@ The reusable library boundary is split as follows:
 
 Dependencies flow from executables to services, from services to pipeline/scientific modules, and from those modules to persistence/checksum primitives. Scientific modules must not spawn executables. Every command retained in the tool registry must enter through a documented library service and a thin executable adapter.
 
+## Command and contract ownership
+
+Supported workflows are capability-oriented and are listed in the versioned
+tool registry. Phase-specific, one-shot, shell, and Python orchestration are
+not supported interfaces. Reusable acquisition, reconstruction, validation,
+and packaging behaviour belongs in typed Rust library modules and is exercised
+through durable commands and automated tests.
+
+Each scientific calculation, schema, checksum representation, persistence
+format, and provenance field has one owning Rust module. Generated secondary
+contracts are mechanically checked against that authority. Generic astronomy
+coordinates, HEALPix primitives, units, and physical constants remain owned by
+their upstream dependencies; NSB owns only product-specific policy and
+accounting.
+
 ## Typed coverage and run intent
 
 Full-file processing is represented by `RowSelection::FullPartition`. A bounded run is `RowSelection::FirstRows(n)` and rejects `n = 0`. No command or report may use zero as a context-dependent sentinel.

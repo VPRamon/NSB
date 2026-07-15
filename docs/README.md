@@ -31,6 +31,7 @@ through explicit runtime-manifest contracts.
 - [User guide](user-guide/README.md)
 - [Getting started](user-guide/getting-started.md)
 - [Runtime components](user-guide/components.md)
+- [NSB component guides](nsb_components/README.md)
 - [Observatory configuration and customisation](user-guide/observatory-customization.md)
 
 ### Developers
@@ -38,9 +39,9 @@ through explicit runtime-manifest contracts.
 - [Developer guide](developer-guide/README.md)
 - [Architecture and modules](developer-guide/architecture.md)
 - [Module reference](developer-guide/module-reference.md)
-- [Performance contract](PERFORMANCE.md)
-- [Logging contract](LOGGING.md)
-- [Siderust compatibility](SIDERUST_COMPATIBILITY.md)
+- [Performance contract](specifications/performance.md)
+- [Logging contract](specifications/logging.md)
+- [Siderust compatibility](specifications/siderust-compatibility.md)
 
 ### Maintainers
 
@@ -48,21 +49,21 @@ through explicit runtime-manifest contracts.
 - [Updating scientific data](maintainer-guide/updating-data.md)
 - [Data-product workflow](maintainer-guide/data-products.md)
 - [Complete data-tool reference](maintainer-guide/tools.md)
-- [Data-product pipeline architecture](DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
-- [Pure-Rust Gaia XP continuous reconstruction](GAIA_XP_CONTINUOUS_RUST.md)
-- [Release checklist](RELEASE_CHECKLIST.md)
+- [Data-product pipeline architecture](specifications/data-product-pipeline.md)
+- [Pure-Rust Gaia XP continuous reconstruction](nsb_components/starlight/gaia-xp-continuous-rust.md)
+- [Release checklist](operations/release-checklist.md)
 
 ## Scientific interpretation and contracts
 
 | Document | Purpose |
 | --- | --- |
-| [Concepts and implementation](CONCEPTS_AND_IMPLEMENTATION_GUIDE.md) | Physical quantities, query model, component composition, and window-search concepts |
-| [Model maturity](MODEL_MATURITY.md) | Allowed scientific claims for every component and profile |
-| [Scientific metadata](SCIENTIFIC_METADATA.md) | Provenance, maturity, uncertainty, validated domain, and diagnostic-band semantics |
-| [Validation matrix](VALIDATION.md) | Evidence, tolerances, limitations, and remaining validation gaps |
-| [CTAO site profiles](CTAO_SITE_PROFILES.md) | Exact assumptions and limitations of CTAO planning presets |
-| [Jones 2013 moonlight](moonlight_jones2013.md) | Spectral moonlight implementation and validation boundaries |
-| [CLI schemas](CLI_SCHEMAS.md) | Stable JSON and CSV output contracts |
+| [Scientific-model specification](specifications/scientific-model.md) | Physical quantities, query model, component composition, and window-search concepts |
+| [Model-maturity specification](specifications/model-maturity.md) | Allowed scientific claims for every component and profile |
+| [Scientific-metadata specification](specifications/scientific-metadata.md) | Provenance, maturity, uncertainty, validated domain, and diagnostic-band semantics |
+| [Validation specification](specifications/validation.md) | Evidence, tolerances, limitations, and remaining validation gaps |
+| [CTAO site-profile specification](specifications/ctao-site-profiles.md) | Exact assumptions and limitations of CTAO planning presets |
+| [Jones 2013 moonlight](nsb_components/moonlight/jones2013-validation.md) | Spectral moonlight implementation and validation boundaries |
+| [CLI schema specification](specifications/cli-schemas.md) | Stable JSON and CSV output contracts |
 
 ## Starlight data products
 
@@ -79,38 +80,28 @@ science requirements
 
 | Document | Purpose |
 | --- | --- |
-| [Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md) | Required scientific properties and production gates |
-| [Starlight generation](STELLAR_MAP_GENERATION.md) | Current Gaia/Tycho candidate-generation workflow |
-| [Starlight validation](STELLAR_MAP_VALIDATION.md) | Validation inputs, reports, gates, and failure modes |
-| [External starlight manifest](EXTERNAL_STARLIGHT_MANIFEST.md) | Fail-closed sidecar contract for external production maps |
+| [Starlight science requirements](nsb_components/starlight/science-requirements.md) | Required scientific properties and production gates |
+| [Starlight generation](nsb_components/starlight/map-generation.md) | Current Gaia/Tycho candidate-generation workflow |
+| [Starlight validation](nsb_components/starlight/map-validation.md) | Validation inputs, reports, gates, and failure modes |
+| [External starlight manifest](nsb_components/starlight/external-manifest.md) | Fail-closed sidecar contract for external production maps |
 | [Gaia DR3 ADQL](queries/gaia_dr3_starlight_extract.adql) | Recorded source-selection query |
 
 A successful candidate build is not production admission. A bundled or external
 product must satisfy provenance, checksum, scientific-validation, and maturity
 contracts. The experimental seed is not a fallback for production requests.
 
-## Roadmaps, audits, and historical evidence
-
-These documents support review but are not primary operational instructions:
-
-- [Production roadmap](PRODUCTION_ROADMAP.md)
-- [Gaia DR3 starlight science audit](GAIA_DR3_STARLIGHT_SCIENCE_AUDIT.md)
-- [PR 56 starlight audit](STARLIGHT_PR56_AUDIT.md)
-- [Phase 5 uncertainty contract](STARLIGHT_PHASE5_UNCERTAINTY.md)
-- [XP continuous bulk notes](STARLIGHT_XP_CONTINUOUS_BULK.md)
-- [Data-tool migration](DATA_TOOL_MIGRATION.md)
-- [Duplication register](DUPLICATION_REGISTER.md)
-
-Historical documents must be labelled clearly and must not override current
-capability-oriented user and maintainer workflows.
-
 ## Documentation conventions
 
 - User workflows live under `docs/user-guide/`.
 - Architecture and extension guidance live under `docs/developer-guide/`.
 - Data, release, and operational procedures live under `docs/maintainer-guide/`.
-- Stable scientific contracts and evidence remain specialised references linked
-  from the relevant guides.
+- Current cross-component contracts live under `docs/specifications/`.
+- Component-specific science, generation, and validation live under
+  `docs/nsb_components/`.
+- Release procedures live under `docs/operations/`.
+- Historical roadmaps, audits, migrations, and duplication registers are not
+  retained as documentation; active requirements belong in their current
+  specification.
 - Rust public APIs are documented in rustdoc.
 - Pages should state status, audience, scope, and important non-goals whenever
   misuse would affect scientific interpretation.

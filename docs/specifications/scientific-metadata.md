@@ -6,7 +6,7 @@ metadata.
 Scope: Component maturity, provenance, uncertainty, B/V diagnostics, and asset
 audit fields.
 Non-goals: This document does not promote any component beyond the evidence
-listed in [Validation matrix](VALIDATION.md).
+listed in [Validation matrix](validation.md).
 
 Every `NsbComponent` includes a maturity status, provenance, validated domain,
 band diagnostic, and optional relative uncertainty. CLI JSON preserves those

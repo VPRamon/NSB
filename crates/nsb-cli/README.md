@@ -72,5 +72,5 @@ with `experimental-starlight` and is never a production fallback.
 - [Getting started](../../docs/user-guide/getting-started.md)
 - [Runtime components](../../docs/user-guide/components.md)
 - [Observatory configuration](../../docs/user-guide/observatory-customization.md)
-- [CLI schemas](../../docs/CLI_SCHEMAS.md)
-- [Logging](../../docs/LOGGING.md)
+- [CLI schemas](../../docs/specifications/cli-schemas.md)
+- [Logging](../../docs/specifications/logging.md)
