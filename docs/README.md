@@ -1,72 +1,130 @@
-# NSB Documentation
+# NSB documentation
 
-Status: Current for the `production-readiness-final` branch.
-Audience: Users, scientific reviewers, CLI integrators, and maintainers.
-Scope: A reading path through the project documentation and release evidence.
-Non-goals: This page is not an API reference, validation report, or release
-approval.
+Status: Current documentation hub.
+Audience: Users, developers, maintainers, scientific reviewers, and integrators.
+Scope: Navigation, project purpose, module boundaries, and authoritative references.
 
-NSB separates production-oriented software behavior from scientific calibration.
-The default model is suitable for deterministic planning workflows, but
-component maturity must be read from metadata and validation evidence.
+## What NSB is
 
-## Start Here
+NSB is a typed Rust library and command-line application for modelling the
+ground-based night-sky background and finding observing periods that satisfy an
+NSB threshold. It evaluates a configurable sum of zodiacal light, integrated
+starlight, airglow, and atmospherically scattered moonlight for a specified
+observer, UTC time, and target direction.
 
-| Document | Audience | Purpose |
+The repository separates three responsibilities:
+
+| Module | Purpose | Primary audience |
 | --- | --- | --- |
-| [Concepts and implementation](CONCEPTS_AND_IMPLEMENTATION_GUIDE.md) | New library and CLI users | Defines the physical quantities, query model, component composition, and runtime architecture. |
-| [Model maturity](MODEL_MATURITY.md) | Scientific users and reviewers | Lists each component's maturity status and the production claims that are allowed. |
-| [Scientific metadata](SCIENTIFIC_METADATA.md) | Users consuming API or CLI output | Explains maturity metadata, uncertainty fields, provenance, and B/V diagnostic limitations. |
-| [Validation matrix](VALIDATION.md) | Reviewers and maintainers | Maps each scientific surface to its evidence, tolerance, and remaining limitations. |
+| `nsb` | Scientific runtime library: typed queries, component models, point evaluation, window search, runtime assets, and maturity metadata | Rust integrators and developers |
+| `nsb-cli` | Operational interface: commands, site aliases, parsing, output schemas, and logging | Users and automated workflows |
+| `nsb-data-tools` | Offline generation, validation, reconciliation, and packaging of scientific data products | Maintainers and researchers |
 
-## Scientific Interpretation
+NSB is production-oriented software, but scientific maturity remains
+component-specific. The default model is suitable for deterministic planning;
+it must not be described as site-calibrated unless the returned metadata and
+validation evidence support that claim.
 
-| Document | Audience | Purpose |
-| --- | --- | --- |
-| [CTAO site-profile assumptions](CTAO_SITE_PROFILES.md) | CTAO planning users and reviewers | Describes named CTAO presets and why they are not site-calibrated products. |
-| [Jones 2013 spectral moonlight validation](moonlight_jones2013.md) | Moonlight model reviewers | Documents the Jones spectral implementation, atmospheric assumptions, fixtures, and accuracy limits. |
-| [Performance contract](PERFORMANCE.md) | Maintainers and performance reviewers | States reuse boundaries, benchmark coverage, and acceptable performance changes without changing scientific output. |
+## Choose your documentation path
 
-## Starlight Data Products
+### Users
 
-Read these in order when reviewing starlight:
+Start here when you want to evaluate NSB, search observing windows, integrate the
+Rust API, choose components, or configure an observatory.
+
+- [User guide](user-guide/README.md)
+- [Getting started](user-guide/getting-started.md)
+- [Runtime components](user-guide/components.md)
+- [Observatory configuration and customisation](user-guide/observatory-customization.md)
+
+### Developers
+
+Start here when you want to change the runtime library, CLI, component models,
+site profiles, output contracts, or data-product implementation.
+
+- [Developer guide](developer-guide/README.md)
+- [Architecture and modules](developer-guide/architecture.md)
+- [Performance contract](PERFORMANCE.md)
+- [Logging contract](LOGGING.md)
+- [Siderust compatibility](SIDERUST_COMPATIBILITY.md)
+
+### Maintainers
+
+Start here when you generate or update scientific data, operate the Gaia or
+starlight pipeline, verify assets, or prepare a release.
+
+- [Maintainer guide](maintainer-guide/README.md)
+- [Data-product workflow](maintainer-guide/data-products.md)
+- [Complete data-tool reference](maintainer-guide/tools.md)
+- [Data-product pipeline architecture](DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
+- [Release checklist](RELEASE_CHECKLIST.md)
+
+## Scientific interpretation and contracts
+
+These documents are authoritative for scientific meaning and review:
+
+| Document | Purpose |
+| --- | --- |
+| [Concepts and implementation](CONCEPTS_AND_IMPLEMENTATION_GUIDE.md) | Physical quantities, query model, component composition, and window-search concepts |
+| [Model maturity](MODEL_MATURITY.md) | Allowed scientific claims for every component and profile |
+| [Scientific metadata](SCIENTIFIC_METADATA.md) | Provenance, maturity, uncertainty, validated domain, and diagnostic-band semantics |
+| [Validation matrix](VALIDATION.md) | Evidence, tolerances, limitations, and remaining validation gaps |
+| [CTAO site profiles](CTAO_SITE_PROFILES.md) | Exact assumptions and limitations of CTAO planning presets |
+| [Jones 2013 moonlight](moonlight_jones2013.md) | Spectral moonlight implementation and validation boundaries |
+| [CLI schemas](CLI_SCHEMAS.md) | Stable JSON and CSV output contracts |
+
+## Starlight data products
+
+Use this reading order for integrated starlight work:
 
 ```text
 science requirements
-  -> generation pipeline
-  -> validation report
-  -> external manifest or bundled asset decision
-  -> model maturity and validation matrix
+  -> input acquisition and catalogue preparation
+  -> map generation
+  -> validation
+  -> production admission and packaging
+  -> runtime manifest and maturity metadata
 ```
 
-| Document | Audience | Purpose |
-| --- | --- | --- |
-| [Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md) | Scientific reviewers and maintainers | Defines what must be true before any starlight product can be treated as production. |
-| [Starlight data-product pipeline](STELLAR_MAP_GENERATION.md) | Maintainers | Shows how local catalogue extracts are converted into derived map candidates and review artifacts. |
-| [Starlight map validation](STELLAR_MAP_VALIDATION.md) | Maintainers and reviewers | Specifies the validation harness, required inputs, report fields, gates, and failure modes. |
-| [Validated external starlight manifest](EXTERNAL_STARLIGHT_MANIFEST.md) | Integrators supplying their own maps | Defines the sidecar contract for caller-provided production starlight maps. |
-| [Gaia DR3 starlight ADQL query](queries/gaia_dr3_starlight_extract.adql) | Maintainers | Records the Gaia DR3 source-selection query used by the release input workflow. |
+| Document | Purpose |
+| --- | --- |
+| [Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md) | Required scientific properties and production gates |
+| [Starlight generation](STELLAR_MAP_GENERATION.md) | Current Gaia/Tycho candidate-generation workflow |
+| [Starlight validation](STELLAR_MAP_VALIDATION.md) | Validation inputs, reports, gates, and failure modes |
+| [External starlight manifest](EXTERNAL_STARLIGHT_MANIFEST.md) | Fail-closed sidecar contract for external production maps |
+| [Gaia DR3 ADQL](queries/gaia_dr3_starlight_extract.adql) | Recorded source-selection query |
 
-The bundled manual starlight seed is experimental. `ComponentMask::ALL` and CLI
-`--components all` include starlight only when a reviewed Gaia DR3 XP production
-CSV and runtime manifest are registered as embedded production assets. Until
-then, explicit `starlight` requests fail closed unless a validated external map
-and manifest override are supplied.
+Production starlight is never inferred from a successful candidate build. A
+bundled or external product must pass its complete provenance, checksum,
+scientific-validation, and admission contract. The experimental manual seed is
+not a fallback for production requests.
 
-## CLI And Output Contracts
+## Roadmaps, audits, and historical evidence
 
-| Document | Audience | Purpose |
-| --- | --- | --- |
-| [Stable CLI schemas](CLI_SCHEMAS.md) | CLI consumers and downstream tooling | Describes JSON and CSV schema identifiers, stable fields, and audit metadata. |
-| [Siderust compatibility](SIDERUST_COMPATIBILITY.md) | Maintainers and downstream packagers | Records the current Siderust dependency source, lockfile revision, update policy, and release requirements. |
+The following material supports maintenance and scientific review but is not the
+primary user workflow:
 
-## Maintainer And Release Material
+- [Production roadmap](PRODUCTION_ROADMAP.md)
+- [Gaia DR3 starlight science audit](GAIA_DR3_STARLIGHT_SCIENCE_AUDIT.md)
+- [PR 56 starlight audit](STARLIGHT_PR56_AUDIT.md)
+- [Phase 5 uncertainty contract](STARLIGHT_PHASE5_UNCERTAINTY.md)
+- [XP continuous bulk notes](STARLIGHT_XP_CONTINUOUS_BULK.md)
+- [Data-tool migration](DATA_TOOL_MIGRATION.md)
+- [Duplication register](DUPLICATION_REGISTER.md)
 
-| Document | Audience | Purpose |
-| --- | --- | --- |
-| [Production-readiness roadmap](PRODUCTION_ROADMAP.md) | Maintainers and release reviewers | Summarizes issue-level release workstreams and the distinction between software release and calibrated science release. |
-| [Release checklist](RELEASE_CHECKLIST.md) | Release maintainers | Lists the checks that must pass before tagging or distributing a release. |
+Historical documents and commands must be labelled clearly and must not override
+the current capability-oriented workflows documented in the user and maintainer
+guides.
 
-Historical architecture notes and migration reports were removed from the
-working tree because they no longer matched current defaults. Their content
-remains available in Git history.
+## Documentation conventions
+
+- User workflows live under `docs/user-guide/`.
+- Contributor architecture and extension guidance live under
+  `docs/developer-guide/`.
+- Data, release, and operational procedures live under
+  `docs/maintainer-guide/`.
+- Stable scientific contracts and evidence remain specialised reference
+  documents linked from the relevant guides.
+- Rust public APIs are documented in rustdoc.
+- Every page should state its status, audience, scope, and important non-goals
+  when misuse would affect scientific interpretation.
