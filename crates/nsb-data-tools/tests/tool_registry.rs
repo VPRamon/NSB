@@ -133,7 +133,12 @@ fn collect_forbidden_files(root: &Path, directory: &Path, forbidden: &mut Vec<St
         .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
     {
         let path = entry.expect("read repository entry").path();
-        if path.is_dir() {
+        let metadata = fs::symlink_metadata(&path)
+            .unwrap_or_else(|error| panic!("inspect {}: {error}", path.display()));
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
             let name = path
                 .file_name()
                 .and_then(|value| value.to_str())
@@ -142,6 +147,9 @@ fn collect_forbidden_files(root: &Path, directory: &Path, forbidden: &mut Vec<St
                 continue;
             }
             collect_forbidden_files(root, &path, forbidden);
+            continue;
+        }
+        if !metadata.is_file() {
             continue;
         }
 
