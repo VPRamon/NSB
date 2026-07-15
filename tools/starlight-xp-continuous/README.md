@@ -12,4 +12,4 @@ The supported implementation lives in `crates/nsb-data-tools` and consists of co
 
 Build the release binaries with Cargo, then invoke the required binary directly. No retained workflow depends on a Python environment, GaiaXPy at runtime, shell wrappers, `cargo run` orchestration, or sibling executable chaining.
 
-Scientific contract, frozen parity evidence, and provenance requirements are documented in [`docs/GAIA_XP_CONTINUOUS_RUST.md`](../../docs/GAIA_XP_CONTINUOUS_RUST.md).
+Scientific contract, frozen parity evidence, and provenance requirements are documented in [`docs/nsb_components/starlight/gaia-xp-continuous-rust.md`](../../docs/nsb_components/starlight/gaia-xp-continuous-rust.md).

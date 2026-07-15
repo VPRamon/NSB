@@ -70,9 +70,9 @@ A change normally needs tests at more than one level:
 - validation fixtures for scientific claims;
 - benchmarks when point or threshold-window performance can change.
 
-Read the [Validation matrix](../VALIDATION.md),
-[Performance contract](../PERFORMANCE.md), and
-[Logging contract](../LOGGING.md) before changing those surfaces.
+Read the [Validation matrix](../specifications/validation.md),
+[Performance contract](../specifications/performance.md), and
+[Logging contract](../specifications/logging.md) before changing those surfaces.
 
 ## Documentation expectations
 

@@ -4,6 +4,10 @@ Status: Current runtime component overview.
 Audience: Users selecting model components and developers interpreting results.
 Scope: Scientific role, runtime dependencies, model choices, and maturity boundaries.
 
+For a component-by-component explanation of the physical source, calculation,
+offline generation where applicable, and scientific boundaries, see the
+[NSB component guides](../nsb_components/README.md).
+
 ## Composition model
 
 NSB evaluates the total night-sky background as the sum of independently
@@ -64,8 +68,8 @@ The supported selections are deliberately distinct:
 There is no fallback from production starlight to the experimental seed. Missing
 or invalid production evidence is an error.
 
-See the [external manifest contract](../EXTERNAL_STARLIGHT_MANIFEST.md) and the
-[starlight data-product pipeline](../STELLAR_MAP_GENERATION.md).
+See the [external manifest contract](../nsb_components/starlight/external-manifest.md) and the
+[starlight data-product pipeline](../nsb_components/starlight/map-generation.md).
 
 ## Airglow
 
@@ -100,7 +104,7 @@ Two model choices are available:
 
 Atmospheric assumptions are selected through the model site profile. The Jones
 implementation and its validation limits are documented in
-[Jones 2013 moonlight](../moonlight_jones2013.md).
+[Jones 2013 moonlight](../nsb_components/moonlight/jones2013-validation.md).
 
 ## Meaning of `all`
 
@@ -121,6 +125,6 @@ instead of assuming that `all` always expands to a fixed number of components.
 Software readiness and scientific calibration are separate. A component may be
 reliable as software while still being a generic model, planning preset,
 published reference, proxy, or experimental product. Use
-[Model maturity](../MODEL_MATURITY.md), [Scientific metadata](../SCIENTIFIC_METADATA.md),
-and the [Validation matrix](../VALIDATION.md) when deciding whether a result is
+[Model maturity](../specifications/model-maturity.md), [Scientific metadata](../specifications/scientific-metadata.md),
+and the [Validation matrix](../specifications/validation.md) when deciding whether a result is
 appropriate for scientific or operational use.

@@ -7,7 +7,7 @@ Scope: Validator inputs, output report fields, gates, independent-reference
 schema, failure modes, and packing handoff.
 Non-goals: This document does not validate a specific Gaia release product and
 does not admit caller-supplied external maps; see
-[Validated external starlight manifest](EXTERNAL_STARLIGHT_MANIFEST.md).
+[Validated external starlight manifest](external-manifest.md).
 
 `validate_starlight_map` is the release harness for generated starlight maps. It
 turns a map candidate, generation diagnostics, and independent regional
@@ -17,16 +17,16 @@ consumed by `pack_starlight_asset`.
 ## Starlight Document Path
 
 ```text
-STELLAR_MAP_SCIENCE_REQUIREMENTS.md
-  -> STELLAR_MAP_GENERATION.md
-  -> STELLAR_MAP_VALIDATION.md
-  -> EXTERNAL_STARLIGHT_MANIFEST.md or bundled asset review
-  -> VALIDATION.md and MODEL_MATURITY.md
+science-requirements.md
+  -> map-generation.md
+  -> map-validation.md
+  -> external-manifest.md or bundled asset review
+  -> validation.md and model-maturity.md
 ```
 
-Use [Starlight science requirements](STELLAR_MAP_SCIENCE_REQUIREMENTS.md) for
+Use [Starlight science requirements](science-requirements.md) for
 the release criteria. Use
-[Starlight data-product pipeline](STELLAR_MAP_GENERATION.md) for generation
+[Starlight data-product pipeline](map-generation.md) for generation
 commands. This file defines how the generated map is checked.
 
 ## Purpose
@@ -217,5 +217,5 @@ candidate output must remain clearly labelled and outside `ComponentMask::ALL`.
 
 Production packing also depends on the generation diagnostics, map checksum,
 manifest metadata, license review, and maturity review described in
-[Starlight data-product pipeline](STELLAR_MAP_GENERATION.md) and
-[Model maturity](MODEL_MATURITY.md).
+[Starlight data-product pipeline](map-generation.md) and
+[Model maturity](../../specifications/model-maturity.md).

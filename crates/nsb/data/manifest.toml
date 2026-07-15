@@ -3,7 +3,7 @@ schema_version = 1
 # This registry covers bundled bytes only. Production starlight is intentionally
 # external until a catalogue-derived asset has cleared redistribution and
 # independent validation; its mandatory sidecar schema is documented in
-# docs/EXTERNAL_STARLIGHT_MANIFEST.md.
+# docs/nsb_components/starlight/external-manifest.md.
 
 [[assets]]
 path = "airglow_cont.dat"
@@ -13,7 +13,7 @@ source = "ESO SkyCalc/Noll-style empirical continuum table inherited from darkns
 license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
 generator = "historical import"
 generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/VALIDATION.md#bundled-asset-validation"
+validation_report = "docs/specifications/validation.md#bundled-asset-validation"
 calibration_status = "generic-fallback"
 runtime_embedded = true
 
@@ -25,7 +25,7 @@ source = "Paranal-like aerosol Mie phase grid inherited from the ESO Sky Model/d
 license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
 generator = "historical import"
 generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/VALIDATION.md#bundled-asset-validation"
+validation_report = "docs/specifications/validation.md#bundled-asset-validation"
 calibration_status = "planning-proxy"
 runtime_embedded = true
 
@@ -37,7 +37,7 @@ source = "solar irradiance spectrum inherited from darknsb; exact original refer
 license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
 generator = "historical import"
 generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/VALIDATION.md#bundled-asset-validation"
+validation_report = "docs/specifications/validation.md#bundled-asset-validation"
 calibration_status = "generic-fallback"
 runtime_embedded = true
 
@@ -49,7 +49,7 @@ source = "multiple Rayleigh/Mie scattering corrections inherited from the ESO Sk
 license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
 generator = "historical import"
 generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/VALIDATION.md#bundled-asset-validation"
+validation_report = "docs/specifications/validation.md#bundled-asset-validation"
 calibration_status = "planning-proxy"
 runtime_embedded = true
 
@@ -60,8 +60,8 @@ sha256 = "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
 source = "manually curated Tycho/Hipparcos-style bright-star seed; not a complete external catalogue product"
 license = "review required before redistribution or scientific production use"
 generator = "nsb-data-tools build_starlight_map using Siderust"
-generation_command = "seed cannot be reproduced from a released source catalogue; use docs/STELLAR_MAP_GENERATION.md for the fail-closed replacement pipeline"
-validation_report = "docs/VALIDATION.md#experimental-starlight"
+generation_command = "seed cannot be reproduced from a released source catalogue; use docs/nsb_components/starlight/map-generation.md for the fail-closed replacement pipeline"
+validation_report = "docs/specifications/validation.md#experimental-starlight"
 calibration_status = "experimental"
 runtime_embedded = true
 

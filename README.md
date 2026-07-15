@@ -43,9 +43,9 @@ validated Johnson B/V passband integrations. Preserve the returned model,
 component, maturity, provenance, uncertainty, and asset metadata in downstream
 systems.
 
-See [Model maturity](docs/MODEL_MATURITY.md),
-[Scientific metadata](docs/SCIENTIFIC_METADATA.md), and the
-[Validation matrix](docs/VALIDATION.md) before using results scientifically.
+See [Model maturity](docs/specifications/model-maturity.md),
+[Scientific metadata](docs/specifications/scientific-metadata.md), and the
+[Validation matrix](docs/specifications/validation.md) before using results scientifically.
 
 ## Quickstart: CLI
 
@@ -138,7 +138,7 @@ nsb --format json point \
 ```
 
 See [Runtime components](docs/user-guide/components.md) and the
-[External starlight manifest](docs/EXTERNAL_STARLIGHT_MANIFEST.md).
+[External starlight manifest](docs/nsb_components/starlight/external-manifest.md).
 
 ## Observatory configuration
 
@@ -177,7 +177,7 @@ command inventory is `crates/nsb-data-tools/tool-registry.toml`.
 - [Developer guide](docs/developer-guide/README.md)
 - [Maintainer guide](docs/maintainer-guide/README.md)
 - [Architecture and modules](docs/developer-guide/architecture.md)
-- [Release checklist](docs/RELEASE_CHECKLIST.md)
+- [Release checklist](docs/operations/release-checklist.md)
 - [Changelog](CHANGELOG.md)
 
 ## Quality gates
@@ -195,7 +195,7 @@ cargo deny check
 ```
 
 Full Criterion benchmarks are separate from the bounded all-targets smoke path.
-See the [Performance contract](docs/PERFORMANCE.md).
+See the [Performance contract](docs/specifications/performance.md).
 
 ## Licensing
 

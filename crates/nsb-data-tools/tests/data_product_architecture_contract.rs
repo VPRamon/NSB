@@ -121,7 +121,7 @@ fn temporary_operational_artifacts_are_not_committed() {
 
 #[test]
 fn architecture_document_covers_release_and_resume_contracts() {
-    let source = read(crate_root().join("../../docs/DATA_PRODUCT_PIPELINE_ARCHITECTURE.md"));
+    let source = read(crate_root().join("../../docs/specifications/data-product-pipeline.md"));
     for required in [
         "RowSelection::FullPartition",
         "ProductionAdmission::evaluate",
