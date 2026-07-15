@@ -2,11 +2,13 @@
 
 use anyhow::{bail, Context, Result};
 use clap::Parser;
+use csv::WriterBuilder;
 use nsb_data_tools::checksum_io::sha256_file;
-use nsb_data_tools::gaia_xp::integrate_photon_flux;
-use nsb_data_tools::gaia_xp_continuous::{
-    parse_datalink_gaiaxpy_csv, write_normalized_spectrum_csv, PHOTOMETRY_MODEL,
+use nsb_data_tools::gaia_xp::{
+    format_series, integrate_photon_flux, XpProduct, NORMALIZED_FLUX_COLUMN,
+    NORMALIZED_FLUX_ERROR_COLUMN, NORMALIZED_WAVELENGTH_COLUMN,
 };
+use nsb_data_tools::gaia_xp_continuous::{parse_datalink_gaiaxpy_csv, PHOTOMETRY_MODEL};
 use nsb_data_tools::gaia_xp_continuous_calibrate::GaiaXpContinuousCalibrator;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -161,6 +163,39 @@ fn reconstruct_one(
         entry["output_sha256"] = serde_json::Value::String(sha256_file(&output_path)?);
     }
     Ok(entry)
+}
+
+fn write_normalized_spectrum_csv(path: &Path, product: &XpProduct) -> Result<()> {
+    let errors = product
+        .flux_error_w_m2_nm
+        .as_ref()
+        .context("calibrated XP continuous product has no spectral uncertainty")?;
+    if product.wavelengths_nm.len() != product.flux_w_m2_nm.len()
+        || errors.len() != product.wavelengths_nm.len()
+    {
+        bail!("normalized XP spectrum arrays have inconsistent lengths");
+    }
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let temporary = path.with_extension("csv.tmp");
+    let mut writer = WriterBuilder::new()
+        .from_path(&temporary)
+        .with_context(|| format!("create temporary spectrum {}", temporary.display()))?;
+    writer.write_record([
+        "source_id",
+        NORMALIZED_WAVELENGTH_COLUMN,
+        NORMALIZED_FLUX_COLUMN,
+        NORMALIZED_FLUX_ERROR_COLUMN,
+    ])?;
+    let wavelengths = format_series(&product.wavelengths_nm, false);
+    let flux = format_series(&product.flux_w_m2_nm, true);
+    let flux_error = format_series(errors, true);
+    writer.write_record([product.source_id.as_str(), &wavelengths, &flux, &flux_error])?;
+    writer.flush()?;
+    fs::rename(&temporary, path)
+        .with_context(|| format!("publish normalized spectrum {}", path.display()))?;
+    Ok(())
 }
 
 fn source_id_from_path(path: &Path) -> Result<String> {
