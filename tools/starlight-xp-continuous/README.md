@@ -1,55 +1,15 @@
-# Gaia DR3 XP continuous offline reconstruction (Phase 5 + bulk)
+# Starlight Gaia XP continuous tools
 
-Production calibration runs **in-process in Rust** (`gaia_xp_continuous_calibrate`).
-Python + pinned GaiaXPy 2.1.4 are used only for **environment audit** and **parity oracle fixtures**.
+This directory contains documentation only. The former Python and shell workflows were removed by issue #61.
 
-## Layout
+The supported implementation lives in `crates/nsb-data-tools` and consists of compiled Rust capabilities:
 
-```text
-$HOME/nsb-data/starlight-gaia-release/missing-flux/xp-continuous/
-  coefficients/raw/          # XP_CONTINUOUS DataLink CSV (via query_gaia / datalink)
-  reconstruction/normalized/ # calibrated 336–650 nm grids (NSB normalized CSV)
-  validation/                # overlap-sample bias reports
-```
+- `normalize_xp_continuous_coefficients`
+- `reconstruct_canonical_coefficients`
+- `validate_xp_continuous_reconstruction`
+- `download_gaia_xp_continuous_bulk`
+- `index_gaia_xp_continuous_bulk`
 
-## Setup (oracle / audit only)
+Build the release binaries with Cargo, then invoke the required binary directly. No retained workflow depends on a Python environment, GaiaXPy at runtime, shell wrappers, `cargo run` orchestration, or sibling executable chaining.
 
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-```
-
-## Reconstruct canonical coefficient CSVs (Phase 5 / holdout)
-
-```bash
-cargo run --release --locked -p nsb-data-tools --bin reconstruct_canonical_coefficients -- \
-  --coefficients-dir "$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/coefficients/canonical" \
-  --output-dir "$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/reconstruction/normalized" \
-  --manifest "$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/phase5_reconstruction.manifest.json"
-```
-
-## Bulk production (336–650 nm continuous-only)
-
-```bash
-PRODUCTION_WORKERS=18 bash tools/starlight-xp-continuous/run_bulk_until_shutdown.sh
-```
-
-## Oracle tooling (CI parity gate)
-
-```bash
-# Export design matrices once (GaiaXPy 2.1.4 pinned venv)
-.venv/bin/python export_gaiaxpy_design_matrices.py \
-  --output crates/nsb-data-tools/tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json
-
-# Freeze GaiaXPy oracle fixtures from bulk sample
-.venv/bin/python generate_gaiaxpy_oracle_fixtures.py \
-  --bulk-gz /path/to/XpContinuousMeanSpectrum_*.csv.gz \
-  --output crates/nsb-data-tools/tests/fixtures/gaiaxpy_oracle/continuous_parity_v1.json
-
-cargo test -p nsb-data-tools gaia_xp_continuous_calibrate_parity
-```
-
-## Validate against XP sampled (overlap population)
-
-Use `validate_xp_continuous_reconstruction` in `nsb-data-tools` after both
-continuous reconstruction and sampled DataLink products exist for overlap sources.
+Scientific contract, frozen parity evidence, and provenance requirements are documented in [`docs/GAIA_XP_CONTINUOUS_RUST.md`](../../docs/GAIA_XP_CONTINUOUS_RUST.md).

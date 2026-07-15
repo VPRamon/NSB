@@ -1,9 +1,13 @@
-//! In-process Gaia DR3 XP continuous calibration (GaiaXPy 2.1.4 parity subset).
+//! In-process Gaia DR3 XP continuous calibration with frozen GaiaXPy 2.1.4 parity.
 //!
-//! Uses precomputed design matrices exported from pinned GaiaXPy config (v375wi / v142r)
-//! and the NSB 336–650 nm @ 2 nm sampling grid.
+//! The implementation consumes design matrices exported from the pinned GaiaXPy
+//! v375wi/v142r configuration. Runtime and maintainer workflows do not invoke
+//! Python, GaiaXPy, Cargo, or sibling executables.
 
-use crate::gaia_xp::{integrate_photon_flux, XpProduct};
+use crate::gaia_xp::{
+    integrate_photon_flux, XpProduct, BAND_MAX_NM, BAND_MIN_NM, XP_SAMPLED_GRID_STEP_NM,
+};
+use crate::gaia_xp_continuous::PINNED_GAIA_XPY_VERSION;
 use crate::gaia_xp_continuous_canonical::CanonicalXpContinuousRecord;
 use anyhow::{bail, Context, Result};
 use serde::Deserialize;
@@ -12,6 +16,9 @@ use std::path::{Path, PathBuf};
 
 const BP_WL_HIGH: f64 = 643.0;
 const RP_WL_LOW: f64 = 635.0;
+const BP_MODEL: &str = "v375wi";
+const RP_MODEL: &str = "v142r";
+const EXPECTED_SAMPLE_COUNT: usize = 158;
 
 /// Calibrated 336–650 nm photon flux for one XP continuous source.
 #[derive(Debug, Clone, PartialEq)]
@@ -20,8 +27,12 @@ pub struct ContinuousCalibratedFlux {
     pub statistical_uncertainty_336_650_ph_m2_s: f64,
 }
 
+/// Frozen, in-process XP continuous calibrator.
 #[derive(Debug, Clone)]
 pub struct GaiaXpContinuousCalibrator {
+    gaiaxpy_version: String,
+    bp_model: String,
+    rp_model: String,
     sampling_nm: Vec<f64>,
     merge_bp: Vec<f64>,
     merge_rp: Vec<f64>,
@@ -30,8 +41,14 @@ pub struct GaiaXpContinuousCalibrator {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct DesignFixture {
     schema_version: u32,
+    gaiaxpy_version: String,
+    bp_model: String,
+    rp_model: String,
+    band_nm: [f64; 2],
+    grid_step_nm: f64,
     sampling_nm: Vec<f64>,
     merge_bp: Vec<f64>,
     merge_rp: Vec<f64>,
@@ -40,17 +57,42 @@ struct DesignFixture {
 }
 
 impl GaiaXpContinuousCalibrator {
+    /// Load and validate a frozen GaiaXPy design-matrix fixture.
     pub fn from_design_fixture(path: &Path) -> Result<Self> {
         let text = fs::read_to_string(path)
             .with_context(|| format!("read GaiaXPy design fixture {}", path.display()))?;
-        let fixture: DesignFixture = serde_json::from_str(&text)?;
+        let fixture: DesignFixture = serde_json::from_str(&text)
+            .with_context(|| format!("parse GaiaXPy design fixture {}", path.display()))?;
         if fixture.schema_version != 1 {
             bail!(
                 "unsupported design fixture schema {}",
                 fixture.schema_version
             );
         }
+        if fixture.gaiaxpy_version != PINNED_GAIA_XPY_VERSION {
+            bail!(
+                "design fixture GaiaXPy version {} does not match pinned {}",
+                fixture.gaiaxpy_version,
+                PINNED_GAIA_XPY_VERSION
+            );
+        }
+        if fixture.bp_model != BP_MODEL || fixture.rp_model != RP_MODEL {
+            bail!(
+                "design fixture model mismatch: bp={}, rp={}",
+                fixture.bp_model,
+                fixture.rp_model
+            );
+        }
+        if fixture.band_nm != [BAND_MIN_NM, BAND_MAX_NM] {
+            bail!("design fixture band must be exactly 336–650 nm");
+        }
+        if fixture.grid_step_nm != XP_SAMPLED_GRID_STEP_NM {
+            bail!("design fixture grid step must be exactly 2 nm");
+        }
         Self::from_parts(
+            fixture.gaiaxpy_version,
+            fixture.bp_model,
+            fixture.rp_model,
             fixture.sampling_nm,
             fixture.merge_bp,
             fixture.merge_rp,
@@ -59,15 +101,17 @@ impl GaiaXpContinuousCalibrator {
         )
     }
 
+    /// Repository-relative default design fixture.
     pub fn default_fixture_path() -> &'static Path {
         Path::new(
             "crates/nsb-data-tools/tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json",
         )
     }
 
+    /// Resolve an explicit or repository-bundled design fixture.
     pub fn resolve_design_fixture_path(
         explicit: Option<&Path>,
-        gaiaxpy_environment: Option<&Path>,
+        legacy_environment: Option<&Path>,
     ) -> PathBuf {
         if let Some(path) = explicit {
             return path.to_path_buf();
@@ -75,13 +119,11 @@ impl GaiaXpContinuousCalibrator {
         if let Ok(path) = std::env::var("STARLIGHT_GAIAXPY_DESIGN_FIXTURE") {
             return PathBuf::from(path);
         }
-        if let Some(env_path) = gaiaxpy_environment {
-            let sibling = env_path
-                .parent()
-                .map(|parent| parent.join("gaiaxpy_continuous_design_v375wi_v142r.json"));
-            if let Some(path) = sibling {
-                if path.is_file() {
-                    return path;
+        if let Some(environment_path) = legacy_environment {
+            if let Some(parent) = environment_path.parent() {
+                let sibling = parent.join("gaiaxpy_continuous_design_v375wi_v142r.json");
+                if sibling.is_file() {
+                    return sibling;
                 }
             }
         }
@@ -89,26 +131,75 @@ impl GaiaXpContinuousCalibrator {
             .join("tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json")
     }
 
+    /// GaiaXPy version from which the frozen design matrix was exported.
+    pub fn gaiaxpy_version(&self) -> &str {
+        &self.gaiaxpy_version
+    }
+
+    /// Frozen BP calibration model identifier.
+    pub fn bp_model(&self) -> &str {
+        &self.bp_model
+    }
+
+    /// Frozen RP calibration model identifier.
+    pub fn rp_model(&self) -> &str {
+        &self.rp_model
+    }
+
+    // The constructor mirrors the eight independently validated fixture components.
+    #[allow(clippy::too_many_arguments)]
     fn from_parts(
+        gaiaxpy_version: String,
+        bp_model: String,
+        rp_model: String,
         sampling_nm: Vec<f64>,
         merge_bp: Vec<f64>,
         merge_rp: Vec<f64>,
         design_bp: Vec<Vec<f64>>,
         design_rp: Vec<Vec<f64>>,
     ) -> Result<Self> {
-        let n = sampling_nm.len();
-        if merge_bp.len() != n || merge_rp.len() != n {
+        let sample_count = sampling_nm.len();
+        if sample_count != EXPECTED_SAMPLE_COUNT {
+            bail!(
+                "design fixture must contain {EXPECTED_SAMPLE_COUNT} samples, found {sample_count}"
+            );
+        }
+        for (index, wavelength) in sampling_nm.iter().enumerate() {
+            let expected = BAND_MIN_NM + XP_SAMPLED_GRID_STEP_NM * index as f64;
+            if !wavelength.is_finite() || (*wavelength - expected).abs() > 1.0e-12 {
+                bail!("design fixture sampling grid mismatch at index {index}");
+            }
+        }
+        if merge_bp.len() != sample_count || merge_rp.len() != sample_count {
             bail!("merge weights length mismatch with sampling grid");
         }
-        for (label, design) in [("bp", &design_bp), ("rp", &design_rp)] {
-            if design.is_empty() {
-                bail!("{label} design matrix is empty");
+        for index in 0..sample_count {
+            let bp = merge_bp[index];
+            let rp = merge_rp[index];
+            if !bp.is_finite() || !rp.is_finite() || bp < 0.0 || rp < 0.0 {
+                bail!("invalid BP/RP merge weight at index {index}");
             }
-            if design[0].len() != n {
-                bail!("{label} design matrix column count mismatch");
+            if (bp + rp - 1.0).abs() > 1.0e-12 {
+                bail!("BP/RP merge weights do not sum to one at index {index}");
+            }
+        }
+        for (label, design) in [("bp", &design_bp), ("rp", &design_rp)] {
+            if design.len() != 55 {
+                bail!("{label} design matrix must contain 55 basis rows");
+            }
+            for (row_index, row) in design.iter().enumerate() {
+                if row.len() != sample_count {
+                    bail!("{label} design row {row_index} column count mismatch");
+                }
+                if row.iter().any(|value| !value.is_finite()) {
+                    bail!("{label} design row {row_index} contains non-finite values");
+                }
             }
         }
         Ok(Self {
+            gaiaxpy_version,
+            bp_model,
+            rp_model,
             sampling_nm,
             merge_bp,
             merge_rp,
@@ -117,23 +208,23 @@ impl GaiaXpContinuousCalibrator {
         })
     }
 
+    /// Reconstruct and integrate one canonical coefficient record.
     pub fn calibrate_record(
         &self,
         record: &CanonicalXpContinuousRecord,
     ) -> Result<ContinuousCalibratedFlux> {
         let product = self.calibrate_record_product(record)?;
         let integral = integrate_photon_flux(&product)?;
-        let uncertainty = integrate_gaiaxpy_manifest_uncertainty(
-            &product.wavelengths_nm,
-            product.flux_error_w_m2_nm.as_ref().expect("flux errors"),
-        )?;
+        let uncertainty = integral
+            .uncertainty_ph_m2_s
+            .context("calibrated XP continuous product has no uncertainty")?;
         Ok(ContinuousCalibratedFlux {
             flux_336_650_ph_m2_s: integral.total_ph_m2_s,
             statistical_uncertainty_336_650_ph_m2_s: uncertainty,
         })
     }
 
-    /// Calibrated 336–650 nm spectrum samples (W m⁻² nm⁻¹) for normalized CSV export.
+    /// Reconstruct calibrated 336–650 nm spectral samples.
     pub fn calibrate_record_product(
         &self,
         record: &CanonicalXpContinuousRecord,
@@ -146,7 +237,6 @@ impl GaiaXpContinuousCalibrator {
             &record.bp_coefficient_correlations,
             record.bp_standard_deviation,
             &self.design_bp,
-            &self.merge_bp,
         )?;
         let rp = self.calibrate_band(
             record.rp_n_parameters,
@@ -155,7 +245,6 @@ impl GaiaXpContinuousCalibrator {
             &record.rp_coefficient_correlations,
             record.rp_standard_deviation,
             &self.design_rp,
-            &self.merge_rp,
         )?;
         let (flux_w, err_w) =
             merge_bp_rp(&bp, &rp, &self.sampling_nm, &self.merge_bp, &self.merge_rp)?;
@@ -175,7 +264,6 @@ impl GaiaXpContinuousCalibrator {
         correlations: &[f64],
         standard_deviation: f64,
         design: &[Vec<f64>],
-        _merge: &[f64],
     ) -> Result<BandSpectrum> {
         if n_parameters == 0 || coefficients.is_empty() {
             return Ok(BandSpectrum::missing());
@@ -233,26 +321,27 @@ fn merge_bp_rp(
     if bp.present && rp.present {
         let mut flux = vec![0.0; n];
         let mut err2 = vec![0.0; n];
-        for i in 0..n {
-            flux[i] = bp.flux[i] * merge_bp[i] + rp.flux[i] * merge_rp[i];
-            err2[i] = (bp.error[i] * merge_bp[i]).powi(2) + (rp.error[i] * merge_rp[i]).powi(2);
+        for index in 0..n {
+            flux[index] = bp.flux[index] * merge_bp[index] + rp.flux[index] * merge_rp[index];
+            err2[index] = (bp.error[index] * merge_bp[index]).powi(2)
+                + (rp.error[index] * merge_rp[index]).powi(2);
         }
-        let error: Vec<f64> = err2.into_iter().map(f64::sqrt).collect();
+        let error = err2.into_iter().map(f64::sqrt).collect();
         return Ok((flux, error));
     }
     if bp.present ^ rp.present {
         let (band, existing) = if bp.present { (bp, "bp") } else { (rp, "rp") };
         let mut flux = band.flux.clone();
         let mut error = band.error.clone();
-        for (i, wl) in sampling_nm.iter().enumerate() {
+        for (index, wavelength) in sampling_nm.iter().enumerate() {
             let masked = if existing == "rp" {
-                *wl <= RP_WL_LOW
+                *wavelength <= RP_WL_LOW
             } else {
-                *wl >= BP_WL_HIGH
+                *wavelength >= BP_WL_HIGH
             };
             if masked {
-                flux[i] = f64::NAN;
-                error[i] = f64::NAN;
+                flux[index] = f64::NAN;
+                error[index] = f64::NAN;
             }
         }
         return Ok((flux, error));
@@ -261,11 +350,11 @@ fn merge_bp_rp(
 }
 
 fn mat_vec_mul_rows(coefficients: &[f64], design: &[Vec<f64>]) -> Vec<f64> {
-    let n_samples = design[0].len();
-    let mut out = vec![0.0; n_samples];
-    for (coef, row) in coefficients.iter().zip(design.iter()) {
-        for (j, sample) in row.iter().enumerate() {
-            out[j] += coef * sample;
+    let sample_count = design[0].len();
+    let mut out = vec![0.0; sample_count];
+    for (coefficient, row) in coefficients.iter().zip(design) {
+        for (index, sample) in row.iter().enumerate() {
+            out[index] += coefficient * sample;
         }
     }
     out
@@ -276,71 +365,46 @@ fn sample_error(
     design: &[Vec<f64>],
     standard_deviation: f64,
 ) -> Result<Vec<f64>> {
-    let n_samples = design[0].len();
-    let n_bases = design.len();
-    let mut out = vec![0.0; n_samples];
-    for j in 0..n_samples {
+    let sample_count = design[0].len();
+    let basis_count = design.len();
+    let mut out = vec![0.0; sample_count];
+    for sample_index in 0..sample_count {
         let mut sum = 0.0;
-        for k in 0..n_bases {
-            let mut acc = 0.0;
-            for i in 0..n_bases {
-                acc += design[i][j] * covariance[i][k];
+        for column in 0..basis_count {
+            let mut accumulator = 0.0;
+            for row in 0..basis_count {
+                accumulator += design[row][sample_index] * covariance[row][column];
             }
-            sum += acc * design[k][j];
+            sum += accumulator * design[column][sample_index];
         }
-        out[j] = sum.sqrt() * standard_deviation;
+        if !sum.is_finite() || sum < -1.0e-24 {
+            bail!("invalid propagated XP continuous variance");
+        }
+        out[sample_index] = sum.max(0.0).sqrt() * standard_deviation;
     }
     Ok(out)
 }
 
-pub fn integrate_gaiaxpy_manifest_uncertainty(
-    wavelengths_nm: &[f64],
-    flux_error_w_m2_nm: &[f64],
-) -> Result<f64> {
-    if wavelengths_nm.len() != flux_error_w_m2_nm.len() || wavelengths_nm.len() < 2 {
-        bail!("wavelength/flux_error length mismatch for uncertainty integration");
-    }
-    let c_m_s = 299_792_458.0;
-    let hc_j_m = 6.626_070_15e-34 * c_m_s;
-    let photon_unc: Vec<f64> = wavelengths_nm
-        .iter()
-        .zip(flux_error_w_m2_nm.iter())
-        .map(|(wl_nm, err)| err * (wl_nm * 1e-9) / hc_j_m)
-        .collect();
-    let mut integral = 0.0;
-    for index in 0..wavelengths_nm.len() - 1 {
-        let width_nm = wavelengths_nm[index + 1] - wavelengths_nm[index];
-        integral += 0.5 * (photon_unc[index] + photon_unc[index + 1]) * width_nm;
-    }
-    Ok(integral)
-}
-
 #[allow(clippy::needless_range_loop)]
 fn packed_correlation_to_matrix(packed: &[f64], n: usize) -> Vec<Vec<f64>> {
-    // Mirror GaiaXPy `array_to_symmetric_matrix` (packed lower triangle, k=-1).
+    // Mirrors GaiaXPy `array_to_symmetric_matrix` (packed lower triangle, k=-1).
     let mut matrix = vec![vec![0.0; n]; n];
-    for i in 0..n {
-        matrix[i][i] = 1.0;
+    for index in 0..n {
+        matrix[index][index] = 1.0;
     }
-    let mut idx = 0;
+    let mut packed_index = 0;
     for row in 1..n {
-        for col in 0..row {
-            matrix[row][col] = packed[idx];
-            idx += 1;
+        for column in 0..row {
+            matrix[row][column] = packed[packed_index];
+            packed_index += 1;
         }
     }
-    let mut transpose = vec![vec![0.0; n]; n];
-    for i in 0..n {
-        for j in 0..n {
-            transpose[i][j] = matrix[j][i];
+    for row in 0..n {
+        for column in 0..row {
+            matrix[column][row] = matrix[row][column];
         }
     }
-    for row in 1..n {
-        for col in 0..row {
-            transpose[row][col] = matrix[row][col];
-        }
-    }
-    transpose
+    matrix
 }
 
 fn correlation_to_covariance_dr3int5(
@@ -352,26 +416,33 @@ fn correlation_to_covariance_dr3int5(
     if !standard_deviation.is_finite() || standard_deviation <= 0.0 {
         bail!("invalid standard deviation for covariance reconstruction");
     }
-    let correlation = packed_correlation_to_matrix(packed_correlations, n);
-    let mut diag_inv = vec![vec![0.0; n]; n];
-    for i in 0..n {
-        diag_inv[i][i] = formal_errors[i] / standard_deviation;
+    if formal_errors
+        .iter()
+        .any(|error| !error.is_finite() || *error < 0.0)
+    {
+        bail!("formal coefficient errors must be finite and non-negative");
     }
-    Ok(mat_mul(&diag_inv, &mat_mul(&correlation, &diag_inv)))
+    let correlation = packed_correlation_to_matrix(packed_correlations, n);
+    let mut diagonal = vec![vec![0.0; n]; n];
+    for index in 0..n {
+        diagonal[index][index] = formal_errors[index] / standard_deviation;
+    }
+    Ok(mat_mul(&diagonal, &mat_mul(&correlation, &diagonal)))
 }
 
-fn mat_mul(a: &[Vec<f64>], b: &[Vec<f64>]) -> Vec<Vec<f64>> {
-    let n = a.len();
-    let m = b[0].len();
-    let mut out = vec![vec![0.0; m]; n];
-    for i in 0..n {
-        for k in 0..n {
-            let aik = a[i][k];
-            if aik == 0.0 {
+fn mat_mul(left: &[Vec<f64>], right: &[Vec<f64>]) -> Vec<Vec<f64>> {
+    let rows = left.len();
+    let columns = right[0].len();
+    let shared = right.len();
+    let mut out = vec![vec![0.0; columns]; rows];
+    for row in 0..rows {
+        for pivot in 0..shared {
+            let value = left[row][pivot];
+            if value == 0.0 {
                 continue;
             }
-            for j in 0..m {
-                out[i][j] += aik * b[k][j];
+            for column in 0..columns {
+                out[row][column] += value * right[pivot][column];
             }
         }
     }
@@ -389,10 +460,13 @@ mod tests {
     }
 
     #[test]
-    fn loads_design_fixture() -> Result<()> {
-        let cal = GaiaXpContinuousCalibrator::from_design_fixture(&fixture_path())?;
-        assert_eq!(cal.sampling_nm.len(), 158);
-        assert_eq!(cal.design_bp.len(), 55);
+    fn loads_and_validates_design_fixture() -> Result<()> {
+        let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&fixture_path())?;
+        assert_eq!(calibrator.sampling_nm.len(), EXPECTED_SAMPLE_COUNT);
+        assert_eq!(calibrator.design_bp.len(), 55);
+        assert_eq!(calibrator.gaiaxpy_version(), PINNED_GAIA_XPY_VERSION);
+        assert_eq!(calibrator.bp_model(), BP_MODEL);
+        assert_eq!(calibrator.rp_model(), RP_MODEL);
         Ok(())
     }
 }

@@ -7,6 +7,14 @@ once a stable public release is cut.
 
 ### Changed
 
+- Reorganized project documentation into explicit user, developer, and maintainer
+  paths, with a central documentation hub, module ownership reference, complete
+  data-tool reference, and reproducible scientific-data update runbook.
+- Consolidated `nsb-data-tools` from 36 compiled binaries to 19 durable,
+  capability-oriented Rust commands; removed Phase 5/5B one-shot executables,
+  shell orchestration, and Python data-product programs; added pure-Rust Gaia XP
+  continuous reconstruction, a normative tool registry, and CI-enforced
+  documentation and maturity contracts (#58, #61).
 - Made library `ALL`, library `DEFAULT`, and CLI `all` the same production-safe
   set, with starlight included only when a validated bundled production asset is
   embedded at build time.
@@ -27,41 +35,18 @@ once a stable public release is cut.
 
 - Starlight production foundation (PR #56): normative 300–650 nm contract,
   deterministic Gaia sampling, XP continuous acquisition/reconstruction tooling,
-  dual overlap/absolute uncertainty contract, frozen Phase 5 policy v1, independent
-  holdout validation (`PHASE 5 SCIENTIFIC VALIDATION PASSED`), fail-closed approval
-  and candidate infrastructure, validation/packing/runtime foundations.
-  Global Starlight integrated product remains pending (#47).
-
+  dual overlap/absolute uncertainty contract, frozen Phase 5 policy v1,
+  independent holdout validation, fail-closed approval and candidate
+  infrastructure, validation/packing/runtime foundations. The global integrated
+  starlight product remains pending (#47).
 - NSB-side Gaia DR3 starlight release pipeline harness: documented Gaia
   extraction recipe, Gaia XP passband source preparation, Gaia photon-flux
   HEALPix map generation path, validation report command, and candidate asset
-  packer. The real bundled production asset remains pending real Gaia
-  extraction and independent validation.
+  packer. The real bundled production asset remains pending real Gaia extraction
+  and independent validation.
 - Build-script plumbing for the Gaia DR3 bundled production starlight CSV/TOML:
   exactly one registered production release pair is checksum-embedded and loaded
   through the runtime validated-map contract; absent assets fail closed.
 - Versioned scientific asset manifest and checksum/header verifier.
 - Independent published KS91 validation fixture with units and tolerance.
 - Point/component/window benchmarks and scheduled/manual benchmark workflow.
-- Formatting, clippy, locked tests, doctests, docs, release build, MSRV, license,
-  advisory, source, and stale-API CI gates.
-- Model maturity, roadmap, CLI schema, compatibility, and release documents.
-- Fail-closed `ValidatedExternalMap` API and CLI path with checksum, provenance,
-  header, HEALPix, flux-evidence, plane/pole, seam, photometry, and independent-
-  comparison admission checks.
-
-### Removed
-
-- `ComponentMask::ALL_SUPPORTED`.
-- `NsbEvaluator::python_parity` and `NsbModelConfig::python_parity`.
-- `NsbEvaluator::periods_below_threshold_legacy` and its production benchmark.
-- Obsolete historical implementation reports that contradicted the current
-  architecture; history remains available through Git.
-
-### Scientific limitations
-
-- The bundled starlight file remains a manual, incomplete experimental seed.
-- Starlight B/V-to-integrated conversion remains an explicitly named proxy.
-- CTAO profiles remain planning presets pending cleared site calibration data.
-- Several inherited atmospheric assets lack recoverable upstream release and
-  license metadata; the manifest records this as a promotion blocker.

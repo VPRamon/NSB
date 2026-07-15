@@ -51,8 +51,6 @@ pub struct BulkConfig {
     /// Deterministically restrict the run to the first N sorted inventory entries.
     /// Production callers must reject this option.
     pub file_limit: Option<usize>,
-    /// When set, download only these inventory filenames (sorted, deterministic).
-    pub filename_allowlist: Option<Vec<String>>,
 }
 
 impl Default for BulkConfig {
@@ -66,7 +64,6 @@ impl Default for BulkConfig {
             max_backoff: Duration::from_secs(2 * 60),
             progress_interval: Duration::from_secs(30),
             file_limit: None,
-            filename_allowlist: None,
         }
     }
 }
@@ -91,31 +88,8 @@ impl BulkConfig {
         if self.file_limit == Some(0) {
             bail!("Gaia bulk file limit must be positive when set");
         }
-        if let Some(allowlist) = &self.filename_allowlist {
-            if allowlist.is_empty() {
-                bail!("Gaia bulk filename allowlist must not be empty when set");
-            }
-        }
         Ok(())
     }
-}
-
-fn select_requested_files(inventory: &[BulkFile], config: &BulkConfig) -> Vec<BulkFile> {
-    let mut requested = if let Some(allowlist) = &config.filename_allowlist {
-        let allowed: BTreeSet<&str> = allowlist.iter().map(String::as_str).collect();
-        inventory
-            .iter()
-            .filter(|file| allowed.contains(file.filename.as_str()))
-            .cloned()
-            .collect()
-    } else {
-        inventory.to_vec()
-    };
-    requested.sort_by(|left, right| left.filename.cmp(&right.filename));
-    if let Some(limit) = config.file_limit {
-        requested.truncate(limit);
-    }
-    requested
 }
 
 #[derive(Debug, Clone)]
@@ -319,7 +293,11 @@ impl BulkDownloader {
             .fetch_checksum_manifest(paths, Arc::clone(&metrics))
             .await?;
         let inventory_total_files = inventory.len();
-        let requested_files = select_requested_files(&inventory, &self.config);
+        let requested_files = inventory
+            .iter()
+            .take(self.config.file_limit.unwrap_or(inventory_total_files))
+            .cloned()
+            .collect::<Vec<_>>();
         {
             let mut state = metrics.lock().expect("Gaia bulk metrics mutex poisoned");
             state.expected_files = requested_files.len();
@@ -2013,32 +1991,6 @@ mod tests {
     use tokio::net::TcpListener;
 
     #[test]
-    fn filename_allowlist_selects_pending_inventory_subset() {
-        let inventory = vec![
-            BulkFile {
-                filename: "b.csv.gz".to_string(),
-                md5: "bbb".to_string(),
-            },
-            BulkFile {
-                filename: "a.csv.gz".to_string(),
-                md5: "aaa".to_string(),
-            },
-            BulkFile {
-                filename: "c.csv.gz".to_string(),
-                md5: "ccc".to_string(),
-            },
-        ];
-        let config = BulkConfig {
-            filename_allowlist: Some(vec!["c.csv.gz".to_string(), "a.csv.gz".to_string()]),
-            ..BulkConfig::default()
-        };
-        let selected = select_requested_files(&inventory, &config);
-        assert_eq!(selected.len(), 2);
-        assert_eq!(selected[0].filename, "a.csv.gz");
-        assert_eq!(selected[1].filename, "c.csv.gz");
-    }
-
-    #[test]
     fn parses_and_canonicalizes_official_md5_format() -> Result<()> {
         let parsed = parse_md5_manifest(
             "D41D8CD98F00B204E9800998ECF8427E  z.csv.gz\n\
@@ -2273,7 +2225,6 @@ mod tests {
             max_backoff: Duration::from_millis(5),
             progress_interval: Duration::from_secs(60),
             file_limit: None,
-            filename_allowlist: None,
         }
     }
 

@@ -1,5 +1,10 @@
 # Phase 5 XP continuous uncertainty contract
 
+> **Historical scientific evidence.** The phase-specific executables originally
+> used to freeze and evaluate this contract were removed by issue #58. The frozen
+> policy, checksum, reports and reusable Rust library implementation remain the
+> authoritative evidence. See [data-tool migration](DATA_TOOL_MIGRATION.md).
+
 ## Problem (policy v0)
 
 Overlap validation compared `|sampled − reconstructed|` against **absolute**
@@ -24,11 +29,15 @@ Coverage gates apply **only** to `overlap_difference_uncertainty`.
 2. **Validation:** grid-fit `inflation_factor` to target 68% difference coverage.
 3. **Holdout v1:** single evaluation with frozen `phase5_frozen_validation_policy_v1.json` — **PASS** (`phase5_holdout_v1-official-001`, n=160, coverage_68=0.669, coverage_95=0.944).
 
-Exploratory v0 archived under:
+Exploratory v0 is archived under
 `phase5-policy-v0-exploratory-no-explicit-uncertainty-model/`.
 
-## Implementation
+## Current implementation and evidence
 
-- `crates/nsb-data-tools/src/starlight_phase5_uncertainty.rs`
-- `freeze_phase5_validation_policy_v1`
-- `run_phase5_holdout_v1_validation`
+- Reusable uncertainty implementation:
+  `crates/nsb-data-tools/src/starlight_phase5_uncertainty.rs`.
+- Frozen policy and its checksum remain immutable evidence.
+- Holdout reports remain immutable evidence of the recorded validation run.
+- New validation behavior must be exercised through reusable library tests or
+  durable validation commands, not by restoring the removed one-shot policy and
+  holdout executables.
