@@ -2,7 +2,7 @@
 
 Status: Current operational and release-maintenance entry point.
 Audience: Release maintainers, scientific-data maintainers, and reviewers.
-Scope: Data products, tools, release gates, compatibility, and evidence management.
+Scope: Data updates, data products, tools, release gates, compatibility, and evidence management.
 
 Maintainers are responsible for two independent quality surfaces:
 
@@ -16,11 +16,12 @@ planning product to calibrated science.
 
 ## Maintainer reading path
 
-1. [Data-product workflow](data-products.md)
-2. [Data-tool reference](tools.md)
-3. [Data-product pipeline architecture](../DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
-4. [Validation matrix](../VALIDATION.md)
-5. [Release checklist](../RELEASE_CHECKLIST.md)
+1. [Updating scientific data](updating-data.md)
+2. [Data-product workflow](data-products.md)
+3. [Data-tool reference](tools.md)
+4. [Data-product pipeline architecture](../DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
+5. [Validation matrix](../VALIDATION.md)
+6. [Release checklist](../RELEASE_CHECKLIST.md)
 
 For starlight work, continue with:
 
@@ -29,6 +30,9 @@ For starlight work, continue with:
 - [Starlight validation](../STELLAR_MAP_VALIDATION.md)
 - [External starlight manifest](../EXTERNAL_STARLIGHT_MANIFEST.md)
 
+For implementation ownership, use the
+[complete module reference](../developer-guide/module-reference.md).
+
 ## Change classification
 
 | Change type | Minimum review surfaces |
@@ -36,8 +40,8 @@ For starlight work, continue with:
 | Runtime code only | Build, formatting, Clippy, unit/integration/doc tests, performance impact, public API docs |
 | CLI argument or output | CLI smoke tests, schema compatibility, user documentation, logging behaviour |
 | Scientific model | Scientific contract, metadata, uncertainty, validation fixtures, model maturity, performance |
-| Runtime asset | Manifest coverage, checksum, provenance, license, schema, validation, build-time admission |
-| Data-product tool | Tool registry, thin-adapter rule, input/output contract, resume semantics, exit codes, tests |
+| Runtime asset | Data-update runbook, manifest coverage, checksum, provenance, license, schema, validation, build-time admission |
+| Data-product tool | Cargo manifest, tool registry, thin-adapter rule, tool reference, inputs/outputs, resume semantics, exit codes, tests |
 | Persisted schema or checkpoint | Explicit schema version, rejection of unknown/incompatible data, migration/recovery tests |
 | Dependency update | Lockfile, MSRV, compatibility policy, licensing, reproducibility metadata |
 
@@ -52,6 +56,8 @@ For starlight work, continue with:
 - Generated data and reports belong in caller-selected output directories.
 - Source control contains contracts, fixtures, policies, and reviewed runtime
   assets—not ad hoc machine outputs.
+- Experimental and migration-only tools must remain visibly classified and must
+  not be presented as production entry points.
 
 ## Release gates
 
@@ -67,11 +73,12 @@ cargo build --workspace --release --locked
 cargo deny check
 ```
 
-Run the asset registry check independently:
+Run the asset and tool inventories independently:
 
 ```bash
 cargo run --locked -p nsb-data-tools --bin verify_assets -- \
   --manifest crates/nsb/data/manifest.toml
+cargo test --locked -p nsb-data-tools --test tool_registry
 ```
 
 Use the full [Release checklist](../RELEASE_CHECKLIST.md) before tagging or
@@ -83,6 +90,8 @@ distributing a release.
 | --- | --- |
 | Runtime asset inventory | `crates/nsb/data/manifest.toml` |
 | Data-tool inventory and contracts | `crates/nsb-data-tools/tool-registry.toml` |
+| Module ownership and intent | `docs/developer-guide/module-reference.md` plus rustdoc |
+| Data-update procedure | `docs/maintainer-guide/updating-data.md` |
 | Public machine output | Versioned JSON/CSV schema documentation and tests |
 | Scientific maturity | Runtime metadata plus `MODEL_MATURITY.md` |
 | Scientific evidence | Validation fixtures, reports, and `VALIDATION.md` |
@@ -92,6 +101,6 @@ distributing a release.
 ## Historical and audit material
 
 Audits, migration reports, uncertainty studies, and duplication registers are
-valuable evidence but should not be used as primary user instructions. Link them
-from the relevant maintainer or scientific reference page, mark their date and
-status clearly, and avoid copying historical commands into current workflows.
+valuable evidence but are not primary user instructions. Link them from the
+relevant maintainer or scientific reference page, mark their date and status
+clearly, and do not copy historical commands into current workflows.
