@@ -202,11 +202,16 @@ fn source_id_from_path(path: &Path) -> Result<String> {
     let stem = path
         .file_stem()
         .and_then(|stem| stem.to_str())
-        .with_context(|| format!("coefficient path has no UTF-8 file stem: {}", path.display()))?;
+        .with_context(|| {
+            format!(
+                "coefficient path has no UTF-8 file stem: {}",
+                path.display()
+            )
+        })?;
     let source_id = stem.strip_prefix("xp_source_").unwrap_or(stem);
-    source_id
-        .parse::<u64>()
-        .with_context(|| format!("coefficient filename does not encode a Gaia source_id: {stem}"))?;
+    source_id.parse::<u64>().with_context(|| {
+        format!("coefficient filename does not encode a Gaia source_id: {stem}")
+    })?;
     Ok(source_id.to_string())
 }
 
@@ -217,8 +222,7 @@ fn atomic_write_json(path: &Path, value: &serde_json::Value) -> Result<()> {
     let temporary = path.with_extension("json.tmp");
     fs::write(&temporary, serde_json::to_vec_pretty(value)?)
         .with_context(|| format!("write temporary manifest {}", temporary.display()))?;
-    fs::rename(&temporary, path)
-        .with_context(|| format!("publish manifest {}", path.display()))?;
+    fs::rename(&temporary, path).with_context(|| format!("publish manifest {}", path.display()))?;
     Ok(())
 }
 

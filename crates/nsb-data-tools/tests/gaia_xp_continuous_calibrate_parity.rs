@@ -92,10 +92,7 @@ fn gaia_xp_continuous_calibrate_matches_frozen_gaiaxpy_oracle() {
         manifest.corpus_id,
         "gaiaxpy-2.1.4-synthetic-xp-continuous-v1"
     );
-    assert_eq!(
-        manifest.generation.gaiaxpy_version,
-        PINNED_GAIA_XPY_VERSION
-    );
+    assert_eq!(manifest.generation.gaiaxpy_version, PINNED_GAIA_XPY_VERSION);
     assert_eq!(
         manifest.generation.gaiaxpy_distribution_version,
         PINNED_GAIA_XPY_VERSION
@@ -172,7 +169,9 @@ fn gaia_xp_continuous_calibrate_matches_frozen_gaiaxpy_oracle() {
 
         let product = calibrator
             .calibrate_record_product(&canonical)
-            .unwrap_or_else(|error| panic!("source {} calibration failed: {error}", canonical.source_id));
+            .unwrap_or_else(|error| {
+                panic!("source {} calibration failed: {error}", canonical.source_id)
+            });
         assert_slice_close(
             &format!("{} wavelength", canonical.source_id),
             &product.wavelengths_nm,
@@ -211,9 +210,7 @@ fn gaia_xp_continuous_calibrate_matches_frozen_gaiaxpy_oracle() {
         );
         assert_relative_close(
             &format!("{} integrated uncertainty", canonical.source_id),
-            integral
-                .uncertainty_ph_m2_s
-                .expect("integral uncertainty"),
+            integral.uncertainty_ph_m2_s.expect("integral uncertainty"),
             entry.oracle.statistical_uncertainty_336_650_ph_m2_s,
             manifest.tolerances.integrated_uncertainty_relative,
         );

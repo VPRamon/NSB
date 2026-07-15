@@ -134,7 +134,10 @@ fn collect_forbidden_files(root: &Path, directory: &Path, forbidden: &mut Vec<St
     {
         let path = entry.expect("read repository entry").path();
         if path.is_dir() {
-            let name = path.file_name().and_then(|value| value.to_str()).unwrap_or("");
+            let name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("");
             if matches!(name, ".git" | "target") {
                 continue;
             }
@@ -147,8 +150,14 @@ fn collect_forbidden_files(root: &Path, directory: &Path, forbidden: &mut Vec<St
             .expect("repository file must be below root")
             .to_string_lossy()
             .replace('\\', "/");
-        let file_name = path.file_name().and_then(|value| value.to_str()).unwrap_or("");
-        let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("");
+        let file_name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
         let python_tooling = matches!(extension, "py" | "pyc" | "pyo")
             || matches!(
                 file_name,
@@ -160,8 +169,8 @@ fn collect_forbidden_files(root: &Path, directory: &Path, forbidden: &mut Vec<St
                     | "setup.cfg"
                     | "tox.ini"
             );
-        let shell_data_product_wrapper = extension == "sh"
-            && relative.starts_with("tools/starlight-xp-continuous/");
+        let shell_data_product_wrapper =
+            extension == "sh" && relative.starts_with("tools/starlight-xp-continuous/");
         if python_tooling || shell_data_product_wrapper {
             forbidden.push(relative);
         }

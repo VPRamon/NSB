@@ -5,8 +5,7 @@
 //! Python, GaiaXPy, Cargo, or sibling executables.
 
 use crate::gaia_xp::{
-    integrate_photon_flux, XpProduct, BAND_MAX_NM, BAND_MIN_NM,
-    XP_SAMPLED_GRID_STEP_NM,
+    integrate_photon_flux, XpProduct, BAND_MAX_NM, BAND_MIN_NM, XP_SAMPLED_GRID_STEP_NM,
 };
 use crate::gaia_xp_continuous::PINNED_GAIA_XPY_VERSION;
 use crate::gaia_xp_continuous_canonical::CanonicalXpContinuousRecord;
