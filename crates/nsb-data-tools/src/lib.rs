@@ -15,6 +15,7 @@ pub mod gaia_xp;
 pub mod gaia_xp_continuous;
 pub mod gaia_xp_continuous_bulk_index;
 pub mod gaia_xp_continuous_bulk_schema;
+pub mod gaia_xp_continuous_calibrate;
 pub mod gaia_xp_continuous_canonical;
 pub mod gaia_xp_continuous_healpix;
 pub mod gaia_xp_continuous_pilot_io;
