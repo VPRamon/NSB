@@ -175,7 +175,6 @@ fn gaiaxpy_environment_paths(explicit: Option<&Path>) -> Vec<PathBuf> {
         .unwrap_or_default()
         .into_iter()
         .chain([
-            PathBuf::from("tools/starlight-xp-continuous/gaiaxpy_environment.json"),
             PathBuf::from(
                 "/home/valles/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/gaiaxpy_environment.json",
             ),

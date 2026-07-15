@@ -27,10 +27,10 @@ Primary documentation:
 - [Gaia archive programmatic access](https://www.cosmos.esa.int/web/gaia-users/archive/programmatic-access)
 
 Each bulk row contains `source_id`, BP/RP coefficient arrays, coefficient errors
-and quality metadata. The migration reference reconstructs spectra offline with
-pinned GaiaXPy 2.1.4 and integrates the inclusive **336–650 nm** photon-flux
-band. GaiaXPy is temporary reference infrastructure tracked for replacement by
-pure Rust in #61.
+and quality metadata. The Rust calibrator reconstructs spectra offline from the
+checked-in v375wi/v142r design-matrix fixture and integrates the inclusive
+**336–650 nm** photon-flux band. The fixture records its GaiaXPy 2.1.4 origin
+for scientific provenance; no Python runtime or toolchain is required.
 
 The 336–650 nm result is **not** labelled as the integrated 300–650 nm product
 until the independently validated 300–336 nm correction is applied.

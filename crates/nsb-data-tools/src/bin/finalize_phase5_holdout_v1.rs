@@ -259,7 +259,9 @@ fn main() -> Result<()> {
     if !args.skip_reconstruct {
         fs::create_dir_all(&reconstructed_dir)?;
         let recon_manifest = holdout_root.join("phase5_holdout_v1_reconstruction.manifest.json");
-        let gaiaxpy_env = repo_root.join("tools/starlight-xp-continuous/gaiaxpy_environment.json");
+        let calibration_fixture = repo_root.join(
+            "crates/nsb-data-tools/tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json",
+        );
         let status = Command::new("cargo")
             .current_dir(&repo_root)
             .args([
@@ -279,8 +281,8 @@ fn main() -> Result<()> {
             .arg(&reconstructed_dir)
             .args(["--manifest"])
             .arg(&recon_manifest)
-            .args(["--gaiaxpy-environment"])
-            .arg(&gaiaxpy_env)
+            .args(["--calibration-fixture"])
+            .arg(&calibration_fixture)
             .status()
             .context("reconstruct holdout")?;
         if !status.success() {

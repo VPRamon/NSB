@@ -7,6 +7,9 @@ once a stable public release is cut.
 
 ### Changed
 
+- Removed the GaiaXPy/Python migration tooling and shell wrappers. Gaia XP
+  continuous reconstruction now relies exclusively on the checked-in,
+  Rust-consumed design-matrix fixture and Rust parity tests (#61).
 - Consolidated `nsb-data-tools` from 36 compiled binaries to 18 durable,
   capability-oriented commands; removed Phase 5/5B one-shot executables, shell
   orchestration and the deprecated Python pilot wrapper; added a normative tool

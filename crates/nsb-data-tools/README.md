@@ -7,7 +7,7 @@ The normative command inventory is
 [`tool-registry.toml`](tool-registry.toml). Every compiled binary must be listed
 there with its owner, audience, maturity, purpose, input/output contract, resume
 semantics, exit-code contract and documentation anchor. CI rejects undocumented
-commands, phase-numbered binaries, unregistered Python/shell programs,
+commands, phase-numbered binaries, or unregistered non-Rust programs,
 developer-specific absolute paths and generated machine reports committed as
 source.
 
@@ -19,9 +19,7 @@ freezes, pilot runners and phase-finalization executables are not part of the
 supported command surface. Their reusable algorithms remain library code and
 their scientific evidence remains as frozen fixtures or documentation.
 
-All compiled commands are Rust. The remaining Python files are explicitly
-migration-only or test-only reference implementations for GaiaXPy parity and are
-tracked for removal by issue #61. Shell orchestration is not supported.
+All retained data-product commands and tooling are Rust.
 
 The command boundary should stay thin:
 
@@ -39,9 +37,6 @@ directory, never at the repository root.
 - **supported**: durable maintainer capability with a fail-closed contract;
 - **experimental**: useful research capability whose scientific output is not
   production approved;
-- **migration-only**: temporary non-Rust reference required only while #61 is
-  open;
-- **test-only**: helper used exclusively to verify temporary migration evidence.
 
 Candidate generation and production admission are separate. A successful
 candidate command does not imply that a product is approved for runtime use.

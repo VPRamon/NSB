@@ -1,8 +1,8 @@
 //! Gaia DR3 XP continuous coefficient products and reconstructed-spectrum metadata.
 //!
 //! Coefficient CSV files are retrieved via Gaia DataLink (`RETRIEVAL_TYPE=XP_CONTINUOUS`).
-//! Production calibration is in-process Rust (`gaia_xp_continuous_calibrate`); GaiaXPy
-//! Python is retained only for oracle fixtures and environment audit.
+//! Production calibration is in-process Rust (`gaia_xp_continuous_calibrate`) over
+//! the checked-in design-matrix fixture.
 
 use anyhow::{bail, Context, Result};
 use csv::{ReaderBuilder, WriterBuilder};

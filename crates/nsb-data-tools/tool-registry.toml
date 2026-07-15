@@ -1,7 +1,7 @@
 schema_version = 1
 
-# This registry is normative. Every compiled binary and every Python or shell
-# program under tools/starlight-xp-continuous must be listed exactly once.
+# This registry is normative. Every compiled data-product binary must be listed
+# exactly once.
 # Status values:
 # - supported: durable release-maintainer capability
 # - experimental: real capability whose scientific contract is not production approved
@@ -241,33 +241,3 @@ outputs = "Versioned exclusion audit report and exact reconciliation evidence."
 resume = "Not applicable; read-only deterministic audit."
 exit_codes = "Zero only when every exclusion is justified, unique and reconciled with the source inventory."
 documentation = "crates/nsb-data-tools/README.md#starlight-generation-and-validation"
-
-[[scripts]]
-path = "tools/starlight-xp-continuous/audit_gaiaxpy_environment.py"
-status = "migration-only"
-purpose = "Freeze GaiaXPy package and calibration-data provenance while the pure-Rust reconstruction tracked by #61 is developed."
-removal_issue = "#61"
-
-[[scripts]]
-path = "tools/starlight-xp-continuous/emit_phase5b_schema_artifacts.py"
-status = "migration-only"
-purpose = "Emit legacy cross-language schema evidence until the canonical schema is generated from Rust under #61."
-removal_issue = "#61"
-
-[[scripts]]
-path = "tools/starlight-xp-continuous/phase5b_gaiaxpy_flux_validate.py"
-status = "migration-only"
-purpose = "Generate independent GaiaXPy parity evidence until equivalent frozen Rust tests replace it under #61."
-removal_issue = "#61"
-
-[[scripts]]
-path = "tools/starlight-xp-continuous/reconstruct_and_integrate.py"
-status = "migration-only"
-purpose = "Provide pinned GaiaXPy reconstruction only for migration validation until the supported pure-Rust implementation in #61 is complete."
-removal_issue = "#61"
-
-[[scripts]]
-path = "tools/starlight-xp-continuous/test_audit_environment.py"
-status = "test-only"
-purpose = "Test the temporary GaiaXPy environment audit during the #61 migration."
-removal_issue = "#61"

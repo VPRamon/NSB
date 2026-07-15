@@ -37,33 +37,6 @@ fn generated_scientific_contract_matches_rust_authority() {
 }
 
 #[test]
-fn migration_python_does_not_reimplement_photon_integration() {
-    let root = repository_root();
-    for relative in [
-        "tools/starlight-xp-continuous/reconstruct_and_integrate.py",
-        "tools/starlight-xp-continuous/phase5b_gaiaxpy_flux_validate.py",
-    ] {
-        let text = fs::read_to_string(root.join(relative)).expect("migration script");
-        assert!(text.contains("gaia_xp_photon_integration_v1.json"));
-        for forbidden in [
-            "6.62607015e-34",
-            "299792458.0",
-            "BAND_MIN_NM =",
-            "BAND_MAX_NM =",
-            "GRID_STEP_NM =",
-            "np.trapezoid",
-            "np.trapz",
-            "photon_energy_j",
-        ] {
-            assert!(
-                !text.contains(forbidden),
-                "{relative} independently defines forbidden scientific logic {forbidden:?}"
-            );
-        }
-    }
-}
-
-#[test]
 fn canonical_xp_continuous_schema_has_no_legacy_parallel_model() {
     let root = repository_root();
     let text = fs::read_to_string(root.join("crates/nsb-data-tools/src/gaia_xp_continuous.rs"))

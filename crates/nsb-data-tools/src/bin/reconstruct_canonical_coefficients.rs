@@ -30,7 +30,7 @@ struct Args {
     #[arg(long)]
     design_fixture: Option<PathBuf>,
     #[arg(long)]
-    gaiaxpy_environment: Option<PathBuf>,
+    calibration_fixture: Option<PathBuf>,
     #[arg(long)]
     integrate_only: bool,
 }
@@ -42,8 +42,10 @@ fn main() -> Result<()> {
     }
     fs::create_dir_all(&args.output_dir)?;
     let fixture = GaiaXpContinuousCalibrator::resolve_design_fixture_path(
-        args.design_fixture.as_deref(),
-        args.gaiaxpy_environment.as_deref(),
+        args.calibration_fixture
+            .as_deref()
+            .or(args.design_fixture.as_deref()),
+        None,
     );
     let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&fixture)?;
 
