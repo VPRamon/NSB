@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -108,73 +108,81 @@ fn every_compiled_binary_is_registered_and_documented() {
 }
 
 #[test]
-fn every_python_or_shell_program_is_explicitly_temporary() {
+fn repository_contains_no_python_code_or_shell_data_product_wrappers() {
     let repo = repository_root();
-    let registry = read_toml(&manifest_dir().join("tool-registry.toml"));
-    let script_dir = repo.join("tools/starlight-xp-continuous");
+    let mut forbidden = Vec::new();
+    collect_forbidden_files(&repo, &repo, &mut forbidden);
+    forbidden.sort();
+    assert!(
+        forbidden.is_empty(),
+        "Python code/tooling or shell data-product wrappers remain in the repository: {forbidden:#?}"
+    );
 
-    let mut actual = BTreeSet::new();
-    for entry in fs::read_dir(&script_dir)
-        .unwrap_or_else(|error| panic!("read {}: {error}", script_dir.display()))
+    let registry = read_toml(&manifest_dir().join("tool-registry.toml"));
+    assert!(
+        registry
+            .get("scripts")
+            .and_then(toml::Value::as_array)
+            .is_none_or(Vec::is_empty),
+        "the normative registry must not retain non-Rust programs"
+    );
+}
+
+fn collect_forbidden_files(root: &Path, directory: &Path, forbidden: &mut Vec<String>) {
+    for entry in fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
     {
-        let path = entry.expect("read script directory entry").path();
-        let extension = path.extension().and_then(|value| value.to_str());
-        if matches!(extension, Some("py" | "sh")) {
-            let relative = path
-                .strip_prefix(&repo)
-                .expect("script must be below repository root")
-                .to_string_lossy()
-                .replace('\\', "/");
-            actual.insert(relative);
+        let path = entry.expect("read repository entry").path();
+        let metadata = fs::symlink_metadata(&path)
+            .unwrap_or_else(|error| panic!("inspect {}: {error}", path.display()));
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            let name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("");
+            if matches!(name, ".git" | "target") {
+                continue;
+            }
+            collect_forbidden_files(root, &path, forbidden);
+            continue;
+        }
+        if !metadata.is_file() {
+            continue;
+        }
+
+        let relative = path
+            .strip_prefix(root)
+            .expect("repository file must be below root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let file_name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        let python_tooling = matches!(extension, "py" | "pyc" | "pyo")
+            || matches!(
+                file_name,
+                "requirements.txt"
+                    | "pyproject.toml"
+                    | "Pipfile"
+                    | "Pipfile.lock"
+                    | "setup.py"
+                    | "setup.cfg"
+                    | "tox.ini"
+            );
+        let shell_data_product_wrapper =
+            extension == "sh" && relative.starts_with("tools/starlight-xp-continuous/");
+        if python_tooling || shell_data_product_wrapper {
+            forbidden.push(relative);
         }
     }
-
-    assert!(
-        actual.iter().all(|path| !path.ends_with(".sh")),
-        "supported data-product orchestration must not depend on shell wrappers: {actual:?}"
-    );
-
-    let entries = registry
-        .get("scripts")
-        .and_then(toml::Value::as_array)
-        .expect("tool-registry.toml must define [[scripts]]");
-    let mut documented = BTreeSet::new();
-    for value in entries {
-        let table = value
-            .as_table()
-            .expect("each [[scripts]] entry must be a table");
-        let path = required_string(table, "path", "registry script");
-        let status = required_string(table, "status", path);
-        assert!(
-            matches!(status, "migration-only" | "test-only"),
-            "non-Rust program `{path}` must be temporary, got `{status}`"
-        );
-        assert_eq!(
-            required_string(table, "removal_issue", path),
-            "#61",
-            "every retained non-Rust program must have the pure-Rust removal issue"
-        );
-        required_string(table, "purpose", path);
-        assert!(
-            repo.join(path).is_file(),
-            "registered script `{path}` is missing"
-        );
-        assert!(
-            documented.insert(path.to_owned()),
-            "duplicate registry entry for `{path}`"
-        );
-
-        let source = fs::read_to_string(repo.join(path)).expect("read registered script");
-        assert!(
-            !source.contains("/home/example-user/") && !source.contains("C:\\Users\\"),
-            "registered script `{path}` contains a developer-specific absolute path"
-        );
-    }
-
-    assert_eq!(
-        documented, actual,
-        "Python/shell programs and the normative tool registry differ"
-    );
 }
 
 #[test]

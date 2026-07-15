@@ -97,6 +97,11 @@ name = "audit_gaia_starlight_exclusions"
 path = "src/bin/audit_gaia_starlight_exclusions.rs"
 doc = false
 
+[[bin]]
+name = "reconstruct_canonical_coefficients"
+path = "src/bin/reconstruct_canonical_coefficients.rs"
+doc = false
+
 [dependencies]
 anyhow = "1"
 chrono = "0.4"
