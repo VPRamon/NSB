@@ -146,6 +146,8 @@ impl GaiaXpContinuousCalibrator {
         &self.rp_model
     }
 
+    // The constructor mirrors the eight independently validated fixture components.
+    #[allow(clippy::too_many_arguments)]
     fn from_parts(
         gaiaxpy_version: String,
         bp_model: String,
