@@ -7,14 +7,15 @@ once a stable public release is cut.
 
 ### Changed
 
-- Reorganized project documentation into explicit user, developer, and maintainer
-  paths, with a central documentation hub, module ownership reference, complete
-  data-tool reference, and reproducible scientific-data update runbook.
 - Consolidated `nsb-data-tools` from 36 compiled binaries to 19 durable,
   capability-oriented Rust commands; removed Phase 5/5B one-shot executables,
   shell orchestration, and Python data-product programs; added pure-Rust Gaia XP
   continuous reconstruction, a normative tool registry, and CI-enforced
   documentation and maturity contracts (#58, #61).
+- Consolidated `nsb-data-tools` from 36 compiled binaries to 18 durable,
+  capability-oriented commands; removed Phase 5/5B one-shot executables, shell
+  orchestration and the deprecated Python pilot wrapper; added a normative tool
+  registry and CI-enforced documentation/maturity contracts (#58).
 - Made library `ALL`, library `DEFAULT`, and CLI `all` the same production-safe
   set, with starlight included only when a validated bundled production asset is
   embedded at build time.
