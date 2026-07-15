@@ -23,16 +23,6 @@ siderust
 
 darknsb/
 
-# Runtime bulk pipeline artefacts (generated in repo cwd during local runs)
-storage_plan.json
-storage_plan.md
-pipeline_report.json
-session_manifest.json
-root_manifest.json
-bulk_reconciliation_ledger.json
-cleanup_simulation.json
-XpContinuousMeanSpectrum_*.reconciliation.json
-
 # Python
 __pycache__/
 *.py[cod]

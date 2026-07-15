@@ -70,18 +70,13 @@ fn every_compiled_binary_is_registered_and_documented() {
         let path = required_string(table, "path", name);
         let status = required_string(table, "status", name);
         assert!(
-            matches!(
-                status,
-                "supported" | "experimental" | "migration-only" | "test-only"
-            ),
+            matches!(status, "supported" | "experimental"),
             "compiled binary `{name}` has unsupported status `{status}`"
         );
-        if name.contains("phase5") || name.contains("phase5b") {
-            assert_eq!(
-                status, "migration-only",
-                "phase-numbered binary `{name}` must be explicitly transitional"
-            );
-        }
+        assert!(
+            !name.contains("phase5") && !name.contains("phase5b"),
+            "compiled commands must describe durable capabilities, not historical phases: `{name}`"
+        );
         for key in [
             "owner",
             "audience",
@@ -113,34 +108,81 @@ fn every_compiled_binary_is_registered_and_documented() {
 }
 
 #[test]
-fn repository_contains_no_python_or_shell_tools() {
+fn repository_contains_no_python_code_or_shell_data_product_wrappers() {
     let repo = repository_root();
-    fn visit(path: &Path, found: &mut Vec<PathBuf>) {
-        for entry in fs::read_dir(path).expect("read repository directory") {
-            let path = entry.expect("directory entry").path();
-            if matches!(
-                path.file_name().and_then(|name| name.to_str()),
-                Some("target" | ".git")
-            ) {
+    let mut forbidden = Vec::new();
+    collect_forbidden_files(&repo, &repo, &mut forbidden);
+    forbidden.sort();
+    assert!(
+        forbidden.is_empty(),
+        "Python code/tooling or shell data-product wrappers remain in the repository: {forbidden:#?}"
+    );
+
+    let registry = read_toml(&manifest_dir().join("tool-registry.toml"));
+    assert!(
+        registry
+            .get("scripts")
+            .and_then(toml::Value::as_array)
+            .is_none_or(Vec::is_empty),
+        "the normative registry must not retain non-Rust programs"
+    );
+}
+
+fn collect_forbidden_files(root: &Path, directory: &Path, forbidden: &mut Vec<String>) {
+    for entry in fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()))
+    {
+        let path = entry.expect("read repository entry").path();
+        let metadata = fs::symlink_metadata(&path)
+            .unwrap_or_else(|error| panic!("inspect {}: {error}", path.display()));
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            let name = path
+                .file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or("");
+            if matches!(name, ".git" | "target") {
                 continue;
             }
-            if path.is_dir() {
-                visit(&path, found);
-            } else if matches!(
-                path.extension().and_then(|ext| ext.to_str()),
-                Some("py" | "sh")
-            ) {
-                found.push(path);
-            }
+            collect_forbidden_files(root, &path, forbidden);
+            continue;
+        }
+        if !metadata.is_file() {
+            continue;
+        }
+
+        let relative = path
+            .strip_prefix(root)
+            .expect("repository file must be below root")
+            .to_string_lossy()
+            .replace('\\', "/");
+        let file_name = path
+            .file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("");
+        let python_tooling = matches!(extension, "py" | "pyc" | "pyo")
+            || matches!(
+                file_name,
+                "requirements.txt"
+                    | "pyproject.toml"
+                    | "Pipfile"
+                    | "Pipfile.lock"
+                    | "setup.py"
+                    | "setup.cfg"
+                    | "tox.ini"
+            );
+        let shell_data_product_wrapper =
+            extension == "sh" && relative.starts_with("tools/starlight-xp-continuous/");
+        if python_tooling || shell_data_product_wrapper {
+            forbidden.push(relative);
         }
     }
-
-    let mut non_rust_tools = Vec::new();
-    visit(&repo, &mut non_rust_tools);
-    assert!(
-        non_rust_tools.is_empty(),
-        "the repository must not retain Python or shell tools: {non_rust_tools:?}"
-    );
 }
 
 #[test]

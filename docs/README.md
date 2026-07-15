@@ -20,54 +20,39 @@ The repository separates three responsibilities:
 | `nsb-cli` | Operational interface: commands, site aliases, parsing, output schemas, and logging | Users and automated workflows |
 | `nsb-data-tools` | Offline generation, validation, reconciliation, and packaging of scientific data products | Maintainers and researchers |
 
-Runtime evaluation never downloads catalogues or invokes data-generation tools.
-Scientific assets are prepared offline, validated, checksum-pinned, registered in
-the runtime manifest, and admitted through explicit contracts.
+Runtime evaluation never downloads catalogues or executes data-generation tools.
+Scientific assets are prepared offline, validated, checksum-pinned, and admitted
+through explicit runtime-manifest contracts.
 
-NSB is production-oriented software, but scientific maturity is
-component-specific. The default model is suitable for deterministic planning; it
-must not be described as site-calibrated unless returned metadata and validation
-evidence support that claim.
-
-## Choose your path
+## Choose your documentation path
 
 ### Users
 
-Start here to evaluate NSB, search observing windows, integrate the Rust API,
-choose components, or configure an observatory.
-
-1. [User guide](user-guide/README.md)
-2. [Getting started](user-guide/getting-started.md)
-3. [Runtime components](user-guide/components.md)
-4. [Observatory configuration and customisation](user-guide/observatory-customization.md)
+- [User guide](user-guide/README.md)
+- [Getting started](user-guide/getting-started.md)
+- [Runtime components](user-guide/components.md)
+- [Observatory configuration and customisation](user-guide/observatory-customization.md)
 
 ### Developers
 
-Start here to change runtime models, CLI behaviour, data-product services, or
-module boundaries.
-
-1. [Developer guide](developer-guide/README.md)
-2. [Architecture and modules](developer-guide/architecture.md)
-3. [Complete module reference](developer-guide/module-reference.md)
-4. [Performance contract](PERFORMANCE.md)
-5. [Logging contract](LOGGING.md)
-6. [Siderust compatibility](SIDERUST_COMPATIBILITY.md)
+- [Developer guide](developer-guide/README.md)
+- [Architecture and modules](developer-guide/architecture.md)
+- [Module reference](developer-guide/module-reference.md)
+- [Performance contract](PERFORMANCE.md)
+- [Logging contract](LOGGING.md)
+- [Siderust compatibility](SIDERUST_COMPATIBILITY.md)
 
 ### Maintainers
 
-Start here to update scientific data, operate the Gaia/starlight pipeline, verify
-assets, or prepare a release.
-
-1. [Maintainer guide](maintainer-guide/README.md)
-2. [Updating scientific data](maintainer-guide/updating-data.md)
-3. [Data-product workflow](maintainer-guide/data-products.md)
-4. [Complete data-tool reference](maintainer-guide/tools.md)
-5. [Data-product pipeline architecture](DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
-6. [Release checklist](RELEASE_CHECKLIST.md)
+- [Maintainer guide](maintainer-guide/README.md)
+- [Updating scientific data](maintainer-guide/updating-data.md)
+- [Data-product workflow](maintainer-guide/data-products.md)
+- [Complete data-tool reference](maintainer-guide/tools.md)
+- [Data-product pipeline architecture](DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
+- [Pure-Rust Gaia XP continuous reconstruction](GAIA_XP_CONTINUOUS_RUST.md)
+- [Release checklist](RELEASE_CHECKLIST.md)
 
 ## Scientific interpretation and contracts
-
-These documents are authoritative for scientific meaning and review:
 
 | Document | Purpose |
 | --- | --- |
@@ -81,13 +66,13 @@ These documents are authoritative for scientific meaning and review:
 
 ## Starlight data products
 
-Use this reading order for integrated starlight work:
+Use this reading order:
 
 ```text
 science requirements
-  -> source acquisition and catalogue preparation
-  -> map or contribution generation
-  -> validation and reconciliation
+  -> input acquisition and catalogue preparation
+  -> map generation
+  -> validation
   -> production admission and packaging
   -> runtime manifest and maturity metadata
 ```
@@ -100,15 +85,13 @@ science requirements
 | [External starlight manifest](EXTERNAL_STARLIGHT_MANIFEST.md) | Fail-closed sidecar contract for external production maps |
 | [Gaia DR3 ADQL](queries/gaia_dr3_starlight_extract.adql) | Recorded source-selection query |
 
-Production starlight is never inferred from a successful candidate build. A
-bundled or external product must pass its complete provenance, checksum,
-scientific-validation, and admission contract. The experimental manual seed is
-not a fallback for production requests.
+A successful candidate build is not production admission. A bundled or external
+product must satisfy provenance, checksum, scientific-validation, and maturity
+contracts. The experimental seed is not a fallback for production requests.
 
-## Historical evidence and audits
+## Roadmaps, audits, and historical evidence
 
-The following material supports maintenance and scientific review but is not the
-primary user workflow:
+These documents support review but are not primary operational instructions:
 
 - [Production roadmap](PRODUCTION_ROADMAP.md)
 - [Gaia DR3 starlight science audit](GAIA_DR3_STARLIGHT_SCIENCE_AUDIT.md)
@@ -118,23 +101,16 @@ primary user workflow:
 - [Data-tool migration](DATA_TOOL_MIGRATION.md)
 - [Duplication register](DUPLICATION_REGISTER.md)
 
-Historical pages may explain past decisions and frozen evidence, but they must
-not override the current user, developer, maintainer, module, or tool references.
-Phase-numbered commands are documented only where they remain compiled and are
-explicitly classified as transitional.
+Historical documents must be labelled clearly and must not override current
+capability-oriented user and maintainer workflows.
 
-## Documentation ownership
+## Documentation conventions
 
 - User workflows live under `docs/user-guide/`.
-- Architecture, module ownership, and extension guidance live under
-  `docs/developer-guide/`.
-- Data updates, tool operations, and release procedures live under
-  `docs/maintainer-guide/`.
-- Stable scientific contracts and evidence remain specialised reference pages
-  linked from the relevant guide.
+- Architecture and extension guidance live under `docs/developer-guide/`.
+- Data, release, and operational procedures live under `docs/maintainer-guide/`.
+- Stable scientific contracts and evidence remain specialised references linked
+  from the relevant guides.
 - Rust public APIs are documented in rustdoc.
-- The data-tool registry is the machine-readable authority for compiled tools.
-
-Every current page should state status, audience, and scope. Historical material
-should state its date and limitations and must not be presented as current
-operational guidance.
+- Pages should state status, audience, scope, and important non-goals whenever
+  misuse would affect scientific interpretation.

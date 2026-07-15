@@ -53,11 +53,6 @@ path = "src/bin/query_gaia_tap.rs"
 doc = false
 
 [[bin]]
-name = "export_starlight_healpix_to_contributions"
-path = "src/bin/export_starlight_healpix_to_contributions.rs"
-doc = false
-
-[[bin]]
 name = "build_integrated_starlight_product"
 path = "src/bin/build_integrated_starlight_product.rs"
 doc = false
@@ -103,33 +98,13 @@ path = "src/bin/audit_gaia_starlight_exclusions.rs"
 doc = false
 
 [[bin]]
-name = "finalize_phase5_holdout_v1"
-path = "src/bin/finalize_phase5_holdout_v1.rs"
-doc = false
-
-[[bin]]
-name = "run_phase5b_chunk_benchmark"
-path = "src/bin/run_phase5b_chunk_benchmark.rs"
-doc = false
-
-[[bin]]
-name = "run_phase5b_mini_pilot"
-path = "src/bin/run_phase5b_mini_pilot.rs"
-doc = false
-
-[[bin]]
-name = "run_starlight_xp_continuous_bulk_pipeline"
-path = "src/bin/run_starlight_xp_continuous_bulk_pipeline.rs"
-doc = false
-
-[[bin]]
 name = "reconstruct_canonical_coefficients"
 path = "src/bin/reconstruct_canonical_coefficients.rs"
 doc = false
+
 [dependencies]
 anyhow = "1"
 chrono = "0.4"
-libc = "0.2"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 flate2 = "1"

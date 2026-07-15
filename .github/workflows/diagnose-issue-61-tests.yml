@@ -1,0 +1,45 @@
+name: Diagnose issue 61 tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - crates/nsb-data-tools/**/*.rs
+      - crates/nsb-data-tools/tests/fixtures/gaiaxpy*/**
+      - .github/workflows/diagnose-issue-61-tests.yml
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: never
+  RUSTFLAGS: -D warnings
+
+jobs:
+  diagnose:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pull-request branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Capture focused test diagnostics
+        shell: bash
+        run: |
+          set +e
+          {
+            echo '=== gaia_xp_continuous_calibrate_parity ==='
+            cargo test --locked -p nsb-data-tools --test gaia_xp_continuous_calibrate_parity -- --nocapture
+            echo "parity_status=$?"
+            echo '=== tool_registry ==='
+            cargo test --locked -p nsb-data-tools --test tool_registry -- --nocapture
+            echo "registry_status=$?"
+          } > issue-61-test-diagnostic.log 2>&1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add issue-61-test-diagnostic.log
+          git commit -m "ci: capture issue 61 focused test diagnostics"
+          git push origin HEAD:${{ github.head_ref }}

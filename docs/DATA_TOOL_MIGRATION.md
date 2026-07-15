@@ -35,21 +35,17 @@ one-shot executable entry points were removed.
 
 ## Removed wrappers
 
-The following migration wrappers were removed because they embedded a
-developer's filesystem layout, chained internal phase commands and duplicated
-Rust orchestration:
+The following shell wrappers were removed because they embedded a developer's
+filesystem layout, chained internal phase commands and duplicated orchestration:
 
 - `run_phase5_pipeline.sh`;
 - `run_phase5_incremental.sh`;
 - `run_phase5_holdout_v1_tap.sh`;
 - `run_pilot_bulk_continuous.sh`.
-- `run_bulk_until_shutdown.sh`;
-- `package_week_milestone.sh`;
-- `cleanup_production_work.sh`.
 
-The Python GaiaXPy audit, fixture-generation, schema-emission, reconstruction
-and parity scripts were removed under #61. Their supported behavior is covered
-by the Rust calibration implementation and Rust parity tests.
+The deprecated `pilot_bulk_continuous.py` wrapper was also removed. It only
+launched a Rust pilot through `cargo run` and had no independent supported
+purpose.
 
 ## Historical documentation
 

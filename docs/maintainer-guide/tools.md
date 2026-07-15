@@ -1,414 +1,214 @@
 # Data-tool reference
 
-Status: Current command reference.
+Status: Current human-readable reference for `nsb-data-tools`.
 Audience: Release maintainers, scientific-data maintainers, researchers, and external verifiers.
-Scope: Purpose, maturity, inputs, outputs, resume behaviour, and failure semantics of every compiled `nsb-data-tools` command.
+Scope: Purpose, audience, maturity, inputs, outputs, resume behaviour, and failure semantics of every compiled command.
 
-The normative machine-readable inventory is
+The normative inventory is
 [`crates/nsb-data-tools/tool-registry.toml`](../../crates/nsb-data-tools/tool-registry.toml).
-Every `[[bin]]` entry in `crates/nsb-data-tools/Cargo.toml` must appear exactly
-once in that registry and on this page.
-
-Run any command from the workspace root:
+It and `Cargo.toml` must contain the same 19 binaries.
 
 ```bash
 cargo run --locked --release -p nsb-data-tools --bin <command> -- --help
 ```
 
-Generated products belong in a caller-selected output directory. Production
-commands fail closed on missing provenance, incomplete validation, checksum
-mismatch, schema errors, or unreconciled counts.
+Production-facing commands fail closed on missing provenance, incomplete
+validation, checksum mismatch, schema errors, or unreconciled counts.
 
-## Status definitions
+## Command overview
 
-| Status | Meaning |
-| --- | --- |
-| Supported | Durable maintainer capability with a stable operational contract |
-| Experimental | Useful capability, but its scientific or operational contract is not production approved |
-| Migration-only | Transitional command retained for frozen evidence or a current orchestrator; do not base a new workflow on it |
-
-## Command index
-
-| Command | Area | Status | Audience |
+| Command | Area | Audience | Status |
 | --- | --- | --- | --- |
-| `verify_assets` | Asset verification | Supported | External users and release maintainers |
-| `pack_starlight_asset` | Asset packaging | Supported | Release maintainers |
-| `prepare_gaia_starlight_catalogue` | Catalogue preparation | Supported | Release maintainers |
-| `prepare_tycho_starlight_catalogue` | Catalogue preparation | Experimental | Researchers |
-| `query_gaia_tap` | Gaia acquisition | Supported | Release maintainers |
-| `generate_gaia_starlight_release_inputs` | Gaia acquisition | Supported | Release maintainers |
-| `download_gaia_xp_continuous_bulk` | Gaia acquisition | Supported | Release maintainers |
-| `index_gaia_xp_continuous_bulk` | Gaia indexing | Supported | Release maintainers |
-| `normalize_xp_continuous_coefficients` | XP continuous | Supported | Release maintainers |
-| `reconstruct_canonical_coefficients` | XP continuous | Supported | Release maintainers |
-| `validate_xp_continuous_reconstruction` | XP continuous | Supported | Release maintainers |
-| `run_starlight_xp_continuous_bulk_pipeline` | XP continuous bulk orchestration | Experimental | Release maintainers |
-| `generate_starlight_sample_queries` | Sampling | Supported | Release maintainers |
-| `consolidate_gaia_starlight_samples` | Sampling | Supported | Release maintainers |
-| `train_starlight_photometry_models` | Model development | Experimental | Researchers |
-| `build_starlight_map` | Map generation | Supported | Release maintainers |
-| `sweep_starlight_nside` | Map assessment | Supported | Release maintainers |
-| `validate_starlight_map` | Map validation | Supported | Release maintainers |
-| `audit_gaia_starlight_exclusions` | Scientific audit | Supported | Release maintainers |
-| `export_starlight_healpix_to_contributions` | Integrated-product bridge | Experimental | Researchers and release maintainers |
-| `build_integrated_starlight_product` | Integrated product | Supported | Release maintainers |
-| `finalize_phase5_holdout_v1` | Frozen Phase 5 evidence | Migration-only | Maintainers |
-| `run_phase5b_chunk_benchmark` | Transitional performance evidence | Migration-only | Maintainers |
-| `run_phase5b_mini_pilot` | Transitional bulk processing | Migration-only | Maintainers |
+| `verify_assets` | Asset verification | External users and release maintainers | Supported |
+| `pack_starlight_asset` | Asset release | Release maintainers | Supported |
+| `prepare_gaia_starlight_catalogue` | Catalogue preparation | Release maintainers | Supported |
+| `prepare_tycho_starlight_catalogue` | Catalogue preparation | Researchers | Experimental |
+| `query_gaia_tap` | Gaia acquisition | Release maintainers | Supported |
+| `generate_gaia_starlight_release_inputs` | Gaia acquisition | Release maintainers | Supported |
+| `download_gaia_xp_continuous_bulk` | Gaia acquisition | Release maintainers | Supported |
+| `index_gaia_xp_continuous_bulk` | Gaia acquisition | Release maintainers | Supported |
+| `normalize_xp_continuous_coefficients` | Gaia XP continuous | Release maintainers | Supported |
+| `reconstruct_canonical_coefficients` | Gaia XP continuous | Release maintainers | Supported |
+| `validate_xp_continuous_reconstruction` | Gaia XP continuous | Release maintainers | Supported |
+| `generate_starlight_sample_queries` | Sampling | Release maintainers | Supported |
+| `consolidate_gaia_starlight_samples` | Sampling | Release maintainers | Supported |
+| `train_starlight_photometry_models` | Model development | Researchers | Experimental |
+| `build_starlight_map` | Map generation | Release maintainers | Supported |
+| `sweep_starlight_nside` | Map assessment | Release maintainers | Supported |
+| `validate_starlight_map` | Map validation | Release maintainers | Supported |
+| `audit_gaia_starlight_exclusions` | Scientific audit | Release maintainers | Supported |
+| `build_integrated_starlight_product` | Integrated product | Release maintainers | Supported |
 
 ## Asset verification and release
 
 ### `verify_assets`
 
-**Purpose:** verify manifest coverage, file schemas, required metadata, and
-checksums for the runtime asset set.
+**Purpose:** Verify the runtime asset manifest, every referenced file, schema, checksum, and required metadata.
 
-**Inputs:** `crates/nsb/data/manifest.toml` or a compatible manifest and all
-referenced files.
+**Contract:** Asset manifest and referenced runtime files. → Verification report and process status.
 
-**Outputs:** verification diagnostics and process status. It is read-only and
-deterministic.
-
-**Failure contract:** non-zero for missing or unregistered files, checksum
-mismatch, invalid schemas, incomplete metadata, or manifest/header disagreement.
-
-```bash
-cargo run --locked -p nsb-data-tools --bin verify_assets -- \
-  --manifest crates/nsb/data/manifest.toml
-```
+**Execution:** Read-only and deterministic. **Failure:** Non-zero for missing/unregistered files, checksum mismatch, schema errors, or incomplete metadata.
 
 ### `pack_starlight_asset`
 
-**Purpose:** package an already validated starlight candidate as the exact runtime
-map and manifest pair proposed for review or release.
+**Purpose:** Package an already validated starlight map together with its runtime manifest.
 
-**Inputs:** validated map, validation evidence, catalogue/source provenance,
-checksums, and requested maturity.
+**Contract:** Validated map, provenance, validation evidence, checksums, and requested maturity. → Runtime map and manifest proposed for review or release.
 
-**Outputs:** runtime HEALPix asset and versioned manifest. Packaging is
-deterministic and has no implicit resume state.
-
-**Failure contract:** production packaging fails on incomplete provenance,
-missing independent evidence, inconsistent checksums, invalid headers, or an
-unsupported maturity claim.
+**Execution:** Deterministic from immutable inputs; no implicit resume. **Failure:** Non-zero when admission evidence, provenance, headers, checksums, or maturity claims are incomplete.
 
 ## Catalogue preparation
 
 ### `prepare_gaia_starlight_catalogue`
 
-**Purpose:** convert official Gaia DR3 XP sampled bulk data, or a controlled
-normalized fallback, into canonical passband-integrated starlight rows.
+**Purpose:** Convert official Gaia XP sampled data into canonical passband-integrated starlight source rows.
 
-**Inputs:** bulk inventory or normalized input, catalogue identity, release,
-license policy, photometry model, band limits, and output paths.
+**Contract:** Official Gaia input, provenance, passband policy, and output paths. → Canonical catalogue, exclusions, and diagnostics.
 
-**Outputs:** canonical source catalogue, deterministic exclusions sidecar, and
-versioned diagnostics.
-
-**Resume:** streaming conversion; `--exclusions-only` may regenerate exclusions
-evidence without replacing a validated catalogue.
-
-**Failure contract:** non-zero for malformed spectra, invalid photometry, missing
-provenance, inconsistent source accounting, checksum failure, or production-policy
-violations.
+**Execution:** Streaming deterministic conversion; callers manage verified inputs. **Failure:** Non-zero for malformed spectra, invalid photometry, missing provenance, or unreconciled source accounting.
 
 ### `prepare_tycho_starlight_catalogue`
 
-**Purpose:** convert local Tycho BT/VT rows into the canonical source schema for
-controlled comparison and model-development work.
+**Purpose:** Convert Tycho rows into the canonical starlight schema for controlled studies.
 
-**Inputs/outputs:** local catalogue plus checksum and metadata; canonical rows and
-diagnostics.
+**Contract:** Tycho catalogue and verified provenance. → Canonical catalogue and diagnostics.
 
-**Status boundary:** experimental. Successful conversion does not establish a
-production photometric calibration.
-
-**Failure contract:** non-zero on checksum, schema, coordinate, or photometry
-failure. There is no resume state.
+**Execution:** Deterministic full conversion; no implicit resume. **Failure:** Non-zero for checksum, schema, coordinate, or photometry failure.
 
 ## Gaia acquisition and indexing
 
 ### `query_gaia_tap`
 
-**Purpose:** execute a reproducible Gaia TAP request with persisted request,
-service, retry, completion, and result evidence.
+**Purpose:** Execute a reproducible Gaia TAP job with persisted request and result evidence.
 
-**Inputs:** ADQL, endpoint policy, output paths, retry configuration, and optional
-persisted job manifest.
+**Contract:** ADQL, endpoint, output paths, and retry policy. → Verified TAP result and versioned job manifest.
 
-**Outputs:** TAP result, request/status evidence, diagnostics, and a versioned job
-manifest.
-
-**Resume:** continues the same asynchronous job or reuses a persisted result only
-after validation.
-
-**Failure contract:** non-zero for terminal service errors, invalid result schema,
-corrupted persisted state, or exhausted retries.
+**Execution:** Explicit resume continues the persisted asynchronous job or reuses a verified result. **Failure:** Non-zero for terminal service errors, invalid results, corrupted state, or exhausted retries.
 
 ### `generate_gaia_starlight_release_inputs`
 
-**Purpose:** produce the Gaia metadata and normalized-input bundle required by
-downstream starlight processing.
+**Purpose:** Generate the Gaia query/input bundle and provenance evidence required by downstream release processing.
 
-**Inputs:** query policy, output directory, retrieval mode, magnitude/band limits,
-license policy, validation reference, and candidate/production mode.
+**Contract:** Query policy, retrieval configuration, release metadata, and output directory. → Queries, normalized inputs, checksums, diagnostics, and release configuration.
 
-**Outputs:** ADQL, metadata, normalized chunks, checksums, diagnostics, and
-release-input configuration.
-
-**Resume:** `--resume` preserves only verified downloads and chunks.
-
-**Failure contract:** production mode fails on missing XP products, parse errors,
-missing provenance, or unreconciled counts.
+**Execution:** Explicit resume reuses only verified persisted inputs. **Failure:** Non-zero when acquisition, provenance, source accounting, or requested production gates are incomplete.
 
 ### `download_gaia_xp_continuous_bulk`
 
-**Purpose:** download official Gaia DR3 XP continuous partitions from a pinned
-inventory.
+**Purpose:** Download official Gaia XP continuous bulk partitions with checksum verification.
 
-**Inputs/outputs:** inventory, destination, storage and retry policy; verified
-partitions and acquisition manifest.
+**Contract:** Official inventory, destination, requested subset, and retry policy. → Verified partitions and acquisition manifest.
 
-**Resume:** reuses only checksum-verified complete partitions.
-
-**Failure contract:** non-zero for missing inventory entries, corruption,
-checksum mismatch, storage-policy failure, or exhausted retries.
+**Execution:** Explicit resume reuses checksum-verified partitions and resumable partial state. **Failure:** Non-zero for inventory errors, corruption, checksum mismatch, storage failure, or exhausted retries.
 
 ### `index_gaia_xp_continuous_bulk`
 
-**Purpose:** build deterministic source-to-partition lookup and planning metadata
-from verified official bulk files.
+**Purpose:** Build deterministic partition/source lookup data from verified XP continuous partitions.
 
-**Outputs:** versioned partition/source index and diagnostics.
+**Contract:** Checksum-verified official bulk partitions. → Partition/source index and diagnostics.
 
-**Resume:** verified index partitions may be reused; rebuilding is deterministic.
+**Execution:** Rebuilds are deterministic; verified index artifacts may be replaced intentionally. **Failure:** Non-zero when partition, source-count, or checksum reconciliation fails.
 
-**Failure contract:** non-zero when partitions, source counts, or checksums do not
-reconcile with the inventory.
-
-## Gaia XP continuous processing
+## Gaia XP continuous
 
 ### `normalize_xp_continuous_coefficients`
 
-**Purpose:** convert raw official-bulk or DataLink coefficient records into the
-strict canonical Rust schema.
+**Purpose:** Normalize official Gaia XP continuous coefficient records into the canonical Rust schema.
 
-**Inputs:** coefficient values, errors/correlations, source identity, and
-provenance.
+**Contract:** Raw coefficient records and source provenance. → Canonical coefficient records and exact accounting manifest.
 
-**Outputs:** canonical records plus a manifest with exact accepted/rejected
-accounting.
-
-**Resume:** deterministic; reuse is a caller decision after manifest/checksum
-verification.
-
-**Failure contract:** non-zero for invalid dimensions, malformed packed
-correlations, missing provenance, checksum mismatch, or inconsistent accounting.
+**Execution:** Deterministic normalization; callers may reuse only verified canonical outputs. **Failure:** Non-zero for invalid dimensions, correlations, provenance, checksums, or accept/reject accounting.
 
 ### `reconstruct_canonical_coefficients`
 
-**Purpose:** reconstruct normalized 336–650 nm spectra from canonical coefficient
-CSVs with the in-process Rust calibrator, integrate photon flux, and propagate
-uncertainty.
+**Purpose:** Reconstruct calibrated spectra, integrated photon flux, and uncertainty entirely in-process in Rust.
 
-**Inputs:** one canonical coefficient file or a directory, calibration/design
-fixture, output directory, and manifest path.
+**Contract:** Canonical coefficients and the frozen design-matrix fixture. → Normalized spectra and provenance-rich reconstruction manifest.
 
-**Outputs:** normalized per-source spectra unless `--integrate-only` is selected,
-plus a versioned reconstruction manifest containing flux, uncertainty, and
-checksums.
-
-**Resume:** existing per-source spectra are skipped when present; the caller must
-still verify manifest completeness and checksums.
-
-**Failure contract:** non-zero when any selected record cannot be parsed,
-calibrated, integrated, written, or represented in the manifest.
+**Execution:** Existing outputs are reused only when explicitly present and checksummed. **Failure:** Non-zero when parsing, calibration, integration, uncertainty, or manifest publication fails.
 
 ### `validate_xp_continuous_reconstruction`
 
-**Purpose:** validate reconstructed spectra, integrated photon flux, uncertainty,
-and calibration provenance against the frozen contract.
+**Purpose:** Validate XP continuous reconstruction against the frozen scientific contract.
 
-**Inputs/outputs:** canonical coefficients, reconstructed results, fixtures and
-tolerances; versioned parity/validation report.
+**Contract:** Canonical coefficients, reconstructed results, calibration provenance, and tolerances. → Versioned parity and validation report.
 
-**Resume:** not applicable; validation is read-only and deterministic.
-
-**Failure contract:** non-zero when spectral, integrated-flux, uncertainty, or
-provenance tolerances fail.
-
-### `run_starlight_xp_continuous_bulk_pipeline`
-
-**Purpose:** orchestrate storage preflight, official inventory checks, rehearsal,
-resume validation, partition processing, reconciliation, deterministic HEALPix
-merge, and controlled cache cleanup.
-
-**Inputs:** work/checkpoint/output/manifest directories, official checksum
-inventory, optional removable-storage cache, frozen policy, calibration fixture,
-limits, worker count, and cleanup policy.
-
-**Outputs:** storage plan, session manifest, rehearsal/production metrics,
-partition reconciliation, merge reports, and explicit blockers/readiness status.
-
-**Resume:** reuses only verified cache entries, checkpoints, ledgers, and
-reconciliation state.
-
-**Status boundary:** experimental. It is the current operational bulk orchestrator,
-but still depends on transitional pilot/process-launch boundaries. Do not infer
-production scientific approval from a successful orchestration run.
-
-**Failure contract:** non-zero for failed preflight gates, invalid inventory,
-checkpoint/reconciliation inconsistency, processing failure, or unsafe cleanup.
+**Execution:** Read-only and deterministic. **Failure:** Non-zero when spectral, flux, uncertainty, or provenance gates fail.
 
 ## Sampling and model development
 
 ### `generate_starlight_sample_queries`
 
-**Purpose:** generate the deterministic stratified Gaia ADQL query set defined by
-the versioned sampling contract.
+**Purpose:** Generate deterministic stratified Gaia sampling queries.
 
-**Outputs:** query files and sampling manifest. Regeneration is deterministic and
-has no resume state.
+**Contract:** Sampling policy, population definitions, and output directory. → ADQL query set and sampling manifest.
 
-**Failure contract:** non-zero when a required stratum is absent or the query set
-and manifest disagree.
+**Execution:** Deterministic regeneration; no implicit resume. **Failure:** Non-zero when required strata or manifest/query consistency checks fail.
 
 ### `consolidate_gaia_starlight_samples`
 
-**Purpose:** validate completed sample-query jobs, deduplicate sources, and apply
-the frozen spatial split.
+**Purpose:** Validate, deduplicate, and spatially split completed Gaia sampling results.
 
-**Inputs/outputs:** persisted TAP results/manifests and split policy; canonical
-samples, inventory, exclusions, and split diagnostics.
+**Contract:** Persisted TAP results and frozen split specification. → Canonical samples, exclusions, inventory, and split diagnostics.
 
-**Resume:** reuses verified completed TAP results and recomputes consolidation
-deterministically.
-
-**Failure contract:** non-zero for missing strata, duplicate sources,
-unreconciled counts, invalid job results, or split-policy violations.
+**Execution:** Reuses verified completed TAP results and recomputes consolidation deterministically. **Failure:** Non-zero for missing strata, duplicate sources, invalid results, or split/accounting failures.
 
 ### `train_starlight_photometry_models`
 
-**Purpose:** train and compare candidate transformations on frozen train,
-validation, and test splits.
+**Purpose:** Train candidate starlight photometry models from frozen datasets.
 
-**Outputs:** candidate coefficients, diagnostics, and holdout metrics.
+**Contract:** Canonical train, validation, and test samples plus modelling policy. → Candidate model and holdout diagnostics.
 
-**Status boundary:** experimental. A passing run does not constitute independent
-validation or production admission.
-
-**Failure contract:** non-zero for invalid datasets or failed requested model
-checks. There is no implicit resume state.
+**Execution:** Deterministic for fixed inputs and policy; no implicit resume. **Failure:** Non-zero for invalid datasets or failed requested model checks.
 
 ## Starlight generation and validation
 
 ### `build_starlight_map`
 
-**Purpose:** generate one deterministic full-sky HEALPix map from a canonical
-source catalogue.
+**Purpose:** Build one deterministic HEALPix starlight map from a canonical catalogue.
 
-**Inputs:** catalogue, HEALPix resolution/ordering, provenance, checksums, and
-diagnostics policy.
+**Contract:** Canonical catalogue, map configuration, provenance, and checksums. → Starlight map and diagnostics.
 
-**Outputs:** HEALPix CSV and optional versioned diagnostics.
-
-**Resume:** none; regenerate to a new path or replace intentionally.
-
-**Failure contract:** non-zero for malformed input, invalid indices, inconsistent
-flux/source accounting, required-diagnostic failure, or I/O error.
+**Execution:** Deterministic from explicit inputs; no implicit resume. **Failure:** Non-zero for malformed input, incomplete accounting, failed required diagnostics, or I/O errors.
 
 ### `sweep_starlight_nside`
 
-**Purpose:** build or reassess candidates at several HEALPix resolutions.
+**Purpose:** Evaluate starlight map candidates across HEALPix resolutions.
 
-**Outputs:** per-resolution maps/diagnostics and a sweep summary.
+**Contract:** Canonical catalogue or explicitly supplied verified candidate artifacts. → Per-resolution artifacts and sweep summary.
 
-**Resume:** `--assess-existing` evaluates persisted artifacts without rebuilding.
-
-**Failure contract:** non-zero when an explicitly required candidate or production
-condition is unmet. Candidate recommendation is not production admission.
+**Execution:** Assessment mode reuses explicitly supplied verified artifacts. **Failure:** Non-zero when an explicitly requested candidate or production condition fails.
 
 ### `validate_starlight_map`
 
-**Purpose:** produce structural, scientific, and independent-reference evidence
-for a generated map.
+**Purpose:** Validate a generated map against structural, scientific, and independent-reference requirements.
 
-**Outputs:** versioned report with passes, failures, not-run gates, and blockers.
+**Contract:** Map, provenance, scientific policy, and validation references. → Versioned validation report with pass, fail, not-run, and blocker evidence.
 
-**Resume:** not applicable; read-only and deterministic.
-
-**Failure contract:** non-zero for invalid maps, missing evidence, failed required
-gates, or incomplete production validation.
+**Execution:** Read-only and deterministic. **Failure:** Non-zero for invalid maps, missing evidence, failed requested gates, or incomplete production validation.
 
 ### `audit_gaia_starlight_exclusions`
 
-**Purpose:** reconcile every scientific exclusion with the canonical Gaia source
-inventory and rejection policy.
+**Purpose:** Audit starlight exclusions against canonical source accounting.
 
-**Outputs:** versioned exclusion audit and exact accounting evidence.
+**Contract:** Canonical catalogue, exclusions sidecar, rejection policy, and checksums. → Versioned exclusion audit and reconciliation evidence.
 
-**Failure contract:** non-zero unless every exclusion is unique, justified, and
-reconciled. It is read-only and deterministic.
-
-### `export_starlight_healpix_to_contributions`
-
-**Purpose:** convert each qualifying runtime-map pixel into a normalized
-contribution row and produce an input manifest for
-`build_integrated_starlight_product`.
-
-**Inputs:** runtime map, nside, branch label, uncertainty assumptions, optional
-build diagnostics, and output paths.
-
-**Outputs:** contribution CSV, manifest, and optional coverage metadata.
-
-**Status boundary:** experimental. The bridge records candidate limitations and
-does not prove full 300–650 nm coverage or production readiness.
-
-**Failure contract:** non-zero on invalid map columns/indices/radiance, invalid
-uncertainty parameters, or output/checksum failure. No implicit resume.
+**Execution:** Read-only and deterministic. **Failure:** Non-zero unless every exclusion is unique, justified, and reconciled.
 
 ### `build_integrated_starlight_product`
 
-**Purpose:** combine approved population contributions into an integrated
-candidate and evaluate remaining production blockers.
+**Purpose:** Build an integrated starlight candidate from approved contribution inputs and record admission blockers.
 
-**Inputs:** contribution files/manifests, frozen policies, validation references,
-provenance, and output configuration.
+**Contract:** Population contributions, policies, validation references, provenance, and output configuration. → Integrated candidate, diagnostics, approval evidence, and release metadata.
 
-**Outputs:** integrated candidate, diagnostics, approval evidence, and release
-metadata.
+**Execution:** Reusable persisted inputs are supplied explicitly; no hidden resume. **Failure:** Non-zero unless the explicitly requested candidate or production condition is satisfied.
 
-**Resume:** no hidden state; persisted inputs are supplied explicitly.
+## Removed command surfaces
 
-**Failure contract:** success applies only to the requested candidate or production
-condition; production admission fails closed while any gate remains unresolved.
+Phase-numbered executables, one-off policy-freeze/finalization commands, pilot
+runners, shell wrappers, and Python data-product programs are not supported
+commands. Reusable algorithms belong in Rust modules and services; historical
+evidence belongs in frozen fixtures or clearly labelled reference documentation.
 
-## Transitional commands
-
-These commands are compiled because frozen evidence or the current experimental
-bulk orchestrator still depends on them. They are not supported entry points for
-a new data release.
-
-| Command | Current role | Replacement direction |
-| --- | --- | --- |
-| `finalize_phase5_holdout_v1` | Reproduce the frozen holdout-v1 download, normalization, Rust reconstruction, independence, and preflight evidence | Capability-oriented validators and the shared pipeline framework |
-| `run_phase5b_mini_pilot` | Bounded streaming, checkpoint, Rust calibration, and HEALPix implementation used by the experimental bulk path | Library/service-owned partition processor without phase naming or sibling-process launch |
-| `run_phase5b_chunk_benchmark` | Measure mini-pilot batch-size throughput and RSS | Criterion or dedicated capability benchmark calling library services directly |
-
-Do not copy their machine-specific defaults or phase terminology into current
-user instructions. Reusable behaviour belongs in library modules; immutable
-historical evidence belongs in fixtures and clearly labelled reports.
-
-## Adding, changing, or removing a command
-
-A command change is incomplete unless it updates all of the following:
-
-1. `crates/nsb-data-tools/Cargo.toml`;
-2. `crates/nsb-data-tools/tool-registry.toml`;
-3. this reference;
-4. the relevant data-update or scientific workflow;
-5. tests for registry completeness, output contracts, and recovery semantics.
-
-A new executable must represent a durable capability, remain a thin adapter over
-library/service code, and define versioned outputs, resume/idempotency, and stable
-failure behaviour.
+A new binary must represent a durable capability, use a thin executable adapter,
+and be added to `Cargo.toml`, `tool-registry.toml`, and this reference together.
