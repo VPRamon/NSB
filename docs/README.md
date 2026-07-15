@@ -14,50 +14,56 @@ observer, UTC time, and target direction.
 
 The repository separates three responsibilities:
 
-| Module | Purpose | Primary audience |
+| Crate | Purpose | Primary audience |
 | --- | --- | --- |
 | `nsb` | Scientific runtime library: typed queries, component models, point evaluation, window search, runtime assets, and maturity metadata | Rust integrators and developers |
 | `nsb-cli` | Operational interface: commands, site aliases, parsing, output schemas, and logging | Users and automated workflows |
 | `nsb-data-tools` | Offline generation, validation, reconciliation, and packaging of scientific data products | Maintainers and researchers |
 
-NSB is production-oriented software, but scientific maturity remains
-component-specific. The default model is suitable for deterministic planning;
-it must not be described as site-calibrated unless the returned metadata and
-validation evidence support that claim.
+Runtime evaluation never downloads catalogues or invokes data-generation tools.
+Scientific assets are prepared offline, validated, checksum-pinned, registered in
+the runtime manifest, and admitted through explicit contracts.
 
-## Choose your documentation path
+NSB is production-oriented software, but scientific maturity is
+component-specific. The default model is suitable for deterministic planning; it
+must not be described as site-calibrated unless returned metadata and validation
+evidence support that claim.
+
+## Choose your path
 
 ### Users
 
-Start here when you want to evaluate NSB, search observing windows, integrate the
-Rust API, choose components, or configure an observatory.
+Start here to evaluate NSB, search observing windows, integrate the Rust API,
+choose components, or configure an observatory.
 
-- [User guide](user-guide/README.md)
-- [Getting started](user-guide/getting-started.md)
-- [Runtime components](user-guide/components.md)
-- [Observatory configuration and customisation](user-guide/observatory-customization.md)
+1. [User guide](user-guide/README.md)
+2. [Getting started](user-guide/getting-started.md)
+3. [Runtime components](user-guide/components.md)
+4. [Observatory configuration and customisation](user-guide/observatory-customization.md)
 
 ### Developers
 
-Start here when you want to change the runtime library, CLI, component models,
-site profiles, output contracts, or data-product implementation.
+Start here to change runtime models, CLI behaviour, data-product services, or
+module boundaries.
 
-- [Developer guide](developer-guide/README.md)
-- [Architecture and modules](developer-guide/architecture.md)
-- [Performance contract](PERFORMANCE.md)
-- [Logging contract](LOGGING.md)
-- [Siderust compatibility](SIDERUST_COMPATIBILITY.md)
+1. [Developer guide](developer-guide/README.md)
+2. [Architecture and modules](developer-guide/architecture.md)
+3. [Complete module reference](developer-guide/module-reference.md)
+4. [Performance contract](PERFORMANCE.md)
+5. [Logging contract](LOGGING.md)
+6. [Siderust compatibility](SIDERUST_COMPATIBILITY.md)
 
 ### Maintainers
 
-Start here when you generate or update scientific data, operate the Gaia or
-starlight pipeline, verify assets, or prepare a release.
+Start here to update scientific data, operate the Gaia/starlight pipeline, verify
+assets, or prepare a release.
 
-- [Maintainer guide](maintainer-guide/README.md)
-- [Data-product workflow](maintainer-guide/data-products.md)
-- [Complete data-tool reference](maintainer-guide/tools.md)
-- [Data-product pipeline architecture](DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
-- [Release checklist](RELEASE_CHECKLIST.md)
+1. [Maintainer guide](maintainer-guide/README.md)
+2. [Updating scientific data](maintainer-guide/updating-data.md)
+3. [Data-product workflow](maintainer-guide/data-products.md)
+4. [Complete data-tool reference](maintainer-guide/tools.md)
+5. [Data-product pipeline architecture](DATA_PRODUCT_PIPELINE_ARCHITECTURE.md)
+6. [Release checklist](RELEASE_CHECKLIST.md)
 
 ## Scientific interpretation and contracts
 
@@ -79,9 +85,9 @@ Use this reading order for integrated starlight work:
 
 ```text
 science requirements
-  -> input acquisition and catalogue preparation
-  -> map generation
-  -> validation
+  -> source acquisition and catalogue preparation
+  -> map or contribution generation
+  -> validation and reconciliation
   -> production admission and packaging
   -> runtime manifest and maturity metadata
 ```
@@ -99,7 +105,7 @@ bundled or external product must pass its complete provenance, checksum,
 scientific-validation, and admission contract. The experimental manual seed is
 not a fallback for production requests.
 
-## Roadmaps, audits, and historical evidence
+## Historical evidence and audits
 
 The following material supports maintenance and scientific review but is not the
 primary user workflow:
@@ -112,19 +118,23 @@ primary user workflow:
 - [Data-tool migration](DATA_TOOL_MIGRATION.md)
 - [Duplication register](DUPLICATION_REGISTER.md)
 
-Historical documents and commands must be labelled clearly and must not override
-the current capability-oriented workflows documented in the user and maintainer
-guides.
+Historical pages may explain past decisions and frozen evidence, but they must
+not override the current user, developer, maintainer, module, or tool references.
+Phase-numbered commands are documented only where they remain compiled and are
+explicitly classified as transitional.
 
-## Documentation conventions
+## Documentation ownership
 
 - User workflows live under `docs/user-guide/`.
-- Contributor architecture and extension guidance live under
+- Architecture, module ownership, and extension guidance live under
   `docs/developer-guide/`.
-- Data, release, and operational procedures live under
+- Data updates, tool operations, and release procedures live under
   `docs/maintainer-guide/`.
-- Stable scientific contracts and evidence remain specialised reference
-  documents linked from the relevant guides.
+- Stable scientific contracts and evidence remain specialised reference pages
+  linked from the relevant guide.
 - Rust public APIs are documented in rustdoc.
-- Every page should state its status, audience, scope, and important non-goals
-  when misuse would affect scientific interpretation.
+- The data-tool registry is the machine-readable authority for compiled tools.
+
+Every current page should state status, audience, and scope. Historical material
+should state its date and limitations and must not be presented as current
+operational guidance.
