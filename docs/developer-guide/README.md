@@ -14,7 +14,9 @@ NSB is a Cargo workspace with deliberately separated responsibilities:
 | `nsb-cli` | Command-line parsing, named site aliases, timestamp and coordinate parsing, stable JSON/CSV/table presentation, and operational logging | Scientific algorithms or offline data generation |
 | `nsb-data-tools` | Offline acquisition, transformation, validation, reconciliation, and packaging of scientific data products | Runtime query behaviour or an alternative CLI model implementation |
 
-Start with [Architecture and modules](architecture.md) for the detailed module map.
+Read [Architecture and modules](architecture.md) for system flow and design
+boundaries. Use the [Module reference](module-reference.md) to locate every
+crate-level module and its ownership.
 
 ## Development setup
 
@@ -34,13 +36,13 @@ the principal library crates.
 
 | Change | Primary location | Required documentation |
 | --- | --- | --- |
-| New or modified physical NSB component | `crates/nsb/src/components/` | User component overview, maturity, validation evidence, and Rust API docs |
-| Point or window orchestration | `crates/nsb/src/evaluator/` and `window_search` | Architecture, performance contract, and tests |
+| New or modified physical NSB component | `crates/nsb/src/components/` | User component overview, maturity, validation evidence, module reference, and Rust API docs |
+| Point or window orchestration | `crates/nsb/src/evaluator/` and `window_search` | Architecture, performance contract, module reference, and tests |
 | New site profile or calibration | `crates/nsb/src/site.rs` | Observatory customisation, site assumptions, maturity, and validation |
 | CLI argument, command, or output | `crates/nsb-cli/src/` | Getting started and CLI schema when machine output changes |
-| Scientific asset | `crates/nsb/data/` and its manifest | Provenance, checksum, validation, release impact |
-| Data-product command | thin binary plus `tool_services` and library modules | Tool registry, maintainer tool reference, input/output and exit-code contract |
-| Persisted pipeline schema | `crates/nsb-data-tools/src/pipeline/` | Architecture, migration policy, recovery and contract tests |
+| Scientific asset | `crates/nsb/data/` and its manifest | Provenance, checksum, validation, data-update runbook, and release impact |
+| Data-product command | thin binary plus `tool_services` and library modules | Cargo manifest, tool registry, maintainer tool reference, input/output and exit-code contract |
+| Persisted pipeline schema | `crates/nsb-data-tools/src/pipeline/` | Architecture, module reference, migration policy, recovery and contract tests |
 
 ## Core design rules
 
@@ -75,10 +77,10 @@ Read the [Validation matrix](../VALIDATION.md),
 ## Documentation expectations
 
 Public Rust APIs require rustdoc. User workflows belong in `docs/user-guide/`.
-Implementation and extension guidance belongs in `docs/developer-guide/`.
-Release, data-product, and operational procedures belong in
-`docs/maintainer-guide/`. Scientific evidence and stable contracts may remain as
-specialised reference documents linked from those guides.
+Implementation, module ownership, and extension guidance belong in
+`docs/developer-guide/`. Release, data-product, and operational procedures belong
+in `docs/maintainer-guide/`. Scientific evidence and stable contracts may remain
+as specialised reference documents linked from those guides.
 
 When a change affects more than one audience, update the authoritative technical
 reference first, then update the relevant audience-facing overview without
