@@ -17,25 +17,23 @@ jobs:
           ref: merge-tools-20260726
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt
+          components: rustfmt, clippy
       - name: Add hierarchical dispatch arms
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
+
           path = Path('crates/nsb-data-tools/src/cli/mod.rs')
           text = path.read_text()
-          old = '''            XpContinuousCommand::Validate(args) => action(
+
+          if 'XpContinuousCommand::ProcessPartition(args)' not in text:
+              needle = '''            XpContinuousCommand::Validate(args) => action(
                   "starlight xp-continuous validate",
                   args,
                   crate::starlight::xp_continuous::validate_xp_continuous_reconstruction::run_cli,
-              ),
-          },'''
-          new = '''            XpContinuousCommand::Validate(args) => action(
-                  "starlight xp-continuous validate",
-                  args,
-                  crate::starlight::xp_continuous::validate_xp_continuous_reconstruction::run_cli,
-              ),
+              ),'''
+              addition = needle + '''
               XpContinuousCommand::ProcessPartition(args) => action(
                   "starlight xp-continuous process-partition",
                   args,
@@ -45,35 +43,46 @@ jobs:
                   "starlight xp-continuous run-bulk",
                   args,
                   crate::starlight::xp_continuous::run_bulk_pipeline::run_cli,
-              ),
-          },'''
-          if old not in text:
-              raise SystemExit('XP continuous dispatch marker not found')
-          text = text.replace(old, new, 1)
-          old = '''            ProductCommand::BuildIntegrated(args) => action(
+              ),'''
+              if needle not in text:
+                  raise SystemExit('XP continuous dispatch insertion point not found')
+              text = text.replace(needle, addition, 1)
+
+          if 'ProductCommand::ExportContributions(args)' not in text:
+              needle = '''            ProductCommand::BuildIntegrated(args) => action(
                   "starlight product build-integrated",
                   args,
                   crate::starlight::product::build_integrated_starlight_product::run_cli,
-              ),
-          },'''
-          new = '''            ProductCommand::BuildIntegrated(args) => action(
-                  "starlight product build-integrated",
-                  args,
-                  crate::starlight::product::build_integrated_starlight_product::run_cli,
-              ),
+              ),'''
+              addition = needle + '''
               ProductCommand::ExportContributions(args) => action(
                   "starlight product export-contributions",
                   args,
                   crate::starlight::product::export_starlight_contributions::run_cli,
-              ),
-          },'''
-          if old not in text:
-              raise SystemExit('product dispatch marker not found')
-          path.write_text(text.replace(old, new, 1))
+              ),'''
+              if needle not in text:
+                  raise SystemExit('product dispatch insertion point not found')
+              text = text.replace(needle, addition, 1)
+
+          path.write_text(text)
           PY
           cargo fmt --all
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add crates/nsb-data-tools/src/cli/mod.rs
-          git commit -m "Wire migrated tools into nsb-data dispatch"
-          git push origin HEAD:merge-tools-20260726
+          if ! git diff --cached --quiet; then
+            git commit -m "Wire migrated tools into nsb-data dispatch"
+            git push origin HEAD:merge-tools-20260726
+          fi
+      - name: Capture Clippy diagnostics
+        shell: bash
+        run: |
+          set +e
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings > clippy-after-dispatch.log 2>&1
+          echo "exit_status=$?" >> clippy-after-dispatch.log
+          exit 0
+      - name: Upload diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-after-dispatch
+          path: clippy-after-dispatch.log
