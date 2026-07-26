@@ -65,7 +65,7 @@ Required classifications are:
 Run:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin verify_assets -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- assets verify \
   --manifest crates/nsb/data/manifest.toml
 ```
 

@@ -1,6 +1,6 @@
 # Starlight map validation
 
-Status: Current contract for `validate_starlight_map`.
+Status: Current contract for `nsb-data starlight map validate`.
 Audience: Maintainers generating starlight map candidates and reviewers reading
 validation reports.
 Scope: Validator inputs, output report fields, gates, independent-reference
@@ -9,10 +9,10 @@ Non-goals: This document does not validate a specific Gaia release product and
 does not admit caller-supplied external maps; see
 [Validated external starlight manifest](external-manifest.md).
 
-`validate_starlight_map` is the release harness for generated starlight maps. It
+`nsb-data starlight map validate` is the release harness for generated starlight maps. It
 turns a map candidate, generation diagnostics, and independent regional
 reference ranges into a machine-readable validation report. That report is then
-consumed by `pack_starlight_asset`.
+consumed by `nsb-data starlight release pack-asset`.
 
 ## Starlight Document Path
 
@@ -49,7 +49,7 @@ external file.
 | Input | Required | Role |
 | --- | --- | --- |
 | `--input <CSV>` | Yes | Generated Galactic starlight map. |
-| `--diagnostics <JSON>` | No | Build diagnostics from `build_starlight_map`; the path is recorded in the report. |
+| `--diagnostics <JSON>` | No | Build diagnostics from `nsb-data starlight map build`; the path is recorded in the report. |
 | `--reference <JSON>` | Required for production | Structured independent regional reference ranges. |
 | `--output <JSON>` | Yes | Validation report path. |
 | `--require-independent-comparison` | Required for release validation | Fails if the structured reference is absent or any region fails. |
@@ -57,7 +57,7 @@ external file.
 Maintainer release run:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin validate_starlight_map -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- starlight map validate \
   --input target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.csv \
   --diagnostics target/starlight-release/starlight_gaia_dr3_xp_330_650nm_nside128_v1.diagnostics.json \
   --reference "$STARLIGHT_INDEPENDENT_VALIDATION_REFERENCE" \
@@ -211,7 +211,7 @@ Placeholder terms such as `todo`, `placeholder`, `unknown`, `pending`, and
 
 ## Relationship To Packing
 
-`pack_starlight_asset --production` consumes the validation report and fails if
+`nsb-data starlight release pack-asset --production` consumes the validation report and fails if
 `production_ready` is not true. `--candidate` may produce a review artifact, but
 candidate output must remain clearly labelled and outside `ComponentMask::ALL`.
 

@@ -1,6 +1,6 @@
 use anyhow::Result;
-use nsb_data_tools::checksum_io::{Checksum, ChecksumAlgorithm};
-use nsb_data_tools::pipeline::{
+use nsb_data_tools::platform::checksum_io::{Checksum, ChecksumAlgorithm};
+use nsb_data_tools::platform::pipeline::{
     read_partition_state, write_partition_state, CacheInputState, PartitionCompletion,
     PartitionManifest, PartitionState, ProcessingMode, ReconciliationManifest, ResumeAction,
     RowSelection, TransitionEvidence, PIPELINE_SCHEMA_VERSION,

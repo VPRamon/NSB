@@ -2,14 +2,14 @@
 //! normalized contributions → integrated product → validation → pack → runtime load.
 
 use nsb::{StarlightMap, StarlightProvenance};
-use nsb_data_tools::starlight_integrated::INTEGRATED_PHOTOMETRY_MODEL;
+use nsb_data_tools::starlight::integrated::INTEGRATED_PHOTOMETRY_MODEL;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const CONTRIBUTION_HEADER: &str = "source_or_bin_id,healpix_index,multiplicity,measured_300_650,inferred_300_650,completeness_correction,statistical_uncertainty,systematic_uncertainty,flags_extrapolation,flags_crowding,branch\n";
 
-fn cargo_bin(bin: &str, args: &[&str]) {
+fn cargo_action(action: &[&str], args: &[&str]) {
     let status = Command::new("cargo")
         .args([
             "run",
@@ -17,13 +17,14 @@ fn cargo_bin(bin: &str, args: &[&str]) {
             "-p",
             "nsb-data-tools",
             "--bin",
-            bin,
+            "nsb-data",
             "--",
         ])
+        .args(action)
         .args(args)
         .status()
-        .unwrap_or_else(|err| panic!("failed to spawn {bin}: {err}"));
-    assert!(status.success(), "{bin} failed with {status}");
+        .unwrap_or_else(|err| panic!("failed to spawn {action:?}: {err}"));
+    assert!(status.success(), "{action:?} failed with {status}");
 }
 
 fn write_contributions(dir: &Path) -> PathBuf {
@@ -37,7 +38,7 @@ fn write_contributions(dir: &Path) -> PathBuf {
         ),
     )
     .expect("write contributions");
-    let checksum = nsb_data_tools::checksum_io::sha256_file(&csv).expect("checksum");
+    let checksum = nsb_data_tools::platform::checksum_io::sha256_file(&csv).expect("checksum");
     let manifest = dir.join("inputs.toml");
     fs::write(
         &manifest,
@@ -87,8 +88,8 @@ fn integrated_pipeline_fixture_runs_end_to_end() {
     let model_checksum = format!("sha256:{}", "a".repeat(64));
 
     fs::create_dir_all(&build_dir).expect("build dir");
-    cargo_bin(
-        "build_integrated_starlight_product",
+    cargo_action(
+        &["starlight", "product", "build-integrated"],
         &[
             "--inputs-manifest",
             manifest.to_str().unwrap(),
@@ -110,8 +111,8 @@ fn integrated_pipeline_fixture_runs_end_to_end() {
     let release = build_dir.join("starlight_map.release.csv");
     let runtime_manifest = build_dir.join("starlight_map.release.toml");
 
-    cargo_bin(
-        "validate_starlight_map",
+    cargo_action(
+        &["starlight", "map", "validate"],
         &[
             "--input",
             mean_map.to_str().unwrap(),
@@ -124,8 +125,8 @@ fn integrated_pipeline_fixture_runs_end_to_end() {
         ],
     );
 
-    cargo_bin(
-        "pack_starlight_asset",
+    cargo_action(
+        &["starlight", "release", "pack-asset"],
         &[
             "--input",
             mean_map.to_str().unwrap(),

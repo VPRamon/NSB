@@ -67,66 +67,43 @@ scientific models, coordinate algorithms, or threshold-search logic.
 
 ## `nsb-data-tools` modules
 
-### Persistence, provenance, and common contracts
+### Platform
 
 | Module | Responsibility |
 | --- | --- |
-| `artifact_io` | Transactional and atomic writing of generated artifacts |
-| `checksum_io` | Algorithm-qualified checksums and integrity helpers |
-| `provenance` | Stable provenance records for inputs, transformations, software identity, and outputs |
-| `scientific_contract` | Versioned scientific-policy and schema contracts |
-| `tool_logging` | Consistent maintainer-tool logging initialization |
-| `tool_services` | Reusable command services called by thin `src/bin` adapters |
+| `platform::artifact_io` | Transactional and atomic writing of generated artifacts |
+| `platform::checksum_io` | Algorithm-qualified checksums and integrity helpers |
+| `platform::pipeline` | Persisted processing modes, gates, checkpoints, state, stores, reconciliation, and admission |
+| `platform::tool_catalog` / `tool_logging` | Normative action registry plus consistent maintainer-tool logging |
+| `platform::verify_assets` | Runtime scientific-asset verification action |
 
 ### Gaia acquisition
 
 | Module | Responsibility |
 | --- | --- |
-| `gaia_tap` | Reproducible synchronous/asynchronous TAP jobs, retries, persisted manifests, and result validation |
-| `gaia_datalink` | Gaia DataLink discovery and controlled retrieval |
-| `gaia_bulk` | Official Gaia bulk inventory parsing and shared bulk-file operations |
-| `gaia_bulk_service` | Typed service for checksum-verified bulk acquisition |
+| `gaia::acquisition::tap` | Reproducible synchronous/asynchronous TAP jobs, retries, persisted manifests, and result validation |
+| `gaia::acquisition::datalink` | Gaia DataLink discovery and controlled retrieval |
+| `gaia::acquisition::bulk` / `bulk_service` | Official inventory parsing and checksum-verified bulk acquisition |
 
 ### Gaia XP sampled and continuous processing
 
 | Module | Responsibility |
 | --- | --- |
-| `gaia_xp` | XP spectrum parsing and photon-flux integration primitives |
-| `gaia_xp_continuous` | XP continuous record parsing, normalized spectra, constants, and shared contracts |
-| `gaia_xp_continuous_canonical` | Strict canonical coefficient and bulk schemas plus streaming adapters |
-| `gaia_xp_continuous_calibrate` | Pure-Rust calibration and uncertainty propagation from canonical coefficients |
-| `gaia_xp_continuous_healpix` | HEALPix accumulation for reconstructed XP continuous contributions |
-| `gaia_xp_continuous_bulk_schema` | Versioned official-inventory and partition schemas |
-| `gaia_xp_continuous_bulk_index` | Deterministic source-to-partition indexing and lookup |
-| `gaia_xp_continuous_pilot_io` | Checkpoint serialization and integrity helpers retained as reusable library support |
-
-### Pipeline framework
-
-| Module | Responsibility |
-| --- | --- |
-| `pipeline` | Shared persisted pipeline framework and public pipeline contracts |
-| `pipeline::contracts` | Versioned modes, gates, outcomes, and admission types |
-| `pipeline::checkpoint` | Checkpoint creation, validation, and recovery metadata |
-| `pipeline::state` | Explicit state-machine transitions |
-| `pipeline::store` | Persisted artifact and state storage abstraction |
-| `pipeline::reconciliation` | Input/output/count reconciliation primitives |
-| `pipeline::admission` | Fail-closed candidate and production admission decisions |
+| `gaia::xp::sampled` | XP spectrum parsing and photon-flux integration primitives |
+| `gaia::xp::continuous` / `canonical` | XP continuous records, strict canonical schemas, and streaming adapters |
+| `gaia::xp::calibrate` / `bulk_index` | Pure-Rust calibration, uncertainty propagation, and deterministic source-to-partition lookup |
+| `gaia::xp::contract` | Versioned Gaia XP photon-integration contract and drift validation |
 
 ### Starlight products
 
 | Module | Responsibility |
 | --- | --- |
-| `starlight_science` | Scientific constants, population definitions, passband policy, and shared validation rules |
-| `starlight_sampling` | Deterministic strata, query generation, consolidation, and spatial splits |
-| `starlight_approval` | Candidate review evidence and explicit production blockers |
-| `starlight_integrated` | Population-contribution integration and final product construction |
-| `starlight_phase5` | Frozen Phase 5 evidence readers and reconciliation retained for reproducibility |
-| `starlight_phase5_holdout` | Frozen holdout definitions, independence checks, and preflight evidence |
-| `starlight_phase5_uncertainty` | Frozen uncertainty calculations and evidence |
+| `starlight::science` / `sampling` | Scientific constants, population policy, deterministic strata, query generation, and spatial splits |
+| `starlight::approval` / `integrated` | Candidate review evidence, production blockers, contribution integration, and final-product construction |
+| `starlight::{acquisition,catalogue,xp_continuous,map,quality,product,release}` | Action implementations grouped by their durable workflow capability |
 
-Phase-numbered **modules** preserve scientific evidence and reusable readers; the
-phase-numbered executables have been removed. New workflows must use
-capability-oriented commands and shared library services.
+The flat `gaia_*` and `starlight_*` layout, phase modules, compatibility aliases,
+and local-only test scripts are deliberately absent.
 
 ## Executable boundary
 
@@ -136,7 +113,7 @@ and documented in the [data-tool reference](../maintainer-guide/tools.md). Every
 new executable must:
 
 1. represent a durable capability;
-2. keep reusable behaviour in a library module or `tool_services`;
+2. keep reusable behaviour in its owning domain module;
 3. define typed inputs and versioned outputs;
 4. document resume/idempotency and exit-code semantics;
 5. be added to the registry and maintainer reference in the same change.

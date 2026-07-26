@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -29,7 +29,7 @@ fn repository_root() -> PathBuf {
 }
 
 #[test]
-fn every_compiled_binary_is_registered_and_documented() {
+fn hierarchical_cli_and_registry_describe_only_durable_actions() {
     let crate_root = manifest_dir();
     let cargo = read_toml(&crate_root.join("Cargo.toml"));
     let registry = read_toml(&crate_root.join("tool-registry.toml"));
@@ -38,7 +38,7 @@ fn every_compiled_binary_is_registered_and_documented() {
         registry
             .get("schema_version")
             .and_then(toml::Value::as_integer),
-        Some(1),
+        Some(2),
         "unsupported tool registry schema"
     );
 
@@ -46,36 +46,32 @@ fn every_compiled_binary_is_registered_and_documented() {
         .get("bin")
         .and_then(toml::Value::as_array)
         .expect("Cargo.toml must declare explicit [[bin]] entries");
-    let mut expected = BTreeMap::new();
-    for value in cargo_bins {
-        let table = value.as_table().expect("each [[bin]] must be a table");
-        let name = required_string(table, "name", "Cargo binary");
-        let path = required_string(table, "path", name);
-        assert!(
-            expected.insert(name.to_owned(), path.to_owned()).is_none(),
-            "duplicate Cargo binary `{name}`"
-        );
-    }
+    assert_eq!(cargo_bins.len(), 1, "nsb-data is the only supported binary");
+    let binary = cargo_bins[0].as_table().expect("[[bin]] must be a table");
+    assert_eq!(required_string(binary, "name", "Cargo binary"), "nsb-data");
+    assert_eq!(
+        required_string(binary, "path", "Cargo binary"),
+        "src/bin/nsb-data.rs"
+    );
 
     let entries = registry
-        .get("binaries")
+        .get("actions")
         .and_then(toml::Value::as_array)
-        .expect("tool-registry.toml must define [[binaries]]");
-    let mut documented = BTreeMap::new();
+        .expect("tool-registry.toml must define [[actions]]");
+    let mut commands = BTreeSet::new();
     for value in entries {
         let table = value
             .as_table()
-            .expect("each [[binaries]] entry must be a table");
-        let name = required_string(table, "name", "registry binary");
-        let path = required_string(table, "path", name);
-        let status = required_string(table, "status", name);
+            .expect("each [[actions]] entry must be a table");
+        let command = required_string(table, "command", "registry action");
+        let status = required_string(table, "status", command);
         assert!(
-            matches!(status, "supported" | "experimental"),
-            "compiled binary `{name}` has unsupported status `{status}`"
+            status == "supported",
+            "action `{command}` has unsupported status `{status}`"
         );
         assert!(
-            !name.contains("phase5") && !name.contains("phase5b"),
-            "compiled commands must describe durable capabilities, not historical phases: `{name}`"
+            !command.contains("phase") && !command.contains("pilot") && !command.contains('_'),
+            "action must be hierarchical and durable: `{command}`"
         );
         for key in [
             "owner",
@@ -85,26 +81,19 @@ fn every_compiled_binary_is_registered_and_documented() {
             "outputs",
             "resume",
             "exit_codes",
-            "documentation",
+            "reference",
         ] {
-            required_string(table, key, name);
+            required_string(table, key, command);
         }
         assert!(
-            crate_root.join(path).is_file(),
-            "registered binary `{name}` points to missing file `{path}`"
-        );
-        assert!(
-            documented
-                .insert(name.to_owned(), path.to_owned())
-                .is_none(),
-            "duplicate registry entry for `{name}`"
+            commands.insert(command.to_owned()),
+            "duplicate registry action `{command}`"
         );
     }
-
-    assert_eq!(
-        documented, expected,
-        "Cargo binary declarations and the normative tool registry differ"
-    );
+    assert!(commands.contains("assets verify"));
+    assert!(commands.contains("starlight map build"));
+    assert!(commands.contains("maintenance render-tool-reference"));
+    assert_eq!(commands.len(), 18);
 }
 
 #[test]
