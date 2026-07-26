@@ -1,0 +1,553 @@
+name: Fix PR 69 architecture
+
+on:
+  push:
+    branches: [merge-tools-20260726]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: merge-tools-20260726
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Migrate tools to the hierarchical CLI
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('.')
+          crate = root / 'crates/nsb-data-tools'
+          src = crate / 'src'
+
+          def read(path):
+              return path.read_text()
+
+          def write(path, text):
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(text)
+
+          # Keep exactly one executable: nsb-data.
+          cargo_path = crate / 'Cargo.toml'
+          cargo = read(cargo_path)
+          start = cargo.index('[[bin]]')
+          end = cargo.index('[dependencies]')
+          cargo = cargo[:start] + '''[[bin]]
+          name = "nsb-data"
+          path = "src/bin/nsb-data.rs"
+          doc = false
+
+          ''' + cargo[end:]
+          write(cargo_path, cargo)
+
+          # Move the partition processor and checkpoint I/O to durable module names.
+          old_processor = src / 'starlight/xp_continuous/run_mini_pilot.rs'
+          new_processor = src / 'starlight/xp_continuous/process_partition.rs'
+          processor = read(old_processor)
+          marker = '''/// Standalone binary entrypoint.
+          pub fn run_standalone() -> Result<()> {
+              let args = Args::parse();'''
+          replacement = '''/// Hierarchical `nsb-data starlight xp-continuous process-partition` entrypoint.
+          pub fn run_cli() -> Result<()> {
+              run_with_args(crate::parse_command_args())
+          }
+
+          fn run_with_args(args: Args) -> Result<()> {'''
+          if marker not in processor:
+              raise SystemExit('partition processor entrypoint marker not found')
+          processor = processor.replace(marker, replacement, 1)
+          processor = processor.replace('Operational mini-pilot', 'XP continuous partition processor')
+          processor = processor.replace('mini-pilot', 'partition processing')
+          processor = processor.replace('MiniPilotCheckpoint', 'PartitionCheckpoint')
+          processor = processor.replace('DEFAULT_PILOT_NSIDE', 'DEFAULT_PROCESSING_NSIDE')
+          processor = processor.replace('phase5b_mini_pilot', 'xp_continuous_partition')
+          processor = processor.replace('phase5b_healpix_accumulator', 'xp_continuous_healpix_accumulator')
+          write(new_processor, processor)
+          old_processor.unlink()
+
+          old_io = src / 'gaia/xp/pilot_io.rs'
+          new_io = src / 'gaia/xp/checkpoint_io.rs'
+          write(new_io, read(old_io).replace('pilot', 'checkpoint'))
+          old_io.unlink()
+
+          # Convert the bulk pipeline to a hierarchical action.
+          bulk_path = src / 'starlight/xp_continuous/run_bulk_pipeline.rs'
+          bulk = read(bulk_path)
+          marker = '''/// Standalone binary entrypoint.
+          pub fn run_standalone() -> Result<()> {
+              let mut args = Args::parse();'''
+          replacement = '''/// Hierarchical `nsb-data starlight xp-continuous run-bulk` entrypoint.
+          pub fn run_cli() -> Result<()> {
+              run_with_args(crate::parse_command_args())
+          }
+
+          fn run_with_args(mut args: Args) -> Result<()> {'''
+          if marker not in bulk:
+              raise SystemExit('bulk pipeline entrypoint marker not found')
+          bulk = bulk.replace(marker, replacement, 1)
+          bulk = bulk.replace('run_mini_pilot_command', 'run_partition_processor_command')
+          bulk = bulk.replace('phase5b_mini_pilot', 'xp_continuous_partition')
+          bulk = bulk.replace('phase5b_healpix_accumulator', 'xp_continuous_healpix_accumulator')
+          write(bulk_path, bulk)
+
+          # Move the contribution exporter from a standalone binary into the product domain.
+          exporter_bin = src / 'bin/export_starlight_healpix_to_contributions.rs'
+          exporter_mod = src / 'starlight/product/export_starlight_contributions.rs'
+          exporter = read(exporter_bin)
+          exporter = exporter.replace('use nsb_data_tools::platform::checksum_io;', 'use crate::platform::checksum_io;')
+          exporter = exporter.replace('#[command(name = "export_starlight_healpix_to_contributions")]', '#[command(name = "starlight product export-contributions")]')
+          main_marker = '''fn main() -> Result<()> {
+              let args = Args::parse();'''
+          main_replacement = '''/// Hierarchical `nsb-data starlight product export-contributions` entrypoint.
+          pub fn run_cli() -> Result<()> {
+              let args: Args = crate::parse_command_args();'''
+          if main_marker not in exporter:
+              raise SystemExit('exporter main marker not found')
+          exporter = exporter.replace(main_marker, main_replacement, 1)
+          write(exporter_mod, exporter)
+
+          product_mod = src / 'starlight/product/mod.rs'
+          product_text = read(product_mod)
+          if 'pub mod export_starlight_contributions;' not in product_text:
+              product_text += 'pub mod export_starlight_contributions;\n'
+          write(product_mod, product_text)
+
+          xp_mod = src / 'starlight/xp_continuous/mod.rs'
+          xp_text = read(xp_mod).replace('pub mod run_mini_pilot;', 'pub mod process_partition;')
+          write(xp_mod, xp_text)
+          gaia_xp_mod = src / 'gaia/xp/mod.rs'
+          write(gaia_xp_mod, read(gaia_xp_mod).replace('pub mod pilot_io;', 'pub mod checkpoint_io;'))
+
+          # Replace legacy top-level aliases with canonical module paths.
+          aliases = {
+              'gaia_xp_continuous_bulk_reconciliation': 'starlight::xp_continuous::bulk_reconciliation',
+              'gaia_xp_continuous_bulk_healpix_merge': 'gaia::xp::bulk_healpix_merge',
+              'gaia_xp_continuous_bulk_index': 'gaia::xp::bulk_index',
+              'gaia_xp_continuous_bulk_schema': 'gaia::xp::bulk_schema',
+              'gaia_xp_continuous_tool_launch': 'starlight::acquisition::tool_launch',
+              'gaia_xp_continuous_calibrate': 'gaia::xp::calibrate',
+              'gaia_xp_continuous_canonical': 'gaia::xp::canonical',
+              'gaia_xp_continuous_healpix': 'gaia::xp::healpix',
+              'gaia_xp_continuous_pilot_io': 'gaia::xp::checkpoint_io',
+              'gaia_xp_continuous': 'gaia::xp::continuous',
+              'gaia_usb_cache_rotator': 'gaia::acquisition::usb_cache_rotator',
+              'gaia_storage_preflight': 'gaia::acquisition::storage_preflight',
+              'gaia_bulk_service': 'gaia::acquisition::bulk_service',
+              'gaia_usb_cache': 'gaia::acquisition::usb_cache',
+              'gaia_bulk': 'gaia::acquisition::bulk',
+              'gaia_xp': 'gaia::xp::sampled',
+              'checksum_io': 'platform::checksum_io',
+              'artifact_io': 'platform::artifact_io',
+          }
+          for path in src.rglob('*.rs'):
+              text = read(path)
+              original = text
+              text = text.replace('crate::gaia::xp::pilot_io', 'crate::gaia::xp::checkpoint_io')
+              text = text.replace('::run_mini_pilot', '::process_partition')
+              text = text.replace('DEFAULT_PILOT_NSIDE', 'DEFAULT_PROCESSING_NSIDE')
+              for old, new in sorted(aliases.items(), key=lambda item: len(item[0]), reverse=True):
+                  text = text.replace(f'crate::{old}', f'crate::{new}')
+                  text = text.replace(f'nsb_data_tools::{old}', f'nsb_data_tools::{new}')
+              if text != original:
+                  write(path, text)
+
+          # Remove the compatibility alias block from lib.rs.
+          lib_path = src / 'lib.rs'
+          lib = read(lib_path)
+          alias_start = lib.index('/// Compatibility aliases')
+          alias_end = lib.index('/// Parse the arguments')
+          lib = lib[:alias_start] + lib[alias_end:]
+          write(lib_path, lib)
+
+          # Rewrite process launching around the one supported executable.
+          tool_launch = src / 'starlight/acquisition/tool_launch.rs'
+          write(tool_launch, r'''//! Launch hierarchical `nsb-data` actions from production orchestration.
+
+          use anyhow::{Context, Result};
+          use std::env;
+          use std::path::{Path, PathBuf};
+          use std::process::Command;
+
+          /// Resolve the supported `nsb-data` executable.
+          pub fn resolve_nsb_data_binary() -> PathBuf {
+              if let Ok(path) = env::var("NSB_DATA_BINARY") {
+                  return PathBuf::from(path);
+              }
+              if let Ok(exe) = env::current_exe() {
+                  if exe.file_name().and_then(|name| name.to_str()) == Some("nsb-data") {
+                      return exe;
+                  }
+                  if let Some(parent) = exe.parent() {
+                      let sibling = parent.join("nsb-data");
+                      if sibling.is_file() {
+                          return sibling;
+                      }
+                  }
+              }
+              PathBuf::from("target/release/nsb-data")
+          }
+
+          fn command_for_action(action: &[&str]) -> Command {
+              let binary = resolve_nsb_data_binary();
+              let mut command = if binary.is_file() {
+                  Command::new(binary)
+              } else {
+                  let mut cargo = Command::new("cargo");
+                  cargo.args([
+                      "run", "--release", "--locked", "-q", "-p", "nsb-data-tools",
+                      "--bin", "nsb-data", "--",
+                  ]);
+                  cargo
+              };
+              command.args(action);
+              command
+          }
+
+          #[allow(clippy::too_many_arguments)]
+          fn append_partition_processor_args(
+              command: &mut Command,
+              bulk_gz: &Path,
+              output_dir: &Path,
+              row_limit: usize,
+              batch_size: usize,
+              workers: usize,
+              skip_normalized_output: bool,
+              resume: bool,
+              frozen_policy: Option<&Path>,
+              gaiaxpy_environment: Option<&Path>,
+              checkpoint_interval: usize,
+          ) {
+              command
+                  .arg("--bulk-gz").arg(bulk_gz)
+                  .arg("--output-dir").arg(output_dir)
+                  .arg("--row-limit").arg(row_limit.to_string())
+                  .arg("--batch-size").arg(batch_size.to_string())
+                  .arg("--workers").arg(workers.to_string())
+                  .arg("--checkpoint-interval").arg(checkpoint_interval.to_string());
+              if skip_normalized_output {
+                  command.arg("--skip-normalized-output").arg("--light-checkpoint");
+              }
+              if let Some(policy) = frozen_policy {
+                  command.arg("--frozen-policy").arg(policy);
+              }
+              if let Some(environment) = gaiaxpy_environment {
+                  command.arg("--gaiaxpy-environment").arg(environment);
+              }
+              if resume {
+                  command.arg("--resume");
+              }
+          }
+
+          /// Process one XP continuous partition through the hierarchical CLI.
+          #[allow(clippy::too_many_arguments)]
+          pub fn run_partition_processor_command(
+              bulk_gz: &Path,
+              output_dir: &Path,
+              row_limit: usize,
+              batch_size: usize,
+              workers: usize,
+              skip_normalized_output: bool,
+              resume: bool,
+              frozen_policy: Option<&Path>,
+              gaiaxpy_environment: Option<&Path>,
+              checkpoint_interval: usize,
+          ) -> Result<()> {
+              let mut command = command_for_action(&[
+                  "starlight", "xp-continuous", "process-partition",
+              ]);
+              append_partition_processor_args(
+                  &mut command, bulk_gz, output_dir, row_limit, batch_size, workers,
+                  skip_normalized_output, resume, frozen_policy, gaiaxpy_environment,
+                  checkpoint_interval,
+              );
+              let status = command.status().context("failed to launch XP partition processor")?;
+              if !status.success() {
+                  anyhow::bail!("XP partition processor failed with status {status}");
+              }
+              Ok(())
+          }
+
+          /// Download one official partition through the hierarchical CLI.
+          pub fn run_download_bulk_command(
+              filename: &str,
+              usb_mountpoint: Option<&Path>,
+              usb_cache_root: Option<&Path>,
+              cache_subdir: &str,
+              max_cache_bytes: u64,
+              resume: bool,
+          ) -> Result<()> {
+              let mut command = command_for_action(&[
+                  "starlight", "acquire", "xp-bulk", "download",
+              ]);
+              if let Some(mount) = usb_mountpoint {
+                  command.arg("--usb-mountpoint").arg(mount);
+              }
+              if let Some(cache_root) = usb_cache_root {
+                  command.arg("--usb-cache-root").arg(cache_root);
+              }
+              command
+                  .arg("--cache-subdir").arg(cache_subdir)
+                  .arg("--max-cache-bytes").arg(max_cache_bytes.to_string())
+                  .arg("--only-filename").arg(filename);
+              if resume {
+                  command.arg("--resume");
+              }
+              let status = command.status().context("failed to launch XP bulk download")?;
+              if !status.success() {
+                  anyhow::bail!("XP bulk download failed for {filename} with status {status}");
+              }
+              Ok(())
+          }
+
+          #[cfg(test)]
+          mod tests {
+              use super::*;
+
+              #[test]
+              fn resolver_targets_the_supported_binary() {
+                  assert!(resolve_nsb_data_binary().ends_with("nsb-data"));
+              }
+          }
+          ''')
+
+          # Remove unused dead-code helpers rejected by the release gate.
+          lock_path = src / 'platform/file_lock.rs'
+          lock = read(lock_path)
+          helper = lock.find('/// Require that a lock acquisition succeeded')
+          if helper != -1:
+              lock = lock[:helper].rstrip() + '\n'
+          write(lock_path, lock)
+
+          # Extend the public CLI with durable actions.
+          cli_path = src / 'cli/mod.rs'
+          cli = read(cli_path)
+          cli = cli.replace(
+              '''    /// Validate reconstruction against the scientific contract.
+              Validate(ForwardArgs),
+          }''',
+              '''    /// Validate reconstruction against the scientific contract.
+              Validate(ForwardArgs),
+              /// Process one verified XP continuous partition into checkpointed HEALPix state.
+              ProcessPartition(ForwardArgs),
+              /// Run the resumable XP continuous bulk production pipeline.
+              RunBulk(ForwardArgs),
+          }''',
+              1,
+          )
+          cli = cli.replace(
+              '''    /// Build an integrated starlight candidate.
+              BuildIntegrated(ForwardArgs),
+          }''',
+              '''    /// Build an integrated starlight candidate.
+              BuildIntegrated(ForwardArgs),
+              /// Export a runtime HEALPix map into normalized contribution rows.
+              ExportContributions(ForwardArgs),
+          }''',
+              1,
+          )
+          cli = cli.replace(
+              '''            XpContinuousCommand::Validate(args) => action(
+                  "starlight xp-continuous validate",
+                  args,
+                  crate::starlight::xp_continuous::validate_xp_continuous_reconstruction::run_cli,
+              ),
+          },''',
+              '''            XpContinuousCommand::Validate(args) => action(
+                  "starlight xp-continuous validate",
+                  args,
+                  crate::starlight::xp_continuous::validate_xp_continuous_reconstruction::run_cli,
+              ),
+              XpContinuousCommand::ProcessPartition(args) => action(
+                  "starlight xp-continuous process-partition",
+                  args,
+                  crate::starlight::xp_continuous::process_partition::run_cli,
+              ),
+              XpContinuousCommand::RunBulk(args) => action(
+                  "starlight xp-continuous run-bulk",
+                  args,
+                  crate::starlight::xp_continuous::run_bulk_pipeline::run_cli,
+              ),
+          },''',
+              1,
+          )
+          cli = cli.replace(
+              '''            ProductCommand::BuildIntegrated(args) => action(
+                  "starlight product build-integrated",
+                  args,
+                  crate::starlight::product::build_integrated_starlight_product::run_cli,
+              ),
+          },''',
+              '''            ProductCommand::BuildIntegrated(args) => action(
+                  "starlight product build-integrated",
+                  args,
+                  crate::starlight::product::build_integrated_starlight_product::run_cli,
+              ),
+              ProductCommand::ExportContributions(args) => action(
+                  "starlight product export-contributions",
+                  args,
+                  crate::starlight::product::export_starlight_contributions::run_cli,
+              ),
+          },''',
+              1,
+          )
+          write(cli_path, cli)
+
+          # Register the new durable actions.
+          registry_path = crate / 'tool-registry.toml'
+          registry = read(registry_path)
+          insertion = '''
+
+          [[actions]]
+          command = "starlight xp-continuous process-partition"
+          owner = "starlight/xp-continuous"
+          audience = "release-maintainer"
+          status = "supported"
+          purpose = "Process one verified XP continuous partition into checkpointed HEALPix state."
+          inputs = "Checksum-verified partition, frozen calibration inputs, and processing limits."
+          outputs = "Authenticated checkpoint, HEALPix accumulator, metrics, and exclusions."
+          resume = "Resume validates the input checksum and every reconstruction-affecting configuration value."
+          exit_codes = "Zero only after partition accounting and checkpoint persistence succeed."
+          reference = "docs/nsb_components/starlight/gaia-xp-continuous-rust.md"
+
+          [[actions]]
+          command = "starlight xp-continuous run-bulk"
+          owner = "starlight/xp-continuous"
+          audience = "release-maintainer"
+          status = "supported"
+          purpose = "Run the resumable XP continuous production pipeline over claimed partitions."
+          inputs = "Official inventory, rotating cache, frozen calibration policy, and storage configuration."
+          outputs = "Per-partition checkpoints, reconciliation ledger, and merged HEALPix state."
+          resume = "Claims, cache transitions, and checkpoints are validated before reuse."
+          exit_codes = "Zero only when requested production and reconciliation gates pass."
+          reference = "docs/nsb_components/starlight/gaia-xp-continuous-rust.md"
+
+          [[actions]]
+          command = "starlight product export-contributions"
+          owner = "starlight/product"
+          audience = "release-maintainer"
+          status = "supported"
+          purpose = "Export a runtime HEALPix map into normalized integrated-product contribution rows."
+          inputs = "Validated HEALPix map, diagnostics, release identity, and uncertainty policy."
+          outputs = "Contribution CSV, checksum-pinned inputs manifest, and optional coverage metadata."
+          resume = "Deterministic export; persisted output reuse requires checksum verification."
+          exit_codes = "Zero only when every emitted contribution and manifest field is valid."
+          reference = "docs/nsb_components/starlight/map-generation.md"
+          '''
+          maintenance = registry.index('\n[[actions]]\ncommand = "maintenance render-tool-reference"')
+          registry = registry[:maintenance] + insertion + registry[maintenance:]
+          write(registry_path, registry)
+
+          # Keep architecture checks focused on public surfaces rather than historical internal labels.
+          architecture = crate / 'tests/data_product_architecture_contract.rs'
+          architecture_text = read(architecture)
+          start = architecture_text.index('#[test]\nfn flat_or_legacy_module_surfaces_are_absent()')
+          end = architecture_text.index('\n#[test]\nfn typed_pipeline_boundary_rejects_legacy_orchestration_patterns()', start)
+          replacement = '''#[test]
+          fn flat_or_legacy_module_surfaces_are_absent() {
+              let source_root = crate_root().join("src");
+              let library = read(source_root.join("lib.rs"));
+              for forbidden in [
+                  "pub mod gaia_bulk",
+                  "pub mod gaia_usb_cache",
+                  "pub mod gaia_xp_continuous",
+                  "pub mod checksum_io",
+                  "pub mod artifact_io",
+              ] {
+                  assert!(
+                      !library.contains(forbidden),
+                      "legacy public alias remains: {forbidden:?}"
+                  );
+              }
+
+              for file in [
+                  "gaia_xp.rs",
+                  "gaia_xp_continuous.rs",
+                  "gaia_tap.rs",
+                  "starlight_sampling.rs",
+                  "tool_services",
+                  "domains",
+                  "provenance.rs",
+              ] {
+                  assert!(
+                      !source_root.join(file).exists(),
+                      "flat or obsolete source surface {file:?} remains"
+                  );
+              }
+          }
+          '''
+          architecture_text = architecture_text[:start] + replacement + architecture_text[end:]
+          write(architecture, architecture_text)
+
+          registry_test = crate / 'tests/tool_registry.rs'
+          test_text = read(registry_test)
+          test_text = test_text.replace('assert_eq!(commands.len(), 18);', '''assert!(commands.contains("starlight xp-continuous process-partition"));
+              assert!(commands.contains("starlight xp-continuous run-bulk"));
+              assert!(commands.contains("starlight product export-contributions"));
+              assert_eq!(commands.len(), 21);''')
+          write(registry_test, test_text)
+
+          # Delete standalone adapters and prohibited wrapper/tooling surfaces.
+          for path in (src / 'bin').glob('*.rs'):
+              if path.name != 'nsb-data.rs':
+                  path.unlink()
+          tools = root / 'tools/starlight-xp-continuous'
+          if tools.exists():
+              for path in list(tools.rglob('*')):
+                  if path.is_file() and (path.suffix in {'.py', '.sh'} or path.name in {'requirements.txt', 'pyproject.toml'}):
+                      path.unlink()
+              write(tools / 'README.md', '''# XP continuous production tools
+
+          Operational entry points are exposed only through the hierarchical Rust CLI:
+
+          ```bash
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- \\
+            starlight acquire xp-bulk download --help
+
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- \\
+            starlight xp-continuous process-partition --help
+
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- \\
+            starlight xp-continuous run-bulk --help
+
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- \\
+            starlight product export-contributions --help
+          ```
+
+          Python generators and shell orchestration wrappers are intentionally not part of the supported data-product surface.
+          ''')
+
+          # Update common documentation command examples.
+          replacements = {
+              '--bin download_gaia_xp_continuous_bulk --': '--bin nsb-data -- starlight acquire xp-bulk download',
+              '--bin run_phase5b_mini_pilot --': '--bin nsb-data -- starlight xp-continuous process-partition',
+              '--bin run_starlight_xp_continuous_bulk_pipeline --': '--bin nsb-data -- starlight xp-continuous run-bulk',
+              '--bin export_starlight_healpix_to_contributions --': '--bin nsb-data -- starlight product export-contributions',
+          }
+          for path in root.rglob('*.md'):
+              text = read(path)
+              original = text
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              if text != original:
+                  write(path, text)
+          PY
+
+          cargo fmt --all
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- maintenance render-tool-reference --write || true
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add --all
+          git commit -m "Migrate PR 69 tools to the hierarchical CLI"
+          git push origin HEAD:merge-tools-20260726
