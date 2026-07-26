@@ -1,0 +1,68 @@
+name: Fix PR 69 Clippy
+
+on:
+  push:
+    branches: [merge-tools-20260726]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: merge-tools-20260726
+      - name: Install Rustfmt
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          bulk = Path('crates/nsb-data-tools/src/starlight/xp_continuous/run_bulk_pipeline.rs')
+          text = bulk.read_text()
+          text = text.replace('return parsed.max(0);', 'return parsed;')
+          marker = '#[allow(clippy::too_many_arguments)]\nfn process_production_files_parallel('
+          alias = 'type ProductionStreamResult = (usize, Option<ProductionStreamMetrics>, Option<String>);\n\n'
+          if alias not in text:
+              text = text.replace(marker, alias + marker, 1)
+          text = text.replace(
+              '|scope| -> Result<Vec<(usize, Option<ProductionStreamMetrics>, Option<String>)>> {',
+              '|scope| -> Result<Vec<ProductionStreamResult>> {',
+          )
+          text = text.replace(
+              'move || -> Result<(usize, Option<ProductionStreamMetrics>, Option<String>)> {',
+              'move || -> Result<ProductionStreamResult> {',
+          )
+          stream_marker = 'fn run_production_stream(\n'
+          if '#[allow(clippy::too_many_arguments)]\nfn run_production_stream(' not in text:
+              text = text.replace(
+                  stream_marker,
+                  '#[allow(clippy::too_many_arguments)]\n' + stream_marker,
+                  1,
+              )
+          bulk.write_text(text)
+
+          pilot = Path('crates/nsb-data-tools/src/starlight/xp_continuous/run_mini_pilot.rs')
+          text = pilot.read_text()
+          text = text.replace(
+              'let outcomes = (|| -> Result<HashMap<String, ReconstructionOutcome>> {',
+              'let outcomes: Result<HashMap<String, ReconstructionOutcome>> = {',
+              1,
+          )
+          text = text.replace('        Ok(outcomes)\n    })();', '        Ok(outcomes)\n    };', 1)
+          pilot.write_text(text)
+          PY
+          cargo fmt --all
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add --all
+          git commit -m "Fix PR 69 Clippy diagnostics"
+          git push origin HEAD:merge-tools-20260726
