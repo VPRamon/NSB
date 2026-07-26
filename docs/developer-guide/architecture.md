@@ -119,17 +119,15 @@ algorithms and persisted state machines belong below the executable boundary.
 
 | Module group | Responsibility |
 | --- | --- |
-| `platform` | Persistence, checksums, logging, tool registry, and the durable pipeline framework |
-| `gaia::acquisition` | Gaia TAP, DataLink, and official bulk acquisition |
-| `gaia::xp` | XP sampled/continuous parsing, canonical data, calibration, indexing, and the versioned integration contract |
-| `starlight` | Science policy plus actions for acquisition, catalogue, XP processing, sampling, map, quality, product, and release |
+| `platform` | Streaming checksums and logging shared by the dataset engine |
+| `dataset::config` | Versioned sources, workspace, execution, and publication configuration |
+| `dataset::model` | Typed plans, artifacts, gates, reports, and run manifests |
+| `dataset::engine` | Shared update/build/validate/publish lifecycle |
+| `dataset::slurm` | Slurm submission of the same Rust partition worker |
 
-The normative action inventory is
-`crates/nsb-data-tools/tool-registry.toml`. Every exposed `nsb-data` action must
-have an owner, audience, maturity, purpose, input/output contract, resume
-semantics, exit-code contract, and documentation anchor. No flat
-domain-prefixed modules, aliases, phase implementations, or ad-hoc executable
-scripts are retained.
+Every exposed `nsb-data` operation has typed input/output, resume and failure
+semantics. Domain-specific scripts, aliases and secondary executables are not
+retained.
 
 ## Data and asset boundaries
 
@@ -172,15 +170,10 @@ reviewed release explicitly admits the required runtime artifact and metadata.
 4. Add smoke tests and documentation.
 5. Do not place scientific logic in the command module.
 
-### New data-product action
+### New dataset capability
 
-1. Define a durable external or maintainer capability.
-2. Implement reusable behaviour in the appropriate `starlight`, `gaia`, or
-   `platform` service and library modules.
-3. Add a thin hierarchical route under `cli/` that forwards action-local
-   arguments to the reusable implementation.
-4. Register the action in `tool-registry.toml` and regenerate the maintainer tool
-   reference.
-5. Document inputs, outputs, resume/idempotency, exit codes, and production gates.
-6. Add command-routing, contract, and recovery tests where persisted state is
-   involved.
+1. Extend the typed dataset contract instead of adding another executable.
+2. Implement reusable behaviour below `dataset::engine`.
+3. Keep CLI routing thin and dataset-oriented.
+4. Document configuration, outputs, resume semantics and production gates.
+5. Add lifecycle, corruption, recovery and publication tests.

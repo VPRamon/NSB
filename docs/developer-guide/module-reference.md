@@ -98,25 +98,22 @@ scientific models, coordinate algorithms, or threshold-search logic.
 
 | Module | Responsibility |
 | --- | --- |
-| `starlight::science` / `sampling` | Scientific constants, population policy, deterministic strata, query generation, and spatial splits |
-| `starlight::approval` / `integrated` | Candidate review evidence, production blockers, contribution integration, and final-product construction |
-| `starlight::{acquisition,catalogue,xp_continuous,map,quality,product,release}` | Action implementations grouped by their durable workflow capability |
-
-The flat `gaia_*` and `starlight_*` layout, phase modules, compatibility aliases,
-and local-only test scripts are deliberately absent.
+| `dataset::config` | Versioned TOML parsing and portable path resolution |
+| `dataset::model` | Dataset, plan, artifact, validation, and run contracts |
+| `dataset::engine` | Lifecycle, integrity, recovery, reconciliation, and publication |
+| `dataset::slurm` | Slurm-array adapter for the shared Rust worker |
+| `platform` | Streaming checksums and stderr logging |
 
 ## Executable boundary
 
-Compiled data tools are listed in
-[`crates/nsb-data-tools/tool-registry.toml`](../../crates/nsb-data-tools/tool-registry.toml)
-and documented in the [data-tool reference](../maintainer-guide/tools.md). Every
-new executable must:
+The sole executable and its four dataset workflows are documented in the
+[dataset workflow](../maintainer-guide/datasets.md). Every extension must:
 
 1. represent a durable capability;
 2. keep reusable behaviour in its owning domain module;
 3. define typed inputs and versioned outputs;
 4. document resume/idempotency and exit-code semantics;
-5. be added to the registry and maintainer reference in the same change.
+5. update the configuration contract and maintainer guide in the same change.
 
 ## Keeping this reference current
 

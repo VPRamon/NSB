@@ -65,8 +65,7 @@ Required classifications are:
 Run:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin nsb-data -- assets verify \
-  --manifest crates/nsb/data/manifest.toml
+nsb-data dataset <dataset> validate --config <run.toml>
 ```
 
 The verifier rejects an unsupported manifest schema, empty required metadata,

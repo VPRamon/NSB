@@ -1,11 +1,5 @@
-//! Shared infrastructure for durable data-product workflows.
+//! Shared infrastructure for dataset workflows.
 
-pub mod artifact_io;
 pub mod checksum_io;
-pub mod file_lock;
-#[deny(missing_docs)]
-pub mod pipeline;
-pub mod tool_catalog;
 #[deny(missing_docs)]
 pub mod tool_logging;
-pub mod verify_assets;

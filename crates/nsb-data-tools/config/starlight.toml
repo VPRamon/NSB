@@ -1,0 +1,17 @@
+schema_version = 1
+dataset = "starlight"
+
+[workspace]
+root = "../../../target/nsb-data/starlight"
+
+[execution]
+executor = "local"
+concurrency = 1
+
+[[sources]]
+name = "starlight_manual_seed_v1.csv"
+path = "../../nsb/data/starlight_manual_seed_v1.csv"
+sha256 = "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
+
+[publish]
+repository_root = "../../.."

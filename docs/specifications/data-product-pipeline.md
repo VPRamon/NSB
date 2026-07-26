@@ -1,127 +1,43 @@
-# Data-product pipeline architecture
+# Dataset pipeline architecture
 
-This document defines the production boundary for retained NSB data-product tools. It is normative for new Gaia acquisition, Starlight generation, validation, packing, and cleanup workflows.
+`nsb-data-tools` has one executable and one public abstraction: a versioned
+dataset lifecycle. CLI adapters parse configuration and call the Rust dataset
+engine; scientific transforms, validation and persistence never spawn another
+NSB or Cargo process.
 
-## Dependency direction
+## Contracts
 
-Executables are adapters. A supported binary may parse arguments, initialize logging, construct typed configuration, call a library service, serialize a stable machine result, and translate a typed decision into an exit code. It must not own a scientific algorithm, a persisted state machine, or a second implementation of a schema/checksum contract.
+`DatasetName`, `BuildPlan`, `Artifact`, `ValidationReport` and `RunManifest`
+are typed, versioned Rust contracts. Persisted JSON rejects unknown fields.
+Every artifact records its path, byte count and SHA-256. Every run pins its
+resolved workspace, configuration checksum, Git commit, executor and exact
+partition selection.
 
-The reusable library boundary is split as follows:
+Configuration paths are explicit. Relative values resolve against the TOML
+file, making behavior independent of the caller's current directory. There are
+no personal, removable-media or environment-derived storage defaults.
 
-- `pipeline::contracts`: versioned processing modes, explicit row coverage, completion evidence, and gate outcomes;
-- `pipeline::admission`: fail-closed production admission and deterministic exit status;
-- `pipeline::checkpoint`: compact partition-oriented resume state with bounded diagnostics;
-- `pipeline::state`: evidence-driven cache transitions and recovery action for every persisted state;
-- `pipeline::store`: transactional persistence for strict partition-state records;
-- `pipeline::reconciliation`: canonical ordering, duplicate rejection, and checked aggregate accounting;
-- `artifact_io`: transactional JSON/byte persistence;
-- `checksum_io`: algorithm-qualified streaming checksum authority;
-- scientific Gaia/Starlight modules: transformation and validation algorithms only.
+## Lifecycle
 
-Dependencies flow from executables to services, from services to pipeline/scientific modules, and from those modules to persistence/checksum primitives. Scientific modules must not spawn executables. Every command retained in the tool registry must enter through a documented library service and a thin executable adapter.
+The supported order is:
 
-## Command and contract ownership
+1. `update` verifies source checksums and atomically stages inputs;
+2. `build` performs deterministic Rust transformations;
+3. `validate` recomputes integrity and scientific/format gates;
+4. `publish` rechecks validated bytes, copies them atomically and updates the
+   runtime manifest without committing.
 
-Supported workflows are capability-oriented and are listed in the versioned
-tool registry. Phase-specific, one-shot, shell, and Python orchestration are
-not supported interfaces. Reusable acquisition, reconstruction, validation,
-and packaging behaviour belongs in typed Rust library modules and is exercised
-through durable commands and automated tests.
+Missing, skipped or failed validation is never a pass. A changed artifact
+invalidates publication. Run manifests record failures and can be inspected or
+resumed without changing their dataset, operation or partitions.
 
-Each scientific calculation, schema, checksum representation, persistence
-format, and provenance field has one owning Rust module. Generated secondary
-contracts are mechanically checked against that authority. Generic astronomy
-coordinates, HEALPix primitives, units, and physical constants remain owned by
-their upstream dependencies; NSB owns only product-specific policy and
-accounting.
+## Local and Slurm execution
 
-## Typed coverage and run intent
+The local executor runs the dataset engine directly. Starlight may instead
+submit a Slurm array whose tasks invoke the hidden worker in the same Rust
+binary. Stable partition identifiers, isolated worker directories and
+checksum-pinned state make completion order irrelevant. No maintained shell or
+Python orchestration is permitted.
 
-Full-file processing is represented by `RowSelection::FullPartition`. A bounded run is `RowSelection::FirstRows(n)` and rejects `n = 0`. No command or report may use zero as a context-dependent sentinel.
-
-`ProcessingMode` distinguishes pilot, candidate, and production work. Pilot/candidate outputs may be scientifically useful, but cannot authorize deletion or production promotion.
-
-`PartitionCompletion` distinguishes an observed partial prefix from a durable end-of-partition result. A bounded selection cannot create complete-partition evidence.
-
-## Gate and exit-code contract
-
-A gate is one of:
-
-- `Passed`: executed and successful;
-- `Failed(reason)`: executed and unsuccessful;
-- `NotRun(reason)`: not executed and therefore not a pass;
-- `NotApplicable(reason)`: explicitly outside the operation and not an executed pass.
-
-Every gate required for production must be `Passed`. Explicit blockers always reject admission. `ProductionAdmission::evaluate` returns exit code `0` only for `Ready`; every blocked decision maps to exit code `2`.
-
-## Logging and machine output
-
-Every retained executable initializes `tool_logging` before invoking its service. `NSB_LOG` and `RUST_LOG` select the level, with `warn` as the default. Lifecycle, progress, warning, and failure events use the `log` facade and are emitted to stderr with a stable command target.
-
-Stdout is reserved for documented command results and machine-readable output. Adding operational context must never change a stable stdout schema or convert a failed typed outcome into a successful exit status.
-
-## Transaction and cleanup order
-
-The durable order for a production partition is:
-
-1. acquire the input into a temporary file;
-2. flush and atomically promote the download;
-3. recompute and compare the official checksum;
-4. process with a compact checkpoint;
-5. flush and atomically promote the output;
-6. verify the output checksum and structure;
-7. persist the partition reconciliation manifest;
-8. persist aggregate reconciliation/merge state;
-9. transition the input to `Releasable` only after all release evidence is present;
-10. optionally delete the source input and persist `Deleted`.
-
-A crash between any two boundaries resumes through `PartitionState::resume_action`. The state machine covers `Planned`, `Downloading`, `Downloaded`, `ChecksumVerified`, `Processing`, `Processed`, `OutputVerified`, `Reconciled`, `Releasable`, `Deleted`, and `Failed` explicitly. `write_partition_state` validates before an atomic write, and `read_partition_state` rejects corrupted or incompatible records before recovery proceeds.
-
-`Releasable` requires all of the following:
-
-- production mode;
-- full-partition row selection;
-- complete-partition evidence;
-- verified official input checksum;
-- verified output checksum;
-- committed reconciliation checksum.
-
-Partial, pilot, or candidate processing cannot satisfy this contract.
-
-## Deterministic reconciliation
-
-Each `PartitionManifest` proves full production coverage, exact row classification, the official input checksum, a SHA-256 output checksum, and a SHA-256 HEALPix checksum. `ReconciliationManifest` sorts partitions by immutable identifier, rejects duplicates, uses checked arithmetic for every aggregate, and validates persisted totals against the partition set.
-
-Canonical JSON is therefore independent of partition completion order or worker concurrency. Duplicate partitions, partial runs, inconsistent counts, unknown fields, unsupported schemas, and modified aggregate totals fail closed.
-
-## Checkpoint scalability
-
-Production checkpoints are partition-oriented. They retain row offsets, aggregate counters, rolling/checkpoint checksums, HEALPix checkpoint references, and at most 32 representative diagnostic samples. They do not persist every source ID or a global per-source flux map.
-
-The checkpoint size is therefore bounded by fixed metadata and HEALPix/partition state rather than the Gaia source population. Exact reconciliation that needs source-level ordering must use streamed or external sorted structures owned by the reconciliation stage, not a global in-memory checkpoint.
-
-## Persisted schema policy
-
-Pipeline records use `schema_version = 1`, typed Rust structs, and `serde(deny_unknown_fields)`. Readers reject unsupported versions, missing required fields, unknown fields, contradictory completion evidence, invalid zero limits, empty diagnostics, and states lacking their required evidence.
-
-A future incompatible format increments the schema version and adds an explicit migration. Silent defaults for renamed or missing production fields are forbidden.
-
-## Required validation
-
-Changes to production orchestration must include tests proving:
-
-- zero cannot represent both bounded and full processing;
-- skipped required gates block admission;
-- every blocker produces a non-zero exit code;
-- checksum mismatch leaves state unmodified;
-- pilot or partial processing cannot become releasable;
-- complete production evidence can become releasable;
-- every persisted state has a deterministic resume action;
-- every durable state round-trips transactionally;
-- corrupted and unknown state fields fail closed;
-- reconciliation is invariant to processing order;
-- duplicate, partial, and inconsistent partition manifests are rejected;
-- checkpoint diagnostics and serialized size remain bounded;
-- unknown fields and unsupported schema versions fail closed.
-
-The architecture, recovery, reconciliation, and pipeline contract tests are mandatory release gates for every retained orchestration change. A validation command that is skipped, cancelled, or incomplete must never be represented as a successful production gate.
+The initial storage contract is a caller-selected POSIX filesystem. Object
+storage and other schedulers are outside the current interface.

@@ -18,7 +18,7 @@ Software release readiness and scientific calibration are separate axes.
 | KS91 moonlight | Published reference | Approximate Johnson-V analytic benchmark | Reference-model use |
 | CTAO-N and CTAO-S | Planning preset | Explicit pressure/aerosol/airglow assumptions | No calibrated-site claim |
 | Bundled starlight seed | Experimental proxy | Loader, HEALPix completeness, directional plumbing | No scientific claim |
-| Gaia DR3 bundled starlight candidate | Pending production validation | Release-time Gaia XP/passband pipeline harness; Phase 5 XP continuous policy validated on independent holdout | Not yet; requires bulk XP continuous processing, integrated candidate, and independent sky validation |
+| Gaia DR3 bundled starlight candidate | Pending production validation | Rust dataset pipeline with pinned Gaia XP/passband inputs and independent holdout evidence | Not yet; requires full partition processing, integrated candidate, and independent sky validation |
 | Validated external starlight | Production for the sidecar-declared domain | Runtime integrity, schema, HEALPix, flux evidence, contrast/seam, calibrated photometry, and independent-comparison contract | Yes, only as justified by the reviewed external evidence |
 | Caller experimental starlight map | Experimental | Map schema/value checks | No production claim |
 | B/V S10 and magnitudes | Proxy diagnostic | 445/551 nm central-wavelength convention | No passband-photometry claim |

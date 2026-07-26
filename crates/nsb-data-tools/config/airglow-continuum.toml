@@ -1,0 +1,17 @@
+schema_version = 1
+dataset = "airglow-continuum"
+
+[workspace]
+root = "../../../target/nsb-data/airglow-continuum"
+
+[execution]
+executor = "local"
+concurrency = 1
+
+[[sources]]
+name = "airglow_cont.dat"
+path = "../../nsb/data/airglow_cont.dat"
+sha256 = "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
+
+[publish]
+repository_root = "../../.."

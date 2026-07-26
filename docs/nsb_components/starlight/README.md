@@ -65,4 +65,3 @@ represented as production quality.
 - [Starlight science requirements](science-requirements.md)
 - [Starlight map validation](map-validation.md)
 - [External starlight manifest](external-manifest.md)
-- [Gaia XP continuous reconstruction in Rust](gaia-xp-continuous-rust.md)
