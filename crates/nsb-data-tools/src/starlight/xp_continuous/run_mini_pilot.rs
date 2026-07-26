@@ -233,9 +233,7 @@ fn load_checkpoint(
         if checkpoint.gaiaxpy_environment_checksum != gaiaxpy_environment_checksum {
             bail!("checkpoint GaiaXPy environment checksum mismatch");
         }
-        if checkpoint.design_fixture_checksum.as_deref()
-            != Some(design_fixture_checksum.as_str())
-        {
+        if checkpoint.design_fixture_checksum.as_deref() != Some(design_fixture_checksum.as_str()) {
             bail!("checkpoint design fixture checksum mismatch");
         }
         verify_checkpoint_state_checksum(
@@ -276,9 +274,7 @@ fn load_checkpoint(
         gaiaxpy_environment_checksum,
         design_fixture_checksum: Some(design_fixture_checksum),
         state_checksum: String::new(),
-        timestamp_utc: chrono::Utc::now()
-            .format("%Y-%m-%dT%H:%M:%SZ")
-            .to_string(),
+        timestamp_utc: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
     })
 }
 
@@ -311,10 +307,7 @@ fn save_checkpoint(
         light.flux_by_source_id.clear();
         atomic_write_json(path, &(serde_json::to_string_pretty(&light)? + "\n"))?;
     } else {
-        atomic_write_json(
-            path,
-            &(serde_json::to_string_pretty(checkpoint)? + "\n"),
-        )?;
+        atomic_write_json(path, &(serde_json::to_string_pretty(checkpoint)? + "\n"))?;
     }
     atomic_write_json(
         accumulator_path,
@@ -463,9 +456,7 @@ pub fn run_standalone() -> Result<()> {
         for result in wave_results {
             apply_batch_outcomes(&mut checkpoint, result, light_checkpoint)?;
         }
-        checkpoint.timestamp_utc = chrono::Utc::now()
-            .format("%Y-%m-%dT%H:%M:%SZ")
-            .to_string();
+        checkpoint.timestamp_utc = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         waves_since_checkpoint += 1;
         if waves_since_checkpoint >= checkpoint_interval {
             save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint, light_checkpoint)?;

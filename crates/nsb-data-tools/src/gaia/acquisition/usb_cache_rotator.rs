@@ -161,12 +161,7 @@ impl UsbCacheRotator {
                 ) {
                     continue;
                 }
-                transition_entry_state(
-                    manifest,
-                    filename,
-                    CacheInputState::Downloading,
-                    None,
-                )?;
+                transition_entry_state(manifest, filename, CacheInputState::Downloading, None)?;
             }
             Ok(())
         })
@@ -715,10 +710,7 @@ mod tests {
         fs::create_dir_all(&layout.cache_dir)?;
         fs::create_dir_all(&layout.manifests_dir)?;
         fs::write(layout.cache_dir.join("a.csv.gz"), b"abc")?;
-        let mut manifest = manifest(
-            &layout,
-            &[("a.csv.gz", "900150983cd24fb0d6963f7d28e17f72")],
-        );
+        let mut manifest = manifest(&layout, &[("a.csv.gz", "900150983cd24fb0d6963f7d28e17f72")]);
         write_cache_state_manifest(&layout.state_manifest_path(), &manifest)?;
 
         reconcile_existing_files(&layout, &mut manifest)?;
@@ -735,10 +727,7 @@ mod tests {
         fs::create_dir_all(&layout.cache_dir)?;
         fs::create_dir_all(&layout.manifests_dir)?;
         fs::write(layout.cache_dir.join("a.csv.gz"), b"corrupt")?;
-        let mut manifest = manifest(
-            &layout,
-            &[("a.csv.gz", "900150983cd24fb0d6963f7d28e17f72")],
-        );
+        let mut manifest = manifest(&layout, &[("a.csv.gz", "900150983cd24fb0d6963f7d28e17f72")]);
         write_cache_state_manifest(&layout.state_manifest_path(), &manifest)?;
 
         reconcile_existing_files(&layout, &mut manifest)?;
@@ -771,8 +760,14 @@ mod tests {
         right.mark_processing("b.csv.gz")?;
         right.reload_manifest()?;
 
-        assert_eq!(right.entry_state("a.csv.gz"), Some(CacheInputState::Processing));
-        assert_eq!(right.entry_state("b.csv.gz"), Some(CacheInputState::Processing));
+        assert_eq!(
+            right.entry_state("a.csv.gz"),
+            Some(CacheInputState::Processing)
+        );
+        assert_eq!(
+            right.entry_state("b.csv.gz"),
+            Some(CacheInputState::Processing)
+        );
         Ok(())
     }
 }

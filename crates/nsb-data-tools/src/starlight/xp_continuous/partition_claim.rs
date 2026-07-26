@@ -100,7 +100,10 @@ pub fn claim_partitions(
         if claimed.len() >= limit {
             break;
         }
-        if claimed.iter().any(|c: &PartitionClaim| c.filename() == filename) {
+        if claimed
+            .iter()
+            .any(|c: &PartitionClaim| c.filename() == filename)
+        {
             continue;
         }
         if let Some(claim) = try_claim_partition(checkpoint_dir, filename)? {
