@@ -1,0 +1,79 @@
+name: Fix PR 69 dispatch
+
+on:
+  push:
+    branches: [merge-tools-20260726]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: merge-tools-20260726
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Add hierarchical dispatch arms
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('crates/nsb-data-tools/src/cli/mod.rs')
+          text = path.read_text()
+          old = '''            XpContinuousCommand::Validate(args) => action(
+                  "starlight xp-continuous validate",
+                  args,
+                  crate::starlight::xp_continuous::validate_xp_continuous_reconstruction::run_cli,
+              ),
+          },'''
+          new = '''            XpContinuousCommand::Validate(args) => action(
+                  "starlight xp-continuous validate",
+                  args,
+                  crate::starlight::xp_continuous::validate_xp_continuous_reconstruction::run_cli,
+              ),
+              XpContinuousCommand::ProcessPartition(args) => action(
+                  "starlight xp-continuous process-partition",
+                  args,
+                  crate::starlight::xp_continuous::process_partition::run_cli,
+              ),
+              XpContinuousCommand::RunBulk(args) => action(
+                  "starlight xp-continuous run-bulk",
+                  args,
+                  crate::starlight::xp_continuous::run_bulk_pipeline::run_cli,
+              ),
+          },'''
+          if old not in text:
+              raise SystemExit('XP continuous dispatch marker not found')
+          text = text.replace(old, new, 1)
+          old = '''            ProductCommand::BuildIntegrated(args) => action(
+                  "starlight product build-integrated",
+                  args,
+                  crate::starlight::product::build_integrated_starlight_product::run_cli,
+              ),
+          },'''
+          new = '''            ProductCommand::BuildIntegrated(args) => action(
+                  "starlight product build-integrated",
+                  args,
+                  crate::starlight::product::build_integrated_starlight_product::run_cli,
+              ),
+              ProductCommand::ExportContributions(args) => action(
+                  "starlight product export-contributions",
+                  args,
+                  crate::starlight::product::export_starlight_contributions::run_cli,
+              ),
+          },'''
+          if old not in text:
+              raise SystemExit('product dispatch marker not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          cargo fmt --all
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add crates/nsb-data-tools/src/cli/mod.rs
+          git commit -m "Wire migrated tools into nsb-data dispatch"
+          git push origin HEAD:merge-tools-20260726
