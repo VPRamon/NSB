@@ -1,85 +1,90 @@
 # NSB
 
-NSB is a typed Rust library and CLI for modelling ground-based night-sky
-background and finding observing windows. The repository separates runtime
-evaluation (`nsb`), operational presentation (`nsb-cli`), and offline scientific
-data preparation (`nsb-data-tools`).
+NSB is a typed Rust library and command-line application for modelling the
+ground-based night-sky background and finding observing periods that satisfy an
+NSB threshold.
 
-The software and release gates are production-oriented. Scientific maturity is
-component-specific and is never inferred from software quality: the default is a
-generic/planning model, not a site-calibrated CTAO product.
+For a specified observer, UTC time, and target direction, NSB composes selected
+contributions from zodiacal light, integrated starlight, airglow, and scattered
+moonlight. The primary result is integrated photon radiance over 300–650 nm in
+`ph cm^-2 ns^-1 sr^-1`, together with per-component scientific metadata and
+uncertainty where available.
 
-## Model contract
+## Repository modules
 
-`ComponentMask::ALL`, `ComponentMask::DEFAULT`, and CLI `--components all` are
-identical. In the current repository, before the Gaia DR3 production pair is
-committed, they contain:
+| Crate | Purpose |
+| --- | --- |
+| [`nsb`](crates/nsb) | Typed scientific runtime library, component models, point evaluation, threshold-window search, runtime assets, and maturity metadata |
+| [`nsb-cli`](crates/nsb-cli) | Operational CLI, named site aliases, parsing, stable table/JSON/CSV output, and logging |
+| [`nsb-data-tools`](crates/nsb-data-tools) | Offline acquisition, transformation, validation, reconciliation, and packaging of scientific data products |
 
-- zodiacal light;
-- airglow continuum;
-- scattered moonlight.
+Runtime evaluation never downloads catalogues or invokes data-generation tools.
+Scientific assets are prepared offline, validated, checksum-pinned, registered in
+the runtime manifest, and embedded or loaded through explicit admission
+contracts.
 
-When a reviewed Gaia DR3 XP production release CSV and runtime manifest are
-registered under `crates/nsb/data/manifest.toml`, the `nsb` build script embeds
-both files and `ComponentMask::ALL` / CLI `--components all` include production
-starlight. Until then, bundled production starlight fails closed with a missing
-asset error.
+## Scientific interpretation
 
-The repository contains a low-resolution manual seed only for pipeline and
-lookup tests. Library users must opt into
-`StarlightModel::bundled_experimental_seed()` for that seed. Production
-starlight uses either `StarlightModel::bundled_production_gaia_dr3()` or
-`StarlightModel::validated_external(...)`, which can only be constructed from a
-checksum-pinned map and complete validation sidecar. CLI `starlight` selects the
-bundled production map by default; `--starlight-map` plus
-`--starlight-manifest` provide a validated external override.
-`experimental-starlight` names only the seed. There is no fallback between them.
+NSB is production-oriented software, but scientific maturity is
+component-specific. A successful build or test suite does not imply that every
+component is site-calibrated.
 
-| Component | Default implementation | Maturity |
-|---|---|---|
-| Zodiacal light | Leinert (1998), solar spectrum, Noll-style extinction | Generic clear sky |
-| Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic or planning preset |
-| Moonlight | Jones et al. (2013) spectral model | Generic or planning preset |
-| KS91 moonlight | Published analytic V-band alternate | Published reference |
-| Integrated starlight | Bundled Gaia-derived map, validated external override, or bundled manual seed | Production only when sidecar admission passes or Gaia asset validation is complete; otherwise experimental; default only after bundled Gaia asset is embedded |
-| CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning preset, not calibrated |
+| Component | Default implementation | Current role |
+| --- | --- | --- |
+| Zodiacal light | Leinert brightness grid, solar spectrum, and Noll-style extinction | Generic clear-sky model |
+| Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic model or explicit planning preset |
+| Moonlight | Jones et al. (2013) spectral model | Generic model or explicit planning preset |
+| KS91 moonlight | Published analytic V-band implementation | Reference/alternate model |
+| Integrated starlight | Validated bundled or external HEALPix map; explicit experimental seed/map | Production only after complete asset admission; otherwise experimental |
+| CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning presets, not calibrated site products |
 
-The integrated output is photon radiance over 300–650 nm. B/V S10 and magnitude
-fields are diagnostic central-wavelength proxies, not validated Johnson B/V
-passband integrations. JSON and CSV preserve this distinction.
+B/V magnitude and S10 fields are diagnostic central-wavelength proxies, not
+validated Johnson B/V passband integrations. Preserve the returned model,
+component, maturity, provenance, uncertainty, and asset metadata in downstream
+systems.
 
-See [model maturity](docs/MODEL_MATURITY.md) and
-[validation](docs/VALIDATION.md) before using results scientifically.
+See [Model maturity](docs/specifications/model-maturity.md),
+[Scientific metadata](docs/specifications/scientific-metadata.md), and the
+[Validation matrix](docs/specifications/validation.md) before using results scientifically.
 
-### Starlight production foundation (PR #56)
+## Quickstart: CLI
 
-This branch delivers the **production and scientific infrastructure** for Gaia DR3
-XP continuous starlight: normative 300–650 nm contract, deterministic sampling,
-acquisition/reconstruction tooling, dual uncertainty contract, frozen Phase 5
-policy v1, and independent holdout validation (`PHASE 5 SCIENTIFIC VALIDATION
-PASSED`). It does **not** deliver the full-sky integrated Starlight production
-product; bulk XP continuous processing, no-XP populations, UV 300–336 nm,
-completeness, integrated candidate, and production bundle remain tracked in
-[#47](https://github.com/VPRamon/NSB/issues/47).
-
-See [PR #56 audit](docs/STARLIGHT_PR56_AUDIT.md) and
-[Phase 5 uncertainty](docs/STARLIGHT_PHASE5_UNCERTAINTY.md).
-
-## Rust quickstart
+Evaluate one target at one instant:
 
 ```bash
-cargo run -p nsb --example point_query
+cargo run --locked -p nsb-cli -- \
+  --format json \
+  point \
+  --time 2026-06-18T23:00:00Z \
+  --site CTAO-S \
+  --ra 83.6331 \
+  --dec 22.0145 \
+  --components all
 ```
 
-Expected output begins with the component breakdown and ends approximately as:
+Find periods below an NSB threshold:
 
-```text
-    total: 1.947374e-1 ph/(cm² ns sr)
-       B = 22.340 mag/arcsec²
-       V = 22.015 mag/arcsec²
+```bash
+cargo run --locked -p nsb-cli -- \
+  --format csv \
+  window \
+  --start 2026-06-18T20:00:00Z \
+  --end 2026-06-19T06:00:00Z \
+  --site CTAO-S \
+  --ra 83.6331 \
+  --dec 22.0145 \
+  --max-nsb 0.25 \
+  --sun-altitude-max -18 \
+  --target-altitude-min 20
 ```
 
-Library construction is reusable; immutable calibration data are parsed once:
+Global options such as `--format`, `--log-level`, and `-v` precede the
+subcommand. Use `nsb sites list` to inspect named observatory aliases, or provide
+`--lon`, `--lat`, and `--height` explicitly.
+
+Read the complete [Getting started guide](docs/user-guide/getting-started.md).
+
+## Quickstart: Rust library
 
 ```rust,no_run
 use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
@@ -93,74 +98,91 @@ let result = evaluator.evaluate(&PointQuery {
     target: Target::new(266.41683 * DEG, -29.00781 * DEG),
     components: ComponentMask::ALL,
 })?;
-assert!(result.components.len() >= 3);
+
+println!("total: {}", result.integrated);
+for component in result.components {
+    println!("{}: {}", component.name, component.integrated);
+}
 # Ok(())
 # }
 ```
 
-## CLI quickstart
+Construct and reuse an evaluator. Immutable calibration data and runtime assets
+are prepared once rather than reparsed for every query.
 
-Global output options precede the subcommand:
+## Component and starlight selection
+
+`ComponentMask::ALL`, `ComponentMask::DEFAULT`, and CLI `--components all` are
+the same production-safe composition.
+
+- Without an embedded validated production starlight asset, `all` contains
+  zodiacal light, airglow, and moonlight.
+- With an embedded validated production starlight asset, `all` also contains
+  starlight.
+- The bundled manual seed is selected only as `experimental-starlight` or
+  through the explicit experimental library API.
+- A missing or invalid production starlight product never falls back to the
+  experimental seed.
+
+A validated external starlight override requires both files:
 
 ```bash
-cargo run -p nsb-cli -- --format json point \
+nsb --format json point \
   --time 2026-06-18T23:00:00Z \
   --site CTAO-S \
   --ra 83.6331 \
   --dec 22.0145 \
-  --components all
+  --components starlight \
+  --starlight-map /data/starlight.csv \
+  --starlight-manifest /data/starlight.toml
 ```
 
-Expected JSON contains these audit fields in addition to numeric results:
+See [Runtime components](docs/user-guide/components.md) and the
+[External starlight manifest](docs/nsb_components/starlight/external-manifest.md).
 
-```json
-{
-  "schema_version": "nsb-cli-point-json-v1",
-  "version": {
-    "model_version": "nsb-model-2026.1",
-    "siderust_version": "0.11.0",
-    "siderust_source": "crates.io:siderust:0.11.0",
-    "asset_manifest_schema": 1
-  },
-  "model": { "preset": "ctao-south-planning" },
-  "components": [
-    { "name": "zodiacal", "metadata": { "calibration_status": "generic-clear-sky" } }
-  ]
-}
-```
+## Observatory configuration
 
-The stable CSV schemas are documented in [CLI schemas](docs/CLI_SCHEMAS.md).
+NSB separates observer coordinates from atmospheric and airglow assumptions.
+You can:
 
-## Reproducibility and assets
+- provide arbitrary observatory coordinates;
+- select built-in planning profiles;
+- adjust supported runtime model inputs;
+- provide a validated external starlight product;
+- add a new operational site alias;
+- develop and validate a new calibrated observatory profile.
 
-Siderust is declared consistently as the crates.io package
-`siderust = 0.11.0` in the workspace manifests. Public NSB metadata reports the
-source identity as `crates.io:siderust:0.11.0`; it does not expose a Git
-revision for the registry dependency.
-Compatibility and update policy are in
-[SIDERUST_COMPATIBILITY.md](docs/SIDERUST_COMPATIBILITY.md).
+The complete workflow is documented in
+[Observatory configuration and customisation](docs/user-guide/observatory-customization.md).
 
-Every file under `crates/nsb/data` is registered in
-`crates/nsb/data/manifest.toml`. Verify files, checksums, required provenance,
-and starlight header consistency with:
+## Scientific data generation and updates
+
+`nsb-data-tools` contains the offline commands used to acquire Gaia inputs,
+prepare canonical catalogues, build and validate starlight candidates, package
+runtime assets, and verify the asset registry.
 
 ```bash
 cargo run --locked -p nsb-data-tools --bin verify_assets -- \
   --manifest crates/nsb/data/manifest.toml
 ```
 
-The manifest honestly records provenance gaps in inherited files. Such gaps
-prevent a component from being promoted to calibrated production science.
-Bundled production starlight is generated offline and embedded only when the
-derived release CSV and runtime manifest are registered as production assets.
-Externally supplied production starlight uses the same strict sidecar admission
-contract documented in
-[external starlight manifests](docs/EXTERNAL_STARLIGHT_MANIFEST.md).
+Use the [Data-product workflow](docs/maintainer-guide/data-products.md) and the
+[Complete data-tool reference](docs/maintainer-guide/tools.md). The normative
+command inventory is `crates/nsb-data-tools/tool-registry.toml`.
+
+## Documentation
+
+- [Documentation hub](docs/README.md)
+- [User guide](docs/user-guide/README.md)
+- [Developer guide](docs/developer-guide/README.md)
+- [Maintainer guide](docs/maintainer-guide/README.md)
+- [Architecture and modules](docs/developer-guide/architecture.md)
+- [Release checklist](docs/operations/release-checklist.md)
+- [Changelog](CHANGELOG.md)
 
 ## Quality gates
 
-MSRV is Rust 1.89, matching the current Siderust SIMD dependency floor. Pull
-requests run:
+The minimum supported Rust version is 1.89. Pull requests run:
 
 ```bash
 cargo fmt --all -- --check
@@ -172,27 +194,13 @@ cargo build --workspace --release --locked
 cargo deny check
 ```
 
-`cargo test --workspace --all-targets` runs only a bounded benchmark smoke query.
-Full Criterion benchmarks are scheduled/manual through
-`cargo bench -p nsb --bench threshold_window` and cover point components,
-experimental starlight lookup, full composition, Moon/target edge cases, and
-window searches.
+Full Criterion benchmarks are separate from the bounded all-targets smoke path.
+See the [Performance contract](docs/specifications/performance.md).
 
-## Documentation
+## Licensing
 
-- [Documentation hub](docs/README.md)
-- [Production roadmap](docs/PRODUCTION_ROADMAP.md)
-- [Performance contract](docs/PERFORMANCE.md)
-- [Model maturity](docs/MODEL_MATURITY.md)
-- [Scientific metadata](docs/SCIENTIFIC_METADATA.md)
-- [Validation matrix](docs/VALIDATION.md)
-- [Starlight pipeline](docs/STELLAR_MAP_GENERATION.md)
-- [CTAO planning profiles](docs/CTAO_SITE_PROFILES.md)
-- [Release checklist](docs/RELEASE_CHECKLIST.md)
-- [Changelog](CHANGELOG.md)
-
-NSB source uses BSD-3-Clause. The dependency graph intentionally includes
-AGPL-3.0-only astronomy crates, including Siderust; distributors of combined
-binaries must comply with those dependency terms. Individual scientific assets
-have separate manifest records. Unknown upstream terms are treated as release
-limitations, not guessed.
+NSB source uses BSD-3-Clause. The dependency graph includes astronomy crates with
+additional license obligations, including AGPL-3.0-only dependencies.
+Distributors of combined binaries must review and comply with the complete
+dependency terms. Scientific assets have separate manifest records; unknown
+upstream terms are treated as release limitations, not guessed.
