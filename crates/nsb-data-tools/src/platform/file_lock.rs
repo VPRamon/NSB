@@ -2,7 +2,7 @@
 
 #![allow(unsafe_code)]
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use std::fs::{File, OpenOptions};
 use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
