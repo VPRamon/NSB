@@ -30,8 +30,15 @@ pipeline_report.json
 session_manifest.json
 root_manifest.json
 bulk_reconciliation_ledger.json
+bulk_healpix_accumulator.json
+bulk_healpix_merge_state.json
+bulk_healpix_deterministic_merge.json
 cleanup_simulation.json
 XpContinuousMeanSpectrum_*.reconciliation.json
+XpContinuousMeanSpectrum_*_healpix_accumulator.json
+/production_loop/
+hydra-key
+hydra-key.pub
 
 # Python
 __pycache__/

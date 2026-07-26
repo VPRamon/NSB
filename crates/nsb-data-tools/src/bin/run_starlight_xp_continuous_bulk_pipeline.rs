@@ -26,6 +26,7 @@ use nsb_data_tools::gaia_xp_continuous_bulk_reconciliation::{
     sync_ledger_from_merge_state, write_root_manifest, PartitionReconciliationManifest,
 };
 use nsb_data_tools::gaia_xp_continuous_pilot_io::atomic_write_json;
+use nsb_data_tools::gaia_xp_continuous_tool_launch::run_download_bulk_command;
 use nsb_data_tools::gaia_xp_continuous_tool_launch::run_mini_pilot_command;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -1154,40 +1155,14 @@ fn run_production_stream(
 }
 
 fn download_cache_file(filename: &str, args: &Args) -> Result<()> {
-    let mut cmd = Command::new("cargo");
-    cmd.args([
-        "run",
-        "--release",
-        "--locked",
-        "-q",
-        "-p",
-        "nsb-data-tools",
-        "--bin",
-        "download_gaia_xp_continuous_bulk",
-        "--",
-    ]);
-    if let Some(mount) = &args.usb_mountpoint {
-        cmd.args(["--usb-mountpoint"]).arg(mount);
-    }
-    if let Some(root) = &args.usb_cache_root {
-        cmd.args(["--usb-cache-root"]).arg(root);
-    }
-    cmd.args(["--cache-subdir"])
-        .arg(&args.cache_subdir)
-        .args(["--max-cache-bytes"])
-        .arg(args.max_cache_bytes.to_string())
-        .args(["--only-filename"])
-        .arg(filename);
-    if args.resume {
-        cmd.arg("--resume");
-    }
-    let status = cmd
-        .status()
-        .with_context(|| format!("failed to download cache file {filename}"))?;
-    if !status.success() {
-        bail!("download_gaia_xp_continuous_bulk failed for {filename} with status {status}");
-    }
-    Ok(())
+    run_download_bulk_command(
+        filename,
+        args.usb_mountpoint.as_deref(),
+        args.usb_cache_root.as_deref(),
+        &args.cache_subdir,
+        args.max_cache_bytes,
+        args.resume,
+    )
 }
 
 fn write_healpix_checkpoint(

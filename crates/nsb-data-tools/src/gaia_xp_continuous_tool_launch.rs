@@ -13,6 +13,16 @@ pub fn resolve_mini_pilot_binary() -> PathBuf {
     resolve_tool_binary("run_phase5b_mini_pilot")
 }
 
+/// Resolve `run_starlight_xp_continuous_bulk_pipeline` for production invocation.
+pub fn resolve_bulk_pipeline_binary() -> PathBuf {
+    resolve_tool_binary("run_starlight_xp_continuous_bulk_pipeline")
+}
+
+/// Resolve `download_gaia_xp_continuous_bulk` for production invocation.
+pub fn resolve_download_bulk_binary() -> PathBuf {
+    resolve_tool_binary("download_gaia_xp_continuous_bulk")
+}
+
 fn resolve_tool_binary(name: &str) -> PathBuf {
     let env_key = format!("NSB_{}", name.to_ascii_uppercase().replace('-', "_"));
     if let Ok(path) = env::var(&env_key) {
@@ -32,6 +42,27 @@ fn resolve_tool_binary(name: &str) -> PathBuf {
 /// Return true when the resolved release binary exists and is executable.
 pub fn release_binary_available(path: &Path) -> bool {
     path.is_file()
+}
+
+fn command_for_tool_binary(tool_name: &str, cargo_bin: &str) -> Command {
+    let binary = resolve_tool_binary(tool_name);
+    if release_binary_available(&binary) {
+        Command::new(&binary)
+    } else {
+        let mut cargo = Command::new("cargo");
+        cargo.args([
+            "run",
+            "--release",
+            "--locked",
+            "-q",
+            "-p",
+            "nsb-data-tools",
+            "--bin",
+            cargo_bin,
+            "--",
+        ]);
+        cargo
+    }
 }
 
 /// Append common mini-pilot arguments to `command`.
@@ -92,23 +123,7 @@ pub fn run_mini_pilot_command(
     checkpoint_interval: usize,
 ) -> Result<()> {
     let binary = resolve_mini_pilot_binary();
-    let mut command = if release_binary_available(&binary) {
-        Command::new(&binary)
-    } else {
-        let mut cargo = Command::new("cargo");
-        cargo.args([
-            "run",
-            "--release",
-            "--locked",
-            "-q",
-            "-p",
-            "nsb-data-tools",
-            "--bin",
-            "run_phase5b_mini_pilot",
-            "--",
-        ]);
-        cargo
-    };
+    let mut command = command_for_tool_binary("run_phase5b_mini_pilot", "run_phase5b_mini_pilot");
     append_mini_pilot_args(
         &mut command,
         bulk_gz,
@@ -131,6 +146,47 @@ pub fn run_mini_pilot_command(
     Ok(())
 }
 
+/// Launch USB bulk download using the release binary when available.
+pub fn run_download_bulk_command(
+    filename: &str,
+    usb_mountpoint: Option<&Path>,
+    usb_cache_root: Option<&Path>,
+    cache_subdir: &str,
+    max_cache_bytes: u64,
+    resume: bool,
+) -> Result<()> {
+    let binary = resolve_download_bulk_binary();
+    let mut command = command_for_tool_binary(
+        "download_gaia_xp_continuous_bulk",
+        "download_gaia_xp_continuous_bulk",
+    );
+    if let Some(mount) = usb_mountpoint {
+        command.args(["--usb-mountpoint"]).arg(mount);
+    }
+    if let Some(root) = usb_cache_root {
+        command.args(["--usb-cache-root"]).arg(root);
+    }
+    command
+        .args(["--cache-subdir"])
+        .arg(cache_subdir)
+        .args(["--max-cache-bytes"])
+        .arg(max_cache_bytes.to_string())
+        .args(["--only-filename"])
+        .arg(filename);
+    if resume {
+        command.arg("--resume");
+    }
+    let status = command
+        .status()
+        .with_context(|| format!("failed to launch download bulk ({binary:?})"))?;
+    if !status.success() {
+        anyhow::bail!(
+            "download_gaia_xp_continuous_bulk failed for {filename} with status {status}"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,6 +196,26 @@ mod tests {
         let path = resolve_mini_pilot_binary();
         assert!(
             path.ends_with("run_phase5b_mini_pilot"),
+            "unexpected path {}",
+            path.display()
+        );
+    }
+
+    #[test]
+    fn resolve_bulk_pipeline_returns_path() {
+        let path = resolve_bulk_pipeline_binary();
+        assert!(
+            path.ends_with("run_starlight_xp_continuous_bulk_pipeline"),
+            "unexpected path {}",
+            path.display()
+        );
+    }
+
+    #[test]
+    fn resolve_download_bulk_returns_path() {
+        let path = resolve_download_bulk_binary();
+        assert!(
+            path.ends_with("download_gaia_xp_continuous_bulk"),
             "unexpected path {}",
             path.display()
         );
