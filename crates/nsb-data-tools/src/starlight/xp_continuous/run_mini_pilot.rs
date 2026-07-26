@@ -549,7 +549,7 @@ fn run_batch_rust_calibrate(
     batch_index: u64,
     records: Vec<CanonicalXpContinuousRecord>,
 ) -> BatchResult {
-    let outcomes = (|| -> Result<HashMap<String, ReconstructionOutcome>> {
+    let outcomes: Result<HashMap<String, ReconstructionOutcome>> = {
         let mut outcomes = HashMap::with_capacity(records.len());
         for record in &records {
             match calibrator.calibrate_record(record) {
@@ -571,7 +571,7 @@ fn run_batch_rust_calibrate(
             }
         }
         Ok(outcomes)
-    })();
+    };
     BatchResult {
         batch_index,
         records,

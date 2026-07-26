@@ -708,7 +708,7 @@ fn production_worker_headroom(args: &Args) -> usize {
     }
     if let Ok(value) = std::env::var("PRODUCTION_WORKER_HEADROOM") {
         if let Ok(parsed) = value.parse::<usize>() {
-            return parsed.max(0);
+            return parsed;
         }
     }
     if args.usb_cache_root.is_some() {
@@ -1114,6 +1114,8 @@ fn run_production_loop(
     })
 }
 
+type ProductionStreamResult = (usize, Option<ProductionStreamMetrics>, Option<String>);
+
 #[allow(clippy::too_many_arguments)]
 fn process_production_files_parallel(
     rotator: &mut UsbCacheRotator,
@@ -1140,19 +1142,18 @@ fn process_production_files_parallel(
             )?);
         }
 
-        let stream_results = thread::scope(
-            |scope| -> Result<Vec<(usize, Option<ProductionStreamMetrics>, Option<String>)>> {
-                let mut handles = Vec::with_capacity(prepared.len());
-                for (idx, prep) in prepared.iter().enumerate() {
-                    if !prep.ready_to_process {
-                        handles.push(scope.spawn(move || Ok((idx, None, None))));
-                        continue;
-                    }
-                    let bulk_gz = prep.bulk_gz.clone();
-                    let output_dir = prep.output_dir.clone();
-                    let filename = prep.filename.clone();
-                    let can_resume = prep.can_resume;
-                    let handle = scope.spawn(move || -> Result<(usize, Option<ProductionStreamMetrics>, Option<String>)> {
+        let stream_results = thread::scope(|scope| -> Result<Vec<ProductionStreamResult>> {
+            let mut handles = Vec::with_capacity(prepared.len());
+            for (idx, prep) in prepared.iter().enumerate() {
+                if !prep.ready_to_process {
+                    handles.push(scope.spawn(move || Ok((idx, None, None))));
+                    continue;
+                }
+                let bulk_gz = prep.bulk_gz.clone();
+                let output_dir = prep.output_dir.clone();
+                let filename = prep.filename.clone();
+                let can_resume = prep.can_resume;
+                let handle = scope.spawn(move || -> Result<ProductionStreamResult> {
                     let metrics = run_production_stream(
                         &bulk_gz,
                         &output_dir,
@@ -1167,26 +1168,25 @@ fn process_production_files_parallel(
                         write_healpix_checkpoint(&filename, &output_dir, checkpoint_dir)?;
                     Ok((idx, Some(metrics), Some(checkpoint)))
                 });
-                    handles.push(handle);
-                }
-                let mut out: Vec<Option<(Option<ProductionStreamMetrics>, Option<String>)>> =
-                    (0..prepared.len()).map(|_| None).collect();
-                for handle in handles {
-                    let (idx, metrics, checkpoint) = handle
-                        .join()
-                        .map_err(|_| anyhow::anyhow!("production worker thread panicked"))??;
-                    out[idx] = Some((metrics, checkpoint));
-                }
-                Ok(out
-                    .into_iter()
-                    .enumerate()
-                    .map(|(idx, item)| {
-                        let (metrics, checkpoint) = item.unwrap_or((None, None));
-                        (idx, metrics, checkpoint)
-                    })
-                    .collect())
-            },
-        )?;
+                handles.push(handle);
+            }
+            let mut out: Vec<Option<(Option<ProductionStreamMetrics>, Option<String>)>> =
+                (0..prepared.len()).map(|_| None).collect();
+            for handle in handles {
+                let (idx, metrics, checkpoint) = handle
+                    .join()
+                    .map_err(|_| anyhow::anyhow!("production worker thread panicked"))??;
+                out[idx] = Some((metrics, checkpoint));
+            }
+            Ok(out
+                .into_iter()
+                .enumerate()
+                .map(|(idx, item)| {
+                    let (metrics, checkpoint) = item.unwrap_or((None, None));
+                    (idx, metrics, checkpoint)
+                })
+                .collect())
+        })?;
 
         for (idx, metrics, healpix_checkpoint) in stream_results {
             let prep = &prepared[idx];
@@ -1397,6 +1397,7 @@ fn production_reconciliation_report(
 
 /// Stream a bulk partition through the canonical adapter, GaiaXPy, and HEALPix
 /// accumulator (`run_phase5b_mini_pilot` with production row/batch limits).
+#[allow(clippy::too_many_arguments)]
 fn run_production_stream(
     bulk_gz: &Path,
     output_dir: &Path,
