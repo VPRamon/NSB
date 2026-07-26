@@ -67,7 +67,7 @@ OUT="$HOME/nsb-data/starlight-gaia-release"
 BULK="$OUT/gaia_dr3_xp_sampled_bulk"
 LICENSE='Gaia DR3 data are open and free to use with credit to ESA/Gaia/DPAC; NSB redistributes only a derived validated runtime starlight map'
 
-cargo run --locked --release -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+cargo run --locked --release -p nsb-data-tools --bin nsb-data -- starlight catalogue prepare-gaia \
   --bulk-dir "$BULK" \
   --output "$OUT/gaia_dr3_starlight_sources.csv" \
   --diagnostics-output "$OUT/gaia_dr3_starlight_sources.diagnostics.json" \
@@ -92,7 +92,7 @@ inventory or scientific contract changes. Canonical SHA-256:
 Re-reads bulk; does not rewrite the canonical catalogue or rebuild maps:
 
 ```bash
-cargo run --locked --release -p nsb-data-tools --bin prepare_gaia_starlight_catalogue -- \
+cargo run --locked --release -p nsb-data-tools --bin nsb-data -- starlight catalogue prepare-gaia \
   --bulk-dir "$BULK" \
   --exclusions-only \
   --exclusions-output "$OUT/gaia_dr3_starlight_exclusions.csv" \
@@ -116,7 +116,7 @@ Full sweep rebuilds maps. Reassessment reuses persisted artefacts:
 SWEEP="$OUT/sweep"
 CATALOG_SHA="1ad31ac492cc85c9e7b777c96f905fc27290265f4d2d7d65870021a72217cf30"
 
-cargo run --locked --release -p nsb-data-tools --bin sweep_starlight_nside -- \
+cargo run --locked --release -p nsb-data-tools --bin nsb-data -- starlight map sweep \
   --output-dir "$SWEEP" \
   --assess-existing \
   --catalog-checksum "sha256:$CATALOG_SHA"
@@ -132,7 +132,7 @@ controlled validation or repair when the official bulk inventory is unavailable.
 It is not the primary workflow for the validated 2026-07-11 release.
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_inputs -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- starlight acquire release-inputs \
   --out-dir "$OUT" \
   --max-g-mag 20 \
   --license-policy-file docs/policies/gaia_dr3_starlight_derived_product_policy.txt \
@@ -140,70 +140,18 @@ cargo run --locked -p nsb-data-tools --bin generate_gaia_starlight_release_input
   --xp-retrieval gaia-datalink
 ```
 
-## Legacy Gaia DR3 release pipeline (obsolete)
-
-The following block described an earlier 330–650 nm, `nside=128`, DataLink-first
-workflow. It is retained only as historical context and must not be used for the
-current release:
-
-```bash
-# OBSOLETE — do not use for the validated Gaia DR3 XP release
-OUT=target/starlight-gaia-release
-NSIDE=128
-# photometry_model: gaia_dr3_xp_photon_radiance_330_650nm_v1
-# band: 330–650 nm
-# primary input: gaia-datalink normalized extract
-```
-
-## Legacy Tycho proxy pipeline
-
-```text
-reviewed local Tycho-like release
-  -> prepare_tycho_starlight_catalogue
-  -> canonical CSV + JSON preparation diagnostics
-  -> build_starlight_map using Siderust
-  -> HEALPix CSV + JSON validation diagnostics
-  -> manifest checksum/header update
-  -> independent validation
-  -> maturity review
-```
-
-Canonical input columns are:
-
-```text
-ra_deg,dec_deg,b_mag,v_mag,weight,source_id
-```
-
-The preparation tool expects `bt_mag`/`vt_mag` and labels its conversion
-`tycho_bt_vt_to_johnson_bv_proxy_v1`. It computes and optionally verifies the
-input SHA-256 and writes machine-readable counts, filters, catalogue metadata,
-and maturity.
-
-```bash
-cargo run --locked -p nsb-data-tools --bin prepare_tycho_starlight_catalogue -- \
-  --input tycho_extract.csv \
-  --output catalogue_for_starlight.csv \
-  --diagnostics-output catalogue_for_starlight.diagnostics.json \
-  --catalog-name "Tycho-2" \
-  --catalog-release "reviewed release" \
-  --catalog-license "reviewed redistribution terms" \
-  --input-checksum "sha256:<actual checksum>" \
-  --max-v-mag 11.5
-```
-
 Map generation delegates coordinate transforms, HEALPix, map building, and
 validators to Siderust:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin build_starlight_map -- \
-  --input catalogue_for_starlight.csv \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- starlight map build \
+  --input gaia_canonical_catalogue.csv \
   --output starlight_galactic_map_candidate.csv \
   --diagnostics-output starlight_galactic_map_candidate.diagnostics.json \
   --nside 64 \
   --ordering ring \
-  --max-v-mag 11.5 \
-  --catalog-name "Tycho-2" \
-  --catalog-release "reviewed release" \
+  --catalog-name "Gaia" \
+  --catalog-release "DR3" \
   --catalog-license "reviewed redistribution terms" \
   --catalog-checksum "sha256:<canonical input checksum>" \
   --generation-date-utc "<actual RFC3339 UTC>" \

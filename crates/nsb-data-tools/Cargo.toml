@@ -8,78 +8,8 @@ license = "BSD-3-Clause"
 autobins = false
 
 [[bin]]
-name = "build_starlight_map"
-path = "src/bin/build_starlight_map.rs"
-doc = false
-
-[[bin]]
-name = "prepare_tycho_starlight_catalogue"
-path = "src/bin/prepare_tycho_starlight_catalogue.rs"
-doc = false
-
-[[bin]]
-name = "prepare_gaia_starlight_catalogue"
-path = "src/bin/prepare_gaia_starlight_catalogue.rs"
-doc = false
-
-[[bin]]
-name = "validate_starlight_map"
-path = "src/bin/validate_starlight_map.rs"
-doc = false
-
-[[bin]]
-name = "pack_starlight_asset"
-path = "src/bin/pack_starlight_asset.rs"
-doc = false
-
-[[bin]]
-name = "verify_assets"
-path = "src/bin/verify_assets.rs"
-doc = false
-
-[[bin]]
-name = "sweep_starlight_nside"
-path = "src/bin/sweep_starlight_nside.rs"
-doc = false
-
-[[bin]]
-name = "generate_gaia_starlight_release_inputs"
-path = "src/bin/generate_gaia_starlight_release_inputs.rs"
-doc = false
-
-[[bin]]
-name = "query_gaia_tap"
-path = "src/bin/query_gaia_tap.rs"
-doc = false
-
-[[bin]]
-name = "export_starlight_healpix_to_contributions"
-path = "src/bin/export_starlight_healpix_to_contributions.rs"
-doc = false
-
-[[bin]]
-name = "build_integrated_starlight_product"
-path = "src/bin/build_integrated_starlight_product.rs"
-doc = false
-
-[[bin]]
-name = "generate_starlight_sample_queries"
-path = "src/bin/generate_starlight_sample_queries.rs"
-doc = false
-
-[[bin]]
-name = "consolidate_gaia_starlight_samples"
-path = "src/bin/consolidate_gaia_starlight_samples.rs"
-doc = false
-
-[[bin]]
-name = "normalize_xp_continuous_coefficients"
-path = "src/bin/normalize_xp_continuous_coefficients.rs"
-doc = false
-
-[[bin]]
-name = "validate_xp_continuous_reconstruction"
-path = "src/bin/validate_xp_continuous_reconstruction.rs"
+name = "nsb-data"
+path = "src/bin/nsb-data.rs"
 doc = false
 
 [[bin]]
@@ -88,23 +18,8 @@ path = "src/bin/download_gaia_xp_continuous_bulk.rs"
 doc = false
 
 [[bin]]
-name = "train_starlight_photometry_models"
-path = "src/bin/train_starlight_photometry_models.rs"
-doc = false
-
-[[bin]]
-name = "index_gaia_xp_continuous_bulk"
-path = "src/bin/index_gaia_xp_continuous_bulk.rs"
-doc = false
-
-[[bin]]
-name = "audit_gaia_starlight_exclusions"
-path = "src/bin/audit_gaia_starlight_exclusions.rs"
-doc = false
-
-[[bin]]
-name = "reconstruct_canonical_coefficients"
-path = "src/bin/reconstruct_canonical_coefficients.rs"
+name = "run_phase5b_mini_pilot"
+path = "src/bin/run_phase5b_mini_pilot.rs"
 doc = false
 
 [[bin]]
@@ -113,18 +28,13 @@ path = "src/bin/run_starlight_xp_continuous_bulk_pipeline.rs"
 doc = false
 
 [[bin]]
-name = "run_phase5b_mini_pilot"
-path = "src/bin/run_phase5b_mini_pilot.rs"
-doc = false
-
-[[bin]]
 name = "run_phase5b_chunk_benchmark"
 path = "src/bin/run_phase5b_chunk_benchmark.rs"
 doc = false
 
 [[bin]]
-name = "finalize_phase5_holdout_v1"
-path = "src/bin/finalize_phase5_holdout_v1.rs"
+name = "export_starlight_healpix_to_contributions"
+path = "src/bin/export_starlight_healpix_to_contributions.rs"
 doc = false
 
 [dependencies]

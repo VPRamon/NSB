@@ -15,7 +15,7 @@
     "band_end_index": 157
   },
   "integration": {
-    "owner": "nsb-data-tools::gaia_xp::integrate_photon_flux",
+    "owner": "nsb-data-tools::gaia::xp::sampled::integrate_photon_flux",
     "rule": "trapezoidal_signed",
     "photon_energy_model": "planck_times_c_over_wavelength",
     "negative_finite_samples": "retain",

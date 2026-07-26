@@ -7,7 +7,7 @@
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use csv::ReaderBuilder;
-use nsb_data_tools::checksum_io;
+use nsb_data_tools::platform::checksum_io;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use siderust::checksum::to_hex;
