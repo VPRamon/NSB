@@ -124,11 +124,12 @@ algorithms and persisted state machines belong below the executable boundary.
 | `gaia::xp` | XP sampled/continuous parsing, canonical data, calibration, indexing, and the versioned integration contract |
 | `starlight` | Science policy plus actions for acquisition, catalogue, XP processing, sampling, map, quality, product, and release |
 
-The normative executable inventory is
-`crates/nsb-data-tools/tool-registry.toml`. Every compiled command must have an
-owner, audience, maturity, purpose, input/output contract, resume semantics,
-exit-code contract, and documentation anchor. No flat domain-prefixed modules,
-aliases, phase implementations, or ad-hoc executable scripts are retained.
+The normative action inventory is
+`crates/nsb-data-tools/tool-registry.toml`. Every exposed `nsb-data` action must
+have an owner, audience, maturity, purpose, input/output contract, resume
+semantics, exit-code contract, and documentation anchor. No flat
+domain-prefixed modules, aliases, phase implementations, or ad-hoc executable
+scripts are retained.
 
 ## Data and asset boundaries
 
@@ -171,11 +172,15 @@ reviewed release explicitly admits the required runtime artifact and metadata.
 4. Add smoke tests and documentation.
 5. Do not place scientific logic in the command module.
 
-### New data-product tool
+### New data-product action
 
 1. Define a durable external or maintainer capability.
-2. Implement reusable behaviour in a service and library modules.
-3. Add a thin Rust binary.
-4. Register the binary in `tool-registry.toml`.
+2. Implement reusable behaviour in the appropriate `starlight`, `gaia`, or
+   `platform` service and library modules.
+3. Add a thin hierarchical route under `cli/` that forwards action-local
+   arguments to the reusable implementation.
+4. Register the action in `tool-registry.toml` and regenerate the maintainer tool
+   reference.
 5. Document inputs, outputs, resume/idempotency, exit codes, and production gates.
-6. Add contract and recovery tests where persisted state is involved.
+6. Add command-routing, contract, and recovery tests where persisted state is
+   involved.
