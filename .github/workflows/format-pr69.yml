@@ -1,0 +1,34 @@
+name: Format PR 69
+
+on:
+  push:
+    branches: [merge-tools-20260726]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: merge-tools-20260726
+      - name: Install rustfmt
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Format and commit
+        shell: bash
+        run: |
+          cargo fmt --all
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add --all
+          git commit -m "Format PR 69 changes"
+          git push origin HEAD:merge-tools-20260726
