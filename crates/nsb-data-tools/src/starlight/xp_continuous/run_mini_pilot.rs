@@ -1,19 +1,18 @@
-//! Phase 5B operational mini-pilot: stream bulk ECSV with in-process Rust calibration and HEALPix accumulation.
+//! Operational mini-pilot: stream bulk ECSV through Rust calibration and HEALPix accumulation.
 
-use anyhow::{Context, Result};
-use clap::Parser;
-use md5::{Digest, Md5};
-use crate::gaia_xp_continuous_bulk_index::gaia_source_healpix_index;
-use crate::gaia_xp_continuous_calibrate::GaiaXpContinuousCalibrator;
-use crate::gaia_xp_continuous_canonical::{
-    stream_bulk_ecsv_gz, CanonicalXpContinuousRecord, CANONICAL_XP_CONTINUOUS_SCHEMA,
+use crate::gaia::xp::bulk_index::gaia_source_healpix_index;
+use crate::gaia::xp::calibrate::GaiaXpContinuousCalibrator;
+use crate::gaia::xp::canonical::{
+    stream_bulk_ecsv_gz, BulkEcsvStream, CanonicalXpContinuousRecord,
+    CANONICAL_XP_CONTINUOUS_SCHEMA,
 };
-use crate::gaia_xp_continuous_healpix::{
-    XpContinuousHealpixAccumulator, DEFAULT_PILOT_NSIDE,
-};
-use crate::gaia_xp_continuous_pilot_io::{
+use crate::gaia::xp::healpix::{XpContinuousHealpixAccumulator, DEFAULT_PILOT_NSIDE};
+use crate::gaia::xp::pilot_io::{
     atomic_write_json, checkpoint_state_checksum, verify_checkpoint_state_checksum,
 };
+use anyhow::{bail, Context, Result};
+use clap::Parser;
+use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -24,7 +23,7 @@ use std::time::Instant;
 
 #[derive(Debug, Parser)]
 #[command(
-    about = "Stream Gaia bulk XP continuous rows through canonical adapter, Rust calibrate, and HEALPix accumulation"
+    about = "Stream Gaia bulk XP continuous rows through canonical adapter, Rust calibration, and HEALPix accumulation"
 )]
 struct Args {
     #[arg(long)]
@@ -52,10 +51,10 @@ struct Args {
     skip_normalized_output: bool,
     #[arg(long)]
     design_fixture: Option<PathBuf>,
-    /// Omit per-source flux map from checkpoint JSON (production default with --skip-normalized-output).
+    /// Omit the per-source flux map from checkpoint JSON.
     #[arg(long)]
     light_checkpoint: bool,
-    /// Save checkpoint every N batch waves (1 = every wave).
+    /// Save a checkpoint every N batch waves (1 = every wave).
     #[arg(long, default_value_t = 1)]
     checkpoint_interval: usize,
 }
@@ -96,6 +95,8 @@ struct MiniPilotCheckpoint {
     software_commit: String,
     gaiaxpy_version: Option<String>,
     gaiaxpy_environment_checksum: Option<String>,
+    #[serde(default)]
+    design_fixture_checksum: Option<String>,
     state_checksum: String,
     timestamp_utc: String,
 }
@@ -128,9 +129,11 @@ fn peak_rss_kib() -> u64 {
 }
 
 fn file_md5(path: &Path) -> Result<String> {
-    let mut file = fs::File::open(path)?;
+    let mut file = fs::File::open(path)
+        .with_context(|| format!("failed to open {} for MD5", path.display()))?;
     let mut hasher = Md5::new();
-    std::io::copy(&mut file, &mut hasher)?;
+    std::io::copy(&mut file, &mut hasher)
+        .with_context(|| format!("failed to read {} for MD5", path.display()))?;
     Ok(format!("{:x}", hasher.finalize()))
 }
 
@@ -164,8 +167,9 @@ fn read_gaiaxpy_environment(explicit: Option<&Path>) -> Option<(String, String)>
             let version = json
                 .get("gaiaxpy_version")
                 .and_then(|value| value.as_str())
-                .map(str::to_string);
-            Some((checksum, version.unwrap_or_else(|| "unknown".to_string())))
+                .map(str::to_string)
+                .unwrap_or_else(|| "unknown".to_string());
+            Some((checksum, version))
         })
 }
 
@@ -174,46 +178,82 @@ fn gaiaxpy_environment_paths(explicit: Option<&Path>) -> Vec<PathBuf> {
         .map(|path| vec![path.to_path_buf()])
         .unwrap_or_default()
         .into_iter()
-        .chain([
-            PathBuf::from("tools/starlight-xp-continuous/gaiaxpy_environment.json"),
-            PathBuf::from(
-                "/path/to/nsb-data/starlight-gaia-release/pilot-xp-continuous-bulk/gaiaxpy_environment.json",
-            ),
-        ])
+        .chain([PathBuf::from(
+            "tools/starlight-xp-continuous/gaiaxpy_environment.json",
+        )])
         .collect()
 }
 
-#[allow(clippy::too_many_arguments)]
 fn load_checkpoint(
     path: &Path,
     bulk_gz: &Path,
     nside: u32,
     resume: bool,
     gaiaxpy_environment: Option<&Path>,
+    design_fixture: &Path,
 ) -> Result<MiniPilotCheckpoint> {
+    let bulk_checksum = file_md5(bulk_gz)?;
+    let design_fixture_checksum = file_md5(design_fixture)?;
+    let gaiaxpy = read_gaiaxpy_environment(gaiaxpy_environment);
+    let gaiaxpy_environment_checksum = gaiaxpy.as_ref().map(|(checksum, _)| checksum.clone());
+
     if resume && path.is_file() {
-        let checkpoint: MiniPilotCheckpoint = serde_json::from_str(&fs::read_to_string(path)?)?;
+        let checkpoint: MiniPilotCheckpoint = serde_json::from_str(&fs::read_to_string(path)?)
+            .with_context(|| format!("failed to parse checkpoint {}", path.display()))?;
+        if checkpoint.schema_version < 4 {
+            bail!(
+                "checkpoint schema {} predates input/configuration binding; restart without --resume",
+                checkpoint.schema_version
+            );
+        }
         if checkpoint.bulk_file != bulk_gz.display().to_string() {
-            anyhow::bail!("checkpoint bulk file mismatch");
+            bail!("checkpoint bulk file mismatch");
         }
-        if checkpoint.schema_version >= 3 && !checkpoint.state_checksum.is_empty() {
-            verify_checkpoint_state_checksum(
-                &checkpoint.bulk_checksum,
-                checkpoint.row_index,
-                checkpoint.rows_valid,
-                checkpoint.rows_excluded,
-                checkpoint.rows_failed,
-                &checkpoint.healpix_checksum,
-                &checkpoint.state_checksum,
-            )?;
+        if checkpoint.bulk_checksum != bulk_checksum {
+            bail!(
+                "checkpoint bulk checksum mismatch: expected {}, current {}",
+                checkpoint.bulk_checksum,
+                bulk_checksum
+            );
         }
+        if checkpoint.nside != nside {
+            bail!(
+                "checkpoint nside mismatch: checkpoint {}, current {}",
+                checkpoint.nside,
+                nside
+            );
+        }
+        if checkpoint.adapter_version != CANONICAL_XP_CONTINUOUS_SCHEMA {
+            bail!(
+                "checkpoint adapter version mismatch: checkpoint {}, current {}",
+                checkpoint.adapter_version,
+                CANONICAL_XP_CONTINUOUS_SCHEMA
+            );
+        }
+        if checkpoint.gaiaxpy_environment_checksum != gaiaxpy_environment_checksum {
+            bail!("checkpoint GaiaXPy environment checksum mismatch");
+        }
+        if checkpoint.design_fixture_checksum.as_deref()
+            != Some(design_fixture_checksum.as_str())
+        {
+            bail!("checkpoint design fixture checksum mismatch");
+        }
+        verify_checkpoint_state_checksum(
+            &checkpoint.bulk_checksum,
+            checkpoint.row_index,
+            checkpoint.rows_valid,
+            checkpoint.rows_excluded,
+            checkpoint.rows_failed,
+            &checkpoint.healpix_checksum,
+            &checkpoint.state_checksum,
+        )?;
         return Ok(checkpoint);
     }
-    let gaiaxpy = read_gaiaxpy_environment(gaiaxpy_environment);
+
     Ok(MiniPilotCheckpoint {
-        schema_version: 3,
+        schema_version: 4,
         bulk_file: bulk_gz.display().to_string(),
-        bulk_checksum: file_md5(bulk_gz)?,
+        bulk_checksum,
         row_index: 0,
         last_source_id: None,
         processed_source_ids: Vec::new(),
@@ -233,9 +273,12 @@ fn load_checkpoint(
         adapter_version: CANONICAL_XP_CONTINUOUS_SCHEMA,
         software_commit: software_commit(),
         gaiaxpy_version: gaiaxpy.as_ref().map(|(_, version)| version.clone()),
-        gaiaxpy_environment_checksum: gaiaxpy.map(|(checksum, _)| checksum),
+        gaiaxpy_environment_checksum,
+        design_fixture_checksum: Some(design_fixture_checksum),
         state_checksum: String::new(),
-        timestamp_utc: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+        timestamp_utc: chrono::Utc::now()
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string(),
     })
 }
 
@@ -268,7 +311,10 @@ fn save_checkpoint(
         light.flux_by_source_id.clear();
         atomic_write_json(path, &(serde_json::to_string_pretty(&light)? + "\n"))?;
     } else {
-        atomic_write_json(path, &(serde_json::to_string_pretty(checkpoint)? + "\n"))?;
+        atomic_write_json(
+            path,
+            &(serde_json::to_string_pretty(checkpoint)? + "\n"),
+        )?;
     }
     atomic_write_json(
         accumulator_path,
@@ -302,6 +348,9 @@ pub fn run_standalone() -> Result<()> {
     if let Some(policy) = &args.frozen_policy {
         verify_frozen_policy(policy)?;
     }
+    if args.batch_size == 0 {
+        bail!("batch-size must be positive");
+    }
     fs::create_dir_all(&args.output_dir)?;
     let light_checkpoint = args.light_checkpoint || args.skip_normalized_output;
     let checkpoint_interval = args.checkpoint_interval.max(1);
@@ -312,7 +361,7 @@ pub fn run_standalone() -> Result<()> {
     let calibrator = Arc::new(
         GaiaXpContinuousCalibrator::from_design_fixture(&fixture).with_context(|| {
             format!(
-                "load GaiaXPy design fixture for rust calibrate ({})",
+                "load GaiaXPy design fixture for Rust calibration ({})",
                 fixture.display()
             )
         })?,
@@ -326,7 +375,19 @@ pub fn run_standalone() -> Result<()> {
         args.nside,
         args.resume,
         args.gaiaxpy_environment.as_deref(),
+        &fixture,
     )?;
+    if args.resume
+        && checkpoint.row_index > 0
+        && args.start_row > 0
+        && args.start_row != checkpoint.row_index
+    {
+        bail!(
+            "--start-row {} conflicts with resumed checkpoint row {}",
+            args.start_row,
+            checkpoint.row_index
+        );
+    }
     let mut processed: HashSet<String> = checkpoint.processed_source_ids.iter().cloned().collect();
 
     let started = Instant::now();
@@ -345,7 +406,6 @@ pub fn run_standalone() -> Result<()> {
         .div_ceil(args.batch_size) as u64;
     let mut peak_rss = peak_rss_kib();
     let mut waves_since_checkpoint = 0_usize;
-
     let mut rows_in_window = 0_u64;
     let row_window = if args.row_limit == 0 {
         u64::MAX
@@ -379,7 +439,6 @@ pub fn run_standalone() -> Result<()> {
         }
 
         let calibrator_ref = calibrator.clone();
-
         let mut wave_results = if workers == 1 {
             let (index, records) = wave.pop().expect("non-empty wave");
             vec![run_batch_rust_calibrate(
@@ -404,7 +463,9 @@ pub fn run_standalone() -> Result<()> {
         for result in wave_results {
             apply_batch_outcomes(&mut checkpoint, result, light_checkpoint)?;
         }
-        checkpoint.timestamp_utc = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
+        checkpoint.timestamp_utc = chrono::Utc::now()
+            .format("%Y-%m-%dT%H:%M:%SZ")
+            .to_string();
         waves_since_checkpoint += 1;
         if waves_since_checkpoint >= checkpoint_interval {
             save_checkpoint(&ckpt_path, &acc_path, &mut checkpoint, light_checkpoint)?;
@@ -438,7 +499,6 @@ pub fn run_standalone() -> Result<()> {
             / (1024.0 * 1024.0)
             / elapsed.max(1e-6),
         "peak_rss_kib": peak_rss,
-        "checkpoint_interval": args.batch_size,
         "chunk_size": args.batch_size,
         "workers": workers,
         "reconstruct_backend": "rust",
@@ -448,6 +508,7 @@ pub fn run_standalone() -> Result<()> {
         "healpix_checksum": checkpoint.healpix.checksum(),
         "integrated_flux_checksum": flux_checksum(&checkpoint.flux_by_source_id),
         "gaiaxpy_environment_checksum": checkpoint.gaiaxpy_environment_checksum,
+        "design_fixture_checksum": checkpoint.design_fixture_checksum,
         "software_commit": checkpoint.software_commit,
         "wall_elapsed_seconds": elapsed,
         "nside": args.nside,
@@ -477,7 +538,7 @@ pub fn run_standalone() -> Result<()> {
     )?;
     write_reconciliation_csv(&args.output_dir, &checkpoint)?;
     println!(
-        "phase5b mini pilot: {} valid / {} excluded / {} total sources -> {}",
+        "mini pilot: {} valid / {} excluded / {} total sources -> {}",
         checkpoint.rows_valid,
         checkpoint.rows_excluded,
         checkpoint.processed_source_ids.len(),
@@ -511,8 +572,10 @@ fn run_batch_rust_calibrate(
                     );
                 }
                 Err(error) => {
-                    let source_id = record.source_id.clone();
-                    eprintln!("rust calibrate failed for {source_id}: {error:#}");
+                    eprintln!(
+                        "Rust calibration failed for {}: {error:#}",
+                        record.source_id
+                    );
                 }
             }
         }
@@ -586,10 +649,7 @@ fn apply_batch_outcomes(
     Ok(())
 }
 
-fn skip_stream_rows(
-    stream: &mut crate::gaia_xp_continuous_canonical::BulkEcsvStream,
-    rows: u64,
-) -> Result<()> {
+fn skip_stream_rows(stream: &mut BulkEcsvStream, rows: u64) -> Result<()> {
     for _ in 0..rows {
         if stream.next_record()?.is_none() {
             break;
@@ -676,4 +736,88 @@ fn register_exclusion(
         scientific_impact: "source excluded from HEALPix valid accumulation".to_string(),
     });
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_resumable_checkpoint(
+        path: &Path,
+        bulk: &Path,
+        fixture: &Path,
+        nside: u32,
+    ) -> Result<()> {
+        let mut checkpoint = MiniPilotCheckpoint {
+            schema_version: 4,
+            bulk_file: bulk.display().to_string(),
+            bulk_checksum: file_md5(bulk)?,
+            row_index: 3,
+            last_source_id: None,
+            processed_source_ids: Vec::new(),
+            flux_by_source_id: HashMap::new(),
+            rows_read: 3,
+            rows_valid: 0,
+            rows_excluded: 0,
+            rows_failed: 0,
+            processed_count: 0,
+            valid_count: 0,
+            excluded_count: 0,
+            failed_count: 0,
+            healpix: XpContinuousHealpixAccumulator::new(nside)?,
+            healpix_checksum: String::new(),
+            nside,
+            exclusions: Vec::new(),
+            adapter_version: CANONICAL_XP_CONTINUOUS_SCHEMA,
+            software_commit: "test".to_string(),
+            gaiaxpy_version: None,
+            gaiaxpy_environment_checksum: None,
+            design_fixture_checksum: Some(file_md5(fixture)?),
+            state_checksum: String::new(),
+            timestamp_utc: "0".to_string(),
+        };
+        sync_checkpoint_fields(&mut checkpoint);
+        fs::write(path, serde_json::to_string_pretty(&checkpoint)?)?;
+        Ok(())
+    }
+
+    #[test]
+    fn resume_rejects_replaced_bulk_file() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk.csv.gz");
+        let fixture = dir.path().join("fixture.json");
+        let checkpoint = dir.path().join("checkpoint.json");
+        fs::write(&bulk, b"original")?;
+        fs::write(&fixture, b"fixture")?;
+        write_resumable_checkpoint(&checkpoint, &bulk, &fixture, 64)?;
+        fs::write(&bulk, b"replacement")?;
+
+        let error = load_checkpoint(&checkpoint, &bulk, 64, true, None, &fixture)
+            .expect_err("replaced bulk file must fail");
+        assert!(error.to_string().contains("bulk checksum mismatch"));
+        Ok(())
+    }
+
+    #[test]
+    fn resume_rejects_changed_nside_or_fixture() -> Result<()> {
+        let dir = tempfile::tempdir()?;
+        let bulk = dir.path().join("bulk.csv.gz");
+        let fixture = dir.path().join("fixture.json");
+        let checkpoint = dir.path().join("checkpoint.json");
+        fs::write(&bulk, b"bulk")?;
+        fs::write(&fixture, b"fixture")?;
+        write_resumable_checkpoint(&checkpoint, &bulk, &fixture, 64)?;
+
+        let nside_error = load_checkpoint(&checkpoint, &bulk, 128, true, None, &fixture)
+            .expect_err("changed nside must fail");
+        assert!(nside_error.to_string().contains("nside mismatch"));
+
+        fs::write(&fixture, b"changed fixture")?;
+        let fixture_error = load_checkpoint(&checkpoint, &bulk, 64, true, None, &fixture)
+            .expect_err("changed fixture must fail");
+        assert!(fixture_error
+            .to_string()
+            .contains("design fixture checksum mismatch"));
+        Ok(())
+    }
 }
