@@ -32,29 +32,9 @@ jobs:
       - name: Formatting
         run: cargo fmt --all --check
       - name: Lints
-        shell: bash
-        run: |
-          set -o pipefail
-          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings 2>&1 | tee clippy-pr69.log
-      - name: Upload Clippy diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: clippy-pr69-latest
-          path: clippy-pr69.log
-          if-no-files-found: ignore
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - name: Locked tests
-        shell: bash
-        run: |
-          set -o pipefail
-          timeout 6m cargo test --workspace --all-targets --all-features --locked -- --test-threads=1 --nocapture 2>&1 | tee tests-pr69.log
-      - name: Upload test diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: tests-pr69-latest
-          path: tests-pr69.log
-          if-no-files-found: ignore
+        run: cargo test --workspace --all-targets --all-features --locked
       - name: Locked doctests
         run: cargo test --workspace --doc --locked
       - name: Documentation
