@@ -4,9 +4,9 @@
 //! directory. Population close (184.7M) is deferred; this module tracks per-file
 //! source accounting and HEALPix accumulator totals that can scale to full bulk.
 
-use crate::gaia_storage_preflight::XP_CONTINUOUS_ONLY_POPULATION;
-use crate::gaia_xp_continuous_healpix::XpContinuousHealpixAccumulator;
-use crate::gaia_xp_continuous_pilot_io::atomic_write_json;
+use crate::gaia::acquisition::storage_preflight::XP_CONTINUOUS_ONLY_POPULATION;
+use crate::gaia::xp::healpix::XpContinuousHealpixAccumulator;
+use crate::gaia::xp::pilot_io::atomic_write_json;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -148,7 +148,7 @@ pub fn build_partition_manifest(
         partition_filename: partition_filename.to_string(),
         bulk_checksum: bulk_checksum.to_string(),
         cache_uuid: cache_uuid.to_string(),
-        processed_at_utc: crate::gaia_usb_cache::utc_now_rfc3339(),
+        processed_at_utc: crate::gaia::acquisition::usb_cache::utc_now_rfc3339(),
         source_counts,
         accumulator,
         reconciliation_ok,
@@ -187,7 +187,7 @@ pub fn load_or_init_ledger(
     Ok(BulkReconciliationLedger {
         schema_version: 1,
         cache_uuid: cache_uuid.to_string(),
-        updated_at_utc: crate::gaia_usb_cache::utc_now_rfc3339(),
+        updated_at_utc: crate::gaia::acquisition::usb_cache::utc_now_rfc3339(),
         population_target_sources: XP_CONTINUOUS_ONLY_POPULATION,
         population_accumulated_valid: 0,
         population_accumulated_excluded: 0,
@@ -455,7 +455,7 @@ pub fn backfill_reconciliation_from_verified_cache(
 
 pub fn sync_ledger_from_merge_state(
     reconciliation_dir: &Path,
-    merge_state: &crate::gaia_xp_continuous_bulk_healpix_merge::BulkHealpixMergeState,
+    merge_state: &crate::gaia::xp::bulk_healpix_merge::BulkHealpixMergeState,
     global_healpix_path: &Path,
 ) -> Result<(BulkReconciliationLedger, PathBuf)> {
     let cache_uuid = merge_state

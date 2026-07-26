@@ -2,6 +2,7 @@
 
 pub mod artifact_io;
 pub mod checksum_io;
+pub mod file_lock;
 #[deny(missing_docs)]
 pub mod pipeline;
 pub mod tool_catalog;

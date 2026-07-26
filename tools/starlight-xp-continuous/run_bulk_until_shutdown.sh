@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Rotating USB bulk loop for issue #47 PR A — one partition per iteration.
+# Rotating USB (or local-cache) bulk loop for issue #47 — claim-locked partitions.
+# Defaults stay single-partition for USB. Raise PRODUCTION_PARALLEL_PARTITIONS on
+# many-core hosts (prefer NVMe --work-dir / --checkpoint-dir).
 set -euo pipefail
 
 NSB_REPO="${NSB_REPO:-/path/to/nsb}"
@@ -20,9 +22,17 @@ BULK_LOOP_MAX_RETRIES="${BULK_LOOP_MAX_RETRIES:-0}"
 BULK_LOOP_RETRY_BASE_SEC="${BULK_LOOP_RETRY_BASE_SEC:-60}"
 BULK_LOOP_RETRY_MAX_SEC="${BULK_LOOP_RETRY_MAX_SEC:-1800}"
 
+# Packing: parallel_partitions * workers_per_partition ≈ cores - headroom
+PRODUCTION_PARALLEL_PARTITIONS="${PRODUCTION_PARALLEL_PARTITIONS:-1}"
+PRODUCTION_WORKERS="${PRODUCTION_WORKERS:-0}"
+PRODUCTION_WORKER_HEADROOM="${PRODUCTION_WORKER_HEADROOM:-0}"
+PRODUCTION_CHECKPOINT_INTERVAL="${PRODUCTION_CHECKPOINT_INTERVAL:-0}"
+PRODUCTION_BATCH_SIZE="${PRODUCTION_BATCH_SIZE:-1000}"
+
 # Export so nested tools never fall back to cwd="."
 export STARLIGHT_WORK STARLIGHT_CHECKPOINTS STARLIGHT_FROZEN_POLICY STARLIGHT_GAIAXPY_ENV
 export GAIA_USB_MOUNT GAIA_USB_ROOT GAIA_USB_MANIFESTS GAIA_USB_RECONCILIATION
+export PRODUCTION_WORKERS PRODUCTION_WORKER_HEADROOM PRODUCTION_CHECKPOINT_INTERVAL
 
 SESSION_LOG="$LOG_DIR/bulk_loop_$(date -u +%Y%m%dT%H%M%SZ).log"
 exec > >(tee -a "$SESSION_LOG") 2>&1
@@ -31,12 +41,11 @@ echo "=== bulk loop start $(date -u -Iseconds) ==="
 echo "repo=$NSB_REPO commit=$(git -C "$NSB_REPO" rev-parse HEAD)"
 echo "work=$STARLIGHT_WORK checkpoints=$STARLIGHT_CHECKPOINTS"
 echo "retry_policy=max_retries=${BULK_LOOP_MAX_RETRIES:-0} (0=unlimited) base_sec=${BULK_LOOP_RETRY_BASE_SEC} max_sec=${BULK_LOOP_RETRY_MAX_SEC}"
+echo "packing=parallel_partitions=${PRODUCTION_PARALLEL_PARTITIONS} workers=${PRODUCTION_WORKERS} (0=auto) headroom=${PRODUCTION_WORKER_HEADROOM} (0=auto) checkpoint_interval=${PRODUCTION_CHECKPOINT_INTERVAL} (0=auto)"
 
 mountpoint -q "$GAIA_USB_MOUNT" || { echo "USB not mounted"; exit 1; }
 
 cd "$NSB_REPO"
-WORKERS="${PRODUCTION_WORKERS:-0}"
-echo "production_workers=${WORKERS} (0=auto: min(cores-4, 18); 22-core host -> 18)"
 
 cargo build --release --locked -p nsb-data-tools \
   --bin run_starlight_xp_continuous_bulk_pipeline \
@@ -71,18 +80,20 @@ run_pipeline_iteration() {
     --skip-rehearsal \
     --skip-resume-test \
     --resume \
-    --file-limit 1 \
+    --file-limit "$PRODUCTION_PARALLEL_PARTITIONS" \
+    --production-parallel-partitions "$PRODUCTION_PARALLEL_PARTITIONS" \
     --production-row-limit 0 \
-    --production-batch-size 1000 \
-    --production-workers "$WORKERS" \
-    --production-checkpoint-interval 4 \
+    --production-batch-size "$PRODUCTION_BATCH_SIZE" \
+    --production-workers "$PRODUCTION_WORKERS" \
+    --production-worker-headroom "$PRODUCTION_WORKER_HEADROOM" \
+    --production-checkpoint-interval "$PRODUCTION_CHECKPOINT_INTERVAL" \
     --frozen-policy "$STARLIGHT_FROZEN_POLICY" \
     --gaiaxpy-environment "$STARLIGHT_GAIAXPY_ENV" \
     --usb-mountpoint "$GAIA_USB_MOUNT" \
     --usb-cache-root "$GAIA_USB_ROOT" \
     --merge-partition-checkpoints \
     --cleanup-verified-inputs \
-    --cleanup-limit 1
+    --cleanup-limit "$PRODUCTION_PARALLEL_PARTITIONS"
 }
 
 ITER=0

@@ -1,6 +1,6 @@
 //! Bulk ECSV schema inspection and cross-prefix consistency checks.
 
-use crate::gaia_xp_continuous_canonical::{
+use crate::gaia::xp::canonical::{
     packed_correlation_len, stream_bulk_ecsv_gz, CanonicalXpContinuousRecord,
 };
 use anyhow::{bail, Result};

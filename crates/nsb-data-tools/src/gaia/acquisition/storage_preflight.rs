@@ -1,8 +1,10 @@
 //! Internal and USB storage preflight for Gaia DR3 XP continuous bulk production.
 
+#![allow(unsafe_code)]
+
 use crate::checksum_io::{sha256_file, verify_sha256_file};
 use crate::gaia_bulk::{parse_md5_manifest, BulkFile, OFFICIAL_GAIA_XP_CONTINUOUS_BASE_URL};
-use crate::gaia_usb_cache::{
+use crate::gaia::acquisition::usb_cache::{
     current_cache_footprint_bytes, load_or_init_cache_state_manifest,
     read_or_create_cache_root_marker, simulate_or_run_cleanup, verify_usb_identity, UsbCacheLayout,
     UsbIdentityReport, MAX_USB_FILE_BYTES,
@@ -592,7 +594,7 @@ fn statvfs_bytes(path: &Path) -> Result<(u64, u64, Option<String>)> {
     let fragment = stat.f_frsize;
     let total = stat.f_blocks * fragment;
     let available = stat.f_bavail * fragment;
-    let filesystem = crate::gaia_usb_cache::read_mount_info(path)
+    let filesystem = crate::gaia::acquisition::usb_cache::read_mount_info(path)
         .ok()
         .and_then(|(_, fstype)| fstype);
     Ok((total, available, filesystem))

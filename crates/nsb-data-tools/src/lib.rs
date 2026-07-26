@@ -1,6 +1,6 @@
 //! Shared implementation for NSB maintainer data-product tools.
 
-// `gaia_storage_preflight` needs `libc::statvfs` for USB/NVMe capacity gates.
+// `gaia::acquisition::storage_preflight` needs `libc::statvfs` for USB/NVMe capacity gates.
 #![deny(unsafe_code)]
 
 extern crate self as nsb_data_tools;
@@ -9,18 +9,6 @@ pub mod cli;
 pub mod gaia;
 pub mod platform;
 pub mod starlight;
-
-/// USB rotating-cache and HEALPix bulk production path (issue #47).
-#[allow(unsafe_code)]
-pub mod gaia_storage_preflight;
-pub mod gaia_usb_cache;
-pub mod gaia_usb_cache_rotator;
-pub mod gaia_xp_continuous_bulk_healpix_merge;
-pub mod gaia_xp_continuous_bulk_reconciliation;
-pub mod gaia_xp_continuous_bulk_schema;
-pub mod gaia_xp_continuous_healpix;
-pub mod gaia_xp_continuous_pilot_io;
-pub mod gaia_xp_continuous_tool_launch;
 
 use clap::Parser;
 use std::cell::RefCell;
@@ -37,6 +25,15 @@ pub mod gaia_bulk {
 pub mod gaia_bulk_service {
     pub use crate::gaia::acquisition::bulk_service::*;
 }
+pub mod gaia_usb_cache {
+    pub use crate::gaia::acquisition::usb_cache::*;
+}
+pub mod gaia_usb_cache_rotator {
+    pub use crate::gaia::acquisition::usb_cache_rotator::*;
+}
+pub mod gaia_storage_preflight {
+    pub use crate::gaia::acquisition::storage_preflight::*;
+}
 pub mod gaia_xp {
     pub use crate::gaia::xp::sampled::*;
 }
@@ -51,6 +48,24 @@ pub mod gaia_xp_continuous_canonical {
 }
 pub mod gaia_xp_continuous_bulk_index {
     pub use crate::gaia::xp::bulk_index::*;
+}
+pub mod gaia_xp_continuous_healpix {
+    pub use crate::gaia::xp::healpix::*;
+}
+pub mod gaia_xp_continuous_pilot_io {
+    pub use crate::gaia::xp::pilot_io::*;
+}
+pub mod gaia_xp_continuous_bulk_schema {
+    pub use crate::gaia::xp::bulk_schema::*;
+}
+pub mod gaia_xp_continuous_bulk_healpix_merge {
+    pub use crate::gaia::xp::bulk_healpix_merge::*;
+}
+pub mod gaia_xp_continuous_bulk_reconciliation {
+    pub use crate::starlight::xp_continuous::bulk_reconciliation::*;
+}
+pub mod gaia_xp_continuous_tool_launch {
+    pub use crate::starlight::acquisition::tool_launch::*;
 }
 pub mod checksum_io {
     pub use crate::platform::checksum_io::*;

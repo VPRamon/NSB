@@ -1,7 +1,7 @@
 //! Deterministic, resumable cross-partition HEALPix merge for XP continuous bulk.
 
-use crate::gaia_xp_continuous_healpix::XpContinuousHealpixAccumulator;
-use crate::gaia_xp_continuous_pilot_io::atomic_write_json;
+use crate::gaia::xp::healpix::XpContinuousHealpixAccumulator;
+use crate::gaia::xp::pilot_io::atomic_write_json;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -143,7 +143,7 @@ pub fn load_or_init_merge_state(
         nside,
         merged_partitions: Vec::new(),
         global_healpix_checksum: String::new(),
-        updated_at_utc: crate::gaia_usb_cache::utc_now_rfc3339(),
+        updated_at_utc: crate::gaia::acquisition::usb_cache::utc_now_rfc3339(),
     })
 }
 
@@ -269,10 +269,10 @@ pub fn merge_all_partition_checkpoints(
             partition_filename: filename.clone(),
             accumulator_path: path.display().to_string(),
             healpix_checksum: partition_acc.checksum(),
-            merged_at_utc: crate::gaia_usb_cache::utc_now_rfc3339(),
+            merged_at_utc: crate::gaia::acquisition::usb_cache::utc_now_rfc3339(),
         });
         merge_state.global_healpix_checksum = bulk.checksum();
-        merge_state.updated_at_utc = crate::gaia_usb_cache::utc_now_rfc3339();
+        merge_state.updated_at_utc = crate::gaia::acquisition::usb_cache::utc_now_rfc3339();
         save_bulk_accumulator(checkpoint_dir, &bulk)?;
         save_merge_state(checkpoint_dir, &merge_state)?;
         merged_this_run += 1;
@@ -282,7 +282,7 @@ pub fn merge_all_partition_checkpoints(
         bulk = load_accumulator(&bulk_accumulator_path(checkpoint_dir))?;
     }
     merge_state.global_healpix_checksum = bulk.checksum();
-    merge_state.updated_at_utc = crate::gaia_usb_cache::utc_now_rfc3339();
+    merge_state.updated_at_utc = crate::gaia::acquisition::usb_cache::utc_now_rfc3339();
     save_merge_state(checkpoint_dir, &merge_state)?;
 
     let partition_accumulators = discovered
@@ -299,7 +299,7 @@ pub fn merge_all_partition_checkpoints(
         save_bulk_accumulator(checkpoint_dir, &bulk)?;
     }
     merge_state.global_healpix_checksum = bulk.checksum();
-    merge_state.updated_at_utc = crate::gaia_usb_cache::utc_now_rfc3339();
+    merge_state.updated_at_utc = crate::gaia::acquisition::usb_cache::utc_now_rfc3339();
     save_merge_state(checkpoint_dir, &merge_state)?;
 
     let deterministic_merge = if partition_accumulators.len() >= 2 {

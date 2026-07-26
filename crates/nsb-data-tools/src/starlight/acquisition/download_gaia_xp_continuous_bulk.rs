@@ -4,8 +4,8 @@
 //! cache state machine with vfat-safe size limits and transactional writes.
 
 use crate::gaia::acquisition::bulk::{BulkConfig, BulkDownloader, BulkPaths, BulkReport};
-use crate::gaia_usb_cache::UsbCacheLayout;
-use crate::gaia_usb_cache_rotator::{
+use crate::gaia::acquisition::usb_cache::UsbCacheLayout;
+use crate::gaia::acquisition::usb_cache_rotator::{
     filenames_for_download, UsbCacheRotator, UsbCacheRotatorConfig, UsbCacheSyncReport,
 };
 use anyhow::{bail, Result};

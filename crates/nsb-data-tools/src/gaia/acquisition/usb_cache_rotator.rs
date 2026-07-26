@@ -6,7 +6,7 @@
 use crate::gaia_bulk::{
     parse_md5_manifest, BulkFileStatus, BulkOutputManifest, BulkPaths, BulkReport,
 };
-use crate::gaia_usb_cache::{
+use crate::gaia::acquisition::usb_cache::{
     append_session_log, assert_file_size_usb_safe, current_cache_footprint_bytes,
     load_or_init_cache_state_manifest, read_or_create_cache_root_marker, simulate_or_run_cleanup,
     transition_entry_state, verify_usb_identity, write_cache_state_manifest, CacheInputState,
@@ -114,16 +114,16 @@ impl UsbCacheRotator {
     ) -> Result<UsbCacheDownloadSession> {
         let session = UsbCacheDownloadSession {
             schema_version: 1,
-            session_id: format!("usb-download-{}", crate::gaia_usb_cache::utc_now_rfc3339()),
+            session_id: format!("usb-download-{}", crate::gaia::acquisition::usb_cache::utc_now_rfc3339()),
             cache_uuid: self.marker.cache_uuid.clone(),
             cache_dir: self.layout.cache_dir.display().to_string(),
             max_cache_bytes: self.max_cache_bytes,
             file_limit,
             resume,
-            started_at_utc: crate::gaia_usb_cache::utc_now_rfc3339(),
+            started_at_utc: crate::gaia::acquisition::usb_cache::utc_now_rfc3339(),
         };
         let path = self.layout.manifests_dir.join(SESSION_MANIFEST_FILENAME);
-        crate::gaia_xp_continuous_pilot_io::atomic_write_json(
+        crate::gaia::xp::pilot_io::atomic_write_json(
             &path,
             &(serde_json::to_string_pretty(&session)? + "\n"),
         )?;
@@ -286,6 +286,8 @@ impl UsbCacheRotator {
     }
 
     pub fn commit_manifest(&self) -> Result<()> {
+        let lock_path = self.layout.state_manifest_path().with_extension("json.lock");
+        let _lock = crate::platform::file_lock::lock_exclusive(&lock_path)?;
         write_cache_state_manifest(&self.layout.state_manifest_path(), &self.manifest)
     }
 
@@ -359,7 +361,7 @@ impl UsbCacheRotator {
                 && !synced.contains(entry.filename.as_str())
             {
                 entry.state = CacheInputState::Planned;
-                entry.updated_at_utc = crate::gaia_usb_cache::utc_now_rfc3339();
+                entry.updated_at_utc = crate::gaia::acquisition::usb_cache::utc_now_rfc3339();
                 entry.error = None;
             }
         }
@@ -503,7 +505,7 @@ pub fn bulk_filename(path: &Path) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gaia_usb_cache::{
+    use crate::gaia::acquisition::usb_cache::{
         planned_entries_from_inventory, write_cache_state_manifest, CacheStateEntry,
         MAX_USB_FILE_BYTES,
     };

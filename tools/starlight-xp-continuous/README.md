@@ -19,19 +19,37 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
+## Bulk production (336–650 nm continuous-only)
+
+Prefer local NVMe for `--work-dir` / `--checkpoint-dir` on many-core hosts; USB
+rotating cache remains supported with `PRODUCTION_PARALLEL_PARTITIONS=1`.
+
+```bash
+# Workstation / USB (default packing: 1 partition, auto workers = cores - headroom)
+bash tools/starlight-xp-continuous/run_bulk_until_shutdown.sh
+
+# Explicit workers
+PRODUCTION_WORKERS=18 bash tools/starlight-xp-continuous/run_bulk_until_shutdown.sh
+
+# Cluster-style packing (example: 8 partitions × auto workers on a large node)
+PRODUCTION_PARALLEL_PARTITIONS=8 \
+PRODUCTION_WORKER_HEADROOM=2 \
+PRODUCTION_CHECKPOINT_INTERVAL=0 \
+  bash tools/starlight-xp-continuous/run_bulk_until_shutdown.sh
+```
+
+Worker packing: `parallel_partitions * workers_per_partition ≈ available_cores - headroom`.
+Partition claims under `$STARLIGHT_CHECKPOINTS/claims/` prevent double-processing across
+processes. Global HEALPix merge takes an exclusive flock.
+
 ## Reconstruct canonical coefficient CSVs (Phase 5 / holdout)
 
 ```bash
-cargo run --release --locked -p nsb-data-tools --bin reconstruct_canonical_coefficients -- \
+cargo run --release --locked -p nsb-data-tools --bin nsb-data -- \
+  starlight xp-continuous reconstruct \
   --coefficients-dir "$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/coefficients/canonical" \
   --output-dir "$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/reconstruction/normalized" \
   --manifest "$HOME/nsb-data/starlight-gaia-release/missing-flux/phase5/phase5_reconstruction.manifest.json"
-```
-
-## Bulk production (336–650 nm continuous-only)
-
-```bash
-PRODUCTION_WORKERS=18 bash tools/starlight-xp-continuous/run_bulk_until_shutdown.sh
 ```
 
 ## Oracle tooling (CI parity gate)
