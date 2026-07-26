@@ -2,7 +2,9 @@
 
 mod config;
 mod engine;
+mod execution;
 mod model;
+mod pipeline;
 mod slurm;
 
 pub use config::{RunConfig, SourceConfig};
@@ -11,3 +13,4 @@ pub use model::{
     Artifact, BuildPlan, DatasetName, Executor, Operation, RunManifest, RunStatus, ValidationGate,
     ValidationReport,
 };
+pub use pipeline::DatasetPipeline;

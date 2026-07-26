@@ -25,11 +25,38 @@ fn four_versioned_configs_are_portable_and_complete() {
         assert_eq!(config.dataset, dataset);
         assert_eq!(config.sources.len(), sources);
         assert!(config.workspace.root.is_absolute());
+        assert!(!config
+            .workspace
+            .root
+            .components()
+            .any(|component| matches!(component, std::path::Component::ParentDir)));
         assert!(config
             .sources
             .iter()
             .all(|source| source.path.as_ref().is_some_and(|path| path.is_absolute())));
     }
+}
+
+#[test]
+fn production_starlight_config_declares_the_complete_gaia_pair() {
+    let config = RunConfig::load(&crate_root().join("config/starlight-production.toml")).unwrap();
+    let starlight = config.starlight.expect("Starlight production policy");
+    assert_eq!(
+        starlight.mode,
+        nsb_data_tools::starlight::config::StarlightMode::Production
+    );
+    assert_eq!(
+        starlight
+            .gaia_products
+            .iter()
+            .map(|product| product.id.as_str())
+            .collect::<Vec<_>>(),
+        ["gaia-source", "xp-continuous"]
+    );
+    assert!(starlight
+        .gaia_products
+        .iter()
+        .all(|product| product.expected_partitions == Some(3386)));
 }
 
 #[test]

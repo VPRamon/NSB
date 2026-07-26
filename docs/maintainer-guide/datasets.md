@@ -63,12 +63,21 @@ Run manifests pin the resolved workspace, configuration checksum, Git commit,
 executor, partitions, artifacts and validation report. Atomic output promotion
 prevents a partial file from being treated as complete.
 
-## Slurm starlight execution
+## Full Starlight source acquisition
 
-Set `execution.executor = "slurm"` and provide `execution.slurm`. Each source
-must carry a stable `partition` identifier. The orchestrator submits an
-`sbatch --array` invocation of the internal worker in the same Rust binary;
-there are no maintained shell or Python wrappers.
+Full Starlight uses
+`crates/nsb-data-tools/config/starlight-production.toml`. Its partitions come
+from the reconciled official GaiaSource and XP continuous checksum inventories;
+they are not hand-written into TOML.
+
+First create or refresh the two normalized inventories on a login node:
+
+```bash
+nsb-data dataset starlight update \
+  --config crates/nsb-data-tools/config/starlight-production.toml
+```
+
+Then acquire every paired partition through Slurm:
 
 ```toml
 [execution]
@@ -83,6 +92,43 @@ memory = "8G"
 array_parallelism = 32
 ```
 
-All workers verify their configured partition inputs and write isolated,
-checksum-pinned state. A run may be resumed with its manifest without changing
-the selected partition set.
+```bash
+nsb-data dataset starlight update \
+  --config crates/nsb-data-tools/config/starlight-production.toml \
+  --executor slurm
+```
+
+The orchestrator submits one `sbatch --array` task per reconciled range. Every
+task enters the internal worker in the same Rust binary, resumes an interrupted
+HTTP transfer, verifies the official checksum, computes SHA-256, and promotes
+the bytes to `cache/objects/sha256/<digest>`. A strict receipt under
+`cache/receipts/<product>/<partition>.json` binds the URL, official checksum,
+SHA-256, size, and object path. No maintained shell or Python wrapper exists.
+
+For a bounded local acquisition, select explicit ranges:
+
+```bash
+nsb-data dataset starlight update \
+  --config crates/nsb-data-tools/config/starlight-production.toml \
+  --partitions 000000-003111,003112-005263
+```
+
+Use the submitted run manifest printed by the command:
+
+```bash
+nsb-data run status --run /shared/nsb/starlight/runs/starlight/<run-id>/run.json
+nsb-data run resume --run /shared/nsb/starlight/runs/starlight/<run-id>/run.json
+```
+
+Resume submits only partitions without a complete, checksum-valid worker
+manifest. A changed TOML, partition set, software revision, inventory contract,
+or cached object cannot silently enter an existing run.
+
+## Full Starlight build readiness
+
+Inventory reconciliation, local/Slurm acquisition, durable run state, sparse
+HEALPix shard accumulation, and deterministic shard merge are implemented.
+Production `build` currently fails closed while XP coefficient reconstruction,
+the GaiaSource/XP streaming join, population correction, and final scientific
+admission gates are completed. The snapshot configuration remains independently
+reproducible, but is not a production substitute.

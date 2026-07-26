@@ -2,7 +2,7 @@ use super::{DatasetName, Executor};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -12,8 +12,10 @@ pub struct RunConfig {
     pub workspace: WorkspaceConfig,
     #[serde(default)]
     pub execution: ExecutionConfig,
+    #[serde(default)]
     pub sources: Vec<SourceConfig>,
     pub publish: Option<PublishConfig>,
+    pub starlight: Option<crate::starlight::config::StarlightConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,6 +42,8 @@ pub struct ExecutionConfig {
     pub executor: Executor,
     #[serde(default = "default_concurrency")]
     pub concurrency: usize,
+    #[serde(default = "default_lease_timeout_seconds")]
+    pub lease_timeout_seconds: u64,
     pub slurm: Option<SlurmConfig>,
 }
 
@@ -48,6 +52,7 @@ impl Default for ExecutionConfig {
         Self {
             executor: default_executor(),
             concurrency: default_concurrency(),
+            lease_timeout_seconds: default_lease_timeout_seconds(),
             slurm: None,
         }
     }
@@ -82,9 +87,15 @@ fn default_array_parallelism() -> usize {
     1
 }
 
+fn default_lease_timeout_seconds() -> u64 {
+    24 * 60 * 60
+}
+
 impl RunConfig {
     pub fn load(path: &Path) -> Result<Self> {
-        let raw = fs::read_to_string(path)
+        let absolute_path = fs::canonicalize(path)
+            .with_context(|| format!("failed to resolve config {}", path.display()))?;
+        let raw = fs::read_to_string(&absolute_path)
             .with_context(|| format!("failed to read config {}", path.display()))?;
         let mut config: Self =
             toml::from_str(&raw).with_context(|| format!("invalid config {}", path.display()))?;
@@ -94,13 +105,22 @@ impl RunConfig {
                 config.schema_version
             );
         }
-        if config.sources.is_empty() {
+        if config.sources.is_empty()
+            && config.starlight.as_ref().is_none_or(|starlight| {
+                starlight.mode != crate::starlight::config::StarlightMode::Production
+            })
+        {
             bail!("configuration requires at least one source");
         }
         if config.execution.concurrency == 0 {
             bail!("execution.concurrency must be greater than zero");
         }
-        let base = path.parent().unwrap_or_else(|| Path::new("."));
+        if config.execution.lease_timeout_seconds == 0 {
+            bail!("execution.lease_timeout_seconds must be greater than zero");
+        }
+        let base = absolute_path
+            .parent()
+            .context("configuration path has no parent")?;
         config.workspace.root = resolve(base, &config.workspace.root);
         for source in &mut config.sources {
             match (&mut source.path, &source.url) {
@@ -122,9 +142,26 @@ impl RunConfig {
 }
 
 fn resolve(base: &Path, value: &Path) -> PathBuf {
-    if value.is_absolute() {
+    let joined = if value.is_absolute() {
         value.to_path_buf()
     } else {
         base.join(value)
+    };
+    normalize_absolute(&joined)
+}
+
+fn normalize_absolute(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            Component::RootDir => normalized.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(value) => normalized.push(value),
+        }
     }
+    normalized
 }

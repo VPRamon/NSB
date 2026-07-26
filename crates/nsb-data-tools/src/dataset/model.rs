@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-pub const RUN_SCHEMA_VERSION: u32 = 1;
+pub const RUN_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]
@@ -127,6 +127,7 @@ pub struct ValidationReport {
 #[serde(deny_unknown_fields)]
 pub struct RunManifest {
     pub schema_version: u32,
+    pub run_id: String,
     pub dataset: DatasetName,
     pub operation: Operation,
     pub executor: Executor,

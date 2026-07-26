@@ -1,13 +1,15 @@
 use super::config::RunConfig;
+use super::execution::scheduler::{Scheduler, SchedulerState, SlurmScheduler};
 use super::model::{
     Artifact, BuildPlan, DatasetName, Executor, Operation, RunManifest, RunStatus, ValidationGate,
     ValidationReport, RUN_SCHEMA_VERSION,
 };
+use super::pipeline::pipeline_for;
 use super::slurm;
+use crate::platform::artifact_store;
 use crate::platform::checksum_io;
 use anyhow::{bail, Context, Result};
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -29,6 +31,8 @@ pub fn execute(
             config.dataset
         );
     }
+    let pipeline = pipeline_for(dataset);
+    pipeline.validate_config(&config)?;
     if let Some(executor) = executor {
         config.execution.executor = executor;
     }
@@ -38,15 +42,30 @@ pub fn execute(
         }
         config.execution.concurrency = concurrency;
     }
-    let partitions = selected_partitions(config_path, &config, requested_partitions)?;
+    let partitions = selected_partitions(&config, operation, requested_partitions)?;
     let plan = BuildPlan {
         dataset,
         operation,
         executor: config.execution.executor,
         partitions,
     };
-    let manifest_path = manifest_path(&config, operation);
-    initialize_manifest(config_path, &config, &plan, &manifest_path)?;
+    let config_sha256 = sha256_file(config_path)?;
+    let software_commit = software_commit();
+    let run_id = run_id(&plan, &config_sha256, &software_commit)?;
+    let manifest_path = manifest_path(&config, &run_id);
+    initialize_manifest(
+        config_path,
+        &config,
+        &plan,
+        &manifest_path,
+        &run_id,
+        &config_sha256,
+        &software_commit,
+    )?;
+    if completed_manifest_is_valid(&manifest_path)? {
+        println!("{}", manifest_path.display());
+        return Ok(());
+    }
 
     let result = if config.execution.executor == Executor::Slurm {
         if dataset != DatasetName::Starlight {
@@ -67,30 +86,60 @@ pub fn execute(
 
 pub fn status(path: &Path) -> Result<()> {
     let manifest = read_manifest(path)?;
-    if let Some(job_id) = &manifest.slurm_job_id {
-        let output = Command::new("squeue")
-            .args(["--noheader", "--jobs", job_id, "--format", "%T"])
-            .output()
-            .context("failed to query Slurm with squeue")?;
-        if !output.status.success() {
-            bail!("squeue failed: {}", String::from_utf8_lossy(&output.stderr));
-        }
-        let state = String::from_utf8(output.stdout)?;
-        eprintln!("slurm_job_state={}", state.trim());
+    let scheduler_state = manifest
+        .slurm_job_id
+        .as_deref()
+        .map(|job_id| SlurmScheduler::default().state(job_id))
+        .transpose()?
+        .map(|state| format!("{state:?}").to_ascii_lowercase());
+    let (partitions_complete, partitions_pending) = partition_progress(&manifest)?;
+    #[derive(serde::Serialize)]
+    struct StatusReport<'a> {
+        schema_version: u32,
+        manifest: &'a RunManifest,
+        scheduler_state: Option<String>,
+        partitions_complete: usize,
+        partitions_pending: usize,
     }
-    println!("{}", serde_json::to_string_pretty(&manifest)?);
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&StatusReport {
+            schema_version: 1,
+            manifest: &manifest,
+            scheduler_state,
+            partitions_complete,
+            partitions_pending,
+        })?
+    );
     Ok(())
 }
 
 pub fn resume(path: &Path) -> Result<()> {
     let manifest = read_manifest(path)?;
+    let partitions = if manifest.executor == Executor::Slurm {
+        manifest
+            .partitions
+            .iter()
+            .filter(|partition| {
+                !worker_is_complete(&manifest.resolved_workspace, partition, manifest.operation)
+                    .unwrap_or(false)
+            })
+            .cloned()
+            .collect()
+    } else {
+        manifest.partitions.clone()
+    };
+    if manifest.executor == Executor::Slurm && partitions.is_empty() {
+        println!("all partitions are complete");
+        return Ok(());
+    }
     execute(
         &manifest.config_path,
         manifest.dataset,
         manifest.operation,
         Some(manifest.executor),
         None,
-        &manifest.partitions,
+        &partitions,
     )
 }
 
@@ -98,21 +147,30 @@ pub fn run_worker(
     config_path: &Path,
     dataset: DatasetName,
     operation: Operation,
-    partition: &str,
+    partition: Option<&str>,
+    partition_manifest: Option<&Path>,
 ) -> Result<()> {
-    let mut config = RunConfig::load(config_path)?;
+    let partition = match (partition, partition_manifest) {
+        (Some(partition), None) => partition.to_string(),
+        (None, Some(manifest)) => super::slurm::partition_from_array(manifest)?,
+        _ => bail!("worker requires exactly one of --partition or --partition-manifest"),
+    };
+    let config = RunConfig::load(config_path)?;
     if dataset != DatasetName::Starlight || config.dataset != dataset {
         bail!("distributed workers are available only for starlight");
     }
+    let pipeline = pipeline_for(dataset);
+    pipeline.validate_config(&config)?;
     let plan = BuildPlan {
         dataset,
         operation,
         executor: Executor::Local,
-        partitions: vec![partition.to_string()],
+        partitions: vec![partition.clone()],
     };
-    let worker_root = config.workspace.root.join("workers").join(partition);
+    let worker_root = config.workspace.root.join("workers").join(&partition);
     fs::create_dir_all(&worker_root)?;
-    config.workspace.root = worker_root.clone();
+    let mut worker_config = config.clone();
+    worker_config.workspace.root = worker_root.clone();
     let worker_manifest = worker_root.join("runs").join(format!("{operation}.json"));
     if worker_manifest.is_file() {
         let existing = read_manifest(&worker_manifest)?;
@@ -126,12 +184,39 @@ pub fn run_worker(
             return Ok(());
         }
     }
-    let _lease = Lease::acquire(&worker_root.join("lease"))?;
-    initialize_manifest(config_path, &config, &plan, &worker_manifest)?;
-    if operation == Operation::Build {
-        update_sources(&config, &plan.partitions)?;
+    let _lease = Lease::acquire(
+        &worker_root.join("lease"),
+        config.execution.lease_timeout_seconds,
+    )?;
+    let config_sha256 = sha256_file(config_path)?;
+    let software_commit = software_commit();
+    let run_id = run_id(&plan, &config_sha256, &software_commit)?;
+    initialize_manifest(
+        config_path,
+        &worker_config,
+        &plan,
+        &worker_manifest,
+        &run_id,
+        &config_sha256,
+        &software_commit,
+    )?;
+    if operation == Operation::Update {
+        let artifacts = match pipeline.update(&config, &plan.partitions)? {
+            Some(artifacts) => artifacts,
+            None => update_sources(&worker_config, &plan.partitions)?,
+        };
+        let mut manifest = read_manifest(&worker_manifest)?;
+        manifest.status = RunStatus::Complete;
+        manifest.artifacts = artifacts;
+        manifest.error = None;
+        write_json(&worker_manifest, &manifest)?;
+        println!("{}", worker_manifest.display());
+        return Ok(());
     }
-    run_local(config_path, &config, &plan, &worker_manifest)
+    if operation == Operation::Build && pipeline.update(&config, &plan.partitions)?.is_none() {
+        update_sources(&worker_config, &plan.partitions)?;
+    }
+    run_local(config_path, &worker_config, &plan, &worker_manifest)
 }
 
 fn run_local(
@@ -142,7 +227,12 @@ fn run_local(
 ) -> Result<()> {
     update_status(manifest_path, RunStatus::Running)?;
     let artifacts = match plan.operation {
-        Operation::Update => update_sources(config, &plan.partitions)?,
+        Operation::Update => {
+            match pipeline_for(config.dataset).update(config, &plan.partitions)? {
+                Some(artifacts) => artifacts,
+                None => update_sources(config, &plan.partitions)?,
+            }
+        }
         Operation::Build => build(config, &plan.partitions)?,
         Operation::Validate => {
             if config.dataset == DatasetName::Starlight {
@@ -159,6 +249,7 @@ fn run_local(
     let mut manifest = read_manifest(manifest_path)?;
     manifest.status = RunStatus::Complete;
     manifest.artifacts = artifacts;
+    manifest.error = None;
     if plan.operation == Operation::Validate {
         manifest.validation_report = Some(validation_path(config));
     }
@@ -168,23 +259,32 @@ fn run_local(
 }
 
 fn selected_partitions(
-    _config_path: &Path,
     config: &RunConfig,
+    operation: Operation,
     selected: &[String],
 ) -> Result<Vec<String>> {
-    let mut available: Vec<String> = config
-        .sources
-        .iter()
-        .filter_map(|source| source.partition.clone())
-        .collect();
-    available.sort();
-    available.dedup();
-    if config.dataset != DatasetName::Starlight {
+    let pipeline = pipeline_for(config.dataset);
+    if !pipeline.supports_partitions() {
         if !selected.is_empty() {
             bail!("partition selection is supported only for starlight");
         }
         return Ok(Vec::new());
     }
+    if operation == Operation::Update
+        && selected.is_empty()
+        && config.execution.executor == Executor::Local
+    {
+        return Ok(Vec::new());
+    }
+    let available = match pipeline.available_partitions(config)? {
+        Some(partitions) => partitions,
+        None if operation == Operation::Update && selected.is_empty() => return Ok(Vec::new()),
+        None => bail!(
+            "{} source inventory is missing; run dataset {} update first",
+            config.dataset,
+            config.dataset
+        ),
+    };
     if !selected.is_empty() {
         for partition in selected {
             if !available.contains(partition) {
@@ -221,12 +321,16 @@ fn update_sources(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artif
 }
 
 fn build(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
+    let pipeline = pipeline_for(config.dataset);
+    if let Some(artifacts) = pipeline.build(config, partitions)? {
+        return Ok(artifacts);
+    }
     let sources_root = config.workspace.root.join("sources");
     let output_root = config.workspace.root.join("outputs");
     fs::create_dir_all(&output_root)?;
-    let expected = expected_outputs(config.dataset);
+    let expected = pipeline.expected_outputs();
     let sources = filtered_sources(config, partitions);
-    if sources.len() != expected.len() && config.dataset != DatasetName::Starlight {
+    if sources.len() != expected.len() && !pipeline.supports_partitions() {
         bail!(
             "{} requires sources named {}",
             config.dataset,
@@ -249,9 +353,9 @@ fn build(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
                             input.display()
                         );
                     }
-                    let name = output_name(config.dataset, &source.name)?;
+                    let name = pipeline.output_name(&source.name)?;
                     let destination = output_root.join(name);
-                    normalize(config.dataset, &source.name, &input, &destination)?;
+                    pipeline.transform(&source.name, &input, &destination)?;
                     artifacts.push(artifact(name, &destination)?);
                 }
                 Ok(artifacts)
@@ -274,6 +378,7 @@ fn build(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
 }
 
 fn validate(config: &RunConfig) -> Result<ValidationReport> {
+    let pipeline = pipeline_for(config.dataset);
     let output_root = config.workspace.root.join("outputs");
     let artifacts: Vec<Artifact> =
         read_json(&output_root.join("artifacts.json")).context("run build before validate")?;
@@ -285,7 +390,7 @@ fn validate(config: &RunConfig) -> Result<ValidationReport> {
             passed: actual.sha256 == artifact.sha256,
             detail: actual.sha256,
         });
-        let format = validate_format(config.dataset, &artifact.name, &artifact.path);
+        let format = pipeline.validate_artifact(&artifact.name, &artifact.path);
         gates.push(ValidationGate {
             name: format!("format:{}", artifact.name),
             passed: format.is_ok(),
@@ -294,10 +399,10 @@ fn validate(config: &RunConfig) -> Result<ValidationReport> {
                 .map_or_else(|| "valid".to_string(), |e| e.to_string()),
         });
     }
-    let expected = expected_outputs(config.dataset);
+    let expected = pipeline.expected_outputs();
     gates.push(ValidationGate {
         name: "complete-artifact-set".to_string(),
-        passed: config.dataset == DatasetName::Starlight
+        passed: pipeline.supports_partitions()
             || expected
                 .iter()
                 .all(|name| artifacts.iter().any(|a| a.name == *name)),
@@ -383,85 +488,6 @@ fn publish(config: &RunConfig) -> Result<Vec<Artifact>> {
     Ok(report.artifacts)
 }
 
-fn normalize(dataset: DatasetName, name: &str, input: &Path, output: &Path) -> Result<()> {
-    let bytes = fs::read(input)?;
-    if bytes.contains(&0) {
-        bail!("source {name:?} contains NUL bytes");
-    }
-    validate_format(dataset, name, input)?;
-    atomic_write(output, &bytes)
-}
-
-fn validate_format(dataset: DatasetName, name: &str, path: &Path) -> Result<()> {
-    let file = fs::File::open(path)?;
-    let lines: Vec<String> = BufReader::new(file)
-        .lines()
-        .collect::<std::io::Result<_>>()?;
-    let data: Vec<&str> = lines
-        .iter()
-        .map(String::as_str)
-        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
-        .collect();
-    if data.is_empty() {
-        bail!("{name} contains no data rows");
-    }
-    match dataset {
-        DatasetName::SolarSpectrum => {
-            if data.iter().any(|line| {
-                let mut fields = line.split(',');
-                fields
-                    .next()
-                    .and_then(|v| v.trim().parse::<f64>().ok())
-                    .is_none()
-                    || fields
-                        .next()
-                        .and_then(|v| v.trim().parse::<f64>().ok())
-                        .is_none()
-            }) {
-                bail!("solar spectrum requires two numeric CSV columns");
-            }
-        }
-        DatasetName::Starlight => {
-            let text = lines.join("\n");
-            for header in [
-                "# map_type=healpix",
-                "# coordinate_frame=galactic",
-                "# nside=",
-            ] {
-                if !text.contains(header) {
-                    bail!("starlight map is missing header {header}");
-                }
-            }
-        }
-        DatasetName::AirglowContinuum | DatasetName::MoonlightScattering => {
-            if data.len() < 2 {
-                bail!("{name} contains too few data rows");
-            }
-        }
-    }
-    Ok(())
-}
-
-fn expected_outputs(dataset: DatasetName) -> &'static [&'static str] {
-    match dataset {
-        DatasetName::AirglowContinuum => &["airglow_cont.dat"],
-        DatasetName::SolarSpectrum => &["solar_spectrum.dat"],
-        DatasetName::MoonlightScattering => &["mie_m15s1.dat", "sscatcor_m15s1.dat"],
-        DatasetName::Starlight => &["starlight_manual_seed_v1.csv"],
-    }
-}
-
-fn output_name(dataset: DatasetName, source_name: &str) -> Result<&str> {
-    if dataset == DatasetName::Starlight {
-        return Ok(source_name);
-    }
-    expected_outputs(dataset)
-        .iter()
-        .copied()
-        .find(|expected| *expected == source_name)
-        .with_context(|| format!("unexpected source name {source_name:?} for {dataset}"))
-}
-
 fn filtered_sources<'a>(
     config: &'a RunConfig,
     partitions: &'a [String],
@@ -510,16 +536,33 @@ fn initialize_manifest(
     config: &RunConfig,
     plan: &BuildPlan,
     path: &Path,
+    run_id: &str,
+    config_sha256: &str,
+    software_commit: &str,
 ) -> Result<()> {
+    if path.is_file() {
+        let existing = read_manifest(path)?;
+        if existing.run_id != run_id
+            || existing.config_sha256 != config_sha256
+            || existing.software_commit != software_commit
+            || existing.dataset != plan.dataset
+            || existing.operation != plan.operation
+            || existing.partitions != plan.partitions
+        {
+            bail!("persisted run identity does not match requested execution");
+        }
+        return Ok(());
+    }
     let manifest = RunManifest {
         schema_version: RUN_SCHEMA_VERSION,
+        run_id: run_id.to_string(),
         dataset: plan.dataset,
         operation: plan.operation,
         executor: plan.executor,
         status: RunStatus::Planned,
         config_path: fs::canonicalize(config_path).unwrap_or_else(|_| config_path.to_path_buf()),
-        config_sha256: sha256_file(config_path)?,
-        software_commit: software_commit(),
+        config_sha256: config_sha256.to_string(),
+        software_commit: software_commit.to_string(),
         resolved_workspace: config.workspace.root.clone(),
         partitions: plan.partitions.clone(),
         artifacts: Vec::new(),
@@ -541,14 +584,67 @@ fn software_commit() -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-fn manifest_path(config: &RunConfig, operation: Operation) -> PathBuf {
+fn manifest_path(config: &RunConfig, run_id: &str) -> PathBuf {
     config
         .workspace
         .root
         .join("runs")
         .join(config.dataset.slug())
-        .join(operation.to_string())
+        .join(run_id)
         .join(RUN_MANIFEST)
+}
+
+fn run_id(plan: &BuildPlan, config_sha256: &str, software_commit: &str) -> Result<String> {
+    #[derive(serde::Serialize)]
+    struct Identity<'a> {
+        schema_version: u32,
+        plan: &'a BuildPlan,
+        config_sha256: &'a str,
+        software_commit: &'a str,
+    }
+    let bytes = serde_json::to_vec(&Identity {
+        schema_version: RUN_SCHEMA_VERSION,
+        plan,
+        config_sha256,
+        software_commit,
+    })?;
+    Ok(checksum_io::sha256_bytes(&bytes))
+}
+
+fn completed_manifest_is_valid(path: &Path) -> Result<bool> {
+    let manifest = read_manifest(path)?;
+    if !matches!(manifest.status, RunStatus::Complete) {
+        return Ok(false);
+    }
+    Ok(manifest.artifacts.iter().all(|artifact| {
+        artifact.path.is_file()
+            && sha256_file(&artifact.path).is_ok_and(|checksum| checksum == artifact.sha256)
+    }))
+}
+
+fn partition_progress(manifest: &RunManifest) -> Result<(usize, usize)> {
+    if manifest.partitions.is_empty() {
+        return Ok((0, 0));
+    }
+    let mut complete = 0;
+    for partition in &manifest.partitions {
+        if worker_is_complete(&manifest.resolved_workspace, partition, manifest.operation)? {
+            complete += 1;
+        }
+    }
+    Ok((complete, manifest.partitions.len() - complete))
+}
+
+fn worker_is_complete(workspace: &Path, partition: &str, operation: Operation) -> Result<bool> {
+    let path = workspace
+        .join("workers")
+        .join(partition)
+        .join("runs")
+        .join(format!("{operation}.json"));
+    if !path.is_file() {
+        return Ok(false);
+    }
+    completed_manifest_is_valid(&path)
 }
 
 fn validation_path(config: &RunConfig) -> PathBuf {
@@ -593,14 +689,8 @@ fn copy_atomic(source: &Path, destination: &Path) -> Result<()> {
     atomic_write(destination, &fs::read(source)?)
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let temporary = path.with_extension(format!("tmp-{}", std::process::id()));
-    fs::write(&temporary, bytes)?;
-    fs::rename(&temporary, path)?;
-    Ok(())
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
+    artifact_store::atomic_write(path, bytes)
 }
 
 fn update_manifest_checksum(
@@ -626,23 +716,79 @@ struct Lease {
     path: PathBuf,
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct LeaseRecord {
+    schema_version: u32,
+    hostname: String,
+    pid: u32,
+    created_unix_seconds: u64,
+    slurm_job_id: Option<String>,
+}
+
 impl Lease {
-    fn acquire(path: &Path) -> Result<Self> {
+    fn acquire(path: &Path, timeout_seconds: u64) -> Result<Self> {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
+        if path.is_file() {
+            let existing: LeaseRecord = read_json(path)
+                .with_context(|| format!("invalid existing lease {}", path.display()))?;
+            if lease_can_be_recovered(&existing, timeout_seconds)? {
+                fs::remove_file(path)?;
+            } else {
+                bail!("partition lease {} is already held", path.display());
+            }
+        }
+        let record = LeaseRecord {
+            schema_version: 1,
+            hostname: current_hostname(),
+            pid: std::process::id(),
+            created_unix_seconds: unix_seconds()?,
+            slurm_job_id: std::env::var("SLURM_ARRAY_JOB_ID")
+                .ok()
+                .or_else(|| std::env::var("SLURM_JOB_ID").ok()),
+        };
+        let bytes = serde_json::to_vec_pretty(&record)?;
         use std::io::Write as _;
         let mut file = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
-            .open(path)
-            .with_context(|| format!("partition lease {} is already held", path.display()))?;
-        writeln!(file, "pid={}", std::process::id())?;
+            .open(path)?;
+        file.write_all(&bytes)?;
         file.sync_all()?;
         Ok(Self {
             path: path.to_path_buf(),
         })
     }
+}
+
+fn lease_can_be_recovered(record: &LeaseRecord, timeout_seconds: u64) -> Result<bool> {
+    if record.schema_version != 1 {
+        bail!("unsupported lease schema {}", record.schema_version);
+    }
+    let age = unix_seconds()?.saturating_sub(record.created_unix_seconds);
+    if age < timeout_seconds {
+        return Ok(false);
+    }
+    if let Some(job_id) = &record.slurm_job_id {
+        return Ok(matches!(
+            SlurmScheduler::default().state(job_id)?,
+            SchedulerState::Succeeded | SchedulerState::Failed | SchedulerState::Cancelled
+        ));
+    }
+    Ok(record.hostname == current_hostname()
+        && !Path::new("/proc").join(record.pid.to_string()).exists())
+}
+
+fn current_hostname() -> String {
+    std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_string())
+}
+
+fn unix_seconds() -> Result<u64> {
+    Ok(std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs())
 }
 
 impl Drop for Lease {

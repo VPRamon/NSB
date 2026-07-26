@@ -6,3 +6,4 @@ extern crate self as nsb_data_tools;
 pub mod cli;
 pub mod dataset;
 pub mod platform;
+pub mod starlight;

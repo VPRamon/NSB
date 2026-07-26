@@ -97,8 +97,10 @@ struct WorkerArgs {
     dataset: DatasetName,
     #[arg(long)]
     operation: Operation,
-    #[arg(long)]
-    partition: String,
+    #[arg(long, conflicts_with = "partition_manifest")]
+    partition: Option<String>,
+    #[arg(long, conflicts_with = "partition")]
+    partition_manifest: Option<PathBuf>,
 }
 
 pub fn run() -> Result<()> {
@@ -123,9 +125,13 @@ pub fn run() -> Result<()> {
             RunCommand::Status { run } => dataset::status(&run),
             RunCommand::Resume { run } => dataset::resume(&run),
         },
-        Command::Worker(args) => {
-            dataset::run_worker(&args.config, args.dataset, args.operation, &args.partition)
-        }
+        Command::Worker(args) => dataset::run_worker(
+            &args.config,
+            args.dataset,
+            args.operation,
+            args.partition.as_deref(),
+            args.partition_manifest.as_deref(),
+        ),
     }
 }
 
