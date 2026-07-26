@@ -32,7 +32,17 @@ jobs:
       - name: Formatting
         run: cargo fmt --all --check
       - name: Lints
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings 2>&1 | tee clippy-pr69.log
+      - name: Upload Clippy diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clippy-pr69
+          path: clippy-pr69.log
+          if-no-files-found: ignore
       - name: Locked tests
         run: cargo test --workspace --all-targets --all-features --locked
       - name: Locked doctests
