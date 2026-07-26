@@ -115,6 +115,10 @@ enum XpContinuousCommand {
     Reconstruct(ForwardArgs),
     /// Validate reconstruction against the scientific contract.
     Validate(ForwardArgs),
+    /// Process one verified XP continuous partition into checkpointed HEALPix state.
+    ProcessPartition(ForwardArgs),
+    /// Run the resumable XP continuous bulk production pipeline.
+    RunBulk(ForwardArgs),
 }
 
 #[derive(Debug, Args)]
@@ -169,6 +173,8 @@ struct ProductArgs {
 enum ProductCommand {
     /// Build an integrated starlight candidate.
     BuildIntegrated(ForwardArgs),
+    /// Export a runtime HEALPix map into normalized contribution rows.
+    ExportContributions(ForwardArgs),
 }
 
 #[derive(Debug, Args)]

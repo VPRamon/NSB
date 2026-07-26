@@ -4,28 +4,28 @@
 //! kill/resume validation, and storage-plan generation. Full bulk is blocked until
 //! all preflight gates pass.
 
-use crate::gaia_storage_preflight::{
+use crate::gaia::acquisition::storage_preflight::{
     audit_official_inventory, directory_size_bytes, run_storage_preflight, write_storage_plan_json,
     write_storage_plan_markdown, StoragePreflightConfig,
 };
-use crate::gaia_usb_cache::{
+use crate::gaia::acquisition::usb_cache::{
     append_session_log, read_or_create_cache_root_marker, verify_usb_identity, UsbCacheLayout,
     OFFICIAL_CHECKSUM_MANIFEST,
 };
-use crate::gaia_usb_cache_rotator::{
+use crate::gaia::acquisition::usb_cache_rotator::{
     bulk_filename, filenames_checksum_verified, filenames_for_production, UsbCacheRotator,
     UsbCacheRotatorConfig,
 };
-use crate::gaia_xp_continuous_bulk_healpix_merge::{
+use crate::gaia::xp::bulk_healpix_merge::{
     bulk_accumulator_path, merge_all_partition_checkpoints, BulkHealpixMergeReport,
 };
-use crate::gaia_xp_continuous_bulk_reconciliation::{
+use crate::gaia::xp::checkpoint_io::atomic_write_json;
+use crate::starlight::acquisition::tool_launch::run_download_bulk_command;
+use crate::starlight::acquisition::tool_launch::run_partition_processor_command;
+use crate::starlight::xp_continuous::bulk_reconciliation::{
     backfill_reconciliation_from_verified_cache, build_partition_from_processing_output,
     sync_ledger_from_merge_state, write_root_manifest, PartitionReconciliationManifest,
 };
-use crate::gaia_xp_continuous_pilot_io::atomic_write_json;
-use crate::gaia_xp_continuous_tool_launch::run_download_bulk_command;
-use crate::gaia_xp_continuous_tool_launch::run_mini_pilot_command;
 use crate::starlight::xp_continuous::partition_claim::claim_partitions;
 use anyhow::{bail, Context, Result};
 use clap::Parser;
@@ -271,9 +271,12 @@ fn env_path(name: &str) -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// Standalone binary entrypoint.
-pub fn run_standalone() -> Result<()> {
-    let mut args = Args::parse();
+/// Hierarchical `nsb-data starlight xp-continuous run-bulk` entrypoint.
+pub fn run_cli() -> Result<()> {
+    run_with_args(crate::parse_command_args())
+}
+
+fn run_with_args(mut args: Args) -> Result<()> {
     apply_env_defaults(&mut args);
     let work_dir = args.work_dir.clone().expect("work_dir");
     let checkpoint_dir = args.checkpoint_dir.clone().expect("checkpoint_dir");
@@ -387,7 +390,7 @@ pub fn run_standalone() -> Result<()> {
         let rehearsal_dir = work_dir.join("rehearsal");
         if args.resume
             && rehearsal_dir
-                .join("phase5b_mini_pilot_checkpoint.json")
+                .join("xp_continuous_partition_checkpoint.json")
                 .exists()
         {
             run_mini_pilot(
@@ -766,7 +769,7 @@ fn run_mini_pilot(
     args: &Args,
 ) -> Result<()> {
     fs::create_dir_all(output_dir)?;
-    run_mini_pilot_command(
+    run_partition_processor_command(
         bulk_gz,
         output_dir,
         row_limit,
@@ -787,7 +790,7 @@ fn read_rehearsal_report(
     batch_size: usize,
 ) -> Result<RehearsalReport> {
     let metrics: serde_json::Value = serde_json::from_str(&fs::read_to_string(
-        output_dir.join("phase5b_mini_pilot_metrics.json"),
+        output_dir.join("xp_continuous_partition_metrics.json"),
     )?)?;
     let wall = metrics["wall_elapsed_seconds"].as_f64().unwrap_or(0.0);
     let rows_valid = metrics["rows_valid"].as_u64().unwrap_or(0);
@@ -968,7 +971,7 @@ fn process_verified_cache_files(
         )?;
         rotator.advance_after_mini_pilot(&filename)?;
         let metrics: serde_json::Value = serde_json::from_str(&fs::read_to_string(
-            output_dir.join("phase5b_mini_pilot_metrics.json"),
+            output_dir.join("xp_continuous_partition_metrics.json"),
         )?)?;
         let rows_valid = metrics["rows_valid"].as_u64().unwrap_or(0);
         let rows_failed = metrics["rows_failed"].as_u64().unwrap_or(0);
@@ -990,7 +993,7 @@ fn process_verified_cache_files(
 }
 
 fn mini_pilot_checkpoint_path(output_dir: &Path) -> PathBuf {
-    output_dir.join("phase5b_mini_pilot_checkpoint.json")
+    output_dir.join("xp_continuous_partition_checkpoint.json")
 }
 
 fn prepare_production_output_dir(output_dir: &Path, resume: bool) -> Result<()> {
@@ -1064,8 +1067,8 @@ fn run_production_loop(
         .filter(|entry| {
             !matches!(
                 entry.state,
-                crate::gaia_usb_cache::CacheInputState::Releasable
-                    | crate::gaia_usb_cache::CacheInputState::Deleted
+                crate::gaia::acquisition::usb_cache::CacheInputState::Releasable
+                    | crate::gaia::acquisition::usb_cache::CacheInputState::Deleted
             )
         })
         .count() as u32;
@@ -1264,8 +1267,8 @@ fn prepare_production_file(
     let mut downloaded = false;
     if matches!(
         rotator.entry_state(filename),
-        Some(crate::gaia_usb_cache::CacheInputState::Planned)
-            | Some(crate::gaia_usb_cache::CacheInputState::Failed)
+        Some(crate::gaia::acquisition::usb_cache::CacheInputState::Planned)
+            | Some(crate::gaia::acquisition::usb_cache::CacheInputState::Failed)
     ) {
         download_cache_file(filename, args)?;
         rotator.reload_manifest()?;
@@ -1277,8 +1280,8 @@ fn prepare_production_file(
     let can_resume = args.resume && mini_pilot_checkpoint_path(&output_dir).is_file();
     let ready_to_process = matches!(
         entry_state,
-        Some(crate::gaia_usb_cache::CacheInputState::ChecksumVerified)
-            | Some(crate::gaia_usb_cache::CacheInputState::Processing)
+        Some(crate::gaia::acquisition::usb_cache::CacheInputState::ChecksumVerified)
+            | Some(crate::gaia::acquisition::usb_cache::CacheInputState::Processing)
     );
     if ready_to_process {
         if !bulk_gz.is_file() {
@@ -1288,7 +1291,9 @@ fn prepare_production_file(
             );
         }
         prepare_production_output_dir(&output_dir, args.resume)?;
-        if entry_state == Some(crate::gaia_usb_cache::CacheInputState::ChecksumVerified) {
+        if entry_state
+            == Some(crate::gaia::acquisition::usb_cache::CacheInputState::ChecksumVerified)
+        {
             rotator.mark_processing(filename)?;
         }
     }
@@ -1396,7 +1401,7 @@ fn production_reconciliation_report(
 }
 
 /// Stream a bulk partition through the canonical adapter, GaiaXPy, and HEALPix
-/// accumulator (`run_phase5b_mini_pilot` with production row/batch limits).
+/// accumulator (`run_xp_continuous_partition` with production row/batch limits).
 #[allow(clippy::too_many_arguments)]
 fn run_production_stream(
     bulk_gz: &Path,
@@ -1421,7 +1426,7 @@ fn run_production_stream(
     )?;
 
     let metrics: serde_json::Value = serde_json::from_str(&fs::read_to_string(
-        output_dir.join("phase5b_mini_pilot_metrics.json"),
+        output_dir.join("xp_continuous_partition_metrics.json"),
     )?)?;
     Ok(ProductionStreamMetrics {
         rows_scanned: metrics["rows_scanned"].as_u64().unwrap_or(0),
@@ -1461,7 +1466,7 @@ fn write_healpix_checkpoint(
     output_dir: &Path,
     checkpoint_dir: &Path,
 ) -> Result<String> {
-    let source = output_dir.join("phase5b_healpix_accumulator.json");
+    let source = output_dir.join("xp_continuous_healpix_accumulator.json");
     if !source.is_file() {
         bail!(
             "HEALPix accumulator missing at {} after processing {}",
@@ -1494,16 +1499,14 @@ fn run_reconciliation_backfill(
         &search_roots,
         3381,
     )?;
-    let merge_checksum = fs::read_to_string(
-        crate::gaia_xp_continuous_bulk_healpix_merge::merge_state_path(checkpoint_dir),
-    )
+    let merge_checksum = fs::read_to_string(crate::gaia::xp::bulk_healpix_merge::merge_state_path(
+        checkpoint_dir,
+    ))
     .ok()
     .and_then(|text| {
-        serde_json::from_str::<crate::gaia_xp_continuous_bulk_healpix_merge::BulkHealpixMergeState>(
-            &text,
-        )
-        .ok()
-        .map(|state| state.global_healpix_checksum)
+        serde_json::from_str::<crate::gaia::xp::bulk_healpix_merge::BulkHealpixMergeState>(&text)
+            .ok()
+            .map(|state| state.global_healpix_checksum)
     });
     write_root_manifest(
         reconciliation_dir,
@@ -1558,9 +1561,9 @@ fn run_bulk_healpix_merge(
     let _lock = crate::platform::file_lock::lock_exclusive(&lock_path)?;
     let search_roots = reconciliation_search_roots(work_dir);
     let report = merge_all_partition_checkpoints(checkpoint_dir, &search_roots)?;
-    let merge_state: crate::gaia_xp_continuous_bulk_healpix_merge::BulkHealpixMergeState =
+    let merge_state: crate::gaia::xp::bulk_healpix_merge::BulkHealpixMergeState =
         serde_json::from_str(&fs::read_to_string(
-            crate::gaia_xp_continuous_bulk_healpix_merge::merge_state_path(checkpoint_dir),
+            crate::gaia::xp::bulk_healpix_merge::merge_state_path(checkpoint_dir),
         )?)?;
     let (ledger, root_path) = sync_ledger_from_merge_state(
         reconciliation_dir,
@@ -1581,17 +1584,29 @@ fn run_bulk_healpix_merge(
     Ok(report)
 }
 
-fn cache_state_label(state: crate::gaia_usb_cache::CacheInputState) -> String {
+fn cache_state_label(state: crate::gaia::acquisition::usb_cache::CacheInputState) -> String {
     match state {
-        crate::gaia_usb_cache::CacheInputState::Planned => "planned".to_string(),
-        crate::gaia_usb_cache::CacheInputState::Downloading => "downloading".to_string(),
-        crate::gaia_usb_cache::CacheInputState::Downloaded => "downloaded".to_string(),
-        crate::gaia_usb_cache::CacheInputState::ChecksumVerified => "checksum_verified".to_string(),
-        crate::gaia_usb_cache::CacheInputState::Processing => "processing".to_string(),
-        crate::gaia_usb_cache::CacheInputState::Processed => "processed".to_string(),
-        crate::gaia_usb_cache::CacheInputState::OutputVerified => "output_verified".to_string(),
-        crate::gaia_usb_cache::CacheInputState::Releasable => "releasable".to_string(),
-        crate::gaia_usb_cache::CacheInputState::Deleted => "deleted".to_string(),
-        crate::gaia_usb_cache::CacheInputState::Failed => "failed".to_string(),
+        crate::gaia::acquisition::usb_cache::CacheInputState::Planned => "planned".to_string(),
+        crate::gaia::acquisition::usb_cache::CacheInputState::Downloading => {
+            "downloading".to_string()
+        }
+        crate::gaia::acquisition::usb_cache::CacheInputState::Downloaded => {
+            "downloaded".to_string()
+        }
+        crate::gaia::acquisition::usb_cache::CacheInputState::ChecksumVerified => {
+            "checksum_verified".to_string()
+        }
+        crate::gaia::acquisition::usb_cache::CacheInputState::Processing => {
+            "processing".to_string()
+        }
+        crate::gaia::acquisition::usb_cache::CacheInputState::Processed => "processed".to_string(),
+        crate::gaia::acquisition::usb_cache::CacheInputState::OutputVerified => {
+            "output_verified".to_string()
+        }
+        crate::gaia::acquisition::usb_cache::CacheInputState::Releasable => {
+            "releasable".to_string()
+        }
+        crate::gaia::acquisition::usb_cache::CacheInputState::Deleted => "deleted".to_string(),
+        crate::gaia::acquisition::usb_cache::CacheInputState::Failed => "failed".to_string(),
     }
 }

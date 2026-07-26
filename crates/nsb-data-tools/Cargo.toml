@@ -12,31 +12,6 @@ name = "nsb-data"
 path = "src/bin/nsb-data.rs"
 doc = false
 
-[[bin]]
-name = "download_gaia_xp_continuous_bulk"
-path = "src/bin/download_gaia_xp_continuous_bulk.rs"
-doc = false
-
-[[bin]]
-name = "run_phase5b_mini_pilot"
-path = "src/bin/run_phase5b_mini_pilot.rs"
-doc = false
-
-[[bin]]
-name = "run_starlight_xp_continuous_bulk_pipeline"
-path = "src/bin/run_starlight_xp_continuous_bulk_pipeline.rs"
-doc = false
-
-[[bin]]
-name = "run_phase5b_chunk_benchmark"
-path = "src/bin/run_phase5b_chunk_benchmark.rs"
-doc = false
-
-[[bin]]
-name = "export_starlight_healpix_to_contributions"
-path = "src/bin/export_starlight_healpix_to_contributions.rs"
-doc = false
-
 [dependencies]
 anyhow = "1"
 chrono = "0.4"

@@ -5,8 +5,8 @@
 //! source accounting and HEALPix accumulator totals that can scale to full bulk.
 
 use crate::gaia::acquisition::storage_preflight::XP_CONTINUOUS_ONLY_POPULATION;
+use crate::gaia::xp::checkpoint_io::atomic_write_json;
 use crate::gaia::xp::healpix::XpContinuousHealpixAccumulator;
-use crate::gaia::xp::pilot_io::atomic_write_json;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::fs;

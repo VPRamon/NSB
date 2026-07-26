@@ -97,18 +97,3 @@ fn flock_unlock(file: &File) -> std::io::Result<()> {
         Err(std::io::Error::last_os_error())
     }
 }
-
-/// Require that a lock acquisition succeeded (helper for call sites).
-#[allow(dead_code)]
-pub fn expect_lock(lock: Option<ExclusiveFileLock>, path: &Path) -> Result<ExclusiveFileLock> {
-    lock.ok_or_else(|| anyhow::anyhow!("could not acquire lock at {}", path.display()))
-}
-
-/// Fail if path cannot be locked exclusively without waiting (debug helper).
-#[allow(dead_code)]
-pub fn ensure_unlocked_or_bail(path: &Path) -> Result<()> {
-    match try_lock_exclusive(path)? {
-        Some(_lock) => Ok(()),
-        None => bail!("lock already held: {}", path.display()),
-    }
-}

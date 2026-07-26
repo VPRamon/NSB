@@ -207,6 +207,43 @@ resume = "No implicit resume; packaging is deterministic."
 exit_codes = "Zero only after release admission checks pass."
 reference = "docs/nsb_components/starlight/external-manifest.md"
 
+
+[[actions]]
+command = "starlight xp-continuous process-partition"
+owner = "starlight/xp-continuous"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Process one verified XP continuous partition into checkpointed HEALPix state."
+inputs = "Checksum-verified partition, frozen calibration inputs, and processing limits."
+outputs = "Authenticated checkpoint, HEALPix accumulator, metrics, and exclusions."
+resume = "Resume validates the input checksum and every reconstruction-affecting configuration value."
+exit_codes = "Zero only after partition accounting and checkpoint persistence succeed."
+reference = "docs/nsb_components/starlight/gaia-xp-continuous-rust.md"
+
+[[actions]]
+command = "starlight xp-continuous run-bulk"
+owner = "starlight/xp-continuous"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Run the resumable XP continuous production pipeline over claimed partitions."
+inputs = "Official inventory, rotating cache, frozen calibration policy, and storage configuration."
+outputs = "Per-partition checkpoints, reconciliation ledger, and merged HEALPix state."
+resume = "Claims, cache transitions, and checkpoints are validated before reuse."
+exit_codes = "Zero only when requested production and reconciliation gates pass."
+reference = "docs/nsb_components/starlight/gaia-xp-continuous-rust.md"
+
+[[actions]]
+command = "starlight product export-contributions"
+owner = "starlight/product"
+audience = "release-maintainer"
+status = "supported"
+purpose = "Export a runtime HEALPix map into normalized integrated-product contribution rows."
+inputs = "Validated HEALPix map, diagnostics, release identity, and uncertainty policy."
+outputs = "Contribution CSV, checksum-pinned inputs manifest, and optional coverage metadata."
+resume = "Deterministic export; persisted output reuse requires checksum verification."
+exit_codes = "Zero only when every emitted contribution and manifest field is valid."
+reference = "docs/nsb_components/starlight/map-generation.md"
+
 [[actions]]
 command = "maintenance render-tool-reference"
 owner = "tooling/maintenance"

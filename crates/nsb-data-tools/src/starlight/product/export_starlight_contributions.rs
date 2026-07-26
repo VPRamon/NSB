@@ -4,10 +4,10 @@
 //! Each nonempty pixel becomes one bin-level contribution with `multiplicity=1`
 //! so flux conservation round-trips through the integrated builder.
 
+use crate::platform::checksum_io;
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use csv::ReaderBuilder;
-use nsb_data_tools::platform::checksum_io;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use siderust::checksum::to_hex;
@@ -21,7 +21,7 @@ const INPUT_MANIFEST_SCHEMA_VERSION: u32 = 1;
 
 /// Convert a HEALPix runtime map CSV into integrated-product contribution inputs.
 #[derive(Debug, Parser)]
-#[command(name = "export_starlight_healpix_to_contributions")]
+#[command(name = "starlight product export-contributions")]
 struct Args {
     /// Runtime HEALPix map CSV (`integrated_ph_cm2_ns_sr` column).
     #[arg(long)]
@@ -97,8 +97,9 @@ struct CoverageMetadata {
     contributions_sha256: String,
 }
 
-fn main() -> Result<()> {
-    let args = Args::parse();
+/// Hierarchical `nsb-data starlight product export-contributions` entrypoint.
+pub fn run_cli() -> Result<()> {
+    let args: Args = crate::parse_command_args();
     if !args.nside.is_power_of_two() || args.nside == 0 {
         bail!("nside must be a non-zero power of two");
     }

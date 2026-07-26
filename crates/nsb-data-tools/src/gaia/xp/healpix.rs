@@ -5,7 +5,7 @@ use md5::{Digest, Md5};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-pub const DEFAULT_PILOT_NSIDE: u32 = 64;
+pub const DEFAULT_PROCESSING_NSIDE: u32 = 64;
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct StableSum {

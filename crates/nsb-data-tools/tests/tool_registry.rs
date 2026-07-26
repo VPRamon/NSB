@@ -93,7 +93,10 @@ fn hierarchical_cli_and_registry_describe_only_durable_actions() {
     assert!(commands.contains("assets verify"));
     assert!(commands.contains("starlight map build"));
     assert!(commands.contains("maintenance render-tool-reference"));
-    assert_eq!(commands.len(), 18);
+    assert!(commands.contains("starlight xp-continuous process-partition"));
+    assert!(commands.contains("starlight xp-continuous run-bulk"));
+    assert!(commands.contains("starlight product export-contributions"));
+    assert_eq!(commands.len(), 21);
 }
 
 #[test]

@@ -3,7 +3,7 @@
 //! Enforces mountpoint identity, vfat-safe file sizes, transactional `.part`
 //! writes, and explicit per-input lifecycle states.
 
-use crate::gaia::xp::pilot_io::atomic_write_json;
+use crate::gaia::xp::checkpoint_io::atomic_write_json;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

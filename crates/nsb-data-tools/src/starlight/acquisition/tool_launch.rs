@@ -1,53 +1,33 @@
-//! Resolve release `nsb-data-tools` binaries for production orchestration.
-//!
-//! Prefer a sibling executable next to the current process image (typical under
-//! `target/release/`). Fall back to `cargo run --release` when not built yet.
+//! Launch hierarchical `nsb-data` actions from production orchestration.
 
 use anyhow::{Context, Result};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Resolve `run_phase5b_mini_pilot` for production invocation.
-pub fn resolve_mini_pilot_binary() -> PathBuf {
-    resolve_tool_binary("run_phase5b_mini_pilot")
-}
-
-/// Resolve `run_starlight_xp_continuous_bulk_pipeline` for production invocation.
-pub fn resolve_bulk_pipeline_binary() -> PathBuf {
-    resolve_tool_binary("run_starlight_xp_continuous_bulk_pipeline")
-}
-
-/// Resolve `download_gaia_xp_continuous_bulk` for production invocation.
-pub fn resolve_download_bulk_binary() -> PathBuf {
-    resolve_tool_binary("download_gaia_xp_continuous_bulk")
-}
-
-fn resolve_tool_binary(name: &str) -> PathBuf {
-    let env_key = format!("NSB_{}", name.to_ascii_uppercase().replace('-', "_"));
-    if let Ok(path) = env::var(&env_key) {
+/// Resolve the supported `nsb-data` executable.
+pub fn resolve_nsb_data_binary() -> PathBuf {
+    if let Ok(path) = env::var("NSB_DATA_BINARY") {
         return PathBuf::from(path);
     }
     if let Ok(exe) = env::current_exe() {
+        if exe.file_name().and_then(|name| name.to_str()) == Some("nsb-data") {
+            return exe;
+        }
         if let Some(parent) = exe.parent() {
-            let sibling = parent.join(name);
+            let sibling = parent.join("nsb-data");
             if sibling.is_file() {
                 return sibling;
             }
         }
     }
-    PathBuf::from("target/release").join(name)
+    PathBuf::from("target/release/nsb-data")
 }
 
-/// Return true when the resolved release binary exists and is executable.
-pub fn release_binary_available(path: &Path) -> bool {
-    path.is_file()
-}
-
-fn command_for_tool_binary(tool_name: &str, cargo_bin: &str) -> Command {
-    let binary = resolve_tool_binary(tool_name);
-    if release_binary_available(&binary) {
-        Command::new(&binary)
+fn command_for_action(action: &[&str]) -> Command {
+    let binary = resolve_nsb_data_binary();
+    let mut command = if binary.is_file() {
+        Command::new(binary)
     } else {
         let mut cargo = Command::new("cargo");
         cargo.args([
@@ -58,16 +38,17 @@ fn command_for_tool_binary(tool_name: &str, cargo_bin: &str) -> Command {
             "-p",
             "nsb-data-tools",
             "--bin",
-            cargo_bin,
+            "nsb-data",
             "--",
         ]);
         cargo
-    }
+    };
+    command.args(action);
+    command
 }
 
-/// Append common mini-pilot arguments to `command`.
 #[allow(clippy::too_many_arguments)]
-pub fn append_mini_pilot_args(
+fn append_partition_processor_args(
     command: &mut Command,
     bulk_gz: &Path,
     output_dir: &Path,
@@ -83,34 +64,35 @@ pub fn append_mini_pilot_args(
     command
         .arg("--bulk-gz")
         .arg(bulk_gz)
-        .args(["--output-dir"])
+        .arg("--output-dir")
         .arg(output_dir)
-        .args(["--row-limit"])
+        .arg("--row-limit")
         .arg(row_limit.to_string())
-        .args(["--batch-size"])
+        .arg("--batch-size")
         .arg(batch_size.to_string())
-        .args(["--workers"])
+        .arg("--workers")
         .arg(workers.to_string())
-        .args(["--checkpoint-interval"])
+        .arg("--checkpoint-interval")
         .arg(checkpoint_interval.to_string());
     if skip_normalized_output {
-        command.arg("--skip-normalized-output");
-        command.arg("--light-checkpoint");
+        command
+            .arg("--skip-normalized-output")
+            .arg("--light-checkpoint");
     }
     if let Some(policy) = frozen_policy {
-        command.args(["--frozen-policy"]).arg(policy);
+        command.arg("--frozen-policy").arg(policy);
     }
-    if let Some(env) = gaiaxpy_environment {
-        command.args(["--gaiaxpy-environment"]).arg(env);
+    if let Some(environment) = gaiaxpy_environment {
+        command.arg("--gaiaxpy-environment").arg(environment);
     }
     if resume {
         command.arg("--resume");
     }
 }
 
-/// Launch mini-pilot using the release binary when available.
+/// Process one XP continuous partition through the hierarchical CLI.
 #[allow(clippy::too_many_arguments)]
-pub fn run_mini_pilot_command(
+pub fn run_partition_processor_command(
     bulk_gz: &Path,
     output_dir: &Path,
     row_limit: usize,
@@ -122,9 +104,8 @@ pub fn run_mini_pilot_command(
     gaiaxpy_environment: Option<&Path>,
     checkpoint_interval: usize,
 ) -> Result<()> {
-    let binary = resolve_mini_pilot_binary();
-    let mut command = command_for_tool_binary("run_phase5b_mini_pilot", "run_phase5b_mini_pilot");
-    append_mini_pilot_args(
+    let mut command = command_for_action(&["starlight", "xp-continuous", "process-partition"]);
+    append_partition_processor_args(
         &mut command,
         bulk_gz,
         output_dir,
@@ -139,14 +120,14 @@ pub fn run_mini_pilot_command(
     );
     let status = command
         .status()
-        .with_context(|| format!("failed to launch mini-pilot ({binary:?})"))?;
+        .context("failed to launch XP partition processor")?;
     if !status.success() {
-        anyhow::bail!("run_phase5b_mini_pilot failed with status {status}");
+        anyhow::bail!("XP partition processor failed with status {status}");
     }
     Ok(())
 }
 
-/// Launch USB bulk download using the release binary when available.
+/// Download one official partition through the hierarchical CLI.
 pub fn run_download_bulk_command(
     filename: &str,
     usb_mountpoint: Option<&Path>,
@@ -155,34 +136,28 @@ pub fn run_download_bulk_command(
     max_cache_bytes: u64,
     resume: bool,
 ) -> Result<()> {
-    let binary = resolve_download_bulk_binary();
-    let mut command = command_for_tool_binary(
-        "download_gaia_xp_continuous_bulk",
-        "download_gaia_xp_continuous_bulk",
-    );
+    let mut command = command_for_action(&["starlight", "acquire", "xp-bulk", "download"]);
     if let Some(mount) = usb_mountpoint {
-        command.args(["--usb-mountpoint"]).arg(mount);
+        command.arg("--usb-mountpoint").arg(mount);
     }
-    if let Some(root) = usb_cache_root {
-        command.args(["--usb-cache-root"]).arg(root);
+    if let Some(cache_root) = usb_cache_root {
+        command.arg("--usb-cache-root").arg(cache_root);
     }
     command
-        .args(["--cache-subdir"])
+        .arg("--cache-subdir")
         .arg(cache_subdir)
-        .args(["--max-cache-bytes"])
+        .arg("--max-cache-bytes")
         .arg(max_cache_bytes.to_string())
-        .args(["--only-filename"])
+        .arg("--only-filename")
         .arg(filename);
     if resume {
         command.arg("--resume");
     }
     let status = command
         .status()
-        .with_context(|| format!("failed to launch download bulk ({binary:?})"))?;
+        .context("failed to launch XP bulk download")?;
     if !status.success() {
-        anyhow::bail!(
-            "download_gaia_xp_continuous_bulk failed for {filename} with status {status}"
-        );
+        anyhow::bail!("XP bulk download failed for {filename} with status {status}");
     }
     Ok(())
 }
@@ -192,32 +167,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolve_mini_pilot_returns_path() {
-        let path = resolve_mini_pilot_binary();
-        assert!(
-            path.ends_with("run_phase5b_mini_pilot"),
-            "unexpected path {}",
-            path.display()
-        );
-    }
-
-    #[test]
-    fn resolve_bulk_pipeline_returns_path() {
-        let path = resolve_bulk_pipeline_binary();
-        assert!(
-            path.ends_with("run_starlight_xp_continuous_bulk_pipeline"),
-            "unexpected path {}",
-            path.display()
-        );
-    }
-
-    #[test]
-    fn resolve_download_bulk_returns_path() {
-        let path = resolve_download_bulk_binary();
-        assert!(
-            path.ends_with("download_gaia_xp_continuous_bulk"),
-            "unexpected path {}",
-            path.display()
-        );
+    fn resolver_targets_the_supported_binary() {
+        assert!(resolve_nsb_data_binary().ends_with("nsb-data"));
     }
 }

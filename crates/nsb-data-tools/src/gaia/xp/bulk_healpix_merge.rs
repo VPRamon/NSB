@@ -1,7 +1,7 @@
 //! Deterministic, resumable cross-partition HEALPix merge for XP continuous bulk.
 
+use crate::gaia::xp::checkpoint_io::atomic_write_json;
 use crate::gaia::xp::healpix::XpContinuousHealpixAccumulator;
-use crate::gaia::xp::pilot_io::atomic_write_json;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};

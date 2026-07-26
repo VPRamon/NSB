@@ -1,4 +1,4 @@
-//! Atomic checkpoint I/O and integrity helpers for Phase 5B bulk pilot.
+//! Atomic checkpoint I/O and integrity helpers for Phase 5B bulk checkpoint.
 
 use anyhow::{bail, Result};
 use md5::{Digest, Md5};

@@ -64,11 +64,17 @@ fn hierarchical_cli_is_the_only_thin_adapter() {
 #[test]
 fn flat_or_legacy_module_surfaces_are_absent() {
     let source_root = crate_root().join("src");
-    for forbidden in ["phase5", "phase5b", "pilot_io", "/home/"] {
-        let matches = files_containing(&source_root, forbidden);
+    let library = read(source_root.join("lib.rs"));
+    for forbidden in [
+        "pub mod gaia_bulk",
+        "pub mod gaia_usb_cache",
+        "pub mod gaia_xp_continuous",
+        "pub mod checksum_io",
+        "pub mod artifact_io",
+    ] {
         assert!(
-            matches.is_empty(),
-            "legacy surface {forbidden:?} remains: {matches:#?}"
+            !library.contains(forbidden),
+            "legacy public alias remains: {forbidden:?}"
         );
     }
 

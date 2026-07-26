@@ -126,7 +126,7 @@ impl UsbCacheRotator {
             started_at_utc: crate::gaia::acquisition::usb_cache::utc_now_rfc3339(),
         };
         let path = self.layout.manifests_dir.join(SESSION_MANIFEST_FILENAME);
-        crate::gaia::xp::pilot_io::atomic_write_json(
+        crate::gaia::xp::checkpoint_io::atomic_write_json(
             &path,
             &(serde_json::to_string_pretty(&session)? + "\n"),
         )?;

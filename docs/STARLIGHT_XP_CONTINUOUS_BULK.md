@@ -172,7 +172,7 @@ Preflight, rehearsal, verified-cache processing, per-file production loop, and
 input cleanup:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipeline -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- starlight xp-continuous run-bulk \
   --preflight-only \
   --usb-mountpoint "$GAIA_USB_MOUNT" \
   --usb-cache-root "$GAIA_USB_ROOT"
@@ -197,7 +197,7 @@ cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipe
 Controlled cleanup (1 file live delete):
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipeline -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- starlight xp-continuous run-bulk \
   --skip-rehearsal --cleanup-verified-inputs --cleanup-limit 1 \
   --usb-mountpoint "$GAIA_USB_MOUNT" --usb-cache-root "$GAIA_USB_ROOT"
 ```
@@ -205,7 +205,7 @@ cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipe
 Production loop skeleton (1 file):
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipeline -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- starlight xp-continuous run-bulk \
   --skip-rehearsal --file-limit 1 \
   --usb-mountpoint "$GAIA_USB_MOUNT" --usb-cache-root "$GAIA_USB_ROOT" \
   --gaiaxpy-environment "$STARLIGHT_ROOT/pilot-xp-continuous-bulk/gaiaxpy_environment.json"
@@ -216,7 +216,7 @@ cargo run --locked -p nsb-data-tools --bin run_starlight_xp_continuous_bulk_pipe
 USB cache mode wires downloads into the state machine:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin download_gaia_xp_continuous_bulk -- \
+cargo run --locked -p nsb-data-tools --bin nsb-data -- starlight acquire xp-bulk download \
   --usb-mountpoint "$GAIA_USB_MOUNT" \
   --usb-cache-root "$GAIA_USB_ROOT" \
   --file-limit 4

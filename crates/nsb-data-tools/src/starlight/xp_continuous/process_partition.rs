@@ -1,4 +1,4 @@
-//! Operational mini-pilot: stream bulk ECSV through Rust calibration and HEALPix accumulation.
+//! XP continuous partition processor: stream bulk ECSV through Rust calibration and HEALPix accumulation.
 
 use crate::gaia::xp::bulk_index::gaia_source_healpix_index;
 use crate::gaia::xp::calibrate::GaiaXpContinuousCalibrator;
@@ -6,10 +6,10 @@ use crate::gaia::xp::canonical::{
     stream_bulk_ecsv_gz, BulkEcsvStream, CanonicalXpContinuousRecord,
     CANONICAL_XP_CONTINUOUS_SCHEMA,
 };
-use crate::gaia::xp::healpix::{XpContinuousHealpixAccumulator, DEFAULT_PILOT_NSIDE};
-use crate::gaia::xp::pilot_io::{
+use crate::gaia::xp::checkpoint_io::{
     atomic_write_json, checkpoint_state_checksum, verify_checkpoint_state_checksum,
 };
+use crate::gaia::xp::healpix::{XpContinuousHealpixAccumulator, DEFAULT_PROCESSING_NSIDE};
 use anyhow::{bail, Context, Result};
 use clap::Parser;
 use md5::{Digest, Md5};
@@ -71,7 +71,7 @@ struct ExclusionRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct MiniPilotCheckpoint {
+struct PartitionCheckpoint {
     schema_version: u32,
     bulk_file: String,
     bulk_checksum: String,
@@ -108,11 +108,11 @@ struct ReconstructionOutcome {
 }
 
 fn checkpoint_path(output_dir: &Path) -> PathBuf {
-    output_dir.join("phase5b_mini_pilot_checkpoint.json")
+    output_dir.join("xp_continuous_partition_checkpoint.json")
 }
 
 fn accumulator_path(output_dir: &Path) -> PathBuf {
-    output_dir.join("phase5b_healpix_accumulator.json")
+    output_dir.join("xp_continuous_healpix_accumulator.json")
 }
 
 fn peak_rss_kib() -> u64 {
@@ -191,14 +191,14 @@ fn load_checkpoint(
     resume: bool,
     gaiaxpy_environment: Option<&Path>,
     design_fixture: &Path,
-) -> Result<MiniPilotCheckpoint> {
+) -> Result<PartitionCheckpoint> {
     let bulk_checksum = file_md5(bulk_gz)?;
     let design_fixture_checksum = file_md5(design_fixture)?;
     let gaiaxpy = read_gaiaxpy_environment(gaiaxpy_environment);
     let gaiaxpy_environment_checksum = gaiaxpy.as_ref().map(|(checksum, _)| checksum.clone());
 
     if resume && path.is_file() {
-        let checkpoint: MiniPilotCheckpoint = serde_json::from_str(&fs::read_to_string(path)?)
+        let checkpoint: PartitionCheckpoint = serde_json::from_str(&fs::read_to_string(path)?)
             .with_context(|| format!("failed to parse checkpoint {}", path.display()))?;
         if checkpoint.schema_version < 4 {
             bail!(
@@ -248,7 +248,7 @@ fn load_checkpoint(
         return Ok(checkpoint);
     }
 
-    Ok(MiniPilotCheckpoint {
+    Ok(PartitionCheckpoint {
         schema_version: 4,
         bulk_file: bulk_gz.display().to_string(),
         bulk_checksum,
@@ -278,7 +278,7 @@ fn load_checkpoint(
     })
 }
 
-fn sync_checkpoint_fields(checkpoint: &mut MiniPilotCheckpoint) {
+fn sync_checkpoint_fields(checkpoint: &mut PartitionCheckpoint) {
     checkpoint.processed_count = checkpoint.processed_source_ids.len() as u64;
     checkpoint.valid_count = checkpoint.rows_valid;
     checkpoint.excluded_count = checkpoint.rows_excluded;
@@ -298,7 +298,7 @@ fn sync_checkpoint_fields(checkpoint: &mut MiniPilotCheckpoint) {
 fn save_checkpoint(
     path: &Path,
     accumulator_path: &Path,
-    checkpoint: &mut MiniPilotCheckpoint,
+    checkpoint: &mut PartitionCheckpoint,
     light_checkpoint: bool,
 ) -> Result<()> {
     sync_checkpoint_fields(checkpoint);
@@ -332,11 +332,14 @@ fn verify_frozen_policy(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Standalone binary entrypoint.
-pub fn run_standalone() -> Result<()> {
-    let args = Args::parse();
-    if args.nside != DEFAULT_PILOT_NSIDE {
-        eprintln!("warning: pilot default nside is {DEFAULT_PILOT_NSIDE}");
+/// Hierarchical `nsb-data starlight xp-continuous process-partition` entrypoint.
+pub fn run_cli() -> Result<()> {
+    run_with_args(crate::parse_command_args())
+}
+
+fn run_with_args(args: Args) -> Result<()> {
+    if args.nside != DEFAULT_PROCESSING_NSIDE {
+        eprintln!("warning: pilot default nside is {DEFAULT_PROCESSING_NSIDE}");
     }
     if let Some(policy) = &args.frozen_policy {
         verify_frozen_policy(policy)?;
@@ -505,16 +508,17 @@ pub fn run_standalone() -> Result<()> {
         "nside": args.nside,
     });
     fs::write(
-        args.output_dir.join("phase5b_mini_pilot_metrics.json"),
+        args.output_dir.join("xp_continuous_partition_metrics.json"),
         serde_json::to_string_pretty(&metrics)? + "\n",
     )?;
     fs::write(
-        args.output_dir.join("phase5b_mini_pilot_manifest.json"),
+        args.output_dir
+            .join("xp_continuous_partition_manifest.json"),
         serde_json::to_string_pretty(&checkpoint)? + "\n",
     )?;
     fs::write(
         args.output_dir
-            .join("phase5b_mini_pilot_reconciliation.json"),
+            .join("xp_continuous_partition_reconciliation.json"),
         serde_json::to_string_pretty(&serde_json::json!({
             "bulk_file": bulk_file_name(&checkpoint),
             "rows_scanned": checkpoint.row_index,
@@ -580,7 +584,7 @@ fn run_batch_rust_calibrate(
 }
 
 fn apply_batch_outcomes(
-    checkpoint: &mut MiniPilotCheckpoint,
+    checkpoint: &mut PartitionCheckpoint,
     result: BatchResult,
     light_checkpoint: bool,
 ) -> Result<()> {
@@ -649,7 +653,7 @@ fn skip_stream_rows(stream: &mut BulkEcsvStream, rows: u64) -> Result<()> {
     Ok(())
 }
 
-fn bulk_file_name(checkpoint: &MiniPilotCheckpoint) -> String {
+fn bulk_file_name(checkpoint: &PartitionCheckpoint) -> String {
     Path::new(&checkpoint.bulk_file)
         .file_name()
         .and_then(|name| name.to_str())
@@ -657,8 +661,8 @@ fn bulk_file_name(checkpoint: &MiniPilotCheckpoint) -> String {
         .to_string()
 }
 
-fn write_reconciliation_csv(output_dir: &Path, checkpoint: &MiniPilotCheckpoint) -> Result<()> {
-    let path = output_dir.join("phase5b_mini_pilot_reconciliation.csv");
+fn write_reconciliation_csv(output_dir: &Path, checkpoint: &PartitionCheckpoint) -> Result<()> {
+    let path = output_dir.join("xp_continuous_partition_reconciliation.csv");
     let mut writer = csv::WriterBuilder::new().from_path(path)?;
     for row in &checkpoint.exclusions {
         writer.serialize(row)?;
@@ -668,7 +672,7 @@ fn write_reconciliation_csv(output_dir: &Path, checkpoint: &MiniPilotCheckpoint)
 }
 
 fn register_failure(
-    checkpoint: &mut MiniPilotCheckpoint,
+    checkpoint: &mut PartitionCheckpoint,
     record: &CanonicalXpContinuousRecord,
     reason_code: &str,
     evidence: String,
@@ -698,7 +702,7 @@ fn register_failure(
 }
 
 fn register_exclusion(
-    checkpoint: &mut MiniPilotCheckpoint,
+    checkpoint: &mut PartitionCheckpoint,
     record: &CanonicalXpContinuousRecord,
     reason_code: &str,
     evidence: String,
@@ -739,7 +743,7 @@ mod tests {
         fixture: &Path,
         nside: u32,
     ) -> Result<()> {
-        let mut checkpoint = MiniPilotCheckpoint {
+        let mut checkpoint = PartitionCheckpoint {
             schema_version: 4,
             bulk_file: bulk.display().to_string(),
             bulk_checksum: file_md5(bulk)?,
