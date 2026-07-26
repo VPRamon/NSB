@@ -45,7 +45,7 @@ enum StarlightCommand {
     Acquire(AcquireArgs),
     /// Prepare canonical starlight catalogues.
     Catalogue(CatalogueArgs),
-    /// Normalize, reconstruct, and validate Gaia XP continuous products.
+    /// Normalize, reconstruct, validate, and process Gaia XP continuous products.
     XpContinuous(XpContinuousArgs),
     /// Generate and consolidate model-development samples.
     Sampling(SamplingArgs),
@@ -53,7 +53,7 @@ enum StarlightCommand {
     Map(MapArgs),
     /// Audit source-accounting and scientific-exclusion evidence.
     Quality(QualityArgs),
-    /// Build the integrated candidate product.
+    /// Build or export integrated-product inputs.
     Product(ProductArgs),
     /// Package an admitted runtime asset.
     Release(ReleaseArgs),
@@ -115,9 +115,9 @@ enum XpContinuousCommand {
     Reconstruct(ForwardArgs),
     /// Validate reconstruction against the scientific contract.
     Validate(ForwardArgs),
-    /// Process one verified XP continuous partition into checkpointed HEALPix state.
+    /// Process one verified partition into checkpointed HEALPix state.
     ProcessPartition(ForwardArgs),
-    /// Run the resumable XP continuous bulk production pipeline.
+    /// Run the resumable bulk production pipeline.
     RunBulk(ForwardArgs),
 }
 
@@ -305,6 +305,16 @@ fn dispatch_starlight(starlight: StarlightArgs) -> Result<()> {
                 args,
                 crate::starlight::xp_continuous::validate_xp_continuous_reconstruction::run_cli,
             ),
+            XpContinuousCommand::ProcessPartition(args) => action(
+                "starlight xp-continuous process-partition",
+                args,
+                crate::starlight::xp_continuous::process_partition::run_cli,
+            ),
+            XpContinuousCommand::RunBulk(args) => action(
+                "starlight xp-continuous run-bulk",
+                args,
+                crate::starlight::xp_continuous::run_bulk_pipeline::run_cli,
+            ),
         },
         StarlightCommand::Sampling(sampling) => match sampling.command {
             SamplingCommand::GenerateQueries(args) => action(
@@ -347,6 +357,11 @@ fn dispatch_starlight(starlight: StarlightArgs) -> Result<()> {
                 "starlight product build-integrated",
                 args,
                 crate::starlight::product::build_integrated_starlight_product::run_cli,
+            ),
+            ProductCommand::ExportContributions(args) => action(
+                "starlight product export-contributions",
+                args,
+                crate::starlight::product::export_starlight_contributions::run_cli,
             ),
         },
         StarlightCommand::Release(release) => match release.command {
