@@ -11,6 +11,43 @@ fn read(path: impl AsRef<Path>) -> String {
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()))
 }
 
+fn files_containing(root: &Path, pattern: &str) -> Vec<PathBuf> {
+    let mut matches = Vec::new();
+    collect_files_containing(root, root, pattern, &mut matches);
+    matches.sort();
+    matches
+}
+
+fn collect_files_containing(
+    root: &Path,
+    directory: &Path,
+    pattern: &str,
+    matches: &mut Vec<PathBuf>,
+) {
+    for entry in fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", directory.display()))
+    {
+        let path = entry.expect("read source entry").path();
+        let metadata = fs::symlink_metadata(&path)
+            .unwrap_or_else(|error| panic!("failed to inspect {}: {error}", path.display()));
+        if metadata.file_type().is_symlink() {
+            continue;
+        }
+        if metadata.is_dir() {
+            collect_files_containing(root, &path, pattern, matches);
+        } else if metadata.is_file() {
+            let source = read(&path);
+            if source.contains(pattern) {
+                matches.push(
+                    path.strip_prefix(root)
+                        .expect("source path must be below root")
+                        .to_path_buf(),
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn hierarchical_cli_is_the_only_thin_adapter() {
     let manifest = read(crate_root().join("Cargo.toml"));
@@ -28,16 +65,10 @@ fn hierarchical_cli_is_the_only_thin_adapter() {
 fn flat_or_legacy_module_surfaces_are_absent() {
     let source_root = crate_root().join("src");
     for forbidden in ["phase5", "phase5b", "pilot_io", "/home/"] {
-        let output = std::process::Command::new("rg")
-            .arg("-l")
-            .arg(forbidden)
-            .arg(&source_root)
-            .output()
-            .expect("run rg");
+        let matches = files_containing(&source_root, forbidden);
         assert!(
-            output.stdout.is_empty(),
-            "legacy surface {forbidden:?} remains: {}",
-            String::from_utf8_lossy(&output.stdout)
+            matches.is_empty(),
+            "legacy surface {forbidden:?} remains: {matches:#?}"
         );
     }
 
