@@ -23,6 +23,7 @@ pub fn execute(
     executor: Option<Executor>,
     concurrency: Option<usize>,
     requested_partitions: &[String],
+    skip_completed_from: Option<&Path>,
 ) -> Result<()> {
     let mut config = RunConfig::load(config_path)?;
     if config.dataset != dataset {
@@ -42,7 +43,12 @@ pub fn execute(
         }
         config.execution.concurrency = concurrency;
     }
-    let partitions = selected_partitions(&config, operation, requested_partitions)?;
+    let partitions = selected_partitions(
+        &config,
+        operation,
+        requested_partitions,
+        skip_completed_from,
+    )?;
     let plan = BuildPlan {
         dataset,
         operation,
@@ -140,6 +146,7 @@ pub fn resume(path: &Path) -> Result<()> {
         Some(manifest.executor),
         None,
         &partitions,
+        None,
     )
 }
 
@@ -238,6 +245,7 @@ fn run_local(
             if config.dataset == DatasetName::Starlight {
                 reconcile_workers(config)?;
             }
+            pipeline_for(config.dataset).finalize(config)?;
             let report = validate(config)?;
             if !report.passed {
                 bail!("dataset validation failed");
@@ -262,6 +270,7 @@ fn selected_partitions(
     config: &RunConfig,
     operation: Operation,
     selected: &[String],
+    skip_completed_from: Option<&Path>,
 ) -> Result<Vec<String>> {
     let pipeline = pipeline_for(config.dataset);
     if !pipeline.supports_partitions() {
@@ -285,15 +294,45 @@ fn selected_partitions(
             config.dataset
         ),
     };
-    if !selected.is_empty() {
+    let mut selected_partitions = if !selected.is_empty() {
         for partition in selected {
             if !available.contains(partition) {
                 bail!("unknown partition {partition:?}");
             }
         }
-        return Ok(selected.to_vec());
+        selected.to_vec()
+    } else {
+        available
+    };
+    if let Some(checkpoints_dir) = skip_completed_from {
+        if config.dataset != DatasetName::Starlight || operation != Operation::Build {
+            bail!("--skip-completed-from is supported only by dataset starlight build");
+        }
+        let starlight = config
+            .starlight
+            .as_ref()
+            .context("Starlight production configuration is missing")?;
+        let completed = crate::starlight::migration::load_completed_partition_ids(checkpoints_dir)?;
+        let mut retained = Vec::with_capacity(selected_partitions.len());
+        for partition in selected_partitions {
+            let legacy_name = format!("XpContinuousMeanSpectrum_{partition}.csv.gz");
+            if !completed.contains(&legacy_name) {
+                retained.push(partition);
+                continue;
+            }
+            let receipt_is_valid = crate::starlight::sources::acquisition::has_valid_receipt(
+                &config.workspace.root,
+                &starlight.gaia_products,
+                "xp-continuous",
+                &partition,
+            )?;
+            if !receipt_is_valid {
+                retained.push(partition);
+            }
+        }
+        selected_partitions = retained;
     }
-    Ok(available)
+    Ok(selected_partitions)
 }
 
 fn update_sources(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
@@ -328,7 +367,7 @@ fn build(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
     let sources_root = config.workspace.root.join("sources");
     let output_root = config.workspace.root.join("outputs");
     fs::create_dir_all(&output_root)?;
-    let expected = pipeline.expected_outputs();
+    let expected = pipeline.expected_outputs_for(config);
     let sources = filtered_sources(config, partitions);
     if sources.len() != expected.len() && !pipeline.supports_partitions() {
         bail!(
@@ -399,13 +438,13 @@ fn validate(config: &RunConfig) -> Result<ValidationReport> {
                 .map_or_else(|| "valid".to_string(), |e| e.to_string()),
         });
     }
-    let expected = pipeline.expected_outputs();
+    gates.extend(pipeline.validation_gates(config, &artifacts)?);
+    let expected = pipeline.expected_outputs_for(config);
     gates.push(ValidationGate {
         name: "complete-artifact-set".to_string(),
-        passed: pipeline.supports_partitions()
-            || expected
-                .iter()
-                .all(|name| artifacts.iter().any(|a| a.name == *name)),
+        passed: expected
+            .iter()
+            .all(|name| artifacts.iter().any(|a| a.name == *name)),
         detail: format!("{} artifacts", artifacts.len()),
     });
     let report = ValidationReport {
@@ -431,13 +470,21 @@ fn reconcile_workers(config: &RunConfig) -> Result<()> {
     entries.sort_by_key(|entry| entry.file_name());
     for entry in entries {
         let artifacts_path = entry.path().join("outputs/artifacts.json");
-        if !artifacts_path.is_file() {
+        let artifacts: Vec<Artifact> = if artifacts_path.is_file() {
+            read_json(&artifacts_path)?
+        } else if entry.path().join("shard.json").is_file() {
+            let partition = entry.file_name().to_string_lossy().to_string();
+            let shard_path = entry.path().join("shard.json");
+            vec![self::artifact(
+                &format!("shards/{partition}.json"),
+                &shard_path,
+            )?]
+        } else {
             bail!(
                 "partition {} has no completed build artifacts",
                 entry.file_name().to_string_lossy()
             );
-        }
-        let artifacts: Vec<Artifact> = read_json(&artifacts_path)?;
+        };
         for artifact in artifacts {
             let verified = self::artifact(&artifact.name, &artifact.path)?;
             if verified.sha256 != artifact.sha256 {

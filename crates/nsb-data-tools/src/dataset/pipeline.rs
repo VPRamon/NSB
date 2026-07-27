@@ -1,6 +1,6 @@
 //! Dataset-specific behavior behind the common lifecycle.
 
-use super::{Artifact, DatasetName, RunConfig};
+use super::{Artifact, DatasetName, RunConfig, ValidationGate};
 use anyhow::{bail, Result};
 use std::fs;
 use std::io::{BufRead, BufReader};
@@ -38,6 +38,11 @@ pub trait DatasetPipeline: Sync {
     /// Complete artifact names for non-partitioned datasets.
     fn expected_outputs(&self) -> &'static [&'static str];
 
+    /// Configuration-specific artifact set for pipelines with snapshot and production modes.
+    fn expected_outputs_for(&self, _config: &RunConfig) -> &'static [&'static str] {
+        self.expected_outputs()
+    }
+
     /// Validate dataset-specific configuration before any state is written.
     fn validate_config(&self, _config: &RunConfig) -> Result<()> {
         Ok(())
@@ -55,6 +60,20 @@ pub trait DatasetPipeline: Sync {
     /// `None` delegates to the common one-source/one-artifact transformer.
     fn build(&self, _config: &RunConfig, _partitions: &[String]) -> Result<Option<Vec<Artifact>>> {
         Ok(None)
+    }
+
+    /// Optionally reconcile partition artifacts into final dataset products.
+    fn finalize(&self, _config: &RunConfig) -> Result<Option<Vec<Artifact>>> {
+        Ok(None)
+    }
+
+    /// Dataset-wide validation gates that cannot be checked per artifact.
+    fn validation_gates(
+        &self,
+        _config: &RunConfig,
+        _artifacts: &[Artifact],
+    ) -> Result<Vec<ValidationGate>> {
+        Ok(Vec::new())
     }
 
     /// Map one configured source name to its deterministic artifact name.

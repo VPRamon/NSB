@@ -69,6 +69,9 @@ struct CommonArgs {
     /// Process only a comma-separated set of partition identifiers.
     #[arg(long, value_delimiter = ',')]
     partitions: Vec<String>,
+    /// Skip legacy-completed Starlight partitions that have a valid new CAS receipt.
+    #[arg(long)]
+    skip_completed_from: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -149,5 +152,6 @@ fn execute(dataset: DatasetName, args: ActionArgs) -> Result<()> {
         common.executor,
         common.concurrency,
         &common.partitions,
+        common.skip_completed_from.as_deref(),
     )
 }

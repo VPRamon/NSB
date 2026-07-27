@@ -124,11 +124,68 @@ Resume submits only partitions without a complete, checksum-valid worker
 manifest. A changed TOML, partition set, software revision, inventory contract,
 or cached object cannot silently enter an existing run.
 
-## Full Starlight build readiness
+## Full Starlight build and release
 
-Inventory reconciliation, local/Slurm acquisition, durable run state, sparse
-HEALPix shard accumulation, and deterministic shard merge are implemented.
-Production `build` currently fails closed while XP coefficient reconstruction,
-the GaiaSource/XP streaming join, population correction, and final scientific
-admission gates are completed. The snapshot configuration remains independently
-reproducible, but is not a production substitute.
+Production build workers load the pinned GaiaXPy 2.1.4 continuous-design
+fixture, stream each compressed XP partition, and admit a source only when its
+identifier is also present in the paired GaiaSource partition. Each worker
+writes a strict sparse nside-128 shard at
+`workers/<partition>/shard.json`. Invalid calibration, flux, uncertainty, and
+XP-only rows remain visible through stable exclusion reason counts.
+
+Run the workers locally or through the configured Slurm array:
+
+```bash
+nsb-data dataset starlight build \
+  --config crates/nsb-data-tools/config/starlight-production.toml
+
+nsb-data dataset starlight build \
+  --config crates/nsb-data-tools/config/starlight-production.toml \
+  --executor slurm
+```
+
+The old bulk reconciliation ledger can be used as a read-only scheduling
+index. A legacy-completed partition is skipped only when its XP object also has
+a valid receipt and SHA-256-verified CAS object in the new workspace:
+
+```bash
+nsb-data dataset starlight build \
+  --config crates/nsb-data-tools/config/starlight-production.toml \
+  --skip-completed-from "$HOME/nsb-data/starlight-gaia-release/checkpoints"
+```
+
+Legacy dense nside-64 accumulator bytes are never accepted as a production
+shard. Consequently, release validation still requires a new-schema shard for
+every inventory partition; the skip index is useful for incremental scheduling,
+not as scientific evidence.
+
+After all workers finish, run validation locally:
+
+```bash
+nsb-data dataset starlight validate \
+  --config crates/nsb-data-tools/config/starlight-production.toml
+```
+
+Validation reconciles checksum-valid worker shards, performs a canonical merge,
+and emits:
+
+- `starlight_nside128.csv`, the production sparse runtime map
+- `starlight_nside64.csv`, the nested downsample
+- `starlight_nside256.csv`, the diagnostic nearest-neighbour upsample
+- `merge_report.json`, including population totals, map checksums, exclusions,
+  and the deterministic partial-merge reference
+
+The release gates verify artifact checksum round trips, finite flux, at least
+70% occupied nside-128 pixels in the Galactic plane (`|b| < 20°`), exact
+observed/admitted/excluded population accounting, and a pixel checksum stable
+across an independent partial merge. Publish accepts only the unchanged
+artifacts from a passing validation report and updates their registered
+SHA-256 values in `crates/nsb/data/manifest.toml`:
+
+```bash
+nsb-data dataset starlight publish \
+  --config crates/nsb-data-tools/config/starlight-production.toml
+```
+
+The snapshot configuration remains independently reproducible and is not a
+production substitute.

@@ -1,6 +1,6 @@
 use super::config::StarlightMode;
 use super::sources::{acquisition, inventory};
-use crate::dataset::{Artifact, DatasetName, DatasetPipeline, RunConfig};
+use crate::dataset::{Artifact, DatasetName, DatasetPipeline, RunConfig, ValidationGate};
 use anyhow::{bail, Result};
 use std::fs;
 use std::path::Path;
@@ -29,7 +29,24 @@ impl DatasetPipeline for StarlightPipeline {
     }
 
     fn expected_outputs(&self) -> &'static [&'static str] {
-        &["starlight_manual_seed_v1.csv"]
+        &[
+            "starlight_nside128.csv",
+            "starlight_nside64.csv",
+            "starlight_nside256.csv",
+            "merge_report.json",
+        ]
+    }
+
+    fn expected_outputs_for(&self, config: &RunConfig) -> &'static [&'static str] {
+        if config
+            .starlight
+            .as_ref()
+            .is_some_and(|starlight| starlight.mode == StarlightMode::Production)
+        {
+            self.expected_outputs()
+        } else {
+            &["starlight_manual_seed_v1.csv"]
+        }
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
@@ -65,20 +82,68 @@ impl DatasetPipeline for StarlightPipeline {
         Ok(Some(artifacts))
     }
 
-    fn build(&self, config: &RunConfig, _partitions: &[String]) -> Result<Option<Vec<Artifact>>> {
+    fn build(&self, config: &RunConfig, partitions: &[String]) -> Result<Option<Vec<Artifact>>> {
+        let Some(starlight) = &config.starlight else {
+            return Ok(None);
+        };
+        if starlight.mode == StarlightMode::Snapshot {
+            return Ok(None);
+        }
+        let artifacts = super::worker::build_partitions(
+            &config.workspace.root,
+            &starlight.gaia_products,
+            partitions,
+            config.execution.concurrency,
+        )?;
+        super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
+        Ok(Some(artifacts))
+    }
+
+    fn finalize(&self, config: &RunConfig) -> Result<Option<Vec<Artifact>>> {
         if config
             .starlight
             .as_ref()
             .is_some_and(|starlight| starlight.mode == StarlightMode::Production)
         {
-            bail!(
-                "production Starlight source acquisition is available, but the XP reconstruction and HEALPix build stages are not implemented yet"
-            );
+            let expected = self
+                .available_partitions(config)?
+                .ok_or_else(|| anyhow::anyhow!("Starlight inventories are missing"))?;
+            return Ok(Some(super::map::product::emit_maps(
+                &config.workspace.root,
+                &expected,
+            )?));
         }
         Ok(None)
     }
 
+    fn validation_gates(
+        &self,
+        config: &RunConfig,
+        _artifacts: &[Artifact],
+    ) -> Result<Vec<ValidationGate>> {
+        if config
+            .starlight
+            .as_ref()
+            .is_some_and(|starlight| starlight.mode == StarlightMode::Production)
+        {
+            return super::map::product::scientific_gates(&config.workspace.root);
+        }
+        Ok(Vec::new())
+    }
+
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
+        if name == "merge_report.json" {
+            return super::map::product::validate_report(path);
+        }
+        let expected_nside = match name {
+            "starlight_nside64.csv" => Some(64),
+            "starlight_nside128.csv" => Some(128),
+            "starlight_nside256.csv" => Some(256),
+            _ => None,
+        };
+        if let Some(nside) = expected_nside {
+            return super::map::product::validate_map(path, nside);
+        }
         let text = fs::read_to_string(path)?;
         for header in [
             "# map_type=healpix",

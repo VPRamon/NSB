@@ -267,6 +267,63 @@ fn verify_receipt(
     Ok(())
 }
 
+/// Resolve one verified content-addressed object from its immutable receipt.
+pub(crate) fn verified_object_for_partition(
+    workspace: &Path,
+    products: &[GaiaProductConfig],
+    product_id: &str,
+    partition_id: &str,
+) -> Result<PathBuf> {
+    let product = products
+        .iter()
+        .find(|product| product.id == product_id)
+        .with_context(|| format!("Starlight product {product_id:?} is not configured"))?;
+    let inventory_path = workspace
+        .join("inventories")
+        .join(format!("{}.inventory.json", product.id));
+    let inventory = load_inventory(&inventory_path, product)?;
+    let entry = inventory
+        .entries
+        .iter()
+        .find(|entry| entry.partition_id == partition_id)
+        .with_context(|| {
+            format!(
+                "partition {partition_id:?} is absent from Gaia product {}",
+                product.id
+            )
+        })?;
+    let receipt_path = workspace
+        .join("cache/receipts")
+        .join(&product.id)
+        .join(format!("{partition_id}.json"));
+    let receipt = read_receipt(&receipt_path)
+        .with_context(|| format!("run Starlight update for {product_id}/{partition_id}"))?;
+    verify_receipt(&receipt, product, entry)?;
+    Ok(receipt.object_path)
+}
+
+/// Whether the new layout contains a valid receipt and CAS object.
+pub(crate) fn has_valid_receipt(
+    workspace: &Path,
+    products: &[GaiaProductConfig],
+    product_id: &str,
+    partition_id: &str,
+) -> Result<bool> {
+    match verified_object_for_partition(workspace, products, product_id, partition_id) {
+        Ok(_) => Ok(true),
+        Err(error)
+            if error.chain().any(|cause| {
+                cause
+                    .downcast_ref::<std::io::Error>()
+                    .is_some_and(|io| io.kind() == io::ErrorKind::NotFound)
+            }) =>
+        {
+            Ok(false)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 struct AcquisitionLock {
     path: PathBuf,
 }
