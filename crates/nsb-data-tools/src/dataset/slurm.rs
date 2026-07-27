@@ -1,6 +1,8 @@
 use super::config::RunConfig;
 use super::engine::{read_manifest, write_manifest};
-use super::execution::scheduler::{aggregate_states, ArrayRequest, Scheduler, SchedulerState, SlurmScheduler};
+use super::execution::scheduler::{
+    aggregate_states, ArrayRequest, Scheduler, SchedulerState, SlurmScheduler,
+};
 use super::model::{BuildPlan, RunStatus};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
