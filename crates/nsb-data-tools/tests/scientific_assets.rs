@@ -28,8 +28,7 @@ struct Asset {
 
 #[test]
 fn repository_scientific_assets_verify() -> Result<()> {
-    let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../nsb/data/manifest.toml");
+    let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nsb/data/manifest.toml");
     verify(&manifest_path)
 }
 
