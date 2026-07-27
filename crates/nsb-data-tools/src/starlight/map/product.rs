@@ -9,7 +9,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 1;
+const REPORT_SCHEMA_VERSION: u32 = 2;
+const ADMISSION_POLICY_ID: &str = "gaia-dr3-xp-continuous-join-v1";
+const POPULATION_POLICY_ID: &str = "selection-function-identity-stub-v1";
+const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -22,8 +25,43 @@ pub struct MergeReport {
     pub admitted_sources: u64,
     pub excluded_sources: u64,
     pub exclusion_reasons: BTreeMap<String, u64>,
+    pub science_policy: SciencePolicyReport,
     pub map_sha256: BTreeMap<String, String>,
     pub deterministic_reference: DeterministicReference,
+}
+
+/// Machine-readable declaration of what the current candidate does and does not model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SciencePolicyReport {
+    pub schema_version: u32,
+    pub admission_policy_id: String,
+    pub admission_rules: Vec<String>,
+    pub population_correction: PopulationCorrectionReport,
+    pub spectral_coverage: SpectralCoverageReport,
+}
+
+/// Versioned no-op placeholder for the not-yet-calibrated Gaia selection model.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PopulationCorrectionReport {
+    pub policy_id: String,
+    pub applied: bool,
+    pub minimum_weight: f64,
+    pub maximum_weight: f64,
+    pub residual_faint_tail_estimated: bool,
+    pub limitation: String,
+}
+
+/// Explicit passband coverage declaration for the XP-only candidate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpectralCoverageReport {
+    pub policy_id: String,
+    pub target_band_nm: [u16; 2],
+    pub directly_integrated_band_nm: [u16; 2],
+    pub ultraviolet_correction_applied: bool,
+    pub limitation: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,15 +145,18 @@ pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Res
     let map128 = output_root.join("starlight_nside128.csv");
     let map64 = output_root.join("starlight_nside64.csv");
     let map256 = output_root.join("starlight_nside256.csv");
+    let map512 = output_root.join("starlight_nside512.csv");
     write_map(&map128, 128, map_pixels_128(&merged))?;
     write_map(&map64, 64, downsample_64(&merged)?)?;
     write_map(&map256, 256, upsample_256(&merged)?)?;
+    write_map(&map512, 512, upsample_512(&merged)?)?;
 
     let mut map_sha256 = BTreeMap::new();
     for (name, path) in [
         ("starlight_nside128.csv", &map128),
         ("starlight_nside64.csv", &map64),
         ("starlight_nside256.csv", &map256),
+        ("starlight_nside512.csv", &map512),
     ] {
         map_sha256.insert(name.to_string(), checksum_io::sha256_file(path)?);
     }
@@ -129,6 +170,7 @@ pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Res
         admitted_sources,
         excluded_sources,
         exclusion_reasons: merged.exclusion_reasons.clone(),
+        science_policy: science_policy_report(),
         map_sha256,
         deterministic_reference,
     };
@@ -140,6 +182,7 @@ pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Res
         ("merge_report.json", report_path),
         ("starlight_nside128.csv", map128),
         ("starlight_nside256.csv", map256),
+        ("starlight_nside512.csv", map512),
         ("starlight_nside64.csv", map64),
     ] {
         artifacts.push(Artifact {
@@ -166,6 +209,7 @@ pub(crate) fn scientific_gates(workspace: &Path) -> Result<Vec<ValidationGate>> 
         .checked_add(report.excluded_sources)
         .is_some_and(|total| total == report.observed_sources);
     let coverage = galactic_plane_coverage(&workspace.join("outputs/starlight_nside128.csv"))?;
+    let declared_policy = science_policy_is_declared(&report.science_policy);
     Ok(vec![
         ValidationGate {
             name: "pixel-coverage-galactic-plane".to_string(),
@@ -178,6 +222,21 @@ pub(crate) fn scientific_gates(workspace: &Path) -> Result<Vec<ValidationGate>> 
             detail: format!(
                 "{} admitted + {} excluded = {} observed",
                 report.admitted_sources, report.excluded_sources, report.observed_sources
+            ),
+        },
+        ValidationGate {
+            name: "declared-science-policy".to_string(),
+            passed: declared_policy,
+            detail: format!(
+                "admission={}; population={} applied={}; spectral={} ultraviolet_correction={}",
+                report.science_policy.admission_policy_id,
+                report.science_policy.population_correction.policy_id,
+                report.science_policy.population_correction.applied,
+                report.science_policy.spectral_coverage.policy_id,
+                report
+                    .science_policy
+                    .spectral_coverage
+                    .ultraviolet_correction_applied
             ),
         },
         ValidationGate {
@@ -236,8 +295,26 @@ pub(crate) fn validate_map(path: &Path, expected_nside: u32) -> Result<()> {
 
 pub(crate) fn validate_report(path: &Path) -> Result<()> {
     let report: MergeReport = serde_json::from_slice(&fs::read(path)?)?;
-    if report.schema_version != REPORT_SCHEMA_VERSION || report.nside != 128 {
+    if report.schema_version != REPORT_SCHEMA_VERSION
+        || report.nside != 128
+        || !science_policy_is_declared(&report.science_policy)
+    {
         bail!("unsupported Starlight merge report");
+    }
+    let expected_maps = BTreeSet::from([
+        "starlight_nside64.csv",
+        "starlight_nside128.csv",
+        "starlight_nside256.csv",
+        "starlight_nside512.csv",
+    ]);
+    if report
+        .map_sha256
+        .keys()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>()
+        != expected_maps
+    {
+        bail!("Starlight merge report does not declare the complete resolution sweep");
     }
     for (name, expected) in &report.map_sha256 {
         let map_path = path
@@ -282,11 +359,22 @@ fn downsample_64(merged: &PartitionShard) -> Result<BTreeMap<u32, MapPixel>> {
 }
 
 fn upsample_256(merged: &PartitionShard) -> Result<BTreeMap<u32, MapPixel>> {
+    upsample(merged, 1)
+}
+
+fn upsample_512(merged: &PartitionShard) -> Result<BTreeMap<u32, MapPixel>> {
+    upsample(merged, 2)
+}
+
+fn upsample(merged: &PartitionShard, order_delta: u32) -> Result<BTreeMap<u32, MapPixel>> {
+    let child_count = 1_u32
+        .checked_shl(2 * order_delta)
+        .context("invalid HEALPix upsample order")?;
     let mut pixels = BTreeMap::new();
     for (pixel, value) in &merged.pixels {
-        for child in 0..4 {
+        for child in 0..child_count {
             pixels.insert(
-                (*pixel << 2) | child,
+                (*pixel << (2 * order_delta)) | child,
                 MapPixel {
                     // Diagnostic nearest-neighbour upsampling preserves surface
                     // brightness; it does not claim new source localization.
@@ -299,6 +387,55 @@ fn upsample_256(merged: &PartitionShard) -> Result<BTreeMap<u32, MapPixel>> {
         }
     }
     Ok(pixels)
+}
+
+fn science_policy_report() -> SciencePolicyReport {
+    SciencePolicyReport {
+        schema_version: 1,
+        admission_policy_id: ADMISSION_POLICY_ID.to_string(),
+        admission_rules: vec![
+            "require_gaia_source_match".to_string(),
+            "exclude_calibration_failed".to_string(),
+            "exclude_non_positive_or_non_finite_flux".to_string(),
+            "exclude_invalid_statistical_uncertainty".to_string(),
+        ],
+        population_correction: PopulationCorrectionReport {
+            policy_id: POPULATION_POLICY_ID.to_string(),
+            applied: false,
+            minimum_weight: 1.0,
+            maximum_weight: 1.0,
+            residual_faint_tail_estimated: false,
+            limitation: "No validated sky-, magnitude-, and colour-conditioned Gaia selection-function model is configured; admitted source weights remain exactly one.".to_string(),
+        },
+        spectral_coverage: SpectralCoverageReport {
+            policy_id: SPECTRAL_POLICY_ID.to_string(),
+            target_band_nm: [300, 650],
+            directly_integrated_band_nm: [336, 650],
+            ultraviolet_correction_applied: false,
+            limitation: "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied.".to_string(),
+        },
+    }
+}
+
+fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
+    policy.schema_version == 1
+        && policy.admission_policy_id == ADMISSION_POLICY_ID
+        && policy.admission_rules
+            == [
+                "require_gaia_source_match",
+                "exclude_calibration_failed",
+                "exclude_non_positive_or_non_finite_flux",
+                "exclude_invalid_statistical_uncertainty",
+            ]
+        && policy.population_correction.policy_id == POPULATION_POLICY_ID
+        && !policy.population_correction.applied
+        && policy.population_correction.minimum_weight == 1.0
+        && policy.population_correction.maximum_weight == 1.0
+        && !policy.population_correction.residual_faint_tail_estimated
+        && policy.spectral_coverage.policy_id == SPECTRAL_POLICY_ID
+        && policy.spectral_coverage.target_band_nm == [300, 650]
+        && policy.spectral_coverage.directly_integrated_band_nm == [336, 650]
+        && !policy.spectral_coverage.ultraviolet_correction_applied
 }
 
 fn write_map(path: &Path, nside: u32, pixels: BTreeMap<u32, MapPixel>) -> Result<()> {
@@ -411,6 +548,8 @@ mod tests {
         assert!(down.contains_key(&(pixel >> 2)));
         let up = upsample_256(&shard).unwrap();
         assert!((0..4).all(|child| up.contains_key(&((pixel << 2) | child))));
+        let up512 = upsample_512(&shard).unwrap();
+        assert!((0..16).all(|child| up512.contains_key(&((pixel << 4) | child))));
     }
 
     #[test]
@@ -429,5 +568,23 @@ mod tests {
                 .unwrap()
                 .stable
         );
+    }
+
+    #[test]
+    fn candidate_science_limitations_are_versioned_and_explicit() {
+        let policy = science_policy_report();
+        assert_eq!(policy.schema_version, 1);
+        assert_eq!(policy.admission_policy_id, ADMISSION_POLICY_ID);
+        assert_eq!(policy.population_correction.policy_id, POPULATION_POLICY_ID);
+        assert!(!policy.population_correction.applied);
+        assert_eq!(policy.population_correction.minimum_weight, 1.0);
+        assert_eq!(policy.population_correction.maximum_weight, 1.0);
+        assert_eq!(policy.spectral_coverage.policy_id, SPECTRAL_POLICY_ID);
+        assert_eq!(
+            policy.spectral_coverage.directly_integrated_band_nm,
+            [336, 650]
+        );
+        assert!(!policy.spectral_coverage.ultraviolet_correction_applied);
+        assert!(science_policy_is_declared(&policy));
     }
 }

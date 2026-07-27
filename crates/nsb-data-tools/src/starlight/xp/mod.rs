@@ -32,10 +32,12 @@ pub struct XpProduct {
     pub flux_error_w_m2_nm: Option<Vec<f64>>,
 }
 
-/// Integrate calibrated photon flux over 300–650 nm.
+/// Integrate calibrated photon flux over the available part of 300–650 nm.
 ///
 /// The pinned GaiaXPy fixture begins at 336 nm, so the 300–336 nm part of the
-/// requested band has no extrapolated contribution.
+/// requested band has no extrapolated contribution. The merge report records
+/// that limitation and must not describe this value as a corrected 300–650 nm
+/// production integral.
 pub fn integrate_photon_flux(product: &XpProduct) -> Result<f64> {
     let (first, last) = integration_bounds(product)?;
     let hc = PLANCK_CONSTANT_J_S * SPEED_OF_LIGHT_M_S;

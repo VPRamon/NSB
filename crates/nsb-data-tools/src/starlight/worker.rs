@@ -306,10 +306,14 @@ mod tests {
             .join(format!("{partition}.json"));
         artifact_store::atomic_write(&reconciled, &fs::read(&artifacts[0].path)?)?;
         let maps = crate::starlight::map::product::emit_maps(workspace, &[partition.to_string()])?;
-        assert_eq!(maps.len(), 4);
+        assert_eq!(maps.len(), 5);
         crate::starlight::map::product::validate_map(
             &workspace.join("outputs/starlight_nside128.csv"),
             128,
+        )?;
+        crate::starlight::map::product::validate_map(
+            &workspace.join("outputs/starlight_nside512.csv"),
+            512,
         )?;
         Ok(())
     }

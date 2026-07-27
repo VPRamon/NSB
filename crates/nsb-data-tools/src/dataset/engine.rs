@@ -465,26 +465,40 @@ fn reconcile_workers(config: &RunConfig) -> Result<()> {
     }
     let output_root = config.workspace.root.join("outputs");
     fs::create_dir_all(&output_root)?;
+    let shard_root = output_root.join("shards");
+    if shard_root.is_dir() {
+        for entry in fs::read_dir(&shard_root)? {
+            let path = entry?.path();
+            if path.is_file()
+                && path
+                    .extension()
+                    .is_some_and(|extension| extension == "json")
+            {
+                fs::remove_file(path)?;
+            }
+        }
+    }
     let mut reconciled = Vec::new();
     let mut entries: Vec<_> = fs::read_dir(&workers)?.collect::<std::io::Result<_>>()?;
     entries.sort_by_key(|entry| entry.file_name());
     for entry in entries {
+        let partition = entry.file_name().to_string_lossy().to_string();
+        let expected_name = format!("shards/{partition}.json");
         let artifacts_path = entry.path().join("outputs/artifacts.json");
         let artifacts: Vec<Artifact> = if artifacts_path.is_file() {
             read_json(&artifacts_path)?
         } else if entry.path().join("shard.json").is_file() {
-            let partition = entry.file_name().to_string_lossy().to_string();
             let shard_path = entry.path().join("shard.json");
-            vec![self::artifact(
-                &format!("shards/{partition}.json"),
-                &shard_path,
-            )?]
+            vec![self::artifact(&expected_name, &shard_path)?]
         } else {
             bail!(
                 "partition {} has no completed build artifacts",
                 entry.file_name().to_string_lossy()
             );
         };
+        if artifacts.len() != 1 || artifacts[0].name != expected_name {
+            bail!("partition {partition} did not emit exactly {expected_name}");
+        }
         for artifact in artifacts {
             let verified = self::artifact(&artifact.name, &artifact.path)?;
             if verified.sha256 != artifact.sha256 {
@@ -529,7 +543,12 @@ fn publish(config: &RunConfig) -> Result<Vec<Artifact>> {
     for artifact in &report.artifacts {
         let destination = data_root.join(&artifact.name);
         copy_atomic(&artifact.path, &destination)?;
-        update_manifest_checksum(&mut document, &artifact.name, &artifact.sha256)?;
+        update_manifest_checksum(
+            &mut document,
+            config.dataset,
+            &artifact.name,
+            &artifact.sha256,
+        )?;
     }
     atomic_write(&manifest_path, document.to_string().as_bytes())?;
     Ok(report.artifacts)
@@ -742,16 +761,50 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
 
 fn update_manifest_checksum(
     document: &mut toml_edit::DocumentMut,
+    dataset: DatasetName,
     name: &str,
     checksum: &str,
 ) -> Result<()> {
     let assets = document["assets"]
         .as_array_of_tables_mut()
         .context("manifest is missing [[assets]]")?;
+    if !assets
+        .iter()
+        .any(|asset| asset["path"].as_str() == Some(name))
+    {
+        if dataset != DatasetName::Starlight {
+            bail!("asset {name:?} is not registered");
+        }
+        let mut asset = toml_edit::Table::new();
+        asset["path"] = toml_edit::value(name);
+        asset["schema"] = toml_edit::value(if name == "merge_report.json" {
+            "nsb-starlight-merge-report-v2"
+        } else {
+            "nsb-healpix-starlight-candidate-v1"
+        });
+        asset["sha256"] = toml_edit::value(checksum);
+        asset["source"] =
+            toml_edit::value("Gaia DR3 GaiaSource and XP continuous bulk distributions");
+        asset["license"] = toml_edit::value("Gaia data licence: CC BY-NC 3.0 IGO");
+        asset["generator"] = toml_edit::value("nsb-data dataset pipeline");
+        asset["generation_command"] =
+            toml_edit::value("nsb-data dataset starlight publish --config <run.toml>");
+        asset["validation_report"] =
+            toml_edit::value("external validation.json pinned by the dataset run manifest");
+        asset["calibration_status"] = toml_edit::value("candidate");
+        asset["runtime_embedded"] = toml_edit::value(false);
+        assets.push(asset);
+    }
     let asset = assets
         .iter_mut()
         .find(|asset| asset["path"].as_str() == Some(name))
-        .with_context(|| format!("asset {name:?} is not registered"))?;
+        .context("newly registered Starlight asset is missing")?;
+    if dataset == DatasetName::Starlight
+        && (asset["calibration_status"].as_str() == Some("production")
+            || asset["runtime_embedded"].as_bool() == Some(true))
+    {
+        bail!("candidate Starlight publish cannot replace a production runtime asset");
+    }
     asset["sha256"] = toml_edit::value(checksum);
     asset["generator"] = toml_edit::value("nsb-data dataset pipeline");
     asset["generation_command"] =
@@ -841,5 +894,35 @@ fn unix_seconds() -> Result<u64> {
 impl Drop for Lease {
     fn drop(&mut self) {
         let _ = fs::remove_file(&self.path);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn starlight_publish_registers_new_outputs_as_non_runtime_candidates() {
+        let mut document = "schema_version = 1\n\n[[assets]]\npath = \"existing.dat\"\n"
+            .parse::<toml_edit::DocumentMut>()
+            .unwrap();
+        update_manifest_checksum(
+            &mut document,
+            DatasetName::Starlight,
+            "starlight_nside128.csv",
+            &"a".repeat(64),
+        )
+        .unwrap();
+        let assets = document["assets"].as_array_of_tables().unwrap();
+        let candidate = assets
+            .iter()
+            .find(|asset| asset["path"].as_str() == Some("starlight_nside128.csv"))
+            .unwrap();
+        assert_eq!(
+            candidate["schema"].as_str(),
+            Some("nsb-healpix-starlight-candidate-v1")
+        );
+        assert_eq!(candidate["calibration_status"].as_str(), Some("candidate"));
+        assert_eq!(candidate["runtime_embedded"].as_bool(), Some(false));
     }
 }

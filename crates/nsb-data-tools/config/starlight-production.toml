@@ -2,7 +2,9 @@ schema_version = 1
 dataset = "starlight"
 
 [workspace]
-root = "../../../target/nsb-data/starlight-production"
+# Cluster operators should override this site-local example only with another
+# shared scratch/NVMe path visible at the same absolute location on every node.
+root = "/shared/scratch/nsb/starlight-production"
 
 [execution]
 executor = "local"
@@ -11,9 +13,9 @@ lease_timeout_seconds = 86400
 
 [execution.slurm]
 partition = "compute"
-time_limit = "12:00:00"
-memory = "8G"
-array_parallelism = 32
+time_limit = "24:00:00"
+memory = "16G"
+array_parallelism = 16
 
 [starlight]
 mode = "production"

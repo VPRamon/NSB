@@ -33,6 +33,7 @@ impl DatasetPipeline for StarlightPipeline {
             "starlight_nside128.csv",
             "starlight_nside64.csv",
             "starlight_nside256.csv",
+            "starlight_nside512.csv",
             "merge_report.json",
         ]
     }
@@ -139,6 +140,7 @@ impl DatasetPipeline for StarlightPipeline {
             "starlight_nside64.csv" => Some(64),
             "starlight_nside128.csv" => Some(128),
             "starlight_nside256.csv" => Some(256),
+            "starlight_nside512.csv" => Some(512),
             _ => None,
         };
         if let Some(nside) = expected_nside {
@@ -171,10 +173,17 @@ impl DatasetPipeline for StarlightPipeline {
         if starlight.map.target_nside != 128 {
             bail!("production Starlight target_nside must be 128");
         }
-        for required in [64, 128, 256, 512] {
-            if !starlight.map.sweep_nsides.contains(&required) {
-                bail!("Starlight resolution sweep is missing nside={required}");
-            }
+        let configured_nsides = starlight
+            .map
+            .sweep_nsides
+            .iter()
+            .copied()
+            .collect::<std::collections::BTreeSet<_>>();
+        let required_nsides = std::collections::BTreeSet::from([64, 128, 256, 512]);
+        if configured_nsides != required_nsides
+            || configured_nsides.len() != starlight.map.sweep_nsides.len()
+        {
+            bail!("Starlight resolution sweep must be exactly [64, 128, 256, 512]");
         }
         for product in &starlight.gaia_products {
             if product.id.trim().is_empty()
