@@ -1,5 +1,5 @@
 use super::config::RunConfig;
-use super::execution::scheduler::{Scheduler, SchedulerState, SlurmScheduler};
+use super::execution::scheduler::{aggregate_states, Scheduler, SchedulerState, SlurmScheduler};
 use super::model::{
     Artifact, BuildPlan, DatasetName, Executor, Operation, RunManifest, RunStatus, ValidationGate,
     ValidationReport, RUN_SCHEMA_VERSION,
@@ -95,7 +95,7 @@ pub fn status(path: &Path) -> Result<()> {
     let scheduler_state = manifest
         .slurm_job_id
         .as_deref()
-        .map(|job_id| SlurmScheduler::default().state(job_id))
+        .map(super::slurm::scheduler_state)
         .transpose()?
         .map(|state| format!("{state:?}").to_ascii_lowercase());
     let (partitions_complete, partitions_pending) = partition_progress(&manifest)?;
@@ -871,9 +871,15 @@ fn lease_can_be_recovered(record: &LeaseRecord, timeout_seconds: u64) -> Result<
     if age < timeout_seconds {
         return Ok(false);
     }
-    if let Some(job_id) = &record.slurm_job_id {
+    if let Some(job_ids) = &record.slurm_job_id {
+        let states: Vec<SchedulerState> = job_ids
+            .split(',')
+            .map(str::trim)
+            .filter(|job_id| !job_id.is_empty())
+            .map(|job_id| SlurmScheduler::default().state(job_id))
+            .collect::<Result<_>>()?;
         return Ok(matches!(
-            SlurmScheduler::default().state(job_id)?,
+            aggregate_states(&states),
             SchedulerState::Succeeded | SchedulerState::Failed | SchedulerState::Cancelled
         ));
     }

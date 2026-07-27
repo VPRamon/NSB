@@ -67,6 +67,8 @@ pub struct SlurmConfig {
     pub memory: Option<String>,
     #[serde(default = "default_array_parallelism")]
     pub array_parallelism: usize,
+    #[serde(default = "default_max_array_size")]
+    pub max_array_size: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +87,10 @@ fn default_concurrency() -> usize {
 
 fn default_array_parallelism() -> usize {
     1
+}
+
+fn default_max_array_size() -> usize {
+    1000
 }
 
 fn default_lease_timeout_seconds() -> u64 {

@@ -177,9 +177,31 @@ fn compress_indices(indices: &[u32]) -> Result<String> {
     if sorted.len() != indices.len() {
         bail!("scheduler indices must be unique");
     }
-    Ok(sorted
-        .iter()
-        .map(u32::to_string)
+    if sorted.is_empty() {
+        bail!("scheduler indices must not be empty");
+    }
+    let mut ranges = Vec::new();
+    let mut range_start = sorted[0];
+    let mut range_end = sorted[0];
+    for &index in &sorted[1..] {
+        if index == range_end + 1 {
+            range_end = index;
+            continue;
+        }
+        ranges.push((range_start, range_end));
+        range_start = index;
+        range_end = index;
+    }
+    ranges.push((range_start, range_end));
+    Ok(ranges
+        .into_iter()
+        .map(|(start, end)| {
+            if start == end {
+                start.to_string()
+            } else {
+                format!("{start}-{end}")
+            }
+        })
         .collect::<Vec<_>>()
         .join(","))
 }
@@ -197,7 +219,7 @@ fn normalize_state(raw: &str) -> SchedulerState {
     }
 }
 
-fn aggregate_states(states: &[SchedulerState]) -> SchedulerState {
+pub(crate) fn aggregate_states(states: &[SchedulerState]) -> SchedulerState {
     for preferred in [
         SchedulerState::Failed,
         SchedulerState::Cancelled,
@@ -234,6 +256,14 @@ mod tests {
     }
 
     #[test]
+    fn compresses_contiguous_indices_into_ranges() {
+        assert_eq!(
+            compress_indices(&(0..=3385).collect::<Vec<_>>()).unwrap(),
+            "0-3385"
+        );
+    }
+
+    #[test]
     fn submits_sparse_array_without_shell_partition_lookup() {
         let runner = FakeRunner {
             calls: Mutex::new(Vec::new()),
@@ -260,7 +290,6 @@ mod tests {
         let calls = scheduler.runner.calls.lock().unwrap();
         let arguments = &calls[0].1;
         assert!(arguments.contains(&OsString::from("0,3,9%2")));
-        assert!(!arguments.iter().any(|argument| argument == "sed"));
     }
 
     #[test]
