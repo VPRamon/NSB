@@ -519,10 +519,9 @@ fn galactic_plane_coverage(path: &Path) -> Result<f64> {
         .collect::<BTreeSet<_>>();
     let mut plane_pixels = 0_u64;
     let mut covered = 0_u64;
-    let depth = 7_u8;
+    let plane_sin_latitude_limit = 20_f64.to_radians().sin();
     for pixel in 0..12_u32 * 128 * 128 {
-        let (_, latitude) = cdshealpix::nested::center(depth, u64::from(pixel));
-        if latitude.to_degrees().abs() < 20.0 {
+        if nested_pixel_center_sin_latitude(128, pixel).abs() < plane_sin_latitude_limit {
             plane_pixels += 1;
             if occupied.contains(&pixel) {
                 covered += 1;
@@ -535,9 +534,71 @@ fn galactic_plane_coverage(path: &Path) -> Result<f64> {
     Ok(covered as f64 / plane_pixels as f64)
 }
 
+/// Return `sin(latitude)` for the centre of a NESTED HEALPix pixel.
+///
+/// The coverage gate only needs latitude, so decoding the face-local Morton
+/// index and applying the standard HEALPix ring-coordinate equation avoids
+/// pulling a full geometry crate (and its serialization dependency) into the
+/// production binary.
+fn nested_pixel_center_sin_latitude(nside: u32, pixel: u32) -> f64 {
+    debug_assert!(nside.is_power_of_two());
+    debug_assert!(pixel < 12 * nside * nside);
+
+    const JRLL: [u32; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
+
+    let pixels_per_face = nside * nside;
+    let face = pixel / pixels_per_face;
+    let face_pixel = pixel % pixels_per_face;
+    let mut x = 0_u32;
+    let mut y = 0_u32;
+    let mut source_bit = 0_u32;
+    let mut coordinate_bit = 1_u32;
+    while coordinate_bit < nside {
+        x |= ((face_pixel >> source_bit) & 1) * coordinate_bit;
+        y |= ((face_pixel >> (source_bit + 1)) & 1) * coordinate_bit;
+        source_bit += 2;
+        coordinate_bit <<= 1;
+    }
+
+    let ring = i64::from(JRLL[face as usize] * nside) - i64::from(x) - i64::from(y) - 1;
+    let nside_i64 = i64::from(nside);
+    let nside_f64 = f64::from(nside);
+    if ring < nside_i64 {
+        1.0 - (ring * ring) as f64 / (3.0 * nside_f64 * nside_f64)
+    } else if ring > 3 * nside_i64 {
+        let south_ring = 4 * nside_i64 - ring;
+        -1.0 + (south_ring * south_ring) as f64 / (3.0 * nside_f64 * nside_f64)
+    } else {
+        (2 * nside_i64 - ring) as f64 * (2.0 / (3.0 * nside_f64))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn internal_nested_latitudes_cover_the_expected_galactic_plane_pixels() {
+        let north = 2.0 / 3.0;
+        for pixel in 0..4 {
+            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), north);
+        }
+        for pixel in 4..8 {
+            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), 0.0);
+        }
+        for pixel in 8..12 {
+            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), -north);
+        }
+
+        let plane_sin_latitude_limit = 20_f64.to_radians().sin();
+        let mut plane_pixels = 0_usize;
+        for pixel in 0..12_u32 * 128 * 128 {
+            plane_pixels += usize::from(
+                nested_pixel_center_sin_latitude(128, pixel).abs() < plane_sin_latitude_limit,
+            );
+        }
+        assert_eq!(plane_pixels, 67_072);
+    }
 
     #[test]
     fn nested_resolution_transforms_preserve_expected_pixel_relationships() {

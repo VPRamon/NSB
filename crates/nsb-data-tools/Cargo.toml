@@ -14,7 +14,6 @@ doc = false
 
 [dependencies]
 anyhow = "1"
-cdshealpix = "0.9.1"
 clap = { version = "4", features = ["derive"] }
 csv = "1"
 flate2 = "1"
