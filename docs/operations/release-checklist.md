@@ -10,7 +10,9 @@ scientific calibration evidence.
 - [ ] `ComponentMask::ALL`, CLI `all`, examples, and docs agree.
 - [ ] No removed compatibility API appears under `crates/*/src`.
 - [ ] `Cargo.lock` is committed and the Siderust crates.io source identity matches the compatibility matrix.
-- [ ] Asset verifier passes and every data file has source, license, checksum, schema, generator, command, validation report, and maturity.
+- [ ] The registry verifier passes without downloading Git LFS payloads and validates every pointer OID and declared byte size.
+- [ ] The manual/release scientific-validation workflow fetches only the required Git LFS paths and the complete payload verifier passes.
+- [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
 - [ ] Bundled Gaia DR3 starlight, if shipped, has only the derived release CSV/TOML committed under `crates/nsb/data`, both registered as runtime-embedded production assets, plus validation evidence under `docs/validation/`.
 - [ ] Runtime starlight header checks agree with the release CSV manifest, and `pack_starlight_asset --production` self-loads the emitted CSV/TOML pair through `ValidatedStarlightMap`.
 - [ ] Gaia production extraction diagnostics show zero rejected selected sources, zero XP chunk failures, and at least one accepted XP source.
@@ -20,7 +22,8 @@ scientific calibration evidence.
 - [ ] Model maturity and known limitations match CLI metadata.
 - [ ] CTAO profiles remain uncalibrated unless dedicated validation data justify promotion.
 - [ ] B/V values remain labelled diagnostic unless passband validation lands.
-- [ ] Formatting, clippy, locked tests, doctests, docs, release build, MSRV, and `cargo deny` pass.
+- [ ] Format, check, Clippy, unit tests, integration tests, doctests, docs, release build, MSRV, `cargo deny`, and the aggregate `CI success` gate pass.
+- [ ] The coverage summary and HTML artifact are reviewed and any material line-coverage regression is explained.
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
 - [ ] Scheduled/manual benchmarks compile and performance changes are summarized.
 - [ ] `CHANGELOG.md` and version constants are updated.
