@@ -763,6 +763,14 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     artifact_store::atomic_write(path, bytes)
 }
 
+fn starlight_asset_schema(name: &str) -> &'static str {
+    if name == "merge_report.json" {
+        "nsb-starlight-merge-report-v3"
+    } else {
+        "nsb-healpix-starlight-candidate-v2"
+    }
+}
+
 fn update_manifest_checksum(
     document: &mut toml_edit::DocumentMut,
     dataset: DatasetName,
@@ -781,11 +789,7 @@ fn update_manifest_checksum(
         }
         let mut asset = toml_edit::Table::new();
         asset["path"] = toml_edit::value(name);
-        asset["schema"] = toml_edit::value(if name == "merge_report.json" {
-            "nsb-starlight-merge-report-v3"
-        } else {
-            "nsb-healpix-starlight-candidate-v2"
-        });
+        asset["schema"] = toml_edit::value(starlight_asset_schema(name));
         asset["sha256"] = toml_edit::value(checksum);
         asset["source"] =
             toml_edit::value("Gaia DR3 GaiaSource and XP continuous bulk distributions");
@@ -808,6 +812,9 @@ fn update_manifest_checksum(
             || asset["runtime_embedded"].as_bool() == Some(true))
     {
         bail!("candidate Starlight publish cannot replace a production runtime asset");
+    }
+    if dataset == DatasetName::Starlight {
+        asset["schema"] = toml_edit::value(starlight_asset_schema(name));
     }
     asset["sha256"] = toml_edit::value(checksum);
     asset["generator"] = toml_edit::value("nsb-data dataset pipeline");
@@ -934,5 +941,58 @@ mod tests {
         );
         assert_eq!(candidate["calibration_status"].as_str(), Some("candidate"));
         assert_eq!(candidate["runtime_embedded"].as_bool(), Some(false));
+    }
+
+    #[test]
+    fn starlight_publish_upgrades_existing_output_schemas() {
+        let mut document = r#"schema_version = 1
+
+[[assets]]
+path = "starlight_nside128.csv"
+schema = "nsb-healpix-starlight-candidate-v1"
+calibration_status = "candidate"
+runtime_embedded = false
+
+[[assets]]
+path = "merge_report.json"
+schema = "nsb-starlight-merge-report-v2"
+calibration_status = "candidate"
+runtime_embedded = false
+"#
+        .parse::<toml_edit::DocumentMut>()
+        .unwrap();
+
+        update_manifest_checksum(
+            &mut document,
+            DatasetName::Starlight,
+            "starlight_nside128.csv",
+            &"a".repeat(64),
+        )
+        .unwrap();
+        update_manifest_checksum(
+            &mut document,
+            DatasetName::Starlight,
+            "merge_report.json",
+            &"b".repeat(64),
+        )
+        .unwrap();
+
+        let assets = document["assets"].as_array_of_tables().unwrap();
+        let candidate = assets
+            .iter()
+            .find(|asset| asset["path"].as_str() == Some("starlight_nside128.csv"))
+            .unwrap();
+        let report = assets
+            .iter()
+            .find(|asset| asset["path"].as_str() == Some("merge_report.json"))
+            .unwrap();
+        assert_eq!(
+            candidate["schema"].as_str(),
+            Some("nsb-healpix-starlight-candidate-v2")
+        );
+        assert_eq!(
+            report["schema"].as_str(),
+            Some("nsb-starlight-merge-report-v3")
+        );
     }
 }
