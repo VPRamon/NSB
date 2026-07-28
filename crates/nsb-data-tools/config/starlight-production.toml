@@ -26,8 +26,7 @@ request_timeout_seconds = 1800
 max_attempts = 5
 
 [starlight.map]
-target_nside = 128
-sweep_nsides = [64, 128, 256, 512]
+canonical_nside = 128
 
 [[starlight.gaia_products]]
 id = "gaia-source"

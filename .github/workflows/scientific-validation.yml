@@ -12,21 +12,14 @@ jobs:
   validation:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout without Git LFS payloads
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          lfs: false
-      - name: Fetch production Starlight payload
-        shell: bash
-        run: |
-          git lfs install --local
-          git lfs pull --include="crates/nsb/data/starlight_nside512.csv" --exclude=""
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
-      - name: Verify complete scientific asset payloads
-        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_payloads_verify -- --ignored --exact
+      - name: Verify scientific assets
+        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
       - name: Run external and end-to-end validation matrices
         run: |
           cargo test --locked -p nsb full_moon_reference_geometry_matches_published_brightness

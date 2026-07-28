@@ -1,4 +1,4 @@
-//! Deterministic merge, map emission, and production validation.
+//! Deterministic canonical-map emission and production validation.
 
 use super::accumulator::{merge_shards, PartitionShard};
 use crate::dataset::{Artifact, ValidationGate};
@@ -9,7 +9,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 2;
+const REPORT_SCHEMA_VERSION: u32 = 3;
+const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v2";
+const MAP_ORDERING: &str = "nested";
+const MAP_FLUX_QUANTITY: &str = "integrated_per_pixel";
+const MAP_FLUX_UNIT: &str = "ph_m-2_s-1";
+const MAP_DERIVATION: &str = "canonical_gaia_source_accumulation";
+const MAP_SOURCE_COUNT_SEMANTICS: &str = "exact_source_membership";
 const ADMISSION_POLICY_ID: &str = "gaia-dr3-xp-continuous-join-v1";
 const POPULATION_POLICY_ID: &str = "selection-function-identity-stub-v1";
 const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
@@ -18,7 +24,6 @@ const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
 #[serde(deny_unknown_fields)]
 pub struct MergeReport {
     pub schema_version: u32,
-    pub nside: u32,
     pub shard_count: usize,
     pub partition_ids: Vec<String>,
     pub observed_sources: u64,
@@ -26,8 +31,25 @@ pub struct MergeReport {
     pub excluded_sources: u64,
     pub exclusion_reasons: BTreeMap<String, u64>,
     pub science_policy: SciencePolicyReport,
-    pub map_sha256: BTreeMap<String, String>,
+    pub canonical_map: CanonicalMapReport,
     pub deterministic_reference: DeterministicReference,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CanonicalMapReport {
+    pub path: String,
+    pub schema: String,
+    pub nside: u32,
+    pub ordering: String,
+    pub flux_quantity: String,
+    pub flux_unit: String,
+    pub derivation: String,
+    pub occupied_pixels: u64,
+    pub total_flux_ph_m2_s: f64,
+    pub admitted_sources: u64,
+    pub excluded_sources: u64,
+    pub sha256: String,
 }
 
 /// Machine-readable declaration of what the current candidate does and does not model.
@@ -73,7 +95,7 @@ pub struct DeterministicReference {
     pub stable: bool,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 struct MapPixel {
     flux: f64,
     compensation: f64,
@@ -83,10 +105,16 @@ struct MapPixel {
 
 impl MapPixel {
     fn add(&mut self, flux: f64, admitted: u64, excluded: u64) -> Result<()> {
+        if !flux.is_finite() {
+            bail!("cannot sum non-finite map flux");
+        }
         let adjusted = flux - self.compensation;
         let next = self.flux + adjusted;
         self.compensation = (next - self.flux) - adjusted;
         self.flux = next;
+        if !self.flux.is_finite() || !self.compensation.is_finite() {
+            bail!("numeric overflow in canonical map total");
+        }
         self.admitted = self
             .admitted
             .checked_add(admitted)
@@ -99,7 +127,11 @@ impl MapPixel {
     }
 }
 
-pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Result<Vec<Artifact>> {
+pub(crate) fn emit_maps(
+    workspace: &Path,
+    expected_partitions: &[String],
+    canonical_nside: u32,
+) -> Result<Vec<Artifact>> {
     let shard_root = workspace.join("outputs/shards");
     let mut shard_paths = if shard_root.is_dir() {
         fs::read_dir(&shard_root)?
@@ -118,11 +150,19 @@ pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Res
     if shard_paths.is_empty() {
         bail!("no reconciled Starlight shards; run build workers before validate");
     }
+
     let mut shards = Vec::with_capacity(shard_paths.len());
     for path in shard_paths {
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&path)?)
             .with_context(|| format!("parse Starlight shard {}", path.display()))?;
         shard.validate()?;
+        if shard.nside != canonical_nside {
+            bail!(
+                "Starlight shard {} uses nside={}, expected configured canonical nside={canonical_nside}",
+                shard.partition_id,
+                shard.nside
+            );
+        }
         shards.push(shard);
     }
     shards.sort_by(|left, right| left.partition_id.cmp(&right.partition_id));
@@ -137,33 +177,28 @@ pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Res
             expected_partitions.len()
         );
     }
+
     let merged = merge_shards(shards.clone())?;
+    if merged.nside != canonical_nside {
+        bail!("merged Starlight shard resolution does not match configuration");
+    }
     let independent = independently_merge_partials(&shards)?;
     let deterministic_reference = deterministic_reference(&merged, &independent)?;
 
     let output_root = workspace.join("outputs");
-    let map128 = output_root.join("starlight_nside128.csv");
-    let map64 = output_root.join("starlight_nside64.csv");
-    let map256 = output_root.join("starlight_nside256.csv");
-    let map512 = output_root.join("starlight_nside512.csv");
-    write_map(&map128, 128, map_pixels_128(&merged))?;
-    write_map(&map64, 64, downsample_64(&merged)?)?;
-    write_map(&map256, 256, upsample_256(&merged)?)?;
-    write_map(&map512, 512, upsample_512(&merged)?)?;
-
-    let mut map_sha256 = BTreeMap::new();
-    for (name, path) in [
-        ("starlight_nside128.csv", &map128),
-        ("starlight_nside64.csv", &map64),
-        ("starlight_nside256.csv", &map256),
-        ("starlight_nside512.csv", &map512),
-    ] {
-        map_sha256.insert(name.to_string(), checksum_io::sha256_file(path)?);
-    }
+    let map_name = canonical_map_name(canonical_nside);
+    let map_path = output_root.join(&map_name);
+    write_map(&map_path, canonical_nside, map_pixels(&merged))?;
+    let emitted_pixels = read_map(&map_path, canonical_nside)?;
+    let (map_flux, map_admitted, map_excluded) = map_totals(&emitted_pixels)?;
+    let map_sha256 = checksum_io::sha256_file(&map_path)?;
     let (observed_sources, admitted_sources, excluded_sources) = population_totals(&merged)?;
+    if admitted_sources != map_admitted || excluded_sources != map_excluded {
+        bail!("canonical map totals do not match merged shard population totals");
+    }
+
     let report = MergeReport {
         schema_version: REPORT_SCHEMA_VERSION,
-        nside: merged.nside,
         shard_count: shards.len(),
         partition_ids,
         observed_sources,
@@ -171,27 +206,41 @@ pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Res
         excluded_sources,
         exclusion_reasons: merged.exclusion_reasons.clone(),
         science_policy: science_policy_report(),
-        map_sha256,
+        canonical_map: CanonicalMapReport {
+            path: map_name.clone(),
+            schema: MAP_SCHEMA.to_string(),
+            nside: canonical_nside,
+            ordering: MAP_ORDERING.to_string(),
+            flux_quantity: MAP_FLUX_QUANTITY.to_string(),
+            flux_unit: MAP_FLUX_UNIT.to_string(),
+            derivation: MAP_DERIVATION.to_string(),
+            occupied_pixels: u64::try_from(emitted_pixels.len())
+                .context("occupied pixel count exceeds u64")?,
+            total_flux_ph_m2_s: map_flux,
+            admitted_sources: map_admitted,
+            excluded_sources: map_excluded,
+            sha256: map_sha256,
+        },
         deterministic_reference,
     };
+    validate_report_fields(&report, &map_path, &emitted_pixels)?;
+
     let report_path = output_root.join("merge_report.json");
     artifact_store::atomic_write(&report_path, &serde_json::to_vec_pretty(&report)?)?;
-
-    let mut artifacts = Vec::new();
-    for (name, path) in [
-        ("merge_report.json", report_path),
-        ("starlight_nside128.csv", map128),
-        ("starlight_nside256.csv", map256),
-        ("starlight_nside512.csv", map512),
-        ("starlight_nside64.csv", map64),
-    ] {
-        artifacts.push(Artifact {
-            name: name.to_string(),
-            sha256: checksum_io::sha256_file(&path)?,
-            bytes: path.metadata()?.len(),
-            path,
-        });
-    }
+    let mut artifacts = vec![
+        Artifact {
+            name: map_name,
+            sha256: checksum_io::sha256_file(&map_path)?,
+            bytes: map_path.metadata()?.len(),
+            path: map_path,
+        },
+        Artifact {
+            name: "merge_report.json".to_string(),
+            sha256: checksum_io::sha256_file(&report_path)?,
+            bytes: report_path.metadata()?.len(),
+            path: report_path,
+        },
+    ];
     artifacts.sort_by(|left, right| left.name.cmp(&right.name));
     artifact_store::atomic_write(
         &output_root.join("artifacts.json"),
@@ -200,17 +249,47 @@ pub(crate) fn emit_maps(workspace: &Path, expected_partitions: &[String]) -> Res
     Ok(artifacts)
 }
 
-pub(crate) fn scientific_gates(workspace: &Path) -> Result<Vec<ValidationGate>> {
+pub(crate) fn scientific_gates(
+    workspace: &Path,
+    canonical_nside: u32,
+) -> Result<Vec<ValidationGate>> {
     let report_path = workspace.join("outputs/merge_report.json");
     let report: MergeReport = serde_json::from_slice(&fs::read(&report_path)?)
         .with_context(|| format!("parse {}", report_path.display()))?;
+    let integrity = validate_report(&report_path);
     let accounting_passed = report
         .admitted_sources
         .checked_add(report.excluded_sources)
-        .is_some_and(|total| total == report.observed_sources);
-    let coverage = galactic_plane_coverage(&workspace.join("outputs/starlight_nside128.csv"))?;
+        .is_some_and(|total| {
+            total == report.observed_sources
+                && report.admitted_sources == report.canonical_map.admitted_sources
+                && report.excluded_sources == report.canonical_map.excluded_sources
+        });
+    let map_path = workspace
+        .join("outputs")
+        .join(canonical_map_name(canonical_nside));
+    let coverage = galactic_plane_coverage(&map_path, canonical_nside)?;
     let declared_policy = science_policy_is_declared(&report.science_policy);
+    let flux_passed = report.canonical_map.total_flux_ph_m2_s.is_finite()
+        && report.canonical_map.total_flux_ph_m2_s >= 0.0;
+
     Ok(vec![
+        ValidationGate {
+            name: "canonical-map-integrity".to_string(),
+            passed: integrity.is_ok(),
+            detail: integrity.err().map_or_else(
+                || report.canonical_map.sha256.clone(),
+                |error| error.to_string(),
+            ),
+        },
+        ValidationGate {
+            name: "canonical-map-flux".to_string(),
+            passed: flux_passed,
+            detail: format!(
+                "{:.17e} {}",
+                report.canonical_map.total_flux_ph_m2_s, report.canonical_map.flux_unit
+            ),
+        },
         ValidationGate {
             name: "pixel-coverage-galactic-plane".to_string(),
             passed: coverage >= 0.70,
@@ -255,80 +334,164 @@ pub(crate) fn scientific_gates(workspace: &Path) -> Result<Vec<ValidationGate>> 
 }
 
 pub(crate) fn validate_map(path: &Path, expected_nside: u32) -> Result<()> {
-    let text = fs::read_to_string(path)?;
-    for header in [
-        "# map_type=healpix",
-        "# coordinate_frame=galactic",
-        &format!("# nside={expected_nside}"),
-    ] {
-        if !text.lines().any(|line| line.trim() == header) {
-            bail!("{} is missing header {header}", path.display());
-        }
-    }
-    let mut rows = 0_usize;
-    for line in text
-        .lines()
-        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
-        .skip(1)
-    {
-        let fields = line.split(',').collect::<Vec<_>>();
-        if fields.len() != 4 {
-            bail!("{} contains a malformed map row", path.display());
-        }
-        let pixel = fields[0].parse::<u64>()?;
-        let flux = fields[1].parse::<f64>()?;
-        let _: u64 = fields[2].parse()?;
-        let _: u64 = fields[3].parse()?;
-        if pixel >= 12 * u64::from(expected_nside).pow(2) || !flux.is_finite() {
-            bail!(
-                "{} contains an invalid pixel or non-finite flux",
-                path.display()
-            );
-        }
-        rows += 1;
-    }
-    if rows == 0 {
-        bail!("{} contains no occupied map pixels", path.display());
-    }
-    Ok(())
+    read_map(path, expected_nside).map(|_| ())
 }
 
 pub(crate) fn validate_report(path: &Path) -> Result<()> {
     let report: MergeReport = serde_json::from_slice(&fs::read(path)?)?;
     if report.schema_version != REPORT_SCHEMA_VERSION
-        || report.nside != 128
         || !science_policy_is_declared(&report.science_policy)
     {
         bail!("unsupported Starlight merge report");
     }
-    let expected_maps = BTreeSet::from([
-        "starlight_nside64.csv",
-        "starlight_nside128.csv",
-        "starlight_nside256.csv",
-        "starlight_nside512.csv",
-    ]);
-    if report
-        .map_sha256
-        .keys()
-        .map(String::as_str)
-        .collect::<BTreeSet<_>>()
-        != expected_maps
+    let parent = path.parent().context("merge report has no parent")?;
+    let map_path = parent.join(&report.canonical_map.path);
+    let pixels = read_map(&map_path, report.canonical_map.nside)?;
+    validate_report_fields(&report, &map_path, &pixels)
+}
+
+fn validate_report_fields(
+    report: &MergeReport,
+    map_path: &Path,
+    pixels: &BTreeMap<u32, MapPixel>,
+) -> Result<()> {
+    let expected_path = canonical_map_name(report.canonical_map.nside);
+    if report.canonical_map.path != expected_path
+        || report.canonical_map.schema != MAP_SCHEMA
+        || report.canonical_map.ordering != MAP_ORDERING
+        || report.canonical_map.flux_quantity != MAP_FLUX_QUANTITY
+        || report.canonical_map.flux_unit != MAP_FLUX_UNIT
+        || report.canonical_map.derivation != MAP_DERIVATION
     {
-        bail!("Starlight merge report does not declare the complete resolution sweep");
+        bail!("canonical map report contains an incompatible contract");
     }
-    for (name, expected) in &report.map_sha256 {
-        let map_path = path
-            .parent()
-            .context("merge report has no parent")?
-            .join(name);
-        if checksum_io::sha256_file(&map_path)? != *expected {
-            bail!("merge report checksum mismatch for {name}");
-        }
+    let actual_sha256 = checksum_io::sha256_file(map_path)?;
+    if report.canonical_map.sha256 != actual_sha256 {
+        bail!("canonical map checksum does not match merge report");
+    }
+    let (total_flux, admitted, excluded) = map_totals(pixels)?;
+    let occupied_pixels =
+        u64::try_from(pixels.len()).context("occupied pixel count exceeds u64")?;
+    if report.canonical_map.occupied_pixels != occupied_pixels
+        || report.canonical_map.total_flux_ph_m2_s.to_bits() != total_flux.to_bits()
+        || report.canonical_map.admitted_sources != admitted
+        || report.canonical_map.excluded_sources != excluded
+        || report.admitted_sources != admitted
+        || report.excluded_sources != excluded
+    {
+        bail!("canonical map totals do not match merge report");
+    }
+    let observed = admitted
+        .checked_add(excluded)
+        .context("canonical source accounting overflow")?;
+    if report.observed_sources != observed {
+        bail!("global observed-source total does not match canonical map");
     }
     Ok(())
 }
 
-fn map_pixels_128(merged: &PartitionShard) -> BTreeMap<u32, MapPixel> {
+fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>> {
+    let text = fs::read_to_string(path)?;
+    let expected_headers = BTreeMap::from([
+        ("schema".to_string(), MAP_SCHEMA.to_string()),
+        ("map_type".to_string(), "healpix".to_string()),
+        ("coordinate_frame".to_string(), "galactic".to_string()),
+        ("ordering".to_string(), MAP_ORDERING.to_string()),
+        ("nside".to_string(), expected_nside.to_string()),
+        ("flux_quantity".to_string(), MAP_FLUX_QUANTITY.to_string()),
+        ("flux_unit".to_string(), MAP_FLUX_UNIT.to_string()),
+        ("derivation".to_string(), MAP_DERIVATION.to_string()),
+        (
+            "source_count_semantics".to_string(),
+            MAP_SOURCE_COUNT_SEMANTICS.to_string(),
+        ),
+    ]);
+    let mut observed_headers = BTreeMap::new();
+    for line in text
+        .lines()
+        .take_while(|line| line.trim_start().starts_with('#'))
+    {
+        let (key, value) = line
+            .trim_start()
+            .strip_prefix('#')
+            .context("invalid map header prefix")?
+            .trim()
+            .split_once('=')
+            .with_context(|| format!("{} contains malformed map header", path.display()))?;
+        if observed_headers
+            .insert(key.to_string(), value.to_string())
+            .is_some()
+        {
+            bail!("{} contains duplicate map header {key}", path.display());
+        }
+    }
+    if observed_headers != expected_headers {
+        bail!(
+            "{} has unknown or incompatible map headers: expected {:?}, found {:?}",
+            path.display(),
+            expected_headers,
+            observed_headers
+        );
+    }
+
+    let mut data_lines = text
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'));
+    if data_lines.next() != Some("pixel,flux_ph_m2_s,admitted_sources,excluded_sources") {
+        bail!("{} has an incompatible map column schema", path.display());
+    }
+    let mut pixels = BTreeMap::new();
+    for line in data_lines {
+        let fields = line.split(',').collect::<Vec<_>>();
+        if fields.len() != 4 {
+            bail!("{} contains a malformed map row", path.display());
+        }
+        let pixel = fields[0].parse::<u32>()?;
+        let flux = fields[1].parse::<f64>()?;
+        let admitted = fields[2].parse::<u64>()?;
+        let excluded = fields[3].parse::<u64>()?;
+        if u64::from(pixel) >= 12 * u64::from(expected_nside).pow(2)
+            || !flux.is_finite()
+            || flux < 0.0
+        {
+            bail!(
+                "{} contains an invalid pixel or non-finite/negative flux",
+                path.display()
+            );
+        }
+        if pixels
+            .insert(
+                pixel,
+                MapPixel {
+                    flux,
+                    admitted,
+                    excluded,
+                    ..MapPixel::default()
+                },
+            )
+            .is_some()
+        {
+            bail!("{} contains duplicate pixel {pixel}", path.display());
+        }
+    }
+    if pixels.is_empty() {
+        bail!("{} contains no occupied map pixels", path.display());
+    }
+    Ok(pixels)
+}
+
+fn map_totals(pixels: &BTreeMap<u32, MapPixel>) -> Result<(f64, u64, u64)> {
+    let mut total = MapPixel::default();
+    for pixel in pixels.values() {
+        total.add(pixel.flux, pixel.admitted, pixel.excluded)?;
+    }
+    if !total.flux.is_finite() || total.flux < 0.0 {
+        bail!("map has a non-finite or negative total flux");
+    }
+    Ok((total.flux, total.admitted, total.excluded))
+}
+
+fn map_pixels(merged: &PartitionShard) -> BTreeMap<u32, MapPixel> {
     merged
         .pixels
         .iter()
@@ -344,49 +507,6 @@ fn map_pixels_128(merged: &PartitionShard) -> BTreeMap<u32, MapPixel> {
             )
         })
         .collect()
-}
-
-fn downsample_64(merged: &PartitionShard) -> Result<BTreeMap<u32, MapPixel>> {
-    let mut pixels = BTreeMap::<u32, MapPixel>::new();
-    for (pixel, value) in &merged.pixels {
-        pixels.entry(*pixel >> 2).or_default().add(
-            value.flux_ph_m2_s.value(),
-            value.admitted_sources,
-            value.excluded_sources,
-        )?;
-    }
-    Ok(pixels)
-}
-
-fn upsample_256(merged: &PartitionShard) -> Result<BTreeMap<u32, MapPixel>> {
-    upsample(merged, 1)
-}
-
-fn upsample_512(merged: &PartitionShard) -> Result<BTreeMap<u32, MapPixel>> {
-    upsample(merged, 2)
-}
-
-fn upsample(merged: &PartitionShard, order_delta: u32) -> Result<BTreeMap<u32, MapPixel>> {
-    let child_count = 1_u32
-        .checked_shl(2 * order_delta)
-        .context("invalid HEALPix upsample order")?;
-    let mut pixels = BTreeMap::new();
-    for (pixel, value) in &merged.pixels {
-        for child in 0..child_count {
-            pixels.insert(
-                (*pixel << (2 * order_delta)) | child,
-                MapPixel {
-                    // Diagnostic nearest-neighbour upsampling preserves surface
-                    // brightness; it does not claim new source localization.
-                    flux: value.flux_ph_m2_s.value(),
-                    admitted: value.admitted_sources,
-                    excluded: value.excluded_sources,
-                    ..MapPixel::default()
-                },
-            );
-        }
-    }
-    Ok(pixels)
 }
 
 fn science_policy_report() -> SciencePolicyReport {
@@ -440,7 +560,16 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
 
 fn write_map(path: &Path, nside: u32, pixels: BTreeMap<u32, MapPixel>) -> Result<()> {
     let mut text = format!(
-        "# map_type=healpix\n# coordinate_frame=galactic\n# nside={nside}\npixel,flux_ph_m2_s,admitted_sources,excluded_sources\n"
+        "# schema={MAP_SCHEMA}\n\
+         # map_type=healpix\n\
+         # coordinate_frame=galactic\n\
+         # ordering={MAP_ORDERING}\n\
+         # nside={nside}\n\
+         # flux_quantity={MAP_FLUX_QUANTITY}\n\
+         # flux_unit={MAP_FLUX_UNIT}\n\
+         # derivation={MAP_DERIVATION}\n\
+         # source_count_semantics={MAP_SOURCE_COUNT_SEMANTICS}\n\
+         pixel,flux_ph_m2_s,admitted_sources,excluded_sources\n"
     );
     for (pixel, value) in pixels {
         text.push_str(&format!(
@@ -449,6 +578,10 @@ fn write_map(path: &Path, nside: u32, pixels: BTreeMap<u32, MapPixel>) -> Result
         ));
     }
     artifact_store::atomic_write(path, text.as_bytes())
+}
+
+fn canonical_map_name(nside: u32) -> String {
+    format!("starlight_nside{nside}.csv")
 }
 
 fn independently_merge_partials(shards: &[PartitionShard]) -> Result<PartitionShard> {
@@ -503,25 +636,17 @@ fn population_totals(merged: &PartitionShard) -> Result<(u64, u64, u64)> {
     Ok((observed, admitted, excluded))
 }
 
-fn galactic_plane_coverage(path: &Path) -> Result<f64> {
-    let text = fs::read_to_string(path)?;
-    let occupied = text
-        .lines()
-        .filter(|line| !line.trim_start().starts_with('#'))
-        .skip(1)
-        .filter_map(|line| {
-            let mut fields = line.split(',');
-            let pixel = fields.next()?.parse::<u32>().ok()?;
-            let _flux = fields.next()?;
-            let admitted = fields.next()?.parse::<u64>().ok()?;
-            (admitted > 0).then_some(pixel)
-        })
+fn galactic_plane_coverage(path: &Path, nside: u32) -> Result<f64> {
+    let pixels = read_map(path, nside)?;
+    let occupied = pixels
+        .into_iter()
+        .filter_map(|(pixel, value)| (value.admitted > 0).then_some(pixel))
         .collect::<BTreeSet<_>>();
     let mut plane_pixels = 0_u64;
     let mut covered = 0_u64;
     let plane_sin_latitude_limit = 20_f64.to_radians().sin();
-    for pixel in 0..12_u32 * 128 * 128 {
-        if nested_pixel_center_sin_latitude(128, pixel).abs() < plane_sin_latitude_limit {
+    for pixel in 0..12_u32 * nside * nside {
+        if nested_pixel_center_sin_latitude(nside, pixel).abs() < plane_sin_latitude_limit {
             plane_pixels += 1;
             if occupied.contains(&pixel) {
                 covered += 1;
@@ -535,11 +660,6 @@ fn galactic_plane_coverage(path: &Path) -> Result<f64> {
 }
 
 /// Return `sin(latitude)` for the centre of a NESTED HEALPix pixel.
-///
-/// The coverage gate only needs latitude, so decoding the face-local Morton
-/// index and applying the standard HEALPix ring-coordinate equation avoids
-/// pulling a full geometry crate (and its serialization dependency) into the
-/// production binary.
 fn nested_pixel_center_sin_latitude(nside: u32, pixel: u32) -> f64 {
     debug_assert!(nside.is_power_of_two());
     debug_assert!(pixel < 12 * nside * nside);
@@ -576,41 +696,186 @@ fn nested_pixel_center_sin_latitude(nside: u32, pixel: u32) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
-    #[test]
-    fn internal_nested_latitudes_cover_the_expected_galactic_plane_pixels() {
-        let north = 2.0 / 3.0;
-        for pixel in 0..4 {
-            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), north);
-        }
-        for pixel in 4..8 {
-            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), 0.0);
-        }
-        for pixel in 8..12 {
-            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), -north);
-        }
+    fn fixture_shard(nside: u32) -> PartitionShard {
+        let mut shard = PartitionShard::new("fixture", nside).unwrap();
+        shard.admit(0, 1.0e-6, 0.0, 0.0).unwrap();
+        shard.admit(1_u64 << 47, 42.25, 0.0, 0.0).unwrap();
+        shard.admit(2_u64 << 47, 1.0e12, 0.0, 0.0).unwrap();
+        shard.exclude(3_u64 << 47, "fixture_exclusion").unwrap();
+        shard
+    }
 
-        let plane_sin_latitude_limit = 20_f64.to_radians().sin();
-        let mut plane_pixels = 0_usize;
-        for pixel in 0..12_u32 * 128 * 128 {
-            plane_pixels += usize::from(
-                nested_pixel_center_sin_latitude(128, pixel).abs() < plane_sin_latitude_limit,
-            );
-        }
-        assert_eq!(plane_pixels, 67_072);
+    fn emit_fixture(temp: &TempDir, nside: u32) -> MergeReport {
+        let shard = fixture_shard(nside);
+        let shard_path = temp.path().join("outputs/shards/fixture.json");
+        shard.write(&shard_path).unwrap();
+        let artifacts = emit_maps(temp.path(), &["fixture".to_string()], nside).unwrap();
+        assert_eq!(
+            artifacts
+                .iter()
+                .map(|artifact| artifact.name.clone())
+                .collect::<Vec<_>>(),
+            ["merge_report.json".to_string(), canonical_map_name(nside)]
+        );
+        serde_json::from_slice(&fs::read(temp.path().join("outputs/merge_report.json")).unwrap())
+            .unwrap()
+    }
+
+    fn rewrite_report(temp: &TempDir, report: &MergeReport) {
+        artifact_store::atomic_write(
+            &temp.path().join("outputs/merge_report.json"),
+            &serde_json::to_vec_pretty(report).unwrap(),
+        )
+        .unwrap();
     }
 
     #[test]
-    fn nested_resolution_transforms_preserve_expected_pixel_relationships() {
-        let mut shard = PartitionShard::new("fixture", 128).unwrap();
-        shard.admit(42_u64 << 45, 10.0, 1.0, 0.0).unwrap();
-        let pixel = *shard.pixels.keys().next().unwrap();
-        let down = downsample_64(&shard).unwrap();
-        assert!(down.contains_key(&(pixel >> 2)));
-        let up = upsample_256(&shard).unwrap();
-        assert!((0..4).all(|child| up.contains_key(&((pixel << 2) | child))));
-        let up512 = upsample_512(&shard).unwrap();
-        assert!((0..16).all(|child| up512.contains_key(&((pixel << 4) | child))));
+    fn production_emits_only_canonical_map_and_report() {
+        let temp = TempDir::new().unwrap();
+        emit_fixture(&temp, 128);
+        let outputs = fs::read_dir(temp.path().join("outputs"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect::<BTreeSet<_>>();
+        assert!(outputs.contains("starlight_nside128.csv"));
+        assert!(outputs.contains("merge_report.json"));
+        assert!(!outputs.iter().any(|name| {
+            [
+                "starlight_nside64.csv",
+                "starlight_nside256.csv",
+                "starlight_nside512.csv",
+            ]
+            .contains(&name.as_str())
+        }));
+    }
+
+    #[test]
+    fn configured_nside_reaches_emitted_map() {
+        let temp = TempDir::new().unwrap();
+        let report = emit_fixture(&temp, 256);
+        assert_eq!(report.canonical_map.nside, 256);
+        validate_map(&temp.path().join("outputs/starlight_nside256.csv"), 256).unwrap();
+    }
+
+    #[test]
+    fn canonical_report_matches_map_flux() {
+        let temp = TempDir::new().unwrap();
+        let report = emit_fixture(&temp, 128);
+        let pixels = read_map(&temp.path().join("outputs/starlight_nside128.csv"), 128).unwrap();
+        assert_eq!(
+            report.canonical_map.total_flux_ph_m2_s.to_bits(),
+            map_totals(&pixels).unwrap().0.to_bits()
+        );
+    }
+
+    #[test]
+    fn canonical_report_matches_global_source_totals() {
+        let temp = TempDir::new().unwrap();
+        let report = emit_fixture(&temp, 128);
+        assert_eq!(
+            report.admitted_sources,
+            report.canonical_map.admitted_sources
+        );
+        assert_eq!(
+            report.excluded_sources,
+            report.canonical_map.excluded_sources
+        );
+        assert_eq!(
+            report.observed_sources,
+            report.admitted_sources + report.excluded_sources
+        );
+    }
+
+    #[test]
+    fn validation_rejects_corrupted_global_admitted_sources() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.admitted_sources += 1;
+        report.observed_sources += 1;
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_corrupted_global_excluded_sources() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.excluded_sources += 1;
+        report.observed_sources += 1;
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_corrupted_observed_sources() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.observed_sources += 1;
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_wrong_canonical_checksum() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.canonical_map.sha256 = "0".repeat(64);
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_wrong_canonical_nside() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.canonical_map.nside = 256;
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_duplicate_map_pixel() {
+        let temp = TempDir::new().unwrap();
+        emit_fixture(&temp, 128);
+        let path = temp.path().join("outputs/starlight_nside128.csv");
+        let mut text = fs::read_to_string(&path).unwrap();
+        text.push_str("0,1.0e0,1,0\n");
+        artifact_store::atomic_write(&path, text.as_bytes()).unwrap();
+        assert!(validate_map(&path, 128).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_unknown_map_header() {
+        let temp = TempDir::new().unwrap();
+        emit_fixture(&temp, 128);
+        let path = temp.path().join("outputs/starlight_nside128.csv");
+        let text = fs::read_to_string(&path).unwrap().replacen(
+            "# map_type=healpix",
+            "# unexpected=value\n# map_type=healpix",
+            1,
+        );
+        artifact_store::atomic_write(&path, text.as_bytes()).unwrap();
+        assert!(validate_map(&path, 128).is_err());
+    }
+
+    #[test]
+    fn candidate_science_limitations_are_versioned_and_explicit() {
+        let policy = science_policy_report();
+        assert_eq!(policy.schema_version, 1);
+        assert_eq!(policy.admission_policy_id, ADMISSION_POLICY_ID);
+        assert_eq!(policy.population_correction.policy_id, POPULATION_POLICY_ID);
+        assert!(!policy.population_correction.applied);
+        assert_eq!(policy.population_correction.minimum_weight, 1.0);
+        assert_eq!(policy.population_correction.maximum_weight, 1.0);
+        assert_eq!(policy.spectral_coverage.policy_id, SPECTRAL_POLICY_ID);
+        assert_eq!(
+            policy.spectral_coverage.directly_integrated_band_nm,
+            [336, 650]
+        );
+        assert!(!policy.spectral_coverage.ultraviolet_correction_applied);
+        assert!(science_policy_is_declared(&policy));
     }
 
     #[test]
@@ -632,20 +897,17 @@ mod tests {
     }
 
     #[test]
-    fn candidate_science_limitations_are_versioned_and_explicit() {
-        let policy = science_policy_report();
-        assert_eq!(policy.schema_version, 1);
-        assert_eq!(policy.admission_policy_id, ADMISSION_POLICY_ID);
-        assert_eq!(policy.population_correction.policy_id, POPULATION_POLICY_ID);
-        assert!(!policy.population_correction.applied);
-        assert_eq!(policy.population_correction.minimum_weight, 1.0);
-        assert_eq!(policy.population_correction.maximum_weight, 1.0);
-        assert_eq!(policy.spectral_coverage.policy_id, SPECTRAL_POLICY_ID);
-        assert_eq!(
-            policy.spectral_coverage.directly_integrated_band_nm,
-            [336, 650]
-        );
-        assert!(!policy.spectral_coverage.ultraviolet_correction_applied);
-        assert!(science_policy_is_declared(&policy));
+    fn internal_nested_latitudes_cover_expected_pixels() {
+        let north = 2.0 / 3.0;
+        for pixel in 0..4 {
+            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), north);
+        }
+        let plane_sin_latitude_limit = 20_f64.to_radians().sin();
+        let plane_pixels = (0..12_u32 * 128 * 128)
+            .filter(|pixel| {
+                nested_pixel_center_sin_latitude(128, *pixel).abs() < plane_sin_latitude_limit
+            })
+            .count();
+        assert_eq!(plane_pixels, 67_072);
     }
 }

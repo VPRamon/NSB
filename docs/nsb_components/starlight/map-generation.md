@@ -1,6 +1,6 @@
 # Starlight dataset generation
 
-Starlight is maintained through the same dataset lifecycle as every NSB asset:
+Starlight uses the common dataset lifecycle:
 
 ```bash
 nsb-data dataset starlight update --config starlight.toml
@@ -10,43 +10,57 @@ nsb-data dataset starlight publish --config starlight.toml
 ```
 
 The production configuration imports the official GaiaSource and XP continuous
-checksum inventories. Both products must expose exactly the same source-range
-partitions. Large acquisition and build runs use those reconciled ranges as
-Slurm array tasks; local and Slurm workers enter the same Rust implementation
-and produce isolated manifests. Partition results are admitted only after
-checksum verification, exact accounting, deterministic reconciliation and
-dataset validation.
+checksum inventories. Both products must expose the same source-range
+partitions. Downloads enter the content-addressed cache only after checksum
+verification. Local and Slurm workers use the same Rust implementation and
+write isolated, strictly validated partition shards.
 
-Raw downloads are resumable and enter a content-addressed SHA-256 cache only
-after their official checksum passes. HEALPix partition checkpoints are sparse
-and merged in canonical partition order, so scheduler completion order cannot
-change the final bytes.
+## One canonical map
 
-The bundled manual map remains an experimental reproducibility snapshot.
-Publishing identical bytes does not promote its scientific maturity. A
-production Gaia-derived replacement must additionally satisfy the
+Each Starlight dataset version has exactly one `canonical_nside`:
+
+```toml
+[starlight.map]
+canonical_nside = 128
+```
+
+Every Gaia source contribution is accumulated directly into that resolution.
+The reconciled shards produce:
+
+```text
+starlight_nside{canonical_nside}.csv
+merge_report.json
+```
+
+The current candidate is nside 128. Changing `canonical_nside` changes the
+configuration checksum and run identity and requires a clean source-level
+generation, fresh report, validation, provenance, and scientific review. A
+higher-resolution release must never use a lower-resolution map as its input.
+
+`flux_ph_m2_s` is integrated photon flux per HEALPix pixel in `ph m-2 s-1`.
+Runtime queries may convert a pixel-integrated quantity into the runtime
+radiance contract using pixel solid angle; that does not make the candidate CSV
+a surface-radiance field.
+
+Resolution selection, when needed, is a separate scientific study comparing
+independent source-level runs. Only the selected candidate is published.
+Diagnostic resampling is outside the scientific publication lifecycle.
+
+The bundled manual seed remains a separate experimental snapshot. Publishing
+identical bytes does not promote its scientific maturity. A production
+Gaia-derived replacement must additionally satisfy the
 [science requirements](science-requirements.md), [validation
-contract](map-validation.md), redistribution policy and [runtime manifest
+contract](map-validation.md), redistribution policy, and [runtime manifest
 contract](external-manifest.md).
 
-Operational configuration, recovery and publication are documented in the
-[dataset maintainer guide](../../maintainer-guide/datasets.md).
+Operational recovery and publication are documented in the
+[dataset maintainer guide](../../maintainer-guide/datasets.md). Historical
+artifacts and limitations are recorded in
+[Provenance of existing starlight datasets](existing-datasets.md).
 
-The evidence retained for the maps already present in `crates/nsb/data`,
-including known limitations in their historical reproduction record, is
-documented in [Provenance of existing starlight datasets](existing-datasets.md).
+## Production hardening note
 
-## Production hardening notes (2026-07-28)
-
-During the full Gaia DR3 production run, one XP partition contained an invalid
-`bp_n_parameters=null` row in the upstream bulk ECSV. Strict integer parsing
-caused one partition worker to fail even though the row could not be calibrated.
-
-The XP bulk stream now skips rows that fail canonical parsing. This behavior is
-consistent with existing fail-closed handling in the worker path: records that
-cannot be calibrated are excluded from admitted flux and are tracked through
-partition/source accounting gates during `validate`.
-
-Operationally, if a single partition fails in Slurm while the rest complete,
-rerun only the missing partition with `--partitions <id>` and then rerun
-`validate` before `publish`.
+The full Gaia DR3 run encountered an upstream XP row with
+`bp_n_parameters=null`. Canonical parsing excludes records that cannot be
+calibrated and retains exact partition/source accounting. If a Slurm partition
+fails, rerun only that partition and then repeat validation before publication.

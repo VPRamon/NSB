@@ -60,7 +60,7 @@ The final production policy must include the specific attribution text and distr
 Only the following derived runtime artifacts may be considered for repository inclusion after approval and validation:
 
 ```text
-The final filenames must encode `336_650nm` and the nside selected by the reviewed 64/128/256 sweep. Record the exact paths only after that review.
+The final filenames must encode `336_650nm` and the one canonical nside selected by a reviewed resolution study of independently generated source-level candidates. Record the exact paths only after that review.
 ```
 
 The following are not allowed in the repository unless a separate review explicitly approves them:
@@ -87,7 +87,7 @@ Before creating the final `.txt` policy file, attach or reference:
 8. Independent validation reference used for production comparison.
 9. Final decision on whether the runtime asset is bundled or distributed externally.
 10. Reviewed 336-650 nm missing-flux estimate, uncertainty, and global/plane/pole convergence evidence.
-11. Reviewed nside=64/128/256 sweep recommendation.
+11. Reviewed recommendation from a resolution study whose candidates were independently generated from source-level Gaia contributions.
 
 ## Final-policy checklist
 

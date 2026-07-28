@@ -170,7 +170,8 @@ new model version and rationale.
 - no predefined region may fail solely because its reference value is omitted;
 - empirical coverage of nominal 68% intervals: 63--73%;
 - empirical coverage of nominal 95% intervals: 90--98%;
-- total-flux drift between admitted HEALPix resolutions: at most 0.1%;
+- in a dedicated resolution study, total-flux drift between independently
+  generated source-level candidates: at most 0.1%;
 - longitude-seam discontinuity: no statistically significant excess over
   adjacent longitude boundaries;
 - no negative correction, unbounded weight, NaN, missing pixel, or unexplained
@@ -194,12 +195,18 @@ failed gate.
 
 ## Resolution and operational requirements
 
-The final, fully corrected map is swept at `nside=64`, `128`, `256`, and `512`.
-The selected resolution is the lowest resolution that meets the scientific
-stability gates and the documented runtime budgets; it is not automatically the
-largest nside. The sweep records size, load and lookup time, memory, empty
-pixels, per-pixel support, flux conservation, regional stability, high-latitude
-noise, bright regions, seam behaviour, and uncertainty-field stability.
+Each dataset version publishes exactly one canonical map. The current
+Gaia-derived candidate is generated directly at nside 128.
+`flux_ph_m2_s` is integrated flux per pixel, not surface radiance.
+
+Resolution selection compares separate clean runs whose shards accumulate Gaia
+source contributions directly at each candidate nside. The study records size,
+load and lookup time, memory, empty pixels, per-pixel support, flux
+conservation, regional stability, high-latitude noise, bright regions, seam
+behaviour, and uncertainty-field stability. Synthetic upsampling or
+downsampling is not scientific candidate evidence. Only the selected candidate
+is published; a future nside change is a new dataset version with fresh
+provenance and validation.
 Smoothing is off unless a separately specified kernel and angular scale improve
 validated error while conserving flux.
 

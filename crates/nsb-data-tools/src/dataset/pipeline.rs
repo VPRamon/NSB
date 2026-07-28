@@ -39,8 +39,11 @@ pub trait DatasetPipeline: Sync {
     fn expected_outputs(&self) -> &'static [&'static str];
 
     /// Configuration-specific artifact set for pipelines with snapshot and production modes.
-    fn expected_outputs_for(&self, _config: &RunConfig) -> &'static [&'static str] {
+    fn expected_outputs_for(&self, _config: &RunConfig) -> Vec<String> {
         self.expected_outputs()
+            .iter()
+            .map(|name| (*name).to_string())
+            .collect()
     }
 
     /// Validate dataset-specific configuration before any state is written.

@@ -13,8 +13,9 @@ The public contract, configuration reference, local/Slurm execution model and
 publication workflow are documented in
 [`docs/maintainer-guide/datasets.md`](../../docs/maintainer-guide/datasets.md).
 
-The production Starlight lifecycle builds receipt-backed nside-128 partition
-shards, then emits candidate maps at nside 64, 128, 256, and 512 plus
-`merge_report.json`. The report explicitly identifies the current
+The production Starlight lifecycle builds receipt-backed partition shards
+directly at the configured `canonical_nside`, then emits exactly one canonical
+map plus `merge_report.json`. The current Gaia-derived candidate uses nside
+128. The report explicitly identifies the current
 join-only/identity-selection policy and missing 300–336 nm correction; these
 candidate artifacts are not silently registered as runtime production data.

@@ -1,6 +1,5 @@
 {
-  "schema_version": 2,
-  "nside": 128,
+  "schema_version": 3,
   "shard_count": 3386,
   "partition_ids": [
     "000000-003111",
@@ -3427,11 +3426,19 @@
       "limitation": "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied."
     }
   },
-  "map_sha256": {
-    "starlight_nside128.csv": "09ca9bd57407beab49ff26cf1fe8ab305ccf9394e244563ee833b059a2287d35",
-    "starlight_nside256.csv": "4c7d437994b7105415973b0e99ebb09812798323b13b7ae8952f6674685c8fad",
-    "starlight_nside512.csv": "7da040ea844969f44062eb76c172e2df7f75645d3d98006931968be7bbbb53e8",
-    "starlight_nside64.csv": "1cba5f154a801605d93f35501426c86e40bc120b620dc96f7f4372ff1ded3003"
+  "canonical_map": {
+    "path": "starlight_nside128.csv",
+    "schema": "nsb-healpix-starlight-candidate-v2",
+    "nside": 128,
+    "ordering": "nested",
+    "flux_quantity": "integrated_per_pixel",
+    "flux_unit": "ph_m-2_s-1",
+    "derivation": "canonical_gaia_source_accumulation",
+    "occupied_pixels": 196604,
+    "total_flux_ph_m2_s": 8646151809493.544,
+    "admitted_sources": 219109593,
+    "excluded_sources": 88049,
+    "sha256": "ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda"
   },
   "deterministic_reference": {
     "pixel": 0,

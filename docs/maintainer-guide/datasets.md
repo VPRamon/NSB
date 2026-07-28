@@ -212,7 +212,8 @@ entries) therefore prioritize the 2,676 not-yet-processed ranges; they do not
 become new evidence. After that array completes, submit
 the same full build once without `--skip-completed-from`. Workers already
 completed under the new lifecycle return from their checksum-valid manifests,
-while the 710 legacy ranges are rebuilt as nside-128 `PartitionShard` files.
+while the 710 legacy ranges are rebuilt as `PartitionShard` files at the
+configured canonical nside.
 Only then can validation see all 3,386 shards. The progress-guard backup and
 checkpoint directory remain read-only throughout.
 
@@ -226,19 +227,20 @@ nsb-data dataset starlight validate \
 Validation reconciles checksum-valid worker shards, performs a canonical merge,
 and emits:
 
-- `starlight_nside128.csv`, the candidate sparse target map
-- `starlight_nside64.csv`, the nested downsample
-- `starlight_nside256.csv`, the diagnostic nearest-neighbour upsample
-- `starlight_nside512.csv`, the high-resolution diagnostic upsample
-- `merge_report.json`, including population totals, map checksums, exclusions,
+- `starlight_nside{canonical_nside}.csv`, the single source-level canonical map
+- `merge_report.json`, including canonical-map flux/source totals, checksum,
+  exclusions,
   explicit science-policy limitations, and the deterministic partial-merge
   reference
 
 The release gates verify artifact checksum round trips, finite flux, at least
-70% occupied nside-128 pixels in the Galactic plane (`|b| < 20°`), exact
+70% occupied canonical pixels in the Galactic plane (`|b| < 20°`), exact
 observed/admitted/excluded population accounting, and a pixel checksum stable
 across an independent partial merge. The policy gate also verifies that the
 identity selection stub and missing 300–336 nm correction remain explicit.
+Validation rejects any missing or extra output, so derived resolution maps
+cannot enter publication. A future nside change requires a clean source-level
+run and a separate resolution-selection review.
 Publish accepts only unchanged artifacts from a passing validation report,
 copies them into `crates/nsb/data`, and updates or creates checksum registry
 entries. Newly created Starlight entries are deliberately
