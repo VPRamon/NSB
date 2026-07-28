@@ -19,7 +19,11 @@ Publishing updates `crates/nsb/data` and its manifest but never commits.
 
 Every command requires a versioned TOML file. Relative paths are resolved
 against that file, never the current directory. The repository configurations
-under `crates/nsb-data-tools/config/` reproduce the currently bundled assets.
+under `crates/nsb-data-tools/config/` define the supported regeneration
+workflows. They do not, by themselves, prove byte-for-byte reproducibility of
+historical artifacts whose original run evidence was not retained; the
+starlight exceptions are recorded in
+[Provenance of existing starlight datasets](../nsb_components/starlight/existing-datasets.md).
 Each source defines exactly one local `path` or HTTPS `url` plus its mandatory
 SHA-256; downloaded bytes are never admitted before verification.
 

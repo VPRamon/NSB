@@ -32,6 +32,10 @@ contract](external-manifest.md).
 Operational configuration, recovery and publication are documented in the
 [dataset maintainer guide](../../maintainer-guide/datasets.md).
 
+The evidence retained for the maps already present in `crates/nsb/data`,
+including known limitations in their historical reproduction record, is
+documented in [Provenance of existing starlight datasets](existing-datasets.md).
+
 ## Production hardening notes (2026-07-28)
 
 During the full Gaia DR3 production run, one XP partition contained an invalid

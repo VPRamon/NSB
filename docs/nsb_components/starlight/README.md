@@ -62,6 +62,7 @@ represented as production quality.
 ## Related documentation
 
 - [Starlight data-product pipeline](map-generation.md)
+- [Provenance of existing starlight datasets](existing-datasets.md)
 - [Starlight science requirements](science-requirements.md)
 - [Starlight map validation](map-validation.md)
 - [External starlight manifest](external-manifest.md)
