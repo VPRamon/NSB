@@ -27,6 +27,11 @@ headers; malformed, duplicate, or out-of-order rows; out-of-range pixels;
 negative or non-finite flux; empty maps; and row counts larger than
 `12 * nside^2`.
 
+The current candidate remains `runtime_embedded = false`. Any future runtime
+admission of this schema must materialize an omitted pixel as the same explicit
+zero-flux, zero-source-count value rather than treating omission as missing or
+unknown data.
+
 Report schema v4 declares one `canonical_map`. Validation independently reads
 the CSV using compensated summation and requires its checksum, nside, schema,
 representation, omitted-pixel semantics, pixel-domain size, occupied-pixel
