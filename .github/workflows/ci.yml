@@ -81,8 +81,8 @@ jobs:
       - name: Run library and binary unit tests
         run: cargo test --workspace --lib --bins --all-features --locked
 
-  integration_tests:
-    name: Integration and scientific tests
+  runtime_integration_tests:
+    name: Runtime integration tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout without Git LFS payloads
@@ -93,8 +93,38 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
-      - name: Run integration tests
-        run: cargo test --workspace --tests --all-features --locked
+      - name: Test nsb integrations
+        run: cargo test --locked -p nsb --tests --all-features
+
+  cli_tests:
+    name: CLI integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Test nsb-cli integrations
+        run: cargo test --locked -p nsb-cli --tests --all-features
+
+  data_tools_tests:
+    name: Data tools and scientific assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Test nsb-data-tools integrations
+        run: cargo test --locked -p nsb-data-tools --tests --all-features
       - name: Verify scientific asset registry explicitly
         run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
 
@@ -254,7 +284,9 @@ jobs:
       - check
       - clippy
       - unit_tests
-      - integration_tests
+      - runtime_integration_tests
+      - cli_tests
+      - data_tools_tests
       - doctests
       - docs
       - release
@@ -272,7 +304,9 @@ jobs:
             "${{ needs.check.result }}"
             "${{ needs.clippy.result }}"
             "${{ needs.unit_tests.result }}"
-            "${{ needs.integration_tests.result }}"
+            "${{ needs.runtime_integration_tests.result }}"
+            "${{ needs.cli_tests.result }}"
+            "${{ needs.data_tools_tests.result }}"
             "${{ needs.doctests.result }}"
             "${{ needs.docs.result }}"
             "${{ needs.release.result }}"
