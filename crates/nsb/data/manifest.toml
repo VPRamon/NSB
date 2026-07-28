@@ -132,6 +132,8 @@ generation_command = "exact historical command not retained; see docs/nsb_compon
 validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
 calibration_status = "candidate"
 runtime_embedded = false
+storage = "git-lfs"
+bytes = 112900586
 
 [[assets]]
 path = "starlight_nside64.csv"
