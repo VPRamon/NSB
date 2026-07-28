@@ -29,24 +29,19 @@ impl DatasetPipeline for StarlightPipeline {
     }
 
     fn expected_outputs(&self) -> &'static [&'static str] {
-        &[
-            "starlight_nside128.csv",
-            "starlight_nside64.csv",
-            "starlight_nside256.csv",
-            "starlight_nside512.csv",
-            "merge_report.json",
-        ]
+        &["starlight_manual_seed_v1.csv"]
     }
 
-    fn expected_outputs_for(&self, config: &RunConfig) -> &'static [&'static str] {
-        if config
-            .starlight
-            .as_ref()
-            .is_some_and(|starlight| starlight.mode == StarlightMode::Production)
-        {
-            self.expected_outputs()
-        } else {
-            &["starlight_manual_seed_v1.csv"]
+    fn expected_outputs_for(&self, config: &RunConfig) -> Vec<String> {
+        match &config.starlight {
+            Some(starlight) if starlight.mode == StarlightMode::Production => {
+                production_output_names(starlight.map.canonical_nside)
+            }
+            _ => self
+                .expected_outputs()
+                .iter()
+                .map(|name| (*name).to_string())
+                .collect(),
         }
     }
 
@@ -95,16 +90,17 @@ impl DatasetPipeline for StarlightPipeline {
             &starlight.gaia_products,
             partitions,
             config.execution.concurrency,
+            starlight.map.canonical_nside,
         )?;
         super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
         Ok(Some(artifacts))
     }
 
     fn finalize(&self, config: &RunConfig) -> Result<Option<Vec<Artifact>>> {
-        if config
+        if let Some(starlight) = config
             .starlight
             .as_ref()
-            .is_some_and(|starlight| starlight.mode == StarlightMode::Production)
+            .filter(|starlight| starlight.mode == StarlightMode::Production)
         {
             let expected = self
                 .available_partitions(config)?
@@ -112,6 +108,7 @@ impl DatasetPipeline for StarlightPipeline {
             return Ok(Some(super::map::product::emit_maps(
                 &config.workspace.root,
                 &expected,
+                starlight.map.canonical_nside,
             )?));
         }
         Ok(None)
@@ -122,12 +119,15 @@ impl DatasetPipeline for StarlightPipeline {
         config: &RunConfig,
         _artifacts: &[Artifact],
     ) -> Result<Vec<ValidationGate>> {
-        if config
+        if let Some(starlight) = config
             .starlight
             .as_ref()
-            .is_some_and(|starlight| starlight.mode == StarlightMode::Production)
+            .filter(|starlight| starlight.mode == StarlightMode::Production)
         {
-            return super::map::product::scientific_gates(&config.workspace.root);
+            return super::map::product::scientific_gates(
+                &config.workspace.root,
+                starlight.map.canonical_nside,
+            );
         }
         Ok(Vec::new())
     }
@@ -136,13 +136,10 @@ impl DatasetPipeline for StarlightPipeline {
         if name == "merge_report.json" {
             return super::map::product::validate_report(path);
         }
-        let expected_nside = match name {
-            "starlight_nside64.csv" => Some(64),
-            "starlight_nside128.csv" => Some(128),
-            "starlight_nside256.csv" => Some(256),
-            "starlight_nside512.csv" => Some(512),
-            _ => None,
-        };
+        let expected_nside = name
+            .strip_prefix("starlight_nside")
+            .and_then(|suffix| suffix.strip_suffix(".csv"))
+            .and_then(|nside| nside.parse::<u32>().ok());
         if let Some(nside) = expected_nside {
             return super::map::product::validate_map(path, nside);
         }
@@ -170,21 +167,7 @@ impl DatasetPipeline for StarlightPipeline {
         let Some(starlight) = &config.starlight else {
             return Ok(());
         };
-        if starlight.map.target_nside != 128 {
-            bail!("production Starlight target_nside must be 128");
-        }
-        let configured_nsides = starlight
-            .map
-            .sweep_nsides
-            .iter()
-            .copied()
-            .collect::<std::collections::BTreeSet<_>>();
-        let required_nsides = std::collections::BTreeSet::from([64, 128, 256, 512]);
-        if configured_nsides != required_nsides
-            || configured_nsides.len() != starlight.map.sweep_nsides.len()
-        {
-            bail!("Starlight resolution sweep must be exactly [64, 128, 256, 512]");
-        }
+        super::config::validate_canonical_nside(starlight.map.canonical_nside)?;
         for product in &starlight.gaia_products {
             if product.id.trim().is_empty()
                 || product.filename_prefix.is_empty()
@@ -240,4 +223,40 @@ fn configured_partitions(config: &RunConfig) -> Vec<String> {
     partitions.sort();
     partitions.dedup();
     partitions
+}
+
+fn production_output_names(canonical_nside: u32) -> Vec<String> {
+    vec![
+        format!("starlight_nside{canonical_nside}.csv"),
+        "merge_report.json".to_string(),
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn changing_canonical_nside_changes_output_name() {
+        assert_eq!(
+            production_output_names(128),
+            ["starlight_nside128.csv", "merge_report.json"]
+        );
+        assert_eq!(
+            production_output_names(256),
+            ["starlight_nside256.csv", "merge_report.json"]
+        );
+    }
+
+    #[test]
+    fn publication_does_not_include_derived_resolution_maps() {
+        let outputs = production_output_names(128);
+        for retired in [
+            "starlight_nside64.csv",
+            "starlight_nside256.csv",
+            "starlight_nside512.csv",
+        ] {
+            assert!(!outputs.iter().any(|output| output == retired));
+        }
+    }
 }

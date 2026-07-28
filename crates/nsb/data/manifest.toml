@@ -88,11 +88,11 @@ generated_by = "nsb-data-tools-compatible manual seed workflow using siderust HE
 [[assets]]
 path = "merge_report.json"
 schema = "nsb-starlight-merge-report-v3"
-sha256 = "b75f08407b3e0d54a897f0ff6663bfa0ae71416e2276547dc21a929db9c48de2"
+sha256 = "9a09a9be25b6fef472eb53bc36fd7567f76775504859c133c9278ea36f14b371"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
-generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- _repair-starlight-resolution-sweep --data-dir crates/nsb/data"
+generation_command = "metadata-only canonical-map migration in PR #77; original Gaia production command was not retained"
 validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
 calibration_status = "candidate"
 runtime_embedded = false
@@ -104,45 +104,7 @@ sha256 = "ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
-generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- _repair-starlight-resolution-sweep --data-dir crates/nsb/data"
-validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
-calibration_status = "candidate"
-runtime_embedded = false
-
-[[assets]]
-path = "starlight_nside256.csv"
-schema = "nsb-healpix-starlight-candidate-v2"
-sha256 = "8358577664e89e1530ee421b6ced77599aa8a08216711b52eddc9e95f162a7a1"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
-license = "Gaia data licence: CC BY-NC 3.0 IGO"
-generator = "nsb-data dataset pipeline"
-generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- _repair-starlight-resolution-sweep --data-dir crates/nsb/data"
-validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
-calibration_status = "candidate"
-runtime_embedded = false
-
-[[assets]]
-path = "starlight_nside512.csv"
-schema = "nsb-healpix-starlight-candidate-v2"
-sha256 = "91821d0b166242cc71fdb14c7b6060c48bf515feb3b00b37021950e575d8ea25"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
-license = "Gaia data licence: CC BY-NC 3.0 IGO"
-generator = "nsb-data dataset pipeline"
-generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- _repair-starlight-resolution-sweep --data-dir crates/nsb/data"
-validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
-calibration_status = "candidate"
-runtime_embedded = false
-storage = "git-lfs"
-bytes = 109020557
-
-[[assets]]
-path = "starlight_nside64.csv"
-schema = "nsb-healpix-starlight-candidate-v2"
-sha256 = "455c7f102f367203c5a8f42f497055067b7b276e06987427b7c8a328462bdb3c"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
-license = "Gaia data licence: CC BY-NC 3.0 IGO"
-generator = "nsb-data dataset pipeline"
-generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- _repair-starlight-resolution-sweep --data-dir crates/nsb/data"
+generation_command = "metadata-only header migration in PR #77; scientific rows are unchanged from the original Gaia production artifact"
 validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
 calibration_status = "candidate"
 runtime_embedded = false

@@ -10,8 +10,8 @@ scientific calibration evidence.
 - [ ] `ComponentMask::ALL`, CLI `all`, examples, and docs agree.
 - [ ] No removed compatibility API appears under `crates/*/src`.
 - [ ] `Cargo.lock` is committed and the Siderust crates.io source identity matches the compatibility matrix.
-- [ ] The registry verifier passes without downloading Git LFS payloads and validates every pointer OID and declared byte size.
-- [ ] The manual/release scientific-validation workflow fetches only the required Git LFS paths and the complete payload verifier passes.
+- [ ] The registry verifier passes from a normal checkout and validates every tracked scientific payload checksum.
+- [ ] The manual/release scientific-validation workflow passes without external asset fetching.
 - [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
 - [ ] Bundled Gaia DR3 starlight, if shipped, has only the derived release CSV/TOML committed under `crates/nsb/data`, both registered as runtime-embedded production assets, plus validation evidence under `docs/validation/`.
 - [ ] Runtime starlight header checks agree with the release CSV manifest, and `pack_starlight_asset --production` self-loads the emitted CSV/TOML pair through `ValidatedStarlightMap`.

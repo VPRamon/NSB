@@ -9,6 +9,7 @@ use super::slurm;
 use crate::platform::artifact_store;
 use crate::platform::checksum_io;
 use anyhow::{bail, Context, Result};
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -440,12 +441,15 @@ fn validate(config: &RunConfig) -> Result<ValidationReport> {
     }
     gates.extend(pipeline.validation_gates(config, &artifacts)?);
     let expected = pipeline.expected_outputs_for(config);
+    let expected_set = expected.iter().map(String::as_str).collect::<BTreeSet<_>>();
+    let actual_set = artifacts
+        .iter()
+        .map(|artifact| artifact.name.as_str())
+        .collect::<BTreeSet<_>>();
     gates.push(ValidationGate {
         name: "complete-artifact-set".to_string(),
-        passed: expected
-            .iter()
-            .all(|name| artifacts.iter().any(|a| a.name == *name)),
-        detail: format!("{} artifacts", artifacts.len()),
+        passed: actual_set == expected_set && artifacts.len() == expected.len(),
+        detail: format!("expected {:?}; found {:?}", expected_set, actual_set),
     });
     let report = ValidationReport {
         schema_version: RUN_SCHEMA_VERSION,

@@ -1,5 +1,6 @@
 //! Versioned production Starlight configuration.
 
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 /// Starlight-specific inputs and scientific policy.
@@ -15,7 +16,7 @@ pub struct StarlightConfig {
     /// Download retry, timeout, and cache policy.
     #[serde(default)]
     pub acquisition: AcquisitionConfig,
-    /// Target and validation HEALPix resolutions.
+    /// Canonical HEALPix map policy.
     #[serde(default)]
     pub map: StarlightMapConfig,
 }
@@ -99,27 +100,32 @@ impl OfficialChecksumAlgorithm {
     }
 }
 
-/// HEALPix production and sweep policy.
+/// HEALPix canonical-map policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StarlightMapConfig {
-    #[serde(default = "default_target_nside")]
-    pub target_nside: u32,
-    #[serde(default = "default_sweep_nsides")]
-    pub sweep_nsides: Vec<u32>,
+    /// Resolution used directly for source-level accumulation and publication.
+    #[serde(default = "default_canonical_nside")]
+    pub canonical_nside: u32,
 }
 
 impl Default for StarlightMapConfig {
     fn default() -> Self {
         Self {
-            target_nside: default_target_nside(),
-            sweep_nsides: default_sweep_nsides(),
+            canonical_nside: default_canonical_nside(),
         }
     }
 }
 
-fn default_target_nside() -> u32 {
+fn default_canonical_nside() -> u32 {
     128
+}
+
+pub(crate) fn validate_canonical_nside(nside: u32) -> Result<()> {
+    if nside == 0 || !nside.is_power_of_two() || nside > 4096 {
+        bail!("Starlight canonical_nside must be a power of two between 1 and 4096");
+    }
+    Ok(())
 }
 
 fn default_connect_timeout_seconds() -> u64 {
@@ -134,6 +140,33 @@ fn default_max_attempts() -> u32 {
     5
 }
 
-fn default_sweep_nsides() -> Vec<u32> {
-    vec![64, 128, 256, 512]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::checksum_io;
+
+    #[test]
+    fn canonical_nside_accepts_multiple_source_level_resolutions() {
+        validate_canonical_nside(128).unwrap();
+        validate_canonical_nside(256).unwrap();
+    }
+
+    #[test]
+    fn canonical_nside_fails_closed_for_unsupported_values() {
+        for nside in [0, 3, 8192] {
+            assert!(validate_canonical_nside(nside).is_err());
+        }
+    }
+
+    #[test]
+    fn changing_canonical_nside_changes_serialized_configuration_identity() {
+        let mut map = StarlightMapConfig::default();
+        let first = serde_json::to_vec(&map).unwrap();
+        map.canonical_nside = 256;
+        let second = serde_json::to_vec(&map).unwrap();
+        assert_ne!(
+            checksum_io::sha256_bytes(&first),
+            checksum_io::sha256_bytes(&second)
+        );
+    }
 }

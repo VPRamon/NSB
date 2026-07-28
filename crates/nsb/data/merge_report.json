@@ -1,6 +1,5 @@
 {
   "schema_version": 3,
-  "nside": 128,
   "shard_count": 3386,
   "partition_ids": [
     "000000-003111",
@@ -3427,53 +3426,19 @@
       "limitation": "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied."
     }
   },
-  "resolution_summaries": [
-    {
-      "nside": 64,
-      "role": "conservative_downsample",
-      "derivation": "conservative_downsample_from_nside128",
-      "occupied_pixels": 49152,
-      "total_flux_ph_m2_s": 8646151809493.544,
-      "admitted_sources": 219109593,
-      "excluded_sources": 88049,
-      "relative_flux_drift_from_nside128": 0.0
-    },
-    {
-      "nside": 128,
-      "role": "canonical",
-      "derivation": "canonical_gaia_source_accumulation",
-      "occupied_pixels": 196604,
-      "total_flux_ph_m2_s": 8646151809493.544,
-      "admitted_sources": 219109593,
-      "excluded_sources": 88049,
-      "relative_flux_drift_from_nside128": 0.0
-    },
-    {
-      "nside": 256,
-      "role": "diagnostic_conservative_upsample",
-      "derivation": "uniform_area_conservative_upsample_from_nside128",
-      "occupied_pixels": 786416,
-      "total_flux_ph_m2_s": 8646151809493.544,
-      "admitted_sources": 219109593,
-      "excluded_sources": 88049,
-      "relative_flux_drift_from_nside128": 0.0
-    },
-    {
-      "nside": 512,
-      "role": "diagnostic_conservative_upsample",
-      "derivation": "uniform_area_conservative_upsample_from_nside128",
-      "occupied_pixels": 3145664,
-      "total_flux_ph_m2_s": 8646151809493.544,
-      "admitted_sources": 219109593,
-      "excluded_sources": 88049,
-      "relative_flux_drift_from_nside128": 0.0
-    }
-  ],
-  "map_sha256": {
-    "starlight_nside128.csv": "ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda",
-    "starlight_nside256.csv": "8358577664e89e1530ee421b6ced77599aa8a08216711b52eddc9e95f162a7a1",
-    "starlight_nside512.csv": "91821d0b166242cc71fdb14c7b6060c48bf515feb3b00b37021950e575d8ea25",
-    "starlight_nside64.csv": "455c7f102f367203c5a8f42f497055067b7b276e06987427b7c8a328462bdb3c"
+  "canonical_map": {
+    "path": "starlight_nside128.csv",
+    "schema": "nsb-healpix-starlight-candidate-v2",
+    "nside": 128,
+    "ordering": "nested",
+    "flux_quantity": "integrated_per_pixel",
+    "flux_unit": "ph_m-2_s-1",
+    "derivation": "canonical_gaia_source_accumulation",
+    "occupied_pixels": 196604,
+    "total_flux_ph_m2_s": 8646151809493.544,
+    "admitted_sources": 219109593,
+    "excluded_sources": 88049,
+    "sha256": "ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda"
   },
   "deterministic_reference": {
     "pixel": 0,

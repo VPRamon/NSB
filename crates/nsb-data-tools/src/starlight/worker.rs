@@ -23,6 +23,7 @@ pub(crate) fn build_partitions(
     products: &[GaiaProductConfig],
     partitions: &[String],
     concurrency: usize,
+    canonical_nside: u32,
 ) -> Result<Vec<Artifact>> {
     if partitions.is_empty() {
         return Ok(Vec::new());
@@ -47,6 +48,7 @@ pub(crate) fn build_partitions(
                             products,
                             partition,
                             calibrator,
+                            canonical_nside,
                         )
                     })
                     .collect()
@@ -74,6 +76,7 @@ fn build_partition(
     products: &[GaiaProductConfig],
     partition_id: &str,
     calibrator: &GaiaXpContinuousCalibrator,
+    canonical_nside: u32,
 ) -> Result<Artifact> {
     let gaia_path = acquisition::verified_object_for_partition(
         shared_workspace,
@@ -88,7 +91,7 @@ fn build_partition(
         partition_id,
     )?;
     let gaia_sources = load_gaia_source_ids(&gaia_path)?;
-    let mut shard = PartitionShard::new(partition_id, 128)?;
+    let mut shard = PartitionShard::new(partition_id, canonical_nside)?;
     let mut stream = super::xp::stream_bulk_ecsv_gz(&xp_path)?;
     while let Some(record) = stream.next_record()? {
         let source_id = record
@@ -290,9 +293,17 @@ mod tests {
             "XpContinuousMeanSpectrum_000000-003111.csv.gz",
         )?;
 
-        let artifacts = build_partitions(workspace, &products, &[partition.to_string()], 1)?;
+        let canonical_nside = 256;
+        let artifacts = build_partitions(
+            workspace,
+            &products,
+            &[partition.to_string()],
+            1,
+            canonical_nside,
+        )?;
         assert_eq!(artifacts.len(), 1);
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
+        assert_eq!(shard.nside, canonical_nside);
         assert_eq!(
             shard
                 .pixels
@@ -305,15 +316,17 @@ mod tests {
             .join("outputs/shards")
             .join(format!("{partition}.json"));
         artifact_store::atomic_write(&reconciled, &fs::read(&artifacts[0].path)?)?;
-        let maps = crate::starlight::map::product::emit_maps(workspace, &[partition.to_string()])?;
-        assert_eq!(maps.len(), 5);
-        crate::starlight::map::product::validate_map(
-            &workspace.join("outputs/starlight_nside128.csv"),
-            128,
+        let maps = crate::starlight::map::product::emit_maps(
+            workspace,
+            &[partition.to_string()],
+            canonical_nside,
         )?;
+        assert_eq!(maps.len(), 2);
         crate::starlight::map::product::validate_map(
-            &workspace.join("outputs/starlight_nside512.csv"),
-            512,
+            &workspace
+                .join("outputs")
+                .join(format!("starlight_nside{canonical_nside}.csv")),
+            canonical_nside,
         )?;
         Ok(())
     }
