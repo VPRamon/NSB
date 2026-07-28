@@ -1,52 +1,158 @@
 name: CI
 
 on:
-  pull_request:
   push:
     branches: [main]
-
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   RUSTFLAGS: -D warnings
+  CARGO_CI_TARGETS: --lib --bins --tests --examples
 
 jobs:
-  rust:
-    name: Rust release gates
+  format:
+    name: Format
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout without Git LFS payloads
         uses: actions/checkout@v4
-      - name: Install Rust toolchain
+        with:
+          lfs: false
+      - name: Install Rustfmt
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: rustfmt, clippy
+          components: rustfmt
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+  check:
+    name: Check (all features)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
-      - name: Formatting
-        run: cargo fmt --all --check
-      - name: Lints
-        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
-      - name: Locked tests
-        run: cargo test --workspace --all-targets --all-features --locked
-      - name: Locked doctests
-        run: cargo test --workspace --doc --locked
-      - name: Documentation
+      - name: Check workspace targets
+        run: cargo check --workspace $CARGO_CI_TARGETS --all-features --locked
+
+  clippy:
+    name: Clippy (all features)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Run Clippy
+        run: cargo clippy --workspace $CARGO_CI_TARGETS --all-features --locked -- -D warnings
+
+  unit_tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Run library and binary unit tests
+        run: cargo test --workspace --lib --bins --all-features --locked
+
+  integration_tests:
+    name: Integration and scientific tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Run integration tests
+        run: cargo test --workspace --tests --all-features --locked
+      - name: Verify scientific asset registry explicitly
+        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
+
+  doctests:
+    name: Doctests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Run doctests
+        run: cargo test --workspace --doc --all-features --locked
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Build documentation
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --all-features --no-deps --locked
-      - name: Locked release build
+
+  release:
+    name: Release build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Build release workspace
         run: cargo build --workspace --release --all-features --locked
-      - name: Verify scientific asset registry
-        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
-      - name: Verify lightweight Starlight pipeline fixture
-        run: cargo test --locked -p nsb-data-tools --lib starlight::worker::tests::paired_partition_builds_a_strict_shard_and_maps -- --exact
+
+  api_policy:
+    name: Production API policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
       - name: Reject removed production APIs
         shell: bash
         run: |
@@ -59,20 +165,130 @@ jobs:
     name: Dependency policy
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout without Git LFS payloads
         uses: actions/checkout@v4
+        with:
+          lfs: false
       - name: Check advisories, licenses, bans, and sources
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
 
   msrv:
-    name: Rust 1.89 library check
+    name: Rust 1.89 workspace check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout without Git LFS payloads
         uses: actions/checkout@v4
+        with:
+          lfs: false
       - name: Install MSRV
         uses: dtolnay/rust-toolchain@1.89
-      - name: Check runtime library at MSRV
-        run: cargo check --locked -p nsb --lib
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Check workspace at MSRV
+        run: cargo check --workspace --lib --bins --locked
+
+  coverage:
+    name: Test and coverage
+    if: ${{ github.event_name == 'push' || github.event.pull_request.draft == false }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - name: Install nightly Rust and LLVM tools
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: coverage
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Clean previous coverage data
+        run: cargo +nightly llvm-cov clean --workspace
+      - name: Collect coverage
+        run: cargo +nightly llvm-cov --workspace --all-features --doctests --locked --no-report
+      - name: Write Cobertura report
+        run: cargo +nightly llvm-cov report --cobertura --output-path coverage.xml
+      - name: Write HTML report
+        run: cargo +nightly llvm-cov report --html --output-dir coverage_html
+      - name: Build coverage summary
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.xml
+          badge: true
+          format: markdown
+          output: file
+      - name: Publish coverage to job summary
+        run: cat code-coverage-results.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Post or update coverage comment
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork == false }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-id: nsb-coverage
+          message-path: code-coverage-results.md
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload coverage HTML
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-html
+          path: coverage_html
+          retention-days: 7
+
+  ci_success:
+    name: CI success
+    if: always()
+    needs:
+      - format
+      - check
+      - clippy
+      - unit_tests
+      - integration_tests
+      - doctests
+      - docs
+      - release
+      - api_policy
+      - dependencies
+      - msrv
+      - coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful CI jobs
+        shell: bash
+        run: |
+          required_results=(
+            "${{ needs.format.result }}"
+            "${{ needs.check.result }}"
+            "${{ needs.clippy.result }}"
+            "${{ needs.unit_tests.result }}"
+            "${{ needs.integration_tests.result }}"
+            "${{ needs.doctests.result }}"
+            "${{ needs.docs.result }}"
+            "${{ needs.release.result }}"
+            "${{ needs.api_policy.result }}"
+            "${{ needs.dependencies.result }}"
+            "${{ needs.msrv.result }}"
+          )
+          for result in "${required_results[@]}"; do
+            if [[ "$result" != "success" ]]; then
+              echo "required CI job finished with result: $result" >&2
+              exit 1
+            fi
+          done
+
+          coverage_result="${{ needs.coverage.result }}"
+          if [[ "$coverage_result" != "success" && "$coverage_result" != "skipped" ]]; then
+            echo "coverage job finished with result: $coverage_result" >&2
+            exit 1
+          fi
