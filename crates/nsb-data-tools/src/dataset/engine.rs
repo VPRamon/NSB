@@ -9,8 +9,22 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+type SourceConfig = config::SourceConfig;
+
 #[path = "engine_core.rs"]
 mod core;
+
+pub(super) fn read_manifest(path: &Path) -> Result<model::RunManifest> {
+    core::read_manifest(path)
+}
+
+pub(super) fn write_manifest(path: &Path, manifest: &model::RunManifest) -> Result<()> {
+    core::write_manifest(path, manifest)
+}
+
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
+    core::atomic_write(path, bytes)
+}
 
 pub fn execute(
     config_path: &Path,
@@ -247,7 +261,10 @@ fn retire_other_canonical_entries(
     let mut retired = Vec::new();
     let mut index = 0;
     while index < assets.len() {
-        let Some(path) = assets[index]["path"].as_str().map(str::to_string) else {
+        let asset = assets
+            .get(index)
+            .context("manifest asset index disappeared during retirement")?;
+        let Some(path) = asset["path"].as_str().map(str::to_owned) else {
             index += 1;
             continue;
         };
@@ -255,15 +272,15 @@ fn retire_other_canonical_entries(
             index += 1;
             continue;
         }
-        let schema = assets[index]["schema"].as_str().unwrap_or_default();
+        let schema = asset["schema"].as_str().unwrap_or_default().to_owned();
+        let protected = asset["calibration_status"].as_str() == Some("production")
+            || asset["runtime_embedded"].as_bool() == Some(true);
         if !schema.starts_with("nsb-healpix-starlight-candidate-") {
             bail!(
                 "refusing to retire ambiguous Starlight map {path:?} with schema {schema:?}"
             );
         }
-        if assets[index]["calibration_status"].as_str() == Some("production")
-            || assets[index]["runtime_embedded"].as_bool() == Some(true)
-        {
+        if protected {
             bail!("candidate publish cannot retire production runtime asset {path:?}");
         }
         retired.push(path);
@@ -327,12 +344,12 @@ runtime_embedded = false
             retire_other_canonical_entries(&mut document, "starlight_nside256.csv").unwrap();
         assert_eq!(retired, ["starlight_nside128.csv"]);
         let assets = document["assets"].as_array_of_tables().unwrap();
-        assert!(assets.iter().any(|asset| {
-            asset["path"].as_str() == Some("starlight_manual_seed_v1.csv")
-        }));
-        assert!(!assets.iter().any(|asset| {
-            asset["path"].as_str() == Some("starlight_nside128.csv")
-        }));
+        assert!(assets
+            .iter()
+            .any(|asset| asset["path"].as_str() == Some("starlight_manual_seed_v1.csv")));
+        assert!(!assets
+            .iter()
+            .any(|asset| asset["path"].as_str() == Some("starlight_nside128.csv")));
     }
 
     #[test]
