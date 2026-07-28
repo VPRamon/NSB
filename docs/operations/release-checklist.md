@@ -22,7 +22,8 @@ scientific calibration evidence.
 - [ ] Model maturity and known limitations match CLI metadata.
 - [ ] CTAO profiles remain uncalibrated unless dedicated validation data justify promotion.
 - [ ] B/V values remain labelled diagnostic unless passband validation lands.
-- [ ] Formatting, clippy, locked tests, doctests, docs, release build, MSRV, and `cargo deny` pass.
+- [ ] Format, check, Clippy, unit tests, integration tests, doctests, docs, release build, MSRV, `cargo deny`, and the aggregate `CI success` gate pass.
+- [ ] The coverage summary and HTML artifact are reviewed and any material line-coverage regression is explained.
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
 - [ ] Scheduled/manual benchmarks compile and performance changes are summarized.
 - [ ] `CHANGELOG.md` and version constants are updated.
