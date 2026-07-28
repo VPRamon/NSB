@@ -43,8 +43,10 @@ jobs:
         run: cargo doc --workspace --all-features --no-deps --locked
       - name: Locked release build
         run: cargo build --workspace --release --all-features --locked
-      - name: Verify scientific assets
-        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_assets_verify -- --exact
+      - name: Verify scientific asset registry
+        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
+      - name: Verify lightweight Starlight pipeline fixture
+        run: cargo test --locked -p nsb-data-tools --lib starlight::worker::tests::paired_partition_builds_a_strict_shard_and_maps -- --exact
       - name: Reject removed production APIs
         shell: bash
         run: |
