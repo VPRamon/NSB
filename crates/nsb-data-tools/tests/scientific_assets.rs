@@ -359,7 +359,7 @@ mod tests {
             &format!("{LFS_POINTER_VERSION}\noid sha256:not-a-digest\nsize 42\n"),
         );
         let error = verify(&fixture.manifest_path, VerificationMode::Registry).unwrap_err();
-        assert!(error.to_string().contains("invalid SHA-256 OID"));
+        assert!(format!("{error:#}").contains("invalid SHA-256 OID"));
     }
 
     struct Fixture {
