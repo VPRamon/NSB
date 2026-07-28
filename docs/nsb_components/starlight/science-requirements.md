@@ -195,6 +195,12 @@ failed gate.
 ## Resolution and operational requirements
 
 The final, fully corrected map is swept at `nside=64`, `128`, `256`, and `512`.
+For the current candidate contract, `flux_ph_m2_s` is integrated flux per
+pixel, not surface radiance. Nside 128 is canonical; nside 64 conservatively
+aggregates NESTED parents, while nside 256 and 512 uniformly divide integrated
+flux by child area and are diagnostic products with no independent spatial
+resolution. Their deterministically apportioned integer source counters
+preserve totals but do not localize sources.
 The selected resolution is the lowest resolution that meets the scientific
 stability gates and the documented runtime budgets; it is not automatically the
 largest nside. The sweep records size, load and lookup time, memory, empty

@@ -778,9 +778,9 @@ fn update_manifest_checksum(
         let mut asset = toml_edit::Table::new();
         asset["path"] = toml_edit::value(name);
         asset["schema"] = toml_edit::value(if name == "merge_report.json" {
-            "nsb-starlight-merge-report-v2"
+            "nsb-starlight-merge-report-v3"
         } else {
-            "nsb-healpix-starlight-candidate-v1"
+            "nsb-healpix-starlight-candidate-v2"
         });
         asset["sha256"] = toml_edit::value(checksum);
         asset["source"] =
@@ -926,7 +926,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             candidate["schema"].as_str(),
-            Some("nsb-healpix-starlight-candidate-v1")
+            Some("nsb-healpix-starlight-candidate-v2")
         );
         assert_eq!(candidate["calibration_status"].as_str(), Some("candidate"));
         assert_eq!(candidate["runtime_embedded"].as_bool(), Some(false));

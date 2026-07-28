@@ -22,6 +22,33 @@ after their official checksum passes. HEALPix partition checkpoints are sparse
 and merged in canonical partition order, so scheduler completion order cannot
 change the final bytes.
 
+## Resolution and quantity contract
+
+`flux_ph_m2_s` is integrated photon flux per HEALPix pixel, in
+`ph m-2 s-1`; it is not surface radiance. The nside-128 map is the canonical
+Gaia source accumulation. The nside-64 map is a conservative NESTED
+downsample. The nside-256 and nside-512 maps are diagnostic conservative
+upsamples and contain no new spatial information.
+
+For an order increase of `order_delta`, each parent has
+`1 << (2 * order_delta)` children. The generator divides parent flux uniformly
+by that count, corresponding to equal child areas. Integer admitted/excluded
+source counts cannot be divided continuously, so the quotient is assigned to
+every child and the remainder to the lowest child indices. This deterministic
+apportionment preserves accounting exactly but does not represent physical
+source localization.
+
+The checked-in resolution sweep can be repaired without reprocessing Gaia:
+
+```bash
+cargo run --locked -p nsb-data-tools --bin nsb-data -- \
+  _repair-starlight-resolution-sweep --data-dir crates/nsb/data
+```
+
+This command reads the canonical nside-128 payload, preserves nside-64 values,
+regenerates nside 256/512, writes the versioned headers, updates report
+summaries/checksums, and validates the complete parent-child sweep.
+
 The bundled manual map remains an experimental reproducibility snapshot.
 Publishing identical bytes does not promote its scientific maturity. A
 production Gaia-derived replacement must additionally satisfy the

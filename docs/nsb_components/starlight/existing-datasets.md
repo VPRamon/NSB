@@ -27,6 +27,36 @@ starlight production ingest and publish Gaia DR3 maps”). This is the
 publication commit, not necessarily the exact generator revision recorded by
 the original run.
 
+### Issue #72 conservative-resolution replacement
+
+The original nside-256 and nside-512 generator copied the complete integrated
+parent-pixel flux and source counters to every child. Their all-sky flux and
+counts were therefore multiplied by approximately 4 and 16. The replacement
+published by the PR closing issue #72 keeps `flux_ph_m2_s` as integrated flux
+per pixel, divides it uniformly among equal-area NESTED children, and
+deterministically apportions integer counters. The latter preserves accounting
+but is not evidence of sub-pixel source position.
+
+All four CSVs now carry the explicit v2 quantity, unit, ordering, derivation,
+and source-count headers. This deliberate header versioning changes the
+nside-64 and nside-128 checksums without changing their scientific row values.
+The v3 merge report records totals calculated from each emitted map and their
+relative drift from canonical nside 128. All four current totals are
+`8.646151809493544e12 ph m-2 s-1`, with zero recorded drift and exact totals of
+219,109,593 admitted and 88,049 excluded sources.
+
+| Artifact | Previous SHA-256 | Corrected SHA-256 | Previous bytes | Corrected bytes |
+| --- | --- | --- | ---: | ---: |
+| `starlight_nside64.csv` | `1cba5f154a801605d93f35501426c86e40bc120b620dc96f7f4372ff1ded3003` | `455c7f102f367203c5a8f42f497055067b7b276e06987427b7c8a328462bdb3c` | 1,698,547 | 1,698,770 |
+| `starlight_nside128.csv` | `09ca9bd57407beab49ff26cf1fe8ab305ccf9394e244563ee833b059a2287d35` | `ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda` | 6,818,124 | 6,818,343 |
+| `starlight_nside256.csv` | `4c7d437994b7105415973b0e99ebb09812798323b13b7ae8952f6674685c8fad` | `8358577664e89e1530ee421b6ced77599aa8a08216711b52eddc9e95f162a7a1` | 27,605,482 | 27,067,506 |
+| `starlight_nside512.csv` | `7da040ea844969f44062eb76c172e2df7f75645d3d98006931968be7bbbb53e8` | `91821d0b166242cc71fdb14c7b6060c48bf515feb3b00b37021950e575d8ea25` | 112,900,586 | 109,020,557 |
+| `merge_report.json` | `521fe3a6bb1f7d0f9ce716ddcb92140b4f57c693c3375907a60aaefb23d9083a` | `b75f08407b3e0d54a897f0ff6663bfa0ae71416e2276547dc21a929db9c48de2` | 73,125 | 74,507 |
+
+The corrected nside-512 payload remains in Git LFS. Ordinary CI continues to
+use `lfs: false`; the dedicated scientific-validation workflow fetches only
+that payload.
+
 ### Retained evidence
 
 - The source family is the official Gaia DR3 GaiaSource and XP continuous bulk

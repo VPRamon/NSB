@@ -1,6 +1,12 @@
+# schema=nsb-healpix-starlight-candidate-v2
 # map_type=healpix
 # coordinate_frame=galactic
+# ordering=nested
 # nside=128
+# flux_quantity=integrated_per_pixel
+# flux_unit=ph_m-2_s-1
+# derivation=canonical_gaia_source_accumulation
+# source_count_semantics=exact_source_membership
 pixel,flux_ph_m2_s,admitted_sources,excluded_sources
 0,2.36260249236226715e7,94,0
 1,3.18337236614370719e6,83,0

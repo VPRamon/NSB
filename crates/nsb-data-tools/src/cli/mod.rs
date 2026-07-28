@@ -21,6 +21,12 @@ enum Command {
     Dataset(DatasetArgs),
     /// Inspect or resume a persisted run.
     Run(RunArgs),
+    /// Repair conservative Starlight derivatives from the canonical nside=128 map.
+    #[command(name = "_repair-starlight-resolution-sweep", hide = true)]
+    RepairStarlightResolutionSweep {
+        #[arg(long)]
+        data_dir: PathBuf,
+    },
     #[command(name = "_worker", hide = true)]
     Worker(WorkerArgs),
 }
@@ -128,6 +134,9 @@ pub fn run() -> Result<()> {
             RunCommand::Status { run } => dataset::status(&run),
             RunCommand::Resume { run } => dataset::resume(&run),
         },
+        Command::RepairStarlightResolutionSweep { data_dir } => {
+            crate::starlight::map::product::repair_resolution_sweep(&data_dir)
+        }
         Command::Worker(args) => dataset::run_worker(
             &args.config,
             args.dataset,
