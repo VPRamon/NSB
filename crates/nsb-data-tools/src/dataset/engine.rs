@@ -52,10 +52,7 @@ pub fn execute(
     );
 
     match (result, transaction) {
-        (Ok(()), Some(transaction)) => {
-            transaction.commit();
-            Ok(())
-        }
+        (Ok(()), Some(transaction)) => transaction.commit(),
         (Ok(()), None) => Ok(()),
         (Err(error), Some(mut transaction)) => match transaction.rollback() {
             Ok(()) => Err(error),
@@ -112,6 +109,7 @@ struct StarlightPublishTransaction {
     data_root: PathBuf,
     manifest_path: PathBuf,
     original_manifest: Vec<u8>,
+    current_map: String,
     backup_root: PathBuf,
     backups: Vec<FileBackup>,
     active: bool,
@@ -157,6 +155,7 @@ impl StarlightPublishTransaction {
             data_root,
             manifest_path,
             original_manifest,
+            current_map: current_map.clone(),
             backup_root,
             backups: Vec::new(),
             active: true,
@@ -191,7 +190,11 @@ impl StarlightPublishTransaction {
         Ok(Some(transaction))
     }
 
-    fn commit(mut self) {
+    fn commit(mut self) -> Result<()> {
+        if !self.published_state_is_complete()? {
+            self.rollback()?;
+            return Ok(());
+        }
         self.active = false;
         if let Err(error) = fs::remove_dir_all(&self.backup_root) {
             eprintln!(
@@ -199,6 +202,29 @@ impl StarlightPublishTransaction {
                 self.backup_root.display()
             );
         }
+        Ok(())
+    }
+
+    fn published_state_is_complete(&self) -> Result<bool> {
+        if !self.data_root.join(&self.current_map).is_file()
+            || !self.data_root.join("merge_report.json").is_file()
+        {
+            return Ok(false);
+        }
+        let document = fs::read_to_string(&self.manifest_path)?
+            .parse::<toml_edit::DocumentMut>()?;
+        let assets = document["assets"]
+            .as_array_of_tables()
+            .context("manifest is missing [[assets]]")?;
+        let maps = assets
+            .iter()
+            .filter_map(|asset| asset["path"].as_str())
+            .filter(|path| is_starlight_nside_map_name(path))
+            .collect::<BTreeSet<_>>();
+        let report_registered = assets
+            .iter()
+            .any(|asset| asset["path"].as_str() == Some("merge_report.json"));
+        Ok(maps == BTreeSet::from([self.current_map.as_str()]) && report_registered)
     }
 
     fn rollback(&mut self) -> Result<()> {
@@ -437,5 +463,73 @@ canonical_nside = 256
             b"old-report"
         );
         assert!(!data_root.join("starlight_nside256.csv").exists());
+    }
+
+    #[test]
+    fn completed_publish_without_new_outputs_restores_previous_state() {
+        let temp = TempDir::new().unwrap();
+        let repository_root = temp.path().join("repository");
+        let data_root = repository_root.join("crates/nsb/data");
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(&data_root).unwrap();
+        fs::create_dir_all(&workspace).unwrap();
+        let original_manifest = r#"schema_version = 1
+
+[[assets]]
+path = "starlight_nside128.csv"
+schema = "nsb-healpix-starlight-candidate-v2"
+calibration_status = "candidate"
+runtime_embedded = false
+
+[[assets]]
+path = "merge_report.json"
+schema = "nsb-starlight-merge-report-v3"
+calibration_status = "candidate"
+runtime_embedded = false
+"#;
+        fs::write(data_root.join("manifest.toml"), original_manifest).unwrap();
+        fs::write(data_root.join("starlight_nside128.csv"), b"old-map").unwrap();
+        fs::write(data_root.join("merge_report.json"), b"old-report").unwrap();
+
+        let config_path = temp.path().join("run.toml");
+        fs::write(
+            &config_path,
+            format!(
+                r#"schema_version = 1
+dataset = "starlight"
+
+[workspace]
+root = {:?}
+
+[publish]
+repository_root = {:?}
+
+[starlight]
+mode = "production"
+
+[starlight.map]
+canonical_nside = 128
+"#,
+                workspace, repository_root
+            ),
+        )
+        .unwrap();
+
+        let transaction = StarlightPublishTransaction::prepare(&config_path)
+            .unwrap()
+            .unwrap();
+        transaction.commit().unwrap();
+        assert_eq!(
+            fs::read_to_string(data_root.join("manifest.toml")).unwrap(),
+            original_manifest
+        );
+        assert_eq!(
+            fs::read(data_root.join("starlight_nside128.csv")).unwrap(),
+            b"old-map"
+        );
+        assert_eq!(
+            fs::read(data_root.join("merge_report.json")).unwrap(),
+            b"old-report"
+        );
     }
 }
