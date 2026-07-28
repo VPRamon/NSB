@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - agent/complete-starlight-structural-validation
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   apply:
-    if: ${{ !contains(github.event.head_commit.message, '[issue-74-codemod]') }}
+    if: ${{ github.event_name == 'pull_request' || !contains(github.event.head_commit.message, '[issue-74-codemod]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout branch
