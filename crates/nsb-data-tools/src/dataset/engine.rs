@@ -136,8 +136,8 @@ impl StarlightPublishTransaction {
         let manifest_path = data_root.join("manifest.toml");
         let original_manifest = fs::read(&manifest_path)
             .with_context(|| format!("failed to read {}", manifest_path.display()))?;
-        let mut document = std::str::from_utf8(&original_manifest)?
-            .parse::<toml_edit::DocumentMut>()?;
+        let mut document =
+            std::str::from_utf8(&original_manifest)?.parse::<toml_edit::DocumentMut>()?;
         let current_map = format!("starlight_nside{}.csv", starlight.map.canonical_nside);
         retire_other_canonical_entries(&mut document, &current_map)?;
 
@@ -170,7 +170,10 @@ impl StarlightPublishTransaction {
                 continue;
             }
             if !original.is_file() {
-                bail!("publish target {} is not a regular file", original.display());
+                bail!(
+                    "publish target {} is not a regular file",
+                    original.display()
+                );
             }
             let backup = transaction.backup_root.join(format!("{index}-{name}"));
             fs::rename(&original, &backup).with_context(|| {
@@ -183,10 +186,7 @@ impl StarlightPublishTransaction {
             transaction.backups.push(FileBackup { original, backup });
         }
 
-        artifact_store::atomic_write(
-            &transaction.manifest_path,
-            document.to_string().as_bytes(),
-        )?;
+        artifact_store::atomic_write(&transaction.manifest_path, document.to_string().as_bytes())?;
         Ok(Some(transaction))
     }
 
@@ -211,8 +211,8 @@ impl StarlightPublishTransaction {
         {
             return Ok(false);
         }
-        let document = fs::read_to_string(&self.manifest_path)?
-            .parse::<toml_edit::DocumentMut>()?;
+        let document =
+            fs::read_to_string(&self.manifest_path)?.parse::<toml_edit::DocumentMut>()?;
         let assets = document["assets"]
             .as_array_of_tables()
             .context("manifest is missing [[assets]]")?;
@@ -302,9 +302,7 @@ fn retire_other_canonical_entries(
         let protected = asset["calibration_status"].as_str() == Some("production")
             || asset["runtime_embedded"].as_bool() == Some(true);
         if !schema.starts_with("nsb-healpix-starlight-candidate-") {
-            bail!(
-                "refusing to retire ambiguous Starlight map {path:?} with schema {schema:?}"
-            );
+            bail!("refusing to retire ambiguous Starlight map {path:?} with schema {schema:?}");
         }
         if protected {
             bail!("candidate publish cannot retire production runtime asset {path:?}");
