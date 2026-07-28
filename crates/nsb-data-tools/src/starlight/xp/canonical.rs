@@ -454,10 +454,13 @@ impl BulkEcsvStream {
             if self.row_buffer.is_empty() {
                 continue;
             }
-            let mut parsed =
-                parse_bulk_ecsv_record(&self.row_buffer, &self.header_map, Some(&self.path))?;
-            parsed.source_checksum = None;
-            return Ok(Some(parsed));
+            match parse_bulk_ecsv_record(&self.row_buffer, &self.header_map, Some(&self.path)) {
+                Ok(mut parsed) => {
+                    parsed.source_checksum = None;
+                    return Ok(Some(parsed));
+                }
+                Err(_) => continue,
+            }
         }
     }
 }

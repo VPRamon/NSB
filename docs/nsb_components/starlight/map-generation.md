@@ -31,3 +31,18 @@ contract](external-manifest.md).
 
 Operational configuration, recovery and publication are documented in the
 [dataset maintainer guide](../../maintainer-guide/datasets.md).
+
+## Production hardening notes (2026-07-28)
+
+During the full Gaia DR3 production run, one XP partition contained an invalid
+`bp_n_parameters=null` row in the upstream bulk ECSV. Strict integer parsing
+caused one partition worker to fail even though the row could not be calibrated.
+
+The XP bulk stream now skips rows that fail canonical parsing. This behavior is
+consistent with existing fail-closed handling in the worker path: records that
+cannot be calibrated are excluded from admitted flux and are tracked through
+partition/source accounting gates during `validate`.
+
+Operationally, if a single partition fails in Slurm while the rest complete,
+rerun only the missing partition with `--partitions <id>` and then rerun
+`validate` before `publish`.
