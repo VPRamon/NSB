@@ -1,5 +1,5 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "shard_count": 3386,
   "partition_ids": [
     "000000-003111",
@@ -3428,7 +3428,7 @@
   },
   "canonical_map": {
     "path": "starlight_nside128.csv",
-    "schema": "nsb-healpix-starlight-candidate-v2",
+    "schema": "nsb-healpix-starlight-candidate-v3",
     "nside": 128,
     "ordering": "nested",
     "flux_quantity": "integrated_per_pixel",
@@ -3438,7 +3438,10 @@
     "total_flux_ph_m2_s": 8646151809493.544,
     "admitted_sources": 219109593,
     "excluded_sources": 88049,
-    "sha256": "ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda"
+    "sha256": "4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657",
+    "representation": "sparse",
+    "omitted_pixel_semantics": "zero_flux_and_source_counts",
+    "pixel_domain_size": 196608
   },
   "deterministic_reference": {
     "pixel": 0,

@@ -1,7 +1,9 @@
-# schema=nsb-healpix-starlight-candidate-v2
+# schema=nsb-healpix-starlight-candidate-v3
 # map_type=healpix
 # coordinate_frame=galactic
 # ordering=nested
+# representation=sparse
+# omitted_pixel_semantics=zero_flux_and_source_counts
 # nside=128
 # flux_quantity=integrated_per_pixel
 # flux_unit=ph_m-2_s-1

@@ -5,31 +5,39 @@ configured canonical map and `merge_report.json`. Publication recomputes
 checksums and rejects missing, extra, changed, malformed, or mismatched
 artifacts.
 
-Candidate schema `nsb-healpix-starlight-candidate-v2` requires:
+Candidate schema `nsb-healpix-starlight-candidate-v3` requires:
 
 ```text
 map_type=healpix
 coordinate_frame=galactic
 ordering=nested
+representation=sparse
+omitted_pixel_semantics=zero_flux_and_source_counts
 flux_quantity=integrated_per_pixel
 flux_unit=ph_m-2_s-1
 derivation=canonical_gaia_source_accumulation
 source_count_semantics=exact_source_membership
 ```
 
-The nside header and filename come from `canonical_nside`. Validation rejects
-missing, unknown, duplicate, or incompatible headers; malformed or duplicate
-rows; out-of-range pixels; negative or non-finite flux; and empty maps.
+The nside header and filename come from `canonical_nside`. The canonical CSV is
+sparse: rows must be strictly increasing by pixel ID, and an omitted HEALPix
+pixel means zero integrated flux, zero admitted sources, and zero excluded
+sources. Validation rejects missing, unknown, duplicate, or incompatible
+headers; malformed, duplicate, or out-of-order rows; out-of-range pixels;
+negative or non-finite flux; empty maps; and row counts larger than
+`12 * nside^2`.
 
-Report schema v3 declares one `canonical_map`. Validation independently reads
+Report schema v4 declares one `canonical_map`. Validation independently reads
 the CSV using compensated summation and requires its checksum, nside, schema,
-occupied-pixel count, integrated flux, admitted sources, and excluded sources
-to match the report. Global report totals must match the canonical map, and
+representation, omitted-pixel semantics, pixel-domain size, occupied-pixel
+count, integrated flux, admitted sources, and excluded sources to match the
+report. Global report totals must match the canonical map, and
 `observed_sources` must equal admitted plus excluded with checked arithmetic.
 
 Normal candidate gates are:
 
 - `canonical-map-integrity`;
+- `canonical-map-cardinality`;
 - `canonical-map-flux`;
 - `population-accounting`;
 - `pixel-coverage-galactic-plane`;

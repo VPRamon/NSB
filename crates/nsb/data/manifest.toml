@@ -87,8 +87,8 @@ generated_by = "nsb-data-tools-compatible manual seed workflow using siderust HE
 
 [[assets]]
 path = "merge_report.json"
-schema = "nsb-starlight-merge-report-v3"
-sha256 = "9a09a9be25b6fef472eb53bc36fd7567f76775504859c133c9278ea36f14b371"
+schema = "nsb-starlight-merge-report-v4"
+sha256 = "333ec450a9f38bb59e7cd832a622a66082962de51e90e65eaf9699529b2044e0"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
@@ -99,8 +99,8 @@ runtime_embedded = false
 
 [[assets]]
 path = "starlight_nside128.csv"
-schema = "nsb-healpix-starlight-candidate-v2"
-sha256 = "ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda"
+schema = "nsb-healpix-starlight-candidate-v3"
+sha256 = "4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
@@ -108,3 +108,16 @@ generation_command = "metadata-only header migration in PR #77; scientific rows 
 validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
 calibration_status = "candidate"
 runtime_embedded = false
+
+[assets.header]
+schema = "nsb-healpix-starlight-candidate-v3"
+map_type = "healpix"
+coordinate_frame = "galactic"
+ordering = "nested"
+representation = "sparse"
+omitted_pixel_semantics = "zero_flux_and_source_counts"
+nside = "128"
+flux_quantity = "integrated_per_pixel"
+flux_unit = "ph_m-2_s-1"
+derivation = "canonical_gaia_source_accumulation"
+source_count_semantics = "exact_source_membership"
