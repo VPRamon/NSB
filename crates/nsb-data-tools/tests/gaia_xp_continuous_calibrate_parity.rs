@@ -1,12 +1,13 @@
 //! Frozen GaiaXPy 2.1.4 parity gate for in-process XP continuous calibration.
 
-use nsb_data_tools::gaia::xp::calibrate::GaiaXpContinuousCalibrator;
-use nsb_data_tools::gaia::xp::canonical::{
+use nsb_data_tools::starlight::xp::calibrate::GaiaXpContinuousCalibrator;
+use nsb_data_tools::starlight::xp::canonical::{
     packed_correlation_len, CanonicalXpContinuousRecord, XpContinuousSourceFormat,
     CANONICAL_XP_CONTINUOUS_SCHEMA,
 };
-use nsb_data_tools::gaia::xp::continuous::PINNED_GAIA_XPY_VERSION;
-use nsb_data_tools::gaia::xp::sampled::integrate_photon_flux;
+use nsb_data_tools::starlight::xp::{
+    integrate_photon_flux, integrate_photon_flux_uncertainty, PINNED_GAIA_XPY_VERSION,
+};
 use serde::Deserialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -204,13 +205,13 @@ fn gaia_xp_continuous_calibrate_matches_frozen_gaiaxpy_oracle() {
         let integral = integrate_photon_flux(&product).expect("authoritative Rust integration");
         assert_relative_close(
             &format!("{} integrated flux", canonical.source_id),
-            integral.total_ph_m2_s,
+            integral,
             entry.oracle.flux_336_650_ph_m2_s,
             manifest.tolerances.integrated_flux_relative,
         );
         assert_relative_close(
             &format!("{} integrated uncertainty", canonical.source_id),
-            integral.uncertainty_ph_m2_s.expect("integral uncertainty"),
+            integrate_photon_flux_uncertainty(&product).expect("integral uncertainty"),
             entry.oracle.statistical_uncertainty_336_650_ph_m2_s,
             manifest.tolerances.integrated_uncertainty_relative,
         );
@@ -218,10 +219,10 @@ fn gaia_xp_continuous_calibrate_matches_frozen_gaiaxpy_oracle() {
         let summary = calibrator
             .calibrate_record(&canonical)
             .expect("calibrated summary");
-        assert_eq!(summary.flux_336_650_ph_m2_s, integral.total_ph_m2_s);
+        assert_eq!(summary.flux_336_650_ph_m2_s, integral);
         assert_eq!(
             summary.statistical_uncertainty_336_650_ph_m2_s,
-            integral.uncertainty_ph_m2_s.expect("integral uncertainty")
+            integrate_photon_flux_uncertainty(&product).expect("integral uncertainty")
         );
     }
 

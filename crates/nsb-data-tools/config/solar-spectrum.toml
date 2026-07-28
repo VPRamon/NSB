@@ -1,0 +1,17 @@
+schema_version = 1
+dataset = "solar-spectrum"
+
+[workspace]
+root = "../../../target/nsb-data/solar-spectrum"
+
+[execution]
+executor = "local"
+concurrency = 1
+
+[[sources]]
+name = "solar_spectrum.dat"
+path = "../../nsb/data/solar_spectrum.dat"
+sha256 = "dbf6a6205c9311782f4a084c1a3ded8d9331c3616dd7e71fbaa1db9fdcc7a7df"
+
+[publish]
+repository_root = "../../.."

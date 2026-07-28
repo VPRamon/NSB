@@ -1,0 +1,22 @@
+schema_version = 1
+dataset = "moonlight-scattering"
+
+[workspace]
+root = "../../../target/nsb-data/moonlight-scattering"
+
+[execution]
+executor = "local"
+concurrency = 1
+
+[[sources]]
+name = "mie_m15s1.dat"
+path = "../../nsb/data/mie_m15s1.dat"
+sha256 = "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
+
+[[sources]]
+name = "sscatcor_m15s1.dat"
+path = "../../nsb/data/sscatcor_m15s1.dat"
+sha256 = "2bf48a71e007bc557bd088d53ede15e97163d9154f19b1e411b104c38c4a18b8"
+
+[publish]
+repository_root = "../../.."

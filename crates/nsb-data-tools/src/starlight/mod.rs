@@ -1,13 +1,11 @@
-//! Integrated-starlight scientific policy and durable workflow actions.
+//! Production Starlight dataset pipeline.
 
-pub mod acquisition;
-pub mod approval;
-pub mod catalogue;
-pub mod integrated;
+pub mod config;
 pub mod map;
-pub mod product;
-pub mod quality;
-pub mod release;
-pub mod sampling;
-pub mod science;
-pub mod xp_continuous;
+pub mod migration;
+mod pipeline;
+pub mod sources;
+mod worker;
+pub mod xp;
+
+pub(crate) use pipeline::PIPELINE;

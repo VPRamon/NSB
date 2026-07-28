@@ -84,3 +84,63 @@ photometry_model = "v_s10_scaled_integrated_proxy_v1"
 band_definition = "integrated 300-650 nm photon radiance plus B/V S10 diagnostics"
 smoothing_fwhm_deg = "none"
 generated_by = "nsb-data-tools-compatible manual seed workflow using siderust HEALPix schema"
+
+[[assets]]
+path = "merge_report.json"
+schema = "nsb-starlight-merge-report-v2"
+sha256 = "521fe3a6bb1f7d0f9ce716ddcb92140b4f57c693c3375907a60aaefb23d9083a"
+source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+license = "Gaia data licence: CC BY-NC 3.0 IGO"
+generator = "nsb-data dataset pipeline"
+generation_command = "exact historical command not retained; see docs/nsb_components/starlight/existing-datasets.md"
+validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
+calibration_status = "candidate"
+runtime_embedded = false
+
+[[assets]]
+path = "starlight_nside128.csv"
+schema = "nsb-healpix-starlight-candidate-v1"
+sha256 = "09ca9bd57407beab49ff26cf1fe8ab305ccf9394e244563ee833b059a2287d35"
+source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+license = "Gaia data licence: CC BY-NC 3.0 IGO"
+generator = "nsb-data dataset pipeline"
+generation_command = "exact historical command not retained; see docs/nsb_components/starlight/existing-datasets.md"
+validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
+calibration_status = "candidate"
+runtime_embedded = false
+
+[[assets]]
+path = "starlight_nside256.csv"
+schema = "nsb-healpix-starlight-candidate-v1"
+sha256 = "4c7d437994b7105415973b0e99ebb09812798323b13b7ae8952f6674685c8fad"
+source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+license = "Gaia data licence: CC BY-NC 3.0 IGO"
+generator = "nsb-data dataset pipeline"
+generation_command = "exact historical command not retained; see docs/nsb_components/starlight/existing-datasets.md"
+validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
+calibration_status = "candidate"
+runtime_embedded = false
+
+[[assets]]
+path = "starlight_nside512.csv"
+schema = "nsb-healpix-starlight-candidate-v1"
+sha256 = "7da040ea844969f44062eb76c172e2df7f75645d3d98006931968be7bbbb53e8"
+source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+license = "Gaia data licence: CC BY-NC 3.0 IGO"
+generator = "nsb-data dataset pipeline"
+generation_command = "exact historical command not retained; see docs/nsb_components/starlight/existing-datasets.md"
+validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
+calibration_status = "candidate"
+runtime_embedded = false
+
+[[assets]]
+path = "starlight_nside64.csv"
+schema = "nsb-healpix-starlight-candidate-v1"
+sha256 = "1cba5f154a801605d93f35501426c86e40bc120b620dc96f7f4372ff1ded3003"
+source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+license = "Gaia data licence: CC BY-NC 3.0 IGO"
+generator = "nsb-data dataset pipeline"
+generation_command = "exact historical command not retained; see docs/nsb_components/starlight/existing-datasets.md"
+validation_report = "original validation.json not retained; see docs/nsb_components/starlight/existing-datasets.md"
+calibration_status = "candidate"
+runtime_embedded = false

@@ -152,8 +152,7 @@ resulting effect on moonlight and airglow predictions.
 Runtime assets must not be edited manually without updating their manifest and
 validation evidence. Use `nsb-data-tools` for acquisition, transformation,
 validation, and packaging. Start with the
-[maintainer data-product workflow](../maintainer-guide/data-products.md) and the
-[individual tool reference](../maintainer-guide/tools.md).
+[maintainer dataset workflow](../maintainer-guide/datasets.md).
 
 ## Current limitations
 

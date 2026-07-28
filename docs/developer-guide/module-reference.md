@@ -71,52 +71,34 @@ scientific models, coordinate algorithms, or threshold-search logic.
 
 | Module | Responsibility |
 | --- | --- |
-| `platform::artifact_io` | Transactional and atomic writing of generated artifacts |
+| `platform::artifact_store` | Durable temporary-write-and-rename persistence for generated artifacts and strict JSON state |
 | `platform::checksum_io` | Algorithm-qualified checksums and integrity helpers |
-| `platform::pipeline` | Persisted processing modes, gates, checkpoints, state, stores, reconciliation, and admission |
-| `platform::tool_catalog` / `tool_logging` | Normative action registry plus consistent maintainer-tool logging |
-| `platform::verify_assets` | Runtime scientific-asset verification action |
-
-### Gaia acquisition
-
-| Module | Responsibility |
-| --- | --- |
-| `gaia::acquisition::tap` | Reproducible synchronous/asynchronous TAP jobs, retries, persisted manifests, and result validation |
-| `gaia::acquisition::datalink` | Gaia DataLink discovery and controlled retrieval |
-| `gaia::acquisition::bulk` / `bulk_service` | Official inventory parsing and checksum-verified bulk acquisition |
-
-### Gaia XP sampled and continuous processing
-
-| Module | Responsibility |
-| --- | --- |
-| `gaia::xp::sampled` | XP spectrum parsing and photon-flux integration primitives |
-| `gaia::xp::continuous` / `canonical` | XP continuous records, strict canonical schemas, and streaming adapters |
-| `gaia::xp::calibrate` / `bulk_index` | Pure-Rust calibration, uncertainty propagation, and deterministic source-to-partition lookup |
-| `gaia::xp::contract` | Versioned Gaia XP photon-integration contract and drift validation |
+| `platform::tool_logging` | Consistent maintainer-tool logging |
 
 ### Starlight products
 
 | Module | Responsibility |
 | --- | --- |
-| `starlight::science` / `sampling` | Scientific constants, population policy, deterministic strata, query generation, and spatial splits |
-| `starlight::approval` / `integrated` | Candidate review evidence, production blockers, contribution integration, and final-product construction |
-| `starlight::{acquisition,catalogue,xp_continuous,map,quality,product,release}` | Action implementations grouped by their durable workflow capability |
-
-The flat `gaia_*` and `starlight_*` layout, phase modules, compatibility aliases,
-and local-only test scripts are deliberately absent.
+| `dataset::config` | Versioned TOML parsing and portable path resolution |
+| `dataset::model` | Dataset, plan, artifact, validation, and run contracts |
+| `dataset::pipeline` | Typed boundary between lifecycle infrastructure and dataset science |
+| `dataset::engine` | Lifecycle, content-addressed run identity, integrity, recovery, reconciliation, and publication |
+| `dataset::execution::scheduler` | Mockable Slurm submission and scheduler-state adapter |
+| `dataset::slurm` | Slurm-array adapter for the shared Rust worker |
+| `starlight::sources::inventory` | Strict normalization and pairing of the official GaiaSource and XP continuous inventories |
+| `starlight::sources::acquisition` | Resumable verified downloads, content-addressed cache objects, and acquisition receipts |
+| `starlight::map::accumulator` | Sparse HEALPix partition shards, exact accounting, and canonical-order reconciliation |
 
 ## Executable boundary
 
-Compiled data tools are listed in
-[`crates/nsb-data-tools/tool-registry.toml`](../../crates/nsb-data-tools/tool-registry.toml)
-and documented in the [data-tool reference](../maintainer-guide/tools.md). Every
-new executable must:
+The sole executable and its four dataset workflows are documented in the
+[dataset workflow](../maintainer-guide/datasets.md). Every extension must:
 
 1. represent a durable capability;
 2. keep reusable behaviour in its owning domain module;
 3. define typed inputs and versioned outputs;
 4. document resume/idempotency and exit-code semantics;
-5. be added to the registry and maintainer reference in the same change.
+5. update the configuration contract and maintainer guide in the same change.
 
 ## Keeping this reference current
 

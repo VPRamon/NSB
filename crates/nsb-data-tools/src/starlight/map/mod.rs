@@ -1,5 +1,4 @@
-//! HEALPix map construction, assessment, and validation.
+//! Sparse deterministic HEALPix shard accumulation and reconciliation.
 
-pub mod build_starlight_map;
-pub mod sweep_starlight_nside;
-pub mod validate_starlight_map;
+pub mod accumulator;
+pub mod product;

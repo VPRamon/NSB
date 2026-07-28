@@ -46,11 +46,8 @@ through explicit runtime-manifest contracts.
 ### Maintainers
 
 - [Maintainer guide](maintainer-guide/README.md)
-- [Updating scientific data](maintainer-guide/updating-data.md)
-- [Data-product workflow](maintainer-guide/data-products.md)
-- [Complete data-tool reference](maintainer-guide/tools.md)
+- [Reproducible dataset workflow](maintainer-guide/datasets.md)
 - [Data-product pipeline architecture](specifications/data-product-pipeline.md)
-- [Pure-Rust Gaia XP continuous reconstruction](nsb_components/starlight/gaia-xp-continuous-rust.md)
 - [Release checklist](operations/release-checklist.md)
 
 ## Scientific interpretation and contracts

@@ -87,7 +87,7 @@ of these branches:
 1. `xp_sampled_measured`: externally calibrated XP sampled spectrum integrated
    over 336--650 nm, plus a calibrated 300--336 nm estimate;
 2. `xp_continuous_reconstructed`: official BP/RP continuous coefficients
-   reconstructed with the pinned GaiaXPy calibration bases, integrated in the
+   reconstructed by the pinned Rust calibration contract, integrated in the
    same two sub-bands;
 3. `photometric_g_bp_rp`: G, BP, RP, and colour model within its calibrated
    support;
@@ -119,8 +119,9 @@ release reports 300--336 nm, 336--650 nm, and combined 300--650 nm performance
 separately.
 
 Continuous-XP reconstruction uses the official coefficient representation,
-calibration bases, truncation information, standard deviations, correlations,
-and GaiaXPy version pinned by checksum or package lock. A deterministic,
+calibration bases, truncation information, standard deviations and
+correlations, all pinned by checksum. GaiaXPy may be cited only as historical
+independent reference evidence and is not an operational dependency. A deterministic,
 stratified overlap sample containing both sampled and continuous products must
 demonstrate reconstruction accuracy before the continuous-only population is
 admitted.
@@ -232,7 +233,7 @@ or candidate products, and Starlight remains outside `ComponentMask::ALL`.
   DOI `10.1051/0004-6361/202243680`.
 - Gaia DR3 XP external calibration, Montegriffo et al. (2023),
   DOI `10.1051/0004-6361/202243880`.
-- GaiaXPy documentation and calibration software:
+- Historical GaiaXPy reference documentation:
   <https://gaia-dpci.github.io/GaiaXPy-website/>.
 - Empirical Gaia DR3 selection function, Cantat-Gaudin et al. (2023),
   DOI `10.1051/0004-6361/202244784`.

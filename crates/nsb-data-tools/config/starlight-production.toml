@@ -1,0 +1,53 @@
+schema_version = 1
+dataset = "starlight"
+
+[workspace]
+# Cluster operators should override this site-local example only with another
+# shared scratch/NVMe path visible at the same absolute location on every node.
+root = "/shared/scratch/nsb/starlight-production"
+
+[execution]
+executor = "local"
+concurrency = 8
+lease_timeout_seconds = 86400
+
+[execution.slurm]
+partition = "compute"
+time_limit = "24:00:00"
+memory = "16G"
+array_parallelism = 16
+
+[starlight]
+mode = "production"
+
+[starlight.acquisition]
+connect_timeout_seconds = 30
+request_timeout_seconds = 1800
+max_attempts = 5
+
+[starlight.map]
+target_nside = 128
+sweep_nsides = [64, 128, 256, 512]
+
+[[starlight.gaia_products]]
+id = "gaia-source"
+base_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/gaia_source/"
+checksum_manifest_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/gaia_source/_MD5SUM.txt"
+checksum_manifest_sha256 = "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+checksum_algorithm = "md5"
+expected_partitions = 3386
+filename_prefix = "GaiaSource_"
+filename_suffix = ".csv.gz"
+
+[[starlight.gaia_products]]
+id = "xp-continuous"
+base_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/Spectroscopy/xp_continuous_mean_spectrum/"
+checksum_manifest_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/Spectroscopy/xp_continuous_mean_spectrum/_MD5SUM.txt"
+checksum_manifest_sha256 = "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+checksum_algorithm = "md5"
+expected_partitions = 3386
+filename_prefix = "XpContinuousMeanSpectrum_"
+filename_suffix = ".csv.gz"
+
+[publish]
+repository_root = "../../.."

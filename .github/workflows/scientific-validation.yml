@@ -21,7 +21,7 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
       - name: Verify scientific assets
-        run: cargo run --locked -p nsb-data-tools --bin nsb-data -- assets verify --manifest crates/nsb/data/manifest.toml
+        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_assets_verify -- --exact
       - name: Run external and end-to-end validation matrices
         run: |
           cargo test --locked -p nsb full_moon_reference_geometry_matches_published_brightness

@@ -188,6 +188,13 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     Ok(checksum_file(path, ChecksumAlgorithm::Sha256)?.hex)
 }
 
+/// Compute the lowercase SHA-256 of in-memory bytes.
+pub fn sha256_bytes(bytes: &[u8]) -> String {
+    let mut digest = Sha256::new();
+    digest.update(bytes);
+    encode_hex(&digest.finalize())
+}
+
 /// Verify an algorithm-qualified SHA-256 checksum.
 pub fn verify_sha256_file(path: &Path, expected: &str, label: &str) -> Result<()> {
     let checksum: Checksum = expected.parse()?;
