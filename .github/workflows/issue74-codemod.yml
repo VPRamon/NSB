@@ -1,0 +1,51 @@
+name: Issue 74 structural validation codemod
+
+on:
+  push:
+    branches:
+      - agent/complete-starlight-structural-validation
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[issue-74-codemod]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/complete-starlight-structural-validation
+          fetch-depth: 0
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Apply structural validation codemod
+        run: python3 tools/issue74_codemod.py
+
+      - name: Format workspace
+        run: cargo fmt --all
+
+      - name: Run focused unit tests
+        run: cargo test -p nsb-data-tools starlight --lib --locked
+
+      - name: Verify scientific assets
+        run: cargo test -p nsb-data-tools --test scientific_assets --locked
+
+      - name: Check data tools
+        run: cargo check -p nsb-data-tools --all-targets --locked
+
+      - name: Remove one-shot automation
+        run: rm tools/issue74_codemod.py .github/workflows/issue74-codemod.yml
+
+      - name: Commit generated implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Complete Starlight structural validation [issue-74-codemod]"
+          git push origin HEAD:agent/complete-starlight-structural-validation
