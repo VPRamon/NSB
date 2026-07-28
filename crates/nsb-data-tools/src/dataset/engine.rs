@@ -350,10 +350,8 @@ mod tests {
     use serde_json::json;
     use tempfile::TempDir;
 
-    const MANIFEST_SHA: &str =
-        "0000000000000000000000000000000000000000000000000000000000000000";
-    const OBJECT_SHA: &str =
-        "1111111111111111111111111111111111111111111111111111111111111111";
+    const MANIFEST_SHA: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+    const OBJECT_SHA: &str = "1111111111111111111111111111111111111111111111111111111111111111";
     const PARTITION: &str = "000000-000001";
 
     fn repository_fixture(temp: &TempDir) -> (PathBuf, PathBuf, PathBuf) {
@@ -384,13 +382,22 @@ calibration_status = "candidate"
 runtime_embedded = false
 "#;
         fs::write(data_root.join("manifest.toml"), manifest).unwrap();
-        fs::write(data_root.join("starlight_manual_seed_v1.csv"), b"manual-seed").unwrap();
+        fs::write(
+            data_root.join("starlight_manual_seed_v1.csv"),
+            b"manual-seed",
+        )
+        .unwrap();
         fs::write(data_root.join("starlight_nside128.csv"), b"old-map").unwrap();
         fs::write(data_root.join("merge_report.json"), b"old-report").unwrap();
         (repository_root, data_root, workspace)
     }
 
-    fn write_config(temp: &TempDir, repository_root: &Path, workspace: &Path, nside: u32) -> PathBuf {
+    fn write_config(
+        temp: &TempDir,
+        repository_root: &Path,
+        workspace: &Path,
+        nside: u32,
+    ) -> PathBuf {
         let config_path = temp.path().join("run.toml");
         fs::write(
             &config_path,
@@ -559,9 +566,18 @@ runtime_embedded = true
         transaction.rollback().unwrap();
         transaction.rollback().unwrap();
 
-        assert_eq!(fs::read(data_root.join("manifest.toml")).unwrap(), original_manifest);
-        assert_eq!(fs::read(data_root.join("starlight_nside128.csv")).unwrap(), b"old-map");
-        assert_eq!(fs::read(data_root.join("merge_report.json")).unwrap(), b"old-report");
+        assert_eq!(
+            fs::read(data_root.join("manifest.toml")).unwrap(),
+            original_manifest
+        );
+        assert_eq!(
+            fs::read(data_root.join("starlight_nside128.csv")).unwrap(),
+            b"old-map"
+        );
+        assert_eq!(
+            fs::read(data_root.join("merge_report.json")).unwrap(),
+            b"old-report"
+        );
         assert!(!data_root.join("starlight_nside256.csv").exists());
     }
 
@@ -577,9 +593,18 @@ runtime_embedded = true
             .unwrap();
         transaction.commit().unwrap();
 
-        assert_eq!(fs::read(data_root.join("manifest.toml")).unwrap(), original_manifest);
-        assert_eq!(fs::read(data_root.join("starlight_nside128.csv")).unwrap(), b"old-map");
-        assert_eq!(fs::read(data_root.join("merge_report.json")).unwrap(), b"old-report");
+        assert_eq!(
+            fs::read(data_root.join("manifest.toml")).unwrap(),
+            original_manifest
+        );
+        assert_eq!(
+            fs::read(data_root.join("starlight_nside128.csv")).unwrap(),
+            b"old-map"
+        );
+        assert_eq!(
+            fs::read(data_root.join("merge_report.json")).unwrap(),
+            b"old-report"
+        );
     }
 
     #[test]
@@ -610,7 +635,10 @@ runtime_embedded = true
         fs::write(&report_path, b"new-report-256").unwrap();
         let map_artifact = artifact("starlight_nside256.csv", &map_path);
         let report_artifact = artifact("merge_report.json", &report_path);
-        write_validation_report(&workspace, vec![map_artifact.clone(), report_artifact.clone()]);
+        write_validation_report(
+            &workspace,
+            vec![map_artifact.clone(), report_artifact.clone()],
+        );
 
         execute(
             &config_path,
