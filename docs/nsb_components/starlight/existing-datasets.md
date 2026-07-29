@@ -10,7 +10,7 @@ The current dataset version publishes exactly one Gaia-derived candidate map:
 | Artifact | Role | SHA-256 |
 | --- | --- | --- |
 | `starlight_nside128.csv` | Canonical source-level Gaia accumulation | `4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657` |
-| `merge_report.json` | Singular map, population, policy, checksum, and deterministic-merge evidence | `333ec450a9f38bb59e7cd832a622a66082962de51e90e65eaf9699529b2044e0` |
+| `merge_report.json` | Legacy v4 map, population, policy, checksum, and single-pixel deterministic evidence | `333ec450a9f38bb59e7cd832a622a66082962de51e90e65eaf9699529b2044e0` |
 
 The nside-128 scientific rows are identical to the artifact first published by
 commit `6e515a6e7dc01b37594a765021d415fd5f7e768a`. PR #77 added the v2 physical
@@ -28,9 +28,12 @@ The candidate remains `calibration_status = "candidate"` and
 `runtime_embedded = false`.
 
 The original lifecycle `run.json`, `validation.json`, normalized inventories,
-receipts, exact command, and site-local workspace were not retained. The
-checked-in candidate therefore has integrity and explicit science-policy
-evidence but not a self-contained byte-for-byte reproduction bundle.
+receipts, exact command, shard set, and site-local workspace were not retained.
+The checked-in v4 report therefore has integrity and explicit science-policy
+evidence but only the historical single-pixel deterministic reference. It is
+not retroactively presented as complete-map deterministic evidence. New clean
+runs use shard schema v2 and report schema v5, compare every pixel accumulator
+and exclusion counter, and retain equal dataset-wide digests before publication.
 
 ## Retired derived artifacts
 

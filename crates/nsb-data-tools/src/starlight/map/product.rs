@@ -9,7 +9,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 4;
+const REPORT_SCHEMA_VERSION: u32 = 5;
+const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
 const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v3";
 const MAP_ORDERING: &str = "nested";
 const MAP_REPRESENTATION: &str = "sparse";
@@ -34,7 +35,7 @@ pub struct MergeReport {
     pub exclusion_reasons: BTreeMap<String, u64>,
     pub science_policy: SciencePolicyReport,
     pub canonical_map: CanonicalMapReport,
-    pub deterministic_reference: DeterministicReference,
+    pub deterministic_merge: DeterministicMergeReport,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,10 +94,17 @@ pub struct SpectralCoverageReport {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct DeterministicReference {
-    pub pixel: u32,
+pub struct DeterministicMergeReport {
+    pub algorithm: String,
     pub canonical_sha256: String,
     pub independent_partial_merge_sha256: String,
+    pub compared_pixels: u64,
+    pub pixel_key_mismatches: u64,
+    pub flux_mismatches: u64,
+    pub uncertainty_mismatches: u64,
+    pub source_counter_mismatches: u64,
+    pub exclusion_reason_mismatches: u64,
+    pub first_mismatch: Option<String>,
     pub stable: bool,
 }
 
@@ -188,7 +196,7 @@ pub(crate) fn emit_maps(
         bail!("merged Starlight shard resolution does not match configuration");
     }
     let independent = independently_merge_partials(&shards)?;
-    let deterministic_reference = deterministic_reference(&merged, &independent)?;
+    let deterministic_merge = require_complete_deterministic_merge(&merged, &independent)?;
 
     let output_root = workspace.join("outputs");
     let map_name = canonical_map_name(canonical_nside);
@@ -229,7 +237,7 @@ pub(crate) fn emit_maps(
             excluded_sources: map_excluded,
             sha256: map_sha256,
         },
-        deterministic_reference,
+        deterministic_merge,
     };
     validate_report_fields(&report, &map_path, &emitted_pixels)?;
 
@@ -345,14 +353,20 @@ pub(crate) fn scientific_gates(
         },
         ValidationGate {
             name: "deterministic-independent-partial-merge".to_string(),
-            passed: report.deterministic_reference.stable,
+            passed: report.deterministic_merge.stable
+                && report.deterministic_merge.canonical_sha256
+                    == report.deterministic_merge.independent_partial_merge_sha256,
             detail: format!(
-                "pixel {} canonical={} partial={}",
-                report.deterministic_reference.pixel,
-                report.deterministic_reference.canonical_sha256,
-                report
-                    .deterministic_reference
-                    .independent_partial_merge_sha256
+                "algorithm={} pixels={} canonical={} partial={} key_mismatches={} flux_mismatches={} uncertainty_mismatches={} source_counter_mismatches={} exclusion_reason_mismatches={}",
+                report.deterministic_merge.algorithm,
+                report.deterministic_merge.compared_pixels,
+                report.deterministic_merge.canonical_sha256,
+                report.deterministic_merge.independent_partial_merge_sha256,
+                report.deterministic_merge.pixel_key_mismatches,
+                report.deterministic_merge.flux_mismatches,
+                report.deterministic_merge.uncertainty_mismatches,
+                report.deterministic_merge.source_counter_mismatches,
+                report.deterministic_merge.exclusion_reason_mismatches,
             ),
         },
     ])
@@ -416,6 +430,22 @@ fn validate_report_fields(
         .context("canonical source accounting overflow")?;
     if report.observed_sources != observed {
         bail!("global observed-source total does not match canonical map");
+    }
+    let deterministic = &report.deterministic_merge;
+    if deterministic.algorithm != DETERMINISTIC_MERGE_ALGORITHM
+        || !deterministic.stable
+        || deterministic.canonical_sha256 != deterministic.independent_partial_merge_sha256
+        || !is_sha256(&deterministic.canonical_sha256)
+        || !is_sha256(&deterministic.independent_partial_merge_sha256)
+        || deterministic.compared_pixels != occupied_pixels
+        || deterministic.pixel_key_mismatches != 0
+        || deterministic.flux_mismatches != 0
+        || deterministic.uncertainty_mismatches != 0
+        || deterministic.source_counter_mismatches != 0
+        || deterministic.exclusion_reason_mismatches != 0
+        || deterministic.first_mismatch.is_some()
+    {
+        bail!("merge report does not contain complete deterministic evidence");
     }
     Ok(())
 }
@@ -648,26 +678,183 @@ fn independently_merge_partials(shards: &[PartitionShard]) -> Result<PartitionSh
     merge_shards([right, left])
 }
 
-fn deterministic_reference(
+fn require_complete_deterministic_merge(
     canonical: &PartitionShard,
     independent: &PartitionShard,
-) -> Result<DeterministicReference> {
-    for (pixel, value) in &canonical.pixels {
-        let Some(other) = independent.pixels.get(pixel) else {
-            continue;
-        };
-        let canonical_sha256 = checksum_io::sha256_bytes(&serde_json::to_vec(value)?);
-        let independent_sha256 = checksum_io::sha256_bytes(&serde_json::to_vec(other)?);
-        if canonical_sha256 == independent_sha256 {
-            return Ok(DeterministicReference {
-                pixel: *pixel,
-                canonical_sha256,
-                independent_partial_merge_sha256: independent_sha256,
-                stable: true,
-            });
+) -> Result<DeterministicMergeReport> {
+    let report = complete_deterministic_merge_report(canonical, independent)?;
+    if !report.stable {
+        bail!(
+            "complete deterministic merge mismatch: first={}; key_mismatches={}; flux_mismatches={}; uncertainty_mismatches={}; source_counter_mismatches={}; exclusion_reason_mismatches={}; canonical={}; independent={}",
+            report.first_mismatch.as_deref().unwrap_or("digest mismatch"),
+            report.pixel_key_mismatches,
+            report.flux_mismatches,
+            report.uncertainty_mismatches,
+            report.source_counter_mismatches,
+            report.exclusion_reason_mismatches,
+            report.canonical_sha256,
+            report.independent_partial_merge_sha256,
+        );
+    }
+    Ok(report)
+}
+
+fn complete_deterministic_merge_report(
+    canonical: &PartitionShard,
+    independent: &PartitionShard,
+) -> Result<DeterministicMergeReport> {
+    canonical.validate()?;
+    independent.validate()?;
+    if canonical.nside != independent.nside {
+        bail!(
+            "cannot compare deterministic Starlight merges with nside={} and nside={}",
+            canonical.nside,
+            independent.nside
+        );
+    }
+
+    let pixel_keys = canonical
+        .pixels
+        .keys()
+        .chain(independent.pixels.keys())
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let compared_pixels =
+        u64::try_from(pixel_keys.len()).context("compared pixel count exceeds u64")?;
+    let mut pixel_key_mismatches = 0_u64;
+    let mut flux_mismatches = 0_u64;
+    let mut uncertainty_mismatches = 0_u64;
+    let mut source_counter_mismatches = 0_u64;
+    let mut exclusion_reason_mismatches = 0_u64;
+    let mut first_mismatch = None;
+
+    for pixel in pixel_keys {
+        match (canonical.pixels.get(&pixel), independent.pixels.get(&pixel)) {
+            (Some(left), Some(right)) => {
+                if left.flux_ph_m2_s != right.flux_ph_m2_s {
+                    flux_mismatches += 1;
+                    record_first_mismatch(
+                        &mut first_mismatch,
+                        format!("pixel {pixel} flux accumulator differs"),
+                    );
+                }
+                if left.statistical_variance != right.statistical_variance
+                    || left.systematic_variance != right.systematic_variance
+                {
+                    uncertainty_mismatches += 1;
+                    record_first_mismatch(
+                        &mut first_mismatch,
+                        format!("pixel {pixel} uncertainty accumulator differs"),
+                    );
+                }
+                if left.observed_sources != right.observed_sources
+                    || left.admitted_sources != right.admitted_sources
+                    || left.excluded_sources != right.excluded_sources
+                {
+                    source_counter_mismatches += 1;
+                    record_first_mismatch(
+                        &mut first_mismatch,
+                        format!("pixel {pixel} source counters differ"),
+                    );
+                }
+            }
+            _ => {
+                pixel_key_mismatches += 1;
+                record_first_mismatch(
+                    &mut first_mismatch,
+                    format!("pixel {pixel} exists in only one merge"),
+                );
+            }
         }
     }
-    bail!("no pixel is stable across independent partial Starlight merges")
+
+    let reason_keys = canonical
+        .exclusion_reasons
+        .keys()
+        .chain(independent.exclusion_reasons.keys())
+        .cloned()
+        .collect::<BTreeSet<_>>();
+    for reason in reason_keys {
+        if canonical.exclusion_reasons.get(&reason) != independent.exclusion_reasons.get(&reason) {
+            exclusion_reason_mismatches += 1;
+            record_first_mismatch(
+                &mut first_mismatch,
+                format!("exclusion reason {reason:?} differs"),
+            );
+        }
+    }
+
+    let canonical_sha256 = checksum_io::sha256_bytes(&canonical_merge_bytes(canonical)?);
+    let independent_partial_merge_sha256 =
+        checksum_io::sha256_bytes(&canonical_merge_bytes(independent)?);
+    let stable = pixel_key_mismatches == 0
+        && flux_mismatches == 0
+        && uncertainty_mismatches == 0
+        && source_counter_mismatches == 0
+        && exclusion_reason_mismatches == 0
+        && canonical_sha256 == independent_partial_merge_sha256;
+
+    Ok(DeterministicMergeReport {
+        algorithm: DETERMINISTIC_MERGE_ALGORITHM.to_string(),
+        canonical_sha256,
+        independent_partial_merge_sha256,
+        compared_pixels,
+        pixel_key_mismatches,
+        flux_mismatches,
+        uncertainty_mismatches,
+        source_counter_mismatches,
+        exclusion_reason_mismatches,
+        first_mismatch,
+        stable,
+    })
+}
+
+fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
+    shard.validate()?;
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v1 ");
+    bytes.extend_from_slice(&shard.nside.to_be_bytes());
+    let pixel_count = u64::try_from(shard.pixels.len()).context("pixel count exceeds u64")?;
+    bytes.extend_from_slice(&pixel_count.to_be_bytes());
+    for (pixel, accumulator) in &shard.pixels {
+        bytes.extend_from_slice(&pixel.to_be_bytes());
+        accumulator
+            .flux_ph_m2_s
+            .append_canonical_bytes(&mut bytes)?;
+        accumulator
+            .statistical_variance
+            .append_canonical_bytes(&mut bytes)?;
+        accumulator
+            .systematic_variance
+            .append_canonical_bytes(&mut bytes)?;
+        bytes.extend_from_slice(&accumulator.observed_sources.to_be_bytes());
+        bytes.extend_from_slice(&accumulator.admitted_sources.to_be_bytes());
+        bytes.extend_from_slice(&accumulator.excluded_sources.to_be_bytes());
+    }
+    let reason_count =
+        u64::try_from(shard.exclusion_reasons.len()).context("reason count exceeds u64")?;
+    bytes.extend_from_slice(&reason_count.to_be_bytes());
+    for (reason, count) in &shard.exclusion_reasons {
+        let reason_bytes = reason.as_bytes();
+        let reason_len = u32::try_from(reason_bytes.len()).context("reason length exceeds u32")?;
+        bytes.extend_from_slice(&reason_len.to_be_bytes());
+        bytes.extend_from_slice(reason_bytes);
+        bytes.extend_from_slice(&count.to_be_bytes());
+    }
+    Ok(bytes)
+}
+
+fn record_first_mismatch(first: &mut Option<String>, message: String) {
+    if first.is_none() {
+        *first = Some(message);
+    }
+}
+
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn population_totals(merged: &PartitionShard) -> Result<(u64, u64, u64)> {
@@ -988,21 +1175,110 @@ mod tests {
     }
 
     #[test]
-    fn independent_partial_merge_has_a_stable_pixel_checksum() {
+    fn independent_partial_merge_has_a_complete_stable_digest() {
+        let mut first = PartitionShard::new("first", 128).unwrap();
+        first.admit(0, 1.0e16, 0.1, 0.0).unwrap();
+        let mut second = PartitionShard::new("second", 128).unwrap();
+        second.admit(1, 1.0, 0.2, 0.0).unwrap();
+        let mut third = PartitionShard::new("third", 128).unwrap();
+        third.admit(2, 1.0, 0.3, 0.0).unwrap();
+        let shards = vec![first, second, third];
+        let canonical = merge_shards(shards.clone()).unwrap();
+        let independent = independently_merge_partials(&shards).unwrap();
+        let report = require_complete_deterministic_merge(&canonical, &independent).unwrap();
+        assert!(report.stable);
+        assert_eq!(report.compared_pixels, 1);
+        assert_eq!(
+            report.canonical_sha256,
+            report.independent_partial_merge_sha256
+        );
+    }
+
+    #[test]
+    fn complete_merge_detects_a_later_pixel_difference() {
         let mut first = PartitionShard::new("first", 128).unwrap();
         first.admit(0, 1.0, 0.1, 0.0).unwrap();
         let mut second = PartitionShard::new("second", 128).unwrap();
         second.admit(1_u64 << 45, 2.0, 0.2, 0.0).unwrap();
-        let mut third = PartitionShard::new("third", 128).unwrap();
-        third.admit(2_u64 << 45, 3.0, 0.3, 0.0).unwrap();
-        let shards = vec![first, second, third];
-        let canonical = merge_shards(shards.clone()).unwrap();
-        let independent = independently_merge_partials(&shards).unwrap();
-        assert!(
-            deterministic_reference(&canonical, &independent)
-                .unwrap()
-                .stable
-        );
+        let canonical = merge_shards([first, second]).unwrap();
+        let mut independent = canonical.clone();
+        let mut replacement = PartitionShard::new("replacement", 128).unwrap();
+        replacement.admit(1_u64 << 45, 3.0, 0.2, 0.0).unwrap();
+        independent
+            .pixels
+            .insert(1, replacement.pixels.remove(&1).expect("replacement pixel"));
+
+        let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
+        assert!(!report.stable);
+        assert_eq!(report.flux_mismatches, 1);
+        assert!(report.first_mismatch.unwrap().contains("pixel 1"));
+    }
+
+    #[test]
+    fn complete_merge_detects_an_additional_pixel_key() {
+        let mut canonical = PartitionShard::new("canonical", 128).unwrap();
+        canonical.admit(0, 1.0, 0.1, 0.0).unwrap();
+        let mut independent = canonical.clone();
+        let mut extra = PartitionShard::new("extra", 128).unwrap();
+        extra.admit(1_u64 << 45, 2.0, 0.2, 0.0).unwrap();
+        independent
+            .pixels
+            .insert(1, extra.pixels.remove(&1).expect("extra pixel"));
+
+        let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
+        assert!(!report.stable);
+        assert_eq!(report.pixel_key_mismatches, 1);
+    }
+
+    #[test]
+    fn complete_merge_detects_source_counters_when_flux_matches() {
+        let mut canonical = PartitionShard::new("canonical", 128).unwrap();
+        canonical.admit(0, 1.0, 0.0, 0.0).unwrap();
+        let mut independent = PartitionShard::new("independent", 128).unwrap();
+        independent.admit(0, 0.5, 0.0, 0.0).unwrap();
+        independent.admit(1, 0.5, 0.0, 0.0).unwrap();
+
+        let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
+        assert!(!report.stable);
+        assert_eq!(report.flux_mismatches, 0);
+        assert_eq!(report.source_counter_mismatches, 1);
+    }
+
+    #[test]
+    fn complete_merge_detects_uncertainty_differences() {
+        let mut canonical = PartitionShard::new("canonical", 128).unwrap();
+        canonical.admit(0, 1.0, 0.1, 0.0).unwrap();
+        let mut independent = PartitionShard::new("independent", 128).unwrap();
+        independent.admit(0, 1.0, 0.2, 0.0).unwrap();
+
+        let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
+        assert!(!report.stable);
+        assert_eq!(report.flux_mismatches, 0);
+        assert_eq!(report.uncertainty_mismatches, 1);
+    }
+
+    #[test]
+    fn complete_merge_detects_exclusion_reason_differences() {
+        let mut canonical = PartitionShard::new("canonical", 128).unwrap();
+        canonical.exclude(0, "invalid_flux").unwrap();
+        let mut independent = canonical.clone();
+        independent.exclusion_reasons.clear();
+        independent
+            .exclusion_reasons
+            .insert("calibration_failed".to_string(), 1);
+
+        let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
+        assert!(!report.stable);
+        assert_eq!(report.exclusion_reason_mismatches, 2);
+    }
+
+    #[test]
+    fn validation_rejects_corrupted_complete_merge_digest() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.deterministic_merge.independent_partial_merge_sha256 = "0".repeat(64);
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
     }
 
     #[test]

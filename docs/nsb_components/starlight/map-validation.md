@@ -32,12 +32,34 @@ admission of this schema must materialize an omitted pixel as the same explicit
 zero-flux, zero-source-count value rather than treating omission as missing or
 unknown data.
 
-Report schema v4 declares one `canonical_map`. Validation independently reads
-the CSV using compensated summation and requires its checksum, nside, schema,
-representation, omitted-pixel semantics, pixel-domain size, occupied-pixel
-count, integrated flux, admitted sources, and excluded sources to match the
-report. Global report totals must match the canonical map, and
+Report schema v5 declares one `canonical_map` and one `deterministic_merge`.
+Validation independently reads the CSV and requires its checksum, nside,
+schema, representation, omitted-pixel semantics, pixel-domain size,
+occupied-pixel count, integrated flux, admitted sources, and excluded sources
+to match the report. Global report totals must match the canonical map, and
 `observed_sources` must equal admitted plus excluded with checked arithmetic.
+
+Starlight shard schema v2 stores flux and uncertainty sums as sparse exact
+binary64 superaccumulators. The state uses integer limbs with a `2^-1074` unit,
+so merging is associative and commutative and rounding occurs only when the
+canonical CSV value is requested. Reordering shards or changing the reduction
+tree therefore cannot alter the accumulated state.
+
+The `complete-partition-shard-v1` deterministic contract serializes, in
+strictly increasing pixel order:
+
+- the nside and complete sparse pixel key set;
+- exact flux, statistical-variance, and systematic-variance accumulators;
+- observed, admitted, and excluded source counters for every pixel;
+- the complete sorted exclusion-reason accounting map.
+
+The canonical merge and an independently grouped partial merge are compared
+field by field and hashed with SHA-256 over that versioned serialization. Any
+key, accumulator, counter, uncertainty, exclusion-accounting, or digest
+mismatch aborts validation with the first mismatch and aggregate mismatch
+counts. A successful report records equal complete-map digests, zero mismatch
+counts, and `stable = true`; evidence from a single matching pixel is not
+accepted.
 
 Normal candidate gates are:
 
