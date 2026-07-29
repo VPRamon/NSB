@@ -61,3 +61,70 @@ crate bundles or references reproducible site-specific validation inputs for:
 Until then, CTAO users should treat the built-in CTA profiles as explicit,
 inspectable planning defaults and pass custom component profiles when they need
 validated operational thresholds.
+
+## Versioned calibration asset
+
+`SiteCalibrationAsset` schema v1 is the fail-closed evidence contract for future
+CTAO-N and CTAO-S calibrated profiles. A valid asset records:
+
+- one stable calibration identifier and explicit CTAO site;
+- an inclusive date interval and wavelength domain;
+- representative altitude, surface pressure, Rayleigh scale height, aerosol
+  optical depth at 550 nm, and Angstrom exponent with one-sigma uncertainties;
+- an airglow continuum scale and uncertainty, plus an explicit declaration of
+  whether a temporal or seasonal correction is applied;
+- one or more repository-relative immutable references with source, license and
+  lowercase SHA-256;
+- explicit scientific or operational limitations.
+
+The parser rejects unknown fields, unsupported schemas, malformed identifiers,
+invalid dates, non-finite or out-of-domain physical values, inconsistent airglow
+correction metadata, duplicate references, unsafe paths, and missing provenance.
+The schema cannot represent `GenericClearSky`, so a generic fallback cannot be
+mislabelled as a named-site calibration.
+
+Example structure:
+
+```toml
+schema_version = 1
+calibration_id = "ctao-south-reference-v1"
+site = "ctao-south"
+limitations = ["Valid only for the documented clear, moonless sample."]
+
+[validity]
+valid_from = "2025-01-01"
+valid_through = "2025-12-31"
+wavelength_nm = [300, 650]
+
+[atmosphere]
+representative_altitude_m = 2150.0
+representative_altitude_uncertainty_m = 10.0
+surface_pressure_hpa = 743.0
+surface_pressure_uncertainty_hpa = 5.0
+rayleigh_scale_height_km = 8.0
+rayleigh_scale_height_uncertainty_km = 0.2
+aerosol_optical_depth_550_nm = 0.03
+aerosol_optical_depth_uncertainty_550_nm = 0.01
+angstrom_exponent = 1.0
+angstrom_exponent_uncertainty = 0.2
+
+[airglow]
+continuum_scale = 1.05
+continuum_scale_uncertainty = 0.10
+temporal_correction_applied = false
+
+[[references]]
+id = "ctao-south-atmosphere"
+path = "site-calibration/ctao-south/atmosphere-v1.csv"
+sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+source = "Documented CTAO-South atmospheric reference release"
+license = "Redistribution terms recorded with the reference asset"
+```
+
+Parsing and validation are available through
+`SiteCalibrationAsset::from_toml_str`. Passing this structural contract is
+necessary but not sufficient for promotion. A later site-specific issue must
+bundle the referenced bytes, define numerical validation tolerances, demonstrate
+regressions against trusted observations, and explicitly connect the approved
+asset to a new calibrated runtime profile. Existing `CtaNorth` and `CtaSouth`
+profiles remain planning presets.
