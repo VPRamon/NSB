@@ -116,7 +116,7 @@ pub struct SpectralCoverageReport {
     pub correction_artifact_sha256: Option<String>,
     pub calibration_status: Option<crate::starlight::uv::CalibrationStatus>,
     pub model_response: Option<crate::starlight::uv::ModelResponse>,
-    pub measured_correction_statistical_correlation: Option<f64>,
+    pub measured_conditional_residual_statistical_correlation: Option<f64>,
     pub systematic_correlation: Option<crate::starlight::uv::SystematicCorrelation>,
     pub limitation: String,
 }
@@ -618,7 +618,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         "uv_correction_sha256",
         "uv_calibration_status",
         "uv_model_response",
-        "uv_statistical_correlation",
+        "uv_measured_conditional_residual_statistical_correlation",
         "uv_systematic_correlation",
     ];
     if base_headers != expected_headers
@@ -653,7 +653,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             "uv_correction_sha256",
             "uv_calibration_status",
             "uv_model_response",
-            "uv_statistical_correlation",
+            "uv_measured_conditional_residual_statistical_correlation",
             "uv_systematic_correlation",
         ]
         .iter()
@@ -689,7 +689,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             Some("absolute-uv-photon-flux" | "natural-log-uv-to-measured-flux-ratio-336-650")
         )
         && observed_headers
-            .get("uv_statistical_correlation")
+            .get("uv_measured_conditional_residual_statistical_correlation")
             .and_then(|value| value.parse::<f64>().ok())
             .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
         && matches!(
@@ -843,8 +843,8 @@ fn science_policy_report(merged: &PartitionShard) -> SciencePolicyReport {
                 .map(|metadata| metadata.artifact_sha256.clone()),
             calibration_status: ultraviolet.map(|metadata| metadata.calibration_status),
             model_response: ultraviolet.map(|metadata| metadata.response.clone()),
-            measured_correction_statistical_correlation: ultraviolet.map(|metadata| {
-                f64::from_bits(metadata.measured_correction_statistical_correlation_bits)
+            measured_conditional_residual_statistical_correlation: ultraviolet.map(|metadata| {
+                f64::from_bits(metadata.measured_conditional_residual_statistical_correlation_bits)
             }),
             systematic_correlation: ultraviolet
                 .map(|metadata| metadata.systematic_correlation),
@@ -928,7 +928,7 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
                 == Some(crate::starlight::uv::CalibrationStatus::Validated)
             && spectral.model_response.is_some()
             && spectral
-                .measured_correction_statistical_correlation
+                .measured_conditional_residual_statistical_correlation
                 .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
             && spectral.systematic_correlation.is_some()
     } else {
@@ -940,7 +940,7 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
             && spectral.calibration_status.is_none()
             && spectral.model_response.is_none()
             && spectral
-                .measured_correction_statistical_correlation
+                .measured_conditional_residual_statistical_correlation
                 .is_none()
             && spectral.systematic_correlation.is_none()
     };
@@ -1000,8 +1000,8 @@ fn write_map(
                     .context("corrected map has no model response")?,
             ),
             spectral
-                .measured_correction_statistical_correlation
-                .context("corrected map has no statistical correlation")?
+                .measured_conditional_residual_statistical_correlation
+                .context("corrected map has no measured/conditional-residual statistical correlation")?
                 .to_string(),
             match spectral
                 .systematic_correlation
@@ -1049,7 +1049,7 @@ fn write_map(
          # uv_correction_sha256={artifact_sha256}\n\
          # uv_calibration_status={status}\n\
          # uv_model_response={model_response}\n\
-         # uv_statistical_correlation={statistical_correlation}\n\
+         # uv_measured_conditional_residual_statistical_correlation={statistical_correlation}\n\
          # uv_systematic_correlation={systematic_correlation}\n\
          pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n"
     );
@@ -1108,10 +1108,10 @@ fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport)
                 )
             ),
             format!(
-                "# uv_statistical_correlation={}",
+                "# uv_measured_conditional_residual_statistical_correlation={}",
                 spectral
-                    .measured_correction_statistical_correlation
-                    .context("corrected report has no statistical correlation")?
+                    .measured_conditional_residual_statistical_correlation
+                    .context("corrected report has no measured/conditional-residual statistical correlation")?
             ),
             format!(
                 "# uv_systematic_correlation={}",
@@ -1138,7 +1138,7 @@ fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport)
             "# uv_correction_sha256=none".to_string(),
             "# uv_calibration_status=none".to_string(),
             "# uv_model_response=none".to_string(),
-            "# uv_statistical_correlation=none".to_string(),
+            "# uv_measured_conditional_residual_statistical_correlation=none".to_string(),
             "# uv_systematic_correlation=none".to_string(),
         ]
     };
@@ -1326,7 +1326,7 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         append_string(&mut bytes, &metadata.artifact_sha256)?;
         bytes.extend_from_slice(
             &metadata
-                .measured_correction_statistical_correlation_bits
+                .measured_conditional_residual_statistical_correlation_bits
                 .to_be_bytes(),
         );
         match metadata.response {
@@ -1773,7 +1773,7 @@ mod tests {
             artifact_sha256: "a".repeat(64),
             calibration_status: crate::starlight::uv::CalibrationStatus::Validated,
             response: crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux,
-            measured_correction_statistical_correlation_bits: 0.25_f64.to_bits(),
+            measured_conditional_residual_statistical_correlation_bits: 0.25_f64.to_bits(),
             systematic_correlation:
                 crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources,
         };
@@ -1849,6 +1849,9 @@ mod tests {
         assert!(map.contains("# measured_component=336-650-measured"));
         assert!(map.contains("# combined_component=300-650-combined"));
         assert!(map.contains("# uv_model_response=absolute-uv-photon-flux"));
+        assert!(map.contains(
+            "# uv_measured_conditional_residual_statistical_correlation=0.25"
+        ));
         assert!(map.contains("# uv_systematic_correlation=fully-correlated-between-sources"));
         validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
     }
@@ -1861,7 +1864,7 @@ mod tests {
             artifact_sha256: "a".repeat(64),
             calibration_status: crate::starlight::uv::CalibrationStatus::Validated,
             response: crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux,
-            measured_correction_statistical_correlation_bits: 0.0_f64.to_bits(),
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
             systematic_correlation:
                 crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources,
         };

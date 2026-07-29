@@ -104,7 +104,7 @@
     "statistical_floor_ph_m2_s": 0.5,
     "systematic_floor_ph_m2_s": 1.0,
     "systematic_fraction": 0.1,
-    "measured_correction_statistical_correlation": 0.25,
+    "measured_conditional_residual_statistical_correlation": 0.25,
     "systematic_correlation": "fully-correlated-between-sources"
   },
   "out_of_domain_policy": {

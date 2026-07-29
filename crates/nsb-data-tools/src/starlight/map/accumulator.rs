@@ -298,7 +298,7 @@ pub struct UvCorrectionShardMetadata {
     pub artifact_sha256: String,
     pub calibration_status: CalibrationStatus,
     pub response: ModelResponse,
-    pub measured_correction_statistical_correlation_bits: u64,
+    pub measured_conditional_residual_statistical_correlation_bits: u64,
     pub systematic_correlation: SystematicCorrelation,
 }
 
@@ -348,14 +348,14 @@ impl PartitionShard {
             bail!("300–650 nm shards require UV correction metadata and measured shards forbid it");
         }
         if let Some(metadata) = &ultraviolet_correction {
-            let statistical_correlation =
-                f64::from_bits(metadata.measured_correction_statistical_correlation_bits);
+            let measured_residual_correlation =
+                f64::from_bits(metadata.measured_conditional_residual_statistical_correlation_bits);
             if metadata.model_id.trim().is_empty()
                 || !is_sha256(&metadata.artifact_sha256)
                 || metadata.calibration_status != CalibrationStatus::Validated
                 || metadata.response.validate().is_err()
-                || !statistical_correlation.is_finite()
-                || !(-1.0..=1.0).contains(&statistical_correlation)
+                || !measured_residual_correlation.is_finite()
+                || !(-1.0..=1.0).contains(&measured_residual_correlation)
             {
                 bail!("UV correction shard metadata is invalid or not validated");
             }

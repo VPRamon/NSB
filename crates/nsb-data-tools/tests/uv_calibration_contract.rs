@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const ARTIFACT_SHA256: &str = "814abc5fabea95bfe22f1477eb7f5e6ac06a1c964fb49081f2d213f49041c28f";
+const ARTIFACT_SHA256: &str = "06a47ad99dd3786d1afe3256337c18325fa27b15dad15d63c7a1dd708fca92be";
 
 fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/uv_synthetic_non_production")
@@ -376,6 +376,66 @@ fn log_ratio_response_uses_typed_measured_context_and_jacobian_covariance() {
         .unwrap_err()
         .to_string()
         .contains("does not match"));
+}
+
+#[test]
+fn zero_residual_correlation_preserves_log_ratio_structural_covariance() {
+    let temporary = tempfile::tempdir().unwrap();
+    let mut value = artifact();
+    value.response = ModelResponse::NaturalLogUvToMeasuredFluxRatio {
+        denominator_band_nm: [336, 650],
+    };
+    let CorrectionModel::Linear {
+        parameters,
+        covariance,
+    } = &mut value.model;
+    *parameters = vec![0.1_f64.ln(), 0.0];
+    *covariance = vec![vec![0.04, 0.0], vec![0.0, 0.0]];
+    value.uncertainty_model.statistical_floor_ph_m2_s = 0.0;
+    value
+        .uncertainty_model
+        .measured_conditional_residual_statistical_correlation = 0.0;
+    let correction = load_mutated(&temporary, &value).unwrap();
+    let predictors = BTreeMap::from([("x".to_string(), 5.0)]);
+
+    let evaluation = correction
+        .evaluate(UvEvaluationInput {
+            predictors: &predictors,
+            measured_band: Some(MeasuredBandInput {
+                flux_336_650_ph_m2_s: 100.0,
+                statistical_uncertainty_336_650_ph_m2_s: 4.0,
+            }),
+        })
+        .unwrap();
+
+    assert!(
+        (evaluation
+            .statistical_uncertainty_300_336_ph_m2_s
+            .unwrap()
+            .powi(2)
+            - 4.16)
+            .abs()
+            < 1.0e-12
+    );
+    assert!(
+        (evaluation
+            .measured_correction_statistical_covariance_ph2_m4_s2
+            .unwrap()
+            - 1.6)
+            .abs()
+            < 1.0e-12
+    );
+    let combined = correction
+        .combine_with_measured(100.0, 4.0, &evaluation)
+        .unwrap();
+    assert!(
+        (combined
+            .statistical_uncertainty_300_650_ph_m2_s
+            .powi(2)
+            - 23.36)
+            .abs()
+            < 1.0e-12
+    );
 }
 
 #[test]

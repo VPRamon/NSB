@@ -47,8 +47,8 @@ The correction artifact has `schema_version = 1` and contains:
   logarithm of the 300–336/336–650 photon-flux ratio (with denominator band
   fixed to `[336, 650]`);
 - statistical residual floor, systematic floor/fraction, explicit
-  measured/correction statistical correlation, and explicit source-to-source
-  systematic correlation;
+  correlation between measured XP statistical error and the conditional
+  UV-model residual, and explicit source-to-source systematic correlation;
 - an out-of-domain rejection or boundary-clamping/conservative-uncertainty
   policy;
 - validation metrics from a closed vocabulary: signed `bias`,
@@ -64,10 +64,14 @@ the intercept and remaining parameters follow predictor order. Supporting this
 serialization and evaluation family does not choose or train a scientific
 model. For the log-ratio response, evaluation requires the measured 336–650 nm
 flux and its statistical uncertainty as a typed input. The score is
-exponentiated, multiplied by that measured flux, and its covariance is
-propagated through the exponential Jacobian. The returned
-measured/correction covariance lets the combined-band calculation include the
-shared measured term exactly once.
+exponentiated and multiplied by that measured flux. The artifact correlation
+is explicitly the correlation between the measured XP statistical error and
+the conditional UV-model residual; it is not the total measured/UV-flux
+correlation. If `X` is measured flux, `r = exp(score)`, and `ε` is the
+conditional residual, evaluation uses `U = r X + ε` and therefore
+`Cov(X, U) = r Var(X) + Cov(X, ε)`. The returned total measured/correction
+covariance includes this structural term exactly once, even when the declared
+residual correlation is zero.
 
 The canonical holdout is CSV with these required columns:
 

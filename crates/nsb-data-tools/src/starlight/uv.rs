@@ -143,7 +143,10 @@ pub struct UncertaintyModel {
     pub statistical_floor_ph_m2_s: f64,
     pub systematic_floor_ph_m2_s: f64,
     pub systematic_fraction: f64,
-    pub measured_correction_statistical_correlation: f64,
+    /// Correlation between the measured XP statistical error and the conditional
+    /// UV-model residual. For log-ratio responses this excludes the structural
+    /// dependence of corrected UV flux on the measured XP flux.
+    pub measured_conditional_residual_statistical_correlation: f64,
     pub systematic_correlation: SystematicCorrelation,
 }
 
@@ -273,6 +276,8 @@ pub struct UvCorrectionEvaluation {
     pub artifact_sha256: String,
     pub response: ModelResponse,
     pub measured_band: Option<MeasuredBandInput>,
+    /// Total statistical covariance between measured XP flux and corrected UV
+    /// flux. Log-ratio responses include their structural shared-flux term.
     pub measured_correction_statistical_covariance_ph2_m4_s2: Option<f64>,
 }
 
@@ -516,10 +521,10 @@ impl UncertaintyModel {
                 bail!("UV {label} must be finite and non-negative");
             }
         }
-        if !self.measured_correction_statistical_correlation.is_finite()
-            || !(-1.0..=1.0).contains(&self.measured_correction_statistical_correlation)
+        if !self.measured_conditional_residual_statistical_correlation.is_finite()
+            || !(-1.0..=1.0).contains(&self.measured_conditional_residual_statistical_correlation)
         {
-            bail!("measured/correction statistical correlation must be in [-1, 1]");
+            bail!("measured/conditional-residual statistical correlation must be in [-1, 1]");
         }
         Ok(())
     }
@@ -693,10 +698,10 @@ impl UvCorrection {
         }
         let score_variance = quadratic_form(covariance, &transformed)?;
         let statistical_floor = self.artifact.uncertainty_model.statistical_floor_ph_m2_s;
-        let correlation = self
+        let measured_residual_correlation = self
             .artifact
             .uncertainty_model
-            .measured_correction_statistical_correlation;
+            .measured_conditional_residual_statistical_correlation;
         let (flux, statistical, measured_covariance) = match &self.artifact.response {
             ModelResponse::AbsoluteUvPhotonFlux => {
                 if score < 0.0 {
@@ -704,7 +709,7 @@ impl UvCorrection {
                 }
                 let correction_statistical = score_variance.sqrt().hypot(statistical_floor);
                 let covariance = input.measured_band.map(|measured| {
-                    correlation
+                    measured_residual_correlation
                         * measured.statistical_uncertainty_336_650_ph_m2_s
                         * correction_statistical
                 });
@@ -728,12 +733,15 @@ impl UvCorrection {
                 let measured_contribution = ratio * measured_sigma;
                 let correction_variance = conditional_statistical.powi(2)
                     + measured_contribution.powi(2)
-                    + 2.0 * correlation * conditional_statistical * measured_contribution;
+                    + 2.0
+                        * measured_residual_correlation
+                        * conditional_statistical
+                        * measured_contribution;
                 if !correction_variance.is_finite() || correction_variance < -1.0e-12 {
                     bail!("UV log-ratio uncertainty propagation produced invalid variance");
                 }
                 let measured_covariance = ratio * measured_sigma.powi(2)
-                    + correlation * measured_sigma * conditional_statistical;
+                    + measured_residual_correlation * measured_sigma * conditional_statistical;
                 (
                     flux,
                     correction_variance.max(0.0).sqrt(),
@@ -776,8 +784,9 @@ impl UvCorrection {
 
     /// Combine a successful correction with the unchanged measured XP value.
     ///
-    /// The artifact's explicit measured/correction correlation is used for
-    /// statistical propagation. The correction systematic remains separate.
+    /// The evaluation's total measured/correction covariance is used for
+    /// statistical propagation. The artifact correlation applies only to the
+    /// conditional model residual; the correction systematic remains separate.
     pub fn combine_with_measured(
         &self,
         flux_336_650_ph_m2_s: f64,
@@ -820,13 +829,13 @@ impl UvCorrection {
                 + uv_statistical.powi(2)
                 + 2.0 * covariance
         } else {
-            let correlation = self
+            let measured_residual_correlation = self
                 .artifact
                 .uncertainty_model
-                .measured_correction_statistical_correlation;
+                .measured_conditional_residual_statistical_correlation;
             statistical_uncertainty_336_650_ph_m2_s.powi(2)
                 + uv_statistical.powi(2)
-                + 2.0 * correlation * statistical_uncertainty_336_650_ph_m2_s * uv_statistical
+                + 2.0 * measured_residual_correlation * statistical_uncertainty_336_650_ph_m2_s * uv_statistical
         };
         if !combined_variance.is_finite() || combined_variance < -1.0e-12 {
             bail!("UV/XP statistical covariance produced invalid combined variance");

@@ -127,10 +127,10 @@ fn build_partition(
         artifact_sha256: correction.artifact_sha256().to_string(),
         calibration_status: correction.artifact().calibration_status,
         response: correction.artifact().response.clone(),
-        measured_correction_statistical_correlation_bits: correction
+        measured_conditional_residual_statistical_correlation_bits: correction
             .artifact()
             .uncertainty_model
-            .measured_correction_statistical_correlation
+            .measured_conditional_residual_statistical_correlation
             .to_bits(),
         systematic_correlation: correction
             .artifact()
