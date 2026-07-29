@@ -765,7 +765,7 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
 
 fn starlight_asset_schema(name: &str) -> &'static str {
     if name == "merge_report.json" {
-        "nsb-starlight-merge-report-v4"
+        "nsb-starlight-merge-report-v5"
     } else {
         "nsb-healpix-starlight-candidate-v3"
     }
@@ -1019,7 +1019,7 @@ runtime_embedded = false
         );
         assert_eq!(
             report["schema"].as_str(),
-            Some("nsb-starlight-merge-report-v4")
+            Some("nsb-starlight-merge-report-v5")
         );
     }
 }

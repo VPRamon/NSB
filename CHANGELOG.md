@@ -7,6 +7,9 @@ once a stable public release is cut.
 
 ### Changed
 
+- Replaced single-pixel Starlight merge evidence with exact mergeable numeric
+  accumulators, complete pixel/accounting comparison, and versioned dataset-wide
+  deterministic digests (#73).
 - Consolidated `nsb-data-tools` from 36 compiled binaries to 19 durable,
   capability-oriented Rust commands; removed Phase 5/5B one-shot executables,
   shell orchestration, and Python data-product programs; added pure-Rust Gaia XP
