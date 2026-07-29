@@ -835,7 +835,10 @@ impl UvCorrection {
                 .measured_conditional_residual_statistical_correlation;
             statistical_uncertainty_336_650_ph_m2_s.powi(2)
                 + uv_statistical.powi(2)
-                + 2.0 * measured_residual_correlation * statistical_uncertainty_336_650_ph_m2_s * uv_statistical
+                + 2.0
+                    * measured_residual_correlation
+                    * statistical_uncertainty_336_650_ph_m2_s
+                    * uv_statistical
         };
         if !combined_variance.is_finite() || combined_variance < -1.0e-12 {
             bail!("UV/XP statistical covariance produced invalid combined variance");

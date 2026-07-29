@@ -1001,7 +1001,9 @@ fn write_map(
             ),
             spectral
                 .measured_conditional_residual_statistical_correlation
-                .context("corrected map has no measured/conditional-residual statistical correlation")?
+                .context(
+                    "corrected map has no measured/conditional-residual statistical correlation",
+                )?
                 .to_string(),
             match spectral
                 .systematic_correlation
@@ -1111,7 +1113,9 @@ fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport)
                 "# uv_measured_conditional_residual_statistical_correlation={}",
                 spectral
                     .measured_conditional_residual_statistical_correlation
-                    .context("corrected report has no measured/conditional-residual statistical correlation")?
+                    .context(
+                        "corrected report has no measured/conditional-residual statistical correlation",
+                    )?
             ),
             format!(
                 "# uv_systematic_correlation={}",
