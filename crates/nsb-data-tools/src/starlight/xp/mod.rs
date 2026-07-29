@@ -19,7 +19,6 @@ pub const BAND_MIN_NM: f64 = 336.0;
 pub const BAND_MAX_NM: f64 = 650.0;
 pub(crate) const XP_SAMPLED_GRID_STEP_NM: f64 = 2.0;
 
-const REQUESTED_BAND_MIN_NM: f64 = 300.0;
 const PLANCK_CONSTANT_J_S: f64 = 6.626_070_15e-34;
 const SPEED_OF_LIGHT_M_S: f64 = 299_792_458.0;
 
@@ -32,7 +31,7 @@ pub struct XpProduct {
     pub flux_error_w_m2_nm: Option<Vec<f64>>,
 }
 
-/// Integrate calibrated photon flux over the available part of 300–650 nm.
+/// Integrate calibrated photon flux over the measured 336–650 nm samples.
 ///
 /// The pinned GaiaXPy fixture begins at 336 nm, so the 300–336 nm part of the
 /// requested band has no extrapolated contribution. The merge report records
@@ -128,15 +127,18 @@ fn integration_bounds(product: &XpProduct) -> Result<(usize, usize)> {
     let first = product
         .wavelengths_nm
         .iter()
-        .position(|wavelength| *wavelength >= REQUESTED_BAND_MIN_NM)
-        .context("Gaia XP spectrum does not cover 300–650 nm")?;
+        .position(|wavelength| *wavelength >= BAND_MIN_NM)
+        .context("Gaia XP spectrum does not cover measured 336–650 nm")?;
     let last = product
         .wavelengths_nm
         .iter()
         .rposition(|wavelength| *wavelength <= BAND_MAX_NM)
-        .context("Gaia XP spectrum does not cover 300–650 nm")?;
-    if first >= last || product.wavelengths_nm[last] != BAND_MAX_NM {
-        bail!("Gaia XP spectrum must reach an exact 650 nm sample");
+        .context("Gaia XP spectrum does not cover measured 336–650 nm")?;
+    if first >= last
+        || product.wavelengths_nm[first] != BAND_MIN_NM
+        || product.wavelengths_nm[last] != BAND_MAX_NM
+    {
+        bail!("Gaia XP spectrum must contain exact 336 nm and 650 nm samples");
     }
     Ok((first, last))
 }

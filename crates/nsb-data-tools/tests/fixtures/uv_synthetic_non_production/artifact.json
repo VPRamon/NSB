@@ -1,0 +1,125 @@
+{
+  "schema_version": 1,
+  "model_id": "SYNTHETIC-NON-PRODUCTION-UV-TEST-V1",
+  "calibration_status": "test-only",
+  "correction_band_nm": [
+    300,
+    336
+  ],
+  "flux_unit": "ph_m-2_s-1",
+  "statistical_uncertainty_unit": "ph_m-2_s-1",
+  "systematic_uncertainty_unit": "ph_m-2_s-1",
+  "reference_dataset": {
+    "name": "SYNTHETIC-NON-PRODUCTION-TEST-FIXTURE",
+    "release": "test-v1",
+    "licence": "BSD-3-Clause repository test fixture",
+    "files": [
+      {
+        "name": "reference.csv",
+        "sha256": "a92071cfd84d2231b2df1f9525355f3588d71eb44c3de774665d6dd5621c808e"
+      }
+    ],
+    "wavelength_band_nm": [
+      300,
+      340
+    ],
+    "spectral_flux_unit": "W_m-2_nm-1",
+    "transformations": [
+      "synthetic identity fixture"
+    ],
+    "quality_cuts": [
+      "synthetic finite-row fixture"
+    ]
+  },
+  "partitions": {
+    "assignment_algorithm": "synthetic-test-fixture-explicit-v1",
+    "seed": 0,
+    "manifest_sha256": "bff9c7d31cc2d07d894f3cba7735551efc5b5ec89b584b4d00ef6013a311b3f4",
+    "training": {
+      "partition_id": "synthetic-training",
+      "source_count": 1,
+      "source_ids_sha256": "39b02ad1a2d27db54d2344cd0dc358822ae9c063c4ff60b797c1a05f257b92cc",
+      "sky_regions": [
+        "train-sky"
+      ]
+    },
+    "validation": {
+      "partition_id": "synthetic-validation",
+      "source_count": 1,
+      "source_ids_sha256": "ceb35c231d30474fcd0c06ca7458b183d3c6fdb64fe93db1b4402e90ab284c29",
+      "sky_regions": [
+        "validation-sky"
+      ]
+    },
+    "test": {
+      "partition_id": "synthetic-test",
+      "source_count": 1,
+      "source_ids_sha256": "656fa43debed6cd70291f014c9a2847ee4d39cf6b1f031530b844596a5c88ebe",
+      "sky_regions": [
+        "test-sky"
+      ]
+    },
+    "source_disjoint": true,
+    "sky_disjoint": true,
+    "disjointness_evidence_sha256": "bff9c7d31cc2d07d894f3cba7735551efc5b5ec89b584b4d00ef6013a311b3f4"
+  },
+  "predictors": [
+    {
+      "name": "x",
+      "unit": "dimensionless",
+      "transformation": {
+        "kind": "identity"
+      },
+      "domain": {
+        "minimum": 0.0,
+        "maximum": 10.0
+      }
+    }
+  ],
+  "model": {
+    "family": "linear",
+    "parameters": [
+      10.0,
+      2.0
+    ],
+    "covariance": [
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.25
+      ]
+    ]
+  },
+  "uncertainty_model": {
+    "statistical_floor_ph_m2_s": 0.5,
+    "systematic_floor_ph_m2_s": 1.0,
+    "systematic_fraction": 0.1,
+    "measured_correction_statistical_correlation": 0.25,
+    "systematic_correlation": "fully-correlated-between-sources"
+  },
+  "out_of_domain_policy": {
+    "policy": "clamp-with-systematic-inflation",
+    "factor": 3.0
+  },
+  "validation_metrics": [
+    {
+      "metric": "synthetic-fixture-rmse",
+      "value": 0.0,
+      "unit": "ph_m-2_s-1",
+      "sample_count": 1,
+      "stratum": {
+        "colour": "synthetic-all",
+        "magnitude": "synthetic-all",
+        "extinction_proxy": "synthetic-all",
+        "quality": "synthetic-all",
+        "sky_region": "synthetic-test-sky",
+        "extrapolation_status": "in-domain"
+      }
+    }
+  ],
+  "training_command": "cargo test -p nsb-data-tools --test uv_calibration_contract",
+  "software_version": "nsb-data-tools-test-fixture-v1"
+}

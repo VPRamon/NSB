@@ -140,6 +140,13 @@ impl RunConfig {
                 bail!("every source requires a name and lowercase SHA-256");
             }
         }
+        if let Some(uv) = config
+            .starlight
+            .as_mut()
+            .and_then(|starlight| starlight.ultraviolet_correction.as_mut())
+        {
+            uv.artifact_path = resolve(base, &uv.artifact_path);
+        }
         if let Some(publish) = &mut config.publish {
             publish.repository_root = resolve(base, &publish.repository_root);
         }

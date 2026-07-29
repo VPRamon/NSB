@@ -1,0 +1,4 @@
+source_id,expected_flux_300_336_ph_m2_s,colour,magnitude,extinction_proxy,quality,sky_region,x
+inside,20,blue,bright,low,good,north,5
+boundary,10,red,faint,high,poor,south,0
+outside,30,red,bright,low,good,east,12

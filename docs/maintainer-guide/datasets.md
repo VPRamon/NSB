@@ -183,6 +183,11 @@ spectral coverage is 336–650 nm and that no validated 300–336 nm correction 
 applied. These declarations prevent the candidate from silently claiming the
 fully corrected 300–650 nm production contract in
 `docs/nsb_components/starlight/science-requirements.md`.
+The versioned UV artifact, partition, holdout, evaluation, and runtime
+configuration contracts are documented in
+[Starlight ultraviolet calibration contract](starlight-uv-calibration.md).
+Those contracts do not supply a trained model: the real independently
+calibrated reference dataset and scientific review remain explicit blockers.
 
 Run the full workers through the configured Slurm array:
 
@@ -230,8 +235,9 @@ and emits:
 - `starlight_nside{canonical_nside}.csv`, the single source-level canonical map
 - `merge_report.json`, including canonical-map flux/source totals, checksum,
   exclusions,
-  explicit science-policy limitations, and the deterministic partial-merge
-  reference
+  separate 300–336 corrected, 336–650 measured, and 300–650 combined
+  diagnostics, explicit science-policy limitations, and the deterministic
+  partial-merge reference
 
 The release gates verify artifact checksum round trips, finite flux, at least
 70% occupied canonical pixels in the Galactic plane (`|b| < 20°`), exact

@@ -1,8 +1,9 @@
 //! Production processing for one immutable Gaia partition pair.
 
-use super::config::GaiaProductConfig;
-use super::map::accumulator::PartitionShard;
+use super::config::{GaiaProductConfig, StarlightProductBand, UvCorrectionConfig};
+use super::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
 use super::sources::acquisition;
+use super::uv::{EvaluationDecision, UvCorrection};
 use super::xp::{
     integrate_photon_flux, integrate_photon_flux_uncertainty, GaiaXpContinuousCalibrator,
 };
@@ -11,7 +12,7 @@ use crate::platform::artifact_store;
 use anyhow::{bail, Context, Result};
 use csv::ReaderBuilder;
 use flate2::read::GzDecoder;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -24,6 +25,8 @@ pub(crate) fn build_partitions(
     partitions: &[String],
     concurrency: usize,
     canonical_nside: u32,
+    product_band: StarlightProductBand,
+    ultraviolet_config: Option<&UvCorrectionConfig>,
 ) -> Result<Vec<Artifact>> {
     if partitions.is_empty() {
         return Ok(Vec::new());
@@ -31,11 +34,22 @@ pub(crate) fn build_partitions(
     let (shared_workspace, worker_invocation) = workspace_roots(configured_workspace);
     let fixture = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
     let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&fixture)?;
+    let ultraviolet_correction = ultraviolet_config
+        .map(|config| -> Result<UvCorrection> {
+            let correction = UvCorrection::load(&config.artifact_path, &config.sha256)?;
+            correction.require_production_status()?;
+            Ok(correction)
+        })
+        .transpose()?;
+    if product_band == StarlightProductBand::Combined300To650 && ultraviolet_correction.is_none() {
+        bail!("300–650 nm Starlight product requires a validated UV correction artifact");
+    }
     let chunk_size = partitions.len().div_ceil(concurrency.max(1)).max(1);
     let artifacts = std::thread::scope(|scope| -> Result<Vec<Artifact>> {
         let mut handles = Vec::new();
         for chunk in partitions.chunks(chunk_size) {
             let calibrator = &calibrator;
+            let ultraviolet_correction = ultraviolet_correction.as_ref();
             let shared_workspace = shared_workspace.as_path();
             handles.push(scope.spawn(move || -> Result<Vec<Artifact>> {
                 chunk
@@ -49,6 +63,8 @@ pub(crate) fn build_partitions(
                             partition,
                             calibrator,
                             canonical_nside,
+                            product_band,
+                            ultraviolet_correction,
                         )
                     })
                     .collect()
@@ -69,6 +85,9 @@ pub(crate) fn build_partitions(
     Ok(artifacts)
 }
 
+// The arguments are the immutable worker inputs independently resolved by the
+// lifecycle; grouping them would obscure borrowed process-wide calibrators.
+#[allow(clippy::too_many_arguments)]
 fn build_partition(
     shared_workspace: &Path,
     configured_workspace: &Path,
@@ -77,6 +96,8 @@ fn build_partition(
     partition_id: &str,
     calibrator: &GaiaXpContinuousCalibrator,
     canonical_nside: u32,
+    product_band: StarlightProductBand,
+    ultraviolet_correction: Option<&UvCorrection>,
 ) -> Result<Artifact> {
     let gaia_path = acquisition::verified_object_for_partition(
         shared_workspace,
@@ -90,18 +111,51 @@ fn build_partition(
         "xp-continuous",
         partition_id,
     )?;
-    let gaia_sources = load_gaia_source_ids(&gaia_path)?;
-    let mut shard = PartitionShard::new(partition_id, canonical_nside)?;
+    let predictor_names = ultraviolet_correction
+        .map(|correction| {
+            correction
+                .artifact()
+                .predictors
+                .iter()
+                .map(|predictor| predictor.name.clone())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let gaia_sources = load_gaia_sources(&gaia_path, &predictor_names)?;
+    let ultraviolet_metadata = ultraviolet_correction.map(|correction| UvCorrectionShardMetadata {
+        model_id: correction.artifact().model_id.clone(),
+        artifact_sha256: correction.artifact_sha256().to_string(),
+        calibration_status: correction.artifact().calibration_status,
+        measured_correction_statistical_correlation_bits: correction
+            .artifact()
+            .uncertainty_model
+            .measured_correction_statistical_correlation
+            .to_bits(),
+        systematic_correlation: correction
+            .artifact()
+            .uncertainty_model
+            .systematic_correlation,
+    });
+    let mut shard = PartitionShard::new_with_policy(
+        partition_id,
+        canonical_nside,
+        product_band,
+        if product_band == StarlightProductBand::Combined300To650 {
+            ultraviolet_metadata
+        } else {
+            None
+        },
+    )?;
     let mut stream = super::xp::stream_bulk_ecsv_gz(&xp_path)?;
     while let Some(record) = stream.next_record()? {
         let source_id = record
             .source_id
             .parse::<u64>()
             .with_context(|| format!("invalid XP source_id {}", record.source_id))?;
-        if !gaia_sources.contains(&source_id) {
+        let Some(gaia_source) = gaia_sources.get(&source_id) else {
             shard.exclude(source_id, "no_gaia_source_match")?;
             continue;
-        }
+        };
         let product = match calibrator.calibrate(&record) {
             Ok(product) => product,
             Err(_) => {
@@ -123,9 +177,38 @@ fn build_partition(
                 continue;
             }
         };
-        // The frozen calibration carries statistical covariance only. No
-        // independent systematic term is supplied by the upstream product.
-        shard.admit(source_id, flux, statistical_uncertainty, 0.0)?;
+        if product_band == StarlightProductBand::Measured336To650 {
+            // The frozen calibration carries statistical covariance only. No
+            // independent systematic term is supplied by the upstream product.
+            shard.admit(source_id, flux, statistical_uncertainty, 0.0)?;
+            continue;
+        }
+        let correction = ultraviolet_correction
+            .context("combined Starlight product has no loaded UV correction")?;
+        let Some(predictors) = &gaia_source.predictors else {
+            shard.exclude(source_id, "invalid_uv_predictors")?;
+            continue;
+        };
+        let evaluation = match correction.evaluate(predictors) {
+            Ok(evaluation) => evaluation,
+            Err(_) => {
+                shard.exclude(source_id, "uv_evaluation_failed")?;
+                continue;
+            }
+        };
+        if evaluation.decision == EvaluationDecision::Rejected {
+            shard.exclude(source_id, "uv_out_of_domain")?;
+            continue;
+        }
+        let combined =
+            match correction.combine_with_measured(flux, statistical_uncertainty, &evaluation) {
+                Ok(combined) => combined,
+                Err(_) => {
+                    shard.exclude(source_id, "uv_evaluation_failed")?;
+                    continue;
+                }
+            };
+        shard.admit_corrected(source_id, &combined)?;
     }
     shard.validate()?;
     let shard_path = if worker_invocation {
@@ -145,7 +228,15 @@ fn build_partition(
     })
 }
 
-fn load_gaia_source_ids(path: &Path) -> Result<HashSet<u64>> {
+#[derive(Debug)]
+struct GaiaSourceEntry {
+    predictors: Option<BTreeMap<String, f64>>,
+}
+
+fn load_gaia_sources(
+    path: &Path,
+    predictor_names: &[String],
+) -> Result<HashMap<u64, GaiaSourceEntry>> {
     let decoder = GzDecoder::new(
         File::open(path).with_context(|| format!("open GaiaSource object {}", path.display()))?,
     );
@@ -158,7 +249,16 @@ fn load_gaia_source_ids(path: &Path) -> Result<HashSet<u64>> {
         .iter()
         .position(|header| header.trim() == "source_id")
         .context("GaiaSource partition has no source_id column")?;
-    let mut source_ids = HashSet::new();
+    let predictor_indexes = predictor_names
+        .iter()
+        .map(|name| {
+            headers
+                .iter()
+                .position(|header| header.trim() == name)
+                .with_context(|| format!("GaiaSource partition has no UV predictor column {name}"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut source_ids = HashMap::new();
     for (row_index, row) in reader.records().enumerate() {
         let row = row.with_context(|| {
             format!(
@@ -173,7 +273,27 @@ fn load_gaia_source_ids(path: &Path) -> Result<HashSet<u64>> {
             .trim()
             .parse::<u64>()
             .context("GaiaSource source_id is not u64")?;
-        if !source_ids.insert(source_id) {
+        let predictors = predictor_names
+            .iter()
+            .zip(&predictor_indexes)
+            .map(|(name, index)| {
+                let value = row
+                    .get(*index)
+                    .context("GaiaSource row has no UV predictor field")?
+                    .trim()
+                    .parse::<f64>()
+                    .context("GaiaSource UV predictor is not numeric")?;
+                if !value.is_finite() {
+                    bail!("GaiaSource UV predictor is not finite");
+                }
+                Ok((name.clone(), value))
+            })
+            .collect::<Result<BTreeMap<_, _>>>()
+            .ok();
+        if source_ids
+            .insert(source_id, GaiaSourceEntry { predictors })
+            .is_some()
+        {
             bail!("GaiaSource partition contains duplicate source_id {source_id}");
         }
     }
@@ -300,6 +420,8 @@ mod tests {
             &[partition.to_string()],
             1,
             canonical_nside,
+            StarlightProductBand::Measured336To650,
+            None,
         )?;
         assert_eq!(artifacts.len(), 1);
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;

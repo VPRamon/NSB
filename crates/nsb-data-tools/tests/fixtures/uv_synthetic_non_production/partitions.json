@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "assignment_algorithm": "synthetic-test-fixture-explicit-v1",
+  "seed": 0,
+  "assignments": [
+    {
+      "source_id": "test-source",
+      "sky_region": "test-sky",
+      "partition": "test"
+    },
+    {
+      "source_id": "train-source",
+      "sky_region": "train-sky",
+      "partition": "training"
+    },
+    {
+      "source_id": "validation-source",
+      "sky_region": "validation-sky",
+      "partition": "validation"
+    }
+  ]
+}

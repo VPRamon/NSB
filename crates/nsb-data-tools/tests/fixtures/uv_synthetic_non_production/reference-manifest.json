@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "dataset": {
+    "name": "SYNTHETIC-NON-PRODUCTION-TEST-FIXTURE",
+    "release": "test-v1",
+    "licence": "BSD-3-Clause repository test fixture",
+    "files": [
+      {
+        "name": "reference.csv",
+        "sha256": "a92071cfd84d2231b2df1f9525355f3588d71eb44c3de774665d6dd5621c808e"
+      }
+    ],
+    "wavelength_band_nm": [
+      300,
+      340
+    ],
+    "spectral_flux_unit": "W_m-2_nm-1",
+    "transformations": [
+      "synthetic identity fixture"
+    ],
+    "quality_cuts": [
+      "synthetic finite-row fixture"
+    ]
+  },
+  "source_table_file": "reference.csv",
+  "source_table_sha256": "a92071cfd84d2231b2df1f9525355f3588d71eb44c3de774665d6dd5621c808e",
+  "source_id_column": "source_id",
+  "sky_region_column": "sky_region"
+}

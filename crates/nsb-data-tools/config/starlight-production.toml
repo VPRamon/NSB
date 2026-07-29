@@ -19,6 +19,9 @@ array_parallelism = 16
 
 [starlight]
 mode = "production"
+# No independently validated UV artifact is available. This candidate remains
+# explicitly limited to the directly measured Gaia XP 336–650 nm band.
+product_band = "measured-336-650"
 
 [starlight.acquisition]
 connect_timeout_seconds = 30

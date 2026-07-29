@@ -19,3 +19,7 @@ map plus `merge_report.json`. The current Gaia-derived candidate uses nside
 128. The report explicitly identifies the current
 join-only/identity-selection policy and missing 300–336 nm correction; these
 candidate artifacts are not silently registered as runtime production data.
+The fail-closed 300–336 nm correction artifact and reproducibility command are
+documented in
+[`docs/maintainer-guide/starlight-uv-calibration.md`](../../docs/maintainer-guide/starlight-uv-calibration.md).
+No production UV artifact is currently configured.
