@@ -39,11 +39,25 @@ fn manifest_registers_only_one_gaia_candidate_map() -> Result<()> {
     let candidates = manifest
         .assets
         .iter()
-        .filter(|asset| asset.schema == "nsb-healpix-starlight-candidate-v2")
+        .filter(|asset| asset.schema == "nsb-healpix-starlight-candidate-v3")
         .map(|asset| asset.path.as_str())
         .collect::<Vec<_>>();
     if candidates != ["starlight_nside128.csv"] {
         bail!("expected exactly one Gaia-derived canonical map, found {candidates:?}");
+    }
+    let candidate = manifest
+        .assets
+        .iter()
+        .find(|asset| asset.path == "starlight_nside128.csv")
+        .context("canonical Gaia candidate is missing")?;
+    if candidate.header.get("representation").map(String::as_str) != Some("sparse")
+        || candidate
+            .header
+            .get("omitted_pixel_semantics")
+            .map(String::as_str)
+            != Some("zero_flux_and_source_counts")
+    {
+        bail!("canonical Gaia candidate lacks the sparse representation contract");
     }
     Ok(())
 }

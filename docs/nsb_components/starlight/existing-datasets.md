@@ -9,14 +9,16 @@ The current dataset version publishes exactly one Gaia-derived candidate map:
 
 | Artifact | Role | SHA-256 |
 | --- | --- | --- |
-| `starlight_nside128.csv` | Canonical source-level Gaia accumulation | `ab9ed8db9c81d35887642ae7453e3fea69a4f2ebfa475662edc758133d01ffda` |
-| `merge_report.json` | Singular map, population, policy, checksum, and deterministic-merge evidence | `9a09a9be25b6fef472eb53bc36fd7567f76775504859c133c9278ea36f14b371` |
+| `starlight_nside128.csv` | Canonical source-level Gaia accumulation | `4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657` |
+| `merge_report.json` | Singular map, population, policy, checksum, and deterministic-merge evidence | `333ec450a9f38bb59e7cd832a622a66082962de51e90e65eaf9699529b2044e0` |
 
 The nside-128 scientific rows are identical to the artifact first published by
-commit `6e515a6e7dc01b37594a765021d415fd5f7e768a`. PR #77 adds explicit v2
-metadata headers, so its byte checksum changes from
-`09ca9bd57407beab49ff26cf1fe8ab305ccf9394e244563ee833b059a2287d35`.
-The Gaia production pipeline was not rerun for this metadata-only migration.
+commit `6e515a6e7dc01b37594a765021d415fd5f7e768a`. PR #77 added the v2 physical
+metadata. Issue #74 adds only the v3 sparse-representation headers and report
+cardinality fields; the Gaia production pipeline was not rerun for either
+metadata-only migration. The sparse file contains 196,604 strictly ordered
+rows in a 196,608-pixel domain. Its four omitted pixels have zero integrated
+flux and zero admitted/excluded source counts by contract.
 
 The retained report records 219,197,642 observed sources, 219,109,593 admitted
 sources, and 88,049 `invalid_flux` exclusions. Flux was integrated directly

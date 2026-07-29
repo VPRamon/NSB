@@ -37,7 +37,11 @@ configuration checksum and run identity and requires a clean source-level
 generation, fresh report, validation, provenance, and scientific review. A
 higher-resolution release must never use a lower-resolution map as its input.
 
-`flux_ph_m2_s` is integrated photon flux per HEALPix pixel in `ph m-2 s-1`.
+The canonical candidate uses a sparse, strictly pixel-sorted representation.
+Omitted HEALPix pixels have zero integrated flux and zero source counts; the
+report records both the occupied row count and the full `12 * nside^2` pixel
+domain. `flux_ph_m2_s` is integrated photon flux per HEALPix pixel in
+`ph m-2 s-1`.
 Runtime queries may convert a pixel-integrated quantity into the runtime
 radiance contract using pixel solid angle; that does not make the candidate CSV
 a surface-radiance field.

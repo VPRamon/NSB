@@ -9,9 +9,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 3;
-const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v2";
+const REPORT_SCHEMA_VERSION: u32 = 4;
+const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v3";
 const MAP_ORDERING: &str = "nested";
+const MAP_REPRESENTATION: &str = "sparse";
+const MAP_OMITTED_PIXEL_SEMANTICS: &str = "zero_flux_and_source_counts";
 const MAP_FLUX_QUANTITY: &str = "integrated_per_pixel";
 const MAP_FLUX_UNIT: &str = "ph_m-2_s-1";
 const MAP_DERIVATION: &str = "canonical_gaia_source_accumulation";
@@ -45,6 +47,9 @@ pub struct CanonicalMapReport {
     pub flux_quantity: String,
     pub flux_unit: String,
     pub derivation: String,
+    pub representation: String,
+    pub omitted_pixel_semantics: String,
+    pub pixel_domain_size: u64,
     pub occupied_pixels: u64,
     pub total_flux_ph_m2_s: f64,
     pub admitted_sources: u64,
@@ -214,6 +219,9 @@ pub(crate) fn emit_maps(
             flux_quantity: MAP_FLUX_QUANTITY.to_string(),
             flux_unit: MAP_FLUX_UNIT.to_string(),
             derivation: MAP_DERIVATION.to_string(),
+            representation: MAP_REPRESENTATION.to_string(),
+            omitted_pixel_semantics: MAP_OMITTED_PIXEL_SEMANTICS.to_string(),
+            pixel_domain_size: pixel_domain_size(canonical_nside)?,
             occupied_pixels: u64::try_from(emitted_pixels.len())
                 .context("occupied pixel count exceeds u64")?,
             total_flux_ph_m2_s: map_flux,
@@ -272,6 +280,12 @@ pub(crate) fn scientific_gates(
     let declared_policy = science_policy_is_declared(&report.science_policy);
     let flux_passed = report.canonical_map.total_flux_ph_m2_s.is_finite()
         && report.canonical_map.total_flux_ph_m2_s >= 0.0;
+    let expected_pixel_domain = pixel_domain_size(canonical_nside)?;
+    let cardinality_passed = report.canonical_map.representation == MAP_REPRESENTATION
+        && report.canonical_map.omitted_pixel_semantics == MAP_OMITTED_PIXEL_SEMANTICS
+        && report.canonical_map.pixel_domain_size == expected_pixel_domain
+        && report.canonical_map.occupied_pixels > 0
+        && report.canonical_map.occupied_pixels <= expected_pixel_domain;
 
     Ok(vec![
         ValidationGate {
@@ -280,6 +294,17 @@ pub(crate) fn scientific_gates(
             detail: integrity.err().map_or_else(
                 || report.canonical_map.sha256.clone(),
                 |error| error.to_string(),
+            ),
+        },
+        ValidationGate {
+            name: "canonical-map-cardinality".to_string(),
+            passed: cardinality_passed,
+            detail: format!(
+                "{} occupied of {} pixels; representation={}; omitted={}",
+                report.canonical_map.occupied_pixels,
+                report.canonical_map.pixel_domain_size,
+                report.canonical_map.representation,
+                report.canonical_map.omitted_pixel_semantics
             ),
         },
         ValidationGate {
@@ -362,6 +387,8 @@ fn validate_report_fields(
         || report.canonical_map.flux_quantity != MAP_FLUX_QUANTITY
         || report.canonical_map.flux_unit != MAP_FLUX_UNIT
         || report.canonical_map.derivation != MAP_DERIVATION
+        || report.canonical_map.representation != MAP_REPRESENTATION
+        || report.canonical_map.omitted_pixel_semantics != MAP_OMITTED_PIXEL_SEMANTICS
     {
         bail!("canonical map report contains an incompatible contract");
     }
@@ -372,7 +399,10 @@ fn validate_report_fields(
     let (total_flux, admitted, excluded) = map_totals(pixels)?;
     let occupied_pixels =
         u64::try_from(pixels.len()).context("occupied pixel count exceeds u64")?;
-    if report.canonical_map.occupied_pixels != occupied_pixels
+    let expected_pixel_domain = pixel_domain_size(report.canonical_map.nside)?;
+    if report.canonical_map.pixel_domain_size != expected_pixel_domain
+        || occupied_pixels > expected_pixel_domain
+        || report.canonical_map.occupied_pixels != occupied_pixels
         || report.canonical_map.total_flux_ph_m2_s.to_bits() != total_flux.to_bits()
         || report.canonical_map.admitted_sources != admitted
         || report.canonical_map.excluded_sources != excluded
@@ -397,6 +427,11 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         ("map_type".to_string(), "healpix".to_string()),
         ("coordinate_frame".to_string(), "galactic".to_string()),
         ("ordering".to_string(), MAP_ORDERING.to_string()),
+        ("representation".to_string(), MAP_REPRESENTATION.to_string()),
+        (
+            "omitted_pixel_semantics".to_string(),
+            MAP_OMITTED_PIXEL_SEMANTICS.to_string(),
+        ),
         ("nside".to_string(), expected_nside.to_string()),
         ("flux_quantity".to_string(), MAP_FLUX_QUANTITY.to_string()),
         ("flux_unit".to_string(), MAP_FLUX_UNIT.to_string()),
@@ -441,6 +476,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         bail!("{} has an incompatible map column schema", path.display());
     }
     let mut pixels = BTreeMap::new();
+    let mut previous_pixel = None;
     for line in data_lines {
         let fields = line.split(',').collect::<Vec<_>>();
         if fields.len() != 4 {
@@ -459,25 +495,39 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
                 path.display()
             );
         }
-        if pixels
-            .insert(
-                pixel,
-                MapPixel {
-                    flux,
-                    admitted,
-                    excluded,
-                    ..MapPixel::default()
-                },
-            )
-            .is_some()
-        {
+        if pixels.contains_key(&pixel) {
             bail!("{} contains duplicate pixel {pixel}", path.display());
         }
+        if let Some(previous) = previous_pixel {
+            if pixel < previous {
+                bail!(
+                    "{} contains non-canonical pixel ordering: {pixel} follows {previous}",
+                    path.display()
+                );
+            }
+        }
+        previous_pixel = Some(pixel);
+        pixels.insert(
+            pixel,
+            MapPixel {
+                flux,
+                admitted,
+                excluded,
+                ..MapPixel::default()
+            },
+        );
     }
     if pixels.is_empty() {
         bail!("{} contains no occupied map pixels", path.display());
     }
     Ok(pixels)
+}
+
+fn pixel_domain_size(nside: u32) -> Result<u64> {
+    u64::from(nside)
+        .checked_mul(u64::from(nside))
+        .and_then(|pixels_per_face| pixels_per_face.checked_mul(12))
+        .context("HEALPix pixel-domain size overflow")
 }
 
 fn map_totals(pixels: &BTreeMap<u32, MapPixel>) -> Result<(f64, u64, u64)> {
@@ -564,6 +614,8 @@ fn write_map(path: &Path, nside: u32, pixels: BTreeMap<u32, MapPixel>) -> Result
          # map_type=healpix\n\
          # coordinate_frame=galactic\n\
          # ordering={MAP_ORDERING}\n\
+         # representation={MAP_REPRESENTATION}\n\
+         # omitted_pixel_semantics={MAP_OMITTED_PIXEL_SEMANTICS}\n\
          # nside={nside}\n\
          # flux_quantity={MAP_FLUX_QUANTITY}\n\
          # flux_unit={MAP_FLUX_UNIT}\n\
@@ -858,6 +910,63 @@ mod tests {
         );
         artifact_store::atomic_write(&path, text.as_bytes()).unwrap();
         assert!(validate_map(&path, 128).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_out_of_order_map_pixels() {
+        let temp = TempDir::new().unwrap();
+        emit_fixture(&temp, 128);
+        let path = temp.path().join("outputs/starlight_nside128.csv");
+        let text = fs::read_to_string(&path).unwrap();
+        let mut lines = text.lines().map(str::to_string).collect::<Vec<_>>();
+        let first_data = lines
+            .iter()
+            .position(|line| line == "pixel,flux_ph_m2_s,admitted_sources,excluded_sources")
+            .unwrap()
+            + 1;
+        lines.swap(first_data, first_data + 1);
+        artifact_store::atomic_write(&path, format!("{}\n", lines.join("\n")).as_bytes()).unwrap();
+        let error = validate_map(&path, 128).unwrap_err().to_string();
+        assert!(error.contains("non-canonical pixel ordering"));
+    }
+
+    #[test]
+    fn validation_rejects_missing_sparse_representation_header() {
+        let temp = TempDir::new().unwrap();
+        emit_fixture(&temp, 128);
+        let path = temp.path().join("outputs/starlight_nside128.csv");
+        let text = fs::read_to_string(&path)
+            .unwrap()
+            .replace("# representation=sparse\n", "");
+        artifact_store::atomic_write(&path, text.as_bytes()).unwrap();
+        assert!(validate_map(&path, 128).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_incompatible_report_representation() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.canonical_map.representation = "full-sky".to_string();
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_report_cardinality_mismatch() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.canonical_map.occupied_pixels += 1;
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn validation_rejects_wrong_pixel_domain_size() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.canonical_map.pixel_domain_size -= 1;
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
     }
 
     #[test]

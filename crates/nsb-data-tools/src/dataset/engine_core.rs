@@ -765,9 +765,9 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
 
 fn starlight_asset_schema(name: &str) -> &'static str {
     if name == "merge_report.json" {
-        "nsb-starlight-merge-report-v3"
+        "nsb-starlight-merge-report-v4"
     } else {
-        "nsb-healpix-starlight-candidate-v2"
+        "nsb-healpix-starlight-candidate-v3"
     }
 }
 
@@ -815,6 +815,25 @@ fn update_manifest_checksum(
     }
     if dataset == DatasetName::Starlight {
         asset["schema"] = toml_edit::value(starlight_asset_schema(name));
+        if name.starts_with("starlight_nside") && name.ends_with(".csv") {
+            let nside = name
+                .strip_prefix("starlight_nside")
+                .and_then(|value| value.strip_suffix(".csv"))
+                .context("canonical Starlight filename has no nside")?;
+            let mut header = toml_edit::Table::new();
+            header["schema"] = toml_edit::value("nsb-healpix-starlight-candidate-v3");
+            header["map_type"] = toml_edit::value("healpix");
+            header["coordinate_frame"] = toml_edit::value("galactic");
+            header["ordering"] = toml_edit::value("nested");
+            header["representation"] = toml_edit::value("sparse");
+            header["omitted_pixel_semantics"] = toml_edit::value("zero_flux_and_source_counts");
+            header["nside"] = toml_edit::value(nside);
+            header["flux_quantity"] = toml_edit::value("integrated_per_pixel");
+            header["flux_unit"] = toml_edit::value("ph_m-2_s-1");
+            header["derivation"] = toml_edit::value("canonical_gaia_source_accumulation");
+            header["source_count_semantics"] = toml_edit::value("exact_source_membership");
+            asset["header"] = toml_edit::Item::Table(header);
+        }
     }
     asset["sha256"] = toml_edit::value(checksum);
     asset["generator"] = toml_edit::value("nsb-data dataset pipeline");
@@ -937,10 +956,18 @@ mod tests {
             .unwrap();
         assert_eq!(
             candidate["schema"].as_str(),
-            Some("nsb-healpix-starlight-candidate-v2")
+            Some("nsb-healpix-starlight-candidate-v3")
         );
         assert_eq!(candidate["calibration_status"].as_str(), Some("candidate"));
         assert_eq!(candidate["runtime_embedded"].as_bool(), Some(false));
+        assert_eq!(
+            candidate["header"]["representation"].as_str(),
+            Some("sparse")
+        );
+        assert_eq!(
+            candidate["header"]["omitted_pixel_semantics"].as_str(),
+            Some("zero_flux_and_source_counts")
+        );
     }
 
     #[test]
@@ -988,11 +1015,11 @@ runtime_embedded = false
             .unwrap();
         assert_eq!(
             candidate["schema"].as_str(),
-            Some("nsb-healpix-starlight-candidate-v2")
+            Some("nsb-healpix-starlight-candidate-v3")
         );
         assert_eq!(
             report["schema"].as_str(),
-            Some("nsb-starlight-merge-report-v3")
+            Some("nsb-starlight-merge-report-v4")
         );
     }
 }
