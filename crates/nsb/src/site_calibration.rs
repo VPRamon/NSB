@@ -362,6 +362,7 @@ fn validate_reference_path(value: &str) -> Result<(), SiteCalibrationAssetError>
     let path = Path::new(value);
     if value.trim().is_empty()
         || value.contains('\\')
+        || value.split('/').any(|component| component.is_empty())
         || path.is_absolute()
         || path.components().any(|component| {
             matches!(
@@ -472,14 +473,21 @@ license = "Redistribution terms recorded with the reference asset"
         );
         assert!(SiteCalibrationAsset::from_toml_str(&unknown).is_err());
 
-        let generic = VALID_ASSET.replacen("ctao-south", "generic-clear-sky", 1);
+        let generic = VALID_ASSET.replacen(
+            "site = \"ctao-south\"",
+            "site = \"generic-clear-sky\"",
+            1,
+        );
         assert!(SiteCalibrationAsset::from_toml_str(&generic).is_err());
     }
 
     #[test]
-    fn rejects_unsupported_schema_and_invalid_physical_values() {
+    fn rejects_unsupported_schema_invalid_dates_and_invalid_physical_values() {
         let unsupported = VALID_ASSET.replacen("schema_version = 1", "schema_version = 2", 1);
         assert!(SiteCalibrationAsset::from_toml_str(&unsupported).is_err());
+
+        let invalid_date = VALID_ASSET.replacen("2025-12-31", "2025-02-30", 1);
+        assert!(SiteCalibrationAsset::from_toml_str(&invalid_date).is_err());
 
         let negative_pressure =
             VALID_ASSET.replacen("surface_pressure_hpa = 743.0", "surface_pressure_hpa = -1.0", 1);
@@ -487,7 +495,7 @@ license = "Redistribution terms recorded with the reference asset"
     }
 
     #[test]
-    fn rejects_missing_provenance_and_bad_checksums() {
+    fn rejects_missing_provenance_bad_checksums_and_unsafe_paths() {
         let missing_source = VALID_ASSET.replacen(
             "source = \"Documented CTAO-South atmospheric reference release\"",
             "source = \"\"",
@@ -501,6 +509,13 @@ license = "Redistribution terms recorded with the reference asset"
             1,
         );
         assert!(SiteCalibrationAsset::from_toml_str(&uppercase_checksum).is_err());
+
+        let unsafe_path = VALID_ASSET.replacen(
+            "site-calibration/ctao-south/atmosphere-v1.csv",
+            "site-calibration/../atmosphere-v1.csv",
+            1,
+        );
+        assert!(SiteCalibrationAsset::from_toml_str(&unsafe_path).is_err());
     }
 
     #[test]
