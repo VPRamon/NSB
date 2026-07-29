@@ -15,8 +15,12 @@
     "licence": "BSD-3-Clause repository test fixture",
     "files": [
       {
-        "name": "reference.csv",
+        "name": "reference-spectrum.csv",
         "sha256": "a92071cfd84d2231b2df1f9525355f3588d71eb44c3de774665d6dd5621c808e"
+      },
+      {
+        "name": "reference-sources.csv",
+        "sha256": "a184bb70adacf170fbb5ea9757c015f3508c23ef3e5b16e24316984b4c30a2a4"
       }
     ],
     "wavelength_band_nm": [
@@ -34,7 +38,7 @@
   "partitions": {
     "assignment_algorithm": "synthetic-test-fixture-explicit-v1",
     "seed": 0,
-    "manifest_sha256": "bff9c7d31cc2d07d894f3cba7735551efc5b5ec89b584b4d00ef6013a311b3f4",
+    "manifest_sha256": "76f78558b2ee439da9e7dfd212f2feaee0d69eaba13de0b7c36a540f52fa008b",
     "training": {
       "partition_id": "synthetic-training",
       "source_count": 1,
@@ -53,15 +57,15 @@
     },
     "test": {
       "partition_id": "synthetic-test",
-      "source_count": 1,
-      "source_ids_sha256": "656fa43debed6cd70291f014c9a2847ee4d39cf6b1f031530b844596a5c88ebe",
+      "source_count": 3,
+      "source_ids_sha256": "5dd89c4a22b8a1693b0bdad7f2b8c1c923b5fd80f2df317dd4ba949795826b71",
       "sky_regions": [
         "test-sky"
       ]
     },
     "source_disjoint": true,
     "sky_disjoint": true,
-    "disjointness_evidence_sha256": "bff9c7d31cc2d07d894f3cba7735551efc5b5ec89b584b4d00ef6013a311b3f4"
+    "disjointness_evidence_sha256": "76f78558b2ee439da9e7dfd212f2feaee0d69eaba13de0b7c36a540f52fa008b"
   },
   "predictors": [
     {
@@ -93,6 +97,9 @@
       ]
     ]
   },
+  "response": {
+    "kind": "absolute-uv-photon-flux"
+  },
   "uncertainty_model": {
     "statistical_floor_ph_m2_s": 0.5,
     "systematic_floor_ph_m2_s": 1.0,
@@ -106,10 +113,10 @@
   },
   "validation_metrics": [
     {
-      "metric": "synthetic-fixture-rmse",
+      "kind": "rmse",
       "value": 0.0,
       "unit": "ph_m-2_s-1",
-      "sample_count": 1,
+      "sample_count": 3,
       "stratum": {
         "colour": "synthetic-all",
         "magnitude": "synthetic-all",

@@ -6,8 +6,12 @@
     "licence": "BSD-3-Clause repository test fixture",
     "files": [
       {
-        "name": "reference.csv",
+        "name": "reference-spectrum.csv",
         "sha256": "a92071cfd84d2231b2df1f9525355f3588d71eb44c3de774665d6dd5621c808e"
+      },
+      {
+        "name": "reference-sources.csv",
+        "sha256": "a184bb70adacf170fbb5ea9757c015f3508c23ef3e5b16e24316984b4c30a2a4"
       }
     ],
     "wavelength_band_nm": [
@@ -22,8 +26,8 @@
       "synthetic finite-row fixture"
     ]
   },
-  "source_table_file": "reference.csv",
-  "source_table_sha256": "a92071cfd84d2231b2df1f9525355f3588d71eb44c3de774665d6dd5621c808e",
+  "source_table_file": "reference-sources.csv",
+  "source_table_sha256": "a184bb70adacf170fbb5ea9757c015f3508c23ef3e5b16e24316984b4c30a2a4",
   "source_id_column": "source_id",
   "sky_region_column": "sky_region"
 }

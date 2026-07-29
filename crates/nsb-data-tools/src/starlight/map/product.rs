@@ -3,6 +3,7 @@
 use super::accumulator::{merge_shards, PartitionShard};
 use crate::dataset::{Artifact, ValidationGate};
 use crate::platform::{artifact_store, checksum_io};
+use crate::starlight::config::StarlightProductBand;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -114,6 +115,7 @@ pub struct SpectralCoverageReport {
     pub correction_model_id: Option<String>,
     pub correction_artifact_sha256: Option<String>,
     pub calibration_status: Option<crate::starlight::uv::CalibrationStatus>,
+    pub model_response: Option<crate::starlight::uv::ModelResponse>,
     pub measured_correction_statistical_correlation: Option<f64>,
     pub systematic_correlation: Option<crate::starlight::uv::SystematicCorrelation>,
     pub limitation: String,
@@ -173,7 +175,14 @@ pub(crate) fn emit_maps(
     workspace: &Path,
     expected_partitions: &[String],
     canonical_nside: u32,
+    expected_product_band: StarlightProductBand,
+    expected_uv_artifact_sha256: Option<&str>,
 ) -> Result<Vec<Artifact>> {
+    if (expected_product_band == StarlightProductBand::Combined300To650)
+        != expected_uv_artifact_sha256.is_some()
+    {
+        bail!("configured Starlight band and UV artifact identity are inconsistent");
+    }
     let shard_root = workspace.join("outputs/shards");
     let mut shard_paths = if shard_root.is_dir() {
         fs::read_dir(&shard_root)?
@@ -203,6 +212,26 @@ pub(crate) fn emit_maps(
                 "Starlight shard {} uses nside={}, expected configured canonical nside={canonical_nside}",
                 shard.partition_id,
                 shard.nside
+            );
+        }
+        if shard.product_band != expected_product_band {
+            bail!(
+                "Starlight shard {} uses product band {:?}, expected current configured band {:?}",
+                shard.partition_id,
+                shard.product_band,
+                expected_product_band
+            );
+        }
+        let shard_uv_sha256 = shard
+            .ultraviolet_correction
+            .as_ref()
+            .map(|metadata| metadata.artifact_sha256.as_str());
+        if shard_uv_sha256 != expected_uv_artifact_sha256 {
+            bail!(
+                "Starlight shard {} uses UV artifact {:?}, expected current configured artifact {:?}",
+                shard.partition_id,
+                shard_uv_sha256,
+                expected_uv_artifact_sha256
             );
         }
         shards.push(shard);
@@ -588,6 +617,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         "uv_correction_model_id",
         "uv_correction_sha256",
         "uv_calibration_status",
+        "uv_model_response",
         "uv_statistical_correlation",
         "uv_systematic_correlation",
     ];
@@ -622,6 +652,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             "uv_correction_model_id",
             "uv_correction_sha256",
             "uv_calibration_status",
+            "uv_model_response",
             "uv_statistical_correlation",
             "uv_systematic_correlation",
         ]
@@ -651,6 +682,12 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             .get("uv_calibration_status")
             .map(String::as_str)
             == Some("validated")
+        && matches!(
+            observed_headers
+                .get("uv_model_response")
+                .map(String::as_str),
+            Some("absolute-uv-photon-flux" | "natural-log-uv-to-measured-flux-ratio-336-650")
+        )
         && observed_headers
             .get("uv_statistical_correlation")
             .and_then(|value| value.parse::<f64>().ok())
@@ -805,6 +842,7 @@ fn science_policy_report(merged: &PartitionShard) -> SciencePolicyReport {
             correction_artifact_sha256: ultraviolet
                 .map(|metadata| metadata.artifact_sha256.clone()),
             calibration_status: ultraviolet.map(|metadata| metadata.calibration_status),
+            model_response: ultraviolet.map(|metadata| metadata.response.clone()),
             measured_correction_statistical_correlation: ultraviolet.map(|metadata| {
                 f64::from_bits(metadata.measured_correction_statistical_correlation_bits)
             }),
@@ -888,6 +926,7 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
                 .is_some_and(is_sha256)
             && spectral.calibration_status
                 == Some(crate::starlight::uv::CalibrationStatus::Validated)
+            && spectral.model_response.is_some()
             && spectral
                 .measured_correction_statistical_correlation
                 .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
@@ -899,6 +938,7 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
             && spectral.correction_model_id.is_none()
             && spectral.correction_artifact_sha256.is_none()
             && spectral.calibration_status.is_none()
+            && spectral.model_response.is_none()
             && spectral
                 .measured_correction_statistical_correlation
                 .is_none()
@@ -936,6 +976,7 @@ fn write_map(
         model_id,
         artifact_sha256,
         status,
+        model_response,
         statistical_correlation,
         systematic_correlation,
     ) = if spectral.ultraviolet_correction_applied {
@@ -952,6 +993,12 @@ fn write_map(
                 .as_deref()
                 .context("corrected map has no artifact checksum")?,
             "validated",
+            response_label(
+                spectral
+                    .model_response
+                    .as_ref()
+                    .context("corrected map has no model response")?,
+            ),
             spectral
                 .measured_correction_statistical_correlation
                 .context("corrected map has no statistical correlation")?
@@ -974,6 +1021,7 @@ fn write_map(
             "336-650-measured",
             "not-applied",
             "not-produced",
+            "none",
             "none",
             "none",
             "none",
@@ -1000,6 +1048,7 @@ fn write_map(
          # uv_correction_model_id={model_id}\n\
          # uv_correction_sha256={artifact_sha256}\n\
          # uv_calibration_status={status}\n\
+         # uv_model_response={model_response}\n\
          # uv_statistical_correlation={statistical_correlation}\n\
          # uv_systematic_correlation={systematic_correlation}\n\
          pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n"
@@ -1015,6 +1064,15 @@ fn write_map(
         ));
     }
     artifact_store::atomic_write(path, text.as_bytes())
+}
+
+fn response_label(response: &crate::starlight::uv::ModelResponse) -> &'static str {
+    match response {
+        crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux => "absolute-uv-photon-flux",
+        crate::starlight::uv::ModelResponse::NaturalLogUvToMeasuredFluxRatio { .. } => {
+            "natural-log-uv-to-measured-flux-ratio-336-650"
+        }
+    }
 }
 
 fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport) -> Result<()> {
@@ -1040,6 +1098,15 @@ fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport)
                     .context("corrected report has no artifact checksum")?
             ),
             "# uv_calibration_status=validated".to_string(),
+            format!(
+                "# uv_model_response={}",
+                response_label(
+                    spectral
+                        .model_response
+                        .as_ref()
+                        .context("corrected report has no model response")?
+                )
+            ),
             format!(
                 "# uv_statistical_correlation={}",
                 spectral
@@ -1070,6 +1137,7 @@ fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport)
             "# uv_correction_model_id=none".to_string(),
             "# uv_correction_sha256=none".to_string(),
             "# uv_calibration_status=none".to_string(),
+            "# uv_model_response=none".to_string(),
             "# uv_statistical_correlation=none".to_string(),
             "# uv_systematic_correlation=none".to_string(),
         ]
@@ -1261,6 +1329,16 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
                 .measured_correction_statistical_correlation_bits
                 .to_be_bytes(),
         );
+        match metadata.response {
+            crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux => bytes.push(0),
+            crate::starlight::uv::ModelResponse::NaturalLogUvToMeasuredFluxRatio {
+                denominator_band_nm,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&denominator_band_nm[0].to_be_bytes());
+                bytes.extend_from_slice(&denominator_band_nm[1].to_be_bytes());
+            }
+        }
         bytes.push(match metadata.systematic_correlation {
             crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources => 0,
             crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources => 1,
@@ -1427,7 +1505,14 @@ mod tests {
         let shard = fixture_shard(nside);
         let shard_path = temp.path().join("outputs/shards/fixture.json");
         shard.write(&shard_path).unwrap();
-        let artifacts = emit_maps(temp.path(), &["fixture".to_string()], nside).unwrap();
+        let artifacts = emit_maps(
+            temp.path(),
+            &["fixture".to_string()],
+            nside,
+            StarlightProductBand::Measured336To650,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             artifacts
                 .iter()
@@ -1676,6 +1761,7 @@ mod tests {
             .correction_artifact_sha256
             .is_none());
         assert!(policy.spectral_coverage.calibration_status.is_none());
+        assert!(policy.spectral_coverage.model_response.is_none());
         assert!(science_policy_is_declared(&policy));
     }
 
@@ -1686,6 +1772,7 @@ mod tests {
             model_id: "SYNTHETIC-NON-PRODUCTION-MAP-TEST".to_string(),
             artifact_sha256: "a".repeat(64),
             calibration_status: crate::starlight::uv::CalibrationStatus::Validated,
+            response: crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux,
             measured_correction_statistical_correlation_bits: 0.25_f64.to_bits(),
             systematic_correlation:
                 crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources,
@@ -1718,7 +1805,14 @@ mod tests {
         let path = temp.path().join("outputs/shards/corrected-fixture.json");
         shard.write(&path).unwrap();
 
-        emit_maps(temp.path(), &["corrected-fixture".to_string()], 128).unwrap();
+        emit_maps(
+            temp.path(),
+            &["corrected-fixture".to_string()],
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(&"a".repeat(64)),
+        )
+        .unwrap();
         let report: MergeReport = serde_json::from_slice(
             &fs::read(temp.path().join("outputs/merge_report.json")).unwrap(),
         )
@@ -1730,6 +1824,10 @@ mod tests {
         assert_eq!(
             spectral.correction_model_id.as_deref(),
             Some("SYNTHETIC-NON-PRODUCTION-MAP-TEST")
+        );
+        assert_eq!(
+            spectral.model_response,
+            Some(crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux)
         );
         assert_eq!(report.band_diagnostics.total_flux_300_336_ph_m2_s, 30.0);
         assert_eq!(report.band_diagnostics.total_flux_336_650_ph_m2_s, 300.0);
@@ -1750,8 +1848,45 @@ mod tests {
         assert!(map.contains("# corrected_component=300-336-corrected"));
         assert!(map.contains("# measured_component=336-650-measured"));
         assert!(map.contains("# combined_component=300-650-combined"));
+        assert!(map.contains("# uv_model_response=absolute-uv-photon-flux"));
         assert!(map.contains("# uv_systematic_correlation=fully-correlated-between-sources"));
         validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+    }
+
+    #[test]
+    fn finalization_rejects_shards_from_a_stale_uv_configuration() {
+        let temp = TempDir::new().unwrap();
+        let metadata = crate::starlight::map::accumulator::UvCorrectionShardMetadata {
+            model_id: "stale-model".to_string(),
+            artifact_sha256: "a".repeat(64),
+            calibration_status: crate::starlight::uv::CalibrationStatus::Validated,
+            response: crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux,
+            measured_correction_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation:
+                crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources,
+        };
+        let shard = PartitionShard::new_with_policy(
+            "stale-fixture",
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )
+        .unwrap();
+        shard
+            .write(&temp.path().join("outputs/shards/stale-fixture.json"))
+            .unwrap();
+
+        let error = emit_maps(
+            temp.path(),
+            &["stale-fixture".to_string()],
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(&"b".repeat(64)),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("uses UV artifact"));
+        assert!(error.contains("expected current configured artifact"));
     }
 
     #[test]

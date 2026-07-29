@@ -3,7 +3,7 @@
 use super::config::{GaiaProductConfig, StarlightProductBand, UvCorrectionConfig};
 use super::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
 use super::sources::acquisition;
-use super::uv::{EvaluationDecision, UvCorrection};
+use super::uv::{EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput};
 use super::xp::{
     integrate_photon_flux, integrate_photon_flux_uncertainty, GaiaXpContinuousCalibrator,
 };
@@ -126,6 +126,7 @@ fn build_partition(
         model_id: correction.artifact().model_id.clone(),
         artifact_sha256: correction.artifact_sha256().to_string(),
         calibration_status: correction.artifact().calibration_status,
+        response: correction.artifact().response.clone(),
         measured_correction_statistical_correlation_bits: correction
             .artifact()
             .uncertainty_model
@@ -189,7 +190,13 @@ fn build_partition(
             shard.exclude(source_id, "invalid_uv_predictors")?;
             continue;
         };
-        let evaluation = match correction.evaluate(predictors) {
+        let evaluation = match correction.evaluate(UvEvaluationInput {
+            predictors,
+            measured_band: Some(MeasuredBandInput {
+                flux_336_650_ph_m2_s: flux,
+                statistical_uncertainty_336_650_ph_m2_s: statistical_uncertainty,
+            }),
+        }) {
             Ok(evaluation) => evaluation,
             Err(_) => {
                 shard.exclude(source_id, "uv_evaluation_failed")?;
@@ -442,6 +449,8 @@ mod tests {
             workspace,
             &[partition.to_string()],
             canonical_nside,
+            StarlightProductBand::Measured336To650,
+            None,
         )?;
         assert_eq!(maps.len(), 2);
         crate::starlight::map::product::validate_map(

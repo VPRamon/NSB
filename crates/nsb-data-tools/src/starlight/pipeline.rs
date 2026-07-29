@@ -111,6 +111,11 @@ impl DatasetPipeline for StarlightPipeline {
                 &config.workspace.root,
                 &expected,
                 starlight.map.canonical_nside,
+                starlight.product_band,
+                starlight
+                    .ultraviolet_correction
+                    .as_ref()
+                    .map(|ultraviolet| ultraviolet.sha256.as_str()),
             )?));
         }
         Ok(None)

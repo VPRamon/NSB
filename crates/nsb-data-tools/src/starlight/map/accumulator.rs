@@ -3,7 +3,7 @@
 use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::config::StarlightProductBand;
 use crate::starlight::uv::{
-    ApplicabilityStatus, CalibrationStatus, CombinedBandFlux, SystematicCorrelation,
+    ApplicabilityStatus, CalibrationStatus, CombinedBandFlux, ModelResponse, SystematicCorrelation,
 };
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
@@ -297,6 +297,7 @@ pub struct UvCorrectionShardMetadata {
     pub model_id: String,
     pub artifact_sha256: String,
     pub calibration_status: CalibrationStatus,
+    pub response: ModelResponse,
     pub measured_correction_statistical_correlation_bits: u64,
     pub systematic_correlation: SystematicCorrelation,
 }
@@ -352,6 +353,7 @@ impl PartitionShard {
             if metadata.model_id.trim().is_empty()
                 || !is_sha256(&metadata.artifact_sha256)
                 || metadata.calibration_status != CalibrationStatus::Validated
+                || metadata.response.validate().is_err()
                 || !statistical_correlation.is_finite()
                 || !(-1.0..=1.0).contains(&statistical_correlation)
             {

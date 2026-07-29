@@ -24,6 +24,11 @@ The reference manifest has `schema_version = 1` and contains:
 - the checksum of the canonical source table;
 - its source-ID and sky-region column names.
 
+The source table is read as CSV before partition materialization or holdout
+evaluation. The configured columns must be distinct and present. IDs and sky
+regions must be non-placeholder text, source IDs must be unique, and its
+source-to-sky mapping must exactly equal the partition assignments.
+
 The partition manifest has `schema_version = 1`, a named deterministic
 assignment algorithm and seed, and explicit `source_id`, `sky_region`, and
 `partition` assignments. Each role (`training`, `validation`, and `test`) must
@@ -38,12 +43,18 @@ The correction artifact has `schema_version = 1` and contains:
   evidence;
 - ordered named predictors, transformations, and applicability limits;
 - a model family, parameter vector, and covariance;
+- an explicit response: either absolute 300–336 nm photon flux or the natural
+  logarithm of the 300–336/336–650 photon-flux ratio (with denominator band
+  fixed to `[336, 650]`);
 - statistical residual floor, systematic floor/fraction, explicit
   measured/correction statistical correlation, and explicit source-to-source
   systematic correlation;
 - an out-of-domain rejection or boundary-clamping/conservative-uncertainty
   policy;
-- validation metrics with colour, magnitude, extinction-proxy, quality, sky,
+- validation metrics from a closed vocabulary: signed `bias`,
+  `mean-residual`, and `median-residual`; non-negative `mae`, `rmse`,
+  `scatter`, `standard-deviation`, and `uncertainty`; or `[0, 1]`
+  `interval-coverage`, plus colour, magnitude, extinction-proxy, quality, sky,
   and extrapolation strata;
 - the exact training command, software version, model ID, and calibration
   status.
@@ -51,13 +62,23 @@ The correction artifact has `schema_version = 1` and contains:
 The currently supported evaluation family is `linear`: the first parameter is
 the intercept and remaining parameters follow predictor order. Supporting this
 serialization and evaluation family does not choose or train a scientific
-model.
+model. For the log-ratio response, evaluation requires the measured 336–650 nm
+flux and its statistical uncertainty as a typed input. The score is
+exponentiated, multiplied by that measured flux, and its covariance is
+propagated through the exponential Jacobian. The returned
+measured/correction covariance lets the combined-band calculation include the
+shared measured term exactly once.
 
 The canonical holdout is CSV with these required columns:
 
 ```text
-source_id,expected_flux_300_336_ph_m2_s,colour,magnitude,extinction_proxy,quality,sky_region,<predictors...>
+source_id,expected_flux_300_336_ph_m2_s,measured_flux_336_650_ph_m2_s,measured_statistical_uncertainty_336_650_ph_m2_s,colour,magnitude,extinction_proxy,quality,sky_region,<predictors...>
 ```
+
+Every holdout row must be a unique source in the registered test partition,
+with the exact registered sky region, and the holdout source set must equal
+the complete test source set. Training, validation, unknown, duplicate,
+missing, or additional sources fail validation.
 
 ## Deterministic validation
 
@@ -81,7 +102,8 @@ cargo run --locked -p nsb-data-tools --bin nsb-data -- \
 The deterministic report records the exact manifest, artifact, and holdout
 checksums and aggregates residuals separately by colour, magnitude, extinction
 proxy, quality, sky region, and in-domain/boundary/out-of-domain status.
-Rejected rows remain counted and are never silently extrapolated.
+The report also records the model response. Rejected rows remain counted and
+are never silently extrapolated.
 
 ## Runtime configuration
 
@@ -113,12 +135,17 @@ extended below 336 nm. Shards and reports retain:
 - `300–650 nm combined`;
 - correction and combined statistical uncertainty;
 - correction systematic uncertainty with its declared correlation semantics;
-- applicability status, model ID, artifact SHA-256, and calibration status.
+- applicability status, response type, model ID, artifact SHA-256, and
+  calibration status.
 
 Map pixels emit statistical and systematic uncertainty columns. Independent
 source systematics accumulate as variance; fully correlated source systematics
 accumulate linearly. No correlation choice is inferred when reading an
 artifact.
+
+Finalization compares every reconciled shard with the current configured
+product band and UV artifact digest. Changing either after workers were built
+requires rebuilding those shards; stale shard products are rejected.
 
 The test-only miniature artifact under
 `crates/nsb-data-tools/tests/fixtures/uv_synthetic_non_production/` is marked

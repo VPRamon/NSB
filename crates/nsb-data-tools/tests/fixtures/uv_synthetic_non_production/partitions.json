@@ -4,11 +4,6 @@
   "seed": 0,
   "assignments": [
     {
-      "source_id": "test-source",
-      "sky_region": "test-sky",
-      "partition": "test"
-    },
-    {
       "source_id": "train-source",
       "sky_region": "train-sky",
       "partition": "training"
@@ -17,6 +12,21 @@
       "source_id": "validation-source",
       "sky_region": "validation-sky",
       "partition": "validation"
+    },
+    {
+      "source_id": "boundary",
+      "sky_region": "test-sky",
+      "partition": "test"
+    },
+    {
+      "source_id": "inside",
+      "sky_region": "test-sky",
+      "partition": "test"
+    },
+    {
+      "source_id": "outside",
+      "sky_region": "test-sky",
+      "partition": "test"
     }
   ]
 }

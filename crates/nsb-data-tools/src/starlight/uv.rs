@@ -15,6 +15,7 @@ pub const REFERENCE_MANIFEST_SCHEMA_VERSION: u32 = 1;
 pub const PARTITION_MANIFEST_SCHEMA_VERSION: u32 = 1;
 pub const VALIDATION_REPORT_SCHEMA_VERSION: u32 = 1;
 pub const UV_BAND_NM: [u16; 2] = [300, 336];
+pub const MEASURED_BAND_NM: [u16; 2] = [336, 650];
 pub const PHOTON_FLUX_UNIT: &str = "ph_m-2_s-1";
 
 /// Calibration readiness asserted by the artifact authors.
@@ -108,6 +109,14 @@ pub enum CorrectionModel {
     },
 }
 
+/// Physical quantity predicted by the registered model score.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case", deny_unknown_fields)]
+pub enum ModelResponse {
+    AbsoluteUvPhotonFlux,
+    NaturalLogUvToMeasuredFluxRatio { denominator_band_nm: [u16; 2] },
+}
+
 /// Explicit action for inputs outside the registered applicability domain.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "policy", rename_all = "kebab-case", deny_unknown_fields)]
@@ -142,11 +151,47 @@ pub struct UncertaintyModel {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ValidationMetric {
-    pub metric: String,
+    pub kind: ValidationMetricKind,
     pub value: f64,
     pub unit: String,
     pub sample_count: u64,
     pub stratum: ValidationStratum,
+}
+
+/// Closed metric vocabulary with value-domain semantics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ValidationMetricKind {
+    Bias,
+    MeanResidual,
+    MedianResidual,
+    Mae,
+    Rmse,
+    Scatter,
+    StandardDeviation,
+    Uncertainty,
+    IntervalCoverage,
+}
+
+impl ValidationMetricKind {
+    fn value_domain(self) -> MetricValueDomain {
+        match self {
+            Self::Bias | Self::MeanResidual | Self::MedianResidual => MetricValueDomain::Signed,
+            Self::Mae
+            | Self::Rmse
+            | Self::Scatter
+            | Self::StandardDeviation
+            | Self::Uncertainty => MetricValueDomain::NonNegative,
+            Self::IntervalCoverage => MetricValueDomain::Fraction,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MetricValueDomain {
+    Signed,
+    NonNegative,
+    Fraction,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -175,6 +220,7 @@ pub struct UvCalibrationArtifact {
     pub partitions: PartitionEvidence,
     pub predictors: Vec<Predictor>,
     pub model: CorrectionModel,
+    pub response: ModelResponse,
     pub uncertainty_model: UncertaintyModel,
     pub out_of_domain_policy: OutOfDomainPolicy,
     pub validation_metrics: Vec<ValidationMetric>,
@@ -199,6 +245,21 @@ pub enum EvaluationDecision {
     Clamped,
 }
 
+/// Measured XP value required by response families that are relative to it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MeasuredBandInput {
+    pub flux_336_650_ph_m2_s: f64,
+    pub statistical_uncertainty_336_650_ph_m2_s: f64,
+}
+
+/// Explicit inputs to one UV model evaluation.
+#[derive(Debug, Clone, Copy)]
+pub struct UvEvaluationInput<'a> {
+    pub predictors: &'a BTreeMap<String, f64>,
+    pub measured_band: Option<MeasuredBandInput>,
+}
+
 /// Result of evaluating explicitly named predictor values.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -210,6 +271,9 @@ pub struct UvCorrectionEvaluation {
     pub decision: EvaluationDecision,
     pub model_id: String,
     pub artifact_sha256: String,
+    pub response: ModelResponse,
+    pub measured_band: Option<MeasuredBandInput>,
+    pub measured_correction_statistical_covariance_ph2_m4_s2: Option<f64>,
 }
 
 /// Measured XP and corrected UV components retained for source diagnostics.
@@ -278,6 +342,7 @@ impl UvCalibrationArtifact {
             }
         }
         self.validate_model()?;
+        self.response.validate()?;
         self.uncertainty_model.validate()?;
         match self.out_of_domain_policy {
             OutOfDomainPolicy::Reject => {}
@@ -460,12 +525,36 @@ impl UncertaintyModel {
     }
 }
 
+impl ModelResponse {
+    pub fn validate(&self) -> Result<()> {
+        match self {
+            Self::AbsoluteUvPhotonFlux => Ok(()),
+            Self::NaturalLogUvToMeasuredFluxRatio {
+                denominator_band_nm,
+            } if *denominator_band_nm == MEASURED_BAND_NM => Ok(()),
+            Self::NaturalLogUvToMeasuredFluxRatio { .. } => {
+                bail!("UV log-ratio response denominator must be exactly 336–650 nm")
+            }
+        }
+    }
+}
+
 impl ValidationMetric {
     fn validate(&self) -> Result<()> {
-        require_text("validation metric", &self.metric)?;
         require_text("validation metric unit", &self.unit)?;
-        if !self.value.is_finite() || self.value < 0.0 || self.sample_count == 0 {
-            bail!("validation metrics require finite non-negative values and samples");
+        if !self.value.is_finite() || self.sample_count == 0 {
+            bail!("validation metrics require finite values and non-zero sample counts");
+        }
+        match self.kind.value_domain() {
+            MetricValueDomain::Signed => {}
+            MetricValueDomain::NonNegative if self.value >= 0.0 => {}
+            MetricValueDomain::NonNegative => {
+                bail!("non-negative validation metric has a negative value")
+            }
+            MetricValueDomain::Fraction if (0.0..=1.0).contains(&self.value) => {}
+            MetricValueDomain::Fraction => {
+                bail!("fraction validation metric must be in [0, 1]")
+            }
         }
         for (label, value) in [
             ("colour", &self.stratum.colour),
@@ -526,14 +615,18 @@ impl UvCorrection {
     }
 
     /// Evaluate a correction without spectral-edge extrapolation.
-    pub fn evaluate(&self, values: &BTreeMap<String, f64>) -> Result<UvCorrectionEvaluation> {
+    pub fn evaluate(&self, input: UvEvaluationInput<'_>) -> Result<UvCorrectionEvaluation> {
         let expected = self
             .artifact
             .predictors
             .iter()
             .map(|predictor| predictor.name.as_str())
             .collect::<BTreeSet<_>>();
-        let supplied = values.keys().map(String::as_str).collect::<BTreeSet<_>>();
+        let supplied = input
+            .predictors
+            .keys()
+            .map(String::as_str)
+            .collect::<BTreeSet<_>>();
         if supplied != expected {
             bail!(
                 "UV predictor names do not match artifact: expected {:?}, found {:?}",
@@ -541,12 +634,26 @@ impl UvCorrection {
                 supplied
             );
         }
+        if let Some(measured) = input.measured_band {
+            validate_measured_band(measured)?;
+        }
+        if matches!(
+            self.artifact.response,
+            ModelResponse::NaturalLogUvToMeasuredFluxRatio { .. }
+        ) {
+            let measured = input.measured_band.context(
+                "UV log-ratio response requires measured 336–650 nm flux and uncertainty",
+            )?;
+            if measured.flux_336_650_ph_m2_s <= 0.0 {
+                bail!("UV log-ratio response requires positive measured 336–650 nm flux");
+            }
+        }
 
         let mut status = ApplicabilityStatus::InDomain;
         let mut transformed = Vec::with_capacity(self.artifact.predictors.len() + 1);
         transformed.push(1.0);
         for predictor in &self.artifact.predictors {
-            let original = values[&predictor.name];
+            let original = input.predictors[&predictor.name];
             if !original.is_finite() {
                 bail!("UV predictor {} is not finite", predictor.name);
             }
@@ -562,7 +669,7 @@ impl UvCorrection {
             let evaluated = if outside {
                 match self.artifact.out_of_domain_policy {
                     OutOfDomainPolicy::Reject => {
-                        return Ok(self.rejected_evaluation());
+                        return Ok(self.rejected_evaluation(input.measured_band));
                     }
                     OutOfDomainPolicy::ClampWithSystematicInflation { .. } => {
                         original.clamp(predictor.domain.minimum, predictor.domain.maximum)
@@ -580,18 +687,60 @@ impl UvCorrection {
                 covariance,
             } => (parameters, covariance),
         };
-        let flux = dot(parameters, &transformed);
-        if !flux.is_finite() || flux < 0.0 {
-            bail!("UV correction model produced non-finite or negative flux");
+        let score = dot(parameters, &transformed);
+        if !score.is_finite() {
+            bail!("UV correction model produced a non-finite score");
         }
-        let covariance_variance = quadratic_form(covariance, &transformed)?;
-        let statistical = (covariance_variance
-            + self
-                .artifact
-                .uncertainty_model
-                .statistical_floor_ph_m2_s
-                .powi(2))
-        .sqrt();
+        let score_variance = quadratic_form(covariance, &transformed)?;
+        let statistical_floor = self.artifact.uncertainty_model.statistical_floor_ph_m2_s;
+        let correlation = self
+            .artifact
+            .uncertainty_model
+            .measured_correction_statistical_correlation;
+        let (flux, statistical, measured_covariance) = match &self.artifact.response {
+            ModelResponse::AbsoluteUvPhotonFlux => {
+                if score < 0.0 {
+                    bail!("absolute UV response produced a negative flux");
+                }
+                let correction_statistical = score_variance.sqrt().hypot(statistical_floor);
+                let covariance = input.measured_band.map(|measured| {
+                    correlation
+                        * measured.statistical_uncertainty_336_650_ph_m2_s
+                        * correction_statistical
+                });
+                (score, correction_statistical, covariance)
+            }
+            ModelResponse::NaturalLogUvToMeasuredFluxRatio { .. } => {
+                let measured = input.measured_band.context(
+                    "UV log-ratio response requires measured 336–650 nm flux and uncertainty",
+                )?;
+                let ratio = score.exp();
+                if !ratio.is_finite() {
+                    bail!("UV log-ratio response exponent overflow");
+                }
+                let flux = measured.flux_336_650_ph_m2_s * ratio;
+                if !flux.is_finite() {
+                    bail!("UV log-ratio response produced non-finite flux");
+                }
+                let conditional_statistical =
+                    (flux * score_variance.sqrt()).hypot(statistical_floor);
+                let measured_sigma = measured.statistical_uncertainty_336_650_ph_m2_s;
+                let measured_contribution = ratio * measured_sigma;
+                let correction_variance = conditional_statistical.powi(2)
+                    + measured_contribution.powi(2)
+                    + 2.0 * correlation * conditional_statistical * measured_contribution;
+                if !correction_variance.is_finite() || correction_variance < -1.0e-12 {
+                    bail!("UV log-ratio uncertainty propagation produced invalid variance");
+                }
+                let measured_covariance = ratio * measured_sigma.powi(2)
+                    + correlation * measured_sigma * conditional_statistical;
+                (
+                    flux,
+                    correction_variance.max(0.0).sqrt(),
+                    Some(measured_covariance),
+                )
+            }
+        };
         let mut systematic = self
             .artifact
             .uncertainty_model
@@ -619,6 +768,9 @@ impl UvCorrection {
             decision,
             model_id: self.artifact.model_id.clone(),
             artifact_sha256: self.artifact_sha256.clone(),
+            response: self.artifact.response.clone(),
+            measured_band: input.measured_band,
+            measured_correction_statistical_covariance_ph2_m4_s2: measured_covariance,
         })
     }
 
@@ -632,17 +784,25 @@ impl UvCorrection {
         statistical_uncertainty_336_650_ph_m2_s: f64,
         correction: &UvCorrectionEvaluation,
     ) -> Result<CombinedBandFlux> {
-        if !flux_336_650_ph_m2_s.is_finite()
-            || flux_336_650_ph_m2_s < 0.0
-            || !statistical_uncertainty_336_650_ph_m2_s.is_finite()
-            || statistical_uncertainty_336_650_ph_m2_s < 0.0
-        {
-            bail!("measured 336–650 nm flux and uncertainty must be finite and non-negative");
-        }
+        validate_measured_band(MeasuredBandInput {
+            flux_336_650_ph_m2_s,
+            statistical_uncertainty_336_650_ph_m2_s,
+        })?;
         if correction.model_id != self.artifact.model_id
             || correction.artifact_sha256 != self.artifact_sha256
+            || correction.response != self.artifact.response
         {
             bail!("UV correction evaluation does not belong to this artifact");
+        }
+        if let Some(measured) = correction.measured_band {
+            if measured
+                != (MeasuredBandInput {
+                    flux_336_650_ph_m2_s,
+                    statistical_uncertainty_336_650_ph_m2_s,
+                })
+            {
+                bail!("measured XP value does not match UV evaluation context");
+            }
         }
         let uv_flux = correction
             .flux_300_336_ph_m2_s
@@ -653,13 +813,21 @@ impl UvCorrection {
         let uv_systematic = correction
             .systematic_uncertainty_300_336_ph_m2_s
             .context("rejected UV correction has no systematic uncertainty")?;
-        let correlation = self
-            .artifact
-            .uncertainty_model
-            .measured_correction_statistical_correlation;
-        let combined_variance = statistical_uncertainty_336_650_ph_m2_s.powi(2)
-            + uv_statistical.powi(2)
-            + 2.0 * correlation * statistical_uncertainty_336_650_ph_m2_s * uv_statistical;
+        let combined_variance = if let Some(covariance) =
+            correction.measured_correction_statistical_covariance_ph2_m4_s2
+        {
+            statistical_uncertainty_336_650_ph_m2_s.powi(2)
+                + uv_statistical.powi(2)
+                + 2.0 * covariance
+        } else {
+            let correlation = self
+                .artifact
+                .uncertainty_model
+                .measured_correction_statistical_correlation;
+            statistical_uncertainty_336_650_ph_m2_s.powi(2)
+                + uv_statistical.powi(2)
+                + 2.0 * correlation * statistical_uncertainty_336_650_ph_m2_s * uv_statistical
+        };
         if !combined_variance.is_finite() || combined_variance < -1.0e-12 {
             bail!("UV/XP statistical covariance produced invalid combined variance");
         }
@@ -684,7 +852,10 @@ impl UvCorrection {
         })
     }
 
-    fn rejected_evaluation(&self) -> UvCorrectionEvaluation {
+    fn rejected_evaluation(
+        &self,
+        measured_band: Option<MeasuredBandInput>,
+    ) -> UvCorrectionEvaluation {
         UvCorrectionEvaluation {
             flux_300_336_ph_m2_s: None,
             statistical_uncertainty_300_336_ph_m2_s: None,
@@ -693,6 +864,9 @@ impl UvCorrection {
             decision: EvaluationDecision::Rejected,
             model_id: self.artifact.model_id.clone(),
             artifact_sha256: self.artifact_sha256.clone(),
+            response: self.artifact.response.clone(),
+            measured_band,
+            measured_correction_statistical_covariance_ph2_m4_s2: None,
         }
     }
 }
@@ -726,7 +900,11 @@ impl ReferenceDatasetManifest {
             bail!("reference source table identity is not present in dataset files");
         }
         require_identifier("reference source ID column", &self.source_id_column)?;
-        require_identifier("reference sky-region column", &self.sky_region_column)
+        require_identifier("reference sky-region column", &self.sky_region_column)?;
+        if self.source_id_column == self.sky_region_column {
+            bail!("reference source-ID and sky-region columns must be distinct");
+        }
+        Ok(())
     }
 }
 
@@ -756,6 +934,14 @@ pub struct PartitionManifest {
     pub assignments: Vec<PartitionAssignment>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PartitionIndexEntry {
+    sky_region: String,
+    role: PartitionRole,
+}
+
+type PartitionIndex = BTreeMap<String, PartitionIndexEntry>;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HoldoutMetrics {
@@ -776,6 +962,7 @@ pub struct UvValidationReport {
     pub artifact_model_id: String,
     pub artifact_sha256: String,
     pub calibration_status: CalibrationStatus,
+    pub response: ModelResponse,
     pub holdout_sha256: String,
     pub holdout_rows: u64,
     pub by_colour: BTreeMap<String, HoldoutMetrics>,
@@ -882,6 +1069,7 @@ pub fn run_reproducibility_validation(
             );
         }
     }
+    let reference_sources = load_reference_sources(reference_root, &reference)?;
 
     let partition_bytes = fs::read(&inputs.partition_manifest).with_context(|| {
         format!(
@@ -897,6 +1085,8 @@ pub fn run_reproducibility_validation(
             )
         })?;
     let canonical_partitions = partitions.canonicalized()?;
+    let partition_index = build_partition_index(&canonical_partitions);
+    bind_reference_sources_to_partitions(&reference_sources, &partition_index)?;
     if let Some(path) = &inputs.materialize_partitions {
         crate::platform::artifact_store::atomic_write(
             path,
@@ -920,7 +1110,7 @@ pub fn run_reproducibility_validation(
 
     let holdout_bytes = fs::read(&inputs.holdout)
         .with_context(|| format!("read UV holdout {}", inputs.holdout.display()))?;
-    let observations = evaluate_holdout(&holdout_bytes, &correction)?;
+    let observations = evaluate_holdout(&holdout_bytes, &correction, &partition_index)?;
     let report = UvValidationReport {
         schema_version: VALIDATION_REPORT_SCHEMA_VERSION,
         reference_dataset_name: reference.dataset.name,
@@ -930,6 +1120,7 @@ pub fn run_reproducibility_validation(
         artifact_model_id: correction.artifact.model_id.clone(),
         artifact_sha256: correction.artifact_sha256.clone(),
         calibration_status: correction.artifact.calibration_status,
+        response: correction.artifact.response.clone(),
         holdout_sha256: checksum_io::sha256_bytes(&holdout_bytes),
         holdout_rows: u64::try_from(observations.len()).context("holdout row count overflow")?,
         by_colour: aggregate_holdout(&observations, |row| &row.colour)?,
@@ -1007,12 +1198,153 @@ impl PartitionManifest {
     }
 }
 
-fn evaluate_holdout(bytes: &[u8], correction: &UvCorrection) -> Result<Vec<HoldoutObservation>> {
+fn load_reference_sources(
+    reference_root: &Path,
+    manifest: &ReferenceDatasetManifest,
+) -> Result<BTreeMap<String, String>> {
+    let path = reference_root.join(&manifest.source_table_file);
+    let bytes = fs::read(&path)
+        .with_context(|| format!("read UV reference source table {}", path.display()))?;
+    let actual = checksum_io::sha256_bytes(&bytes);
+    if actual != manifest.source_table_sha256 {
+        bail!(
+            "UV reference source table checksum mismatch for {}: expected {}, actual {}",
+            path.display(),
+            manifest.source_table_sha256,
+            actual
+        );
+    }
+    let mut reader = csv::ReaderBuilder::new().from_reader(bytes.as_slice());
+    let headers = reader
+        .headers()
+        .with_context(|| format!("read UV reference source table headers {}", path.display()))?
+        .clone();
+    let duplicate_headers = headers
+        .iter()
+        .filter(|header| {
+            headers
+                .iter()
+                .filter(|candidate| *candidate == *header)
+                .count()
+                > 1
+        })
+        .collect::<BTreeSet<_>>();
+    if !duplicate_headers.is_empty() {
+        bail!(
+            "UV reference source table has duplicate columns {:?}",
+            duplicate_headers
+        );
+    }
+    let source_index = headers
+        .iter()
+        .position(|header| header == manifest.source_id_column)
+        .with_context(|| {
+            format!(
+                "UV reference source table has no configured source-ID column {}",
+                manifest.source_id_column
+            )
+        })?;
+    let sky_index = headers
+        .iter()
+        .position(|header| header == manifest.sky_region_column)
+        .with_context(|| {
+            format!(
+                "UV reference source table has no configured sky-region column {}",
+                manifest.sky_region_column
+            )
+        })?;
+    let mut sources = BTreeMap::new();
+    for (row_index, record) in reader.records().enumerate() {
+        let row = row_index + 2;
+        let record = record.with_context(|| {
+            format!(
+                "read UV reference source table row {row} in {}",
+                path.display()
+            )
+        })?;
+        let source_id = record.get(source_index).with_context(|| {
+            format!("UV reference source table row {row} has no source-ID field")
+        })?;
+        let sky_region = record.get(sky_index).with_context(|| {
+            format!("UV reference source table row {row} has no sky-region field")
+        })?;
+        require_text("reference source ID", source_id)
+            .with_context(|| format!("invalid UV reference source table row {row}"))?;
+        require_text("reference sky region", sky_region)
+            .with_context(|| format!("invalid UV reference source table row {row}"))?;
+        if sources
+            .insert(source_id.to_string(), sky_region.to_string())
+            .is_some()
+        {
+            bail!("UV reference source table repeats source ID {source_id}");
+        }
+    }
+    if sources.is_empty() {
+        bail!("UV reference source table contains no sources");
+    }
+    Ok(sources)
+}
+
+fn build_partition_index(manifest: &PartitionManifest) -> PartitionIndex {
+    manifest
+        .assignments
+        .iter()
+        .map(|assignment| {
+            (
+                assignment.source_id.clone(),
+                PartitionIndexEntry {
+                    sky_region: assignment.sky_region.clone(),
+                    role: assignment.partition,
+                },
+            )
+        })
+        .collect()
+}
+
+fn bind_reference_sources_to_partitions(
+    sources: &BTreeMap<String, String>,
+    partitions: &PartitionIndex,
+) -> Result<()> {
+    let source_ids = sources.keys().cloned().collect::<BTreeSet<_>>();
+    let partition_ids = partitions.keys().cloned().collect::<BTreeSet<_>>();
+    if source_ids != partition_ids {
+        let unpartitioned = source_ids
+            .difference(&partition_ids)
+            .cloned()
+            .collect::<Vec<_>>();
+        let absent_from_reference = partition_ids
+            .difference(&source_ids)
+            .cloned()
+            .collect::<Vec<_>>();
+        bail!(
+            "UV reference/partition source coverage mismatch: unpartitioned reference sources {:?}, partition sources absent from reference {:?}",
+            unpartitioned,
+            absent_from_reference
+        );
+    }
+    for (source_id, sky_region) in sources {
+        let partition_sky = &partitions[source_id].sky_region;
+        if sky_region != partition_sky {
+            bail!(
+                "UV reference/partition sky mismatch for source {source_id}: reference {sky_region}, partition {partition_sky}"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn evaluate_holdout(
+    bytes: &[u8],
+    correction: &UvCorrection,
+    partitions: &PartitionIndex,
+) -> Result<Vec<HoldoutObservation>> {
     let mut reader = csv::ReaderBuilder::new().from_reader(bytes);
     let headers = reader.headers()?.clone();
     let required = [
         "source_id",
         "expected_flux_300_336_ph_m2_s",
+        "measured_flux_336_650_ph_m2_s",
+        "measured_statistical_uncertainty_336_650_ph_m2_s",
         "colour",
         "magnitude",
         "extinction_proxy",
@@ -1048,10 +1380,33 @@ fn evaluate_holdout(bytes: &[u8], correction: &UvCorrection) -> Result<Vec<Holdo
         if !source_ids.insert(source_id.to_string()) {
             bail!("UV holdout repeats source_id {source_id}");
         }
+        let assignment = partitions
+            .get(source_id)
+            .with_context(|| format!("UV holdout source {source_id} is not partitioned"))?;
+        if assignment.role != PartitionRole::Test {
+            bail!(
+                "UV holdout source {source_id} belongs to {:?}, not the test partition",
+                assignment.role
+            );
+        }
         let expected_flux = parse_nonnegative(
             required_field(&record, indexes[1], "expected_flux_300_336_ph_m2_s")?,
             "expected UV holdout flux",
         )?;
+        let measured_band = MeasuredBandInput {
+            flux_336_650_ph_m2_s: parse_nonnegative(
+                required_field(&record, indexes[2], "measured_flux_336_650_ph_m2_s")?,
+                "measured holdout flux",
+            )?,
+            statistical_uncertainty_336_650_ph_m2_s: parse_nonnegative(
+                required_field(
+                    &record,
+                    indexes[3],
+                    "measured_statistical_uncertainty_336_650_ph_m2_s",
+                )?,
+                "measured holdout statistical uncertainty",
+            )?,
+        };
         let mut values = BTreeMap::new();
         for (predictor, index) in correction
             .artifact
@@ -1069,7 +1424,17 @@ fn evaluate_holdout(bytes: &[u8], correction: &UvCorrection) -> Result<Vec<Holdo
             })?;
             values.insert(predictor.name.clone(), value);
         }
-        let evaluation = correction.evaluate(&values)?;
+        let sky_region = required_field(&record, indexes[8], "sky_region")?;
+        if sky_region != assignment.sky_region {
+            bail!(
+                "UV holdout source {source_id} has sky region {sky_region}, expected {}",
+                assignment.sky_region
+            );
+        }
+        let evaluation = correction.evaluate(UvEvaluationInput {
+            predictors: &values,
+            measured_band: Some(measured_band),
+        })?;
         let residual = evaluation
             .flux_300_336_ph_m2_s
             .map(|prediction| prediction - expected_flux);
@@ -1079,11 +1444,11 @@ fn evaluate_holdout(bytes: &[u8], correction: &UvCorrection) -> Result<Vec<Holdo
             ApplicabilityStatus::OutOfDomain => "out-of-domain",
         };
         let strata = [
-            required_field(&record, indexes[2], "colour")?,
-            required_field(&record, indexes[3], "magnitude")?,
-            required_field(&record, indexes[4], "extinction_proxy")?,
-            required_field(&record, indexes[5], "quality")?,
-            required_field(&record, indexes[6], "sky_region")?,
+            required_field(&record, indexes[4], "colour")?,
+            required_field(&record, indexes[5], "magnitude")?,
+            required_field(&record, indexes[6], "extinction_proxy")?,
+            required_field(&record, indexes[7], "quality")?,
+            sky_region,
         ];
         for value in strata {
             require_text("holdout stratum", value)?;
@@ -1101,6 +1466,26 @@ fn evaluate_holdout(bytes: &[u8], correction: &UvCorrection) -> Result<Vec<Holdo
     }
     if observations.is_empty() {
         bail!("UV holdout contains no rows");
+    }
+    let expected_test_sources = partitions
+        .iter()
+        .filter(|(_, assignment)| assignment.role == PartitionRole::Test)
+        .map(|(source_id, _)| source_id.clone())
+        .collect::<BTreeSet<_>>();
+    if source_ids != expected_test_sources {
+        let missing = expected_test_sources
+            .difference(&source_ids)
+            .cloned()
+            .collect::<Vec<_>>();
+        let additional = source_ids
+            .difference(&expected_test_sources)
+            .cloned()
+            .collect::<Vec<_>>();
+        bail!(
+            "UV holdout source set does not equal the test partition: missing {:?}, additional {:?}",
+            missing,
+            additional
+        );
     }
     if observations
         .iter()
@@ -1188,6 +1573,17 @@ fn parse_nonnegative(raw: &str, label: &str) -> Result<f64> {
         bail!("{label} must be finite and non-negative");
     }
     Ok(value)
+}
+
+fn validate_measured_band(measured: MeasuredBandInput) -> Result<()> {
+    if !measured.flux_336_650_ph_m2_s.is_finite()
+        || measured.flux_336_650_ph_m2_s < 0.0
+        || !measured.statistical_uncertainty_336_650_ph_m2_s.is_finite()
+        || measured.statistical_uncertainty_336_650_ph_m2_s < 0.0
+    {
+        bail!("measured 336–650 nm flux and uncertainty must be finite and non-negative");
+    }
+    Ok(())
 }
 
 fn transform(transformation: &PredictorTransformation, value: f64) -> Result<f64> {
