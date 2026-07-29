@@ -37,6 +37,9 @@ once a stable public release is cut.
 
 ### Added
 
+- Versioned, fail-closed CTAO site-calibration asset schema with strict TOML
+  parsing, physical-range checks, immutable reference provenance, and promotion
+  guidance while existing CTAO profiles remain planning presets (#80).
 - Starlight production foundation (PR #56): normative 300–650 nm contract,
   deterministic Gaia sampling, XP continuous acquisition/reconstruction tooling,
   dual overlap/absolute uncertainty contract, frozen Phase 5 policy v1,
