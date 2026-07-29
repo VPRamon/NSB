@@ -428,14 +428,7 @@ fn zero_residual_correlation_preserves_log_ratio_structural_covariance() {
     let combined = correction
         .combine_with_measured(100.0, 4.0, &evaluation)
         .unwrap();
-    assert!(
-        (combined
-            .statistical_uncertainty_300_650_ph_m2_s
-            .powi(2)
-            - 23.36)
-            .abs()
-            < 1.0e-12
-    );
+    assert!((combined.statistical_uncertainty_300_650_ph_m2_s.powi(2) - 23.36).abs() < 1.0e-12);
 }
 
 #[test]

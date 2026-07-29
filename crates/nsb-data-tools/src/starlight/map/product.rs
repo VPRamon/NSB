@@ -1853,9 +1853,7 @@ mod tests {
         assert!(map.contains("# measured_component=336-650-measured"));
         assert!(map.contains("# combined_component=300-650-combined"));
         assert!(map.contains("# uv_model_response=absolute-uv-photon-flux"));
-        assert!(map.contains(
-            "# uv_measured_conditional_residual_statistical_correlation=0.25"
-        ));
+        assert!(map.contains("# uv_measured_conditional_residual_statistical_correlation=0.25"));
         assert!(map.contains("# uv_systematic_correlation=fully-correlated-between-sources"));
         validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
     }

@@ -521,7 +521,9 @@ impl UncertaintyModel {
                 bail!("UV {label} must be finite and non-negative");
             }
         }
-        if !self.measured_conditional_residual_statistical_correlation.is_finite()
+        if !self
+            .measured_conditional_residual_statistical_correlation
+            .is_finite()
             || !(-1.0..=1.0).contains(&self.measured_conditional_residual_statistical_correlation)
         {
             bail!("measured/conditional-residual statistical correlation must be in [-1, 1]");
