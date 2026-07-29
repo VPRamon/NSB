@@ -473,11 +473,8 @@ license = "Redistribution terms recorded with the reference asset"
         );
         assert!(SiteCalibrationAsset::from_toml_str(&unknown).is_err());
 
-        let generic = VALID_ASSET.replacen(
-            "site = \"ctao-south\"",
-            "site = \"generic-clear-sky\"",
-            1,
-        );
+        let generic =
+            VALID_ASSET.replacen("site = \"ctao-south\"", "site = \"generic-clear-sky\"", 1);
         assert!(SiteCalibrationAsset::from_toml_str(&generic).is_err());
     }
 
@@ -489,8 +486,11 @@ license = "Redistribution terms recorded with the reference asset"
         let invalid_date = VALID_ASSET.replacen("2025-12-31", "2025-02-30", 1);
         assert!(SiteCalibrationAsset::from_toml_str(&invalid_date).is_err());
 
-        let negative_pressure =
-            VALID_ASSET.replacen("surface_pressure_hpa = 743.0", "surface_pressure_hpa = -1.0", 1);
+        let negative_pressure = VALID_ASSET.replacen(
+            "surface_pressure_hpa = 743.0",
+            "surface_pressure_hpa = -1.0",
+            1,
+        );
         assert!(SiteCalibrationAsset::from_toml_str(&negative_pressure).is_err());
     }
 
