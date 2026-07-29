@@ -1,0 +1,6 @@
+source_id,sky_region
+boundary,test-sky
+inside,test-sky
+outside,test-sky
+train-source,train-sky
+validation-source,validation-sky

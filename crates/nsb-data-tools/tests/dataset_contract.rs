@@ -46,6 +46,11 @@ fn production_starlight_config_declares_the_complete_gaia_pair() {
         nsb_data_tools::starlight::config::StarlightMode::Production
     );
     assert_eq!(
+        starlight.product_band,
+        nsb_data_tools::starlight::config::StarlightProductBand::Measured336To650
+    );
+    assert!(starlight.ultraviolet_correction.is_none());
+    assert_eq!(
         starlight
             .gaia_products
             .iter()

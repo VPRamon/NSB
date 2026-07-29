@@ -21,8 +21,40 @@ enum Command {
     Dataset(DatasetArgs),
     /// Inspect or resume a persisted run.
     Run(RunArgs),
+    /// Validate a checksum-pinned Starlight ultraviolet calibration.
+    StarlightUv(StarlightUvArgs),
     #[command(name = "_worker", hide = true)]
     Worker(WorkerArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightUvArgs {
+    #[command(subcommand)]
+    command: StarlightUvCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum StarlightUvCommand {
+    /// Validate manifests/artifact, evaluate a holdout, and emit deterministic JSON.
+    Validate(StarlightUvValidateArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightUvValidateArgs {
+    #[arg(long)]
+    reference_manifest: PathBuf,
+    #[arg(long)]
+    partition_manifest: PathBuf,
+    #[arg(long)]
+    artifact: PathBuf,
+    #[arg(long)]
+    artifact_sha256: String,
+    #[arg(long)]
+    holdout: PathBuf,
+    #[arg(long)]
+    materialize_partitions: Option<PathBuf>,
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -127,6 +159,21 @@ pub fn run() -> Result<()> {
         Command::Run(args) => match args.command {
             RunCommand::Status { run } => dataset::status(&run),
             RunCommand::Resume { run } => dataset::resume(&run),
+        },
+        Command::StarlightUv(args) => match args.command {
+            StarlightUvCommand::Validate(args) => {
+                let inputs = crate::starlight::uv::ReproducibilityInputs {
+                    reference_manifest: args.reference_manifest,
+                    partition_manifest: args.partition_manifest,
+                    artifact: args.artifact,
+                    artifact_sha256: args.artifact_sha256,
+                    holdout: args.holdout,
+                    materialize_partitions: args.materialize_partitions,
+                    output: args.output,
+                };
+                crate::starlight::uv::run_reproducibility_validation(&inputs)?;
+                Ok(())
+            }
         },
         Command::Worker(args) => dataset::run_worker(
             &args.config,

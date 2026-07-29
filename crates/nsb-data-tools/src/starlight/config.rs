@@ -2,6 +2,7 @@
 
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 /// Starlight-specific inputs and scientific policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,6 +20,11 @@ pub struct StarlightConfig {
     /// Canonical HEALPix map policy.
     #[serde(default)]
     pub map: StarlightMapConfig,
+    /// Spectral product requested from each source.
+    #[serde(default)]
+    pub product_band: StarlightProductBand,
+    /// Optional checksum-pinned 300–336 nm correction.
+    pub ultraviolet_correction: Option<UvCorrectionConfig>,
 }
 
 /// Network policy for resumable official-source acquisition.
@@ -52,6 +58,27 @@ pub enum StarlightMode {
     Snapshot,
     /// Construct the full Gaia-derived production candidate.
     Production,
+}
+
+/// Spectral band emitted by the Starlight product.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StarlightProductBand {
+    /// Direct Gaia XP continuous integral only.
+    #[default]
+    #[serde(rename = "measured-336-650")]
+    Measured336To650,
+    /// Independently corrected UV plus the unchanged Gaia integral.
+    #[serde(rename = "combined-300-650")]
+    Combined300To650,
+}
+
+/// Location and immutable identity of a UV correction artifact.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UvCorrectionConfig {
+    pub artifact_path: PathBuf,
+    pub sha256: String,
 }
 
 /// One official bulk distribution and its checksum inventory.

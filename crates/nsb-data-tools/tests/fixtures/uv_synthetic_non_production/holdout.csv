@@ -1,0 +1,4 @@
+source_id,expected_flux_300_336_ph_m2_s,measured_flux_336_650_ph_m2_s,measured_statistical_uncertainty_336_650_ph_m2_s,colour,magnitude,extinction_proxy,quality,sky_region,x
+inside,20,100,4,blue,bright,low,good,test-sky,5
+boundary,10,100,4,red,faint,high,poor,test-sky,0
+outside,30,100,4,red,bright,low,good,test-sky,12

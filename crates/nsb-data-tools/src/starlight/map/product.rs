@@ -3,15 +3,16 @@
 use super::accumulator::{merge_shards, PartitionShard};
 use crate::dataset::{Artifact, ValidationGate};
 use crate::platform::{artifact_store, checksum_io};
+use crate::starlight::config::StarlightProductBand;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 5;
+const REPORT_SCHEMA_VERSION: u32 = 6;
 const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
-const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v3";
+const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v4";
 const MAP_ORDERING: &str = "nested";
 const MAP_REPRESENTATION: &str = "sparse";
 const MAP_OMITTED_PIXEL_SEMANTICS: &str = "zero_flux_and_source_counts";
@@ -22,6 +23,7 @@ const MAP_SOURCE_COUNT_SEMANTICS: &str = "exact_source_membership";
 const ADMISSION_POLICY_ID: &str = "gaia-dr3-xp-continuous-join-v1";
 const POPULATION_POLICY_ID: &str = "selection-function-identity-stub-v1";
 const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
+const CORRECTED_SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-uv-corrected-300-650-v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -33,7 +35,9 @@ pub struct MergeReport {
     pub admitted_sources: u64,
     pub excluded_sources: u64,
     pub exclusion_reasons: BTreeMap<String, u64>,
+    pub ultraviolet_applicability: BTreeMap<crate::starlight::uv::ApplicabilityStatus, u64>,
     pub science_policy: SciencePolicyReport,
+    pub band_diagnostics: BandDiagnosticsReport,
     pub canonical_map: CanonicalMapReport,
     pub deterministic_merge: DeterministicMergeReport,
 }
@@ -56,6 +60,23 @@ pub struct CanonicalMapReport {
     pub admitted_sources: u64,
     pub excluded_sources: u64,
     pub sha256: String,
+}
+
+/// Separately accumulated band and uncertainty diagnostics.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BandDiagnosticsReport {
+    pub corrected_300_336_label: String,
+    pub measured_336_650_label: String,
+    pub combined_300_650_label: String,
+    pub total_flux_300_336_ph_m2_s: f64,
+    pub total_flux_336_650_ph_m2_s: f64,
+    pub total_flux_300_650_ph_m2_s: f64,
+    pub statistical_uncertainty_300_336_ph_m2_s: f64,
+    pub statistical_uncertainty_336_650_ph_m2_s: f64,
+    pub statistical_uncertainty_300_650_ph_m2_s: f64,
+    pub systematic_uncertainty_300_336_ph_m2_s: f64,
+    pub systematic_uncertainty_300_650_ph_m2_s: f64,
 }
 
 /// Machine-readable declaration of what the current candidate does and does not model.
@@ -88,7 +109,15 @@ pub struct SpectralCoverageReport {
     pub policy_id: String,
     pub target_band_nm: [u16; 2],
     pub directly_integrated_band_nm: [u16; 2],
+    pub corrected_band_nm: Option<[u16; 2]>,
+    pub combined_band_nm: Option<[u16; 2]>,
     pub ultraviolet_correction_applied: bool,
+    pub correction_model_id: Option<String>,
+    pub correction_artifact_sha256: Option<String>,
+    pub calibration_status: Option<crate::starlight::uv::CalibrationStatus>,
+    pub model_response: Option<crate::starlight::uv::ModelResponse>,
+    pub measured_conditional_residual_statistical_correlation: Option<f64>,
+    pub systematic_correlation: Option<crate::starlight::uv::SystematicCorrelation>,
     pub limitation: String,
 }
 
@@ -112,6 +141,8 @@ pub struct DeterministicMergeReport {
 struct MapPixel {
     flux: f64,
     compensation: f64,
+    statistical_uncertainty: f64,
+    systematic_uncertainty: f64,
     admitted: u64,
     excluded: u64,
 }
@@ -144,7 +175,14 @@ pub(crate) fn emit_maps(
     workspace: &Path,
     expected_partitions: &[String],
     canonical_nside: u32,
+    expected_product_band: StarlightProductBand,
+    expected_uv_artifact_sha256: Option<&str>,
 ) -> Result<Vec<Artifact>> {
+    if (expected_product_band == StarlightProductBand::Combined300To650)
+        != expected_uv_artifact_sha256.is_some()
+    {
+        bail!("configured Starlight band and UV artifact identity are inconsistent");
+    }
     let shard_root = workspace.join("outputs/shards");
     let mut shard_paths = if shard_root.is_dir() {
         fs::read_dir(&shard_root)?
@@ -176,6 +214,26 @@ pub(crate) fn emit_maps(
                 shard.nside
             );
         }
+        if shard.product_band != expected_product_band {
+            bail!(
+                "Starlight shard {} uses product band {:?}, expected current configured band {:?}",
+                shard.partition_id,
+                shard.product_band,
+                expected_product_band
+            );
+        }
+        let shard_uv_sha256 = shard
+            .ultraviolet_correction
+            .as_ref()
+            .map(|metadata| metadata.artifact_sha256.as_str());
+        if shard_uv_sha256 != expected_uv_artifact_sha256 {
+            bail!(
+                "Starlight shard {} uses UV artifact {:?}, expected current configured artifact {:?}",
+                shard.partition_id,
+                shard_uv_sha256,
+                expected_uv_artifact_sha256
+            );
+        }
         shards.push(shard);
     }
     shards.sort_by(|left, right| left.partition_id.cmp(&right.partition_id));
@@ -201,7 +259,13 @@ pub(crate) fn emit_maps(
     let output_root = workspace.join("outputs");
     let map_name = canonical_map_name(canonical_nside);
     let map_path = output_root.join(&map_name);
-    write_map(&map_path, canonical_nside, map_pixels(&merged))?;
+    let science_policy = science_policy_report(&merged);
+    write_map(
+        &map_path,
+        canonical_nside,
+        map_pixels(&merged),
+        &science_policy.spectral_coverage,
+    )?;
     let emitted_pixels = read_map(&map_path, canonical_nside)?;
     let (map_flux, map_admitted, map_excluded) = map_totals(&emitted_pixels)?;
     let map_sha256 = checksum_io::sha256_file(&map_path)?;
@@ -218,7 +282,9 @@ pub(crate) fn emit_maps(
         admitted_sources,
         excluded_sources,
         exclusion_reasons: merged.exclusion_reasons.clone(),
-        science_policy: science_policy_report(),
+        ultraviolet_applicability: merged.ultraviolet_applicability.clone(),
+        science_policy,
+        band_diagnostics: band_diagnostics(&merged)?,
         canonical_map: CanonicalMapReport {
             path: map_name.clone(),
             schema: MAP_SCHEMA.to_string(),
@@ -406,6 +472,7 @@ fn validate_report_fields(
     {
         bail!("canonical map report contains an incompatible contract");
     }
+    validate_map_spectral_headers(map_path, &report.science_policy.spectral_coverage)?;
     let actual_sha256 = checksum_io::sha256_file(map_path)?;
     if report.canonical_map.sha256 != actual_sha256 {
         bail!("canonical map checksum does not match merge report");
@@ -430,6 +497,53 @@ fn validate_report_fields(
         .context("canonical source accounting overflow")?;
     if report.observed_sources != observed {
         bail!("global observed-source total does not match canonical map");
+    }
+    let diagnostics = &report.band_diagnostics;
+    let diagnostic_values = [
+        diagnostics.total_flux_300_336_ph_m2_s,
+        diagnostics.total_flux_336_650_ph_m2_s,
+        diagnostics.total_flux_300_650_ph_m2_s,
+        diagnostics.statistical_uncertainty_300_336_ph_m2_s,
+        diagnostics.statistical_uncertainty_336_650_ph_m2_s,
+        diagnostics.statistical_uncertainty_300_650_ph_m2_s,
+        diagnostics.systematic_uncertainty_300_336_ph_m2_s,
+        diagnostics.systematic_uncertainty_300_650_ph_m2_s,
+    ];
+    let selected_diagnostic = if report
+        .science_policy
+        .spectral_coverage
+        .ultraviolet_correction_applied
+    {
+        diagnostics.total_flux_300_650_ph_m2_s
+    } else {
+        diagnostics.total_flux_336_650_ph_m2_s
+    };
+    let ultraviolet_count = report
+        .ultraviolet_applicability
+        .values()
+        .try_fold(0_u64, |total, count| total.checked_add(*count))
+        .context("report UV applicability count overflow")?;
+    let ultraviolet_applied = report
+        .science_policy
+        .spectral_coverage
+        .ultraviolet_correction_applied;
+    if diagnostics.corrected_300_336_label != "300–336 nm corrected"
+        || diagnostics.measured_336_650_label != "336–650 nm measured"
+        || diagnostics.combined_300_650_label != "300–650 nm combined"
+        || diagnostic_values
+            .iter()
+            .any(|value| !value.is_finite() || *value < 0.0)
+        || selected_diagnostic.to_bits() != total_flux.to_bits()
+        || (ultraviolet_applied && ultraviolet_count != report.admitted_sources)
+        || (!ultraviolet_applied
+            && (diagnostics.total_flux_300_336_ph_m2_s != 0.0
+                || diagnostics.statistical_uncertainty_300_336_ph_m2_s != 0.0
+                || diagnostics.systematic_uncertainty_300_336_ph_m2_s != 0.0
+                || !report.ultraviolet_applicability.is_empty()
+                || diagnostics.total_flux_300_650_ph_m2_s.to_bits()
+                    != diagnostics.total_flux_336_650_ph_m2_s.to_bits()))
+    {
+        bail!("merge report band diagnostics are invalid or inconsistent");
     }
     let deterministic = &report.deterministic_merge;
     if deterministic.algorithm != DETERMINISTIC_MERGE_ALGORITHM
@@ -490,7 +604,29 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             bail!("{} contains duplicate map header {key}", path.display());
         }
     }
-    if observed_headers != expected_headers {
+    let base_headers = observed_headers
+        .iter()
+        .filter(|(key, _)| expected_headers.contains_key(*key))
+        .map(|(key, value)| (key.clone(), value.clone()))
+        .collect::<BTreeMap<_, _>>();
+    let spectral_keys = [
+        "product_band",
+        "corrected_component",
+        "measured_component",
+        "combined_component",
+        "uv_correction_model_id",
+        "uv_correction_sha256",
+        "uv_calibration_status",
+        "uv_model_response",
+        "uv_measured_conditional_residual_statistical_correlation",
+        "uv_systematic_correlation",
+    ];
+    if base_headers != expected_headers
+        || observed_headers.len() != expected_headers.len() + spectral_keys.len()
+        || spectral_keys
+            .iter()
+            .any(|key| !observed_headers.contains_key(*key))
+    {
         bail!(
             "{} has unknown or incompatible map headers: expected {:?}, found {:?}",
             path.display(),
@@ -498,27 +634,104 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             observed_headers
         );
     }
+    let measured_contract = observed_headers.get("product_band").map(String::as_str)
+        == Some("336-650-measured")
+        && observed_headers
+            .get("corrected_component")
+            .map(String::as_str)
+            == Some("not-applied")
+        && observed_headers
+            .get("measured_component")
+            .map(String::as_str)
+            == Some("336-650-measured")
+        && observed_headers
+            .get("combined_component")
+            .map(String::as_str)
+            == Some("not-produced")
+        && [
+            "uv_correction_model_id",
+            "uv_correction_sha256",
+            "uv_calibration_status",
+            "uv_model_response",
+            "uv_measured_conditional_residual_statistical_correlation",
+            "uv_systematic_correlation",
+        ]
+        .iter()
+        .all(|key| observed_headers.get(*key).map(String::as_str) == Some("none"));
+    let corrected_contract = observed_headers.get("product_band").map(String::as_str)
+        == Some("300-650-combined")
+        && observed_headers
+            .get("corrected_component")
+            .map(String::as_str)
+            == Some("300-336-corrected")
+        && observed_headers
+            .get("measured_component")
+            .map(String::as_str)
+            == Some("336-650-measured")
+        && observed_headers
+            .get("combined_component")
+            .map(String::as_str)
+            == Some("300-650-combined")
+        && observed_headers
+            .get("uv_correction_model_id")
+            .is_some_and(|value| !value.trim().is_empty() && value != "none")
+        && observed_headers
+            .get("uv_correction_sha256")
+            .is_some_and(|value| is_sha256(value))
+        && observed_headers
+            .get("uv_calibration_status")
+            .map(String::as_str)
+            == Some("validated")
+        && matches!(
+            observed_headers
+                .get("uv_model_response")
+                .map(String::as_str),
+            Some("absolute-uv-photon-flux" | "natural-log-uv-to-measured-flux-ratio-336-650")
+        )
+        && observed_headers
+            .get("uv_measured_conditional_residual_statistical_correlation")
+            .and_then(|value| value.parse::<f64>().ok())
+            .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
+        && matches!(
+            observed_headers
+                .get("uv_systematic_correlation")
+                .map(String::as_str),
+            Some("independent-between-sources" | "fully-correlated-between-sources")
+        );
+    if !measured_contract && !corrected_contract {
+        bail!("{} has inconsistent spectral metadata", path.display());
+    }
 
     let mut data_lines = text
         .lines()
         .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'));
-    if data_lines.next() != Some("pixel,flux_ph_m2_s,admitted_sources,excluded_sources") {
+    if data_lines.next()
+        != Some(
+            "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources",
+        )
+    {
         bail!("{} has an incompatible map column schema", path.display());
     }
     let mut pixels = BTreeMap::new();
     let mut previous_pixel = None;
     for line in data_lines {
         let fields = line.split(',').collect::<Vec<_>>();
-        if fields.len() != 4 {
+        if fields.len() != 6 {
             bail!("{} contains a malformed map row", path.display());
         }
         let pixel = fields[0].parse::<u32>()?;
         let flux = fields[1].parse::<f64>()?;
-        let admitted = fields[2].parse::<u64>()?;
-        let excluded = fields[3].parse::<u64>()?;
+        let statistical_uncertainty = fields[2].parse::<f64>()?;
+        let systematic_uncertainty = fields[3].parse::<f64>()?;
+        let admitted = fields[4].parse::<u64>()?;
+        let excluded = fields[5].parse::<u64>()?;
         if u64::from(pixel) >= 12 * u64::from(expected_nside).pow(2)
             || !flux.is_finite()
             || flux < 0.0
+            || !statistical_uncertainty.is_finite()
+            || statistical_uncertainty < 0.0
+            || !systematic_uncertainty.is_finite()
+            || systematic_uncertainty < 0.0
         {
             bail!(
                 "{} contains an invalid pixel or non-finite/negative flux",
@@ -541,6 +754,8 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             pixel,
             MapPixel {
                 flux,
+                statistical_uncertainty,
+                systematic_uncertainty,
                 admitted,
                 excluded,
                 ..MapPixel::default()
@@ -580,6 +795,8 @@ fn map_pixels(merged: &PartitionShard) -> BTreeMap<u32, MapPixel> {
                 *pixel,
                 MapPixel {
                     flux: value.flux_ph_m2_s.value(),
+                    statistical_uncertainty: value.statistical_variance.value().sqrt(),
+                    systematic_uncertainty: value.selected_systematic_uncertainty(),
                     admitted: value.admitted_sources,
                     excluded: value.excluded_sources,
                     ..MapPixel::default()
@@ -589,9 +806,11 @@ fn map_pixels(merged: &PartitionShard) -> BTreeMap<u32, MapPixel> {
         .collect()
 }
 
-fn science_policy_report() -> SciencePolicyReport {
+fn science_policy_report(merged: &PartitionShard) -> SciencePolicyReport {
+    let ultraviolet = merged.ultraviolet_correction.as_ref();
+    let corrected = ultraviolet.is_some();
     SciencePolicyReport {
-        schema_version: 1,
+        schema_version: 2,
         admission_policy_id: ADMISSION_POLICY_ID.to_string(),
         admission_rules: vec![
             "require_gaia_source_match".to_string(),
@@ -608,17 +827,124 @@ fn science_policy_report() -> SciencePolicyReport {
             limitation: "No validated sky-, magnitude-, and colour-conditioned Gaia selection-function model is configured; admitted source weights remain exactly one.".to_string(),
         },
         spectral_coverage: SpectralCoverageReport {
-            policy_id: SPECTRAL_POLICY_ID.to_string(),
+            policy_id: if corrected {
+                CORRECTED_SPECTRAL_POLICY_ID
+            } else {
+                SPECTRAL_POLICY_ID
+            }
+            .to_string(),
             target_band_nm: [300, 650],
             directly_integrated_band_nm: [336, 650],
-            ultraviolet_correction_applied: false,
-            limitation: "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied.".to_string(),
+            corrected_band_nm: corrected.then_some([300, 336]),
+            combined_band_nm: corrected.then_some([300, 650]),
+            ultraviolet_correction_applied: corrected,
+            correction_model_id: ultraviolet.map(|metadata| metadata.model_id.clone()),
+            correction_artifact_sha256: ultraviolet
+                .map(|metadata| metadata.artifact_sha256.clone()),
+            calibration_status: ultraviolet.map(|metadata| metadata.calibration_status),
+            model_response: ultraviolet.map(|metadata| metadata.response.clone()),
+            measured_conditional_residual_statistical_correlation: ultraviolet.map(|metadata| {
+                f64::from_bits(metadata.measured_conditional_residual_statistical_correlation_bits)
+            }),
+            systematic_correlation: ultraviolet
+                .map(|metadata| metadata.systematic_correlation),
+            limitation: if corrected {
+                "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately.".to_string()
+            } else {
+                "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied.".to_string()
+            },
         },
     }
 }
 
+fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
+    let mut flux_uv = 0.0;
+    let mut flux_measured = 0.0;
+    let mut flux_combined = 0.0;
+    let mut statistical_uv_variance = 0.0;
+    let mut statistical_measured_variance = 0.0;
+    let mut statistical_combined_variance = 0.0;
+    let mut systematic_independent_variance = 0.0;
+    let mut systematic_correlated = 0.0;
+    for pixel in merged.pixels.values() {
+        flux_uv += pixel.flux_300_336_ph_m2_s.value();
+        flux_measured += pixel.flux_336_650_ph_m2_s.value();
+        flux_combined += pixel.flux_300_650_ph_m2_s.value();
+        statistical_uv_variance += pixel.statistical_variance_300_336.value();
+        statistical_measured_variance += pixel.statistical_variance_336_650.value();
+        statistical_combined_variance += pixel.statistical_variance_300_650.value();
+        systematic_independent_variance += pixel.systematic_variance_300_336_independent.value();
+        systematic_correlated += pixel.systematic_uncertainty_300_336_correlated.value();
+    }
+    let values = [
+        flux_uv,
+        flux_measured,
+        flux_combined,
+        statistical_uv_variance,
+        statistical_measured_variance,
+        statistical_combined_variance,
+        systematic_independent_variance,
+        systematic_correlated,
+    ];
+    if values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
+        bail!("Starlight band diagnostics contain invalid totals");
+    }
+    let systematic = systematic_independent_variance
+        .sqrt()
+        .hypot(systematic_correlated);
+    Ok(BandDiagnosticsReport {
+        corrected_300_336_label: "300–336 nm corrected".to_string(),
+        measured_336_650_label: "336–650 nm measured".to_string(),
+        combined_300_650_label: "300–650 nm combined".to_string(),
+        total_flux_300_336_ph_m2_s: flux_uv,
+        total_flux_336_650_ph_m2_s: flux_measured,
+        total_flux_300_650_ph_m2_s: flux_combined,
+        statistical_uncertainty_300_336_ph_m2_s: statistical_uv_variance.sqrt(),
+        statistical_uncertainty_336_650_ph_m2_s: statistical_measured_variance.sqrt(),
+        statistical_uncertainty_300_650_ph_m2_s: statistical_combined_variance.sqrt(),
+        systematic_uncertainty_300_336_ph_m2_s: systematic,
+        systematic_uncertainty_300_650_ph_m2_s: systematic,
+    })
+}
+
 fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
-    policy.schema_version == 1
+    let spectral = &policy.spectral_coverage;
+    let spectral_valid = if spectral.ultraviolet_correction_applied {
+        spectral.policy_id == CORRECTED_SPECTRAL_POLICY_ID
+            && spectral.corrected_band_nm == Some([300, 336])
+            && spectral.combined_band_nm == Some([300, 650])
+            && spectral
+                .correction_model_id
+                .as_deref()
+                .is_some_and(|value| !value.trim().is_empty())
+            && spectral
+                .correction_artifact_sha256
+                .as_deref()
+                .is_some_and(is_sha256)
+            && spectral.calibration_status
+                == Some(crate::starlight::uv::CalibrationStatus::Validated)
+            && spectral.model_response.is_some()
+            && spectral
+                .measured_conditional_residual_statistical_correlation
+                .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
+            && spectral.systematic_correlation.is_some()
+    } else {
+        spectral.policy_id == SPECTRAL_POLICY_ID
+            && spectral.corrected_band_nm.is_none()
+            && spectral.combined_band_nm.is_none()
+            && spectral.correction_model_id.is_none()
+            && spectral.correction_artifact_sha256.is_none()
+            && spectral.calibration_status.is_none()
+            && spectral.model_response.is_none()
+            && spectral
+                .measured_conditional_residual_statistical_correlation
+                .is_none()
+            && spectral.systematic_correlation.is_none()
+    };
+    policy.schema_version == 2
         && policy.admission_policy_id == ADMISSION_POLICY_ID
         && policy.admission_rules
             == [
@@ -632,13 +958,79 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
         && policy.population_correction.minimum_weight == 1.0
         && policy.population_correction.maximum_weight == 1.0
         && !policy.population_correction.residual_faint_tail_estimated
-        && policy.spectral_coverage.policy_id == SPECTRAL_POLICY_ID
-        && policy.spectral_coverage.target_band_nm == [300, 650]
-        && policy.spectral_coverage.directly_integrated_band_nm == [336, 650]
-        && !policy.spectral_coverage.ultraviolet_correction_applied
+        && spectral.target_band_nm == [300, 650]
+        && spectral.directly_integrated_band_nm == [336, 650]
+        && spectral_valid
 }
 
-fn write_map(path: &Path, nside: u32, pixels: BTreeMap<u32, MapPixel>) -> Result<()> {
+fn write_map(
+    path: &Path,
+    nside: u32,
+    pixels: BTreeMap<u32, MapPixel>,
+    spectral: &SpectralCoverageReport,
+) -> Result<()> {
+    let (
+        product_band,
+        corrected_component,
+        combined_component,
+        model_id,
+        artifact_sha256,
+        status,
+        model_response,
+        statistical_correlation,
+        systematic_correlation,
+    ) = if spectral.ultraviolet_correction_applied {
+        (
+            "300-650-combined",
+            "300-336-corrected",
+            "300-650-combined",
+            spectral
+                .correction_model_id
+                .as_deref()
+                .context("corrected map has no model ID")?,
+            spectral
+                .correction_artifact_sha256
+                .as_deref()
+                .context("corrected map has no artifact checksum")?,
+            "validated",
+            response_label(
+                spectral
+                    .model_response
+                    .as_ref()
+                    .context("corrected map has no model response")?,
+            ),
+            spectral
+                .measured_conditional_residual_statistical_correlation
+                .context(
+                    "corrected map has no measured/conditional-residual statistical correlation",
+                )?
+                .to_string(),
+            match spectral
+                .systematic_correlation
+                .context("corrected map has no systematic correlation")?
+            {
+                crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources => {
+                    "independent-between-sources"
+                }
+                crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources => {
+                    "fully-correlated-between-sources"
+                }
+            }
+            .to_string(),
+        )
+    } else {
+        (
+            "336-650-measured",
+            "not-applied",
+            "not-produced",
+            "none",
+            "none",
+            "none",
+            "none",
+            "none".to_string(),
+            "none".to_string(),
+        )
+    };
     let mut text = format!(
         "# schema={MAP_SCHEMA}\n\
          # map_type=healpix\n\
@@ -651,15 +1043,116 @@ fn write_map(path: &Path, nside: u32, pixels: BTreeMap<u32, MapPixel>) -> Result
          # flux_unit={MAP_FLUX_UNIT}\n\
          # derivation={MAP_DERIVATION}\n\
          # source_count_semantics={MAP_SOURCE_COUNT_SEMANTICS}\n\
-         pixel,flux_ph_m2_s,admitted_sources,excluded_sources\n"
+         # product_band={product_band}\n\
+         # corrected_component={corrected_component}\n\
+         # measured_component=336-650-measured\n\
+         # combined_component={combined_component}\n\
+         # uv_correction_model_id={model_id}\n\
+         # uv_correction_sha256={artifact_sha256}\n\
+         # uv_calibration_status={status}\n\
+         # uv_model_response={model_response}\n\
+         # uv_measured_conditional_residual_statistical_correlation={statistical_correlation}\n\
+         # uv_systematic_correlation={systematic_correlation}\n\
+         pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n"
     );
     for (pixel, value) in pixels {
         text.push_str(&format!(
-            "{pixel},{:.17e},{},{}\n",
-            value.flux, value.admitted, value.excluded
+            "{pixel},{:.17e},{:.17e},{:.17e},{},{}\n",
+            value.flux,
+            value.statistical_uncertainty,
+            value.systematic_uncertainty,
+            value.admitted,
+            value.excluded
         ));
     }
     artifact_store::atomic_write(path, text.as_bytes())
+}
+
+fn response_label(response: &crate::starlight::uv::ModelResponse) -> &'static str {
+    match response {
+        crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux => "absolute-uv-photon-flux",
+        crate::starlight::uv::ModelResponse::NaturalLogUvToMeasuredFluxRatio { .. } => {
+            "natural-log-uv-to-measured-flux-ratio-336-650"
+        }
+    }
+}
+
+fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport) -> Result<()> {
+    let text = fs::read_to_string(path)?;
+    let expected = if spectral.ultraviolet_correction_applied {
+        vec![
+            "# product_band=300-650-combined".to_string(),
+            "# corrected_component=300-336-corrected".to_string(),
+            "# measured_component=336-650-measured".to_string(),
+            "# combined_component=300-650-combined".to_string(),
+            format!(
+                "# uv_correction_model_id={}",
+                spectral
+                    .correction_model_id
+                    .as_deref()
+                    .context("corrected report has no model ID")?
+            ),
+            format!(
+                "# uv_correction_sha256={}",
+                spectral
+                    .correction_artifact_sha256
+                    .as_deref()
+                    .context("corrected report has no artifact checksum")?
+            ),
+            "# uv_calibration_status=validated".to_string(),
+            format!(
+                "# uv_model_response={}",
+                response_label(
+                    spectral
+                        .model_response
+                        .as_ref()
+                        .context("corrected report has no model response")?
+                )
+            ),
+            format!(
+                "# uv_measured_conditional_residual_statistical_correlation={}",
+                spectral
+                    .measured_conditional_residual_statistical_correlation
+                    .context(
+                        "corrected report has no measured/conditional-residual statistical correlation",
+                    )?
+            ),
+            format!(
+                "# uv_systematic_correlation={}",
+                match spectral
+                    .systematic_correlation
+                    .context("corrected report has no systematic correlation")?
+                {
+                    crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources => {
+                        "independent-between-sources"
+                    }
+                    crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources => {
+                        "fully-correlated-between-sources"
+                    }
+                }
+            ),
+        ]
+    } else {
+        vec![
+            "# product_band=336-650-measured".to_string(),
+            "# corrected_component=not-applied".to_string(),
+            "# measured_component=336-650-measured".to_string(),
+            "# combined_component=not-produced".to_string(),
+            "# uv_correction_model_id=none".to_string(),
+            "# uv_correction_sha256=none".to_string(),
+            "# uv_calibration_status=none".to_string(),
+            "# uv_model_response=none".to_string(),
+            "# uv_measured_conditional_residual_statistical_correlation=none".to_string(),
+            "# uv_systematic_correlation=none".to_string(),
+        ]
+    };
+    if expected
+        .iter()
+        .any(|header| !text.lines().any(|line| line == header))
+    {
+        bail!("canonical map spectral metadata does not match merge report");
+    }
+    Ok(())
 }
 
 fn canonical_map_name(nside: u32) -> String {
@@ -731,7 +1224,11 @@ fn complete_deterministic_merge_report(
     for pixel in pixel_keys {
         match (canonical.pixels.get(&pixel), independent.pixels.get(&pixel)) {
             (Some(left), Some(right)) => {
-                if left.flux_ph_m2_s != right.flux_ph_m2_s {
+                if left.flux_ph_m2_s != right.flux_ph_m2_s
+                    || left.flux_300_336_ph_m2_s != right.flux_300_336_ph_m2_s
+                    || left.flux_336_650_ph_m2_s != right.flux_336_650_ph_m2_s
+                    || left.flux_300_650_ph_m2_s != right.flux_300_650_ph_m2_s
+                {
                     flux_mismatches += 1;
                     record_first_mismatch(
                         &mut first_mismatch,
@@ -740,6 +1237,15 @@ fn complete_deterministic_merge_report(
                 }
                 if left.statistical_variance != right.statistical_variance
                     || left.systematic_variance != right.systematic_variance
+                    || left.systematic_correlated_uncertainty
+                        != right.systematic_correlated_uncertainty
+                    || left.statistical_variance_300_336 != right.statistical_variance_300_336
+                    || left.statistical_variance_336_650 != right.statistical_variance_336_650
+                    || left.statistical_variance_300_650 != right.statistical_variance_300_650
+                    || left.systematic_variance_300_336_independent
+                        != right.systematic_variance_300_336_independent
+                    || left.systematic_uncertainty_300_336_correlated
+                        != right.systematic_uncertainty_300_336_correlated
                 {
                     uncertainty_mismatches += 1;
                     record_first_mismatch(
@@ -812,21 +1318,58 @@ fn complete_deterministic_merge_report(
 fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
     shard.validate()?;
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v1 ");
+    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v2\0");
     bytes.extend_from_slice(&shard.nside.to_be_bytes());
+    bytes.push(match shard.product_band {
+        crate::starlight::config::StarlightProductBand::Measured336To650 => 0,
+        crate::starlight::config::StarlightProductBand::Combined300To650 => 1,
+    });
+    if let Some(metadata) = &shard.ultraviolet_correction {
+        bytes.push(1);
+        append_string(&mut bytes, &metadata.model_id)?;
+        append_string(&mut bytes, &metadata.artifact_sha256)?;
+        bytes.extend_from_slice(
+            &metadata
+                .measured_conditional_residual_statistical_correlation_bits
+                .to_be_bytes(),
+        );
+        match metadata.response {
+            crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux => bytes.push(0),
+            crate::starlight::uv::ModelResponse::NaturalLogUvToMeasuredFluxRatio {
+                denominator_band_nm,
+            } => {
+                bytes.push(1);
+                bytes.extend_from_slice(&denominator_band_nm[0].to_be_bytes());
+                bytes.extend_from_slice(&denominator_band_nm[1].to_be_bytes());
+            }
+        }
+        bytes.push(match metadata.systematic_correlation {
+            crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources => 0,
+            crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources => 1,
+        });
+    } else {
+        bytes.push(0);
+    }
     let pixel_count = u64::try_from(shard.pixels.len()).context("pixel count exceeds u64")?;
     bytes.extend_from_slice(&pixel_count.to_be_bytes());
     for (pixel, accumulator) in &shard.pixels {
         bytes.extend_from_slice(&pixel.to_be_bytes());
-        accumulator
-            .flux_ph_m2_s
-            .append_canonical_bytes(&mut bytes)?;
-        accumulator
-            .statistical_variance
-            .append_canonical_bytes(&mut bytes)?;
-        accumulator
-            .systematic_variance
-            .append_canonical_bytes(&mut bytes)?;
+        for sum in [
+            &accumulator.flux_ph_m2_s,
+            &accumulator.statistical_variance,
+            &accumulator.systematic_variance,
+            &accumulator.systematic_correlated_uncertainty,
+            &accumulator.flux_300_336_ph_m2_s,
+            &accumulator.flux_336_650_ph_m2_s,
+            &accumulator.flux_300_650_ph_m2_s,
+            &accumulator.statistical_variance_300_336,
+            &accumulator.statistical_variance_336_650,
+            &accumulator.statistical_variance_300_650,
+            &accumulator.systematic_variance_300_336_independent,
+            &accumulator.systematic_uncertainty_300_336_correlated,
+        ] {
+            sum.append_canonical_bytes(&mut bytes)?;
+        }
         bytes.extend_from_slice(&accumulator.observed_sources.to_be_bytes());
         bytes.extend_from_slice(&accumulator.admitted_sources.to_be_bytes());
         bytes.extend_from_slice(&accumulator.excluded_sources.to_be_bytes());
@@ -835,13 +1378,29 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         u64::try_from(shard.exclusion_reasons.len()).context("reason count exceeds u64")?;
     bytes.extend_from_slice(&reason_count.to_be_bytes());
     for (reason, count) in &shard.exclusion_reasons {
-        let reason_bytes = reason.as_bytes();
-        let reason_len = u32::try_from(reason_bytes.len()).context("reason length exceeds u32")?;
-        bytes.extend_from_slice(&reason_len.to_be_bytes());
-        bytes.extend_from_slice(reason_bytes);
+        append_string(&mut bytes, reason)?;
+        bytes.extend_from_slice(&count.to_be_bytes());
+    }
+    let applicability_count = u64::try_from(shard.ultraviolet_applicability.len())
+        .context("UV applicability count exceeds u64")?;
+    bytes.extend_from_slice(&applicability_count.to_be_bytes());
+    for (status, count) in &shard.ultraviolet_applicability {
+        bytes.push(match status {
+            crate::starlight::uv::ApplicabilityStatus::InDomain => 0,
+            crate::starlight::uv::ApplicabilityStatus::Boundary => 1,
+            crate::starlight::uv::ApplicabilityStatus::OutOfDomain => 2,
+        });
         bytes.extend_from_slice(&count.to_be_bytes());
     }
     Ok(bytes)
+}
+
+fn append_string(bytes: &mut Vec<u8>, value: &str) -> Result<()> {
+    let value = value.as_bytes();
+    let length = u32::try_from(value.len()).context("canonical string length exceeds u32")?;
+    bytes.extend_from_slice(&length.to_be_bytes());
+    bytes.extend_from_slice(value);
+    Ok(())
 }
 
 fn record_first_mismatch(first: &mut Option<String>, message: String) {
@@ -950,7 +1509,14 @@ mod tests {
         let shard = fixture_shard(nside);
         let shard_path = temp.path().join("outputs/shards/fixture.json");
         shard.write(&shard_path).unwrap();
-        let artifacts = emit_maps(temp.path(), &["fixture".to_string()], nside).unwrap();
+        let artifacts = emit_maps(
+            temp.path(),
+            &["fixture".to_string()],
+            nside,
+            StarlightProductBand::Measured336To650,
+            None,
+        )
+        .unwrap();
         assert_eq!(
             artifacts
                 .iter()
@@ -988,6 +1554,13 @@ mod tests {
             ]
             .contains(&name.as_str())
         }));
+        let map = fs::read_to_string(temp.path().join("outputs/starlight_nside128.csv")).unwrap();
+        assert!(map.contains("# product_band=336-650-measured"));
+        assert!(map.contains("# corrected_component=not-applied"));
+        assert!(map.contains("# combined_component=not-produced"));
+        assert!(map.contains("# uv_correction_model_id=none"));
+        assert!(map.contains("# uv_correction_sha256=none"));
+        assert!(map.contains("# uv_calibration_status=none"));
     }
 
     #[test]
@@ -1057,6 +1630,15 @@ mod tests {
     }
 
     #[test]
+    fn validation_rejects_pre_uv_report_schema() {
+        let temp = TempDir::new().unwrap();
+        let mut report = emit_fixture(&temp, 128);
+        report.schema_version = 5;
+        rewrite_report(&temp, &report);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
     fn validation_rejects_wrong_canonical_checksum() {
         let temp = TempDir::new().unwrap();
         let mut report = emit_fixture(&temp, 128);
@@ -1108,7 +1690,10 @@ mod tests {
         let mut lines = text.lines().map(str::to_string).collect::<Vec<_>>();
         let first_data = lines
             .iter()
-            .position(|line| line == "pixel,flux_ph_m2_s,admitted_sources,excluded_sources")
+            .position(|line| {
+                line
+                    == "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources"
+            })
             .unwrap()
             + 1;
         lines.swap(first_data, first_data + 1);
@@ -1158,8 +1743,9 @@ mod tests {
 
     #[test]
     fn candidate_science_limitations_are_versioned_and_explicit() {
-        let policy = science_policy_report();
-        assert_eq!(policy.schema_version, 1);
+        let shard = fixture_shard(128);
+        let policy = science_policy_report(&shard);
+        assert_eq!(policy.schema_version, 2);
         assert_eq!(policy.admission_policy_id, ADMISSION_POLICY_ID);
         assert_eq!(policy.population_correction.policy_id, POPULATION_POLICY_ID);
         assert!(!policy.population_correction.applied);
@@ -1171,7 +1757,141 @@ mod tests {
             [336, 650]
         );
         assert!(!policy.spectral_coverage.ultraviolet_correction_applied);
+        assert!(policy.spectral_coverage.corrected_band_nm.is_none());
+        assert!(policy.spectral_coverage.combined_band_nm.is_none());
+        assert!(policy.spectral_coverage.correction_model_id.is_none());
+        assert!(policy
+            .spectral_coverage
+            .correction_artifact_sha256
+            .is_none());
+        assert!(policy.spectral_coverage.calibration_status.is_none());
+        assert!(policy.spectral_coverage.model_response.is_none());
         assert!(science_policy_is_declared(&policy));
+    }
+
+    #[test]
+    fn corrected_map_metadata_and_uncertainty_budget_are_explicit() {
+        let temp = TempDir::new().unwrap();
+        let metadata = crate::starlight::map::accumulator::UvCorrectionShardMetadata {
+            model_id: "SYNTHETIC-NON-PRODUCTION-MAP-TEST".to_string(),
+            artifact_sha256: "a".repeat(64),
+            calibration_status: crate::starlight::uv::CalibrationStatus::Validated,
+            response: crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.25_f64.to_bits(),
+            systematic_correlation:
+                crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources,
+        };
+        let mut shard = PartitionShard::new_with_policy(
+            "corrected-fixture",
+            128,
+            crate::starlight::config::StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )
+        .unwrap();
+        let source = |uv, measured, systematic| crate::starlight::uv::CombinedBandFlux {
+            flux_300_336_ph_m2_s: uv,
+            flux_336_650_ph_m2_s: measured,
+            flux_300_650_ph_m2_s: uv + measured,
+            statistical_uncertainty_300_336_ph_m2_s: 1.0,
+            statistical_uncertainty_336_650_ph_m2_s: 2.0,
+            statistical_uncertainty_300_650_ph_m2_s: 2.5,
+            systematic_uncertainty_300_336_ph_m2_s: systematic,
+            systematic_uncertainty_300_650_ph_m2_s: systematic,
+            applicability_status: crate::starlight::uv::ApplicabilityStatus::InDomain,
+            decision: crate::starlight::uv::EvaluationDecision::Applied,
+            model_id: "SYNTHETIC-NON-PRODUCTION-MAP-TEST".to_string(),
+            artifact_sha256: "a".repeat(64),
+            systematic_correlation:
+                crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources,
+        };
+        shard.admit_corrected(0, &source(10.0, 100.0, 3.0)).unwrap();
+        shard.admit_corrected(1, &source(20.0, 200.0, 4.0)).unwrap();
+        let path = temp.path().join("outputs/shards/corrected-fixture.json");
+        shard.write(&path).unwrap();
+
+        emit_maps(
+            temp.path(),
+            &["corrected-fixture".to_string()],
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(&"a".repeat(64)),
+        )
+        .unwrap();
+        let report: MergeReport = serde_json::from_slice(
+            &fs::read(temp.path().join("outputs/merge_report.json")).unwrap(),
+        )
+        .unwrap();
+        let spectral = &report.science_policy.spectral_coverage;
+        assert!(spectral.ultraviolet_correction_applied);
+        assert_eq!(spectral.corrected_band_nm, Some([300, 336]));
+        assert_eq!(spectral.combined_band_nm, Some([300, 650]));
+        assert_eq!(
+            spectral.correction_model_id.as_deref(),
+            Some("SYNTHETIC-NON-PRODUCTION-MAP-TEST")
+        );
+        assert_eq!(
+            spectral.model_response,
+            Some(crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux)
+        );
+        assert_eq!(report.band_diagnostics.total_flux_300_336_ph_m2_s, 30.0);
+        assert_eq!(report.band_diagnostics.total_flux_336_650_ph_m2_s, 300.0);
+        assert_eq!(report.band_diagnostics.total_flux_300_650_ph_m2_s, 330.0);
+        assert_eq!(
+            report
+                .band_diagnostics
+                .systematic_uncertainty_300_336_ph_m2_s,
+            7.0
+        );
+        assert_eq!(
+            report
+                .ultraviolet_applicability
+                .get(&crate::starlight::uv::ApplicabilityStatus::InDomain),
+            Some(&2)
+        );
+        let map = fs::read_to_string(temp.path().join("outputs/starlight_nside128.csv")).unwrap();
+        assert!(map.contains("# corrected_component=300-336-corrected"));
+        assert!(map.contains("# measured_component=336-650-measured"));
+        assert!(map.contains("# combined_component=300-650-combined"));
+        assert!(map.contains("# uv_model_response=absolute-uv-photon-flux"));
+        assert!(map.contains("# uv_measured_conditional_residual_statistical_correlation=0.25"));
+        assert!(map.contains("# uv_systematic_correlation=fully-correlated-between-sources"));
+        validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+    }
+
+    #[test]
+    fn finalization_rejects_shards_from_a_stale_uv_configuration() {
+        let temp = TempDir::new().unwrap();
+        let metadata = crate::starlight::map::accumulator::UvCorrectionShardMetadata {
+            model_id: "stale-model".to_string(),
+            artifact_sha256: "a".repeat(64),
+            calibration_status: crate::starlight::uv::CalibrationStatus::Validated,
+            response: crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation:
+                crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources,
+        };
+        let shard = PartitionShard::new_with_policy(
+            "stale-fixture",
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )
+        .unwrap();
+        shard
+            .write(&temp.path().join("outputs/shards/stale-fixture.json"))
+            .unwrap();
+
+        let error = emit_maps(
+            temp.path(),
+            &["stale-fixture".to_string()],
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(&"b".repeat(64)),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("uses UV artifact"));
+        assert!(error.contains("expected current configured artifact"));
     }
 
     #[test]

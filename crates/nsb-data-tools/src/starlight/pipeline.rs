@@ -91,6 +91,8 @@ impl DatasetPipeline for StarlightPipeline {
             partitions,
             config.execution.concurrency,
             starlight.map.canonical_nside,
+            starlight.product_band,
+            starlight.ultraviolet_correction.as_ref(),
         )?;
         super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
         Ok(Some(artifacts))
@@ -109,6 +111,11 @@ impl DatasetPipeline for StarlightPipeline {
                 &config.workspace.root,
                 &expected,
                 starlight.map.canonical_nside,
+                starlight.product_band,
+                starlight
+                    .ultraviolet_correction
+                    .as_ref()
+                    .map(|ultraviolet| ultraviolet.sha256.as_str()),
             )?));
         }
         Ok(None)
@@ -168,6 +175,23 @@ impl DatasetPipeline for StarlightPipeline {
             return Ok(());
         };
         super::config::validate_canonical_nside(starlight.map.canonical_nside)?;
+        if let Some(ultraviolet) = &starlight.ultraviolet_correction {
+            if ultraviolet.sha256.len() != 64
+                || !ultraviolet
+                    .sha256
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            {
+                bail!("UV correction SHA-256 must be 64 lowercase hexadecimal characters");
+            }
+        }
+        if (starlight.product_band == super::config::StarlightProductBand::Combined300To650)
+            != starlight.ultraviolet_correction.is_some()
+        {
+            bail!(
+                "300–650 nm Starlight product requires a validated UV correction artifact, and measured-only products must not configure one"
+            );
+        }
         for product in &starlight.gaia_products {
             if product.id.trim().is_empty()
                 || product.filename_prefix.is_empty()
