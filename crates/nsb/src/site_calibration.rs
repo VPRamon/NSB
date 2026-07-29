@@ -198,7 +198,7 @@ impl SiteCalibrationAsset {
         let atmosphere = &self.atmosphere;
         validate_range(
             atmosphere.representative_altitude_m,
-            -500.0,
+            0.0,
             10_000.0,
             "atmosphere.representative_altitude_m",
         )?;
@@ -242,7 +242,7 @@ impl SiteCalibrationAsset {
         )?;
         validate_range(
             atmosphere.angstrom_exponent,
-            -5.0,
+            0.0,
             10.0,
             "atmosphere.angstrom_exponent",
         )?;
@@ -286,6 +286,7 @@ impl SiteCalibrationAsset {
                 "site calibration requires at least one immutable reference",
             ));
         }
+
         let mut ids = BTreeSet::new();
         let mut paths = BTreeSet::new();
         for reference in &self.references {
@@ -455,13 +456,34 @@ source = "Documented CTAO-South atmospheric reference release"
 license = "Redistribution terms recorded with the reference asset"
 "#;
 
+    fn valid_ctao_north_asset() -> String {
+        VALID_ASSET
+            .replace("ctao-south", "ctao-north")
+            .replace("CTAO-South", "CTAO-North")
+    }
+
     #[test]
-    fn parses_a_valid_ctao_calibration_asset() {
-        let asset = SiteCalibrationAsset::from_toml_str(VALID_ASSET).unwrap();
-        assert_eq!(asset.schema_version, SITE_CALIBRATION_ASSET_SCHEMA_VERSION);
-        assert_eq!(asset.site, CalibratedSiteId::CtaSouth);
-        assert_eq!(asset.site.planning_profile(), SiteProfileId::CtaSouth);
-        assert_eq!(asset.references.len(), 1);
+    fn parses_a_valid_ctao_south_calibration_asset_deterministically() {
+        let first = SiteCalibrationAsset::from_toml_str(VALID_ASSET).unwrap();
+        let second = SiteCalibrationAsset::from_toml_str(VALID_ASSET).unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(first.schema_version, SITE_CALIBRATION_ASSET_SCHEMA_VERSION);
+        assert_eq!(first.site, CalibratedSiteId::CtaSouth);
+        assert_eq!(first.site.planning_profile(), SiteProfileId::CtaSouth);
+        assert_eq!(first.references.len(), 1);
+    }
+
+    #[test]
+    fn parses_a_valid_ctao_north_calibration_asset_deterministically() {
+        let input = valid_ctao_north_asset();
+        let first = SiteCalibrationAsset::from_toml_str(&input).unwrap();
+        let second = SiteCalibrationAsset::from_toml_str(&input).unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(first.site, CalibratedSiteId::CtaNorth);
+        assert_eq!(first.site.as_str(), "ctao-north");
+        assert_eq!(first.site.planning_profile(), SiteProfileId::CtaNorth);
     }
 
     #[test]
@@ -479,12 +501,19 @@ license = "Redistribution terms recorded with the reference asset"
     }
 
     #[test]
-    fn rejects_unsupported_schema_invalid_dates_and_invalid_physical_values() {
+    fn rejects_unsupported_schema_invalid_dates_and_negative_physical_values() {
         let unsupported = VALID_ASSET.replacen("schema_version = 1", "schema_version = 2", 1);
         assert!(SiteCalibrationAsset::from_toml_str(&unsupported).is_err());
 
         let invalid_date = VALID_ASSET.replacen("2025-12-31", "2025-02-30", 1);
         assert!(SiteCalibrationAsset::from_toml_str(&invalid_date).is_err());
+
+        let negative_altitude = VALID_ASSET.replacen(
+            "representative_altitude_m = 2150.0",
+            "representative_altitude_m = -1.0",
+            1,
+        );
+        assert!(SiteCalibrationAsset::from_toml_str(&negative_altitude).is_err());
 
         let negative_pressure = VALID_ASSET.replacen(
             "surface_pressure_hpa = 743.0",
@@ -492,6 +521,10 @@ license = "Redistribution terms recorded with the reference asset"
             1,
         );
         assert!(SiteCalibrationAsset::from_toml_str(&negative_pressure).is_err());
+
+        let negative_angstrom =
+            VALID_ASSET.replacen("angstrom_exponent = 1.0", "angstrom_exponent = -1.0", 1);
+        assert!(SiteCalibrationAsset::from_toml_str(&negative_angstrom).is_err());
     }
 
     #[test]
