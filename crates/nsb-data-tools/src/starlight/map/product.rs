@@ -12,7 +12,7 @@ use std::path::Path;
 
 const REPORT_SCHEMA_VERSION: u32 = 6;
 const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
-const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v4";
+const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v5";
 const MAP_ORDERING: &str = "nested";
 const MAP_REPRESENTATION: &str = "sparse";
 const MAP_OMITTED_PIXEL_SEMANTICS: &str = "zero_flux_and_source_counts";
@@ -20,10 +20,29 @@ const MAP_FLUX_QUANTITY: &str = "integrated_per_pixel";
 const MAP_FLUX_UNIT: &str = "ph_m-2_s-1";
 const MAP_DERIVATION: &str = "canonical_gaia_source_accumulation";
 const MAP_SOURCE_COUNT_SEMANTICS: &str = "exact_source_membership";
-const ADMISSION_POLICY_ID: &str = "gaia-dr3-xp-continuous-join-v1";
+const ADMISSION_POLICY_ID: &str = "gaia-dr3-full-population-v1";
 const POPULATION_POLICY_ID: &str = "selection-function-identity-stub-v1";
 const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
 const CORRECTED_SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-uv-corrected-300-650-v1";
+
+const ADMISSION_RULES: [&str; 8] = [
+    "require_gaia_source_match",
+    "exclude_calibration_failed",
+    "exclude_non_positive_or_non_finite_flux",
+    "exclude_invalid_statistical_uncertainty",
+    "exclude_duplicated_source",
+    "exclude_scientific_exclusion_nonstellar",
+    "route_non_xp_via_photometric_inference",
+    "exclude_no_xp_spectrum_without_photometric_artifact",
+];
+
+/// Optional selection-function identity passed from finalize into the merge report.
+#[derive(Debug, Clone)]
+pub(crate) struct SelectionPopulationPolicy {
+    pub model_id: String,
+    pub weight_cap: f64,
+    pub residual_faint_tail_estimated: bool,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -177,6 +196,7 @@ pub(crate) fn emit_maps(
     canonical_nside: u32,
     expected_product_band: StarlightProductBand,
     expected_uv_artifact_sha256: Option<&str>,
+    selection_population: Option<SelectionPopulationPolicy>,
 ) -> Result<Vec<Artifact>> {
     if (expected_product_band == StarlightProductBand::Combined300To650)
         != expected_uv_artifact_sha256.is_some()
@@ -259,7 +279,7 @@ pub(crate) fn emit_maps(
     let output_root = workspace.join("outputs");
     let map_name = canonical_map_name(canonical_nside);
     let map_path = output_root.join(&map_name);
-    let science_policy = science_policy_report(&merged);
+    let science_policy = science_policy_report(&merged, selection_population.as_ref());
     write_map(
         &map_path,
         canonical_nside,
@@ -360,6 +380,18 @@ pub(crate) fn scientific_gates(
         && report.canonical_map.pixel_domain_size == expected_pixel_domain
         && report.canonical_map.occupied_pixels > 0
         && report.canonical_map.occupied_pixels <= expected_pixel_domain;
+    let uncertainty_budget_total_column_passed =
+        report.canonical_map.schema == MAP_SCHEMA && read_map(&map_path, canonical_nside).is_ok();
+    let diagnostics = &report.band_diagnostics;
+    let uncertainty_interval_coverage_declared_passed = uncertainty_budget_total_column_passed
+        && diagnostics
+            .statistical_uncertainty_300_650_ph_m2_s
+            .is_finite()
+        && diagnostics.statistical_uncertainty_300_650_ph_m2_s >= 0.0
+        && diagnostics
+            .systematic_uncertainty_300_650_ph_m2_s
+            .is_finite()
+        && diagnostics.systematic_uncertainty_300_650_ph_m2_s >= 0.0;
 
     Ok(vec![
         ValidationGate {
@@ -435,6 +467,24 @@ pub(crate) fn scientific_gates(
                 report.deterministic_merge.exclusion_reason_mismatches,
             ),
         },
+        ValidationGate {
+            name: "uncertainty-budget-total-column".to_string(),
+            passed: uncertainty_budget_total_column_passed,
+            detail: format!(
+                "schema={}; total_uncertainty_column={}",
+                report.canonical_map.schema, uncertainty_budget_total_column_passed
+            ),
+        },
+        ValidationGate {
+            name: "uncertainty-interval-coverage-declared".to_string(),
+            passed: uncertainty_interval_coverage_declared_passed,
+            detail: format!(
+                "statistical_300_650={:.17e}; systematic_300_650={:.17e}; map_total_column={}",
+                diagnostics.statistical_uncertainty_300_650_ph_m2_s,
+                diagnostics.systematic_uncertainty_300_650_ph_m2_s,
+                uncertainty_budget_total_column_passed
+            ),
+        },
     ])
 }
 
@@ -484,7 +534,7 @@ fn validate_report_fields(
     if report.canonical_map.pixel_domain_size != expected_pixel_domain
         || occupied_pixels > expected_pixel_domain
         || report.canonical_map.occupied_pixels != occupied_pixels
-        || report.canonical_map.total_flux_ph_m2_s.to_bits() != total_flux.to_bits()
+        || !fluxes_agree(report.canonical_map.total_flux_ph_m2_s, total_flux)
         || report.canonical_map.admitted_sources != admitted
         || report.canonical_map.excluded_sources != excluded
         || report.admitted_sources != admitted
@@ -533,15 +583,17 @@ fn validate_report_fields(
         || diagnostic_values
             .iter()
             .any(|value| !value.is_finite() || *value < 0.0)
-        || selected_diagnostic.to_bits() != total_flux.to_bits()
+        || !fluxes_agree(selected_diagnostic, total_flux)
         || (ultraviolet_applied && ultraviolet_count != report.admitted_sources)
         || (!ultraviolet_applied
             && (diagnostics.total_flux_300_336_ph_m2_s != 0.0
                 || diagnostics.statistical_uncertainty_300_336_ph_m2_s != 0.0
                 || diagnostics.systematic_uncertainty_300_336_ph_m2_s != 0.0
                 || !report.ultraviolet_applicability.is_empty()
-                || diagnostics.total_flux_300_650_ph_m2_s.to_bits()
-                    != diagnostics.total_flux_336_650_ph_m2_s.to_bits()))
+                || !fluxes_agree(
+                    diagnostics.total_flux_300_650_ph_m2_s,
+                    diagnostics.total_flux_336_650_ph_m2_s,
+                )))
     {
         bail!("merge report band diagnostics are invalid or inconsistent");
     }
@@ -583,6 +635,10 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         (
             "source_count_semantics".to_string(),
             MAP_SOURCE_COUNT_SEMANTICS.to_string(),
+        ),
+        (
+            "uncertainty_combination".to_string(),
+            "independent-statistical-quadrature-plus-systematic".to_string(),
         ),
     ]);
     let mut observed_headers = BTreeMap::new();
@@ -707,7 +763,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'));
     if data_lines.next()
         != Some(
-            "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources",
+            "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources",
         )
     {
         bail!("{} has an incompatible map column schema", path.display());
@@ -716,15 +772,17 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
     let mut previous_pixel = None;
     for line in data_lines {
         let fields = line.split(',').collect::<Vec<_>>();
-        if fields.len() != 6 {
+        if fields.len() != 7 {
             bail!("{} contains a malformed map row", path.display());
         }
         let pixel = fields[0].parse::<u32>()?;
         let flux = fields[1].parse::<f64>()?;
         let statistical_uncertainty = fields[2].parse::<f64>()?;
         let systematic_uncertainty = fields[3].parse::<f64>()?;
-        let admitted = fields[4].parse::<u64>()?;
-        let excluded = fields[5].parse::<u64>()?;
+        let total_uncertainty = fields[4].parse::<f64>()?;
+        let admitted = fields[5].parse::<u64>()?;
+        let excluded = fields[6].parse::<u64>()?;
+        let expected_total_uncertainty = statistical_uncertainty.hypot(systematic_uncertainty);
         if u64::from(pixel) >= 12 * u64::from(expected_nside).pow(2)
             || !flux.is_finite()
             || flux < 0.0
@@ -732,6 +790,9 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
             || statistical_uncertainty < 0.0
             || !systematic_uncertainty.is_finite()
             || systematic_uncertainty < 0.0
+            || !total_uncertainty.is_finite()
+            || total_uncertainty < 0.0
+            || !uncertainty_total_matches(total_uncertainty, expected_total_uncertainty, 1.0e-9)
         {
             bail!(
                 "{} contains an invalid pixel or non-finite/negative flux",
@@ -806,19 +867,22 @@ fn map_pixels(merged: &PartitionShard) -> BTreeMap<u32, MapPixel> {
         .collect()
 }
 
-fn science_policy_report(merged: &PartitionShard) -> SciencePolicyReport {
+fn science_policy_report(
+    merged: &PartitionShard,
+    selection: Option<&SelectionPopulationPolicy>,
+) -> SciencePolicyReport {
     let ultraviolet = merged.ultraviolet_correction.as_ref();
     let corrected = ultraviolet.is_some();
-    SciencePolicyReport {
-        schema_version: 2,
-        admission_policy_id: ADMISSION_POLICY_ID.to_string(),
-        admission_rules: vec![
-            "require_gaia_source_match".to_string(),
-            "exclude_calibration_failed".to_string(),
-            "exclude_non_positive_or_non_finite_flux".to_string(),
-            "exclude_invalid_statistical_uncertainty".to_string(),
-        ],
-        population_correction: PopulationCorrectionReport {
+    let population_correction = match selection {
+        Some(selection) => PopulationCorrectionReport {
+            policy_id: selection.model_id.clone(),
+            applied: true,
+            minimum_weight: 1.0,
+            maximum_weight: selection.weight_cap,
+            residual_faint_tail_estimated: selection.residual_faint_tail_estimated,
+            limitation: "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted sources; residual faint-tail estimation follows the artifact faint_tail.enabled flag.".to_string(),
+        },
+        None => PopulationCorrectionReport {
             policy_id: POPULATION_POLICY_ID.to_string(),
             applied: false,
             minimum_weight: 1.0,
@@ -826,6 +890,15 @@ fn science_policy_report(merged: &PartitionShard) -> SciencePolicyReport {
             residual_faint_tail_estimated: false,
             limitation: "No validated sky-, magnitude-, and colour-conditioned Gaia selection-function model is configured; admitted source weights remain exactly one.".to_string(),
         },
+    };
+    SciencePolicyReport {
+        schema_version: 2,
+        admission_policy_id: ADMISSION_POLICY_ID.to_string(),
+        admission_rules: ADMISSION_RULES
+            .iter()
+            .map(|rule| (*rule).to_string())
+            .collect(),
+        population_correction,
         spectral_coverage: SpectralCoverageReport {
             policy_id: if corrected {
                 CORRECTED_SPECTRAL_POLICY_ID
@@ -846,8 +919,7 @@ fn science_policy_report(merged: &PartitionShard) -> SciencePolicyReport {
             measured_conditional_residual_statistical_correlation: ultraviolet.map(|metadata| {
                 f64::from_bits(metadata.measured_conditional_residual_statistical_correlation_bits)
             }),
-            systematic_correlation: ultraviolet
-                .map(|metadata| metadata.systematic_correlation),
+            systematic_correlation: ultraviolet.map(|metadata| metadata.systematic_correlation),
             limitation: if corrected {
                 "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately.".to_string()
             } else {
@@ -944,20 +1016,25 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
                 .is_none()
             && spectral.systematic_correlation.is_none()
     };
+    let population = &policy.population_correction;
+    let population_valid = if population.applied {
+        !population.policy_id.trim().is_empty()
+            && population.policy_id != POPULATION_POLICY_ID
+            && population.minimum_weight == 1.0
+            && population.maximum_weight.is_finite()
+            && population.maximum_weight >= 1.0
+            && !population.limitation.trim().is_empty()
+    } else {
+        population.policy_id == POPULATION_POLICY_ID
+            && population.minimum_weight == 1.0
+            && population.maximum_weight == 1.0
+            && !population.residual_faint_tail_estimated
+            && !population.limitation.trim().is_empty()
+    };
     policy.schema_version == 2
         && policy.admission_policy_id == ADMISSION_POLICY_ID
-        && policy.admission_rules
-            == [
-                "require_gaia_source_match",
-                "exclude_calibration_failed",
-                "exclude_non_positive_or_non_finite_flux",
-                "exclude_invalid_statistical_uncertainty",
-            ]
-        && policy.population_correction.policy_id == POPULATION_POLICY_ID
-        && !policy.population_correction.applied
-        && policy.population_correction.minimum_weight == 1.0
-        && policy.population_correction.maximum_weight == 1.0
-        && !policy.population_correction.residual_faint_tail_estimated
+        && policy.admission_rules == ADMISSION_RULES
+        && population_valid
         && spectral.target_band_nm == [300, 650]
         && spectral.directly_integrated_band_nm == [336, 650]
         && spectral_valid
@@ -1043,6 +1120,7 @@ fn write_map(
          # flux_unit={MAP_FLUX_UNIT}\n\
          # derivation={MAP_DERIVATION}\n\
          # source_count_semantics={MAP_SOURCE_COUNT_SEMANTICS}\n\
+         # uncertainty_combination=independent-statistical-quadrature-plus-systematic\n\
          # product_band={product_band}\n\
          # corrected_component={corrected_component}\n\
          # measured_component=336-650-measured\n\
@@ -1053,14 +1131,18 @@ fn write_map(
          # uv_model_response={model_response}\n\
          # uv_measured_conditional_residual_statistical_correlation={statistical_correlation}\n\
          # uv_systematic_correlation={systematic_correlation}\n\
-         pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n"
+         pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n"
     );
     for (pixel, value) in pixels {
+        let total_uncertainty = value
+            .statistical_uncertainty
+            .hypot(value.systematic_uncertainty);
         text.push_str(&format!(
-            "{pixel},{:.17e},{:.17e},{:.17e},{},{}\n",
+            "{pixel},{:.17e},{:.17e},{:.17e},{:.17e},{},{}\n",
             value.flux,
             value.statistical_uncertainty,
             value.systematic_uncertainty,
+            total_uncertainty,
             value.admitted,
             value.excluded
         ));
@@ -1416,6 +1498,18 @@ fn is_sha256(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+/// Agree within a tight relative tolerance after StableSum→binary64→CSV round-trips.
+fn fluxes_agree(left: f64, right: f64) -> bool {
+    if left.to_bits() == right.to_bits() {
+        return true;
+    }
+    if !left.is_finite() || !right.is_finite() || left < 0.0 || right < 0.0 {
+        return false;
+    }
+    let scale = left.abs().max(right.abs()).max(1.0);
+    (left - right).abs() <= 1e-9 * scale
+}
+
 fn population_totals(merged: &PartitionShard) -> Result<(u64, u64, u64)> {
     let mut observed = 0_u64;
     let mut admitted = 0_u64;
@@ -1432,6 +1526,16 @@ fn population_totals(merged: &PartitionShard) -> Result<(u64, u64, u64)> {
             .context("excluded source total overflow")?;
     }
     Ok((observed, admitted, excluded))
+}
+
+fn uncertainty_total_matches(observed: f64, expected: f64, rel_tol: f64) -> bool {
+    if !observed.is_finite() || !expected.is_finite() {
+        return false;
+    }
+    if expected == 0.0 {
+        return observed == 0.0;
+    }
+    (observed - expected).abs() <= rel_tol * expected.abs()
 }
 
 fn galactic_plane_coverage(path: &Path, nside: u32) -> Result<f64> {
@@ -1514,6 +1618,7 @@ mod tests {
             &["fixture".to_string()],
             nside,
             StarlightProductBand::Measured336To650,
+            None,
             None,
         )
         .unwrap();
@@ -1692,7 +1797,7 @@ mod tests {
             .iter()
             .position(|line| {
                 line
-                    == "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,admitted_sources,excluded_sources"
+                    == "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources"
             })
             .unwrap()
             + 1;
@@ -1744,7 +1849,7 @@ mod tests {
     #[test]
     fn candidate_science_limitations_are_versioned_and_explicit() {
         let shard = fixture_shard(128);
-        let policy = science_policy_report(&shard);
+        let policy = science_policy_report(&shard, None);
         assert_eq!(policy.schema_version, 2);
         assert_eq!(policy.admission_policy_id, ADMISSION_POLICY_ID);
         assert_eq!(policy.population_correction.policy_id, POPULATION_POLICY_ID);
@@ -1815,6 +1920,7 @@ mod tests {
             128,
             StarlightProductBand::Combined300To650,
             Some(&"a".repeat(64)),
+            None,
         )
         .unwrap();
         let report: MergeReport = serde_json::from_slice(
@@ -1887,6 +1993,7 @@ mod tests {
             128,
             StarlightProductBand::Combined300To650,
             Some(&"b".repeat(64)),
+            None,
         )
         .unwrap_err()
         .to_string();

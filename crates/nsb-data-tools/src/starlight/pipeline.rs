@@ -93,6 +93,8 @@ impl DatasetPipeline for StarlightPipeline {
             starlight.map.canonical_nside,
             starlight.product_band,
             starlight.ultraviolet_correction.as_ref(),
+            starlight.photometric_inference.as_ref(),
+            starlight.selection_function.as_ref(),
         )?;
         super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
         Ok(Some(artifacts))
@@ -107,6 +109,22 @@ impl DatasetPipeline for StarlightPipeline {
             let expected = self
                 .available_partitions(config)?
                 .ok_or_else(|| anyhow::anyhow!("Starlight inventories are missing"))?;
+            let selection_population = starlight
+                .selection_function
+                .as_ref()
+                .map(|pin| -> Result<_> {
+                    let correction = super::selection::SelectionCorrection::load(
+                        &pin.artifact_path,
+                        &pin.sha256,
+                    )?;
+                    correction.require_production_status()?;
+                    Ok(super::map::product::SelectionPopulationPolicy {
+                        model_id: correction.artifact().model_id.clone(),
+                        weight_cap: correction.artifact().weight_cap,
+                        residual_faint_tail_estimated: correction.artifact().faint_tail.enabled,
+                    })
+                })
+                .transpose()?;
             return Ok(Some(super::map::product::emit_maps(
                 &config.workspace.root,
                 &expected,
@@ -116,6 +134,7 @@ impl DatasetPipeline for StarlightPipeline {
                     .ultraviolet_correction
                     .as_ref()
                     .map(|ultraviolet| ultraviolet.sha256.as_str()),
+                selection_population,
             )?));
         }
         Ok(None)
@@ -175,14 +194,23 @@ impl DatasetPipeline for StarlightPipeline {
             return Ok(());
         };
         super::config::validate_canonical_nside(starlight.map.canonical_nside)?;
-        if let Some(ultraviolet) = &starlight.ultraviolet_correction {
-            if ultraviolet.sha256.len() != 64
-                || !ultraviolet
-                    .sha256
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-            {
-                bail!("UV correction SHA-256 must be 64 lowercase hexadecimal characters");
+        for (label, pin) in [
+            ("UV correction", starlight.ultraviolet_correction.as_ref()),
+            (
+                "photometric inference",
+                starlight.photometric_inference.as_ref(),
+            ),
+            ("selection function", starlight.selection_function.as_ref()),
+        ] {
+            if let Some(pin) = pin {
+                if pin.sha256.len() != 64
+                    || !pin
+                        .sha256
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                {
+                    bail!("{label} SHA-256 must be 64 lowercase hexadecimal characters");
+                }
             }
         }
         if (starlight.product_band == super::config::StarlightProductBand::Combined300To650)

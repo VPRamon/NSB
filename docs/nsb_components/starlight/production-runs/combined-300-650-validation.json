@@ -1,0 +1,91 @@
+{
+  "schema_version": 2,
+  "dataset": "starlight",
+  "passed": true,
+  "gates": [
+    {
+      "name": "checksum:merge_report.json",
+      "passed": true,
+      "detail": "5b2419a113cf160e724a1afc687e3632862dc8d7f9081bd48b297e072e7af147"
+    },
+    {
+      "name": "format:merge_report.json",
+      "passed": true,
+      "detail": "valid"
+    },
+    {
+      "name": "checksum:starlight_nside128.csv",
+      "passed": true,
+      "detail": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+    },
+    {
+      "name": "format:starlight_nside128.csv",
+      "passed": true,
+      "detail": "valid"
+    },
+    {
+      "name": "canonical-map-integrity",
+      "passed": true,
+      "detail": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+    },
+    {
+      "name": "canonical-map-cardinality",
+      "passed": true,
+      "detail": "196608 occupied of 196608 pixels; representation=sparse; omitted=zero_flux_and_source_counts"
+    },
+    {
+      "name": "canonical-map-flux",
+      "passed": true,
+      "detail": "8.00332196638881800e15 ph_m-2_s-1"
+    },
+    {
+      "name": "pixel-coverage-galactic-plane",
+      "passed": true,
+      "detail": "1.000000 (required >= 0.70)"
+    },
+    {
+      "name": "population-accounting",
+      "passed": true,
+      "detail": "1520028984 admitted + 291680787 excluded = 1811709771 observed"
+    },
+    {
+      "name": "declared-science-policy",
+      "passed": true,
+      "detail": "admission=gaia-dr3-full-population-v1; population=gaia-dr3-selection-function-cantat-gaudin-v1 applied=true; spectral=gaia-xp-continuous-uv-corrected-300-650-v1 ultraviolet_correction=true"
+    },
+    {
+      "name": "deterministic-independent-partial-merge",
+      "passed": true,
+      "detail": "algorithm=complete-partition-shard-v1 pixels=196608 canonical=6b7e6ef9ea2265c84865c524524f2e91e489a51ee09e1e1fe4e0a237166bbf1a partial=6b7e6ef9ea2265c84865c524524f2e91e489a51ee09e1e1fe4e0a237166bbf1a key_mismatches=0 flux_mismatches=0 uncertainty_mismatches=0 source_counter_mismatches=0 exclusion_reason_mismatches=0"
+    },
+    {
+      "name": "uncertainty-budget-total-column",
+      "passed": true,
+      "detail": "schema=nsb-healpix-starlight-candidate-v5; total_uncertainty_column=true"
+    },
+    {
+      "name": "uncertainty-interval-coverage-declared",
+      "passed": true,
+      "detail": "statistical_300_650=1.63770310065480108e24; systematic_300_650=9.14595010945230004e27; map_total_column=true"
+    },
+    {
+      "name": "complete-artifact-set",
+      "passed": true,
+      "detail": "expected {\"merge_report.json\", \"starlight_nside128.csv\"}; found {\"merge_report.json\", \"starlight_nside128.csv\"}"
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "merge_report.json",
+      "path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650/outputs/merge_report.json",
+      "sha256": "5b2419a113cf160e724a1afc687e3632862dc8d7f9081bd48b297e072e7af147",
+      "bytes": 75524
+    },
+    {
+      "name": "starlight_nside128.csv",
+      "path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650/outputs/starlight_nside128.csv",
+      "sha256": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a",
+      "bytes": 20911848
+    }
+  ]
+}
