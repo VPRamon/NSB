@@ -1,0 +1,75 @@
+schema_version = 1
+schema = "nsb-starlight-release-candidate-v1"
+
+# See README.md in this directory for the full contract. This file is
+# machine-checked by `nsb-data dataset starlight promote`
+# (crates/nsb-data-tools/src/starlight/promotion.rs) before any production
+# manifest change is drafted. It must never be hand-edited to flip
+# `gates.promotion_eligible` to `true`; that value is set only after issue
+# #47 records both signed human decisions and #94/#95 publish a regenerated,
+# checksum-pinned candidate.
+#
+# Production-ready release candidate pending final human approval.
+notes = """
+Candidate checksum 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a
+(generation commit bb70bb56c34d24309e2baf1af7e69e2aeea2f434, published by PR
+#93) is scientifically invalidated for uncertainty scale by issue #94: the UV
+artifact `calspec-linear-log-ratio-v1` applied absolute CALSPEC RMSE floors
+(~1e19 ph m^-2 s^-1) per Gaia source, inflating reported relative
+uncertainties by roughly twelve orders of magnitude. Do not approve this
+checksum for production use.
+
+Pull request #95 pins the replacement UV artifact
+`calspec-linear-log-ratio-v2` (sha256
+5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367) and lands
+the dimensional contract and fail-loud `uncertainty-scale-plausible` gate,
+but full map regeneration on Ladon is still required to publish corrected
+candidate bytes. When that regeneration lands, this table's `candidate`
+section must be replaced wholesale (new `candidate_sha256`, `status =
+"pinned"`, `gates.validation_status = "technical_pass"`) and issue #47's
+freeze table updated to match before either review status can leave
+"pending".
+
+`candidate.status` and `gates.promotion_eligible` are read by
+`nsb-data dataset starlight promote` before any decision file is even
+opened: while `status != "pinned"` or `promotion_eligible == false`,
+promotion fails closed unconditionally. This is intentional and matches
+issue #89: the mechanism must exist and be exercised by tests, but nothing
+in this pull request promotes the invalidated candidate to production.
+"""
+
+[candidate]
+# "pinned" once `candidate_sha256` names a checksum-locked release byte
+# stream that is admissible for promotion; "awaiting_regeneration" while the
+# pin below is scientifically invalidated and a rebuild is pending (see
+# `notes`). `nsb-data dataset starlight promote` fails closed unless this is
+# exactly "pinned".
+status = "awaiting_regeneration"
+candidate_sha256 = "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+map_path = "crates/nsb/data/starlight_nside128.csv"
+map_schema = "nsb-healpix-starlight-candidate-v5"
+band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
+units = "ph_m-2_s-1"
+nside = 128
+ordering = "nested"
+gaia_release = "Gaia DR3"
+
+[candidate.model_versions]
+uv_correction_current = "calspec-linear-log-ratio-v1"
+uv_correction_required_for_regeneration = "calspec-linear-log-ratio-v2"
+target_production_photometry_model = "gaia_dr3_xp_photon_radiance_336_650nm_v1"
+
+[gates]
+# "technical_pass" | "pending_regeneration". Promotion requires
+# "technical_pass"; today it is "pending_regeneration" because #94
+# invalidated the pinned candidate checksum above.
+validation_status = "pending_regeneration"
+# "pending" | "approved" | "approved_with_conditions" | "rejected". Owned
+# exclusively by issue #47; this file only mirrors the recorded decision
+# files, it never grants approval itself.
+scientific_review_status = "pending"
+redistribution_review_status = "pending"
+# Authoritative kill switch. `nsb-data dataset starlight promote` refuses to
+# draft a production manifest change while this is `false`, regardless of
+# any decision file content.
+promotion_eligible = false

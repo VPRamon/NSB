@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "decision": "pending",
+  "reviewer_name": null,
+  "reviewer_role": null,
+  "reviewed_at_utc": null,
+  "candidate_sha256": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a",
+  "conditions": [],
+  "notes": "Template only, owned by issue #47. A qualified human scientist fills reviewer_name, reviewer_role, reviewed_at_utc, and sets decision to approved | approved_with_conditions | rejected after reviewing docs/nsb_components/starlight/validation/ evidence for the exact candidate_sha256 pinned above. Do not change candidate_sha256 here unless #94/#95 have already published a regenerated candidate and docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml has been updated to match; nsb-data dataset starlight promote fails closed on a mismatch."
+}

@@ -59,6 +59,21 @@ separate scientific and release decision. Missing-flux treatment, independent
 validation, and redistribution-policy gates must be satisfied before a map is
 represented as production quality.
 
+## Release-candidate status
+
+**Production-ready release candidate pending final human approval.**
+
+The technical promotion mechanism (issue #89) is complete: a fail-closed
+`nsb-data dataset starlight promote` command and the
+`nsb-starlight-release-candidate-v1` schema exist and are tested, but the
+current candidate checksum is scientifically invalidated pending #94/#95
+regeneration, and both human decisions in issue #47 remain `pending`.
+`ComponentMask::ALL` and the CLI's `--components starlight` selection do not
+fall back to the experimental seed and do not admit an unregistered
+production map; see
+[`release-candidate/README.md`](release-candidate/README.md) for the full
+gate contract.
+
 ## Related documentation
 
 - [Starlight data-product pipeline](map-generation.md)
@@ -66,3 +81,4 @@ represented as production quality.
 - [Starlight science requirements](science-requirements.md)
 - [Starlight map validation](map-validation.md)
 - [External starlight manifest](external-manifest.md)
+- [Release-candidate bundle and promotion mechanism](release-candidate/README.md)
