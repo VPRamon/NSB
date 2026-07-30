@@ -10,6 +10,7 @@ pub mod selection;
 pub mod sources;
 pub mod uncertainty;
 pub mod uv;
+pub mod validation;
 mod worker;
 pub mod xp;
 
