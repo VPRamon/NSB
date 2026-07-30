@@ -3,6 +3,7 @@
 use crate::dataset::{self, DatasetName, Executor, Operation};
 use anyhow::Result;
 use clap::{Args, Parser, Subcommand};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Parser)]
@@ -70,7 +71,7 @@ enum DatasetCommand {
     AirglowContinuum(ActionArgs),
     SolarSpectrum(ActionArgs),
     MoonlightScattering(ActionArgs),
-    Starlight(StarlightArgs),
+    Starlight(StarlightActionArgs),
 }
 
 #[derive(Debug, Args)]
@@ -88,9 +89,9 @@ enum Action {
 }
 
 #[derive(Debug, Args)]
-struct StarlightArgs {
+struct StarlightActionArgs {
     #[command(subcommand)]
-    action: StarlightAction,
+    operation: StarlightAction,
 }
 
 #[derive(Debug, Subcommand)]
@@ -99,9 +100,63 @@ enum StarlightAction {
     Build(CommonArgs),
     Validate(CommonArgs),
     Publish(CommonArgs),
+    /// Independent validation pipeline for issue #87 (acquire references, run comparisons).
+    Validation(StarlightValidationArgs),
     /// Verify a release-candidate manifest and both human decisions, then
     /// draft (but never apply) the production manifest change (#89).
     Promote(PromoteArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightValidationArgs {
+    #[command(subcommand)]
+    command: StarlightValidationCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum StarlightValidationCommand {
+    /// Download or locate registered reference files and write verified receipts.
+    Acquire(StarlightValidationAcquireArgs),
+    /// Compare the candidate map against every acquired-and-transformed reference.
+    Run(StarlightValidationRunArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightValidationAcquireArgs {
+    /// Path to `references-v1.toml`.
+    #[arg(long)]
+    references: PathBuf,
+    /// Directory holding receipts and content-addressed objects.
+    #[arg(long)]
+    workspace: PathBuf,
+    /// Override a reference's source, formatted as `id=url-or-local-path`. May repeat.
+    #[arg(long = "source", value_parser = parse_source_override)]
+    sources: Vec<(String, String)>,
+}
+
+#[derive(Debug, Args)]
+struct StarlightValidationRunArgs {
+    /// Path to `preregistration-v1.toml`.
+    #[arg(long)]
+    preregistration: PathBuf,
+    /// Path to `references-v1.toml`.
+    #[arg(long)]
+    references: PathBuf,
+    /// Path to `regions-v1.json`.
+    #[arg(long)]
+    regions: PathBuf,
+    /// Path to the candidate HEALPix map CSV.
+    #[arg(long)]
+    candidate_map: PathBuf,
+    /// Optional pinned SHA-256 to cross-check against the candidate map.
+    #[arg(long)]
+    candidate_map_sha256: Option<String>,
+    /// Directory containing per-reference acquisition receipts and transformed grids.
+    #[arg(long)]
+    references_workspace: PathBuf,
+    /// Output directory for results, report, and artifact manifest.
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -122,6 +177,12 @@ struct PromoteArgs {
     /// Optional path to write the draft production manifest fragment.
     #[arg(long)]
     output: Option<PathBuf>,
+}
+
+fn parse_source_override(raw: &str) -> Result<(String, String), String> {
+    raw.split_once('=')
+        .map(|(id, source)| (id.to_string(), source.to_string()))
+        .ok_or_else(|| format!("expected id=url-or-path, found {raw:?}"))
 }
 
 #[derive(Debug, Clone, Args)]
@@ -191,33 +252,7 @@ pub fn run() -> Result<()> {
             DatasetCommand::MoonlightScattering(args) => {
                 execute(DatasetName::MoonlightScattering, args)
             }
-            DatasetCommand::Starlight(args) => match args.action {
-                StarlightAction::Update(common) => execute(
-                    DatasetName::Starlight,
-                    ActionArgs {
-                        operation: Action::Update(common),
-                    },
-                ),
-                StarlightAction::Build(common) => execute(
-                    DatasetName::Starlight,
-                    ActionArgs {
-                        operation: Action::Build(common),
-                    },
-                ),
-                StarlightAction::Validate(common) => execute(
-                    DatasetName::Starlight,
-                    ActionArgs {
-                        operation: Action::Validate(common),
-                    },
-                ),
-                StarlightAction::Publish(common) => execute(
-                    DatasetName::Starlight,
-                    ActionArgs {
-                        operation: Action::Publish(common),
-                    },
-                ),
-                StarlightAction::Promote(args) => promote(args),
-            },
+            DatasetCommand::Starlight(args) => execute_starlight(args),
         },
         Command::Run(args) => match args.command {
             RunCommand::Status { run } => dataset::status(&run),
@@ -264,6 +299,88 @@ fn execute(dataset: DatasetName, args: ActionArgs) -> Result<()> {
         &common.partitions,
         common.skip_completed_from.as_deref(),
     )
+}
+
+fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
+    let (operation, common) = match args.operation {
+        StarlightAction::Update(args) => (Operation::Update, args),
+        StarlightAction::Build(args) => (Operation::Build, args),
+        StarlightAction::Validate(args) => (Operation::Validate, args),
+        StarlightAction::Publish(args) => (Operation::Publish, args),
+        StarlightAction::Validation(args) => return execute_starlight_validation(args),
+        StarlightAction::Promote(args) => return promote(args),
+    };
+    dataset::execute(
+        &common.config,
+        DatasetName::Starlight,
+        operation,
+        common.executor,
+        common.concurrency,
+        &common.partitions,
+        common.skip_completed_from.as_deref(),
+    )
+}
+
+fn execute_starlight_validation(args: StarlightValidationArgs) -> Result<()> {
+    match args.command {
+        StarlightValidationCommand::Acquire(args) => {
+            let bytes = std::fs::read(&args.references)
+                .map_err(|error| anyhow::anyhow!("read {}: {error}", args.references.display()))?;
+            let document: crate::starlight::validation::references::ReferencesDocument =
+                toml::from_str(std::str::from_utf8(&bytes)?).map_err(|error| {
+                    anyhow::anyhow!("parse {}: {error}", args.references.display())
+                })?;
+            document.validate()?;
+            let overrides = args.sources.into_iter().collect::<BTreeMap<_, _>>();
+            let results = crate::starlight::validation::acquire::acquire_references(
+                &document,
+                &args.workspace,
+                &overrides,
+            )?;
+            let mut manual = 0;
+            for result in &results {
+                println!(
+                    "{}: {:?} — {}",
+                    result.reference_id, result.outcome, result.detail
+                );
+                if result.outcome
+                    == crate::starlight::validation::acquire::AcquisitionOutcome::ManualAcquisitionRequired
+                {
+                    manual += 1;
+                }
+            }
+            if manual > 0 {
+                println!(
+                    "{manual} reference(s) require manual acquisition; supply --source id=path once obtained."
+                );
+            }
+            Ok(())
+        }
+        StarlightValidationCommand::Run(args) => {
+            let inputs = crate::starlight::validation::run::RunInputs {
+                preregistration: args.preregistration,
+                references: args.references,
+                regions: args.regions,
+                candidate_map: args.candidate_map,
+                candidate_map_sha256: args.candidate_map_sha256,
+                references_workspace: args.references_workspace,
+                output: args.output,
+            };
+            let results = crate::starlight::validation::run::run(&inputs)?;
+            println!(
+                "technical_gates_passed={} scientific_review_status={} scientifically_validated={}",
+                results.technical_gates_passed,
+                results.scientific_review_status,
+                results.scientifically_validated
+            );
+            if !results.technical_gates_passed {
+                for failure in &results.technical_gate_failures {
+                    println!("gate failure: {failure}");
+                }
+            }
+            Ok(())
+        }
+    }
 }
 
 fn promote(args: PromoteArgs) -> Result<()> {

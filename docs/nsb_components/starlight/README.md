@@ -81,4 +81,5 @@ gate contract.
 - [Starlight science requirements](science-requirements.md)
 - [Starlight map validation](map-validation.md)
 - [External starlight manifest](external-manifest.md)
+- [Redistribution and licensing package](licensing/README.md)
 - [Release-candidate bundle and promotion mechanism](release-candidate/README.md)
