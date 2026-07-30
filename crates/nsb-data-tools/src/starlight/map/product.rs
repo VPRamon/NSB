@@ -583,15 +583,17 @@ fn validate_report_fields(
         || diagnostic_values
             .iter()
             .any(|value| !value.is_finite() || *value < 0.0)
-        || selected_diagnostic.to_bits() != total_flux.to_bits()
+        || !fluxes_agree(selected_diagnostic, total_flux)
         || (ultraviolet_applied && ultraviolet_count != report.admitted_sources)
         || (!ultraviolet_applied
             && (diagnostics.total_flux_300_336_ph_m2_s != 0.0
                 || diagnostics.statistical_uncertainty_300_336_ph_m2_s != 0.0
                 || diagnostics.systematic_uncertainty_300_336_ph_m2_s != 0.0
                 || !report.ultraviolet_applicability.is_empty()
-                || diagnostics.total_flux_300_650_ph_m2_s.to_bits()
-                    != diagnostics.total_flux_336_650_ph_m2_s.to_bits()))
+                || !fluxes_agree(
+                    diagnostics.total_flux_300_650_ph_m2_s,
+                    diagnostics.total_flux_336_650_ph_m2_s,
+                )))
     {
         bail!("merge report band diagnostics are invalid or inconsistent");
     }
@@ -1494,6 +1496,18 @@ fn is_sha256(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// Agree within a tight relative tolerance after StableSum→binary64→CSV round-trips.
+fn fluxes_agree(left: f64, right: f64) -> bool {
+    if left.to_bits() == right.to_bits() {
+        return true;
+    }
+    if !left.is_finite() || !right.is_finite() || left < 0.0 || right < 0.0 {
+        return false;
+    }
+    let scale = left.abs().max(right.abs()).max(1.0);
+    (left - right).abs() <= 1e-9 * scale
 }
 
 fn population_totals(merged: &PartitionShard) -> Result<(u64, u64, u64)> {
