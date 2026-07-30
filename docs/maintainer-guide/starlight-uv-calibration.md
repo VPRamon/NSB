@@ -49,6 +49,11 @@ The correction artifact has `schema_version = 1` and contains:
 - statistical residual floor, systematic floor/fraction, explicit
   correlation between measured XP statistical error and the conditional
   UV-model residual, and explicit source-to-source systematic correlation;
+  for the log-ratio response the residual/systematic floors must be the
+  dimensionless `statistical_floor_log_ratio` /
+  `systematic_floor_log_ratio` fields (absolute `*_ph_m2_s` floors must be
+  exactly `0` — bright-star absolute RMSE does not transfer to Gaia);
+  for the absolute-flux response the converse applies;
 - an out-of-domain rejection or boundary-clamping/conservative-uncertainty
   policy;
 - validation metrics from a closed vocabulary: signed `bias`,

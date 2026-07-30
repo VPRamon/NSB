@@ -4,13 +4,14 @@ use super::accumulator::{merge_shards, PartitionShard};
 use crate::dataset::{Artifact, ValidationGate};
 use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::config::StarlightProductBand;
+use crate::starlight::uncertainty::CorrelationScope;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 6;
+const REPORT_SCHEMA_VERSION: u32 = 7;
 const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
 const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v5";
 const MAP_ORDERING: &str = "nested";
@@ -59,6 +60,10 @@ pub struct MergeReport {
     pub band_diagnostics: BandDiagnosticsReport,
     pub canonical_map: CanonicalMapReport,
     pub deterministic_merge: DeterministicMergeReport,
+    /// Global and per-pixel relative-uncertainty scale diagnostics.
+    ///
+    /// See [`UncertaintyScaleDiagnostics`] for the exact combination rules.
+    pub uncertainty_scale: UncertaintyScaleDiagnostics,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,6 +142,9 @@ pub struct SpectralCoverageReport {
     pub model_response: Option<crate::starlight::uv::ModelResponse>,
     pub measured_conditional_residual_statistical_correlation: Option<f64>,
     pub systematic_correlation: Option<crate::starlight::uv::SystematicCorrelation>,
+    /// [`CorrelationScope`] equivalent of `systematic_correlation`, additive
+    /// diagnostic vocabulary; see [`crate::starlight::uncertainty`].
+    pub systematic_correlation_scope: Option<CorrelationScope>,
     pub limitation: String,
 }
 
@@ -154,6 +162,44 @@ pub struct DeterministicMergeReport {
     pub exclusion_reason_mismatches: u64,
     pub first_mismatch: Option<String>,
     pub stable: bool,
+}
+
+/// Global and per-pixel relative-uncertainty scale diagnostics.
+///
+/// `global_relative_*` divide an exact, correlation-aware global uncertainty
+/// by the canonical map's total selected-band flux. The global uncertainty is
+/// computed once from the merged shard accumulators (independent
+/// [`crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources`]
+/// contributions combined in quadrature across every admitted source;
+/// [`crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources`]
+/// contributions summed linearly across every admitted source, matching how
+/// `PixelAccumulator::merge` combines the same fields) and is not
+/// independently re-derivable from the emitted CSV alone, so `validate_report`
+/// only checks it for finiteness, non-negativity, and internal consistency.
+///
+/// `pixel_relative_uncertainty_*` and the `fraction_pixels_*` fields are
+/// computed independently from the emitted per-pixel CSV columns as
+/// `hypot(statistical, systematic) / flux`, restricted to pixels with at
+/// least one admitted source (flux is guaranteed positive there by admission).
+/// `validate_report` recomputes these bit-for-bit from the published map and
+/// requires an exact match, so they are a strong, independently checkable
+/// diagnostic.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UncertaintyScaleDiagnostics {
+    pub global_relative_statistical_uncertainty: f64,
+    pub global_relative_systematic_uncertainty: f64,
+    pub global_relative_total_uncertainty: f64,
+    /// Occupied pixels with at least one admitted source, i.e. the population
+    /// underlying the percentile and fraction fields below.
+    pub evaluated_pixels: u64,
+    pub pixel_relative_uncertainty_p50: f64,
+    pub pixel_relative_uncertainty_p68: f64,
+    pub pixel_relative_uncertainty_p95: f64,
+    pub pixel_relative_uncertainty_p99: f64,
+    pub fraction_pixels_relative_uncertainty_gt_1: f64,
+    pub fraction_pixels_relative_uncertainty_gt_10: f64,
+    pub fraction_pixels_relative_uncertainty_gt_100: f64,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -293,6 +339,13 @@ pub(crate) fn emit_maps(
     if admitted_sources != map_admitted || excluded_sources != map_excluded {
         bail!("canonical map totals do not match merged shard population totals");
     }
+    let (global_statistical, global_systematic) = global_selected_uncertainty(&merged)?;
+    let uncertainty_scale = uncertainty_scale_diagnostics(
+        &emitted_pixels,
+        map_flux,
+        global_statistical,
+        global_systematic,
+    )?;
 
     let report = MergeReport {
         schema_version: REPORT_SCHEMA_VERSION,
@@ -324,6 +377,7 @@ pub(crate) fn emit_maps(
             sha256: map_sha256,
         },
         deterministic_merge,
+        uncertainty_scale,
     };
     validate_report_fields(&report, &map_path, &emitted_pixels)?;
 
@@ -392,6 +446,18 @@ pub(crate) fn scientific_gates(
             .systematic_uncertainty_300_650_ph_m2_s
             .is_finite()
         && diagnostics.systematic_uncertainty_300_650_ph_m2_s >= 0.0;
+    let scale = &report.uncertainty_scale;
+    // Fail-loud, not an arbitrary scientific limit: a well-formed photon-flux
+    // uncertainty budget cannot plausibly exceed the signal itself for the
+    // typical pixel, nor for more than a small tail of pixels. Either
+    // condition indicates a broken uncertainty computation (unit error,
+    // runaway systematic term, etc.), not a legitimately noisy region of sky.
+    let uncertainty_scale_plausible = scale.global_relative_total_uncertainty.is_finite()
+        && scale.global_relative_total_uncertainty >= 0.0
+        && scale.pixel_relative_uncertainty_p50.is_finite()
+        && scale.pixel_relative_uncertainty_p50 <= 1.0
+        && scale.fraction_pixels_relative_uncertainty_gt_1 <= 0.01
+        && scale.fraction_pixels_relative_uncertainty_gt_10 == 0.0;
 
     Ok(vec![
         ValidationGate {
@@ -483,6 +549,17 @@ pub(crate) fn scientific_gates(
                 diagnostics.statistical_uncertainty_300_650_ph_m2_s,
                 diagnostics.systematic_uncertainty_300_650_ph_m2_s,
                 uncertainty_budget_total_column_passed
+            ),
+        },
+        ValidationGate {
+            name: "uncertainty-scale-plausible".to_string(),
+            passed: uncertainty_scale_plausible,
+            detail: format!(
+                "global_relative_total={:.6}; pixel_relative_p50={:.6}; fraction_gt_1={:.6}; fraction_gt_10={:.6}",
+                scale.global_relative_total_uncertainty,
+                scale.pixel_relative_uncertainty_p50,
+                scale.fraction_pixels_relative_uncertainty_gt_1,
+                scale.fraction_pixels_relative_uncertainty_gt_10,
             ),
         },
     ])
@@ -612,6 +689,60 @@ fn validate_report_fields(
         || deterministic.first_mismatch.is_some()
     {
         bail!("merge report does not contain complete deterministic evidence");
+    }
+    let scale = &report.uncertainty_scale;
+    let global_values = [
+        scale.global_relative_statistical_uncertainty,
+        scale.global_relative_systematic_uncertainty,
+        scale.global_relative_total_uncertainty,
+    ];
+    if global_values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+        || scale.global_relative_total_uncertainty
+            < scale
+                .global_relative_statistical_uncertainty
+                .max(scale.global_relative_systematic_uncertainty)
+    {
+        bail!("merge report global relative uncertainty diagnostics are invalid");
+    }
+    let expected_scale = uncertainty_scale_diagnostics(
+        pixels,
+        total_flux,
+        scale.global_relative_statistical_uncertainty * total_flux,
+        scale.global_relative_systematic_uncertainty * total_flux,
+    )?;
+    if scale.evaluated_pixels != expected_scale.evaluated_pixels
+        || !fluxes_agree(
+            scale.pixel_relative_uncertainty_p50,
+            expected_scale.pixel_relative_uncertainty_p50,
+        )
+        || !fluxes_agree(
+            scale.pixel_relative_uncertainty_p68,
+            expected_scale.pixel_relative_uncertainty_p68,
+        )
+        || !fluxes_agree(
+            scale.pixel_relative_uncertainty_p95,
+            expected_scale.pixel_relative_uncertainty_p95,
+        )
+        || !fluxes_agree(
+            scale.pixel_relative_uncertainty_p99,
+            expected_scale.pixel_relative_uncertainty_p99,
+        )
+        || !fluxes_agree(
+            scale.fraction_pixels_relative_uncertainty_gt_1,
+            expected_scale.fraction_pixels_relative_uncertainty_gt_1,
+        )
+        || !fluxes_agree(
+            scale.fraction_pixels_relative_uncertainty_gt_10,
+            expected_scale.fraction_pixels_relative_uncertainty_gt_10,
+        )
+        || !fluxes_agree(
+            scale.fraction_pixels_relative_uncertainty_gt_100,
+            expected_scale.fraction_pixels_relative_uncertainty_gt_100,
+        )
+    {
+        bail!("merge report pixel relative uncertainty diagnostics do not match canonical map");
     }
     Ok(())
 }
@@ -867,6 +998,104 @@ fn map_pixels(merged: &PartitionShard) -> BTreeMap<u32, MapPixel> {
         .collect()
 }
 
+/// Global selected-band `(statistical, systematic)` uncertainty, combined
+/// across every occupied pixel using the same rule
+/// [`PixelAccumulator::merge`] uses to combine shards for a single pixel:
+/// independent systematic variance sums across pixels (quadrature), fully
+/// correlated systematic uncertainty sums across pixels (linear), and the two
+/// resulting totals are combined with `hypot`. This mirrors [`band_diagnostics`]
+/// but for the selected product band rather than the 300-336 nm sub-band.
+fn global_selected_uncertainty(merged: &PartitionShard) -> Result<(f64, f64)> {
+    let mut statistical_variance = 0.0;
+    let mut systematic_independent_variance = 0.0;
+    let mut systematic_correlated = 0.0;
+    for pixel in merged.pixels.values() {
+        statistical_variance += pixel.statistical_variance.value();
+        systematic_independent_variance += pixel.systematic_variance.value();
+        systematic_correlated += pixel.systematic_correlated_uncertainty.value();
+    }
+    let values = [
+        statistical_variance,
+        systematic_independent_variance,
+        systematic_correlated,
+    ];
+    if values
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+    {
+        bail!("Starlight global uncertainty totals are non-finite or negative");
+    }
+    let systematic = systematic_independent_variance
+        .sqrt()
+        .hypot(systematic_correlated);
+    Ok((statistical_variance.sqrt(), systematic))
+}
+
+/// Compute [`UncertaintyScaleDiagnostics`] from the emitted per-pixel map and
+/// the global selected-band uncertainty totals.
+///
+/// Per-pixel relative uncertainty is `hypot(statistical, systematic) / flux`,
+/// restricted to pixels with at least one admitted source. Percentiles use
+/// nearest-rank order statistics over that restricted, sorted population so
+/// the result is exactly reproducible from the published CSV.
+fn uncertainty_scale_diagnostics(
+    pixels: &BTreeMap<u32, MapPixel>,
+    total_flux: f64,
+    global_statistical_uncertainty: f64,
+    global_systematic_uncertainty: f64,
+) -> Result<UncertaintyScaleDiagnostics> {
+    if total_flux <= 0.0 {
+        bail!("cannot compute relative uncertainty diagnostics with non-positive total flux");
+    }
+    let mut relative: Vec<f64> = pixels
+        .values()
+        .filter(|pixel| pixel.admitted > 0)
+        .map(|pixel| {
+            let total_uncertainty = pixel
+                .statistical_uncertainty
+                .hypot(pixel.systematic_uncertainty);
+            total_uncertainty / pixel.flux
+        })
+        .collect();
+    if relative.iter().any(|value| !value.is_finite()) {
+        bail!("Starlight pixel relative uncertainty is non-finite");
+    }
+    relative.sort_by(|left, right| left.total_cmp(right));
+    let evaluated_pixels = relative.len();
+
+    let percentile = |fraction: f64| -> f64 {
+        if relative.is_empty() {
+            return 0.0;
+        }
+        let rank = (fraction * (relative.len() as f64 - 1.0)).round() as usize;
+        relative[rank.min(relative.len() - 1)]
+    };
+    let fraction_gt = |threshold: f64| -> f64 {
+        if relative.is_empty() {
+            return 0.0;
+        }
+        let exceeding = relative.iter().filter(|value| **value > threshold).count();
+        exceeding as f64 / relative.len() as f64
+    };
+
+    Ok(UncertaintyScaleDiagnostics {
+        global_relative_statistical_uncertainty: global_statistical_uncertainty / total_flux,
+        global_relative_systematic_uncertainty: global_systematic_uncertainty / total_flux,
+        global_relative_total_uncertainty: global_statistical_uncertainty
+            .hypot(global_systematic_uncertainty)
+            / total_flux,
+        evaluated_pixels: u64::try_from(evaluated_pixels)
+            .context("evaluated pixel count exceeds u64")?,
+        pixel_relative_uncertainty_p50: percentile(0.50),
+        pixel_relative_uncertainty_p68: percentile(0.68),
+        pixel_relative_uncertainty_p95: percentile(0.95),
+        pixel_relative_uncertainty_p99: percentile(0.99),
+        fraction_pixels_relative_uncertainty_gt_1: fraction_gt(1.0),
+        fraction_pixels_relative_uncertainty_gt_10: fraction_gt(10.0),
+        fraction_pixels_relative_uncertainty_gt_100: fraction_gt(100.0),
+    })
+}
+
 fn science_policy_report(
     merged: &PartitionShard,
     selection: Option<&SelectionPopulationPolicy>,
@@ -920,6 +1149,8 @@ fn science_policy_report(
                 f64::from_bits(metadata.measured_conditional_residual_statistical_correlation_bits)
             }),
             systematic_correlation: ultraviolet.map(|metadata| metadata.systematic_correlation),
+            systematic_correlation_scope: ultraviolet
+                .map(|metadata| CorrelationScope::from(metadata.systematic_correlation)),
             limitation: if corrected {
                 "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately.".to_string()
             } else {
@@ -1003,6 +1234,8 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
                 .measured_conditional_residual_statistical_correlation
                 .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
             && spectral.systematic_correlation.is_some()
+            && spectral.systematic_correlation_scope
+                == spectral.systematic_correlation.map(CorrelationScope::from)
     } else {
         spectral.policy_id == SPECTRAL_POLICY_ID
             && spectral.corrected_band_nm.is_none()
@@ -1015,6 +1248,7 @@ fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
                 .measured_conditional_residual_statistical_correlation
                 .is_none()
             && spectral.systematic_correlation.is_none()
+            && spectral.systematic_correlation_scope.is_none()
     };
     let population = &policy.population_correction;
     let population_valid = if population.applied {
@@ -1639,6 +1873,57 @@ mod tests {
             &serde_json::to_vec_pretty(report).unwrap(),
         )
         .unwrap();
+    }
+
+    /// Fixture 8: two pixels each admitting one source with a fully
+    /// correlated systematic. The global selected-band systematic combines
+    /// the per-pixel correlated contributions *linearly* across pixels
+    /// (matching `band_diagnostics`'s established 300-336 nm sub-band rule),
+    /// not in quadrature. See
+    /// `docs/nsb_components/starlight/uncertainty-contract.md`.
+    #[test]
+    fn two_pixels_sharing_a_global_systematic_add_linearly_when_merged() {
+        use crate::starlight::uv::{
+            ApplicabilityStatus, CalibrationStatus, CombinedBandFlux, EvaluationDecision,
+            ModelResponse, SystematicCorrelation,
+        };
+        let sigma_i = 5.0_f64;
+        let metadata = super::super::accumulator::UvCorrectionShardMetadata {
+            model_id: "fixture-global-systematic".to_string(),
+            artifact_sha256: "a".repeat(64),
+            calibration_status: CalibrationStatus::Validated,
+            response: ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation: SystematicCorrelation::FullyCorrelatedBetweenSources,
+        };
+        let mut shard = PartitionShard::new_with_policy(
+            "fixture-global-systematic",
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )
+        .unwrap();
+        let source = || CombinedBandFlux {
+            flux_300_336_ph_m2_s: 0.0,
+            flux_336_650_ph_m2_s: 10.0,
+            flux_300_650_ph_m2_s: 10.0,
+            statistical_uncertainty_300_336_ph_m2_s: 0.0,
+            statistical_uncertainty_336_650_ph_m2_s: 0.0,
+            statistical_uncertainty_300_650_ph_m2_s: 0.0,
+            systematic_uncertainty_300_336_ph_m2_s: sigma_i,
+            systematic_uncertainty_300_650_ph_m2_s: sigma_i,
+            applicability_status: ApplicabilityStatus::InDomain,
+            decision: EvaluationDecision::Applied,
+            model_id: "fixture-global-systematic".to_string(),
+            artifact_sha256: "a".repeat(64),
+            systematic_correlation: SystematicCorrelation::FullyCorrelatedBetweenSources,
+        };
+        shard.admit_corrected(0, &source()).unwrap();
+        shard.admit_corrected(1_u64 << 47, &source()).unwrap();
+        assert_eq!(shard.pixels.len(), 2);
+        let (global_statistical, global_systematic) = global_selected_uncertainty(&shard).unwrap();
+        assert_eq!(global_statistical, 0.0);
+        assert_eq!(global_systematic, 2.0 * sigma_i);
     }
 
     #[test]
