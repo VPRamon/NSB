@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "dataset": "starlight",
+  "status": "partial",
+  "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
+  "candidate_sha256": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a",
+  "candidate_invalidated": true,
+  "candidate_invalidated_reference": "https://github.com/VPRamon/NSB/issues/94",
+  "measured_at_utc": "2026-07-30T20:03:00Z",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) Ultra 9 185H",
+    "os": "Linux 7.0.0-28-generic x86_64",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+    "build_profile": "release"
+  },
+  "methodology": "cargo run --release -p nsb --example starlight_candidate_load_benchmark",
+  "measurements": [
+    {
+      "name": "file_size",
+      "value": 20911848,
+      "unit": "bytes",
+      "detail": "std::fs::metadata on crates/nsb/data/starlight_nside128.csv"
+    },
+    {
+      "name": "runtime_api_load",
+      "status": "unsupported",
+      "detail": "StarlightMap::from_csv_path (the public runtime parsing API) rejects the candidate: it only understands the healpix_index,... schema used by validated external/manual-seed maps, not the nsb-healpix-starlight-candidate-v5 schema (pixel,flux_ph_m2_s,...) the Gaia production pipeline writes. StarlightModel::BundledProductionGaiaDr3 (issue #89) is expected to add runtime support for this schema; no runtime load timing exists for the current candidate yet.",
+      "observed_error": "data parse error in starlight map csv: unsupported starlight map header \"pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\""
+    },
+    {
+      "name": "proxy_read_and_parse",
+      "status": "measured",
+      "detail": "Not the validated production load path (that also checksums the file and cross-checks merge_report.json via `dataset starlight validate`). This is a crude proxy: read the file to a string, then iterate every CSV row with the same csv-crate settings (comment='#', full trim) nsb::components::starlight::map already uses for the healpix_index schema, without semantic validation. Five consecutive single-process runs on an otherwise-idle machine; no warm-up discarded, no statistical trimming.",
+      "row_count": 196608,
+      "runs": [
+        { "read_seconds": 0.012923, "parse_seconds": 0.087502, "total_seconds": 0.100424 },
+        { "read_seconds": 0.013829, "parse_seconds": 0.088169, "total_seconds": 0.101998 },
+        { "read_seconds": 0.017632, "parse_seconds": 0.087626, "total_seconds": 0.105257 },
+        { "read_seconds": 0.015001, "parse_seconds": 0.090991, "total_seconds": 0.105992 },
+        { "read_seconds": 0.017847, "parse_seconds": 0.091152, "total_seconds": 0.108998 }
+      ],
+      "min_total_seconds": 0.100424,
+      "max_total_seconds": 0.108998
+    }
+  ],
+  "deferred_metrics": [
+    {
+      "name": "validated_runtime_load",
+      "reason": "Requires StarlightModel::BundledProductionGaiaDr3 (issue #89), which is not implemented yet. Cannot be measured without inventing a fake timing path."
+    },
+    {
+      "name": "dataset_starlight_validate_wall_clock",
+      "reason": "`nsb-data dataset starlight validate --config <run.toml>` re-checksums the full map and merge_report.json and requires a run configuration and outputs directory beyond the two frozen files checked into this repository; deferred to keep this measurement lightweight and local. Should be captured as part of the #90 RC matrix run once the candidate is regenerated under #94."
+    },
+    {
+      "name": "criterion_lookup_benchmarks",
+      "reason": "cargo bench -p nsb --bench threshold_window already covers experimental starlight lookup/composition timing (see docs/specifications/performance.md); it does not exercise the Gaia candidate map and was not rerun here to keep this a lightweight local measurement rather than a full benchmark pass."
+    }
+  ],
+  "notes": "Reproduce with: cargo run --release -p nsb --example starlight_candidate_load_benchmark. This file records what could honestly be measured today: file size, and a crude read+parse proxy timing, both against the currently invalidated candidate (see #94). It intentionally does not report a runtime load timing, because no runtime API accepts this candidate's schema yet, and does not report Criterion-grade statistics, because that would overstate the rigor of a single-process local run. This should be re-measured against the regenerated candidate once #94 lands, and again once #89 adds runtime support so the real runtime_api_load path can be timed."
+}

@@ -1,0 +1,123 @@
+{
+  "schema_version": 1,
+  "dataset": "starlight",
+  "status": "awaiting_regeneration",
+  "passed": false,
+  "blocking_issue": 94,
+  "blocking_issue_url": "https://github.com/VPRamon/NSB/issues/94",
+  "commit_sha": null,
+  "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
+  "candidate_sha256": null,
+  "merge_report_path": "crates/nsb/data/merge_report.json",
+  "merge_report_sha256": null,
+  "config_path": "crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml",
+  "config_sha256": null,
+  "manifest_path": "crates/nsb/data/manifest.toml",
+  "manifest_sha256": null,
+  "uv_correction_artifact": "calspec-linear-log-ratio-v2",
+  "uv_correction_artifact_sha256": "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367",
+  "toolchain": null,
+  "invalidated_candidate": {
+    "reason": "UV artifact calspec-linear-log-ratio-v1 applied absolute CALSPEC RMSE floors (~1e19 ph m-2 s-1) per Gaia source; the candidate below is scientifically invalidated pending regeneration with calspec-linear-log-ratio-v2 and the #94 uncertainty audit.",
+    "reference_issue": 94,
+    "reference_url": "https://github.com/VPRamon/NSB/issues/94",
+    "commit_sha": "bb70bb56c34d24309e2baf1af7e69e2aeea2f434",
+    "candidate_sha256": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a",
+    "merge_report_sha256": "5b2419a113cf160e724a1afc687e3632862dc8d7f9081bd48b297e072e7af147",
+    "source_pull_request": "https://github.com/VPRamon/NSB/pull/93"
+  },
+  "recorded_commands": [
+    {
+      "name": "format",
+      "command": "cargo fmt --all -- --check",
+      "status": "pending"
+    },
+    {
+      "name": "clippy",
+      "command": "cargo clippy --workspace --lib --bins --tests --examples --all-features --locked -- -D warnings",
+      "status": "pending"
+    },
+    {
+      "name": "unit_tests",
+      "command": "cargo test --workspace --lib --bins --all-features --locked",
+      "status": "pending"
+    },
+    {
+      "name": "doctests",
+      "command": "cargo test --workspace --doc --all-features --locked",
+      "status": "pending"
+    },
+    {
+      "name": "docs",
+      "command": "cargo doc --workspace --all-features --no-deps --locked",
+      "status": "pending"
+    },
+    {
+      "name": "release_build",
+      "command": "cargo build --workspace --release --all-features --locked",
+      "status": "pending"
+    },
+    {
+      "name": "verify_assets",
+      "command": "cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact",
+      "status": "pending"
+    },
+    {
+      "name": "cargo_deny",
+      "command": "cargo deny check",
+      "status": "pending"
+    }
+  ],
+  "starlight_suites": [
+    {
+      "name": "admission_and_metadata",
+      "command": "cargo test --locked -p nsb-cli --test cli_smoke validated_external_starlight_is_production_labelled_in_json",
+      "status": "pending"
+    },
+    {
+      "name": "map_build_and_tamper",
+      "command": "cargo test --locked -p nsb-data-tools --lib starlight::map::build_starlight_map::tests",
+      "status": "pending"
+    },
+    {
+      "name": "component_experimental_and_validated",
+      "command": "cargo test --locked -p nsb components::starlight::validated",
+      "status": "pending"
+    },
+    {
+      "name": "end_to_end",
+      "command": "cargo test --locked -p nsb --test end_to_end_validation",
+      "status": "pending"
+    },
+    {
+      "name": "reference_geometry_compat",
+      "command": "cargo test --locked -p nsb full_moon_reference_geometry_matches_published_brightness",
+      "status": "pending"
+    },
+    {
+      "name": "jones2013_compat",
+      "command": "cargo test --locked -p nsb --test jones2013_validation",
+      "status": "pending"
+    },
+    {
+      "name": "science_metadata",
+      "command": "cargo test --locked -p nsb --test science_metadata",
+      "status": "pending"
+    },
+    {
+      "name": "sparse_pixel_and_uncertainty_product",
+      "command": "cargo test --locked -p nsb-data-tools --lib starlight::map::product",
+      "status": "pending"
+    },
+    {
+      "name": "performance",
+      "command": "cargo run --release -p nsb --example starlight_candidate_load_benchmark",
+      "status": "recorded",
+      "reference": "docs/nsb_components/starlight/production-runs/performance-v1.json"
+    }
+  ],
+  "performance_reference": "docs/nsb_components/starlight/production-runs/performance-v1.json",
+  "documentation_audit_reference": "docs/nsb_components/starlight/production-runs/documentation-wording-audit-v1.md",
+  "promotion_workflow": ".github/workflows/starlight-final-promotion.yml",
+  "notes": "Template only, prepared by issue #90 scaffolding. `passed` stays false and `status` stays \"awaiting_regeneration\" until the #94 uncertainty-scale audit lands a regenerated candidate (new commit_sha, candidate_sha256, merge_report_sha256, config_sha256, manifest_sha256, toolchain). At that point every `recorded_commands` and `starlight_suites` entry must actually be run against the new candidate, `status` set to a real outcome (e.g. \"gates_passed\" or \"gates_failed\"), and `passed` set accordingly. No tool in this repository infers or sets `passed=true` automatically; it is recorded once real command output has been reviewed, matching the fail-closed convention already used by the validation and redistribution decision templates. Do not approve promotion (see #47) against the invalidated checksums recorded in `invalidated_candidate`."
+}
