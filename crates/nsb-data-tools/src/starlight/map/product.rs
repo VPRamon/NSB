@@ -534,7 +534,7 @@ fn validate_report_fields(
     if report.canonical_map.pixel_domain_size != expected_pixel_domain
         || occupied_pixels > expected_pixel_domain
         || report.canonical_map.occupied_pixels != occupied_pixels
-        || report.canonical_map.total_flux_ph_m2_s.to_bits() != total_flux.to_bits()
+        || !fluxes_agree(report.canonical_map.total_flux_ph_m2_s, total_flux)
         || report.canonical_map.admitted_sources != admitted
         || report.canonical_map.excluded_sources != excluded
         || report.admitted_sources != admitted
