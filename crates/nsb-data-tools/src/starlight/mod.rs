@@ -7,6 +7,7 @@ pub mod photometric;
 mod pipeline;
 pub mod selection;
 pub mod sources;
+pub mod uncertainty;
 pub mod uv;
 mod worker;
 pub mod xp;

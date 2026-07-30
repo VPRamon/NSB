@@ -544,6 +544,11 @@ pub(crate) fn write_artifact_index(root: &Path, artifacts: &[Artifact]) -> Resul
     )
 }
 
+/// Hand-checkable analytical fixtures for the Starlight uncertainty
+/// contract (issue #94). See `docs/nsb_components/starlight/uncertainty-contract.md`.
+#[cfg(test)]
+mod uncertainty_fixtures;
+
 #[cfg(test)]
 mod tests {
     use super::*;
