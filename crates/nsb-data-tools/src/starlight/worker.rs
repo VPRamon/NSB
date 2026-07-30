@@ -569,9 +569,8 @@ mod tests {
         let source_id = oracle["source_id"].as_str().context("oracle source_id")?;
         let gaia_only_source_id = "999";
 
-        let gaia_bytes = gzip_bytes(
-            format!("source_id\n{source_id}\n{gaia_only_source_id}\n").as_bytes(),
-        )?;
+        let gaia_bytes =
+            gzip_bytes(format!("source_id\n{source_id}\n{gaia_only_source_id}\n").as_bytes())?;
         let correlations = vec![0.0; 55 * 54 / 2];
         let arrays = |name: &str| serde_json::to_string(&oracle[name]).unwrap();
         let mut xp_csv = csv::Writer::from_writer(Vec::new());

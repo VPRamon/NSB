@@ -113,8 +113,10 @@ impl DatasetPipeline for StarlightPipeline {
                 .selection_function
                 .as_ref()
                 .map(|pin| -> Result<_> {
-                    let correction =
-                        super::selection::SelectionCorrection::load(&pin.artifact_path, &pin.sha256)?;
+                    let correction = super::selection::SelectionCorrection::load(
+                        &pin.artifact_path,
+                        &pin.sha256,
+                    )?;
                     correction.require_production_status()?;
                     Ok(super::map::product::SelectionPopulationPolicy {
                         model_id: correction.artifact().model_id.clone(),

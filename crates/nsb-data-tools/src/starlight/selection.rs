@@ -41,7 +41,9 @@ pub enum ColourMarginalisation {
     AlwaysRequireColour,
     /// Average completeness over colour bins present for (healpix, magnitude).
     MarginaliseUniform,
-    FixedColourBin { bin: u32 },
+    FixedColourBin {
+        bin: u32,
+    },
 }
 
 /// Residual flux beyond the effective Gaia magnitude limit.
@@ -419,10 +421,7 @@ impl SelectionCorrection {
     fn faint_tail_terms(&self, g_mag: f64) -> (f64, f64) {
         let faint = &self.artifact.faint_tail;
         if faint.enabled && g_mag > faint.magnitude_limit_g {
-            (
-                faint.residual_fraction_per_pixel,
-                faint.systematic_fraction,
-            )
+            (faint.residual_fraction_per_pixel, faint.systematic_fraction)
         } else {
             (0.0, 0.0)
         }
@@ -573,11 +572,7 @@ mod tests {
             magnitude_bins: vec![10.0, 15.0, 20.0],
             colour_bins: vec![0.0, 1.0, 2.0],
             healpix_nside: 1,
-            completeness_table: vec![
-                cell(0, 0, 0, 1.0),
-                cell(0, 1, 0, 0.5),
-                cell(0, 1, 1, 0.25),
-            ],
+            completeness_table: vec![cell(0, 0, 0, 1.0), cell(0, 1, 0, 0.5), cell(0, 1, 1, 0.25)],
             m10_map: Vec::new(),
             colour_marginalisation: ColourMarginalisation::MarginaliseUniform,
             faint_tail: FaintTailModel {
@@ -603,7 +598,10 @@ mod tests {
     fn evaluate_applies_weight_cap_and_faint_tail() {
         let correction = load_artifact(&tiny_artifact(CalibrationStatus::Candidate));
         let bright = correction.evaluate(0, 12.0, Some(0.4)).unwrap();
-        assert_eq!((bright.completeness, bright.weight, bright.capped), (1.0, 1.0, false));
+        assert_eq!(
+            (bright.completeness, bright.weight, bright.capped),
+            (1.0, 1.0, false)
+        );
         assert_eq!(bright.faint_tail_flux_fraction, 0.0);
 
         let faint = correction.evaluate(0, 17.0, Some(0.4)).unwrap();
@@ -613,7 +611,10 @@ mod tests {
         dense.completeness_table[2].completeness = 0.1;
         let correction = load_artifact(&dense);
         let capped = correction.evaluate(0, 17.0, Some(1.5)).unwrap();
-        assert_eq!((capped.completeness, capped.weight, capped.capped), (0.1, 5.0, true));
+        assert_eq!(
+            (capped.completeness, capped.weight, capped.capped),
+            (0.1, 5.0, true)
+        );
 
         let tail = correction.evaluate(0, 19.5, Some(0.4)).unwrap();
         assert_eq!(

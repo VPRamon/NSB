@@ -213,7 +213,10 @@ impl PhotometricArtifact {
 impl PhotometricBranchModel {
     fn validate(&self) -> Result<()> {
         if self.required_features.is_empty() {
-            bail!("{:?} branch requires at least one feature name", self.branch);
+            bail!(
+                "{:?} branch requires at least one feature name",
+                self.branch
+            );
         }
         let mut required = BTreeSet::new();
         for name in &self.required_features {
@@ -263,7 +266,8 @@ impl PhotometricBranchModel {
             }
         }
         let dimension = self.predictors.len() + 1;
-        if self.parameters.len() != dimension || self.parameters.iter().any(|value| !value.is_finite())
+        if self.parameters.len() != dimension
+            || self.parameters.iter().any(|value| !value.is_finite())
         {
             bail!(
                 "{:?} linear model requires {dimension} finite parameters",
@@ -518,10 +522,12 @@ fn feature_map(features: PhotometricFeatures) -> BTreeMap<&'static str, f64> {
     let colour = features
         .bp_rp
         .filter(|value| value.is_finite())
-        .or_else(|| match (features.phot_bp_mean_mag, features.phot_rp_mean_mag) {
-            (Some(bp), Some(rp)) if bp.is_finite() && rp.is_finite() => Some(bp - rp),
-            _ => None,
-        });
+        .or_else(
+            || match (features.phot_bp_mean_mag, features.phot_rp_mean_mag) {
+                (Some(bp), Some(rp)) if bp.is_finite() && rp.is_finite() => Some(bp - rp),
+                _ => None,
+            },
+        );
     if let Some(value) = colour {
         map.insert("bp_rp", value);
     }
@@ -617,7 +623,12 @@ mod tests {
     use crate::platform::checksum_io;
     use tempfile::TempDir;
 
-    fn partition_summary(id: &str, count: u64, sha: &str, sky: &str) -> super::super::uv::PartitionSummary {
+    fn partition_summary(
+        id: &str,
+        count: u64,
+        sha: &str,
+        sky: &str,
+    ) -> super::super::uv::PartitionSummary {
         super::super::uv::PartitionSummary {
             partition_id: id.to_string(),
             source_count: count,

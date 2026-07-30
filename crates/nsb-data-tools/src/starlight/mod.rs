@@ -3,8 +3,8 @@
 pub mod config;
 pub mod map;
 pub mod migration;
-mod pipeline;
 pub mod photometric;
+mod pipeline;
 pub mod selection;
 pub mod sources;
 pub mod uv;

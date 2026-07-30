@@ -380,15 +380,17 @@ pub(crate) fn scientific_gates(
         && report.canonical_map.pixel_domain_size == expected_pixel_domain
         && report.canonical_map.occupied_pixels > 0
         && report.canonical_map.occupied_pixels <= expected_pixel_domain;
-    let uncertainty_budget_total_column_passed = report.canonical_map.schema == MAP_SCHEMA
-        && read_map(&map_path, canonical_nside).is_ok();
+    let uncertainty_budget_total_column_passed =
+        report.canonical_map.schema == MAP_SCHEMA && read_map(&map_path, canonical_nside).is_ok();
     let diagnostics = &report.band_diagnostics;
     let uncertainty_interval_coverage_declared_passed = uncertainty_budget_total_column_passed
         && diagnostics
             .statistical_uncertainty_300_650_ph_m2_s
             .is_finite()
         && diagnostics.statistical_uncertainty_300_650_ph_m2_s >= 0.0
-        && diagnostics.systematic_uncertainty_300_650_ph_m2_s.is_finite()
+        && diagnostics
+            .systematic_uncertainty_300_650_ph_m2_s
+            .is_finite()
         && diagnostics.systematic_uncertainty_300_650_ph_m2_s >= 0.0;
 
     Ok(vec![
@@ -915,8 +917,7 @@ fn science_policy_report(
             measured_conditional_residual_statistical_correlation: ultraviolet.map(|metadata| {
                 f64::from_bits(metadata.measured_conditional_residual_statistical_correlation_bits)
             }),
-            systematic_correlation: ultraviolet
-                .map(|metadata| metadata.systematic_correlation),
+            systematic_correlation: ultraviolet.map(|metadata| metadata.systematic_correlation),
             limitation: if corrected {
                 "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately.".to_string()
             } else {
