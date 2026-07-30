@@ -82,7 +82,7 @@ pub struct SelectionArtifact {
     /// Sorted BP−RP colour bin edges (length = bins + 1).
     pub colour_bins: Vec<f64>,
     pub healpix_nside: u32,
-    /// Sparse completeness cells (optional when [`m10_map`] is present).
+    /// Sparse completeness cells (optional when `m10_map` is present).
     #[serde(default)]
     pub completeness_table: Vec<CompletenessEntry>,
     /// Dense Cantat-Gaudin M10 map at `healpix_nside` (length = 12 nside²).
