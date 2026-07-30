@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 6,
   "shard_count": 3386,
   "partition_ids": [
     "000000-003111",
@@ -3389,31 +3389,45 @@
     "785418-786096",
     "786097-786431"
   ],
-  "observed_sources": 219197642,
-  "admitted_sources": 219109593,
-  "excluded_sources": 88049,
+  "observed_sources": 1811709771,
+  "admitted_sources": 1520028984,
+  "excluded_sources": 291680787,
   "exclusion_reasons": {
-    "invalid_flux": 88049
+    "duplicated_source": 12965863,
+    "invalid_flux": 88049,
+    "invalid_uv_predictors": 263033147,
+    "no_usable_photometry": 5313965,
+    "scientific_exclusion_nonstellar": 10279671,
+    "selection_missing_g_magnitude": 92
+  },
+  "ultraviolet_applicability": {
+    "in-domain": 1517986152,
+    "boundary": 10,
+    "out-of-domain": 2042822
   },
   "science_policy": {
-    "schema_version": 1,
-    "admission_policy_id": "gaia-dr3-xp-continuous-join-v1",
+    "schema_version": 2,
+    "admission_policy_id": "gaia-dr3-full-population-v1",
     "admission_rules": [
       "require_gaia_source_match",
       "exclude_calibration_failed",
       "exclude_non_positive_or_non_finite_flux",
-      "exclude_invalid_statistical_uncertainty"
+      "exclude_invalid_statistical_uncertainty",
+      "exclude_duplicated_source",
+      "exclude_scientific_exclusion_nonstellar",
+      "route_non_xp_via_photometric_inference",
+      "exclude_no_xp_spectrum_without_photometric_artifact"
     ],
     "population_correction": {
-      "policy_id": "selection-function-identity-stub-v1",
-      "applied": false,
+      "policy_id": "gaia-dr3-selection-function-cantat-gaudin-v1",
+      "applied": true,
       "minimum_weight": 1.0,
-      "maximum_weight": 1.0,
-      "residual_faint_tail_estimated": false,
-      "limitation": "No validated sky-, magnitude-, and colour-conditioned Gaia selection-function model is configured; admitted source weights remain exactly one."
+      "maximum_weight": 5.0,
+      "residual_faint_tail_estimated": true,
+      "limitation": "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted sources; residual faint-tail estimation follows the artifact faint_tail.enabled flag."
     },
     "spectral_coverage": {
-      "policy_id": "gaia-xp-continuous-336-650-v1",
+      "policy_id": "gaia-xp-continuous-uv-corrected-300-650-v1",
       "target_band_nm": [
         300,
         650
@@ -3422,31 +3436,71 @@
         336,
         650
       ],
-      "ultraviolet_correction_applied": false,
-      "limitation": "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied."
+      "corrected_band_nm": [
+        300,
+        336
+      ],
+      "combined_band_nm": [
+        300,
+        650
+      ],
+      "ultraviolet_correction_applied": true,
+      "correction_model_id": "calspec-linear-log-ratio-v1",
+      "correction_artifact_sha256": "6bfbda6b37b9732bb585000999f15d8a18795a6511e2874e53e3c43d793858e8",
+      "calibration_status": "validated",
+      "model_response": {
+        "kind": "natural-log-uv-to-measured-flux-ratio",
+        "denominator_band_nm": [
+          336,
+          650
+        ]
+      },
+      "measured_conditional_residual_statistical_correlation": 0.0,
+      "systematic_correlation": "fully-correlated-between-sources",
+      "limitation": "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately."
     }
+  },
+  "band_diagnostics": {
+    "corrected_300_336_label": "300–336 nm corrected",
+    "measured_336_650_label": "336–650 nm measured",
+    "combined_300_650_label": "300–650 nm combined",
+    "total_flux_300_336_ph_m2_s": 223762202033573.3,
+    "total_flux_336_650_ph_m2_s": 7779559764355280.0,
+    "total_flux_300_650_ph_m2_s": 8003321966388804.0,
+    "statistical_uncertainty_300_336_ph_m2_s": 1.637703100654801e+24,
+    "statistical_uncertainty_336_650_ph_m2_s": 1615521630781.6213,
+    "statistical_uncertainty_300_650_ph_m2_s": 1.637703100654801e+24,
+    "systematic_uncertainty_300_336_ph_m2_s": 9.145950109452299e+27,
+    "systematic_uncertainty_300_650_ph_m2_s": 9.145950109452299e+27
   },
   "canonical_map": {
     "path": "starlight_nside128.csv",
-    "schema": "nsb-healpix-starlight-candidate-v3",
+    "schema": "nsb-healpix-starlight-candidate-v5",
     "nside": 128,
     "ordering": "nested",
     "flux_quantity": "integrated_per_pixel",
     "flux_unit": "ph_m-2_s-1",
     "derivation": "canonical_gaia_source_accumulation",
-    "occupied_pixels": 196604,
-    "total_flux_ph_m2_s": 8646151809493.544,
-    "admitted_sources": 219109593,
-    "excluded_sources": 88049,
-    "sha256": "4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657",
     "representation": "sparse",
     "omitted_pixel_semantics": "zero_flux_and_source_counts",
-    "pixel_domain_size": 196608
+    "pixel_domain_size": 196608,
+    "occupied_pixels": 196608,
+    "total_flux_ph_m2_s": 8003321966388817.0,
+    "admitted_sources": 1520028984,
+    "excluded_sources": 291680787,
+    "sha256": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
   },
-  "deterministic_reference": {
-    "pixel": 0,
-    "canonical_sha256": "680bb05465528081d40b8d7cbe7d02b07a3105512daa6335b90cc4952da04403",
-    "independent_partial_merge_sha256": "680bb05465528081d40b8d7cbe7d02b07a3105512daa6335b90cc4952da04403",
+  "deterministic_merge": {
+    "algorithm": "complete-partition-shard-v1",
+    "canonical_sha256": "6b7e6ef9ea2265c84865c524524f2e91e489a51ee09e1e1fe4e0a237166bbf1a",
+    "independent_partial_merge_sha256": "6b7e6ef9ea2265c84865c524524f2e91e489a51ee09e1e1fe4e0a237166bbf1a",
+    "compared_pixels": 196608,
+    "pixel_key_mismatches": 0,
+    "flux_mismatches": 0,
+    "uncertainty_mismatches": 0,
+    "source_counter_mismatches": 0,
+    "exclusion_reason_mismatches": 0,
+    "first_mismatch": null,
     "stable": true
   }
 }

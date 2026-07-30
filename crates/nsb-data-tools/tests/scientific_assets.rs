@@ -39,7 +39,7 @@ fn manifest_registers_only_one_gaia_candidate_map() -> Result<()> {
     let candidates = manifest
         .assets
         .iter()
-        .filter(|asset| asset.schema == "nsb-healpix-starlight-candidate-v3")
+        .filter(|asset| asset.schema == "nsb-healpix-starlight-candidate-v5")
         .map(|asset| asset.path.as_str())
         .collect::<Vec<_>>();
     if candidates != ["starlight_nside128.csv"] {
