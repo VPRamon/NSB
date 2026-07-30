@@ -66,3 +66,4 @@ represented as production quality.
 - [Starlight science requirements](science-requirements.md)
 - [Starlight map validation](map-validation.md)
 - [External starlight manifest](external-manifest.md)
+- [Redistribution and licensing package](licensing/README.md)
