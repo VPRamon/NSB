@@ -32,7 +32,7 @@ receipts, exact command, shard set, and site-local workspace were not retained.
 The checked-in v4 report therefore has integrity and explicit science-policy
 evidence but only the historical single-pixel deterministic reference. It is
 not retroactively presented as complete-map deterministic evidence. New clean
-runs use shard schema v2 and report schema v5, compare every pixel accumulator
+runs use shard schema v3 and report schema v6, compare every pixel accumulator
 and exclusion counter, and retain equal dataset-wide digests before publication.
 
 ## Retired derived artifacts
