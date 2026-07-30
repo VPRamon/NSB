@@ -8,6 +8,7 @@ mod pipeline;
 pub mod selection;
 pub mod sources;
 pub mod uv;
+pub mod validation;
 mod worker;
 pub mod xp;
 
