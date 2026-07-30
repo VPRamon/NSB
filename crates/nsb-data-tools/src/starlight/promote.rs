@@ -64,8 +64,7 @@ struct DecisionFile {
 
 /// Verify every fail-closed promotion precondition. Never mutates any input.
 pub fn run(args: &PromoteArgs) -> Result<()> {
-    let gates =
-        read_json::<GatesReport>(&args.release_candidate_gates, "release-candidate gates")?;
+    let gates = read_json::<GatesReport>(&args.release_candidate_gates, "release-candidate gates")?;
     let scientific = read_json::<DecisionFile>(&args.scientific_decision, "scientific decision")?;
     let redistribution =
         read_json::<DecisionFile>(&args.redistribution_decision, "redistribution decision")?;

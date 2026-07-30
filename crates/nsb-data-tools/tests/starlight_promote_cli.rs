@@ -59,9 +59,17 @@ fn approved_decisions_and_matching_checksums_succeed() {
     let dir = TempDir::new().unwrap();
     let map = write(&dir, "map.csv", "pixel,flux\n0,1.0\n");
     let sha256 = sha256_hex(&map);
-    let gates = write(&dir, "gates.json", &gates_json(true, "gates_passed", &sha256));
+    let gates = write(
+        &dir,
+        "gates.json",
+        &gates_json(true, "gates_passed", &sha256),
+    );
     let scientific = write(&dir, "scientific.json", &approved_decision_json(&sha256));
-    let redistribution = write(&dir, "redistribution.json", &approved_decision_json(&sha256));
+    let redistribution = write(
+        &dir,
+        "redistribution.json",
+        &approved_decision_json(&sha256),
+    );
 
     let output = promote(&gates, &scientific, &redistribution, &map);
     assert!(
@@ -79,9 +87,17 @@ fn pending_scientific_decision_fails_closed_via_cli() {
     let dir = TempDir::new().unwrap();
     let map = write(&dir, "map.csv", "pixel,flux\n0,1.0\n");
     let sha256 = sha256_hex(&map);
-    let gates = write(&dir, "gates.json", &gates_json(true, "gates_passed", &sha256));
+    let gates = write(
+        &dir,
+        "gates.json",
+        &gates_json(true, "gates_passed", &sha256),
+    );
     let scientific = write(&dir, "pending.json", pending_decision_json());
-    let redistribution = write(&dir, "redistribution.json", &approved_decision_json(&sha256));
+    let redistribution = write(
+        &dir,
+        "redistribution.json",
+        &approved_decision_json(&sha256),
+    );
 
     let output = promote(&gates, &scientific, &redistribution, &map);
     assert!(!output.status.success());
@@ -101,7 +117,11 @@ fn gates_not_passed_fails_closed_via_cli() {
         &gates_json(false, "awaiting_regeneration", &sha256),
     );
     let scientific = write(&dir, "scientific.json", &approved_decision_json(&sha256));
-    let redistribution = write(&dir, "redistribution.json", &approved_decision_json(&sha256));
+    let redistribution = write(
+        &dir,
+        "redistribution.json",
+        &approved_decision_json(&sha256),
+    );
 
     let output = promote(&gates, &scientific, &redistribution, &map);
     assert!(!output.status.success());
@@ -115,8 +135,16 @@ fn missing_decision_file_fails_closed_via_cli() {
     let dir = TempDir::new().unwrap();
     let map = write(&dir, "map.csv", "pixel,flux\n0,1.0\n");
     let sha256 = sha256_hex(&map);
-    let gates = write(&dir, "gates.json", &gates_json(true, "gates_passed", &sha256));
-    let redistribution = write(&dir, "redistribution.json", &approved_decision_json(&sha256));
+    let gates = write(
+        &dir,
+        "gates.json",
+        &gates_json(true, "gates_passed", &sha256),
+    );
+    let redistribution = write(
+        &dir,
+        "redistribution.json",
+        &approved_decision_json(&sha256),
+    );
     let missing_scientific = dir.path().join("does-not-exist.json");
 
     let output = promote(&gates, &missing_scientific, &redistribution, &map);
@@ -131,9 +159,17 @@ fn promote_never_mutates_the_map() {
     let map = write(&dir, "map.csv", "pixel,flux\n0,1.0\n");
     let before = fs::read(&map).unwrap();
     let sha256 = sha256_hex(&map);
-    let gates = write(&dir, "gates.json", &gates_json(true, "gates_passed", &sha256));
+    let gates = write(
+        &dir,
+        "gates.json",
+        &gates_json(true, "gates_passed", &sha256),
+    );
     let scientific = write(&dir, "scientific.json", &approved_decision_json(&sha256));
-    let redistribution = write(&dir, "redistribution.json", &approved_decision_json(&sha256));
+    let redistribution = write(
+        &dir,
+        "redistribution.json",
+        &approved_decision_json(&sha256),
+    );
 
     let output = promote(&gates, &scientific, &redistribution, &map);
     assert!(output.status.success());
