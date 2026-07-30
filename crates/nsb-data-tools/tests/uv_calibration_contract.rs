@@ -303,6 +303,21 @@ fn band_components_and_uncertainties_are_separate_and_explicitly_combined() {
 }
 
 #[test]
+fn log_ratio_artifact_rejects_absolute_uncertainty_floors() {
+    let temporary = tempfile::tempdir().unwrap();
+    let mut value = artifact();
+    value.response = ModelResponse::NaturalLogUvToMeasuredFluxRatio {
+        denominator_band_nm: [336, 650],
+    };
+    value.uncertainty_model.statistical_floor_ph_m2_s = 1.0;
+    let err = load_mutated(&temporary, &value).unwrap_err().to_string();
+    assert!(
+        err.contains("log-ratio UV artifacts must set absolute"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
 fn log_ratio_response_uses_typed_measured_context_and_jacobian_covariance() {
     let temporary = tempfile::tempdir().unwrap();
     let mut value = artifact();
@@ -316,6 +331,7 @@ fn log_ratio_response_uses_typed_measured_context_and_jacobian_covariance() {
     *parameters = vec![0.1_f64.ln(), 0.0];
     *covariance = vec![vec![0.04, 0.0], vec![0.0, 0.0]];
     value.uncertainty_model.statistical_floor_ph_m2_s = 0.0;
+    value.uncertainty_model.systematic_floor_ph_m2_s = 0.0;
     let correction = load_mutated(&temporary, &value).unwrap();
     let predictors = BTreeMap::from([("x".to_string(), 5.0)]);
 
@@ -392,6 +408,7 @@ fn zero_residual_correlation_preserves_log_ratio_structural_covariance() {
     *parameters = vec![0.1_f64.ln(), 0.0];
     *covariance = vec![vec![0.04, 0.0], vec![0.0, 0.0]];
     value.uncertainty_model.statistical_floor_ph_m2_s = 0.0;
+    value.uncertainty_model.systematic_floor_ph_m2_s = 0.0;
     value
         .uncertainty_model
         .measured_conditional_residual_statistical_correlation = 0.0;
@@ -441,6 +458,8 @@ fn log_ratio_response_rejects_exponential_overflow() {
     let CorrectionModel::Linear { parameters, .. } = &mut value.model;
     parameters[0] = 1000.0;
     parameters[1] = 0.0;
+    value.uncertainty_model.statistical_floor_ph_m2_s = 0.0;
+    value.uncertainty_model.systematic_floor_ph_m2_s = 0.0;
     let correction = load_mutated(&temporary, &value).unwrap();
     let predictors = BTreeMap::from([("x".to_string(), 5.0)]);
     assert!(correction

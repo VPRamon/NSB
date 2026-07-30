@@ -1,0 +1,307 @@
+# Starlight redistribution artifact inventory (schema v1)
+#
+# Technical scope of #88 (parent tracker #47). This inventory lists every
+# input, generated artifact, sidecar, manifest, and report that participates
+# in the Starlight 300-650 nm candidate so a fail-closed reviewer, and later
+# `nsb-data starlight licensing check` (see the Rust contract in
+# crates/nsb-data-tools/src/starlight/licensing.rs), can enumerate exactly
+# what is distributed today, on which channel, and under which licence.
+#
+# This file records facts only. It does not grant redistribution approval.
+# The human decision is recorded separately in
+# redistribution-review-decision-v1.json and stays owned by #47.
+#
+# Field semantics:
+#   id                    stable identifier, referenced by the decision file
+#   category              free-text classification (upstream bulk product,
+#                         upstream reference dataset, generated derived
+#                         output, manifest, report, ...)
+#   source                origin/provenance description
+#   release               upstream release, artifact version, or candidate tag
+#   license               licence string as currently recorded in this repository
+#   license_url           optional canonical licence reference
+#   sha256                optional pinned digest of the exact artifact bytes;
+#                         required when distribution_class is
+#                         repository_embedded or generated_derived_output and
+#                         distributed = true
+#   superseded_by_sha256  optional digest of a replacement artifact that has
+#                         not yet been integrated into a published candidate
+#   distribution_class    one of: download_only, repository_embedded,
+#                         generated_derived_output, documentation_reference
+#   distributed           whether NSB currently ships these bytes on any channel
+#   channels              non-empty when distributed = true, e.g. git_repository
+#   tracking_issue        optional GitHub issue that owns an open gap
+#   notes                 free-text redistribution-relevant commentary
+
+schema_version = 1
+
+# --- Upstream catalogue bulk products (acquired, never redistributed) ------
+
+[[artifacts]]
+id = "gaia-source-bulk"
+category = "upstream-catalogue-bulk"
+source = "ESA Gaia Archive CDN, GaiaSource bulk CSV.gz partitions (gaia_source)"
+release = "Gaia DR3"
+license = "Gaia data licence (CC BY-NC 3.0 IGO)"
+license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+distribution_class = "download_only"
+distributed = false
+channels = []
+notes = """
+NSB acquires but never redistributes raw GaiaSource bulk partitions. The
+upstream checksum-manifest digest is pinned in
+crates/nsb-data-tools/config/starlight-production.toml
+(checksum_manifest_sha256 = 9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369,
+3386 expected partitions); individual partition files carry official MD5
+values from that manifest, not a single artifact digest. The CC BY-NC 3.0 IGO
+non-commercial clause is the central open question for #88/#47 because it
+constrains any derived product built from this input.
+"""
+
+[[artifacts]]
+id = "gaia-xp-continuous-bulk"
+category = "upstream-catalogue-bulk"
+source = "ESA Gaia Archive CDN, XP continuous mean spectrum bulk CSV.gz partitions"
+release = "Gaia DR3"
+license = "Gaia data licence (CC BY-NC 3.0 IGO)"
+license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+distribution_class = "download_only"
+distributed = false
+channels = []
+notes = """
+Same acquisition-only policy as gaia-source-bulk. Checksum-manifest digest
+pinned in crates/nsb-data-tools/config/starlight-production.toml
+(checksum_manifest_sha256 = f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd,
+3386 expected partitions).
+"""
+
+# --- Upstream reference datasets used only for offline training -----------
+
+[[artifacts]]
+id = "calspec-reference-spectra"
+category = "upstream-reference-spectra"
+source = "STScI CALSPEC HST spectrophotometric standard-star atlas"
+release = "CALSPEC (current STScI release; exact snapshot is not pinned in this repository)"
+license = "STScI CALSPEC: publicly available HST calibration data; attribution to STScI/CALSPEC is requested, no additional redistribution restriction is currently recorded"
+license_url = "https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec"
+distribution_class = "documentation_reference"
+distributed = false
+channels = []
+notes = """
+CALSPEC spectra are the independently flux-calibrated reference used to train
+the 300-336 nm UV correction (#83). Offline CALSPEC / Cantat-Gaudin training
+lives outside this repository (BeeGFS starlight-calibration/, per
+docs/maintainer-guide/datasets.md); NSB never hosts or redistributes CALSPEC
+bytes, only the trained coefficient artifact (see starlight-uv-artifact-v1/v2
+below).
+"""
+
+[[artifacts]]
+id = "gaia-selection-function-cantat-gaudin"
+category = "upstream-reference-dataset"
+source = "Cantat-Gaudin et al. (2023) empirical Gaia DR3 selection function / M10 completeness map"
+release = "2023 (DOI 10.1051/0004-6361/202244784)"
+license = "CC-BY-4.0"
+license_url = "https://doi.org/10.1051/0004-6361/202244784"
+distribution_class = "download_only"
+distributed = false
+channels = []
+notes = """
+CC-BY-4.0 permits redistribution with attribution. No production
+selection-function artifact has been trained or checked in yet:
+starlight.selection_function remains unset in
+crates/nsb-data-tools/config/starlight-production.toml. The pipeline already
+records the intended admission policy id
+gaia-dr3-selection-function-cantat-gaudin-v1 in merge_report.json even though
+no artifact has been pinned.
+"""
+
+# --- Generated calibration artifacts (NSB-trained, checksum-pinned) -------
+
+[[artifacts]]
+id = "starlight-photometric-inference-artifact"
+category = "generated-calibration-artifact"
+source = "NSB-trained non-XP photometric inference model (crates/nsb-data-tools/src/starlight/photometric.rs contract)"
+release = "not yet produced"
+license = "no artifact exists yet; once trained it will inherit NSB's source licence (BSD-3-Clause, see README.md#Licensing) plus the attributions of whatever reference photometry trained it"
+distribution_class = "generated_derived_output"
+distributed = false
+channels = []
+notes = """
+starlight.photometric_inference remains unset in
+crates/nsb-data-tools/config/starlight-production.toml. Blocked pending
+trained coefficients per docs/nsb_components/starlight/science-requirements.md.
+"""
+
+[[artifacts]]
+id = "starlight-uv-artifact-v1"
+category = "generated-calibration-artifact"
+source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v1 (crates/nsb-data-tools/src/starlight/uv.rs contract, trained against CALSPEC reference spectra)"
+release = "v1, calibration_status = validated at time of use"
+license = "NSB-derived model artifact (BSD-3-Clause source licence, see README.md#Licensing); trained against CALSPEC reference spectra (STScI attribution) and Gaia DR3 XP samples (CC BY-NC 3.0 IGO)"
+sha256 = "6bfbda6b37b9732bb585000999f15d8a18795a6511e2874e53e3c43d793858e8"
+superseded_by_sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
+distribution_class = "generated_derived_output"
+distributed = false
+channels = []
+tracking_issue = "#94"
+notes = """
+This is the exact uv_correction_sha256 embedded in the currently checked-in
+crates/nsb/data/merge_report.json and starlight_nside128.csv header. It is
+scientifically invalidated per #94 (absolute CALSPEC RMSE floors of order
+1e19 ph m^-2 s^-1 were applied per Gaia source instead of scaled correctly).
+The artifact bytes themselves are not committed to this repository (offline
+BeeGFS training workspace); only their digest is embedded in the candidate
+map/report. Do not treat this digest as an approved redistribution basis.
+Superseded by starlight-uv-artifact-v2.
+"""
+
+[[artifacts]]
+id = "starlight-uv-artifact-v2"
+category = "generated-calibration-artifact"
+source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v2 (replacement for v1 per #94)"
+release = "v2, not yet integrated into a published candidate"
+license = "NSB-derived model artifact (BSD-3-Clause source licence, see README.md#Licensing); trained against CALSPEC reference spectra (STScI attribution) and Gaia DR3 XP samples (CC BY-NC 3.0 IGO)"
+sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
+distribution_class = "generated_derived_output"
+distributed = false
+channels = []
+tracking_issue = "#94"
+notes = """
+Replacement UV artifact named in #47's candidate-invalidation note. A
+regenerated candidate map/report using this digest will replace the
+starlight-candidate-map-nside128 / starlight-merge-report entries below once
+the Ladon rebuild completes; this inventory and the redistribution decision
+must both be refreshed at that time.
+"""
+
+[[artifacts]]
+id = "starlight-independent-validation-reference"
+category = "independent-validation-evidence"
+source = "Independent comparison/reference dataset(s) for #87 (not yet selected or acquired)"
+release = "pending"
+license = "pending: not yet selected"
+distribution_class = "documentation_reference"
+distributed = false
+channels = []
+tracking_issue = "#87"
+notes = """
+#87 (independent validation tooling and evidence) has not landed. This
+placeholder keeps the inventory schema complete without inventing evidence
+that does not exist. No independent-comparison artifact, licence, or checksum
+can be recorded until #87 lands.
+"""
+
+# --- Currently distributed repository-embedded artifacts -------------------
+
+[[artifacts]]
+id = "starlight-candidate-map-nside128"
+category = "generated-derived-output"
+source = "Derived from Gaia DR3 GaiaSource + XP continuous bulk products via the NSB pipeline (nsb-data dataset starlight publish)"
+release = "candidate v5 (nsb-healpix-starlight-candidate-v5); PR #93 candidate freeze recorded in #47"
+license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml; whether the CC BY-NC 3.0 IGO non-commercial clause permits NSB's intended redistribution channels is the open legal/scientific question #88/#47 must resolve"
+license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+sha256 = "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+distribution_class = "repository_embedded"
+distributed = true
+channels = ["git_repository"]
+tracking_issue = "#47"
+notes = """
+Path: crates/nsb/data/starlight_nside128.csv. calibration_status = candidate,
+runtime_embedded = false. This candidate is scientifically invalidated for
+uncertainty scale per #94 (see starlight-uv-artifact-v1); it must not be
+approved for production redistribution under this checksum. It is already
+redistributed today via the public git history/GitHub even though the human
+redistribution decision in #47 remains pending — this is precisely the gap
+#88 must close before promotion, not merely a future concern.
+"""
+
+[[artifacts]]
+id = "starlight-merge-report"
+category = "generated-derived-output"
+source = "NSB-generated deterministic merge/provenance report for starlight-candidate-map-nside128"
+release = "schema nsb-starlight-merge-report-v5; PR #93 candidate freeze recorded in #47"
+license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml"
+license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+sha256 = "5b2419a113cf160e724a1afc687e3632862dc8d7f9081bd48b297e072e7af147"
+distribution_class = "repository_embedded"
+distributed = true
+channels = ["git_repository"]
+tracking_issue = "#47"
+notes = """
+Path: crates/nsb/data/merge_report.json. calibration_status = candidate,
+runtime_embedded = false. Same invalidation and pending-decision status as
+starlight-candidate-map-nside128; both artifacts are checksum-linked and must
+be reviewed and, if ever regenerated, replaced together.
+"""
+
+[[artifacts]]
+id = "starlight-manual-seed-v1"
+category = "generated-derived-output"
+source = "Manually curated Tycho/Hipparcos-style bright-star seed (crates/nsb/data/starlight_manual_seed_v1.csv), not a complete external catalogue product"
+release = "manual-seed-v1"
+license = "review required before redistribution or scientific production use, as already flagged in crates/nsb/data/manifest.toml"
+sha256 = "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
+distribution_class = "repository_embedded"
+distributed = true
+channels = ["git_repository"]
+notes = """
+calibration_status = experimental, runtime_embedded = true (used only by
+`--components experimental-starlight`). The pre-existing manifest.toml entry
+already records this artifact's licence as review-required; #88 inherits this
+known gap rather than resolving it, since the underlying provenance predates
+this inventory and no additional source information is available.
+"""
+
+# --- Manifests, sidecars, and reports --------------------------------------
+
+[[artifacts]]
+id = "starlight-manifest-toml"
+category = "manifest"
+source = "NSB-authored checksum/provenance registry for bundled runtime assets"
+release = "schema_version = 1"
+license = "NSB source licence (BSD-3-Clause, see README.md#Licensing); contains no third-party bytes, only metadata describing third-party inputs"
+sha256 = "ae4ecda5a15f8905a7203cd2813235f6784162164c5beeef5e26713585f262df"
+distribution_class = "repository_embedded"
+distributed = true
+channels = ["git_repository"]
+notes = """
+Path: crates/nsb/data/manifest.toml. This is a living registry updated by
+`nsb-data dataset <name> publish`; the pinned digest above reflects its state
+when this inventory was authored and will drift on every publish. Treat this
+entry's sha256 as informational provenance, not a promotion gate input.
+"""
+
+[[artifacts]]
+id = "starlight-external-manifest-sidecar-contract"
+category = "sidecar-contract-documentation"
+source = "NSB-authored validated external-manifest sidecar schema for caller-provided production Starlight maps"
+release = "schema_version = 1"
+license = "NSB source licence (BSD-3-Clause, see README.md#Licensing)"
+distribution_class = "documentation_reference"
+distributed = true
+channels = ["git_repository", "documentation"]
+notes = """
+Path: docs/nsb_components/starlight/external-manifest.md. Documents the
+sidecar fields (source_catalogue_license, map_sha256, validation_report,
+independent_comparison, ...) that any redistributed map, bundled or
+externally supplied, must carry. No third-party bytes are contained.
+"""
+
+[[artifacts]]
+id = "starlight-combined-300-650-validation-report"
+category = "report"
+source = "NSB-generated validation gate report for the candidate build"
+release = "schema_version = 2"
+license = "NSB source licence (BSD-3-Clause, see README.md#Licensing); reports only aggregate diagnostics, no raw third-party catalogue bytes"
+sha256 = "abe88cb8c9d5a8bdde4b0c2f29f65f72678d3d7a38ee2ffcf02b00515eed6dab"
+distribution_class = "repository_embedded"
+distributed = true
+channels = ["git_repository"]
+tracking_issue = "#47"
+notes = """
+Path: docs/nsb_components/starlight/production-runs/combined-300-650-validation.json.
+Records the same candidate/report checksums as
+starlight-candidate-map-nside128 and starlight-merge-report and must be
+regenerated alongside them if the candidate is rebuilt under #94.
+"""

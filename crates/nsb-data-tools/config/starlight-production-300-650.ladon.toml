@@ -22,7 +22,7 @@ product_band = "combined-300-650"
 
 [starlight.ultraviolet_correction]
 artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/uv-artifact.json"
-sha256 = "6bfbda6b37b9732bb585000999f15d8a18795a6511e2874e53e3c43d793858e8"
+sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
 
 [starlight.photometric_inference]
 artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/photometric-artifact.json"

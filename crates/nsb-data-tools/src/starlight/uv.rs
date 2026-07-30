@@ -140,9 +140,23 @@ pub enum SystematicCorrelation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct UncertaintyModel {
+    /// Absolute residual floor in `ph m^-2 s^-1`. Required for absolute-flux
+    /// responses; must be exactly `0` for log-ratio responses (use
+    /// [`Self::statistical_floor_log_ratio`] instead).
     pub statistical_floor_ph_m2_s: f64,
+    /// Absolute systematic floor in `ph m^-2 s^-1`. Required for absolute-flux
+    /// responses; must be exactly `0` for log-ratio responses (use
+    /// [`Self::systematic_floor_log_ratio`] instead).
     pub systematic_floor_ph_m2_s: f64,
     pub systematic_fraction: f64,
+    /// Dimensionless residual floor on `ln(F_UV / F_meas)`. Used only by
+    /// log-ratio responses; defaults to `0` for absolute-flux artifacts.
+    #[serde(default)]
+    pub statistical_floor_log_ratio: f64,
+    /// Dimensionless systematic floor on `ln(F_UV / F_meas)`. Used only by
+    /// log-ratio responses; defaults to `0` for absolute-flux artifacts.
+    #[serde(default)]
+    pub systematic_floor_log_ratio: f64,
     /// Correlation between the measured XP statistical error and the conditional
     /// UV-model residual. For log-ratio responses this excludes the structural
     /// dependence of corrected UV flux on the measured XP flux.
@@ -348,7 +362,8 @@ impl UvCalibrationArtifact {
         }
         self.validate_model()?;
         self.response.validate()?;
-        self.uncertainty_model.validate()?;
+        self.uncertainty_model
+            .validate_for_response(&self.response)?;
         match self.out_of_domain_policy {
             OutOfDomainPolicy::Reject => {}
             OutOfDomainPolicy::ClampWithSystematicInflation { factor }
@@ -516,6 +531,14 @@ impl UncertaintyModel {
             ("statistical floor", self.statistical_floor_ph_m2_s),
             ("systematic floor", self.systematic_floor_ph_m2_s),
             ("systematic fraction", self.systematic_fraction),
+            (
+                "statistical floor log-ratio",
+                self.statistical_floor_log_ratio,
+            ),
+            (
+                "systematic floor log-ratio",
+                self.systematic_floor_log_ratio,
+            ),
         ] {
             if !value.is_finite() || value < 0.0 {
                 bail!("UV {label} must be finite and non-negative");
@@ -527,6 +550,31 @@ impl UncertaintyModel {
             || !(-1.0..=1.0).contains(&self.measured_conditional_residual_statistical_correlation)
         {
             bail!("measured/conditional-residual statistical correlation must be in [-1, 1]");
+        }
+        Ok(())
+    }
+
+    fn validate_for_response(&self, response: &ModelResponse) -> Result<()> {
+        self.validate()?;
+        match response {
+            ModelResponse::AbsoluteUvPhotonFlux => {
+                if self.statistical_floor_log_ratio != 0.0 || self.systematic_floor_log_ratio != 0.0
+                {
+                    bail!(
+                        "absolute UV artifacts must leave log-ratio floors at 0; \
+                         use statistical_floor_ph_m2_s / systematic_floor_ph_m2_s"
+                    );
+                }
+            }
+            ModelResponse::NaturalLogUvToMeasuredFluxRatio { .. } => {
+                if self.statistical_floor_ph_m2_s != 0.0 || self.systematic_floor_ph_m2_s != 0.0 {
+                    bail!(
+                        "log-ratio UV artifacts must set absolute ph m^-2 s^-1 floors to 0; \
+                         bright-star absolute RMSE floors do not transfer to Gaia sources. \
+                         Use statistical_floor_log_ratio / systematic_floor_log_ratio"
+                    );
+                }
+            }
         }
         Ok(())
     }
@@ -699,7 +747,8 @@ impl UvCorrection {
             bail!("UV correction model produced a non-finite score");
         }
         let score_variance = quadratic_form(covariance, &transformed)?;
-        let statistical_floor = self.artifact.uncertainty_model.statistical_floor_ph_m2_s;
+        let statistical_floor_abs = self.artifact.uncertainty_model.statistical_floor_ph_m2_s;
+        let statistical_floor_ln = self.artifact.uncertainty_model.statistical_floor_log_ratio;
         let measured_residual_correlation = self
             .artifact
             .uncertainty_model
@@ -709,7 +758,7 @@ impl UvCorrection {
                 if score < 0.0 {
                     bail!("absolute UV response produced a negative flux");
                 }
-                let correction_statistical = score_variance.sqrt().hypot(statistical_floor);
+                let correction_statistical = score_variance.sqrt().hypot(statistical_floor_abs);
                 let covariance = input.measured_band.map(|measured| {
                     measured_residual_correlation
                         * measured.statistical_uncertainty_336_650_ph_m2_s
@@ -729,8 +778,10 @@ impl UvCorrection {
                 if !flux.is_finite() {
                     bail!("UV log-ratio response produced non-finite flux");
                 }
+                // Conditional residual lives in ln-ratio space: convert to absolute
+                // flux units with the local Jacobian `dF/d(ln r) = F`.
                 let conditional_statistical =
-                    (flux * score_variance.sqrt()).hypot(statistical_floor);
+                    flux * score_variance.sqrt().hypot(statistical_floor_ln);
                 let measured_sigma = measured.statistical_uncertainty_336_650_ph_m2_s;
                 let measured_contribution = ratio * measured_sigma;
                 let correction_variance = conditional_statistical.powi(2)
@@ -751,11 +802,21 @@ impl UvCorrection {
                 )
             }
         };
-        let mut systematic = self
-            .artifact
-            .uncertainty_model
-            .systematic_floor_ph_m2_s
-            .hypot(flux * self.artifact.uncertainty_model.systematic_fraction);
+        let mut systematic = match &self.artifact.response {
+            ModelResponse::AbsoluteUvPhotonFlux => self
+                .artifact
+                .uncertainty_model
+                .systematic_floor_ph_m2_s
+                .hypot(flux * self.artifact.uncertainty_model.systematic_fraction),
+            ModelResponse::NaturalLogUvToMeasuredFluxRatio { .. } => {
+                let relative = self
+                    .artifact
+                    .uncertainty_model
+                    .systematic_floor_log_ratio
+                    .hypot(self.artifact.uncertainty_model.systematic_fraction);
+                flux * relative
+            }
+        };
         let decision = if status == ApplicabilityStatus::OutOfDomain {
             let OutOfDomainPolicy::ClampWithSystematicInflation { factor } =
                 self.artifact.out_of_domain_policy

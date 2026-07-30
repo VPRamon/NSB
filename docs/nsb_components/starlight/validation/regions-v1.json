@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "nside": 128,
+  "ordering": "nested",
+  "coordinate_frame": "galactic",
+  "regions": [
+    {
+      "id": "all-sky",
+      "description": "Every pixel in the nside=128 NESTED HEALPix domain. Required baseline region; every other region is a subset of this one.",
+      "selector": { "kind": "all" }
+    },
+    {
+      "id": "galactic-plane",
+      "description": "Low Galactic latitude band |b| <= 10 deg, where stellar crowding and dust extinction are highest and where the candidate map's source-accumulation and exclusion logic is most stressed.",
+      "selector": {
+        "kind": "latitude-band",
+        "min_abs_b_deg": 0.0,
+        "max_abs_b_deg": 10.0
+      }
+    },
+    {
+      "id": "galactic-center",
+      "description": "15 deg cone around the Galactic Center (l=0, b=0): highest stellar density and extinction in the sky, a critical stress test for both bias and coverage metrics.",
+      "selector": {
+        "kind": "cone",
+        "center_l_deg": 0.0,
+        "center_b_deg": 0.0,
+        "radius_deg": 15.0
+      }
+    },
+    {
+      "id": "anticenter",
+      "description": "15 deg cone around the Galactic anticenter (l=180, b=0): moderate stellar density along the plane but far from the bulge, useful as a plane-region contrast to galactic-center.",
+      "selector": {
+        "kind": "cone",
+        "center_l_deg": 180.0,
+        "center_b_deg": 0.0,
+        "radius_deg": 15.0
+      }
+    },
+    {
+      "id": "poles",
+      "description": "High Galactic latitude band |b| >= 60 deg, covering both Galactic poles: lowest stellar density and extinction, where absolute-bias tolerances are most sensitive to small systematic offsets.",
+      "selector": {
+        "kind": "latitude-band",
+        "min_abs_b_deg": 60.0,
+        "max_abs_b_deg": 90.0
+      }
+    },
+    {
+      "id": "dark-fields",
+      "description": "Union of small fields around classic low-HI-column-density 'dark window' extragalactic survey fields (Lockman Hole, Extended Groth Strip, Chandra Deep Field South), chosen independently of this repository's map because they are the fields the diffuse-light literature already treats as having minimal foreground contamination.",
+      "selector": {
+        "kind": "cone-union",
+        "cones": [
+          {
+            "center_l_deg": 149.3,
+            "center_b_deg": 53.0,
+            "radius_deg": 2.0,
+            "label": "Lockman Hole"
+          },
+          {
+            "center_l_deg": 184.4,
+            "center_b_deg": 53.7,
+            "radius_deg": 2.0,
+            "label": "Extended Groth Strip"
+          },
+          {
+            "center_l_deg": 224.2,
+            "center_b_deg": -54.4,
+            "radius_deg": 2.0,
+            "label": "Chandra Deep Field South"
+          }
+        ]
+      },
+      "limitation": "Field centers are rounded literature approximations (arcminute-level), not survey-pipeline-grade astrometric centers; adequate for selecting nside=128 pixels (~27 arcmin) but not for sub-pixel positioning."
+    },
+    {
+      "id": "seam-0-360",
+      "description": "Narrow Galactic-longitude band straddling the l=0/360 deg wraparound seam (l in [355, 5] deg), independent of latitude. Exercises longitude-wrap handling in both this validation engine and the candidate map's own pixel indexing.",
+      "selector": {
+        "kind": "longitude-band",
+        "min_l_deg": 355.0,
+        "max_l_deg": 5.0
+      }
+    },
+    {
+      "id": "dense",
+      "description": "Top decile (90th-100th percentile) of pixels by the candidate map's own admitted-source count. A reproducible, data-driven proxy for stellar crowding, recomputed fresh from whichever candidate map is supplied to `run` rather than a frozen pixel list.",
+      "selector": {
+        "kind": "pixel-stat-percentile",
+        "field": "admitted-sources",
+        "min_percentile": 90.0,
+        "max_percentile": 100.0
+      }
+    },
+    {
+      "id": "high-extinction",
+      "description": "Union of small fields around well-documented dense dark nebulae / molecular clouds (Coalsack, Pipe Nebula, Ophiuchus dark cloud, Taurus molecular cloud) used in the literature as high-extinction sightlines.",
+      "selector": {
+        "kind": "cone-union",
+        "cones": [
+          {
+            "center_l_deg": 303.0,
+            "center_b_deg": -2.0,
+            "radius_deg": 4.0,
+            "label": "Coalsack Nebula"
+          },
+          {
+            "center_l_deg": 357.0,
+            "center_b_deg": 3.0,
+            "radius_deg": 4.0,
+            "label": "Pipe Nebula"
+          },
+          {
+            "center_l_deg": 353.0,
+            "center_b_deg": 17.0,
+            "radius_deg": 4.0,
+            "label": "Ophiuchus dark cloud"
+          },
+          {
+            "center_l_deg": 173.0,
+            "center_b_deg": -15.0,
+            "radius_deg": 4.0,
+            "label": "Taurus molecular cloud"
+          }
+        ]
+      },
+      "limitation": "This is a Galactic-coordinate proxy for known high-extinction dark clouds, not a per-pixel extinction map. The candidate map and this engine currently expose no per-pixel extinction statistic; replace with a `PixelStatPercentile` selector (or an equivalent formula) once one is available."
+    },
+    {
+      "id": "bright-star",
+      "description": "Union of small fields around a handful of the brightest stars on the sky (Sirius, Canopus, Vega), used to check candidate-map and validation behavior near sources that dominate local photon counts and are the most likely to be affected by saturation, masking, or exclusion-rule edge cases.",
+      "selector": {
+        "kind": "cone-union",
+        "cones": [
+          {
+            "center_l_deg": 227.2,
+            "center_b_deg": -8.9,
+            "radius_deg": 1.0,
+            "label": "Sirius (alpha CMa)"
+          },
+          {
+            "center_l_deg": 261.2,
+            "center_b_deg": -25.3,
+            "radius_deg": 1.0,
+            "label": "Canopus (alpha Car)"
+          },
+          {
+            "center_l_deg": 67.5,
+            "center_b_deg": 19.2,
+            "radius_deg": 1.0,
+            "label": "Vega (alpha Lyr)"
+          }
+        ]
+      },
+      "limitation": "Star coordinates are rounded to 0.1 deg from standard catalogue positions and are meant to select the surrounding nside=128 pixel neighborhood, not to pinpoint an exact source pixel."
+    },
+    {
+      "id": "high-crowding",
+      "description": "Extreme top percentile (99th-100th) of pixels by the candidate map's own admitted-source count: the most stellar-dense individual pixels in the map, a stricter subset of `dense` used to check whether tolerance failures concentrate in a small number of pathological pixels.",
+      "selector": {
+        "kind": "pixel-stat-percentile",
+        "field": "admitted-sources",
+        "min_percentile": 99.0,
+        "max_percentile": 100.0
+      },
+      "limitation": "By construction this region is always a subset of `dense`; the two are expected to overlap and are reported separately to distinguish broad crowding effects from extreme single-pixel outliers."
+    }
+  ]
+}

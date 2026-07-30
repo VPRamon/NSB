@@ -1,0 +1,83 @@
+schema_version = 1
+issue = 87
+
+title = "Independent validation of the integrated 300-650 nm Starlight candidate map"
+
+band_nm = [300, 650]
+flux_unit = "ph_m-2_s-1"
+
+metrics = [
+  "signed_bias",
+  "absolute_bias",
+  "relative_bias",
+  "mae",
+  "median_absolute_error",
+  "rmse",
+  "relative_error_p50",
+  "relative_error_p68",
+  "relative_error_p95",
+  "coverage_68",
+  "coverage_95",
+  "outlier_fraction",
+]
+
+notes = """
+Technical scaffolding for issue #87. This document, `references-v1.toml`, and
+`regions-v1.json` are frozen before any acquired reference is compared
+against the candidate map, so that thresholds and region definitions cannot
+be tuned to make a specific candidate pass after the fact. Scientific
+production approval of a specific candidate checksum is recorded only in
+issue #47 and is never inferred from a `validation-results-v1.json` produced
+by this pipeline.
+"""
+
+# The tolerances below are taken verbatim from GitHub issue #87 and are frozen
+# before any acquired reference is compared against the candidate map. They
+# must not be adjusted after seeing results from `dataset starlight
+# validation run`. Any change requires a new `schema_version` and a fresh
+# issue discussion, not an edit to this file in place.
+
+[candidate]
+# Pinned relative to the repository root. `nsb-data-tools/src/starlight/validation/preregistration.rs`
+# rejects any preregistration that points at a different path.
+map_path = "crates/nsb/data/starlight_nside128.csv"
+map_schema = "nsb-healpix-starlight-candidate-v5"
+# As of this preregistration, `crates/nsb/data/manifest.toml` pins
+# sha256 = "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+# for `starlight_nside128.csv`. Issue #94 (uncertainty scale audit) is
+# expected to regenerate the map and its checksum before validation coverage
+# from this pipeline should be treated as trustworthy; this preregistration
+# intentionally pins the *path*, not that specific checksum, so it survives a
+# #94 regeneration. `dataset starlight validation run --candidate-map-sha256`
+# accepts an explicit expected checksum per invocation instead.
+checksum_pinning_status = "pending-regeneration-after-94"
+checksum_note = "checksum may change after the #94 uncertainty scale audit regenerates the map; pin the checksum used for a specific run via --candidate-map-sha256, not in this file"
+
+[tolerances]
+# Preregistered technical gates, copied verbatim from issue #87:
+#   absolute_all_sky_bias <= 0.03
+#   median_absolute_regional_relative_error <= 0.05
+#   regional_relative_error_p95 <= 0.10
+#   coverage_68 in [0.63, 0.73]
+#   coverage_95 in [0.90, 0.98]
+absolute_all_sky_bias_max = 0.03
+median_absolute_regional_relative_error_max = 0.05
+regional_relative_error_p95_max = 0.10
+coverage_68_min = 0.63
+coverage_68_max = 0.73
+coverage_95_min = 0.90
+coverage_95_max = 0.98
+
+# Exclusion rules are intentionally placeholders in this first PR: no
+# reference has been acquired yet, so no exclusion has been exercised against
+# real data. Do not mark a rule "active" without a linked justification and a
+# `run` invocation demonstrating its effect.
+[[exclusion_rules]]
+id = "catastrophic-outlier-placeholder"
+description = "Reserved for a future rule excluding individual reference pixels with implausible input (e.g. saturated or flagged upstream photometry) from bias/RMSE aggregation. Not active: no acquired reference has been inspected for such flags yet."
+status = "placeholder"
+
+[[exclusion_rules]]
+id = "seam-pixel-double-count-placeholder"
+description = "Reserved for a future rule excluding pixels within one HEALPix resolution element of the 0/360 degree galactic-longitude seam from region-specific (not all-sky) aggregation, in case a reference grid's own seam handling introduces a systematic near the boundary. Not active pending acquired reference data."
+status = "placeholder"
