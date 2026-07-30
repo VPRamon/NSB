@@ -2,12 +2,7 @@ schema_version = 1
 dataset = "starlight"
 
 [workspace]
-# Cluster operators should override this site-local example only with another
-# shared scratch/NVMe path visible at the same absolute location on every node.
-# Ladon production 300–650 workspace:
-#   /mnt/beegfs/valles/nsb-data/starlight-production-300-650
-# See also starlight-production-300-650.ladon.toml for the pinned combined-band run.
-root = "/shared/scratch/nsb/starlight-production"
+root = "/mnt/beegfs/valles/nsb-data/starlight-production-300-650"
 
 [execution]
 executor = "local"
@@ -15,17 +10,27 @@ concurrency = 8
 lease_timeout_seconds = 86400
 
 [execution.slurm]
-partition = "compute"
+partition = "ladon"
+account = "ice-research"
 time_limit = "24:00:00"
-memory = "16G"
-array_parallelism = 16
+memory = "32G"
+array_parallelism = 8
 
 [starlight]
 mode = "production"
-# Default checked-in candidate remains measured-only. The combined 300–650 nm
-# production path is configured in starlight-production-300-650.ladon.toml with
-# pinned UV, photometric, and selection-function artifacts.
-product_band = "measured-336-650"
+product_band = "combined-300-650"
+
+[starlight.ultraviolet_correction]
+artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/uv-artifact.json"
+sha256 = "6bfbda6b37b9732bb585000999f15d8a18795a6511e2874e53e3c43d793858e8"
+
+[starlight.photometric_inference]
+artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/photometric-artifact.json"
+sha256 = "ad23fe327b3cbb75167ffe47a00dc8bcbb63d72f9e5a1b19f32171dda5fd680d"
+
+[starlight.selection_function]
+artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/selection-artifact.json"
+sha256 = "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711"
 
 [starlight.acquisition]
 connect_timeout_seconds = 30

@@ -163,31 +163,33 @@ canonical reconciliation input `outputs/shards/<partition>.json` before
 merging. Compute nodes and the validating login node must therefore share the
 same workspace.
 
-The versioned admission policy `gaia-dr3-xp-continuous-join-v1` applies these
-rules exactly:
+The versioned admission policy `gaia-dr3-full-population-v1` accounts for every
+GaiaSource row exactly once:
 
-- an XP row without the paired GaiaSource identifier is excluded as
-  `no_gaia_source_match`;
-- a record rejected by frozen calibration is `calibration_failed`;
-- a non-finite or non-positive signed integral is `invalid_flux`;
-- a non-finite or negative propagated statistical uncertainty is
-  `invalid_uncertainty`;
-- every other joined row is admitted at weight 1 with its XP statistical
-  variance; no independent systematic term is invented.
+- XP continuous rows joined to GaiaSource follow the measured or UV-corrected
+  path (`no_gaia_source_match`, `calibration_failed`, `invalid_flux`,
+  `invalid_uncertainty`, and UV reject reasons when configured);
+- non-XP rows are routed through the pinned photometric-inference artifact
+  (`photometric_g_bp_rp`, `photometric_partial`, `photometric_g_only`) or
+  excluded (`no_xp_spectrum` when no artifact is configured,
+  `no_usable_photometry`, `scientific_exclusion_nonstellar`,
+  `duplicated_source`);
+- when a selection-function artifact is configured, admitted fluxes are
+  inverse-completeness weighted with a registered cap and optional faint-tail
+  term.
 
-The current candidate deliberately has no calibrated Gaia selection-function
-or faint-tail correction. `merge_report.json` records the versioned
-`selection-function-identity-stub-v1` policy with bounded weights `[1,1]`,
-`applied=false`, and no residual-tail estimate. It also records that direct
-spectral coverage is 336–650 nm and that no validated 300–336 nm correction is
-applied. These declarations prevent the candidate from silently claiming the
-fully corrected 300–650 nm production contract in
-`docs/nsb_components/starlight/science-requirements.md`.
+The measured-only default in `starlight-production.toml` remains
+`product_band = "measured-336-650"`. The combined 300–650 nm Ladon run is
+pinned in `starlight-production-300-650.ladon.toml` with absolute BeeGFS paths
+for the UV, photometric, and selection-function artifacts. Map schema
+`nsb-healpix-starlight-candidate-v5` emits
+`total_uncertainty_ph_m2_s = hypot(statistical, systematic)`.
+
 The versioned UV artifact, partition, holdout, evaluation, and runtime
 configuration contracts are documented in
 [Starlight ultraviolet calibration contract](starlight-uv-calibration.md).
-Those contracts do not supply a trained model: the real independently
-calibrated reference dataset and scientific review remain explicit blockers.
+Offline CALSPEC / Cantat-Gaudin training lives outside the repository (BeeGFS
+`starlight-calibration/`); NSB only validates and consumes pinned artifacts.
 
 Run the full workers through the configured Slurm array:
 

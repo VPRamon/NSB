@@ -441,10 +441,9 @@ impl PartitionShard {
             StarlightProductBand::Measured336To650 => flux.statistical_uncertainty_336_650_ph_m2_s,
             StarlightProductBand::Combined300To650 => flux.statistical_uncertainty_300_650_ph_m2_s,
         };
-        let selected_systematic = match self.product_band {
-            StarlightProductBand::Measured336To650 => 0.0,
-            StarlightProductBand::Combined300To650 => flux.systematic_uncertainty_300_650_ph_m2_s,
-        };
+        // Measured-band callers pass photometric/selection systematics through
+        // admit(); combined-band callers supply the full 300–650 systematic.
+        let selected_systematic = flux.systematic_uncertainty_300_650_ph_m2_s;
         let numeric = [
             selected_flux,
             selected_statistical,

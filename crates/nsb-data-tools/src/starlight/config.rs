@@ -24,7 +24,14 @@ pub struct StarlightConfig {
     #[serde(default)]
     pub product_band: StarlightProductBand,
     /// Optional checksum-pinned 300–336 nm correction.
+    #[serde(default)]
     pub ultraviolet_correction: Option<UvCorrectionConfig>,
+    /// Optional checksum-pinned non-XP photometric inference artifact.
+    #[serde(default)]
+    pub photometric_inference: Option<ArtifactPinConfig>,
+    /// Optional checksum-pinned Gaia selection-function artifact.
+    #[serde(default)]
+    pub selection_function: Option<ArtifactPinConfig>,
 }
 
 /// Network policy for resumable official-source acquisition.
@@ -73,13 +80,16 @@ pub enum StarlightProductBand {
     Combined300To650,
 }
 
-/// Location and immutable identity of a UV correction artifact.
+/// Location and immutable identity of a checksum-pinned calibration artifact.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct UvCorrectionConfig {
+pub struct ArtifactPinConfig {
     pub artifact_path: PathBuf,
     pub sha256: String,
 }
+
+/// Location and immutable identity of a UV correction artifact.
+pub type UvCorrectionConfig = ArtifactPinConfig;
 
 /// One official bulk distribution and its checksum inventory.
 #[derive(Debug, Clone, Serialize, Deserialize)]
