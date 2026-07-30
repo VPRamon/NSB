@@ -1,6 +1,7 @@
 //! Production Starlight dataset pipeline.
 
 pub mod config;
+pub mod licensing;
 pub mod map;
 pub mod migration;
 pub mod photometric;
