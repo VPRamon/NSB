@@ -1,0 +1,129 @@
+name: Starlight final promotion
+
+# Manual, post-approval workflow referenced by issue #47 and scoped by issue
+# #90. It never runs automatically and never mutates the map: it verifies
+# that the frozen release-candidate gates report and both required human
+# decision files (scientific + redistribution, owned exclusively by issue
+# #47) are present and approved, via the fail-closed
+# `dataset starlight promote` precondition check, then re-verifies the
+# scientific asset registry and asserts the candidate map checksum did not
+# change.
+#
+# Scope note: `dataset starlight promote` (issue #90/#89) currently performs
+# checksum/schema/decision verification only. It does not implement the
+# `nsb-starlight-release-candidate-v1` bundle, does not flip
+# `calibration_status`/`runtime_embedded` in the manifest, and does not
+# enable the `StarlightModel::BundledProductionGaiaDr3` runtime path. Once
+# issue #89 lands that manifest-mutation step, this workflow should be
+# extended (not replaced) with a step that applies and commits the
+# promotion, opening/updating the promotion PR described in issue #47.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_candidate_gates:
+        description: >-
+          Path to the release-candidate-gates-v1 report for the frozen
+          candidate (issue #90).
+        required: true
+        default: docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json
+      scientific_decision:
+        description: >-
+          Path to the signed scientific-review decision file (owned by
+          issue #47).
+        required: true
+      redistribution_decision:
+        description: >-
+          Path to the signed redistribution-review decision file (owned by
+          issue #47).
+        required: true
+      candidate_map:
+        description: Path to the canonical Starlight candidate map.
+        required: true
+        default: crates/nsb/data/starlight_nside128.csv
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Verify and promote (fail-closed)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Verify decision files exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for path in \
+            "${{ inputs.release_candidate_gates }}" \
+            "${{ inputs.scientific_decision }}" \
+            "${{ inputs.redistribution_decision }}" \
+            "${{ inputs.candidate_map }}"; do
+            if [[ ! -f "$path" ]]; then
+              echo "::error::required file is missing: $path" >&2
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "fail-closed: one or more required inputs are missing; see errors above." >&2
+            echo "the scientific and redistribution decisions are owned exclusively by issue #47" >&2
+            echo "and must be committed or attached to this workflow run before promotion." >&2
+            exit 1
+          fi
+
+      - name: Record pre-promotion candidate map checksum
+        id: pre_checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "sha256=$(sha256sum "${{ inputs.candidate_map }}" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run fail-closed promotion precondition check
+        run: |
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- \
+            dataset starlight promote \
+            --release-candidate-gates "${{ inputs.release_candidate_gates }}" \
+            --scientific-decision "${{ inputs.scientific_decision }}" \
+            --redistribution-decision "${{ inputs.redistribution_decision }}" \
+            --map "${{ inputs.candidate_map }}"
+
+      - name: Re-run scientific asset registry verification
+        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
+
+      - name: Assert candidate map checksum is unchanged
+        shell: bash
+        run: |
+          set -euo pipefail
+          before="${{ steps.pre_checksum.outputs.sha256 }}"
+          after="$(sha256sum "${{ inputs.candidate_map }}" | cut -d' ' -f1)"
+          if [[ "$before" != "$after" ]]; then
+            echo "::error::candidate map checksum changed during promotion: before=$before after=$after" >&2
+            echo "fail-closed: promotion must never mutate the map." >&2
+            exit 1
+          fi
+          echo "candidate map checksum unchanged: $after"
+
+      - name: Promotion status
+        run: |
+          echo "Fail-closed preconditions passed: gates report, both human decisions, and the" >> "$GITHUB_STEP_SUMMARY"
+          echo "candidate map checksum are all verified and unchanged." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "This workflow does not yet flip \`calibration_status\`/\`runtime_embedded\` in" >> "$GITHUB_STEP_SUMMARY"
+          echo "the manifest or open/update the promotion PR; that manifest-mutation step lands" >> "$GITHUB_STEP_SUMMARY"
+          echo "with issue #89 and should extend this workflow." >> "$GITHUB_STEP_SUMMARY"

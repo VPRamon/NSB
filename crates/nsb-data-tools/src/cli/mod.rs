@@ -70,7 +70,7 @@ enum DatasetCommand {
     AirglowContinuum(ActionArgs),
     SolarSpectrum(ActionArgs),
     MoonlightScattering(ActionArgs),
-    Starlight(ActionArgs),
+    Starlight(StarlightDatasetArgs),
 }
 
 #[derive(Debug, Args)]
@@ -85,6 +85,39 @@ enum Action {
     Build(CommonArgs),
     Validate(CommonArgs),
     Publish(CommonArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightDatasetArgs {
+    #[command(subcommand)]
+    operation: StarlightAction,
+}
+
+#[derive(Debug, Subcommand)]
+enum StarlightAction {
+    Update(CommonArgs),
+    Build(CommonArgs),
+    Validate(CommonArgs),
+    Publish(CommonArgs),
+    /// Fail-closed promotion precondition check (checksums, schemas, positive
+    /// human decisions). Never mutates the map, manifest, or decision files.
+    Promote(StarlightPromoteArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightPromoteArgs {
+    /// `release-candidate-gates-v1` report for the frozen candidate (issue #90).
+    #[arg(long)]
+    release_candidate_gates: PathBuf,
+    /// Human scientific-review decision file (owned by issue #47).
+    #[arg(long)]
+    scientific_decision: PathBuf,
+    /// Human redistribution-review decision file (owned by issue #47).
+    #[arg(long)]
+    redistribution_decision: PathBuf,
+    /// Canonical Starlight map to checksum; never mutated.
+    #[arg(long)]
+    map: PathBuf,
 }
 
 #[derive(Debug, Clone, Args)]
@@ -154,7 +187,40 @@ pub fn run() -> Result<()> {
             DatasetCommand::MoonlightScattering(args) => {
                 execute(DatasetName::MoonlightScattering, args)
             }
-            DatasetCommand::Starlight(args) => execute(DatasetName::Starlight, args),
+            DatasetCommand::Starlight(args) => match args.operation {
+                StarlightAction::Update(common) => execute(
+                    DatasetName::Starlight,
+                    ActionArgs {
+                        operation: Action::Update(common),
+                    },
+                ),
+                StarlightAction::Build(common) => execute(
+                    DatasetName::Starlight,
+                    ActionArgs {
+                        operation: Action::Build(common),
+                    },
+                ),
+                StarlightAction::Validate(common) => execute(
+                    DatasetName::Starlight,
+                    ActionArgs {
+                        operation: Action::Validate(common),
+                    },
+                ),
+                StarlightAction::Publish(common) => execute(
+                    DatasetName::Starlight,
+                    ActionArgs {
+                        operation: Action::Publish(common),
+                    },
+                ),
+                StarlightAction::Promote(args) => {
+                    crate::starlight::promote::run(&crate::starlight::promote::PromoteArgs {
+                        release_candidate_gates: args.release_candidate_gates,
+                        scientific_decision: args.scientific_decision,
+                        redistribution_decision: args.redistribution_decision,
+                        map: args.map,
+                    })
+                }
+            },
         },
         Command::Run(args) => match args.command {
             RunCommand::Status { run } => dataset::status(&run),
