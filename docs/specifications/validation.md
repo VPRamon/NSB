@@ -22,7 +22,7 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | Airglow | deterministic temporal/domain checks | 300–650 nm plus 445/551 nm diagnostics | implementation-specific | Implementation error |
 | Experimental starlight | synthetic contrast and HEALPix completeness | proxy radiance plus S10 diagnostics | deterministic | Implementation error only; no science claim |
 | Validated external starlight admission | caller map plus TOML sidecar | declared calibrated integrated band plus B/V diagnostics | exact integrity/header checks; plane/pole >= 1; seam jump <= 1; declared flux tolerance | Implementation error or rejected caller evidence |
-| Jones spectral fixture | inherited darknsb regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |
+| Jones spectral fixture | historical Jones-model regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |
 | CTAO-N/S | explicit assumptions only | atmosphere and airglow profile | none | Data limitation |
 
 ## Threshold Window Contract
