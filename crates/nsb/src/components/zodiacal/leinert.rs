@@ -33,9 +33,9 @@
 //! # Reference
 //!
 //! Ch. Leinert et al., "The 1997 reference of diffuse night sky brightness",
-//! *A&AS* 127 (1998) 1–99. Transcribed from `darknsb/NSB_Utils.py:867–903`
-//! (the active `zl` table — **not** the `zl2` variant that sets unmeasured
-//! corners to 0).
+//! *A&AS* 127 (1998) 1–99. The table constants follow the published 500 nm
+//! S10 grid; the unmeasured solar-corner cells use the three constant regions
+//! documented above.
 //!
 //! Provenance:
 //! Leinert zodiacal grid lives in `components::zodiacal`.
@@ -205,8 +205,8 @@ const LEINERT_S10: [[f64; 19]; 37] = [
 /// Re-exported as the canonical name used by zodiacal spectrum calculations.
 pub(super) use crate::units::S10_TO_W_M2_SR_UM as LEINERT_S10_TO_W_M2_SR_UM;
 
-/// Maximum-value clamps used by the Python `GetZodiacalLight` for the
-/// unmeasured corners of the table (`λ-λ_sun` close to 0, low `β`).
+/// Maximum-value clamps for the unmeasured corners of the table
+/// (`λ-λ_sun` close to 0, low `β`).
 const CORNER_LL_LT_20_B_LT_25: f64 = 2450.0;
 const CORNER_LL_LT_25_B_LT_20: f64 = 2300.0;
 const CORNER_LL_LT_30_B_LT_15: f64 = 3700.0;
@@ -289,7 +289,7 @@ fn grid() -> &'static LeinertGrid {
 ///
 /// Returns `None` for inputs outside the valid range (β ∉ [0°, 90°) or
 /// |λ−λ_sun| ∉ [0°, 180°]). The corner-region clamps mirror the three
-/// branches in the original Python `GetZodiacalLight`.
+/// constant regions used by the production grid.
 #[cfg(test)]
 pub(crate) fn reference_lookup_s10_for_test(beta_rad: f64, delta_lambda_rad: f64) -> Option<f64> {
     let beta_deg = beta_rad.to_degrees().abs();
