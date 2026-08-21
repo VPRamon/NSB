@@ -1,14 +1,13 @@
 # Third-party notices
 
-NSB source is licensed under BSD-3-Clause (see [`README.md`](README.md#licensing)).
-The dependency graph includes astronomy crates with additional licence
-obligations, including AGPL-3.0-only dependencies; the combined-binary text
-covering those obligations is recorded in [`LICENSE`](LICENSE). Distributors
-of combined binaries must review and comply with the complete dependency
-terms. This file consolidates attribution for third-party data and reference
-material used by NSB components. Component-specific detail, licence
-classification, distribution status, and checksums live next to each
-component; see the links below.
+NSB source is licensed under AGPL-3.0-only (see [`LICENSE`](LICENSE) and
+[`README.md`](README.md#licensing)). Third-party dependencies, scientific data,
+and reference material retain their own licence and attribution obligations.
+Distributors must review and comply with the complete terms that apply to the
+artifacts and dependency versions they ship. This file consolidates attribution
+for third-party data and reference material used by NSB components.
+Component-specific detail, licence classification, distribution status, and
+checksums live next to each component; see the links below.
 
 This file records attribution and licence facts. It does not itself
 authorize redistribution of any listed third-party or derived artifact.
@@ -38,12 +37,12 @@ Summary of third-party sources:
 ## Other bundled runtime assets
 
 The moonlight and airglow/solar bundled snapshots (`airglow_cont.dat`,
-`solar_spectrum.dat`, `mie_m15s1.dat`, `sscatcor_m15s1.dat`) were inherited
-from the darknsb/ESO Sky Model lineage with incomplete upstream licence
-records; see `crates/nsb/data/manifest.toml` for the current, explicitly
-flagged state of each. This blocks their calibrated-production promotion
-until a reviewed source and licence are supplied; it is out of scope for
-this Starlight redistribution package (#88).
+`solar_spectrum.dat`, `mie_m15s1.dat`, `sscatcor_m15s1.dat`) are historical
+imports associated with the ESO Sky Model lineage and have incomplete upstream
+licence records; see `crates/nsb/data/manifest.toml` for the current, explicitly
+flagged state of each. This blocks their calibrated-production promotion until a
+reviewed source and licence are supplied; it is out of scope for this Starlight
+redistribution package (#88).
 
 ## Reporting a missing or incorrect notice
 

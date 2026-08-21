@@ -53,9 +53,8 @@ pub enum ZodiacalExtinction {
 
     /// Noll et al. (2012) piecewise-linear Rayleigh + Mie approximation.
     ///
-    /// This is the default and matches the original NSB Python pipeline.
-    /// It is a generic approximation and is not calibrated to any specific
-    /// observing site or atmospheric profile.
+    /// This is the default generic approximation and is not calibrated to any
+    /// specific observing site or atmospheric profile.
     #[default]
     Noll2012Approx,
 }

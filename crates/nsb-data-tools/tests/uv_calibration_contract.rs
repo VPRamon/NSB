@@ -10,7 +10,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const ARTIFACT_SHA256: &str = "06a47ad99dd3786d1afe3256337c18325fa27b15dad15d63c7a1dd708fca92be";
+const ARTIFACT_SHA256: &str = "b62b00e454619b0242226f691b9700374f64537cfcafc0d98e84e0720ad7c11b";
 
 fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/uv_synthetic_non_production")

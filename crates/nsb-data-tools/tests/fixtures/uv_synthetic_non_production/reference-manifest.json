@@ -3,7 +3,7 @@
   "dataset": {
     "name": "SYNTHETIC-NON-PRODUCTION-TEST-FIXTURE",
     "release": "test-v1",
-    "licence": "BSD-3-Clause repository test fixture",
+    "licence": "AGPL-3.0-only repository test fixture",
     "files": [
       {
         "name": "reference-spectrum.csv",

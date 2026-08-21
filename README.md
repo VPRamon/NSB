@@ -199,8 +199,7 @@ See the [Performance contract](docs/specifications/performance.md).
 
 ## Licensing
 
-NSB source uses BSD-3-Clause. The dependency graph includes astronomy crates with
-additional license obligations, including AGPL-3.0-only dependencies.
-Distributors of combined binaries must review and comply with the complete
-dependency terms. Scientific assets have separate manifest records; unknown
-upstream terms are treated as release limitations, not guessed.
+NSB source is licensed under AGPL-3.0-only; see [`LICENSE`](LICENSE).
+Third-party dependencies and scientific assets retain their own licence and
+attribution requirements. Distributors must review and comply with those terms;
+unknown upstream asset terms are treated as release limitations, not guessed.
