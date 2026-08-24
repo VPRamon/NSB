@@ -2,8 +2,6 @@ use nsb_data_tools::starlight::{
     pack::{pack_candidate_map, PackInputs, CANONICAL_CANDIDATE_SHA256},
     validation::candidate_map,
 };
-use siderust::coordinates::frames::Galactic;
-use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
 use std::collections::BTreeMap;
 use std::f64::consts::PI;
 use std::fs;
@@ -22,8 +20,64 @@ fn assert_close(actual: f64, expected: f64, label: &str) {
     );
 }
 
+/// Independent integer NESTED -> RING reference path.
+///
+/// This follows the standard HEALPix face/x/y conversion used by the
+/// reference `nest2ring` algorithm. Production packing does *not* use this
+/// path: it derives a NESTED pixel centre and asks Siderust to assign the RING
+/// pixel. Keeping these two structurally different paths makes the exhaustive
+/// comparison capable of detecting a sky-scrambling permutation.
+fn reference_nest2ring(nside: u32, ipnest: u64) -> u64 {
+    assert!(nside.is_power_of_two() && nside > 0);
+    let nside = i64::from(nside);
+    let npface = nside * nside;
+    let npix = 12 * npface;
+    let ipnest = i64::try_from(ipnest).expect("nested index fits i64");
+    assert!((0..npix).contains(&ipnest));
+
+    const JRLL: [i64; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
+    const JPLL: [i64; 12] = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
+
+    let face = usize::try_from(ipnest / npface).expect("face fits usize");
+    let ipf = u64::try_from(ipnest % npface).expect("face-local index fits u64");
+    let mut ix = 0_u64;
+    let mut iy = 0_u64;
+    for bit in 0..32_u32 {
+        ix |= ((ipf >> (2 * bit)) & 1) << bit;
+        iy |= ((ipf >> (2 * bit + 1)) & 1) << bit;
+    }
+    let ix = i64::try_from(ix).expect("x fits i64");
+    let iy = i64::try_from(iy).expect("y fits i64");
+
+    let jr = JRLL[face] * nside - ix - iy - 1;
+    let nl4 = 4 * nside;
+    let (nr, n_before, kshift) = if jr < nside {
+        let nr = jr;
+        (nr, 2 * nr * (nr - 1), 0)
+    } else if jr > 3 * nside {
+        let nr = nl4 - jr;
+        (nr, npix - 2 * nr * (nr + 1), 0)
+    } else {
+        (
+            nside,
+            2 * nside * (nside - 1) + (jr - nside) * nl4,
+            (jr - nside) & 1,
+        )
+    };
+
+    let mut jp = (JPLL[face] * nr + ix - iy + 1 + kshift) / 2;
+    if jp > nl4 {
+        jp -= nl4;
+    }
+    if jp < 1 {
+        jp += nl4;
+    }
+
+    u64::try_from(n_before + jp - 1).expect("RING index is non-negative")
+}
+
 #[test]
-fn canonical_pack_preserves_siderust_nested_sky_identity_exhaustively() {
+fn canonical_pack_matches_independent_healpix_nest2ring_exhaustively() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let candidate_path = root.join("crates/nsb/data/starlight_nside128.csv");
     assert!(
@@ -71,26 +125,16 @@ fn canonical_pack_preserves_siderust_nested_sky_identity_exhaustively() {
     let npix = 12_u64 * u64::from(NSIDE) * u64::from(NSIDE);
     assert_eq!(rows.len(), usize::try_from(npix).unwrap());
 
-    let nside = Nside::new(NSIDE).expect("valid nside");
-    let nested_grid =
-        HealpixGrid::new(nside, HealpixOrdering::Nested).expect("Siderust NESTED grid");
-    let ring_grid = HealpixGrid::new(nside, HealpixOrdering::Ring).expect("Siderust RING grid");
     let mut seen_ring = vec![false; rows.len()];
     let pixel_sr = 4.0 * PI / npix as f64;
     let to_radiance = |value: f64| (value / pixel_sr) * PH_M2_S_SR_TO_PH_CM2_NS_SR;
 
     for nested_index in 0..npix {
-        let direction = nested_grid
-            .pixel_center::<Galactic>(HealpixIndex::new(nested_index))
-            .expect("Siderust NESTED pixel centre");
-        let ring_index = ring_grid
-            .direction_to_pixel(direction)
-            .expect("Siderust RING assignment")
-            .get();
+        let ring_index = reference_nest2ring(NSIDE, nested_index);
         let ring_slot = usize::try_from(ring_index).unwrap();
         assert!(
             !seen_ring[ring_slot],
-            "Siderust NESTED->RING collision at RING pixel {ring_index}"
+            "reference HEALPix NESTED->RING collision at RING pixel {ring_index}"
         );
         seen_ring[ring_slot] = true;
 
