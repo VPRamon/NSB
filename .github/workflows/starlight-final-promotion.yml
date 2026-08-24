@@ -44,10 +44,44 @@ jobs:
     name: Pack, apply, validate, and open promotion PR
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout without Git LFS payloads
+      - name: Checkout approved main only
         uses: actions/checkout@v4
         with:
+          ref: main
           lfs: false
+
+      - name: Require canonical promotion source and inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::final Starlight promotion may only be dispatched from refs/heads/main; got ${GITHUB_REF}" >&2
+            exit 1
+          fi
+          if [[ "${{ inputs.release_candidate }}" != "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml" ]]; then
+            echo "::error::final Starlight promotion requires the canonical release-candidate manifest" >&2
+            exit 1
+          fi
+          if [[ "${{ inputs.scientific_decision }}" != "docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json" ]]; then
+            echo "::error::final Starlight promotion requires the canonical scientific decision record" >&2
+            exit 1
+          fi
+          if [[ "${{ inputs.redistribution_decision }}" != "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json" ]]; then
+            echo "::error::final Starlight promotion requires the canonical redistribution decision record" >&2
+            exit 1
+          fi
+          if [[ "${{ inputs.candidate_map }}" != "crates/nsb/data/starlight_nside128.csv" ]]; then
+            echo "::error::final Starlight promotion requires the canonical frozen candidate map" >&2
+            exit 1
+          fi
+          git fetch origin main --no-tags --depth=1
+          head="$(git rev-parse HEAD)"
+          origin_main="$(git rev-parse origin/main)"
+          if [[ "$head" != "$origin_main" ]]; then
+            echo "::error::checked-out promotion commit $head is not the current origin/main $origin_main" >&2
+            exit 1
+          fi
+          echo "promotion source verified at main commit $head"
 
       - name: Verify decision files exist
         shell: bash
@@ -84,6 +118,12 @@ jobs:
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
+
+      - name: Verify frozen human review bundle
+        run: >-
+          cargo test --locked -p nsb-data-tools
+          --test starlight_review_bundle_contract
+          frozen_review_bundle_pins_exact_human_evidence -- --exact
 
       - name: Pack runtime map and apply production registry
         run: |
