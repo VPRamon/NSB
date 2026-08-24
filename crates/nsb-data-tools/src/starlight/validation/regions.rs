@@ -376,7 +376,7 @@ fn angular_separation_deg(l1: f64, b1: f64, l2: f64, b2: f64) -> f64 {
 /// 2005). This is an independent re-derivation, not a call into the
 /// production map writer, so that validation tooling does not share a bug
 /// with the code it is meant to check.
-fn pix2ang_nested(nside: u32, pixel: u32) -> Result<(f64, f64)> {
+pub(crate) fn pix2ang_nested(nside: u32, pixel: u32) -> Result<(f64, f64)> {
     const JRLL: [i64; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
     const JPLL: [i64; 12] = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
 

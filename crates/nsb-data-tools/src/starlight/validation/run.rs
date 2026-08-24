@@ -15,6 +15,7 @@ use super::report::{
     VALIDATION_RESULTS_SCHEMA_VERSION,
 };
 use super::transformed_grid;
+use super::transforms::{Admissibility, TransformRecord};
 use crate::platform::{artifact_store, checksum_io};
 use anyhow::{bail, Context, Result};
 use std::collections::BTreeSet;
@@ -95,10 +96,21 @@ pub fn run(inputs: &RunInputs) -> Result<ValidationResults> {
             });
             continue;
         }
-        let grid_path = inputs
-            .references_workspace
-            .join(&reference.id)
-            .join("transformed-grid-v1.csv");
+        let transform_dir = inputs.references_workspace.join(&reference.id);
+        let status_path = transform_dir.join("transform-status-v1.json");
+        if status_path.is_file() {
+            let record: TransformRecord = serde_json::from_slice(&fs::read(&status_path)?)
+                .with_context(|| format!("parse {}", status_path.display()))?;
+            if record.admissibility == Admissibility::NotAdmissible {
+                reference_statuses.push(ReferenceRunStatus {
+                    reference_id: reference.id.clone(),
+                    status: "not-admissible".to_string(),
+                    detail: record.detail,
+                });
+                continue;
+            }
+        }
+        let grid_path = transform_dir.join("transformed-grid-v1.csv");
         let grid = transformed_grid::load_if_present(&grid_path, regions.nside)?;
         let Some(grid) = grid else {
             reference_statuses.push(ReferenceRunStatus {
@@ -267,6 +279,10 @@ fn write_outputs(output: &Path, results: &ValidationResults, inputs: &RunInputs)
     let report_bytes = super::report::render_markdown(results).into_bytes();
     artifact_store::atomic_write(&report_path, &report_bytes)?;
 
+    let html_path = output.join("validation-report-v1.html");
+    let html_bytes = super::report::render_html(results).into_bytes();
+    artifact_store::atomic_write(&html_path, &html_bytes)?;
+
     let manifest_path = output.join("validation-artifact-manifest-v1.toml");
     let artifacts = vec![
         manifest_entry("preregistration-v1.toml", &inputs.preregistration)?,
@@ -275,6 +291,7 @@ fn write_outputs(output: &Path, results: &ValidationResults, inputs: &RunInputs)
         manifest_entry("candidate-map", &inputs.candidate_map)?,
         manifest_entry("validation-results-v1.json", &results_path)?,
         manifest_entry("validation-report-v1.md", &report_path)?,
+        manifest_entry("validation-report-v1.html", &html_path)?,
     ];
     let manifest = super::ArtifactManifest {
         schema_version: super::report::VALIDATION_MANIFEST_SCHEMA_VERSION,

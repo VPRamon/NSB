@@ -1,0 +1,19 @@
+# leinert-1998-isl-analytic-v1
+# Transcription of the published integrated-starlight analytical model in
+# Leinert et al. 1998, A&AS, 127, 1, section "The integrated starlight".
+# Quote: a two-dimensional Gauss distribution was fitted to the blue
+# isophotes of Elsässer & Haug (1960). Constants: I1(l=0,b=0)=260 S10,
+# I1(l=120,b=0)=I1(l=240,b=0)=100 S10, I1(l,b=±30)=50 S10. At higher
+# galactic latitudes an exponential decrease was assumed with
+# I1(l,b=±80)=20 S10 following Roach & Megill (1961).
+# Reconstruction id leinert-1998-isl-analytic-v1 is implemented in
+# crates/nsb-data-tools/src/starlight/validation/transforms.rs.
+# Quantity: integrated starlight (ISL) in S10 units; DGL is not included
+# in this particular Leinert ISL scattering model.
+parameter,value,unit
+I_l0_b0,260,S10
+I_l120_b0,100,S10
+I_l240_b0,100,S10
+I_abs_b_30,50,S10
+I_abs_b_80,20,S10
+reconstruction_id,leinert-1998-isl-analytic-v1,

@@ -42,16 +42,14 @@ by this pipeline.
 # rejects any preregistration that points at a different path.
 map_path = "crates/nsb/data/starlight_nside128.csv"
 map_schema = "nsb-healpix-starlight-candidate-v5"
-# As of this preregistration, `crates/nsb/data/manifest.toml` pins
-# sha256 = "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
-# for `starlight_nside128.csv`. Issue #94 (uncertainty scale audit) is
-# expected to regenerate the map and its checksum before validation coverage
-# from this pipeline should be treated as trustworthy; this preregistration
-# intentionally pins the *path*, not that specific checksum, so it survives a
-# #94 regeneration. `dataset starlight validation run --candidate-map-sha256`
-# accepts an explicit expected checksum per invocation instead.
-checksum_pinning_status = "pending-regeneration-after-94"
-checksum_note = "checksum may change after the #94 uncertainty scale audit regenerates the map; pin the checksum used for a specific run via --candidate-map-sha256, not in this file"
+# As of the UV v2 Ladon rebuild, `crates/nsb/data/manifest.toml` pins
+# sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
+# for `starlight_nside128.csv`. Issue #94's invalidated checksum
+# 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
+# retained only as provenance. `dataset starlight validation run --candidate-map-sha256`
+# should be invoked with the pinned UV v2 digest.
+checksum_pinning_status = "pinned-uv-v2"
+checksum_note = "candidate sha256 5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563 (UV v2 Ladon rebuild). Pin the same digest via --candidate-map-sha256 on each run."
 
 [tolerances]
 # Preregistered technical gates, copied verbatim from issue #87:

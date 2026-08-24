@@ -102,6 +102,9 @@ enum StarlightAction {
     Publish(CommonArgs),
     /// Independent validation pipeline for issue #87 (acquire references, run comparisons).
     Validation(StarlightValidationArgs),
+    /// Verify a release-candidate manifest and both human decisions, then
+    /// draft (but never apply) the production manifest change (#89).
+    Promote(PromoteArgs),
 }
 
 #[derive(Debug, Args)]
@@ -114,6 +117,8 @@ struct StarlightValidationArgs {
 enum StarlightValidationCommand {
     /// Download or locate registered reference files and write verified receipts.
     Acquire(StarlightValidationAcquireArgs),
+    /// Convert acquired references onto the candidate map's photon-flux grid.
+    Transform(StarlightValidationTransformArgs),
     /// Compare the candidate map against every acquired-and-transformed reference.
     Run(StarlightValidationRunArgs),
 }
@@ -127,6 +132,22 @@ struct StarlightValidationAcquireArgs {
     #[arg(long)]
     workspace: PathBuf,
     /// Override a reference's source, formatted as `id=url-or-local-path`. May repeat.
+    #[arg(long = "source", value_parser = parse_source_override)]
+    sources: Vec<(String, String)>,
+}
+
+#[derive(Debug, Args)]
+struct StarlightValidationTransformArgs {
+    /// Path to `references-v1.toml`.
+    #[arg(long)]
+    references: PathBuf,
+    /// Directory holding receipts, objects, and per-reference transform outputs.
+    #[arg(long)]
+    workspace: PathBuf,
+    /// HEALPix nside of the comparison grid (must match the candidate map).
+    #[arg(long, default_value_t = 128)]
+    nside: u32,
+    /// Optional `id=/path` overrides for the acquired source bytes.
     #[arg(long = "source", value_parser = parse_source_override)]
     sources: Vec<(String, String)>,
 }
@@ -154,6 +175,26 @@ struct StarlightValidationRunArgs {
     /// Output directory for results, report, and artifact manifest.
     #[arg(long)]
     output: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct PromoteArgs {
+    /// Path to the `nsb-starlight-release-candidate-v1` manifest.
+    #[arg(long)]
+    release_candidate: PathBuf,
+    /// Path to the recorded scientific review decision JSON.
+    #[arg(long)]
+    scientific_decision: PathBuf,
+    /// Path to the recorded redistribution review decision JSON.
+    #[arg(long)]
+    redistribution_decision: PathBuf,
+    /// Repository root used to resolve and checksum the candidate map and
+    /// its asset registry entry.
+    #[arg(long)]
+    repository_root: PathBuf,
+    /// Optional path to write the draft production manifest fragment.
+    #[arg(long)]
+    output: Option<PathBuf>,
 }
 
 fn parse_source_override(raw: &str) -> Result<(String, String), String> {
@@ -285,6 +326,7 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
         StarlightAction::Validate(args) => (Operation::Validate, args),
         StarlightAction::Publish(args) => (Operation::Publish, args),
         StarlightAction::Validation(args) => return execute_starlight_validation(args),
+        StarlightAction::Promote(args) => return promote(args),
     };
     dataset::execute(
         &common.config,
@@ -332,6 +374,56 @@ fn execute_starlight_validation(args: StarlightValidationArgs) -> Result<()> {
             }
             Ok(())
         }
+        StarlightValidationCommand::Transform(args) => {
+            let bytes = std::fs::read(&args.references)
+                .map_err(|error| anyhow::anyhow!("read {}: {error}", args.references.display()))?;
+            let document: crate::starlight::validation::references::ReferencesDocument =
+                toml::from_str(std::str::from_utf8(&bytes)?).map_err(|error| {
+                    anyhow::anyhow!("parse {}: {error}", args.references.display())
+                })?;
+            document.validate()?;
+            let overrides = args.sources.into_iter().collect::<BTreeMap<_, _>>();
+            for reference in &document.references {
+                if reference.status
+                    != crate::starlight::validation::references::ReferenceStatus::Acquired
+                {
+                    println!("{}: skipped (not acquired)", reference.id);
+                    continue;
+                }
+                let acquired = if let Some(path) = overrides.get(&reference.id) {
+                    PathBuf::from(path)
+                } else {
+                    let receipt_path = args
+                        .workspace
+                        .join("receipts")
+                        .join(format!("{}.json", reference.id));
+                    if receipt_path.is_file() {
+                        let receipt: crate::starlight::validation::acquire::ReferenceAcquisitionReceipt =
+                            serde_json::from_slice(&std::fs::read(&receipt_path)?)?;
+                        receipt.object_path
+                    } else {
+                        anyhow::bail!(
+                            "no acquired bytes for {}; pass --source {}=/path or run acquire first",
+                            reference.id,
+                            reference.id
+                        );
+                    }
+                };
+                let output_dir = args.workspace.join(&reference.id);
+                let record =
+                    crate::starlight::validation::transforms::transform_acquired_reference(
+                        &reference.id,
+                        &acquired,
+                        &output_dir,
+                        args.nside,
+                    )?;
+                println!(
+                    "{}: {:?} — {}",
+                    record.reference_id, record.admissibility, record.detail
+                );
+            }
+            Ok(())
+        }
         StarlightValidationCommand::Run(args) => {
             let inputs = crate::starlight::validation::run::RunInputs {
                 preregistration: args.preregistration,
@@ -357,4 +449,29 @@ fn execute_starlight_validation(args: StarlightValidationArgs) -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn promote(args: PromoteArgs) -> Result<()> {
+    let inputs = crate::starlight::promotion::PromotionInputs {
+        release_candidate: args.release_candidate,
+        scientific_decision: args.scientific_decision,
+        redistribution_decision: args.redistribution_decision,
+        repository_root: args.repository_root,
+        output: args.output,
+    };
+    let outcome = crate::starlight::promotion::run_promotion(&inputs)?;
+    match &outcome.written_to {
+        Some(path) => println!(
+            "promotion checks passed; draft production manifest written to {}",
+            path.display()
+        ),
+        None => {
+            println!("promotion checks passed; draft production manifest fragment:");
+            println!("{}", outcome.draft_manifest_fragment);
+        }
+    }
+    println!(
+        "no map bytes or repository manifest.toml were modified; a maintainer must apply this draft manually as part of the #47 promotion PR"
+    );
+    Ok(())
 }

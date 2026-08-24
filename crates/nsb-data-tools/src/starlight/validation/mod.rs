@@ -19,6 +19,7 @@ pub mod regions;
 pub mod report;
 pub mod run;
 pub mod transformed_grid;
+pub mod transforms;
 
 use serde::{Deserialize, Serialize};
 

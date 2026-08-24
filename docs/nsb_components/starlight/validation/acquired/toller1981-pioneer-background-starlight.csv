@@ -1,0 +1,12 @@
+# Pioneer 10 Imaging Photopolarimeter background starlight at the Galactic
+# poles. Values transcribed from Leinert et al. 1998, A&AS, 127, 1, Table 34
+# ("background starlight and integrated starlight at the north and south
+# celestial, ecliptic, and galactic poles"), Pioneer 10 column, originally
+# Toller 1981 / Toller et al. 1987. Blue bandpass ~440 nm. Unit: S10.
+# Quantity is total background starlight (ISL + DGL + EBL) with zodiacal
+# light absent (R >= 3 AU). Diffuse galactic light is not separable here,
+# so this table is acquired for provenance but is not admissible as a
+# starlight-only comparison grid.
+l_deg,b_deg,s10_blue,s10_uncertainty,label
+0.0,90.0,27.0,5.0,NGP-pioneer10-440nm
+0.0,-90.0,33.0,5.0,SGP-pioneer10-440nm

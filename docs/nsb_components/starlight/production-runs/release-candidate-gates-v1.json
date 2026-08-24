@@ -1,0 +1,74 @@
+{
+  "schema_version": 1,
+  "dataset": "starlight",
+  "status": "gates_passed",
+  "passed": true,
+  "blocking_issue": null,
+  "commit_sha": null,
+  "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
+  "candidate_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
+  "merge_report_path": "crates/nsb/data/merge_report.json",
+  "merge_report_sha256": "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228",
+  "config_path": "crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml",
+  "config_sha256": "fffaa792c3009909df10e4ed40235f1f541c111fb19e2e512ab45d6b1e7c9455",
+  "manifest_path": "crates/nsb/data/manifest.toml",
+  "manifest_sha256": "ae917e66c27a9715963ff42693a5c13859dae941e7669e7877b7cf01172aff99",
+  "uv_correction_artifact": "calspec-linear-log-ratio-v2",
+  "uv_correction_artifact_sha256": "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367",
+  "toolchain": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "invalidated_candidate": {
+    "reason": "UV artifact calspec-linear-log-ratio-v1 applied absolute CALSPEC RMSE floors (~1e19 ph m-2 s-1) per Gaia source.",
+    "reference_issue": 94,
+    "reference_url": "https://github.com/VPRamon/NSB/issues/94",
+    "commit_sha": "bb70bb56c34d24309e2baf1af7e69e2aeea2f434",
+    "candidate_sha256": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a",
+    "merge_report_sha256": "5b2419a113cf160e724a1afc687e3632862dc8d7f9081bd48b297e072e7af147",
+    "source_pull_request": "https://github.com/VPRamon/NSB/pull/93"
+  },
+  "recorded_commands": [
+    {
+      "name": "format",
+      "command": "cargo fmt --all -- --check",
+      "status": "passed"
+    },
+    {
+      "name": "clippy_nsb_data_tools",
+      "command": "cargo clippy -p nsb-data-tools --lib --bins --tests --all-features --locked -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "name": "unit_tests",
+      "command": "cargo test --workspace --lib --bins --all-features --locked",
+      "status": "passed"
+    },
+    {
+      "name": "verify_assets",
+      "command": "cargo test --locked -p nsb-data-tools --test scientific_assets",
+      "status": "passed"
+    },
+    {
+      "name": "dataset_starlight_validate",
+      "command": "nsb-data dataset starlight validate (Ladon workspace starlight-production-300-650-uv-v2)",
+      "status": "passed",
+      "detail": "includes uncertainty-scale-plausible; pixel_relative_p50=0.243; fraction_gt_1=0"
+    },
+    {
+      "name": "cargo_deny",
+      "command": "cargo deny check",
+      "status": "skipped",
+      "detail": "cargo-deny not installed on the recording workstation"
+    }
+  ],
+  "starlight_suites": [
+    {
+      "name": "performance",
+      "command": "cargo run --release -p nsb --example starlight_candidate_load_benchmark",
+      "status": "recorded",
+      "reference": "docs/nsb_components/starlight/production-runs/performance-v1.json"
+    }
+  ],
+  "performance_reference": "docs/nsb_components/starlight/production-runs/performance-v1.json",
+  "documentation_audit_reference": "docs/nsb_components/starlight/production-runs/documentation-wording-audit-v1.md",
+  "promotion_workflow": ".github/workflows/starlight-final-promotion.yml",
+  "notes": "Technical RC gates for the UV v2 candidate. Independent validation (#87) versus Leinert 1998 ISL failed preregistered numerical tolerances (see docs/nsb_components/starlight/validation/results/); that is scientific evidence for #47, not a reason to flip this file's passed flag which records pipeline/validate/fmt/test locks on the new bytes. promotion_eligible remains false until #47 signatures."
+}

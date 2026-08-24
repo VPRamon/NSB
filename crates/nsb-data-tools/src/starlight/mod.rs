@@ -6,6 +6,7 @@ pub mod map;
 pub mod migration;
 pub mod photometric;
 mod pipeline;
+pub mod promotion;
 pub mod selection;
 pub mod sources;
 pub mod uncertainty;

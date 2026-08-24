@@ -186,6 +186,27 @@ fn verify_header(asset: &Asset, text: &str) -> Result<()> {
     Ok(())
 }
 
+#[test]
+fn repository_does_not_embed_restricted_gaia_or_calspec_inputs() -> Result<()> {
+    let data = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nsb/data");
+    let data = data.canonicalize().context("resolve crates/nsb/data")?;
+    for entry in fs::read_dir(&data)? {
+        let name = entry?.file_name().to_string_lossy().into_owned();
+        for forbidden in [
+            "GaiaSource_",
+            "XpContinuousMeanSpectrum_",
+            "allsky_M10",
+            ".fits",
+            ".hdf5",
+        ] {
+            if name.contains(forbidden) {
+                bail!("restricted input {name} must not be embedded under crates/nsb/data");
+            }
+        }
+    }
+    Ok(())
+}
+
 fn discover_assets(base: &Path) -> Result<BTreeSet<String>> {
     let mut files = BTreeSet::new();
     discover_recursive(base, base, &mut files)?;

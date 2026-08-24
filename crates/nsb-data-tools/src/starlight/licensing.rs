@@ -765,4 +765,49 @@ mod tests {
         assert_eq!(review.decision().decision, RedistributionDecision::Pending);
         assert!(review.require_approved().is_err());
     }
+
+    #[test]
+    fn restricted_gaia_xp_and_calspec_inputs_must_not_be_distributed() {
+        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let repository_root = manifest_dir
+            .parent()
+            .and_then(Path::parent)
+            .expect("crate lives two levels below the repository root");
+        let inventory_path = repository_root
+            .join("docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml");
+        if !inventory_path.exists() {
+            return;
+        }
+        let bytes = fs::read(&inventory_path).unwrap();
+        let inventory: ArtifactInventory =
+            toml::from_str(std::str::from_utf8(&bytes).unwrap()).unwrap();
+        inventory.validate().unwrap();
+        for artifact in &inventory.artifacts {
+            if matches!(
+                artifact.id.as_str(),
+                "gaia-source-bulk" | "gaia-xp-continuous-bulk" | "calspec-reference-spectra"
+            ) {
+                assert!(
+                    !artifact.distributed,
+                    "{} must never be distributed",
+                    artifact.id
+                );
+                assert_ne!(
+                    artifact.distribution_class,
+                    DistributionClass::RepositoryEmbedded
+                );
+            }
+        }
+        let data = repository_root.join("crates/nsb/data");
+        for entry in fs::read_dir(&data).unwrap() {
+            let name = entry.unwrap().file_name().to_string_lossy().into_owned();
+            assert!(
+                !name.starts_with("GaiaSource_")
+                    && !name.starts_with("XpContinuousMeanSpectrum_")
+                    && !name.ends_with(".fits")
+                    && !name.ends_with(".hdf5"),
+                "restricted input {name} must not be in crates/nsb/data"
+            );
+        }
+    }
 }

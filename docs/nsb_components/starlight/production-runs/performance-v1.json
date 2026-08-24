@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "dataset": "starlight",
+  "status": "partial",
+  "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
+  "candidate_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
+  "candidate_invalidated": false,
+  "measured_at_utc": "2026-08-24T11:35:00Z",
+  "machine": {
+    "cpu": "local workstation",
+    "os": "Linux x86_64",
+    "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+    "build_profile": "release"
+  },
+  "methodology": "cargo run --release -p nsb --example starlight_candidate_load_benchmark",
+  "measurements": [
+    {
+      "name": "file_size",
+      "value": 20394694,
+      "unit": "bytes",
+      "detail": "std::fs::metadata on crates/nsb/data/starlight_nside128.csv"
+    },
+    {
+      "name": "runtime_api_load",
+      "status": "unsupported",
+      "detail": "StarlightMap::from_csv_path still rejects the Gaia candidate schema (pixel,flux_ph_m2_s,...). BundledProductionGaiaDr3 remains gated and does not parse this CSV via the public runtime API.",
+      "observed_error": "data parse error in starlight map csv: unsupported starlight map header \"pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\""
+    },
+    {
+      "name": "proxy_read_and_parse",
+      "status": "measured",
+      "detail": "Crude proxy: iterate every CSV row with csv-crate settings (comment='#', full trim). Five consecutive release-binary runs; not Criterion.",
+      "row_count": 196608,
+      "runs": [
+        { "total_seconds": 0.053908 },
+        { "total_seconds": 0.057369 },
+        { "total_seconds": 0.055464 },
+        { "total_seconds": 0.053518 },
+        { "total_seconds": 0.060070 }
+      ],
+      "min_total_seconds": 0.053518,
+      "max_total_seconds": 0.060070
+    }
+  ],
+  "deferred_metrics": [
+    {
+      "name": "validated_runtime_load",
+      "reason": "Public StarlightMap::from_csv_path does not accept nsb-healpix-starlight-candidate-v5. Timing that path would invent a loader."
+    }
+  ],
+  "notes": "Re-measured against the UV v2 candidate 5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563. Reproduce with cargo run --release -p nsb --example starlight_candidate_load_benchmark."
+}
