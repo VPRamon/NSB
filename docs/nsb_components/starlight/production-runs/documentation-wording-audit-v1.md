@@ -1,7 +1,9 @@
 # Starlight documentation wording audit (v1)
 
-Status: One-time audit for issue #90, checked in as evidence rather than as a
-recurring CI gate.
+Status: One-time audit for issue #90, retained as historical evidence.
+The current remaining production blocker is issue #103 (human scientific and
+redistribution approval). Issue #47 is not the current final Starlight gate.
+
 Scope: `docs/nsb_components/starlight/**/*.md` and Starlight source under
 `crates/nsb-data-tools/src/starlight/**/*.rs` and
 `crates/nsb/src/components/starlight/**/*.rs`.

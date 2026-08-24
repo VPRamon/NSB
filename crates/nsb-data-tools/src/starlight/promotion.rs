@@ -10,8 +10,13 @@
 //! registry entries. It never grants approval itself.
 
 use crate::platform::checksum_io;
+use crate::starlight::conditions::{
+    verify_approved_with_conditions, ConditionEvidence, ReviewCondition,
+};
 use crate::starlight::licensing::RedistributionReview;
-use crate::starlight::pack::{self, PackInputs};
+use crate::starlight::pack::{
+    self, PackInputs, GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256, XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256,
+};
 use anyhow::{bail, Context, Result};
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
@@ -245,7 +250,7 @@ pub struct ReviewDecision {
     pub reviewed_at_utc: Option<String>,
     pub candidate_sha256: String,
     #[serde(default)]
-    pub conditions: Vec<String>,
+    pub conditions: Vec<ReviewCondition>,
     pub notes: String,
 }
 
@@ -280,7 +285,12 @@ impl ReviewDecision {
         )?;
         require_text(&format!("{} decision notes", kind.label()), &self.notes)?;
         for condition in &self.conditions {
-            require_text(&format!("{} decision condition", kind.label()), condition)?;
+            condition.require_text_non_empty().with_context(|| {
+                format!(
+                    "{} decision has an empty or invalid condition",
+                    kind.label()
+                )
+            })?;
         }
         Ok(())
     }
@@ -345,6 +355,22 @@ impl ReviewDecision {
             );
         }
         Ok(())
+    }
+
+    fn verify_conditions(
+        &self,
+        kind: DecisionKind,
+        evidence: &ConditionEvidence<'_>,
+    ) -> Result<()> {
+        if self.decision != ReviewStatus::ApprovedWithConditions {
+            return Ok(());
+        }
+        verify_approved_with_conditions(&self.conditions, evidence).with_context(|| {
+            format!(
+                "{} approved_with_conditions is not machine-satisfied",
+                kind.label()
+            )
+        })
     }
 }
 
@@ -442,7 +468,10 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         &candidate.candidate.candidate_sha256,
     )?;
 
-    verify_licensing_redistribution_review(&inputs.repository_root, &candidate.review_artifacts)?;
+    let licensing = verify_licensing_redistribution_review(
+        &inputs.repository_root,
+        &candidate.review_artifacts,
+    )?;
 
     // Decision files are authoritative. Stale TOML gate statuses must not
     // require a second manual edit after #103 signatures land.
@@ -477,6 +506,16 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         output_sidecar: staged_pack_sidecar,
         provenance_headers: runtime_admission_headers(&candidate.candidate),
     })?;
+
+    let evidence = ConditionEvidence {
+        repository_root: &inputs.repository_root,
+        candidate_sha256: &candidate.candidate.candidate_sha256,
+        runtime_map_sha256: Some(pack_outcome.runtime_map_sha256.as_str()),
+        inventory_sha256: Some(candidate.review_artifacts.inventory_sha256.as_str()),
+    };
+    scientific.verify_conditions(DecisionKind::Scientific, &evidence)?;
+    redistribution.verify_conditions(DecisionKind::Redistribution, &evidence)?;
+    licensing.verify_conditions(&evidence)?;
 
     if let Some(expected) = &candidate.review_artifacts.runtime_map_sha256 {
         if &pack_outcome.runtime_map_sha256 != expected {
@@ -640,8 +679,7 @@ fn verify_frozen_gates_report(
     struct FrozenGatesReport {
         passed: bool,
         commit_sha: Option<String>,
-        #[serde(default)]
-        candidate_sha256: Option<String>,
+        candidate_sha256: String,
         #[serde(default)]
         recorded_commands: Vec<FrozenCommand>,
     }
@@ -656,12 +694,15 @@ fn verify_frozen_gates_report(
     if !report.passed {
         bail!("frozen gates report has passed=false; promotion is blocked");
     }
-    if let Some(pinned) = report.candidate_sha256 {
-        if pinned != expected_candidate_sha256 {
-            bail!(
-                "frozen gates report pins candidate {pinned}, release candidate pins {expected_candidate_sha256}"
-            );
-        }
+    require_sha256(
+        "frozen gates report candidate_sha256",
+        &report.candidate_sha256,
+    )?;
+    if report.candidate_sha256 != expected_candidate_sha256 {
+        bail!(
+            "frozen gates report pins candidate {}, release candidate pins {expected_candidate_sha256}",
+            report.candidate_sha256
+        );
     }
     const REQUIRED_GATES: &[&str] = &[
         "format",
@@ -696,7 +737,7 @@ fn verify_frozen_gates_report(
 fn verify_licensing_redistribution_review(
     repository_root: &Path,
     artifacts: &ReviewArtifactsSection,
-) -> Result<()> {
+) -> Result<RedistributionReview> {
     let inventory_path = repository_root.join(&artifacts.inventory_path);
     let inventory_bytes = fs::read(&inventory_path)
         .with_context(|| format!("read artifact inventory {}", inventory_path.display()))?;
@@ -710,7 +751,8 @@ fn verify_licensing_redistribution_review(
     }
     let decision_path = repository_root.join(&artifacts.licensing_decision_path);
     let review = RedistributionReview::load(&inventory_path, &decision_path)?;
-    review.require_approved()
+    review.require_approved()?;
+    Ok(review)
 }
 
 fn require_packed_runtime_header(map_path: &Path) -> Result<()> {
@@ -726,7 +768,7 @@ fn require_packed_runtime_header(map_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, String> {
+pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, String> {
     let map_resolution = format!("HEALPix nside={} ordering=ring", candidate.nside);
     let version = format!("uv-v2-packed-from-{}", candidate.candidate_sha256);
     BTreeMap::from([
@@ -747,7 +789,19 @@ fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, S
         ),
         (
             "source_catalogue_checksum".into(),
+            format!("sha256:{GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256}"),
+        ),
+        (
+            "source_candidate_sha256".into(),
             format!("sha256:{}", candidate.candidate_sha256),
+        ),
+        (
+            "gaia_source_checksum_manifest_sha256".into(),
+            format!("sha256:{GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256}"),
+        ),
+        (
+            "xp_continuous_checksum_manifest_sha256".into(),
+            format!("sha256:{XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256}"),
         ),
         (
             "source_selection".into(),
@@ -784,7 +838,7 @@ fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, S
     ])
 }
 
-fn write_production_sidecar(
+pub(crate) fn write_production_sidecar(
     path: &Path,
     candidate: &CandidateSection,
     runtime_map_sha256: &str,
@@ -800,7 +854,7 @@ generation_date = "2026-08-24T00:00:00Z"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous"
 source_catalogue_release = "{}"
 source_catalogue_license = "CC BY-NC 3.0 IGO"
-source_catalogue_checksum = "sha256:{}"
+source_catalogue_checksum = "sha256:{GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256}"
 source_selection = "Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights"
 magnitude_limit = "Gaia DR3 catalogue as admitted by the frozen merge report"
 map_resolution = "{map_resolution}"
@@ -813,8 +867,21 @@ map_sha256 = "sha256:{runtime_map_sha256}"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
 independent_comparison = "no_admissible_independent_reference; human review #103"
 flux_conservation_validated = true
-input_integrated_flux_sum = {all_sky_flux_sum_ph_m2_s:.16e}
+input_integrated_flux_sum = {:.16e}
 integrated_flux_conservation_tolerance = 1e-12
+
+[source_candidate]
+sha256 = "{}"
+
+[[upstream_inputs]]
+id = "gaia-source"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "{GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256}"
+
+[[upstream_inputs]]
+id = "xp-continuous"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "{XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256}"
 
 [header]
 map_type = "healpix"
@@ -828,7 +895,10 @@ generation_date_utc = "2026-08-24T00:00:00Z"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous"
 source_catalogue_release = "{}"
 source_catalogue_license = "CC BY-NC 3.0 IGO"
-source_catalogue_checksum = "sha256:{}"
+source_catalogue_checksum = "sha256:{GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256}"
+source_candidate_sha256 = "sha256:{}"
+gaia_source_checksum_manifest_sha256 = "sha256:{GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256}"
+xp_continuous_checksum_manifest_sha256 = "sha256:{XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256}"
 source_selection = "Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights"
 magnitude_limit = "Gaia DR3 catalogue as admitted by the frozen merge report"
 map_resolution = "{map_resolution}"
@@ -843,9 +913,10 @@ independent_comparison = "no_admissible_independent_reference; human review #103
 "#,
         candidate.candidate_sha256,
         candidate.gaia_release,
-        candidate.candidate_sha256,
         candidate.band,
         pack::PACKER_ID,
+        all_sky_flux_sum_ph_m2_s * 1.0e-13,
+        candidate.candidate_sha256,
         candidate.nside,
         "ring",
         candidate.candidate_sha256,
@@ -910,6 +981,13 @@ fn registry_asset_table(
     table["gaia_release"] = toml_edit::value(candidate.gaia_release.as_str());
     table["band"] = toml_edit::value(candidate.band.as_str());
     table["units"] = toml_edit::value("ph_cm2_ns_sr");
+    table["source"] = toml_edit::value("Gaia DR3 GaiaSource and XP continuous bulk distributions");
+    table["license"] = toml_edit::value("Gaia data licence: CC BY-NC 3.0 IGO");
+    table["generator"] = toml_edit::value("nsb-data dataset starlight promote");
+    table["generation_command"] = toml_edit::value("nsb-data dataset starlight promote --apply");
+    table["validation_report"] = toml_edit::value(
+        "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json",
+    );
     table["calibration_status"] = toml_edit::value(if production {
         "production"
     } else {
@@ -1415,6 +1493,137 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             .contains("requires at least one recorded condition"));
     }
 
+    fn structured_candidate_condition(sha: &str) -> String {
+        format!(
+            r#"{{"id":"pin-candidate","description":"candidate SHA","verifier":{{"type":"candidate_sha256","sha256":"{sha}"}}}}"#
+        )
+    }
+
+    #[test]
+    fn approved_with_conditions_free_text_blocks_promotion() {
+        let repo = write_synthetic_repo(
+            "pinned",
+            "technical_pass",
+            true,
+            &decision_json(
+                "approved_with_conditions",
+                "\"Fix X before production\"",
+                &synthetic_candidate_sha256(),
+            ),
+            &decision_json("approved", "", &synthetic_candidate_sha256()),
+        );
+        let error = format!("{:#}", run_promotion(&inputs(&repo, None)).unwrap_err());
+        assert!(error.contains("not machine-verifiable"), "{error}");
+    }
+
+    #[test]
+    fn approved_with_conditions_structured_candidate_pin_succeeds() {
+        let sha = synthetic_candidate_sha256();
+        let repo = write_synthetic_repo(
+            "pinned",
+            "technical_pass",
+            true,
+            &decision_json(
+                "approved_with_conditions",
+                &structured_candidate_condition(&sha),
+                &sha,
+            ),
+            &decision_json("approved", "", &sha),
+        );
+        run_promotion(&inputs(&repo, None)).unwrap();
+    }
+
+    #[test]
+    fn approved_with_conditions_one_failed_among_several_blocks() {
+        let sha = synthetic_candidate_sha256();
+        let conditions = format!(
+            "{},{{\"id\":\"bad-runtime\",\"description\":\"runtime\",\"verifier\":{{\"type\":\"runtime_map_sha256\",\"sha256\":\"{}\"}}}}",
+            structured_candidate_condition(&sha),
+            "b".repeat(64)
+        );
+        let repo = write_synthetic_repo(
+            "pinned",
+            "technical_pass",
+            true,
+            &decision_json("approved_with_conditions", &conditions, &sha),
+            &decision_json("approved", "", &sha),
+        );
+        let error = format!("{:#}", run_promotion(&inputs(&repo, None)).unwrap_err());
+        assert!(error.contains("runtime map checksum mismatch"), "{error}");
+    }
+
+    fn rewrite_gates_and_repin(repo: &SyntheticRepo, new_gates: &str) {
+        let gates_path = repo
+            .root
+            .join("docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json");
+        let old_sha = checksum_io::sha256_file(&gates_path).unwrap();
+        fs::write(&gates_path, new_gates).unwrap();
+        let new_sha = checksum_io::sha256_file(&gates_path).unwrap();
+        let rc = fs::read_to_string(&repo.release_candidate)
+            .unwrap()
+            .replace(&old_sha, &new_sha);
+        fs::write(&repo.release_candidate, rc).unwrap();
+    }
+
+    #[test]
+    fn frozen_gates_report_requires_matching_candidate_sha256() {
+        let repo = valid_synthetic_repo();
+        let gates_path = repo
+            .root
+            .join("docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json");
+        let original = fs::read_to_string(&gates_path).unwrap();
+        let sha = synthetic_candidate_sha256();
+        rewrite_gates_and_repin(
+            &repo,
+            &original.replace(&format!("\"candidate_sha256\": \"{sha}\","), ""),
+        );
+        let error = format!("{:#}", run_promotion(&inputs(&repo, None)).unwrap_err());
+        assert!(
+            error.contains("candidate_sha256") || error.contains("missing field"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn frozen_gates_report_rejects_wrong_and_malformed_candidate_sha256() {
+        let repo = valid_synthetic_repo();
+        let gates_path = repo
+            .root
+            .join("docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json");
+        let original = fs::read_to_string(&gates_path).unwrap();
+        let sha = synthetic_candidate_sha256();
+        rewrite_gates_and_repin(&repo, &original.replace(&sha, &"c".repeat(64)));
+        let error = run_promotion(&inputs(&repo, None)).unwrap_err();
+        assert!(error.to_string().contains("pins candidate"), "{}", error);
+
+        let repo = valid_synthetic_repo();
+        let gates_path = repo
+            .root
+            .join("docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json");
+        let original = fs::read_to_string(&gates_path).unwrap();
+        rewrite_gates_and_repin(&repo, &original.replace(&sha, "not-a-sha256-digest"));
+        let error = run_promotion(&inputs(&repo, None)).unwrap_err();
+        assert!(
+            error.to_string().contains("SHA-256") || error.to_string().contains("64"),
+            "{}",
+            error
+        );
+    }
+
+    #[test]
+    fn production_sidecar_does_not_use_candidate_as_catalogue_checksum() {
+        let repo = valid_synthetic_repo();
+        let outcome = run_promotion(&inputs(&repo, None)).unwrap();
+        let sidecar = fs::read_to_string(&outcome.runtime_sidecar_path).unwrap();
+        let candidate = synthetic_candidate_sha256();
+        assert!(!sidecar.contains(&format!(
+            "source_catalogue_checksum = \"sha256:{candidate}\""
+        )));
+        assert!(sidecar.contains("source_candidate"));
+        assert!(sidecar.contains(pack::GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256));
+        assert!(sidecar.contains(pack::XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256));
+    }
+
     #[test]
     fn candidate_v5_packs_into_runtime_assets() {
         let repo = valid_synthetic_repo();
@@ -1435,6 +1644,23 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             fs::read(repo.root.join("crates/nsb/data/starlight_nside128.csv")).unwrap(),
             SYNTHETIC_CANDIDATE_V5.as_bytes()
         );
+    }
+
+    #[test]
+    fn apply_writes_complete_scientific_asset_registry_fields() {
+        let repo = valid_synthetic_repo();
+        let mut promotion = inputs(&repo, None);
+        promotion.apply = true;
+        let outcome = run_promotion(&promotion).unwrap();
+        assert!(outcome.applied);
+        let raw = fs::read_to_string(repo.root.join("crates/nsb/data/manifest.toml")).unwrap();
+        assert!(raw.contains("path = \"starlight_nside128.release.csv\""));
+        assert!(
+            raw.contains("source = \"Gaia DR3 GaiaSource and XP continuous bulk distributions\"")
+        );
+        assert!(raw.contains("license = \"Gaia data licence: CC BY-NC 3.0 IGO\""));
+        assert!(raw.contains("generator = \"nsb-data dataset starlight promote\""));
+        assert!(raw.contains("runtime_embedded = true"));
     }
 
     #[test]

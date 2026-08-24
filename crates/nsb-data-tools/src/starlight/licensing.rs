@@ -15,6 +15,9 @@
 //! consistency of a decision that a human already recorded.
 
 use crate::platform::checksum_io;
+use crate::starlight::conditions::{
+    verify_approved_with_conditions, ConditionEvidence, ReviewCondition,
+};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -113,7 +116,7 @@ pub struct RedistributionReviewDecision {
     #[serde(default)]
     pub pinned_artifacts: Vec<PinnedArtifactApproval>,
     #[serde(default)]
-    pub conditions: Vec<String>,
+    pub conditions: Vec<ReviewCondition>,
     #[serde(default)]
     pub restrictions: Vec<String>,
     pub notes: String,
@@ -232,7 +235,9 @@ impl RedistributionReviewDecision {
             }
         }
         for condition in &self.conditions {
-            require_text("decision condition", condition)?;
+            condition
+                .require_text_non_empty()
+                .context("redistribution decision has an empty or invalid condition")?;
         }
         for restriction in &self.restrictions {
             require_text("decision restriction", restriction)?;
@@ -387,6 +392,14 @@ impl RedistributionReview {
             }
         }
         Ok(())
+    }
+
+    pub fn verify_conditions(&self, evidence: &ConditionEvidence<'_>) -> Result<()> {
+        if self.decision.decision != RedistributionDecision::ApprovedWithConditions {
+            return Ok(());
+        }
+        verify_approved_with_conditions(&self.decision.conditions, evidence)
+            .context("redistribution approved_with_conditions is not machine-satisfied")
     }
 }
 
@@ -710,7 +723,9 @@ mod tests {
 
         let mut decision = approved_decision(&inventory_sha256);
         decision.decision = RedistributionDecision::ApprovedWithConditions;
-        decision.conditions = vec!["synthetic-test-condition".to_string()];
+        decision.conditions = vec![crate::starlight::conditions::ReviewCondition::FreeText(
+            "synthetic-test-condition".to_string(),
+        )];
         let decision_path = write_decision(&dir, &decision);
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
         review.require_approved().unwrap();

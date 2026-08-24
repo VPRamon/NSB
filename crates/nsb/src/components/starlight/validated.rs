@@ -8,6 +8,10 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
+const GAIA_DR3_SOURCE_MANIFEST_SHA256: &str =
+    "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";
+const GAIA_DR3_XP_CONTINUOUS_MANIFEST_SHA256: &str =
+    "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd";
 
 #[derive(Debug, Clone, PartialEq)]
 /// Diagnostics proven before an external starlight map can enter production mode.
@@ -61,6 +65,24 @@ struct ExternalManifest {
     input_v_flux_sum: Option<f64>,
     flux_conservation_tolerance: Option<f64>,
     header: BTreeMap<String, String>,
+    #[serde(default)]
+    source_candidate: Option<SourceCandidateSection>,
+    #[serde(default)]
+    upstream_inputs: Vec<UpstreamInput>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SourceCandidateSection {
+    sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UpstreamInput {
+    id: String,
+    release: String,
+    checksum_manifest_sha256: String,
 }
 
 impl ValidatedStarlightMap {
@@ -198,6 +220,7 @@ impl ExternalManifest {
                 "validated external starlight requires integrated flux-conservation inputs",
             ));
         }
+        self.validate_distinct_provenance()?;
         let supplied_legacy_flux_fields = [
             self.input_b_flux_sum.is_some(),
             self.input_v_flux_sum.is_some(),
@@ -208,6 +231,65 @@ impl ExternalManifest {
         {
             return Err(invalid(
                 "input_b_flux_sum, input_v_flux_sum, and flux_conservation_tolerance must be supplied together",
+            ));
+        }
+        Ok(())
+    }
+
+    fn validate_distinct_provenance(&self) -> Result<()> {
+        let Some(source_candidate) = &self.source_candidate else {
+            return Ok(());
+        };
+        validate_sha256("source_candidate.sha256", &source_candidate.sha256)?;
+        let candidate_digest = normalize_checksum(&source_candidate.sha256);
+        if normalize_checksum(&self.source_catalogue_checksum)
+            .eq_ignore_ascii_case(candidate_digest)
+        {
+            return Err(invalid(
+                "source_catalogue_checksum must identify an upstream catalogue manifest, not the derived candidate SHA-256",
+            ));
+        }
+        let gaia_source = self
+            .upstream_inputs
+            .iter()
+            .find(|input| input.id == "gaia-source")
+            .ok_or_else(|| {
+                invalid("source_candidate maps require upstream_inputs id=gaia-source")
+            })?;
+        let xp = self
+            .upstream_inputs
+            .iter()
+            .find(|input| input.id == "xp-continuous")
+            .ok_or_else(|| {
+                invalid("source_candidate maps require upstream_inputs id=xp-continuous")
+            })?;
+        if normalize_checksum(&gaia_source.checksum_manifest_sha256)
+            != GAIA_DR3_SOURCE_MANIFEST_SHA256
+        {
+            return Err(invalid(
+                "gaia-source checksum_manifest_sha256 does not match the pinned Gaia DR3 GaiaSource acquisition manifest",
+            ));
+        }
+        if normalize_checksum(&xp.checksum_manifest_sha256)
+            != GAIA_DR3_XP_CONTINUOUS_MANIFEST_SHA256
+        {
+            return Err(invalid(
+                "xp-continuous checksum_manifest_sha256 does not match the pinned Gaia DR3 XP continuous acquisition manifest",
+            ));
+        }
+        if gaia_source.release != "Gaia DR3" || xp.release != "Gaia DR3" {
+            return Err(invalid(
+                "Gaia upstream_inputs must declare release=\"Gaia DR3\"",
+            ));
+        }
+        if self
+            .header
+            .get("source_candidate_sha256")
+            .map(|value| normalize_checksum(value))
+            != Some(candidate_digest)
+        {
+            return Err(invalid(
+                "header source_candidate_sha256 must match [source_candidate].sha256",
             ));
         }
         Ok(())
@@ -468,6 +550,43 @@ independent_comparison = "synthetic trusted reference fixture"
         (raw.into_bytes(), manifest)
     }
 
+    fn attach_source_candidate(
+        map: Vec<u8>,
+        manifest: String,
+        candidate_sha: &str,
+        extra_toml: &str,
+    ) -> (Vec<u8>, String) {
+        let text = String::from_utf8(map).unwrap();
+        let injected = text.replacen(
+            "# independent_comparison=synthetic trusted reference fixture\n",
+            &format!(
+                "# independent_comparison=synthetic trusted reference fixture\n# source_candidate_sha256=sha256:{candidate_sha}\n"
+            ),
+            1,
+        );
+        let checksum = format!("sha256:{}", to_hex(&sha256(injected.as_bytes())));
+        let mut rewritten = String::new();
+        for line in manifest.lines() {
+            if line.starts_with("map_sha256") {
+                rewritten.push_str(&format!("map_sha256 = \"{checksum}\"\n"));
+            } else {
+                rewritten.push_str(line);
+                rewritten.push('\n');
+            }
+        }
+        let rewritten = rewritten.replace(
+            "integrated_flux_conservation_tolerance = 0.000000001\n\n[header]\n",
+            &format!(
+                "integrated_flux_conservation_tolerance = 0.000000001\n\n[source_candidate]\nsha256 = \"{candidate_sha}\"\n{extra_toml}[header]\n"
+            ),
+        );
+        let rewritten = format!(
+            "{}\nsource_candidate_sha256 = \"sha256:{candidate_sha}\"\n",
+            rewritten.trim_end()
+        );
+        (injected.into_bytes(), rewritten)
+    }
+
     #[test]
     fn admits_complete_validated_external_map() {
         let (map, manifest) = fixture();
@@ -500,5 +619,64 @@ independent_comparison = "synthetic trusted reference fixture"
         );
         let err = ValidatedStarlightMap::from_bytes_and_manifest(&map, &proxy).unwrap_err();
         assert!(err.to_string().contains("proxy or experimental photometry"));
+    }
+
+    #[test]
+    fn rejects_candidate_sha_used_as_catalogue_checksum() {
+        let (map, manifest) = fixture();
+        let (map, poisoned) = attach_source_candidate(
+            map,
+            manifest,
+            "1111111111111111111111111111111111111111111111111111111111111111",
+            "",
+        );
+        let err = ValidatedStarlightMap::from_bytes_and_manifest(&map, &poisoned).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("must identify an upstream catalogue manifest"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_wrong_upstream_pins() {
+        let (map, manifest) = fixture();
+        let (map, missing) = attach_source_candidate(
+            map,
+            manifest,
+            "2222222222222222222222222222222222222222222222222222222222222222",
+            "",
+        );
+        assert!(
+            ValidatedStarlightMap::from_bytes_and_manifest(&map, &missing)
+                .unwrap_err()
+                .to_string()
+                .contains("gaia-source"),
+        );
+
+        let (map, manifest) = fixture();
+        let (map, wrong) = attach_source_candidate(
+            map,
+            manifest,
+            "2222222222222222222222222222222222222222222222222222222222222222",
+            concat!(
+                "[[upstream_inputs]]\n",
+                "id = \"gaia-source\"\n",
+                "release = \"Gaia DR3\"\n",
+                "checksum_manifest_sha256 = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n\n",
+                "[[upstream_inputs]]\n",
+                "id = \"xp-continuous\"\n",
+                "release = \"Gaia DR3\"\n",
+                "checksum_manifest_sha256 = \"f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd\"\n",
+            ),
+        );
+        let wrong = wrong.replace(
+            "source_catalogue_checksum = \"sha256:1111111111111111111111111111111111111111111111111111111111111111\"",
+            "source_catalogue_checksum = \"sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369\"",
+        );
+        assert!(ValidatedStarlightMap::from_bytes_and_manifest(&map, &wrong)
+            .unwrap_err()
+            .to_string()
+            .contains("gaia-source checksum_manifest_sha256"),);
     }
 }

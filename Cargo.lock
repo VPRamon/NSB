@@ -1095,6 +1095,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "siderust",
  "tempfile",
  "toml",
  "toml_edit",

@@ -111,6 +111,9 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
 
+      - name: Check
+        run: cargo check --workspace --lib --bins --tests --examples --all-features --locked
+
       - name: Clippy
         run: cargo clippy --workspace --lib --bins --tests --examples --all-features --locked -- -D warnings
 
@@ -128,10 +131,34 @@ jobs:
           cargo test --locked -p nsb-data-tools --tests --all-features
           cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
 
+      - name: Doctests
+        run: cargo test --workspace --doc --all-features --locked
+
+      - name: Documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --all-features --no-deps --locked
+
+      - name: Release build
+        run: cargo build --workspace --release --all-features --locked
+
       - name: Dependency policy
         uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
+
+      - name: Starlight production asset admission
+        run: |
+          cargo test --locked -p nsb --lib --all-features components::starlight
+          cargo test --locked -p nsb --lib --all-features bundled_production
+          cargo test --locked -p nsb --tests --all-features query_api
+          cargo test --locked -p nsb-data-tools --lib pack::tests::canonical_nside128_pack_is_deterministic_and_runtime_loadable -- --exact
+
+      - name: MSRV 1.89
+        uses: dtolnay/rust-toolchain@1.89
+
+      - name: Check workspace at MSRV
+        run: cargo check --workspace --lib --bins --locked
 
       - name: Open or update promotion pull request
         env:
@@ -141,18 +168,60 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B starlight/production-promotion
-          git add crates/nsb/data/manifest.toml crates/nsb/data/*.release.csv crates/nsb/data/*.manifest.toml
-          if git diff --cached --quiet; then
-            echo "No promotion files to commit; opening or updating PR from existing branch contents."
-          else
-            git commit -m "$(cat <<'EOF'
-          Register packed Starlight production runtime assets after #103 approval.
 
-          EOF
-          )"
+          REMOTE=origin
+          BRANCH=starlight/production-promotion
+          STASH_DIR=/tmp/nsb-starlight-promotion-assets
+          mkdir -p "$STASH_DIR"
+          cp crates/nsb/data/manifest.toml "$STASH_DIR/manifest.toml"
+          shopt -s nullglob
+          for file in crates/nsb/data/*.release.csv crates/nsb/data/*.manifest.toml; do
+            cp "$file" "$STASH_DIR/$(basename "$file")"
+          done
+
+          git fetch "$REMOTE" "$BRANCH" || true
+          git fetch "$REMOTE" main || true
+          if git show-ref --verify --quiet "refs/remotes/${REMOTE}/${BRANCH}"; then
+            if git show-ref --verify --quiet "refs/remotes/${REMOTE}/main"; then
+              unexpected="$(
+                git diff --name-only "${REMOTE}/main...${REMOTE}/${BRANCH}" \
+                  | grep -v -E '^crates/nsb/data/manifest\.toml$' \
+                  | grep -v -E '^crates/nsb/data/.*\.release\.csv$' \
+                  | grep -v -E '^crates/nsb/data/.*\.manifest\.toml$' \
+                  || true
+              )"
+              if [[ -n "${unexpected}" ]]; then
+                echo "fail-closed: ${REMOTE}/${BRANCH} contains unexpected paths versus ${REMOTE}/main:" >&2
+                echo "${unexpected}" >&2
+                exit 1
+              fi
+            fi
+            git checkout -B "$BRANCH" "${REMOTE}/${BRANCH}"
+          else
+            git checkout -B "$BRANCH" HEAD
           fi
-          git push -u origin starlight/production-promotion
+
+          mkdir -p crates/nsb/data
+          cp "$STASH_DIR/manifest.toml" crates/nsb/data/manifest.toml
+          for file in "$STASH_DIR"/*.release.csv "$STASH_DIR"/*.manifest.toml; do
+            [[ -e "$file" ]] || continue
+            cp "$file" "crates/nsb/data/$(basename "$file")"
+          done
+
+          git add crates/nsb/data/manifest.toml crates/nsb/data/*.release.csv crates/nsb/data/*.manifest.toml || true
+          if git diff --cached --quiet; then
+            echo "promotion assets unchanged"
+          else
+            git commit -m "Register packed Starlight production runtime assets after #103 approval."
+          fi
+
+          if git show-ref --verify --quiet "refs/remotes/${REMOTE}/${BRANCH}"; then
+            expected="$(git rev-parse "${REMOTE}/${BRANCH}")"
+            git push --force-with-lease="${BRANCH}:${expected}" "$REMOTE" "HEAD:${BRANCH}"
+          else
+            git push -u "$REMOTE" "HEAD:${BRANCH}"
+          fi
+
           if gh pr view starlight/production-promotion --json number >/dev/null 2>&1; then
             gh pr edit starlight/production-promotion --title "Promote approved Starlight UV-v2 runtime assets" --body "$(cat <<'EOF'
           ## Summary

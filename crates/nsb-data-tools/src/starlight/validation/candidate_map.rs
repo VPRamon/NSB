@@ -169,6 +169,20 @@ pub fn load(
         let systematic =
             parse_nonnegative_finite(fields[3], "systematic uncertainty", path, row_index)?;
         let total = parse_nonnegative_finite(fields[4], "total uncertainty", path, row_index)?;
+        if total < statistical {
+            bail!(
+                "{} row {} total uncertainty is smaller than statistical uncertainty",
+                path.display(),
+                row_index + 1
+            );
+        }
+        if total < systematic {
+            bail!(
+                "{} row {} total uncertainty is smaller than systematic uncertainty",
+                path.display(),
+                row_index + 1
+            );
+        }
         let admitted = fields[5].parse::<u64>().with_context(|| {
             format!(
                 "{} row {} has an invalid admitted_sources value",
