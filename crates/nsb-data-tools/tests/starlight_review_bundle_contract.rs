@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use toml::Value as TomlValue;
 
 const REVIEW_BUNDLE_PATH: &str =
@@ -122,4 +123,27 @@ fn final_promotion_is_main_only_and_verifies_review_bundle_first() {
         verify_pos < promote_pos,
         "human evidence bundle must be verified before any runtime asset is packed/applied"
     );
+}
+
+#[test]
+fn python_review_bundle_verifier_accepts_the_frozen_pending_templates() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let script = root.join(".github/scripts/verify_starlight_review_bundle.py");
+    let status = match Command::new("python3")
+        .arg(&script)
+        .arg("--repository-root")
+        .arg(&root)
+        .arg("--bundle")
+        .arg(REVIEW_BUNDLE_PATH)
+        .arg("--scientific-decision")
+        .arg(SCIENTIFIC_DECISION_PATH)
+        .arg("--redistribution-decision")
+        .arg(REDISTRIBUTION_DECISION_PATH)
+        .status()
+    {
+        Ok(status) => status,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+        Err(error) => panic!("run review-bundle verifier: {error}"),
+    };
+    assert!(status.success(), "review-bundle verifier rejected frozen templates");
 }
