@@ -1,6 +1,7 @@
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -17,7 +18,12 @@ const REDISTRIBUTION_DECISION_PATH: &str =
 
 fn sha256_file(path: &Path) -> String {
     let bytes = fs::read(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-    format!("{:x}", Sha256::digest(bytes))
+    let digest = Sha256::digest(bytes);
+    let mut hex = String::with_capacity(64);
+    for byte in digest {
+        write!(&mut hex, "{byte:02x}").expect("write SHA-256 hex");
+    }
+    hex
 }
 
 fn decision_bundle_pin(path: &Path) -> (String, String) {
@@ -34,12 +40,13 @@ fn decision_bundle_pin(path: &Path) -> (String, String) {
         .iter()
         .filter(|condition| condition["id"].as_str() == Some("review-bundle-v1"))
         .collect();
-    assert_eq!(matching.len(), 1, "decision must pin exactly one review bundle");
-    let verifier = &matching[0]["verifier"];
     assert_eq!(
-        verifier["type"].as_str(),
-        Some("repository_file_sha256")
+        matching.len(),
+        1,
+        "decision must pin exactly one review bundle"
     );
+    let verifier = &matching[0]["verifier"];
+    assert_eq!(verifier["type"].as_str(), Some("repository_file_sha256"));
     assert_eq!(verifier["path"].as_str(), Some(REVIEW_BUNDLE_PATH));
     let bundle_sha = verifier["sha256"]
         .as_str()
@@ -84,7 +91,10 @@ fn frozen_review_bundle_pins_exact_human_evidence() {
         "redistribution_inventory",
         "validation_artifact_manifest",
     ] {
-        assert!(by_id.contains_key(required), "missing review evidence {required}");
+        assert!(
+            by_id.contains_key(required),
+            "missing review evidence {required}"
+        );
     }
 
     let (scientific_candidate, scientific_bundle) =
@@ -145,5 +155,8 @@ fn python_review_bundle_verifier_accepts_the_frozen_pending_templates() {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
         Err(error) => panic!("run review-bundle verifier: {error}"),
     };
-    assert!(status.success(), "review-bundle verifier rejected frozen templates");
+    assert!(
+        status.success(),
+        "review-bundle verifier rejected frozen templates"
+    );
 }
