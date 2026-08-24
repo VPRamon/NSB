@@ -37,6 +37,8 @@ pub struct StarlightPixel {
     pub systematic_uncertainty: Option<BandPhotonRadiance>,
     /// Total one-sigma uncertainty of the integrated photon radiance.
     pub total_uncertainty: Option<BandPhotonRadiance>,
+    /// Whether the map published measured B/V S10 diagnostics.
+    pub s10_diagnostics_provided: bool,
 }
 
 impl StarlightPixel {
@@ -59,7 +61,16 @@ impl StarlightPixel {
             statistical_uncertainty: None,
             systematic_uncertainty: None,
             total_uncertainty: None,
+            s10_diagnostics_provided: true,
         }
+    }
+
+    /// Mark B/V S10 as not provided by the packed candidate contract.
+    pub fn without_s10_diagnostics(mut self) -> Self {
+        self.s10_diagnostics_provided = false;
+        self.b_flux_s10 = S10s::new(0.0);
+        self.v_flux_s10 = S10s::new(0.0);
+        self
     }
 
     /// Attach a complete absolute-uncertainty triplet to this sample.
@@ -76,7 +87,8 @@ impl StarlightPixel {
     }
 
     fn output(self) -> StarlightOutputs {
-        let output = StarlightOutputs::new(self.integrated, self.b_flux_s10, self.v_flux_s10);
+        let mut output = StarlightOutputs::new(self.integrated, self.b_flux_s10, self.v_flux_s10);
+        output.s10_diagnostics_provided = self.s10_diagnostics_provided;
         match (
             self.statistical_uncertainty,
             self.systematic_uncertainty,
@@ -432,6 +444,19 @@ impl StarlightMap {
             message: format!("failed to read HEALPix CSV header: {err}"),
         })?;
         let schema = validate_healpix_header(headers)?;
+        if schema == HealpixCsvSchema::Packed {
+            let diagnostics = metadata
+                .get("s10_diagnostics")
+                .map(String::as_str)
+                .unwrap_or("");
+            if diagnostics != "not_provided" {
+                return Err(NsbError::DataParse {
+                    file: "starlight map csv",
+                    message: "packed HEALPix maps must declare # s10_diagnostics=not_provided"
+                        .to_string(),
+                });
+            }
+        }
 
         for (row_idx, record) in reader.records().enumerate() {
             let record = record.map_err(|err| NsbError::DataParse {
@@ -454,22 +479,34 @@ impl StarlightMap {
                 .map_err(|err| invalid_map(err.to_string()))?;
             let slot = usize::try_from(index).expect("pixel index fits usize");
             let (lon, lat) = healpix_pixel_lon_lat_deg(grid, HealpixIndex::new(index))?;
-            let pixel = StarlightPixel::new(
-                Degrees::new(lon),
-                Degrees::new(lat),
-                Steradians::new(grid.pixel_area_sr()),
-                BandPhotonRadiance::new(parse_record_f64(
-                    &record,
-                    1,
-                    row_idx + 1,
-                    "integrated_ph_cm2_ns_sr",
-                )?),
-                S10s::new(parse_record_f64(&record, 2, row_idx + 1, "b_s10")?),
-                S10s::new(parse_record_f64(&record, 3, row_idx + 1, "v_s10")?),
-            );
             let pixel = match schema {
-                HealpixCsvSchema::V1 => pixel,
-                HealpixCsvSchema::V2 => pixel.with_uncertainties(
+                HealpixCsvSchema::V1 => StarlightPixel::new(
+                    Degrees::new(lon),
+                    Degrees::new(lat),
+                    Steradians::new(grid.pixel_area_sr()),
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        1,
+                        row_idx + 1,
+                        "integrated_ph_cm2_ns_sr",
+                    )?),
+                    S10s::new(parse_record_f64(&record, 2, row_idx + 1, "b_s10")?),
+                    S10s::new(parse_record_f64(&record, 3, row_idx + 1, "v_s10")?),
+                ),
+                HealpixCsvSchema::V2 => StarlightPixel::new(
+                    Degrees::new(lon),
+                    Degrees::new(lat),
+                    Steradians::new(grid.pixel_area_sr()),
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        1,
+                        row_idx + 1,
+                        "integrated_ph_cm2_ns_sr",
+                    )?),
+                    S10s::new(parse_record_f64(&record, 2, row_idx + 1, "b_s10")?),
+                    S10s::new(parse_record_f64(&record, 3, row_idx + 1, "v_s10")?),
+                )
+                .with_uncertainties(
                     BandPhotonRadiance::new(parse_record_f64(
                         &record,
                         4,
@@ -485,6 +522,40 @@ impl StarlightMap {
                     BandPhotonRadiance::new(parse_record_f64(
                         &record,
                         6,
+                        row_idx + 1,
+                        "total_uncertainty_ph_cm2_ns_sr",
+                    )?),
+                ),
+                HealpixCsvSchema::Packed => StarlightPixel::new(
+                    Degrees::new(lon),
+                    Degrees::new(lat),
+                    Steradians::new(grid.pixel_area_sr()),
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        1,
+                        row_idx + 1,
+                        "integrated_ph_cm2_ns_sr",
+                    )?),
+                    S10s::new(0.0),
+                    S10s::new(0.0),
+                )
+                .without_s10_diagnostics()
+                .with_uncertainties(
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        2,
+                        row_idx + 1,
+                        "statistical_uncertainty_ph_cm2_ns_sr",
+                    )?),
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        3,
+                        row_idx + 1,
+                        "systematic_uncertainty_ph_cm2_ns_sr",
+                    )?),
+                    BandPhotonRadiance::new(parse_record_f64(
+                        &record,
+                        4,
                         row_idx + 1,
                         "total_uncertainty_ph_cm2_ns_sr",
                     )?),
@@ -636,6 +707,7 @@ fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> R
 enum HealpixCsvSchema {
     V1,
     V2,
+    Packed,
 }
 
 impl HealpixCsvSchema {
@@ -643,6 +715,7 @@ impl HealpixCsvSchema {
         match self {
             Self::V1 => 4,
             Self::V2 => 7,
+            Self::Packed => 5,
         }
     }
 }
@@ -658,6 +731,13 @@ fn validate_healpix_header(headers: &StringRecord) -> Result<HealpixCsvSchema> {
         "systematic_uncertainty_ph_cm2_ns_sr",
         "total_uncertainty_ph_cm2_ns_sr",
     ];
+    const PACKED: [&str; 5] = [
+        "healpix_index",
+        "integrated_ph_cm2_ns_sr",
+        "statistical_uncertainty_ph_cm2_ns_sr",
+        "systematic_uncertainty_ph_cm2_ns_sr",
+        "total_uncertainty_ph_cm2_ns_sr",
+    ];
     let matches = |expected: &[&str]| {
         headers.len() == expected.len()
             && headers
@@ -669,14 +749,17 @@ fn validate_healpix_header(headers: &StringRecord) -> Result<HealpixCsvSchema> {
         Ok(HealpixCsvSchema::V1)
     } else if matches(&V2) {
         Ok(HealpixCsvSchema::V2)
+    } else if matches(&PACKED) {
+        Ok(HealpixCsvSchema::Packed)
     } else {
         Err(NsbError::DataParse {
             file: "starlight map csv",
             message: format!(
-                "unsupported HEALPix starlight map header {:?}; expected v1 {} or v2 {}",
+                "unsupported HEALPix starlight map header {:?}; expected v1 {}, v2 {}, or packed {}",
                 headers.iter().collect::<Vec<_>>(),
                 V1.join(","),
-                V2.join(",")
+                V2.join(","),
+                PACKED.join(",")
             ),
         })
     }

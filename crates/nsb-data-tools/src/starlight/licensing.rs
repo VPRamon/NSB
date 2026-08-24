@@ -4,13 +4,13 @@
 //! (`docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml`)
 //! and the paired human decision record
 //! (`redistribution-review-decision-v1.json`), then enforces fail-closed
-//! admission rules for a future promotion workflow (#89). It never grants
+//! admission rules for the promotion workflow (#102). It never grants
 //! approval itself: only a recorded `approved` or `approved_with_conditions`
 //! decision, with a named reviewer, a matching inventory checksum, matching
 //! per-artifact checksums, and authorized channels for every distributed
 //! artifact, can satisfy [`RedistributionReview::require_approved`].
 //!
-//! The human decision is recorded and owned exclusively by issue #47; this
+//! The human decision is recorded and owned exclusively by issue #103; this
 //! module cannot manufacture consent, only validate the shape and internal
 //! consistency of a decision that a human already recorded.
 
@@ -76,7 +76,7 @@ pub struct ArtifactInventory {
 /// Redistribution decision recorded by an authorized human reviewer.
 ///
 /// Allowed values mirror the scientific-review vocabulary documented in
-/// issue #47: production admits only `approved`, or `approved_with_conditions`
+/// issue #103: production admits only `approved`, or `approved_with_conditions`
 /// when every condition is machine-verified.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -320,7 +320,7 @@ impl RedistributionReview {
         match self.decision.decision {
             RedistributionDecision::Pending => {
                 bail!(
-                    "redistribution review decision is pending; the human decision in #47 has not been recorded"
+                    "redistribution review decision is pending; the human decision in #103 has not been recorded"
                 )
             }
             RedistributionDecision::Rejected => {

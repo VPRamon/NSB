@@ -1,10 +1,11 @@
-# Independent Starlight validation (issue #87)
+# Independent Starlight validation (issue #102)
 
-Status: Technical scaffolding. No reference has been acquired yet; no
-candidate checksum has been scientifically approved.
-Audience: Maintainers preparing evidence for the human review in #47.
+Status: Acquired literature targets are checksum-pinned and not admissible
+as starlight-only TOA 300–650 nm grids (`no_admissible_independent_reference`).
+Audience: Maintainers preparing evidence for the human review in #103.
 Scope: Acquiring checksum-pinned external references and comparing them
-against the integrated 300-650 nm Starlight candidate map.
+against the integrated 300-650 nm Starlight candidate map when a
+scientifically admissible transform exists.
 
 ## Why this exists
 
@@ -20,7 +21,7 @@ completely different, independently published pipeline; see
 
 Nothing in this pipeline may ever set `scientifically_validated = true` or
 move `scientific_review_status` away from `"pending"`. Those decisions belong
-exclusively to a qualified human scientist recorded in issue #47.
+exclusively to a qualified human scientist recorded in issue #103.
 
 ## The frozen documents
 
@@ -38,7 +39,7 @@ exclusively to a qualified human scientist recorded in issue #47.
   candidate map and `nside` are actually supplied to `run`.
 - [`scientific-review-decision-v1.json`](scientific-review-decision-v1.json)
   — the pending human-decision template. It is never filled in by this
-  pipeline; only a human, working from issue #47, edits a copy of it.
+  pipeline; only a human, working from issue #103, edits a copy of it.
 
 ## Workflow
 
@@ -121,23 +122,23 @@ HTML and Markdown reports are both written (`validation-report-v1.html` and
 Results against map `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`
 are stored in [`results/`](results/). All three acquired references are
 **not admissible** as starlight-only TOA 300–650 nm grids. `technical_gates_passed = false`.
-`scientifically_validated` remains false. Human review stays in #47.
+`scientifically_validated` remains false. Human review stays in #103.
 
-## `scientific_review_status` stays `"pending"` until #47
+## `scientific_review_status` stays `"pending"` until #103
 
 This pipeline produces *technical* evidence only: reproducible acquisition,
 frozen regions, computed metrics, and automatic gate evaluation against
 preregistered tolerances. Whether a specific candidate checksum is fit for
 production use is a scientific judgment made by a qualified human, recorded
 by hand in a copy of `scientific-review-decision-v1.json`, tracked in issue
-#47. No command in this pipeline, and no future automation built on top of
+#103. No command in this pipeline, and no future automation built on top of
 it, should ever flip `scientific_review_status` to anything other than
 `"pending"` or set `scientifically_validated = true`.
 
 ## What's still missing after the technical #87 package
 
 - **Human scientific decision.** `scientific_review_status` stays `"pending"`
-  in issue #47. Independent validation of the UV v2 candidate versus the
+  in issue #103. Independent validation of the UV v2 candidate versus the
   Leinert 1998 ISL model failed the preregistered numerical gates; see
   [`results/`](results/). Do not retune those gates to force a pass.
 - Toller Pioneer, Leinert 1998, and GAMBONS remain acquired-but-not-admissible

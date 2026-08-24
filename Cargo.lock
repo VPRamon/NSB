@@ -1090,6 +1090,7 @@ dependencies = [
  "flate2",
  "log",
  "md-5",
+ "nsb",
  "reqwest",
  "serde",
  "serde_json",

@@ -61,18 +61,20 @@ represented as production quality.
 
 ## Release-candidate status
 
-**Production-ready release candidate pending final human approval.**
+Technical packing and post-approval promotion automation are implemented
+under issue #102. The frozen UV-v2 candidate remains scientifically
+unapproved. Human scientific and redistribution review is issue #103, the
+only remaining Starlight production blocker after #102 closes.
 
-The technical promotion mechanism (issue #89) is complete: a fail-closed
-`nsb-data dataset starlight promote` command and the
-`nsb-starlight-release-candidate-v1` schema exist and are tested, but the
-current candidate checksum is scientifically invalidated pending #94/#95
-regeneration, and both human decisions in issue #47 remain `pending`.
-`ComponentMask::ALL` and the CLI's `--components starlight` selection do not
-fall back to the experimental seed and do not admit an unregistered
-production map; see
-[`release-candidate/README.md`](release-candidate/README.md) for the full
-gate contract.
+`nsb-data dataset starlight promote` packs a runtime-loadable RING HEALPix
+map from the immutable candidate-v5 bytes. `gates.promotion_eligible` is
+report-only; eligibility is the conjunction of frozen CI gates, the packed
+runtime checksums, and the two signed #103 decisions. The final-promotion
+workflow applies production registry entries and opens the promotion PR
+after those decisions exist. Pipeline `validation_status = technical_pass`
+is not independent scientific validation
+(`no_admissible_independent_reference`; see
+[independent-reference-audit-v1.md](validation/independent-reference-audit-v1.md)).
 
 ## Related documentation
 

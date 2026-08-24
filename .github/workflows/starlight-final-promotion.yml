@@ -1,18 +1,10 @@
 name: Starlight final promotion
 
-# Manual, post-approval workflow referenced by issue #47 and scoped by issue
-# #90. It never runs automatically and never mutates the map: it verifies
-# that the frozen release-candidate gates report and both required human
-# decision files (scientific + redistribution, owned exclusively by issue
-# #47) are present and approved, via the fail-closed
-# `dataset starlight promote` precondition check, then re-verifies the
-# scientific asset registry and asserts the candidate map checksum did not
-# change.
-#
-# Scope note: `dataset starlight promote` verifies checksums, the release
-# candidate schema, and both human decision files. It drafts a production
-# manifest fragment when every gate passes, but never mutates map bytes and
-# never sets promotion_eligible by itself.
+# Manual, post-approval workflow owned by issue #103 and implemented by #102.
+# After valid signed scientific and redistribution decisions exist, it packs
+# the frozen candidate into a runtime-loadable map, applies production
+# registry entries, re-runs required gates, and opens or updates the
+# promotion pull request. It never rewrites candidate map bytes.
 
 on:
   workflow_dispatch:
@@ -25,20 +17,23 @@ on:
       scientific_decision:
         description: >-
           Path to the signed scientific-review decision file (owned by
-          issue #47).
+          issue #103).
         required: true
+        default: docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json
       redistribution_decision:
         description: >-
           Path to the signed redistribution-review decision file (owned by
-          issue #47).
+          issue #103).
         required: true
+        default: docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json
       candidate_map:
         description: Path to the canonical Starlight candidate map.
         required: true
         default: crates/nsb/data/starlight_nside128.csv
 
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: ${{ github.workflow }}
@@ -46,7 +41,7 @@ concurrency:
 
 jobs:
   promote:
-    name: Verify and promote (fail-closed)
+    name: Pack, apply, validate, and open promotion PR
     runs-on: ubuntu-latest
     steps:
       - name: Checkout without Git LFS payloads
@@ -71,8 +66,7 @@ jobs:
           done
           if [[ "$missing" -ne 0 ]]; then
             echo "fail-closed: one or more required inputs are missing; see errors above." >&2
-            echo "the scientific and redistribution decisions are owned exclusively by issue #47" >&2
-            echo "and must be committed or attached to this workflow run before promotion." >&2
+            echo "the scientific and redistribution decisions are owned exclusively by issue #103" >&2
             exit 1
           fi
 
@@ -85,21 +79,22 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Run fail-closed promotion precondition check
+      - name: Pack runtime map and apply production registry
         run: |
           cargo run --locked -p nsb-data-tools --bin nsb-data -- \
             dataset starlight promote \
             --release-candidate "${{ inputs.release_candidate }}" \
             --scientific-decision "${{ inputs.scientific_decision }}" \
             --redistribution-decision "${{ inputs.redistribution_decision }}" \
-            --repository-root .
-
-      - name: Re-run scientific asset registry verification
-        run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
+            --repository-root . \
+            --output /tmp/starlight-production-manifest-draft.toml \
+            --apply
 
       - name: Assert candidate map checksum is unchanged
         shell: bash
@@ -109,16 +104,79 @@ jobs:
           after="$(sha256sum "${{ inputs.candidate_map }}" | cut -d' ' -f1)"
           if [[ "$before" != "$after" ]]; then
             echo "::error::candidate map checksum changed during promotion: before=$before after=$after" >&2
-            echo "fail-closed: promotion must never mutate the map." >&2
             exit 1
           fi
           echo "candidate map checksum unchanged: $after"
 
-      - name: Promotion status
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --lib --bins --tests --examples --all-features --locked -- -D warnings
+
+      - name: Unit tests
+        run: cargo test --workspace --lib --bins --all-features --locked
+
+      - name: Runtime integration tests
+        run: cargo test --locked -p nsb --tests --all-features
+
+      - name: CLI integration tests
+        run: cargo test --locked -p nsb-cli --tests --all-features
+
+      - name: Data tools and scientific assets
         run: |
-          echo "Fail-closed preconditions passed: gates report, both human decisions, and the" >> "$GITHUB_STEP_SUMMARY"
-          echo "candidate map checksum are all verified and unchanged." >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "This workflow does not yet flip \`calibration_status\`/\`runtime_embedded\` in" >> "$GITHUB_STEP_SUMMARY"
-          echo "the manifest or open/update the promotion PR; that manifest-mutation step lands" >> "$GITHUB_STEP_SUMMARY"
-          echo "with issue #89 and should extend this workflow." >> "$GITHUB_STEP_SUMMARY"
+          cargo test --locked -p nsb-data-tools --tests --all-features
+          cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
+
+      - name: Dependency policy
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+      - name: Open or update promotion pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B starlight/production-promotion
+          git add crates/nsb/data/manifest.toml crates/nsb/data/*.release.csv crates/nsb/data/*.manifest.toml
+          if git diff --cached --quiet; then
+            echo "No promotion files to commit; opening or updating PR from existing branch contents."
+          else
+            git commit -m "$(cat <<'EOF'
+          Register packed Starlight production runtime assets after #103 approval.
+
+          EOF
+          )"
+          fi
+          git push -u origin starlight/production-promotion
+          if gh pr view starlight/production-promotion --json number >/dev/null 2>&1; then
+            gh pr edit starlight/production-promotion --title "Promote approved Starlight UV-v2 runtime assets" --body "$(cat <<'EOF'
+          ## Summary
+          - Packed runtime map and sidecar generated from the frozen candidate.
+          - Production registry entries applied by `dataset starlight promote --apply`.
+          - Candidate map bytes were not rewritten.
+
+          ## Test plan
+          - [ ] Candidate SHA-256 unchanged
+          - [ ] Bundled production Starlight loads after merge
+          - [ ] Required CI gates on this PR are green
+          EOF
+          )"
+          else
+            gh pr create --title "Promote approved Starlight UV-v2 runtime assets" --body "$(cat <<'EOF'
+          ## Summary
+          - Packed runtime map and sidecar generated from the frozen candidate.
+          - Production registry entries applied by `dataset starlight promote --apply`.
+          - Candidate map bytes were not rewritten.
+
+          ## Test plan
+          - [ ] Candidate SHA-256 unchanged
+          - [ ] Bundled production Starlight loads after merge
+          - [ ] Required CI gates on this PR are green
+          EOF
+          )"
+          fi

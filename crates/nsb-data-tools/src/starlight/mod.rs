@@ -4,6 +4,7 @@ pub mod config;
 pub mod licensing;
 pub mod map;
 pub mod migration;
+pub mod pack;
 pub mod photometric;
 mod pipeline;
 pub mod promotion;

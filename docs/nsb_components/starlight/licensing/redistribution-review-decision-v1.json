@@ -4,9 +4,9 @@
   "reviewer_name": null,
   "reviewer_role": null,
   "reviewed_at_utc": null,
-  "inventory_sha256": "96c4e51502df5c36195b6f716c2efc47cb83021eb16b7a4c86937bd1a8049ef9",
+  "inventory_sha256": "60fb871855398d98d05671fb9f063f43cb39206102b4a46d58c2f126d7ad6395",
   "pinned_artifacts": [],
   "conditions": [],
   "restrictions": [],
-  "notes": "Template only. No authorized reviewer has approved a redistribution package. inventory_sha256 above pins the exact artifact-inventory-v1.toml bytes at authoring time; it must be recomputed and re-checked before any real decision is recorded if the inventory changes. The human decision for this schema is recorded and owned exclusively by issue #47, never by this template or by an automated agent. Do not fill reviewer_name, reviewer_role, reviewed_at_utc, pinned_artifacts, or change decision away from pending outside that process."
+  "notes": "Template only. No authorized reviewer has approved a redistribution package. inventory_sha256 above pins the exact artifact-inventory-v1.toml bytes at authoring time; it must be recomputed and re-checked before any real decision is recorded if the inventory changes. The human decision for this schema is recorded and owned exclusively by issue #103, never by this template or by an automated agent. Do not fill reviewer_name, reviewer_role, reviewed_at_utc, pinned_artifacts, or change decision away from pending outside that process."
 }

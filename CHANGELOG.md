@@ -45,7 +45,7 @@ once a stable public release is cut.
   dual overlap/absolute uncertainty contract, frozen Phase 5 policy v1,
   independent holdout validation, fail-closed approval and candidate
   infrastructure, validation/packing/runtime foundations. The global integrated
-  starlight product remains pending (#47).
+  starlight product remains pending (#103).
 - NSB-side Gaia DR3 starlight release pipeline harness: documented Gaia
   extraction recipe, Gaia XP passband source preparation, Gaia photon-flux
   HEALPix map generation path, validation report command, and candidate asset

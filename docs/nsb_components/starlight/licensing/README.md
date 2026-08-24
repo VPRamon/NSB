@@ -18,8 +18,8 @@ repository root.
 The fail-closed Rust contract that parses and cross-validates the inventory
 and decision files lives in
 [`crates/nsb-data-tools/src/starlight/licensing.rs`](../../../../crates/nsb-data-tools/src/starlight/licensing.rs).
-It is intended for a future promotion workflow (#89); it is not wired into
-any CLI subcommand yet.
+It is invoked by `nsb-data dataset starlight promote` as a fail-closed
+licensing gate. The human redistribution decision remains #103.
 
 ## What this package does *not* do
 
@@ -40,9 +40,9 @@ not, and cannot, authorize redistribution. Specifically, it does not:
 
 ## Where the human decision lives
 
-**The human decision stays in #47.** Per that issue's structure, the
+**The human decision stays in #103.** Per that issue's structure, the
 technical package (#88, this folder, closed by an authorized human process)
-and the human sign-off (#47, the single final gate for Starlight production)
+and the human sign-off (#103, the single final gate for Starlight production)
 are deliberately separate. An authorized human reviewer — the project owner
 or an authorized reviewer, not a software agent — must:
 
@@ -53,12 +53,12 @@ or an authorized reviewer, not a software agent — must:
    set `decision`, `reviewer_name`, `reviewer_role`, `reviewed_at_utc`, and
    the pinned per-artifact checksums/channels;
 3. commit or attach the signed decision JSON on the promotion branch or
-   workflow inputs referenced by #47.
+   workflow inputs referenced by #103.
 
 No software agent, including the one that produced this package, may set
 `decision` to anything other than `"pending"`.
 
-## Known gaps remaining for human #47 review
+## Known gaps remaining for human #103 review
 
 - Independent validation (#87) acquired three references and ran against the
   UV v2 candidate. Preregistered numerical gates versus the Leinert 1998 ISL
@@ -66,7 +66,7 @@ No software agent, including the one that produced this package, may set
   treat that as scientific approval.
 - The Gaia CC BY-NC 3.0 IGO non-commercial clause's compatibility with NSB's
   intended distribution channels has not been legally determined; this is
-  the central open question for #47.
+  the central open question for #103.
 - `starlight_manual_seed_v1.csv` already carries a pre-existing
   "review required" licence flag in `crates/nsb/data/manifest.toml` that this
   package surfaces but does not resolve.

@@ -170,18 +170,42 @@ pub fn run(inputs: &RunInputs) -> Result<ValidationResults> {
     }
 
     if reference_results.is_empty() {
-        technical_gate_failures.push(
-            "no acquired-and-transformed reference data was available; validation is pending acquisition (see #87/#47)"
-                .to_string(),
-        );
+        let all_acquired_not_admissible = !reference_statuses.is_empty()
+            && reference_statuses
+                .iter()
+                .all(|status| status.status == "not-admissible");
+        if all_acquired_not_admissible {
+            technical_gate_failures.push(
+                "no_admissible_independent_reference: every acquired literature target is not admissible as a starlight-only TOA 300-650 nm comparison grid; this is human-review evidence for #103, not a software defect"
+                    .to_string(),
+            );
+        } else {
+            technical_gate_failures.push(
+                "no acquired-and-transformed reference data was available after the documented independent-reference audit"
+                    .to_string(),
+            );
+        }
     }
     let technical_gates_passed =
         !reference_results.is_empty() && technical_gate_failures.is_empty();
 
+    let independent_reference_status = if reference_results.is_empty()
+        && reference_statuses
+            .iter()
+            .all(|status| status.status == "not-admissible")
+        && !reference_statuses.is_empty()
+    {
+        Some("no_admissible_independent_reference".to_string())
+    } else if !reference_results.is_empty() {
+        Some("admissible_reference_evaluated".to_string())
+    } else {
+        Some("independent_reference_incomplete".to_string())
+    };
+
     let results = ValidationResults {
         schema_version: VALIDATION_RESULTS_SCHEMA_VERSION,
         generated_at_unix_seconds: unix_seconds()?,
-        issue: 87,
+        issue: 102,
         preregistration_sha256,
         references_sha256,
         regions_sha256,
@@ -197,7 +221,8 @@ pub fn run(inputs: &RunInputs) -> Result<ValidationResults> {
         technical_gate_failures,
         scientific_review_status: "pending".to_string(),
         scientifically_validated: false,
-        notes: "Technical scaffolding for issue #87. Scientific approval is recorded only in issue #47 and is never inferred from this report.".to_string(),
+        independent_reference_status,
+        notes: "Independent-validation technical audit for issue #102. Scientific approval is recorded only in issue #103 and is never inferred from this report.".to_string(),
     };
     results.assert_never_scientifically_validated();
 
@@ -473,7 +498,7 @@ acquisition_notes = "requires manual literature request"
         assert!(results
             .technical_gate_failures
             .iter()
-            .any(|failure| failure.contains("pending acquisition")));
+            .any(|failure| failure.contains("independent-reference audit")));
         assert!(temp
             .path()
             .join("output/validation-results-v1.json")
