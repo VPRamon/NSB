@@ -14,6 +14,11 @@ on:
           Path to the nsb-starlight-release-candidate-v1 manifest.
         required: true
         default: docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml
+      review_bundle:
+        description: >-
+          Path to the checksum-pinned evidence bundle reviewed by issue #103.
+        required: true
+        default: docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml
       scientific_decision:
         description: >-
           Path to the signed scientific-review decision file (owned by
@@ -44,10 +49,28 @@ jobs:
     name: Pack, apply, validate, and open promotion PR
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout without Git LFS payloads
+      - name: Checkout approved main only
         uses: actions/checkout@v4
         with:
+          ref: main
           lfs: false
+
+      - name: Require promotion dispatch from main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "::error::final Starlight promotion may only be dispatched from refs/heads/main; got ${GITHUB_REF}" >&2
+            exit 1
+          fi
+          git fetch origin main --no-tags --depth=1
+          head="$(git rev-parse HEAD)"
+          origin_main="$(git rev-parse origin/main)"
+          if [[ "$head" != "$origin_main" ]]; then
+            echo "::error::checked-out promotion commit $head is not the current origin/main $origin_main" >&2
+            exit 1
+          fi
+          echo "promotion source verified at main commit $head"
 
       - name: Verify decision files exist
         shell: bash
@@ -56,6 +79,7 @@ jobs:
           missing=0
           for path in \
             "${{ inputs.release_candidate }}" \
+            "${{ inputs.review_bundle }}" \
             "${{ inputs.scientific_decision }}" \
             "${{ inputs.redistribution_decision }}" \
             "${{ inputs.candidate_map }}"; do
@@ -69,6 +93,14 @@ jobs:
             echo "the scientific and redistribution decisions are owned exclusively by issue #103" >&2
             exit 1
           fi
+
+      - name: Verify frozen human review bundle
+        run: |
+          python3 .github/scripts/verify_starlight_review_bundle.py \
+            --repository-root . \
+            --bundle "${{ inputs.review_bundle }}" \
+            --scientific-decision "${{ inputs.scientific_decision }}" \
+            --redistribution-decision "${{ inputs.redistribution_decision }}"
 
       - name: Record pre-promotion candidate map checksum
         id: pre_checksum
