@@ -201,6 +201,61 @@ pub fn render_markdown(results: &ValidationResults) -> String {
     out
 }
 
+pub fn render_html(results: &ValidationResults) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Starlight independent validation</title></head><body>");
+    let _ = writeln!(out, "<h1>Starlight independent validation report</h1>");
+    let _ = writeln!(
+        out,
+        "<p>technical_gates_passed = {}</p>",
+        results.technical_gates_passed
+    );
+    let _ = writeln!(
+        out,
+        "<p>scientific_review_status = {}</p>",
+        html_escape(&results.scientific_review_status)
+    );
+    let _ = writeln!(
+        out,
+        "<p>scientifically_validated = {}</p>",
+        results.scientifically_validated
+    );
+    let _ = writeln!(
+        out,
+        "<p>candidate_map_sha256 = <code>{}</code></p>",
+        html_escape(&results.candidate_map_sha256)
+    );
+    let _ = writeln!(out, "<h2>Reference statuses</h2><ul>");
+    for status in &results.reference_statuses {
+        let _ = writeln!(
+            out,
+            "<li><code>{}</code>: {} — {}</li>",
+            html_escape(&status.reference_id),
+            html_escape(&status.status),
+            html_escape(&status.detail)
+        );
+    }
+    let _ = writeln!(out, "</ul>");
+    if !results.technical_gate_failures.is_empty() {
+        let _ = writeln!(out, "<h2>Technical gate failures</h2><ul>");
+        for failure in &results.technical_gate_failures {
+            let _ = writeln!(out, "<li>{}</li>", html_escape(failure));
+        }
+        let _ = writeln!(out, "</ul>");
+    }
+    let _ = writeln!(out, "<p>{}</p>", html_escape(&results.notes));
+    let _ = writeln!(out, "</body></html>");
+    out
+}
+
+fn html_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,8 +289,11 @@ mod tests {
         };
         results.assert_never_scientifically_validated();
         let markdown = render_markdown(&results);
+        let html = render_html(&results);
         assert!(markdown.contains("technical_gates_passed = false"));
         assert!(markdown.contains("scientifically_validated = false"));
         assert!(!markdown.contains("scientifically_validated = true"));
+        assert!(html.contains("scientifically_validated = false"));
+        assert!(!html.contains("scientifically_validated = true"));
     }
 }

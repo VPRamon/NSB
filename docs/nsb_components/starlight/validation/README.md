@@ -108,11 +108,19 @@ It writes three artifacts under `--output`:
   and output artifact for this invocation, recomputed independently rather
   than trusted from elsewhere.
 
-If no reference has both an acquisition receipt and a transformed grid — the
-current state, since nothing has been acquired yet — `run` still produces all
-three artifacts, but `technical_gates_passed = false` with an explicit
-pending-acquisition/pending-transform reason for every reference. It never
-invents a passing (or failing) number in the absence of real data.
+If a reference is acquired but not admissible (Toller Pioneer poles; GAMBONS),
+`run` records `not-admissible` and does not invent comparison numbers. The
+Leinert 1998 ISL analytic model is the admissible comparison; preregistered
+gates may still fail, and that failure is reported rather than retuned.
+
+HTML and Markdown reports are both written (`validation-report-v1.html` and
+`.md`).
+
+## Independent validation status for the UV v2 candidate
+
+Results against map `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`
+are stored in [`results/`](results/). `technical_gates_passed = false`.
+`scientifically_validated` remains false. Human review stays in #47.
 
 ## `scientific_review_status` stays `"pending"` until #47
 
@@ -125,27 +133,11 @@ by hand in a copy of `scientific-review-decision-v1.json`, tracked in issue
 it, should ever flip `scientific_review_status` to anything other than
 `"pending"` or set `scientifically_validated = true`.
 
-## What's still missing for #87 to close
+## What's still missing after the technical #87 package
 
-- **Real acquired references.** All three entries in `references-v1.toml`
-  are still `status = "pending-acquisition"`; nothing has been downloaded,
-  hashed, or receipted yet.
-- **Physical transformations.** Each reference needs a reviewed, documented
-  implementation of its `transformation_to_target` (unit conversion,
-  passband adjustment, and regridding onto the candidate map's nside=128
-  NESTED pixelization) before `run` can compute anything beyond a
-  pending-transform status for it.
-- **A resolved dependency on #94.** The candidate map's checksum is expected
-  to change once the uncertainty scale audit (#94) regenerates it;
-  `preregistration-v1.toml` pins the map's *path*, not a specific checksum,
-  for exactly this reason, but validation coverage from this pipeline should
-  not be treated as trustworthy until #94 lands.
-- **HTML report rendering.** Issue #87 lists Markdown and HTML reports; this
-  PR ships only the Markdown report and the JSON results it is rendered
-  from.
-- **The actual human decision.** Once real references and transformations
-  exist and `run` produces a `validation-results-v1.json` with
-  `technical_gates_passed = true` (or a clearly diagnosed failure), a
-  qualified human scientist still needs to review that evidence and record a
-  real decision in issue #47 — this pipeline only prepares the template and
-  the evidence for that decision, it never makes it.
+- **Human scientific decision.** `scientific_review_status` stays `"pending"`
+  in issue #47. Independent validation of the UV v2 candidate versus the
+  Leinert 1998 ISL model failed the preregistered numerical gates; see
+  [`results/`](results/). Do not retune those gates to force a pass.
+- Toller Pioneer and GAMBONS remain acquired-but-not-admissible (DGL / ZL /
+  airglow not separable).

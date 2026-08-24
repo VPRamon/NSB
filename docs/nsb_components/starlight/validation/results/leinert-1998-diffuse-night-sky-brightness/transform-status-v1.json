@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "reference_id": "leinert-1998-diffuse-night-sky-brightness",
+  "spec_id": "leinert-1998-isl-analytic-v1+s10v-to-ph-300-650-solar-flat-v1",
+  "admissibility": "admissible-direct-starlight",
+  "detail": "evaluated leinert-1998-isl-analytic-v1 at nside=128 nested pixel centres; introduced relative uncertainty 0.25",
+  "grid_sha256": "965af999fcda7bb8c5a87b53d4e472b611af8b4d304d11b867a30a5a80a40afe"
+}

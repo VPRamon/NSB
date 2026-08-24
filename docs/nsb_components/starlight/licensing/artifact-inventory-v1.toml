@@ -146,21 +146,17 @@ distributed = false
 channels = []
 tracking_issue = "#94"
 notes = """
-This is the exact uv_correction_sha256 embedded in the currently checked-in
-crates/nsb/data/merge_report.json and starlight_nside128.csv header. It is
-scientifically invalidated per #94 (absolute CALSPEC RMSE floors of order
-1e19 ph m^-2 s^-1 were applied per Gaia source instead of scaled correctly).
-The artifact bytes themselves are not committed to this repository (offline
-BeeGFS training workspace); only their digest is embedded in the candidate
-map/report. Do not treat this digest as an approved redistribution basis.
-Superseded by starlight-uv-artifact-v2.
+This is the exact uv_correction_sha256 that was embedded in the invalidated
+PR #93 candidate. It is scientifically invalidated per #94. Do not treat
+this digest as an approved redistribution basis. Superseded by
+starlight-uv-artifact-v2.
 """
 
 [[artifacts]]
 id = "starlight-uv-artifact-v2"
 category = "generated-calibration-artifact"
 source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v2 (replacement for v1 per #94)"
-release = "v2, not yet integrated into a published candidate"
+release = "v2, integrated into the published UV v2 candidate"
 license = "NSB-derived model artifact (AGPL-3.0-only source licence, see README.md#Licensing); trained against CALSPEC reference spectra (STScI attribution) and Gaia DR3 XP samples (CC BY-NC 3.0 IGO)"
 sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
 distribution_class = "generated_derived_output"
@@ -168,28 +164,28 @@ distributed = false
 channels = []
 tracking_issue = "#94"
 notes = """
-Replacement UV artifact named in #47's candidate-invalidation note. A
-regenerated candidate map/report using this digest will replace the
-starlight-candidate-map-nside128 / starlight-merge-report entries below once
-the Ladon rebuild completes; this inventory and the redistribution decision
-must both be refreshed at that time.
+Replacement UV artifact used by the published UV v2 candidate map
+(starlight-candidate-map-nside128 sha256
+5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563).
+Artifact bytes remain offline (BeeGFS starlight-calibration); only the
+digest is embedded in the map header and merge_report.json.
 """
 
 [[artifacts]]
 id = "starlight-independent-validation-reference"
 category = "independent-validation-evidence"
-source = "Independent comparison/reference dataset(s) for #87 (not yet selected or acquired)"
-release = "pending"
-license = "pending: not yet selected"
+source = "Leinert et al. 1998 ISL analytic model (admissible transform); Toller 1981 Pioneer poles and Masana 2021 GAMBONS PDF acquired but not admissible as starlight-only grids"
+release = "validation results against UV v2 candidate; technical_gates_passed = false"
+license = "see references-v1.toml per reference"
 distribution_class = "documentation_reference"
 distributed = false
 channels = []
 tracking_issue = "#87"
 notes = """
-#87 (independent validation tooling and evidence) has not landed. This
-placeholder keeps the inventory schema complete without inventing evidence
-that does not exist. No independent-comparison artifact, licence, or checksum
-can be recorded until #87 lands.
+Technical package lives under docs/nsb_components/starlight/validation/.
+Run reports are in validation/results/. Preregistered 3%/5%/coverage gates
+versus the Leinert 1998 ISL model did not pass; that outcome is recorded
+and was not used to retune thresholds. Scientific sign-off remains #47.
 """
 
 # --- Currently distributed repository-embedded artifacts -------------------
@@ -198,41 +194,39 @@ can be recorded until #87 lands.
 id = "starlight-candidate-map-nside128"
 category = "generated-derived-output"
 source = "Derived from Gaia DR3 GaiaSource + XP continuous bulk products via the NSB pipeline (nsb-data dataset starlight publish)"
-release = "candidate v5 (nsb-healpix-starlight-candidate-v5); PR #93 candidate freeze recorded in #47"
+release = "candidate v5 (nsb-healpix-starlight-candidate-v5); UV v2 Ladon rebuild"
 license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml; whether the CC BY-NC 3.0 IGO non-commercial clause permits NSB's intended redistribution channels is the open legal/scientific question #88/#47 must resolve"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
 tracking_issue = "#47"
 notes = """
 Path: crates/nsb/data/starlight_nside128.csv. calibration_status = candidate,
-runtime_embedded = false. This candidate is scientifically invalidated for
-uncertainty scale per #94 (see starlight-uv-artifact-v1); it must not be
-approved for production redistribution under this checksum. It is already
-redistributed today via the public git history/GitHub even though the human
-redistribution decision in #47 remains pending — this is precisely the gap
-#88 must close before promotion, not merely a future concern.
+runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
+pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
+redistribution decision remains pending in #47. The invalidated #93 digest
+7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
+historical only.
 """
 
 [[artifacts]]
 id = "starlight-merge-report"
 category = "generated-derived-output"
 source = "NSB-generated deterministic merge/provenance report for starlight-candidate-map-nside128"
-release = "schema nsb-starlight-merge-report-v5; PR #93 candidate freeze recorded in #47"
+release = "schema nsb-starlight-merge-report-v5; UV v2 Ladon rebuild"
 license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "5b2419a113cf160e724a1afc687e3632862dc8d7f9081bd48b297e072e7af147"
+sha256 = "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
 tracking_issue = "#47"
 notes = """
 Path: crates/nsb/data/merge_report.json. calibration_status = candidate,
-runtime_embedded = false. Same invalidation and pending-decision status as
-starlight-candidate-map-nside128; both artifacts are checksum-linked and must
-be reviewed and, if ever regenerated, replaced together.
+runtime_embedded = false. Checksum-linked to starlight-candidate-map-nside128
+UV v2. Human redistribution decision remains pending in #47.
 """
 
 [[artifacts]]

@@ -767,7 +767,7 @@ fn starlight_asset_schema(name: &str) -> &'static str {
     if name == "merge_report.json" {
         "nsb-starlight-merge-report-v5"
     } else {
-        "nsb-healpix-starlight-candidate-v3"
+        "nsb-healpix-starlight-candidate-v5"
     }
 }
 
@@ -821,7 +821,7 @@ fn update_manifest_checksum(
                 .and_then(|value| value.strip_suffix(".csv"))
                 .context("canonical Starlight filename has no nside")?;
             let mut header = toml_edit::Table::new();
-            header["schema"] = toml_edit::value("nsb-healpix-starlight-candidate-v3");
+            header["schema"] = toml_edit::value("nsb-healpix-starlight-candidate-v5");
             header["map_type"] = toml_edit::value("healpix");
             header["coordinate_frame"] = toml_edit::value("galactic");
             header["ordering"] = toml_edit::value("nested");
@@ -956,7 +956,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             candidate["schema"].as_str(),
-            Some("nsb-healpix-starlight-candidate-v3")
+            Some("nsb-healpix-starlight-candidate-v5")
         );
         assert_eq!(candidate["calibration_status"].as_str(), Some("candidate"));
         assert_eq!(candidate["runtime_embedded"].as_bool(), Some(false));
@@ -1015,7 +1015,7 @@ runtime_embedded = false
             .unwrap();
         assert_eq!(
             candidate["schema"].as_str(),
-            Some("nsb-healpix-starlight-candidate-v3")
+            Some("nsb-healpix-starlight-candidate-v5")
         );
         assert_eq!(
             report["schema"].as_str(),

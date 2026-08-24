@@ -1,5 +1,5 @@
 {
-  "schema_version": 6,
+  "schema_version": 7,
   "shard_count": 3386,
   "partition_ids": [
     "000000-003111",
@@ -3445,8 +3445,8 @@
         650
       ],
       "ultraviolet_correction_applied": true,
-      "correction_model_id": "calspec-linear-log-ratio-v1",
-      "correction_artifact_sha256": "6bfbda6b37b9732bb585000999f15d8a18795a6511e2874e53e3c43d793858e8",
+      "correction_model_id": "calspec-linear-log-ratio-v2",
+      "correction_artifact_sha256": "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367",
       "calibration_status": "validated",
       "model_response": {
         "kind": "natural-log-uv-to-measured-flux-ratio",
@@ -3457,6 +3457,7 @@
       },
       "measured_conditional_residual_statistical_correlation": 0.0,
       "systematic_correlation": "fully-correlated-between-sources",
+      "systematic_correlation_scope": "global-correlated",
       "limitation": "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately."
     }
   },
@@ -3467,11 +3468,11 @@
     "total_flux_300_336_ph_m2_s": 223762202033573.3,
     "total_flux_336_650_ph_m2_s": 7779559764355280.0,
     "total_flux_300_650_ph_m2_s": 8003321966388804.0,
-    "statistical_uncertainty_300_336_ph_m2_s": 1.637703100654801e+24,
+    "statistical_uncertainty_300_336_ph_m2_s": 2715092828428.8604,
     "statistical_uncertainty_336_650_ph_m2_s": 1615521630781.6213,
-    "statistical_uncertainty_300_650_ph_m2_s": 1.637703100654801e+24,
-    "systematic_uncertainty_300_336_ph_m2_s": 9.145950109452299e+27,
-    "systematic_uncertainty_300_650_ph_m2_s": 9.145950109452299e+27
+    "statistical_uncertainty_300_650_ph_m2_s": 3191816589183.5586,
+    "systematic_uncertainty_300_336_ph_m2_s": 158909186256954.62,
+    "systematic_uncertainty_300_650_ph_m2_s": 158909186256954.62
   },
   "canonical_map": {
     "path": "starlight_nside128.csv",
@@ -3488,12 +3489,12 @@
     "total_flux_ph_m2_s": 8003321966388817.0,
     "admitted_sources": 1520028984,
     "excluded_sources": 291680787,
-    "sha256": "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+    "sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
   },
   "deterministic_merge": {
     "algorithm": "complete-partition-shard-v1",
-    "canonical_sha256": "6b7e6ef9ea2265c84865c524524f2e91e489a51ee09e1e1fe4e0a237166bbf1a",
-    "independent_partial_merge_sha256": "6b7e6ef9ea2265c84865c524524f2e91e489a51ee09e1e1fe4e0a237166bbf1a",
+    "canonical_sha256": "3a8db34eaab5239e21968fccb92eb8ab920b1d98a5dd053d4bb8a1de51354ecf",
+    "independent_partial_merge_sha256": "3a8db34eaab5239e21968fccb92eb8ab920b1d98a5dd053d4bb8a1de51354ecf",
     "compared_pixels": 196608,
     "pixel_key_mismatches": 0,
     "flux_mismatches": 0,
@@ -3502,5 +3503,18 @@
     "exclusion_reason_mismatches": 0,
     "first_mismatch": null,
     "stable": true
+  },
+  "uncertainty_scale": {
+    "global_relative_statistical_uncertainty": 0.0003988114688610659,
+    "global_relative_systematic_uncertainty": 0.2700188378913276,
+    "global_relative_total_uncertainty": 0.27001913240874387,
+    "evaluated_pixels": 196608,
+    "pixel_relative_uncertainty_p50": 0.24311879968671435,
+    "pixel_relative_uncertainty_p68": 0.2443295865958753,
+    "pixel_relative_uncertainty_p95": 0.2496500402213098,
+    "pixel_relative_uncertainty_p99": 0.25423262591154333,
+    "fraction_pixels_relative_uncertainty_gt_1": 0.0,
+    "fraction_pixels_relative_uncertainty_gt_10": 0.0,
+    "fraction_pixels_relative_uncertainty_gt_100": 0.0
   }
 }

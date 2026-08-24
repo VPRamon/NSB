@@ -88,11 +88,11 @@ generated_by = "nsb-data-tools-compatible manual seed workflow using siderust HE
 [[assets]]
 path = "merge_report.json"
 schema = "nsb-starlight-merge-report-v5"
-sha256 = "5b2419a113cf160e724a1afc687e3632862dc8d7f9081bd48b297e072e7af147"
+sha256 = "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
-generation_command = "nsb-data dataset starlight publish --config crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml"
+generation_command = "nsb-data dataset <dataset> publish --config <run.toml>"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
 calibration_status = "candidate"
 runtime_embedded = false
@@ -100,11 +100,11 @@ runtime_embedded = false
 [[assets]]
 path = "starlight_nside128.csv"
 schema = "nsb-healpix-starlight-candidate-v5"
-sha256 = "7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a"
+sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
-generation_command = "nsb-data dataset starlight publish --config crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml"
+generation_command = "nsb-data dataset <dataset> publish --config <run.toml>"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
 calibration_status = "candidate"
 runtime_embedded = false

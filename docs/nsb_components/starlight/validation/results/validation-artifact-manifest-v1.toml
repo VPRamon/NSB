@@ -1,0 +1,44 @@
+schema_version = 1
+generated_at_unix_seconds = 1787571593
+
+[[artifacts]]
+name = "preregistration-v1.toml"
+path = "docs/nsb_components/starlight/validation/preregistration-v1.toml"
+sha256 = "05499f8f112bb0f1b01fc3cfca49f0833cce42efaf8f60296344ed6536ca7a97"
+bytes = 3669
+
+[[artifacts]]
+name = "references-v1.toml"
+path = "docs/nsb_components/starlight/validation/references-v1.toml"
+sha256 = "f7963b1f651104d8d58e74aeec07a5f3ac07fb11bee23c80a79fcb909560f9c6"
+bytes = 5682
+
+[[artifacts]]
+name = "regions-v1.json"
+path = "docs/nsb_components/starlight/validation/regions-v1.json"
+sha256 = "03d673170877485a58fa6e81e4959a051b9df3a48635c8e449d71e55bf5a97dc"
+bytes = 7129
+
+[[artifacts]]
+name = "candidate-map"
+path = "crates/nsb/data/starlight_nside128.csv"
+sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
+bytes = 20394694
+
+[[artifacts]]
+name = "validation-results-v1.json"
+path = "docs/nsb_components/starlight/validation/results/validation-results-v1.json"
+sha256 = "9e3a98d0c7e188d5707e245595d07fe6c8c744d1fbd3e68bd915a518f9e11a86"
+bytes = 20272
+
+[[artifacts]]
+name = "validation-report-v1.md"
+path = "docs/nsb_components/starlight/validation/results/validation-report-v1.md"
+sha256 = "86f93bf348013751e6607a7fcee1eaa1c57f0f61174ea8339213f1eb39bf083b"
+bytes = 15966
+
+[[artifacts]]
+name = "validation-report-v1.html"
+path = "docs/nsb_components/starlight/validation/results/validation-report-v1.html"
+sha256 = "7714ebda4fb12a3d67ccad88317007612aa5f65dc6fbeec0d74ba4b89cc5c6d7"
+bytes = 7441

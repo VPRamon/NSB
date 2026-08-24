@@ -24,20 +24,22 @@ fn preregistration_document_parses_and_validates() -> Result<()> {
 }
 
 #[test]
-fn references_document_parses_and_validates_and_is_all_pending() -> Result<()> {
+fn references_document_parses_and_validates_acquired_checksums() -> Result<()> {
     let path = docs_dir().join("references-v1.toml");
     let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     let document: ReferencesDocument =
         toml::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
     document.validate()?;
-    if !document.acquisition_required {
-        bail!("checked-in references-v1.toml must still require acquisition");
+    if document.acquisition_required {
+        bail!(
+            "checked-in references-v1.toml must not require acquisition after checksums are pinned"
+        );
     }
-    if document.acquired().count() != 0 {
-        bail!("checked-in references-v1.toml must not declare any reference already acquired");
-    }
-    if document.references.len() < 2 {
-        bail!("checked-in references-v1.toml must declare at least two candidate references");
+    if document.acquired().count() != 3 {
+        bail!(
+            "checked-in references-v1.toml must declare three acquired references, found {}",
+            document.acquired().count()
+        );
     }
     Ok(())
 }

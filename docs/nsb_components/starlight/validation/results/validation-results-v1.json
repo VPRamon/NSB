@@ -1,0 +1,369 @@
+{
+  "schema_version": 1,
+  "generated_at_unix_seconds": 1787571593,
+  "issue": 87,
+  "preregistration_sha256": "05499f8f112bb0f1b01fc3cfca49f0833cce42efaf8f60296344ed6536ca7a97",
+  "references_sha256": "f7963b1f651104d8d58e74aeec07a5f3ac07fb11bee23c80a79fcb909560f9c6",
+  "regions_sha256": "03d673170877485a58fa6e81e4959a051b9df3a48635c8e449d71e55bf5a97dc",
+  "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
+  "candidate_map_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
+  "candidate_map_pinned_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
+  "band_nm": [
+    300,
+    650
+  ],
+  "flux_unit": "ph_m-2_s-1",
+  "region_ids": [
+    "all-sky",
+    "galactic-plane",
+    "galactic-center",
+    "anticenter",
+    "poles",
+    "dark-fields",
+    "seam-0-360",
+    "dense",
+    "high-extinction",
+    "bright-star",
+    "high-crowding"
+  ],
+  "reference_statuses": [
+    {
+      "reference_id": "toller-1981-pioneer-background-starlight",
+      "status": "not-admissible",
+      "detail": "Pioneer 10 Galactic-pole photometry measures ISL+DGL+EBL; diffuse galactic light is inseparable from discrete starlight in the 2.3 deg FOV. Acquired for provenance only."
+    },
+    {
+      "reference_id": "leinert-1998-diffuse-night-sky-brightness",
+      "status": "evaluated",
+      "detail": "grid sha256 965af999fcda7bb8c5a87b53d4e472b611af8b4d304d11b867a30a5a80a40afe intersected with candidate map over 11 of 11 declared regions"
+    },
+    {
+      "reference_id": "masana-2021-gambons-gaia-hipparcos-starlight",
+      "status": "not-admissible",
+      "detail": "GAMBONS all-sky products mix Gaia/Hipparcos ISL with DGL, EBL, zodiacal light and airglow. Not an admissible TOA Galactic starlight-only 300-650 nm grid."
+    }
+  ],
+  "reference_results": [
+    {
+      "reference_id": "leinert-1998-diffuse-night-sky-brightness",
+      "region_metrics": [
+        {
+          "region_id": "all-sky",
+          "metrics": {
+            "signed_bias": 40662718081.36186,
+            "absolute_bias": 40662718081.36186,
+            "relative_bias": 918.2574685303877,
+            "mae": 40662718081.36186,
+            "median_absolute_error": 7087923154.153471,
+            "rmse": 205864999512.03326,
+            "relative_error_p50": 203.73794784906138,
+            "relative_error_p68": 509.13258595666616,
+            "relative_error_p95": 4014.214266305312,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0004323323567708333,
+            "outlier_fraction": 0.0014139811197916667,
+            "sample_count": 196608
+          },
+          "tolerance_failures": [
+            "absolute_all_sky_bias 4.066272e10 exceeds preregistered maximum 3.000000e-2",
+            "median relative error 203.737948 exceeds preregistered maximum 0.050000",
+            "p95 relative error 4014.214266 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000432 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "galactic-plane",
+          "metrics": {
+            "signed_bias": 59643194335.35255,
+            "absolute_bias": 59643194335.35255,
+            "relative_bias": 708.0963463341187,
+            "mae": 59643194335.35255,
+            "median_absolute_error": 11483153067.382961,
+            "rmse": 234301083881.54523,
+            "relative_error_p50": 149.20962577043872,
+            "relative_error_p68": 356.7058366840335,
+            "relative_error_p95": 3500.871092775959,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0004664179104477612,
+            "outlier_fraction": 0.0006704757462686567,
+            "sample_count": 34304
+          },
+          "tolerance_failures": [
+            "median relative error 149.209626 exceeds preregistered maximum 0.050000",
+            "p95 relative error 3500.871093 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000466 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "galactic-center",
+          "metrics": {
+            "signed_bias": 55161417431.87933,
+            "absolute_bias": 55161417431.87933,
+            "relative_bias": 383.8031641665548,
+            "mae": 55161417431.87933,
+            "median_absolute_error": 16183908474.859142,
+            "rmse": 226211863164.76202,
+            "relative_error_p50": 112.7242489165365,
+            "relative_error_p68": 224.73471108660985,
+            "relative_error_p95": 1329.7199310364335,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0,
+            "outlier_fraction": 0.00029761904761904765,
+            "sample_count": 3360
+          },
+          "tolerance_failures": [
+            "median relative error 112.724249 exceeds preregistered maximum 0.050000",
+            "p95 relative error 1329.719931 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "anticenter",
+          "metrics": {
+            "signed_bias": 46935838408.784996,
+            "absolute_bias": 46935838408.784996,
+            "relative_bias": 778.8883048431749,
+            "mae": 46935838408.784996,
+            "median_absolute_error": 13277421476.602888,
+            "rmse": 196100138073.3485,
+            "relative_error_p50": 221.16737886785344,
+            "relative_error_p68": 451.6105949195647,
+            "relative_error_p95": 2422.949319571865,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0,
+            "outlier_fraction": 0.0005952380952380953,
+            "sample_count": 3360
+          },
+          "tolerance_failures": [
+            "median relative error 221.167379 exceeds preregistered maximum 0.050000",
+            "p95 relative error 2422.949320 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "poles",
+          "metrics": {
+            "signed_bias": 22858467881.930134,
+            "absolute_bias": 22858467881.930134,
+            "relative_bias": 1392.683220596998,
+            "mae": 22858467881.930134,
+            "median_absolute_error": 4998809444.664476,
+            "rmse": 177935852449.65027,
+            "relative_error_p50": 322.6666137136957,
+            "relative_error_p68": 617.9021451049824,
+            "relative_error_p95": 4655.396653384088,
+            "coverage_68": 0.0,
+            "coverage_95": 0.00037639265281541704,
+            "outlier_fraction": 0.0010162601626016261,
+            "sample_count": 26568
+          },
+          "tolerance_failures": [
+            "median relative error 322.666614 exceeds preregistered maximum 0.050000",
+            "p95 relative error 4655.396653 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000376 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "dark-fields",
+          "metrics": {
+            "signed_bias": 31602451331.954113,
+            "absolute_bias": 31602451331.954113,
+            "relative_bias": 1447.8454953241885,
+            "mae": 31602451331.954113,
+            "median_absolute_error": 865445786.2862815,
+            "rmse": 53612634043.49159,
+            "relative_error_p50": 38.871681918772325,
+            "relative_error_p68": 2912.703032942157,
+            "relative_error_p95": 5051.629766580972,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0,
+            "outlier_fraction": 0.005649717514124294,
+            "sample_count": 177
+          },
+          "tolerance_failures": [
+            "median relative error 38.871682 exceeds preregistered maximum 0.050000",
+            "p95 relative error 5051.629767 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "seam-0-360",
+          "metrics": {
+            "signed_bias": 34233217251.302547,
+            "absolute_bias": 34233217251.302547,
+            "relative_bias": 525.7755994787381,
+            "mae": 34233217251.302547,
+            "median_absolute_error": 4493927145.506453,
+            "rmse": 192970600222.539,
+            "relative_error_p50": 121.73375086037092,
+            "relative_error_p68": 282.0640281730726,
+            "relative_error_p95": 1505.2600159440838,
+            "coverage_68": 0.0,
+            "coverage_95": 0.00018044027426921688,
+            "outlier_fraction": 0.0007217610970768675,
+            "sample_count": 5542
+          },
+          "tolerance_failures": [
+            "median relative error 121.733751 exceeds preregistered maximum 0.050000",
+            "p95 relative error 1505.260016 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000180 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "dense",
+          "metrics": {
+            "signed_bias": 129717162607.64507,
+            "absolute_bias": 129717162607.64507,
+            "relative_bias": 3688.396887165141,
+            "mae": 129717162607.64507,
+            "median_absolute_error": 72276676906.5812,
+            "rmse": 322004357853.4337,
+            "relative_error_p50": 2566.322838723593,
+            "relative_error_p68": 3776.0809216603316,
+            "relative_error_p95": 9431.978398961193,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0010172422562433243,
+            "outlier_fraction": 0.0013224149331163217,
+            "sample_count": 19661
+          },
+          "tolerance_failures": [
+            "median relative error 2566.322839 exceeds preregistered maximum 0.050000",
+            "p95 relative error 9431.978399 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.001017 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "high-extinction",
+          "metrics": {
+            "signed_bias": 51169410761.83291,
+            "absolute_bias": 51169410761.83291,
+            "relative_bias": 513.0420339390763,
+            "mae": 51169410761.83291,
+            "median_absolute_error": 11779766270.395039,
+            "rmse": 305307200975.46686,
+            "relative_error_p50": 110.73458960974958,
+            "relative_error_p68": 171.1991312673605,
+            "relative_error_p95": 1199.1742147762045,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0,
+            "outlier_fraction": 0.0,
+            "sample_count": 960
+          },
+          "tolerance_failures": [
+            "median relative error 110.734590 exceeds preregistered maximum 0.050000",
+            "p95 relative error 1199.174215 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "bright-star",
+          "metrics": {
+            "signed_bias": 69392897955.05696,
+            "absolute_bias": 69392897955.05696,
+            "relative_bias": 1407.7484485830055,
+            "mae": 69392897955.05696,
+            "median_absolute_error": 28350023251.21113,
+            "rmse": 101606811665.81233,
+            "relative_error_p50": 486.1153607082952,
+            "relative_error_p68": 2913.477539692448,
+            "relative_error_p95": 4996.083893232763,
+            "coverage_68": 0.0,
+            "coverage_95": 0.0,
+            "outlier_fraction": 0.023255813953488372,
+            "sample_count": 43
+          },
+          "tolerance_failures": [
+            "median relative error 486.115361 exceeds preregistered maximum 0.050000",
+            "p95 relative error 4996.083893 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        },
+        {
+          "region_id": "high-crowding",
+          "metrics": {
+            "signed_bias": 312868106095.34735,
+            "absolute_bias": 312868106095.34735,
+            "relative_bias": 8822.687352290239,
+            "mae": 312868106095.34735,
+            "median_absolute_error": 221913666746.0299,
+            "rmse": 466350376071.2237,
+            "relative_error_p50": 7942.363471559589,
+            "relative_error_p68": 9388.72755522901,
+            "relative_error_p95": 16421.971650044637,
+            "coverage_68": 0.0,
+            "coverage_95": 0.001525165226232842,
+            "outlier_fraction": 0.007625826131164209,
+            "sample_count": 1967
+          },
+          "tolerance_failures": [
+            "median relative error 7942.363472 exceeds preregistered maximum 0.050000",
+            "p95 relative error 16421.971650 exceeds preregistered maximum 0.100000",
+            "coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+            "coverage_95 0.001525 is outside preregistered range [0.900000, 0.980000]"
+          ]
+        }
+      ]
+    }
+  ],
+  "technical_gates_passed": false,
+  "technical_gate_failures": [
+    "leinert-1998-diffuse-night-sky-brightness/all-sky: absolute_all_sky_bias 4.066272e10 exceeds preregistered maximum 3.000000e-2",
+    "leinert-1998-diffuse-night-sky-brightness/all-sky: median relative error 203.737948 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/all-sky: p95 relative error 4014.214266 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/all-sky: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/all-sky: coverage_95 0.000432 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-plane: median relative error 149.209626 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-plane: p95 relative error 3500.871093 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-plane: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-plane: coverage_95 0.000466 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-center: median relative error 112.724249 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-center: p95 relative error 1329.719931 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-center: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/galactic-center: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/anticenter: median relative error 221.167379 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/anticenter: p95 relative error 2422.949320 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/anticenter: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/anticenter: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/poles: median relative error 322.666614 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/poles: p95 relative error 4655.396653 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/poles: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/poles: coverage_95 0.000376 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/dark-fields: median relative error 38.871682 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/dark-fields: p95 relative error 5051.629767 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/dark-fields: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/dark-fields: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/seam-0-360: median relative error 121.733751 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/seam-0-360: p95 relative error 1505.260016 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/seam-0-360: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/seam-0-360: coverage_95 0.000180 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/dense: median relative error 2566.322839 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/dense: p95 relative error 9431.978399 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/dense: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/dense: coverage_95 0.001017 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/high-extinction: median relative error 110.734590 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/high-extinction: p95 relative error 1199.174215 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/high-extinction: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/high-extinction: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/bright-star: median relative error 486.115361 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/bright-star: p95 relative error 4996.083893 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/bright-star: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/bright-star: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]",
+    "leinert-1998-diffuse-night-sky-brightness/high-crowding: median relative error 7942.363472 exceeds preregistered maximum 0.050000",
+    "leinert-1998-diffuse-night-sky-brightness/high-crowding: p95 relative error 16421.971650 exceeds preregistered maximum 0.100000",
+    "leinert-1998-diffuse-night-sky-brightness/high-crowding: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]",
+    "leinert-1998-diffuse-night-sky-brightness/high-crowding: coverage_95 0.001525 is outside preregistered range [0.900000, 0.980000]"
+  ],
+  "scientific_review_status": "pending",
+  "scientifically_validated": false,
+  "notes": "Technical scaffolding for issue #87. Scientific approval is recorded only in issue #47 and is never inferred from this report."
+}

@@ -58,21 +58,15 @@ or an authorized reviewer, not a software agent — must:
 No software agent, including the one that produced this package, may set
 `decision` to anything other than `"pending"`.
 
-## Known gaps blocking full #88 closure
+## Known gaps remaining for human #47 review
 
-- No independent validation evidence exists yet (#87); the inventory carries
-  only a placeholder entry.
-- No production selection-function or photometric-inference artifact has
-  been trained or checked in; both remain unset in
-  `starlight-production.toml`.
-- The UV correction artifact embedded in the current candidate
-  (`calspec-linear-log-ratio-v1`) is scientifically invalidated per #94; its
-  replacement (`v2`) is not yet integrated into a published candidate, so the
-  candidate map/report checksums in the inventory will need to be replaced
-  after the Ladon rebuild.
+- Independent validation (#87) acquired three references and ran against the
+  UV v2 candidate. Preregistered numerical gates versus the Leinert 1998 ISL
+  model did **not** pass; reports are under `validation/results/`. Do not
+  treat that as scientific approval.
 - The Gaia CC BY-NC 3.0 IGO non-commercial clause's compatibility with NSB's
-  intended distribution channels has not been legally or scientifically
-  determined; this is the central open question for #47.
+  intended distribution channels has not been legally determined; this is
+  the central open question for #47.
 - `starlight_manual_seed_v1.csv` already carries a pre-existing
   "review required" licence flag in `crates/nsb/data/manifest.toml` that this
   package surfaces but does not resolve.

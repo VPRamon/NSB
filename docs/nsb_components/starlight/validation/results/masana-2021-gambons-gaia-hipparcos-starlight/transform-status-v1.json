@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "reference_id": "masana-2021-gambons-gaia-hipparcos-starlight",
+  "spec_id": "none",
+  "admissibility": "not-admissible",
+  "detail": "GAMBONS all-sky products mix Gaia/Hipparcos ISL with DGL, EBL, zodiacal light and airglow. Not an admissible TOA Galactic starlight-only 300-650 nm grid."
+}

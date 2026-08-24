@@ -1,67 +1,70 @@
 schema_version = 1
 
-# `acquisition_required = true` until at least one reference below reaches
-# `status = "acquired"` with a verified sha256. `nsb-data dataset starlight
-# validation acquire` and `references.rs::ReferencesDocument::validate` both
-# fail closed if this flag is inconsistent with the actual per-reference
-# status, so it cannot silently drift from reality.
-acquisition_required = true
+# At least one reference is acquired, so this flag is false. Remaining
+# scientific admissibility (starlight-only vs mixed sky) is decided at
+# transform time, not by this flag.
+acquisition_required = false
 
 notes = """
-No reference below has been acquired yet. Every entry omits `sha256`
-entirely and is marked `status = "pending-acquisition"`; none of the
-checksums in this file are invented. `dataset starlight validation acquire`
-downloads or locates each file, computes its sha256, and only then is this
-document's status changed to `acquired` (with the resulting checksum). Until
-that happens, `dataset starlight validation run` reports
-`technical_gates_passed = false` with a clear pending-acquisition status
-rather than fabricating comparison numbers.
+Three literature targets are acquired with verified SHA-256:
 
-These three targets were chosen because, between them, they span a genuinely
-independent physical measurement (Toller 1981, Pioneer 10/11), a widely
-cited independent compiled/star-count-model reference (Leinert et al. 1998),
-and a modern, independently engineered aggregation pipeline over
-partially-overlapping input data (Masana et al. 2021 GAMBONS). The GAMBONS
-entry is retained for pipeline cross-validation only; because it shares Gaia
-as an input catalogue, it must never be treated as a fully independent
-ground truth by itself.
+- Toller 1981 / Toller et al. 1987 Galactic-pole Pioneer 10 photometry,
+  transcribed from Leinert et al. 1998 Table 34. The measurement is
+  ISL+DGL+EBL (zodiacal light absent). Transform marks it not admissible
+  as a starlight-only grid.
+- Leinert et al. 1998 integrated-starlight analytical model constants,
+  transcribed from the published A&AS text. Transform evaluates
+  reconstruction `leinert-1998-isl-analytic-v1` at nside-128 nested
+  pixel centres and is the only admissible comparison in this package.
+- Masana et al. 2021 GAMBONS: the arXiv PDF (2101.01500) is acquired as
+  the public machine-downloadable artifact. The GAMBONS website map mixes
+  ISL with DGL, EBL, zodiacal light and airglow, so transform marks it
+  not admissible as a Galactic starlight-only TOA 300-650 nm grid.
+
+Checksums below were computed from the acquired files; none are invented.
+GAMBONS shares Gaia as an input catalogue and must never be treated as
+fully independent ground truth.
 """
 
 [[references]]
 id = "toller-1981-pioneer-background-starlight"
-citation = "Toller, G. N. 1981, PhD dissertation, \"A Study of Galactic Light, Extragalactic Light, and Galactic Structure Using Pioneer 10 Observations of Background Starlight,\" State University of New York at Albany (see also Weinberg et al. 1974, J. Geophys. Res., 79, 3665)"
-description = "All-sky (~95% coverage) diffuse background-starlight brightness derived from the Pioneer 10/11 Imaging Photopolarimeter after the spacecraft passed beyond the zodiacal dust cloud (heliocentric distance >= 3 AU), tabulated in blue (395-485 nm) and red (590-680 nm) bandpasses. Measured directly by a photometer, not reconstructed from a stellar catalogue, so it is independent of Gaia by both instrument and methodology."
-coverage = "all-sky"
-wavelength_band_nm = [395.0, 680.0]
-spectral_quantity = "diffuse background-starlight radiance, S10(V)-equivalent units in the original tables"
-transformation_to_target = "not yet implemented: requires re-binning the blue/red photopolarimeter bandpasses onto the 300-650 nm integrated photon-radiance convention used by the candidate map, and converting S10(V)-equivalent units to ph m^-2 s^-1"
-license = "unrecorded; a pre-digital-era dissertation, redistribution terms must be confirmed with SUNY Albany and/or the NASA STI program before acquisition"
-status = "pending-acquisition"
+citation = "Toller, G. N. 1981, PhD dissertation, \"A Study of Galactic Light, Extragalactic Light, and Galactic Structure Using Pioneer 10 Observations of Background Starlight,\" State University of New York at Albany (see also Weinberg et al. 1974, J. Geophys. Res., 79, 3665; Toller et al. 1987; tabulated in Leinert et al. 1998 Table 34)"
+description = "Pioneer 10/11 Imaging Photopolarimeter background-starlight brightness after the spacecraft passed beyond the zodiacal dust cloud (heliocentric distance >= 3 AU). This acquisition is the Galactic-pole blue (440 nm) tabulation reprinted in Leinert et al. 1998 Table 34. Measured by a photometer, independent of Gaia."
+coverage = "galactic-poles"
+wavelength_band_nm = [395.0, 485.0]
+spectral_quantity = "total background starlight (ISL+DGL+EBL) in S10 units; zodiacal light absent"
+transformation_to_target = "not-admissible: DGL and EBL are inseparable from ISL in the Pioneer FOV; see transforms.rs Admissibility::NotAdmissible"
+license = "facts transcribed from a published A&AS table; original dissertation redistribution terms remain with SUNY Albany / NASA STI"
+status = "acquired"
+sha256 = "41871c3273f644aedd2b657b1fbd6f0cbe454e709c5ff08bf91a3902928d26ff"
 filename = "toller1981-pioneer-background-starlight.csv"
-acquisition_notes = "Locate a digitized version of the tabulated brightness maps via ADS, the NASA STI program, or the OSTI record (https://www.osti.gov/biblio/5604762); if only scanned tables are available, a machine-readable transcription step must be added and reviewed before this reference can be marked acquired."
+acquisition_notes = "Local transcription of Leinert et al. 1998 Table 34 Pioneer 10 Galactic-pole values. Re-run acquire with --source pointing at docs/nsb_components/starlight/validation/acquired/toller1981-pioneer-background-starlight.csv"
 
 [[references]]
 id = "leinert-1998-diffuse-night-sky-brightness"
 citation = "Leinert, Ch., Bowyer, S., Haikala, L. K., Hanner, M. S., Hauser, M. G., Levasseur-Regourd, A.-Ch., Mann, I., Mattila, K., Reach, W. T., Schlosser, W., Staude, H. J., Toller, G. N., Weiland, J. L., Weinberg, J. L., & Witt, A. N. 1998, A&AS, 127, 1, \"The 1997 reference of diffuse night sky brightness\""
-description = "IAU Commission 21 (\"Light of the night sky\") compiled reference tables of diffuse night-sky brightness components, including integrated starlight and diffuse galactic light as a function of galactic coordinates, drawn primarily from pre-Gaia star-count models and photometric surveys (e.g. Mattila 1980, Gondhalekar 1990) and independent of Gaia astrometry or photometry."
+description = "Published integrated-starlight analytical model (Elsässer & Haug 1960 isophotes + Roach & Megill 1961 high-latitude star counts) independent of Gaia. CDS catalogue J/A+AS/127/1 distributes IRAS cirrus FITS, not this optical ISL model, so the model constants are transcribed from the article text."
 coverage = "all-sky"
 wavelength_band_nm = [300.0, 700.0]
-spectral_quantity = "integrated starlight and diffuse galactic light radiance, tabulated vs. galactic coordinates"
-transformation_to_target = "not yet implemented: requires identifying the exact tabulated wavelength grid used for the integrated-starlight component and converting it to the 300-650 nm integrated photon-radiance convention used by the candidate map"
-license = "ESO / A&A copyright; tabulated data are described as available at the CDS (Strasbourg astronomical Data Center), licence terms for redistribution inside this repository must be confirmed at acquisition time"
-status = "pending-acquisition"
+spectral_quantity = "integrated starlight radiance in S10 units (analytical model)"
+transformation_to_target = "leinert-1998-isl-analytic-v1 evaluated at nside-128 nested Galactic pixel centres, then s10v-to-ph-300-650-solar-flat-v1"
+license = "ESO / A&A copyright on the article; numerical model constants transcribed as scientific facts"
+status = "acquired"
+sha256 = "3296cb20ff7398045afc5e691b45e72590165b88c859d5782bc7908952ba5dc6"
 filename = "leinert1998-diffuse-night-sky-brightness.csv"
-acquisition_notes = "Obtain the machine-readable tables from CDS (catalogue J/A+AS/127/1) rather than transcribing the printed A&AS article; confirm CDS redistribution terms before acquisition."
+acquisition_notes = "Local transcription of the published ISL model constants. Re-run acquire with --source pointing at docs/nsb_components/starlight/validation/acquired/leinert1998-diffuse-night-sky-brightness.csv"
 
 [[references]]
 id = "masana-2021-gambons-gaia-hipparcos-starlight"
 citation = "Masana, E., Carrasco, J. M., Bará, S., & Ribas, S. J. 2021, MNRAS, 501, 5443, \"A multiband map of the natural night sky brightness including Gaia and Hipparcos integrated starlight\" (GAMBONS)"
-description = "Published all-sky integrated-starlight radiance map derived from Gaia DR2 and Hipparcos photometry using an independently engineered aggregation and photometric-transformation pipeline (GAMBONS), distinct from this repository's Starlight pipeline. Retained for pipeline/methodology cross-validation only: it shares Gaia as an underlying data source with the candidate map, so agreement here partly tests processing-pipeline independence rather than full data independence, and must always be interpreted alongside the Toller (1981) and Leinert (1998) references above, never as a standalone ground truth."
+description = "GAMBONS natural night-sky model. The acquired file is the public arXiv PDF. The all-sky product mixes Gaia/Hipparcos ISL with DGL, EBL, zodiacal light and airglow (https://gambons.fqa.ub.edu). Retained for pipeline cross-validation documentation only; shares Gaia as an input catalogue."
 coverage = "all-sky"
 wavelength_band_nm = [300.0, 700.0]
-spectral_quantity = "integrated starlight radiance in Johnson V and related photopic/scotopic passbands"
-transformation_to_target = "not yet implemented: requires selecting or deriving the published passband combination closest to the 300-650 nm integrated photon-radiance convention and converting the published radiance units to ph m^-2 s^-1"
-license = "MNRAS/OUP copyright for the article; the underlying map/tables are described as available online, redistribution terms for this repository must be confirmed at acquisition time"
-status = "pending-acquisition"
-filename = "masana2021-gambons.csv"
-acquisition_notes = "Confirm the exact CDS/VizieR catalogue identifier and public-download terms for the GAMBONS map via the MNRAS article's data availability statement before acquisition."
+spectral_quantity = "natural night-sky radiance (ISL+DGL+EBL+ZL+airglow); not isolated TOA Galactic starlight"
+transformation_to_target = "not-admissible: zodiacal light, airglow and DGL are inseparable from the published GAMBONS all-sky product"
+license = "arXiv non-exclusive distribution license for 2101.01500; MNRAS/OUP copyright on the journal version"
+status = "acquired"
+sha256 = "a45183a5f94aceebca989bf7b8e3f4556acb5769175453ca7a8514a9ec0e9bed"
+filename = "masana2021-gambons.pdf"
+acquisition_url = "https://arxiv.org/pdf/2101.01500.pdf"
+acquisition_notes = "HTTPS download of arXiv:2101.01500. Fail-closed if the PDF digest drifts. Do not treat GAMBONS website maps as starlight-only TOA 300-650 nm grids."
