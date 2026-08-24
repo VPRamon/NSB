@@ -2,6 +2,7 @@ use nsb_data_tools::starlight::{
     pack::{pack_candidate_map, PackInputs, CANONICAL_CANDIDATE_SHA256},
     validation::candidate_map,
 };
+use siderust::coordinates::frames::Galactic;
 use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
 use std::collections::BTreeMap;
 use std::f64::consts::PI;
@@ -30,12 +31,8 @@ fn canonical_pack_preserves_siderust_nested_sky_identity_exhaustively() {
         "canonical Starlight candidate must be present for the nside=128 semantic gate"
     );
 
-    let candidate = candidate_map::load(
-        &candidate_path,
-        NSIDE,
-        Some(CANONICAL_CANDIDATE_SHA256),
-    )
-    .expect("load frozen candidate");
+    let candidate = candidate_map::load(&candidate_path, NSIDE, Some(CANONICAL_CANDIDATE_SHA256))
+        .expect("load frozen candidate");
 
     let dir = TempDir::new().expect("temporary pack directory");
     let runtime_path = dir.path().join("starlight.release.csv");
@@ -84,7 +81,7 @@ fn canonical_pack_preserves_siderust_nested_sky_identity_exhaustively() {
 
     for nested_index in 0..npix {
         let direction = nested_grid
-            .pixel_center(HealpixIndex::new(nested_index))
+            .pixel_center::<Galactic>(HealpixIndex::new(nested_index))
             .expect("Siderust NESTED pixel centre");
         let ring_index = ring_grid
             .direction_to_pixel(direction)
