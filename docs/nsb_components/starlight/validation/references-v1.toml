@@ -13,17 +13,20 @@ Three literature targets are acquired with verified SHA-256:
   ISL+DGL+EBL (zodiacal light absent). Transform marks it not admissible
   as a starlight-only grid.
 - Leinert et al. 1998 integrated-starlight analytical model constants,
-  transcribed from the published A&AS text. Transform evaluates
-  reconstruction `leinert-1998-isl-analytic-v1` at nside-128 nested
-  pixel centres and is the only admissible comparison in this package.
+  transcribed from the published A&AS text. Transform marks it not
+  admissible: the paper quotes five S10 anchors for a two-dimensional
+  Gaussian but does not publish the Gaussian parameters needed to
+  reconstruct that surface.
 - Masana et al. 2021 GAMBONS: the arXiv PDF (2101.01500) is acquired as
   the public machine-downloadable artifact. The GAMBONS website map mixes
   ISL with DGL, EBL, zodiacal light and airglow, so transform marks it
   not admissible as a Galactic starlight-only TOA 300-650 nm grid.
 
 Checksums below were computed from the acquired files; none are invented.
-GAMBONS shares Gaia as an input catalogue and must never be treated as
-fully independent ground truth.
+No admissible starlight-only comparison grid is available yet; `validation
+run` therefore reports not-admissible statuses rather than fabricating
+metrics. GAMBONS shares Gaia as an input catalogue and must never be
+treated as fully independent ground truth.
 """
 
 [[references]]
@@ -47,7 +50,7 @@ description = "Published integrated-starlight analytical model (Elsässer & Haug
 coverage = "all-sky"
 wavelength_band_nm = [300.0, 700.0]
 spectral_quantity = "integrated starlight radiance in S10 units (analytical model)"
-transformation_to_target = "leinert-1998-isl-analytic-v1 evaluated at nside-128 nested Galactic pixel centres, then s10v-to-ph-300-650-solar-flat-v1"
+transformation_to_target = "not-admissible: published Leinert ISL model is a two-dimensional Gaussian whose amplitudes/widths are not printed; inventing an interpolation from the five quoted S10 anchors is not the registered model"
 license = "ESO / A&A copyright on the article; numerical model constants transcribed as scientific facts"
 status = "acquired"
 sha256 = "3296cb20ff7398045afc5e691b45e72590165b88c859d5782bc7908952ba5dc6"

@@ -6,55 +6,11 @@
 <p>candidate_map_sha256 = <code>5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563</code></p>
 <h2>Reference statuses</h2><ul>
 <li><code>toller-1981-pioneer-background-starlight</code>: not-admissible — Pioneer 10 Galactic-pole photometry measures ISL+DGL+EBL; diffuse galactic light is inseparable from discrete starlight in the 2.3 deg FOV. Acquired for provenance only.</li>
-<li><code>leinert-1998-diffuse-night-sky-brightness</code>: evaluated — grid sha256 965af999fcda7bb8c5a87b53d4e472b611af8b4d304d11b867a30a5a80a40afe intersected with candidate map over 11 of 11 declared regions</li>
+<li><code>leinert-1998-diffuse-night-sky-brightness</code>: not-admissible — Leinert et al. 1998 describe a two-dimensional Gaussian fitted to Elsässer &amp; Haug (1960) isophotes and quote five S10 anchors. The published paper does not give the Gaussian amplitudes and widths needed to reconstruct that surface. Matching those anchors with an invented interpolation is not the registered model, so this reference is acquired for provenance only and is not an admissible comparison grid.</li>
 <li><code>masana-2021-gambons-gaia-hipparcos-starlight</code>: not-admissible — GAMBONS all-sky products mix Gaia/Hipparcos ISL with DGL, EBL, zodiacal light and airglow. Not an admissible TOA Galactic starlight-only 300-650 nm grid.</li>
 </ul>
 <h2>Technical gate failures</h2><ul>
-<li>leinert-1998-diffuse-night-sky-brightness/all-sky: absolute_all_sky_bias 4.066272e10 exceeds preregistered maximum 3.000000e-2</li>
-<li>leinert-1998-diffuse-night-sky-brightness/all-sky: median relative error 203.737948 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/all-sky: p95 relative error 4014.214266 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/all-sky: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/all-sky: coverage_95 0.000432 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-plane: median relative error 149.209626 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-plane: p95 relative error 3500.871093 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-plane: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-plane: coverage_95 0.000466 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-center: median relative error 112.724249 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-center: p95 relative error 1329.719931 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-center: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/galactic-center: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/anticenter: median relative error 221.167379 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/anticenter: p95 relative error 2422.949320 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/anticenter: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/anticenter: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/poles: median relative error 322.666614 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/poles: p95 relative error 4655.396653 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/poles: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/poles: coverage_95 0.000376 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dark-fields: median relative error 38.871682 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dark-fields: p95 relative error 5051.629767 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dark-fields: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dark-fields: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/seam-0-360: median relative error 121.733751 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/seam-0-360: p95 relative error 1505.260016 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/seam-0-360: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/seam-0-360: coverage_95 0.000180 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dense: median relative error 2566.322839 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dense: p95 relative error 9431.978399 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dense: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/dense: coverage_95 0.001017 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-extinction: median relative error 110.734590 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-extinction: p95 relative error 1199.174215 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-extinction: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-extinction: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/bright-star: median relative error 486.115361 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/bright-star: p95 relative error 4996.083893 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/bright-star: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/bright-star: coverage_95 0.000000 is outside preregistered range [0.900000, 0.980000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-crowding: median relative error 7942.363472 exceeds preregistered maximum 0.050000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-crowding: p95 relative error 16421.971650 exceeds preregistered maximum 0.100000</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-crowding: coverage_68 0.000000 is outside preregistered range [0.630000, 0.730000]</li>
-<li>leinert-1998-diffuse-night-sky-brightness/high-crowding: coverage_95 0.001525 is outside preregistered range [0.900000, 0.980000]</li>
+<li>no acquired-and-transformed reference data was available; validation is pending acquisition (see #87/#47)</li>
 </ul>
 <p>Technical scaffolding for issue #87. Scientific approval is recorded only in issue #47 and is never inferred from this report.</p>
 </body></html>

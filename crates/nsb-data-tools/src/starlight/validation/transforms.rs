@@ -7,12 +7,10 @@
 //! that cannot isolate direct Galactic starlight from zodiacal, airglow,
 //! extragalactic, or diffuse-galactic light is marked [`Admissibility::NotAdmissible`].
 
-use super::regions::pix2ang_nested;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::f64::consts::PI;
 use std::fs;
-use std::io::Write;
 use std::path::Path;
 
 /// Identifier of the currently implemented S10(V) conversion.
@@ -98,7 +96,6 @@ pub fn s10v_to_pixel_photon_flux(s10_v: f64, nside: u32) -> Result<f64> {
 }
 
 pub const TRANSFORM_RECORD_SCHEMA_VERSION: u32 = 1;
-pub const LEINERT_1998_ISL_ANALYTIC_V1: &str = "leinert-1998-isl-analytic-v1";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -110,31 +107,6 @@ pub struct TransformRecord {
     pub detail: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grid_sha256: Option<String>,
-}
-
-/// Reconstruct Leinert et al. 1998 ISL model brightness in S10 at Galactic
-/// `(l, b)` in degrees. Anchors match the published constants: 260 S10 at
-/// `(0,0)`, 100 S10 at `l=120/240, b=0`, 50 S10 at `|b|=30`, 20 S10 at `|b|=80`.
-pub fn leinert_1998_isl_s10(l_deg: f64, b_deg: f64) -> Result<f64> {
-    if !l_deg.is_finite() || !b_deg.is_finite() {
-        bail!("Leinert ISL coordinates must be finite");
-    }
-    let l_rad = l_deg.rem_euclid(360.0).to_radians();
-    let abs_b = b_deg.abs();
-    let i_eq = 100.0 + 160.0 * l_rad.cos().max(0.0).powi(2);
-    let s10 = if abs_b <= 30.0 {
-        let t = abs_b / 30.0;
-        i_eq * (1.0 - t) + 50.0 * t
-    } else if abs_b <= 80.0 {
-        let k = 2.5_f64.ln() / 50.0;
-        50.0 * (-k * (abs_b - 30.0)).exp()
-    } else {
-        20.0
-    };
-    if !s10.is_finite() || s10 <= 0.0 {
-        bail!("Leinert ISL reconstruction produced a non-positive S10");
-    }
-    Ok(s10)
 }
 
 /// Apply the versioned transformation for one acquired reference.
@@ -149,10 +121,16 @@ pub fn transform_acquired_reference(
 ) -> Result<TransformRecord> {
     fs::create_dir_all(output_dir)
         .with_context(|| format!("create transform output directory {}", output_dir.display()))?;
+    let _ = (acquired_path, nside);
     let record = match reference_id {
-        "leinert-1998-diffuse-night-sky-brightness" => {
-            transform_leinert_isl(acquired_path, output_dir, nside)?
-        }
+        "leinert-1998-diffuse-night-sky-brightness" => TransformRecord {
+            schema_version: TRANSFORM_RECORD_SCHEMA_VERSION,
+            reference_id: reference_id.to_string(),
+            spec_id: "none".to_string(),
+            admissibility: Admissibility::NotAdmissible,
+            detail: "Leinert et al. 1998 describe a two-dimensional Gaussian fitted to Elsässer & Haug (1960) isophotes and quote five S10 anchors. The published paper does not give the Gaussian amplitudes and widths needed to reconstruct that surface. Matching those anchors with an invented interpolation is not the registered model, so this reference is acquired for provenance only and is not an admissible comparison grid.".to_string(),
+            grid_sha256: None,
+        },
         "toller-1981-pioneer-background-starlight" => TransformRecord {
             schema_version: TRANSFORM_RECORD_SCHEMA_VERSION,
             reference_id: reference_id.to_string(),
@@ -175,52 +153,6 @@ pub fn transform_acquired_reference(
     fs::write(&record_path, serde_json::to_vec_pretty(&record)?)
         .with_context(|| format!("write {}", record_path.display()))?;
     Ok(record)
-}
-
-fn transform_leinert_isl(
-    acquired_path: &Path,
-    output_dir: &Path,
-    nside: u32,
-) -> Result<TransformRecord> {
-    let text = fs::read_to_string(acquired_path)
-        .with_context(|| format!("read {}", acquired_path.display()))?;
-    if !text.contains(LEINERT_1998_ISL_ANALYTIC_V1) {
-        bail!(
-            "{} does not declare reconstruction {}",
-            acquired_path.display(),
-            LEINERT_1998_ISL_ANALYTIC_V1
-        );
-    }
-    let spec = s10v_to_photon_300_650_spec();
-    let domain = 12_u64 * u64::from(nside) * u64::from(nside);
-    let grid_path = output_dir.join("transformed-grid-v1.csv");
-    let mut out =
-        fs::File::create(&grid_path).with_context(|| format!("create {}", grid_path.display()))?;
-    writeln!(out, "pixel,value_ph_m2_s,statistical_uncertainty_ph_m2_s")?;
-    for pixel in 0..domain {
-        let pixel = pixel as u32;
-        let (l, b) = pix2ang_nested(nside, pixel)?;
-        let s10 = leinert_1998_isl_s10(l, b)?;
-        let flux = s10v_to_pixel_photon_flux(s10, nside)?;
-        if flux <= 0.0 {
-            bail!("Leinert transform produced non-positive flux at pixel {pixel}");
-        }
-        let sigma = flux * spec.introduced_relative_uncertainty;
-        writeln!(out, "{pixel},{flux:.8e},{sigma:.8e}")?;
-    }
-    drop(out);
-    let sha256 = crate::platform::checksum_io::sha256_file(&grid_path)?;
-    Ok(TransformRecord {
-        schema_version: TRANSFORM_RECORD_SCHEMA_VERSION,
-        reference_id: "leinert-1998-diffuse-night-sky-brightness".to_string(),
-        spec_id: format!("{LEINERT_1998_ISL_ANALYTIC_V1}+{}", spec.id),
-        admissibility: Admissibility::AdmissibleDirectStarlight,
-        detail: format!(
-            "evaluated {LEINERT_1998_ISL_ANALYTIC_V1} at nside={nside} nested pixel centres; introduced relative uncertainty {}",
-            spec.introduced_relative_uncertainty
-        ),
-        grid_sha256: Some(sha256),
-    })
 }
 
 /// Solid angle of one square degree, exposed so tests can reconstruct the
@@ -269,67 +201,19 @@ mod tests {
     }
 
     #[test]
-    fn leinert_model_hits_published_anchors() {
-        let origin = leinert_1998_isl_s10(0.0, 0.0).unwrap();
-        assert!((origin - 260.0).abs() < 1e-9);
-        let l120 = leinert_1998_isl_s10(120.0, 0.0).unwrap();
-        assert!((l120 - 100.0).abs() < 1e-9);
-        let b30 = leinert_1998_isl_s10(0.0, 30.0).unwrap();
-        assert!((b30 - 50.0).abs() < 1e-9);
-        let b80 = leinert_1998_isl_s10(45.0, 80.0).unwrap();
-        assert!((b80 - 20.0).abs() < 1e-9);
-    }
-
-    #[test]
-    fn toller_and_gambons_are_not_admissible() {
+    fn acquired_literature_references_are_not_admissible_without_a_published_surface() {
         let temp = tempfile::TempDir::new().unwrap();
         let dummy = temp.path().join("dummy");
         std::fs::write(&dummy, b"x").unwrap();
         let out = temp.path().join("out");
-        let toller = transform_acquired_reference(
+        for id in [
             "toller-1981-pioneer-background-starlight",
-            &dummy,
-            &out.join("toller"),
-            1,
-        )
-        .unwrap();
-        assert_eq!(toller.admissibility, Admissibility::NotAdmissible);
-        assert!(!out.join("toller/transformed-grid-v1.csv").is_file());
-        let gambons = transform_acquired_reference(
             "masana-2021-gambons-gaia-hipparcos-starlight",
-            &dummy,
-            &out.join("gambons"),
-            1,
-        )
-        .unwrap();
-        assert_eq!(gambons.admissibility, Admissibility::NotAdmissible);
-    }
-
-    #[test]
-    fn leinert_writes_an_admissible_nside1_grid() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let acquired = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
-            "../../docs/nsb_components/starlight/validation/acquired/leinert1998-diffuse-night-sky-brightness.csv",
-        );
-        let out = temp.path().join("leinert");
-        let record = transform_acquired_reference(
             "leinert-1998-diffuse-night-sky-brightness",
-            &acquired,
-            &out,
-            1,
-        )
-        .unwrap();
-        assert_eq!(
-            record.admissibility,
-            Admissibility::AdmissibleDirectStarlight
-        );
-        assert!(out.join("transformed-grid-v1.csv").is_file());
-        let grid = super::super::transformed_grid::load_if_present(
-            &out.join("transformed-grid-v1.csv"),
-            1,
-        )
-        .unwrap()
-        .unwrap();
-        assert_eq!(grid.pixels.len(), 12);
+        ] {
+            let record = transform_acquired_reference(id, &dummy, &out.join(id), 1).unwrap();
+            assert_eq!(record.admissibility, Admissibility::NotAdmissible);
+            assert!(!out.join(id).join("transformed-grid-v1.csv").is_file());
+        }
     }
 }

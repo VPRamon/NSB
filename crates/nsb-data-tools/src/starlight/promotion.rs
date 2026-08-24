@@ -16,6 +16,7 @@
 //! human already recorded.
 
 use crate::platform::checksum_io;
+use crate::starlight::licensing::RedistributionReview;
 use anyhow::{bail, Context, Result};
 use chrono::DateTime;
 use serde::{Deserialize, Serialize};
@@ -121,6 +122,17 @@ pub struct GatesSection {
     pub promotion_eligible: bool,
 }
 
+/// Checksum-pinned supporting artifacts that promotion must re-verify.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewArtifactsSection {
+    pub inventory_path: String,
+    pub inventory_sha256: String,
+    pub gates_report_path: String,
+    pub gates_report_sha256: String,
+    pub licensing_decision_path: String,
+}
+
 /// Complete release-candidate manifest (`nsb-starlight-release-candidate-v1`).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -129,6 +141,7 @@ pub struct ReleaseCandidateManifest {
     pub schema: String,
     pub candidate: CandidateSection,
     pub gates: GatesSection,
+    pub review_artifacts: ReviewArtifactsSection,
     pub notes: String,
 }
 
@@ -173,6 +186,26 @@ impl ReleaseCandidateManifest {
             );
         }
         require_text("notes", &self.notes)?;
+        require_text(
+            "review_artifacts.inventory_path",
+            &self.review_artifacts.inventory_path,
+        )?;
+        require_sha256(
+            "review_artifacts.inventory_sha256",
+            &self.review_artifacts.inventory_sha256,
+        )?;
+        require_text(
+            "review_artifacts.gates_report_path",
+            &self.review_artifacts.gates_report_path,
+        )?;
+        require_sha256(
+            "review_artifacts.gates_report_sha256",
+            &self.review_artifacts.gates_report_sha256,
+        )?;
+        require_text(
+            "review_artifacts.licensing_decision_path",
+            &self.review_artifacts.licensing_decision_path,
+        )?;
         Ok(())
     }
 }
@@ -364,6 +397,12 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         );
     }
 
+    verify_frozen_gates_report(
+        &inputs.repository_root,
+        &candidate.review_artifacts,
+        &candidate.candidate.candidate_sha256,
+    )?;
+
     let scientific = load_decision(&inputs.scientific_decision, DecisionKind::Scientific)?;
     scientific.require_approved(
         DecisionKind::Scientific,
@@ -377,6 +416,8 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         DecisionKind::Redistribution,
         &candidate.candidate.candidate_sha256,
     )?;
+
+    verify_licensing_redistribution_review(&inputs.repository_root, &candidate.review_artifacts)?;
 
     require_gate_matches_decision(
         DecisionKind::Scientific,
@@ -394,6 +435,8 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
             "release candidate gates.promotion_eligible is false; promotion is blocked until a maintainer records #47 approval"
         );
     }
+
+    require_runtime_loadable_map(&map_path, &candidate.candidate.map_schema)?;
 
     let draft = render_production_manifest_draft(&candidate.candidate, &actual_map_sha256);
     let written_to = match &inputs.output {
@@ -485,6 +528,88 @@ fn verify_registry_matches(repository_root: &Path, candidate: &CandidateSection)
     Ok(())
 }
 
+fn verify_frozen_gates_report(
+    repository_root: &Path,
+    artifacts: &ReviewArtifactsSection,
+    expected_candidate_sha256: &str,
+) -> Result<()> {
+    let path = repository_root.join(&artifacts.gates_report_path);
+    let bytes =
+        fs::read(&path).with_context(|| format!("read frozen gates report {}", path.display()))?;
+    let actual = checksum_io::sha256_bytes(&bytes);
+    if actual != artifacts.gates_report_sha256 {
+        bail!(
+            "frozen gates report checksum mismatch: release candidate pins {}, actual file is {}",
+            artifacts.gates_report_sha256,
+            actual
+        );
+    }
+    #[derive(Deserialize)]
+    struct FrozenGatesReport {
+        passed: bool,
+        #[serde(default)]
+        candidate_sha256: Option<String>,
+    }
+    let report: FrozenGatesReport = serde_json::from_slice(&bytes)
+        .with_context(|| format!("parse frozen gates report {}", path.display()))?;
+    if !report.passed {
+        bail!("frozen gates report has passed=false; promotion is blocked");
+    }
+    if let Some(pinned) = report.candidate_sha256 {
+        if pinned != expected_candidate_sha256 {
+            bail!(
+                "frozen gates report pins candidate {pinned}, release candidate pins {expected_candidate_sha256}"
+            );
+        }
+    }
+    Ok(())
+}
+
+fn verify_licensing_redistribution_review(
+    repository_root: &Path,
+    artifacts: &ReviewArtifactsSection,
+) -> Result<()> {
+    let inventory_path = repository_root.join(&artifacts.inventory_path);
+    let inventory_bytes = fs::read(&inventory_path)
+        .with_context(|| format!("read artifact inventory {}", inventory_path.display()))?;
+    let actual = checksum_io::sha256_bytes(&inventory_bytes);
+    if actual != artifacts.inventory_sha256 {
+        bail!(
+            "artifact inventory checksum mismatch: release candidate pins {}, actual file is {}",
+            artifacts.inventory_sha256,
+            actual
+        );
+    }
+    let decision_path = repository_root.join(&artifacts.licensing_decision_path);
+    let review = RedistributionReview::load(&inventory_path, &decision_path)?;
+    review.require_approved()
+}
+
+fn require_runtime_loadable_map(map_path: &Path, map_schema: &str) -> Result<()> {
+    if map_schema == "nsb-healpix-starlight-candidate-v5" {
+        bail!(
+            "cannot draft runtime_embedded production assets from map schema {map_schema}; StarlightMap only loads healpix_index/galactic_lon_deg headers. Convert the candidate to {PRODUCTION_MAP_SCHEMA} or add a runtime parser before promotion"
+        );
+    }
+    if map_schema != PRODUCTION_MAP_SCHEMA {
+        bail!(
+            "cannot draft runtime_embedded production assets from map schema {map_schema}; expected {PRODUCTION_MAP_SCHEMA}"
+        );
+    }
+    let raw = fs::read_to_string(map_path)
+        .with_context(|| format!("read candidate map header {}", map_path.display()))?;
+    let header = raw
+        .lines()
+        .find(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
+        .unwrap_or("");
+    if !(header.starts_with("healpix_index,") || header.starts_with("galactic_lon_deg,")) {
+        bail!(
+            "candidate map data header {header:?} is not a runtime-supported StarlightMap schema; convert before registering a bundled production asset"
+        );
+    }
+    Ok(())
+}
+
 fn load_decision(path: &Path, kind: DecisionKind) -> Result<ReviewDecision> {
     let raw = fs::read(path)
         .with_context(|| format!("read {} review decision {}", kind.label(), path.display()))?;
@@ -507,8 +632,10 @@ fn render_production_manifest_draft(candidate: &CandidateSection, map_sha256: &s
     out.push_str("# This fragment previews the production crates/nsb/data/manifest.toml\n");
     out.push_str("# entries that promotion would add. It has NOT been applied to any\n");
     out.push_str("# repository file. A maintainer applies it by hand as part of the #47\n");
-    out.push_str("# promotion pull request, after copying the byte-identical candidate map\n");
-    out.push_str("# to its production filename; the map bytes themselves are never rewritten.\n\n");
+    out.push_str(
+        "# promotion pull request, after converting the candidate into a runtime-loadable\n",
+    );
+    out.push_str("# map (healpix_index/galactic_lon_deg). The candidate bytes themselves are never rewritten.\n\n");
     writeln!(out, "[[assets]]").unwrap();
     writeln!(out, "path = {release_path:?}").unwrap();
     writeln!(out, "schema = {PRODUCTION_MAP_SCHEMA:?}").unwrap();
@@ -571,11 +698,11 @@ mod tests {
     use super::*;
 
     const SYNTHETIC_MAP_BYTES: &[u8] =
-        b"# synthetic test-only starlight release candidate fixture, not real science data\npixel,flux\n0,1.0\n1,2.0\n";
+        b"# synthetic test-only starlight release candidate fixture, not real science data\nhealpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n0,1.0,0.0,0.0\n";
     // SHA-256 of `SYNTHETIC_MAP_BYTES`, computed once and pinned here so the
     // fixtures below exercise the real checksum-verification code path.
     const SYNTHETIC_CANDIDATE_SHA256: &str =
-        "5ac4d2e001d3c7c1c74285d635744a9a4fca1fc8575d44ccc228bef46eeea176";
+        "3d1782b1635b8be2a65d5b1cc805582cf08c6c980c82010eebacc3b58f085976";
 
     struct SyntheticRepo {
         _dir: tempfile::TempDir,
@@ -589,6 +716,8 @@ mod tests {
         status: &str,
         validation_status: &str,
         promotion_eligible: bool,
+        inventory_sha256: &str,
+        gates_sha256: &str,
     ) -> String {
         format!(
             r#"schema_version = 1
@@ -599,7 +728,7 @@ notes = "Synthetic test-only fixture for nsb-data-tools promotion unit tests; no
 status = "{status}"
 candidate_sha256 = "{SYNTHETIC_CANDIDATE_SHA256}"
 map_path = "crates/nsb/data/starlight_nside128.csv"
-map_schema = "nsb-healpix-starlight-candidate-v5"
+map_schema = "nsb-healpix-starlight-v2"
 band = "synthetic test-only combined band"
 units = "ph_m-2_s-1"
 nside = 128
@@ -614,6 +743,13 @@ validation_status = "{validation_status}"
 scientific_review_status = "approved"
 redistribution_review_status = "approved"
 promotion_eligible = {promotion_eligible}
+
+[review_artifacts]
+inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
+inventory_sha256 = "{inventory_sha256}"
+gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
+gates_report_sha256 = "{gates_sha256}"
+licensing_decision_path = "docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json"
 "#
         )
     }
@@ -634,7 +770,9 @@ promotion_eligible = {promotion_eligible}
     }
 
     fn write_synthetic_repo(
-        release_candidate: &str,
+        status: &str,
+        validation_status: &str,
+        promotion_eligible: bool,
         scientific_decision: &str,
         redistribution_decision: &str,
     ) -> SyntheticRepo {
@@ -646,11 +784,89 @@ promotion_eligible = {promotion_eligible}
         fs::write(
             data_dir.join("manifest.toml"),
             format!(
-                "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-candidate-v5\"\nsha256 = \"{SYNTHETIC_CANDIDATE_SHA256}\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n"
+                "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-v2\"\nsha256 = \"{SYNTHETIC_CANDIDATE_SHA256}\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n"
             ),
         )
         .unwrap();
 
+        let inventory = format!(
+            r#"schema_version = 1
+
+[[artifacts]]
+id = "synthetic-upstream-input"
+category = "synthetic-test-category"
+source = "SYNTHETIC-NON-PRODUCTION test fixture source"
+release = "synthetic-test-release"
+license = "synthetic-test-license"
+distribution_class = "download_only"
+distributed = false
+channels = []
+notes = "synthetic-test-notes: fixture data only, not a real artifact"
+
+[[artifacts]]
+id = "synthetic-distributed-output"
+category = "synthetic-test-category"
+source = "SYNTHETIC-NON-PRODUCTION test fixture source"
+release = "synthetic-test-release"
+license = "synthetic-test-license"
+sha256 = "{SYNTHETIC_CANDIDATE_SHA256}"
+distribution_class = "repository_embedded"
+distributed = true
+channels = ["git_repository"]
+notes = "synthetic-test-notes: fixture data only, not a real artifact"
+"#
+        );
+        let inventory_path =
+            root.join("docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml");
+        fs::create_dir_all(inventory_path.parent().unwrap()).unwrap();
+        fs::write(&inventory_path, &inventory).unwrap();
+        let inventory_sha256 = checksum_io::sha256_bytes(inventory.as_bytes());
+
+        let licensing_decision = format!(
+            r#"{{
+  "schema_version": 1,
+  "decision": "approved",
+  "reviewer_name": "Synthetic Test Reviewer",
+  "reviewer_role": "synthetic-test-only-role",
+  "reviewed_at_utc": "2026-07-30T00:00:00Z",
+  "inventory_sha256": "{inventory_sha256}",
+  "pinned_artifacts": [
+    {{
+      "id": "synthetic-distributed-output",
+      "sha256": "{SYNTHETIC_CANDIDATE_SHA256}",
+      "approved_channels": ["git_repository"]
+    }}
+  ],
+  "conditions": [],
+  "restrictions": [],
+  "notes": "synthetic-test-notes: fixture decision, not a real approval"
+}}"#
+        );
+        let licensing_path = root
+            .join("docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json");
+        fs::write(&licensing_path, licensing_decision).unwrap();
+
+        let gates = format!(
+            r#"{{
+  "schema_version": 1,
+  "dataset": "starlight",
+  "passed": true,
+  "candidate_sha256": "{SYNTHETIC_CANDIDATE_SHA256}"
+}}"#
+        );
+        let gates_path = root
+            .join("docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json");
+        fs::create_dir_all(gates_path.parent().unwrap()).unwrap();
+        fs::write(&gates_path, &gates).unwrap();
+        let gates_sha256 = checksum_io::sha256_bytes(gates.as_bytes());
+
+        let release_candidate = release_candidate_toml(
+            status,
+            validation_status,
+            promotion_eligible,
+            &inventory_sha256,
+            &gates_sha256,
+        );
         let release_candidate_path = root.join("release-candidate-v1.toml");
         fs::write(&release_candidate_path, release_candidate).unwrap();
         let scientific_decision_path = root.join("scientific-review-decision-v1.json");
@@ -669,7 +885,9 @@ promotion_eligible = {promotion_eligible}
 
     fn valid_synthetic_repo() -> SyntheticRepo {
         write_synthetic_repo(
-            &release_candidate_toml("pinned", "technical_pass", true),
+            "pinned",
+            "technical_pass",
+            true,
             &decision_json("approved", "\"synthetic-test-only-condition\""),
             &decision_json("approved", "\"synthetic-test-only-condition\""),
         )
@@ -688,7 +906,9 @@ promotion_eligible = {promotion_eligible}
     #[test]
     fn awaiting_regeneration_status_fails_closed() {
         let repo = write_synthetic_repo(
-            &release_candidate_toml("awaiting_regeneration", "pending_regeneration", false),
+            "awaiting_regeneration",
+            "pending_regeneration",
+            false,
             &decision_json("approved", "\"c\""),
             &decision_json("approved", "\"c\""),
         );
@@ -713,7 +933,7 @@ promotion_eligible = {promotion_eligible}
         let repo = valid_synthetic_repo();
         fs::write(
             repo.root.join("crates/nsb/data/manifest.toml"),
-            "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-candidate-v5\"\nsha256 = \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n",
+            "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-v2\"\nsha256 = \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n",
         )
         .unwrap();
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
@@ -723,7 +943,9 @@ promotion_eligible = {promotion_eligible}
     #[test]
     fn pending_scientific_decision_fails_closed() {
         let repo = write_synthetic_repo(
-            &release_candidate_toml("pinned", "technical_pass", true),
+            "pinned",
+            "technical_pass",
+            true,
             &decision_json("pending", ""),
             &decision_json("approved", "\"c\""),
         );
@@ -735,16 +957,20 @@ promotion_eligible = {promotion_eligible}
 
     #[test]
     fn rejected_redistribution_decision_fails_closed() {
-        let mut candidate = release_candidate_toml("pinned", "technical_pass", true);
-        candidate = candidate.replace(
-            "redistribution_review_status = \"approved\"",
-            "redistribution_review_status = \"rejected\"",
-        );
         let repo = write_synthetic_repo(
-            &candidate,
+            "pinned",
+            "technical_pass",
+            true,
             &decision_json("approved", "\"c\""),
             &decision_json("rejected", ""),
         );
+        let tampered = fs::read_to_string(&repo.release_candidate)
+            .unwrap()
+            .replace(
+                "redistribution_review_status = \"approved\"",
+                "redistribution_review_status = \"rejected\"",
+            );
+        fs::write(&repo.release_candidate, tampered).unwrap();
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
         assert!(error
             .to_string()
@@ -780,16 +1006,20 @@ promotion_eligible = {promotion_eligible}
 
     #[test]
     fn gate_decision_mismatch_fails_closed() {
-        let mut candidate = release_candidate_toml("pinned", "technical_pass", true);
-        candidate = candidate.replace(
-            "scientific_review_status = \"approved\"",
-            "scientific_review_status = \"pending\"",
-        );
         let repo = write_synthetic_repo(
-            &candidate,
+            "pinned",
+            "technical_pass",
+            true,
             &decision_json("approved", "\"c\""),
             &decision_json("approved", "\"c\""),
         );
+        let tampered = fs::read_to_string(&repo.release_candidate)
+            .unwrap()
+            .replace(
+                "scientific_review_status = \"approved\"",
+                "scientific_review_status = \"pending\"",
+            );
+        fs::write(&repo.release_candidate, tampered).unwrap();
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
         assert!(error.to_string().contains("but the recorded decision is"));
     }
@@ -797,7 +1027,9 @@ promotion_eligible = {promotion_eligible}
     #[test]
     fn promotion_eligible_false_fails_closed_even_when_everything_else_passes() {
         let repo = write_synthetic_repo(
-            &release_candidate_toml("pinned", "technical_pass", false),
+            "pinned",
+            "technical_pass",
+            false,
             &decision_json("approved", "\"c\""),
             &decision_json("approved", "\"c\""),
         );
@@ -808,7 +1040,9 @@ promotion_eligible = {promotion_eligible}
     #[test]
     fn approved_with_conditions_requires_at_least_one_condition() {
         let repo = write_synthetic_repo(
-            &release_candidate_toml("pinned", "technical_pass", true),
+            "pinned",
+            "technical_pass",
+            true,
             &decision_json("approved_with_conditions", ""),
             &decision_json("approved", "\"c\""),
         );
@@ -816,6 +1050,55 @@ promotion_eligible = {promotion_eligible}
         assert!(error
             .to_string()
             .contains("requires at least one recorded condition"));
+    }
+
+    #[test]
+    fn candidate_v5_schema_cannot_draft_runtime_assets() {
+        let repo = valid_synthetic_repo();
+        let tampered = fs::read_to_string(&repo.release_candidate)
+            .unwrap()
+            .replace(
+                "map_schema = \"nsb-healpix-starlight-v2\"",
+                "map_schema = \"nsb-healpix-starlight-candidate-v5\"",
+            );
+        fs::write(&repo.release_candidate, tampered).unwrap();
+        fs::write(
+            repo.root.join("crates/nsb/data/manifest.toml"),
+            format!(
+                "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-candidate-v5\"\nsha256 = \"{SYNTHETIC_CANDIDATE_SHA256}\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n"
+            ),
+        )
+        .unwrap();
+        let error = run_promotion(&inputs(&repo, None)).unwrap_err();
+        assert!(
+            error.to_string().contains("cannot draft runtime_embedded"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn licensing_inventory_mismatch_fails_closed() {
+        let repo = valid_synthetic_repo();
+        let tampered = fs::read_to_string(&repo.release_candidate)
+            .unwrap()
+            .replace(
+                &format!(
+                    "inventory_sha256 = \"{}\"",
+                    checksum_io::sha256_file(&repo.root.join(
+                        "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
+                    ))
+                    .unwrap()
+                ),
+                &format!("inventory_sha256 = \"{}\"", "a".repeat(64)),
+            );
+        fs::write(&repo.release_candidate, tampered).unwrap();
+        let error = run_promotion(&inputs(&repo, None)).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("artifact inventory checksum mismatch"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]

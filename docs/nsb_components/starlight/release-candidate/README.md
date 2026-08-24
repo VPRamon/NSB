@@ -45,6 +45,13 @@ scientific_review_status = "pending" # | "approved" | "approved_with_conditions"
 redistribution_review_status = "pending" # | "approved" | "approved_with_conditions" | "rejected"
 promotion_eligible = false
 
+[review_artifacts]
+inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
+inventory_sha256 = "<sha256 of that inventory file>"
+gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
+gates_report_sha256 = "<sha256 of that gates report>"
+licensing_decision_path = "docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json"
+
 notes = "<free text; must document any invalidation or regeneration dependency>"
 ```
 
@@ -76,7 +83,12 @@ The command:
    checksum, to catch registry/candidate drift or tampering.
 4. Requires `candidate.status == "pinned"` and
    `gates.validation_status == "technical_pass"`; otherwise it fails closed.
-   Human `pending` decisions and `promotion_eligible = false` also fail closed.
+   It also checksum-verifies the frozen `release-candidate-gates-v1.json`
+   (`passed = true`) and runs `RedistributionReview::require_approved` on
+   the pinned inventory + licensing decision. Human `pending` decisions and
+   `promotion_eligible = false` also fail closed. Drafting
+   `runtime_embedded` production assets is refused for
+   `nsb-healpix-starlight-candidate-v5` until a runtime-loadable map exists.
 5. Requires both decisions to be `approved` (or `approved_with_conditions`
    with at least one recorded condition), each with a non-placeholder
    reviewer name, reviewer role, RFC 3339 review timestamp, and a

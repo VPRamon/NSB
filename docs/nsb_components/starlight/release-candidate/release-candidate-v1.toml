@@ -20,12 +20,15 @@ The invalidated #93 candidate
 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a
 must not be approved.
 
-Independent validation (#87) ran against this checksum. Technical
-preregistration gates versus the Leinert 1998 ISL model did not pass;
-see docs/nsb_components/starlight/validation/results/. That failure is
-recorded, not threshold-tuned. Scientific approval remains #47.
+Independent validation (#87) acquired the three literature targets against
+this checksum. Toller, Leinert, and GAMBONS are all marked not-admissible
+as starlight-only TOA 300-650 nm grids (see validation/results/). Scientific
+approval remains #47.
 
 `promotion_eligible` remains false until #47 signatures exist.
+Promotion will also refuse to draft `runtime_embedded` production assets
+from `nsb-healpix-starlight-candidate-v5` until a runtime-loadable map
+exists.
 """
 
 [candidate]
@@ -49,3 +52,10 @@ validation_status = "technical_pass"
 scientific_review_status = "pending"
 redistribution_review_status = "pending"
 promotion_eligible = false
+
+[review_artifacts]
+inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
+inventory_sha256 = "96c4e51502df5c36195b6f716c2efc47cb83021eb16b7a4c86937bd1a8049ef9"
+gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
+gates_report_sha256 = "9a06f833015f544e2b088ad36c0b8dd6a2ceb76cb0572d53a5c91c56f782730c"
+licensing_decision_path = "docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json"

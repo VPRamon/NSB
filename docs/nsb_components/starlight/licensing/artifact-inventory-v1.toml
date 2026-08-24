@@ -183,9 +183,10 @@ channels = []
 tracking_issue = "#87"
 notes = """
 Technical package lives under docs/nsb_components/starlight/validation/.
-Run reports are in validation/results/. Preregistered 3%/5%/coverage gates
-versus the Leinert 1998 ISL model did not pass; that outcome is recorded
-and was not used to retune thresholds. Scientific sign-off remains #47.
+Run reports are in validation/results/. All three acquired references are
+marked not-admissible as starlight-only TOA 300-650 nm grids (Toller
+ISL+DGL+EBL; Leinert Gaussian parameters unpublished; GAMBONS mixed sky).
+Scientific sign-off remains #47.
 """
 
 # --- Currently distributed repository-embedded artifacts -------------------

@@ -119,7 +119,8 @@ HTML and Markdown reports are both written (`validation-report-v1.html` and
 ## Independent validation status for the UV v2 candidate
 
 Results against map `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`
-are stored in [`results/`](results/). `technical_gates_passed = false`.
+are stored in [`results/`](results/). All three acquired references are
+**not admissible** as starlight-only TOA 300–650 nm grids. `technical_gates_passed = false`.
 `scientifically_validated` remains false. Human review stays in #47.
 
 ## `scientific_review_status` stays `"pending"` until #47
@@ -139,5 +140,5 @@ it, should ever flip `scientific_review_status` to anything other than
   in issue #47. Independent validation of the UV v2 candidate versus the
   Leinert 1998 ISL model failed the preregistered numerical gates; see
   [`results/`](results/). Do not retune those gates to force a pass.
-- Toller Pioneer and GAMBONS remain acquired-but-not-admissible (DGL / ZL /
-  airglow not separable).
+- Toller Pioneer, Leinert 1998, and GAMBONS remain acquired-but-not-admissible
+  (DGL/ZL/airglow inseparable, or unpublished Gaussian parameters).
