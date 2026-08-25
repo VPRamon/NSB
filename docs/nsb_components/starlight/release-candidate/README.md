@@ -14,10 +14,11 @@ candidate map. Promotion after valid #103 decisions is automated by
 
 | File | Role |
 |---|---|
-| `release-candidate-v1.toml` | Frozen candidate identity (checksum, schema, band, units, resolution, Gaia release, model versions) plus the fail-closed gate table (`gates.validation_status`, `gates.scientific_review_status`, `gates.redistribution_review_status`, `gates.promotion_eligible`). |
-| `scientific-review-decision-v1.json` | Template for the human scientific decision owned by #103. Currently `"decision": "pending"`. |
-| `redistribution-review-decision-v1.json` | Single authoritative human redistribution decision record owned by #103. Promotion and licensing checks consume this same file; currently `"decision": "pending"`. |
-| `runtime-assets-v1.toml` | Frozen identity record for deterministic packed runtime map + runtime sidecar checksums reviewed in #103. |
+| `release-candidate-v1.toml` | Frozen candidate identity (checksum, schema, band, units, resolution, Gaia release, model versions) plus the fail-closed gate table (`gates.validation_status`, `gates.scientific_review_status`, `gates.redistribution_review_status`, `gates.promotion_eligible`). Cryptographically pinned inside `review-bundle-v1.toml`. |
+| `scientific-review-decision-v1.json` | The ONLY authoritative human scientific decision owned by #103. Currently `"decision": "pending"`. |
+| `redistribution-review-decision-v1.json` | The ONLY authoritative human redistribution decision owned by #103. Promotion and licensing checks consume this same file; currently `"decision": "pending"`. |
+| `runtime-assets-v1.toml` | Frozen identity record for deterministic packed runtime map + runtime sidecar checksums reviewed in #103. Must agree semantically with `release-candidate-v1.toml`. |
+| `review-bundle-v1.toml` | Immutable human-review evidence list. Both decision templates pin this file's exact SHA-256. |
 
 ## The `nsb-starlight-release-candidate-v1` schema
 

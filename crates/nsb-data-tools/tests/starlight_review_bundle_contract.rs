@@ -9,11 +9,19 @@ use toml::Value as TomlValue;
 const REVIEW_BUNDLE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const REVIEW_BUNDLE_SHA256: &str =
-    "6d9a4e192c52bb7cf1840db32582d71aa3bd91c27a3bb409fd6d9b04d2be4bb0";
+    "11462446b2aa37774a5e10a45021f36396602b7c1d6921532c4ba749f4fe2253";
 const SCIENTIFIC_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json";
 const REDISTRIBUTION_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json";
+const RELEASE_CANDIDATE_PATH: &str =
+    "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml";
+const RUNTIME_ASSETS_PATH: &str =
+    "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
+const CANDIDATE_SHA256: &str = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563";
+const RUNTIME_MAP_SHA256: &str = "82ff5820ba4deca5e3e544b562341746e8623e06103e98cdad4ea6132ef103c4";
+const RUNTIME_SIDECAR_SHA256: &str =
+    "dcf0b59dbbeb497cc582f76c75cd542aca0fa7facbaa1e7ab37a313d4f7e1622";
 
 fn sha256_file(path: &Path) -> String {
     let bytes = fs::read(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
@@ -28,6 +36,10 @@ fn sha256_file(path: &Path) -> String {
 fn decision_bundle_pin(path: &Path) -> (String, String) {
     let raw = fs::read_to_string(path).unwrap();
     let decision: JsonValue = serde_json::from_str(&raw).unwrap();
+    assert_eq!(decision["decision"].as_str(), Some("pending"));
+    assert!(decision["reviewer_name"].is_null());
+    assert!(decision["reviewer_role"].is_null());
+    assert!(decision["reviewed_at_utc"].is_null());
     let candidate = decision["candidate_sha256"]
         .as_str()
         .expect("decision candidate_sha256")
@@ -90,6 +102,7 @@ fn frozen_review_bundle_pins_exact_human_evidence() {
         "redistribution_inventory",
         "validation_artifact_manifest",
         "runtime_assets_identity",
+        "release_candidate_manifest",
         "redistribution_decision_contract_doc",
     ] {
         assert!(
@@ -105,9 +118,95 @@ fn frozen_review_bundle_pins_exact_human_evidence() {
     assert_eq!(scientific_bundle, REVIEW_BUNDLE_SHA256);
     assert_eq!(redistribution_bundle, REVIEW_BUNDLE_SHA256);
     assert_eq!(scientific_candidate, redistribution_candidate);
+    assert_eq!(scientific_candidate, CANDIDATE_SHA256);
     assert_eq!(
         by_id.get("candidate_map").map(String::as_str),
-        Some(scientific_candidate.as_str())
+        Some(CANDIDATE_SHA256)
+    );
+
+    let redistribution: JsonValue =
+        serde_json::from_str(&fs::read_to_string(root.join(REDISTRIBUTION_DECISION_PATH)).unwrap())
+            .unwrap();
+    assert_eq!(
+        redistribution["review_bundle_sha256"].as_str(),
+        Some(REVIEW_BUNDLE_SHA256)
+    );
+
+    assert!(
+        !root
+            .join("docs/nsb_components/starlight/validation/scientific-review-decision-v1.json")
+            .exists(),
+        "obsolete validation scientific-decision template must not exist"
+    );
+    assert!(
+        !root
+            .join("docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json")
+            .exists(),
+        "obsolete licensing redistribution-decision template must not exist"
+    );
+}
+
+#[test]
+fn release_candidate_and_runtime_assets_agree_semantically() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let release_candidate: TomlValue =
+        toml::from_str(&fs::read_to_string(root.join(RELEASE_CANDIDATE_PATH)).unwrap()).unwrap();
+    let runtime_assets: TomlValue =
+        toml::from_str(&fs::read_to_string(root.join(RUNTIME_ASSETS_PATH)).unwrap()).unwrap();
+
+    let candidate = release_candidate["candidate"].as_table().unwrap();
+    let review = release_candidate["review_artifacts"].as_table().unwrap();
+
+    assert_eq!(
+        candidate["map_path"].as_str(),
+        runtime_assets["candidate_path"].as_str()
+    );
+    assert_eq!(
+        candidate["candidate_sha256"].as_str(),
+        runtime_assets["candidate_sha256"].as_str()
+    );
+    assert_eq!(
+        candidate["candidate_sha256"].as_str(),
+        Some(CANDIDATE_SHA256)
+    );
+
+    assert_eq!(
+        review["runtime_map_path"].as_str(),
+        runtime_assets["runtime_map_path"].as_str()
+    );
+    assert_eq!(
+        review["runtime_map_sha256"].as_str(),
+        runtime_assets["runtime_map_sha256"].as_str()
+    );
+    assert_eq!(
+        review["runtime_map_sha256"].as_str(),
+        Some(RUNTIME_MAP_SHA256)
+    );
+    assert_eq!(
+        runtime_assets["runtime_map_schema"].as_str(),
+        Some("nsb-healpix-starlight-v2")
+    );
+
+    assert_eq!(
+        review["runtime_sidecar_path"].as_str(),
+        runtime_assets["runtime_sidecar_path"].as_str()
+    );
+    assert_eq!(
+        review["runtime_sidecar_sha256"].as_str(),
+        runtime_assets["runtime_sidecar_sha256"].as_str()
+    );
+    assert_eq!(
+        review["runtime_sidecar_sha256"].as_str(),
+        Some(RUNTIME_SIDECAR_SHA256)
+    );
+    assert_eq!(
+        runtime_assets["runtime_sidecar_schema"].as_str(),
+        Some("nsb-starlight-runtime-manifest-v1")
+    );
+
+    assert_eq!(
+        review["licensing_decision_path"].as_str(),
+        Some(REDISTRIBUTION_DECISION_PATH)
     );
 }
 

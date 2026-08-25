@@ -463,6 +463,11 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         &inputs.redistribution_decision,
         &candidate.candidate.candidate_sha256,
     )?;
+    verify_review_bundle_pin(
+        &inputs.repository_root,
+        licensing.decision().review_bundle_sha256.as_str(),
+    )?;
+    verify_runtime_assets_identity(&inputs.repository_root, &candidate)?;
 
     // Decision files are authoritative. Stale TOML gate statuses must not
     // require a second manual edit after #103 signatures land.
@@ -479,12 +484,8 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("starlight");
-    let staging = std::env::temp_dir().join(format!(
-        "nsb-starlight-pack-{}",
-        &candidate.candidate.candidate_sha256[..16]
-    ));
-    fs::create_dir_all(&staging)
-        .with_context(|| format!("create pack staging {}", staging.display()))?;
+    let staging_dir = tempfile::tempdir().context("create isolated pack staging directory")?;
+    let staging = staging_dir.path();
     let staged_map = staging.join(format!("{stem}.release.csv"));
     let staged_pack_sidecar = staging.join(format!("{stem}.pack.toml"));
     let staged_runtime_sidecar = staging.join(format!("{stem}.manifest.toml"));
@@ -548,8 +549,12 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
             stem,
         )?;
         applied = true;
+        // Staging can be cleaned up after install.
+        drop(staging_dir);
         (dest_map, dest_sidecar)
     } else {
+        // Keep unique staging so callers can read the draft assets.
+        let _ = staging_dir.keep();
         (staged_map, staged_runtime_sidecar)
     };
 
@@ -755,6 +760,87 @@ fn verify_licensing_redistribution_review(
     let review = RedistributionReview::load(&inventory_path, &provided_path)?;
     review.require_approved(expected_candidate_sha256)?;
     Ok(review)
+}
+
+const REVIEW_BUNDLE_RELATIVE_PATH: &str =
+    "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
+const RUNTIME_ASSETS_RELATIVE_PATH: &str =
+    "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
+
+fn verify_review_bundle_pin(repository_root: &Path, expected_sha256: &str) -> Result<()> {
+    let path = repository_root.join(REVIEW_BUNDLE_RELATIVE_PATH);
+    let actual = checksum_io::sha256_file(&path)
+        .with_context(|| format!("checksum human review bundle {}", path.display()))?;
+    if actual != expected_sha256 {
+        bail!(
+            "human review bundle checksum mismatch: redistribution decision pins {expected_sha256}, actual file is {actual}"
+        );
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct RuntimeAssetsIdentity {
+    candidate_path: String,
+    candidate_sha256: String,
+    runtime_map_path: String,
+    runtime_map_sha256: String,
+    runtime_sidecar_path: String,
+    runtime_sidecar_sha256: String,
+}
+
+fn verify_runtime_assets_identity(
+    repository_root: &Path,
+    candidate: &ReleaseCandidateManifest,
+) -> Result<()> {
+    let path = repository_root.join(RUNTIME_ASSETS_RELATIVE_PATH);
+    let raw = fs::read_to_string(&path)
+        .with_context(|| format!("read runtime assets identity {}", path.display()))?;
+    let assets: RuntimeAssetsIdentity = toml::from_str(&raw)
+        .with_context(|| format!("parse runtime assets identity {}", path.display()))?;
+    if assets.candidate_path != candidate.candidate.map_path {
+        bail!(
+            "runtime-assets candidate_path {:?} disagrees with release-candidate map_path {:?}",
+            assets.candidate_path,
+            candidate.candidate.map_path
+        );
+    }
+    if assets.candidate_sha256 != candidate.candidate.candidate_sha256 {
+        bail!(
+            "runtime-assets candidate_sha256 {} disagrees with release-candidate {}",
+            assets.candidate_sha256,
+            candidate.candidate.candidate_sha256
+        );
+    }
+    if assets.runtime_map_path != candidate.review_artifacts.runtime_map_path {
+        bail!(
+            "runtime-assets runtime_map_path {:?} disagrees with release-candidate {:?}",
+            assets.runtime_map_path,
+            candidate.review_artifacts.runtime_map_path
+        );
+    }
+    if assets.runtime_map_sha256 != candidate.review_artifacts.runtime_map_sha256 {
+        bail!(
+            "runtime-assets runtime_map_sha256 {} disagrees with release-candidate {}",
+            assets.runtime_map_sha256,
+            candidate.review_artifacts.runtime_map_sha256
+        );
+    }
+    if assets.runtime_sidecar_path != candidate.review_artifacts.runtime_sidecar_path {
+        bail!(
+            "runtime-assets runtime_sidecar_path {:?} disagrees with release-candidate {:?}",
+            assets.runtime_sidecar_path,
+            candidate.review_artifacts.runtime_sidecar_path
+        );
+    }
+    if assets.runtime_sidecar_sha256 != candidate.review_artifacts.runtime_sidecar_sha256 {
+        bail!(
+            "runtime-assets runtime_sidecar_sha256 {} disagrees with release-candidate {}",
+            assets.runtime_sidecar_sha256,
+            candidate.review_artifacts.runtime_sidecar_sha256
+        );
+    }
+    Ok(())
 }
 
 fn require_packed_runtime_header(map_path: &Path) -> Result<()> {
@@ -1341,6 +1427,25 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
         .unwrap();
         let runtime_sidecar_sha256 = checksum_io::sha256_file(&staged_runtime_sidecar).unwrap();
 
+        fs::write(
+            release_candidate_dir.join("runtime-assets-v1.toml"),
+            format!(
+                r#"schema_version = 1
+schema = "nsb-starlight-runtime-assets-v1"
+candidate_path = "crates/nsb/data/starlight_nside128.csv"
+candidate_sha256 = "{sha}"
+runtime_map_path = "crates/nsb/data/starlight_nside128.release.csv"
+runtime_map_schema = "nsb-healpix-starlight-v2"
+runtime_map_sha256 = "{}"
+runtime_sidecar_path = "crates/nsb/data/starlight_nside128.manifest.toml"
+runtime_sidecar_schema = "nsb-starlight-runtime-manifest-v1"
+runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
+"#,
+                pack_outcome.runtime_map_sha256
+            ),
+        )
+        .unwrap();
+
         let release_candidate = release_candidate_toml(
             status,
             validation_status,
@@ -1748,11 +1853,12 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
     fn runtime_sidecar_checksum_mismatch_fails_closed() {
         let repo = valid_synthetic_repo();
         let original = fs::read_to_string(&repo.release_candidate).unwrap();
+        let tampered_sha = "a".repeat(64);
         let tampered = original
             .lines()
             .map(|line| {
                 if line.starts_with("runtime_sidecar_sha256 = \"") {
-                    format!("runtime_sidecar_sha256 = \"{}\"", "a".repeat(64))
+                    format!("runtime_sidecar_sha256 = \"{tampered_sha}\"")
                 } else {
                     line.to_string()
                 }
@@ -1760,6 +1866,22 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             .collect::<Vec<_>>()
             .join("\n");
         fs::write(&repo.release_candidate, tampered).unwrap();
+        let assets_path = repo
+            .root
+            .join("docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml");
+        let assets = fs::read_to_string(&assets_path)
+            .unwrap()
+            .lines()
+            .map(|line| {
+                if line.starts_with("runtime_sidecar_sha256 = \"") {
+                    format!("runtime_sidecar_sha256 = \"{tampered_sha}\"")
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&assets_path, assets).unwrap();
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
         assert!(
             error

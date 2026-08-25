@@ -37,9 +37,13 @@ exclusively to a qualified human scientist recorded in issue #103.
   (latitude/longitude bands, cones, cone unions, and candidate-map-driven
   percentile selectors) evaluated fresh by `RegionEngine` against whichever
   candidate map and `nside` are actually supplied to `run`.
-- [`scientific-review-decision-v1.json`](scientific-review-decision-v1.json)
-  — the pending human-decision template. It is never filled in by this
-  pipeline; only a human, working from issue #103, edits a copy of it.
+
+This validation pipeline produces **technical evidence only**. The ONLY human
+scientific decision used for final promotion is:
+
+[`../release-candidate/scientific-review-decision-v1.json`](../release-candidate/scientific-review-decision-v1.json)
+
+No scientist should edit a second decision template under `validation/`.
 
 ## Workflow
 
@@ -109,10 +113,14 @@ It writes three artifacts under `--output`:
   and output artifact for this invocation, recomputed independently rather
   than trusted from elsewhere.
 
-If a reference is acquired but not admissible (Toller Pioneer poles; GAMBONS),
-`run` records `not-admissible` and does not invent comparison numbers. The
-Leinert 1998 ISL analytic model is the admissible comparison; preregistered
-gates may still fail, and that failure is reported rather than retuned.
+If a reference is acquired but not admissible (Toller Pioneer poles; Leinert
+1998; GAMBONS), `run` records `not-admissible` and does not invent comparison
+numbers. Leinert et al. 1998 discusses a Gaussian representation / S10 anchor
+data, but the published material does not expose the parameters required to
+reconstruct the registered comparison surface without inventing an
+interpolation/model. It is therefore acquired for provenance only and is
+**not** an admissible independent numeric comparison grid. No reference in
+the current frozen evidence is a numeric PASS.
 
 HTML and Markdown reports are both written (`validation-report-v1.html` and
 `.md`).
@@ -121,25 +129,37 @@ HTML and Markdown reports are both written (`validation-report-v1.html` and
 
 Results against map `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`
 are stored in [`results/`](results/). All three acquired references are
-**not admissible** as starlight-only TOA 300–650 nm grids. `technical_gates_passed = false`.
-`scientifically_validated` remains false. Human review stays in #103.
+**not admissible** as starlight-only TOA 300–650 nm grids:
+
+- Toller: not-admissible
+- Leinert: not-admissible
+- GAMBONS: not-admissible
+
+`independent_reference_status = no_admissible_independent_reference`.
+`reference_results` is empty. `technical_gates_passed = false`.
+`scientifically_validated` remains false. That encoding is human-review
+evidence for #103, not a software defect and not a scientific PASS.
 
 ## `scientific_review_status` stays `"pending"` until #103
 
 This pipeline produces *technical* evidence only: reproducible acquisition,
 frozen regions, computed metrics, and automatic gate evaluation against
 preregistered tolerances. Whether a specific candidate checksum is fit for
-production use is a scientific judgment made by a qualified human, recorded
-by hand in a copy of `scientific-review-decision-v1.json`, tracked in issue
-#103. No command in this pipeline, and no future automation built on top of
-it, should ever flip `scientific_review_status` to anything other than
-`"pending"` or set `scientifically_validated = true`.
+production use is a scientific judgment made by a qualified human and
+recorded only in:
+
+`docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json`
+
+tracked by issue #103. No command in this pipeline, and no future automation
+built on top of it, should ever flip `scientific_review_status` to anything
+other than `"pending"` or set `scientifically_validated = true`.
 
 ## What's still missing after the technical #87 package
 
 - **Human scientific decision.** `scientific_review_status` stays `"pending"`
-  in issue #103. Independent validation of the UV v2 candidate versus the
-  Leinert 1998 ISL model failed the preregistered numerical gates; see
-  [`results/`](results/). Do not retune those gates to force a pass.
+  in issue #103. Independent validation remains
+  `no_admissible_independent_reference`; see [`results/`](results/). Do not
+  invent unpublished Leinert parameters or retune preregistered gates to force
+  a pass.
 - Toller Pioneer, Leinert 1998, and GAMBONS remain acquired-but-not-admissible
   (DGL/ZL/airglow inseparable, or unpublished Gaussian parameters).

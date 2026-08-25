@@ -14,6 +14,10 @@ fn docs_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/nsb_components/starlight/validation")
 }
 
+fn repository_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
 #[test]
 fn preregistration_document_parses_and_validates() -> Result<()> {
     let path = docs_dir().join("preregistration-v1.toml");
@@ -79,8 +83,17 @@ fn regions_document_parses_and_validates_at_the_candidate_map_nside() -> Result<
 }
 
 #[test]
-fn scientific_review_decision_template_is_pending_and_unfilled() -> Result<()> {
-    let path = docs_dir().join("scientific-review-decision-v1.json");
+fn only_release_candidate_scientific_decision_is_authoritative() -> Result<()> {
+    let obsolete = docs_dir().join("scientific-review-decision-v1.json");
+    if obsolete.exists() {
+        bail!(
+            "obsolete validation/scientific-review-decision-v1.json must not exist; \
+             the only authoritative scientific decision is under release-candidate/"
+        );
+    }
+
+    let path = repository_root()
+        .join("docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json");
     let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     let value: Value =
         serde_json::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
@@ -88,19 +101,17 @@ fn scientific_review_decision_template_is_pending_and_unfilled() -> Result<()> {
         .as_object()
         .context("scientific-review-decision-v1.json must be a JSON object")?;
     if object.get("decision").and_then(Value::as_str) != Some("pending") {
-        bail!("checked-in scientific-review-decision-v1.json must have decision = \"pending\"");
+        bail!("canonical scientific-review-decision-v1.json must have decision = \"pending\"");
     }
-    for field in [
-        "reviewer_name",
-        "reviewer_role",
-        "reviewed_at_utc",
-        "candidate_map_sha256",
-        "validation_results_reference",
-        "technical_gates_passed",
-    ] {
+    for field in ["reviewer_name", "reviewer_role", "reviewed_at_utc"] {
         if !object.get(field).is_some_and(Value::is_null) {
-            bail!("checked-in scientific-review-decision-v1.json must leave {field} null");
+            bail!("canonical scientific-review-decision-v1.json must leave {field} null");
         }
+    }
+    if object.get("candidate_sha256").and_then(Value::as_str)
+        != Some("5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563")
+    {
+        bail!("canonical scientific decision must pin the frozen UV-v2 candidate SHA");
     }
     Ok(())
 }
