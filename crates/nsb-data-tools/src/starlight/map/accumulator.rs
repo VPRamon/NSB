@@ -2,16 +2,17 @@
 
 use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::config::StarlightProductBand;
+use crate::starlight::healpix::{self, GAIA_HEALPIX_ORDER};
 use crate::starlight::uv::{
     ApplicabilityStatus, CalibrationStatus, CombinedBandFlux, ModelResponse, SystematicCorrelation,
 };
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use siderust::healpix::HealpixIndex;
 use std::collections::BTreeMap;
 use std::path::Path;
 
 const SHARD_SCHEMA_VERSION: u32 = 3;
-const GAIA_HEALPIX_ORDER: u32 = 12;
 const GAIA_SOURCE_ID_HEALPIX_SHIFT: u32 = 35;
 const EXACT_SUM_LIMBS: usize = 33;
 const EXACT_SUM_BASE_EXPONENT: i32 = -1074;
@@ -563,12 +564,11 @@ impl PartitionShard {
             bail!("Starlight shard product band and UV metadata disagree");
         }
         validate_nside(self.nside)?;
-        let npix = 12_u64 * u64::from(self.nside) * u64::from(self.nside);
+        let grid = healpix::gaia_nested_grid(self.nside)?;
         let mut excluded = 0_u64;
         for (pixel, accumulator) in &self.pixels {
-            if u64::from(*pixel) >= npix {
-                bail!("pixel {pixel} is outside nside={}", self.nside);
-            }
+            grid.validate_index(HealpixIndex::new(u64::from(*pixel)))
+                .with_context(|| format!("pixel {pixel} is outside nside={}", self.nside))?;
             accumulator.validate()?;
             if accumulator.observed_sources
                 != accumulator
@@ -704,10 +704,7 @@ pub fn source_id_to_pixel(source_id: u64, target_nside: u32) -> Result<u32> {
 }
 
 fn validate_nside(nside: u32) -> Result<()> {
-    if nside == 0 || !nside.is_power_of_two() || nside.trailing_zeros() > GAIA_HEALPIX_ORDER {
-        bail!("nside must be a power of two between 1 and 4096");
-    }
-    Ok(())
+    healpix::gaia_nested_nside(nside).map(|_| ())
 }
 
 #[cfg(test)]

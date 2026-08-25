@@ -3,8 +3,8 @@
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, BenchmarkId, Criterion, Throughput};
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightModel, Target,
-    ThresholdQuery, DEG,
+    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap, StarlightModel,
+    StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -12,6 +12,39 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Period, Time, UTC};
+
+const HEALPIX_FIXTURE: &str = r#"# map_type=healpix
+# nside=1
+# ordering=ring
+# coordinate_frame=galactic
+# s10_diagnostics=not_provided
+# dataset_name=NSB synthetic bench-only HEALPix starlight fixture
+# version=fixture
+# generation_date_utc=2026-06-21T00:00:00Z
+# source_catalogue=synthetic bench fixture
+# source_catalogue_release=test
+# source_catalogue_license=test-only
+# source_catalogue_checksum=sha256:fixture
+# magnitude_limit=test-only
+# map_resolution=HEALPix nside=1 ring 12 pixels
+# photometry_model=fixture
+# band_definition=integrated 300-650 nm photon radiance
+# smoothing_fwhm_deg=none
+# generated_by=bench
+healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,systematic_uncertainty_ph_cm2_ns_sr,total_uncertainty_ph_cm2_ns_sr
+0,1.0,0.1,0.2,0.25
+1,2.0,0.2,0.4,0.5
+2,3.0,0.3,0.6,0.75
+3,4.0,0.4,0.8,1.0
+4,5.0,0.5,1.0,1.25
+5,6.0,0.6,1.2,1.5
+6,7.0,0.7,1.4,1.75
+7,8.0,0.8,1.6,2.0
+8,9.0,0.9,1.8,2.25
+9,10.0,1.0,2.0,2.5
+10,11.0,1.1,2.2,2.75
+11,12.0,1.2,2.4,3.0
+"#;
 
 fn parse(s: &str) -> Time<UTC> {
     let dt = DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc);
@@ -47,11 +80,16 @@ fn point_query(components: ComponentMask) -> PointQuery {
     }
 }
 
+fn experimental_starlight_model() -> StarlightModel {
+    let map =
+        StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
+    StarlightModel::with_experimental_map(map)
+}
+
 fn bench_point_components(c: &mut Criterion) {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let experimental = NsbEvaluator::with_config(
-        NsbModelConfig::generic_clear_sky()
-            .with_starlight_model(StarlightModel::bundled_experimental_seed()),
+        NsbModelConfig::generic_clear_sky().with_starlight_model(experimental_starlight_model()),
     )
     .expect("experimental evaluator");
     let cases = [

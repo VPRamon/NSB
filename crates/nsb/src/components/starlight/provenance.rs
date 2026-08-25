@@ -174,32 +174,6 @@ impl StarlightProvenance {
         }
     }
 
-    /// Fallback provenance contract for the bundled experimental seed.
-    pub fn experimental_seed_v1() -> Self {
-        Self {
-            dataset_name: "NSB catalogue-derived Galactic starlight map".to_string(),
-            version: "v1".to_string(),
-            generation_date: "read from bundled map header".to_string(),
-            source_catalogue: "read from bundled map header".to_string(),
-            license: "read from bundled map header".to_string(),
-            magnitude_limit: "read from bundled map header".to_string(),
-            band_definition: "integrated 300-650 nm photon radiance plus B/V S10 diagnostics"
-                .to_string(),
-            map_resolution: "read from bundled map header".to_string(),
-            checksum: None,
-            map_checksum: None,
-            source_catalogue_release: None,
-            photometry_model: Some("v_s10_scaled_integrated_v1".to_string()),
-            smoothing: None,
-            generated_by: Some("nsb-data-tools using siderust".to_string()),
-            source_selection: None,
-            generation_command: None,
-            validation_report: None,
-            calibration_status: Some("experimental".to_string()),
-            independent_comparison: None,
-        }
-    }
-
     /// Provenance for deterministic test-only maps.
     pub fn test_fixture() -> Self {
         Self {
@@ -209,8 +183,8 @@ impl StarlightProvenance {
             source_catalogue: "synthetic unit-test fixture".to_string(),
             license: "test-only".to_string(),
             magnitude_limit: "test-only".to_string(),
-            band_definition: "integrated 300-650 nm photon radiance plus B/V S10".to_string(),
-            map_resolution: "90 deg lon x 45 deg lat".to_string(),
+            band_definition: "integrated 300-650 nm photon radiance".to_string(),
+            map_resolution: "HEALPix nside=1 ring 12 pixels".to_string(),
             checksum: None,
             map_checksum: None,
             source_catalogue_release: Some("test".to_string()),

@@ -229,8 +229,8 @@ approval.
 
 Only after all gates pass may the registry use
 `calibration_status = "production"` and `runtime_embedded = true`. Until then,
-the existing manual seed remains experimental and the 300--650 nm UV-v2
-candidate remains unapproved, and Starlight remains outside `ComponentMask::ALL`.
+the 300--650 nm UV-v2 candidate remains unapproved, and Starlight remains
+outside `ComponentMask::ALL`.
 
 ## Primary references
 

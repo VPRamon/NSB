@@ -60,13 +60,11 @@ The supported selections are deliberately distinct:
   production map is embedded in the build;
 - **validated external starlight**: selected with `starlight` plus both
   `--starlight-map` and `--starlight-manifest`;
-- **bundled experimental seed**: selected only by
-  `experimental-starlight`;
 - **experimental library map**: supplied through
   `StarlightModel::with_experimental_map`.
 
-There is no fallback from production starlight to the experimental seed. Missing
-or invalid production evidence is an error.
+There is no bundled experimental seed. Missing or invalid production evidence is
+an error.
 
 See the [external manifest contract](../nsb_components/starlight/external-manifest.md) and the
 [starlight data-product pipeline](../nsb_components/starlight/map-generation.md).
@@ -115,7 +113,7 @@ the same production-safe composition.
   zodiacal light, airglow, and moonlight.
 - With an embedded validated production starlight asset, `all` also contains
   starlight.
-- The experimental seed is never part of `all`.
+- There is no bundled experimental starlight fallback in `all`.
 
 Downstream systems should record the returned model version and component list
 instead of assuming that `all` always expands to a fixed number of components.

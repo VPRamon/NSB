@@ -19,8 +19,9 @@ component includes radiance, B/V diagnostics, relative uncertainty, calibration
 status, provenance, validated domain, and band convention. `version` includes
 NSB/model/Siderust versions and every runtime asset checksum.
 Starlight component labels are stable by source: bundled production starlight is
-`starlight`, a validated external override is `validated-starlight`, and the
-manual seed is `experimental-starlight`. For validated external starlight,
+`starlight`, a validated external override is `validated-starlight`, and a
+caller-supplied experimental library map is labelled `experimental-starlight`.
+For validated external starlight,
 component provenance also carries source/map checksums, licence/release,
 selection, photometry, generation command, validation report, independent
 comparison, and calibration status. The external checksum is component

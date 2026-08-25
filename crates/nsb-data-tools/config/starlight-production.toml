@@ -21,7 +21,6 @@ memory = "16G"
 array_parallelism = 16
 
 [starlight]
-mode = "production"
 # Default checked-in candidate remains measured-only. The combined 300–650 nm
 # production path is configured in starlight-production-300-650.ladon.toml with
 # pinned UV, photometric, and selection-function artifacts.

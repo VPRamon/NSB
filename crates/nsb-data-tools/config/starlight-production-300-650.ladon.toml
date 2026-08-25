@@ -17,7 +17,6 @@ memory = "32G"
 array_parallelism = 8
 
 [starlight]
-mode = "production"
 product_band = "combined-300-650"
 
 [starlight.ultraviolet_correction]

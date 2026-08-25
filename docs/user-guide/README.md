@@ -52,8 +52,8 @@ and releases, continue with the [maintainer guide](../maintainer-guide/README.md
 
 - `--components all` means the complete production-safe component set compiled
   into the current build.
-- Production starlight is fail-closed. An incomplete experimental seed is never
-  selected as a production fallback.
+- Production starlight is fail-closed. Missing or invalid production evidence is
+  an error; there is no bundled experimental fallback.
 - Built-in CTAO profiles are explicit planning presets, not validated
   site-calibrated products.
 - Output metadata is part of the scientific contract. Do not discard maturity,

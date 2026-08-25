@@ -8,7 +8,7 @@ fn crate_root() -> PathBuf {
 }
 
 #[test]
-fn four_versioned_configs_are_portable_and_complete() {
+fn versioned_source_configs_are_portable_and_complete() {
     let cases = [
         ("airglow-continuum.toml", DatasetName::AirglowContinuum, 1),
         ("solar-spectrum.toml", DatasetName::SolarSpectrum, 1),
@@ -17,7 +17,6 @@ fn four_versioned_configs_are_portable_and_complete() {
             DatasetName::MoonlightScattering,
             2,
         ),
-        ("starlight.toml", DatasetName::Starlight, 1),
     ];
     for (name, dataset, sources) in cases {
         let config =
@@ -40,11 +39,8 @@ fn four_versioned_configs_are_portable_and_complete() {
 #[test]
 fn production_starlight_config_declares_the_complete_gaia_pair() {
     let config = RunConfig::load(&crate_root().join("config/starlight-production.toml")).unwrap();
+    assert!(config.sources.is_empty());
     let starlight = config.starlight.expect("Starlight production policy");
-    assert_eq!(
-        starlight.mode,
-        nsb_data_tools::starlight::config::StarlightMode::Production
-    );
     assert_eq!(
         starlight.product_band,
         nsb_data_tools::starlight::config::StarlightProductBand::Measured336To650
@@ -70,7 +66,15 @@ fn only_dataset_oriented_cli_is_exposed() {
     for required in ["Dataset", "Run", "Update", "Build", "Validate", "Publish"] {
         assert!(cli.contains(required), "missing {required}");
     }
-    for forbidden in ["XpContinuous", "AcquireCommand", "usb", "pilot", "gaiaxpy"] {
+    for forbidden in [
+        "XpContinuous",
+        "AcquireCommand",
+        "usb",
+        "pilot",
+        "gaiaxpy",
+        "skip_completed_from",
+        "skip-completed-from",
+    ] {
         assert!(!cli.to_lowercase().contains(&forbidden.to_lowercase()));
     }
 }

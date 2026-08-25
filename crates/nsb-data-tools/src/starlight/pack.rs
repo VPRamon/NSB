@@ -11,7 +11,7 @@ use siderust::coordinates::cartesian::Direction;
 use siderust::coordinates::frames::Galactic;
 use siderust::healpix::{HealpixGrid, HealpixOrdering, Nside};
 use std::collections::BTreeMap;
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::f64::consts::FRAC_PI_2;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
@@ -112,7 +112,7 @@ pub fn pack_candidate_map(inputs: &PackInputs) -> Result<PackOutcome> {
         .with_context(|| format!("write packed map {}", inputs.output_csv.display()))?;
     let runtime_map_sha256 = checksum_io::sha256_file(&inputs.output_csv)?;
 
-    let npix = 12_u64 * u64::from(candidate.nside) * u64::from(candidate.nside);
+    let npix = crate::starlight::healpix::gaia_nested_npix(candidate.nside)?;
     let occupied = u64::try_from(candidate.pixels.len()).expect("pixel count fits u64");
     let omitted = npix
         .checked_sub(occupied)
@@ -163,8 +163,9 @@ fn render_packed_csv(
     provenance_headers: &BTreeMap<String, String>,
 ) -> Result<String> {
     let nside = candidate.nside;
-    let npix = 12_u64 * u64::from(nside) * u64::from(nside);
-    let omega = pixel_solid_angle_sr(nside);
+    let grid = ring_grid(nside)?;
+    let npix = grid.npix();
+    let omega = grid.pixel_area_sr();
     let mut sum_in = 0.0;
     let mut sum_out = 0.0;
     let mut out = String::new();
@@ -243,10 +244,6 @@ fn render_packed_csv(
     Ok(out)
 }
 
-fn pixel_solid_angle_sr(nside: u32) -> f64 {
-    4.0 * PI / (12.0 * f64::from(nside) * f64::from(nside))
-}
-
 fn flux_to_runtime_radiance(flux_ph_m2_s: f64, pixel_sr: f64) -> Result<f64> {
     if !pixel_sr.is_finite() || pixel_sr <= 0.0 {
         bail!("pixel solid angle must be finite and positive");
@@ -276,15 +273,16 @@ fn ring_grid(nside: u32) -> Result<HealpixGrid> {
 
 /// Nested pixel centre from the HEALPix primer `pix2ang_nest` (xyf → z, φ).
 fn nested_pixel_center_galactic(nside: u32, ipnest: u64) -> Result<Direction<Galactic>> {
+    crate::starlight::healpix::gaia_nested_grid(nside)?
+        .validate_index(siderust::healpix::HealpixIndex::new(ipnest))
+        .map_err(|error| {
+            anyhow::anyhow!("nested pixel {ipnest} is outside nside={nside}: {error}")
+        })?;
     let nside = i64::from(nside);
-    let npix = 12 * nside * nside;
-    let ipnest = i64::try_from(ipnest).context("nested index fits i64")?;
-    if ipnest < 0 || ipnest >= npix {
-        bail!("nested pixel {ipnest} is outside the nside={nside} domain");
-    }
     const JRLL: [i64; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
     const JPLL: [i64; 12] = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
     let npface = nside * nside;
+    let ipnest = i64::try_from(ipnest).context("nested index fits i64")?;
     let face = ipnest / npface;
     let ipf = ipnest % npface;
     let mut ix = 0i64;
@@ -407,7 +405,17 @@ mod tests {
             nsb::StarlightMap::from_csv_str(&packed, nsb::StarlightProvenance::test_fixture())
                 .unwrap();
         assert_eq!(map.pixels().len(), 12);
-        let occupied = map.lookup(map.pixels()[0].galactic_lon, map.pixels()[0].galactic_lat);
+        let (lon, lat) = map.pixel_lon_lat_deg(0).unwrap();
+        let occupied =
+            map.lookup(
+                siderust::coordinates::spherical::Direction::<
+                    siderust::coordinates::frames::Galactic,
+                >::new(
+                    siderust::qtty::Degrees::new(lon),
+                    siderust::qtty::Degrees::new(lat),
+                )
+                .to_cartesian(),
+            );
         assert!(occupied.integrated.value() > 0.0);
         assert!(!occupied.s10_diagnostics_provided);
         let zero = map
@@ -668,8 +676,17 @@ mod tests {
             nsb::StarlightMap::from_csv_str(&packed, nsb::StarlightProvenance::test_fixture())
                 .unwrap();
         assert_eq!(map.pixels().len(), 196_608);
-        let sample = map.pixels()[0];
-        let looked = map.lookup(sample.galactic_lon, sample.galactic_lat);
+        let (lon, lat) = map.pixel_lon_lat_deg(0).unwrap();
+        let looked =
+            map.lookup(
+                siderust::coordinates::spherical::Direction::<
+                    siderust::coordinates::frames::Galactic,
+                >::new(
+                    siderust::qtty::Degrees::new(lon),
+                    siderust::qtty::Degrees::new(lat),
+                )
+                .to_cartesian(),
+            );
         assert!(!looked.s10_diagnostics_provided);
         assert!(looked.statistical_uncertainty.is_some());
         nsb::ValidatedStarlightMap::from_files(&csv, &production_sidecar).unwrap();

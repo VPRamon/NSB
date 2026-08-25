@@ -1,15 +1,32 @@
-# Synthetic test-only Galactic starlight map.
-# galactic_lon_deg,galactic_lat_deg,solid_angle_sr,integrated_ph_cm2_ns_sr,b_s10,v_s10
-galactic_lon_deg,galactic_lat_deg,solid_angle_sr,integrated_ph_cm2_ns_sr,b_s10,v_s10
-0,-90,1.0,1.0,10.0,5.0
-90,-90,1.0,1.0,10.0,5.0
-180,-90,1.0,1.0,10.0,5.0
-270,-90,1.0,1.0,10.0,5.0
-0,0,1.0,4.0,40.0,20.0
-90,0,1.0,4.0,40.0,20.0
-180,0,1.0,4.0,40.0,20.0
-270,0,1.0,4.0,40.0,20.0
-0,90,1.0,2.0,20.0,10.0
-90,90,1.0,2.0,20.0,10.0
-180,90,1.0,2.0,20.0,10.0
-270,90,1.0,2.0,20.0,10.0
+# Synthetic test-only Galactic HEALPix starlight map (Packed, nside=1 RING).
+# map_type=healpix
+# nside=1
+# ordering=ring
+# coordinate_frame=galactic
+# s10_diagnostics=not_provided
+# dataset_name=NSB synthetic test-only HEALPix starlight fixture
+# version=fixture
+# generation_date_utc=2026-06-21T00:00:00Z
+# source_catalogue=synthetic unit-test fixture
+# source_catalogue_release=test
+# source_catalogue_license=test-only
+# source_catalogue_checksum=sha256:fixture
+# magnitude_limit=test-only
+# map_resolution=HEALPix nside=1 ring 12 pixels
+# photometry_model=fixture
+# band_definition=integrated 300-650 nm photon radiance
+# smoothing_fwhm_deg=none
+# generated_by=unit test
+healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,systematic_uncertainty_ph_cm2_ns_sr,total_uncertainty_ph_cm2_ns_sr
+0,2.0,0.2,0.4,0.5
+1,2.0,0.2,0.4,0.5
+2,2.0,0.2,0.4,0.5
+3,2.0,0.2,0.4,0.5
+4,4.0,0.4,0.8,1.0
+5,4.0,0.4,0.8,1.0
+6,4.0,0.4,0.8,1.0
+7,4.0,0.4,0.8,1.0
+8,1.0,0.1,0.2,0.25
+9,1.0,0.1,0.2,0.25
+10,1.0,0.1,0.2,0.25
+11,1.0,0.1,0.2,0.25

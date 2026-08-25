@@ -681,7 +681,6 @@ fn combined_product_without_artifact_fails_closed() {
              [workspace]\n\
              root = \"{}\"\n\
              [starlight]\n\
-             mode = \"production\"\n\
              product_band = \"combined-300-650\"\n",
             temporary.path().join("workspace").display()
         ),

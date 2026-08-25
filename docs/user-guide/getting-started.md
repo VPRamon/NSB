@@ -96,7 +96,6 @@ clear-sky profile unless the application configures the library directly.
 ```text
 zodiacal
 starlight
-experimental-starlight
 airglow
 moon
 all

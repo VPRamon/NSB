@@ -119,10 +119,10 @@ the same production-safe composition.
   zodiacal light, airglow, and moonlight.
 - With an embedded validated production starlight asset, `all` also contains
   starlight.
-- The bundled manual seed is selected only as `experimental-starlight` or
-  through the explicit experimental library API.
-- A missing or invalid production starlight product never falls back to the
-  experimental seed.
+- A missing or invalid production starlight product is an error; there is no
+  bundled experimental fallback.
+- Caller-supplied experimental maps use `StarlightModel::with_experimental_map`
+  and are never promoted by that path alone.
 
 A validated external starlight override requires both files:
 

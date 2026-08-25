@@ -4,7 +4,6 @@ use nsb::ComponentMask;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StarlightSelection {
     Production,
-    ExperimentalSeed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -21,11 +20,7 @@ pub fn parse_components(input: &str) -> Result<ParsedComponents, CliError> {
             "all" => mask |= ComponentMask::ALL,
             "zodiacal" | "zl" => mask |= ComponentMask::ZODIACAL,
             "starlight" => {
-                select_starlight(&mut starlight, StarlightSelection::Production)?;
-                mask |= ComponentMask::STARLIGHT;
-            }
-            "experimental-starlight" | "experimental-sl" => {
-                select_starlight(&mut starlight, StarlightSelection::ExperimentalSeed)?;
+                starlight = Some(StarlightSelection::Production);
                 mask |= ComponentMask::STARLIGHT;
             }
             "airglow" | "ag" => mask |= ComponentMask::AIRGLOW,
@@ -34,19 +29,6 @@ pub fn parse_components(input: &str) -> Result<ParsedComponents, CliError> {
         }
     }
     Ok(ParsedComponents { mask, starlight })
-}
-
-fn select_starlight(
-    selected: &mut Option<StarlightSelection>,
-    requested: StarlightSelection,
-) -> Result<(), CliError> {
-    if selected.is_some_and(|value| value != requested) {
-        return Err(CliError::InvalidComponentSelection(
-            "starlight and experimental-starlight cannot be combined".to_string(),
-        ));
-    }
-    *selected = Some(requested);
-    Ok(())
 }
 
 #[cfg(test)]
@@ -75,26 +57,11 @@ mod tests {
     }
 
     #[test]
-    fn all_can_be_combined_with_explicit_experimental_starlight() {
-        let mask = parse_components("all,experimental-starlight").unwrap().mask;
-        assert!(mask.contains(ComponentMask::ZODIACAL));
-        assert!(mask.contains(ComponentMask::AIRGLOW));
-        assert!(mask.contains(ComponentMask::MOON));
-        assert!(mask.contains(ComponentMask::STARLIGHT));
-    }
-
-    #[test]
-    fn starlight_names_select_distinct_modes() {
+    fn starlight_selects_production() {
         assert_eq!(
             parse_components("starlight").unwrap().starlight,
             Some(StarlightSelection::Production)
         );
-        assert_eq!(
-            parse_components("experimental-starlight")
-                .unwrap()
-                .starlight,
-            Some(StarlightSelection::ExperimentalSeed)
-        );
-        assert!(parse_components("starlight,experimental-starlight").is_err());
+        assert!(parse_components("experimental-starlight").is_err());
     }
 }

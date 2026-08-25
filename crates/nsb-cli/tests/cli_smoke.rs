@@ -60,7 +60,7 @@ fn default_components_include_moonlight() {
         "crates.io:siderust:0.11.0"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
-    assert!(value["version"]["data_assets"].as_array().unwrap().len() >= 5);
+    assert!(value["version"]["data_assets"].as_array().unwrap().len() >= 4);
     let components = value["components"].as_array().unwrap();
     assert!(components
         .iter()
@@ -294,17 +294,14 @@ fn write_validated_fixture_schema(
         "# generation_command=synthetic fixture builder\n",
         "# validation_report=test admission report\n",
         "# independent_comparison=synthetic trusted reference fixture\n",
+        "# s10_diagnostics=not_provided\n",
     ));
-    if with_uncertainty {
-        map.push_str(concat!(
-            "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10,",
-            "statistical_uncertainty_ph_cm2_ns_sr,",
-            "systematic_uncertainty_ph_cm2_ns_sr,",
-            "total_uncertainty_ph_cm2_ns_sr\n",
-        ));
-    } else {
-        map.push_str("healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n");
-    }
+    map.push_str(concat!(
+        "healpix_index,integrated_ph_cm2_ns_sr,",
+        "statistical_uncertainty_ph_cm2_ns_sr,",
+        "systematic_uncertainty_ph_cm2_ns_sr,",
+        "total_uncertainty_ph_cm2_ns_sr\n",
+    ));
     let mut source_flux = 0.0;
     for index in 0..grid.npix() {
         let direction: Direction<Galactic> = grid.pixel_center(HealpixIndex::new(index)).unwrap();
@@ -313,13 +310,15 @@ fn write_validated_fixture_schema(
         source_flux += value * grid.pixel_area_sr();
         if with_uncertainty {
             map.push_str(&format!(
-                "{index},{value},{value},{value},{},{},{}\n",
+                "{index},{value},{},{},{}\n",
                 value * 0.1,
                 value * 0.2,
                 value * 0.25,
             ));
         } else {
-            map.push_str(&format!("{index},{value},{value},{value}\n"));
+            // Packed schema always carries an uncertainty triplet; zeros mark
+            // “no published uncertainty” only when all three are zero together.
+            map.push_str(&format!("{index},{value},0.0,0.0,0.0\n"));
         }
     }
     let checksum = format!("sha256:{}", to_hex(&sha256(map.as_bytes())));
@@ -454,40 +453,7 @@ fn starlight_uncertainties_are_serialized_in_json_and_csv_v2() {
 }
 
 #[test]
-fn explicit_experimental_starlight_is_labelled_in_json() {
-    let mut cmd = Command::cargo_bin("nsb").unwrap();
-    let output = cmd
-        .args([
-            "--format",
-            "json",
-            "point",
-            "--time",
-            "2026-06-18T23:00:00Z",
-            "--site",
-            "CTAO-S",
-            "--ra",
-            "83.0",
-            "--dec",
-            "22.0",
-            "--components",
-            "experimental-starlight",
-        ])
-        .assert()
-        .success()
-        .get_output()
-        .stdout
-        .clone();
-    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
-    assert_eq!(value["model"]["starlight_model"], "experimental-starlight");
-    assert_eq!(value["components"][0]["name"], "experimental-starlight");
-    assert_eq!(
-        value["components"][0]["metadata"]["calibration_status"],
-        "experimental"
-    );
-}
-
-#[test]
-fn starlight_csv_uses_validated_or_experimental_component_labels() {
+fn starlight_csv_uses_validated_component_label() {
     let dir = tempfile::tempdir().unwrap();
     let map_path = dir.path().join("starlight.csv");
     let manifest_path = dir.path().join("starlight.toml");
@@ -516,11 +482,14 @@ fn starlight_csv_uses_validated_or_experimental_component_labels() {
     .assert()
     .success()
     .stdout(predicate::str::contains("validated-starlight"));
+}
 
+#[test]
+fn unknown_experimental_starlight_alias_is_rejected() {
     let mut cmd = Command::cargo_bin("nsb").unwrap();
     cmd.args([
         "--format",
-        "csv",
+        "json",
         "point",
         "--time",
         "2026-06-18T23:00:00Z",
@@ -534,8 +503,8 @@ fn starlight_csv_uses_validated_or_experimental_component_labels() {
         "experimental-starlight",
     ])
     .assert()
-    .success()
-    .stdout(predicate::str::contains("experimental-starlight"));
+    .failure()
+    .stderr(predicate::str::contains("experimental-starlight"));
 }
 
 #[test]

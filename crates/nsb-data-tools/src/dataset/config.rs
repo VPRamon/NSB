@@ -111,11 +111,7 @@ impl RunConfig {
                 config.schema_version
             );
         }
-        if config.sources.is_empty()
-            && config.starlight.as_ref().is_none_or(|starlight| {
-                starlight.mode != crate::starlight::config::StarlightMode::Production
-            })
-        {
+        if config.sources.is_empty() && config.starlight.is_none() {
             bail!("configuration requires at least one source");
         }
         if config.execution.concurrency == 0 {

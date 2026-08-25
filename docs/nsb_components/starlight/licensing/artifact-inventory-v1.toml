@@ -290,24 +290,6 @@ runtime_embedded = false. Checksum-linked to starlight-candidate-map-nside128
 UV v2. Human redistribution decision remains pending in #103.
 """
 
-[[artifacts]]
-id = "starlight-manual-seed-v1"
-category = "generated-derived-output"
-source = "Manually curated Tycho/Hipparcos-style bright-star seed (crates/nsb/data/starlight_manual_seed_v1.csv), not a complete external catalogue product"
-release = "manual-seed-v1"
-license = "review required before redistribution or scientific production use, as already flagged in crates/nsb/data/manifest.toml"
-sha256 = "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
-distribution_class = "repository_embedded"
-distributed = true
-channels = ["git_repository"]
-notes = """
-calibration_status = experimental, runtime_embedded = true (used only by
-`--components experimental-starlight`). The pre-existing manifest.toml entry
-already records this artifact's licence as review-required; #88 inherits this
-known gap rather than resolving it, since the underlying provenance predates
-this inventory and no additional source information is available.
-"""
-
 # --- Manifests, sidecars, and reports --------------------------------------
 
 [[artifacts]]
@@ -316,7 +298,7 @@ category = "manifest"
 source = "NSB-authored checksum/provenance registry for bundled runtime assets"
 release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); contains no third-party bytes, only metadata describing third-party inputs"
-sha256 = "ae917e66c27a9715963ff42693a5c13859dae941e7669e7877b7cf01172aff99"
+sha256 = "d0ebb0962dfbbd76e748c04150326ee86a0c13c42762c97dc34fe1e8f327e65e"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]

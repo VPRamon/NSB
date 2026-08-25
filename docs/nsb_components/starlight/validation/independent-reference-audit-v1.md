@@ -31,7 +31,9 @@ These appear in historical notes (`existing-datasets.md`, validation README,
 science-requirements) but are not admissible starlight-only TOA 300–650 nm
 grids for this candidate:
 
-- Manual Tycho/Hipparcos experimental seed (`starlight_manual_seed_v1.csv`): runtime fixture, not independent validation.
+- Historical manual Tycho/Hipparcos experimental seed
+  (`starlight_manual_seed_v1.csv`, removed from the runtime tree): was a
+  runtime fixture, not independent validation.
 - Retired nside 64/256/512 derived maps: not independent source-level products.
 - GAMBONS website all-sky maps: explicitly mixed night-sky products.
 - Toller 1981 dissertation / Toller et al. 1987 / Weinberg 1974: no additional machine-readable starlight-only table beyond the acquired pole transcription.

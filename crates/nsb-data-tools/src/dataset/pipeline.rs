@@ -38,7 +38,7 @@ pub trait DatasetPipeline: Sync {
     /// Complete artifact names for non-partitioned datasets.
     fn expected_outputs(&self) -> &'static [&'static str];
 
-    /// Configuration-specific artifact set for pipelines with snapshot and production modes.
+    /// Configuration-specific artifact set when outputs depend on run policy.
     fn expected_outputs_for(&self, _config: &RunConfig) -> Vec<String> {
         self.expected_outputs()
             .iter()

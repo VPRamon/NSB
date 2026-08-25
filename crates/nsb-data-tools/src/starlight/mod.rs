@@ -2,9 +2,9 @@
 
 pub mod conditions;
 pub mod config;
+pub(crate) mod healpix;
 pub mod licensing;
 pub mod map;
-pub mod migration;
 pub mod pack;
 pub mod photometric;
 mod pipeline;

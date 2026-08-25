@@ -24,7 +24,6 @@ pub fn execute(
     executor: Option<Executor>,
     concurrency: Option<usize>,
     requested_partitions: &[String],
-    skip_completed_from: Option<&Path>,
 ) -> Result<()> {
     let mut config = RunConfig::load(config_path)?;
     if config.dataset != dataset {
@@ -44,12 +43,7 @@ pub fn execute(
         }
         config.execution.concurrency = concurrency;
     }
-    let partitions = selected_partitions(
-        &config,
-        operation,
-        requested_partitions,
-        skip_completed_from,
-    )?;
+    let partitions = selected_partitions(&config, operation, requested_partitions)?;
     let plan = BuildPlan {
         dataset,
         operation,
@@ -147,7 +141,6 @@ pub fn resume(path: &Path) -> Result<()> {
         Some(manifest.executor),
         None,
         &partitions,
-        None,
     )
 }
 
@@ -271,7 +264,6 @@ fn selected_partitions(
     config: &RunConfig,
     operation: Operation,
     selected: &[String],
-    skip_completed_from: Option<&Path>,
 ) -> Result<Vec<String>> {
     let pipeline = pipeline_for(config.dataset);
     if !pipeline.supports_partitions() {
@@ -295,45 +287,15 @@ fn selected_partitions(
             config.dataset
         ),
     };
-    let mut selected_partitions = if !selected.is_empty() {
+    if !selected.is_empty() {
         for partition in selected {
             if !available.contains(partition) {
                 bail!("unknown partition {partition:?}");
             }
         }
-        selected.to_vec()
-    } else {
-        available
-    };
-    if let Some(checkpoints_dir) = skip_completed_from {
-        if config.dataset != DatasetName::Starlight || operation != Operation::Build {
-            bail!("--skip-completed-from is supported only by dataset starlight build");
-        }
-        let starlight = config
-            .starlight
-            .as_ref()
-            .context("Starlight production configuration is missing")?;
-        let completed = crate::starlight::migration::load_completed_partition_ids(checkpoints_dir)?;
-        let mut retained = Vec::with_capacity(selected_partitions.len());
-        for partition in selected_partitions {
-            let legacy_name = format!("XpContinuousMeanSpectrum_{partition}.csv.gz");
-            if !completed.contains(&legacy_name) {
-                retained.push(partition);
-                continue;
-            }
-            let receipt_is_valid = crate::starlight::sources::acquisition::has_valid_receipt(
-                &config.workspace.root,
-                &starlight.gaia_products,
-                "xp-continuous",
-                &partition,
-            )?;
-            if !receipt_is_valid {
-                retained.push(partition);
-            }
-        }
-        selected_partitions = retained;
+        return Ok(selected.to_vec());
     }
-    Ok(selected_partitions)
+    Ok(available)
 }
 
 fn update_sources(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {

@@ -85,7 +85,8 @@ science requirements
 
 A successful candidate build is not production admission. A bundled or external
 product must satisfy provenance, checksum, scientific-validation, and maturity
-contracts. The experimental seed is not a fallback for production requests.
+contracts. Missing or invalid production starlight is an error, not a silent
+fallback.
 
 ## Documentation conventions
 

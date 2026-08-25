@@ -43,19 +43,16 @@ alone does not establish scientific validity.
 - `starlight` uses a bundled production asset when one is registered and
   validated, or a caller-provided map plus manifest that passes the fail-closed
   admission contract.
-- `experimental-starlight` selects the bundled 12-pixel manual seed only.
-- `Starlight::with_map` and the experimental library path allow explicit maps,
-  but do not promote them to production.
+- `Starlight::with_map` and `StarlightModel::with_experimental_map` allow
+  explicit caller-supplied maps, but do not promote them to production.
 
-There is no fallback from production starlight to the experimental seed.
-Accordingly, `--components all` contains starlight only if a production asset is
-available.
+There is no bundled experimental seed. Accordingly, `--components all` contains
+starlight only if a production asset is available.
 
 ## Scientific boundaries
 
-The bundled manual seed is explicitly experimental and is not a catalogue
-product. The Gaia DR3 XP pipeline produces candidates; promotion remains a
-separate scientific and release decision. Missing-flux treatment, independent
+The Gaia DR3 XP pipeline produces candidates; promotion remains a separate
+scientific and release decision. Missing-flux treatment, independent
 validation, and redistribution-policy gates must be satisfied before a map is
 represented as production quality.
 

@@ -914,7 +914,8 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         let admitted = fields[5].parse::<u64>()?;
         let excluded = fields[6].parse::<u64>()?;
         let expected_total_uncertainty = statistical_uncertainty.hypot(systematic_uncertainty);
-        if u64::from(pixel) >= 12 * u64::from(expected_nside).pow(2)
+        let domain = crate::starlight::healpix::gaia_nested_npix(expected_nside)?;
+        if u64::from(pixel) >= domain
             || !flux.is_finite()
             || flux < 0.0
             || !statistical_uncertainty.is_finite()
@@ -961,10 +962,7 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
 }
 
 fn pixel_domain_size(nside: u32) -> Result<u64> {
-    u64::from(nside)
-        .checked_mul(u64::from(nside))
-        .and_then(|pixels_per_face| pixels_per_face.checked_mul(12))
-        .context("HEALPix pixel-domain size overflow")
+    crate::starlight::healpix::gaia_nested_npix(nside)
 }
 
 fn map_totals(pixels: &BTreeMap<u32, MapPixel>) -> Result<(f64, u64, u64)> {
@@ -1797,8 +1795,8 @@ fn galactic_plane_coverage(path: &Path, nside: u32) -> Result<f64> {
 
 /// Return `sin(latitude)` for the centre of a NESTED HEALPix pixel.
 fn nested_pixel_center_sin_latitude(nside: u32, pixel: u32) -> f64 {
-    debug_assert!(nside.is_power_of_two());
-    debug_assert!(pixel < 12 * nside * nside);
+    let grid = crate::starlight::healpix::gaia_nested_grid(nside).expect("validated nside");
+    debug_assert!(u64::from(pixel) < grid.npix());
 
     const JRLL: [u32; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
 

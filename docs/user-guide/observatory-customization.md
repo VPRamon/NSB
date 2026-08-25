@@ -105,7 +105,7 @@ nsb --format json point \
 Both files are required. Runtime admission verifies the map checksum, exact
 header contract, complete HEALPix coverage, finite non-negative values,
 provenance, validation references, calibration status, and other production
-gates. Failure is fatal and never selects the experimental seed.
+gates. Failure is fatal; there is no bundled experimental starlight fallback.
 
 The complete sidecar schema is documented in
 [Validated external starlight manifest](../nsb_components/starlight/external-manifest.md).

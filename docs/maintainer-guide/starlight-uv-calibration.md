@@ -122,7 +122,6 @@ source is processed:
 
 ```toml
 [starlight]
-mode = "production"
 product_band = "combined-300-650"
 
 [starlight.ultraviolet_correction]

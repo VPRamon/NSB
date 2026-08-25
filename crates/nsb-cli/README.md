@@ -64,8 +64,8 @@ nsb --format json point \
   --starlight-manifest /data/starlight.toml
 ```
 
-Validation failure is fatal. The incomplete experimental seed is selected only
-with `experimental-starlight` and is never a production fallback.
+Validation failure is fatal. There is no bundled experimental starlight
+fallback for production requests.
 
 ## Documentation
 
