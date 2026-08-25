@@ -8,10 +8,7 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StarlightConfig {
-    /// Reproducible snapshot or full Gaia production pipeline.
-    #[serde(default)]
-    pub mode: StarlightMode,
-    /// Official bulk-product inventories required in production mode.
+    /// Official bulk-product inventories required for the Gaia production pipeline.
     #[serde(default)]
     pub gaia_products: Vec<GaiaProductConfig>,
     /// Download retry, timeout, and cache policy.
@@ -54,17 +51,6 @@ impl Default for AcquisitionConfig {
             max_attempts: default_max_attempts(),
         }
     }
-}
-
-/// Starlight pipeline intent.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum StarlightMode {
-    /// Reproduce an already materialized map.
-    #[default]
-    Snapshot,
-    /// Construct the full Gaia-derived production candidate.
-    Production,
 }
 
 /// Spectral band emitted by the Starlight product.

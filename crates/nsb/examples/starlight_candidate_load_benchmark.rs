@@ -10,8 +10,8 @@
 //!
 //! 1. The public runtime API, `StarlightMap::from_csv_path`. As of this
 //!    writing this is expected to fail: the runtime parser only understands
-//!    the `healpix_index,...` schema used by validated external/manual-seed
-//!    maps, not the `nsb-healpix-starlight-candidate-v5` schema
+//!    the `healpix_index,...` schema used by validated external and
+//!    experimental caller-supplied maps, not the `nsb-healpix-starlight-candidate-v5` schema
 //!    (`pixel,flux_ph_m2_s,...`) written by the Gaia production pipeline.
 //!    `StarlightModel::BundledProductionGaiaDr3` (production registry pair) is expected to
 //!    add runtime support for that schema; this harness records whatever the

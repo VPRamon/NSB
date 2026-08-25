@@ -129,14 +129,13 @@ matrix, exercised only against clearly synthetic fixtures.
   `nsb-starlight-runtime-manifest-v1` production pair in
   `crates/nsb/data/manifest.toml` (see
   `crates/nsb/src/components/starlight/model.rs`); otherwise it returns
-  `NsbError::DataMissing`, never a silent fallback to the experimental seed.
+  `NsbError::DataMissing` with no silent experimental fallback.
 - `ComponentMask::ALL` (and its `DEFAULT` alias) includes `STARLIGHT` only
   under `cfg(nsb_bundled_production_starlight)`, which is not set while no
   production pair is registered.
 - `crates/nsb-cli`'s `--components starlight` production selection always
-  calls `StarlightModel::bundled_production_gaia_dr3()` explicitly; there is
-  no code path that substitutes the experimental seed when production is
-  unavailable.
+  calls `StarlightModel::bundled_production_gaia_dr3()` explicitly; missing
+  production evidence is an error.
 
 The final-promotion workflow, after valid #103 signatures, registers that
 production pair. The runtime gate then opens with no further runtime code

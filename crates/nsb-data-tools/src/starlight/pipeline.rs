@@ -1,4 +1,3 @@
-use super::config::StarlightMode;
 use super::sources::{acquisition, inventory};
 use crate::dataset::{Artifact, DatasetName, DatasetPipeline, RunConfig, ValidationGate};
 use anyhow::{bail, Result};
@@ -20,29 +19,22 @@ impl DatasetPipeline for StarlightPipeline {
 
     fn available_partitions(&self, config: &RunConfig) -> Result<Option<Vec<String>>> {
         let Some(starlight) = &config.starlight else {
-            return Ok(Some(configured_partitions(config)));
+            bail!("Starlight production configuration is missing");
         };
-        if starlight.mode == StarlightMode::Snapshot {
-            return Ok(Some(configured_partitions(config)));
-        }
         inventory::production_partition_ids(&config.workspace.root, &starlight.gaia_products)
     }
 
     fn expected_outputs(&self) -> &'static [&'static str] {
-        &["starlight_manual_seed_v1.csv"]
+        &["starlight_nside128.csv", "merge_report.json"]
     }
 
     fn expected_outputs_for(&self, config: &RunConfig) -> Vec<String> {
-        match &config.starlight {
-            Some(starlight) if starlight.mode == StarlightMode::Production => {
-                production_output_names(starlight.map.canonical_nside)
-            }
-            _ => self
-                .expected_outputs()
-                .iter()
-                .map(|name| (*name).to_string())
-                .collect(),
-        }
+        let canonical_nside = config
+            .starlight
+            .as_ref()
+            .map(|starlight| starlight.map.canonical_nside)
+            .unwrap_or(128);
+        production_output_names(canonical_nside)
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
@@ -53,9 +45,6 @@ impl DatasetPipeline for StarlightPipeline {
         let Some(starlight) = &config.starlight else {
             return Ok(None);
         };
-        if starlight.mode == StarlightMode::Snapshot {
-            return Ok(None);
-        }
         if starlight.gaia_products.is_empty() {
             bail!("production Starlight requires at least one Gaia product inventory");
         }
@@ -82,9 +71,6 @@ impl DatasetPipeline for StarlightPipeline {
         let Some(starlight) = &config.starlight else {
             return Ok(None);
         };
-        if starlight.mode == StarlightMode::Snapshot {
-            return Ok(None);
-        }
         let artifacts = super::worker::build_partitions(
             &config.workspace.root,
             &starlight.gaia_products,
@@ -101,43 +87,37 @@ impl DatasetPipeline for StarlightPipeline {
     }
 
     fn finalize(&self, config: &RunConfig) -> Result<Option<Vec<Artifact>>> {
-        if let Some(starlight) = config
-            .starlight
+        let Some(starlight) = &config.starlight else {
+            return Ok(None);
+        };
+        let expected = self
+            .available_partitions(config)?
+            .ok_or_else(|| anyhow::anyhow!("Starlight inventories are missing"))?;
+        let selection_population = starlight
+            .selection_function
             .as_ref()
-            .filter(|starlight| starlight.mode == StarlightMode::Production)
-        {
-            let expected = self
-                .available_partitions(config)?
-                .ok_or_else(|| anyhow::anyhow!("Starlight inventories are missing"))?;
-            let selection_population = starlight
-                .selection_function
-                .as_ref()
-                .map(|pin| -> Result<_> {
-                    let correction = super::selection::SelectionCorrection::load(
-                        &pin.artifact_path,
-                        &pin.sha256,
-                    )?;
-                    correction.require_production_status()?;
-                    Ok(super::map::product::SelectionPopulationPolicy {
-                        model_id: correction.artifact().model_id.clone(),
-                        weight_cap: correction.artifact().weight_cap,
-                        residual_faint_tail_estimated: correction.artifact().faint_tail.enabled,
-                    })
+            .map(|pin| -> Result<_> {
+                let correction =
+                    super::selection::SelectionCorrection::load(&pin.artifact_path, &pin.sha256)?;
+                correction.require_production_status()?;
+                Ok(super::map::product::SelectionPopulationPolicy {
+                    model_id: correction.artifact().model_id.clone(),
+                    weight_cap: correction.artifact().weight_cap,
+                    residual_faint_tail_estimated: correction.artifact().faint_tail.enabled,
                 })
-                .transpose()?;
-            return Ok(Some(super::map::product::emit_maps(
-                &config.workspace.root,
-                &expected,
-                starlight.map.canonical_nside,
-                starlight.product_band,
-                starlight
-                    .ultraviolet_correction
-                    .as_ref()
-                    .map(|ultraviolet| ultraviolet.sha256.as_str()),
-                selection_population,
-            )?));
-        }
-        Ok(None)
+            })
+            .transpose()?;
+        Ok(Some(super::map::product::emit_maps(
+            &config.workspace.root,
+            &expected,
+            starlight.map.canonical_nside,
+            starlight.product_band,
+            starlight
+                .ultraviolet_correction
+                .as_ref()
+                .map(|ultraviolet| ultraviolet.sha256.as_str()),
+            selection_population,
+        )?))
     }
 
     fn validation_gates(
@@ -145,17 +125,10 @@ impl DatasetPipeline for StarlightPipeline {
         config: &RunConfig,
         _artifacts: &[Artifact],
     ) -> Result<Vec<ValidationGate>> {
-        if let Some(starlight) = config
-            .starlight
-            .as_ref()
-            .filter(|starlight| starlight.mode == StarlightMode::Production)
-        {
-            return super::map::product::scientific_gates(
-                &config.workspace.root,
-                starlight.map.canonical_nside,
-            );
-        }
-        Ok(Vec::new())
+        let Some(starlight) = &config.starlight else {
+            return Ok(Vec::new());
+        };
+        super::map::product::scientific_gates(&config.workspace.root, starlight.map.canonical_nside)
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
@@ -243,38 +216,25 @@ impl DatasetPipeline for StarlightPipeline {
                 }
             }
         }
-        if starlight.mode == StarlightMode::Production {
-            let product_ids: std::collections::BTreeSet<_> = starlight
-                .gaia_products
-                .iter()
-                .map(|product| product.id.as_str())
-                .collect();
-            let required = std::collections::BTreeSet::from(["gaia-source", "xp-continuous"]);
-            if product_ids != required {
-                bail!(
-                    "production Starlight requires exactly the gaia-source and xp-continuous products"
-                );
-            }
-            if starlight.acquisition.connect_timeout_seconds == 0
-                || starlight.acquisition.request_timeout_seconds == 0
-                || starlight.acquisition.max_attempts == 0
-            {
-                bail!("Starlight acquisition timeouts and max_attempts must be greater than zero");
-            }
+        let product_ids: std::collections::BTreeSet<_> = starlight
+            .gaia_products
+            .iter()
+            .map(|product| product.id.as_str())
+            .collect();
+        let required = std::collections::BTreeSet::from(["gaia-source", "xp-continuous"]);
+        if product_ids != required {
+            bail!(
+                "production Starlight requires exactly the gaia-source and xp-continuous products"
+            );
+        }
+        if starlight.acquisition.connect_timeout_seconds == 0
+            || starlight.acquisition.request_timeout_seconds == 0
+            || starlight.acquisition.max_attempts == 0
+        {
+            bail!("Starlight acquisition timeouts and max_attempts must be greater than zero");
         }
         Ok(())
     }
-}
-
-fn configured_partitions(config: &RunConfig) -> Vec<String> {
-    let mut partitions: Vec<String> = config
-        .sources
-        .iter()
-        .filter_map(|source| source.partition.clone())
-        .collect();
-    partitions.sort();
-    partitions.dedup();
-    partitions
 }
 
 fn production_output_names(canonical_nside: u32) -> Vec<String> {

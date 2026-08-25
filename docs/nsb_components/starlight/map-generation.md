@@ -1,12 +1,13 @@
 # Starlight dataset generation
 
-Starlight uses the common dataset lifecycle:
+Starlight uses the common dataset lifecycle with the Gaia production
+configuration:
 
 ```bash
-nsb-data dataset starlight update --config starlight.toml
-nsb-data dataset starlight build --config starlight.toml
-nsb-data dataset starlight validate --config starlight.toml
-nsb-data dataset starlight publish --config starlight.toml
+nsb-data dataset starlight update --config crates/nsb-data-tools/config/starlight-production.toml
+nsb-data dataset starlight build --config crates/nsb-data-tools/config/starlight-production.toml
+nsb-data dataset starlight validate --config crates/nsb-data-tools/config/starlight-production.toml
+nsb-data dataset starlight publish --config crates/nsb-data-tools/config/starlight-production.toml
 ```
 
 The production configuration imports the official GaiaSource and XP continuous
@@ -50,9 +51,7 @@ Resolution selection, when needed, is a separate scientific study comparing
 independent source-level runs. Only the selected candidate is published.
 Diagnostic resampling is outside the scientific publication lifecycle.
 
-The bundled manual seed remains a separate experimental snapshot. Publishing
-identical bytes does not promote its scientific maturity. A production
-Gaia-derived replacement must additionally satisfy the
+A production Gaia-derived replacement must satisfy the
 [science requirements](science-requirements.md), [validation
 contract](map-validation.md), redistribution policy, and [runtime manifest
 contract](external-manifest.md).

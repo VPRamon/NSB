@@ -302,28 +302,6 @@ pub(crate) fn verified_object_for_partition(
     Ok(receipt.object_path)
 }
 
-/// Whether the new layout contains a valid receipt and CAS object.
-pub(crate) fn has_valid_receipt(
-    workspace: &Path,
-    products: &[GaiaProductConfig],
-    product_id: &str,
-    partition_id: &str,
-) -> Result<bool> {
-    match verified_object_for_partition(workspace, products, product_id, partition_id) {
-        Ok(_) => Ok(true),
-        Err(error)
-            if error.chain().any(|cause| {
-                cause
-                    .downcast_ref::<std::io::Error>()
-                    .is_some_and(|io| io.kind() == io::ErrorKind::NotFound)
-            }) =>
-        {
-            Ok(false)
-        }
-        Err(error) => Err(error),
-    }
-}
-
 struct AcquisitionLock {
     path: PathBuf,
 }

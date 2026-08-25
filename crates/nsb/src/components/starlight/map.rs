@@ -1,5 +1,4 @@
 use super::output::StarlightOutputs;
-use super::photometry::bilinear_outputs;
 use super::provenance::StarlightProvenance;
 use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
@@ -10,7 +9,7 @@ use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhot
 use qtty::solid_angle::Steradians;
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
-use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixMap, HealpixOrdering, Nside};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -136,28 +135,16 @@ impl StarlightPixel {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-/// Validated rectangular or HEALPix Galactic starlight map.
+/// Validated Galactic HEALPix starlight map.
 pub struct StarlightMap {
     provenance: StarlightProvenance,
-    kind: StarlightMapKind,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-enum StarlightMapKind {
-    Rectangular {
-        lon_values_deg: Vec<f64>,
-        lat_values_deg: Vec<f64>,
-        pixels: Vec<StarlightPixel>,
-    },
-    Healpix {
-        grid: HealpixGrid,
-        pixels: Vec<StarlightPixel>,
-    },
+    map: HealpixMap<Galactic, StarlightPixel>,
 }
 
 impl StarlightMap {
-    /// Build a complete rectangular map from directional pixels.
-    pub fn from_pixels(
+    /// Build a complete HEALPix map from grid-ordered pixel values.
+    pub fn from_healpix(
+        grid: HealpixGrid,
         pixels: Vec<StarlightPixel>,
         provenance: StarlightProvenance,
     ) -> Result<Self> {
@@ -165,10 +152,8 @@ impl StarlightMap {
             return Err(invalid_map("starlight map must contain at least one pixel"));
         }
 
-        let mut normalized = Vec::with_capacity(pixels.len());
-        let mut lon_values = Vec::with_capacity(pixels.len());
-        let mut lat_values = Vec::with_capacity(pixels.len());
         let has_uncertainties = pixels[0].output().has_uncertainties();
+        let mut normalized = Vec::with_capacity(pixels.len());
         for pixel in pixels {
             pixel.validate()?;
             if pixel.output().has_uncertainties() != has_uncertainties {
@@ -176,55 +161,14 @@ impl StarlightMap {
                     "all starlight pixels must use the same uncertainty schema",
                 ));
             }
-            let pixel = pixel.normalized();
-            lon_values.push(pixel.galactic_lon.value());
-            lat_values.push(pixel.galactic_lat.value());
-            normalized.push(pixel);
+            normalized.push(pixel.normalized());
         }
 
-        sort_dedup(&mut lon_values);
-        sort_dedup(&mut lat_values);
-
-        let expected_len = lon_values.len() * lat_values.len();
-        if expected_len != normalized.len() {
-            return Err(invalid_map(format!(
-                "starlight map must be rectangular: {} longitudes x {} latitudes != {} pixels",
-                lon_values.len(),
-                lat_values.len(),
-                normalized.len()
-            )));
-        }
-
-        let mut grid = vec![None; expected_len];
-        for pixel in normalized {
-            let lon_idx = axis_index(&lon_values, pixel.galactic_lon.value())?;
-            let lat_idx = axis_index(&lat_values, pixel.galactic_lat.value())?;
-            let idx = grid_index(lon_values.len(), lon_idx, lat_idx);
-            if grid[idx].replace(pixel).is_some() {
-                return Err(invalid_map(format!(
-                    "duplicate starlight pixel at l={} deg, b={} deg",
-                    pixel.galactic_lon.value(),
-                    pixel.galactic_lat.value()
-                )));
-            }
-        }
-
-        let mut pixels = Vec::with_capacity(expected_len);
-        for value in grid {
-            pixels.push(value.ok_or_else(|| invalid_map("rectangular map has a missing pixel"))?);
-        }
-
-        Ok(Self {
-            provenance,
-            kind: StarlightMapKind::Rectangular {
-                lon_values_deg: lon_values,
-                lat_values_deg: lat_values,
-                pixels,
-            },
-        })
+        let map = HealpixMap::new(grid, normalized).map_err(|err| invalid_map(err.to_string()))?;
+        Ok(Self { provenance, map })
     }
 
-    /// Parse rectangular or HEALPix CSV text and merge header provenance.
+    /// Parse Packed HEALPix CSV text and merge header provenance.
     pub fn from_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
         let metadata = parse_header_metadata(raw);
         let provenance = StarlightProvenance::from_header_metadata(&metadata, provenance);
@@ -232,8 +176,6 @@ impl StarlightMap {
 
         if data_header.starts_with("healpix_index,") {
             Self::from_healpix_csv_str(raw, metadata, provenance)
-        } else if data_header.starts_with("galactic_lon_deg,") {
-            Self::from_rectangular_csv_str(raw, provenance)
         } else {
             Err(NsbError::DataParse {
                 file: "starlight map csv",
@@ -248,35 +190,14 @@ impl StarlightMap {
         Self::from_csv_str(&raw, provenance)
     }
 
-    /// Look up radiance in Galactic coordinates.
-    pub fn lookup(&self, galactic_lon: Degrees, galactic_lat: Degrees) -> StarlightOutputs {
-        match &self.kind {
-            StarlightMapKind::Rectangular {
-                lon_values_deg,
-                lat_values_deg,
-                pixels,
-            } => {
-                let (lon0, lon1, tx) = lon_bracket(lon_values_deg, galactic_lon.value());
-                let (lat0, lat1, ty) = bracket_clamped(lat_values_deg, galactic_lat.value());
-
-                bilinear_outputs(
-                    pixels[grid_index(lon_values_deg.len(), lon0, lat0)].output(),
-                    pixels[grid_index(lon_values_deg.len(), lon1, lat0)].output(),
-                    pixels[grid_index(lon_values_deg.len(), lon0, lat1)].output(),
-                    pixels[grid_index(lon_values_deg.len(), lon1, lat1)].output(),
-                    tx,
-                    ty,
-                )
-            }
-            StarlightMapKind::Healpix { grid, pixels } => {
-                let direction =
-                    galactic_cartesian_direction(galactic_lon.value(), galactic_lat.value());
-                let index = grid
-                    .direction_to_pixel(direction)
-                    .expect("validated HEALPix lookup direction is finite");
-                pixels[usize::try_from(index.get()).expect("pixel index fits usize")].output()
-            }
-        }
+    /// Look up radiance for a Galactic direction (nearest HEALPix pixel).
+    pub fn lookup(&self, direction: CartesianDirection<Galactic>) -> StarlightOutputs {
+        let index = self
+            .map
+            .grid()
+            .direction_to_pixel(direction)
+            .expect("validated HEALPix lookup direction is finite");
+        self.map.values()[usize::try_from(index.get()).expect("pixel index fits usize")].output()
     }
 
     /// Return map provenance.
@@ -284,27 +205,22 @@ impl StarlightMap {
         &self.provenance
     }
 
-    /// Return validated pixels in storage order.
+    /// Return the underlying HEALPix grid.
+    pub fn grid(&self) -> HealpixGrid {
+        self.map.grid()
+    }
+
+    /// Return validated pixels in HEALPix storage order.
     pub fn pixels(&self) -> &[StarlightPixel] {
-        match &self.kind {
-            StarlightMapKind::Rectangular { pixels, .. }
-            | StarlightMapKind::Healpix { pixels, .. } => pixels,
-        }
+        self.map.values()
     }
 
     pub(super) fn validate_production_diagnostics(
         &self,
         input_integrated_flux_sum: Option<f64>,
         integrated_flux_tolerance: Option<f64>,
-        input_b_flux_sum: Option<f64>,
-        input_v_flux_sum: Option<f64>,
-        flux_tolerance: Option<f64>,
     ) -> Result<StarlightValidationDiagnostics> {
-        let StarlightMapKind::Healpix { grid: _, pixels } = &self.kind else {
-            return Err(invalid_map(
-                "validated production starlight requires a complete HEALPix map",
-            ));
-        };
+        let pixels = self.pixels();
         validate_integrated_values(pixels)?;
         let flux_conservation_recomputed = if let (Some(expected), Some(tolerance)) =
             (input_integrated_flux_sum, integrated_flux_tolerance)
@@ -315,15 +231,10 @@ impl StarlightMap {
                 tolerance,
             )?;
             true
-        } else if input_b_flux_sum.is_some()
-            || input_v_flux_sum.is_some()
-            || flux_tolerance.is_some()
-        {
+        } else {
             return Err(invalid_map(
                 "validated Gaia XP starlight requires integrated flux-conservation inputs",
             ));
-        } else {
-            false
         };
 
         let (plane_pole_ratio, longitude_wrap_relative_jump) = diagnostic_values(pixels)?;
@@ -344,56 +255,6 @@ impl StarlightMap {
             longitude_wrap_relative_jump,
             flux_conservation_recomputed,
         })
-    }
-
-    fn from_rectangular_csv_str(raw: &str, provenance: StarlightProvenance) -> Result<Self> {
-        let mut pixels = Vec::new();
-        let mut saw_header = false;
-
-        for (line_idx, line) in raw.lines().enumerate() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-
-            if !saw_header && line.starts_with("galactic_lon_deg,") {
-                saw_header = true;
-                continue;
-            }
-            saw_header = true;
-
-            let fields: Vec<&str> = line.split(',').map(str::trim).collect();
-            if fields.len() != 6 {
-                return Err(NsbError::DataParse {
-                    file: "starlight map csv",
-                    message: format!(
-                        "line {} has {} fields, expected 6",
-                        line_idx + 1,
-                        fields.len()
-                    ),
-                });
-            }
-
-            let parse = |idx: usize, name: &str| -> Result<f64> {
-                fields[idx]
-                    .parse::<f64>()
-                    .map_err(|err| NsbError::DataParse {
-                        file: "starlight map csv",
-                        message: format!("line {} invalid {name}: {err}", line_idx + 1),
-                    })
-            };
-
-            pixels.push(StarlightPixel::new(
-                Degrees::new(parse(0, "galactic_lon_deg")?),
-                Degrees::new(parse(1, "galactic_lat_deg")?),
-                Steradians::new(parse(2, "solid_angle_sr")?),
-                BandPhotonRadiance::new(parse(3, "integrated_ph_cm2_ns_sr")?),
-                S10s::new(parse(4, "b_s10")?),
-                S10s::new(parse(5, "v_s10")?),
-            ));
-        }
-
-        Self::from_pixels(pixels, provenance)
     }
 
     fn from_healpix_csv_str(
@@ -428,6 +289,18 @@ impl StarlightMap {
             });
         }
 
+        let diagnostics = metadata
+            .get("s10_diagnostics")
+            .map(String::as_str)
+            .unwrap_or("");
+        if diagnostics != "not_provided" {
+            return Err(NsbError::DataParse {
+                file: "starlight map csv",
+                message: "packed HEALPix maps must declare # s10_diagnostics=not_provided"
+                    .to_string(),
+            });
+        }
+
         let grid = HealpixGrid::new(
             Nside::new(nside).map_err(|err| invalid_map(err.to_string()))?,
             ordering,
@@ -443,34 +316,20 @@ impl StarlightMap {
             file: "starlight map csv",
             message: format!("failed to read HEALPix CSV header: {err}"),
         })?;
-        let schema = validate_healpix_header(headers)?;
-        if schema == HealpixCsvSchema::Packed {
-            let diagnostics = metadata
-                .get("s10_diagnostics")
-                .map(String::as_str)
-                .unwrap_or("");
-            if diagnostics != "not_provided" {
-                return Err(NsbError::DataParse {
-                    file: "starlight map csv",
-                    message: "packed HEALPix maps must declare # s10_diagnostics=not_provided"
-                        .to_string(),
-                });
-            }
-        }
+        validate_packed_healpix_header(headers)?;
 
         for (row_idx, record) in reader.records().enumerate() {
             let record = record.map_err(|err| NsbError::DataParse {
                 file: "starlight map csv",
                 message: format!("failed to read HEALPix CSV row {}: {err}", row_idx + 1),
             })?;
-            if record.len() != schema.field_count() {
+            if record.len() != 5 {
                 return Err(NsbError::DataParse {
                     file: "starlight map csv",
                     message: format!(
-                        "HEALPix CSV row {} has {} fields, expected {}",
+                        "HEALPix CSV row {} has {} fields, expected 5",
                         row_idx + 1,
-                        record.len(),
-                        schema.field_count()
+                        record.len()
                     ),
                 });
             }
@@ -479,88 +338,40 @@ impl StarlightMap {
                 .map_err(|err| invalid_map(err.to_string()))?;
             let slot = usize::try_from(index).expect("pixel index fits usize");
             let (lon, lat) = healpix_pixel_lon_lat_deg(grid, HealpixIndex::new(index))?;
-            let pixel = match schema {
-                HealpixCsvSchema::V1 => StarlightPixel::new(
-                    Degrees::new(lon),
-                    Degrees::new(lat),
-                    Steradians::new(grid.pixel_area_sr()),
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        1,
-                        row_idx + 1,
-                        "integrated_ph_cm2_ns_sr",
-                    )?),
-                    S10s::new(parse_record_f64(&record, 2, row_idx + 1, "b_s10")?),
-                    S10s::new(parse_record_f64(&record, 3, row_idx + 1, "v_s10")?),
-                ),
-                HealpixCsvSchema::V2 => StarlightPixel::new(
-                    Degrees::new(lon),
-                    Degrees::new(lat),
-                    Steradians::new(grid.pixel_area_sr()),
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        1,
-                        row_idx + 1,
-                        "integrated_ph_cm2_ns_sr",
-                    )?),
-                    S10s::new(parse_record_f64(&record, 2, row_idx + 1, "b_s10")?),
-                    S10s::new(parse_record_f64(&record, 3, row_idx + 1, "v_s10")?),
-                )
-                .with_uncertainties(
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        4,
-                        row_idx + 1,
-                        "statistical_uncertainty_ph_cm2_ns_sr",
-                    )?),
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        5,
-                        row_idx + 1,
-                        "systematic_uncertainty_ph_cm2_ns_sr",
-                    )?),
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        6,
-                        row_idx + 1,
-                        "total_uncertainty_ph_cm2_ns_sr",
-                    )?),
-                ),
-                HealpixCsvSchema::Packed => StarlightPixel::new(
-                    Degrees::new(lon),
-                    Degrees::new(lat),
-                    Steradians::new(grid.pixel_area_sr()),
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        1,
-                        row_idx + 1,
-                        "integrated_ph_cm2_ns_sr",
-                    )?),
-                    S10s::new(0.0),
-                    S10s::new(0.0),
-                )
-                .without_s10_diagnostics()
-                .with_uncertainties(
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        2,
-                        row_idx + 1,
-                        "statistical_uncertainty_ph_cm2_ns_sr",
-                    )?),
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        3,
-                        row_idx + 1,
-                        "systematic_uncertainty_ph_cm2_ns_sr",
-                    )?),
-                    BandPhotonRadiance::new(parse_record_f64(
-                        &record,
-                        4,
-                        row_idx + 1,
-                        "total_uncertainty_ph_cm2_ns_sr",
-                    )?),
-                ),
-            };
+            let pixel = StarlightPixel::new(
+                Degrees::new(lon),
+                Degrees::new(lat),
+                Steradians::new(grid.pixel_area_sr()),
+                BandPhotonRadiance::new(parse_record_f64(
+                    &record,
+                    1,
+                    row_idx + 1,
+                    "integrated_ph_cm2_ns_sr",
+                )?),
+                S10s::new(0.0),
+                S10s::new(0.0),
+            )
+            .without_s10_diagnostics()
+            .with_uncertainties(
+                BandPhotonRadiance::new(parse_record_f64(
+                    &record,
+                    2,
+                    row_idx + 1,
+                    "statistical_uncertainty_ph_cm2_ns_sr",
+                )?),
+                BandPhotonRadiance::new(parse_record_f64(
+                    &record,
+                    3,
+                    row_idx + 1,
+                    "systematic_uncertainty_ph_cm2_ns_sr",
+                )?),
+                BandPhotonRadiance::new(parse_record_f64(
+                    &record,
+                    4,
+                    row_idx + 1,
+                    "total_uncertainty_ph_cm2_ns_sr",
+                )?),
+            );
             pixel.validate()?;
             if pixels[slot].replace(pixel).is_some() {
                 return Err(invalid_map(format!(
@@ -576,13 +387,7 @@ impl StarlightMap {
             );
         }
 
-        Ok(Self {
-            provenance,
-            kind: StarlightMapKind::Healpix {
-                grid,
-                pixels: validated,
-            },
-        })
+        Self::from_healpix(grid, validated, provenance)
     }
 }
 
@@ -703,34 +508,7 @@ fn required_metadata<'a>(metadata: &'a BTreeMap<String, String>, key: &str) -> R
         .ok_or_else(|| invalid_map(format!("missing required HEALPix metadata key {key:?}")))
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum HealpixCsvSchema {
-    V1,
-    V2,
-    Packed,
-}
-
-impl HealpixCsvSchema {
-    const fn field_count(self) -> usize {
-        match self {
-            Self::V1 => 4,
-            Self::V2 => 7,
-            Self::Packed => 5,
-        }
-    }
-}
-
-fn validate_healpix_header(headers: &StringRecord) -> Result<HealpixCsvSchema> {
-    const V1: [&str; 4] = ["healpix_index", "integrated_ph_cm2_ns_sr", "b_s10", "v_s10"];
-    const V2: [&str; 7] = [
-        "healpix_index",
-        "integrated_ph_cm2_ns_sr",
-        "b_s10",
-        "v_s10",
-        "statistical_uncertainty_ph_cm2_ns_sr",
-        "systematic_uncertainty_ph_cm2_ns_sr",
-        "total_uncertainty_ph_cm2_ns_sr",
-    ];
+fn validate_packed_healpix_header(headers: &StringRecord) -> Result<()> {
     const PACKED: [&str; 5] = [
         "healpix_index",
         "integrated_ph_cm2_ns_sr",
@@ -738,27 +516,19 @@ fn validate_healpix_header(headers: &StringRecord) -> Result<HealpixCsvSchema> {
         "systematic_uncertainty_ph_cm2_ns_sr",
         "total_uncertainty_ph_cm2_ns_sr",
     ];
-    let matches = |expected: &[&str]| {
-        headers.len() == expected.len()
-            && headers
-                .iter()
-                .zip(expected)
-                .all(|(actual, expected)| actual.trim() == *expected)
-    };
-    if matches(&V1) {
-        Ok(HealpixCsvSchema::V1)
-    } else if matches(&V2) {
-        Ok(HealpixCsvSchema::V2)
-    } else if matches(&PACKED) {
-        Ok(HealpixCsvSchema::Packed)
+    let matches = headers.len() == PACKED.len()
+        && headers
+            .iter()
+            .zip(PACKED)
+            .all(|(actual, expected)| actual.trim() == expected);
+    if matches {
+        Ok(())
     } else {
         Err(NsbError::DataParse {
             file: "starlight map csv",
             message: format!(
-                "unsupported HEALPix starlight map header {:?}; expected v1 {}, v2 {}, or packed {}",
+                "unsupported HEALPix starlight map header {:?}; expected packed {}",
                 headers.iter().collect::<Vec<_>>(),
-                V1.join(","),
-                V2.join(","),
                 PACKED.join(",")
             ),
         })
@@ -805,92 +575,6 @@ fn healpix_pixel_lon_lat_deg(grid: HealpixGrid, index: HealpixIndex) -> Result<(
     Ok((lon, lat))
 }
 
-fn galactic_cartesian_direction(lon_deg: f64, lat_deg: f64) -> CartesianDirection<Galactic> {
-    let lon = lon_deg.to_radians();
-    let lat = lat_deg.to_radians();
-    let cos_lat = lat.cos();
-    CartesianDirection::<Galactic>::from_array([
-        cos_lat * lon.cos(),
-        cos_lat * lon.sin(),
-        lat.sin(),
-    ])
-}
-
-fn bracket_clamped(values: &[f64], x: f64) -> (usize, usize, f64) {
-    if values.len() == 1 {
-        return (0, 0, 0.0);
-    }
-    if x <= values[0] {
-        return (0, 0, 0.0);
-    }
-    let last = values.len() - 1;
-    if x >= values[last] {
-        return (last, last, 0.0);
-    }
-    for i in 0..last {
-        let lo = values[i];
-        let hi = values[i + 1];
-        if x + EPS >= lo && x <= hi + EPS {
-            let tx = ((x - lo) / (hi - lo)).clamp(0.0, 1.0);
-            return (i, i + 1, tx);
-        }
-    }
-    (last, last, 0.0)
-}
-
-fn lon_bracket(values: &[f64], lon_deg: f64) -> (usize, usize, f64) {
-    if values.len() == 1 {
-        return (0, 0, 0.0);
-    }
-
-    let x = normalize_lon_deg(lon_deg);
-    let last = values.len() - 1;
-    for i in 0..values.len() {
-        let j = if i == last { 0 } else { i + 1 };
-        let lo = values[i];
-        let mut hi = values[j];
-        let mut x_adj = x;
-        if i == last {
-            hi += 360.0;
-            if x_adj < lo {
-                x_adj += 360.0;
-            }
-        }
-        if x_adj + EPS >= lo && x_adj <= hi + EPS {
-            let tx = if (hi - lo).abs() <= EPS {
-                0.0
-            } else {
-                ((x_adj - lo) / (hi - lo)).clamp(0.0, 1.0)
-            };
-            return (i, j, tx);
-        }
-    }
-
-    let nearest = values
-        .iter()
-        .enumerate()
-        .min_by(|(_, a), (_, b)| circular_distance(**a, x).total_cmp(&circular_distance(**b, x)))
-        .map(|(idx, _)| idx)
-        .expect("validated map has at least one longitude");
-    (nearest, nearest, 0.0)
-}
-
-fn sort_dedup(values: &mut Vec<f64>) {
-    values.sort_by(|a, b| a.total_cmp(b));
-    values.dedup_by(|a, b| (*a - *b).abs() <= EPS);
-}
-
-fn axis_index(values: &[f64], value: f64) -> Result<usize> {
-    values
-        .iter()
-        .position(|&candidate| (candidate - value).abs() <= EPS)
-        .ok_or_else(|| invalid_map("internal map axis lookup failed"))
-}
-
-fn grid_index(n_lon: usize, lon_idx: usize, lat_idx: usize) -> usize {
-    lat_idx * n_lon + lon_idx
-}
-
 fn normalize_lon_deg(value: f64) -> f64 {
     let mut out = value % 360.0;
     if out < 0.0 {
@@ -901,11 +585,6 @@ fn normalize_lon_deg(value: f64) -> f64 {
     } else {
         out
     }
-}
-
-fn circular_distance(a: f64, b: f64) -> f64 {
-    let diff = (a - b).abs() % 360.0;
-    diff.min(360.0 - diff)
 }
 
 fn invalid_map(message: impl Into<String>) -> NsbError {

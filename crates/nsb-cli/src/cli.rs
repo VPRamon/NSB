@@ -85,10 +85,9 @@ pub enum ZodiacalExtinctionArg {
 
 #[derive(Debug, Args)]
 pub struct ModelArgs {
-    /// Components: comma-separated zodiacal, starlight, experimental-starlight,
-    /// airglow, moon, or all. `starlight` uses the bundled production map;
-    /// `--starlight-map` and `--starlight-manifest` provide a validated
-    /// external override.
+    /// Components: comma-separated zodiacal, starlight, airglow, moon, or all.
+    /// `starlight` uses the bundled production map; `--starlight-map` and
+    /// `--starlight-manifest` provide a validated external override.
     #[arg(long, default_value = "all")]
     pub components: String,
 

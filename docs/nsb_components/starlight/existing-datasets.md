@@ -80,10 +80,6 @@ configuration checksum, normalized inventory checksums, acquisition receipt
 root, exact commands, artifact checksums, independent comparison evidence, and
 redistribution decision.
 
-## Experimental manual seed
-
-`starlight_manual_seed_v1.csv` remains a separate nside-1 experimental asset
-with SHA-256
-`a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668`.
-It is not the Gaia-derived candidate and cannot be promoted by repackaging the
-same bytes.
+The historical manual experimental seed CSV has been removed from the runtime
+data tree; it is not a Gaia-derived candidate and cannot be restored by
+repackaging candidate bytes.

@@ -174,11 +174,6 @@ impl MoonlightModel {
 pub enum StarlightModel {
     /// Use the validated bundled Gaia DR3 XP-derived production map.
     BundledProductionGaiaDr3,
-    /// Use the bundled low-resolution seed for experiments and plumbing tests.
-    ///
-    /// This asset is incomplete and must not be represented as production
-    /// catalogue science.
-    BundledExperimentalSeed,
     /// Use a caller-supplied map for experiments without a production claim.
     ExperimentalMap(Box<starlight::StarlightMap>),
     /// Use an external map admitted through the production manifest contract.
@@ -189,11 +184,6 @@ impl StarlightModel {
     /// Select the bundled production Gaia DR3 XP-derived map.
     pub fn bundled_production_gaia_dr3() -> Self {
         Self::BundledProductionGaiaDr3
-    }
-
-    /// Select the bundled manual seed for experiments only.
-    pub fn bundled_experimental_seed() -> Self {
-        Self::BundledExperimentalSeed
     }
 
     /// Select a caller-provided map without a production validation claim.

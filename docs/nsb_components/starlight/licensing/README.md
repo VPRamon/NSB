@@ -66,6 +66,3 @@ that canonical redistribution `decision` to anything other than `"pending"`.
 - The Gaia CC BY-NC 3.0 IGO non-commercial clause's compatibility with NSB's
   intended distribution channels has not been legally determined; this is
   the central open question for #103.
-- `starlight_manual_seed_v1.csv` already carries a pre-existing
-  "review required" licence flag in `crates/nsb/data/manifest.toml` that this
-  package surfaces but does not resolve.

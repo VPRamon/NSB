@@ -407,7 +407,13 @@ mod tests {
             nsb::StarlightMap::from_csv_str(&packed, nsb::StarlightProvenance::test_fixture())
                 .unwrap();
         assert_eq!(map.pixels().len(), 12);
-        let occupied = map.lookup(map.pixels()[0].galactic_lon, map.pixels()[0].galactic_lat);
+        let occupied = map.lookup({
+            let pixel = map.pixels()[0];
+            siderust::coordinates::spherical::Direction::<
+                siderust::coordinates::frames::Galactic,
+            >::new(pixel.galactic_lon, pixel.galactic_lat)
+            .to_cartesian()
+        });
         assert!(occupied.integrated.value() > 0.0);
         assert!(!occupied.s10_diagnostics_provided);
         let zero = map
@@ -669,7 +675,13 @@ mod tests {
                 .unwrap();
         assert_eq!(map.pixels().len(), 196_608);
         let sample = map.pixels()[0];
-        let looked = map.lookup(sample.galactic_lon, sample.galactic_lat);
+        let looked =
+            map.lookup(
+                siderust::coordinates::spherical::Direction::<
+                    siderust::coordinates::frames::Galactic,
+                >::new(sample.galactic_lon, sample.galactic_lat)
+                .to_cartesian(),
+            );
         assert!(!looked.s10_diagnostics_provided);
         assert!(looked.statistical_uncertainty.is_some());
         nsb::ValidatedStarlightMap::from_files(&csv, &production_sidecar).unwrap();

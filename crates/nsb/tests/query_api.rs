@@ -1,12 +1,10 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use nsb::components::starlight::StarlightPixel;
 use nsb::{
     CalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
     SiteProfileId, Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target,
     ThresholdQuery, DEG,
 };
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
-use qtty::solid_angle::Steradians;
+use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
@@ -46,20 +44,21 @@ fn fixture_starlight_map() -> StarlightMap {
 }
 
 fn fixture_starlight_map_with_uncertainty() -> StarlightMap {
-    let pixel = StarlightPixel::new(
-        0.0 * DEG,
-        0.0 * DEG,
-        Steradians::new(1.0),
-        BandPhotonRadiance::new(4.0),
-        S10s::new(2.0),
-        S10s::new(1.0),
-    )
-    .with_uncertainties(
-        BandPhotonRadiance::new(0.4),
-        BandPhotonRadiance::new(0.8),
-        BandPhotonRadiance::new(1.0),
-    );
-    StarlightMap::from_pixels(vec![pixel], StarlightProvenance::test_fixture())
+    let mut raw = String::from(concat!(
+        "# map_type=healpix\n",
+        "# nside=1\n",
+        "# ordering=ring\n",
+        "# coordinate_frame=galactic\n",
+        "# s10_diagnostics=not_provided\n",
+        "healpix_index,integrated_ph_cm2_ns_sr,",
+        "statistical_uncertainty_ph_cm2_ns_sr,",
+        "systematic_uncertainty_ph_cm2_ns_sr,",
+        "total_uncertainty_ph_cm2_ns_sr\n",
+    ));
+    for index in 0..12 {
+        raw.push_str(&format!("{index},4.0,0.4,0.8,1.0\n"));
+    }
+    StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture())
         .expect("uncertainty fixture")
 }
 

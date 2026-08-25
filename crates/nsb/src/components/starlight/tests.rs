@@ -3,6 +3,10 @@ use crate::evaluator::Target;
 use crate::DEG;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use qtty::solid_angle::Steradians;
+use siderust::coordinates::cartesian::Direction as CartesianDirection;
+use siderust::coordinates::frames::Galactic;
+use siderust::coordinates::spherical;
+use siderust::healpix::{HealpixGrid, HealpixOrdering, Nside};
 use siderust::qtty::Degrees;
 
 const FIXTURE: &str = include_str!("../../../tests/data/starlight_fixture_map.csv");
@@ -11,6 +15,7 @@ const HEALPIX_FIXTURE: &str = r#"# map_type=healpix
 # nside=1
 # ordering=ring
 # coordinate_frame=galactic
+# s10_diagnostics=not_provided
 # dataset_name=NSB synthetic test-only HEALPix starlight fixture
 # version=fixture
 # generation_date_utc=2026-06-21T00:00:00Z
@@ -21,29 +26,34 @@ const HEALPIX_FIXTURE: &str = r#"# map_type=healpix
 # magnitude_limit=test-only
 # map_resolution=HEALPix nside=1 ring 12 pixels
 # photometry_model=fixture
-# band_definition=integrated 300-650 nm photon radiance plus B/V S10 diagnostics
+# band_definition=integrated 300-650 nm photon radiance
 # smoothing_fwhm_deg=none
 # generated_by=unit test
-healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10
-0,1.0,10.0,5.0
-1,2.0,20.0,10.0
-2,3.0,30.0,15.0
-3,4.0,40.0,20.0
-4,5.0,50.0,25.0
-5,6.0,60.0,30.0
-6,7.0,70.0,35.0
-7,8.0,80.0,40.0
-8,9.0,90.0,45.0
-9,10.0,100.0,50.0
-10,11.0,110.0,55.0
-11,12.0,120.0,60.0
+healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,systematic_uncertainty_ph_cm2_ns_sr,total_uncertainty_ph_cm2_ns_sr
+0,1.0,0.1,0.2,0.25
+1,2.0,0.2,0.4,0.5
+2,3.0,0.3,0.6,0.75
+3,4.0,0.4,0.8,1.0
+4,5.0,0.5,1.0,1.25
+5,6.0,0.6,1.2,1.5
+6,7.0,0.7,1.4,1.75
+7,8.0,0.8,1.6,2.0
+8,9.0,0.9,1.8,2.25
+9,10.0,1.0,2.0,2.5
+10,11.0,1.1,2.2,2.75
+11,12.0,1.2,2.4,3.0
 "#;
 
 fn fixture_map() -> StarlightMap {
     StarlightMap::from_csv_str(FIXTURE, StarlightProvenance::test_fixture()).unwrap()
 }
 
-fn healpix_uncertainty_fixture(
+fn galactic_direction(lon_deg: f64, lat_deg: f64) -> CartesianDirection<Galactic> {
+    spherical::Direction::<Galactic>::new(Degrees::new(lon_deg), Degrees::new(lat_deg))
+        .to_cartesian()
+}
+
+fn packed_uncertainty_fixture(
     first_statistical: f64,
     first_systematic: f64,
     first_total: f64,
@@ -53,7 +63,8 @@ fn healpix_uncertainty_fixture(
         "# nside=1\n",
         "# ordering=ring\n",
         "# coordinate_frame=galactic\n",
-        "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10,",
+        "# s10_diagnostics=not_provided\n",
+        "healpix_index,integrated_ph_cm2_ns_sr,",
         "statistical_uncertainty_ph_cm2_ns_sr,",
         "systematic_uncertainty_ph_cm2_ns_sr,",
         "total_uncertainty_ph_cm2_ns_sr\n",
@@ -66,9 +77,7 @@ fn healpix_uncertainty_fixture(
             (integrated * 0.1, integrated * 0.2, integrated * 0.25)
         };
         raw.push_str(&format!(
-            "{index},{integrated},{},{},{statistical},{systematic},{total}\n",
-            integrated * 10.0,
-            integrated * 5.0,
+            "{index},{integrated},{statistical},{systematic},{total}\n",
         ));
     }
     raw
@@ -79,19 +88,18 @@ fn target(ra: f64, dec: f64) -> Target {
 }
 
 #[test]
-fn experimental_seed_is_explicitly_labelled() {
-    let model = Starlight::experimental_seed_model().unwrap();
+fn healpix_experimental_map_is_explicitly_labelled() {
+    let map =
+        StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
+    let model = Starlight::with_map(map);
     let provenance = model.map().provenance();
 
     assert_eq!(
         provenance.dataset_name,
-        "NSB experimental manual Galactic starlight seed"
+        "NSB synthetic test-only HEALPix starlight fixture"
     );
-    assert_eq!(provenance.version, "v1-experimental-seed");
-    assert_eq!(
-        provenance.photometry_model.as_deref(),
-        Some("v_s10_scaled_integrated_proxy_v1")
-    );
+    assert_eq!(provenance.version, "fixture");
+    assert_eq!(provenance.photometry_model.as_deref(), Some("fixture"));
     assert_eq!(model.map().pixels().len(), 12);
 
     let output = model.compute(target(266.4051, -28.936175)).unwrap();
@@ -133,20 +141,22 @@ fn healpix_csv_fixture_loads_from_test_data_only() {
         Some("fixture")
     );
 
-    let output = map.lookup(Degrees::new(0.0), Degrees::new(0.0));
+    let output = map.lookup(galactic_direction(0.0, 0.0));
     assert!(output.integrated.value().is_finite());
     assert!(output.integrated.value() > 0.0);
-    assert!(output.statistical_uncertainty.is_none());
-    assert!(output.systematic_uncertainty.is_none());
-    assert!(output.total_uncertainty.is_none());
+    assert!(output.statistical_uncertainty.is_some());
+    assert!(!output.s10_diagnostics_provided);
 }
 
 #[test]
-fn healpix_v2_uncertainties_parse_and_survive_lookup() {
-    let raw = healpix_uncertainty_fixture(0.1, 0.2, 0.25);
+fn packed_uncertainties_parse_and_survive_lookup() {
+    let raw = packed_uncertainty_fixture(0.1, 0.2, 0.25);
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
     let pixel = map.pixels()[7];
-    let output = map.lookup(pixel.galactic_lon, pixel.galactic_lat);
+    let output = map.lookup(galactic_direction(
+        pixel.galactic_lon.value(),
+        pixel.galactic_lat.value(),
+    ));
 
     assert_eq!(output.integrated.value(), 8.0);
     assert_eq!(output.statistical_uncertainty.unwrap().value(), 0.8);
@@ -178,7 +188,10 @@ fn packed_candidate_header_loads_without_invented_s10() {
         ));
     }
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
-    let occupied = map.lookup(map.pixels()[0].galactic_lon, map.pixels()[0].galactic_lat);
+    let occupied = map.lookup(galactic_direction(
+        map.pixels()[0].galactic_lon.value(),
+        map.pixels()[0].galactic_lat.value(),
+    ));
     assert_eq!(occupied.integrated.value(), 1.0);
     assert!(!occupied.s10_diagnostics_provided);
     assert_eq!(occupied.b_flux_s10.value(), 0.0);
@@ -188,13 +201,13 @@ fn packed_candidate_header_loads_without_invented_s10() {
 }
 
 #[test]
-fn healpix_v2_rejects_negative_or_inconsistent_uncertainties() {
-    let negative = healpix_uncertainty_fixture(-0.1, 0.2, 0.25);
+fn packed_rejects_negative_or_inconsistent_uncertainties() {
+    let negative = packed_uncertainty_fixture(-0.1, 0.2, 0.25);
     let error =
         StarlightMap::from_csv_str(&negative, StarlightProvenance::test_fixture()).unwrap_err();
     assert!(error.to_string().contains("uncertainty triplet"));
 
-    let total_below_component = healpix_uncertainty_fixture(0.1, 0.3, 0.2);
+    let total_below_component = packed_uncertainty_fixture(0.1, 0.3, 0.2);
     let error =
         StarlightMap::from_csv_str(&total_below_component, StarlightProvenance::test_fixture())
             .unwrap_err();
@@ -202,51 +215,15 @@ fn healpix_v2_rejects_negative_or_inconsistent_uncertainties() {
 }
 
 #[test]
-fn rectangular_lookup_interpolates_uncertainties() {
-    let make_pixel = |lon: f64, lat: f64, integrated: f64| {
-        StarlightPixel::new(
-            Degrees::new(lon),
-            Degrees::new(lat),
-            Steradians::new(1.0),
-            BandPhotonRadiance::new(integrated),
-            S10s::new(integrated),
-            S10s::new(integrated),
-        )
-        .with_uncertainties(
-            BandPhotonRadiance::new(integrated * 0.1),
-            BandPhotonRadiance::new(integrated * 0.2),
-            BandPhotonRadiance::new(integrated * 0.25),
-        )
-    };
-    let map = StarlightMap::from_pixels(
-        vec![
-            make_pixel(0.0, 0.0, 1.0),
-            make_pixel(90.0, 0.0, 3.0),
-            make_pixel(0.0, 90.0, 5.0),
-            make_pixel(90.0, 90.0, 7.0),
-        ],
-        StarlightProvenance::test_fixture(),
-    )
-    .unwrap();
-
-    let output = map.lookup(Degrees::new(45.0), Degrees::new(45.0));
-    assert!((output.integrated.value() - 4.0).abs() < 1.0e-12);
-    assert!((output.statistical_uncertainty.unwrap().value() - 0.4).abs() < 1.0e-12);
-    assert!((output.systematic_uncertainty.unwrap().value() - 0.8).abs() < 1.0e-12);
-    assert!((output.total_uncertainty.unwrap().value() - 1.0).abs() < 1.0e-12);
-}
-
-#[test]
-fn map_lookup_is_directional_and_bilinear() {
+fn map_lookup_is_directional_nearest_neighbor() {
     let map = fixture_map();
-    let plane = map.lookup(Degrees::new(0.0), Degrees::new(0.0));
-    let pole = map.lookup(Degrees::new(0.0), Degrees::new(90.0));
+    let plane = map.lookup(galactic_direction(0.0, 0.0));
+    let pole = map.lookup(galactic_direction(0.0, 90.0));
     assert!(plane.integrated > pole.integrated);
+    assert!(!plane.s10_diagnostics_provided);
 
-    let mid = map.lookup(Degrees::new(45.0), Degrees::new(45.0));
-    assert!((mid.integrated.value() - 3.0).abs() < 1.0e-12);
-    assert!((mid.b_flux_s10.value() - 30.0).abs() < 1.0e-12);
-    assert!((mid.v_flux_s10.value() - 15.0).abs() < 1.0e-12);
+    let equatorial = map.lookup(galactic_direction(45.0, 0.0));
+    assert!((equatorial.integrated.value() - 4.0).abs() < 1.0e-12);
 }
 
 #[test]
@@ -269,13 +246,11 @@ fn custom_scale_changes_outputs() {
         .unwrap();
 
     assert!((scaled.integrated.value() / base.integrated.value() - 2.0).abs() < 1.0e-12);
-    assert!((scaled.b_flux_s10.value() / base.b_flux_s10.value() - 2.0).abs() < 1.0e-12);
-    assert!((scaled.v_flux_s10.value() / base.v_flux_s10.value() - 2.0).abs() < 1.0e-12);
 }
 
 #[test]
 fn custom_scale_changes_absolute_but_not_relative_uncertainty() {
-    let raw = healpix_uncertainty_fixture(0.1, 0.2, 0.25);
+    let raw = packed_uncertainty_fixture(0.1, 0.2, 0.25);
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
     let base = Starlight::with_map(map.clone())
         .compute(target(266.4051, -28.936175))
@@ -301,26 +276,23 @@ fn custom_scale_changes_absolute_but_not_relative_uncertainty() {
 }
 
 #[test]
-fn invalid_maps_are_rejected() {
-    let duplicate = vec![
-        StarlightPixel::new(
-            Degrees::new(0.0),
-            Degrees::new(0.0),
-            Steradians::new(1.0),
-            BandPhotonRadiance::new(1.0),
-            S10s::new(1.0),
-            S10s::new(1.0),
-        ),
-        StarlightPixel::new(
-            Degrees::new(360.0),
-            Degrees::new(0.0),
-            Steradians::new(1.0),
-            BandPhotonRadiance::new(2.0),
-            S10s::new(2.0),
-            S10s::new(2.0),
-        ),
-    ];
-    let err =
-        StarlightMap::from_pixels(duplicate, StarlightProvenance::test_fixture()).unwrap_err();
+fn incomplete_healpix_maps_are_rejected() {
+    let grid = HealpixGrid::new(Nside::new(1).unwrap(), HealpixOrdering::Ring).unwrap();
+    let pixel = StarlightPixel::new(
+        Degrees::new(0.0),
+        Degrees::new(0.0),
+        Steradians::new(grid.pixel_area_sr()),
+        BandPhotonRadiance::new(1.0),
+        S10s::new(0.0),
+        S10s::new(0.0),
+    )
+    .without_s10_diagnostics()
+    .with_uncertainties(
+        BandPhotonRadiance::new(0.1),
+        BandPhotonRadiance::new(0.2),
+        BandPhotonRadiance::new(0.25),
+    );
+    let err = StarlightMap::from_healpix(grid, vec![pixel], StarlightProvenance::test_fixture())
+        .unwrap_err();
     assert!(matches!(err, crate::NsbError::InvalidMap { .. }));
 }

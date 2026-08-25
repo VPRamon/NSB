@@ -2,7 +2,7 @@ use crate::cli::{OutputFormat, PointArgs};
 use crate::output;
 use crate::parsing::{components, location, target, time};
 use anyhow::Result;
-use log::{debug, info, warn};
+use log::{debug, info};
 use nsb::{
     MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits, ZodiacalExtinction,
 };
@@ -72,15 +72,6 @@ pub(crate) fn model_config(
         crate::cli::ZodiacalExtinctionArg::None => ZodiacalExtinction::None,
     };
     match components.starlight {
-        Some(components::StarlightSelection::ExperimentalSeed) => {
-            if args.starlight_map.is_some() || args.starlight_manifest.is_some() {
-                anyhow::bail!(
-                    "--starlight-map/--starlight-manifest are only valid with --components starlight"
-                );
-            }
-            warn!("using bundled experimental starlight seed; this asset is not production calibrated");
-            config.starlight_model = Some(nsb::StarlightModel::bundled_experimental_seed());
-        }
         Some(components::StarlightSelection::Production) => {
             config.starlight_model = Some(match (&args.starlight_map, &args.starlight_manifest) {
                 (Some(_), Some(_)) => validated_external_starlight(args)?,

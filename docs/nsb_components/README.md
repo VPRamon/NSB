@@ -31,8 +31,8 @@ values are monochromatic diagnostics, not passband-integrated magnitudes.
 The evaluator computes the selected contributors independently and returns both
 their individual outputs and their sum. `ComponentMask::ALL` and the CLI value
 `--components all` select the production-safe default. Starlight is included
-only when a validated production asset is available; the experimental seed is
-never selected implicitly.
+only when a validated production asset is available; there is no bundled
+experimental fallback.
 
 Each result carries model maturity, provenance, validated-domain, and
 uncertainty metadata. These are part of the scientific result: a numerically

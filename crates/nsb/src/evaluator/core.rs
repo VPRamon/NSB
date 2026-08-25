@@ -47,9 +47,6 @@ impl NsbEvaluator {
             Some(StarlightModel::BundledProductionGaiaDr3) => {
                 Some(starlight::Starlight::bundled_production_model()?)
             }
-            Some(StarlightModel::BundledExperimentalSeed) => {
-                Some(starlight::Starlight::experimental_seed_model()?)
-            }
             Some(StarlightModel::ExperimentalMap(map)) => {
                 Some(starlight::Starlight::with_map((**map).clone()))
             }
@@ -429,7 +426,7 @@ impl NsbEvaluator {
                     "starlight component requested but no starlight model is configured; ",
                     "provide a validated map with StarlightModel::validated_external(...), ",
                     "use StarlightModel::bundled_production_gaia_dr3(), or ",
-                    "explicitly opt into StarlightModel::bundled_experimental_seed()"
+                    "explicitly opt into StarlightModel::with_experimental_map(...)"
                 )
                 .to_string(),
             )

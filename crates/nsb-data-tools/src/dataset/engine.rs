@@ -33,7 +33,6 @@ pub fn execute(
     executor: Option<Executor>,
     concurrency: Option<usize>,
     requested_partitions: &[String],
-    skip_completed_from: Option<&Path>,
 ) -> Result<()> {
     let transaction = if dataset == DatasetName::Starlight && operation == Operation::Publish {
         StarlightPublishTransaction::prepare(config_path)?
@@ -48,7 +47,6 @@ pub fn execute(
         executor,
         concurrency,
         requested_partitions,
-        skip_completed_from,
     );
 
     match (result, transaction) {
@@ -80,7 +78,6 @@ pub fn resume(path: &Path) -> Result<()> {
         Some(manifest.executor),
         None,
         &manifest.partitions,
-        None,
     )
 }
 
@@ -124,9 +121,6 @@ impl StarlightPublishTransaction {
         let Some(starlight) = config.starlight.as_ref() else {
             return Ok(None);
         };
-        if starlight.mode != crate::starlight::config::StarlightMode::Production {
-            return Ok(None);
-        }
 
         let publish = config
             .publish
@@ -364,8 +358,8 @@ mod tests {
         let manifest = r#"schema_version = 1
 
 [[assets]]
-path = "starlight_manual_seed_v1.csv"
-schema = "nsb-healpix-starlight-v1"
+path = "unrelated_asset.dat"
+schema = "nsb-unrelated-v1"
 calibration_status = "experimental"
 runtime_embedded = true
 
@@ -382,11 +376,7 @@ calibration_status = "candidate"
 runtime_embedded = false
 "#;
         fs::write(data_root.join("manifest.toml"), manifest).unwrap();
-        fs::write(
-            data_root.join("starlight_manual_seed_v1.csv"),
-            b"manual-seed",
-        )
-        .unwrap();
+        fs::write(data_root.join("unrelated_asset.dat"), b"unrelated").unwrap();
         fs::write(data_root.join("starlight_nside128.csv"), b"old-map").unwrap();
         fs::write(data_root.join("merge_report.json"), b"old-report").unwrap();
         (repository_root, data_root, workspace)
@@ -412,7 +402,6 @@ root = {:?}
 repository_root = {:?}
 
 [starlight]
-mode = "production"
 
 [starlight.map]
 canonical_nside = {nside}
@@ -504,8 +493,8 @@ filename_suffix = ".csv.gz"
         let mut document = r#"schema_version = 1
 
 [[assets]]
-path = "starlight_manual_seed_v1.csv"
-schema = "nsb-healpix-starlight-v1"
+path = "unrelated_asset.dat"
+schema = "nsb-unrelated-v1"
 calibration_status = "experimental"
 runtime_embedded = true
 
@@ -530,7 +519,7 @@ runtime_embedded = false
         let assets = document["assets"].as_array_of_tables().unwrap();
         assert!(assets
             .iter()
-            .any(|asset| asset["path"].as_str() == Some("starlight_manual_seed_v1.csv")));
+            .any(|asset| asset["path"].as_str() == Some("unrelated_asset.dat")));
         assert!(!assets
             .iter()
             .any(|asset| asset["path"].as_str() == Some("starlight_nside128.csv")));
@@ -647,7 +636,6 @@ runtime_embedded = true
             Some(Executor::Local),
             None,
             &[],
-            None,
         )
         .unwrap();
 
@@ -661,8 +649,8 @@ runtime_embedded = true
             b"new-report-256"
         );
         assert_eq!(
-            fs::read(data_root.join("starlight_manual_seed_v1.csv")).unwrap(),
-            b"manual-seed"
+            fs::read(data_root.join("unrelated_asset.dat")).unwrap(),
+            b"unrelated"
         );
 
         let document = fs::read_to_string(data_root.join("manifest.toml"))
@@ -678,7 +666,7 @@ runtime_embedded = true
         assert_eq!(maps, ["starlight_nside256.csv"]);
         assert!(assets
             .iter()
-            .any(|asset| asset["path"].as_str() == Some("starlight_manual_seed_v1.csv")));
+            .any(|asset| asset["path"].as_str() == Some("unrelated_asset.dat")));
         assert!(assets.iter().any(|asset| {
             asset["path"].as_str() == Some("starlight_nside256.csv")
                 && asset["sha256"].as_str() == Some(map_artifact.sha256.as_str())

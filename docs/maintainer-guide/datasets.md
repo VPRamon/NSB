@@ -199,30 +199,11 @@ nsb-data dataset starlight build \
   --executor slurm
 ```
 
-No usable legacy Gaia bulk files were available on mounted local/USB storage
-when this bridge was completed, so the supported bridge is receipt-first: run
-the full Slurm `update` array before using the old ledger. The ledger can then
-be used as a read-only scheduling index. A legacy-completed partition is
-skipped only when its XP object has a valid receipt and SHA-256-verified CAS
-object in the new workspace:
-
-```bash
-nsb-data dataset starlight build \
-  --config crates/nsb-data-tools/config/starlight-production.toml \
-  --executor slurm \
-  --skip-completed-from "$HOME/nsb-data/starlight-gaia-release/checkpoints"
-```
-
-Legacy dense nside-64 accumulator bytes are never accepted as a production
-shard. The recorded 61,201,322 of 184,729,270 sources (33.13%, 710 ledger
-entries) therefore prioritize the 2,676 not-yet-processed ranges; they do not
-become new evidence. After that array completes, submit
-the same full build once without `--skip-completed-from`. Workers already
-completed under the new lifecycle return from their checksum-valid manifests,
-while the 710 legacy ranges are rebuilt as `PartitionShard` files at the
-configured canonical nside.
-Only then can validation see all 3,386 shards. The progress-guard backup and
-checkpoint directory remain read-only throughout.
+Workers already completed under the lifecycle return from their checksum-valid
+manifests and CAS receipts. Resume unfinished partitions with
+`nsb-data run resume` or by re-submitting the same build; do not import legacy
+checkpoint ledgers. Dense legacy accumulator bytes are never accepted as a
+production shard.
 
 After all workers finish, run validation locally:
 
@@ -261,9 +242,6 @@ nsb-data dataset starlight publish \
   --config crates/nsb-data-tools/config/starlight-production.toml
 ```
 
-The snapshot configuration remains independently reproducible and is not a
-production substitute.
-
 ## Cluster runbook
 
 Run these stages in order from the same checkout and shared workspace:
@@ -272,11 +250,8 @@ Run these stages in order from the same checkout and shared workspace:
    `nsb-data dataset starlight update --config crates/nsb-data-tools/config/starlight-production.toml`.
 2. Acquire and receipt every GaiaSource/XP pair:
    `nsb-data dataset starlight update --config crates/nsb-data-tools/config/starlight-production.toml --executor slurm`.
-3. Optionally prioritize the non-legacy ranges with
-   `nsb-data dataset starlight build --config crates/nsb-data-tools/config/starlight-production.toml --executor slurm --skip-completed-from "$HOME/nsb-data/starlight-gaia-release/checkpoints"`.
-   Then run
-   `nsb-data dataset starlight build --config crates/nsb-data-tools/config/starlight-production.toml --executor slurm`
-   without the skip flag to backfill every range lacking a new shard.
+3. Build every partition:
+   `nsb-data dataset starlight build --config crates/nsb-data-tools/config/starlight-production.toml --executor slurm`.
 4. After `nsb-data run status` reports the build array complete, run
    `nsb-data dataset starlight validate --config crates/nsb-data-tools/config/starlight-production.toml`
    locally on a node that can see the shared workspace.

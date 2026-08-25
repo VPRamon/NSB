@@ -54,38 +54,6 @@ calibration_status = "planning-proxy"
 runtime_embedded = true
 
 [[assets]]
-path = "starlight_manual_seed_v1.csv"
-schema = "nsb-healpix-starlight-v1"
-sha256 = "a18c41ceeaaaf343e6991d6a718b6edf0b8cbfc46faf1cfaf7551c3d1c434668"
-source = "manually curated Tycho/Hipparcos-style bright-star seed; not a complete external catalogue product"
-license = "review required before redistribution or scientific production use"
-generator = "nsb-data starlight map build using Siderust"
-generation_command = "seed cannot be reproduced from a released source catalogue; use docs/nsb_components/starlight/map-generation.md for the fail-closed replacement pipeline"
-validation_report = "docs/specifications/validation.md#experimental-starlight"
-calibration_status = "experimental"
-runtime_embedded = true
-
-[assets.header]
-map_type = "healpix"
-coordinate_frame = "galactic"
-nside = "1"
-ordering = "ring"
-version = "v1-experimental-seed"
-dataset_name = "NSB experimental manual Galactic starlight seed"
-generation_date_utc = "2026-06-22T00:00:00Z"
-source_catalogue = "curated Tycho/Hipparcos-style bright-star seed catalogue"
-source_catalogue_release = "manual-seed-v1"
-source_catalogue_license = "review-required-before-production-use"
-source_catalogue_checksum = "sha256:manual-seed-not-production"
-magnitude_limit = "bright-star seed only; not complete"
-map_resolution = "HEALPix nside=1 ordering=ring"
-calibration_status = "Experimental"
-photometry_model = "v_s10_scaled_integrated_proxy_v1"
-band_definition = "integrated 300-650 nm photon radiance plus B/V S10 diagnostics"
-smoothing_fwhm_deg = "none"
-generated_by = "nsb-data-tools-compatible manual seed workflow using siderust HEALPix schema"
-
-[[assets]]
 path = "merge_report.json"
 schema = "nsb-starlight-merge-report-v5"
 sha256 = "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228"

@@ -61,9 +61,6 @@ struct ExternalManifest {
     flux_conservation_validated: bool,
     input_integrated_flux_sum: Option<f64>,
     integrated_flux_conservation_tolerance: Option<f64>,
-    input_b_flux_sum: Option<f64>,
-    input_v_flux_sum: Option<f64>,
-    flux_conservation_tolerance: Option<f64>,
     header: BTreeMap<String, String>,
     #[serde(default)]
     source_candidate: Option<SourceCandidateSection>,
@@ -117,9 +114,6 @@ impl ValidatedStarlightMap {
         let diagnostics = map.validate_production_diagnostics(
             manifest.input_integrated_flux_sum,
             manifest.integrated_flux_conservation_tolerance,
-            manifest.input_b_flux_sum,
-            manifest.input_v_flux_sum,
-            manifest.flux_conservation_tolerance,
         )?;
         Ok(Self { map, diagnostics })
     }
@@ -221,18 +215,6 @@ impl ExternalManifest {
             ));
         }
         self.validate_distinct_provenance()?;
-        let supplied_legacy_flux_fields = [
-            self.input_b_flux_sum.is_some(),
-            self.input_v_flux_sum.is_some(),
-            self.flux_conservation_tolerance.is_some(),
-        ];
-        if supplied_legacy_flux_fields.iter().any(|value| *value)
-            && !supplied_legacy_flux_fields.iter().all(|value| *value)
-        {
-            return Err(invalid(
-                "input_b_flux_sum, input_v_flux_sum, and flux_conservation_tolerance must be supplied together",
-            ));
-        }
         Ok(())
     }
 
@@ -485,7 +467,11 @@ mod tests {
                 "# generation_command=synthetic fixture builder\n",
                 "# validation_report=test admission report\n",
                 "# independent_comparison=synthetic trusted reference fixture\n",
-            "healpix_index,integrated_ph_cm2_ns_sr,b_s10,v_s10\n",
+            "# s10_diagnostics=not_provided\n",
+            "healpix_index,integrated_ph_cm2_ns_sr,",
+            "statistical_uncertainty_ph_cm2_ns_sr,",
+            "systematic_uncertainty_ph_cm2_ns_sr,",
+            "total_uncertainty_ph_cm2_ns_sr\n",
         ));
         let mut source_flux = 0.0;
         for index in 0..grid.npix() {
@@ -494,7 +480,12 @@ mod tests {
             let latitude = direction.as_array()[2].asin().to_degrees().abs();
             let value = if latitude <= 10.0 { 2.0 } else { 1.0 };
             source_flux += value * grid.pixel_area_sr();
-            raw.push_str(&format!("{index},{value},{value},{value}\n"));
+            raw.push_str(&format!(
+                "{index},{value},{},{},{}\n",
+                value * 0.1,
+                value * 0.2,
+                value * 0.25
+            ));
         }
         let checksum = format!("sha256:{}", to_hex(&sha256(raw.as_bytes())));
         let manifest = format!(
