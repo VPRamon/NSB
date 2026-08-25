@@ -10,7 +10,7 @@ use toml::Value as TomlValue;
 const REVIEW_BUNDLE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const REVIEW_BUNDLE_SHA256: &str =
-    "d424fe946d3b71990c562c30634fc536e5e80fa014fabfe93f3f97a5a7d97bc9";
+    "116b15a4275d56fa9ab9f2325a2bcfb7c731c6ff931c162aa20830fe791ec2d2";
 const SCIENTIFIC_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json";
 const REDISTRIBUTION_DECISION_PATH: &str =
