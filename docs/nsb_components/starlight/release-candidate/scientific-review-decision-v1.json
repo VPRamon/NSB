@@ -12,7 +12,7 @@
       "verifier": {
         "type": "repository_file_sha256",
         "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
-        "sha256": "408bc87e26f6e4588d541f93a2226805667290895acf7e48f2261e3ddf3a9163"
+        "sha256": "6d9a4e192c52bb7cf1840db32582d71aa3bd91c27a3bb409fd6d9b04d2be4bb0"
       }
     }
   ],

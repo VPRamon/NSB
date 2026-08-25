@@ -9,7 +9,7 @@ use toml::Value as TomlValue;
 const REVIEW_BUNDLE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const REVIEW_BUNDLE_SHA256: &str =
-    "408bc87e26f6e4588d541f93a2226805667290895acf7e48f2261e3ddf3a9163";
+    "6d9a4e192c52bb7cf1840db32582d71aa3bd91c27a3bb409fd6d9b04d2be4bb0";
 const SCIENTIFIC_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json";
 const REDISTRIBUTION_DECISION_PATH: &str =
@@ -89,6 +89,8 @@ fn frozen_review_bundle_pins_exact_human_evidence() {
         "release_candidate_gates",
         "redistribution_inventory",
         "validation_artifact_manifest",
+        "runtime_assets_identity",
+        "redistribution_decision_contract_doc",
     ] {
         assert!(
             by_id.contains_key(required),

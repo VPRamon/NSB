@@ -136,14 +136,10 @@ pub struct ReviewArtifactsSection {
     pub gates_report_path: String,
     pub gates_report_sha256: String,
     pub licensing_decision_path: String,
-    #[serde(default)]
-    pub runtime_map_path: Option<String>,
-    #[serde(default)]
-    pub runtime_map_sha256: Option<String>,
-    #[serde(default)]
-    pub runtime_sidecar_path: Option<String>,
-    #[serde(default)]
-    pub runtime_sidecar_sha256: Option<String>,
+    pub runtime_map_path: String,
+    pub runtime_map_sha256: String,
+    pub runtime_sidecar_path: String,
+    pub runtime_sidecar_sha256: String,
 }
 
 /// Complete release-candidate manifest (`nsb-starlight-release-candidate-v1`).
@@ -219,18 +215,22 @@ impl ReleaseCandidateManifest {
             "review_artifacts.licensing_decision_path",
             &self.review_artifacts.licensing_decision_path,
         )?;
-        if let Some(path) = &self.review_artifacts.runtime_map_path {
-            require_text("review_artifacts.runtime_map_path", path)?;
-        }
-        if let Some(sha) = &self.review_artifacts.runtime_map_sha256 {
-            require_sha256("review_artifacts.runtime_map_sha256", sha)?;
-        }
-        if let Some(path) = &self.review_artifacts.runtime_sidecar_path {
-            require_text("review_artifacts.runtime_sidecar_path", path)?;
-        }
-        if let Some(sha) = &self.review_artifacts.runtime_sidecar_sha256 {
-            require_sha256("review_artifacts.runtime_sidecar_sha256", sha)?;
-        }
+        require_text(
+            "review_artifacts.runtime_map_path",
+            &self.review_artifacts.runtime_map_path,
+        )?;
+        require_sha256(
+            "review_artifacts.runtime_map_sha256",
+            &self.review_artifacts.runtime_map_sha256,
+        )?;
+        require_text(
+            "review_artifacts.runtime_sidecar_path",
+            &self.review_artifacts.runtime_sidecar_path,
+        )?;
+        require_sha256(
+            "review_artifacts.runtime_sidecar_sha256",
+            &self.review_artifacts.runtime_sidecar_sha256,
+        )?;
         Ok(())
     }
 }
@@ -258,14 +258,12 @@ pub struct ReviewDecision {
 #[derive(Debug, Clone, Copy)]
 enum DecisionKind {
     Scientific,
-    Redistribution,
 }
 
 impl DecisionKind {
     fn label(self) -> &'static str {
         match self {
             Self::Scientific => "scientific",
-            Self::Redistribution => "redistribution",
         }
     }
 }
@@ -362,7 +360,7 @@ impl ReviewDecision {
         kind: DecisionKind,
         evidence: &ConditionEvidence<'_>,
     ) -> Result<()> {
-        if self.decision != ReviewStatus::ApprovedWithConditions {
+        if self.conditions.is_empty() {
             return Ok(());
         }
         verify_approved_with_conditions(&self.conditions, evidence).with_context(|| {
@@ -459,18 +457,11 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         DecisionKind::Scientific,
         &candidate.candidate.candidate_sha256,
     )?;
-    let redistribution = load_decision(
-        &inputs.redistribution_decision,
-        DecisionKind::Redistribution,
-    )?;
-    redistribution.require_approved(
-        DecisionKind::Redistribution,
-        &candidate.candidate.candidate_sha256,
-    )?;
-
     let licensing = verify_licensing_redistribution_review(
         &inputs.repository_root,
         &candidate.review_artifacts,
+        &inputs.redistribution_decision,
+        &candidate.candidate.candidate_sha256,
     )?;
 
     // Decision files are authoritative. Stale TOML gate statuses must not
@@ -514,16 +505,14 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         inventory_sha256: Some(candidate.review_artifacts.inventory_sha256.as_str()),
     };
     scientific.verify_conditions(DecisionKind::Scientific, &evidence)?;
-    redistribution.verify_conditions(DecisionKind::Redistribution, &evidence)?;
     licensing.verify_conditions(&evidence)?;
 
-    if let Some(expected) = &candidate.review_artifacts.runtime_map_sha256 {
-        if &pack_outcome.runtime_map_sha256 != expected {
-            bail!(
-                "packed runtime map checksum mismatch: release candidate pins {expected}, packer produced {}",
-                pack_outcome.runtime_map_sha256
-            );
-        }
+    if pack_outcome.runtime_map_sha256 != candidate.review_artifacts.runtime_map_sha256 {
+        bail!(
+            "packed runtime map checksum mismatch: release candidate pins {}, packer produced {}",
+            candidate.review_artifacts.runtime_map_sha256,
+            pack_outcome.runtime_map_sha256
+        );
     }
 
     write_production_sidecar(
@@ -533,12 +522,11 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         pack_outcome.all_sky_flux_sum_ph_m2_s,
     )?;
     let runtime_sidecar_sha256 = checksum_io::sha256_file(&staged_runtime_sidecar)?;
-    if let Some(expected) = &candidate.review_artifacts.runtime_sidecar_sha256 {
-        if &runtime_sidecar_sha256 != expected {
-            bail!(
-                "packed runtime sidecar checksum mismatch: release candidate pins {expected}, produced {runtime_sidecar_sha256}"
-            );
-        }
+    if runtime_sidecar_sha256 != candidate.review_artifacts.runtime_sidecar_sha256 {
+        bail!(
+            "packed runtime sidecar checksum mismatch: release candidate pins {}, produced {runtime_sidecar_sha256}",
+            candidate.review_artifacts.runtime_sidecar_sha256
+        );
     }
 
     require_packed_runtime_header(&staged_map)?;
@@ -737,6 +725,8 @@ fn verify_frozen_gates_report(
 fn verify_licensing_redistribution_review(
     repository_root: &Path,
     artifacts: &ReviewArtifactsSection,
+    redistribution_decision_path: &Path,
+    expected_candidate_sha256: &str,
 ) -> Result<RedistributionReview> {
     let inventory_path = repository_root.join(&artifacts.inventory_path);
     let inventory_bytes = fs::read(&inventory_path)
@@ -749,9 +739,21 @@ fn verify_licensing_redistribution_review(
             actual
         );
     }
-    let decision_path = repository_root.join(&artifacts.licensing_decision_path);
-    let review = RedistributionReview::load(&inventory_path, &decision_path)?;
-    review.require_approved()?;
+    let canonical_decision_path = repository_root.join(&artifacts.licensing_decision_path);
+    let provided_path = if redistribution_decision_path.is_absolute() {
+        redistribution_decision_path.to_path_buf()
+    } else {
+        repository_root.join(redistribution_decision_path)
+    };
+    if provided_path != canonical_decision_path {
+        bail!(
+            "redistribution decision path mismatch: expected {}, got {}",
+            canonical_decision_path.display(),
+            provided_path.display()
+        );
+    }
+    let review = RedistributionReview::load(&inventory_path, &provided_path)?;
+    review.require_approved(expected_candidate_sha256)?;
     Ok(review)
 }
 
@@ -1137,6 +1139,7 @@ mod tests {
         redistribution_decision: PathBuf,
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn release_candidate_toml(
         status: &str,
         validation_status: &str,
@@ -1144,6 +1147,8 @@ mod tests {
         inventory_sha256: &str,
         gates_sha256: &str,
         candidate_sha256: &str,
+        runtime_map_sha256: &str,
+        runtime_sidecar_sha256: &str,
     ) -> String {
         format!(
             r#"schema_version = 1
@@ -1175,7 +1180,11 @@ inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.
 inventory_sha256 = "{inventory_sha256}"
 gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
 gates_report_sha256 = "{gates_sha256}"
-licensing_decision_path = "docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json"
+licensing_decision_path = "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"
+runtime_map_path = "crates/nsb/data/starlight_nside128.release.csv"
+runtime_map_sha256 = "{runtime_map_sha256}"
+runtime_sidecar_path = "crates/nsb/data/starlight_nside128.manifest.toml"
+runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
 "#
         )
     }
@@ -1191,6 +1200,35 @@ licensing_decision_path = "docs/nsb_components/starlight/licensing/redistributio
   "candidate_sha256": "{candidate_sha256}",
   "conditions": [{extra_conditions}],
   "notes": "Synthetic test-only decision fixture; not a real human review."
+}}"#
+        )
+    }
+
+    fn redistribution_decision_json(
+        decision: &str,
+        extra_conditions: &str,
+        candidate_sha256: &str,
+    ) -> String {
+        format!(
+            r#"{{
+  "schema_version": 1,
+  "decision": "{decision}",
+  "reviewer_name": "Synthetic Test Reviewer",
+  "reviewer_role": "synthetic-test-only-role",
+  "reviewed_at_utc": "2026-07-30T00:00:00Z",
+  "candidate_sha256": "{candidate_sha256}",
+  "inventory_sha256": "__INVENTORY_SHA256__",
+  "review_bundle_sha256": "__REVIEW_BUNDLE_SHA256__",
+  "pinned_artifacts": [
+    {{
+      "id": "synthetic-distributed-output",
+      "sha256": "{candidate_sha256}",
+      "approved_channels": ["git_repository"]
+    }}
+  ],
+  "conditions": [{extra_conditions}],
+  "restrictions": [],
+  "notes": "synthetic-test-notes: fixture decision, not a real approval"
 }}"#
         )
     }
@@ -1253,29 +1291,15 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
         fs::write(&inventory_path, &inventory).unwrap();
         let inventory_sha256 = checksum_io::sha256_bytes(inventory.as_bytes());
 
-        let licensing_decision = format!(
-            r#"{{
-  "schema_version": 1,
-  "decision": "approved",
-  "reviewer_name": "Synthetic Test Reviewer",
-  "reviewer_role": "synthetic-test-only-role",
-  "reviewed_at_utc": "2026-07-30T00:00:00Z",
-  "inventory_sha256": "{inventory_sha256}",
-  "pinned_artifacts": [
-    {{
-      "id": "synthetic-distributed-output",
-      "sha256": "{sha}",
-      "approved_channels": ["git_repository"]
-    }}
-  ],
-  "conditions": [],
-  "restrictions": [],
-  "notes": "synthetic-test-notes: fixture decision, not a real approval"
-}}"#
-        );
-        let licensing_path = root
-            .join("docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json");
-        fs::write(&licensing_path, licensing_decision).unwrap();
+        let release_candidate_dir = root.join("docs/nsb_components/starlight/release-candidate");
+        fs::create_dir_all(&release_candidate_dir).unwrap();
+        let review_bundle_path = release_candidate_dir.join("review-bundle-v1.toml");
+        fs::write(
+            &review_bundle_path,
+            "schema_version = 1\nschema = \"synthetic-review-bundle\"\n",
+        )
+        .unwrap();
+        let review_bundle_sha256 = checksum_io::sha256_file(&review_bundle_path).unwrap();
 
         let gates = complete_gates_json(&sha);
         let gates_path = root
@@ -1284,6 +1308,39 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
         fs::write(&gates_path, &gates).unwrap();
         let gates_sha256 = checksum_io::sha256_bytes(gates.as_bytes());
 
+        let synthetic_candidate = CandidateSection {
+            status: CandidateStatus::Pinned,
+            candidate_sha256: sha.clone(),
+            map_path: "crates/nsb/data/starlight_nside128.csv".to_string(),
+            map_schema: "nsb-healpix-starlight-candidate-v5".to_string(),
+            band: "synthetic test-only combined band".to_string(),
+            units: "ph_m-2_s-1".to_string(),
+            nside: 1,
+            ordering: "nested".to_string(),
+            gaia_release: "Gaia DR3 (synthetic test fixture)".to_string(),
+            model_versions: BTreeMap::new(),
+        };
+        let staged_map = root.join("crates/nsb/data/starlight_nside128.release.csv");
+        let staged_pack_sidecar = root.join("crates/nsb/data/starlight_nside128.pack.toml");
+        let staged_runtime_sidecar = root.join("crates/nsb/data/starlight_nside128.manifest.toml");
+        let pack_outcome = pack::pack_candidate_map(&PackInputs {
+            candidate_map: data_dir.join("starlight_nside128.csv"),
+            expected_candidate_sha256: sha.clone(),
+            expected_nside: 1,
+            output_csv: staged_map.clone(),
+            output_sidecar: staged_pack_sidecar,
+            provenance_headers: runtime_admission_headers(&synthetic_candidate),
+        })
+        .unwrap();
+        write_production_sidecar(
+            &staged_runtime_sidecar,
+            &synthetic_candidate,
+            &pack_outcome.runtime_map_sha256,
+            pack_outcome.all_sky_flux_sum_ph_m2_s,
+        )
+        .unwrap();
+        let runtime_sidecar_sha256 = checksum_io::sha256_file(&staged_runtime_sidecar).unwrap();
+
         let release_candidate = release_candidate_toml(
             status,
             validation_status,
@@ -1291,12 +1348,19 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             &inventory_sha256,
             &gates_sha256,
             &sha,
+            &pack_outcome.runtime_map_sha256,
+            &runtime_sidecar_sha256,
         );
         let release_candidate_path = root.join("release-candidate-v1.toml");
         fs::write(&release_candidate_path, release_candidate).unwrap();
         let scientific_decision_path = root.join("scientific-review-decision-v1.json");
         fs::write(&scientific_decision_path, scientific_decision).unwrap();
-        let redistribution_decision_path = root.join("redistribution-review-decision-v1.json");
+        let redistribution_decision_path = root
+            .join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json");
+        let redistribution_decision = redistribution_decision
+            .replace("__INVENTORY_SHA256__", &inventory_sha256)
+            .replace("__REVIEW_BUNDLE_SHA256__", &review_bundle_sha256)
+            .replace(&synthetic_candidate_sha256(), &sha);
         fs::write(&redistribution_decision_path, redistribution_decision).unwrap();
 
         SyntheticRepo {
@@ -1313,16 +1377,8 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             "pinned",
             "technical_pass",
             true,
-            &decision_json(
-                "approved",
-                "\"synthetic-test-only-condition\"",
-                &synthetic_candidate_sha256(),
-            ),
-            &decision_json(
-                "approved",
-                "\"synthetic-test-only-condition\"",
-                &synthetic_candidate_sha256(),
-            ),
+            &decision_json("approved", "", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("approved", "", &synthetic_candidate_sha256()),
         )
     }
 
@@ -1343,8 +1399,8 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             "awaiting_regeneration",
             "pending_regeneration",
             false,
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("approved", "", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("approved", "", &synthetic_candidate_sha256()),
         );
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
         assert!(error.to_string().contains("not pinned"));
@@ -1381,7 +1437,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             "technical_pass",
             true,
             &decision_json("pending", "", &synthetic_candidate_sha256()),
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("approved", "", &synthetic_candidate_sha256()),
         );
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
         assert!(error
@@ -1395,8 +1451,8 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             "pinned",
             "technical_pass",
             true,
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
-            &decision_json("rejected", "", &synthetic_candidate_sha256()),
+            &decision_json("approved", "", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("rejected", "", &synthetic_candidate_sha256()),
         );
         let tampered = fs::read_to_string(&repo.release_candidate)
             .unwrap()
@@ -1444,8 +1500,8 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             "pinned",
             "technical_pass",
             true,
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
+            &decision_json("approved", "", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("approved", "", &synthetic_candidate_sha256()),
         );
         let tampered = fs::read_to_string(&repo.release_candidate)
             .unwrap()
@@ -1464,8 +1520,8 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             "pinned",
             "technical_pass",
             false,
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
+            &decision_json("approved", "", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("approved", "", &synthetic_candidate_sha256()),
         );
         let outcome = run_promotion(&inputs(&repo, None)).unwrap();
         assert!(!outcome.applied);
@@ -1485,7 +1541,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
                 "",
                 &synthetic_candidate_sha256(),
             ),
-            &decision_json("approved", "\"c\"", &synthetic_candidate_sha256()),
+            &decision_json("approved", "", &synthetic_candidate_sha256()),
         );
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
         assert!(error
@@ -1510,7 +1566,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
                 "\"Fix X before production\"",
                 &synthetic_candidate_sha256(),
             ),
-            &decision_json("approved", "", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("approved", "", &synthetic_candidate_sha256()),
         );
         let error = format!("{:#}", run_promotion(&inputs(&repo, None)).unwrap_err());
         assert!(error.contains("not machine-verifiable"), "{error}");
@@ -1528,7 +1584,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
                 &structured_candidate_condition(&sha),
                 &sha,
             ),
-            &decision_json("approved", "", &sha),
+            &redistribution_decision_json("approved", "", &sha),
         );
         run_promotion(&inputs(&repo, None)).unwrap();
     }
@@ -1546,7 +1602,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             "technical_pass",
             true,
             &decision_json("approved_with_conditions", &conditions, &sha),
-            &decision_json("approved", "", &sha),
+            &redistribution_decision_json("approved", "", &sha),
         );
         let error = format!("{:#}", run_promotion(&inputs(&repo, None)).unwrap_err());
         assert!(error.contains("runtime map checksum mismatch"), "{error}");
@@ -1684,6 +1740,54 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             error
                 .to_string()
                 .contains("artifact inventory checksum mismatch"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn runtime_sidecar_checksum_mismatch_fails_closed() {
+        let repo = valid_synthetic_repo();
+        let original = fs::read_to_string(&repo.release_candidate).unwrap();
+        let tampered = original
+            .lines()
+            .map(|line| {
+                if line.starts_with("runtime_sidecar_sha256 = \"") {
+                    format!("runtime_sidecar_sha256 = \"{}\"", "a".repeat(64))
+                } else {
+                    line.to_string()
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&repo.release_candidate, tampered).unwrap();
+        let error = run_promotion(&inputs(&repo, None)).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("packed runtime sidecar checksum mismatch"),
+            "unexpected error: {error}"
+        );
+    }
+
+    #[test]
+    fn redistribution_decision_path_mismatch_fails_closed() {
+        let repo = valid_synthetic_repo();
+        let wrong_path = repo
+            .root
+            .join("docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json");
+        fs::create_dir_all(wrong_path.parent().unwrap()).unwrap();
+        fs::write(
+            &wrong_path,
+            fs::read_to_string(&repo.redistribution_decision).unwrap(),
+        )
+        .unwrap();
+        let mut promotion = inputs(&repo, None);
+        promotion.redistribution_decision = wrong_path;
+        let error = run_promotion(&promotion).unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("redistribution decision path mismatch"),
             "unexpected error: {error}"
         );
     }

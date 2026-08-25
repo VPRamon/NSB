@@ -112,7 +112,9 @@ pub struct RedistributionReviewDecision {
     pub reviewer_role: Option<String>,
     #[serde(default)]
     pub reviewed_at_utc: Option<String>,
+    pub candidate_sha256: String,
     pub inventory_sha256: String,
+    pub review_bundle_sha256: String,
     #[serde(default)]
     pub pinned_artifacts: Vec<PinnedArtifactApproval>,
     #[serde(default)]
@@ -221,7 +223,9 @@ impl RedistributionReviewDecision {
                 self.schema_version
             );
         }
+        require_sha256("decision candidate_sha256", &self.candidate_sha256)?;
         require_sha256("decision inventory_sha256", &self.inventory_sha256)?;
+        require_sha256("decision review_bundle_sha256", &self.review_bundle_sha256)?;
         require_text("decision notes", &self.notes)?;
         let mut ids = BTreeSet::new();
         for pinned in &self.pinned_artifacts {
@@ -321,7 +325,7 @@ impl RedistributionReview {
     /// reviewer, a malformed review timestamp, any distributed artifact the
     /// decision does not pin with a matching checksum, and any channel a
     /// distributed artifact uses that the decision does not authorize.
-    pub fn require_approved(&self) -> Result<()> {
+    pub fn require_approved(&self, expected_candidate_sha256: &str) -> Result<()> {
         match self.decision.decision {
             RedistributionDecision::Pending => {
                 bail!(
@@ -348,6 +352,13 @@ impl RedistributionReview {
             && self.decision.conditions.is_empty()
         {
             bail!("approved_with_conditions requires at least one recorded condition");
+        }
+        if self.decision.candidate_sha256 != expected_candidate_sha256 {
+            bail!(
+                "redistribution decision pins candidate {}, but the release candidate is {}",
+                self.decision.candidate_sha256,
+                expected_candidate_sha256
+            );
         }
 
         for artifact in self.inventory.distributed() {
@@ -395,7 +406,7 @@ impl RedistributionReview {
     }
 
     pub fn verify_conditions(&self, evidence: &ConditionEvidence<'_>) -> Result<()> {
-        if self.decision.decision != RedistributionDecision::ApprovedWithConditions {
+        if self.decision.conditions.is_empty() {
             return Ok(());
         }
         verify_approved_with_conditions(&self.decision.conditions, evidence)
@@ -530,7 +541,9 @@ mod tests {
             reviewer_name: Some("Synthetic Test Reviewer".to_string()),
             reviewer_role: Some("synthetic-test-role".to_string()),
             reviewed_at_utc: Some("2026-01-01T00:00:00Z".to_string()),
+            candidate_sha256: "c".repeat(64),
             inventory_sha256: inventory_sha256.to_string(),
+            review_bundle_sha256: "d".repeat(64),
             pinned_artifacts: vec![PinnedArtifactApproval {
                 id: "synthetic-distributed-output".to_string(),
                 sha256: "a".repeat(64),
@@ -589,7 +602,7 @@ mod tests {
         let decision_path = write_decision(&dir, &approved_decision(&inventory_sha256));
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        review.require_approved().unwrap();
+        review.require_approved(&"c".repeat(64)).unwrap();
     }
 
     #[test]
@@ -606,7 +619,10 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("pending"), "unexpected error: {error}");
     }
 
@@ -620,7 +636,10 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(
             error.contains("authorized reviewer"),
             "unexpected error: {error}"
@@ -653,7 +672,10 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(
             error.contains("checksum mismatch"),
             "unexpected error: {error}"
@@ -670,7 +692,10 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(
             error.contains("does not authorize channel"),
             "unexpected error: {error}"
@@ -687,7 +712,10 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(
             error.contains("does not pin distributed artifact"),
             "unexpected error: {error}"
@@ -704,7 +732,10 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("rejected"), "unexpected error: {error}");
     }
 
@@ -718,7 +749,10 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("condition"), "unexpected error: {error}");
 
         let mut decision = approved_decision(&inventory_sha256);
@@ -728,7 +762,7 @@ mod tests {
         )];
         let decision_path = write_decision(&dir, &decision);
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        review.require_approved().unwrap();
+        review.require_approved(&"c".repeat(64)).unwrap();
     }
 
     #[test]
@@ -741,8 +775,28 @@ mod tests {
         let decision_path = write_decision(&dir, &decision);
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        let error = review.require_approved().unwrap_err().to_string();
+        let error = review
+            .require_approved(&"c".repeat(64))
+            .unwrap_err()
+            .to_string();
         assert!(error.contains("timestamp"), "unexpected error: {error}");
+    }
+
+    #[test]
+    fn candidate_mismatch_is_rejected() {
+        let dir = TempDir::new().unwrap();
+        let inventory = synthetic_inventory();
+        let (inventory_path, inventory_sha256) = write_inventory(&dir, &inventory);
+        let decision_path = write_decision(&dir, &approved_decision(&inventory_sha256));
+        let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
+        let error = review
+            .require_approved(&"b".repeat(64))
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains("pins candidate"),
+            "unexpected error: {error}"
+        );
     }
 
     #[test]
@@ -769,7 +823,7 @@ mod tests {
         let inventory_path = repository_root
             .join("docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml");
         let decision_path = repository_root
-            .join("docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json");
+            .join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json");
         if !inventory_path.exists() || !decision_path.exists() {
             // The Rust module can be exercised independently of the docs
             // tree (e.g. a sparse checkout); do not fail the unit test suite
@@ -778,7 +832,7 @@ mod tests {
         }
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
         assert_eq!(review.decision().decision, RedistributionDecision::Pending);
-        assert!(review.require_approved().is_err());
+        assert!(review.require_approved(&"c".repeat(64)).is_err());
     }
 
     #[test]

@@ -29,3 +29,13 @@ sha256 = "663357777fd841298879065475a69ad0d7083bf2a32077875a0d65239c0e98a2"
 id = "validation_artifact_manifest"
 path = "docs/nsb_components/starlight/validation/results/validation-artifact-manifest-v1.toml"
 sha256 = "e795dfc900034a502bb127a328a7ec7ab5762640721d9e9e3e1c8a641e744670"
+
+[[artifacts]]
+id = "runtime_assets_identity"
+path = "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"
+sha256 = "34fe146b5bdf62df0f14d43a69dcae97ff2049187f3a575bafe2a79a28e1f2af"
+
+[[artifacts]]
+id = "redistribution_decision_contract_doc"
+path = "docs/nsb_components/starlight/release-candidate/README.md"
+sha256 = "c68dfd5fca50db6ab47a6f8544a6ad8970a3605ebbe27fa18756f886d14812b3"

@@ -16,7 +16,8 @@ candidate map. Promotion after valid #103 decisions is automated by
 |---|---|
 | `release-candidate-v1.toml` | Frozen candidate identity (checksum, schema, band, units, resolution, Gaia release, model versions) plus the fail-closed gate table (`gates.validation_status`, `gates.scientific_review_status`, `gates.redistribution_review_status`, `gates.promotion_eligible`). |
 | `scientific-review-decision-v1.json` | Template for the human scientific decision owned by #103. Currently `"decision": "pending"`. |
-| `redistribution-review-decision-v1.json` | Template for the human redistribution decision owned by #103. Currently `"decision": "pending"`. |
+| `redistribution-review-decision-v1.json` | Single authoritative human redistribution decision record owned by #103. Promotion and licensing checks consume this same file; currently `"decision": "pending"`. |
+| `runtime-assets-v1.toml` | Frozen identity record for deterministic packed runtime map + runtime sidecar checksums reviewed in #103. |
 
 ## The `nsb-starlight-release-candidate-v1` schema
 
@@ -50,7 +51,11 @@ inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.
 inventory_sha256 = "<sha256 of that inventory file>"
 gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
 gates_report_sha256 = "<sha256 of that gates report>"
-licensing_decision_path = "docs/nsb_components/starlight/licensing/redistribution-review-decision-v1.json"
+licensing_decision_path = "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"
+runtime_map_path = "crates/nsb/data/starlight_nside128.release.csv"
+runtime_map_sha256 = "<sha256 of deterministic packed runtime map bytes>"
+runtime_sidecar_path = "crates/nsb/data/starlight_nside128.manifest.toml"
+runtime_sidecar_sha256 = "<sha256 of deterministic runtime sidecar bytes>"
 
 notes = "<free text; must document any invalidation or regeneration dependency>"
 ```
@@ -93,10 +98,13 @@ The command:
    with at least one recorded condition), each with a non-placeholder
    reviewer name, reviewer role, RFC 3339 review timestamp, and a
    `candidate_sha256` pin that matches the release candidate exactly.
-6. TOML `scientific_review_status` / `redistribution_review_status` /
+6. Verifies the generated packed runtime map and generated runtime sidecar
+   checksums against `review_artifacts.runtime_map_sha256` and
+   `review_artifacts.runtime_sidecar_sha256` unconditionally.
+7. TOML `scientific_review_status` / `redistribution_review_status` /
    `promotion_eligible` fields are not a second kill switch; signed
    decision files are authoritative.
-7. Only if every check above passes does it render a **draft** production
+8. Only if every check above passes does it render a **draft** production
    `manifest.toml` fragment (new packed `nsb-healpix-starlight-v2` map entry
    plus runtime sidecar, both `calibration_status = "production"` and
    `runtime_embedded = true`) to `--output` (or stdout). Pass `--apply` to
