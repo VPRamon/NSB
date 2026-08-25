@@ -28,7 +28,7 @@ sha256 = "b68cdb74e00dcd949372d873744f10e413b76bb976c3c29288d3a8b808971b5f"
 [[artifacts]]
 id = "validation_artifact_manifest"
 path = "docs/nsb_components/starlight/validation/results/validation-artifact-manifest-v1.toml"
-sha256 = "e795dfc900034a502bb127a328a7ec7ab5762640721d9e9e3e1c8a641e744670"
+sha256 = "bd3231c9d5d62d7703fd622f2ba214f6c20cb24ba7f0ce45938cbccc72e63233"
 
 [[artifacts]]
 id = "runtime_assets_identity"
