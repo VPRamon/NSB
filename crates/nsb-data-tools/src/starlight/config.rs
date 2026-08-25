@@ -1,6 +1,6 @@
 //! Versioned production Starlight configuration.
 
-use anyhow::{bail, Result};
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -145,10 +145,14 @@ fn default_canonical_nside() -> u32 {
 }
 
 pub(crate) fn validate_canonical_nside(nside: u32) -> Result<()> {
-    if nside == 0 || !nside.is_power_of_two() || nside > 4096 {
-        bail!("Starlight canonical_nside must be a power of two between 1 and 4096");
-    }
-    Ok(())
+    super::healpix::gaia_nested_nside(nside)
+        .map(|_| ())
+        .with_context(|| {
+            format!(
+                "Starlight canonical_nside must be a power of two between 1 and {}",
+                super::healpix::GAIA_MAX_NSIDE
+            )
+        })
 }
 
 fn default_connect_timeout_seconds() -> u64 {

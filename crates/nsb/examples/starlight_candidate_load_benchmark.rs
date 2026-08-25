@@ -1,51 +1,44 @@
-//! Crude, reproducible local timing for the Starlight release-candidate map.
+//! Timing harness for packed Starlight runtime maps.
 //!
-//! This is not a scientific artifact, a Criterion benchmark, or a CI gate. It
-//! exists to produce honest wall-clock numbers for
-//! `docs/nsb_components/starlight/production-runs/performance-v1.json`
-//! (issue #90) using existing parsing building blocks. It does not invent or
-//! extrapolate timings.
+//! Architecture: candidate-v5 → `dataset starlight pack` → `.release.csv` →
+//! `StarlightMap` runtime load. This example never loads the sparse
+//! `nsb-healpix-starlight-candidate-v5` candidate CSV through the runtime API.
 //!
-//! Two measurements are attempted:
-//!
-//! 1. The public runtime API, `StarlightMap::from_csv_path`. As of this
-//!    writing this is expected to fail: the runtime parser only understands
-//!    the `healpix_index,...` schema used by validated external and
-//!    experimental caller-supplied maps, not the `nsb-healpix-starlight-candidate-v5` schema
-//!    (`pixel,flux_ph_m2_s,...`) written by the Gaia production pipeline.
-//!    `StarlightModel::BundledProductionGaiaDr3` (production registry pair) is expected to
-//!    add runtime support for that schema; this harness records whatever the
-//!    current behaviour actually is rather than assuming success.
-//! 2. A crude proxy: reading the file and iterating every CSV row with the
-//!    same `csv` crate machinery `nsb::components::starlight::map` already
-//!    uses for the `healpix_index` schema (comment='#', full trim), without
-//!    semantic validation. This approximates raw I/O + row-parsing cost only;
-//!    it is not the validated production load path (`dataset starlight
-//!    validate`, which additionally checksums the file and cross-checks
-//!    `merge_report.json`).
-//!
-//! See `docs/specifications/performance.md` for the project's Criterion
-//! methodology, which this intentionally does not replace.
+//! Historical wall-clock numbers in
+//! `docs/nsb_components/starlight/production-runs/performance-v1.json` remain
+//! frozen evidence for issue #90 and are not rewritten by this harness.
 
-use csv::ReaderBuilder;
 use nsb::{StarlightMap, StarlightProvenance};
 use std::env;
 use std::path::PathBuf;
 use std::time::Instant;
 
+fn packed_nside1_fixture() -> String {
+    let mut raw = String::from(concat!(
+        "# map_type=healpix\n",
+        "# nside=1\n",
+        "# ordering=ring\n",
+        "# coordinate_frame=galactic\n",
+        "# s10_diagnostics=not_provided\n",
+        "healpix_index,integrated_ph_cm2_ns_sr,",
+        "statistical_uncertainty_ph_cm2_ns_sr,",
+        "systematic_uncertainty_ph_cm2_ns_sr,",
+        "total_uncertainty_ph_cm2_ns_sr\n",
+    ));
+    for index in 0..12 {
+        let integrated = index as f64 + 1.0;
+        raw.push_str(&format!(
+            "{index},{integrated},{stat},{sys},{tot}\n",
+            stat = integrated * 0.1,
+            sys = integrated * 0.2,
+            tot = integrated * 0.25
+        ));
+    }
+    raw
+}
+
 fn main() {
-    let path = env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/starlight_nside128.csv")
-    });
-
-    let file_size_bytes = std::fs::metadata(&path)
-        .unwrap_or_else(|error| panic!("failed to stat {}: {error}", path.display()))
-        .len();
-    println!("path={}", path.display());
-    println!("file_size_bytes={file_size_bytes}");
-
-    // Measurement 1: the public runtime API, as-is.
-    let harness_fallback = StarlightProvenance::new(
+    let provenance = StarlightProvenance::new(
         "benchmark-harness-only",
         "benchmark-harness-only",
         "benchmark-harness-only",
@@ -56,42 +49,49 @@ fn main() {
         "benchmark-harness-only",
         None::<String>,
     );
+
+    // Always time a dense packed fixture so the harness works without a local
+    // packed production artifact.
+    let fixture = packed_nside1_fixture();
     let start = Instant::now();
-    match StarlightMap::from_csv_path(&path, harness_fallback) {
+    let map = StarlightMap::from_csv_str(&fixture, provenance.clone())
+        .expect("packed nside=1 fixture loads");
+    let fixture_elapsed = start.elapsed();
+    println!("packed_fixture_load_result=ok");
+    println!("packed_fixture_pixel_count={}", map.pixels().len());
+    println!(
+        "packed_fixture_load_seconds={:.6}",
+        fixture_elapsed.as_secs_f64()
+    );
+
+    let path = env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/starlight_nside128.release.csv")
+    });
+    println!("packed_runtime_path={}", path.display());
+    if !path.is_file() {
+        println!("packed_runtime_load_result=missing");
+        println!(
+            "packed_runtime_load_hint=run `nsb-data dataset starlight pack` first, then pass the .release.csv path"
+        );
+        return;
+    }
+
+    let file_size_bytes = std::fs::metadata(&path)
+        .unwrap_or_else(|error| panic!("failed to stat {}: {error}", path.display()))
+        .len();
+    println!("packed_runtime_file_size_bytes={file_size_bytes}");
+
+    let start = Instant::now();
+    match StarlightMap::from_csv_path(&path, provenance) {
         Ok(map) => {
             let elapsed = start.elapsed();
-            println!("runtime_api_load_result=ok");
-            println!("runtime_api_pixel_count={}", map.pixels().len());
-            println!("runtime_api_load_seconds={:.6}", elapsed.as_secs_f64());
+            println!("packed_runtime_load_result=ok");
+            println!("packed_runtime_pixel_count={}", map.pixels().len());
+            println!("packed_runtime_load_seconds={:.6}", elapsed.as_secs_f64());
         }
         Err(error) => {
-            println!("runtime_api_load_result=unsupported_schema");
-            println!("runtime_api_load_error={error}");
+            println!("packed_runtime_load_result=error");
+            println!("packed_runtime_load_error={error}");
         }
     }
-
-    // Measurement 2: crude proxy timing (raw read + full CSV row iteration).
-    let start = Instant::now();
-    let raw = std::fs::read_to_string(&path).expect("candidate map is valid UTF-8");
-    let read_elapsed = start.elapsed();
-
-    let start = Instant::now();
-    let mut reader = ReaderBuilder::new()
-        .comment(Some(b'#'))
-        .trim(csv::Trim::All)
-        .from_reader(raw.as_bytes());
-    let mut row_count: u64 = 0;
-    for record in reader.records() {
-        record.expect("candidate map row is well-formed CSV");
-        row_count += 1;
-    }
-    let parse_elapsed = start.elapsed();
-
-    println!("proxy_read_seconds={:.6}", read_elapsed.as_secs_f64());
-    println!("proxy_parse_seconds={:.6}", parse_elapsed.as_secs_f64());
-    println!(
-        "proxy_total_seconds={:.6}",
-        (read_elapsed + parse_elapsed).as_secs_f64()
-    );
-    println!("proxy_row_count={row_count}");
 }

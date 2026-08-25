@@ -4,7 +4,6 @@ use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
 use crate::units::PixelIntegratedPhotonFlux;
 use csv::{ReaderBuilder, StringRecord};
-use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use qtty::solid_angle::Steradians;
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
@@ -17,13 +16,11 @@ const EPS: f64 = 1.0e-10;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// One directional starlight-map sample.
+///
+/// Pixel centre coordinates and solid angle are derived from the owning
+/// [`HealpixGrid`] at the sample index; they are not stored here so they cannot
+/// drift from the geometry used for lookup.
 pub struct StarlightPixel {
-    /// Galactic longitude of the sample centre.
-    pub galactic_lon: Degrees,
-    /// Galactic latitude of the sample centre.
-    pub galactic_lat: Degrees,
-    /// Pixel solid angle in steradians.
-    pub solid_angle: Steradians,
     /// Integrated 300–650 nm photon radiance.
     pub integrated: BandPhotonRadiance,
     /// B-reference S10 diagnostic.
@@ -42,18 +39,8 @@ pub struct StarlightPixel {
 
 impl StarlightPixel {
     /// Construct a map sample.
-    pub fn new(
-        galactic_lon: Degrees,
-        galactic_lat: Degrees,
-        solid_angle: Steradians,
-        integrated: BandPhotonRadiance,
-        b_flux_s10: S10s,
-        v_flux_s10: S10s,
-    ) -> Self {
+    pub fn new(integrated: BandPhotonRadiance, b_flux_s10: S10s, v_flux_s10: S10s) -> Self {
         Self {
-            galactic_lon,
-            galactic_lat,
-            solid_angle,
             integrated,
             b_flux_s10,
             v_flux_s10,
@@ -100,28 +87,7 @@ impl StarlightPixel {
         }
     }
 
-    fn normalized(self) -> Self {
-        Self {
-            galactic_lon: Degrees::new(normalize_lon_deg(self.galactic_lon.value())),
-            ..self
-        }
-    }
-
     fn validate(self) -> Result<()> {
-        if !self.galactic_lon.is_finite() || !self.galactic_lat.is_finite() {
-            return Err(invalid_map("pixel coordinates must be finite"));
-        }
-        if !(-90.0..=90.0).contains(&self.galactic_lat.value()) {
-            return Err(invalid_map(format!(
-                "galactic latitude {} deg is outside [-90, 90]",
-                self.galactic_lat.value()
-            )));
-        }
-        if !self.solid_angle.is_finite() || self.solid_angle <= Steradians::new(0.0) {
-            return Err(invalid_map(
-                "pixel solid_angle_sr must be finite and positive",
-            ));
-        }
         if !self.output().is_finite_non_negative()
             || self.statistical_uncertainty.is_some() != self.systematic_uncertainty.is_some()
             || self.statistical_uncertainty.is_some() != self.total_uncertainty.is_some()
@@ -153,7 +119,7 @@ impl StarlightMap {
         }
 
         let has_uncertainties = pixels[0].output().has_uncertainties();
-        let mut normalized = Vec::with_capacity(pixels.len());
+        let mut validated = Vec::with_capacity(pixels.len());
         for pixel in pixels {
             pixel.validate()?;
             if pixel.output().has_uncertainties() != has_uncertainties {
@@ -161,10 +127,10 @@ impl StarlightMap {
                     "all starlight pixels must use the same uncertainty schema",
                 ));
             }
-            normalized.push(pixel.normalized());
+            validated.push(pixel);
         }
 
-        let map = HealpixMap::new(grid, normalized).map_err(|err| invalid_map(err.to_string()))?;
+        let map = HealpixMap::new(grid, validated).map_err(|err| invalid_map(err.to_string()))?;
         Ok(Self { provenance, map })
     }
 
@@ -215,6 +181,16 @@ impl StarlightMap {
         self.map.values()
     }
 
+    /// Galactic longitude/latitude of a stored pixel centre.
+    pub fn pixel_lon_lat_deg(&self, index: u64) -> Result<(f64, f64)> {
+        healpix_pixel_lon_lat_deg(self.grid(), HealpixIndex::new(index))
+    }
+
+    /// Equal-area solid angle of every pixel on this map.
+    pub fn pixel_solid_angle(&self) -> Steradians {
+        Steradians::new(self.grid().pixel_area_sr())
+    }
+
     pub(super) fn validate_production_diagnostics(
         &self,
         input_integrated_flux_sum: Option<f64>,
@@ -226,6 +202,7 @@ impl StarlightMap {
             (input_integrated_flux_sum, integrated_flux_tolerance)
         {
             validate_integrated_flux_conservation(
+                self.grid(),
                 pixels,
                 PixelIntegratedPhotonFlux::new(expected),
                 tolerance,
@@ -237,7 +214,8 @@ impl StarlightMap {
             ));
         };
 
-        let (plane_pole_ratio, longitude_wrap_relative_jump) = diagnostic_values(pixels)?;
+        let (plane_pole_ratio, longitude_wrap_relative_jump) =
+            diagnostic_values(self.grid(), pixels)?;
         if plane_pole_ratio < 1.0 {
             return Err(invalid_map(
                 "integrated plane/pole validation failed: plane radiance is below pole radiance",
@@ -337,11 +315,7 @@ impl StarlightMap {
             grid.validate_index(HealpixIndex::new(index))
                 .map_err(|err| invalid_map(err.to_string()))?;
             let slot = usize::try_from(index).expect("pixel index fits usize");
-            let (lon, lat) = healpix_pixel_lon_lat_deg(grid, HealpixIndex::new(index))?;
             let pixel = StarlightPixel::new(
-                Degrees::new(lon),
-                Degrees::new(lat),
-                Steradians::new(grid.pixel_area_sr()),
                 BandPhotonRadiance::new(parse_record_f64(
                     &record,
                     1,
@@ -407,37 +381,33 @@ pub(super) fn parse_header_metadata(raw: &str) -> BTreeMap<String, String> {
         .collect()
 }
 
-fn diagnostic_values(pixels: &[StarlightPixel]) -> Result<(f64, f64)> {
+fn diagnostic_values(grid: HealpixGrid, pixels: &[StarlightPixel]) -> Result<(f64, f64)> {
     let mean = |values: &[f64]| -> Result<f64> {
         if values.is_empty() {
             return Err(invalid_map("starlight diagnostic region is empty"));
         }
         Ok(values.iter().sum::<f64>() / values.len() as f64)
     };
-    let plane: Vec<f64> = pixels
-        .iter()
-        .filter(|pixel| pixel.galactic_lat.value().abs() <= 10.0)
-        .map(|pixel| pixel.integrated.value())
-        .collect();
-    let pole: Vec<f64> = pixels
-        .iter()
-        .filter(|pixel| pixel.galactic_lat.value().abs() >= 60.0)
-        .map(|pixel| pixel.integrated.value())
-        .collect();
-    let low: Vec<f64> = pixels
-        .iter()
-        .filter(|pixel| {
-            pixel.galactic_lat.value().abs() <= 30.0 && pixel.galactic_lon.value() <= 10.0
-        })
-        .map(|pixel| pixel.integrated.value())
-        .collect();
-    let high: Vec<f64> = pixels
-        .iter()
-        .filter(|pixel| {
-            pixel.galactic_lat.value().abs() <= 30.0 && pixel.galactic_lon.value() >= 350.0
-        })
-        .map(|pixel| pixel.integrated.value())
-        .collect();
+    let mut plane = Vec::new();
+    let mut pole = Vec::new();
+    let mut low = Vec::new();
+    let mut high = Vec::new();
+    for (index, pixel) in pixels.iter().enumerate() {
+        let (lon, lat) = healpix_pixel_lon_lat_deg(grid, HealpixIndex::new(index as u64))?;
+        let value = pixel.integrated.value();
+        if lat.abs() <= 10.0 {
+            plane.push(value);
+        }
+        if lat.abs() >= 60.0 {
+            pole.push(value);
+        }
+        if lat.abs() <= 30.0 && lon <= 10.0 {
+            low.push(value);
+        }
+        if lat.abs() <= 30.0 && lon >= 350.0 {
+            high.push(value);
+        }
+    }
     let plane_mean = mean(&plane)?;
     let pole_mean = mean(&pole)?;
     let ratio = if pole_mean == 0.0 {
@@ -468,6 +438,7 @@ fn validate_integrated_values(pixels: &[StarlightPixel]) -> Result<()> {
 }
 
 fn validate_integrated_flux_conservation(
+    grid: HealpixGrid,
     pixels: &[StarlightPixel],
     expected_flux: PixelIntegratedPhotonFlux,
     tolerance: f64,
@@ -482,9 +453,10 @@ fn validate_integrated_flux_conservation(
             "integrated_flux_conservation_tolerance must be finite and non-negative",
         ));
     }
+    let solid_angle = Steradians::new(grid.pixel_area_sr());
     let actual_flux: PixelIntegratedPhotonFlux = pixels
         .iter()
-        .map(|pixel| pixel.integrated * pixel.solid_angle)
+        .map(|pixel| pixel.integrated * solid_angle)
         .sum();
     let scale = expected_flux
         .abs()
