@@ -1,3 +1,4 @@
+use nsb_data_tools::starlight::conditions::verify_review_bundle_evidence;
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -36,10 +37,6 @@ fn sha256_file(path: &Path) -> String {
 fn decision_bundle_pin(path: &Path) -> (String, String) {
     let raw = fs::read_to_string(path).unwrap();
     let decision: JsonValue = serde_json::from_str(&raw).unwrap();
-    assert_eq!(decision["decision"].as_str(), Some("pending"));
-    assert!(decision["reviewer_name"].is_null());
-    assert!(decision["reviewer_role"].is_null());
-    assert!(decision["reviewed_at_utc"].is_null());
     let candidate = decision["candidate_sha256"]
         .as_str()
         .expect("decision candidate_sha256")
@@ -71,6 +68,8 @@ fn frozen_review_bundle_pins_exact_human_evidence() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let bundle_path = root.join(REVIEW_BUNDLE_PATH);
     assert_eq!(sha256_file(&bundle_path), REVIEW_BUNDLE_SHA256);
+    verify_review_bundle_evidence(&root, Path::new(REVIEW_BUNDLE_PATH))
+        .expect("review bundle and every transitively pinned validation artifact must verify");
 
     let raw = fs::read_to_string(&bundle_path).unwrap();
     let bundle: TomlValue = toml::from_str(&raw).unwrap();
