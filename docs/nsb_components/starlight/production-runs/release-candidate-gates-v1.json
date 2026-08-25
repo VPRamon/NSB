@@ -4,7 +4,9 @@
   "status": "gates_passed",
   "passed": true,
   "blocking_issue": null,
-  "commit_sha": null,
+  "commit_sha": "4cfb7f539d53150ea9d251767e803c91e746c623",
+  "workflow_run_id": 32726699659,
+  "workflow_run_url": "https://github.com/VPRamon/NSB/actions/runs/32726699659",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
   "candidate_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
   "merge_report_path": "crates/nsb/data/merge_report.json",
@@ -13,9 +15,12 @@
   "config_sha256": "fffaa792c3009909df10e4ed40235f1f541c111fb19e2e512ab45d6b1e7c9455",
   "manifest_path": "crates/nsb/data/manifest.toml",
   "manifest_sha256": "ae917e66c27a9715963ff42693a5c13859dae941e7669e7877b7cf01172aff99",
+  "photometric_inference_artifact_sha256": "ad23fe327b3cbb75167ffe47a00dc8bcbb63d72f9e5a1b19f32171dda5fd680d",
+  "selection_function_artifact_sha256": "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711",
   "uv_correction_artifact": "calspec-linear-log-ratio-v2",
   "uv_correction_artifact_sha256": "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367",
   "toolchain": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "msrv": "1.89",
   "invalidated_candidate": {
     "reason": "UV artifact calspec-linear-log-ratio-v1 applied absolute CALSPEC RMSE floors (~1e19 ph m-2 s-1) per Gaia source.",
     "reference_issue": 94,
@@ -29,34 +34,81 @@
     {
       "name": "format",
       "command": "cargo fmt --all -- --check",
-      "status": "passed"
+      "status": "passed",
+      "ci_job": "Format"
     },
     {
-      "name": "clippy_nsb_data_tools",
-      "command": "cargo clippy -p nsb-data-tools --lib --bins --tests --all-features --locked -- -D warnings",
-      "status": "passed"
+      "name": "check",
+      "command": "cargo check --workspace --lib --bins --tests --examples --all-features --locked",
+      "status": "passed",
+      "ci_job": "Check (all features)"
+    },
+    {
+      "name": "clippy",
+      "command": "cargo clippy --workspace --lib --bins --tests --examples --all-features --locked -- -D warnings",
+      "status": "passed",
+      "ci_job": "Clippy (all features)"
     },
     {
       "name": "unit_tests",
       "command": "cargo test --workspace --lib --bins --all-features --locked",
-      "status": "passed"
+      "status": "passed",
+      "ci_job": "Unit tests"
     },
     {
-      "name": "verify_assets",
-      "command": "cargo test --locked -p nsb-data-tools --test scientific_assets",
-      "status": "passed"
+      "name": "runtime_integration_tests",
+      "command": "cargo test --locked -p nsb --tests --all-features",
+      "status": "passed",
+      "ci_job": "Runtime integration tests"
+    },
+    {
+      "name": "cli_tests",
+      "command": "cargo test --locked -p nsb-cli --tests --all-features",
+      "status": "passed",
+      "ci_job": "CLI integration tests"
+    },
+    {
+      "name": "data_tools_tests",
+      "command": "cargo test --locked -p nsb-data-tools --tests --all-features",
+      "status": "passed",
+      "ci_job": "Data tools and scientific assets"
+    },
+    {
+      "name": "doctests",
+      "command": "cargo test --workspace --doc --all-features --locked",
+      "status": "passed",
+      "ci_job": "Doctests"
+    },
+    {
+      "name": "documentation",
+      "command": "cargo doc --workspace --all-features --no-deps --locked",
+      "status": "passed",
+      "ci_job": "Documentation"
+    },
+    {
+      "name": "release_build",
+      "command": "cargo build --workspace --release --all-features --locked",
+      "status": "passed",
+      "ci_job": "Release build"
+    },
+    {
+      "name": "cargo_deny",
+      "command": "cargo deny check",
+      "status": "passed",
+      "ci_job": "Dependency policy",
+      "detail": "Executed on GitHub Actions via EmbarkStudios/cargo-deny-action@v2 in workflow run 32726699659"
+    },
+    {
+      "name": "msrv",
+      "command": "cargo check --workspace --lib --bins --locked",
+      "status": "passed",
+      "ci_job": "Rust 1.89 workspace check"
     },
     {
       "name": "dataset_starlight_validate",
       "command": "nsb-data dataset starlight validate (Ladon workspace starlight-production-300-650-uv-v2)",
       "status": "passed",
       "detail": "includes uncertainty-scale-plausible; pixel_relative_p50=0.243; fraction_gt_1=0"
-    },
-    {
-      "name": "cargo_deny",
-      "command": "cargo deny check",
-      "status": "skipped",
-      "detail": "cargo-deny not installed on the recording workstation"
     }
   ],
   "starlight_suites": [
@@ -70,5 +122,7 @@
   "performance_reference": "docs/nsb_components/starlight/production-runs/performance-v1.json",
   "documentation_audit_reference": "docs/nsb_components/starlight/production-runs/documentation-wording-audit-v1.md",
   "promotion_workflow": ".github/workflows/starlight-final-promotion.yml",
-  "notes": "Technical RC gates for the UV v2 candidate. Independent validation (#87) versus Leinert 1998 ISL failed preregistered numerical tolerances (see docs/nsb_components/starlight/validation/results/); that is scientific evidence for #47, not a reason to flip this file's passed flag which records pipeline/validate/fmt/test locks on the new bytes. promotion_eligible remains false until #47 signatures."
+  "evidence_class": "candidate_generation_ci",
+  "evidence_pr": 101,
+  "notes": "Candidate-generation CI evidence from GitHub Actions run 32726699659 on commit 4cfb7f539d53150ea9d251767e803c91e746c623 (PR #101 merge lineage). This report does not attest runtime packing or promotion code introduced in PR #104; packing/promotion must be green on #104 itself. Independent validation is not a numeric PASS: Toller, Leinert, and GAMBONS are acquired and not-admissible (no_admissible_independent_reference). That scientific judgment belongs to #103. Pipeline validation_status=technical_pass is generation/CI lock evidence only. Eligibility is derived from these gates plus the two signed #103 decisions; gates.promotion_eligible is report-only."
 }

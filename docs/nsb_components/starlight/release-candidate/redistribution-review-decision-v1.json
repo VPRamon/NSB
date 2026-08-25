@@ -5,6 +5,20 @@
   "reviewer_role": null,
   "reviewed_at_utc": null,
   "candidate_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
-  "conditions": [],
-  "notes": "Template only, owned by issue #47. An authorized human reviewer fills reviewer_name, reviewer_role, reviewed_at_utc, and sets decision to approved | approved_with_conditions | rejected after reviewing the redistribution package (issue #88) for the exact candidate_sha256 pinned above. Do not change candidate_sha256 here unless #94/#95 have already published a regenerated candidate and docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml has been updated to match; nsb-data dataset starlight promote fails closed on a mismatch."
+  "inventory_sha256": "663357777fd841298879065475a69ad0d7083bf2a32077875a0d65239c0e98a2",
+  "review_bundle_sha256": "11462446b2aa37774a5e10a45021f36396602b7c1d6921532c4ba749f4fe2253",
+  "pinned_artifacts": [],
+  "conditions": [
+    {
+      "id": "review-bundle-v1",
+      "description": "Pin the immutable Starlight #103 human-review evidence bundle.",
+      "verifier": {
+        "type": "repository_file_sha256",
+        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
+        "sha256": "11462446b2aa37774a5e10a45021f36396602b7c1d6921532c4ba749f4fe2253"
+      }
+    }
+  ],
+  "restrictions": [],
+  "notes": "Template only, owned by issue #103. This is the single authoritative redistribution decision record consumed by both promotion and licensing checks. Keep candidate_sha256, inventory_sha256, review_bundle_sha256, and the review-bundle-v1 condition pinned to the same frozen evidence unless a new review bundle is deliberately published. Additional approved_with_conditions entries must be structured machine-verifiable conditions; free-text conditions block automatic promotion. Do not fill reviewer_name/reviewer_role/reviewed_at_utc or change decision away from pending outside the #103 human process."
 }

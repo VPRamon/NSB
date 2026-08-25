@@ -28,17 +28,17 @@ bytes = 20394694
 [[artifacts]]
 name = "validation-results-v1.json"
 path = "docs/nsb_components/starlight/validation/results/validation-results-v1.json"
-sha256 = "1902b29d8bf47250b64da9eef01522e3d0b28a0119c5d6a14740348d2378fa59"
-bytes = 2500
+sha256 = "7ad6db10836e044bbf74202b3dbe9dd78aecd7e8c4ea2d6b182d147f3e9037c8"
+bytes = 2689
 
 [[artifacts]]
 name = "validation-report-v1.md"
 path = "docs/nsb_components/starlight/validation/results/validation-report-v1.md"
-sha256 = "9b27615bad1f3749105f707d51433d88b66cf1ac3b5c48254b17aec509f7e4b6"
-bytes = 2135
+sha256 = "17e2e689534931a04d3614456455157b908d2da9743de9c5f820306871e339cb"
+bytes = 2314
 
 [[artifacts]]
 name = "validation-report-v1.html"
 path = "docs/nsb_components/starlight/validation/results/validation-report-v1.html"
-sha256 = "208c13e290e6fe8474350823f4c0eb21987aed020c8e8eb4e2af99076c807afa"
-bytes = 1732
+sha256 = "5eda03774784b77425ba8202795c44b67f3687fc47eff2c8bedc911780d97611"
+bytes = 1921

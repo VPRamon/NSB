@@ -82,3 +82,24 @@ Admission verifies complete Galactic HEALPix coverage, finite/nonnegative
 values, plane/pole V-S10 ratio of at least 1, and longitude-seam relative jump
 of at most 1. These construction diagnostics do not replace review of the
 external calibration and license evidence.
+
+Optional Gaia packed-runtime provenance (required when `[source_candidate]`
+is present):
+
+```toml
+[source_candidate]
+sha256 = "<derived candidate SHA-256>"
+
+[[upstream_inputs]]
+id = "gaia-source"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+
+[[upstream_inputs]]
+id = "xp-continuous"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+```
+
+`source_catalogue_checksum` must identify an upstream catalogue acquisition
+manifest. It must not repeat `source_candidate.sha256`.

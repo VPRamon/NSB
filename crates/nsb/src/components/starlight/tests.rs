@@ -107,7 +107,7 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
         assert_eq!(provenance.calibration_status.as_deref(), Some("production"));
         assert_eq!(
             provenance.photometry_model.as_deref(),
-            Some("gaia_dr3_xp_photon_radiance_336_650nm_v1")
+            Some("gaia_dr3_xp_photon_radiance_300_650nm_packed_v1")
         );
         assert!(model.map().pixels().len() > 12);
     } else {
@@ -153,6 +153,38 @@ fn healpix_v2_uncertainties_parse_and_survive_lookup() {
     assert_eq!(output.systematic_uncertainty.unwrap().value(), 1.6);
     assert_eq!(output.total_uncertainty.unwrap().value(), 2.0);
     assert_eq!(output.relative_uncertainty(), Some(0.25));
+}
+
+#[test]
+fn packed_candidate_header_loads_without_invented_s10() {
+    let mut raw = String::from(concat!(
+        "# map_type=healpix\n",
+        "# nside=1\n",
+        "# ordering=ring\n",
+        "# coordinate_frame=galactic\n",
+        "# s10_diagnostics=not_provided\n",
+        "healpix_index,integrated_ph_cm2_ns_sr,",
+        "statistical_uncertainty_ph_cm2_ns_sr,",
+        "systematic_uncertainty_ph_cm2_ns_sr,",
+        "total_uncertainty_ph_cm2_ns_sr\n",
+    ));
+    for index in 0..12 {
+        let integrated = if index == 11 { 0.0 } else { index as f64 + 1.0 };
+        raw.push_str(&format!(
+            "{index},{integrated},{stat},{sys},{tot}\n",
+            stat = integrated * 0.1,
+            sys = integrated * 0.2,
+            tot = integrated * 0.25
+        ));
+    }
+    let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
+    let occupied = map.lookup(map.pixels()[0].galactic_lon, map.pixels()[0].galactic_lat);
+    assert_eq!(occupied.integrated.value(), 1.0);
+    assert!(!occupied.s10_diagnostics_provided);
+    assert_eq!(occupied.b_flux_s10.value(), 0.0);
+    let omitted = &map.pixels()[11];
+    assert_eq!(omitted.integrated.value(), 0.0);
+    assert_eq!(omitted.total_uncertainty.unwrap().value(), 0.0);
 }
 
 #[test]

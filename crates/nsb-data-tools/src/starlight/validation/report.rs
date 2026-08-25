@@ -27,10 +27,13 @@ pub struct ValidationResults {
     pub reference_results: Vec<ReferenceValidationResult>,
     pub technical_gates_passed: bool,
     pub technical_gate_failures: Vec<String>,
-    /// Always `"pending"`. Set only by the human review recorded against #47.
+    /// Always `"pending"`. Set only by the human review recorded against #103.
     pub scientific_review_status: String,
     /// Always `false`. This pipeline never asserts scientific validation.
     pub scientifically_validated: bool,
+    /// Machine-readable independent-reference outcome for human review (#103).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub independent_reference_status: Option<String>,
     pub notes: String,
 }
 
@@ -104,7 +107,7 @@ pub fn render_markdown(results: &ValidationResults) -> String {
     let _ = writeln!(out);
     let _ = writeln!(
         out,
-        "`scientific_review_status = \"{}\"`, `scientifically_validated = {}`. This pipeline never marks a candidate as scientifically validated on its own; that decision is recorded only by a qualified human scientist in issue #47.",
+        "`scientific_review_status = \"{}\"`, `scientifically_validated = {}`. This pipeline never marks a candidate as scientifically validated on its own; that decision is recorded only by a qualified human scientist in issue #103.",
         results.scientific_review_status, results.scientifically_validated
     );
     let _ = writeln!(out);
@@ -123,6 +126,9 @@ pub fn render_markdown(results: &ValidationResults) -> String {
             let _ = writeln!(out, "- {failure}");
         }
     }
+    if let Some(status) = &results.independent_reference_status {
+        let _ = writeln!(out, "\n`independent_reference_status = {status}`");
+    }
     let _ = writeln!(out);
     let _ = writeln!(out, "## Reference status");
     let _ = writeln!(out);
@@ -138,7 +144,7 @@ pub fn render_markdown(results: &ValidationResults) -> String {
     if results.reference_results.is_empty() {
         let _ = writeln!(
             out,
-            "\nNo reference produced computed metrics in this run: all references are pending acquisition, or acquired but not yet transformed onto the candidate grid. No metrics were invented to fill this gap."
+            "\nNo reference produced computed metrics in this run. Acquired literature targets may be not-admissible rather than unacquired; see `independent_reference_status`. No metrics were invented to fill this gap."
         );
     } else {
         for reference in &results.reference_results {
@@ -220,6 +226,13 @@ pub fn render_html(results: &ValidationResults) -> String {
         "<p>scientifically_validated = {}</p>",
         results.scientifically_validated
     );
+    if let Some(status) = &results.independent_reference_status {
+        let _ = writeln!(
+            out,
+            "<p>independent_reference_status = {}</p>",
+            html_escape(status)
+        );
+    }
     let _ = writeln!(
         out,
         "<p>candidate_map_sha256 = <code>{}</code></p>",
@@ -285,6 +298,7 @@ mod tests {
             technical_gate_failures: vec!["no acquired reference data available".to_string()],
             scientific_review_status: "pending".to_string(),
             scientifically_validated: false,
+            independent_reference_status: Some("no_admissible_independent_reference".to_string()),
             notes: "technical scaffolding".to_string(),
         };
         results.assert_never_scientifically_validated();

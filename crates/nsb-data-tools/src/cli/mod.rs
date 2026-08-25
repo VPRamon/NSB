@@ -100,10 +100,12 @@ enum StarlightAction {
     Build(CommonArgs),
     Validate(CommonArgs),
     Publish(CommonArgs),
-    /// Independent validation pipeline for issue #87 (acquire references, run comparisons).
+    /// Independent validation pipeline for issue #102 (acquire references, run comparisons).
     Validation(StarlightValidationArgs),
-    /// Verify a release-candidate manifest and both human decisions, then
-    /// draft (but never apply) the production manifest change (#89).
+    /// Pack a frozen candidate-v5 map into a runtime-loadable HEALPix CSV (#102).
+    Pack(PackArgs),
+    /// Verify a release-candidate manifest and both human decisions, pack a
+    /// runtime map, and draft (or `--apply`) the production registry change (#102).
     Promote(PromoteArgs),
 }
 
@@ -195,6 +197,28 @@ struct PromoteArgs {
     /// Optional path to write the draft production manifest fragment.
     #[arg(long)]
     output: Option<PathBuf>,
+    /// Write packed runtime assets and production registry entries.
+    #[arg(long, default_value_t = false)]
+    apply: bool,
+}
+
+#[derive(Debug, Args)]
+struct PackArgs {
+    /// Sparse candidate-v5 HEALPix CSV. Bytes are never rewritten.
+    #[arg(long)]
+    candidate_map: PathBuf,
+    /// Expected SHA-256 of the candidate file.
+    #[arg(long)]
+    expected_sha256: String,
+    /// HEALPix nside of the candidate.
+    #[arg(long)]
+    nside: u32,
+    /// Output packed runtime CSV path.
+    #[arg(long)]
+    output_csv: PathBuf,
+    /// Output pack sidecar TOML path.
+    #[arg(long)]
+    output_sidecar: PathBuf,
 }
 
 fn parse_source_override(raw: &str) -> Result<(String, String), String> {
@@ -326,6 +350,7 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
         StarlightAction::Validate(args) => (Operation::Validate, args),
         StarlightAction::Publish(args) => (Operation::Publish, args),
         StarlightAction::Validation(args) => return execute_starlight_validation(args),
+        StarlightAction::Pack(args) => return pack_starlight(args),
         StarlightAction::Promote(args) => return promote(args),
     };
     dataset::execute(
@@ -451,6 +476,26 @@ fn execute_starlight_validation(args: StarlightValidationArgs) -> Result<()> {
     }
 }
 
+fn pack_starlight(args: PackArgs) -> Result<()> {
+    let outcome =
+        crate::starlight::pack::pack_candidate_map(&crate::starlight::pack::PackInputs {
+            candidate_map: args.candidate_map,
+            expected_candidate_sha256: args.expected_sha256,
+            expected_nside: args.nside,
+            output_csv: args.output_csv,
+            output_sidecar: args.output_sidecar,
+            provenance_headers: BTreeMap::new(),
+        })?;
+    println!(
+        "packed runtime map sha256={} sidecar sha256={} occupied={} omitted={}",
+        outcome.runtime_map_sha256,
+        outcome.runtime_sidecar_sha256,
+        outcome.occupied_pixels,
+        outcome.omitted_pixels
+    );
+    Ok(())
+}
+
 fn promote(args: PromoteArgs) -> Result<()> {
     let inputs = crate::starlight::promotion::PromotionInputs {
         release_candidate: args.release_candidate,
@@ -458,6 +503,7 @@ fn promote(args: PromoteArgs) -> Result<()> {
         redistribution_decision: args.redistribution_decision,
         repository_root: args.repository_root,
         output: args.output,
+        apply: args.apply,
     };
     let outcome = crate::starlight::promotion::run_promotion(&inputs)?;
     match &outcome.written_to {
@@ -471,7 +517,19 @@ fn promote(args: PromoteArgs) -> Result<()> {
         }
     }
     println!(
-        "no map bytes or repository manifest.toml were modified; a maintainer must apply this draft manually as part of the #47 promotion PR"
+        "packed runtime map sha256={} sidecar sha256={}",
+        outcome.runtime_map_sha256, outcome.runtime_sidecar_sha256
     );
+    if outcome.applied {
+        println!(
+            "applied production registry entries for {} and {}",
+            outcome.runtime_map_path.display(),
+            outcome.runtime_sidecar_path.display()
+        );
+    } else {
+        println!(
+            "candidate map bytes were not modified; pass --apply after #103 signatures to write production registry entries"
+        );
+    }
     Ok(())
 }

@@ -1,6 +1,6 @@
 # Starlight redistribution artifact inventory (schema v1)
 #
-# Technical scope of #88 (parent tracker #47). This inventory lists every
+# Technical scope of #88 (parent tracker #103). This inventory lists every
 # input, generated artifact, sidecar, manifest, and report that participates
 # in the Starlight 300-650 nm candidate so a fail-closed reviewer, and later
 # `nsb-data starlight licensing check` (see the Rust contract in
@@ -9,7 +9,7 @@
 #
 # This file records facts only. It does not grant redistribution approval.
 # The human decision is recorded separately in
-# redistribution-review-decision-v1.json and stays owned by #47.
+# redistribution-review-decision-v1.json and stays owned by #103.
 #
 # Field semantics:
 #   id                    stable identifier, referenced by the decision file
@@ -50,11 +50,10 @@ channels = []
 notes = """
 NSB acquires but never redistributes raw GaiaSource bulk partitions. The
 upstream checksum-manifest digest is pinned in
-crates/nsb-data-tools/config/starlight-production.toml
-(checksum_manifest_sha256 = 9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369,
-3386 expected partitions); individual partition files carry official MD5
-values from that manifest, not a single artifact digest. The CC BY-NC 3.0 IGO
-non-commercial clause is the central open question for #88/#47 because it
+crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml
+(and the matching checksum inventories also referenced by
+starlight-production.toml). The CC BY-NC 3.0 IGO
+non-commercial clause is the central open question for #88/#103 because it
 constrains any derived product built from this input.
 """
 
@@ -73,6 +72,38 @@ Same acquisition-only policy as gaia-source-bulk. Checksum-manifest digest
 pinned in crates/nsb-data-tools/config/starlight-production.toml
 (checksum_manifest_sha256 = f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd,
 3386 expected partitions).
+"""
+
+[[artifacts]]
+id = "gaia-source-checksum-manifest"
+category = "upstream-catalogue-checksum-manifest"
+source = "ESA Gaia Archive CDN GaiaSource _MD5SUM.txt"
+release = "Gaia DR3"
+license = "Gaia data licence (CC BY-NC 3.0 IGO)"
+license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+sha256 = "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+distribution_class = "download_only"
+distributed = false
+channels = []
+notes = """
+Acquisition-manifest digest pinned by starlight-production-300-650.ladon.toml.
+This is not the derived candidate SHA-256. Bytes are not redistributed.
+"""
+
+[[artifacts]]
+id = "gaia-xp-continuous-checksum-manifest"
+category = "upstream-catalogue-checksum-manifest"
+source = "ESA Gaia Archive CDN XP continuous _MD5SUM.txt"
+release = "Gaia DR3"
+license = "Gaia data licence (CC BY-NC 3.0 IGO)"
+license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+sha256 = "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+distribution_class = "download_only"
+distributed = false
+channels = []
+notes = """
+Acquisition-manifest digest pinned by starlight-production-300-650.ladon.toml.
+This is not the derived candidate SHA-256. Bytes are not redistributed.
 """
 
 # --- Upstream reference datasets used only for offline training -----------
@@ -103,17 +134,19 @@ source = "Cantat-Gaudin et al. (2023) empirical Gaia DR3 selection function / M1
 release = "2023 (DOI 10.1051/0004-6361/202244784)"
 license = "CC-BY-4.0"
 license_url = "https://doi.org/10.1051/0004-6361/202244784"
+sha256 = "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711"
 distribution_class = "download_only"
 distributed = false
 channels = []
 notes = """
-CC-BY-4.0 permits redistribution with attribution. No production
-selection-function artifact has been trained or checked in yet:
-starlight.selection_function remains unset in
-crates/nsb-data-tools/config/starlight-production.toml. The pipeline already
-records the intended admission policy id
-gaia-dr3-selection-function-cantat-gaudin-v1 in merge_report.json even though
-no artifact has been pinned.
+CC-BY-4.0 permits redistribution with attribution. The UV-v2 Ladon production
+run pins a selection-function artifact at BeeGFS
+/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/selection-artifact.json
+with SHA-256
+1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711
+(starlight-production-300-650.ladon.toml). Bytes remain download_only /
+distributed = false. Merge report population_correction.applied = true with
+policy gaia-dr3-selection-function-cantat-gaudin-v1.
 """
 
 # --- Generated calibration artifacts (NSB-trained, checksum-pinned) -------
@@ -122,15 +155,19 @@ no artifact has been pinned.
 id = "starlight-photometric-inference-artifact"
 category = "generated-calibration-artifact"
 source = "NSB-trained non-XP photometric inference model (crates/nsb-data-tools/src/starlight/photometric.rs contract)"
-release = "not yet produced"
-license = "no artifact exists yet; once trained it will inherit NSB's source licence (AGPL-3.0-only, see README.md#Licensing) plus the attributions of whatever reference photometry trained it"
+release = "Ladon UV-v2 production pin"
+license = "NSB-derived model artifact (AGPL-3.0-only source licence, see README.md#Licensing) plus attributions of the photometry that trained it"
+sha256 = "ad23fe327b3cbb75167ffe47a00dc8bcbb63d72f9e5a1b19f32171dda5fd680d"
 distribution_class = "generated_derived_output"
 distributed = false
 channels = []
 notes = """
-starlight.photometric_inference remains unset in
-crates/nsb-data-tools/config/starlight-production.toml. Blocked pending
-trained coefficients per docs/nsb_components/starlight/science-requirements.md.
+Pinned by crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml
+at BeeGFS
+/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/photometric-artifact.json.
+Bytes are not git-embedded (distributed = false). The measured-only default
+starlight-production.toml still leaves photometric_inference unset; that is
+not the published UV-v2 candidate configuration.
 """
 
 [[artifacts]]
@@ -174,7 +211,7 @@ digest is embedded in the map header and merge_report.json.
 [[artifacts]]
 id = "starlight-independent-validation-reference"
 category = "independent-validation-evidence"
-source = "Leinert et al. 1998 ISL analytic model (admissible transform); Toller 1981 Pioneer poles and Masana 2021 GAMBONS PDF acquired but not admissible as starlight-only grids"
+source = "Acquired literature targets (Toller 1981 Pioneer poles, Leinert 1998 ISL paper, Masana 2021 GAMBONS); none is an admissible starlight-only TOA 300-650 nm grid"
 release = "validation results against UV v2 candidate; technical_gates_passed = false"
 license = "see references-v1.toml per reference"
 distribution_class = "documentation_reference"
@@ -186,7 +223,7 @@ Technical package lives under docs/nsb_components/starlight/validation/.
 Run reports are in validation/results/. All three acquired references are
 marked not-admissible as starlight-only TOA 300-650 nm grids (Toller
 ISL+DGL+EBL; Leinert Gaussian parameters unpublished; GAMBONS mixed sky).
-Scientific sign-off remains #47.
+Scientific sign-off remains #103.
 """
 
 # --- Currently distributed repository-embedded artifacts -------------------
@@ -196,20 +233,43 @@ id = "starlight-candidate-map-nside128"
 category = "generated-derived-output"
 source = "Derived from Gaia DR3 GaiaSource + XP continuous bulk products via the NSB pipeline (nsb-data dataset starlight publish)"
 release = "candidate v5 (nsb-healpix-starlight-candidate-v5); UV v2 Ladon rebuild"
-license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml; whether the CC BY-NC 3.0 IGO non-commercial clause permits NSB's intended redistribution channels is the open legal/scientific question #88/#47 must resolve"
+license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml; whether the CC BY-NC 3.0 IGO non-commercial clause permits NSB's intended redistribution channels is the open legal/scientific question #88/#103 must resolve"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
 sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
-tracking_issue = "#47"
+tracking_issue = "#103"
 notes = """
 Path: crates/nsb/data/starlight_nside128.csv. calibration_status = candidate,
 runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
-redistribution decision remains pending in #47. The invalidated #93 digest
+redistribution decision remains pending in #103. The invalidated #93 digest
 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
 historical only.
+
+The packed RING production-admission runtime CSV is generated by
+`nsb-data dataset starlight pack`/`promote` (not git-embedded until #103).
+SHA-256
+82ff5820ba4deca5e3e544b562341746e8623e06103e98cdad4ea6132ef103c4.
+"""
+
+[[artifacts]]
+id = "starlight-packed-runtime-map-nside128"
+category = "generated-derived-output"
+source = "Packed RING runtime map derived from starlight-candidate-map-nside128 by nsb-data dataset starlight pack/promote"
+release = "nsb-healpix-starlight-v2 packed from UV-v2 candidate; production admission headers"
+license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO); redistribution remains #103"
+license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+sha256 = "82ff5820ba4deca5e3e544b562341746e8623e06103e98cdad4ea6132ef103c4"
+distribution_class = "generated_derived_output"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+Not committed in git (size). Produced deterministically from the frozen
+candidate. Distinct from GaiaSource/XP acquisition-manifest digests and from
+the candidate SHA-256. Human redistribution approval remains #103.
 """
 
 [[artifacts]]
@@ -223,11 +283,11 @@ sha256 = "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
-tracking_issue = "#47"
+tracking_issue = "#103"
 notes = """
 Path: crates/nsb/data/merge_report.json. calibration_status = candidate,
 runtime_embedded = false. Checksum-linked to starlight-candidate-map-nside128
-UV v2. Human redistribution decision remains pending in #47.
+UV v2. Human redistribution decision remains pending in #103.
 """
 
 [[artifacts]]
@@ -256,7 +316,7 @@ category = "manifest"
 source = "NSB-authored checksum/provenance registry for bundled runtime assets"
 release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); contains no third-party bytes, only metadata describing third-party inputs"
-sha256 = "ae4ecda5a15f8905a7203cd2813235f6784162164c5beeef5e26713585f262df"
+sha256 = "ae917e66c27a9715963ff42693a5c13859dae941e7669e7877b7cf01172aff99"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -289,14 +349,12 @@ category = "report"
 source = "NSB-generated validation gate report for the candidate build"
 release = "schema_version = 2"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); reports only aggregate diagnostics, no raw third-party catalogue bytes"
-sha256 = "abe88cb8c9d5a8bdde4b0c2f29f65f72678d3d7a38ee2ffcf02b00515eed6dab"
+sha256 = "b2d7923fb5d244a9988c5449881d58a858945cdb42640c62ed76c5bac0a2cc99"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
-tracking_issue = "#47"
+tracking_issue = "#103"
 notes = """
 Path: docs/nsb_components/starlight/production-runs/combined-300-650-validation.json.
-Records the same candidate/report checksums as
-starlight-candidate-map-nside128 and starlight-merge-report and must be
-regenerated alongside them if the candidate is rebuilt under #94.
+Records the UV-v2 candidate/report checksums. Human scientific review is #103.
 """

@@ -5,12 +5,27 @@ Audience: Maintainers, scientific reviewers, and users auditing bundled data.
 
 ## Active Gaia DR3 candidate
 
-The current dataset version publishes exactly one Gaia-derived candidate map:
+The current dataset version publishes exactly one Gaia-derived candidate map
+(UV-v2, Ladon production run):
 
 | Artifact | Role | SHA-256 |
 | --- | --- | --- |
-| `starlight_nside128.csv` | Canonical source-level Gaia accumulation | `4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657` |
-| `merge_report.json` | Legacy v4 map, population, policy, checksum, and single-pixel deterministic evidence | `333ec450a9f38bb59e7cd832a622a66082962de51e90e65eaf9699529b2044e0` |
+| `starlight_nside128.csv` | Canonical source-level Gaia accumulation, 300–650 nm | `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563` |
+| `merge_report.json` | Map, population, policy, checksum, and deterministic merge evidence | `e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228` |
+
+Schema `nsb-healpix-starlight-candidate-v5`, nside 128 NESTED sparse, UV model
+`calspec-linear-log-ratio-v2`. Photometric-inference and selection-function
+artifacts are pinned in `starlight-production-300-650.ladon.toml` and remain
+off-git. The candidate stays `calibration_status = "candidate"` and
+`runtime_embedded = false` until issue #103 signs and the promotion workflow
+registers the packed runtime map.
+
+### Historical nside-128 candidate (superseded)
+
+The previous published candidate used SHA-256
+`4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657` (merge
+`333ec450a9f38bb59e7cd832a622a66082962de51e90e65eaf9699529b2044e0`). That
+map integrated 336–650 nm without the UV-v2 correction.
 
 The nside-128 scientific rows are identical to the artifact first published by
 commit `6e515a6e7dc01b37594a765021d415fd5f7e768a`. PR #77 added the v2 physical

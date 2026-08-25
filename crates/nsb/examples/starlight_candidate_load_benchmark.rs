@@ -13,7 +13,7 @@
 //!    the `healpix_index,...` schema used by validated external/manual-seed
 //!    maps, not the `nsb-healpix-starlight-candidate-v5` schema
 //!    (`pixel,flux_ph_m2_s,...`) written by the Gaia production pipeline.
-//!    `StarlightModel::BundledProductionGaiaDr3` (issue #89) is expected to
+//!    `StarlightModel::BundledProductionGaiaDr3` (production registry pair) is expected to
 //!    add runtime support for that schema; this harness records whatever the
 //!    current behaviour actually is rather than assuming success.
 //! 2. A crude proxy: reading the file and iterating every CSV row with the

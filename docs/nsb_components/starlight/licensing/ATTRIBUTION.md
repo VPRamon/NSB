@@ -5,7 +5,7 @@ generated artifacts.
 Audience: redistribution reviewers, maintainers, and downstream integrators.
 Scope: attribution wording only. Licence review, distribution classification,
 and checksums live in [`artifact-inventory-v1.toml`](artifact-inventory-v1.toml).
-The human redistribution decision is recorded only in issue #47 (see
+The human redistribution decision is recorded only in issue #103 (see
 [`README.md`](README.md)).
 
 This document does not itself authorize redistribution. It records the
@@ -24,7 +24,7 @@ once a channel is authorized.
 Gaia DR3 GaiaSource and XP continuous mean spectrum bulk products are
 licensed under the Gaia data licence (CC BY-NC 3.0 IGO):
 <https://www.cosmos.esa.int/web/gaia-users/license>. This licence's
-non-commercial clause is the specific open question tracked by #88/#47 for
+non-commercial clause is the specific open question tracked by #103 for
 any output derived from Gaia bulk data, including
 `starlight_nside128.csv` and `merge_report.json`.
 
@@ -44,10 +44,10 @@ Primary references:
 > Astronomy & Astrophysics, DOI `10.1051/0004-6361/202244784`.
 
 Licensed CC-BY-4.0. Attribution to the original authors and DOI above is
-required in any redistributed product derived from this selection function,
-once a production selection-function artifact exists (see
-`gaia-selection-function-cantat-gaudin` in the artifact inventory; no such
-artifact has been trained or checked in yet).
+required in any redistributed product derived from this selection function.
+The UV-v2 candidate pins a BeeGFS-only selection-function artifact (see
+`gaia-selection-function-cantat-gaudin` in the artifact inventory;
+`distributed = false`).
 
 ## STScI CALSPEC
 

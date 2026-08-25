@@ -7,7 +7,7 @@
 //!
 //! Nothing in this module may ever set `scientifically_validated = true`.
 //! Human scientific approval of a specific checksum is recorded only in
-//! issue #47; this pipeline only produces technical evidence and a pending
+//! issue #103; this pipeline only produces technical evidence and a pending
 //! review template for that decision.
 
 pub mod acquire;

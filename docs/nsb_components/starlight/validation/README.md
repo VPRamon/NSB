@@ -1,10 +1,11 @@
-# Independent Starlight validation (issue #87)
+# Independent Starlight validation (issue #102)
 
-Status: Technical scaffolding. No reference has been acquired yet; no
-candidate checksum has been scientifically approved.
-Audience: Maintainers preparing evidence for the human review in #47.
-Scope: Acquiring checksum-pinned external references and comparing them
-against the integrated 300-650 nm Starlight candidate map.
+Status: Acquired literature targets are checksum-pinned and not admissible
+as starlight-only TOA 300–650 nm grids (`no_admissible_independent_reference`).
+Audience: Maintainers preparing evidence for the human review in #103.
+Scope: Checksum-pinned external references and independent comparison tooling
+against the integrated 300-650 nm Starlight candidate map when a
+scientifically admissible transform exists.
 
 ## Why this exists
 
@@ -20,7 +21,7 @@ completely different, independently published pipeline; see
 
 Nothing in this pipeline may ever set `scientifically_validated = true` or
 move `scientific_review_status` away from `"pending"`. Those decisions belong
-exclusively to a qualified human scientist recorded in issue #47.
+exclusively to a qualified human scientist recorded in issue #103.
 
 ## The frozen documents
 
@@ -28,17 +29,21 @@ exclusively to a qualified human scientist recorded in issue #47.
   from issue #87, the pinned candidate map path, and the metric vocabulary.
   Frozen before any reference is compared, so thresholds cannot be tuned
   after seeing results.
-- [`references-v1.toml`](references-v1.toml) — the reference registry. Every
-  entry starts `status = "pending-acquisition"` with no `sha256`; acquisition
-  is required before any of them can be used, and no checksum in this
+- [`references-v1.toml`](references-v1.toml) — the reference registry. Toller,
+  Leinert, and GAMBONS are already `status = "acquired"` with pinned
+  SHA-256 digests (`acquisition_required = false`). No checksum in this
   repository is ever invented.
 - [`regions-v1.json`](regions-v1.json) — reproducible sky-region formulas
   (latitude/longitude bands, cones, cone unions, and candidate-map-driven
   percentile selectors) evaluated fresh by `RegionEngine` against whichever
   candidate map and `nside` are actually supplied to `run`.
-- [`scientific-review-decision-v1.json`](scientific-review-decision-v1.json)
-  — the pending human-decision template. It is never filled in by this
-  pipeline; only a human, working from issue #47, edits a copy of it.
+
+This validation pipeline produces **technical evidence only**. The ONLY human
+scientific decision used for final promotion is:
+
+[`../release-candidate/scientific-review-decision-v1.json`](../release-candidate/scientific-review-decision-v1.json)
+
+No scientist should edit a second decision template under `validation/`.
 
 ## Workflow
 
@@ -56,25 +61,21 @@ and writes a receipt into `--workspace`. It fails closed: a checksum mismatch
 aborts with an error and writes no receipt, and it never fabricates a
 verified state.
 
-Every reference currently in `references-v1.toml` requires acquisition
-before it has a URL or local path; run with `--source <id>=<path-or-url>` to
-supply one, e.g.:
-
-```sh
-nsb-data dataset starlight validation acquire \
-  --references docs/nsb_components/starlight/validation/references-v1.toml \
-  --workspace path/to/validation-workspace \
-  --source leinert-1998-diffuse-night-sky-brightness=path/to/downloaded/table.csv
-```
+The three current registry entries are already acquired and checksum-pinned.
+Re-running `acquire` only re-verifies those pinned bytes (for example after
+refreshing a local workspace). Supply `--source <id>=<path-or-url>` only when
+re-acquiring an existing entry or registering a future reference.
 
 Acquiring a file only proves the *bytes* match a declared checksum. It does
-not, by itself, produce a comparable grid: each reference's raw data still
-needs a documented physical transformation (see `transformation_to_target`
-in `references-v1.toml`) into the 300-650 nm integrated photon-radiance
-convention, nside=128, NESTED HEALPix grid the candidate map uses. That
-transformation step is out of scope for this first PR (see "What's still
-missing" below); its output format is the `transformed-grid-v1.csv` file
-`run` looks for under `<references-workspace>/<reference-id>/`.
+not, by itself, produce a comparable grid. A documented physical
+transformation into the candidate's 300-650 nm integrated photon-radiance
+convention (nside=128, NESTED HEALPix) is required only when a reference is
+scientifically admissible as a starlight-only TOA comparison surface. No such
+transformation is pending for Toller, Leinert, or GAMBONS: each is already
+recorded `not-admissible`. A future scientifically admissible reference would
+need that transform before numeric metrics can be computed; its output format
+is the `transformed-grid-v1.csv` file `run` looks for under
+`<references-workspace>/<reference-id>/`.
 
 ### 2. Run the comparison
 
@@ -108,10 +109,14 @@ It writes three artifacts under `--output`:
   and output artifact for this invocation, recomputed independently rather
   than trusted from elsewhere.
 
-If a reference is acquired but not admissible (Toller Pioneer poles; GAMBONS),
-`run` records `not-admissible` and does not invent comparison numbers. The
-Leinert 1998 ISL analytic model is the admissible comparison; preregistered
-gates may still fail, and that failure is reported rather than retuned.
+If a reference is acquired but not admissible (Toller Pioneer poles; Leinert
+1998; GAMBONS), `run` records `not-admissible` and does not invent comparison
+numbers. Leinert et al. 1998 discusses a Gaussian representation / S10 anchor
+data, but the published material does not expose the parameters required to
+reconstruct the registered comparison surface without inventing an
+interpolation/model. It is therefore acquired for provenance only and is
+**not** an admissible independent numeric comparison grid. No reference in
+the current frozen evidence is a numeric PASS.
 
 HTML and Markdown reports are both written (`validation-report-v1.html` and
 `.md`).
@@ -120,25 +125,40 @@ HTML and Markdown reports are both written (`validation-report-v1.html` and
 
 Results against map `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`
 are stored in [`results/`](results/). All three acquired references are
-**not admissible** as starlight-only TOA 300–650 nm grids. `technical_gates_passed = false`.
-`scientifically_validated` remains false. Human review stays in #47.
+checksum-pinned and **not admissible** as starlight-only TOA 300–650 nm grids:
 
-## `scientific_review_status` stays `"pending"` until #47
+- Toller: not-admissible
+- Leinert: not-admissible
+- GAMBONS: not-admissible
+
+`independent_reference_status = no_admissible_independent_reference`.
+`reference_results = []`. `technical_gates_passed = false`.
+`scientifically_validated` remains false. No transformation is pending for
+these three references. That encoding is human-review evidence for #103, not
+a software defect and not a scientific PASS.
+
+## `scientific_review_status` stays `"pending"` until #103
 
 This pipeline produces *technical* evidence only: reproducible acquisition,
 frozen regions, computed metrics, and automatic gate evaluation against
 preregistered tolerances. Whether a specific candidate checksum is fit for
-production use is a scientific judgment made by a qualified human, recorded
-by hand in a copy of `scientific-review-decision-v1.json`, tracked in issue
-#47. No command in this pipeline, and no future automation built on top of
-it, should ever flip `scientific_review_status` to anything other than
-`"pending"` or set `scientifically_validated = true`.
+production use is a scientific judgment made by a qualified human and
+recorded only in:
+
+`docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json`
+
+tracked by issue #103. No command in this pipeline, and no future automation
+built on top of it, should ever flip `scientific_review_status` to anything
+other than `"pending"` or set `scientifically_validated = true`.
 
 ## What's still missing after the technical #87 package
 
 - **Human scientific decision.** `scientific_review_status` stays `"pending"`
-  in issue #47. Independent validation of the UV v2 candidate versus the
-  Leinert 1998 ISL model failed the preregistered numerical gates; see
-  [`results/`](results/). Do not retune those gates to force a pass.
+  in issue #103. Independent validation remains
+  `no_admissible_independent_reference`; see [`results/`](results/). Do not
+  invent unpublished Leinert parameters or retune preregistered gates to force
+  a pass.
 - Toller Pioneer, Leinert 1998, and GAMBONS remain acquired-but-not-admissible
-  (DGL/ZL/airglow inseparable, or unpublished Gaussian parameters).
+  (DGL/ZL/airglow inseparable, or unpublished Gaussian parameters). A numeric
+  transform would be needed only if a future scientifically admissible
+  reference appears.

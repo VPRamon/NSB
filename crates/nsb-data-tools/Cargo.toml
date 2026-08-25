@@ -24,8 +24,10 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
+siderust = { version = "0.11.0" }
 toml = "1.1.2"
 toml_edit = "0.23"
+tempfile = "3"
 
 [dev-dependencies]
-tempfile = "3"
+nsb = { version = "=0.1.0", path = "../nsb" }

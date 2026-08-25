@@ -15,6 +15,8 @@ pub struct StarlightOutputs {
     pub systematic_uncertainty: Option<BandPhotonRadiance>,
     /// Total one-sigma uncertainty of the integrated photon radiance.
     pub total_uncertainty: Option<BandPhotonRadiance>,
+    /// Whether B/V S10 columns were supplied by the map (false for packed candidate maps).
+    pub s10_diagnostics_provided: bool,
 }
 
 impl StarlightOutputs {
@@ -27,6 +29,7 @@ impl StarlightOutputs {
             statistical_uncertainty: None,
             systematic_uncertainty: None,
             total_uncertainty: None,
+            s10_diagnostics_provided: true,
         }
     }
 

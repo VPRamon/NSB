@@ -5,6 +5,16 @@
   "reviewer_role": null,
   "reviewed_at_utc": null,
   "candidate_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
-  "conditions": [],
-  "notes": "Template only, owned by issue #47. A qualified human scientist fills reviewer_name, reviewer_role, reviewed_at_utc, and sets decision to approved | approved_with_conditions | rejected after reviewing docs/nsb_components/starlight/validation/ evidence for the exact candidate_sha256 pinned above. Do not change candidate_sha256 here unless #94/#95 have already published a regenerated candidate and docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml has been updated to match; nsb-data dataset starlight promote fails closed on a mismatch."
+  "conditions": [
+    {
+      "id": "review-bundle-v1",
+      "description": "Pin the immutable Starlight #103 human-review evidence bundle.",
+      "verifier": {
+        "type": "repository_file_sha256",
+        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
+        "sha256": "11462446b2aa37774a5e10a45021f36396602b7c1d6921532c4ba749f4fe2253"
+      }
+    }
+  ],
+  "notes": "Template only, owned by issue #103. Fill reviewer fields and set decision to approved | approved_with_conditions | rejected. Keep the review-bundle-v1 condition unchanged: it cryptographically binds this decision to the exact candidate, merge report, CI gates, redistribution inventory, validation artifact manifest, release-candidate-v1.toml, and runtime-assets-v1.toml reviewed by the human. Additional approved_with_conditions entries must be structured machine-verifiable conditions; free-text conditions block automatic promotion. Supported verifiers: repository_file_sha256, candidate_sha256, runtime_map_sha256, inventory_sha256. Do not change candidate_sha256 or the review-bundle pin unless a new frozen review bundle is deliberately published before any human signs."
 }

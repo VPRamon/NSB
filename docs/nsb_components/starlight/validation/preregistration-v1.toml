@@ -27,7 +27,7 @@ Technical scaffolding for issue #87. This document, `references-v1.toml`, and
 against the candidate map, so that thresholds and region definitions cannot
 be tuned to make a specific candidate pass after the fact. Scientific
 production approval of a specific candidate checksum is recorded only in
-issue #47 and is never inferred from a `validation-results-v1.json` produced
+issue #103 and is never inferred from a `validation-results-v1.json` produced
 by this pipeline.
 """
 

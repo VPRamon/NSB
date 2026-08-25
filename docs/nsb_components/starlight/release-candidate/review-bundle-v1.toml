@@ -1,0 +1,46 @@
+schema_version = 1
+schema = "nsb-starlight-review-bundle-v1"
+
+# Immutable evidence bundle reviewed by the humans in issue #103.
+# Promotion verifies every listed file checksum before accepting a decision
+# that pins this bundle.
+
+[[artifacts]]
+id = "candidate_map"
+path = "crates/nsb/data/starlight_nside128.csv"
+sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
+
+[[artifacts]]
+id = "merge_report"
+path = "crates/nsb/data/merge_report.json"
+sha256 = "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228"
+
+[[artifacts]]
+id = "release_candidate_gates"
+path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
+sha256 = "0576544b050de2c22249264bdf2778ef0a44f6327b81e03b3972258ad560d247"
+
+[[artifacts]]
+id = "redistribution_inventory"
+path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
+sha256 = "663357777fd841298879065475a69ad0d7083bf2a32077875a0d65239c0e98a2"
+
+[[artifacts]]
+id = "validation_artifact_manifest"
+path = "docs/nsb_components/starlight/validation/results/validation-artifact-manifest-v1.toml"
+sha256 = "e795dfc900034a502bb127a328a7ec7ab5762640721d9e9e3e1c8a641e744670"
+
+[[artifacts]]
+id = "runtime_assets_identity"
+path = "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"
+sha256 = "34fe146b5bdf62df0f14d43a69dcae97ff2049187f3a575bafe2a79a28e1f2af"
+
+[[artifacts]]
+id = "release_candidate_manifest"
+path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
+sha256 = "f29e0b785eed306b656dadd7715663813076de7d26a1c1549848c29698c61a98"
+
+[[artifacts]]
+id = "redistribution_decision_contract_doc"
+path = "docs/nsb_components/starlight/release-candidate/README.md"
+sha256 = "943d6ae3d7f890dca25bb0e977cf496031aa676ca215ce9430a9e737a408893d"
