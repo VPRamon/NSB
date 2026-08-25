@@ -73,7 +73,10 @@ pub fn verify_review_bundle_evidence(repository_root: &Path, bundle_path: &Path)
             bail!("review bundle artifact id must not be empty");
         }
         if !ids.insert(artifact.id.as_str()) {
-            bail!("review bundle contains duplicate artifact id {:?}", artifact.id);
+            bail!(
+                "review bundle contains duplicate artifact id {:?}",
+                artifact.id
+            );
         }
         require_digest("review bundle artifact sha256", &artifact.sha256)?;
         let artifact_path = repository_path(
@@ -104,18 +107,24 @@ pub fn verify_review_bundle_evidence(repository_root: &Path, bundle_path: &Path)
     }
 
     if !saw_validation_manifest {
-        bail!(
-            "review bundle is missing required artifact {VALIDATION_ARTIFACT_MANIFEST_ID:?}"
-        );
+        bail!("review bundle is missing required artifact {VALIDATION_ARTIFACT_MANIFEST_ID:?}");
     }
     Ok(())
 }
 
 fn verify_validation_artifact_manifest(repository_root: &Path, manifest_path: &Path) -> Result<()> {
-    let raw = fs::read_to_string(manifest_path)
-        .with_context(|| format!("read validation artifact manifest {}", manifest_path.display()))?;
-    let manifest: ArtifactManifest = toml::from_str(&raw)
-        .with_context(|| format!("parse validation artifact manifest {}", manifest_path.display()))?;
+    let raw = fs::read_to_string(manifest_path).with_context(|| {
+        format!(
+            "read validation artifact manifest {}",
+            manifest_path.display()
+        )
+    })?;
+    let manifest: ArtifactManifest = toml::from_str(&raw).with_context(|| {
+        format!(
+            "parse validation artifact manifest {}",
+            manifest_path.display()
+        )
+    })?;
     if manifest.schema_version != VALIDATION_ARTIFACT_MANIFEST_SCHEMA_VERSION {
         bail!(
             "unsupported validation artifact manifest schema_version {}; expected {VALIDATION_ARTIFACT_MANIFEST_SCHEMA_VERSION}",
@@ -150,7 +159,8 @@ fn verify_validation_artifact_manifest(repository_root: &Path, manifest_path: &P
                 path.display()
             )
         })?;
-        let actual_bytes = u64::try_from(bytes.len()).context("validation artifact length fits u64")?;
+        let actual_bytes =
+            u64::try_from(bytes.len()).context("validation artifact length fits u64")?;
         if actual_bytes != artifact.bytes {
             bail!(
                 "validation artifact {} byte-count mismatch: expected {}, actual {}",
@@ -399,7 +409,7 @@ mod tests {
         });
         ok.verify(&evidence(dir.path(), &"a".repeat(64), None, None))
             .unwrap();
-        fs::write(&path, b"tampered" ).unwrap();
+        fs::write(&path, b"tampered").unwrap();
         assert!(ok
             .verify(&evidence(dir.path(), &"a".repeat(64), None, None))
             .is_err());
@@ -410,7 +420,8 @@ mod tests {
         nested_sha_override: Option<&str>,
         nested_bytes_override: Option<u64>,
     ) -> String {
-        let nested_relative = Path::new("docs/nsb_components/starlight/validation/results/nested.txt");
+        let nested_relative =
+            Path::new("docs/nsb_components/starlight/validation/results/nested.txt");
         let nested_path = root.join(nested_relative);
         fs::create_dir_all(nested_path.parent().unwrap()).unwrap();
         fs::write(&nested_path, b"alpha").unwrap();
@@ -464,8 +475,8 @@ mod tests {
             b"bravo",
         )
         .unwrap();
-        let error = verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH))
-            .unwrap_err();
+        let error =
+            verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).unwrap_err();
         assert!(error.to_string().contains("checksum mismatch"), "{error}");
     }
 
@@ -485,8 +496,8 @@ mod tests {
     fn transitive_review_bundle_rejects_wrong_nested_checksum() {
         let dir = TempDir::new().unwrap();
         write_transitive_fixture(dir.path(), Some(&"b".repeat(64)), None);
-        let error = verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH))
-            .unwrap_err();
+        let error =
+            verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).unwrap_err();
         assert!(error.to_string().contains("checksum mismatch"), "{error}");
     }
 
@@ -494,8 +505,8 @@ mod tests {
     fn transitive_review_bundle_rejects_wrong_nested_byte_count() {
         let dir = TempDir::new().unwrap();
         write_transitive_fixture(dir.path(), None, Some(6));
-        let error = verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH))
-            .unwrap_err();
+        let error =
+            verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).unwrap_err();
         assert!(error.to_string().contains("byte-count mismatch"), "{error}");
     }
 
