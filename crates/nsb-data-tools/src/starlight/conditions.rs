@@ -4,9 +4,198 @@
 //! but they never satisfy automatic promotion.
 
 use crate::platform::checksum_io;
+use crate::starlight::validation::ArtifactManifest;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Component, Path, PathBuf};
+
+/// Canonical immutable evidence bundle pinned by the human decisions in #103.
+pub const REVIEW_BUNDLE_PATH: &str =
+    "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
+const REVIEW_BUNDLE_SCHEMA_VERSION: u32 = 1;
+const REVIEW_BUNDLE_SCHEMA: &str = "nsb-starlight-review-bundle-v1";
+const VALIDATION_ARTIFACT_MANIFEST_ID: &str = "validation_artifact_manifest";
+const VALIDATION_ARTIFACT_MANIFEST_SCHEMA_VERSION: u32 = 1;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReviewBundle {
+    schema_version: u32,
+    schema: String,
+    artifacts: Vec<ReviewBundleArtifact>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReviewBundleArtifact {
+    id: String,
+    path: String,
+    sha256: String,
+}
+
+/// Verify every file pinned by the Starlight human-review bundle and, for the
+/// validation artifact manifest, every file that manifest pins transitively.
+///
+/// This prevents a reviewer-approved top-level manifest from remaining valid
+/// after a preregistration, region definition, validation result, rendered
+/// report, candidate map, or other nested validation artifact is changed or
+/// removed. Paths are required to stay repository-relative and byte counts are
+/// checked in addition to SHA-256 digests.
+pub fn verify_review_bundle_evidence(repository_root: &Path, bundle_path: &Path) -> Result<()> {
+    let resolved_bundle = repository_path(repository_root, bundle_path, "review bundle")?;
+    let raw = fs::read_to_string(&resolved_bundle)
+        .with_context(|| format!("read review bundle {}", resolved_bundle.display()))?;
+    let bundle: ReviewBundle = toml::from_str(&raw)
+        .with_context(|| format!("parse review bundle {}", resolved_bundle.display()))?;
+
+    if bundle.schema_version != REVIEW_BUNDLE_SCHEMA_VERSION {
+        bail!(
+            "unsupported review bundle schema_version {}; expected {REVIEW_BUNDLE_SCHEMA_VERSION}",
+            bundle.schema_version
+        );
+    }
+    if bundle.schema != REVIEW_BUNDLE_SCHEMA {
+        bail!(
+            "unsupported review bundle schema {:?}; expected {REVIEW_BUNDLE_SCHEMA:?}",
+            bundle.schema
+        );
+    }
+    if bundle.artifacts.is_empty() {
+        bail!("review bundle must pin at least one artifact");
+    }
+
+    let mut ids = BTreeSet::new();
+    let mut saw_validation_manifest = false;
+    for artifact in &bundle.artifacts {
+        if artifact.id.trim().is_empty() {
+            bail!("review bundle artifact id must not be empty");
+        }
+        if !ids.insert(artifact.id.as_str()) {
+            bail!(
+                "review bundle contains duplicate artifact id {:?}",
+                artifact.id
+            );
+        }
+        require_digest("review bundle artifact sha256", &artifact.sha256)?;
+        let artifact_path = repository_path(
+            repository_root,
+            Path::new(&artifact.path),
+            &format!("review bundle artifact {}", artifact.id),
+        )?;
+        let actual = checksum_io::sha256_file(&artifact_path).with_context(|| {
+            format!(
+                "checksum review bundle artifact {} at {}",
+                artifact.id,
+                artifact_path.display()
+            )
+        })?;
+        if actual != artifact.sha256 {
+            bail!(
+                "review bundle artifact {} checksum mismatch: expected {}, actual {}",
+                artifact.id,
+                artifact.sha256,
+                actual
+            );
+        }
+
+        if artifact.id == VALIDATION_ARTIFACT_MANIFEST_ID {
+            saw_validation_manifest = true;
+            verify_validation_artifact_manifest(repository_root, &artifact_path)?;
+        }
+    }
+
+    if !saw_validation_manifest {
+        bail!("review bundle is missing required artifact {VALIDATION_ARTIFACT_MANIFEST_ID:?}");
+    }
+    Ok(())
+}
+
+fn verify_validation_artifact_manifest(repository_root: &Path, manifest_path: &Path) -> Result<()> {
+    let raw = fs::read_to_string(manifest_path).with_context(|| {
+        format!(
+            "read validation artifact manifest {}",
+            manifest_path.display()
+        )
+    })?;
+    let manifest: ArtifactManifest = toml::from_str(&raw).with_context(|| {
+        format!(
+            "parse validation artifact manifest {}",
+            manifest_path.display()
+        )
+    })?;
+    if manifest.schema_version != VALIDATION_ARTIFACT_MANIFEST_SCHEMA_VERSION {
+        bail!(
+            "unsupported validation artifact manifest schema_version {}; expected {VALIDATION_ARTIFACT_MANIFEST_SCHEMA_VERSION}",
+            manifest.schema_version
+        );
+    }
+    if manifest.artifacts.is_empty() {
+        bail!("validation artifact manifest must pin at least one artifact");
+    }
+
+    let mut paths = BTreeSet::<PathBuf>::new();
+    for artifact in &manifest.artifacts {
+        if artifact.name.trim().is_empty() {
+            bail!("validation artifact name must not be empty");
+        }
+        require_digest("validation artifact sha256", &artifact.sha256)?;
+        if !paths.insert(artifact.path.clone()) {
+            bail!(
+                "validation artifact manifest contains duplicate path {}",
+                artifact.path.display()
+            );
+        }
+        let path = repository_path(
+            repository_root,
+            &artifact.path,
+            &format!("validation artifact {}", artifact.name),
+        )?;
+        let bytes = fs::read(&path).with_context(|| {
+            format!(
+                "read validation artifact {} at {}",
+                artifact.name,
+                path.display()
+            )
+        })?;
+        let actual_bytes =
+            u64::try_from(bytes.len()).context("validation artifact length fits u64")?;
+        if actual_bytes != artifact.bytes {
+            bail!(
+                "validation artifact {} byte-count mismatch: expected {}, actual {}",
+                artifact.name,
+                artifact.bytes,
+                actual_bytes
+            );
+        }
+        let actual_sha256 = checksum_io::sha256_bytes(&bytes);
+        if actual_sha256 != artifact.sha256 {
+            bail!(
+                "validation artifact {} checksum mismatch: expected {}, actual {}",
+                artifact.name,
+                artifact.sha256,
+                actual_sha256
+            );
+        }
+    }
+    Ok(())
+}
+
+fn repository_path(repository_root: &Path, relative: &Path, label: &str) -> Result<PathBuf> {
+    if relative.as_os_str().is_empty() || relative.is_absolute() {
+        bail!("{label} path must be a non-empty repository-relative path");
+    }
+    for component in relative.components() {
+        if !matches!(component, Component::Normal(_)) {
+            bail!(
+                "{label} path {} must not contain traversal or absolute components",
+                relative.display()
+            );
+        }
+    }
+    Ok(repository_root.join(relative))
+}
 
 /// One recorded condition on an `approved_with_conditions` decision.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,7 +277,11 @@ impl StructuredCondition {
         match &self.verifier {
             ConditionVerifier::RepositoryFileSha256 { path, sha256 } => {
                 require_digest("repository_file_sha256", sha256)?;
-                let file = evidence.repository_root.join(path);
+                let file = repository_path(
+                    evidence.repository_root,
+                    Path::new(path),
+                    &format!("condition {} repository file", self.id),
+                )?;
                 let actual = checksum_io::sha256_file(&file)
                     .with_context(|| format!("condition {} read {}", self.id, file.display()))?;
                 if actual != *sha256 {
@@ -97,6 +290,15 @@ impl StructuredCondition {
                         self.id,
                         path
                     );
+                }
+                if path == REVIEW_BUNDLE_PATH {
+                    verify_review_bundle_evidence(evidence.repository_root, Path::new(path))
+                        .with_context(|| {
+                            format!(
+                                "condition {} transitive Starlight review evidence failed verification",
+                                self.id
+                            )
+                        })?;
                 }
                 Ok(())
             }
@@ -209,6 +411,127 @@ mod tests {
             .unwrap();
         fs::write(&path, b"tampered").unwrap();
         assert!(ok
+            .verify(&evidence(dir.path(), &"a".repeat(64), None, None))
+            .is_err());
+    }
+
+    fn write_transitive_fixture(
+        root: &Path,
+        nested_sha_override: Option<&str>,
+        nested_bytes_override: Option<u64>,
+    ) -> String {
+        let nested_relative =
+            Path::new("docs/nsb_components/starlight/validation/results/nested.txt");
+        let nested_path = root.join(nested_relative);
+        fs::create_dir_all(nested_path.parent().unwrap()).unwrap();
+        fs::write(&nested_path, b"alpha").unwrap();
+        let nested_sha = nested_sha_override
+            .map(str::to_string)
+            .unwrap_or_else(|| checksum_io::sha256_file(&nested_path).unwrap());
+        let nested_bytes = nested_bytes_override.unwrap_or(5);
+
+        let manifest_relative = Path::new(
+            "docs/nsb_components/starlight/validation/results/validation-artifact-manifest-v1.toml",
+        );
+        let manifest_path = root.join(manifest_relative);
+        fs::create_dir_all(manifest_path.parent().unwrap()).unwrap();
+        fs::write(
+            &manifest_path,
+            format!(
+                "schema_version = 1\ngenerated_at_unix_seconds = 1\n\n[[artifacts]]\nname = \"nested.txt\"\npath = \"{}\"\nsha256 = \"{nested_sha}\"\nbytes = {nested_bytes}\n",
+                nested_relative.display()
+            ),
+        )
+        .unwrap();
+        let manifest_sha = checksum_io::sha256_file(&manifest_path).unwrap();
+
+        let bundle_path = root.join(REVIEW_BUNDLE_PATH);
+        fs::create_dir_all(bundle_path.parent().unwrap()).unwrap();
+        fs::write(
+            &bundle_path,
+            format!(
+                "schema_version = 1\nschema = \"nsb-starlight-review-bundle-v1\"\n\n[[artifacts]]\nid = \"validation_artifact_manifest\"\npath = \"{}\"\nsha256 = \"{manifest_sha}\"\n",
+                manifest_relative.display()
+            ),
+        )
+        .unwrap();
+        checksum_io::sha256_file(&bundle_path).unwrap()
+    }
+
+    #[test]
+    fn transitive_review_bundle_accepts_complete_evidence() {
+        let dir = TempDir::new().unwrap();
+        write_transitive_fixture(dir.path(), None, None);
+        verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).unwrap();
+    }
+
+    #[test]
+    fn transitive_review_bundle_rejects_nested_tamper() {
+        let dir = TempDir::new().unwrap();
+        write_transitive_fixture(dir.path(), None, None);
+        fs::write(
+            dir.path()
+                .join("docs/nsb_components/starlight/validation/results/nested.txt"),
+            b"bravo",
+        )
+        .unwrap();
+        let error =
+            verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).unwrap_err();
+        assert!(error.to_string().contains("checksum mismatch"), "{error}");
+    }
+
+    #[test]
+    fn transitive_review_bundle_rejects_missing_nested_artifact() {
+        let dir = TempDir::new().unwrap();
+        write_transitive_fixture(dir.path(), None, None);
+        fs::remove_file(
+            dir.path()
+                .join("docs/nsb_components/starlight/validation/results/nested.txt"),
+        )
+        .unwrap();
+        assert!(verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).is_err());
+    }
+
+    #[test]
+    fn transitive_review_bundle_rejects_wrong_nested_checksum() {
+        let dir = TempDir::new().unwrap();
+        write_transitive_fixture(dir.path(), Some(&"b".repeat(64)), None);
+        let error =
+            verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).unwrap_err();
+        assert!(error.to_string().contains("checksum mismatch"), "{error}");
+    }
+
+    #[test]
+    fn transitive_review_bundle_rejects_wrong_nested_byte_count() {
+        let dir = TempDir::new().unwrap();
+        write_transitive_fixture(dir.path(), None, Some(6));
+        let error =
+            verify_review_bundle_evidence(dir.path(), Path::new(REVIEW_BUNDLE_PATH)).unwrap_err();
+        assert!(error.to_string().contains("byte-count mismatch"), "{error}");
+    }
+
+    #[test]
+    fn canonical_review_bundle_condition_checks_nested_evidence() {
+        let dir = TempDir::new().unwrap();
+        let bundle_sha = write_transitive_fixture(dir.path(), None, None);
+        let condition = ReviewCondition::Structured(StructuredCondition {
+            id: "review-bundle-v1".into(),
+            description: "exact human review evidence".into(),
+            verifier: ConditionVerifier::RepositoryFileSha256 {
+                path: REVIEW_BUNDLE_PATH.into(),
+                sha256: bundle_sha,
+            },
+        });
+        condition
+            .verify(&evidence(dir.path(), &"a".repeat(64), None, None))
+            .unwrap();
+        fs::write(
+            dir.path()
+                .join("docs/nsb_components/starlight/validation/results/nested.txt"),
+            b"bravo",
+        )
+        .unwrap();
+        assert!(condition
             .verify(&evidence(dir.path(), &"a".repeat(64), None, None))
             .is_err());
     }
