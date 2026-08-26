@@ -9,12 +9,12 @@ schema_version = 1
 path = "airglow_cont.dat"
 schema = "skycalc-airglow-continuum-v1"
 sha256 = "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
-source = "ESO SkyCalc/Noll-style empirical continuum table from a historical import; exact upstream release is not recorded"
+source = "Cerro Paranal Advanced Sky Model / ESO SkyCalc airglow continuum lineage (Noll et al. 2012, A&A 543 A92); optical residual continuum derived from FORS1 spectra at Cerro Paranal (normalized near 0.543 µm). Exact historical source file/release imported into NSB is not recorded."
 license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
 generator = "historical import"
 generation_command = "not reproducible from repository; provenance recovery is a release limitation"
 validation_report = "docs/specifications/validation.md#bundled-asset-validation"
-calibration_status = "generic-fallback"
+calibration_status = "planning-proxy"
 runtime_embedded = true
 
 [[assets]]

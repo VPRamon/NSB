@@ -68,6 +68,38 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .metadata
         .provenance
         .contains("schema skycalc-airglow-continuum-v1"));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains("calibration_status planning-proxy"));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains("baseline_source Cerro Paranal / Noll / SkyCalc-derived"));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains("site_calibrated false"));
+    assert!(
+        airglow.metadata.provenance.contains("Cerro Paranal")
+            && airglow.metadata.provenance.contains("FORS1"),
+        "runtime provenance must surface Paranal/FORS1 lineage from the asset registry"
+    );
+    assert!(
+        airglow
+            .metadata
+            .validated_domain
+            .contains("does not apply the upstream Cerro Paranal atmospheric extinction"),
+        "validated_domain must record missing extinction so full SkyCalc parity cannot be claimed"
+    );
+    assert!(airglow
+        .metadata
+        .validated_domain
+        .contains("Van Rhijn (LOS/emitting-layer geometry)"));
+    assert!(airglow
+        .metadata
+        .validated_domain
+        .contains("weaker evidence at the UV end"));
     let airglow_uncertainty = airglow.relative_uncertainty.unwrap();
     assert!(airglow_uncertainty.is_finite() && airglow_uncertainty > 0.0);
 
@@ -197,6 +229,55 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
         ComponentCalibrationStatus::GenericClearSky
     );
     assert!(airglow.integrated.value() > 0.0);
+    // Geographic genericity of the API must not be confused with global calibration.
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains("site_calibrated false"));
+    assert!(airglow.metadata.validated_domain.contains("planning proxy"));
+}
+
+#[test]
+fn airglow_runtime_provenance_tracks_asset_registry() {
+    use nsb::assets::asset_registry;
+
+    let asset = asset_registry()
+        .asset("airglow_cont.dat")
+        .expect("airglow continuum must be registered");
+    let evaluator = NsbEvaluator::new().unwrap();
+    let result = evaluator
+        .evaluate(&PointQuery {
+            observer: observatories::EL_PARANAL.geodetic(),
+            time: parse_utc("2023-09-04T01:48:00Z"),
+            target: sgr_a_star(),
+            components: ComponentMask::AIRGLOW,
+        })
+        .unwrap();
+    let airglow = result
+        .components
+        .iter()
+        .find(|c| c.name == "airglow")
+        .unwrap();
+
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains(&format!("sha256 {}", asset.sha256)));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains(&format!("schema {}", asset.schema)));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains(&format!("calibration_status {}", asset.calibration_status)));
+    assert!(airglow.metadata.provenance.contains(&asset.source));
+    assert!(airglow.metadata.provenance.contains(&asset.license));
+    assert!(airglow.metadata.provenance.contains(&asset.generator));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains(&asset.validation_report));
 }
 
 #[test]

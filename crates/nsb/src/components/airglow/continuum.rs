@@ -76,6 +76,9 @@ pub(crate) fn evaluate_continuum_with_time_bin(
         .copied()
         .unwrap_or(1.0);
     let user_scale = user_scale.value();
+    // Van Rhijn is LOS/emitting-layer geometry only. Upstream Cerro Paranal ASM
+    // also applies a separate airmass/extinction attenuation stage; NSB does not
+    // currently apply that stage (see audit #108 and follow-up #114).
     let scale =
         continuum.global_scale.value() * solar_corr * seasonal_corr * van_rhijn * user_scale;
 
