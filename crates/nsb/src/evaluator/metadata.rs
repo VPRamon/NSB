@@ -1,4 +1,9 @@
 use super::{MoonlightModel, Observer, StarlightModel};
+use crate::components::airglow::calibration::{
+    AIRGLOW_CONTINUUM_ASSET_PATH, AIRGLOW_CONTINUUM_CALIBRATION_STATUS,
+    AIRGLOW_CONTINUUM_GENERATION_STATUS, AIRGLOW_CONTINUUM_LICENSE, AIRGLOW_CONTINUUM_SCHEMA,
+    AIRGLOW_CONTINUUM_SHA256, AIRGLOW_CONTINUUM_SOURCE, AIRGLOW_CONTINUUM_VALIDATION_REPORT,
+};
 use crate::components::starlight::StarlightProvenance;
 use crate::site::SiteProfileId;
 use crate::NSB_S10_ZP;
@@ -98,14 +103,28 @@ pub(super) fn airglow_metadata(
     observer: Observer,
 ) -> NsbComponentMetadata {
     let profile = site_profile.profile(observer);
+    let baseline_identity = format!(
+        "baseline asset {} schema {} sha256 {}; calibration_status {}; generator {}; validation_report {}; source {}; license {}",
+        AIRGLOW_CONTINUUM_ASSET_PATH,
+        AIRGLOW_CONTINUUM_SCHEMA,
+        AIRGLOW_CONTINUUM_SHA256,
+        AIRGLOW_CONTINUUM_CALIBRATION_STATUS,
+        AIRGLOW_CONTINUUM_GENERATION_STATUS,
+        AIRGLOW_CONTINUUM_VALIDATION_REPORT,
+        AIRGLOW_CONTINUUM_SOURCE,
+        AIRGLOW_CONTINUUM_LICENSE
+    );
     NsbComponentMetadata {
         status: component_status_for_site_profile(site_profile),
         provenance: Cow::Owned(format!(
-            "{}; site profile {}; template {}",
-            profile.airglow.provenance, profile.name, profile.airglow.template
+            "{}; site profile {}; template {}; {}",
+            profile.airglow.provenance,
+            profile.name,
+            profile.airglow.template,
+            baseline_identity
         )),
         validated_domain: Cow::Owned(format!(
-            "astronomical-night continuum template with seasonal, time-of-night, solar-activity, and Van Rhijn corrections; {}",
+            "bundled astronomical-night empirical continuum baseline (300–650 nm); seasonal, time-of-night, solar-activity, and Van Rhijn corrections; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); {}",
             profile.airglow.assumptions
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,

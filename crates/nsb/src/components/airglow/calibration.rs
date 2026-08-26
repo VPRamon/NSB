@@ -26,6 +26,19 @@ const WL_HIGH_NM: f64 = 650.0;
 const B_FILTER_NM: f64 = 445.0;
 const V_FILTER_NM: f64 = 551.0;
 
+pub(crate) const AIRGLOW_CONTINUUM_ASSET_PATH: &str = "NSB/data/airglow_cont.dat";
+pub(crate) const AIRGLOW_CONTINUUM_SCHEMA: &str = "skycalc-airglow-continuum-v1";
+pub(crate) const AIRGLOW_CONTINUUM_SHA256: &str =
+    "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f";
+pub(crate) const AIRGLOW_CONTINUUM_SOURCE: &str =
+    "ESO SkyCalc/Noll-style empirical continuum table from a historical import; exact upstream release is not recorded";
+pub(crate) const AIRGLOW_CONTINUUM_LICENSE: &str =
+    "upstream dataset license is not recorded; this blocks calibrated-production promotion";
+pub(crate) const AIRGLOW_CONTINUUM_GENERATION_STATUS: &str = "historical import";
+pub(crate) const AIRGLOW_CONTINUUM_VALIDATION_REPORT: &str =
+    "docs/specifications/validation.md#bundled-asset-validation";
+pub(crate) const AIRGLOW_CONTINUUM_CALIBRATION_STATUS: &str = "generic-fallback";
+
 // Pinned SHA-256 of the airglow continuum reference file.
 siderust::assert_data_checksum!(
     "NSB/data/airglow_cont.dat",
