@@ -15,11 +15,12 @@
 //! ```
 //!
 //! `for_site_profile` records the named site assumptions used for the airglow
-//! continuum. CTAO profiles currently use the bundled SkyCalc-derived empirical
-//! continuum template with a neutral site scale and explicit uncalibrated
-//! provenance. `standard_clear_sky` remains available as a generic fallback, but
-//! CTAO callers should prefer named profiles so the calibration maturity is
-//! visible at the API boundary.
+//! continuum. CTAO profiles currently use the bundled Paranal-derived
+//! (Noll/SkyCalc/FORS1) empirical continuum as an explicit generic/planning
+//! proxy with a neutral site scale and uncalibrated provenance.
+//! `standard_clear_sky` remains available as that same planning proxy under
+//! generic-clear-sky maturity; CTAO callers should prefer named profiles so the
+//! calibration maturity is visible at the API boundary.
 //!
 //! For site-specific calibration, load or build an [`AirglowContinuum`] and pass
 //! it to [`Airglow::with_continuum`].

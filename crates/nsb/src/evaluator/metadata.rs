@@ -1,4 +1,7 @@
 use super::{MoonlightModel, Observer, StarlightModel};
+use crate::components::airglow::calibration::{
+    airglow_continuum_asset, AIRGLOW_CONTINUUM_ASSET_PATH,
+};
 use crate::components::starlight::StarlightProvenance;
 use crate::site::SiteProfileId;
 use crate::NSB_S10_ZP;
@@ -98,14 +101,29 @@ pub(super) fn airglow_metadata(
     observer: Observer,
 ) -> NsbComponentMetadata {
     let profile = site_profile.profile(observer);
+    let asset = airglow_continuum_asset();
+    let baseline_identity = format!(
+        "baseline asset {} schema {} sha256 {}; calibration_status {}; generator {}; validation_report {}; source {}; license {}; baseline_source Cerro Paranal / Noll / SkyCalc-derived; site_calibrated false",
+        AIRGLOW_CONTINUUM_ASSET_PATH,
+        asset.schema,
+        asset.sha256,
+        asset.calibration_status,
+        asset.generator,
+        asset.validation_report,
+        asset.source,
+        asset.license
+    );
     NsbComponentMetadata {
         status: component_status_for_site_profile(site_profile),
         provenance: Cow::Owned(format!(
-            "{}; site profile {}; template {}",
-            profile.airglow.provenance, profile.name, profile.airglow.template
+            "{}; site profile {}; template {}; {}",
+            profile.airglow.provenance,
+            profile.name,
+            profile.airglow.template,
+            baseline_identity
         )),
         validated_domain: Cow::Owned(format!(
-            "astronomical-night continuum template with seasonal, time-of-night, solar-activity, and Van Rhijn corrections; {}",
+            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, and Van Rhijn (LOS/emitting-layer geometry) corrections; does not apply the upstream Cerro Paranal atmospheric extinction/airmass attenuation stage; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); {}",
             profile.airglow.assumptions
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,

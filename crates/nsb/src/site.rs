@@ -52,11 +52,17 @@ impl AirglowSiteCalibration {
         Self {
             scale: ScaleFactors::new(1.0),
             template: "NSB/data/airglow_cont.dat",
-            provenance: "Bundled SkyCalc-derived empirical continuum template; neutral site scale.",
+            provenance: concat!(
+                "Bundled Paranal-derived (Noll/SkyCalc/FORS1) empirical continuum ",
+                "reused as an explicit generic/planning proxy; neutral site scale; ",
+                "not site-calibrated."
+            ),
             assumptions: concat!(
                 "No CTAO-specific airglow continuum scale is bundled yet; ",
                 "the named profile records this explicitly instead of silently ",
-                "claiming a calibrated site airglow model."
+                "claiming a calibrated site airglow model. ",
+                "Arbitrary-location results remain planning approximations based on ",
+                "the Paranal-trained continuum, not globally calibrated predictions."
             ),
         }
     }

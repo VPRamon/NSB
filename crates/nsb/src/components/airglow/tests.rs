@@ -131,6 +131,23 @@ fn scale_changes_result() {
 }
 
 #[test]
+fn season_bin_changes_with_longitude_near_month_boundary() {
+    // `season_bin` uses local-solar month derived from longitude; we pick a time where
+    // rounding pushes the local month across a boundary.
+    let time = t("2023-03-31T18:00:00Z");
+    let east = Geodetic::new_raw(Degrees::new(179.0), Degrees::new(0.0), Meters::new(0.0));
+    let west = Geodetic::new_raw(Degrees::new(-179.0), Degrees::new(0.0), Meters::new(0.0));
+
+    let east_bin = super::temporal::season_bin(time, east);
+    let west_bin = super::temporal::season_bin(time, west);
+
+    assert_ne!(east_bin, west_bin);
+    // 2023-03 => season bin 2, 2023-04 => season bin 3 per `temporal.rs::season_bin`.
+    assert_eq!(west_bin, 2);
+    assert_eq!(east_bin, 3);
+}
+
+#[test]
 fn site_profile_airglow_constructor_matches_profile_scale() {
     let location = cta_n();
     let time = t("2023-09-04T02:00:00Z");
