@@ -177,6 +177,48 @@ fn status_missing_invalid_fresh_and_stale_are_deterministic() {
         .notes
         .iter()
         .any(|n| n.contains("climatology")));
+
+    // Monthly-forecast-only store whose horizon has ended → stale, not "forecast".
+    let monthly_only = dir.path().join("monthly_only.json");
+    fs::write(
+        &monthly_only,
+        br#"{
+  "schema_version": 1,
+  "dataset_id": "monthly-only",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.20671119074768,
+  "retrieved_at_utc": "2026-06-01T00:00:00Z",
+  "records": [
+    {
+      "date": "2026-12-01",
+      "value_sfu": 120.0,
+      "kind": "forecast",
+      "provider": "noaa-swpc",
+      "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2026-06-01T00:00:00Z",
+      "valid_from": "2026-12-01",
+      "valid_through": "2026-12-31",
+      "cadence": "monthly"
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+    let expired = status_report_at(
+        &monthly_only,
+        Utc.with_ymd_and_hms(2027, 6, 1, 0, 0, 0).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(expired.status, "stale");
+    assert_eq!(
+        expired.monthly_forecast_horizon.as_deref(),
+        Some("2026-12-31")
+    );
+    assert!(expired
+        .notes
+        .iter()
+        .any(|n| n.contains("monthly forecast horizon ended")));
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {

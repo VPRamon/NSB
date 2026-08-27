@@ -127,6 +127,13 @@ fn parse_requested_at(requested_date: NaiveDate, requested_at: NaiveDateTime) ->
 }
 
 /// Resolve monthly-compatible Airglow F10.7 evidence from a store.
+///
+/// Precedence:
+/// 1. finalized monthly observed (completed past months)
+/// 2. current month: observed-to-date + forecast remainder (full coverage)
+/// 3. complete 45-day calendar-month mean (future months / current with no obs)
+/// 4. official monthly solar-cycle prediction (time-valid)
+/// 5. climatology
 pub fn resolve_monthly_evidence(
     store: &F107Store,
     requested_date: NaiveDate,
@@ -142,17 +149,7 @@ pub fn resolve_monthly_evidence(
         return Ok(evidence);
     }
 
-    if let Some(evidence) = try_complete_45_day_forecast_mean(
-        store,
-        requested_date,
-        requested_at,
-        month_start,
-        month_end,
-        total_days,
-    )? {
-        return Ok(evidence);
-    }
-
+    // In-progress month: prefer real observations to date over an all-forecast month.
     if let Some(evidence) = try_provisional_observed_plus_forecast(
         store,
         requested_date,
@@ -164,9 +161,27 @@ pub fn resolve_monthly_evidence(
         return Ok(evidence);
     }
 
-    if let Some(evidence) =
-        try_official_monthly_prediction(store, requested_date, month_start, month_end, total_days)?
-    {
+    // Complete all-forecast calendar-month mean (future months, or current month
+    // with no observations yet). Requires every calendar day present.
+    if let Some(evidence) = try_complete_45_day_forecast_mean(
+        store,
+        requested_date,
+        requested_at,
+        month_start,
+        month_end,
+        total_days,
+    )? {
+        return Ok(evidence);
+    }
+
+    if let Some(evidence) = try_official_monthly_prediction(
+        store,
+        requested_date,
+        requested_at,
+        month_start,
+        month_end,
+        total_days,
+    )? {
         return Ok(evidence);
     }
 
@@ -369,6 +384,7 @@ fn try_provisional_observed_plus_forecast(
 fn try_official_monthly_prediction(
     store: &F107Store,
     requested_date: NaiveDate,
+    requested_at: NaiveDateTime,
     month_start: NaiveDate,
     month_end: NaiveDate,
     total_days: u32,
@@ -387,6 +403,9 @@ fn try_official_monthly_prediction(
         if !record.covers(requested_date).map_err(|e| e.0)? {
             continue;
         }
+        if !forecast_evidence_not_after(record, requested_at)? {
+            continue;
+        }
         matches.push(record);
     }
     if matches.is_empty() {
@@ -395,6 +414,7 @@ fn try_official_monthly_prediction(
     matches.sort_by(|a, b| {
         b.forecast_issued_at_utc
             .cmp(&a.forecast_issued_at_utc)
+            .then_with(|| b.retrieved_at_utc.cmp(&a.retrieved_at_utc))
             .then_with(|| a.product.cmp(&b.product))
             .then_with(|| a.value_sfu.to_bits().cmp(&b.value_sfu.to_bits()))
     });
@@ -413,6 +433,25 @@ fn try_official_monthly_prediction(
         record,
         resolution_step: "monthly-solar-cycle-forecast",
     }))
+}
+
+/// No-future-information gate for forecast records.
+///
+/// Prefer `forecast_issued_at` when present; otherwise require `retrieved_at <=
+/// requested_at` without pretending retrieval is issuance.
+fn forecast_evidence_not_after(
+    record: &F107Record,
+    requested_at: NaiveDateTime,
+) -> Result<bool, String> {
+    if let Some(issued) = record.forecast_issued_at_utc.as_deref() {
+        return forecast_issued_not_after(issued, requested_at);
+    }
+    let Some(retrieved) = record.retrieved_at_utc.as_deref() else {
+        // Without issuance or retrieval provenance, refuse rather than leak.
+        return Ok(false);
+    };
+    let retrieved_dt = parse_datetime(retrieved, "retrieved_at_utc").map_err(|e| e.0)?;
+    Ok(retrieved_dt <= requested_at)
 }
 
 fn collect_time_valid_45_day_by_day(

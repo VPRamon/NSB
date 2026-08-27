@@ -415,8 +415,21 @@ pub fn status_report_at(path: &Path, now: DateTime<Utc>) -> Result<StoreStatus> 
             "fresh"
         }
     } else if has_forecast {
-        notes.push("forecast".into());
-        "forecast"
+        let monthly_horizon = monthly_forecast_horizon
+            .as_deref()
+            .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+        if let Some(horizon) = monthly_horizon {
+            if horizon < now_date {
+                notes.push("monthly forecast horizon ended".into());
+                "stale"
+            } else {
+                notes.push("forecast".into());
+                "forecast"
+            }
+        } else {
+            notes.push("forecast".into());
+            "forecast"
+        }
     } else if has_obs {
         let stale_obs = newest_observation_date
             .as_deref()

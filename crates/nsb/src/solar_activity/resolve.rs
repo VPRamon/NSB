@@ -123,15 +123,16 @@ impl ResolvedSolarActivity {
 /// Precedence (Noll/SkyCalc monthly-averaged quantity):
 /// 1. explicit caller override (validated finite and positive)
 /// 2. finalized monthly observed covering a completed month
-/// 3. complete calendar-month 45-day forecast mean (time-valid issuance)
-/// 4. provisional current-month observed+forecast mean (full coverage only)
-/// 5. official monthly solar-cycle prediction
+/// 3. current month: provisional observed+forecast mean (full coverage only)
+/// 4. future month: complete calendar-month 45-day forecast mean (time-valid)
+/// 5. official monthly solar-cycle prediction (issued_at or retrieved_at ≤ requested)
 /// 6. documented climatological fallback
 /// 7. legacy neutralizing constant only via [`SolarActivitySource::LegacyDefault`]
 ///
-/// Partial-month averages are never selected. Forecasts issued after the
-/// requested evaluation instant never participate. Raw daily values are never
-/// selected as the Airglow input. This function performs no network I/O.
+/// Partial-month averages are never selected. Forecasts issued (or, when
+/// issuance is absent, retrieved) after the requested evaluation instant never
+/// participate. Raw daily values are never selected as the Airglow input.
+/// This function performs no network I/O.
 pub fn resolve_f107(
     requested_time: Time<UTC>,
     source: &SolarActivitySource,

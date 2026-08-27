@@ -73,18 +73,21 @@ are out of scope here (#110 / #114 / #38 are intentionally not implemented).
 2. **Finalized monthly observed** covering the requested UTC date
    (`product=observed-solar-cycle-indices`, month complete relative to store
    retrieval time — never month-to-date / provisional)
-3. Monthly-compatible forecast, in order:
-   - **complete** calendar-month mean of SWPC 45-day daily forecasts when
-     **every** day of the month is present and each forecast satisfies
-     `forecast_issued_at <= requested_time`
-     (`product=45-day-forecast-monthly-mean`);
-   - else **provisional** current-month estimate from observed dailies to date
-     plus forecast dailies for remaining days, only when coverage is complete
-     (`product=current-month-observed-plus-forecast-mean`, `kind=forecast`);
-   - else official monthly `predicted-solar-cycle`
-4. Documented climatological fallback (`climatology_sfu` = Noll/SkyCalc
+3. **Current month**: observed-to-date + forecast remainder with full coverage
+   (`product=current-month-observed-plus-forecast-mean`, `kind=forecast`) —
+   preferred over an all-forecast 45-day month when real observations exist
+4. Complete calendar-month mean of SWPC 45-day daily forecasts when **every**
+   day is present and each forecast satisfies
+   `forecast_issued_at <= requested_time`
+   (`product=45-day-forecast-monthly-mean`) — used for future months and for
+   current months that still lack observations
+5. Official monthly `predicted-solar-cycle` that is time-valid:
+   - if `forecast_issued_at` is present: `issued_at <= requested_time`
+   - else if `retrieved_at` is present: `retrieved_at <= requested_time`
+     (retrieval is **not** treated as issuance)
+6. Documented climatological fallback (`climatology_sfu` = Noll/SkyCalc
    neutralizing reference ≈ 129.207 sfu / `DEFAULT_SOLAR_RADIO_FLUX`)
-5. Legacy neutralizing constant only via `SolarActivitySource::LegacyDefault`
+7. Legacy neutralizing constant only via `SolarActivitySource::LegacyDefault`
 
 **Incomplete months never become `msolflux`.** A 2-day / 10-day subset of a
 month must not be stamped valid for the whole month. Fall back to the official

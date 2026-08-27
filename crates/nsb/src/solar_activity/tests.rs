@@ -75,6 +75,7 @@ fn sample_store() -> F107Store {
       "kind": "forecast",
       "provider": "noaa-swpc",
       "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2026-08-01T00:00:00Z",
       "valid_from": "2026-09-01",
       "valid_through": "2026-09-30",
       "cadence": "monthly",
@@ -87,6 +88,7 @@ fn sample_store() -> F107Store {
       "kind": "forecast",
       "provider": "noaa-swpc",
       "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2026-08-01T00:00:00Z",
       "valid_from": "2027-01-01",
       "valid_through": "2027-01-31",
       "cadence": "monthly",
@@ -188,6 +190,7 @@ fn incomplete_month_two_forecast_days_does_not_become_msolflux() {
 fn complete_30_day_month_may_use_45_day_monthly_mean() {
     let store = std::sync::Arc::new(complete_september_forecast_store());
     let source = SolarActivitySource::Dataset(store);
+    // No observations present → complete 45-day month mean is admissible.
     let resolved = resolve_f107(t("2026-09-15T12:00:00Z"), &source).unwrap();
     assert_eq!(resolved.record.product, "45-day-forecast-monthly-mean");
     assert_eq!(
@@ -198,6 +201,102 @@ fn complete_30_day_month_may_use_45_day_monthly_mean() {
     assert_eq!(resolved.forecast_days, Some(30));
     let expected_mean = (101..=130).sum::<u32>() as f64 / 30.0;
     assert!((resolved.value.value() - expected_mean).abs() < 1e-9);
+}
+
+#[test]
+fn current_month_prefers_observed_plus_forecast_over_pure_45_day() {
+    // Full September 45-day coverage + observed days 1–15. Mid-month evaluation
+    // must prefer provisional observed+forecast, not the all-forecast month mean.
+    let mut records = Vec::new();
+    for day in 1..=30 {
+        records.push(format!(
+            r#"{{
+      "date": "2026-09-{day:02}",
+      "value_sfu": 200.0,
+      "kind": "forecast",
+      "provider": "noaa-swpc",
+      "product": "45-day-forecast",
+      "forecast_issued_at_utc": "2026-08-27T00:00:00Z",
+      "valid_from": "2026-09-{day:02}",
+      "valid_through": "2026-09-{day:02}",
+      "cadence": "daily"
+    }}"#
+        ));
+    }
+    for day in 1..=15 {
+        records.push(format!(
+            r#"{{
+      "date": "2026-09-{day:02}",
+      "value_sfu": 100.0,
+      "kind": "observed",
+      "provider": "noaa-swpc",
+      "product": "daily-solar-indices",
+      "observation_date": "2026-09-{day:02}",
+      "valid_from": "2026-09-{day:02}",
+      "valid_through": "2026-09-{day:02}",
+      "cadence": "daily"
+    }}"#
+        ));
+    }
+    let json = format!(
+        r#"{{
+  "schema_version": 1,
+  "dataset_id": "current-pref",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.20671119074768,
+  "retrieved_at_utc": "2026-09-15T12:00:00Z",
+  "records": [{}]
+}}"#,
+        records.join(",")
+    );
+    let store = F107Store::from_json_str(&json).unwrap();
+    let source = SolarActivitySource::Dataset(std::sync::Arc::new(store));
+    let resolved = resolve_f107(t("2026-09-15T12:00:00Z"), &source).unwrap();
+    assert_eq!(
+        resolved.record.product,
+        "current-month-observed-plus-forecast-mean"
+    );
+    assert_eq!(
+        resolved.monthly_completeness,
+        Some(MonthlyCompleteness::ProvisionalObservedPlusForecast)
+    );
+    // 15 obs @100 + 15 forecast @200 → mean 150, not pure-forecast 200.
+    assert!((resolved.value.value() - 150.0).abs() < 1e-9);
+    assert_eq!(resolved.observed_days, Some(15));
+    assert_eq!(resolved.forecast_days, Some(15));
+}
+
+#[test]
+fn predicted_solar_cycle_rejects_future_retrieval_as_evidence() {
+    let store = F107Store::from_json_str(
+        r#"{
+  "schema_version": 1,
+  "dataset_id": "future-pred",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.20671119074768,
+  "retrieved_at_utc": "2026-08-27T08:00:00Z",
+  "records": [
+    {
+      "date": "2026-08-01",
+      "value_sfu": 140.0,
+      "kind": "forecast",
+      "provider": "noaa-swpc",
+      "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2026-08-27T08:00:00Z",
+      "valid_from": "2026-08-01",
+      "valid_through": "2026-08-31",
+      "cadence": "monthly"
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+    let source = SolarActivitySource::Dataset(std::sync::Arc::new(store));
+    // Evaluation before the prediction was retrieved into the store.
+    let resolved = resolve_f107(t("2026-08-01T12:00:00Z"), &source).unwrap();
+    assert_eq!(resolved.record.kind, F107Kind::Climatology);
 }
 
 #[test]
@@ -252,6 +351,7 @@ fn current_incomplete_monthly_observed_does_not_count_as_final() {
       "kind": "forecast",
       "provider": "noaa-swpc",
       "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2026-08-01T00:00:00Z",
       "valid_from": "2026-08-01",
       "valid_through": "2026-08-31",
       "cadence": "monthly"
@@ -362,6 +462,7 @@ fn provisional_gap_falls_back_to_monthly_prediction() {
       "kind": "forecast",
       "provider": "noaa-swpc",
       "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2026-08-01T00:00:00Z",
       "valid_from": "2026-08-01",
       "valid_through": "2026-08-31",
       "cadence": "monthly"
