@@ -26,6 +26,22 @@ fn parses_daily_and_45_day_fixtures() {
 }
 
 #[test]
+fn predicted_solar_cycle_does_not_fabricate_issuance_from_retrieval() {
+    use nsb_data_tools::solar::parse_predicted_solar_cycle;
+    let bytes = fs::read(fixtures().join("predicted-solar-cycle.json")).unwrap();
+    let retrieved = "2026-08-27T08:00:00Z";
+    let records = parse_predicted_solar_cycle(&bytes, retrieved).unwrap();
+    assert!(!records.is_empty());
+    assert!(records.iter().all(|r| r.forecast_issued_at_utc.is_none()));
+    assert!(records
+        .iter()
+        .all(|r| r.retrieved_at_utc.as_deref() == Some(retrieved)));
+    assert!(records
+        .iter()
+        .all(|r| r.cadence.as_deref() == Some("monthly")));
+}
+
+#[test]
 fn fixture_update_is_atomic_and_retains_snapshots() {
     let dir = tempdir().unwrap();
     let store = dir.path().join("f107_store.json");

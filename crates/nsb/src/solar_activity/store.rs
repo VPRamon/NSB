@@ -122,7 +122,10 @@ impl F107Store {
         Ok(())
     }
 
-    /// Observed records that exactly cover `requested` (prefer daily cadence).
+    /// Observed records whose validity covers `requested`.
+    ///
+    /// Callers that drive the Noll/SkyCalc Airglow correction should further
+    /// filter to monthly cadence; raw daily observations are not the fitted quantity.
     pub fn observed_covering(
         &self,
         requested: NaiveDate,
@@ -203,11 +206,13 @@ struct RecordKey {
     product: String,
     valid_from: String,
     valid_through: String,
-    forecast_issued_at_utc: String,
 }
 
 impl RecordKey {
     fn from(record: &F107Record) -> Self {
+        // Identity deliberately excludes forecast_issued_at_utc and retrieved_at_utc
+        // so re-downloads of the same product window replace rather than accumulate,
+        // and so retrieval time cannot be mistaken for issuance in the key space.
         Self {
             kind: record.kind.as_str().to_string(),
             date: record.date.clone(),
@@ -220,7 +225,6 @@ impl RecordKey {
                 .valid_through
                 .clone()
                 .unwrap_or_else(|| record.date.clone()),
-            forecast_issued_at_utc: record.forecast_issued_at_utc.clone().unwrap_or_default(),
         }
     }
 }

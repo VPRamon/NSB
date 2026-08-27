@@ -66,6 +66,9 @@ pub(crate) fn model_config(
         crate::cli::MoonlightModelArg::Ks1991 => MoonlightModel::KrisciunasSchaefer1991,
     };
     if let Some(sfu) = args.solar_radio_flux_sfu {
+        if !sfu.is_finite() || sfu <= 0.0 {
+            anyhow::bail!("--solar-radio-flux-sfu must be finite and positive, got {sfu}");
+        }
         debug!("using explicit solar radio flux: {sfu} sfu");
         config = config.with_solar_radio_flux(SolarFluxUnits::new(sfu));
     } else if let Some(path) = &args.f107_store {

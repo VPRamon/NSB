@@ -268,8 +268,11 @@ impl NsbModelConfig {
 
     /// Explicit F10.7 when configured; otherwise the legacy neutralizing constant.
     ///
-    /// Date-aware automatic resolution uses [`crate::solar_activity::resolve_f107`]
-    /// at evaluation time and is not represented by this accessor.
+    /// Date-aware automatic / dataset resolution uses
+    /// [`crate::solar_activity::resolve_f107`] at evaluation time and is **not**
+    /// represented by this accessor (it returns the neutralizing constant for
+    /// those sources). Prefer component metadata `solar_activity` for the value
+    /// actually applied.
     pub fn solar_radio_flux(&self) -> airglow::SolarFluxUnits {
         match &self.solar_activity {
             crate::solar_activity::SolarActivitySource::Explicit(flux) => *flux,

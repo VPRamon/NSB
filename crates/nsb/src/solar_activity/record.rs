@@ -163,11 +163,10 @@ impl F107Record {
                 }
             }
             F107Kind::Forecast => {
-                if self.forecast_issued_at_utc.is_none() {
-                    return Err(F107ValidationError(
-                        "forecast records require forecast_issued_at_utc".into(),
-                    ));
-                }
+                // Issuance is required when the upstream product provides it
+                // (e.g. SWPC 45-day). Products without an issuance field
+                // (e.g. predicted-solar-cycle) may omit it; retrieval time must
+                // not be fabricated as issuance.
                 if self.observation_date.is_some() {
                     return Err(F107ValidationError(
                         "forecast records must not set observation_date".into(),

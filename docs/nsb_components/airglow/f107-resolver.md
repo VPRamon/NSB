@@ -22,9 +22,16 @@ nsb-data-tools (network acquisition)
 
 ## Quantity and units
 
-- **Quantity**: Penticton/DRAO 10.7 cm solar radio flux.
+- **Quantity**: monthly-averaged Penticton/DRAO 10.7 cm solar radio flux, matching
+  Noll et al. 2012 / ESO SkyCalc `msolflux` (“Monthly Averaged Solar Flux”).
 - **Unit**: solar flux unit (**sfu**), \(1\,\mathrm{sfu}=10^{-22}\,\mathrm{W\,m^{-2}\,Hz^{-1}}\).
 - **Convention id**: `penticton-f107-sfu-as-reported-by-noaa-swpc`.
+
+Noll et al. obtained **monthly** S10.7 averages for each spectrum because the
+atmosphere responds with a delay of weeks; diurnal F10.7 is a different
+scientific variable from the one used to fit the Airglow solar-activity slope.
+NSB therefore resolves a **monthly-mean** quantity for Airglow and never feeds a
+raw daily observation or daily forecast value into that correction.
 
 NSB consumes F10.7 **as republished by NOAA/NWS SWPC** machine-readable
 products. Product identity is retained on every record so users can audit which
@@ -61,17 +68,31 @@ are out of scope here (#110 / #114 / #38 are intentionally not implemented).
 
 ## Precedence (tested)
 
-1. Explicit caller override (`with_f10_7` / `--solar-radio-flux-sfu`)
-2. Exact measured observation in the selected local/pinned store
-3. Valid official forecast covering the requested date (freshest issuance;
-   short-range 45-day before monthly solar-cycle prediction)
-4. Bundled/pinned offline forecast (same store when using Automatic)
-5. Documented climatological fallback (`climatology_sfu` in the store)
-6. Legacy neutralizing constant only via `SolarActivitySource::LegacyDefault`
+1. Explicit caller override (`with_f10_7` / `--solar-radio-flux-sfu`), validated
+   finite and positive
+2. **Monthly** measured observation covering the requested UTC date
+   (`cadence=monthly`, e.g. `observed-solar-cycle-indices`)
+3. Monthly-compatible forecast:
+   - calendar-month mean of available SWPC **45-day** daily forecasts for the
+     requested month (`product=45-day-forecast-monthly-mean`) when any day in
+     that month is present — an operational aggregation approximating
+     `msolflux`, **not** a measured monthly mean (incomplete months use the mean
+     of available days only);
+   - else monthly `predicted-solar-cycle` covering that month
+4. Documented climatological fallback (`climatology_sfu` = Noll/SkyCalc
+   neutralizing reference ≈ 129.207 sfu / `DEFAULT_SOLAR_RADIO_FLUX`)
+5. Legacy neutralizing constant only via `SolarActivitySource::LegacyDefault`
 
-Historical dates never silently prefer future forecasts or climatology when an
+Raw **daily** observations and daily 45-day rows may remain in the store for
+diagnostics/CLI inspection but are never selected as the Airglow F10.7 input.
+
+Historical dates never silently prefer forecasts or climatology when a monthly
 observation exists. Forecasts are never labelled as observations. Climatology is
 never labelled as forecast or measurement.
+
+`retrieved_at_utc` and `forecast_issued_at_utc` are distinct: products without an
+issuance field (e.g. `predicted-solar-cycle`) leave issuance unset rather than
+fabricating it from download time.
 
 ## Runtime API (network-free)
 
@@ -152,19 +173,28 @@ mutate prior snapshot files required for pinned runs.
 ## Forecast limitations
 
 Short-range and monthly forecasts are planning aids with intrinsic uncertainty.
-Metadata exposes issuance time, horizon/product, and ranges when available.
-Forecast/climatology inputs are distinguishable from measured observations and
-must not be presented as measurements.
+Metadata exposes issuance time when the upstream product provides it, product
+identity, and ranges when available. The 45-day → calendar-month mean is an
+operational approximation of `msolflux` for near-future planning; it must not be
+confused with a measured monthly mean. Forecast/climatology inputs are
+distinguishable from measured observations and must not be presented as
+measurements.
+
+CLI / JSON point results report the F10.7 **actually applied** under
+`model.solar_radio_flux_sfu` (from resolved Airglow metadata) and under
+`components[].metadata.solar_activity`. Window JSON omits
+`model.solar_radio_flux_sfu` for Automatic/Dataset sources because samples can
+differ across the window.
 
 ## Examples
 
-Historical (prefer observation):
+Historical (prefer monthly observation):
 
 ```bash
 nsb-data solar f107 resolve --time 2026-08-01T12:00:00Z
 ```
 
-Near future (45-day forecast when no observation):
+Near future (45-day calendar-month mean when no monthly observation):
 
 ```bash
 nsb-data solar f107 resolve --time 2026-09-05T12:00:00Z

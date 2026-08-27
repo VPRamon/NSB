@@ -158,9 +158,9 @@ pub fn parse_predicted_solar_cycle(
             provider: PROVIDER.into(),
             product: "predicted-solar-cycle".into(),
             observation_date: None,
-            // Product has no issuance timestamp; pin retrieval time as issuance proxy
-            // and keep product identity explicit in metadata.
-            forecast_issued_at_utc: Some(retrieved_at_utc.into()),
+            // Product has no issuance timestamp. Keep retrieval as retrieval-only;
+            // do not fabricate forecast_issued_at_utc from download time.
+            forecast_issued_at_utc: None,
             retrieved_at_utc: Some(retrieved_at_utc.into()),
             valid_from: Some(valid_from),
             valid_through: Some(valid_through),

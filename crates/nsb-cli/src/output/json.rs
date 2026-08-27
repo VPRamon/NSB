@@ -62,7 +62,8 @@ struct ModelJson {
     preset: &'static str,
     moonlight_model: &'static str,
     starlight_model: &'static str,
-    solar_radio_flux_sfu: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    solar_radio_flux_sfu: Option<f64>,
     solar_activity_source: &'static str,
     f107_dataset_id: Option<String>,
     f107_snapshot_id: Option<String>,
@@ -165,7 +166,7 @@ pub fn write_point(
     let payload = PointJson {
         schema_version: "nsb-cli-point-json-v1",
         version: version_json(),
-        model: model_json(config),
+        model: model_json(config, resolved_solar_radio_flux_sfu(result)),
         time_utc: format_utc(time),
         observer: ObserverJson {
             longitude_deg: observer.lon.value(),
@@ -212,7 +213,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
     let payload = WindowJson {
         schema_version: "nsb-cli-window-json-v1",
         version: version_json(),
-        model: model_json(output.config),
+        model: model_json(output.config, None),
         start_utc: format_utc(output.start),
         end_utc: format_utc(output.end),
         min_nsb_ph_cm2_ns_sr: output.min.map(|value| value.value()),
@@ -267,7 +268,15 @@ fn version_json() -> VersionJson {
     }
 }
 
-fn model_json(config: &NsbModelConfig) -> ModelJson {
+fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
+    let solar_radio_flux_sfu = match &config.solar_activity {
+        nsb::SolarActivitySource::Explicit(_) | nsb::SolarActivitySource::LegacyDefault => {
+            Some(config.solar_radio_flux().value())
+        }
+        // Date-dependent sources: point evaluations supply the resolved value used;
+        // window evaluations omit the scalar (samples can differ).
+        nsb::SolarActivitySource::Dataset(_) | nsb::SolarActivitySource::Automatic => resolved_sfu,
+    };
     ModelJson {
         preset: config.site_profile.as_str(),
         moonlight_model: config.moonlight_model.as_str(),
@@ -277,7 +286,7 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
             Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
             Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         },
-        solar_radio_flux_sfu: config.solar_radio_flux().value(),
+        solar_radio_flux_sfu,
         solar_activity_source: match &config.solar_activity {
             nsb::SolarActivitySource::Explicit(_) => "explicit",
             nsb::SolarActivitySource::Dataset(_) => "dataset",
@@ -286,6 +295,11 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
         },
         f107_dataset_id: match &config.solar_activity {
             nsb::SolarActivitySource::Dataset(store) => Some(store.dataset_id.clone()),
+            nsb::SolarActivitySource::Automatic => {
+                // Prefer the resolved store identity when available via resolved_sfu path;
+                // Automatic uses the bundled store — surface dataset id only when known from config.
+                None
+            }
             _ => None,
         },
         f107_snapshot_id: match &config.solar_activity {
@@ -301,6 +315,16 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
             ZodiacalExtinction::Noll2012Approx => "noll-2012-approximation",
         },
     }
+}
+
+fn resolved_solar_radio_flux_sfu(result: &NsbResult) -> Option<f64> {
+    result.components.iter().find_map(|component| {
+        component
+            .metadata
+            .solar_activity
+            .as_ref()
+            .map(|solar| solar.value.value())
+    })
 }
 
 fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadataJson {

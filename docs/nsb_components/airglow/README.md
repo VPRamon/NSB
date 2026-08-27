@@ -23,8 +23,9 @@ site + UTC time + target direction + F10.7 solar radio flux
   -> wavelength-resolved and 300–650 nm photon-radiance outputs
 ```
 
-The default automatic path resolves F10.7 from the bundled offline store for the
-evaluation UTC date (observations, forecasts, then climatology). Callers may set
+The default automatic path resolves a **monthly-averaged** F10.7 (Noll/SkyCalc
+`msolflux`) from the bundled offline store for the evaluation UTC date (monthly
+observations, monthly-compatible forecasts, then climatology). Callers may set
 an explicit value with `with_solar_radio_flux` / `with_f10_7` or the CLI
 `--solar-radio-flux-sfu` option. See [F10.7 resolver](f107-resolver.md).
 
