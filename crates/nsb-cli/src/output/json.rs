@@ -63,6 +63,10 @@ struct ModelJson {
     moonlight_model: &'static str,
     starlight_model: &'static str,
     solar_radio_flux_sfu: f64,
+    solar_activity_source: &'static str,
+    f107_dataset_id: Option<String>,
+    f107_snapshot_id: Option<String>,
+    f107_checksum_sha256: Option<String>,
     zodiacal_extinction: &'static str,
 }
 
@@ -107,6 +111,25 @@ struct ComponentMetadataJson {
     provenance: String,
     validated_domain: String,
     band_diagnostic: BandDiagnosticJson,
+    solar_activity: Option<SolarActivityJson>,
+}
+
+#[derive(Serialize)]
+struct SolarActivityJson {
+    value_sfu: f64,
+    kind: &'static str,
+    provider: String,
+    product: String,
+    requested_date: String,
+    observation_date: Option<String>,
+    forecast_issued_at_utc: Option<String>,
+    dataset_id: Option<String>,
+    snapshot_id: Option<String>,
+    checksum_sha256: Option<String>,
+    resolution_step: &'static str,
+    uncertainty_sfu: Option<f64>,
+    range_low_sfu: Option<f64>,
+    range_high_sfu: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -254,7 +277,25 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
             Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
             Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         },
-        solar_radio_flux_sfu: config.solar_radio_flux.value(),
+        solar_radio_flux_sfu: config.solar_radio_flux().value(),
+        solar_activity_source: match &config.solar_activity {
+            nsb::SolarActivitySource::Explicit(_) => "explicit",
+            nsb::SolarActivitySource::Dataset(_) => "dataset",
+            nsb::SolarActivitySource::Automatic => "automatic",
+            nsb::SolarActivitySource::LegacyDefault => "legacy-default",
+        },
+        f107_dataset_id: match &config.solar_activity {
+            nsb::SolarActivitySource::Dataset(store) => Some(store.dataset_id.clone()),
+            _ => None,
+        },
+        f107_snapshot_id: match &config.solar_activity {
+            nsb::SolarActivitySource::Dataset(store) => Some(store.snapshot_id.clone()),
+            _ => None,
+        },
+        f107_checksum_sha256: match &config.solar_activity {
+            nsb::SolarActivitySource::Dataset(store) => store.checksum_sha256.clone(),
+            _ => None,
+        },
         zodiacal_extinction: match config.zodiacal_extinction {
             ZodiacalExtinction::None => "none",
             ZodiacalExtinction::Noll2012Approx => "noll-2012-approximation",
@@ -268,6 +309,25 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
         provenance: metadata.provenance.to_string(),
         validated_domain: metadata.validated_domain.to_string(),
         band_diagnostic: band_diagnostic_json(metadata.band_diagnostic),
+        solar_activity: metadata
+            .solar_activity
+            .as_ref()
+            .map(|solar| SolarActivityJson {
+                value_sfu: solar.value.value(),
+                kind: solar.record.kind.as_str(),
+                provider: solar.record.provider.clone(),
+                product: solar.record.product.clone(),
+                requested_date: solar.requested_date.to_string(),
+                observation_date: solar.record.observation_date.clone(),
+                forecast_issued_at_utc: solar.record.forecast_issued_at_utc.clone(),
+                dataset_id: solar.dataset_id.clone(),
+                snapshot_id: solar.snapshot_id.clone(),
+                checksum_sha256: solar.checksum_sha256.clone(),
+                resolution_step: solar.resolution_step,
+                uncertainty_sfu: solar.record.uncertainty_sfu,
+                range_low_sfu: solar.record.range_low_sfu,
+                range_high_sfu: solar.record.range_high_sfu,
+            }),
     }
 }
 

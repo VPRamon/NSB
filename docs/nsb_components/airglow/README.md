@@ -23,9 +23,10 @@ site + UTC time + target direction + F10.7 solar radio flux
   -> wavelength-resolved and 300–650 nm photon-radiance outputs
 ```
 
-The default F10.7 value is documented by the `DEFAULT_SOLAR_RADIO_FLUX` API;
-callers may set a value in solar flux units with `with_solar_radio_flux` or the
-CLI `--solar-radio-flux-sfu` option.
+The default automatic path resolves F10.7 from the bundled offline store for the
+evaluation UTC date (observations, forecasts, then climatology). Callers may set
+an explicit value with `with_solar_radio_flux` / `with_f10_7` or the CLI
+`--solar-radio-flux-sfu` option. See [F10.7 resolver](f107-resolver.md).
 
 ## Inputs and calibration
 
@@ -48,6 +49,8 @@ validate it against the intended conditions.
 
 ## Related documentation
 
+- [F10.7 solar-activity resolver](f107-resolver.md)
+- [Generic baseline vs site calibration audit (#108)](108-audit-generic-baseline-vs-site-calibration.md)
 - [Runtime component overview](../../user-guide/components.md)
 - [CTAO site profiles](../../specifications/ctao-site-profiles.md)
 - [Model maturity](../../specifications/model-maturity.md)

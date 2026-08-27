@@ -73,7 +73,10 @@ See the [external manifest contract](../nsb_components/starlight/external-manife
 
 The airglow model uses a bundled continuum template and applies empirical
 corrections for observing geometry and temporal conditions. Its solar-activity
-input is F10.7 radio flux in solar flux units.
+input is F10.7 radio flux in solar flux units. By default NSB resolves F10.7
+from the bundled offline store for the evaluation UTC date; use
+`--solar-radio-flux-sfu` for an explicit override or `--f107-store` for a pinned
+local dataset. See [F10.7 resolver](../nsb_components/airglow/f107-resolver.md).
 
 CLI selection and override:
 

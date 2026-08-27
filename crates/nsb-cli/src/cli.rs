@@ -103,9 +103,13 @@ pub struct ModelArgs {
     #[arg(long, value_enum, default_value_t = MoonlightModelArg::Jones2013)]
     pub moonlight_model: MoonlightModelArg,
 
-    /// Solar radio flux F10.7 in solar flux units for airglow.
+    /// Explicit F10.7 override in solar flux units (disables automatic resolution).
     #[arg(long)]
     pub solar_radio_flux_sfu: Option<f64>,
+
+    /// Pinned local `nsb-f107-store-v1` JSON dataset (ignored if `--solar-radio-flux-sfu` is set).
+    #[arg(long)]
+    pub f107_store: Option<PathBuf>,
 
     /// Zodiacal atmospheric extinction model.
     #[arg(long, value_enum, default_value_t = ZodiacalExtinctionArg::Noll2012)]

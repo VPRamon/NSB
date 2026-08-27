@@ -4,8 +4,10 @@ use crate::parsing::{components, location, target, time};
 use anyhow::Result;
 use log::{debug, info};
 use nsb::{
-    MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits, ZodiacalExtinction,
+    F107Store, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits,
+    ZodiacalExtinction,
 };
+use std::sync::Arc;
 use std::time::Instant;
 
 pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
@@ -65,7 +67,17 @@ pub(crate) fn model_config(
     };
     if let Some(sfu) = args.solar_radio_flux_sfu {
         debug!("using explicit solar radio flux: {sfu} sfu");
-        config.solar_radio_flux = SolarFluxUnits::new(sfu);
+        config = config.with_solar_radio_flux(SolarFluxUnits::new(sfu));
+    } else if let Some(path) = &args.f107_store {
+        let bytes = std::fs::read(path)
+            .map_err(|error| anyhow::anyhow!("read F10.7 store {}: {error}", path.display()))?;
+        let store = F107Store::from_json_bytes(&bytes)
+            .map_err(|error| anyhow::anyhow!("invalid F10.7 store {}: {error}", path.display()))?;
+        debug!(
+            "using F10.7 dataset {} snapshot {} checksum {:?}",
+            store.dataset_id, store.snapshot_id, store.checksum_sha256
+        );
+        config = config.with_f107_store(Arc::new(store));
     }
     config.zodiacal_extinction = match args.zodiacal_extinction {
         crate::cli::ZodiacalExtinctionArg::Noll2012 => ZodiacalExtinction::Noll2012Approx,
