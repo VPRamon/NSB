@@ -52,6 +52,8 @@ struct F107Args {
 enum F107Command {
     /// Refresh the local F10.7 store from SWPC (or pinned fixtures).
     Update(F107UpdateArgs),
+    /// Deterministically freeze a scientific F10.7 asset from fixtures.
+    Freeze(F107FreezeArgs),
     /// Show local store status.
     Status(F107StorePathArgs),
     /// Resolve F10.7 for a UTC time against local/bundled data.
@@ -73,6 +75,25 @@ struct F107UpdateArgs {
     /// Use pinned fixtures instead of the live network (required for CI).
     #[arg(long)]
     fixture_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct F107FreezeArgs {
+    /// Destination scientific store path (overwritten from a clean store).
+    #[arg(long)]
+    store: PathBuf,
+    /// Pinned fixture directory (no network).
+    #[arg(long)]
+    fixture_dir: PathBuf,
+    /// Dataset identity written into the frozen store.
+    #[arg(long, default_value = "nsb-f107-bundled-offline")]
+    dataset_id: String,
+    /// Fixed snapshot identity (no wall clock).
+    #[arg(long)]
+    snapshot_id: String,
+    /// Fixed RFC3339 UTC retrieval timestamp (no wall clock).
+    #[arg(long)]
+    retrieved_at: String,
 }
 
 #[derive(Debug, Args)]
@@ -413,6 +434,29 @@ fn execute_solar(args: SolarArgs) -> Result<()> {
                     None => crate::solar::UpdateMode::Online,
                 };
                 let report = crate::solar::update_store(&args.store, mode, &args.dataset_id)?;
+                println!(
+                    "status={} dataset={} snapshot={} checksum={} records={} path={} snapshot_path={}",
+                    report.status,
+                    report.dataset_id,
+                    report.snapshot_id,
+                    report.checksum_sha256,
+                    report.record_count,
+                    report.active_path.display(),
+                    report.snapshot_path.display()
+                );
+                for note in report.notes {
+                    println!("note: {note}");
+                }
+                Ok(())
+            }
+            F107Command::Freeze(args) => {
+                let report = crate::solar::freeze_store(&crate::solar::FreezeParams {
+                    fixture_dir: args.fixture_dir,
+                    store_path: args.store,
+                    dataset_id: args.dataset_id,
+                    snapshot_id: args.snapshot_id,
+                    retrieved_at_utc: args.retrieved_at,
+                })?;
                 println!(
                     "status={} dataset={} snapshot={} checksum={} records={} path={} snapshot_path={}",
                     report.status,

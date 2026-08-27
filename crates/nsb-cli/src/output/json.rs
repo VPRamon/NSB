@@ -128,6 +128,14 @@ struct SolarActivityJson {
     snapshot_id: Option<String>,
     checksum_sha256: Option<String>,
     resolution_step: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    monthly_completeness: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    observed_days: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    forecast_days: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_days: Option<u32>,
     uncertainty_sfu: Option<f64>,
     range_low_sfu: Option<f64>,
     range_high_sfu: Option<f64>,
@@ -348,6 +356,10 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
                 snapshot_id: solar.snapshot_id.clone(),
                 checksum_sha256: solar.checksum_sha256.clone(),
                 resolution_step: solar.resolution_step,
+                monthly_completeness: solar.monthly_completeness.map(|m| m.as_str()),
+                observed_days: solar.observed_days,
+                forecast_days: solar.forecast_days,
+                total_days: solar.total_days,
                 uncertainty_sfu: solar.record.uncertainty_sfu,
                 range_low_sfu: solar.record.range_low_sfu,
                 range_high_sfu: solar.record.range_high_sfu,

@@ -17,7 +17,7 @@ pub const BUNDLED_F107_ASSET_PATH: &str = "NSB/data/f107_store.json";
 /// because the JSON snapshot is large enough that const SHA-256 evaluation is
 /// impractically slow. Manifest + this constant remain the dual pin.
 pub const BUNDLED_F107_EMBEDDED_SHA256: &str =
-    "47bc6923069739223d4244f8a9ad7821149ce905aaf3cfd89721ff4c9bde9a17";
+    "90aec6a640befd23f1fffbd6e3ddcfc7d005a8365cc56652f5324330e3b3f6b8";
 
 /// Canonical scientific provenance for the bundled F10.7 store.
 pub fn bundled_f107_asset() -> &'static ScientificAsset {

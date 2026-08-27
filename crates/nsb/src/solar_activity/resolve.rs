@@ -2,13 +2,14 @@
 //!
 //! Airglow's Noll/SkyCalc solar correction expects a **monthly-averaged** F10.7
 //! quantity (`msolflux`). This resolver therefore never feeds a raw daily
-//! observation or daily forecast value into Airglow.
+//! observation or daily forecast value into Airglow, and never promotes a
+//! partial-month average to a completed monthly mean.
 
-use super::record::{climatology_record, explicit_record, F107Kind, F107Record};
+use super::monthly::{resolve_monthly_evidence, MonthlyCompleteness, MonthlyF107Evidence};
+use super::record::{explicit_record, F107Kind, F107Record};
 use super::store::F107Store;
 use crate::components::airglow::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
-use chrono::{Datelike, NaiveDate};
-use std::collections::BTreeMap;
+use chrono::NaiveDate;
 use std::sync::Arc;
 use tempoch::{Time, UTC};
 
@@ -60,13 +61,21 @@ pub struct ResolvedSolarActivity {
     pub requested_date: NaiveDate,
     /// Which precedence step produced this value.
     pub resolution_step: &'static str,
+    /// Monthly completeness / method classification when store-resolved.
+    pub monthly_completeness: Option<MonthlyCompleteness>,
+    /// Observed day count contributing to a derived monthly estimate.
+    pub observed_days: Option<u32>,
+    /// Forecast day count contributing to a derived monthly estimate.
+    pub forecast_days: Option<u32>,
+    /// Total calendar days in the resolved month.
+    pub total_days: Option<u32>,
 }
 
 impl ResolvedSolarActivity {
     /// Compact provenance fragment for component metadata strings.
     pub fn provenance_fragment(&self) -> String {
         format!(
-            "F10.7 {} sfu kind={} provider={} product={} requested_date={} observation_date={} forecast_issued_at={} dataset={} snapshot={} checksum={} resolution={} uncertainty_sfu={:?} range=[{:?}, {:?}]; measured F10.7 does not make Airglow site-calibrated",
+            "F10.7 {} sfu kind={} provider={} product={} requested_date={} observation_date={} forecast_issued_at={} dataset={} snapshot={} checksum={} resolution={} monthly_completeness={} observed_days={:?} forecast_days={:?} total_days={:?} uncertainty_sfu={:?} range=[{:?}, {:?}]; measured F10.7 does not make Airglow site-calibrated",
             self.value.value(),
             self.record.kind.as_str(),
             self.record.provider,
@@ -81,6 +90,12 @@ impl ResolvedSolarActivity {
             self.snapshot_id.as_deref().unwrap_or("n/a"),
             self.checksum_sha256.as_deref().unwrap_or("n/a"),
             self.resolution_step,
+            self.monthly_completeness
+                .map(MonthlyCompleteness::as_str)
+                .unwrap_or("n/a"),
+            self.observed_days,
+            self.forecast_days,
+            self.total_days,
             self.record.uncertainty_sfu,
             self.record.range_low_sfu,
             self.record.range_high_sfu,
@@ -91,6 +106,15 @@ impl ResolvedSolarActivity {
     /// relative to a measured historical observation.
     pub fn is_degraded_planning_input(&self) -> bool {
         matches!(self.record.kind, F107Kind::Forecast | F107Kind::Climatology)
+            || matches!(
+                self.monthly_completeness,
+                Some(
+                    MonthlyCompleteness::CompleteForecast
+                        | MonthlyCompleteness::ProvisionalObservedPlusForecast
+                        | MonthlyCompleteness::OfficialMonthlyPrediction
+                        | MonthlyCompleteness::Climatology
+                )
+            )
     }
 }
 
@@ -98,20 +122,25 @@ impl ResolvedSolarActivity {
 ///
 /// Precedence (Noll/SkyCalc monthly-averaged quantity):
 /// 1. explicit caller override (validated finite and positive)
-/// 2. monthly measured observation covering the requested UTC date
-/// 3. monthly-compatible forecast:
-///    - calendar-month mean of covering 45-day daily forecasts when available
-///    - else monthly `predicted-solar-cycle` covering that month
-/// 4. documented climatological fallback
-/// 5. legacy neutralizing constant only via [`SolarActivitySource::LegacyDefault`]
+/// 2. finalized monthly observed covering a completed month
+/// 3. complete calendar-month 45-day forecast mean (time-valid issuance)
+/// 4. provisional current-month observed+forecast mean (full coverage only)
+/// 5. official monthly solar-cycle prediction
+/// 6. documented climatological fallback
+/// 7. legacy neutralizing constant only via [`SolarActivitySource::LegacyDefault`]
 ///
-/// Raw daily observations/forecasts are never selected as the Airglow input.
-/// This function performs no network I/O.
+/// Partial-month averages are never selected. Forecasts issued after the
+/// requested evaluation instant never participate. Raw daily values are never
+/// selected as the Airglow input. This function performs no network I/O.
 pub fn resolve_f107(
     requested_time: Time<UTC>,
     source: &SolarActivitySource,
 ) -> crate::Result<ResolvedSolarActivity> {
     let requested_date = utc_calendar_date(requested_time);
+    let requested_at = requested_time
+        .to_chrono()
+        .expect("F10.7 resolution requires a chrono-representable UTC instant")
+        .naive_utc();
     match source {
         SolarActivitySource::Explicit(flux) => {
             validate_explicit_flux(*flux)?;
@@ -123,6 +152,10 @@ pub fn resolve_f107(
                 checksum_sha256: None,
                 requested_date,
                 resolution_step: "explicit-override",
+                monthly_completeness: None,
+                observed_days: None,
+                forecast_days: None,
+                total_days: None,
             })
         }
         SolarActivitySource::LegacyDefault => Ok(ResolvedSolarActivity {
@@ -133,11 +166,17 @@ pub fn resolve_f107(
             checksum_sha256: None,
             requested_date,
             resolution_step: "legacy-default-constant",
+            monthly_completeness: None,
+            observed_days: None,
+            forecast_days: None,
+            total_days: None,
         }),
-        SolarActivitySource::Dataset(store) => resolve_from_store(requested_date, store),
+        SolarActivitySource::Dataset(store) => {
+            resolve_from_store(requested_date, requested_at, store)
+        }
         SolarActivitySource::Automatic => {
             let store = super::bundled::bundled_f107_store()?;
-            resolve_from_store(requested_date, store)
+            resolve_from_store(requested_date, requested_at, store)
         }
     }
 }
@@ -154,243 +193,37 @@ fn validate_explicit_flux(flux: SolarFluxUnits) -> crate::Result<()> {
 
 fn resolve_from_store(
     requested_date: NaiveDate,
+    requested_at: chrono::NaiveDateTime,
     store: &F107Store,
 ) -> crate::Result<ResolvedSolarActivity> {
-    if let Some(record) = select_monthly_observed(store, requested_date)? {
-        return Ok(resolved(
-            store,
-            requested_date,
-            record,
-            "monthly-observed-local-store",
-        ));
-    }
-    if let Some(record) = select_monthly_compatible_forecast(store, requested_date)? {
-        let step = if record.product.contains("45-day") {
-            "short-range-forecast-monthly-mean"
-        } else if record.product.contains("predicted-solar-cycle")
-            || record.cadence.as_deref() == Some("monthly")
-        {
-            "monthly-solar-cycle-forecast"
-        } else {
-            "official-forecast"
-        };
-        return Ok(resolved(store, requested_date, record, step));
-    }
-    Ok(ResolvedSolarActivity {
-        value: SolarFluxUnits::new(store.climatology_sfu),
-        record: climatology_record(
-            requested_date,
-            store.climatology_sfu,
-            "documented-climatology-fallback",
-        ),
-        dataset_id: Some(store.dataset_id.clone()),
-        snapshot_id: Some(store.snapshot_id.clone()),
-        checksum_sha256: store.checksum_sha256.clone(),
-        requested_date,
-        resolution_step: "climatology-fallback",
-    })
-}
-
-fn resolved(
-    store: &F107Store,
-    requested_date: NaiveDate,
-    record: F107Record,
-    step: &'static str,
-) -> ResolvedSolarActivity {
-    ResolvedSolarActivity {
-        value: SolarFluxUnits::new(record.value_sfu),
-        record,
-        dataset_id: Some(store.dataset_id.clone()),
-        snapshot_id: Some(store.snapshot_id.clone()),
-        checksum_sha256: store.checksum_sha256.clone(),
-        requested_date,
-        resolution_step: step,
-    }
-}
-
-/// Select a **monthly** observation covering `requested`.
-///
-/// Daily observations are retained in the store for diagnostics but are never
-/// chosen as the Noll/SkyCalc Airglow input.
-fn select_monthly_observed(
-    store: &F107Store,
-    requested: NaiveDate,
-) -> crate::Result<Option<F107Record>> {
-    let mut matches =
-        store
-            .observed_covering(requested)
-            .map_err(|error| crate::error::NsbError::DataParse {
-                file: "f107_store",
-                message: error.0,
-            })?;
-    matches.retain(|record| record.cadence.as_deref() == Some("monthly"));
-    if matches.is_empty() {
-        return Ok(None);
-    }
-    // Prefer narrower validity windows, then deterministic product name.
-    matches.sort_by_key(|record| {
-        (
-            validity_span_days(record).unwrap_or(u32::MAX),
-            std::cmp::Reverse(record.product.as_str()),
-        )
-    });
-    Ok(Some(matches[0].clone()))
-}
-
-/// Select a monthly-compatible forecast for Airglow.
-///
-/// Prefer a calendar-month mean of 45-day daily forecasts when any day in the
-/// requested month is covered; otherwise use monthly solar-cycle predictions.
-fn select_monthly_compatible_forecast(
-    store: &F107Store,
-    requested: NaiveDate,
-) -> crate::Result<Option<F107Record>> {
-    if let Some(aggregated) = aggregate_45_day_month_mean(store, requested)? {
-        return Ok(Some(aggregated));
-    }
-    select_monthly_cycle_forecast(store, requested)
-}
-
-fn aggregate_45_day_month_mean(
-    store: &F107Store,
-    requested: NaiveDate,
-) -> crate::Result<Option<F107Record>> {
-    let year = requested.year();
-    let month = requested.month();
-    let mut by_day: BTreeMap<NaiveDate, F107Record> = BTreeMap::new();
-
-    for record in &store.records {
-        if record.kind != F107Kind::Forecast {
-            continue;
-        }
-        if !record.product.contains("45-day") {
-            continue;
-        }
-        if record.cadence.as_deref() != Some("daily") {
-            continue;
-        }
-        let day = super::record::parse_date(&record.date, "date").map_err(|error| {
+    let evidence =
+        resolve_monthly_evidence(store, requested_date, requested_at).map_err(|message| {
             crate::error::NsbError::DataParse {
                 file: "f107_store",
-                message: error.0,
+                message,
             }
         })?;
-        if day.year() != year || day.month() != month {
-            continue;
-        }
-        record
-            .validate()
-            .map_err(|error| crate::error::NsbError::DataParse {
-                file: "f107_store",
-                message: error.0,
-            })?;
-        match by_day.get(&day) {
-            None => {
-                by_day.insert(day, record.clone());
-            }
-            Some(prior) => {
-                // Freshest issuance wins for a given day; missing issuance sorts last.
-                if record.forecast_issued_at_utc > prior.forecast_issued_at_utc {
-                    by_day.insert(day, record.clone());
-                }
-            }
-        }
-    }
-
-    if by_day.is_empty() {
-        return Ok(None);
-    }
-
-    let days: Vec<_> = by_day.values().collect();
-    let mean = days.iter().map(|r| r.value_sfu).sum::<f64>() / days.len() as f64;
-    if !mean.is_finite() || mean <= 0.0 {
-        return Err(crate::error::NsbError::DataParse {
-            file: "f107_store",
-            message: "45-day monthly aggregation produced a non-positive mean".into(),
-        });
-    }
-
-    let (month_start, month_end) = month_bounds_for(requested);
-    let issued = days
-        .iter()
-        .filter_map(|r| r.forecast_issued_at_utc.as_ref())
-        .max()
-        .cloned();
-    let provider = days[0].provider.clone();
-    let retrieved = days
-        .iter()
-        .filter_map(|r| r.retrieved_at_utc.as_ref())
-        .max()
-        .cloned();
-    let source_locator = days[0].source_locator.clone();
-
-    Ok(Some(F107Record {
-        date: month_start.format("%Y-%m-%d").to_string(),
-        value_sfu: mean,
-        kind: F107Kind::Forecast,
-        provider,
-        product: "45-day-forecast-monthly-mean".into(),
-        observation_date: None,
-        forecast_issued_at_utc: issued,
-        retrieved_at_utc: retrieved,
-        valid_from: Some(month_start.format("%Y-%m-%d").to_string()),
-        valid_through: Some(month_end.format("%Y-%m-%d").to_string()),
-        cadence: Some("monthly".into()),
-        uncertainty_sfu: None,
-        range_low_sfu: None,
-        range_high_sfu: None,
-        source_locator: Some(format!(
-            "{} (operational calendar-month mean of available 45-day daily forecasts; approximates Noll/SkyCalc msolflux, not a measured monthly mean; {} day(s) in month)",
-            source_locator.unwrap_or_else(|| "45-day-forecast".into()),
-            days.len()
-        )),
-    }))
+    Ok(from_evidence(store, requested_date, evidence))
 }
 
-fn select_monthly_cycle_forecast(
+fn from_evidence(
     store: &F107Store,
-    requested: NaiveDate,
-) -> crate::Result<Option<F107Record>> {
-    let mut matches =
-        store
-            .forecasts_covering(requested)
-            .map_err(|error| crate::error::NsbError::DataParse {
-                file: "f107_store",
-                message: error.0,
-            })?;
-    matches.retain(|record| {
-        record.cadence.as_deref() == Some("monthly") && !record.product.contains("45-day")
-    });
-    if matches.is_empty() {
-        return Ok(None);
+    requested_date: NaiveDate,
+    evidence: MonthlyF107Evidence,
+) -> ResolvedSolarActivity {
+    ResolvedSolarActivity {
+        value: SolarFluxUnits::new(evidence.value_sfu),
+        record: evidence.record,
+        dataset_id: Some(store.dataset_id.clone()),
+        snapshot_id: Some(store.snapshot_id.clone()),
+        checksum_sha256: store.checksum_sha256.clone(),
+        requested_date,
+        resolution_step: evidence.resolution_step,
+        monthly_completeness: Some(evidence.method),
+        observed_days: Some(evidence.observed_days),
+        forecast_days: Some(evidence.forecast_days),
+        total_days: Some(evidence.total_days),
     }
-    // Deterministic precedence: prefer records with issuance when present (freshest),
-    // but never invent issuance. Missing issuance sorts after dated issuance for
-    // freshness but still participates via product/value tie-breaks.
-    matches.sort_by(|a, b| {
-        b.forecast_issued_at_utc
-            .cmp(&a.forecast_issued_at_utc)
-            .then_with(|| a.product.cmp(&b.product))
-            .then_with(|| a.value_sfu.to_bits().cmp(&b.value_sfu.to_bits()))
-    });
-    Ok(Some(matches[0].clone()))
-}
-
-fn month_bounds_for(date: NaiveDate) -> (NaiveDate, NaiveDate) {
-    let start = NaiveDate::from_ymd_opt(date.year(), date.month(), 1).expect("valid month start");
-    let end = if date.month() == 12 {
-        NaiveDate::from_ymd_opt(date.year() + 1, 1, 1)
-    } else {
-        NaiveDate::from_ymd_opt(date.year(), date.month() + 1, 1)
-    }
-    .expect("valid next month")
-        - chrono::Duration::days(1);
-    (start, end)
-}
-
-fn validity_span_days(record: &F107Record) -> Option<u32> {
-    let (from, through) = record.validity_window().ok()?;
-    Some((through - from).num_days().max(0) as u32)
 }
 
 /// UTC calendar date for a `Time<UTC>`.

@@ -7,9 +7,10 @@ mod providers;
 mod update;
 
 pub use providers::{
-    parse_45_day_forecast_json, parse_daily_solar_indices, parse_predicted_solar_cycle,
+    parse_45_day_forecast_json, parse_daily_solar_indices, parse_observed_solar_cycle_indices,
+    parse_predicted_solar_cycle,
 };
 pub use update::{
-    import_store, resolve_against_store, status_report, update_store, verify_store, UpdateMode,
-    UpdateReport,
+    freeze_store, import_store, resolve_against_store, status_report, status_report_at,
+    update_store, verify_store, FreezeParams, StoreStatus, UpdateMode, UpdateReport,
 };

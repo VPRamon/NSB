@@ -203,12 +203,23 @@ pub fn parse_observed_solar_cycle_indices(
             continue;
         }
         let (valid_from, valid_through) = month_bounds(time_tag)?;
+        let month_end = NaiveDate::parse_from_str(&valid_through, "%Y-%m-%d")
+            .with_context(|| format!("invalid valid_through {valid_through}"))?;
+        let retrieved_day = NaiveDate::parse_from_str(&retrieved_at_utc[..10], "%Y-%m-%d")
+            .with_context(|| format!("invalid retrieved_at_utc {retrieved_at_utc}"))?;
+        // SWPC's current-month entry is provisional / month-to-date until the month ends.
+        let (product, cadence_note_ok) = if month_end < retrieved_day {
+            ("observed-solar-cycle-indices", true)
+        } else {
+            ("observed-solar-cycle-indices-month-to-date", true)
+        };
+        let _ = cadence_note_ok;
         records.push(F107Record {
             date: valid_from.clone(),
             value_sfu: flux,
             kind: F107Kind::Observed,
             provider: PROVIDER.into(),
-            product: "observed-solar-cycle-indices".into(),
+            product: product.into(),
             observation_date: Some(valid_from.clone()),
             forecast_issued_at_utc: None,
             retrieved_at_utc: Some(retrieved_at_utc.into()),

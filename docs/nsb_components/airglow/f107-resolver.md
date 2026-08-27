@@ -70,25 +70,40 @@ are out of scope here (#110 / #114 / #38 are intentionally not implemented).
 
 1. Explicit caller override (`with_f10_7` / `--solar-radio-flux-sfu`), validated
    finite and positive
-2. **Monthly** measured observation covering the requested UTC date
-   (`cadence=monthly`, e.g. `observed-solar-cycle-indices`)
-3. Monthly-compatible forecast:
-   - calendar-month mean of available SWPC **45-day** daily forecasts for the
-     requested month (`product=45-day-forecast-monthly-mean`) when any day in
-     that month is present — an operational aggregation approximating
-     `msolflux`, **not** a measured monthly mean (incomplete months use the mean
-     of available days only);
-   - else monthly `predicted-solar-cycle` covering that month
+2. **Finalized monthly observed** covering the requested UTC date
+   (`product=observed-solar-cycle-indices`, month complete relative to store
+   retrieval time — never month-to-date / provisional)
+3. Monthly-compatible forecast, in order:
+   - **complete** calendar-month mean of SWPC 45-day daily forecasts when
+     **every** day of the month is present and each forecast satisfies
+     `forecast_issued_at <= requested_time`
+     (`product=45-day-forecast-monthly-mean`);
+   - else **provisional** current-month estimate from observed dailies to date
+     plus forecast dailies for remaining days, only when coverage is complete
+     (`product=current-month-observed-plus-forecast-mean`, `kind=forecast`);
+   - else official monthly `predicted-solar-cycle`
 4. Documented climatological fallback (`climatology_sfu` = Noll/SkyCalc
    neutralizing reference ≈ 129.207 sfu / `DEFAULT_SOLAR_RADIO_FLUX`)
 5. Legacy neutralizing constant only via `SolarActivitySource::LegacyDefault`
 
+**Incomplete months never become `msolflux`.** A 2-day / 10-day subset of a
+month must not be stamped valid for the whole month. Fall back to the official
+monthly prediction (or climatology) instead.
+
 Raw **daily** observations and daily 45-day rows may remain in the store for
 diagnostics/CLI inspection but are never selected as the Airglow F10.7 input.
 
-Historical dates never silently prefer forecasts or climatology when a monthly
-observation exists. Forecasts are never labelled as observations. Climatology is
-never labelled as forecast or measurement.
+### Temporal no-future-information rule
+
+Forecast-derived Airglow inputs require `forecast_issued_at <= requested_time`.
+A forecast issued on 2026-08-27 cannot influence an automatic evaluation of
+2026-08-01. There is no retrospective/reanalysis mode.
+
+### Current-month SWPC monthly indices
+
+SWPC `observed-solar-cycle-indices` entries for the incomplete current month are
+recorded as `observed-solar-cycle-indices-month-to-date` and never count as
+finalized monthly observations for Airglow.
 
 `retrieved_at_utc` and `forecast_issued_at_utc` are distinct: products without an
 issuance field (e.g. `predicted-solar-cycle`) leave issuance unset rather than
@@ -133,29 +148,57 @@ by the manifest; Rust only pins the embedded-byte checksum.
 Embedded bytes must match the manifest SHA-256. CI loads and resolves against the
 bundled store without network access.
 
-## Online update (`nsb-data-tools`)
+## Online update vs deterministic freeze (`nsb-data-tools`)
 
 ```text
+# Operational cache refresh (wall clock; may merge existing store)
 nsb-data solar f107 update [--store PATH] [--fixture-dir DIR]
+
+# Immutable scientific asset freeze (fixed time/id; clean store; bit-for-bit)
+nsb-data solar f107 freeze \
+  --fixture-dir crates/nsb-data-tools/tests/fixtures/swpc \
+  --store crates/nsb/data/f107_store.json \
+  --dataset-id nsb-f107-bundled-offline \
+  --snapshot-id bundled-2026-08-27 \
+  --retrieved-at 2026-08-27T08:00:00Z
+
 nsb-data solar f107 status [--store PATH]
 nsb-data solar f107 resolve --time <UTC> [--store PATH]
 nsb-data solar f107 import <file> [--store PATH]
 nsb-data solar f107 verify <asset> [--sha256 DIGEST]
 ```
 
+`update` and `freeze` are intentionally distinct:
+
+| | `update` | `freeze` |
+|--|--|--|
+| Purpose | operational local cache | immutable scientific asset |
+| Clock | `Utc::now()` | caller `--retrieved-at` |
+| Snapshot id | derived from now | caller `--snapshot-id` |
+| Existing store | may merge | always starts clean |
+| Checksum | varies over time | bit-for-bit reproducible |
+
 Primary provider: **NOAA/NWS SWPC**.
 
 | Product | Role |
 |---------|------|
-| `daily-solar-indices.txt` | Recent daily observed F10.7 |
-| `45-day-forecast.json` | Short-range daily forecast |
+| `daily-solar-indices.txt` | Recent daily observed F10.7 (diagnostic / provisional building block) |
+| `45-day-forecast.json` | Short-range daily forecast (complete-month mean only when full coverage) |
 | `predicted-solar-cycle.json` | Longer-range monthly predictions + ranges |
-| `observed-solar-cycle-indices.json` | Monthly observed indices (optional/best-effort online) |
+| `observed-solar-cycle-indices.json` | Monthly observed indices (finalized vs month-to-date) |
 
 Updates validate before activation, write atomically, retain previous snapshots
 under `snapshots/`, and report dataset/snapshot/checksum. Network errors must
-not corrupt a valid store. CI uses `--fixture-dir` with pinned fixtures under
+not corrupt a valid store. CI uses pinned fixtures under
 `crates/nsb-data-tools/tests/fixtures/swpc/` (no live provider dependency).
+
+### Fresh / stale status
+
+`status` reports deterministic freshness using retrieval age, newest observation,
+45-day issuance/horizon, and monthly forecast horizon. Values include
+`fresh`, `stale`, `forecast`, `fallback` notes, `missing`, and `invalid`.
+Bundled assets may be **reproducible but operationally stale** — that is stated
+explicitly rather than pretending they are current.
 
 ## Offline / local / explicit paths
 
@@ -174,11 +217,11 @@ mutate prior snapshot files required for pinned runs.
 
 Short-range and monthly forecasts are planning aids with intrinsic uncertainty.
 Metadata exposes issuance time when the upstream product provides it, product
-identity, and ranges when available. The 45-day → calendar-month mean is an
-operational approximation of `msolflux` for near-future planning; it must not be
-confused with a measured monthly mean. Forecast/climatology inputs are
-distinguishable from measured observations and must not be presented as
-measurements.
+identity, monthly completeness method, observed/forecast day counts, and ranges
+when available. A complete 45-day calendar-month mean is an operational
+approximation of `msolflux` for near-future planning; incomplete months never
+masquerade as monthly means. Forecast/climatology/provisional inputs are
+distinguishable from finalized monthly observations.
 
 CLI / JSON point results report the F10.7 **actually applied** under
 `model.solar_radio_flux_sfu` (from resolved Airglow metadata) and under
@@ -206,11 +249,22 @@ Explicit override:
 nsb point --time 2026-08-01T12:00:00Z ... --solar-radio-flux-sfu 130
 ```
 
-Update local dataset from fixtures (CI-safe):
+Update local dataset from fixtures (CI-safe operational update):
 
 ```bash
 nsb-data solar f107 update --store /tmp/f107.json \
   --fixture-dir crates/nsb-data-tools/tests/fixtures/swpc
+```
+
+Regenerate the bundled scientific asset bit-for-bit (freeze):
+
+```bash
+nsb-data solar f107 freeze \
+  --fixture-dir crates/nsb-data-tools/tests/fixtures/swpc \
+  --store crates/nsb/data/f107_store.json \
+  --dataset-id nsb-f107-bundled-offline \
+  --snapshot-id bundled-2026-08-27 \
+  --retrieved-at 2026-08-27T08:00:00Z
 ```
 
 ## Why no runtime network
