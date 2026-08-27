@@ -100,7 +100,7 @@ impl NsbEvaluator {
         if components.contains(ComponentMask::AIRGLOW) {
             descriptions.push(NsbComponentDescriptor {
                 name: "airglow",
-                metadata: airglow_metadata(self.config.site_profile, observer),
+                metadata: airglow_metadata(self.config.site_profile, observer, None),
             });
         }
         if components.contains(ComponentMask::MOON) {
@@ -339,7 +339,8 @@ impl NsbEvaluator {
             });
         }
         if query.components.contains(ComponentMask::AIRGLOW) {
-            let out = self.evaluate_airglow(query.observer, time, query.target)?;
+            let (out, solar) =
+                self.evaluate_airglow_resolved(query.observer, time, query.target)?;
             total += out.integrated;
             b_total += out.b_flux_s10;
             v_total += out.v_flux_s10;
@@ -352,7 +353,7 @@ impl NsbEvaluator {
                 statistical_uncertainty: None,
                 systematic_uncertainty: None,
                 total_uncertainty: None,
-                metadata: airglow_metadata(self.config.site_profile, query.observer),
+                metadata: airglow_metadata(self.config.site_profile, query.observer, Some(&solar)),
             });
         }
         if query.components.contains(ComponentMask::MOON) {
@@ -392,17 +393,23 @@ impl NsbEvaluator {
         })
     }
 
-    fn evaluate_airglow(
+    fn evaluate_airglow_resolved(
         &self,
         observer: Observer,
         time: Time<UTC>,
         target: Target,
-    ) -> Result<airglow::AirglowOutputs> {
+    ) -> Result<(
+        airglow::AirglowOutputs,
+        crate::solar_activity::ResolvedSolarActivity,
+    )> {
+        let solar = crate::solar_activity::resolve_f107(time, &self.config.solar_activity)?;
         let profile = self.config.site_profile.profile(observer);
-        airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
-            .with_solar_radio_flux(self.config.solar_radio_flux)
-            .with_scale(profile.airglow.scale)
-            .compute(time, target)
+        let outputs =
+            airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
+                .with_solar_radio_flux(solar.value)
+                .with_scale(profile.airglow.scale)
+                .compute(time, target)?;
+        Ok((outputs, solar))
     }
 
     fn evaluate_airglow_with_time_bin(
@@ -412,9 +419,10 @@ impl NsbEvaluator {
         target: Target,
         time_bin: usize,
     ) -> Result<airglow::AirglowOutputs> {
+        let solar = crate::solar_activity::resolve_f107(time, &self.config.solar_activity)?;
         let profile = self.config.site_profile.profile(observer);
         airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
-            .with_solar_radio_flux(self.config.solar_radio_flux)
+            .with_solar_radio_flux(solar.value)
             .with_scale(profile.airglow.scale)
             .compute_with_time_of_night_bin(time, target, time_bin)
     }
@@ -690,7 +698,10 @@ mod tests {
         let context = evaluator
             .evaluate_integrated(&prepared, tt_time(time))
             .unwrap();
-        let exact = evaluator.evaluate_airglow(observer, time, target).unwrap();
+        let exact = evaluator
+            .evaluate_airglow_resolved(observer, time, target)
+            .unwrap()
+            .0;
 
         assert!((context.value() - exact.integrated.value()).abs() < 1.0e-12);
     }
@@ -715,7 +726,10 @@ mod tests {
         let context = evaluator
             .evaluate_integrated(&prepared, tt_time(time))
             .unwrap();
-        let exact = evaluator.evaluate_airglow(observer, time, target).unwrap();
+        let exact = evaluator
+            .evaluate_airglow_resolved(observer, time, target)
+            .unwrap()
+            .0;
 
         assert!((context.value() - exact.integrated.value()).abs() < 1.0e-12);
     }

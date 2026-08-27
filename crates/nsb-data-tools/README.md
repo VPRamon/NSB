@@ -9,6 +9,21 @@ cargo run --locked -p nsb-data-tools --bin nsb-data -- \
   dataset solar-spectrum update --config crates/nsb-data-tools/config/solar-spectrum.toml
 ```
 
+
+## F10.7 solar activity
+
+Network acquisition for F10.7 belongs here (never in the `nsb` runtime):
+
+```bash
+nsb-data solar f107 update --fixture-dir crates/nsb-data-tools/tests/fixtures/swpc
+nsb-data solar f107 status
+nsb-data solar f107 resolve --time 2026-08-20T12:00:00Z
+nsb-data solar f107 import path/to/store.json
+nsb-data solar f107 verify path/to/store.json --sha256 <digest>
+```
+
+See [`docs/nsb_components/airglow/f107-resolver.md`](../../docs/nsb_components/airglow/f107-resolver.md).
+
 The public contract, configuration reference, local/Slurm execution model and
 publication workflow are documented in
 [`docs/maintainer-guide/datasets.md`](../../docs/maintainer-guide/datasets.md).

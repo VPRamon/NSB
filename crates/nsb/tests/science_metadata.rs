@@ -80,6 +80,16 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .metadata
         .provenance
         .contains("site_calibrated false"));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains("measured F10.7 does not make Airglow site-calibrated"));
+    let solar = airglow
+        .metadata
+        .solar_activity
+        .as_ref()
+        .expect("airglow evaluation exposes resolved F10.7");
+    assert!(solar.value.value().is_finite() && solar.value.value() > 0.0);
     assert!(
         airglow.metadata.provenance.contains("Cerro Paranal")
             && airglow.metadata.provenance.contains("FORS1"),

@@ -1051,6 +1051,8 @@ dependencies = [
  "optica",
  "qtty",
  "serde",
+ "serde_json",
+ "sha2",
  "siderust",
  "tempoch",
  "thiserror",
@@ -1084,6 +1086,7 @@ name = "nsb-data-tools"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "approx",
  "chrono",
  "clap",
  "csv",
@@ -1097,6 +1100,7 @@ dependencies = [
  "sha2",
  "siderust",
  "tempfile",
+ "tempoch",
  "toml",
  "toml_edit",
 ]

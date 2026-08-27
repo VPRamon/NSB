@@ -62,7 +62,12 @@ struct ModelJson {
     preset: &'static str,
     moonlight_model: &'static str,
     starlight_model: &'static str,
-    solar_radio_flux_sfu: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    solar_radio_flux_sfu: Option<f64>,
+    solar_activity_source: &'static str,
+    f107_dataset_id: Option<String>,
+    f107_snapshot_id: Option<String>,
+    f107_checksum_sha256: Option<String>,
     zodiacal_extinction: &'static str,
 }
 
@@ -107,6 +112,33 @@ struct ComponentMetadataJson {
     provenance: String,
     validated_domain: String,
     band_diagnostic: BandDiagnosticJson,
+    solar_activity: Option<SolarActivityJson>,
+}
+
+#[derive(Serialize)]
+struct SolarActivityJson {
+    value_sfu: f64,
+    kind: &'static str,
+    provider: String,
+    product: String,
+    requested_date: String,
+    observation_date: Option<String>,
+    forecast_issued_at_utc: Option<String>,
+    dataset_id: Option<String>,
+    snapshot_id: Option<String>,
+    checksum_sha256: Option<String>,
+    resolution_step: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    monthly_completeness: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    observed_days: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    forecast_days: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    total_days: Option<u32>,
+    uncertainty_sfu: Option<f64>,
+    range_low_sfu: Option<f64>,
+    range_high_sfu: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -142,7 +174,7 @@ pub fn write_point(
     let payload = PointJson {
         schema_version: "nsb-cli-point-json-v1",
         version: version_json(),
-        model: model_json(config),
+        model: model_json(config, resolved_solar_radio_flux_sfu(result)),
         time_utc: format_utc(time),
         observer: ObserverJson {
             longitude_deg: observer.lon.value(),
@@ -189,7 +221,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
     let payload = WindowJson {
         schema_version: "nsb-cli-window-json-v1",
         version: version_json(),
-        model: model_json(output.config),
+        model: model_json(output.config, None),
         start_utc: format_utc(output.start),
         end_utc: format_utc(output.end),
         min_nsb_ph_cm2_ns_sr: output.min.map(|value| value.value()),
@@ -244,7 +276,15 @@ fn version_json() -> VersionJson {
     }
 }
 
-fn model_json(config: &NsbModelConfig) -> ModelJson {
+fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
+    let solar_radio_flux_sfu = match &config.solar_activity {
+        nsb::SolarActivitySource::Explicit(_) | nsb::SolarActivitySource::LegacyDefault => {
+            Some(config.solar_radio_flux().value())
+        }
+        // Date-dependent sources: point evaluations supply the resolved value used;
+        // window evaluations omit the scalar (samples can differ).
+        nsb::SolarActivitySource::Dataset(_) | nsb::SolarActivitySource::Automatic => resolved_sfu,
+    };
     ModelJson {
         preset: config.site_profile.as_str(),
         moonlight_model: config.moonlight_model.as_str(),
@@ -254,12 +294,45 @@ fn model_json(config: &NsbModelConfig) -> ModelJson {
             Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
             Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         },
-        solar_radio_flux_sfu: config.solar_radio_flux.value(),
+        solar_radio_flux_sfu,
+        solar_activity_source: match &config.solar_activity {
+            nsb::SolarActivitySource::Explicit(_) => "explicit",
+            nsb::SolarActivitySource::Dataset(_) => "dataset",
+            nsb::SolarActivitySource::Automatic => "automatic",
+            nsb::SolarActivitySource::LegacyDefault => "legacy-default",
+        },
+        f107_dataset_id: match &config.solar_activity {
+            nsb::SolarActivitySource::Dataset(store) => Some(store.dataset_id.clone()),
+            nsb::SolarActivitySource::Automatic => {
+                // Prefer the resolved store identity when available via resolved_sfu path;
+                // Automatic uses the bundled store — surface dataset id only when known from config.
+                None
+            }
+            _ => None,
+        },
+        f107_snapshot_id: match &config.solar_activity {
+            nsb::SolarActivitySource::Dataset(store) => Some(store.snapshot_id.clone()),
+            _ => None,
+        },
+        f107_checksum_sha256: match &config.solar_activity {
+            nsb::SolarActivitySource::Dataset(store) => store.checksum_sha256.clone(),
+            _ => None,
+        },
         zodiacal_extinction: match config.zodiacal_extinction {
             ZodiacalExtinction::None => "none",
             ZodiacalExtinction::Noll2012Approx => "noll-2012-approximation",
         },
     }
+}
+
+fn resolved_solar_radio_flux_sfu(result: &NsbResult) -> Option<f64> {
+    result.components.iter().find_map(|component| {
+        component
+            .metadata
+            .solar_activity
+            .as_ref()
+            .map(|solar| solar.value.value())
+    })
 }
 
 fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadataJson {
@@ -268,6 +341,29 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
         provenance: metadata.provenance.to_string(),
         validated_domain: metadata.validated_domain.to_string(),
         band_diagnostic: band_diagnostic_json(metadata.band_diagnostic),
+        solar_activity: metadata
+            .solar_activity
+            .as_ref()
+            .map(|solar| SolarActivityJson {
+                value_sfu: solar.value.value(),
+                kind: solar.record.kind.as_str(),
+                provider: solar.record.provider.clone(),
+                product: solar.record.product.clone(),
+                requested_date: solar.requested_date.to_string(),
+                observation_date: solar.record.observation_date.clone(),
+                forecast_issued_at_utc: solar.record.forecast_issued_at_utc.clone(),
+                dataset_id: solar.dataset_id.clone(),
+                snapshot_id: solar.snapshot_id.clone(),
+                checksum_sha256: solar.checksum_sha256.clone(),
+                resolution_step: solar.resolution_step,
+                monthly_completeness: solar.monthly_completeness.map(|m| m.as_str()),
+                observed_days: solar.observed_days,
+                forecast_days: solar.forecast_days,
+                total_days: solar.total_days,
+                uncertainty_sfu: solar.record.uncertainty_sfu,
+                range_low_sfu: solar.record.range_low_sfu,
+                range_high_sfu: solar.record.range_high_sfu,
+            }),
     }
 }
 

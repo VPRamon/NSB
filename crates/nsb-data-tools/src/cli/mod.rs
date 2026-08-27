@@ -24,8 +24,110 @@ enum Command {
     Run(RunArgs),
     /// Validate a checksum-pinned Starlight ultraviolet calibration.
     StarlightUv(StarlightUvArgs),
+    /// Solar-activity (F10.7) local store maintenance.
+    Solar(SolarArgs),
     #[command(name = "_worker", hide = true)]
     Worker(WorkerArgs),
+}
+
+#[derive(Debug, Args)]
+struct SolarArgs {
+    #[command(subcommand)]
+    command: SolarCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum SolarCommand {
+    /// F10.7 solar radio flux store commands.
+    F107(F107Args),
+}
+
+#[derive(Debug, Args)]
+struct F107Args {
+    #[command(subcommand)]
+    command: F107Command,
+}
+
+#[derive(Debug, Subcommand)]
+enum F107Command {
+    /// Refresh the local F10.7 store from SWPC (or pinned fixtures).
+    Update(F107UpdateArgs),
+    /// Deterministically freeze a scientific F10.7 asset from fixtures.
+    Freeze(F107FreezeArgs),
+    /// Show local store status.
+    Status(F107StorePathArgs),
+    /// Resolve F10.7 for a UTC time against local/bundled data.
+    Resolve(F107ResolveArgs),
+    /// Import a validated local store file.
+    Import(F107ImportArgs),
+    /// Verify a store asset schema and optional checksum.
+    Verify(F107VerifyArgs),
+}
+
+#[derive(Debug, Args)]
+struct F107UpdateArgs {
+    /// Active store path to update atomically.
+    #[arg(long, default_value = "f107_store.json")]
+    store: PathBuf,
+    /// Dataset identity written into new/empty stores.
+    #[arg(long, default_value = "nsb-f107-local")]
+    dataset_id: String,
+    /// Use pinned fixtures instead of the live network (required for CI).
+    #[arg(long)]
+    fixture_dir: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct F107FreezeArgs {
+    /// Destination scientific store path (overwritten from a clean store).
+    #[arg(long)]
+    store: PathBuf,
+    /// Pinned fixture directory (no network).
+    #[arg(long)]
+    fixture_dir: PathBuf,
+    /// Dataset identity written into the frozen store.
+    #[arg(long, default_value = "nsb-f107-bundled-offline")]
+    dataset_id: String,
+    /// Fixed snapshot identity (no wall clock).
+    #[arg(long)]
+    snapshot_id: String,
+    /// Fixed RFC3339 UTC retrieval timestamp (no wall clock).
+    #[arg(long)]
+    retrieved_at: String,
+}
+
+#[derive(Debug, Args)]
+struct F107StorePathArgs {
+    #[arg(long, default_value = "f107_store.json")]
+    store: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct F107ResolveArgs {
+    /// UTC RFC3339 timestamp.
+    #[arg(long)]
+    time: String,
+    /// Optional local store; defaults to the bundled offline Automatic source.
+    #[arg(long)]
+    store: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct F107ImportArgs {
+    /// Source store JSON to import.
+    file: PathBuf,
+    /// Destination active store path.
+    #[arg(long, default_value = "f107_store.json")]
+    store: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct F107VerifyArgs {
+    /// Asset path to verify.
+    asset: PathBuf,
+    /// Optional expected SHA-256.
+    #[arg(long)]
+    sha256: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -312,6 +414,7 @@ pub fn run() -> Result<()> {
                 Ok(())
             }
         },
+        Command::Solar(args) => execute_solar(args),
         Command::Worker(args) => dataset::run_worker(
             &args.config,
             args.dataset,
@@ -319,6 +422,112 @@ pub fn run() -> Result<()> {
             args.partition.as_deref(),
             args.partition_manifest.as_deref(),
         ),
+    }
+}
+
+fn execute_solar(args: SolarArgs) -> Result<()> {
+    match args.command {
+        SolarCommand::F107(args) => match args.command {
+            F107Command::Update(args) => {
+                let mode = match args.fixture_dir {
+                    Some(dir) => crate::solar::UpdateMode::FixtureDir(dir),
+                    None => crate::solar::UpdateMode::Online,
+                };
+                let report = crate::solar::update_store(&args.store, mode, &args.dataset_id)?;
+                println!(
+                    "status={} dataset={} snapshot={} checksum={} records={} path={} snapshot_path={}",
+                    report.status,
+                    report.dataset_id,
+                    report.snapshot_id,
+                    report.checksum_sha256,
+                    report.record_count,
+                    report.active_path.display(),
+                    report.snapshot_path.display()
+                );
+                for note in report.notes {
+                    println!("note: {note}");
+                }
+                Ok(())
+            }
+            F107Command::Freeze(args) => {
+                let report = crate::solar::freeze_store(&crate::solar::FreezeParams {
+                    fixture_dir: args.fixture_dir,
+                    store_path: args.store,
+                    dataset_id: args.dataset_id,
+                    snapshot_id: args.snapshot_id,
+                    retrieved_at_utc: args.retrieved_at,
+                })?;
+                println!(
+                    "status={} dataset={} snapshot={} checksum={} records={} path={} snapshot_path={}",
+                    report.status,
+                    report.dataset_id,
+                    report.snapshot_id,
+                    report.checksum_sha256,
+                    report.record_count,
+                    report.active_path.display(),
+                    report.snapshot_path.display()
+                );
+                for note in report.notes {
+                    println!("note: {note}");
+                }
+                Ok(())
+            }
+            F107Command::Status(args) => {
+                println!("{}", crate::solar::status_report(&args.store)?);
+                Ok(())
+            }
+            F107Command::Resolve(args) => {
+                let dt = chrono::DateTime::parse_from_rfc3339(&args.time)
+                    .map_err(|error| anyhow::anyhow!("invalid --time: {error}"))?
+                    .with_timezone(&chrono::Utc);
+                let time = tempoch::Time::<tempoch::UTC>::from_chrono(dt);
+                let resolved = crate::solar::resolve_against_store(time, args.store.as_deref())?;
+                println!(
+                    "value_sfu={} kind={} provider={} product={} requested_date={} observation_date={} forecast_issued_at={} dataset={} snapshot={} checksum={} resolution_step={}",
+                    resolved.value.value(),
+                    resolved.record.kind.as_str(),
+                    resolved.record.provider,
+                    resolved.record.product,
+                    resolved.requested_date,
+                    resolved.record.observation_date.as_deref().unwrap_or("n/a"),
+                    resolved
+                        .record
+                        .forecast_issued_at_utc
+                        .as_deref()
+                        .unwrap_or("n/a"),
+                    resolved.dataset_id.as_deref().unwrap_or("n/a"),
+                    resolved.snapshot_id.as_deref().unwrap_or("n/a"),
+                    resolved.checksum_sha256.as_deref().unwrap_or("n/a"),
+                    resolved.resolution_step
+                );
+                Ok(())
+            }
+            F107Command::Import(args) => {
+                let report = crate::solar::import_store(&args.file, &args.store)?;
+                println!(
+                    "status={} dataset={} snapshot={} checksum={} records={} path={}",
+                    report.status,
+                    report.dataset_id,
+                    report.snapshot_id,
+                    report.checksum_sha256,
+                    report.record_count,
+                    report.active_path.display()
+                );
+                Ok(())
+            }
+            F107Command::Verify(args) => {
+                let store = crate::solar::verify_store(&args.asset, args.sha256.as_deref())?;
+                println!(
+                    "ok dataset={} snapshot={} checksum={} records={} schema={}",
+                    store.dataset_id,
+                    store.snapshot_id,
+                    store.checksum_sha256.as_deref().unwrap_or("n/a"),
+                    store.records.len(),
+                    store.schema_version
+                );
+                Ok(())
+            }
+        },
     }
 }
 

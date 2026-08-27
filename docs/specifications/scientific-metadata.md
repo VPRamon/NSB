@@ -67,3 +67,13 @@ status, and runtime inclusion. Runtime JSON exposes checksums for every embedded
 asset. Incomplete inherited provenance is an explicit scientific limitation.
 External starlight uses the equivalent sidecar contract because its bytes are
 not part of the bundled registry.
+
+## Airglow F10.7 solar activity
+
+Airglow component metadata may include a structured `solar_activity` field with
+`value_sfu`, `kind` (`observed|forecast|climatology|explicit`), provider,
+product, requested date, observation/forecast timestamps, dataset/snapshot
+checksum identity, and resolution step. Forecast and climatology values are
+never labelled as observations. A measured F10.7 does not promote Airglow to
+site-calibrated status; see
+[F10.7 resolver](../nsb_components/airglow/f107-resolver.md).

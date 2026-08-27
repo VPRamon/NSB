@@ -74,6 +74,8 @@ pub struct NsbComponentMetadata {
     pub validated_domain: Cow<'static, str>,
     /// Meaning of B/V fields.
     pub band_diagnostic: BandDiagnostic,
+    /// Optional resolved F10.7 provenance for airglow evaluations.
+    pub solar_activity: Option<crate::solar_activity::ResolvedSolarActivity>,
 }
 
 pub(super) fn component_status_for_site_profile(
@@ -93,12 +95,14 @@ pub(super) fn zodiacal_metadata() -> NsbComponentMetadata {
         provenance: "Leinert+1998 zodiacal S10 table; Noll+2012 approximate extinction; bundled solar spectrum".into(),
         validated_domain: "exoatmospheric Leinert table geometry plus generic Noll-style clear-sky attenuation".into(),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        solar_activity: None,
     }
 }
 
 pub(super) fn airglow_metadata(
     site_profile: SiteProfileId,
     observer: Observer,
+    solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
 ) -> NsbComponentMetadata {
     let profile = site_profile.profile(observer);
     let asset = airglow_continuum_asset();
@@ -113,20 +117,26 @@ pub(super) fn airglow_metadata(
         asset.source,
         asset.license
     );
+    let f107_fragment = match solar {
+        Some(resolved) => resolved.provenance_fragment(),
+        None => "F10.7 resolved per evaluation UTC date via SolarActivitySource (Automatic/Dataset/Explicit); not a site calibration".to_string(),
+    };
     NsbComponentMetadata {
         status: component_status_for_site_profile(site_profile),
         provenance: Cow::Owned(format!(
-            "{}; site profile {}; template {}; {}",
+            "{}; site profile {}; template {}; {}; {}",
             profile.airglow.provenance,
             profile.name,
             profile.airglow.template,
-            baseline_identity
+            baseline_identity,
+            f107_fragment
         )),
         validated_domain: Cow::Owned(format!(
-            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, and Van Rhijn (LOS/emitting-layer geometry) corrections; does not apply the upstream Cerro Paranal atmospheric extinction/airmass attenuation stage; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); {}",
+            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, and Van Rhijn (LOS/emitting-layer geometry) corrections; does not apply the upstream Cerro Paranal atmospheric extinction/airmass attenuation stage; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); measured F10.7 does not make Airglow site-calibrated; {}",
             profile.airglow.assumptions
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        solar_activity: solar.cloned(),
     }
 }
 
@@ -158,6 +168,7 @@ pub(super) fn starlight_metadata(
             provenance: "no starlight model configured".into(),
             validated_domain: "not evaluable".into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+            solar_activity: None,
         },
     }
 }
@@ -204,6 +215,7 @@ fn starlight_map_metadata(
             map_checksum,
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        solar_activity: None,
     }
 }
 
@@ -226,6 +238,7 @@ pub(super) fn moonlight_metadata(
                     profile.name
                 )),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+                solar_activity: None,
             }
         }
         MoonlightModel::KrisciunasSchaefer1991 => NsbComponentMetadata {
@@ -235,6 +248,7 @@ pub(super) fn moonlight_metadata(
                 "published analytic V-band reference model; not the wavelength-resolved default"
                     .into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+            solar_activity: None,
         },
     }
 }

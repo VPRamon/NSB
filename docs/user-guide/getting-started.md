@@ -104,7 +104,9 @@ all
 Component names may be comma-separated. Useful model options include:
 
 - `--moonlight-model jones2013` or `ks1991`;
-- `--solar-radio-flux-sfu <value>` for the airglow solar-activity input;
+- `--solar-radio-flux-sfu <value>` for an explicit airglow F10.7 override;
+- `--f107-store <path>` for a pinned local F10.7 dataset (see
+  [F10.7 resolver](../nsb_components/airglow/f107-resolver.md));
 - `--zodiacal-extinction noll2012` or `none`;
 - `--starlight-map` together with `--starlight-manifest` for a validated external
   production starlight map.

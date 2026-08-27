@@ -30,6 +30,7 @@ pub mod evaluator;
 mod reference;
 pub mod site;
 pub mod site_calibration;
+pub mod solar_activity;
 pub(crate) mod spectrum;
 pub(crate) mod units;
 mod window_search;
@@ -60,6 +61,12 @@ pub use site_calibration::{
     AirglowCalibrationEvidence, AtmosphericSiteCalibration, CalibratedSiteId, SiteCalibrationAsset,
     SiteCalibrationAssetError, SiteCalibrationReference, SiteCalibrationValidity,
     SITE_CALIBRATION_ASSET_SCHEMA_VERSION,
+};
+pub use solar_activity::{
+    bundled_f107_store, days_in_month, is_finalized_monthly_observation, month_bounds_for,
+    resolve_f107, F107Kind, F107Record, F107Store, F107StoreError, MonthlyCompleteness,
+    MonthlyF107Evidence, ResolvedSolarActivity, SolarActivitySource, BUNDLED_F107_ASSET_PATH,
+    BUNDLED_F107_RELATIVE_PATH, F107_STORE_SCHEMA_VERSION,
 };
 pub use units::{
     MagnitudePerAirmass, MagnitudesPerAirmass, ScaleFactors, SolarFluxUnit,
