@@ -21,6 +21,19 @@ const PREDICTED_URL: &str =
 const OBSERVED_MONTHLY_URL: &str =
     "https://services.swpc.noaa.gov/json/solar-cycle/observed-solar-cycle-indices.json";
 
+/// Operational freshness windows for F10.7 cache `status` (#109).
+///
+/// These are **cache refresh** thresholds for distinguishing `fresh` /
+/// `forecast` / `stale`; they do not change resolver science.
+///
+/// - 45-day forecasts are issued frequently → refresh within a week.
+/// - `predicted-solar-cycle` is a monthly-cadence SWPC product → refresh within
+///   one calendar month even when the published horizon still covers `now`.
+/// - Observation-only caches: newest observation lag of a few days.
+const FORECAST_45_RETRIEVAL_MAX_AGE_DAYS: i64 = 7;
+const MONTHLY_CYCLE_FORECAST_RETRIEVAL_MAX_AGE_DAYS: i64 = 31;
+const OBSERVATION_MAX_LAG_DAYS: i64 = 3;
+
 /// How an update obtains provider bytes.
 #[derive(Debug, Clone)]
 pub enum UpdateMode {
@@ -406,9 +419,14 @@ pub fn status_report_at(path: &Path, now: DateTime<Utc>) -> Result<StoreStatus> 
         if through < now_date {
             notes.push("45-day forecast horizon ended".into());
             "stale"
-        } else if retrieval_age_days.map(|age| age > 7).unwrap_or(true) {
+        } else if retrieval_age_days
+            .map(|age| age > FORECAST_45_RETRIEVAL_MAX_AGE_DAYS)
+            .unwrap_or(true)
+        {
             notes.push("45-day forecast horizon covers now".into());
-            notes.push("retrieval_age_days>7 (reproducible but aging)".into());
+            notes.push(format!(
+                "retrieval_age_days>{FORECAST_45_RETRIEVAL_MAX_AGE_DAYS} (reproducible but aging)"
+            ));
             "stale"
         } else {
             notes.push("45-day forecast horizon covers now".into());
@@ -422,10 +440,27 @@ pub fn status_report_at(path: &Path, now: DateTime<Utc>) -> Result<StoreStatus> 
             if horizon < now_date {
                 notes.push("monthly forecast horizon ended".into());
                 "stale"
+            } else if retrieval_age_days
+                .map(|age| age > MONTHLY_CYCLE_FORECAST_RETRIEVAL_MAX_AGE_DAYS)
+                .unwrap_or(true)
+            {
+                notes.push("monthly forecast horizon covers now".into());
+                notes.push(format!(
+                    "retrieval_age_days>{MONTHLY_CYCLE_FORECAST_RETRIEVAL_MAX_AGE_DAYS} (predicted-solar-cycle monthly cadence)"
+                ));
+                "stale"
             } else {
                 notes.push("forecast".into());
                 "forecast"
             }
+        } else if retrieval_age_days
+            .map(|age| age > MONTHLY_CYCLE_FORECAST_RETRIEVAL_MAX_AGE_DAYS)
+            .unwrap_or(true)
+        {
+            notes.push(format!(
+                "retrieval_age_days>{MONTHLY_CYCLE_FORECAST_RETRIEVAL_MAX_AGE_DAYS} (forecast cache aging)"
+            ));
+            "stale"
         } else {
             notes.push("forecast".into());
             "forecast"
@@ -434,7 +469,7 @@ pub fn status_report_at(path: &Path, now: DateTime<Utc>) -> Result<StoreStatus> 
         let stale_obs = newest_observation_date
             .as_deref()
             .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
-            .map(|d| (now_date - d).num_days() > 3)
+            .map(|d| (now_date - d).num_days() > OBSERVATION_MAX_LAG_DAYS)
             .unwrap_or(true);
         if stale_obs {
             notes.push("observations lag now".into());

@@ -203,6 +203,20 @@ not corrupt a valid store. CI uses pinned fixtures under
 Bundled assets may be **reproducible but operationally stale** — that is stated
 explicitly rather than pretending they are current.
 
+Documented **cache refresh** thresholds (status only; does not change resolver
+science):
+
+| Product / path | Stale when |
+|--|--|
+| 45-day forecast present | horizon ended, **or** `retrieval_age_days > 7` |
+| `predicted-solar-cycle` / monthly-forecast-only | monthly horizon ended, **or** `retrieval_age_days > 31` (monthly cadence) |
+| Observation-only | newest observation lags `now` by **> 3** days |
+| Climatology-only | always `stale` |
+
+A monthly forecast whose published horizon still covers `now` but whose
+snapshot was retrieved more than 31 days ago is therefore `stale`, not
+`forecast`.
+
 ## Offline / local / explicit paths
 
 - **Offline Automatic**: bundled `f107_store.json`.

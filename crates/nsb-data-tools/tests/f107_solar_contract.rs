@@ -219,6 +219,84 @@ fn status_missing_invalid_fresh_and_stale_are_deterministic() {
         .notes
         .iter()
         .any(|n| n.contains("monthly forecast horizon ended")));
+
+    // Monthly horizon still future, but retrieval is very old → stale (not "forecast").
+    let monthly_old = dir.path().join("monthly_old_retrieval.json");
+    fs::write(
+        &monthly_old,
+        br#"{
+  "schema_version": 1,
+  "dataset_id": "monthly-old",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.20671119074768,
+  "retrieved_at_utc": "2025-01-01T00:00:00Z",
+  "records": [
+    {
+      "date": "2026-12-01",
+      "value_sfu": 120.0,
+      "kind": "forecast",
+      "provider": "noaa-swpc",
+      "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2025-01-01T00:00:00Z",
+      "valid_from": "2026-01-01",
+      "valid_through": "2027-12-31",
+      "cadence": "monthly"
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+    let old_but_horizon = status_report_at(
+        &monthly_old,
+        Utc.with_ymd_and_hms(2026, 8, 27, 0, 0, 0).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(old_but_horizon.status, "stale");
+    assert_eq!(
+        old_but_horizon.monthly_forecast_horizon.as_deref(),
+        Some("2027-12-31")
+    );
+    assert!(old_but_horizon
+        .retrieval_age_days
+        .is_some_and(|age| age > 31));
+    assert!(old_but_horizon.notes.iter().any(|n| {
+        n.contains("retrieval_age_days>31") && n.contains("predicted-solar-cycle monthly cadence")
+    }));
+
+    // Same monthly product, horizon covers now, retrieval within monthly cadence → forecast.
+    let monthly_current = dir.path().join("monthly_current.json");
+    fs::write(
+        &monthly_current,
+        br#"{
+  "schema_version": 1,
+  "dataset_id": "monthly-current",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.20671119074768,
+  "retrieved_at_utc": "2026-08-20T00:00:00Z",
+  "records": [
+    {
+      "date": "2026-12-01",
+      "value_sfu": 120.0,
+      "kind": "forecast",
+      "provider": "noaa-swpc",
+      "product": "predicted-solar-cycle",
+      "retrieved_at_utc": "2026-08-20T00:00:00Z",
+      "valid_from": "2026-01-01",
+      "valid_through": "2027-12-31",
+      "cadence": "monthly"
+    }
+  ]
+}"#,
+    )
+    .unwrap();
+    let current = status_report_at(
+        &monthly_current,
+        Utc.with_ymd_and_hms(2026, 8, 27, 0, 0, 0).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(current.status, "forecast");
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
