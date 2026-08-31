@@ -3,6 +3,14 @@
 //! Quantifies parent-cell discontinuities and HEALPix boundary jumps on any
 //! candidate map using the same Galactic nested semantics as production.
 
+pub mod baseline;
+pub mod processor;
+
+pub use baseline::{write_baseline_report, BaselineReport, SMOKE_PARTITIONS_PATH};
+pub use processor::{
+    run_diagnostic_suite, DiagnosticSuiteReport, MergedDiagnosticReport, TRACE_PARENTS_SMOKE,
+};
+
 use crate::starlight::healpix::nested_parent_at_coarser_nside;
 use crate::starlight::map::accumulator::{merge_shards, PartitionShard};
 use crate::starlight::selection::SelectionCorrection;
@@ -151,7 +159,7 @@ pub fn analyse_workspace_shards(workspace: &Path) -> Result<HealpixAnomalyReport
     analyse_candidate_map(&merged_candidate_map(&merged)?)
 }
 
-fn merged_candidate_map(shard: &PartitionShard) -> Result<CandidateMap> {
+pub(crate) fn merged_candidate_map(shard: &PartitionShard) -> Result<CandidateMap> {
     let mut pixels = std::collections::BTreeMap::new();
     for (pixel, accumulator) in &shard.pixels {
         let statistical = accumulator.statistical_variance.value().sqrt();
