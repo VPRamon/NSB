@@ -17,6 +17,10 @@ use std::path::PathBuf;
 pub const PACKER_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
 /// Frozen UV-v2 candidate SHA-256.
 pub const CANONICAL_CANDIDATE_SHA256: &str =
+    "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154";
+
+/// Frozen legacy candidate that exhibited the issue #116 frame/coordinate bug.
+pub const LEGACY_FRAME_BUG_CANDIDATE_SHA256: &str =
     "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563";
 /// Packed RING runtime map SHA-256 for the canonical nside=128 candidate
 /// after siderust NESTED→RING conversion **and** production admission CSV
@@ -26,7 +30,7 @@ pub const CANONICAL_CANDIDATE_SHA256: &str =
 /// The pre-siderust handwritten nest2ring digest was
 /// `c87db972717959962ab590ce71eb90506cbfd73ccb108a3d3851a3e9ecff8f90`.
 pub const CANONICAL_RUNTIME_MAP_SHA256: &str =
-    "82ff5820ba4deca5e3e544b562341746e8623e06103e98cdad4ea6132ef103c4";
+    "a458debfd4665b590d27f952352a0d3f69b33d88635ed08c587202ff8a30bab3";
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";

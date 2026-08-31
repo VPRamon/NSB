@@ -10,7 +10,7 @@ use toml::Value as TomlValue;
 const REVIEW_BUNDLE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const REVIEW_BUNDLE_SHA256: &str =
-    "a22848054f48d74b4c6ea563dc13422ea47ed443ddc4eb054d7d21f149e40171";
+    "c5ef564c81de3d3f581ca90c2131643f40abf65dda8f9e7658ae6b6df04c75de";
 const SCIENTIFIC_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json";
 const REDISTRIBUTION_DECISION_PATH: &str =
@@ -19,10 +19,10 @@ const RELEASE_CANDIDATE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml";
 const RUNTIME_ASSETS_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
-const CANDIDATE_SHA256: &str = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563";
-const RUNTIME_MAP_SHA256: &str = "82ff5820ba4deca5e3e544b562341746e8623e06103e98cdad4ea6132ef103c4";
+const CANDIDATE_SHA256: &str = "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154";
+const RUNTIME_MAP_SHA256: &str = "a458debfd4665b590d27f952352a0d3f69b33d88635ed08c587202ff8a30bab3";
 const RUNTIME_SIDECAR_SHA256: &str =
-    "dcf0b59dbbeb497cc582f76c75cd542aca0fa7facbaa1e7ab37a313d4f7e1622";
+    "3fde80dc418ecc71865e04a792c0fb3cc7dbc6f62456827883f0e538863d7afb";
 
 fn sha256_file(path: &Path) -> String {
     let bytes = fs::read(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));

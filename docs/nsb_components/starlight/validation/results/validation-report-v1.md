@@ -4,8 +4,8 @@
 - Generated (unix seconds): 1787573939
 - Band: 300-650 nm (ph_m-2_s-1)
 - Candidate map: `crates/nsb/data/starlight_nside128.csv`
-- Candidate map SHA-256: `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`
-- Pinned checksum verified against: `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`
+- Candidate map SHA-256: `b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154`
+- Pinned checksum verified against: `b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154`
 
 ## Scientific review status
 

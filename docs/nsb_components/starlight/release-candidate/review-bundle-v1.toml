@@ -8,37 +8,37 @@ schema = "nsb-starlight-review-bundle-v1"
 [[artifacts]]
 id = "candidate_map"
 path = "crates/nsb/data/starlight_nside128.csv"
-sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
+sha256 = "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154"
 
 [[artifacts]]
 id = "merge_report"
 path = "crates/nsb/data/merge_report.json"
-sha256 = "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228"
+sha256 = "52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43"
 
 [[artifacts]]
 id = "release_candidate_gates"
 path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
-sha256 = "0576544b050de2c22249264bdf2778ef0a44f6327b81e03b3972258ad560d247"
+sha256 = "bf7c085f8b90f5c4ede4ff2384fb4a962fb4d22a4b819a51265ed78437d22e8f"
 
 [[artifacts]]
 id = "redistribution_inventory"
 path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
-sha256 = "b68cdb74e00dcd949372d873744f10e413b76bb976c3c29288d3a8b808971b5f"
+sha256 = "654c888be7bc24137ae50d4f229c6a0b467d57384412f96e405a3c1c33911cb8"
 
 [[artifacts]]
 id = "validation_artifact_manifest"
 path = "docs/nsb_components/starlight/validation/results/validation-artifact-manifest-v1.toml"
-sha256 = "03070ebdac4befcaa823d5d43719858766d9363c9c97b2ea7b972bc2fb9c2a63"
+sha256 = "c4d8855129994d526eed74200a74715408b1b63b5f536f238a3a31612dd53f4e"
 
 [[artifacts]]
 id = "runtime_assets_identity"
 path = "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"
-sha256 = "34fe146b5bdf62df0f14d43a69dcae97ff2049187f3a575bafe2a79a28e1f2af"
+sha256 = "150f96af40ac9d6d55ea74b54ea27e979517158564360f66af8d763318e89cd4"
 
 [[artifacts]]
 id = "release_candidate_manifest"
 path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
-sha256 = "86e3919d2634ec6f2272fbea31a3dd1f47842269e0021bbf9ded752d25950b27"
+sha256 = "d0305a0027c282bcb6419e373593956177304bba4a822e658714261e7f106d9c"
 
 [[artifacts]]
 id = "redistribution_decision_contract_doc"

@@ -4,7 +4,7 @@
   "reviewer_name": null,
   "reviewer_role": null,
   "reviewed_at_utc": null,
-  "candidate_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
+  "candidate_sha256": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154",
   "conditions": [
     {
       "id": "review-bundle-v1",
@@ -12,7 +12,7 @@
       "verifier": {
         "type": "repository_file_sha256",
         "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
-        "sha256": "a22848054f48d74b4c6ea563dc13422ea47ed443ddc4eb054d7d21f149e40171"
+        "sha256": "c5ef564c81de3d3f581ca90c2131643f40abf65dda8f9e7658ae6b6df04c75de"
       }
     }
   ],

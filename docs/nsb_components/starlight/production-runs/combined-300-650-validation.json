@@ -6,7 +6,7 @@
     {
       "name": "checksum:merge_report.json",
       "passed": true,
-      "detail": "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228"
+      "detail": "52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43"
     },
     {
       "name": "format:merge_report.json",
@@ -16,7 +16,7 @@
     {
       "name": "checksum:starlight_nside128.csv",
       "passed": true,
-      "detail": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
+      "detail": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154"
     },
     {
       "name": "format:starlight_nside128.csv",
@@ -26,7 +26,7 @@
     {
       "name": "canonical-map-integrity",
       "passed": true,
-      "detail": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
+      "detail": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154"
     },
     {
       "name": "canonical-map-cardinality",
@@ -36,7 +36,7 @@
     {
       "name": "canonical-map-flux",
       "passed": true,
-      "detail": "8.00332196638881800e15 ph_m-2_s-1"
+      "detail": "8.00897595172122700e15 ph_m-2_s-1"
     },
     {
       "name": "pixel-coverage-galactic-plane",
@@ -56,7 +56,7 @@
     {
       "name": "deterministic-independent-partial-merge",
       "passed": true,
-      "detail": "algorithm=complete-partition-shard-v1 pixels=196608 canonical=3a8db34eaab5239e21968fccb92eb8ab920b1d98a5dd053d4bb8a1de51354ecf partial=3a8db34eaab5239e21968fccb92eb8ab920b1d98a5dd053d4bb8a1de51354ecf key_mismatches=0 flux_mismatches=0 uncertainty_mismatches=0 source_counter_mismatches=0 exclusion_reason_mismatches=0"
+      "detail": "algorithm=complete-partition-shard-v1 pixels=196608 canonical=784fd84dc08eeedf6384a19c9492f728e7159d5eb7102c234924a4abbd45aedc partial=784fd84dc08eeedf6384a19c9492f728e7159d5eb7102c234924a4abbd45aedc key_mismatches=0 flux_mismatches=0 uncertainty_mismatches=0 source_counter_mismatches=0 exclusion_reason_mismatches=0"
     },
     {
       "name": "uncertainty-budget-total-column",
@@ -66,12 +66,12 @@
     {
       "name": "uncertainty-interval-coverage-declared",
       "passed": true,
-      "detail": "statistical_300_650=3.19181658918355859e12; systematic_300_650=1.58909186256954625e14; map_total_column=true"
+      "detail": "statistical_300_650=3.19181661632657568e12; systematic_300_650=1.58984238896005438e14; map_total_column=true"
     },
     {
       "name": "uncertainty-scale-plausible",
       "passed": true,
-      "detail": "global_relative_total=0.270019; pixel_relative_p50=0.243119; fraction_gt_1=0.000000; fraction_gt_10=0.000000"
+      "detail": "global_relative_total=0.269837; pixel_relative_p50=0.243131; fraction_gt_1=0.000000; fraction_gt_10=0.000000"
     },
     {
       "name": "complete-artifact-set",
@@ -83,14 +83,14 @@
     {
       "name": "merge_report.json",
       "path": "crates/nsb/data/merge_report.json",
-      "sha256": "e1f1d0b25201e29e42fcb640c31637467d33d41495eb04b6a1066a18c0ad9228",
-      "bytes": 76229
+      "sha256": "52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43",
+      "bytes": 76231
     },
     {
       "name": "starlight_nside128.csv",
       "path": "crates/nsb/data/starlight_nside128.csv",
-      "sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
-      "bytes": 20394694
+      "sha256": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154",
+      "bytes": 20394836
     }
   ]
 }

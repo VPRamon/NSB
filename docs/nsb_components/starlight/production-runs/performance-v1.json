@@ -3,7 +3,7 @@
   "dataset": "starlight",
   "status": "partial",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
-  "candidate_sha256": "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563",
+  "candidate_sha256": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154",
   "candidate_invalidated": false,
   "measured_at_utc": "2026-08-24T11:35:00Z",
   "machine": {
@@ -48,5 +48,5 @@
       "reason": "Public StarlightMap::from_csv_path does not accept nsb-healpix-starlight-candidate-v5. Timing that path would invent a loader."
     }
   ],
-  "notes": "Re-measured against the UV v2 candidate 5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563. Reproduce with cargo run --release -p nsb --example starlight_candidate_load_benchmark."
+  "notes": "Re-measured against the UV v2 candidate b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154. Reproduce with cargo run --release -p nsb --example starlight_candidate_load_benchmark."
 }

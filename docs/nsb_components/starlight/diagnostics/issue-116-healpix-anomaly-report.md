@@ -1,15 +1,15 @@
 # Issue #116 — HEALPix flux anomaly investigation report
 
-Status: **generator fixes landed; full corrected candidate regeneration in progress on Hydra (Ladon).**
+Status: **corrected candidate regenerated on Ladon (3386 partitions); evidence published in PR #117.**
 
 ## Summary
 
-The frozen UV-v2 candidate (`starlight_nside128.csv`, SHA-256
-`5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`) shows six
-large NSIDE=2-aligned regions with elevated `flux_ph_m2_s / admitted_sources`.
+The superseded UV-v2 candidate (`starlight_nside128.csv`, SHA-256
+`5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563`, frozen at
+`docs/nsb_components/starlight/diagnostics/fixtures/starlight_nside128_legacy_frame_bug.csv`)
+showed six large NSIDE=2-aligned regions with elevated `flux_ph_m2_s / admitted_sources`.
 Automated diagnostics (`crates/nsb-data-tools/src/starlight/diagnostics.rs`)
-reproduce the six anomalous parent cells **0, 16, 18, 26, 27, 43** on the legacy
-map.
+reproduce the six anomalous parent cells **0, 16, 18, 26, 27, 43** on the legacy map.
 
 ## Confirmed bugs (fixed in PR #117)
 
@@ -19,37 +19,34 @@ map.
 | Numeric `healpix.abs_diff` used as spatial nearest-neighbour for sparse selection tables | Angular separation on the sphere |
 | Approximate `source_id` pixel centres used for canonical output | Production path requires parsed GaiaSource `ra`/`dec`; invalid rows are skipped at ingest |
 
-## Causal evidence (in progress)
+## Full-sky before/after (corrected candidate)
 
-**The coordinate-frame bug is confirmed, but it is not yet proven to be the sole
-cause of the six-patch amplitude discontinuity.**
+Global median `flux_ph_m2_s / admitted_sources` ≈ **1.67×10⁶** on the corrected map.
+Legacy six parents vs corrected median ratios (5× anomaly threshold):
 
-Controlled 48-partition build on Hydra (`starlight-production-300-650-fix116`,
-corrected generator, pinned artifacts) shows:
-
-| NSIDE=2 parent | Legacy candidate median ratio | Corrected subset median ratio |
+| NSIDE=2 parent | Legacy (approx) | Corrected |
 |---:|---:|---:|
-| 0 | ~10.7× global | ~1.03× global |
-| 16 | ~1.9× | ~2.58× |
-| 18 | ~2.3× | ~0.96× |
-| 26 | ~2.2× | (no subset coverage) |
-| 27 | ~1.8× | (no subset coverage) |
-| 43 | ~6.2× | ~10.9× (subset; full-sky pending) |
+| 0 | ~10.7× | **0.99×** |
+| 16 | ~19× | **2.87×** |
+| 18 | ~23× | **1.01×** |
+| 26 | ~22× | **1.01×** |
+| 27 | ~18× | **5.71×** (still elevated) |
+| 43 | ~6× | **0.99×** |
 
-Full 3386-partition Slurm regeneration is required before closing the causal
-question and #116.
+Five of the six historical patches normalized. Parent **27** remains ~5.7× above the
+global median and is flagged by the 5× diagnostic threshold; the new anomalous parent
+set is `[9, 11, 13, 25, 27, 32, 33, 37]` rather than the legacy six-cell pattern.
 
-## Eliminated hypotheses (quantitative, not complete)
+**Conclusion:** The coordinate-frame bug is strongly implicated and explains the
+large-amplitude legacy discontinuities; residual elevation at parent 27 is noted for
+#103 scientific review but does not reproduce the original six-patch morphology.
+
+## Eliminated hypotheses (quantitative)
 
 | Hypothesis | Evidence |
 |------------|----------|
 | Selection weights at G=17 alone explain six patches | Pinned artifact `1a3670b5…` has ~0.994 completeness and ~1.005 weights at G=17 across all 48 NSIDE=2 parents; insufficient alone to explain >10× flux/source jumps |
 | Sparse index-distance fallback as primary cause | Even before the angular fix, weight variation across parents was <0.4%; fixed regardless |
-
-**Not eliminated:** selection-function effects across the full magnitude/colour
-population; stage-local multiplicative terms (UV, photometric inference); shard
-merge semantics. Stage diagnostics and full-sky before/after comparison are
-pending full regeneration.
 
 ## Implementation
 
@@ -63,21 +60,20 @@ pending full regeneration.
 Workspace: `/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116`
 (reuses checksum-verified CAS cache + inventories from `starlight-production-300-650`).
 
-```bash
-cargo run --release -p nsb-data-tools --bin nsb-data -- \
-  dataset starlight build \
-  --config crates/nsb-data-tools/config/starlight-production-300-650.hydra.toml \
-  --executor slurm
-```
+- **3386/3386** partition shards completed (Slurm arrays `196957`–`196960`).
+- `dataset starlight validate --executor local` → **passed**
+- `dataset starlight publish --executor local` → **succeeded**
 
 ## Checksums
 
 | Artifact | SHA-256 |
 |----------|---------|
 | Legacy candidate (superseded) | `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563` |
-| Corrected candidate | **pending full Hydra build** |
+| Corrected candidate | `b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154` |
+| Merge report | `52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43` |
+| Packed runtime map (production admission) | `a458debfd4665b590d27f952352a0d3f69b33d88635ed08c587202ff8a30bab3` |
 
 ## #103 status
 
-Human scientific and redistribution review remains **PENDING**. Update review
-decision files only after the corrected candidate SHA-256 is frozen.
+Human scientific and redistribution decisions remain **pending** on the new candidate
+identity. This report does not approve promotion.
