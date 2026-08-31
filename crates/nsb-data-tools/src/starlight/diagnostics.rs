@@ -6,7 +6,8 @@
 //! Galactic nested semantics as production.
 
 use crate::starlight::healpix::nested_parent_at_coarser_nside;
-use crate::starlight::validation::candidate_map::{self, CandidateMap};
+use crate::starlight::map::accumulator::{merge_shards, PartitionShard};
+use crate::starlight::validation::candidate_map::{self, CandidateMap, CandidatePixel};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -120,6 +121,56 @@ pub fn analyse_candidate_map(candidate: &CandidateMap) -> Result<HealpixAnomalyR
     };
     report.detect_anomalous_parents(5.0);
     Ok(report)
+}
+
+/// Merge all `workers/*/shard.json` under a workspace and analyse NSIDE=2 parents.
+pub fn analyse_workspace_shards(workspace: &Path) -> Result<HealpixAnomalyReport> {
+    let workers = workspace.join("workers");
+    let mut shards = Vec::new();
+    for entry in std::fs::read_dir(&workers)? {
+        let entry = entry?;
+        let shard_path = entry.path().join("shard.json");
+        if shard_path.is_file() {
+            let bytes = std::fs::read(&shard_path)?;
+            shards.push(
+                serde_json::from_slice::<PartitionShard>(&bytes)
+                    .with_context(|| format!("parse shard {}", shard_path.display()))?,
+            );
+        }
+    }
+    anyhow::ensure!(!shards.is_empty(), "no shards under {}", workers.display());
+    let merged = merge_shards(shards)?;
+    analyse_candidate_map(&merged_candidate_map(&merged)?)
+}
+
+fn merged_candidate_map(shard: &PartitionShard) -> Result<CandidateMap> {
+    let mut pixels = std::collections::BTreeMap::new();
+    for (pixel, accumulator) in &shard.pixels {
+        let statistical = accumulator.statistical_variance.value().sqrt();
+        let systematic = accumulator
+            .systematic_variance
+            .value()
+            .sqrt()
+            .hypot(accumulator.systematic_correlated_uncertainty.value());
+        pixels.insert(
+            *pixel,
+            CandidatePixel {
+                flux_ph_m2_s: accumulator.flux_ph_m2_s.value(),
+                statistical_uncertainty_ph_m2_s: statistical,
+                systematic_uncertainty_ph_m2_s: systematic,
+                total_uncertainty_ph_m2_s: statistical.hypot(systematic),
+                admitted_sources: accumulator.admitted_sources,
+                excluded_sources: accumulator.excluded_sources,
+            },
+        );
+    }
+    Ok(CandidateMap {
+        nside: shard.nside,
+        schema: crate::starlight::validation::candidate_map::EXPECTED_MAP_SCHEMA.to_string(),
+        flux_unit: crate::starlight::validation::candidate_map::EXPECTED_FLUX_UNIT.to_string(),
+        sha256: String::new(),
+        pixels,
+    })
 }
 
 /// Load a pinned candidate map and analyse its NSIDE=2 parent discontinuities.

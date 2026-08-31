@@ -15,7 +15,7 @@ use std::path::Path;
 use super::healpix::{self, nested_pixel_center, HealpixCoordinateFrame, HealpixOrderingScheme};
 use super::uv::CalibrationStatus;
 use siderust::coordinates::cartesian::Direction;
-use siderust::coordinates::frames::{EquatorialMeanJ2000, Galactic};
+use siderust::coordinates::frames::{Galactic, ICRS};
 use siderust::coordinates::transform::TransformFrame;
 
 pub const SELECTION_ARTIFACT_SCHEMA_VERSION: u32 = 1;
@@ -506,7 +506,7 @@ fn selection_pixel_center(
     artifact: &SelectionArtifact,
     nside: u32,
     healpix: u32,
-) -> Result<Direction<EquatorialMeanJ2000>> {
+) -> Result<Direction<ICRS>> {
     match artifact.coordinate_frame {
         HealpixCoordinateFrame::Equatorial => nested_pixel_center(nside, u64::from(healpix)),
         HealpixCoordinateFrame::Galactic => {

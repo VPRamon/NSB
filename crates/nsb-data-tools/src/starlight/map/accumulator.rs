@@ -2,7 +2,7 @@
 
 use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::config::StarlightProductBand;
-use crate::starlight::healpix::{self, gaia_source_id_galactic_nested_pixel};
+use crate::starlight::healpix::{self, galactic_nested_pixel_from_icrs_position, IcrsSkyPosition};
 use crate::starlight::uv::{
     ApplicabilityStatus, CalibrationStatus, CombinedBandFlux, ModelResponse, SystematicCorrelation,
 };
@@ -372,16 +372,16 @@ impl PartitionShard {
         })
     }
 
-    /// Accumulate one admitted Gaia source.
+    /// Accumulate one admitted Gaia source at its ICRS sky position.
     pub fn admit(
         &mut self,
-        source_id: u64,
+        position: IcrsSkyPosition,
         flux_ph_m2_s: f64,
         statistical_uncertainty: f64,
         systematic_uncertainty: f64,
     ) -> Result<()> {
         self.admit_components(
-            source_id,
+            position,
             SourceFluxComponents {
                 flux_300_336_ph_m2_s: 0.0,
                 flux_336_650_ph_m2_s: flux_ph_m2_s,
@@ -398,7 +398,11 @@ impl PartitionShard {
     }
 
     /// Accumulate an explicitly separated corrected source.
-    pub fn admit_corrected(&mut self, source_id: u64, flux: &CombinedBandFlux) -> Result<()> {
+    pub fn admit_corrected(
+        &mut self,
+        position: IcrsSkyPosition,
+        flux: &CombinedBandFlux,
+    ) -> Result<()> {
         if self.product_band != StarlightProductBand::Combined300To650 {
             bail!("cannot admit a UV-corrected source into a measured-only shard");
         }
@@ -413,7 +417,7 @@ impl PartitionShard {
             bail!("corrected source identity does not match shard UV metadata");
         }
         self.admit_components(
-            source_id,
+            position,
             SourceFluxComponents {
                 flux_300_336_ph_m2_s: flux.flux_300_336_ph_m2_s,
                 flux_336_650_ph_m2_s: flux.flux_336_650_ph_m2_s,
@@ -432,7 +436,11 @@ impl PartitionShard {
         )
     }
 
-    fn admit_components(&mut self, source_id: u64, flux: SourceFluxComponents) -> Result<()> {
+    fn admit_components(
+        &mut self,
+        position: IcrsSkyPosition,
+        flux: SourceFluxComponents,
+    ) -> Result<()> {
         let selected_flux = match self.product_band {
             StarlightProductBand::Measured336To650 => flux.flux_336_650_ph_m2_s,
             StarlightProductBand::Combined300To650 => flux.flux_300_650_ph_m2_s,
@@ -464,7 +472,11 @@ impl PartitionShard {
         {
             bail!("admitted source requires positive flux and finite non-negative uncertainties");
         }
-        let pixel = gaia_source_id_galactic_nested_pixel(source_id, self.nside)?;
+        let pixel = galactic_nested_pixel_from_icrs_position(
+            position.ra_deg,
+            position.dec_deg,
+            self.nside,
+        )?;
         let accumulator = self.pixels.entry(pixel).or_default();
         accumulator.flux_ph_m2_s.add(selected_flux)?;
         accumulator
@@ -524,7 +536,7 @@ impl PartitionShard {
     }
 
     /// Record one source rejected by a stable scientific reason code.
-    pub fn exclude(&mut self, source_id: u64, reason: &str) -> Result<()> {
+    pub fn exclude(&mut self, position: IcrsSkyPosition, reason: &str) -> Result<()> {
         if reason.is_empty()
             || !reason
                 .bytes()
@@ -532,7 +544,11 @@ impl PartitionShard {
         {
             bail!("exclusion reason must be lowercase snake_case");
         }
-        let pixel = gaia_source_id_galactic_nested_pixel(source_id, self.nside)?;
+        let pixel = galactic_nested_pixel_from_icrs_position(
+            position.ra_deg,
+            position.dec_deg,
+            self.nside,
+        )?;
         let accumulator = self.pixels.entry(pixel).or_default();
         accumulator.observed_sources = accumulator
             .observed_sources
@@ -693,21 +709,23 @@ fn is_sha256(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-/// Convert a Gaia DR3 source identifier to a Galactic nested HEALPix pixel.
-pub fn source_id_to_pixel(source_id: u64, target_nside: u32) -> Result<u32> {
-    gaia_source_id_galactic_nested_pixel(source_id, target_nside)
+/// Galactic nested accumulation pixel for a Gaia ICRS sky position.
+pub fn galactic_accumulation_pixel(position: IcrsSkyPosition, target_nside: u32) -> Result<u32> {
+    galactic_nested_pixel_from_icrs_position(position.ra_deg, position.dec_deg, target_nside)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::starlight::healpix::fixture_icrs_from_source_id;
 
     #[test]
     fn galactic_pixel_differs_from_equatorial_bit_shift() -> Result<()> {
         let level_12_pixel = 123_456_u64;
         let source_id = (level_12_pixel << healpix::GAIA_SOURCE_ID_HEALPIX_SHIFT) | 17;
         let equatorial = healpix::gaia_source_id_equatorial_nested_pixel(source_id, 128)?;
-        let galactic = source_id_to_pixel(source_id, 128)?;
+        let position = fixture_icrs_from_source_id(source_id);
+        let galactic = galactic_accumulation_pixel(position, 128)?;
         assert_ne!(equatorial, galactic);
         Ok(())
     }
@@ -715,10 +733,10 @@ mod tests {
     #[test]
     fn merge_bytes_are_independent_of_completion_order() -> Result<()> {
         let mut first = PartitionShard::new("000-099", 128)?;
-        first.admit(0, 1.0, 0.1, 0.2)?;
-        first.exclude(1_u64 << 35, "invalid_flux")?;
+        first.admit(fixture_icrs_from_source_id(0), 1.0, 0.1, 0.2)?;
+        first.exclude(fixture_icrs_from_source_id(1_u64 << 35), "invalid_flux")?;
         let mut second = PartitionShard::new("100-199", 128)?;
-        second.admit(2_u64 << 35, 3.0, 0.3, 0.4)?;
+        second.admit(fixture_icrs_from_source_id(2_u64 << 35), 3.0, 0.3, 0.4)?;
 
         let forward = merge_shards([first.clone(), second.clone()])?;
         let reverse = merge_shards([second, first])?;

@@ -1,0 +1,63 @@
+schema_version = 1
+dataset = "starlight"
+
+[workspace]
+root = "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116"
+
+[execution]
+executor = "slurm"
+concurrency = 8
+lease_timeout_seconds = 86400
+
+[execution.slurm]
+partition = "ladon"
+account = "ice-research"
+time_limit = "24:00:00"
+memory = "32G"
+array_parallelism = 32
+
+[starlight]
+product_band = "combined-300-650"
+
+[starlight.ultraviolet_correction]
+artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/uv-artifact.json"
+sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
+
+[starlight.photometric_inference]
+artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/photometric-artifact.json"
+sha256 = "ad23fe327b3cbb75167ffe47a00dc8bcbb63d72f9e5a1b19f32171dda5fd680d"
+
+[starlight.selection_function]
+artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/selection-artifact.json"
+sha256 = "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711"
+
+[starlight.acquisition]
+connect_timeout_seconds = 30
+request_timeout_seconds = 1800
+max_attempts = 5
+
+[starlight.map]
+canonical_nside = 128
+
+[[starlight.gaia_products]]
+id = "gaia-source"
+base_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/gaia_source/"
+checksum_manifest_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/gaia_source/_MD5SUM.txt"
+checksum_manifest_sha256 = "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+checksum_algorithm = "md5"
+expected_partitions = 3386
+filename_prefix = "GaiaSource_"
+filename_suffix = ".csv.gz"
+
+[[starlight.gaia_products]]
+id = "xp-continuous"
+base_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/Spectroscopy/xp_continuous_mean_spectrum/"
+checksum_manifest_url = "https://cdn.gea.esac.esa.int/Gaia/gdr3/Spectroscopy/xp_continuous_mean_spectrum/_MD5SUM.txt"
+checksum_manifest_sha256 = "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+checksum_algorithm = "md5"
+expected_partitions = 3386
+filename_prefix = "XpContinuousMeanSpectrum_"
+filename_suffix = ".csv.gz"
+
+[publish]
+repository_root = "../../.."

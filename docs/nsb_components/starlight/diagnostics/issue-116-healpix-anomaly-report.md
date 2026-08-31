@@ -1,6 +1,6 @@
 # Issue #116 — HEALPix flux anomaly investigation report
 
-Status: root cause confirmed in generator; candidate regeneration pending verified Gaia inputs.
+Status: **generator fixes landed; full corrected candidate regeneration in progress on Hydra (Ladon).**
 
 ## Summary
 
@@ -11,56 +11,63 @@ Automated diagnostics (`crates/nsb-data-tools/src/starlight/diagnostics.rs`)
 reproduce the six anomalous parent cells **0, 16, 18, 26, 27, 43** on the legacy
 map.
 
-## Root cause (confirmed)
+## Confirmed bugs (fixed in PR #117)
 
-**Gaia equatorial HEALPix indices from `source_id` were accumulated directly
-into a map declared `coordinate_frame=galactic` without an ICRS→Galactic sky
-transform.**
+| Bug | Fix |
+|-----|-----|
+| Gaia equatorial `source_id` HEALPix indices were accumulated into a map declared `coordinate_frame=galactic` without an ICRS→Galactic transform | Final accumulation uses GaiaSource `ra`/`dec` (ICRS) → Galactic nested pixel; selection lookup remains equatorial `source_id` HEALPix |
+| Numeric `healpix.abs_diff` used as spatial nearest-neighbour for sparse selection tables | Angular separation on the sphere |
+| Approximate `source_id` pixel centres used for canonical output | Production path requires parsed GaiaSource `ra`/`dec`; invalid rows are skipped at ingest |
 
-The generator used bit-shifted `source_id` pixels for accumulation while the
-runtime contract and packer treat nested indices as Galactic. Selection-function
-lookup correctly uses equatorial pixels, but that path is **not** the cause of
-the six patches (see eliminated hypotheses below).
+## Causal evidence (in progress)
 
-## Eliminated hypotheses
+**The coordinate-frame bug is confirmed, but it is not yet proven to be the sole
+cause of the six-patch amplitude discontinuity.**
 
-| Hypothesis | Evidence against |
-|------------|------------------|
-| Selection-function completeness drives six NSIDE=2 patches | Pinned production artifact (`1a3670b5…`) has uniform completeness (~0.994) and weights (~1.005) across all 48 NSIDE=2 parents at G=17; no cell reaches the 5× weight cap. |
-| Sparse selection nearest-neighbour by numeric index distance caused the six patches | Even with index-distance fallback, mean weights vary by <0.4% across parents; parent 28 is highest (1.008) but is **not** one of the six flux anomalies. Replaced with angular nearest-neighbour regardless. |
-| Shard merge / partition aggregation bug | Merge determinism tests pass; anomaly morphology follows equatorial NSIDE=2 parent geometry from mislabelled accumulation, not shard boundaries. |
+Controlled 48-partition build on Hydra (`starlight-production-300-650-fix116`,
+corrected generator, pinned artifacts) shows:
 
-## Fix
+| NSIDE=2 parent | Legacy candidate median ratio | Corrected subset median ratio |
+|---:|---:|---:|
+| 0 | ~10.7× global | ~1.03× global |
+| 16 | ~1.9× | ~2.58× |
+| 18 | ~2.3× | ~0.96× |
+| 26 | ~2.2× | (no subset coverage) |
+| 27 | ~1.8× | (no subset coverage) |
+| 43 | ~6.2× | ~10.9× (subset; full-sky pending) |
 
-1. **Accumulation:** `gaia_source_id_galactic_nested_pixel()` — level-12 equatorial
-   pixel centre → ICRS→Galactic transform → Galactic nested pixel at output `nside`.
-2. **Selection lookup:** `gaia_source_id_equatorial_nested_pixel()` — unchanged
-   frame for Cantat-Gaudin artifact cells.
-3. **Artifact contract:** `coordinate_frame` and `ordering` fields on selection
-   artifacts (default `equatorial` / `nested`).
-4. **Sparse fallback:** angular separation on the sphere, not `healpix.abs_diff`.
-5. **Regression tests:** `starlight_healpix_semantics.rs`, `healpix.rs`,
-   `diagnostics.rs`.
+Full 3386-partition Slurm regeneration is required before closing the causal
+question and #116.
 
-## Regeneration scope (required before closing #116)
+## Eliminated hypotheses (quantitative, not complete)
 
-The existing candidate and weighted shards **must not** be patched. Full rebuild
-from verified GaiaSource + XP inputs is required once the corrected generator is
-deployed on the production workspace.
+| Hypothesis | Evidence |
+|------------|----------|
+| Selection weights at G=17 alone explain six patches | Pinned artifact `1a3670b5…` has ~0.994 completeness and ~1.005 weights at G=17 across all 48 NSIDE=2 parents; insufficient alone to explain >10× flux/source jumps |
+| Sparse index-distance fallback as primary cause | Even before the angular fix, weight variation across parents was <0.4%; fixed regardless |
 
-**Reusable inputs:** checksum-verified GaiaSource downloads, XP Continuous,
-inventories/CAS receipts, UV artifact, photometric-inference artifact, selection
-artifact (`1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711`).
+**Not eliminated:** selection-function effects across the full magnitude/colour
+population; stage-local multiplicative terms (UV, photometric inference); shard
+merge semantics. Stage diagnostics and full-sky before/after comparison are
+pending full regeneration.
 
-**Not reusable:** partition shards, merged candidate CSV, merge report, runtime
-packed assets, release-candidate evidence.
+## Implementation
 
-**Command (production workspace required):**
+1. **Accumulation:** `galactic_nested_pixel_from_icrs_position(ra, dec, nside)` using Siderust `ICRS` → `Galactic`.
+2. **Selection lookup:** `gaia_source_id_equatorial_nested_pixel(source_id, nside)` (separate contract).
+3. **Diagnostics:** `analyse_candidate_path`, `analyse_workspace_shards`, example `issue116_analyze_shards`.
+4. **Hydra config:** `crates/nsb-data-tools/config/starlight-production-300-650.hydra.toml`.
+
+## Regeneration (Hydra / Ladon)
+
+Workspace: `/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116`
+(reuses checksum-verified CAS cache + inventories from `starlight-production-300-650`).
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin nsb-data -- \
-  dataset starlight update \
-  --config crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml
+cargo run --release -p nsb-data-tools --bin nsb-data -- \
+  dataset starlight build \
+  --config crates/nsb-data-tools/config/starlight-production-300-650.hydra.toml \
+  --executor slurm
 ```
 
 ## Checksums
@@ -68,11 +75,9 @@ cargo run --locked -p nsb-data-tools --bin nsb-data -- \
 | Artifact | SHA-256 |
 |----------|---------|
 | Legacy candidate (superseded) | `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563` |
-| Corrected candidate | pending regeneration |
+| Corrected candidate | **pending full Hydra build** |
 
 ## #103 status
 
-Human scientific and redistribution review remains **PENDING**. When the
-corrected candidate is frozen, update `scientific-review-decision-v1.json` and
-`redistribution-review-decision-v1.json` to pin the new candidate SHA-256. Do not
-carry forward approval for the superseded digest.
+Human scientific and redistribution review remains **PENDING**. Update review
+decision files only after the corrected candidate SHA-256 is frozen.

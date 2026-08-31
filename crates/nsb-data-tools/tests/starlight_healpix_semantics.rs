@@ -1,10 +1,10 @@
 use nsb_data_tools::starlight::{
     diagnostics::analyse_candidate_path,
     healpix::{
-        gaia_source_id_equatorial_nested_pixel, gaia_source_id_galactic_nested_pixel,
-        galactic_nested_to_ring,
+        gaia_source_id_equatorial_nested_pixel, galactic_nested_pixel_from_icrs_position,
+        galactic_nested_to_ring, legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,
+        IcrsSkyPosition,
     },
-    map::accumulator::source_id_to_pixel,
     pack::{pack_candidate_map, PackInputs, CANONICAL_CANDIDATE_SHA256},
     validation::candidate_map,
 };
@@ -182,9 +182,13 @@ fn canonical_pack_matches_independent_healpix_nest2ring_exhaustively() {
 fn gaia_source_id_equatorial_and_galactic_pixels_are_not_interchangeable() {
     let source_id = (98_765_u64 << 35) | 9;
     let equatorial = gaia_source_id_equatorial_nested_pixel(source_id, NSIDE).unwrap();
-    let galactic = gaia_source_id_galactic_nested_pixel(source_id, NSIDE).unwrap();
+    let position = IcrsSkyPosition::new(123.45, -12.34).unwrap();
+    let galactic =
+        galactic_nested_pixel_from_icrs_position(position.ra_deg, position.dec_deg, NSIDE).unwrap();
+    let legacy =
+        legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(source_id, NSIDE).unwrap();
     assert_ne!(equatorial, galactic);
-    assert_eq!(galactic, source_id_to_pixel(source_id, NSIDE).unwrap());
+    assert_ne!(legacy, galactic);
 }
 
 #[test]

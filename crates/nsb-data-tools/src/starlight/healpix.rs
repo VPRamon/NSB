@@ -14,9 +14,46 @@
 
 use anyhow::{bail, Context, Result};
 use siderust::coordinates::cartesian::Direction;
-use siderust::coordinates::frames::{EquatorialMeanJ2000, Galactic, ReferenceFrame};
+use siderust::coordinates::frames::{Galactic, ReferenceFrame, ICRS};
+use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
 use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+use siderust::qtty::Degrees;
+
+/// Validated Gaia DR3 ICRS equatorial sky position in degrees.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct IcrsSkyPosition {
+    pub ra_deg: f64,
+    pub dec_deg: f64,
+}
+
+impl IcrsSkyPosition {
+    /// Parse and validate Gaia `ra` / `dec` fields in degrees.
+    pub fn new(ra_deg: f64, dec_deg: f64) -> Result<Self> {
+        let position = Self { ra_deg, dec_deg };
+        position.validate()?;
+        Ok(position)
+    }
+
+    /// Fail closed on non-finite or out-of-range Gaia astrometry.
+    pub fn validate(self) -> Result<Self> {
+        if !self.ra_deg.is_finite() || !(0.0..360.0).contains(&self.ra_deg) {
+            bail!("ICRS right ascension must be finite and in [0, 360) degrees");
+        }
+        if !self.dec_deg.is_finite() || !(-90.0..=90.0).contains(&self.dec_deg) {
+            bail!("ICRS declination must be finite and in [-90, 90] degrees");
+        }
+        Ok(self)
+    }
+
+    pub fn to_icrs_direction(self) -> Result<Direction<ICRS>> {
+        self.validate()?;
+        Ok(
+            direction::ICRS::new(Degrees::new(self.ra_deg), Degrees::new(self.dec_deg))
+                .to_cartesian(),
+        )
+    }
+}
 
 /// Gaia DR3 HEALPix order embedded in `source_id` (nside = 4096).
 pub const GAIA_HEALPIX_ORDER: u32 = 12;
@@ -115,14 +152,35 @@ pub fn gaia_source_id_equatorial_nested_pixel(source_id: u64, target_nside: u32)
     u32::try_from(level_12_pixel >> shift).context("equatorial HEALPix pixel exceeds u32")
 }
 
-/// Galactic nested HEALPix pixel for Starlight accumulation.
+/// Galactic nested HEALPix pixel from Gaia DR3 ICRS `ra` / `dec` (production contract).
+pub fn galactic_nested_pixel_from_icrs_position(
+    ra_deg: f64,
+    dec_deg: f64,
+    target_nside: u32,
+) -> Result<u32> {
+    let icrs = IcrsSkyPosition::new(ra_deg, dec_deg)?.to_icrs_direction()?;
+    let galactic: Direction<Galactic> = icrs.to_frame();
+    galactic_nested_pixel_from_direction(target_nside, galactic)
+}
+
+/// Approximate Galactic pixel from the `source_id` embedded equatorial HEALPix centre.
+///
+/// Diagnostic only: production accumulation must use [`galactic_nested_pixel_from_icrs_position`]
+/// with GaiaSource `ra` / `dec`.
 pub fn gaia_source_id_galactic_nested_pixel(source_id: u64, target_nside: u32) -> Result<u32> {
     let equatorial_nested =
         gaia_source_id_equatorial_nested_pixel(source_id, GAIA_MAX_NSIDE)? as u64;
-    let equatorial_direction =
-        nested_pixel_center::<EquatorialMeanJ2000>(GAIA_MAX_NSIDE, equatorial_nested)?;
+    let equatorial_direction = nested_pixel_center::<ICRS>(GAIA_MAX_NSIDE, equatorial_nested)?;
     let galactic_direction: Direction<Galactic> = equatorial_direction.to_frame();
     galactic_nested_pixel_from_direction(target_nside, galactic_direction)
+}
+
+/// Legacy generator bug: equatorial `source_id` bit-shift used as a Galactic pixel.
+pub fn legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(
+    source_id: u64,
+    target_nside: u32,
+) -> Result<u32> {
+    gaia_source_id_equatorial_nested_pixel(source_id, target_nside)
 }
 
 /// Assign a Galactic direction to a nested pixel at `nside`.
@@ -297,6 +355,18 @@ pub fn reference_nest2ring(nside: u32, ipnest: u64) -> u64 {
 }
 
 #[cfg(test)]
+pub(crate) fn fixture_icrs_from_source_id(source_id: u64) -> IcrsSkyPosition {
+    let equatorial_nested =
+        gaia_source_id_equatorial_nested_pixel(source_id, GAIA_MAX_NSIDE).unwrap() as u64;
+    let direction = nested_pixel_center::<ICRS>(GAIA_MAX_NSIDE, equatorial_nested).unwrap();
+    let spherical = direction.to_spherical();
+    IcrsSkyPosition {
+        ra_deg: spherical.azimuth.value(),
+        dec_deg: spherical.polar.value(),
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use siderust::coordinates::spherical::Direction as SphericalDirection;
@@ -370,6 +440,46 @@ mod tests {
         assert!(
             angular_separation_rad(nested_dir, ring_dir) < 1.0e-7,
             "nested centre must match siderust RING centre"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn reference_icrs_positions_assign_stable_galactic_pixels() -> Result<()> {
+        let cases = [
+            ("galactic_centre", 266.4051, -28.936175),
+            ("north_celestial_pole", 0.0, 90.0),
+            ("generic_gaia_source", 123.456, -12.345),
+        ];
+        for (label, ra, dec) in cases {
+            let first = galactic_nested_pixel_from_icrs_position(ra, dec, 128)?;
+            let second = galactic_nested_pixel_from_icrs_position(ra, dec, 128)?;
+            assert_eq!(first, second, "{label} must be deterministic");
+            let legacy_source_id = ((first as u64) << GAIA_SOURCE_ID_HEALPIX_SHIFT) | 7;
+            let legacy =
+                legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(legacy_source_id, 128)?;
+            assert_ne!(
+                first, legacy,
+                "{label} must not equal legacy equatorial bit-shift pixel"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn galactic_centre_icrs_transforms_to_galactic_origin() -> Result<()> {
+        let position = IcrsSkyPosition::new(266.4051, -28.936175)?;
+        let galactic: Direction<Galactic> = position.to_icrs_direction()?.to_frame();
+        let spherical = galactic.to_spherical();
+        assert!(
+            spherical.azimuth.value().abs() < 0.05,
+            "Galactic longitude should be near 0°, got {}",
+            spherical.azimuth.value()
+        );
+        assert!(
+            spherical.polar.value().abs() < 0.05,
+            "Galactic latitude should be near 0°, got {}",
+            spherical.polar.value()
         );
         Ok(())
     }
