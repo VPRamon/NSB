@@ -3,8 +3,7 @@
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
-use super::healpix::gaia_source_id_equatorial_nested_pixel;
-use super::healpix::IcrsSkyPosition;
+use super::healpix::{self, IcrsSkyPosition};
 use super::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
 use super::photometric::{
     PhotometricCorrection, PhotometricFeatures, PopulationBranch, RouteDecision,
@@ -193,6 +192,10 @@ fn build_partition(
             // position; skip spatial exclusion rather than invent coordinates.
             continue;
         };
+        if let Some(reason) = scientific_exclusion_reason(gaia_source) {
+            exclude_gaia_source(&mut shard, gaia_source, reason)?;
+            continue;
+        }
         let product = match calibrator.calibrate(&record) {
             Ok(product) => product,
             Err(_) => {
@@ -235,14 +238,8 @@ fn build_partition(
     remaining.sort_by_key(|(source_id, _)| *source_id);
     for (source_id, gaia_source) in remaining {
         let _source_id = *source_id;
-        if gaia_source.duplicated_source {
-            // Drop every row flagged as a Gaia duplicate. Uniqueness in the
-            // source map already keeps a single entry per source_id.
-            exclude_gaia_source(&mut shard, gaia_source, "duplicated_source")?;
-            continue;
-        }
-        if gaia_source.in_qso_candidates || gaia_source.in_galaxy_candidates {
-            exclude_gaia_source(&mut shard, gaia_source, "scientific_exclusion_nonstellar")?;
+        if let Some(reason) = scientific_exclusion_reason(gaia_source) {
+            exclude_gaia_source(&mut shard, gaia_source, reason)?;
             continue;
         }
         let Some(photometric) = photometric_correction else {
@@ -373,8 +370,9 @@ fn selection_weight(
     let Some(g_mag) = gaia_source.phot_g_mean_mag else {
         return Err("selection_missing_g_magnitude");
     };
-    let healpix = gaia_source_id_equatorial_nested_pixel(
-        gaia_source.source_id,
+    let healpix = healpix::icrs_equatorial_nested_pixel(
+        gaia_source.icrs.ra_deg,
+        gaia_source.icrs.dec_deg,
         selection.artifact().healpix_nside,
     )
     .map_err(|_| "selection_healpix_failed")?;
@@ -385,6 +383,16 @@ fn selection_weight(
         evaluation.weight,
         evaluation.systematic_uncertainty_fraction,
     ))
+}
+
+fn scientific_exclusion_reason(gaia_source: &GaiaSourceEntry) -> Option<&'static str> {
+    if gaia_source.duplicated_source {
+        return Some("duplicated_source");
+    }
+    if gaia_source.in_qso_candidates || gaia_source.in_galaxy_candidates {
+        return Some("scientific_exclusion_nonstellar");
+    }
+    None
 }
 
 fn population_branch_reason(branch: PopulationBranch) -> &'static str {
@@ -729,6 +737,111 @@ mod tests {
                 .join(format!("starlight_nside{canonical_nside}.csv")),
             canonical_nside,
         )?;
+        Ok(())
+    }
+
+    #[test]
+    fn xp_path_applies_same_scientific_exclusions_as_non_xp_path() -> Result<()> {
+        let temporary = tempfile::tempdir()?;
+        let workspace = temporary.path();
+        let partition = "000000-003111";
+        let oracle: Value = serde_json::from_slice(&fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/gaiaxpy_oracle/record-01.json"),
+        )?)?;
+        let source_id = oracle["source_id"].as_str().context("oracle source_id")?;
+        let gaia_bytes = gzip_bytes(
+            format!("source_id,ra,dec,in_galaxy_candidates\n{source_id},45.0,20.0,true\n")
+                .as_bytes(),
+        )?;
+        let correlations = vec![0.0; 55 * 54 / 2];
+        let arrays = |name: &str| serde_json::to_string(&oracle[name]).unwrap();
+        let mut xp_csv = csv::Writer::from_writer(Vec::new());
+        xp_csv.write_record([
+            "source_id",
+            "bp_n_parameters",
+            "bp_standard_deviation",
+            "rp_n_parameters",
+            "rp_standard_deviation",
+            "bp_coefficients",
+            "bp_coefficient_errors",
+            "bp_coefficient_correlations",
+            "rp_coefficients",
+            "rp_coefficient_errors",
+            "rp_coefficient_correlations",
+            "bp_n_relevant_bases",
+            "rp_n_relevant_bases",
+        ])?;
+        xp_csv.write_record([
+            source_id,
+            "55",
+            oracle["bp_standard_deviation"]
+                .as_f64()
+                .context("bp standard deviation")?
+                .to_string()
+                .as_str(),
+            "55",
+            oracle["rp_standard_deviation"]
+                .as_f64()
+                .context("rp standard deviation")?
+                .to_string()
+                .as_str(),
+            &arrays("bp_coefficients"),
+            &arrays("bp_coefficient_errors"),
+            &serde_json::to_string(&correlations)?,
+            &arrays("rp_coefficients"),
+            &arrays("rp_coefficient_errors"),
+            &serde_json::to_string(&correlations)?,
+            "55",
+            "55",
+        ])?;
+        let xp_bytes = gzip_bytes(&xp_csv.into_inner()?)?;
+        let products = vec![
+            product("gaia-source", "GaiaSource_"),
+            product("xp-continuous", "XpContinuousMeanSpectrum_"),
+        ];
+        install_object_and_receipt(
+            workspace,
+            &products[0],
+            partition,
+            &gaia_bytes,
+            "GaiaSource_000000-003111.csv.gz",
+        )?;
+        install_object_and_receipt(
+            workspace,
+            &products[1],
+            partition,
+            &xp_bytes,
+            "XpContinuousMeanSpectrum_000000-003111.csv.gz",
+        )?;
+        let artifacts = build_partitions(
+            workspace,
+            &products,
+            &[partition.to_string()],
+            1,
+            256,
+            StarlightProductBand::Measured336To650,
+            None,
+            None,
+            None,
+        )?;
+        let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
+        assert_eq!(
+            shard
+                .pixels
+                .values()
+                .map(|pixel| pixel.admitted_sources)
+                .sum::<u64>(),
+            0,
+            "galaxy candidates with XP must not be admitted"
+        );
+        assert_eq!(
+            shard
+                .exclusion_reasons
+                .get("scientific_exclusion_nonstellar")
+                .copied(),
+            Some(1)
+        );
         Ok(())
     }
 

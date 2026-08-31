@@ -1,12 +1,11 @@
 //! Reproducible Starlight HEALPix anomaly diagnostics for issue #116.
 //!
-//! The legacy candidate exhibited six large NSIDE=2-aligned flux patches when
-//! equatorial `source_id` pixels were mislabelled as Galactic. This module
-//! quantifies parent-cell discontinuities on any candidate map using the same
-//! Galactic nested semantics as production.
+//! Quantifies parent-cell discontinuities and HEALPix boundary jumps on any
+//! candidate map using the same Galactic nested semantics as production.
 
 use crate::starlight::healpix::nested_parent_at_coarser_nside;
 use crate::starlight::map::accumulator::{merge_shards, PartitionShard};
+use crate::starlight::selection::SelectionCorrection;
 use crate::starlight::validation::candidate_map::{self, CandidateMap, CandidatePixel};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -35,6 +34,15 @@ pub struct HealpixAnomalyReport {
     pub global_median_flux_per_admitted_source: f64,
     pub parent_cells: Vec<ParentCellMetrics>,
     pub anomalous_parents: Vec<u32>,
+}
+
+/// Boundary discontinuity metrics for a scalar sky map.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BoundaryDiscontinuityReport {
+    pub parent_nside: u32,
+    pub median_internal_log_jump: f64,
+    pub median_cross_parent_log_jump: f64,
+    pub cross_to_internal_ratio: f64,
 }
 
 impl HealpixAnomalyReport {
@@ -173,6 +181,113 @@ fn merged_candidate_map(shard: &PartitionShard) -> Result<CandidateMap> {
     })
 }
 
+/// Measure median |Δ log10(value)| across NSIDE parent boundaries vs inside parents.
+pub fn boundary_discontinuity_report(
+    candidate: &CandidateMap,
+    parent_nside: u32,
+) -> Result<BoundaryDiscontinuityReport> {
+    let mut internal_jumps = Vec::new();
+    let mut cross_jumps = Vec::new();
+    let values: BTreeMap<u32, f64> = candidate
+        .pixels
+        .iter()
+        .filter_map(|(pixel, value)| {
+            if value.admitted_sources == 0 {
+                return None;
+            }
+            let ratio = value.flux_ph_m2_s / value.admitted_sources as f64;
+            if ratio > 0.0 && ratio.is_finite() {
+                Some((*pixel, ratio))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    for (pixel, value) in &values {
+        let parent = nested_parent_at_coarser_nside(*pixel, candidate.nside, parent_nside)?;
+        let neighbours = nested_neighbours(candidate.nside, *pixel)?;
+        for neighbour in neighbours {
+            let Some(other) = values.get(&neighbour) else {
+                continue;
+            };
+            let jump = log10_jump(*value, *other);
+            let other_parent =
+                nested_parent_at_coarser_nside(neighbour, candidate.nside, parent_nside)?;
+            if parent == other_parent {
+                internal_jumps.push(jump);
+            } else {
+                cross_jumps.push(jump);
+            }
+        }
+    }
+
+    let median_internal = median(&internal_jumps);
+    let median_cross = median(&cross_jumps);
+    let ratio = if median_internal > 0.0 {
+        median_cross / median_internal
+    } else {
+        0.0
+    };
+    Ok(BoundaryDiscontinuityReport {
+        parent_nside,
+        median_internal_log_jump: median_internal,
+        median_cross_parent_log_jump: median_cross,
+        cross_to_internal_ratio: ratio,
+    })
+}
+
+/// Evaluate mean selection weight at a fixed G magnitude over the equatorial grid.
+pub fn mean_selection_weight_map(
+    selection: &SelectionCorrection,
+    g_mag: f64,
+    bp_rp: Option<f64>,
+) -> Result<Vec<f64>> {
+    let nside = selection.artifact().healpix_nside;
+    let npix = 12usize * nside as usize * nside as usize;
+    let mut weights = vec![0.0; npix];
+    for healpix in 0..npix {
+        weights[healpix] = selection.evaluate(healpix as u32, g_mag, bp_rp)?.weight;
+    }
+    Ok(weights)
+}
+
+fn nested_neighbours(nside: u32, pixel: u32) -> Result<Vec<u32>> {
+    let face = pixel / (nside * nside);
+    let offsets = [(0_i32, 1), (0, -1), (1, 0), (-1, 0)];
+    let mut neighbours = Vec::new();
+    let ipf = pixel % (nside * nside);
+    let ix = (0..16).fold(0_u32, |acc, bit| acc | (((ipf >> (2 * bit)) & 1) << bit));
+    let iy = (0..16).fold(0_u32, |acc, bit| {
+        acc | (((ipf >> (2 * bit + 1)) & 1) << bit)
+    });
+    for (dx, dy) in offsets {
+        let nx = ix as i32 + dx;
+        let ny = iy as i32 + dy;
+        if nx < 0 || ny < 0 || nx >= nside as i32 || ny >= nside as i32 {
+            continue;
+        }
+        let nipf = (0..16).fold(0_u32, |acc, bit| {
+            acc | ((((nx >> bit) & 1) as u32) << bit) | ((((ny >> bit) & 1) as u32) << (bit + 1))
+        });
+        neighbours.push(face * nside * nside + nipf);
+    }
+    Ok(neighbours)
+}
+
+fn log10_jump(left: f64, right: f64) -> f64 {
+    (left.max(1.0e-30).log10() - right.max(1.0e-30).log10()).abs()
+}
+
+fn median(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    sorted[sorted.len() / 2]
+}
+
 /// Load a pinned candidate map and analyse its NSIDE=2 parent discontinuities.
 pub fn analyse_candidate_path(
     path: &Path,
@@ -193,6 +308,7 @@ pub fn analyse_candidate_path(
 mod tests {
     use super::*;
     use crate::starlight::pack::{CANONICAL_CANDIDATE_SHA256, LEGACY_FRAME_BUG_CANDIDATE_SHA256};
+    use crate::starlight::validation::candidate_map::{CandidateMap, CandidatePixel};
 
     #[test]
     fn legacy_candidate_exhibits_six_nside2_anomalies() -> Result<()> {
@@ -231,6 +347,70 @@ mod tests {
             legacy_anomalous.len() <= 1,
             "expected at most one legacy parent still anomalous after frame fix, got {legacy_anomalous:?} (all anomalous parents: {:?})",
             report.anomalous_parents
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn corrected_candidate_reports_boundary_discontinuity_metrics() -> Result<()> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let candidate = root.join("crates/nsb/data/starlight_nside128.csv");
+        let map = candidate_map::load(&candidate, 128, Some(CANONICAL_CANDIDATE_SHA256))?;
+        let report = boundary_discontinuity_report(&map, NSIDE2_PARENT_NSIDE)?;
+        assert!(report.median_internal_log_jump.is_finite());
+        assert!(report.median_cross_parent_log_jump.is_finite());
+        assert!(report.cross_to_internal_ratio.is_finite());
+        Ok(())
+    }
+
+    #[test]
+    fn smoke_workspace_anomaly_report_when_configured() -> Result<()> {
+        let Some(workspace) = std::env::var_os("NSB_STARLIGHT_SMOKE_WORKSPACE") else {
+            return Ok(());
+        };
+        let workspace = Path::new(&workspace);
+        let report = analyse_workspace_shards(workspace)?;
+        let merged = crate::starlight::map::accumulator::merge_shards(
+            std::fs::read_dir(workspace.join("workers"))?
+                .filter_map(|entry| entry.ok())
+                .filter_map(|entry| {
+                    let shard_path = entry.path().join("shard.json");
+                    if !shard_path.is_file() {
+                        return None;
+                    }
+                    let bytes = std::fs::read(&shard_path).ok()?;
+                    serde_json::from_slice(&bytes).ok()
+                })
+                .collect::<Vec<PartitionShard>>(),
+        )?;
+        let mut pixels = std::collections::BTreeMap::new();
+        for (pixel, accumulator) in &merged.pixels {
+            if accumulator.admitted_sources == 0 {
+                continue;
+            }
+            pixels.insert(
+                *pixel,
+                CandidatePixel {
+                    flux_ph_m2_s: accumulator.flux_ph_m2_s.value(),
+                    statistical_uncertainty_ph_m2_s: 0.0,
+                    systematic_uncertainty_ph_m2_s: 0.0,
+                    total_uncertainty_ph_m2_s: 0.0,
+                    admitted_sources: accumulator.admitted_sources,
+                    excluded_sources: accumulator.excluded_sources,
+                },
+            );
+        }
+        let map = CandidateMap {
+            nside: merged.nside,
+            schema: "smoke".to_string(),
+            flux_unit: "ph/m2/s".to_string(),
+            sha256: String::new(),
+            pixels,
+        };
+        let boundary = boundary_discontinuity_report(&map, NSIDE2_PARENT_NSIDE)?;
+        eprintln!(
+            "smoke workspace {:?}: anomalous_parents={:?} boundary_ratio={:.4}",
+            workspace, report.anomalous_parents, boundary.cross_to_internal_ratio
         );
         Ok(())
     }

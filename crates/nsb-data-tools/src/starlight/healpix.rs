@@ -152,6 +152,73 @@ pub fn gaia_source_id_equatorial_nested_pixel(source_id: u64, target_nside: u32)
     u32::try_from(level_12_pixel >> shift).context("equatorial HEALPix pixel exceeds u32")
 }
 
+/// ICRS equatorial nested HEALPix pixel from GaiaSource `ra` / `dec` (degrees).
+///
+/// Production selection-function lookup must use this rather than the `source_id`
+/// bit-shift when GaiaSource astrometry is available.
+pub fn icrs_equatorial_nested_pixel(ra_deg: f64, dec_deg: f64, target_nside: u32) -> Result<u32> {
+    let direction = IcrsSkyPosition::new(ra_deg, dec_deg)?.to_icrs_direction()?;
+    let ring_grid = gaia_ring_grid(target_nside)?;
+    let ring = ring_grid
+        .direction_to_pixel(direction)
+        .map_err(|error| anyhow::anyhow!("ICRS RING assignment failed: {error}"))?
+        .get();
+    u32::try_from(equatorial_ring_to_nested(target_nside, ring)?)
+        .context("nested pixel exceeds u32")
+}
+
+fn gaia_ring_grid(nside: u32) -> Result<HealpixGrid> {
+    let nside = Nside::new(nside).context("invalid HEALPix nside")?;
+    HealpixGrid::new(nside, HealpixOrdering::Ring).context("invalid ICRS RING grid")
+}
+
+/// Convert nested index to RING at `nside` using the ICRS pixel-centre path.
+pub fn equatorial_nested_to_ring(nside: u32, ipnest: u64) -> Result<u64> {
+    let direction = nested_pixel_center::<ICRS>(nside, ipnest)?;
+    let ring_grid = gaia_ring_grid(nside)?;
+    Ok(ring_grid
+        .direction_to_pixel(direction)
+        .map_err(|error| anyhow::anyhow!("ICRS RING assignment failed: {error}"))?
+        .get())
+}
+
+/// Convert RING index to nested at `nside` using the verified forward map.
+pub fn equatorial_ring_to_nested(nside: u32, ipring: u64) -> Result<u64> {
+    let table = equatorial_ring_to_nested_table(nside)?;
+    table
+        .get(ipring as usize)
+        .copied()
+        .ok_or_else(|| anyhow::anyhow!("ring index {ipring} is outside nside={nside}"))
+}
+
+fn equatorial_ring_to_nested_table(nside: u32) -> Result<&'static [u64]> {
+    use std::collections::HashMap;
+    use std::sync::{Mutex, OnceLock};
+
+    static TABLES: OnceLock<Mutex<HashMap<u32, &'static [u64]>>> = OnceLock::new();
+    let tables = TABLES.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut guard = tables.lock().expect("equatorial ring-to-nested table lock");
+    if let Some(table) = guard.get(&nside) {
+        return Ok(table);
+    }
+    let npix = gaia_nested_npix(nside)?;
+    let mut table = vec![0_u64; usize::try_from(npix).context("npix fits usize")?];
+    for nest in 0..npix {
+        let ring = equatorial_nested_to_ring(nside, nest)?;
+        let slot = usize::try_from(ring).context("ring index fits usize")?;
+        if table[slot] != 0 && table[slot] != nest {
+            bail!(
+                "equatorial ring-to-nested inversion collision at ring {ring} for nested {nest} and {}",
+                table[slot]
+            );
+        }
+        table[slot] = nest;
+    }
+    let leaked = table.leak();
+    guard.insert(nside, leaked);
+    Ok(leaked)
+}
+
 /// Galactic nested HEALPix pixel from Gaia DR3 ICRS `ra` / `dec` (production contract).
 pub fn galactic_nested_pixel_from_icrs_position(
     ra_deg: f64,

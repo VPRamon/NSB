@@ -166,6 +166,11 @@ fn two_fully_correlated_sources_combine_linearly() {
 /// photometric systematic to zero.
 #[test]
 fn completeness_weight_scales_flux_and_derives_systematic_from_selection_fraction() {
+    let source_id = fixture_source_id(1);
+    let icrs = fixture_icrs_from_source_id(source_id);
+    let selection_healpix =
+        crate::starlight::healpix::icrs_equatorial_nested_pixel(icrs.ra_deg, icrs.dec_deg, 1)
+            .unwrap();
     let artifact = SelectionArtifact {
         schema_version: crate::starlight::selection::SELECTION_ARTIFACT_SCHEMA_VERSION,
         model_id: "fixture-selection".to_string(),
@@ -186,8 +191,9 @@ fn completeness_weight_scales_flux_and_derives_systematic_from_selection_fractio
         healpix_nside: 1,
         coordinate_frame: crate::starlight::healpix::HealpixCoordinateFrame::Equatorial,
         ordering: crate::starlight::healpix::HealpixOrderingScheme::Nested,
+        table_spatial_nside: None,
         completeness_table: vec![CompletenessEntry {
-            healpix: 0,
+            healpix: selection_healpix,
             magnitude_bin: 1,
             colour_bin: 0,
             completeness: 0.5,

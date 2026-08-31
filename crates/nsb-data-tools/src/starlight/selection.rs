@@ -92,6 +92,11 @@ pub struct SelectionArtifact {
     /// Pixel ordering of tabulated HEALPix cells (defaults to nested for v1).
     #[serde(default = "default_selection_ordering")]
     pub ordering: HealpixOrderingScheme,
+    /// Native spatial resolution of sparse `completeness_table` cells when they
+    /// subsample a coarser HEALPix grid (e.g. NSIDE=32 representatives embedded
+    /// at `healpix_nside`). When unset, inferred from table structure.
+    #[serde(default)]
+    pub table_spatial_nside: Option<u32>,
     /// Sparse completeness cells (optional when `m10_map` is present).
     #[serde(default)]
     pub completeness_table: Vec<CompletenessEntry>,
@@ -286,7 +291,8 @@ impl SelectionCorrection {
             .iter()
             .map(|e| ((e.healpix, e.magnitude_bin, e.colour_bin), e.completeness))
             .collect();
-        let nearest_tabulated_healpix = build_nearest_healpix_map(&artifact, &index)?;
+        let nearest_tabulated_healpix =
+            build_resolve_healpix_map(&artifact, &index, artifact.table_spatial_nside)?;
         Ok(Self {
             artifact,
             artifact_sha256: actual,
@@ -461,14 +467,70 @@ fn default_selection_ordering() -> HealpixOrderingScheme {
 }
 
 fn m10_to_completeness(g_mag: f64, m10: f64) -> f64 {
-    // Logistic approximation of Cantat-Gaudin et al. (2023) / GaiaUnlimited
-    // m10_to_completeness around the 50% completeness magnitude M10.
-    let x = g_mag - m10;
-    let completeness = 1.0 / (1.0 + (1.5 * x).exp());
-    completeness.clamp(1.0e-3, 1.0)
+    cantat_gaudin_m10_to_completeness(g_mag, m10).clamp(1.0e-3, 1.0)
 }
 
-fn build_nearest_healpix_map(
+/// Cantat-Gaudin et al. (2023) / GaiaUnlimited DR3 empirical completeness.
+///
+/// Parameters are the published posterior medians from `surveyTCG.py`.
+pub fn cantat_gaudin_m10_to_completeness(g_mag: f64, m10: f64) -> f64 {
+    const AX: f64 = 0.984_876_139_419_786_4;
+    const BX: f64 = 0.647_315_551_023_014_6;
+    const CX: f64 = 0.692_908_459_820_941_2;
+    const AY: f64 = -0.003_935_382_139_847_386;
+    const BY: f64 = 0.223_052_940_229_774_4;
+    const CY: f64 = -0.093_318_774_681_602_35;
+    const AZ: f64 = 0.006_144_107_896_473_064;
+    const BZ: f64 = 0.036_817_059_337_444_38;
+    const CZ: f64 = 0.351_405_645_257_228_95;
+    const BREAK: f64 = 20.519_369_625_540_833;
+
+    let predicted_g0 = if m10 > BREAK {
+        CX * m10 + (AX - CX) * BREAK + BX
+    } else {
+        AX * m10 + BX
+    };
+    let predicted_invslope = if m10 > BREAK {
+        CY * m10 + (AY - CY) * BREAK + BY
+    } else {
+        AY * m10 + BY
+    };
+    let predicted_shape = if m10 > BREAK {
+        CZ * m10 + (AZ - CZ) * BREAK + BZ
+    } else {
+        AZ * m10 + BZ
+    };
+    cantat_gaudin_sigmoid(g_mag, predicted_g0, predicted_invslope, predicted_shape)
+}
+
+fn cantat_gaudin_sigmoid(g_mag: f64, g0: f64, invslope: f64, shape: f64) -> f64 {
+    let delta = g_mag - g0;
+    let tanh_term = 0.5 * ((delta / invslope).tanh() + 1.0);
+    1.0 - tanh_term.powf(shape)
+}
+
+fn build_resolve_healpix_map(
+    artifact: &SelectionArtifact,
+    index: &BTreeMap<(u32, u32, u32), f64>,
+    configured_table_nside: Option<u32>,
+) -> Result<Vec<u32>> {
+    let nside = artifact.healpix_nside;
+    let npix = 12u64
+        .checked_mul(u64::from(nside).pow(2))
+        .context("healpix pixel count overflow")?;
+    let npix_usize = usize::try_from(npix).context("healpix pixel count does not fit usize")?;
+    if !artifact.m10_map.is_empty() || index.is_empty() {
+        return Ok((0..npix_usize).map(|index| index as u32).collect());
+    }
+    let table_nside =
+        configured_table_nside.or_else(|| infer_table_spatial_nside(artifact.healpix_nside, index));
+    if let Some(table_nside) = table_nside {
+        return build_hierarchical_resolve_map(artifact, nside, table_nside, index, npix_usize);
+    }
+    build_angular_nearest_healpix_map(artifact, index)
+}
+
+fn build_angular_nearest_healpix_map(
     artifact: &SelectionArtifact,
     index: &BTreeMap<(u32, u32, u32), f64>,
 ) -> Result<Vec<u32>> {
@@ -476,9 +538,6 @@ fn build_nearest_healpix_map(
         .checked_mul(u64::from(artifact.healpix_nside).pow(2))
         .context("healpix pixel count overflow")?;
     let npix_usize = usize::try_from(npix).context("healpix pixel count does not fit usize")?;
-    if !artifact.m10_map.is_empty() || index.is_empty() {
-        return Ok((0..npix_usize).map(|i| i as u32).collect());
-    }
     let mut samples: Vec<u32> = index.keys().map(|(hpx, _, _)| *hpx).collect();
     samples.sort_unstable();
     samples.dedup();
@@ -500,6 +559,102 @@ fn build_nearest_healpix_map(
         *slot = best_pixel;
     }
     Ok(nearest)
+}
+
+fn infer_table_spatial_nside(nside: u32, index: &BTreeMap<(u32, u32, u32), f64>) -> Option<u32> {
+    let mut table_nside = 2_u32;
+    while table_nside < nside {
+        if !table_nside.is_power_of_two() {
+            table_nside += 1;
+            continue;
+        }
+        let mut parent_to_sample = BTreeMap::<u32, u32>::new();
+        let mut valid = true;
+        for (healpix, _, _) in index.keys() {
+            let parent =
+                healpix::nested_parent_at_coarser_nside(*healpix, nside, table_nside).ok()?;
+            match parent_to_sample.get(&parent) {
+                None => {
+                    parent_to_sample.insert(parent, *healpix);
+                }
+                Some(existing) if *existing == *healpix => {}
+                Some(_) => {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+        let unique_samples = index
+            .keys()
+            .map(|(h, _, _)| *h)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len();
+        if valid && parent_to_sample.len() == unique_samples {
+            return Some(table_nside);
+        }
+        table_nside += 1;
+    }
+    None
+}
+
+fn build_hierarchical_resolve_map(
+    artifact: &SelectionArtifact,
+    nside: u32,
+    table_nside: u32,
+    index: &BTreeMap<(u32, u32, u32), f64>,
+    npix_usize: usize,
+) -> Result<Vec<u32>> {
+    let mut samples: Vec<u32> = index.keys().map(|(hpx, _, _)| *hpx).collect();
+    samples.sort_unstable();
+    samples.dedup();
+    let mut parent_to_sample = BTreeMap::new();
+    for healpix in samples {
+        let parent = healpix::nested_parent_at_coarser_nside(healpix, nside, table_nside)?;
+        if parent_to_sample.insert(parent, healpix).is_some() {
+            bail!(
+                "completeness_table has multiple samples for the same NSIDE={table_nside} parent"
+            );
+        }
+    }
+    let table_npix = 12_u64
+        .checked_mul(u64::from(table_nside).pow(2))
+        .context("table healpix pixel count overflow")?;
+    let table_npix_u32 = u32::try_from(table_npix).context("table healpix pixel count overflow")?;
+    let tabulated_parents: Vec<u32> = parent_to_sample.keys().copied().collect();
+    let mut parent_centers = BTreeMap::new();
+    for parent in &tabulated_parents {
+        parent_centers.insert(
+            *parent,
+            selection_pixel_center(artifact, table_nside, *parent)?,
+        );
+    }
+    let mut parent_resolve = parent_to_sample.clone();
+    for parent in 0..table_npix_u32 {
+        if parent_to_sample.contains_key(&parent) {
+            continue;
+        }
+        let query = selection_pixel_center(artifact, table_nside, parent)?;
+        let mut best_parent = tabulated_parents[0];
+        let mut best_distance = f64::INFINITY;
+        for candidate_parent in &tabulated_parents {
+            let distance = healpix::angular_separation_rad(query, parent_centers[candidate_parent]);
+            if distance < best_distance {
+                best_distance = distance;
+                best_parent = *candidate_parent;
+            }
+        }
+        parent_resolve.insert(parent, parent_to_sample[&best_parent]);
+    }
+    let mut resolved = vec![0_u32; npix_usize];
+    for (pixel, slot) in resolved.iter_mut().enumerate() {
+        let pixel = pixel as u32;
+        let parent = healpix::nested_parent_at_coarser_nside(pixel, nside, table_nside)?;
+        *slot = parent_resolve
+            .get(&parent)
+            .copied()
+            .context("parent resolve map missing NSIDE parent cell")?;
+    }
+    Ok(resolved)
 }
 
 fn selection_pixel_center(
@@ -585,6 +740,7 @@ fn require_sha256(label: &str, value: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::platform::checksum_io;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     fn cell(h: u32, m: u32, c: u32, completeness: f64) -> CompletenessEntry {
@@ -617,6 +773,7 @@ mod tests {
             healpix_nside: 1,
             coordinate_frame: HealpixCoordinateFrame::Equatorial,
             ordering: HealpixOrderingScheme::Nested,
+            table_spatial_nside: None,
             completeness_table: vec![cell(0, 0, 0, 1.0), cell(0, 1, 0, 0.5), cell(0, 1, 1, 0.25)],
             m10_map: Vec::new(),
             colour_marginalisation: ColourMarginalisation::MarginaliseUniform,
@@ -637,6 +794,199 @@ mod tests {
         let bytes = serde_json::to_vec_pretty(artifact).unwrap();
         std::fs::write(&path, &bytes).unwrap();
         SelectionCorrection::load(&path, &checksum_io::sha256_bytes(&bytes)).unwrap()
+    }
+
+    #[test]
+    fn cantat_gaudin_m10_to_completeness_matches_gaiaunlimited_golden_cases() {
+        let cases = [
+            ((12.0, 15.0), 1.000_000_00),
+            ((12.0, 17.0), 1.000_000_00),
+            ((12.0, 20.0), 1.000_000_00),
+            ((14.0, 15.0), 0.892_895_53),
+            ((14.0, 17.0), 1.000_000_00),
+            ((15.0, 15.0), 0.484_189_61),
+            ((15.0, 17.0), 0.986_763_65),
+            ((16.0, 15.0), 0.000_109_98),
+            ((16.0, 17.0), 0.919_168_36),
+            ((16.0, 18.0), 0.989_951_28),
+            ((17.0, 15.0), 0.000_000_00),
+            ((17.0, 17.0), 0.506_868_77),
+            ((17.0, 18.0), 0.930_286_16),
+            ((17.0, 19.0), 0.992_462_72),
+            ((18.0, 17.0), 0.000_057_28),
+            ((18.0, 18.0), 0.516_910_99),
+            ((18.0, 19.0), 0.940_195_46),
+            ((19.0, 19.0), 0.526_083_35),
+            ((19.0, 20.0), 0.948_992_16),
+            ((19.5, 19.0), 0.021_395_78),
+            ((20.0, 19.0), 0.000_027_36),
+            ((20.0, 20.0), 0.534_375_19),
+            ((20.0, 21.0), 0.999_696_16),
+            ((21.0, 20.0), 0.000_018_23),
+            ((21.0, 21.0), 0.726_469_16),
+        ];
+        for ((g, m10), expected) in cases {
+            let actual = cantat_gaudin_m10_to_completeness(g, m10);
+            assert!(
+                (actual - expected).abs() < 1.0e-6,
+                "g={g} m10={m10}: actual={actual}, expected={expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn production_selection_artifact_uses_hierarchical_nside32_resolution() {
+        let path = PathBuf::from("/tmp/selection-artifact.json");
+        if !path.is_file() {
+            return;
+        }
+        let bytes = std::fs::read(&path).unwrap();
+        let artifact: SelectionArtifact = serde_json::from_slice(&bytes).unwrap();
+        let index: BTreeMap<(u32, u32, u32), f64> = artifact
+            .completeness_table
+            .iter()
+            .map(|entry| {
+                (
+                    (entry.healpix, entry.magnitude_bin, entry.colour_bin),
+                    entry.completeness,
+                )
+            })
+            .collect();
+        assert_eq!(
+            infer_table_spatial_nside(artifact.healpix_nside, &index),
+            Some(32)
+        );
+    }
+
+    #[test]
+    #[ignore = "expensive production-artifact diagnostic; run with --ignored"]
+    fn production_artifact_angular_nearest_creates_sharper_weight_boundaries_than_hierarchical() {
+        let path = PathBuf::from("/tmp/selection-artifact.json");
+        if !path.is_file() {
+            return;
+        }
+        let bytes = std::fs::read(&path).unwrap();
+        let artifact: SelectionArtifact = serde_json::from_slice(&bytes).unwrap();
+        let index: BTreeMap<(u32, u32, u32), f64> = artifact
+            .completeness_table
+            .iter()
+            .map(|entry| {
+                (
+                    (entry.healpix, entry.magnitude_bin, entry.colour_bin),
+                    entry.completeness,
+                )
+            })
+            .collect();
+        let table_nside = infer_table_spatial_nside(artifact.healpix_nside, &index).unwrap();
+        let npix = 12usize * artifact.healpix_nside as usize * artifact.healpix_nside as usize;
+        let angular = build_angular_nearest_healpix_map(&artifact, &index).unwrap();
+        let hierarchical = build_hierarchical_resolve_map(
+            &artifact,
+            artifact.healpix_nside,
+            table_nside,
+            &index,
+            npix,
+        )
+        .unwrap();
+        let differing = angular
+            .iter()
+            .zip(hierarchical.iter())
+            .filter(|(left, right)| left != right)
+            .count();
+        assert!(
+            differing > npix / 4,
+            "expected angular and hierarchical lookup to disagree on most pixels, got {differing}/{npix}"
+        );
+
+        let g_mag = 17.0;
+        let magnitude_bin = bin_index("G", &artifact.magnitude_bins, g_mag).unwrap();
+        let colour_bin = bin_index("bp_rp", &artifact.colour_bins, 0.8).unwrap();
+        let weight = |resolved: u32| -> f64 {
+            let completeness = index
+                .get(&(resolved, magnitude_bin, colour_bin))
+                .copied()
+                .unwrap_or(1.0);
+            (1.0 / completeness).min(artifact.weight_cap).max(1.0)
+        };
+        let discontinuity_edges = |resolve: &[u32]| -> usize {
+            let mut edges = 0usize;
+            for pixel in 0..npix {
+                let value = weight(resolve[pixel]);
+                let face = (pixel as u32) / (artifact.healpix_nside * artifact.healpix_nside);
+                let ipf = (pixel as u32) % (artifact.healpix_nside * artifact.healpix_nside);
+                let ix = (0..16).fold(0_u32, |acc, bit| acc | (((ipf >> (2 * bit)) & 1) << bit));
+                let iy = (0..16).fold(0_u32, |acc, bit| {
+                    acc | (((ipf >> (2 * bit + 1)) & 1) << bit)
+                });
+                for (dx, dy) in [(0_i32, 1), (1, 0)] {
+                    let nx = ix as i32 + dx;
+                    let ny = iy as i32 + dy;
+                    if nx < 0
+                        || ny < 0
+                        || nx >= artifact.healpix_nside as i32
+                        || ny >= artifact.healpix_nside as i32
+                    {
+                        continue;
+                    }
+                    let nipf = (0..16).fold(0_u32, |acc, bit| {
+                        acc | ((((nx >> bit) & 1) as u32) << bit)
+                            | ((((ny >> bit) & 1) as u32) << (bit + 1))
+                    });
+                    let neighbour =
+                        (face * artifact.healpix_nside * artifact.healpix_nside + nipf) as usize;
+                    if (weight(resolve[neighbour]) - value).abs() > 1.0e-12 {
+                        edges += 1;
+                    }
+                }
+            }
+            edges
+        };
+        let angular_edges = discontinuity_edges(&angular);
+        let hierarchical_edges = discontinuity_edges(&hierarchical);
+        assert!(
+            angular_edges > hierarchical_edges,
+            "angular lookup should create more G={g_mag} weight discontinuity edges ({angular_edges}) than hierarchical ({hierarchical_edges})"
+        );
+    }
+
+    #[test]
+    fn hierarchical_resolve_is_constant_within_nside32_parent_for_sparse_table() {
+        let mut artifact = tiny_artifact(CalibrationStatus::Candidate);
+        artifact.healpix_nside = 8;
+        artifact.table_spatial_nside = Some(2);
+        artifact.completeness_table = vec![
+            cell(0, 0, 0, 0.9),
+            cell(16, 0, 0, 0.5),
+            cell(0, 1, 0, 0.4),
+            cell(16, 1, 0, 0.2),
+        ];
+        let correction = load_artifact(&artifact);
+        let weights: Vec<f64> = (0..12 * 8 * 8)
+            .map(|healpix| {
+                correction
+                    .evaluate(healpix as u32, 12.0, Some(0.4))
+                    .unwrap()
+                    .weight
+            })
+            .collect();
+        for parent in 0..48_u32 {
+            let members: Vec<f64> = (0..weights.len() as u32)
+                .filter(|pixel| {
+                    healpix::nested_parent_at_coarser_nside(*pixel, 8, 2).unwrap() == parent
+                })
+                .map(|pixel| weights[pixel as usize])
+                .collect();
+            if members.is_empty() {
+                continue;
+            }
+            let first = members[0];
+            assert!(
+                members
+                    .iter()
+                    .all(|weight| (*weight - first).abs() < 1.0e-12),
+                "parent {parent} should share one resolved completeness weight, got {members:?}"
+            );
+        }
     }
 
     #[test]

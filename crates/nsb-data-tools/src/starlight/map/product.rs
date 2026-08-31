@@ -1107,7 +1107,7 @@ fn science_policy_report(
             minimum_weight: 1.0,
             maximum_weight: selection.weight_cap,
             residual_faint_tail_estimated: selection.residual_faint_tail_estimated,
-            limitation: "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted sources; residual faint-tail estimation follows the artifact faint_tail.enabled flag.".to_string(),
+            limitation: "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted fluxes; faint_tail.systematic_fraction enters the systematic uncertainty budget only (faint_tail_flux_fraction is diagnostic and is not multiplied into stored flux).".to_string(),
         },
         None => PopulationCorrectionReport {
             policy_id: POPULATION_POLICY_ID.to_string(),
