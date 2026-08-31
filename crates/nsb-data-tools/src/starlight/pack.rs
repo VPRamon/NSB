@@ -7,11 +7,8 @@ use crate::platform::checksum_io;
 use crate::starlight::validation::candidate_map::{self, CandidateMap};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use siderust::coordinates::cartesian::Direction;
-use siderust::coordinates::frames::Galactic;
 use siderust::healpix::{HealpixGrid, HealpixOrdering, Nside};
 use std::collections::BTreeMap;
-use std::f64::consts::FRAC_PI_2;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
@@ -258,68 +255,12 @@ fn flux_to_runtime_radiance(flux_ph_m2_s: f64, pixel_sr: f64) -> Result<f64> {
 /// Convert a NESTED HEALPix index to RING by taking the nested pixel centre
 /// and asking `siderust` to assign the RING pixel for that direction.
 fn nest2ring(nside: u32, ipnest: u64) -> Result<u64> {
-    let direction = nested_pixel_center_galactic(nside, ipnest)?;
-    let grid = ring_grid(nside)?;
-    Ok(grid
-        .direction_to_pixel(direction)
-        .map_err(|error| anyhow::anyhow!("siderust RING assignment failed: {error}"))?
-        .get())
+    crate::starlight::healpix::galactic_nested_to_ring(nside, ipnest)
 }
 
 fn ring_grid(nside: u32) -> Result<HealpixGrid> {
     let nside = Nside::new(nside).map_err(|error| anyhow::anyhow!("{error}"))?;
     HealpixGrid::new(nside, HealpixOrdering::Ring).map_err(|error| anyhow::anyhow!("{error}"))
-}
-
-/// Nested pixel centre from the HEALPix primer `pix2ang_nest` (xyf → z, φ).
-fn nested_pixel_center_galactic(nside: u32, ipnest: u64) -> Result<Direction<Galactic>> {
-    crate::starlight::healpix::gaia_nested_grid(nside)?
-        .validate_index(siderust::healpix::HealpixIndex::new(ipnest))
-        .map_err(|error| {
-            anyhow::anyhow!("nested pixel {ipnest} is outside nside={nside}: {error}")
-        })?;
-    let nside = i64::from(nside);
-    const JRLL: [i64; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
-    const JPLL: [i64; 12] = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
-    let npface = nside * nside;
-    let ipnest = i64::try_from(ipnest).context("nested index fits i64")?;
-    let face = ipnest / npface;
-    let ipf = ipnest % npface;
-    let mut ix = 0i64;
-    let mut iy = 0i64;
-    for bit in 0..16 {
-        ix |= ((ipf >> (2 * bit)) & 1) << bit;
-        iy |= ((ipf >> (2 * bit + 1)) & 1) << bit;
-    }
-    let jr = JRLL[usize::try_from(face).expect("face fits")] * nside - ix - iy - 1;
-    let nl4 = 4 * nside;
-    let nside_f = nside as f64;
-    let fact1 = 1.0 / (1.5 * nside_f);
-    let fact2 = 1.0 / (3.0 * nside_f * nside_f);
-    let (nr, z, kshift) = if jr < nside {
-        let nr = jr;
-        (nr, 1.0 - (nr as f64) * (nr as f64) * fact2, 0)
-    } else if jr > 3 * nside {
-        let nr = nl4 - jr;
-        (nr, (nr as f64) * (nr as f64) * fact2 - 1.0, 0)
-    } else {
-        (nside, (2.0 * nside_f - jr as f64) * fact1, (jr - nside) & 1)
-    };
-    let mut jp = (JPLL[usize::try_from(face).expect("face fits")] * nr + ix - iy + 1 + kshift) / 2;
-    if jp > nl4 {
-        jp -= nl4;
-    }
-    if jp < 1 {
-        jp += nl4;
-    }
-    let phi = (jp as f64 - (kshift as f64 + 1.0) * 0.5) * FRAC_PI_2 / nr as f64;
-    let z = z.clamp(-1.0, 1.0);
-    let sin_theta = (1.0 - z * z).max(0.0).sqrt();
-    Ok(Direction::<Galactic>::from_array([
-        sin_theta * phi.cos(),
-        sin_theta * phi.sin(),
-        z,
-    ]))
 }
 
 /// First non-comment data header of a packed runtime CSV.
@@ -334,6 +275,8 @@ pub fn is_packed_runtime_header(header: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use siderust::coordinates::cartesian::Direction;
+    use siderust::coordinates::frames::Galactic;
     use tempfile::TempDir;
 
     const HEADER: &str = concat!(
@@ -352,9 +295,7 @@ mod tests {
     }
 
     fn angular_separation_rad(a: Direction<Galactic>, b: Direction<Galactic>) -> f64 {
-        let [ax, ay, az] = a.as_array();
-        let [bx, by, bz] = b.as_array();
-        (ax * bx + ay * by + az * bz).clamp(-1.0, 1.0).acos()
+        crate::starlight::healpix::angular_separation_rad(a, b)
     }
 
     fn galactic_direction(lon_deg: f64, lat_deg: f64) -> Direction<Galactic> {
@@ -454,7 +395,7 @@ mod tests {
         let mut seen = vec![false; usize::try_from(npix).unwrap()];
         let mut ring_to_nest = vec![0u64; usize::try_from(npix).unwrap()];
         for nest in 0..npix {
-            let nested_dir = nested_pixel_center_galactic(NSIDE, nest).unwrap();
+            let nested_dir = crate::starlight::healpix::nested_pixel_center(NSIDE, nest).unwrap();
             let ring = nest2ring(NSIDE, nest).unwrap();
             assert!(ring < npix);
             let slot = usize::try_from(ring).unwrap();
@@ -484,7 +425,7 @@ mod tests {
             let dir = galactic_direction(lon, lat);
             let ring = grid.direction_to_pixel(dir).unwrap().get();
             let nest = ring_to_nest[usize::try_from(ring).unwrap()];
-            let nested_dir = nested_pixel_center_galactic(NSIDE, nest).unwrap();
+            let nested_dir = crate::starlight::healpix::nested_pixel_center(NSIDE, nest).unwrap();
             let ring_dir = grid
                 .pixel_center(siderust::healpix::HealpixIndex::new(ring))
                 .unwrap();

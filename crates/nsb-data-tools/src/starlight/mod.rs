@@ -2,7 +2,8 @@
 
 pub mod conditions;
 pub mod config;
-pub(crate) mod healpix;
+pub mod diagnostics;
+pub mod healpix;
 pub mod licensing;
 pub mod map;
 pub mod pack;

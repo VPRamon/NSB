@@ -2,7 +2,7 @@
 
 use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::config::StarlightProductBand;
-use crate::starlight::healpix::{self, GAIA_HEALPIX_ORDER};
+use crate::starlight::healpix::{self, gaia_source_id_galactic_nested_pixel};
 use crate::starlight::uv::{
     ApplicabilityStatus, CalibrationStatus, CombinedBandFlux, ModelResponse, SystematicCorrelation,
 };
@@ -13,7 +13,6 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 const SHARD_SCHEMA_VERSION: u32 = 3;
-const GAIA_SOURCE_ID_HEALPIX_SHIFT: u32 = 35;
 const EXACT_SUM_LIMBS: usize = 33;
 const EXACT_SUM_BASE_EXPONENT: i32 = -1074;
 
@@ -334,7 +333,7 @@ impl PartitionShard {
         product_band: StarlightProductBand,
         ultraviolet_correction: Option<UvCorrectionShardMetadata>,
     ) -> Result<Self> {
-        validate_nside(nside)?;
+        healpix::gaia_nested_nside(nside)?;
         let partition_id = partition_id.into();
         if partition_id.is_empty()
             || !partition_id
@@ -465,7 +464,7 @@ impl PartitionShard {
         {
             bail!("admitted source requires positive flux and finite non-negative uncertainties");
         }
-        let pixel = source_id_to_pixel(source_id, self.nside)?;
+        let pixel = gaia_source_id_galactic_nested_pixel(source_id, self.nside)?;
         let accumulator = self.pixels.entry(pixel).or_default();
         accumulator.flux_ph_m2_s.add(selected_flux)?;
         accumulator
@@ -533,7 +532,7 @@ impl PartitionShard {
         {
             bail!("exclusion reason must be lowercase snake_case");
         }
-        let pixel = source_id_to_pixel(source_id, self.nside)?;
+        let pixel = gaia_source_id_galactic_nested_pixel(source_id, self.nside)?;
         let accumulator = self.pixels.entry(pixel).or_default();
         accumulator.observed_sources = accumulator
             .observed_sources
@@ -563,7 +562,7 @@ impl PartitionShard {
         {
             bail!("Starlight shard product band and UV metadata disagree");
         }
-        validate_nside(self.nside)?;
+        healpix::gaia_nested_nside(self.nside)?;
         let grid = healpix::gaia_nested_grid(self.nside)?;
         let mut excluded = 0_u64;
         for (pixel, accumulator) in &self.pixels {
@@ -694,17 +693,9 @@ fn is_sha256(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-/// Convert a Gaia DR3 source identifier to a nested target HEALPix pixel.
+/// Convert a Gaia DR3 source identifier to a Galactic nested HEALPix pixel.
 pub fn source_id_to_pixel(source_id: u64, target_nside: u32) -> Result<u32> {
-    validate_nside(target_nside)?;
-    let target_order = target_nside.trailing_zeros();
-    let level_12_pixel = source_id >> GAIA_SOURCE_ID_HEALPIX_SHIFT;
-    let shift = 2 * (GAIA_HEALPIX_ORDER - target_order);
-    u32::try_from(level_12_pixel >> shift).context("target HEALPix pixel exceeds u32")
-}
-
-fn validate_nside(nside: u32) -> Result<()> {
-    healpix::gaia_nested_nside(nside).map(|_| ())
+    gaia_source_id_galactic_nested_pixel(source_id, target_nside)
 }
 
 #[cfg(test)]
@@ -712,13 +703,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn maps_gaia_source_id_from_embedded_level_12_healpix() -> Result<()> {
+    fn galactic_pixel_differs_from_equatorial_bit_shift() -> Result<()> {
         let level_12_pixel = 123_456_u64;
-        let source_id = (level_12_pixel << GAIA_SOURCE_ID_HEALPIX_SHIFT) | 17;
-        assert_eq!(
-            source_id_to_pixel(source_id, 128)?,
-            (level_12_pixel >> 10) as u32
-        );
+        let source_id = (level_12_pixel << healpix::GAIA_SOURCE_ID_HEALPIX_SHIFT) | 17;
+        let equatorial = healpix::gaia_source_id_equatorial_nested_pixel(source_id, 128)?;
+        let galactic = source_id_to_pixel(source_id, 128)?;
+        assert_ne!(equatorial, galactic);
         Ok(())
     }
 

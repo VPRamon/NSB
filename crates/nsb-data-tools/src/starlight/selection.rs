@@ -12,7 +12,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
+use super::healpix::{self, nested_pixel_center, HealpixCoordinateFrame, HealpixOrderingScheme};
 use super::uv::CalibrationStatus;
+use siderust::coordinates::cartesian::Direction;
+use siderust::coordinates::frames::{EquatorialMeanJ2000, Galactic};
+use siderust::coordinates::transform::TransformFrame;
 
 pub const SELECTION_ARTIFACT_SCHEMA_VERSION: u32 = 1;
 
@@ -82,6 +86,12 @@ pub struct SelectionArtifact {
     /// Sorted BP−RP colour bin edges (length = bins + 1).
     pub colour_bins: Vec<f64>,
     pub healpix_nside: u32,
+    /// Coordinate frame of tabulated HEALPix cells (defaults to equatorial for v1).
+    #[serde(default = "default_selection_coordinate_frame")]
+    pub coordinate_frame: HealpixCoordinateFrame,
+    /// Pixel ordering of tabulated HEALPix cells (defaults to nested for v1).
+    #[serde(default = "default_selection_ordering")]
+    pub ordering: HealpixOrderingScheme,
     /// Sparse completeness cells (optional when `m10_map` is present).
     #[serde(default)]
     pub completeness_table: Vec<CompletenessEntry>,
@@ -135,6 +145,18 @@ impl SelectionArtifact {
         validate_sorted_edges("colour_bins", &self.colour_bins)?;
         if !self.healpix_nside.is_power_of_two() || self.healpix_nside == 0 {
             bail!("selection healpix_nside must be a positive power of two");
+        }
+        if self.ordering != HealpixOrderingScheme::Nested {
+            bail!(
+                "selection artifact ordering {:?} is unsupported; only nested is implemented",
+                self.ordering
+            );
+        }
+        if self.coordinate_frame != HealpixCoordinateFrame::Equatorial {
+            bail!(
+                "selection artifact coordinate_frame {:?} is unsupported; only equatorial is implemented",
+                self.coordinate_frame
+            );
         }
         let n_mag = (self.magnitude_bins.len() - 1) as u32;
         let n_col = (self.colour_bins.len() - 1) as u32;
@@ -386,9 +408,9 @@ impl SelectionCorrection {
         magnitude_bin: u32,
         colour_bin: Option<u32>,
     ) -> Result<f64> {
-        // Sparse production tables sample the sky; fall back to the nearest
-        // tabulated healpix at the same magnitude/colour bin before fail-closed.
-        let mut best: Option<(u32, f64)> = None;
+        let query_direction =
+            selection_pixel_center(&self.artifact, self.artifact.healpix_nside, healpix)?;
+        let mut best: Option<(f64, f64)> = None;
         for ((hpx, mag, col), completeness) in &self.index {
             if *mag != magnitude_bin {
                 continue;
@@ -398,7 +420,9 @@ impl SelectionCorrection {
                     continue;
                 }
             }
-            let distance = healpix.abs_diff(*hpx);
+            let candidate_direction =
+                selection_pixel_center(&self.artifact, self.artifact.healpix_nside, *hpx)?;
+            let distance = healpix::angular_separation_rad(query_direction, candidate_direction);
             match best {
                 None => best = Some((distance, *completeness)),
                 Some((best_distance, _)) if distance < best_distance => {
@@ -428,6 +452,14 @@ impl SelectionCorrection {
     }
 }
 
+fn default_selection_coordinate_frame() -> HealpixCoordinateFrame {
+    HealpixCoordinateFrame::Equatorial
+}
+
+fn default_selection_ordering() -> HealpixOrderingScheme {
+    HealpixOrderingScheme::Nested
+}
+
 fn m10_to_completeness(g_mag: f64, m10: f64) -> f64 {
     // Logistic approximation of Cantat-Gaudin et al. (2023) / GaiaUnlimited
     // m10_to_completeness around the 50% completeness magnitude M10.
@@ -450,27 +482,38 @@ fn build_nearest_healpix_map(
     let mut samples: Vec<u32> = index.keys().map(|(hpx, _, _)| *hpx).collect();
     samples.sort_unstable();
     samples.dedup();
+    let nside = artifact.healpix_nside;
     let mut nearest = vec![0_u32; npix_usize];
-    // Samples are sorted; assign each pixel to the closest sample in O(log N).
     for (pixel, slot) in nearest.iter_mut().enumerate() {
         let pixel = pixel as u32;
-        let idx = samples.partition_point(|&sample| sample < pixel);
-        let best = if idx == 0 {
-            samples[0]
-        } else if idx >= samples.len() {
-            samples[samples.len() - 1]
-        } else {
-            let left = samples[idx - 1];
-            let right = samples[idx];
-            if pixel - left <= right - pixel {
-                left
-            } else {
-                right
+        let query = selection_pixel_center(artifact, nside, pixel)?;
+        let mut best_pixel = samples[0];
+        let mut best_distance = f64::INFINITY;
+        for sample in &samples {
+            let candidate = selection_pixel_center(artifact, nside, *sample)?;
+            let distance = healpix::angular_separation_rad(query, candidate);
+            if distance < best_distance {
+                best_distance = distance;
+                best_pixel = *sample;
             }
-        };
-        *slot = best;
+        }
+        *slot = best_pixel;
     }
     Ok(nearest)
+}
+
+fn selection_pixel_center(
+    artifact: &SelectionArtifact,
+    nside: u32,
+    healpix: u32,
+) -> Result<Direction<EquatorialMeanJ2000>> {
+    match artifact.coordinate_frame {
+        HealpixCoordinateFrame::Equatorial => nested_pixel_center(nside, u64::from(healpix)),
+        HealpixCoordinateFrame::Galactic => {
+            let galactic: Direction<Galactic> = nested_pixel_center(nside, u64::from(healpix))?;
+            Ok(galactic.to_frame())
+        }
+    }
 }
 
 fn bin_index(label: &str, edges: &[f64], value: f64) -> Result<u32> {
@@ -572,6 +615,8 @@ mod tests {
             magnitude_bins: vec![10.0, 15.0, 20.0],
             colour_bins: vec![0.0, 1.0, 2.0],
             healpix_nside: 1,
+            coordinate_frame: HealpixCoordinateFrame::Equatorial,
+            ordering: HealpixOrderingScheme::Nested,
             completeness_table: vec![cell(0, 0, 0, 1.0), cell(0, 1, 0, 0.5), cell(0, 1, 1, 0.25)],
             m10_map: Vec::new(),
             colour_marginalisation: ColourMarginalisation::MarginaliseUniform,

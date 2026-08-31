@@ -1,4 +1,10 @@
 use nsb_data_tools::starlight::{
+    diagnostics::analyse_candidate_path,
+    healpix::{
+        gaia_source_id_equatorial_nested_pixel, gaia_source_id_galactic_nested_pixel,
+        galactic_nested_to_ring,
+    },
+    map::accumulator::source_id_to_pixel,
     pack::{pack_candidate_map, PackInputs, CANONICAL_CANDIDATE_SHA256},
     validation::candidate_map,
 };
@@ -170,4 +176,33 @@ fn canonical_pack_matches_independent_healpix_nest2ring_exhaustively() {
     }
 
     assert!(seen_ring.iter().all(|seen| *seen));
+}
+
+#[test]
+fn gaia_source_id_equatorial_and_galactic_pixels_are_not_interchangeable() {
+    let source_id = (98_765_u64 << 35) | 9;
+    let equatorial = gaia_source_id_equatorial_nested_pixel(source_id, NSIDE).unwrap();
+    let galactic = gaia_source_id_galactic_nested_pixel(source_id, NSIDE).unwrap();
+    assert_ne!(equatorial, galactic);
+    assert_eq!(galactic, source_id_to_pixel(source_id, NSIDE).unwrap());
+}
+
+#[test]
+fn legacy_candidate_nside2_anomaly_diagnostic_reproduces_issue_116() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let candidate_path = root.join("crates/nsb/data/starlight_nside128.csv");
+    let report =
+        analyse_candidate_path(&candidate_path, NSIDE, Some(CANONICAL_CANDIDATE_SHA256)).unwrap();
+    assert_eq!(report.anomalous_parents.len(), 6);
+    assert_eq!(report.anomalous_parents, vec![0, 16, 18, 26, 27, 43]);
+}
+
+#[test]
+fn production_nest2ring_matches_independent_reference_on_samples() {
+    for nest in [0_u64, 1, 42, 1_234, 12_345] {
+        assert_eq!(
+            reference_nest2ring(NSIDE, nest),
+            galactic_nested_to_ring(NSIDE, nest).unwrap()
+        );
+    }
 }

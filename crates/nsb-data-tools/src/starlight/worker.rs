@@ -3,7 +3,8 @@
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
-use super::map::accumulator::{source_id_to_pixel, PartitionShard, UvCorrectionShardMetadata};
+use super::healpix::gaia_source_id_equatorial_nested_pixel;
+use super::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
 use super::photometric::{
     PhotometricCorrection, PhotometricFeatures, PopulationBranch, RouteDecision,
 };
@@ -361,8 +362,9 @@ fn selection_weight(
     let Some(g_mag) = gaia_source.phot_g_mean_mag else {
         return Err("selection_missing_g_magnitude");
     };
-    let healpix = source_id_to_pixel(source_id, selection.artifact().healpix_nside)
-        .map_err(|_| "selection_healpix_failed")?;
+    let healpix =
+        gaia_source_id_equatorial_nested_pixel(source_id, selection.artifact().healpix_nside)
+            .map_err(|_| "selection_healpix_failed")?;
     let evaluation = selection
         .evaluate(healpix, g_mag, gaia_source.bp_rp)
         .map_err(|_| "selection_evaluation_failed")?;

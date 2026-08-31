@@ -1829,6 +1829,7 @@ fn nested_pixel_center_sin_latitude(nside: u32, pixel: u32) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use super::super::accumulator::source_id_to_pixel;
     use super::*;
     use tempfile::TempDir;
 
@@ -2313,15 +2314,24 @@ mod tests {
         let canonical = merge_shards([first, second]).unwrap();
         let mut independent = canonical.clone();
         let mut replacement = PartitionShard::new("replacement", 128).unwrap();
-        replacement.admit(1_u64 << 45, 3.0, 0.2, 0.0).unwrap();
-        independent
-            .pixels
-            .insert(1, replacement.pixels.remove(&1).expect("replacement pixel"));
+        let extra_source_id = 1_u64 << 45;
+        replacement.admit(extra_source_id, 3.0, 0.2, 0.0).unwrap();
+        let extra_pixel = source_id_to_pixel(extra_source_id, 128).unwrap();
+        independent.pixels.insert(
+            extra_pixel,
+            replacement
+                .pixels
+                .remove(&extra_pixel)
+                .expect("replacement pixel"),
+        );
 
         let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
         assert!(!report.stable);
         assert_eq!(report.flux_mismatches, 1);
-        assert!(report.first_mismatch.unwrap().contains("pixel 1"));
+        assert!(report
+            .first_mismatch
+            .unwrap()
+            .contains(&format!("pixel {extra_pixel}")));
     }
 
     #[test]
@@ -2331,9 +2341,12 @@ mod tests {
         let mut independent = canonical.clone();
         let mut extra = PartitionShard::new("extra", 128).unwrap();
         extra.admit(1_u64 << 45, 2.0, 0.2, 0.0).unwrap();
-        independent
-            .pixels
-            .insert(1, extra.pixels.remove(&1).expect("extra pixel"));
+        let extra_source_id = 1_u64 << 45;
+        let extra_pixel = source_id_to_pixel(extra_source_id, 128).unwrap();
+        independent.pixels.insert(
+            extra_pixel,
+            extra.pixels.remove(&extra_pixel).expect("extra pixel"),
+        );
 
         let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
         assert!(!report.stable);

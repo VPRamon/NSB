@@ -9,7 +9,9 @@
 
 use super::*;
 use crate::platform::checksum_io;
-use crate::starlight::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
+use crate::starlight::map::accumulator::{
+    source_id_to_pixel, PartitionShard, UvCorrectionShardMetadata,
+};
 use crate::starlight::selection::{
     ColourMarginalisation, CompletenessEntry, FaintTailModel, SelectionArtifact,
     SelectionCorrection, SelectionReferenceDataset, SelectionReferenceFile,
@@ -53,13 +55,22 @@ fn source_entry(g_mag: Option<f64>, bp_rp: Option<f64>) -> GaiaSourceEntry {
     }
 }
 
+fn fixture_source_id(sequence: u64) -> u64 {
+    (12_345_u64 << crate::starlight::healpix::GAIA_SOURCE_ID_HEALPIX_SHIFT) | sequence
+}
+
+fn fixture_pixel(source_id: u64, nside: u32) -> u32 {
+    source_id_to_pixel(source_id, nside).unwrap()
+}
+
 /// Fixture 1: one admitted source with exactly zero statistical and
 /// systematic uncertainty leaves the pixel's total uncertainty exactly zero.
 #[test]
 fn one_source_with_zero_uncertainty_yields_zero_pixel_uncertainty() {
     let mut shard = PartitionShard::new("fixture-one-source", 4).unwrap();
-    shard.admit(1, 10.0, 0.0, 0.0).unwrap();
-    let pixel = &shard.pixels[&0];
+    let source_id = fixture_source_id(1);
+    shard.admit(source_id, 10.0, 0.0, 0.0).unwrap();
+    let pixel = &shard.pixels[&fixture_pixel(source_id, 4)];
     assert_eq!(pixel.statistical_variance.value().sqrt(), 0.0);
     assert_eq!(pixel.selected_systematic_uncertainty(), 0.0);
 }
@@ -73,9 +84,11 @@ fn one_source_with_zero_uncertainty_yields_zero_pixel_uncertainty() {
 fn two_independent_equal_sources_combine_in_quadrature() {
     let sigma_i = 3.0_f64;
     let mut shard = PartitionShard::new("fixture-two-independent", 4).unwrap();
-    shard.admit(1, 10.0, sigma_i, sigma_i).unwrap();
-    shard.admit(2, 10.0, sigma_i, sigma_i).unwrap();
-    let pixel = &shard.pixels[&0];
+    let first = fixture_source_id(1);
+    let second = fixture_source_id(2);
+    shard.admit(first, 10.0, sigma_i, sigma_i).unwrap();
+    shard.admit(second, 10.0, sigma_i, sigma_i).unwrap();
+    let pixel = &shard.pixels[&fixture_pixel(first, 4)];
     let expected = 2.0_f64.sqrt() * sigma_i;
     assert!((pixel.statistical_variance.value().sqrt() - expected).abs() < 1.0e-12);
     assert!((pixel.selected_systematic_uncertainty() - expected).abs() < 1.0e-12);
@@ -119,9 +132,13 @@ fn two_fully_correlated_sources_combine_linearly() {
         artifact_sha256: "a".repeat(64),
         systematic_correlation: SystematicCorrelation::FullyCorrelatedBetweenSources,
     };
-    shard.admit_corrected(1, &source()).unwrap();
-    shard.admit_corrected(2, &source()).unwrap();
-    let pixel = &shard.pixels[&0];
+    shard
+        .admit_corrected(fixture_source_id(1), &source())
+        .unwrap();
+    shard
+        .admit_corrected(fixture_source_id(2), &source())
+        .unwrap();
+    let pixel = &shard.pixels[&fixture_pixel(fixture_source_id(1), 4)];
     assert_eq!(pixel.systematic_variance.value(), 0.0);
     assert_eq!(
         pixel.systematic_correlated_uncertainty.value(),
@@ -157,6 +174,8 @@ fn completeness_weight_scales_flux_and_derives_systematic_from_selection_fractio
         magnitude_bins: vec![10.0, 15.0, 20.0],
         colour_bins: vec![0.0, 1.0, 2.0],
         healpix_nside: 1,
+        coordinate_frame: crate::starlight::healpix::HealpixCoordinateFrame::Equatorial,
+        ordering: crate::starlight::healpix::HealpixOrderingScheme::Nested,
         completeness_table: vec![CompletenessEntry {
             healpix: 0,
             magnitude_bin: 1,
@@ -182,9 +201,10 @@ fn completeness_weight_scales_flux_and_derives_systematic_from_selection_fractio
 
     let mut shard = PartitionShard::new("fixture-weighted", 4).unwrap();
     let gaia_source = source_entry(Some(17.0), None);
+    let source_id = fixture_source_id(1);
     admit_weighted_source(
         &mut shard,
-        1,
+        source_id,
         &gaia_source,
         10.0,
         1.0,
@@ -195,7 +215,7 @@ fn completeness_weight_scales_flux_and_derives_systematic_from_selection_fractio
     )
     .unwrap();
 
-    let pixel = &shard.pixels[&0];
+    let pixel = &shard.pixels[&fixture_pixel(source_id, 4)];
     // weight = 1 / 0.5 = 2 (below weight_cap).
     assert_eq!(pixel.flux_ph_m2_s.value(), 20.0);
     assert_eq!(pixel.statistical_variance.value().sqrt(), 2.0);
@@ -339,9 +359,10 @@ fn pixel_admits_combine_uv_and_photometric_systematics_before_tagging_correlatio
         ..source_entry(None, None)
     };
     let photometric_systematic = 3.0;
+    let source_id = fixture_source_id(1);
     admit_weighted_source(
         &mut shard,
-        1,
+        source_id,
         &gaia_source,
         100.0,
         4.0,
@@ -351,7 +372,7 @@ fn pixel_admits_combine_uv_and_photometric_systematics_before_tagging_correlatio
         None,
     )
     .unwrap();
-    let pixel = &shard.pixels[&0];
+    let pixel = &shard.pixels[&fixture_pixel(source_id, 4)];
     // The photometric systematic (conceptually independent-per-source) was
     // hypot-folded into the UV correction's fully-correlated systematic
     // before admission, so it appears entirely in the linear-sum bucket and
