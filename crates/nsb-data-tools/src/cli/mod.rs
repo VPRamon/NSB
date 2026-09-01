@@ -255,6 +255,11 @@ struct StarlightDiagnoseSuiteArgs {
     commit: String,
     #[arg(long)]
     output_dir: PathBuf,
+    /// Override photometric artifact path (for ablation with legacy/miscalibrated models).
+    #[arg(long)]
+    photometric_artifact_path: Option<PathBuf>,
+    #[arg(long)]
+    photometric_artifact_sha256: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -644,12 +649,28 @@ fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
             Ok(())
         }
         StarlightDiagnoseCommand::Suite(args) => {
+            let photometric_override = match (
+                args.photometric_artifact_path,
+                args.photometric_artifact_sha256,
+            ) {
+                (Some(path), Some(sha256)) => {
+                    Some(crate::starlight::diagnostics::PhotometricArtifactOverride {
+                        path,
+                        sha256,
+                    })
+                }
+                (None, None) => None,
+                _ => anyhow::bail!(
+                    "suite diagnose requires both --photometric-artifact-path and --photometric-artifact-sha256 when overriding"
+                ),
+            };
             let report = crate::starlight::diagnostics::run_diagnostic_suite(
                 &args.repo_root,
                 &args.config,
                 &args.workspace,
                 &args.commit,
                 &args.output_dir,
+                photometric_override,
             )?;
             println!(
                 "diagnostic suite written to {}/diagnostic-suite.json",

@@ -24,20 +24,22 @@ Three independent bugs produced HEALPix-aligned `flux_ph_m2_s / admitted_sources
 | Wrong logistic `m10_to_completeness` | 25 golden cases vs GaiaUnlimited | `cantat_gaudin_m10_to_completeness()` |
 | XP path skipped scientific exclusions | Regression test | Shared `scientific_exclusion_reason()` |
 | `faint_tail_flux_fraction` never applied | Code audit | Reporting contract clarified |
+| Broken `nested_neighbours()` Morton interleaving | Prior boundary metrics 0.37→1.06 unreliable | `healpix_topology.rs` reference implementation |
 | **Photometric artifact flux scale incompatible with XP integration** | Ablation: patches appear at stage B only; photometric G=15 predicted ~1e8 ph/m²/s vs XP oracle ~1.4e4; bright photometric-only outliers up to 4.5e10 in anomalous parents | XP-anchored photometric artifact `gaia-dr3-photometric-logflux-xp-anchored-v1` (SHA `02a6e5c9…`) |
 
 ### CONFIRMED ROOT CAUSES
 
 **Legacy six patches:** ICRS→Galactic accumulation mismatch.
 
-**Remaining seven-patch morphology (smoke parents 13, 24, 32, 33, 36, 37, 43):** Photometric inference branch admitted with flux per source orders of magnitude above XP continuous integrals. Spatial variation in XP availability and bright-star photometric-only outliers created sharp `flux/admitted` jumps at NSIDE=2 boundaries. Controlled ablation shows:
+**Remaining seven-patch morphology (smoke parents 13, 24, 32, 33, 36, 37, 43):** Photometric inference branch admitted with flux per source orders of magnitude above XP continuous integrals. Spatial variation in XP availability and bright-star photometric-only outliers created sharp `flux/admitted` jumps at NSIDE=2 boundaries. Controlled ablation shows (corrected HEALPix neighbour topology; prior 0.37/0.40 ratios used a broken face-local Morton approximation and are invalid):
 
 | Stage | Anomalous NSIDE=2 parents | Boundary cross/internal |
 |-------|---------------------------|-------------------------|
-| A (XP only) | `[]` | 1.05 |
-| B (+ photometric, **old artifact**) | `[13, 24, 32, 33, 36, 37, 43]` | 0.40 |
-| E (full production, **old artifact**) | `[13, 24, 32, 33, 36, 37, 43]` | 0.37 |
-| E (full production, **XP-anchored artifact**) | `[]` | **1.06** |
+| A (XP only) | `[]` | **1.24** |
+| B (+ photometric, **old artifact**) | `[13, 24, 32, 33, 36, 37, 43]` | **1.44** |
+| E (full production, **old artifact**) | `[13, 24, 32, 33, 36, 37, 43]` | **1.73** |
+| E (full production, **XP-anchored artifact**) | `[]` | **1.15** |
+| B (+ photometric, **XP-anchored artifact**) | `[]` | **1.12** |
 
 ### CONTRIBUTING FACTORS
 
@@ -60,9 +62,9 @@ Three independent bugs produced HEALPix-aligned `flux_ph_m2_s / admitted_sources
 | Metric | Before (`ad23fe32…` artifact) | After (`02a6e5c9…` XP-anchored) |
 |--------|------------------------------|----------------------------------|
 | Anomalous NSIDE=2 parents | `[13, 24, 32, 33, 36, 37, 43]` | `[]` |
-| Boundary cross/internal ratio | 0.372 | **1.056** |
+| Boundary cross/internal ratio (corrected neighbours) | **1.727** | **1.151** |
 | Global median flux/admitted | 1.69e6 | 8.95e3 |
-| Ablation B boundary ratio | 0.40 | **1.11** |
+| Ablation B boundary ratio (corrected neighbours) | **1.44** | **1.12** |
 
 Evidence: `docs/nsb_components/starlight/diagnostics/evidence/phase8-photometric-anchor/`
 

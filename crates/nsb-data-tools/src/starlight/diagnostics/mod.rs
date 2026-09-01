@@ -8,7 +8,8 @@ pub mod processor;
 
 pub use baseline::{write_baseline_report, BaselineReport, SMOKE_PARTITIONS_PATH};
 pub use processor::{
-    run_diagnostic_suite, DiagnosticSuiteReport, MergedDiagnosticReport, TRACE_PARENTS_SMOKE,
+    run_diagnostic_suite, DiagnosticSuiteReport, MergedDiagnosticReport,
+    PhotometricArtifactOverride, TRACE_PARENTS_SMOKE,
 };
 
 use crate::platform::artifact_store;

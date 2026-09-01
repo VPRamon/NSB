@@ -1,0 +1,213 @@
+{
+  "schema_version": 1,
+  "model_id": "gaia-dr3-photometric-logflux-xp-anchored-v1",
+  "calibration_status": "validated",
+  "branches": [
+    {
+      "branch": "photometric_g_bp_rp",
+      "required_features": [
+        "phot_g_mean_mag",
+        "bp_rp"
+      ],
+      "predictors": [
+        {
+          "name": "phot_g_mean_mag",
+          "unit": "mag",
+          "domain": {
+            "minimum": 3.0,
+            "maximum": 22.0
+          }
+        },
+        {
+          "name": "bp_rp",
+          "unit": "mag",
+          "domain": {
+            "minimum": -1.0,
+            "maximum": 5.0
+          }
+        }
+      ],
+      "parameters": [
+        32.344916359155036,
+        -0.9214861626794641,
+        -0.132955016539454
+      ],
+      "covariance": [
+        [
+          0.00035593332838748025,
+          -2.0604881067230358e-05,
+          -2.970746213271049e-05
+        ],
+        [
+          -2.0604881067230355e-05,
+          1.5065252758023486e-06,
+          -2.6243606188075615e-07
+        ],
+        [
+          -2.9707462132710482e-05,
+          -2.6243606188075636e-07,
+          2.1185704800085933e-05
+        ]
+      ],
+      "statistical_floor_ph_m2_s": 50.0,
+      "systematic_floor_ph_m2_s": 100.0,
+      "systematic_fraction": 0.25
+    },
+    {
+      "branch": "photometric_partial",
+      "required_features": [
+        "phot_g_mean_mag",
+        "phot_rp_mean_mag"
+      ],
+      "predictors": [
+        {
+          "name": "phot_g_mean_mag",
+          "unit": "mag",
+          "domain": {
+            "minimum": 3.0,
+            "maximum": 22.0
+          }
+        },
+        {
+          "name": "phot_rp_mean_mag",
+          "unit": "mag",
+          "domain": {
+            "minimum": 3.0,
+            "maximum": 22.0
+          }
+        }
+      ],
+      "parameters": [
+        32.344916274166586,
+        -1.364669359714033,
+        0.4431831966290475
+      ],
+      "covariance": [
+        [
+          0.0003559333178732488,
+          -0.00011962973212247735,
+          9.902485103884984e-05
+        ],
+        [
+          -0.00011962973212247514,
+          0.0002351536229322475,
+          -0.00023452188451132878
+        ],
+        [
+          9.902485103884784e-05,
+          -0.00023452188451132861,
+          0.00023539667136679592
+        ]
+      ],
+      "statistical_floor_ph_m2_s": 50.0,
+      "systematic_floor_ph_m2_s": 100.0,
+      "systematic_fraction": 0.25
+    },
+    {
+      "branch": "photometric_g_only",
+      "required_features": [
+        "phot_g_mean_mag"
+      ],
+      "predictors": [
+        {
+          "name": "phot_g_mean_mag",
+          "unit": "mag",
+          "domain": {
+            "minimum": 3.0,
+            "maximum": 22.0
+          }
+        }
+      ],
+      "parameters": [
+        32.15848139480192,
+        -0.9231331312970844
+      ],
+      "covariance": [
+        [
+          0.002986877733014785,
+          -0.00019932596045944186
+        ],
+        [
+          -0.00019932596045944186,
+          1.4287099007380343e-05
+        ]
+      ],
+      "statistical_floor_ph_m2_s": 50.0,
+      "systematic_floor_ph_m2_s": 100.0,
+      "systematic_fraction": 0.25
+    }
+  ],
+  "flux_unit": "ph_m-2_s-1",
+  "measured_band_nm": [
+    336,
+    650
+  ],
+  "response": {
+    "kind": "natural-log-photon-flux"
+  },
+  "partitions": {
+    "assignment_algorithm": "synthetic-photometric-sky-disjoint-v1",
+    "seed": 20260729,
+    "manifest_sha256": "70d9625b71f542000389a4327537f8450dbad186d0ea8e50f5c1eec868c6abe8",
+    "training": {
+      "partition_id": "phot-training",
+      "source_count": 100,
+      "source_ids_sha256": "fb07c53092d579596cbd5fd52e2b988aa1d78fee9e80e6366b89c0e61ddcb072",
+      "sky_regions": [
+        "sky-training-00",
+        "sky-training-01",
+        "sky-training-02",
+        "sky-training-03",
+        "sky-training-04",
+        "sky-training-05",
+        "sky-training-06",
+        "sky-training-07",
+        "sky-training-08",
+        "sky-training-09"
+      ]
+    },
+    "validation": {
+      "partition_id": "phot-validation",
+      "source_count": 100,
+      "source_ids_sha256": "4f700daffb96eacd0176a371d33509e13a66e2bd037f9d855de0846683fd5ebf",
+      "sky_regions": [
+        "sky-validation-00",
+        "sky-validation-01",
+        "sky-validation-02",
+        "sky-validation-03",
+        "sky-validation-04",
+        "sky-validation-05",
+        "sky-validation-06",
+        "sky-validation-07",
+        "sky-validation-08",
+        "sky-validation-09"
+      ]
+    },
+    "test": {
+      "partition_id": "phot-test",
+      "source_count": 100,
+      "source_ids_sha256": "20f8a6a1bde9ce375226f8b2654de07dfd0e03ab53815609f5ac267d2d8eeaa0",
+      "sky_regions": [
+        "sky-test-00",
+        "sky-test-01",
+        "sky-test-02",
+        "sky-test-03",
+        "sky-test-04",
+        "sky-test-05",
+        "sky-test-06",
+        "sky-test-07",
+        "sky-test-08",
+        "sky-test-09"
+      ]
+    },
+    "source_disjoint": true,
+    "sky_disjoint": true,
+    "disjointness_evidence_sha256": "70d9625b71f542000389a4327537f8450dbad186d0ea8e50f5c1eec868c6abe8"
+  },
+  "out_of_domain_policy": {
+    "policy": "clamp-with-systematic-inflation",
+    "factor": 3.0
+  },
+  "training_command": "python3 /home/valles/nsb-calibration/scripts/train_photometric_artifact.py",
+  "software_version": "nsb-photometric-logflux-xp-anchored-v1"
+}

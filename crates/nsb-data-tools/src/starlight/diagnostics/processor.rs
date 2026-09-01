@@ -102,12 +102,19 @@ struct DiagnosticAccumulator {
     trace_budget: BTreeMap<u32, usize>,
 }
 
+#[derive(Debug, Clone)]
+pub struct PhotometricArtifactOverride {
+    pub path: std::path::PathBuf,
+    pub sha256: String,
+}
+
 pub fn run_diagnostic_suite(
     repo_root: &Path,
     config_path: &Path,
     workspace: &Path,
     commit: &str,
     output_dir: &Path,
+    photometric_override: Option<PhotometricArtifactOverride>,
 ) -> Result<DiagnosticSuiteReport> {
     let config_bytes = std::fs::read(config_path)?;
     let config: RunConfig = toml::from_slice(&config_bytes)
@@ -121,7 +128,7 @@ pub fn run_diagnostic_suite(
         .context("config is not a Starlight run")?
         .map
         .canonical_nside;
-    let stage_maps = process_partitions(&config, workspace, &partitions)?;
+    let stage_maps = process_partitions(&config, workspace, &partitions, photometric_override)?;
     let mut ablation_stages = Vec::new();
     for (stage, grid) in &stage_maps {
         let candidate = grid.to_candidate_map(nside)?;
@@ -167,6 +174,7 @@ fn process_partitions(
     config: &RunConfig,
     workspace: &Path,
     partitions: &[String],
+    photometric_override: Option<PhotometricArtifactOverride>,
 ) -> Result<BTreeMap<AblationStage, DiagnosticAccumulator>> {
     let starlight = config
         .starlight
@@ -176,7 +184,10 @@ fn process_partitions(
     let fixture = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
     let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&fixture)?;
     let ultraviolet = load_uv(starlight.ultraviolet_correction.as_ref())?;
-    let photometric = load_photometric(starlight.photometric_inference.as_ref())?;
+    let photometric = load_photometric(
+        starlight.photometric_inference.as_ref(),
+        photometric_override,
+    )?;
     let selection = load_selection(starlight.selection_function.as_ref())?;
     let nside = starlight.map.canonical_nside;
     let product_band = starlight.product_band;
@@ -534,7 +545,15 @@ fn load_uv(pin: Option<&ArtifactPinConfig>) -> Result<Option<UvCorrection>> {
     .transpose()
 }
 
-fn load_photometric(pin: Option<&ArtifactPinConfig>) -> Result<Option<PhotometricCorrection>> {
+fn load_photometric(
+    pin: Option<&ArtifactPinConfig>,
+    photometric_override: Option<PhotometricArtifactOverride>,
+) -> Result<Option<PhotometricCorrection>> {
+    if let Some(override_) = photometric_override {
+        let correction = PhotometricCorrection::load(&override_.path, &override_.sha256)?;
+        correction.require_production_status()?;
+        return Ok(Some(correction));
+    }
     pin.map(|config| {
         let correction = PhotometricCorrection::load(&config.artifact_path, &config.sha256)?;
         correction.require_production_status()?;

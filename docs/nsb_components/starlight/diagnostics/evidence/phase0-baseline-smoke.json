@@ -343,9 +343,9 @@
   },
   "boundary_report": {
     "parent_nside": 2,
-    "median_internal_log_jump": 0.2408240346627153,
-    "median_cross_parent_log_jump": 0.08962807539298456,
-    "cross_to_internal_ratio": 0.37217246824434547
+    "median_internal_log_jump": 0.0994866370396208,
+    "median_cross_parent_log_jump": 0.17184317236989255,
+    "cross_to_internal_ratio": 1.7272990371707468
   },
   "global_exclusion_reasons": {
     "duplicated_source": 216366,

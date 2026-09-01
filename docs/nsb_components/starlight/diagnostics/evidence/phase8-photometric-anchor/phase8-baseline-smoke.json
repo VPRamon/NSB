@@ -1,6 +1,6 @@
 {
   "phase": "phase0_baseline",
-  "commit": "58564589f19a1f78f4b20e6d690e23ea6d96e6b4",
+  "commit": "5856458",
   "config_path": "/mnt/beegfs/valles/nsb-data/starlight-smoke-fix116-photometric-anchor/config.toml",
   "config_sha256": "b3775cd66a7916274a764296ad61a935074bd8de00c87b6cdfa477621a5f59f5",
   "workspace": "/mnt/beegfs/valles/nsb-data/starlight-smoke-fix116-photometric-anchor",
@@ -335,9 +335,9 @@
   },
   "boundary_report": {
     "parent_nside": 2,
-    "median_internal_log_jump": 0.337868305061066,
-    "median_cross_parent_log_jump": 0.35683094003947113,
-    "cross_to_internal_ratio": 1.0561243380759786
+    "median_internal_log_jump": 0.22258922671871728,
+    "median_cross_parent_log_jump": 0.25614975457239986,
+    "cross_to_internal_ratio": 1.1507733700701182
   },
   "global_exclusion_reasons": {
     "duplicated_source": 216366,
