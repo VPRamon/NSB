@@ -25,7 +25,7 @@ sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
 
 [starlight.photometric_inference]
 artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/photometric-artifact.json"
-sha256 = "ad23fe327b3cbb75167ffe47a00dc8bcbb63d72f9e5a1b19f32171dda5fd680d"
+sha256 = "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2"
 
 [starlight.selection_function]
 artifact_path = "/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/selection-artifact.json"

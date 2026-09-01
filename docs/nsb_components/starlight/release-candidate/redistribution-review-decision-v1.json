@@ -5,7 +5,7 @@
   "reviewer_role": null,
   "reviewed_at_utc": null,
   "candidate_sha256": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154",
-  "inventory_sha256": "654c888be7bc24137ae50d4f229c6a0b467d57384412f96e405a3c1c33911cb8",
+  "inventory_sha256": "fe5dd5f13454a4d33cd9175fe1f2b6e103041127c9df843a6bdd29c9074e3572",
   "review_bundle_sha256": "c5ef564c81de3d3f581ca90c2131643f40abf65dda8f9e7658ae6b6df04c75de",
   "pinned_artifacts": [],
   "conditions": [

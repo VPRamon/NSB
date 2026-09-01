@@ -857,4 +857,42 @@ mod tests {
             .to_string();
         assert!(error.contains("checksum mismatch"));
     }
+
+    /// XP-anchored production artifact must predict 336–650 nm flux within the
+    /// Gaia XP continuous integration scale at G=15 (oracle ~1.4e4 ph/m²/s).
+    #[test]
+    fn xp_anchored_production_artifact_matches_xp_flux_scale_at_g15() {
+        let path = std::path::Path::new(
+            "/home/valles/nsb-calibration/artifacts/photometric-artifact.json",
+        );
+        if !path.is_file() {
+            return;
+        }
+        let sha = fs::read_to_string(path.with_extension("sha256"))
+            .unwrap()
+            .trim()
+            .to_string();
+        let correction = PhotometricCorrection::load(path, &sha).unwrap();
+        assert_eq!(
+            correction.artifact().model_id,
+            "gaia-dr3-photometric-logflux-xp-anchored-v1"
+        );
+        let decision = correction
+            .route_and_evaluate(PhotometricFeatures {
+                phot_g_mean_mag: Some(15.0),
+                phot_bp_mean_mag: Some(15.32),
+                phot_rp_mean_mag: Some(14.48),
+                bp_rp: Some(0.8),
+                quality_flag: true,
+            })
+            .unwrap();
+        let flux = decision
+            .flux
+            .expect("G=15 full-colour branch should evaluate")
+            .flux_336_650_ph_m2_s;
+        assert!(
+            (5_000.0..50_000.0).contains(&flux),
+            "photometric flux at G=15 must match XP integration scale, got {flux}"
+        );
+    }
 }

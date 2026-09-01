@@ -74,6 +74,10 @@ def load_quantity(
             if column not in reader.fieldnames:
                 raise ValueError(f"{path}: missing required column {column!r}")
 
+        representation = metadata.get("representation", "dense").lower()
+        sparse = representation == "sparse"
+        occupied = np.zeros(npix, dtype=bool)
+
         seen = 0
         for row in reader:
             pixel = int(row["pixel"])
@@ -90,10 +94,15 @@ def load_quantity(
                 value = flux / admitted if admitted > 0 else 0.0
 
             values[pixel] = value
+            occupied[pixel] = True
             seen += 1
 
-    if seen != npix:
+    if not sparse and seen != npix:
         raise ValueError(f"{path}: expected {npix} occupied pixels, found {seen}")
+
+    if sparse:
+        values = values.astype(np.float64)
+        values[~occupied] = hp.UNSEEN
 
     nest = ordering == "nested"
     if not nest:

@@ -18,12 +18,12 @@ sha256 = "52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43"
 [[artifacts]]
 id = "release_candidate_gates"
 path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
-sha256 = "bf7c085f8b90f5c4ede4ff2384fb4a962fb4d22a4b819a51265ed78437d22e8f"
+sha256 = "3222827a021dd263c559bee561e4b951ecc3ff95fa62dc48eac0641021f5dec5"
 
 [[artifacts]]
 id = "redistribution_inventory"
 path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
-sha256 = "654c888be7bc24137ae50d4f229c6a0b467d57384412f96e405a3c1c33911cb8"
+sha256 = "fe5dd5f13454a4d33cd9175fe1f2b6e103041127c9df843a6bdd29c9074e3572"
 
 [[artifacts]]
 id = "validation_artifact_manifest"

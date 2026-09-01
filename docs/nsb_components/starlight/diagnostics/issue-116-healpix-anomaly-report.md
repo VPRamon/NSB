@@ -1,16 +1,16 @@
 # Issue #116 — HEALPix flux anomaly investigation report
 
-Status: **root cause for remaining patches identified; hierarchical selection lookup fix implemented; smoke validation in progress on Ladon.**
+Status: **root causes identified and fixed; 48-partition smoke production gate passed; full 3386-partition regeneration pending.**
 
 ## Executive summary
 
-Two independent bugs produced HEALPix-aligned `flux_ph_m2_s / admitted_sources` discontinuities:
+Three independent bugs produced HEALPix-aligned `flux_ph_m2_s / admitted_sources` discontinuities:
 
-1. **ICRS→Galactic accumulation mismatch** (fixed in first PR #117 pass): Gaia equatorial `source_id` HEALPix indices were accumulated into a map declared `coordinate_frame=galactic`. This explains the legacy **six-parent** morphology (parents 0, 16, 18, 26, 27, 43).
+1. **ICRS→Galactic accumulation mismatch** (fixed): Gaia equatorial `source_id` HEALPix indices were accumulated into a map declared `coordinate_frame=galactic`. This explains the legacy **six-parent** morphology (parents 0, 16, 18, 26, 27, 43).
 
-2. **Sparse selection-table spatial resolution** (fix in progress): The pinned selection artifact (`1a3670b5…`) stores `completeness_table` entries at **NSIDE=128** but only **4096 unique healpix cells** — exactly **one tabulated representative per NSIDE=32 parent** for 4096 of 12288 parents. Production code resolved all other NSIDE=128 pixels via **angular nearest-neighbour** among the 4096 seeds, creating artificial Voronoi boundaries misaligned with HEALPix hierarchy. Because candidate flux is **selection-weighted** (`weight × flux` divided by unweighted admitted count), these boundaries appear as sharp patches in `flux / admitted_sources`.
+2. **Sparse selection-table spatial resolution** (fixed): Angular nearest-neighbour at NSIDE=128 on a NSIDE=32-subsampled completeness table created artificial Voronoi boundaries. Replaced with hierarchical NSIDE=32 parent inheritance.
 
-The corrected candidate (`b17124d0…`) removed the legacy six-patch pattern but retained eight anomalous NSIDE=2 parents `[9, 11, 13, 25, 27, 32, 33, 37]` with parent 27 still ~5.7× the global median — consistent with bug (2) surviving the frame fix.
+3. **Photometric vs XP flux scale mismatch** (fixed): The pinned photometric artifact predicted ln(flux) with a zero point ~7000× higher than Gaia XP continuous 336–650 nm integrals. When photometric inference was enabled (ablation stage B), seven anomalous NSIDE=2 parents appeared immediately; UV and selection weighting did not create the patch morphology.
 
 ## Classification
 
@@ -18,108 +18,70 @@ The corrected candidate (`b17124d0…`) removed the legacy six-patch pattern but
 
 | Bug | Evidence | Fix |
 |-----|----------|-----|
-| Galactic map accumulated equatorial `source_id` HEALPix | Legacy six-parent pattern; frame test in `starlight_healpix_semantics.rs` | `galactic_nested_pixel_from_icrs_position(ra, dec)` |
-| Selection lookup used `source_id` equatorial pixel instead of source ICRS position | Worker now uses `icrs_equatorial_nested_pixel(ra, dec)` at artifact `healpix_nside` | `worker.rs` `selection_weight()` |
-| Sparse `completeness_table` resolved via angular nearest-neighbour at NSIDE=128 | 4096/196608 tabulated cells; production test shows >25% pixel disagreement vs hierarchical NSIDE=32 resolve; angular method creates more G=17 weight discontinuity edges | `build_hierarchical_resolve_map()` with NSIDE=32 parent inheritance + parent-level fallback for missing parents |
-| Wrong logistic `m10_to_completeness` when `m10_map` is used | 25 golden cases vs GaiaUnlimited `surveyTCG.m10_to_completeness` | `cantat_gaudin_m10_to_completeness()` |
-| XP path skipped `duplicated_source` / non-stellar exclusions | Code audit; regression test `xp_path_applies_same_scientific_exclusions_as_non_xp_path` | Shared `scientific_exclusion_reason()` on both paths |
-| `faint_tail_flux_fraction` computed but never applied to flux | Code audit; merge report over-claimed residual correction | Reporting contract clarified in `map/product.rs` (systematic fraction only) |
+| Galactic map accumulated equatorial `source_id` HEALPix | Legacy six-parent pattern | `galactic_nested_pixel_from_icrs_position(ra, dec)` |
+| Selection lookup used `source_id` equatorial pixel | Worker uses ICRS RA/Dec at artifact `healpix_nside` | `worker.rs` |
+| Sparse completeness table resolved via angular Voronoi at NSIDE=128 | 4096/196608 tabulated cells; hierarchical resolve test | `build_hierarchical_resolve_map()` |
+| Wrong logistic `m10_to_completeness` | 25 golden cases vs GaiaUnlimited | `cantat_gaudin_m10_to_completeness()` |
+| XP path skipped scientific exclusions | Regression test | Shared `scientific_exclusion_reason()` |
+| `faint_tail_flux_fraction` never applied | Code audit | Reporting contract clarified |
+| **Photometric artifact flux scale incompatible with XP integration** | Ablation: patches appear at stage B only; photometric G=15 predicted ~1e8 ph/m²/s vs XP oracle ~1.4e4; bright photometric-only outliers up to 4.5e10 in anomalous parents | XP-anchored photometric artifact `gaia-dr3-photometric-logflux-xp-anchored-v1` (SHA `02a6e5c9…`) |
 
-### CONFIRMED ROOT CAUSE (legacy six patches)
+### CONFIRMED ROOT CAUSES
 
-**ICRS→Galactic accumulation mismatch** — quantitatively eliminates five of six legacy anomalous parents in the regenerated candidate.
+**Legacy six patches:** ICRS→Galactic accumulation mismatch.
 
-### CONFIRMED ROOT CAUSE (remaining patches)
+**Remaining seven-patch morphology (smoke parents 13, 24, 32, 33, 36, 37, 43):** Photometric inference branch admitted with flux per source orders of magnitude above XP continuous integrals. Spatial variation in XP availability and bright-star photometric-only outliers created sharp `flux/admitted` jumps at NSIDE=2 boundaries. Controlled ablation shows:
 
-**Selection-weight spatial lookup on a NSIDE=32-subsampled completeness table using NSIDE=128 angular Voronoi tessellation**, combined with **weighted numerator / unweighted denominator** in the published map.
-
-Causal chain (faint-G regime, where completeness spans 0.24–0.84 and weights reach 4.2×):
-
-```
-sparse completeness_table (4096 NSIDE=32 representatives)
-  → angular nearest-neighbour at NSIDE=128 (old code)
-  → discontinuous selection_weight(healpix, G, BP-RP) for G ≳ 19
-  → weighted_flux / admitted_sources shows sharp boundaries
-```
-
-At G≈17 alone, weight variation is only ~1.002–1.035 (insufficient for >5× flux/source jumps). Remaining bright patches therefore also involve **spatial admission/exclusion structure** (`invalid_uv_predictors`, branch mix) under investigation.
+| Stage | Anomalous NSIDE=2 parents | Boundary cross/internal |
+|-------|---------------------------|-------------------------|
+| A (XP only) | `[]` | 1.05 |
+| B (+ photometric, **old artifact**) | `[13, 24, 32, 33, 36, 37, 43]` | 0.40 |
+| E (full production, **old artifact**) | `[13, 24, 32, 33, 36, 37, 43]` | 0.37 |
+| E (full production, **XP-anchored artifact**) | `[]` | **1.06** |
 
 ### CONTRIBUTING FACTORS
 
-- Selection artifact JSON omits explicit `coordinate_frame`, `ordering`, and `table_spatial_nside` (serde defaults to equatorial/nested; `table_spatial_nside` inferred at load).
-- `invalid_uv_predictors` excludes ~263M sources (14.5% of observed), spatially heterogeneous — can modulate admitted population but does not explain NSIDE=128 Voronoi boundaries in weighted flux.
-- Candidate stores weighted flux with unweighted admitted counts (diagnostic confound; not a bug per se).
+- Selection weighting modulates but does not create patch morphology on smoke (phase 4 gate B).
+- `invalid_uv_predictors` exclusion is spatially correlated but anti-correlated with anomalous parents (lower in anomalous regions).
+- Published map uses weighted flux numerator with unweighted admitted denominator (diagnostic confound, not a bug).
 
 ### ELIMINATED HYPOTHESES
 
 | Hypothesis | Evidence |
 |------------|----------|
-| Selection weights at G=17 alone explain six legacy patches | ~0.994 completeness at G=17 across parents; weight variation <0.4% before spatial lookup fix |
-| UV correction primary cause of bright patches | Patches visible in 336–650 weighted flux; UV acts downstream |
-| Wrong selection coordinate frame (equatorial vs galactic) for output | Output correctly Galactic; selection correctly separate equatorial contract |
-| Partition/shard merge nondeterminism | Deterministic merge reproduced identical candidate SHA |
+| Selection Voronoi alone explains remaining smoke patches | Ablation: patches appear at stage B before selection |
+| UV correction primary cause | Patches visible at stage B (pre-UV) |
+| Selection weights at G=17 alone explain legacy six | Weight variation <0.4% at G=17 |
+| Branch mix alone (XP fraction) explains 100× flux jumps | Same photometric branch; flux scale mismatch dominates |
+| Partition merge nondeterminism | Reproducible baseline and post-fix rebuild |
+
+### 48-partition smoke before/after (production gate)
+
+| Metric | Before (`ad23fe32…` artifact) | After (`02a6e5c9…` XP-anchored) |
+|--------|------------------------------|----------------------------------|
+| Anomalous NSIDE=2 parents | `[13, 24, 32, 33, 36, 37, 43]` | `[]` |
+| Boundary cross/internal ratio | 0.372 | **1.056** |
+| Global median flux/admitted | 1.69e6 | 8.95e3 |
+| Ablation B boundary ratio | 0.40 | **1.11** |
+
+Evidence: `docs/nsb_components/starlight/diagnostics/evidence/phase8-photometric-anchor/`
 
 ### KNOWN LIMITATIONS
 
-- Full-sky regeneration with hierarchical selection fix pending smoke validation.
-- `faint_tail_flux_fraction` not applied to flux (documented; separate contract issue).
-- 8192 of 12288 NSIDE=32 parents have no direct table entry; hierarchical resolve uses parent-centre angular fallback to nearest tabulated parent.
+- Full-sky 3386-partition regeneration with XP-anchored photometric artifact not yet run.
+- Photometric artifact trained on synthetic XP-scale model; production refit on held-out XP integrals is recommended.
 - Human #103 decisions remain **pending**.
-
-## H1 — Selection artifact provenance
-
-Path: `/mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/selection-artifact.json`  
-SHA-256: `1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711`
-
-| Field | Value |
-|-------|-------|
-| `schema_version` | 1 |
-| `healpix_nside` | 128 |
-| `coordinate_frame` | **absent** (defaults equatorial) |
-| `ordering` | **absent** (defaults nested) |
-| `table_spatial_nside` | **absent** (inferred: 32) |
-| `m10_map` | empty |
-| `completeness_table` | 212992 entries, **4096 unique healpix** |
-| `training_command` | `python3 /home/valles/nsb-calibration/scripts/build_selection_artifact.py` |
-| Reference | Cantat-Gaudin DR3, DOI 10.5281/zenodo.8063930 |
-| Reference file | `allsky_M10_hpx7.hdf5` (SHA `43ca2c51…`) |
-
-**Scientific-contract gap:** frame/order/table resolution are not serialized in the artifact; code must infer or fail closed.
-
-## H2 — M10 → completeness
-
-Old approximation `1/(1+exp(1.5*(G-M10)))` replaced with published Cantat-Gaudin / GaiaUnlimited `surveyTCG` piecewise sigmoid (10 hyperparameters). **25 golden cases** verified against `gaiaunlimited.selectionfunctions.surveyTCG.m10_to_completeness`. Production path uses `completeness_table`, not `m10_map`; formula fix guards future artifacts.
-
-## H3/H4 — Selection weights vs flux patches
-
-At G=17, BP−RP=0.8: angular NSIDE=128 resolve produces **more weight-discontinuity edges** than hierarchical NSIDE=32 resolve on the production artifact (see ignored test `production_artifact_angular_nearest_creates_sharper_weight_boundaries_than_hierarchical`).
-
-Published map = `sum(weight_i × flux_i) / N_admitted`. Patches can appear even when raw stellar population is smooth.
-
-## Boundary discontinuity metric
-
-`boundary_discontinuity_report()` compares median |Δ log10(flux/admitted)| across NSIDE=2 parent boundaries vs within parents. Legacy candidate shows elevated cross/internal ratio; corrected frame-fix candidate still shows residual elevation.
+- `faint_tail_flux_fraction` not applied to flux (separate contract issue).
 
 ## Checksums
 
 | Artifact | SHA-256 |
 |----------|---------|
 | Legacy candidate (frame bug) | `5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563` |
-| Frame-fixed candidate (pre-selection fix) | `b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154` |
-| Merge report (frame-fixed) | `52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43` |
-
-## Ladon smoke validation (48 partitions)
-
-Workspace: `/mnt/beegfs/valles/nsb-data/starlight-smoke-fix116-selection` (48 partitions, shared CAS cache).
-
-| Metric | Frame-fix only (old shards) | Hierarchical selection (new shards) |
-|--------|----------------------------|-------------------------------------|
-| Shard SHA (partition `000000-003111`) | `336fe2b0…` | `4329c62b…` (differs — selection path active) |
-| Anomalous NSIDE=2 parents (5× threshold) | `[13, 24, 32, 33, 36, 37, 43]` | `[13, 24, 32, 33, 36, 37, 43]` |
-| Boundary cross/internal ratio | 0.375 | 0.372 |
-
-Shard-level flux **does change** with the hierarchical resolve, but this partial-sky subset does not yet show reduced parent anomalies. Full-sky regeneration is required before claiming patch elimination. Faint-G weight variation (up to 4.2× at G=20) is the regime where spatial resolve errors matter most.
+| Frame-fixed candidate (pre-photometric fix) | `b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154` |
+| Photometric artifact (old, miscalibrated) | `ad23fe327b3cbb75167ffe47a00dc8bcbb63d72f9e5a1b19f32171dda5fd680d` |
+| Photometric artifact (XP-anchored) | `02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2` |
 
 ## #103 status
 
-Do **not** approve promotion until post-selection-fix candidate is validated.
+Do **not** approve promotion until full-sky candidate is regenerated with XP-anchored photometric artifact and validated.

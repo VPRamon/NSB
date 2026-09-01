@@ -11,6 +11,8 @@ pub use processor::{
     run_diagnostic_suite, DiagnosticSuiteReport, MergedDiagnosticReport, TRACE_PARENTS_SMOKE,
 };
 
+use crate::platform::artifact_store;
+use crate::platform::checksum_io;
 use crate::starlight::healpix::nested_parent_at_coarser_nside;
 use crate::starlight::map::accumulator::{merge_shards, PartitionShard};
 use crate::starlight::selection::SelectionCorrection;
@@ -157,6 +159,59 @@ pub fn analyse_workspace_shards(workspace: &Path) -> Result<HealpixAnomalyReport
     anyhow::ensure!(!shards.is_empty(), "no shards under {}", workers.display());
     let merged = merge_shards(shards)?;
     analyse_candidate_map(&merged_candidate_map(&merged)?)
+}
+
+/// Merge every `workers/*/shard.json` under `workspace` and write a sparse
+/// candidate-v5 CSV suitable for diagnostic heatmaps.
+pub fn export_workspace_candidate_map(workspace: &Path, output: &Path) -> Result<String> {
+    let workers = workspace.join("workers");
+    let mut shards = Vec::new();
+    for entry in std::fs::read_dir(&workers)? {
+        let entry = entry?;
+        let shard_path = entry.path().join("shard.json");
+        if shard_path.is_file() {
+            let bytes = std::fs::read(&shard_path)?;
+            shards.push(serde_json::from_slice::<PartitionShard>(&bytes).with_context(|| {
+                format!("parse shard {}", shard_path.display())
+            })?);
+        }
+    }
+    anyhow::ensure!(!shards.is_empty(), "no shards under {}", workers.display());
+    let merged = merge_shards(shards)?;
+    let candidate = merged_candidate_map(&merged)?;
+    write_candidate_map_csv(&candidate, output)?;
+    Ok(checksum_io::sha256_file(output)?)
+}
+
+fn write_candidate_map_csv(candidate: &CandidateMap, path: &Path) -> Result<()> {
+    let mut text = format!(
+        "# schema={}\n\
+         # map_type=healpix\n\
+         # coordinate_frame=galactic\n\
+         # ordering=nested\n\
+         # representation=sparse\n\
+         # omitted_pixel_semantics=zero_flux_and_source_counts\n\
+         # nside={}\n\
+         # flux_quantity=integrated_per_pixel\n\
+         # flux_unit={}\n\
+         pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n",
+        candidate_map::EXPECTED_MAP_SCHEMA,
+        candidate.nside,
+        candidate.flux_unit
+    );
+    for (pixel, value) in &candidate.pixels {
+        text.push_str(&format!(
+            "{pixel},{:.17e},{:.17e},{:.17e},{:.17e},{},{}\n",
+            value.flux_ph_m2_s,
+            value.statistical_uncertainty_ph_m2_s,
+            value.systematic_uncertainty_ph_m2_s,
+            value.total_uncertainty_ph_m2_s,
+            value.admitted_sources,
+            value.excluded_sources
+        ));
+    }
+    artifact_store::atomic_write(path, text.as_bytes())
+        .with_context(|| format!("write candidate map {}", path.display()))
 }
 
 pub(crate) fn merged_candidate_map(shard: &PartitionShard) -> Result<CandidateMap> {

@@ -225,6 +225,8 @@ enum StarlightDiagnoseCommand {
     Baseline(StarlightDiagnoseBaselineArgs),
     /// Run Phases 1–6 diagnostic accounting and ablation on smoke partitions.
     Suite(StarlightDiagnoseSuiteArgs),
+    /// Export a sparse candidate-v5 CSV from merged workspace shards.
+    ExportMap(StarlightDiagnoseExportMapArgs),
 }
 
 #[derive(Debug, Args)]
@@ -253,6 +255,14 @@ struct StarlightDiagnoseSuiteArgs {
     commit: String,
     #[arg(long)]
     output_dir: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseExportMapArgs {
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -656,6 +666,17 @@ fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
                     stage.boundary_report.cross_to_internal_ratio
                 );
             }
+            Ok(())
+        }
+        StarlightDiagnoseCommand::ExportMap(args) => {
+            let sha256 = crate::starlight::diagnostics::export_workspace_candidate_map(
+                &args.workspace,
+                &args.output,
+            )?;
+            println!(
+                "candidate map written to {} (sha256={sha256})",
+                args.output.display()
+            );
             Ok(())
         }
     }
