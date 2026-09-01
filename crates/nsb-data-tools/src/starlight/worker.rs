@@ -728,4 +728,24 @@ mod tests {
         encoder.write_all(bytes)?;
         Ok(encoder.finish()?)
     }
+
+    #[test]
+    fn production_accumulation_uses_icrs_ra_dec_not_source_id_pixel() -> Result<()> {
+        use crate::starlight::healpix::{
+            gaia_source_id_equatorial_nested_pixel, galactic_nested_pixel_from_icrs_position,
+            legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,
+        };
+
+        let source_id = 4_295_806_660_u64;
+        let icrs = crate::starlight::healpix::fixture_icrs_from_source_id(source_id);
+        let production = galactic_nested_pixel_from_icrs_position(icrs.ra_deg, icrs.dec_deg, 128)?;
+        let legacy = legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(source_id, 128)?;
+        let equatorial = gaia_source_id_equatorial_nested_pixel(source_id, 128)?;
+        assert_ne!(
+            production, legacy,
+            "production Galactic pixel must not reuse equatorial source_id bit-shift"
+        );
+        assert_ne!(production, equatorial);
+        Ok(())
+    }
 }

@@ -105,19 +105,22 @@ def load_quantity(
         values[~occupied] = hp.UNSEEN
 
     nest = ordering == "nested"
-    if not nest:
-        values = hp.reorder(values, n2r=True)
-
+    # Pixel indices in the CSV are already in the declared ordering; do not reorder.
     return values, {**metadata, "nest": str(nest).lower(), "quantity": quantity}
 
 
-def coordinate_frame_to_healpy(frame: str) -> str | None:
+def coordinate_frame_to_healpy(frame: str) -> str:
     mapping = {
         "galactic": "G",
         "equatorial": "C",
         "ecliptic": "E",
     }
-    return mapping.get(frame.lower())
+    try:
+        return mapping[frame.lower()]
+    except KeyError as error:
+        raise ValueError(
+            f"unsupported coordinate_frame {frame!r}; expected one of {sorted(mapping)}"
+        ) from error
 
 
 def render_heatmap(

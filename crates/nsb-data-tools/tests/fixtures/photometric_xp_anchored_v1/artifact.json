@@ -208,6 +208,6 @@
     "policy": "clamp-with-systematic-inflation",
     "factor": 3.0
   },
-  "training_command": "python3 train_photometric_artifact.py",
+  "training_command": "python3 /home/valles/nsb-calibration/scripts/train_photometric_artifact.py",
   "software_version": "nsb-photometric-logflux-xp-anchored-v1"
 }

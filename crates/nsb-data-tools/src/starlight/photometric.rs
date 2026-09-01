@@ -877,6 +877,10 @@ mod tests {
             correction.artifact().model_id,
             "gaia-dr3-photometric-logflux-xp-anchored-v1"
         );
+        assert_eq!(
+            sha,
+            "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2"
+        );
         let decision = correction
             .route_and_evaluate(PhotometricFeatures {
                 phot_g_mean_mag: Some(15.0),

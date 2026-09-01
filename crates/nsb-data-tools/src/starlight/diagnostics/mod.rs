@@ -13,7 +13,7 @@ pub use processor::{
 
 use crate::platform::artifact_store;
 use crate::platform::checksum_io;
-use crate::starlight::healpix::nested_parent_at_coarser_nside;
+use crate::starlight::healpix::{nested_neighbours, nested_parent_at_coarser_nside};
 use crate::starlight::map::accumulator::{merge_shards, PartitionShard};
 use crate::starlight::selection::SelectionCorrection;
 use crate::starlight::validation::candidate_map::{self, CandidateMap, CandidatePixel};
@@ -314,29 +314,6 @@ pub fn mean_selection_weight_map(
         *weight = selection.evaluate(healpix as u32, g_mag, bp_rp)?.weight;
     }
     Ok(weights)
-}
-
-fn nested_neighbours(nside: u32, pixel: u32) -> Result<Vec<u32>> {
-    let face = pixel / (nside * nside);
-    let offsets = [(0_i32, 1), (0, -1), (1, 0), (-1, 0)];
-    let mut neighbours = Vec::new();
-    let ipf = pixel % (nside * nside);
-    let ix = (0..16).fold(0_u32, |acc, bit| acc | (((ipf >> (2 * bit)) & 1) << bit));
-    let iy = (0..16).fold(0_u32, |acc, bit| {
-        acc | (((ipf >> (2 * bit + 1)) & 1) << bit)
-    });
-    for (dx, dy) in offsets {
-        let nx = ix as i32 + dx;
-        let ny = iy as i32 + dy;
-        if nx < 0 || ny < 0 || nx >= nside as i32 || ny >= nside as i32 {
-            continue;
-        }
-        let nipf = (0..16).fold(0_u32, |acc, bit| {
-            acc | ((((nx >> bit) & 1) as u32) << bit) | ((((ny >> bit) & 1) as u32) << (bit + 1))
-        });
-        neighbours.push(face * nside * nside + nipf);
-    }
-    Ok(neighbours)
 }
 
 fn log10_jump(left: f64, right: f64) -> f64 {

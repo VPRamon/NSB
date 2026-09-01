@@ -12,6 +12,7 @@
 //! `nside`. Selection-function lookup must use the artifact's declared frame
 //! (production artifacts: equatorial nested at `healpix_nside`).
 
+use super::healpix_topology::reference_ring2nest;
 use anyhow::{bail, Context, Result};
 use siderust::coordinates::cartesian::Direction;
 use siderust::coordinates::frames::{Galactic, ReferenceFrame, ICRS};
@@ -19,6 +20,8 @@ use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
 use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
 use siderust::qtty::Degrees;
+
+pub use super::healpix_topology::nested_neighbours;
 
 /// Validated Gaia DR3 ICRS equatorial sky position in degrees.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -182,41 +185,9 @@ pub fn equatorial_nested_to_ring(nside: u32, ipnest: u64) -> Result<u64> {
         .get())
 }
 
-/// Convert RING index to nested at `nside` using the verified forward map.
+/// Convert RING index to nested at `nside` using the reference integer map.
 pub fn equatorial_ring_to_nested(nside: u32, ipring: u64) -> Result<u64> {
-    let table = equatorial_ring_to_nested_table(nside)?;
-    table
-        .get(ipring as usize)
-        .copied()
-        .ok_or_else(|| anyhow::anyhow!("ring index {ipring} is outside nside={nside}"))
-}
-
-fn equatorial_ring_to_nested_table(nside: u32) -> Result<&'static [u64]> {
-    use std::collections::HashMap;
-    use std::sync::{Mutex, OnceLock};
-
-    static TABLES: OnceLock<Mutex<HashMap<u32, &'static [u64]>>> = OnceLock::new();
-    let tables = TABLES.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = tables.lock().expect("equatorial ring-to-nested table lock");
-    if let Some(table) = guard.get(&nside) {
-        return Ok(table);
-    }
-    let npix = gaia_nested_npix(nside)?;
-    let mut table = vec![0_u64; usize::try_from(npix).context("npix fits usize")?];
-    for nest in 0..npix {
-        let ring = equatorial_nested_to_ring(nside, nest)?;
-        let slot = usize::try_from(ring).context("ring index fits usize")?;
-        if table[slot] != 0 && table[slot] != nest {
-            bail!(
-                "equatorial ring-to-nested inversion collision at ring {ring} for nested {nest} and {}",
-                table[slot]
-            );
-        }
-        table[slot] = nest;
-    }
-    let leaked = table.leak();
-    guard.insert(nside, leaked);
-    Ok(leaked)
+    reference_ring2nest(nside, ipring)
 }
 
 /// Galactic nested HEALPix pixel from Gaia DR3 ICRS `ra` / `dec` (production contract).
@@ -334,41 +305,9 @@ pub fn galactic_nested_to_ring(nside: u32, ipnest: u64) -> Result<u64> {
         .get())
 }
 
-/// Convert RING index to nested at `nside` using the verified forward map.
+/// Convert RING index to nested at `nside` using the reference integer map.
 pub fn ring_to_nested(nside: u32, ipring: u64) -> Result<u64> {
-    let table = ring_to_nested_table(nside)?;
-    table
-        .get(ipring as usize)
-        .copied()
-        .ok_or_else(|| anyhow::anyhow!("ring index {ipring} is outside nside={nside}"))
-}
-
-fn ring_to_nested_table(nside: u32) -> Result<&'static [u64]> {
-    use std::collections::HashMap;
-    use std::sync::{Mutex, OnceLock};
-
-    static TABLES: OnceLock<Mutex<HashMap<u32, &'static [u64]>>> = OnceLock::new();
-    let tables = TABLES.get_or_init(|| Mutex::new(HashMap::new()));
-    let mut guard = tables.lock().expect("ring-to-nested table lock");
-    if let Some(table) = guard.get(&nside) {
-        return Ok(table);
-    }
-    let npix = gaia_nested_npix(nside)?;
-    let mut table = vec![0_u64; usize::try_from(npix).context("npix fits usize")?];
-    for nest in 0..npix {
-        let ring = galactic_nested_to_ring(nside, nest)?;
-        let slot = usize::try_from(ring).context("ring index fits usize")?;
-        if table[slot] != 0 && table[slot] != nest {
-            bail!(
-                "ring-to-nested inversion collision at ring {ring} for nested {nest} and {}",
-                table[slot]
-            );
-        }
-        table[slot] = nest;
-    }
-    let leaked: &'static [u64] = Box::leak(table.into_boxed_slice());
-    guard.insert(nside, leaked);
-    Ok(leaked)
+    reference_ring2nest(nside, ipring)
 }
 
 /// Independent integer NESTED -> RING reference (Gorski et al. 2005).
