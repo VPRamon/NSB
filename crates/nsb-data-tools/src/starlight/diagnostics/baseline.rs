@@ -2,7 +2,7 @@
 
 use super::{
     analyse_workspace_shards, boundary_discontinuity_report, merged_candidate_map,
-    HealpixAnomalyReport, BoundaryDiscontinuityReport,
+    BoundaryDiscontinuityReport, HealpixAnomalyReport,
 };
 use crate::dataset::RunConfig;
 use crate::platform::checksum_io;
@@ -82,7 +82,7 @@ pub fn write_baseline_report(
     let mut admitted = 0_u64;
     let mut excluded = 0_u64;
     let mut observed = 0_u64;
-    for (_, pixel) in &merged.pixels {
+    for pixel in merged.pixels.values() {
         total_flux += pixel.flux_ph_m2_s.value();
         admitted += pixel.admitted_sources;
         excluded += pixel.excluded_sources;
@@ -142,19 +142,9 @@ fn load_workspace_shards(workspace: &Path, partitions: &[String]) -> Result<Vec<
     let mut shards = Vec::new();
     for partition in partitions {
         let shard_path = workspace.join("workers").join(partition).join("shard.json");
-        let bytes = std::fs::read(&shard_path).with_context(|| {
-            format!(
-                "read shard {} for baseline",
-                shard_path.display()
-            )
-        })?;
+        let bytes = std::fs::read(&shard_path)
+            .with_context(|| format!("read shard {} for baseline", shard_path.display()))?;
         shards.push(serde_json::from_slice(&bytes)?);
     }
     Ok(shards)
-}
-
-pub(crate) fn merged_candidate_map_from_shard(
-    shard: &PartitionShard,
-) -> Result<crate::starlight::validation::candidate_map::CandidateMap> {
-    merged_candidate_map(shard)
 }

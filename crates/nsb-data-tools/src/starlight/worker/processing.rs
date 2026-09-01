@@ -7,7 +7,9 @@ use crate::starlight::photometric::{
     PhotometricCorrection, PhotometricFeatures, PopulationBranch, RouteDecision,
 };
 use crate::starlight::selection::SelectionCorrection;
-use crate::starlight::uv::{EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput};
+use crate::starlight::uv::{
+    EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput,
+};
 use crate::starlight::xp::{integrate_photon_flux, XpProduct};
 use serde::{Deserialize, Serialize};
 

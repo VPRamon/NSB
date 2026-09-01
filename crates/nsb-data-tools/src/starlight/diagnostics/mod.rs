@@ -171,16 +171,17 @@ pub fn export_workspace_candidate_map(workspace: &Path, output: &Path) -> Result
         let shard_path = entry.path().join("shard.json");
         if shard_path.is_file() {
             let bytes = std::fs::read(&shard_path)?;
-            shards.push(serde_json::from_slice::<PartitionShard>(&bytes).with_context(|| {
-                format!("parse shard {}", shard_path.display())
-            })?);
+            shards.push(
+                serde_json::from_slice::<PartitionShard>(&bytes)
+                    .with_context(|| format!("parse shard {}", shard_path.display()))?,
+            );
         }
     }
     anyhow::ensure!(!shards.is_empty(), "no shards under {}", workers.display());
     let merged = merge_shards(shards)?;
     let candidate = merged_candidate_map(&merged)?;
     write_candidate_map_csv(&candidate, output)?;
-    Ok(checksum_io::sha256_file(output)?)
+    checksum_io::sha256_file(output)
 }
 
 fn write_candidate_map_csv(candidate: &CandidateMap, path: &Path) -> Result<()> {
@@ -309,8 +310,8 @@ pub fn mean_selection_weight_map(
     let nside = selection.artifact().healpix_nside;
     let npix = 12usize * nside as usize * nside as usize;
     let mut weights = vec![0.0; npix];
-    for healpix in 0..npix {
-        weights[healpix] = selection.evaluate(healpix as u32, g_mag, bp_rp)?.weight;
+    for (healpix, weight) in weights.iter_mut().enumerate().take(npix) {
+        *weight = selection.evaluate(healpix as u32, g_mag, bp_rp)?.weight;
     }
     Ok(weights)
 }

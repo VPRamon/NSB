@@ -1,7 +1,10 @@
 //! Source-level diagnostic accounting and ablation for issue #116.
 
 use super::baseline::load_smoke_partitions;
-use super::{analyse_candidate_map, boundary_discontinuity_report, HealpixAnomalyReport, BoundaryDiscontinuityReport};
+use super::{
+    analyse_candidate_map, boundary_discontinuity_report, BoundaryDiscontinuityReport,
+    HealpixAnomalyReport,
+};
 use crate::dataset::RunConfig;
 use crate::starlight::config::ArtifactPinConfig;
 use crate::starlight::healpix::nested_parent_at_coarser_nside;
@@ -11,7 +14,9 @@ use crate::starlight::sources::acquisition;
 use crate::starlight::uv::UvCorrection;
 use crate::starlight::validation::candidate_map::{CandidateMap, CandidatePixel};
 use crate::starlight::worker::gaia_source::load_gaia_sources;
-use crate::starlight::worker::processing::{evaluate_source_for_diagnostic, AblationStage, SourceOutcome};
+use crate::starlight::worker::processing::{
+    evaluate_source_for_diagnostic, AblationStage, SourceOutcome,
+};
 use crate::starlight::xp::GaiaXpContinuousCalibrator;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -105,8 +110,8 @@ pub fn run_diagnostic_suite(
     output_dir: &Path,
 ) -> Result<DiagnosticSuiteReport> {
     let config_bytes = std::fs::read(config_path)?;
-    let config: RunConfig =
-        toml::from_slice(&config_bytes).with_context(|| format!("parse {}", config_path.display()))?;
+    let config: RunConfig = toml::from_slice(&config_bytes)
+        .with_context(|| format!("parse {}", config_path.display()))?;
     let partitions = load_smoke_partitions(repo_root)?;
     std::fs::create_dir_all(output_dir)?;
 
@@ -194,10 +199,16 @@ fn process_partitions(
     let mut traced_pixels = HashSet::new();
     for partition in partitions {
         let gaia_path = acquisition::verified_object_for_partition(
-            workspace, products, "gaia-source", partition,
+            workspace,
+            products,
+            "gaia-source",
+            partition,
         )?;
         let xp_path = acquisition::verified_object_for_partition(
-            workspace, products, "xp-continuous", partition,
+            workspace,
+            products,
+            "xp-continuous",
+            partition,
         )?;
         let gaia_sources = load_gaia_sources(&gaia_path, &predictor_names)?;
         let mut xp_by_source = BTreeMap::new();
@@ -224,7 +235,14 @@ fn process_partitions(
                 );
                 grid.record_outcome(*source_id, gaia_source, &outcome, stage);
                 if stage == AblationStage::E {
-                    maybe_trace(grid, *source_id, gaia_source, &outcome, nside, &mut traced_pixels);
+                    maybe_trace(
+                        grid,
+                        *source_id,
+                        gaia_source,
+                        &outcome,
+                        nside,
+                        &mut traced_pixels,
+                    );
                 }
             }
         }
@@ -260,7 +278,8 @@ impl DiagnosticAccumulator {
             if outcome.selection_capped {
                 cell.weight_capped += 1;
             }
-            if outcome.xp_available && outcome.population_branch.as_deref() == Some("xp_continuous") {
+            if outcome.xp_available && outcome.population_branch.as_deref() == Some("xp_continuous")
+            {
                 cell.xp_admitted += 1;
             } else if outcome.admitted {
                 cell.photometric_admitted += 1;
@@ -471,7 +490,10 @@ fn evaluate_weighting_gate(stage_maps: &BTreeMap<AblationStage, DiagnosticAccumu
     let weighted = d_grid.to_candidate_map(128).ok();
     let raw = c_grid.raw_candidate_map(128).ok();
     if let (Some(weighted), Some(raw)) = (weighted, raw) {
-        if let (Ok(w), Ok(r)) = (analyse_candidate_map(&weighted), analyse_candidate_map(&raw)) {
+        if let (Ok(w), Ok(r)) = (
+            analyse_candidate_map(&weighted),
+            analyse_candidate_map(&raw),
+        ) {
             let w_count = w.anomalous_parents.len();
             let r_count = r.anomalous_parents.len();
             if w_count > r_count.saturating_add(1) {

@@ -3,16 +3,14 @@
 pub(crate) mod gaia_source;
 pub(crate) mod processing;
 
+use self::gaia_source::{load_gaia_sources, GaiaSourceEntry};
+use self::processing::{population_branch_reason, scientific_exclusion_reason};
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
-use self::gaia_source::{load_gaia_sources, GaiaSourceEntry};
 use super::healpix::{self};
-use self::processing::{population_branch_reason, scientific_exclusion_reason};
 use super::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
-use super::photometric::{
-    PhotometricCorrection, PhotometricFeatures, RouteDecision,
-};
+use super::photometric::{PhotometricCorrection, PhotometricFeatures, RouteDecision};
 use super::selection::SelectionCorrection;
 use super::sources::acquisition;
 use super::uv::{EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput};
@@ -22,10 +20,8 @@ use super::xp::{
 use crate::dataset::Artifact;
 use crate::platform::artifact_store;
 use anyhow::{bail, Context, Result};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
-const CSV_BUFFER_CAPACITY: usize = 1024 * 1024;
 
 // Lifecycle inputs and optional calibrators are resolved independently; grouping
 // them would obscure the borrowed process-wide artifact identities.

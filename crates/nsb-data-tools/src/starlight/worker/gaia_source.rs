@@ -13,6 +13,7 @@ const CSV_BUFFER_CAPACITY: usize = 1024 * 1024;
 
 #[derive(Debug, Clone)]
 pub(crate) struct GaiaSourceEntry {
+    #[allow(dead_code)]
     pub source_id: u64,
     pub icrs: IcrsSkyPosition,
     pub phot_g_mean_mag: Option<f64>,

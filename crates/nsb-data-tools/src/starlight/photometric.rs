@@ -621,6 +621,7 @@ fn require_sha256(label: &str, value: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::platform::checksum_io;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     fn partition_summary(
@@ -862,17 +863,16 @@ mod tests {
     /// Gaia XP continuous integration scale at G=15 (oracle ~1.4e4 ph/m²/s).
     #[test]
     fn xp_anchored_production_artifact_matches_xp_flux_scale_at_g15() {
-        let path = std::path::Path::new(
-            "/home/valles/nsb-calibration/artifacts/photometric-artifact.json",
-        );
-        if !path.is_file() {
-            return;
-        }
-        let sha = fs::read_to_string(path.with_extension("sha256"))
+        let fixture_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/photometric_xp_anchored_v1");
+        let path = fixture_root.join("artifact.json");
+        let sha = fs::read_to_string(fixture_root.join("artifact.sha256"))
             .unwrap()
-            .trim()
+            .split_whitespace()
+            .next()
+            .expect("fixture sha256")
             .to_string();
-        let correction = PhotometricCorrection::load(path, &sha).unwrap();
+        let correction = PhotometricCorrection::load(&path, &sha).unwrap();
         assert_eq!(
             correction.artifact().model_id,
             "gaia-dr3-photometric-logflux-xp-anchored-v1"
