@@ -2,10 +2,10 @@ schema_version = 1
 dataset = "starlight"
 
 [workspace]
-root = "/mnt/beegfs/valles/nsb-data/starlight-production-300-650"
+root = "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric"
 
 [execution]
-executor = "local"
+executor = "slurm"
 concurrency = 8
 lease_timeout_seconds = 86400
 

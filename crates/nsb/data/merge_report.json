@@ -3390,20 +3390,20 @@
     "786097-786431"
   ],
   "observed_sources": 1811709771,
-  "admitted_sources": 1520028984,
-  "excluded_sources": 291680787,
+  "admitted_sources": 1518801696,
+  "excluded_sources": 292908075,
   "exclusion_reasons": {
-    "duplicated_source": 12965863,
-    "invalid_flux": 88049,
+    "duplicated_source": 14011462,
+    "invalid_flux": 87812,
     "invalid_uv_predictors": 263033147,
     "no_usable_photometry": 5313965,
-    "scientific_exclusion_nonstellar": 10279671,
-    "selection_missing_g_magnitude": 92
+    "scientific_exclusion_nonstellar": 10461599,
+    "selection_missing_g_magnitude": 90
   },
   "ultraviolet_applicability": {
-    "in-domain": 1517986152,
+    "in-domain": 1516760636,
     "boundary": 10,
-    "out-of-domain": 2042822
+    "out-of-domain": 2041050
   },
   "science_policy": {
     "schema_version": 2,
@@ -3424,7 +3424,7 @@
       "minimum_weight": 1.0,
       "maximum_weight": 5.0,
       "residual_faint_tail_estimated": true,
-      "limitation": "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted sources; residual faint-tail estimation follows the artifact faint_tail.enabled flag."
+      "limitation": "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted fluxes; faint_tail.systematic_fraction enters the systematic uncertainty budget only (faint_tail_flux_fraction is diagnostic and is not multiplied into stored flux)."
     },
     "spectral_coverage": {
       "policy_id": "gaia-xp-continuous-uv-corrected-300-650-v1",
@@ -3465,14 +3465,14 @@
     "corrected_300_336_label": "300–336 nm corrected",
     "measured_336_650_label": "336–650 nm measured",
     "combined_300_650_label": "300–650 nm combined",
-    "total_flux_300_336_ph_m2_s": 223879901949722.66,
-    "total_flux_336_650_ph_m2_s": 7785096049771642.0,
-    "total_flux_300_650_ph_m2_s": 8008975951720998.0,
-    "statistical_uncertainty_300_336_ph_m2_s": 2715092830348.437,
-    "statistical_uncertainty_336_650_ph_m2_s": 1615521679031.1309,
-    "statistical_uncertainty_300_650_ph_m2_s": 3191816616326.5757,
-    "systematic_uncertainty_300_336_ph_m2_s": 158984238896005.44,
-    "systematic_uncertainty_300_650_ph_m2_s": 158984238896005.44
+    "total_flux_300_336_ph_m2_s": 281220866672.33905,
+    "total_flux_336_650_ph_m2_s": 8681550549260.129,
+    "total_flux_300_650_ph_m2_s": 8962771415932.666,
+    "statistical_uncertainty_300_336_ph_m2_s": 1077614714.3380764,
+    "statistical_uncertainty_336_650_ph_m2_s": 303483130.61549336,
+    "statistical_uncertainty_300_650_ph_m2_s": 1123296565.2453284,
+    "systematic_uncertainty_300_336_ph_m2_s": 178622652450.08832,
+    "systematic_uncertainty_300_650_ph_m2_s": 178622652450.08832
   },
   "canonical_map": {
     "path": "starlight_nside128.csv",
@@ -3486,15 +3486,15 @@
     "omitted_pixel_semantics": "zero_flux_and_source_counts",
     "pixel_domain_size": 196608,
     "occupied_pixels": 196608,
-    "total_flux_ph_m2_s": 8008975951721227.0,
-    "admitted_sources": 1520028984,
-    "excluded_sources": 291680787,
-    "sha256": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154"
+    "total_flux_ph_m2_s": 8962771415932.516,
+    "admitted_sources": 1518801696,
+    "excluded_sources": 292908075,
+    "sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
   },
   "deterministic_merge": {
     "algorithm": "complete-partition-shard-v1",
-    "canonical_sha256": "784fd84dc08eeedf6384a19c9492f728e7159d5eb7102c234924a4abbd45aedc",
-    "independent_partial_merge_sha256": "784fd84dc08eeedf6384a19c9492f728e7159d5eb7102c234924a4abbd45aedc",
+    "canonical_sha256": "f47590838802b29588e3931eed7f8f4e7bda3fdaa15c114b7816187104640737",
+    "independent_partial_merge_sha256": "f47590838802b29588e3931eed7f8f4e7bda3fdaa15c114b7816187104640737",
     "compared_pixels": 196608,
     "pixel_key_mismatches": 0,
     "flux_mismatches": 0,
@@ -3505,14 +3505,14 @@
     "stable": true
   },
   "uncertainty_scale": {
-    "global_relative_statistical_uncertainty": 0.00039852992886570165,
-    "global_relative_systematic_uncertainty": 0.26983687429719583,
-    "global_relative_total_uncertainty": 0.2698371685972577,
+    "global_relative_statistical_uncertainty": 0.00012532915469076002,
+    "global_relative_systematic_uncertainty": 0.05975536461869365,
+    "global_relative_total_uncertainty": 0.059755496049401516,
     "evaluated_pixels": 196608,
-    "pixel_relative_uncertainty_p50": 0.24313095386789327,
-    "pixel_relative_uncertainty_p68": 0.2443596771162806,
-    "pixel_relative_uncertainty_p95": 0.24966463735362107,
-    "pixel_relative_uncertainty_p99": 0.25423322174539764,
+    "pixel_relative_uncertainty_p50": 0.033256076013260166,
+    "pixel_relative_uncertainty_p68": 0.04346258730299445,
+    "pixel_relative_uncertainty_p95": 0.17115924798228593,
+    "pixel_relative_uncertainty_p99": 0.232433429421981,
     "fraction_pixels_relative_uncertainty_gt_1": 0.0,
     "fraction_pixels_relative_uncertainty_gt_10": 0.0,
     "fraction_pixels_relative_uncertainty_gt_100": 0.0

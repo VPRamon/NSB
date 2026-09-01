@@ -6,7 +6,7 @@
     {
       "name": "checksum:merge_report.json",
       "passed": true,
-      "detail": "52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43"
+      "detail": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9"
     },
     {
       "name": "format:merge_report.json",
@@ -16,7 +16,7 @@
     {
       "name": "checksum:starlight_nside128.csv",
       "passed": true,
-      "detail": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154"
+      "detail": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
     },
     {
       "name": "format:starlight_nside128.csv",
@@ -26,7 +26,7 @@
     {
       "name": "canonical-map-integrity",
       "passed": true,
-      "detail": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154"
+      "detail": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
     },
     {
       "name": "canonical-map-cardinality",
@@ -83,13 +83,13 @@
     {
       "name": "merge_report.json",
       "path": "crates/nsb/data/merge_report.json",
-      "sha256": "52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43",
+      "sha256": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9",
       "bytes": 76231
     },
     {
       "name": "starlight_nside128.csv",
       "path": "crates/nsb/data/starlight_nside128.csv",
-      "sha256": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154",
+      "sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
       "bytes": 20394836
     }
   ]

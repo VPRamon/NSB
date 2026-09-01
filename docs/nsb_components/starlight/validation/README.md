@@ -123,7 +123,7 @@ HTML and Markdown reports are both written (`validation-report-v1.html` and
 
 ## Independent validation status for the UV v2 candidate
 
-Results against map `b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154`
+Results against map `76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a`
 are stored in [`results/`](results/). All three acquired references are
 checksum-pinned and **not admissible** as starlight-only TOA 300–650 nm grids:
 

@@ -17,7 +17,7 @@ use std::path::PathBuf;
 pub const PACKER_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
 /// Frozen UV-v2 candidate SHA-256.
 pub const CANONICAL_CANDIDATE_SHA256: &str =
-    "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154";
+    "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a";
 
 /// Frozen legacy candidate that exhibited the issue #116 frame/coordinate bug.
 pub const LEGACY_FRAME_BUG_CANDIDATE_SHA256: &str =
@@ -30,7 +30,7 @@ pub const LEGACY_FRAME_BUG_CANDIDATE_SHA256: &str =
 /// The pre-siderust handwritten nest2ring digest was
 /// `c87db972717959962ab590ce71eb90506cbfd73ccb108a3d3851a3e9ecff8f90`.
 pub const CANONICAL_RUNTIME_MAP_SHA256: &str =
-    "a458debfd4665b590d27f952352a0d3f69b33d88635ed08c587202ff8a30bab3";
+    "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b";
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";

@@ -1,6 +1,6 @@
 # Issue #116 — HEALPix flux anomaly investigation report
 
-Status: **root causes identified and fixed; 48-partition smoke production gate passed; full 3386-partition regeneration pending.**
+Status: **root causes identified and fixed; full 3386-partition production complete; full-sky diagnostics passed.**
 
 ## Executive summary
 
@@ -68,9 +68,26 @@ Three independent bugs produced HEALPix-aligned `flux_ph_m2_s / admitted_sources
 
 Evidence: `docs/nsb_components/starlight/diagnostics/evidence/phase8-photometric-anchor/`
 
+### Full-sky 3386-partition production (final candidate)
+
+| Metric | Value |
+|--------|-------|
+| Partitions built | **3386 / 3386** |
+| Candidate SHA-256 | `76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a` |
+| Merge report SHA-256 | `3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9` |
+| Runtime map SHA-256 (production admission headers) | `c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b` |
+| Runtime sidecar SHA-256 | `735be03e50bfe1f47254c46d0fc1c124912e285cac5e283dd8a06449c1ca2144` |
+| Anomalous NSIDE=2 parents | `[]` |
+| Boundary cross/internal ratio | **1.151** |
+| Global median flux/admitted | 1.07e4 |
+| Admitted sources | 21,581,555 |
+| Legacy six-patch morphology | absent |
+| Photometric seven-patch morphology | absent |
+
+Evidence: `docs/nsb_components/starlight/diagnostics/evidence/phase9-fullsky-production-summary.json`
+
 ### KNOWN LIMITATIONS
 
-- Full-sky 3386-partition regeneration with XP-anchored photometric artifact not yet run.
 - Photometric artifact trained on synthetic XP-scale model; production refit on held-out XP integrals is recommended.
 - Human #103 decisions remain **pending**.
 - `faint_tail_flux_fraction` not applied to flux (separate contract issue).
@@ -83,7 +100,12 @@ Evidence: `docs/nsb_components/starlight/diagnostics/evidence/phase8-photometric
 | Frame-fixed candidate (pre-photometric fix) | `b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154` |
 | Photometric artifact (old, miscalibrated) | `ad23fe327b3cbb75167ffe47a00dc8bcbb63d72f9e5a1b19f32171dda5fd680d` |
 | Photometric artifact (XP-anchored) | `02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2` |
+| Full-sky candidate (3386 partitions) | `76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a` |
+| Merge report | `3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9` |
+| Packed runtime map | `c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b` |
+| Runtime sidecar | `735be03e50bfe1f47254c46d0fc1c124912e285cac5e283dd8a06449c1ca2144` |
+| Review bundle | `03150bb412df75cbe3db85e469d986feea9d52642744ccb05c47062cfed8070f` |
 
 ## #103 status
 
-Do **not** approve promotion until full-sky candidate is regenerated with XP-anchored photometric artifact and validated.
+Scientific and redistribution decisions remain **pending**. Candidate, merge report, runtime assets, and review bundle pins updated to the full-sky production SHAs above.

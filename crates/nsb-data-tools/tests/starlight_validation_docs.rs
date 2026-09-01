@@ -109,7 +109,7 @@ fn only_release_candidate_scientific_decision_is_authoritative() -> Result<()> {
         }
     }
     if object.get("candidate_sha256").and_then(Value::as_str)
-        != Some("b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154")
+        != Some("76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a")
     {
         bail!("canonical scientific decision must pin the frozen fix-116 candidate SHA");
     }

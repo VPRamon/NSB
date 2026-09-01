@@ -1,0 +1,19 @@
+{
+  "phase": "phase9_fullsky_production",
+  "workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric",
+  "partitions_built": 3386,
+  "photometric_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
+  "candidate_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
+  "merge_report_sha256": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9",
+  "runtime_map_sha256": "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b",
+  "runtime_sidecar_sha256": "735be03e50bfe1f47254c46d0fc1c124912e285cac5e283dd8a06449c1ca2144",
+  "anomalous_nside2_parents": [],
+  "boundary_cross_internal_ratio": 1.1508,
+  "global_median_flux_per_admitted": 10723.45,
+  "admitted_sources": 21581555,
+  "excluded_sources": 4043405,
+  "total_flux_ph_m2_s": 151740015029.4,
+  "validation_passed": true,
+  "legacy_six_patch_parents_absent": true,
+  "photometric_seven_patch_parents_absent": true
+}

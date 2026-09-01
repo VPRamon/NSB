@@ -2,12 +2,12 @@ schema_version = 1
 schema = "nsb-starlight-runtime-assets-v1"
 
 candidate_path = "crates/nsb/data/starlight_nside128.csv"
-candidate_sha256 = "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154"
+candidate_sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
 
 runtime_map_path = "crates/nsb/data/starlight_nside128.release.csv"
 runtime_map_schema = "nsb-healpix-starlight-v2"
-runtime_map_sha256 = "a458debfd4665b590d27f952352a0d3f69b33d88635ed08c587202ff8a30bab3"
+runtime_map_sha256 = "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b"
 
 runtime_sidecar_path = "crates/nsb/data/starlight_nside128.manifest.toml"
 runtime_sidecar_schema = "nsb-starlight-runtime-manifest-v1"
-runtime_sidecar_sha256 = "3fde80dc418ecc71865e04a792c0fb3cc7dbc6f62456827883f0e538863d7afb"
+runtime_sidecar_sha256 = "735be03e50bfe1f47254c46d0fc1c124912e285cac5e283dd8a06449c1ca2144"

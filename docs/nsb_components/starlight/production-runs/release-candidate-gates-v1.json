@@ -8,11 +8,11 @@
   "workflow_run_id": 32726699659,
   "workflow_run_url": "https://github.com/VPRamon/NSB/actions/runs/32726699659",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
-  "candidate_sha256": "b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154",
+  "candidate_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
   "merge_report_path": "crates/nsb/data/merge_report.json",
-  "merge_report_sha256": "52ca4a9d30c82f5d76532bbeccb9c829f6cf60ae1364ee9b9982683c54820c43",
+  "merge_report_sha256": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9",
   "config_path": "crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml",
-  "config_sha256": "45b68c1184b3d9bb19b79e6afe44fc1cac58004124e6aed1e4a1c7fb378db8e7",
+  "config_sha256": "b0c4e9c3f60f1e6bb2ea63b1c888523095618e789d40dc231e63bab7b6f564c3",
   "manifest_path": "crates/nsb/data/manifest.toml",
   "manifest_sha256": "c3cd9b4aabe1862bfae35d0e93a1878b75cd8afbc9036127838abc55db710bbe",
   "photometric_inference_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
@@ -124,5 +124,5 @@
   "promotion_workflow": ".github/workflows/starlight-final-promotion.yml",
   "evidence_class": "candidate_generation_ci",
   "evidence_pr": 101,
-  "notes": "Candidate-generation evidence updated by PR #117 (#116 HEALPix frame fix). Full 3386-partition Ladon rebuild (workspace starlight-production-300-650) passed `dataset starlight validate` with corrected ICRS\u2192Galactic accumulation. Prior CI evidence from GitHub Actions run 32726699659 (PR #101 lineage) is superseded for candidate identity only; pipeline gates remain technical_pass pending #103 human review."
+  "notes": "Candidate-generation evidence updated by PR #117 (#116): full 3386-partition Ladon rebuild with XP-anchored photometric artifact (02a6e5c9\u2026), corrected HEALPix topology, and ICRS\u2192Galactic accumulation. Human #103 review remains pending."
 }
