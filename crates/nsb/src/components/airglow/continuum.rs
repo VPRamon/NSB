@@ -19,7 +19,7 @@ use qtty::unit;
 use siderust::atmosphere::van_rhijn_factor;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Kilometer, Kilometers, Nanometer, Nanometers, Radian};
+use siderust::qtty::{Nanometer, Nanometers, Radian};
 use tempoch::{Time, UTC};
 
 const WL_LOW_NM: f64 = 300.0;
@@ -37,7 +37,6 @@ pub(crate) struct SpectralContinuumIntegrals {
 pub(crate) fn integrate_attenuated_continuum(
     continuum: &AirglowContinuum,
     zenith: Degrees,
-    observer_altitude: Kilometers,
     atmosphere: AtmosphericConditions,
 ) -> SpectralContinuumIntegrals {
     let geometry = noll_airglow_scattering_geometry(zenith);
@@ -50,10 +49,7 @@ pub(crate) fn integrate_attenuated_continuum(
     for (idx, &wl_nm) in xs.iter().enumerate() {
         let wavelength = Nanometers::new(wl_nm);
         let transmission = spectral_airglow_scattering_transmission_with_geometry(
-            wavelength,
-            observer_altitude,
-            atmosphere,
-            &geometry,
+            wavelength, atmosphere, &geometry,
         )
         .value();
         attenuated_ys.push(ys[idx] * transmission);
@@ -140,9 +136,7 @@ pub(crate) fn evaluate_continuum_with_time_bin(
     let scalar_scale =
         continuum.global_scale.value() * solar_corr * seasonal_corr * van_rhijn * user_scale;
 
-    let observer_altitude = ctx.location.height.to::<Kilometer>();
-    let spectral =
-        integrate_attenuated_continuum(continuum, zenith, observer_altitude, ctx.atmosphere);
+    let spectral = integrate_attenuated_continuum(continuum, zenith, ctx.atmosphere);
 
     let radiance_scale = SkyCalcSpectralPhotonRadiance::new(scalar_scale)
         .to::<unit::PhotonPerSquareCentimeterNanosecondSteradianNanometer>()

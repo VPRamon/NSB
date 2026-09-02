@@ -320,6 +320,10 @@ dataset (ASM §§6.2.6–6.2.7). NSB does **not** reproduce that molecular stage
 **NSB Airglow stack:**
 `global_scale × solar_corr × seasonal_corr × Van Rhijn × Noll_scatter(λ) × user_scale`
 
+The Noll `f_R`/`f_M` fits were derived primarily for `z ≲ 60°` (Noll §4.1). NSB
+evaluates the same parametric form at larger zenith distances for numerical
+stability, but those results are extrapolations with weaker upstream validation.
+
 Therefore:
 - Van Rhijn ≠ Noll scattering (separate modules and metadata)
 - Full SkyCalc/ASM numerical parity is **still not claimed** while molecular

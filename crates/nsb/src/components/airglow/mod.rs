@@ -35,6 +35,7 @@ pub(crate) use calibration::load_builtin_standard;
 pub use calibration::AirglowContinuum;
 pub use extinction::{
     effective_airglow_airmass, noll_scattering_factors, spectral_airglow_scattering_transmission,
+    NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
 };
 pub use model::Airglow;
 pub use output::AirglowOutputs;

@@ -25,9 +25,12 @@ site + UTC time + target direction + F10.7 solar radio flux
 ```
 
 Van Rhijn and Noll scattering are separate physical stages: geometry versus
-atmospheric attenuation/scattering of the emitted continuum. Molecular
-atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not
-reproduced; full upstream numerical parity is therefore not claimed.
+atmospheric attenuation/scattering of the emitted continuum. The Noll effective
+extinction factors were fitted primarily for zenith distances `z ≲ 60°`; NSB
+evaluates the same parametric form at larger angles but treats those results as
+extrapolation with weaker upstream validation. Molecular atmospheric absorption
+from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced; full upstream
+numerical parity is therefore not claimed.
 
 The default automatic path resolves a **monthly-averaged** F10.7 (Noll/SkyCalc
 `msolflux`) from the bundled offline store for the evaluation UTC date (monthly

@@ -9,7 +9,7 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
-use siderust::qtty::{Degrees, Kilometers, Meters};
+use siderust::qtty::{Degrees, Meters};
 use siderust::time::{ModifiedJulianDate, TT};
 use tempoch::{Time, UTC};
 
@@ -449,12 +449,7 @@ fn spectral_extinction_differs_from_unextincted_baseline_integral() {
     let continuum = load_builtin_standard().unwrap();
     let atmosphere = AtmosphericConditions::cta_s_clear_sky();
     let zenith = Degrees::new(60.0);
-    let spectral = super::continuum::integrate_attenuated_continuum(
-        &continuum,
-        zenith,
-        Kilometers::new(2.635),
-        atmosphere,
-    );
+    let spectral = super::continuum::integrate_attenuated_continuum(&continuum, zenith, atmosphere);
     assert!(
         spectral.integrated_relative < continuum.integrated_relative_300_650,
         "60° zenith scattering should reduce the spectrally integrated continuum"
@@ -474,7 +469,7 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
     // Reference from independent recomputation of the Noll scattering stack at
     // Paranal for this query geometry (CTAO-S planning atmosphere).
     assert!(
-        (model.integrated.value() - 0.127_049_143_261_062_9).abs() < 1e-10,
+        (model.integrated.value() - 0.127_477_149_243_599_1).abs() < 1e-10,
         "zenith reference changed: {}",
         model.integrated.value()
     );
@@ -484,7 +479,7 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
         .compute(time, target(80.0, -20.0))
         .unwrap();
     assert!(
-        (low.integrated.value() - 0.246_831_690_492_606_64).abs() < 1e-10,
+        (low.integrated.value() - 0.209_872_696_340_495_5).abs() < 1e-10,
         "30° zenith reference changed: {}",
         low.integrated.value()
     );
