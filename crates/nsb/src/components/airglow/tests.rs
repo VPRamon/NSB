@@ -1,5 +1,7 @@
 use super::calibration::load_builtin_standard;
+use super::extinction::{effective_airglow_airmass, noll_scattering_factors};
 use super::*;
+use crate::components::moonlight::AtmosphericConditions;
 use crate::site::SiteProfileId;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
@@ -7,7 +9,7 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
-use siderust::qtty::{Degrees, Meters};
+use siderust::qtty::{Degrees, Kilometers, Meters};
 use siderust::time::{ModifiedJulianDate, TT};
 use tempoch::{Time, UTC};
 
@@ -159,6 +161,7 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
         .compute(time, target)
         .unwrap();
     let explicit = Airglow::with_continuum(location, load_builtin_standard().unwrap())
+        .with_atmosphere(profile.atmosphere)
         .with_scale(profile.airglow.scale)
         .compute(time, target)
         .unwrap();
@@ -269,6 +272,18 @@ fn polar_summer_without_astronomical_night_has_no_time_bin() {
     );
 }
 
+fn airglow_ctx(
+    location: Geodetic<ECEF>,
+    atmosphere: AtmosphericConditions,
+) -> super::continuum::AirglowEvaluationContext {
+    super::continuum::AirglowEvaluationContext {
+        location,
+        atmosphere,
+        solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
+        user_scale: crate::ScaleFactors::new(1.0),
+    }
+}
+
 #[test]
 fn polar_winter_astronomical_night_preserves_airglow() {
     let location = high_arctic(89.0);
@@ -280,10 +295,11 @@ fn polar_winter_astronomical_night_preserves_airglow() {
     let out = super::continuum::evaluate_continuum(
         &continuum,
         time,
-        location,
         Degrees::new(60.0),
-        DEFAULT_SOLAR_RADIO_FLUX,
-        crate::ScaleFactors::new(1.0),
+        airglow_ctx(
+            location,
+            AtmosphericConditions::generic_clear_sky(paranal()),
+        ),
     );
 
     assert!(out.integrated > BandPhotonRadiance::zero());
@@ -295,10 +311,8 @@ fn daytime_airglow_continuum_is_zero_outside_calibration_domain() {
     let out = super::continuum::evaluate_continuum(
         &continuum,
         t("2023-09-04T16:00:00Z"),
-        cta_s(),
         Degrees::new(60.0),
-        DEFAULT_SOLAR_RADIO_FLUX,
-        crate::ScaleFactors::new(1.0),
+        airglow_ctx(cta_s(), AtmosphericConditions::generic_clear_sky(cta_s())),
     );
 
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
@@ -310,10 +324,11 @@ fn invalid_altitude_returns_zero_stable_result() {
     let out = super::continuum::evaluate_continuum(
         &continuum,
         t("2023-09-04T01:48:00Z"),
-        paranal(),
         Degrees::new(f64::NAN),
-        DEFAULT_SOLAR_RADIO_FLUX,
-        crate::ScaleFactors::new(1.0),
+        airglow_ctx(
+            paranal(),
+            AtmosphericConditions::generic_clear_sky(paranal()),
+        ),
     );
 
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
@@ -333,4 +348,144 @@ fn removed_polynomial_api_stays_private() {
     let _ = model
         .compute(t("2023-09-04T01:48:00Z"), target(266.41683, -29.00781))
         .unwrap();
+}
+
+#[test]
+fn high_zenith_target_differs_from_zenith_due_to_geometry_and_scattering() {
+    let location = paranal();
+    let time = t("2023-09-04T01:48:00Z");
+    let zenith_target = target(266.41683, -29.00781);
+    let low_altitude_target = target(80.0, -20.0);
+    let model = Airglow::standard_clear_sky(location).unwrap();
+    let zenith = model.compute(time, zenith_target).unwrap();
+    let low = model.compute(time, low_altitude_target).unwrap();
+    assert_ne!(
+        zenith.integrated.value(),
+        low.integrated.value(),
+        "geometry and scattering stack must change between targets"
+    );
+}
+
+#[test]
+fn site_profile_atmosphere_changes_airglow_at_fixed_geometry() {
+    let location = paranal();
+    let time = t("2023-09-04T01:48:00Z");
+    let target = target(266.41683, -29.00781);
+    let continuum = load_builtin_standard().unwrap();
+
+    let low_pressure = Airglow::with_continuum(location, continuum.clone())
+        .with_atmosphere(AtmosphericConditions {
+            surface_pressure: siderust::qtty::Hectopascals::new(600.0),
+            ..AtmosphericConditions::cta_s_clear_sky()
+        })
+        .compute(time, target)
+        .unwrap();
+    let high_pressure = Airglow::with_continuum(location, continuum)
+        .with_atmosphere(AtmosphericConditions {
+            surface_pressure: siderust::qtty::Hectopascals::new(900.0),
+            ..AtmosphericConditions::cta_s_clear_sky()
+        })
+        .compute(time, target)
+        .unwrap();
+
+    assert_ne!(
+        low_pressure.integrated.value(),
+        high_pressure.integrated.value()
+    );
+}
+
+#[test]
+fn van_rhijn_and_extinction_are_independent_stages() {
+    let zenith = Degrees::new(45.0);
+    let x_ag = effective_airglow_airmass(zenith);
+    let (f_r, f_m) = noll_scattering_factors(zenith);
+    assert!(x_ag > 1.0);
+    assert!(f_r.is_finite() && f_m.is_finite());
+    // Van Rhijn is evaluated separately in continuum.rs via siderust.
+    let van_rhijn = siderust::atmosphere::van_rhijn_factor(
+        zenith.to::<siderust::qtty::Radian>(),
+        siderust::qtty::Kilometers::new(90.0),
+    )
+    .value();
+    assert!(van_rhijn > 1.0);
+}
+
+#[test]
+fn regression_noll_geometry_reference_values() {
+    #[allow(clippy::approx_constant)] // Noll Eq. (25) intercept, not 1/π
+    let references = [
+        (0.0, 1.0, -0.146, -0.318),
+        (
+            30.0,
+            1.149_349_365_080_909,
+            -0.045_105_511_442_811,
+            -0.213_297_031_647_063,
+        ),
+        (
+            60.0,
+            1.920_946_875_988_246,
+            0.327_187_126_765_308,
+            0.173_048_594_102_764,
+        ),
+        (
+            75.0,
+            3.277_162_524_289_61,
+            0.714_366_128_417_269,
+            0.574_842_501_149_617,
+        ),
+    ];
+    for (zenith_deg, expected_x, expected_fr, expected_fm) in references {
+        let zenith = Degrees::new(zenith_deg);
+        let x = effective_airglow_airmass(zenith);
+        let (f_r, f_m) = noll_scattering_factors(zenith);
+        assert!((x - expected_x).abs() < 1e-12, "X_ag at z={zenith_deg}");
+        assert!((f_r - expected_fr).abs() < 1e-12, "f_R at z={zenith_deg}");
+        assert!((f_m - expected_fm).abs() < 1e-12, "f_M at z={zenith_deg}");
+    }
+}
+
+#[test]
+fn spectral_extinction_differs_from_unextincted_baseline_integral() {
+    let continuum = load_builtin_standard().unwrap();
+    let atmosphere = AtmosphericConditions::cta_s_clear_sky();
+    let zenith = Degrees::new(60.0);
+    let spectral = super::continuum::integrate_attenuated_continuum(
+        &continuum,
+        zenith,
+        Kilometers::new(2.635),
+        atmosphere,
+    );
+    assert!(
+        spectral.integrated_relative < continuum.integrated_relative_300_650,
+        "60° zenith scattering should reduce the spectrally integrated continuum"
+    );
+}
+
+#[test]
+fn regression_paranal_integrated_values_at_representative_zeniths() {
+    let location = paranal();
+    let time = t("2023-09-04T01:48:00Z");
+    let query_target = target(266.41683, -29.00781);
+    let model = Airglow::for_site_profile(location, SiteProfileId::CtaSouth)
+        .unwrap()
+        .compute(time, query_target)
+        .unwrap();
+
+    // Reference from independent recomputation of the Noll scattering stack at
+    // Paranal for this query geometry (CTAO-S planning atmosphere).
+    assert!(
+        (model.integrated.value() - 0.127_049_143_261_062_9).abs() < 1e-10,
+        "zenith reference changed: {}",
+        model.integrated.value()
+    );
+
+    let low = Airglow::for_site_profile(location, SiteProfileId::CtaSouth)
+        .unwrap()
+        .compute(time, target(80.0, -20.0))
+        .unwrap();
+    assert!(
+        (low.integrated.value() - 0.246_831_690_492_606_64).abs() < 1e-10,
+        "30° zenith reference changed: {}",
+        low.integrated.value()
+    );
 }

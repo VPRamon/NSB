@@ -406,6 +406,7 @@ impl NsbEvaluator {
         let profile = self.config.site_profile.profile(observer);
         let outputs =
             airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
+                .with_atmosphere(profile.atmosphere)
                 .with_solar_radio_flux(solar.value)
                 .with_scale(profile.airglow.scale)
                 .compute(time, target)?;
@@ -422,6 +423,7 @@ impl NsbEvaluator {
         let solar = crate::solar_activity::resolve_f107(time, &self.config.solar_activity)?;
         let profile = self.config.site_profile.profile(observer);
         airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
+            .with_atmosphere(profile.atmosphere)
             .with_solar_radio_flux(solar.value)
             .with_scale(profile.airglow.scale)
             .compute_with_time_of_night_bin(time, target, time_bin)

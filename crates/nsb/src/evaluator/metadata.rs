@@ -132,7 +132,8 @@ pub(super) fn airglow_metadata(
             f107_fragment
         )),
         validated_domain: Cow::Owned(format!(
-            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, and Van Rhijn (LOS/emitting-layer geometry) corrections; does not apply the upstream Cerro Paranal atmospheric extinction/airmass attenuation stage; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); measured F10.7 does not make Airglow site-calibrated; {}",
+            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, Van Rhijn (LOS/emitting-layer geometry), and Noll-2012 effective Rayleigh/Mie airglow scattering using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); measured F10.7 does not make Airglow site-calibrated; {}",
+            profile.atmosphere_provenance,
             profile.airglow.assumptions
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
