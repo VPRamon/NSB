@@ -1,15 +1,36 @@
+use super::WindowOutput;
 use crate::parsing::location::SitePreset;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
-    assets::asset_registry, ComponentMask, NsbModelConfig, NsbResult, StarlightModel,
-    MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
+    assets::asset_registry, AirglowGeometryMetadata, ComponentMask, NsbModelConfig, NsbResult,
+    StarlightModel, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
 };
 use tempoch::{Period, UTC};
 
-const POINT_SCHEMA_V1: &str = "nsb-cli-point-csv-v1";
-const POINT_SCHEMA_V2: &str = "nsb-cli-point-csv-v2";
-const WINDOW_SCHEMA: &str = "nsb-cli-window-csv-v1";
+const POINT_SCHEMA_V3: &str = "nsb-cli-point-csv-v3";
+const POINT_SCHEMA_V4: &str = "nsb-cli-point-csv-v4";
+const WINDOW_SCHEMA_V2: &str = "nsb-cli-window-csv-v2";
+
+const AIRGLOW_GEOMETRY_COLUMNS: [&str; 17] = [
+    "airglow_geometry_model",
+    "airglow_geometry_version",
+    "airglow_geometry_emission_height_km",
+    "airglow_profile_id",
+    "airglow_profile_schema_version",
+    "airglow_profile_checksum_sha256",
+    "airglow_profile_normalization",
+    "airglow_profile_altitude_min_km",
+    "airglow_profile_altitude_max_km",
+    "airglow_profile_wavelength_min_nm",
+    "airglow_profile_wavelength_max_nm",
+    "airglow_profile_wavelength_band",
+    "airglow_geometry_assumptions",
+    "airglow_profile_validated_zenith_min_deg",
+    "airglow_profile_validated_zenith_max_deg",
+    "airglow_geometry_provenance",
+    "airglow_profile_license",
+];
 
 pub fn write_point(config: &NsbModelConfig, result: &NsbResult) -> Result<()> {
     let mut writer = csv::Writer::from_writer(std::io::stdout());
@@ -48,6 +69,7 @@ fn write_point_to<W: std::io::Write>(
         "model_preset",
         "asset_checksums",
     ];
+    header.extend(AIRGLOW_GEOMETRY_COLUMNS);
     if has_absolute_uncertainty {
         header.extend([
             "statistical_uncertainty_ph_cm2_ns_sr",
@@ -57,9 +79,9 @@ fn write_point_to<W: std::io::Write>(
     }
     writer.write_record(header)?;
     let point_schema = if has_absolute_uncertainty {
-        POINT_SCHEMA_V2
+        POINT_SCHEMA_V4
     } else {
-        POINT_SCHEMA_V1
+        POINT_SCHEMA_V3
     };
     let assets = asset_checksums();
     for component in &result.components {
@@ -86,6 +108,9 @@ fn write_point_to<W: std::io::Write>(
             config.site_profile.as_str().to_string(),
             assets.clone(),
         ];
+        row.extend(airglow_geometry_fields(
+            component.metadata.airglow_geometry.as_ref(),
+        ));
         if has_absolute_uncertainty {
             row.extend([
                 component
@@ -124,6 +149,7 @@ fn write_point_to<W: std::io::Write>(
         config.site_profile.as_str().to_string(),
         assets,
     ];
+    total_row.extend(airglow_geometry_fields(None));
     if has_absolute_uncertainty {
         total_row.extend([String::new(), String::new(), String::new()]);
     }
@@ -131,13 +157,9 @@ fn write_point_to<W: std::io::Write>(
     Ok(())
 }
 
-pub fn write_window(
-    components: ComponentMask,
-    config: &NsbModelConfig,
-    periods: &[Period<UTC>],
-) -> Result<()> {
+pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
     let mut writer = csv::Writer::from_writer(std::io::stdout());
-    writer.write_record([
+    let mut header = vec![
         "schema_version",
         "start_utc",
         "end_utc",
@@ -148,12 +170,18 @@ pub fn write_window(
         "siderust_source",
         "model_preset",
         "asset_checksums",
-    ])?;
-    let component_names = component_names(components, config).join(";");
+    ];
+    header.extend(AIRGLOW_GEOMETRY_COLUMNS);
+    writer.write_record(header)?;
+    let component_names = component_names(output.components, output.config).join(";");
     let assets = asset_checksums();
-    for period in periods {
-        writer.write_record([
-            WINDOW_SCHEMA.to_string(),
+    let geometry = output
+        .descriptions
+        .iter()
+        .find_map(|description| description.metadata.airglow_geometry.as_ref());
+    for period in output.periods {
+        let mut row = vec![
+            WINDOW_SCHEMA_V2.to_string(),
             format_utc(period.start),
             format_utc(period.end),
             duration_seconds(*period)
@@ -163,12 +191,57 @@ pub fn write_window(
             NSB_VERSION.to_string(),
             MODEL_VERSION.to_string(),
             SIDERUST_SOURCE.to_string(),
-            config.site_profile.as_str().to_string(),
+            output.config.site_profile.as_str().to_string(),
             assets.clone(),
-        ])?;
+        ];
+        row.extend(airglow_geometry_fields(geometry));
+        writer.write_record(row)?;
     }
     writer.flush()?;
     Ok(())
+}
+
+fn airglow_geometry_fields(metadata: Option<&AirglowGeometryMetadata>) -> [String; 17] {
+    let Some(metadata) = metadata else {
+        return std::array::from_fn(|_| String::new());
+    };
+    [
+        metadata.model.to_string(),
+        metadata.implementation_version.to_string(),
+        metadata
+            .emission_height_km
+            .map(|value| value.value().to_string())
+            .unwrap_or_default(),
+        metadata.profile_id.clone().unwrap_or_default(),
+        metadata
+            .profile_schema_version
+            .map(|value| value.to_string())
+            .unwrap_or_default(),
+        metadata.checksum_sha256.clone().unwrap_or_default(),
+        metadata.normalization.unwrap_or_default().to_string(),
+        metadata
+            .altitude_min_km
+            .map(|value| value.value().to_string())
+            .unwrap_or_default(),
+        metadata
+            .altitude_max_km
+            .map(|value| value.value().to_string())
+            .unwrap_or_default(),
+        metadata
+            .wavelength_min_nm
+            .map(|value| value.value().to_string())
+            .unwrap_or_default(),
+        metadata
+            .wavelength_max_nm
+            .map(|value| value.value().to_string())
+            .unwrap_or_default(),
+        metadata.wavelength_band.clone().unwrap_or_default(),
+        metadata.assumptions.clone(),
+        metadata.validated_zenith.min.value().to_string(),
+        metadata.validated_zenith.max.value().to_string(),
+        metadata.provenance.clone(),
+        metadata.license.clone().unwrap_or_default(),
+    ]
 }
 
 pub fn write_sites(sites: &[SitePreset]) -> Result<()> {

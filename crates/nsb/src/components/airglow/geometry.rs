@@ -289,6 +289,13 @@ impl VerticalEmissionProfile {
                 "observer altitude {observer_height_km} km is at or above profile top {top} km"
             )));
         }
+        let vertical = integrate_profile_los(self, observer_height_km, 0.0, substeps_per_interval);
+        if !vertical.is_finite() || vertical <= 0.0 {
+            return Err(NsbError::Unsupported(format!(
+                "vertical profile {} contains no visible emission above observer altitude {observer_height_km} km; its vertical normalization is invalid",
+                self.profile_id()
+            )));
+        }
         if z.abs() <= f64::EPSILON {
             return Ok(ScaleFactors::new(1.0));
         }
@@ -299,14 +306,8 @@ impl VerticalEmissionProfile {
             z.to_radians(),
             substeps_per_interval,
         );
-        let vertical = integrate_profile_los(self, observer_height_km, 0.0, substeps_per_interval);
         let factor = los / vertical;
-        if !los.is_finite()
-            || !vertical.is_finite()
-            || vertical <= 0.0
-            || !factor.is_finite()
-            || factor <= 0.0
-        {
+        if !los.is_finite() || !factor.is_finite() || factor <= 0.0 {
             return Err(NsbError::Unsupported(format!(
                 "vertical profile {} produced invalid LOS normalization",
                 self.profile_id()
@@ -879,6 +880,48 @@ mod tests {
                     .value(),
                 1.0
             );
+        }
+    }
+
+    #[test]
+    fn profile_without_visible_emission_above_observer_fails_at_all_angles() {
+        let profile = profile(
+            "emission-below-observer",
+            &[0.0, 1.0, 2.0],
+            &[1.0, 0.0, 0.0],
+        );
+        let location = observer(1_500.0);
+        for zenith in [0.0, 30.0, 90.0] {
+            let error = profile
+                .geometry_factor(location, Degrees::new(zenith))
+                .unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("contains no visible emission above observer altitude"));
+        }
+    }
+
+    #[test]
+    fn zero_padding_above_visible_emitting_layer_remains_valid() {
+        let profile = profile(
+            "zero-padded-visible-layer",
+            &[80.0, 90.0, 100.0, 120.0],
+            &[0.0, 1.0, 0.0, 0.0],
+        );
+        let location = observer(2_000.0);
+        assert_eq!(
+            profile
+                .geometry_factor(location, Degrees::new(0.0))
+                .unwrap()
+                .value(),
+            1.0
+        );
+        for zenith in [30.0, 90.0] {
+            let factor = profile
+                .geometry_factor(location, Degrees::new(zenith))
+                .unwrap()
+                .value();
+            assert!(factor.is_finite() && factor > 0.0);
         }
     }
 

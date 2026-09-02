@@ -41,7 +41,7 @@ pub fn write_window(format: OutputFormat, output: &WindowOutput<'_>) -> Result<(
     match format {
         OutputFormat::Table => table::write_window(output.min, output.max, output.periods),
         OutputFormat::Json => json::write_window(output),
-        OutputFormat::Csv => csv::write_window(output.components, output.config, output.periods),
+        OutputFormat::Csv => csv::write_window(output),
     }
 }
 

@@ -12,6 +12,41 @@ use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
 use siderust::qtty::{Degrees, Kilometers, Nanometers};
 use std::fs;
 
+fn synthetic_vertical_profile(id: &str, peak_emissivity: f64) -> VerticalEmissionProfile {
+    VerticalEmissionProfile::new(VerticalEmissionProfileDefinition {
+        schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+        profile_id: id.into(),
+        altitude_km: vec![
+            Kilometers::new(80.0),
+            Kilometers::new(90.0),
+            Kilometers::new(100.0),
+        ],
+        relative_emissivity: vec![0.0, peak_emissivity, 0.0],
+        normalization: VerticalProfileNormalization::UnitVerticalIntegral,
+        wavelength: AirglowWavelengthApplicability {
+            min: Nanometers::new(300.0),
+            max: Nanometers::new(650.0),
+            band: "synthetic NSB optical validation band".into(),
+        },
+        assumptions: "Synthetic triangular layer for CLI transport validation only".into(),
+        provenance: "Generated in crates/nsb-cli/tests/cli_smoke.rs".into(),
+        license: "Synthetic test data; AGPL-3.0-only repository fixture".into(),
+        validated_zenith: ValidatedZenithDomain {
+            min: Degrees::new(0.0),
+            max: Degrees::new(90.0),
+        },
+    })
+    .unwrap()
+}
+
+fn csv_value(headers: &csv::StringRecord, row: &csv::StringRecord, column: &str) -> String {
+    let index = headers
+        .iter()
+        .position(|header| header == column)
+        .unwrap_or_else(|| panic!("missing CSV column {column}"));
+    row.get(index).unwrap().to_string()
+}
+
 #[test]
 fn sites_list_prints_ctao_s() {
     let mut cmd = Command::cargo_bin("nsb").unwrap();
@@ -165,6 +200,240 @@ fn checksum_pinned_vertical_profile_is_selected_and_reported() {
     assert_eq!(
         value["components"][0]["metadata"]["calibration_status"],
         "generic-clear-sky"
+    );
+}
+
+#[test]
+fn default_van_rhijn_csv_reports_geometry_identity() {
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "csv",
+            "point",
+            "--time",
+            "2026-06-18T23:00:00Z",
+            "--lon",
+            "12.3",
+            "--lat",
+            "-31.2",
+            "--height",
+            "1234",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--components",
+            "airglow",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let mut reader = csv::Reader::from_reader(output.as_slice());
+    let headers = reader.headers().unwrap().clone();
+    let row = reader.records().next().unwrap().unwrap();
+    assert_eq!(row.get(0), Some("nsb-cli-point-csv-v3"));
+    assert_eq!(
+        csv_value(&headers, &row, "airglow_geometry_model"),
+        "van_rhijn"
+    );
+    assert!(!csv_value(&headers, &row, "airglow_geometry_version").is_empty());
+    assert_eq!(
+        csv_value(&headers, &row, "airglow_geometry_emission_height_km"),
+        "90"
+    );
+}
+
+#[test]
+fn vertical_profile_csv_reports_exact_checksum_and_distinguishes_profiles() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut identities = Vec::new();
+    for (filename, id, peak) in [
+        ("profile-a.toml", "csv-profile-a", 1.0),
+        ("profile-b.toml", "csv-profile-b", 0.75),
+    ] {
+        let profile = synthetic_vertical_profile(id, peak);
+        let path = dir.path().join(filename);
+        fs::write(&path, profile.to_toml_string().unwrap()).unwrap();
+        let mut cmd = Command::cargo_bin("nsb").unwrap();
+        let output = cmd
+            .args([
+                "--format",
+                "csv",
+                "point",
+                "--time",
+                "2026-06-18T23:00:00Z",
+                "--lon",
+                "12.3",
+                "--lat",
+                "-31.2",
+                "--height",
+                "1234",
+                "--ra",
+                "83.0",
+                "--dec",
+                "22.0",
+                "--components",
+                "airglow",
+                "--airglow-vertical-profile",
+                path.to_str().unwrap(),
+            ])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let mut reader = csv::Reader::from_reader(output.as_slice());
+        let headers = reader.headers().unwrap().clone();
+        let row = reader.records().next().unwrap().unwrap();
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_geometry_model"),
+            "vertical_profile"
+        );
+        assert_eq!(csv_value(&headers, &row, "airglow_profile_id"), id);
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_schema_version"),
+            VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION.to_string()
+        );
+        let csv_checksum = csv_value(&headers, &row, "airglow_profile_checksum_sha256");
+        assert_eq!(csv_checksum, profile.checksum_sha256());
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_geometry_provenance"),
+            profile.provenance()
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_normalization"),
+            profile.normalization().as_str()
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_altitude_min_km"),
+            "80"
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_altitude_max_km"),
+            "100"
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_wavelength_min_nm"),
+            "300"
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_wavelength_max_nm"),
+            "650"
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_wavelength_band"),
+            profile.wavelength_applicability().band
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_validated_zenith_min_deg"),
+            "0"
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_validated_zenith_max_deg"),
+            "90"
+        );
+        assert_eq!(
+            csv_value(&headers, &row, "airglow_profile_license"),
+            profile.license()
+        );
+        identities.push((id.to_string(), csv_checksum));
+    }
+    assert_ne!(identities[0], identities[1]);
+}
+
+#[test]
+fn non_airglow_csv_rows_do_not_inherit_geometry_metadata() {
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "csv",
+            "point",
+            "--time",
+            "2026-06-18T23:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--components",
+            "zodiacal",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let mut reader = csv::Reader::from_reader(output.as_slice());
+    let headers = reader.headers().unwrap().clone();
+    let row = reader.records().next().unwrap().unwrap();
+    for column in [
+        "airglow_geometry_model",
+        "airglow_geometry_version",
+        "airglow_profile_id",
+        "airglow_profile_checksum_sha256",
+        "airglow_geometry_provenance",
+    ] {
+        assert_eq!(csv_value(&headers, &row, column), "");
+    }
+}
+
+#[test]
+fn window_csv_preserves_selected_vertical_profile_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    let profile = synthetic_vertical_profile("window-csv-profile", 1.0);
+    let path = dir.path().join("window-profile.toml");
+    fs::write(&path, profile.to_toml_string().unwrap()).unwrap();
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "csv",
+            "window",
+            "--start",
+            "2023-09-04T01:00:00Z",
+            "--end",
+            "2023-09-04T02:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--max-nsb",
+            "1000000",
+            "--step",
+            "3600",
+            "--no-pre-filter",
+            "--components",
+            "airglow",
+            "--airglow-vertical-profile",
+            path.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let mut reader = csv::Reader::from_reader(output.as_slice());
+    let headers = reader.headers().unwrap().clone();
+    let row = reader.records().next().unwrap().unwrap();
+    assert_eq!(row.get(0), Some("nsb-cli-window-csv-v2"));
+    assert_eq!(
+        csv_value(&headers, &row, "airglow_geometry_model"),
+        "vertical_profile"
+    );
+    assert_eq!(
+        csv_value(&headers, &row, "airglow_profile_id"),
+        profile.profile_id()
+    );
+    assert_eq!(
+        csv_value(&headers, &row, "airglow_profile_checksum_sha256"),
+        profile.checksum_sha256()
     );
 }
 
@@ -466,7 +735,7 @@ independent_comparison = "synthetic trusted reference fixture"
 }
 
 #[test]
-fn starlight_uncertainties_are_serialized_in_json_and_csv_v2() {
+fn starlight_uncertainties_are_serialized_in_json_and_csv_v4() {
     let dir = tempfile::tempdir().unwrap();
     let map_path = dir.path().join("starlight-v2.csv");
     let manifest_path = dir.path().join("starlight-v2.toml");
@@ -527,18 +796,36 @@ fn starlight_uncertainties_are_serialized_in_json_and_csv_v2() {
         .clone();
     let mut reader = csv::Reader::from_reader(csv_output.as_slice());
     let headers = reader.headers().unwrap().clone();
-    assert_eq!(
-        headers.get(18),
-        Some("statistical_uncertainty_ph_cm2_ns_sr")
-    );
-    assert_eq!(headers.get(19), Some("systematic_uncertainty_ph_cm2_ns_sr"));
-    assert_eq!(headers.get(20), Some("total_uncertainty_ph_cm2_ns_sr"));
+    assert!(headers
+        .iter()
+        .any(|header| header == "statistical_uncertainty_ph_cm2_ns_sr"));
+    assert!(headers
+        .iter()
+        .any(|header| header == "systematic_uncertainty_ph_cm2_ns_sr"));
+    assert!(headers
+        .iter()
+        .any(|header| header == "total_uncertainty_ph_cm2_ns_sr"));
     let row = reader.records().next().unwrap().unwrap();
-    assert_eq!(row.get(0), Some("nsb-cli-point-csv-v2"));
+    assert_eq!(row.get(0), Some("nsb-cli-point-csv-v4"));
     assert_eq!(row.get(8).unwrap().parse::<f64>().unwrap(), 0.25);
-    assert_eq!(row.get(18).unwrap().parse::<f64>().unwrap(), statistical);
-    assert_eq!(row.get(19).unwrap().parse::<f64>().unwrap(), systematic);
-    assert_eq!(row.get(20).unwrap().parse::<f64>().unwrap(), total);
+    assert_eq!(
+        csv_value(&headers, &row, "statistical_uncertainty_ph_cm2_ns_sr")
+            .parse::<f64>()
+            .unwrap(),
+        statistical
+    );
+    assert_eq!(
+        csv_value(&headers, &row, "systematic_uncertainty_ph_cm2_ns_sr")
+            .parse::<f64>()
+            .unwrap(),
+        systematic
+    );
+    assert_eq!(
+        csv_value(&headers, &row, "total_uncertainty_ph_cm2_ns_sr")
+            .parse::<f64>()
+            .unwrap(),
+        total
+    );
 }
 
 #[test]
@@ -597,7 +884,7 @@ fn unknown_experimental_starlight_alias_is_rejected() {
 }
 
 #[test]
-fn point_csv_v1_header_is_stable() {
+fn point_csv_v3_header_is_stable() {
     let mut cmd = Command::cargo_bin("nsb").unwrap();
     cmd.args([
         "--format",
@@ -615,7 +902,7 @@ fn point_csv_v1_header_is_stable() {
     .assert()
     .success()
     .stdout(predicate::str::starts_with(
-        "schema_version,record_type,component,integrated_ph_cm2_ns_sr,b_s10_diagnostic,v_s10_diagnostic,b_mag_arcsec2_diagnostic,v_mag_arcsec2_diagnostic,relative_uncertainty,calibration_status,provenance,validated_domain,band_convention,nsb_version,model_version,siderust_source,model_preset,asset_checksums",
+        "schema_version,record_type,component,integrated_ph_cm2_ns_sr,b_s10_diagnostic,v_s10_diagnostic,b_mag_arcsec2_diagnostic,v_mag_arcsec2_diagnostic,relative_uncertainty,calibration_status,provenance,validated_domain,band_convention,nsb_version,model_version,siderust_source,model_preset,asset_checksums,airglow_geometry_model,airglow_geometry_version,airglow_geometry_emission_height_km,airglow_profile_id,airglow_profile_schema_version,airglow_profile_checksum_sha256",
     ));
 }
 
