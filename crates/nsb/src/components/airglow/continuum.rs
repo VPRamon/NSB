@@ -2,10 +2,12 @@ use super::calibration::AirglowContinuum;
 use super::extinction::{
     noll_airglow_scattering_geometry, spectral_airglow_scattering_transmission_with_geometry,
 };
+use super::geometry::AirglowGeometryModel;
 use super::output::AirglowOutputs;
 use super::temporal::{season_bin, time_of_night_bin};
 use super::units::{is_valid_solar_flux, SolarFluxUnits};
 use crate::components::moonlight::AtmosphericConditions;
+use crate::error::Result;
 use crate::units::ScaleFactors;
 use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
 use optica::grid::OutOfRange;
@@ -16,10 +18,9 @@ use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
 };
 use qtty::unit;
-use siderust::atmosphere::van_rhijn_factor;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Nanometer, Nanometers, Radian};
+use siderust::qtty::{Nanometer, Nanometers};
 use tempoch::{Time, UTC};
 
 const WL_LOW_NM: f64 = 300.0;
@@ -85,6 +86,7 @@ pub(crate) fn integrate_attenuated_continuum(
 pub(crate) struct AirglowEvaluationContext {
     pub(crate) location: Geodetic<ECEF>,
     pub(crate) atmosphere: AtmosphericConditions,
+    pub(crate) geometry: AirglowGeometryModel,
     pub(crate) solar_radio_flux: SolarFluxUnits,
     pub(crate) user_scale: ScaleFactors,
 }
@@ -94,9 +96,9 @@ pub(crate) fn evaluate_continuum(
     time: Time<UTC>,
     altitude: Degrees,
     ctx: AirglowEvaluationContext,
-) -> AirglowOutputs {
+) -> Result<AirglowOutputs> {
     let Some(time_bin) = time_of_night_bin(time, ctx.location) else {
-        return AirglowOutputs::zero();
+        return Ok(AirglowOutputs::zero());
     };
     evaluate_continuum_with_time_bin(continuum, time, altitude, ctx, time_bin)
 }
@@ -107,7 +109,7 @@ pub(crate) fn evaluate_continuum_with_time_bin(
     altitude: Degrees,
     ctx: AirglowEvaluationContext,
     time_bin: usize,
-) -> AirglowOutputs {
+) -> Result<AirglowOutputs> {
     let alt = altitude.value();
     if !alt.is_finite()
         || alt <= -90.0
@@ -115,12 +117,12 @@ pub(crate) fn evaluate_continuum_with_time_bin(
         || !ctx.user_scale.is_finite()
         || ctx.user_scale < ScaleFactors::new(0.0)
     {
-        return AirglowOutputs::zero();
+        return Ok(AirglowOutputs::zero());
     }
 
     let zenith_deg = (90.0 - alt).clamp(0.0, 90.0);
     let zenith = Degrees::new(zenith_deg);
-    let van_rhijn = van_rhijn_factor(zenith.to::<Radian>(), continuum.emission_height_km).value();
+    let geometry_factor = ctx.geometry.geometry_factor(ctx.location, zenith)?.value();
     let solar_corr = continuum.solar_activity_const
         + continuum.solar_activity_slope * ctx.solar_radio_flux.value();
     let season_bin = season_bin(time, ctx.location);
@@ -131,10 +133,10 @@ pub(crate) fn evaluate_continuum_with_time_bin(
         .copied()
         .unwrap_or(1.0);
     let user_scale = ctx.user_scale.value();
-    // Van Rhijn is LOS/emitting-layer geometry only. Noll effective Rayleigh/Mie
-    // scattering is applied spectrally via `extinction` (see #114).
+    // Emitting-volume LOS geometry is scalar. Noll effective Rayleigh/Mie
+    // atmospheric scattering remains an independent spectral stage (#114).
     let scalar_scale =
-        continuum.global_scale.value() * solar_corr * seasonal_corr * van_rhijn * user_scale;
+        continuum.global_scale.value() * solar_corr * seasonal_corr * geometry_factor * user_scale;
 
     let spectral = integrate_attenuated_continuum(continuum, zenith, ctx.atmosphere);
 
@@ -158,7 +160,7 @@ pub(crate) fn evaluate_continuum_with_time_bin(
             let common_scale = continuum.global_scale.abs().value()
                 * solar_corr.abs()
                 * seasonal_corr_value
-                * van_rhijn.abs()
+                * geometry_factor.abs()
                 * user_scale;
             let shape_sigma_integrated = spectral.integrated_uncertainty_abs
                 * SkyCalcSpectralPhotonRadiance::new(common_scale)
@@ -176,7 +178,7 @@ pub(crate) fn evaluate_continuum_with_time_bin(
     let b_density = spectral.b_relative * radiance_scale;
     let v_density = spectral.v_relative * radiance_scale;
 
-    AirglowOutputs {
+    Ok(AirglowOutputs {
         integrated,
         b_flux_s10: s10_for_spectral_photon_radiance(
             SpectralBandPhotonRadiance::new(b_density),
@@ -187,5 +189,5 @@ pub(crate) fn evaluate_continuum_with_time_bin(
             V_FILTER,
         ),
         relative_uncertainty,
-    }
+    })
 }

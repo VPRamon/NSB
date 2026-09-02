@@ -8,7 +8,7 @@
 //! Scientific role:
 //! airglow is intrinsically spectral: different wavelengths and bands vary in
 //! strength, season, and time of night. This file preserves the continuum-side
-//! calibration data used by the site-bound empirical airglow model.
+//! calibration data used by the empirical airglow continuum model.
 //!
 //! Provenance:
 //! Scientific metadata for the bundled continuum is owned by

@@ -111,6 +111,10 @@ pub struct ModelArgs {
     #[arg(long)]
     pub f107_store: Option<PathBuf>,
 
+    /// Checksum-pinned `nsb` vertical-emission-profile TOML (Van Rhijn is default).
+    #[arg(long)]
+    pub airglow_vertical_profile: Option<PathBuf>,
+
     /// Zodiacal atmospheric extinction model.
     #[arg(long, value_enum, default_value_t = ZodiacalExtinctionArg::Noll2012)]
     pub zodiacal_extinction: ZodiacalExtinctionArg,

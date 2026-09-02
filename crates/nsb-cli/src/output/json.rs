@@ -3,9 +3,9 @@ use crate::parsing::location::SitePreset;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
-    assets::asset_registry, BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig,
-    NsbResult, StarlightModel, Target, ZodiacalExtinction, MODEL_VERSION, NSB_VERSION,
-    SIDERUST_SOURCE, SIDERUST_VERSION,
+    assets::asset_registry, AirglowGeometryMetadata, BandDiagnostic, ComponentMask,
+    NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightModel, Target, ZodiacalExtinction,
+    MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
@@ -68,6 +68,7 @@ struct ModelJson {
     f107_dataset_id: Option<String>,
     f107_snapshot_id: Option<String>,
     f107_checksum_sha256: Option<String>,
+    airglow_geometry: &'static str,
     zodiacal_extinction: &'static str,
 }
 
@@ -113,6 +114,28 @@ struct ComponentMetadataJson {
     validated_domain: String,
     band_diagnostic: BandDiagnosticJson,
     solar_activity: Option<SolarActivityJson>,
+    airglow_geometry: Option<AirglowGeometryJson>,
+}
+
+#[derive(Serialize)]
+struct AirglowGeometryJson {
+    model: &'static str,
+    implementation_version: &'static str,
+    emission_height_km: Option<f64>,
+    profile_id: Option<String>,
+    profile_schema_version: Option<u32>,
+    checksum_sha256: Option<String>,
+    normalization: Option<&'static str>,
+    altitude_min_km: Option<f64>,
+    altitude_max_km: Option<f64>,
+    wavelength_min_nm: Option<f64>,
+    wavelength_max_nm: Option<f64>,
+    wavelength_band: Option<String>,
+    assumptions: String,
+    provenance: String,
+    license: Option<String>,
+    validated_zenith_min_deg: f64,
+    validated_zenith_max_deg: f64,
 }
 
 #[derive(Serialize)]
@@ -318,6 +341,7 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             nsb::SolarActivitySource::Dataset(store) => store.checksum_sha256.clone(),
             _ => None,
         },
+        airglow_geometry: config.airglow_geometry.model_id(),
         zodiacal_extinction: match config.zodiacal_extinction {
             ZodiacalExtinction::None => "none",
             ZodiacalExtinction::Noll2012Approx => "noll-2012-approximation",
@@ -364,6 +388,32 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
                 range_low_sfu: solar.record.range_low_sfu,
                 range_high_sfu: solar.record.range_high_sfu,
             }),
+        airglow_geometry: metadata
+            .airglow_geometry
+            .as_ref()
+            .map(airglow_geometry_json),
+    }
+}
+
+fn airglow_geometry_json(metadata: &AirglowGeometryMetadata) -> AirglowGeometryJson {
+    AirglowGeometryJson {
+        model: metadata.model,
+        implementation_version: metadata.implementation_version,
+        emission_height_km: metadata.emission_height_km.map(|value| value.value()),
+        profile_id: metadata.profile_id.clone(),
+        profile_schema_version: metadata.profile_schema_version,
+        checksum_sha256: metadata.checksum_sha256.clone(),
+        normalization: metadata.normalization,
+        altitude_min_km: metadata.altitude_min_km.map(|value| value.value()),
+        altitude_max_km: metadata.altitude_max_km.map(|value| value.value()),
+        wavelength_min_nm: metadata.wavelength_min_nm.map(|value| value.value()),
+        wavelength_max_nm: metadata.wavelength_max_nm.map(|value| value.value()),
+        wavelength_band: metadata.wavelength_band.clone(),
+        assumptions: metadata.assumptions.clone(),
+        provenance: metadata.provenance.clone(),
+        license: metadata.license.clone(),
+        validated_zenith_min_deg: metadata.validated_zenith.min.value(),
+        validated_zenith_max_deg: metadata.validated_zenith.max.value(),
     }
 }
 

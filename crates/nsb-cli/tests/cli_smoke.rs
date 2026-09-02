@@ -1,9 +1,15 @@
 use assert_cmd::Command;
+use nsb::{
+    AirglowWavelengthApplicability, ValidatedZenithDomain, VerticalEmissionProfile,
+    VerticalEmissionProfileDefinition, VerticalProfileNormalization,
+    VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+};
 use predicates::prelude::*;
 use siderust::checksum::{sha256, to_hex};
 use siderust::coordinates::cartesian::Direction;
 use siderust::coordinates::frames::Galactic;
 use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+use siderust::qtty::{Degrees, Kilometers, Nanometers};
 use std::fs;
 
 #[test]
@@ -60,6 +66,7 @@ fn default_components_include_moonlight() {
         "crates.io:siderust:0.11.0"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
+    assert_eq!(value["model"]["airglow_geometry"], "van_rhijn");
     assert!(value["version"]["data_assets"].as_array().unwrap().len() >= 4);
     let components = value["components"].as_array().unwrap();
     assert!(components
@@ -76,6 +83,88 @@ fn default_components_include_moonlight() {
             .iter()
             .any(|component| component["name"] == "starlight"),
         nsb::Starlight::bundled_production_available()
+    );
+    let airglow = components
+        .iter()
+        .find(|component| component["name"] == "airglow")
+        .unwrap();
+    assert_eq!(
+        airglow["metadata"]["airglow_geometry"]["model"],
+        "van_rhijn"
+    );
+    assert_eq!(
+        airglow["metadata"]["airglow_geometry"]["emission_height_km"],
+        90.0
+    );
+}
+
+#[test]
+fn checksum_pinned_vertical_profile_is_selected_and_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    let profile_path = dir.path().join("airglow-profile.toml");
+    let profile = VerticalEmissionProfile::new(VerticalEmissionProfileDefinition {
+        schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+        profile_id: "cli-synthetic-profile-v1".into(),
+        altitude_km: vec![
+            Kilometers::new(80.0),
+            Kilometers::new(90.0),
+            Kilometers::new(100.0),
+        ],
+        relative_emissivity: vec![0.0, 1.0, 0.0],
+        normalization: VerticalProfileNormalization::UnitVerticalIntegral,
+        wavelength: AirglowWavelengthApplicability {
+            min: Nanometers::new(300.0),
+            max: Nanometers::new(650.0),
+            band: "synthetic NSB optical validation band".into(),
+        },
+        assumptions: "Synthetic triangular layer for CLI transport validation only".into(),
+        provenance: "Generated in crates/nsb-cli/tests/cli_smoke.rs".into(),
+        license: "Synthetic test data; AGPL-3.0-only repository fixture".into(),
+        validated_zenith: ValidatedZenithDomain {
+            min: Degrees::new(0.0),
+            max: Degrees::new(90.0),
+        },
+    })
+    .unwrap();
+    fs::write(&profile_path, profile.to_toml_string().unwrap()).unwrap();
+
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "json",
+            "point",
+            "--time",
+            "2026-06-18T23:00:00Z",
+            "--lon",
+            "12.3",
+            "--lat",
+            "-31.2",
+            "--height",
+            "1234",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--components",
+            "airglow",
+            "--airglow-vertical-profile",
+            profile_path.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["model"]["airglow_geometry"], "vertical_profile");
+    let geometry = &value["components"][0]["metadata"]["airglow_geometry"];
+    assert_eq!(geometry["model"], "vertical_profile");
+    assert_eq!(geometry["profile_id"], "cli-synthetic-profile-v1");
+    assert_eq!(geometry["checksum_sha256"], profile.checksum_sha256());
+    assert_eq!(
+        value["components"][0]["metadata"]["calibration_status"],
+        "generic-clear-sky"
     );
 }
 

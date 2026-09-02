@@ -41,3 +41,7 @@ criterion = { version = "0.8", default-features = false, features = ["html_repor
 [[bench]]
 name = "threshold_window"
 harness = false
+
+[[bench]]
+name = "airglow_geometry"
+harness = false

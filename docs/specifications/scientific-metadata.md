@@ -77,3 +77,19 @@ checksum identity, and resolution step. Forecast and climatology values are
 never labelled as observations. A measured F10.7 does not promote Airglow to
 site-calibrated status; see
 [F10.7 resolver](../nsb_components/airglow/f107-resolver.md).
+
+## Airglow geometry and attenuation
+
+Airglow component metadata includes a structured `airglow_geometry` record.
+For `van_rhijn` it identifies the explicit emission height, implementation
+version, thin-shell assumptions, provenance, and validated zenith domain. For
+`vertical_profile` it additionally records the profile identifier and schema,
+canonical SHA-256 checksum, normalization, altitude bounds, wavelength/band
+applicability, assumptions/reference state, provenance/reference, licence, and
+validated zenith domain.
+
+This record is independent of `atmospheric_model`: the former describes path
+length through emitting volume and the latter describes Noll effective
+Rayleigh/Mie transmission. It is also independent of the continuum asset and
+`solar_activity` record. None of these selections changes an uncalibrated
+Airglow component's maturity.

@@ -100,7 +100,12 @@ impl NsbEvaluator {
         if components.contains(ComponentMask::AIRGLOW) {
             descriptions.push(NsbComponentDescriptor {
                 name: "airglow",
-                metadata: airglow_metadata(self.config.site_profile, observer, None),
+                metadata: airglow_metadata(
+                    self.config.site_profile,
+                    observer,
+                    None,
+                    &self.config.airglow_geometry,
+                ),
             });
         }
         if components.contains(ComponentMask::MOON) {
@@ -353,7 +358,12 @@ impl NsbEvaluator {
                 statistical_uncertainty: None,
                 systematic_uncertainty: None,
                 total_uncertainty: None,
-                metadata: airglow_metadata(self.config.site_profile, query.observer, Some(&solar)),
+                metadata: airglow_metadata(
+                    self.config.site_profile,
+                    query.observer,
+                    Some(&solar),
+                    &self.config.airglow_geometry,
+                ),
             });
         }
         if query.components.contains(ComponentMask::MOON) {
@@ -407,6 +417,7 @@ impl NsbEvaluator {
         let outputs =
             airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
                 .with_atmosphere(profile.atmosphere)
+                .with_geometry(self.config.airglow_geometry.clone())
                 .with_solar_radio_flux(solar.value)
                 .with_scale(profile.airglow.scale)
                 .compute(time, target)?;
@@ -424,6 +435,7 @@ impl NsbEvaluator {
         let profile = self.config.site_profile.profile(observer);
         airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
             .with_atmosphere(profile.atmosphere)
+            .with_geometry(self.config.airglow_geometry.clone())
             .with_solar_radio_flux(solar.value)
             .with_scale(profile.airglow.scale)
             .compute_with_time_of_night_bin(time, target, time_bin)

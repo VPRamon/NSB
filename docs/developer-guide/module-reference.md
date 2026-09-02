@@ -38,7 +38,7 @@ must remain stable.
 | --- | --- |
 | `components::zodiacal` | Zodiacal brightness grid, solar reference spectrum, atmospheric extinction, and integrated outputs |
 | `components::starlight` | HEALPix lookup, experimental/production separation, manifest validation, provenance, and diagnostics |
-| `components::airglow` | Continuum model, seasonal/nightly/solar corrections, Van Rhijn geometry, and site scaling |
+| `components::airglow` | Continuum model, seasonal/nightly/solar corrections, selectable emitting-volume geometry, independent Noll attenuation, and site scaling |
 | `components::moonlight` | Atmospheric inputs plus Jones 2013 spectral and Krisciunas–Schaefer 1991 reference models |
 
 ### Evaluator modules

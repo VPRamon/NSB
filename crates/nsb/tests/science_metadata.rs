@@ -1,12 +1,14 @@
 use chrono::{DateTime, Utc};
 use nsb::{
-    BandDiagnostic, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target,
-    DEG,
+    AirglowGeometryModel, AirglowWavelengthApplicability, BandDiagnostic,
+    ComponentCalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target,
+    ValidatedZenithDomain, VerticalEmissionProfile, VerticalEmissionProfileDefinition,
+    VerticalProfileNormalization, DEG, VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Degrees, Meters};
+use siderust::qtty::{Degrees, Kilometers, Meters, Nanometers};
 use tempoch::{Time, UTC};
 
 fn parse_utc(input: &str) -> Time<UTC> {
@@ -19,6 +21,33 @@ fn parse_utc(input: &str) -> Time<UTC> {
 
 fn sgr_a_star() -> Target {
     Target::new(266.41683 * DEG, -29.00781 * DEG)
+}
+
+fn synthetic_profile() -> VerticalEmissionProfile {
+    VerticalEmissionProfile::new(VerticalEmissionProfileDefinition {
+        schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+        profile_id: "science-metadata-synthetic".into(),
+        altitude_km: vec![
+            Kilometers::new(80.0),
+            Kilometers::new(90.0),
+            Kilometers::new(105.0),
+        ],
+        relative_emissivity: vec![0.0, 1.0, 0.0],
+        normalization: VerticalProfileNormalization::UnitVerticalIntegral,
+        wavelength: AirglowWavelengthApplicability {
+            min: Nanometers::new(300.0),
+            max: Nanometers::new(650.0),
+            band: "synthetic-300-650-nm".into(),
+        },
+        assumptions: "synthetic metadata validation profile; not production data".into(),
+        provenance: "deterministic NSB integration test".into(),
+        license: "CC0-1.0 synthetic fixture".into(),
+        validated_zenith: ValidatedZenithDomain {
+            min: Degrees::new(0.0),
+            max: Degrees::new(90.0),
+        },
+    })
+    .unwrap()
 }
 
 #[test]
@@ -116,10 +145,16 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
             .contains("does not apply the upstream Cerro Paranal atmospheric extinction"),
         "validated_domain must not claim extinction is absent"
     );
-    assert!(airglow
+    let geometry = airglow
         .metadata
-        .validated_domain
-        .contains("Van Rhijn (LOS/emitting-layer geometry)"));
+        .airglow_geometry
+        .as_ref()
+        .expect("airglow metadata includes geometry");
+    assert_eq!(geometry.model, "van_rhijn");
+    assert_eq!(geometry.emission_height_km.unwrap().value(), 90.0);
+    assert_eq!(geometry.validated_zenith.min.value(), 0.0);
+    assert_eq!(geometry.validated_zenith.max.value(), 90.0);
+    assert!(geometry.assumptions.contains("thin"));
     assert!(airglow
         .metadata
         .validated_domain
@@ -180,6 +215,49 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
         airglow.metadata.status,
         ComponentCalibrationStatus::PlanningPreset
     );
+}
+
+#[test]
+fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
+    let profile = synthetic_profile();
+    let expected_checksum = profile.checksum_sha256().to_string();
+    let config = nsb::NsbModelConfig::generic_clear_sky()
+        .with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile));
+    let result = NsbEvaluator::with_config(config)
+        .unwrap()
+        .evaluate(&PointQuery {
+            observer: observatories::EL_PARANAL.geodetic(),
+            time: parse_utc("2023-09-04T01:48:00Z"),
+            target: sgr_a_star(),
+            components: ComponentMask::AIRGLOW,
+        })
+        .unwrap();
+    let airglow = result.components.first().unwrap();
+    assert_eq!(
+        airglow.metadata.status,
+        ComponentCalibrationStatus::GenericClearSky
+    );
+    let geometry = airglow.metadata.airglow_geometry.as_ref().unwrap();
+    assert_eq!(geometry.model, "vertical_profile");
+    assert_eq!(
+        geometry.profile_id.as_deref(),
+        Some("science-metadata-synthetic")
+    );
+    assert_eq!(geometry.profile_schema_version, Some(1));
+    assert_eq!(
+        geometry.checksum_sha256.as_deref(),
+        Some(expected_checksum.as_str())
+    );
+    assert_eq!(geometry.normalization, Some("unit-vertical-integral"));
+    assert_eq!(geometry.altitude_min_km.unwrap().value(), 80.0);
+    assert_eq!(geometry.altitude_max_km.unwrap().value(), 105.0);
+    assert_eq!(geometry.wavelength_min_nm.unwrap().value(), 300.0);
+    assert_eq!(geometry.wavelength_max_nm.unwrap().value(), 650.0);
+    assert!(geometry.provenance.contains("deterministic"));
+    assert!(airglow
+        .metadata
+        .validated_domain
+        .contains("independent Noll-2012 effective Rayleigh/Mie"));
 }
 
 #[test]

@@ -21,3 +21,5 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Run point, starlight, moonlight, composition, and window benchmarks
         run: cargo bench --locked -p nsb --bench threshold_window
+      - name: Run Airglow geometry benchmarks
+        run: cargo bench --locked -p nsb --bench airglow_geometry
