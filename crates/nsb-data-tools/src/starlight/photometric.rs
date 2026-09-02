@@ -621,6 +621,7 @@ fn require_sha256(label: &str, value: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::platform::checksum_io;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     fn partition_summary(
@@ -856,5 +857,46 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("checksum mismatch"));
+    }
+
+    /// XP-anchored production artifact must predict 336–650 nm flux within the
+    /// Gaia XP continuous integration scale at G=15 (oracle ~1.4e4 ph/m²/s).
+    #[test]
+    fn xp_anchored_production_artifact_matches_xp_flux_scale_at_g15() {
+        let fixture_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/photometric_xp_anchored_v1");
+        let path = fixture_root.join("artifact.json");
+        let sha = fs::read_to_string(fixture_root.join("artifact.sha256"))
+            .unwrap()
+            .split_whitespace()
+            .next()
+            .expect("fixture sha256")
+            .to_string();
+        let correction = PhotometricCorrection::load(&path, &sha).unwrap();
+        assert_eq!(
+            correction.artifact().model_id,
+            "gaia-dr3-photometric-logflux-xp-anchored-v1"
+        );
+        assert_eq!(
+            sha,
+            "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2"
+        );
+        let decision = correction
+            .route_and_evaluate(PhotometricFeatures {
+                phot_g_mean_mag: Some(15.0),
+                phot_bp_mean_mag: Some(15.32),
+                phot_rp_mean_mag: Some(14.48),
+                bp_rp: Some(0.8),
+                quality_flag: true,
+            })
+            .unwrap();
+        let flux = decision
+            .flux
+            .expect("G=15 full-colour branch should evaluate")
+            .flux_336_650_ph_m2_s;
+        assert!(
+            (5_000.0..50_000.0).contains(&flux),
+            "photometric flux at G=15 must match XP integration scale, got {flux}"
+        );
     }
 }

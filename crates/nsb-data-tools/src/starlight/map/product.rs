@@ -1107,7 +1107,7 @@ fn science_policy_report(
             minimum_weight: 1.0,
             maximum_weight: selection.weight_cap,
             residual_faint_tail_estimated: selection.residual_faint_tail_estimated,
-            limitation: "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted sources; residual faint-tail estimation follows the artifact faint_tail.enabled flag.".to_string(),
+            limitation: "Inverse-completeness weights from the pinned Gaia selection-function artifact are applied to admitted fluxes; faint_tail.systematic_fraction enters the systematic uncertainty budget only (faint_tail_flux_fraction is diagnostic and is not multiplied into stored flux).".to_string(),
         },
         None => PopulationCorrectionReport {
             policy_id: POPULATION_POLICY_ID.to_string(),
@@ -1829,15 +1829,32 @@ fn nested_pixel_center_sin_latitude(nside: u32, pixel: u32) -> f64 {
 
 #[cfg(test)]
 mod tests {
+    use super::super::accumulator::{galactic_accumulation_pixel, PartitionShard};
     use super::*;
+    use crate::starlight::healpix::fixture_icrs_from_source_id;
     use tempfile::TempDir;
+
+    fn fixture_pos(source_id: u64) -> crate::starlight::healpix::IcrsSkyPosition {
+        fixture_icrs_from_source_id(source_id)
+    }
 
     fn fixture_shard(nside: u32) -> PartitionShard {
         let mut shard = PartitionShard::new("fixture", nside).unwrap();
-        shard.admit(0, 1.0e-6, 0.0, 0.0).unwrap();
-        shard.admit(1_u64 << 47, 42.25, 0.0, 0.0).unwrap();
-        shard.admit(2_u64 << 47, 1.0e12, 0.0, 0.0).unwrap();
-        shard.exclude(3_u64 << 47, "fixture_exclusion").unwrap();
+        shard
+            .admit(fixture_icrs_from_source_id(0), 1.0e-6, 0.0, 0.0)
+            .unwrap();
+        shard
+            .admit(fixture_icrs_from_source_id(1_u64 << 47), 42.25, 0.0, 0.0)
+            .unwrap();
+        shard
+            .admit(fixture_icrs_from_source_id(2_u64 << 47), 1.0e12, 0.0, 0.0)
+            .unwrap();
+        shard
+            .exclude(
+                fixture_icrs_from_source_id(3_u64 << 47),
+                "fixture_exclusion",
+            )
+            .unwrap();
         shard
     }
 
@@ -1916,8 +1933,10 @@ mod tests {
             artifact_sha256: "a".repeat(64),
             systematic_correlation: SystematicCorrelation::FullyCorrelatedBetweenSources,
         };
-        shard.admit_corrected(0, &source()).unwrap();
-        shard.admit_corrected(1_u64 << 47, &source()).unwrap();
+        shard.admit_corrected(fixture_pos(0), &source()).unwrap();
+        shard
+            .admit_corrected(fixture_icrs_from_source_id(1_u64 << 47), &source())
+            .unwrap();
         assert_eq!(shard.pixels.len(), 2);
         let (global_statistical, global_systematic) = global_selected_uncertainty(&shard).unwrap();
         assert_eq!(global_statistical, 0.0);
@@ -2192,8 +2211,12 @@ mod tests {
             systematic_correlation:
                 crate::starlight::uv::SystematicCorrelation::FullyCorrelatedBetweenSources,
         };
-        shard.admit_corrected(0, &source(10.0, 100.0, 3.0)).unwrap();
-        shard.admit_corrected(1, &source(20.0, 200.0, 4.0)).unwrap();
+        shard
+            .admit_corrected(fixture_pos(0), &source(10.0, 100.0, 3.0))
+            .unwrap();
+        shard
+            .admit_corrected(fixture_pos(1), &source(20.0, 200.0, 4.0))
+            .unwrap();
         let path = temp.path().join("outputs/shards/corrected-fixture.json");
         shard.write(&path).unwrap();
 
@@ -2287,11 +2310,11 @@ mod tests {
     #[test]
     fn independent_partial_merge_has_a_complete_stable_digest() {
         let mut first = PartitionShard::new("first", 128).unwrap();
-        first.admit(0, 1.0e16, 0.1, 0.0).unwrap();
+        first.admit(fixture_pos(0), 1.0e16, 0.1, 0.0).unwrap();
         let mut second = PartitionShard::new("second", 128).unwrap();
-        second.admit(1, 1.0, 0.2, 0.0).unwrap();
+        second.admit(fixture_pos(1), 1.0, 0.2, 0.0).unwrap();
         let mut third = PartitionShard::new("third", 128).unwrap();
-        third.admit(2, 1.0, 0.3, 0.0).unwrap();
+        third.admit(fixture_pos(2), 1.0, 0.3, 0.0).unwrap();
         let shards = vec![first, second, third];
         let canonical = merge_shards(shards.clone()).unwrap();
         let independent = independently_merge_partials(&shards).unwrap();
@@ -2307,33 +2330,53 @@ mod tests {
     #[test]
     fn complete_merge_detects_a_later_pixel_difference() {
         let mut first = PartitionShard::new("first", 128).unwrap();
-        first.admit(0, 1.0, 0.1, 0.0).unwrap();
+        first.admit(fixture_pos(0), 1.0, 0.1, 0.0).unwrap();
         let mut second = PartitionShard::new("second", 128).unwrap();
-        second.admit(1_u64 << 45, 2.0, 0.2, 0.0).unwrap();
+        second
+            .admit(fixture_icrs_from_source_id(1_u64 << 45), 2.0, 0.2, 0.0)
+            .unwrap();
         let canonical = merge_shards([first, second]).unwrap();
         let mut independent = canonical.clone();
         let mut replacement = PartitionShard::new("replacement", 128).unwrap();
-        replacement.admit(1_u64 << 45, 3.0, 0.2, 0.0).unwrap();
-        independent
-            .pixels
-            .insert(1, replacement.pixels.remove(&1).expect("replacement pixel"));
+        let extra_source_id = 1_u64 << 45;
+        replacement
+            .admit(fixture_icrs_from_source_id(extra_source_id), 3.0, 0.2, 0.0)
+            .unwrap();
+        let extra_pixel =
+            galactic_accumulation_pixel(fixture_icrs_from_source_id(extra_source_id), 128).unwrap();
+        independent.pixels.insert(
+            extra_pixel,
+            replacement
+                .pixels
+                .remove(&extra_pixel)
+                .expect("replacement pixel"),
+        );
 
         let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
         assert!(!report.stable);
         assert_eq!(report.flux_mismatches, 1);
-        assert!(report.first_mismatch.unwrap().contains("pixel 1"));
+        assert!(report
+            .first_mismatch
+            .unwrap()
+            .contains(&format!("pixel {extra_pixel}")));
     }
 
     #[test]
     fn complete_merge_detects_an_additional_pixel_key() {
         let mut canonical = PartitionShard::new("canonical", 128).unwrap();
-        canonical.admit(0, 1.0, 0.1, 0.0).unwrap();
+        canonical.admit(fixture_pos(0), 1.0, 0.1, 0.0).unwrap();
         let mut independent = canonical.clone();
         let mut extra = PartitionShard::new("extra", 128).unwrap();
-        extra.admit(1_u64 << 45, 2.0, 0.2, 0.0).unwrap();
-        independent
-            .pixels
-            .insert(1, extra.pixels.remove(&1).expect("extra pixel"));
+        extra
+            .admit(fixture_icrs_from_source_id(1_u64 << 45), 2.0, 0.2, 0.0)
+            .unwrap();
+        let extra_source_id = 1_u64 << 45;
+        let extra_pixel =
+            galactic_accumulation_pixel(fixture_icrs_from_source_id(extra_source_id), 128).unwrap();
+        independent.pixels.insert(
+            extra_pixel,
+            extra.pixels.remove(&extra_pixel).expect("extra pixel"),
+        );
 
         let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
         assert!(!report.stable);
@@ -2343,10 +2386,10 @@ mod tests {
     #[test]
     fn complete_merge_detects_source_counters_when_flux_matches() {
         let mut canonical = PartitionShard::new("canonical", 128).unwrap();
-        canonical.admit(0, 1.0, 0.0, 0.0).unwrap();
+        canonical.admit(fixture_pos(0), 1.0, 0.0, 0.0).unwrap();
         let mut independent = PartitionShard::new("independent", 128).unwrap();
-        independent.admit(0, 0.5, 0.0, 0.0).unwrap();
-        independent.admit(1, 0.5, 0.0, 0.0).unwrap();
+        independent.admit(fixture_pos(0), 0.5, 0.0, 0.0).unwrap();
+        independent.admit(fixture_pos(0), 0.5, 0.0, 0.0).unwrap();
 
         let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
         assert!(!report.stable);
@@ -2357,9 +2400,9 @@ mod tests {
     #[test]
     fn complete_merge_detects_uncertainty_differences() {
         let mut canonical = PartitionShard::new("canonical", 128).unwrap();
-        canonical.admit(0, 1.0, 0.1, 0.0).unwrap();
+        canonical.admit(fixture_pos(0), 1.0, 0.1, 0.0).unwrap();
         let mut independent = PartitionShard::new("independent", 128).unwrap();
-        independent.admit(0, 1.0, 0.2, 0.0).unwrap();
+        independent.admit(fixture_pos(0), 1.0, 0.2, 0.0).unwrap();
 
         let report = complete_deterministic_merge_report(&canonical, &independent).unwrap();
         assert!(!report.stable);
@@ -2370,7 +2413,7 @@ mod tests {
     #[test]
     fn complete_merge_detects_exclusion_reason_differences() {
         let mut canonical = PartitionShard::new("canonical", 128).unwrap();
-        canonical.exclude(0, "invalid_flux").unwrap();
+        canonical.exclude(fixture_pos(0), "invalid_flux").unwrap();
         let mut independent = canonical.clone();
         independent.exclusion_reasons.clear();
         independent

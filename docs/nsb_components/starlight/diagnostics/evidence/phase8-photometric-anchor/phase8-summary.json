@@ -1,0 +1,26 @@
+{
+  "phase": "phase8_post_fix_smoke",
+  "fix": "xp_anchored_photometric_artifact",
+  "photometric_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
+  "photometric_model_id": "gaia-dr3-photometric-logflux-xp-anchored-v1",
+  "workspace": "/mnt/beegfs/valles/nsb-data/starlight-smoke-fix116-photometric-anchor",
+  "partition_count": 48,
+  "neighbour_topology": "corrected_healpix_reference_nested_neighbours",
+  "before": {
+    "reference": "docs/nsb_components/starlight/diagnostics/evidence/phase0-baseline-smoke.json",
+    "anomalous_nside2_parents": [13, 24, 32, 33, 36, 37, 43],
+    "boundary_cross_internal_ratio": 1.7273,
+    "ablation_B_anomalous_parents": [13, 24, 32, 33, 36, 37, 43],
+    "ablation_B_boundary_ratio": 1.4369,
+    "ablation_A_boundary_ratio": 1.2354
+  },
+  "after": {
+    "anomalous_nside2_parents": [],
+    "boundary_cross_internal_ratio": 1.1508,
+    "ablation_B_anomalous_parents": [],
+    "ablation_B_boundary_ratio": 1.1183,
+    "ablation_A_boundary_ratio": 1.2354,
+    "global_median_flux_per_admitted": 8953.9
+  },
+  "production_gate_smoke": "passed"
+}

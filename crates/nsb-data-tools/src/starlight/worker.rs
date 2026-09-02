@@ -1,12 +1,16 @@
 //! Production processing for one immutable Gaia partition pair.
 
+pub(crate) mod gaia_source;
+pub(crate) mod processing;
+
+use self::gaia_source::{load_gaia_sources, GaiaSourceEntry};
+use self::processing::{population_branch_reason, scientific_exclusion_reason};
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
-use super::map::accumulator::{source_id_to_pixel, PartitionShard, UvCorrectionShardMetadata};
-use super::photometric::{
-    PhotometricCorrection, PhotometricFeatures, PopulationBranch, RouteDecision,
-};
+use super::healpix::{self};
+use super::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
+use super::photometric::{PhotometricCorrection, PhotometricFeatures, RouteDecision};
 use super::selection::SelectionCorrection;
 use super::sources::acquisition;
 use super::uv::{EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput};
@@ -16,14 +20,8 @@ use super::xp::{
 use crate::dataset::Artifact;
 use crate::platform::artifact_store;
 use anyhow::{bail, Context, Result};
-use csv::ReaderBuilder;
-use flate2::read::GzDecoder;
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::fs::File;
-use std::io::BufReader;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-
-const CSV_BUFFER_CAPACITY: usize = 1024 * 1024;
 
 // Lifecycle inputs and optional calibrators are resolved independently; grouping
 // them would obscure the borrowed process-wide artifact identities.
@@ -187,33 +185,37 @@ fn build_partition(
             .with_context(|| format!("invalid XP source_id {}", record.source_id))?;
         processed.insert(source_id);
         let Some(gaia_source) = gaia_sources.get(&source_id) else {
-            shard.exclude(source_id, "no_gaia_source_match")?;
+            // XP row without a matching GaiaSource row has no authoritative ICRS
+            // position; skip spatial exclusion rather than invent coordinates.
             continue;
         };
+        if let Some(reason) = scientific_exclusion_reason(gaia_source) {
+            exclude_gaia_source(&mut shard, gaia_source, reason)?;
+            continue;
+        }
         let product = match calibrator.calibrate(&record) {
             Ok(product) => product,
             Err(_) => {
-                shard.exclude(source_id, "calibration_failed")?;
+                exclude_gaia_source(&mut shard, gaia_source, "calibration_failed")?;
                 continue;
             }
         };
         let flux = match integrate_photon_flux(&product) {
             Ok(flux) if flux.is_finite() && flux > 0.0 => flux,
             _ => {
-                shard.exclude(source_id, "invalid_flux")?;
+                exclude_gaia_source(&mut shard, gaia_source, "invalid_flux")?;
                 continue;
             }
         };
         let statistical_uncertainty = match integrate_photon_flux_uncertainty(&product) {
             Ok(uncertainty) if uncertainty.is_finite() && uncertainty >= 0.0 => uncertainty,
             _ => {
-                shard.exclude(source_id, "invalid_uncertainty")?;
+                exclude_gaia_source(&mut shard, gaia_source, "invalid_uncertainty")?;
                 continue;
             }
         };
         if let Err(reason) = admit_weighted_source(
             &mut shard,
-            source_id,
             gaia_source,
             flux,
             statistical_uncertainty,
@@ -222,7 +224,7 @@ fn build_partition(
             ultraviolet_correction,
             selection_correction,
         ) {
-            shard.exclude(source_id, reason)?;
+            exclude_gaia_source(&mut shard, gaia_source, reason)?;
         }
     }
 
@@ -232,19 +234,13 @@ fn build_partition(
         .collect();
     remaining.sort_by_key(|(source_id, _)| *source_id);
     for (source_id, gaia_source) in remaining {
-        let source_id = *source_id;
-        if gaia_source.duplicated_source {
-            // Drop every row flagged as a Gaia duplicate. Uniqueness in the
-            // source map already keeps a single entry per source_id.
-            shard.exclude(source_id, "duplicated_source")?;
-            continue;
-        }
-        if gaia_source.in_qso_candidates || gaia_source.in_galaxy_candidates {
-            shard.exclude(source_id, "scientific_exclusion_nonstellar")?;
+        let _source_id = *source_id;
+        if let Some(reason) = scientific_exclusion_reason(gaia_source) {
+            exclude_gaia_source(&mut shard, gaia_source, reason)?;
             continue;
         }
         let Some(photometric) = photometric_correction else {
-            shard.exclude(source_id, "no_xp_spectrum")?;
+            exclude_gaia_source(&mut shard, gaia_source, "no_xp_spectrum")?;
             continue;
         };
         let route = match photometric.route_and_evaluate(PhotometricFeatures {
@@ -256,18 +252,17 @@ fn build_partition(
         }) {
             Ok(route) => route,
             Err(_) => {
-                shard.exclude(source_id, "photometric_evaluation_failed")?;
+                exclude_gaia_source(&mut shard, gaia_source, "photometric_evaluation_failed")?;
                 continue;
             }
         };
         let RouteDecision { branch, flux } = route;
         let Some(estimate) = flux else {
-            shard.exclude(source_id, population_branch_reason(branch))?;
+            exclude_gaia_source(&mut shard, gaia_source, population_branch_reason(branch))?;
             continue;
         };
         if let Err(reason) = admit_weighted_source(
             &mut shard,
-            source_id,
             gaia_source,
             estimate.flux_336_650_ph_m2_s,
             estimate.statistical_uncertainty_336_650_ph_m2_s,
@@ -276,7 +271,7 @@ fn build_partition(
             ultraviolet_correction,
             selection_correction,
         ) {
-            shard.exclude(source_id, reason)?;
+            exclude_gaia_source(&mut shard, gaia_source, reason)?;
         }
     }
 
@@ -301,7 +296,6 @@ fn build_partition(
 #[allow(clippy::too_many_arguments)]
 fn admit_weighted_source(
     shard: &mut PartitionShard,
-    source_id: u64,
     gaia_source: &GaiaSourceEntry,
     flux: f64,
     statistical: f64,
@@ -311,13 +305,18 @@ fn admit_weighted_source(
     selection_correction: Option<&SelectionCorrection>,
 ) -> Result<(), &'static str> {
     let (weight, selection_systematic_fraction) =
-        selection_weight(selection_correction, source_id, gaia_source)?;
+        selection_weight(selection_correction, gaia_source)?;
     let weighted_flux = weight * flux;
     let weighted_statistical = weight * statistical;
     let systematic = photometric_systematic.hypot(selection_systematic_fraction * weighted_flux);
     if product_band == StarlightProductBand::Measured336To650 {
         return shard
-            .admit(source_id, weighted_flux, weighted_statistical, systematic)
+            .admit(
+                gaia_source.icrs,
+                weighted_flux,
+                weighted_statistical,
+                systematic,
+            )
             .map_err(|_| "admission_failed");
     }
     let correction = ultraviolet_correction.ok_or("uv_correction_missing")?;
@@ -346,13 +345,20 @@ fn admit_weighted_source(
         .systematic_uncertainty_300_650_ph_m2_s
         .hypot(systematic);
     shard
-        .admit_corrected(source_id, &combined)
+        .admit_corrected(gaia_source.icrs, &combined)
         .map_err(|_| "admission_failed")
+}
+
+fn exclude_gaia_source(
+    shard: &mut PartitionShard,
+    gaia_source: &GaiaSourceEntry,
+    reason: &str,
+) -> Result<()> {
+    shard.exclude(gaia_source.icrs, reason)
 }
 
 fn selection_weight(
     selection: Option<&SelectionCorrection>,
-    source_id: u64,
     gaia_source: &GaiaSourceEntry,
 ) -> Result<(f64, f64), &'static str> {
     let Some(selection) = selection else {
@@ -361,8 +367,12 @@ fn selection_weight(
     let Some(g_mag) = gaia_source.phot_g_mean_mag else {
         return Err("selection_missing_g_magnitude");
     };
-    let healpix = source_id_to_pixel(source_id, selection.artifact().healpix_nside)
-        .map_err(|_| "selection_healpix_failed")?;
+    let healpix = healpix::icrs_equatorial_nested_pixel(
+        gaia_source.icrs.ra_deg,
+        gaia_source.icrs.dec_deg,
+        selection.artifact().healpix_nside,
+    )
+    .map_err(|_| "selection_healpix_failed")?;
     let evaluation = selection
         .evaluate(healpix, g_mag, gaia_source.bp_rp)
         .map_err(|_| "selection_evaluation_failed")?;
@@ -370,152 +380,6 @@ fn selection_weight(
         evaluation.weight,
         evaluation.systematic_uncertainty_fraction,
     ))
-}
-
-fn population_branch_reason(branch: PopulationBranch) -> &'static str {
-    match branch {
-        PopulationBranch::XpContinuous => "xp_continuous",
-        PopulationBranch::PhotometricGBpRp => "photometric_g_bp_rp",
-        PopulationBranch::PhotometricPartial => "photometric_partial",
-        PopulationBranch::PhotometricGOnly => "photometric_g_only",
-        PopulationBranch::NoUsablePhotometry => "no_usable_photometry",
-        PopulationBranch::ScientificExclusion => "scientific_exclusion",
-    }
-}
-
-#[derive(Debug)]
-struct GaiaSourceEntry {
-    phot_g_mean_mag: Option<f64>,
-    phot_bp_mean_mag: Option<f64>,
-    phot_rp_mean_mag: Option<f64>,
-    bp_rp: Option<f64>,
-    duplicated_source: bool,
-    in_qso_candidates: bool,
-    in_galaxy_candidates: bool,
-    predictors: Option<BTreeMap<String, f64>>,
-}
-
-fn load_gaia_sources(
-    path: &Path,
-    predictor_names: &[String],
-) -> Result<HashMap<u64, GaiaSourceEntry>> {
-    let decoder = GzDecoder::new(
-        File::open(path).with_context(|| format!("open GaiaSource object {}", path.display()))?,
-    );
-    let mut reader = ReaderBuilder::new()
-        .comment(Some(b'#'))
-        .buffer_capacity(CSV_BUFFER_CAPACITY)
-        .from_reader(BufReader::new(decoder));
-    let headers = reader.headers()?.clone();
-    let source_index = headers
-        .iter()
-        .position(|header| header.trim() == "source_id")
-        .context("GaiaSource partition has no source_id column")?;
-    let phot_g_index = optional_column(&headers, "phot_g_mean_mag");
-    let phot_bp_index = optional_column(&headers, "phot_bp_mean_mag");
-    let phot_rp_index = optional_column(&headers, "phot_rp_mean_mag");
-    let bp_rp_index = optional_column(&headers, "bp_rp");
-    let duplicated_index = optional_column(&headers, "duplicated_source");
-    let qso_index = optional_column(&headers, "in_qso_candidates");
-    let galaxy_index = optional_column(&headers, "in_galaxy_candidates");
-    let predictor_indexes = predictor_names
-        .iter()
-        .map(|name| {
-            headers
-                .iter()
-                .position(|header| header.trim() == name)
-                .with_context(|| format!("GaiaSource partition has no UV predictor column {name}"))
-        })
-        .collect::<Result<Vec<_>>>()?;
-    let mut source_ids = HashMap::new();
-    for (row_index, row) in reader.records().enumerate() {
-        let row = row.with_context(|| {
-            format!(
-                "read GaiaSource row {} from {}",
-                row_index + 2,
-                path.display()
-            )
-        })?;
-        let source_id = row
-            .get(source_index)
-            .context("GaiaSource row has no source_id field")?
-            .trim()
-            .parse::<u64>()
-            .context("GaiaSource source_id is not u64")?;
-        let predictors = predictor_names
-            .iter()
-            .zip(&predictor_indexes)
-            .map(|(name, index)| {
-                let value = row
-                    .get(*index)
-                    .context("GaiaSource row has no UV predictor field")?
-                    .trim()
-                    .parse::<f64>()
-                    .context("GaiaSource UV predictor is not numeric")?;
-                if !value.is_finite() {
-                    bail!("GaiaSource UV predictor is not finite");
-                }
-                Ok((name.clone(), value))
-            })
-            .collect::<Result<BTreeMap<_, _>>>()
-            .ok();
-        let entry = GaiaSourceEntry {
-            phot_g_mean_mag: optional_f64(&row, phot_g_index)?,
-            phot_bp_mean_mag: optional_f64(&row, phot_bp_index)?,
-            phot_rp_mean_mag: optional_f64(&row, phot_rp_index)?,
-            bp_rp: optional_f64(&row, bp_rp_index)?,
-            duplicated_source: optional_bool(&row, duplicated_index)?,
-            in_qso_candidates: optional_bool(&row, qso_index)?,
-            in_galaxy_candidates: optional_bool(&row, galaxy_index)?,
-            predictors,
-        };
-        if source_ids.insert(source_id, entry).is_some() {
-            bail!("GaiaSource partition contains duplicate source_id {source_id}");
-        }
-    }
-    Ok(source_ids)
-}
-
-fn optional_column(headers: &csv::StringRecord, name: &str) -> Option<usize> {
-    headers.iter().position(|header| header.trim() == name)
-}
-
-fn optional_f64(row: &csv::StringRecord, index: Option<usize>) -> Result<Option<f64>> {
-    let Some(index) = index else {
-        return Ok(None);
-    };
-    let raw = row
-        .get(index)
-        .context("GaiaSource row is missing an optional numeric field")?
-        .trim();
-    if raw.is_empty() || raw.eq_ignore_ascii_case("null") || raw == "nan" {
-        return Ok(None);
-    }
-    let value = raw
-        .parse::<f64>()
-        .with_context(|| format!("GaiaSource numeric field is invalid: {raw}"))?;
-    if !value.is_finite() {
-        return Ok(None);
-    }
-    Ok(Some(value))
-}
-
-fn optional_bool(row: &csv::StringRecord, index: Option<usize>) -> Result<bool> {
-    let Some(index) = index else {
-        return Ok(false);
-    };
-    let raw = row
-        .get(index)
-        .context("GaiaSource row is missing an optional boolean field")?
-        .trim();
-    if raw.is_empty() {
-        return Ok(false);
-    }
-    match raw.to_ascii_lowercase().as_str() {
-        "1" | "true" | "t" | "yes" => Ok(true),
-        "0" | "false" | "f" | "no" => Ok(false),
-        _ => bail!("GaiaSource boolean field is invalid: {raw}"),
-    }
 }
 
 fn workspace_roots(configured: &Path) -> (PathBuf, bool) {
@@ -574,8 +438,10 @@ mod tests {
         let source_id = oracle["source_id"].as_str().context("oracle source_id")?;
         let gaia_only_source_id = "999";
 
-        let gaia_bytes =
-            gzip_bytes(format!("source_id\n{source_id}\n{gaia_only_source_id}\n").as_bytes())?;
+        let gaia_bytes = gzip_bytes(
+            format!("source_id,ra,dec\n{source_id},45.0,20.0\n{gaia_only_source_id},50.0,10.0\n")
+                .as_bytes(),
+        )?;
         let correlations = vec![0.0; 55 * 54 / 2];
         let arrays = |name: &str| serde_json::to_string(&oracle[name]).unwrap();
         let mut xp_csv = csv::Writer::from_writer(Vec::new());
@@ -687,6 +553,111 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn xp_path_applies_same_scientific_exclusions_as_non_xp_path() -> Result<()> {
+        let temporary = tempfile::tempdir()?;
+        let workspace = temporary.path();
+        let partition = "000000-003111";
+        let oracle: Value = serde_json::from_slice(&fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/gaiaxpy_oracle/record-01.json"),
+        )?)?;
+        let source_id = oracle["source_id"].as_str().context("oracle source_id")?;
+        let gaia_bytes = gzip_bytes(
+            format!("source_id,ra,dec,in_galaxy_candidates\n{source_id},45.0,20.0,true\n")
+                .as_bytes(),
+        )?;
+        let correlations = vec![0.0; 55 * 54 / 2];
+        let arrays = |name: &str| serde_json::to_string(&oracle[name]).unwrap();
+        let mut xp_csv = csv::Writer::from_writer(Vec::new());
+        xp_csv.write_record([
+            "source_id",
+            "bp_n_parameters",
+            "bp_standard_deviation",
+            "rp_n_parameters",
+            "rp_standard_deviation",
+            "bp_coefficients",
+            "bp_coefficient_errors",
+            "bp_coefficient_correlations",
+            "rp_coefficients",
+            "rp_coefficient_errors",
+            "rp_coefficient_correlations",
+            "bp_n_relevant_bases",
+            "rp_n_relevant_bases",
+        ])?;
+        xp_csv.write_record([
+            source_id,
+            "55",
+            oracle["bp_standard_deviation"]
+                .as_f64()
+                .context("bp standard deviation")?
+                .to_string()
+                .as_str(),
+            "55",
+            oracle["rp_standard_deviation"]
+                .as_f64()
+                .context("rp standard deviation")?
+                .to_string()
+                .as_str(),
+            &arrays("bp_coefficients"),
+            &arrays("bp_coefficient_errors"),
+            &serde_json::to_string(&correlations)?,
+            &arrays("rp_coefficients"),
+            &arrays("rp_coefficient_errors"),
+            &serde_json::to_string(&correlations)?,
+            "55",
+            "55",
+        ])?;
+        let xp_bytes = gzip_bytes(&xp_csv.into_inner()?)?;
+        let products = vec![
+            product("gaia-source", "GaiaSource_"),
+            product("xp-continuous", "XpContinuousMeanSpectrum_"),
+        ];
+        install_object_and_receipt(
+            workspace,
+            &products[0],
+            partition,
+            &gaia_bytes,
+            "GaiaSource_000000-003111.csv.gz",
+        )?;
+        install_object_and_receipt(
+            workspace,
+            &products[1],
+            partition,
+            &xp_bytes,
+            "XpContinuousMeanSpectrum_000000-003111.csv.gz",
+        )?;
+        let artifacts = build_partitions(
+            workspace,
+            &products,
+            &[partition.to_string()],
+            1,
+            256,
+            StarlightProductBand::Measured336To650,
+            None,
+            None,
+            None,
+        )?;
+        let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
+        assert_eq!(
+            shard
+                .pixels
+                .values()
+                .map(|pixel| pixel.admitted_sources)
+                .sum::<u64>(),
+            0,
+            "galaxy candidates with XP must not be admitted"
+        );
+        assert_eq!(
+            shard
+                .exclusion_reasons
+                .get("scientific_exclusion_nonstellar")
+                .copied(),
+            Some(1)
+        );
+        Ok(())
+    }
+
     fn product(id: &str, prefix: &str) -> GaiaProductConfig {
         GaiaProductConfig {
             id: id.to_string(),
@@ -756,5 +727,25 @@ mod tests {
         let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
         encoder.write_all(bytes)?;
         Ok(encoder.finish()?)
+    }
+
+    #[test]
+    fn production_accumulation_uses_icrs_ra_dec_not_source_id_pixel() -> Result<()> {
+        use crate::starlight::healpix::{
+            gaia_source_id_equatorial_nested_pixel, galactic_nested_pixel_from_icrs_position,
+            legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,
+        };
+
+        let source_id = 4_295_806_660_u64;
+        let icrs = crate::starlight::healpix::fixture_icrs_from_source_id(source_id);
+        let production = galactic_nested_pixel_from_icrs_position(icrs.ra_deg, icrs.dec_deg, 128)?;
+        let legacy = legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(source_id, 128)?;
+        let equatorial = gaia_source_id_equatorial_nested_pixel(source_id, 128)?;
+        assert_ne!(
+            production, legacy,
+            "production Galactic pixel must not reuse equatorial source_id bit-shift"
+        );
+        assert_ne!(production, equatorial);
+        Ok(())
     }
 }

@@ -87,6 +87,7 @@ impl Starlight {
     }
 }
 
+#[cfg(not(nsb_bundled_production_starlight))]
 fn missing_bundled_production_asset() -> NsbError {
     NsbError::DataMissing {
         file: "data/manifest.toml",

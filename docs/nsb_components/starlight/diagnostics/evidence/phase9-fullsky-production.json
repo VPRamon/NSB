@@ -1,0 +1,485 @@
+{
+  "phase": "phase0_baseline",
+  "commit": "5856458",
+  "config_path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric/config.toml",
+  "config_sha256": "7d3bf1738be606e26d9b4daee96eccf777eaa175297016ab553893dd6a2de38d",
+  "workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric",
+  "partition_count": 48,
+  "partitions": [
+    "000000-003111",
+    "042767-043485",
+    "060161-060361",
+    "161703-163359",
+    "207630-207656",
+    "221397-221705",
+    "229744-229773",
+    "232829-232893",
+    "245830-245886",
+    "274603-277912",
+    "346274-346449",
+    "380498-380760",
+    "458058-458769",
+    "459641-459651",
+    "460583-460593",
+    "461835-461844",
+    "463353-463371",
+    "465209-465224",
+    "466830-466850",
+    "468191-468203",
+    "470760-470873",
+    "473993-474137",
+    "480077-480386",
+    "484790-484820",
+    "488426-488465",
+    "491480-491562",
+    "512147-512207",
+    "526200-527232",
+    "567099-570398",
+    "597435-597472",
+    "606444-606469",
+    "610680-610874",
+    "629319-629486",
+    "642710-643213",
+    "661759-661836",
+    "664490-664526",
+    "666378-666393",
+    "668221-668244",
+    "670863-670917",
+    "674361-674374",
+    "676303-676332",
+    "677864-677882",
+    "679973-680038",
+    "684301-684335",
+    "686934-687105",
+    "691303-691436",
+    "718778-720122",
+    "763561-763702"
+  ],
+  "selection_artifact_sha256": "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711",
+  "photometric_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
+  "uv_artifact_sha256": "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367",
+  "full_sky_anomalous_parents_reference": [
+    9,
+    11,
+    13,
+    25,
+    27,
+    32,
+    33,
+    37
+  ],
+  "anomaly_report": {
+    "nside": 128,
+    "parent_nside": 2,
+    "pixel_count": 196608,
+    "global_median_flux_per_admitted_source": 10723.4543457364,
+    "parent_cells": [
+      {
+        "parent": 0,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 228249817250.29865,
+        "admitted_sources": 49274415,
+        "excluded_sources": 4681440,
+        "median_flux_per_admitted_source": 5473.927739305091
+      },
+      {
+        "parent": 1,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 127438219150.95853,
+        "admitted_sources": 5896785,
+        "excluded_sources": 439842,
+        "median_flux_per_admitted_source": 14108.316398682327
+      },
+      {
+        "parent": 2,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 107642506367.90472,
+        "admitted_sources": 8576791,
+        "excluded_sources": 453033,
+        "median_flux_per_admitted_source": 8980.351399093659
+      },
+      {
+        "parent": 3,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 77318936020.83206,
+        "admitted_sources": 3055901,
+        "excluded_sources": 385572,
+        "median_flux_per_admitted_source": 13057.583673348443
+      },
+      {
+        "parent": 4,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 156664189784.49588,
+        "admitted_sources": 14075061,
+        "excluded_sources": 523229,
+        "median_flux_per_admitted_source": 10723.4543457364
+      },
+      {
+        "parent": 5,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 104543951881.8017,
+        "admitted_sources": 3476357,
+        "excluded_sources": 324724,
+        "median_flux_per_admitted_source": 18187.00901129584
+      },
+      {
+        "parent": 6,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 117460424757.96213,
+        "admitted_sources": 3934372,
+        "excluded_sources": 296894,
+        "median_flux_per_admitted_source": 18813.467351743187
+      },
+      {
+        "parent": 7,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 78956267793.85187,
+        "admitted_sources": 2184224,
+        "excluded_sources": 331704,
+        "median_flux_per_admitted_source": 17223.42009585526
+      },
+      {
+        "parent": 8,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 201568271890.22772,
+        "admitted_sources": 14222409,
+        "excluded_sources": 657819,
+        "median_flux_per_admitted_source": 12951.964682851929
+      },
+      {
+        "parent": 9,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 88060657254.97585,
+        "admitted_sources": 3864545,
+        "excluded_sources": 259992,
+        "median_flux_per_admitted_source": 14716.795817129172
+      },
+      {
+        "parent": 10,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 100759589209.28267,
+        "admitted_sources": 3446622,
+        "excluded_sources": 314881,
+        "median_flux_per_admitted_source": 18243.767006038026
+      },
+      {
+        "parent": 11,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 65640014545.19268,
+        "admitted_sources": 2151113,
+        "excluded_sources": 270768,
+        "median_flux_per_admitted_source": 15988.980287670307
+      },
+      {
+        "parent": 12,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 254149459045.97513,
+        "admitted_sources": 47684614,
+        "excluded_sources": 3806358,
+        "median_flux_per_admitted_source": 6033.561365638256
+      },
+      {
+        "parent": 13,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 100398689132.8243,
+        "admitted_sources": 8096202,
+        "excluded_sources": 332516,
+        "median_flux_per_admitted_source": 9263.62749650002
+      },
+      {
+        "parent": 14,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 101900334892.22086,
+        "admitted_sources": 6130574,
+        "excluded_sources": 386200,
+        "median_flux_per_admitted_source": 10700.697965200412
+      },
+      {
+        "parent": 15,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 74819472729.17863,
+        "admitted_sources": 3179733,
+        "excluded_sources": 357861,
+        "median_flux_per_admitted_source": 12665.473717198136
+      },
+      {
+        "parent": 16,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 369596247421.0142,
+        "admitted_sources": 112009492,
+        "excluded_sources": 53588668,
+        "median_flux_per_admitted_source": 4400.886574264527
+      },
+      {
+        "parent": 17,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 349590303120.4488,
+        "admitted_sources": 186009992,
+        "excluded_sources": 67790761,
+        "median_flux_per_admitted_source": 1710.3949844382093
+      },
+      {
+        "parent": 18,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 480535448286.56866,
+        "admitted_sources": 203288008,
+        "excluded_sources": 56599505,
+        "median_flux_per_admitted_source": 2184.190255073934
+      },
+      {
+        "parent": 19,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 192233422222.62238,
+        "admitted_sources": 89929646,
+        "excluded_sources": 29785681,
+        "median_flux_per_admitted_source": 2777.713148838984
+      },
+      {
+        "parent": 20,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 213932588062.28473,
+        "admitted_sources": 23939873,
+        "excluded_sources": 1118058,
+        "median_flux_per_admitted_source": 8899.820002021705
+      },
+      {
+        "parent": 21,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 317815724996.4153,
+        "admitted_sources": 50393535,
+        "excluded_sources": 2486696,
+        "median_flux_per_admitted_source": 5467.535724559028
+      },
+      {
+        "parent": 22,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 410215998911.5132,
+        "admitted_sources": 115064221,
+        "excluded_sources": 14089572,
+        "median_flux_per_admitted_source": 3867.862326065011
+      },
+      {
+        "parent": 23,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 219427501618.10233,
+        "admitted_sources": 21778734,
+        "excluded_sources": 900959,
+        "median_flux_per_admitted_source": 10276.071652736566
+      },
+      {
+        "parent": 24,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 146421011078.5186,
+        "admitted_sources": 11165669,
+        "excluded_sources": 367852,
+        "median_flux_per_admitted_source": 8588.168429321511
+      },
+      {
+        "parent": 25,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 313319016187.6994,
+        "admitted_sources": 30951693,
+        "excluded_sources": 1148356,
+        "median_flux_per_admitted_source": 8619.495637261358
+      },
+      {
+        "parent": 26,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 222688236215.07617,
+        "admitted_sources": 28867095,
+        "excluded_sources": 1028847,
+        "median_flux_per_admitted_source": 5830.519485338596
+      },
+      {
+        "parent": 27,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 173859015207.9556,
+        "admitted_sources": 12465670,
+        "excluded_sources": 480910,
+        "median_flux_per_admitted_source": 12524.538348124428
+      },
+      {
+        "parent": 28,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 265900778506.27924,
+        "admitted_sources": 30919606,
+        "excluded_sources": 2676168,
+        "median_flux_per_admitted_source": 9180.451115453394
+      },
+      {
+        "parent": 29,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 550092890929.9429,
+        "admitted_sources": 138677984,
+        "excluded_sources": 20853274,
+        "median_flux_per_admitted_source": 3847.936246456493
+      },
+      {
+        "parent": 30,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 411130104624.4382,
+        "admitted_sources": 52558426,
+        "excluded_sources": 2595877,
+        "median_flux_per_admitted_source": 6700.434937257827
+      },
+      {
+        "parent": 31,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 186899785916.29266,
+        "admitted_sources": 20390291,
+        "excluded_sources": 894823,
+        "median_flux_per_admitted_source": 8878.598403598939
+      },
+      {
+        "parent": 32,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 79186185775.59575,
+        "admitted_sources": 3057324,
+        "excluded_sources": 256291,
+        "median_flux_per_admitted_source": 14426.444439775285
+      },
+      {
+        "parent": 33,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 98779483446.78212,
+        "admitted_sources": 5823857,
+        "excluded_sources": 283851,
+        "median_flux_per_admitted_source": 11984.351790246983
+      },
+      {
+        "parent": 34,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 126216631342.64539,
+        "admitted_sources": 9341401,
+        "excluded_sources": 486306,
+        "median_flux_per_admitted_source": 10037.549761405291
+      },
+      {
+        "parent": 35,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 238370619220.42987,
+        "admitted_sources": 50530951,
+        "excluded_sources": 4831445,
+        "median_flux_per_admitted_source": 5873.034035154671
+      },
+      {
+        "parent": 36,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 73739952358.05559,
+        "admitted_sources": 2324084,
+        "excluded_sources": 277140,
+        "median_flux_per_admitted_source": 18052.557500921255
+      },
+      {
+        "parent": 37,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 86144635553.5489,
+        "admitted_sources": 3173841,
+        "excluded_sources": 182407,
+        "median_flux_per_admitted_source": 17261.36179799046
+      },
+      {
+        "parent": 38,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 98521814357.0212,
+        "admitted_sources": 4119159,
+        "excluded_sources": 281653,
+        "median_flux_per_admitted_source": 15805.941049313453
+      },
+      {
+        "parent": 39,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 203039030841.57678,
+        "admitted_sources": 14799928,
+        "excluded_sources": 561981,
+        "median_flux_per_admitted_source": 12443.735579824772
+      },
+      {
+        "parent": 40,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 76784491383.1095,
+        "admitted_sources": 2363749,
+        "excluded_sources": 294019,
+        "median_flux_per_admitted_source": 17463.94945132909
+      },
+      {
+        "parent": 41,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 122947667412.05994,
+        "admitted_sources": 4387800,
+        "excluded_sources": 335202,
+        "median_flux_per_admitted_source": 18459.595889337616
+      },
+      {
+        "parent": 42,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 103773279007.16171,
+        "admitted_sources": 3562869,
+        "excluded_sources": 264504,
+        "median_flux_per_admitted_source": 17393.293177217114
+      },
+      {
+        "parent": 43,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 220698080046.0803,
+        "admitted_sources": 16154971,
+        "excluded_sources": 739404,
+        "median_flux_per_admitted_source": 11047.669066746144
+      },
+      {
+        "parent": 44,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 87712599384.61842,
+        "admitted_sources": 3248156,
+        "excluded_sources": 343383,
+        "median_flux_per_admitted_source": 15053.59325717781
+      },
+      {
+        "parent": 45,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 133049856891.5721,
+        "admitted_sources": 9534221,
+        "excluded_sources": 491460,
+        "median_flux_per_admitted_source": 10479.40393704893
+      },
+      {
+        "parent": 46,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 132647308306.2483,
+        "admitted_sources": 20297155,
+        "excluded_sources": 6841398,
+        "median_flux_per_admitted_source": 11574.312708345535
+      },
+      {
+        "parent": 47,
+        "pixel_count": 4096,
+        "total_flux_ph_m2_s": 271930905592.85715,
+        "admitted_sources": 58422577,
+        "excluded_sources": 6208791,
+        "median_flux_per_admitted_source": 5594.6348875923395
+      }
+    ],
+    "anomalous_parents": []
+  },
+  "boundary_report": {
+    "parent_nside": 2,
+    "median_internal_log_jump": 0.22258922671871728,
+    "median_cross_parent_log_jump": 0.25614975457239986,
+    "cross_to_internal_ratio": 1.1507733700701182
+  },
+  "global_exclusion_reasons": {
+    "duplicated_source": 14011462,
+    "invalid_flux": 87812,
+    "invalid_uv_predictors": 263033147,
+    "no_usable_photometry": 5313965,
+    "scientific_exclusion_nonstellar": 10461599,
+    "selection_missing_g_magnitude": 90
+  },
+  "flux_metrics": {
+    "total_flux_ph_m2_s": 151740015029.3975,
+    "admitted_sources": 21581555,
+    "excluded_sources": 4043405,
+    "observed_sources": 25624960,
+    "global_median_flux_per_admitted": 10723.4543457364
+  }
+}

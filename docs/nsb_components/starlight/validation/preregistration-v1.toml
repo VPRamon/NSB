@@ -43,13 +43,13 @@ by this pipeline.
 map_path = "crates/nsb/data/starlight_nside128.csv"
 map_schema = "nsb-healpix-starlight-candidate-v5"
 # As of the UV v2 Ladon rebuild, `crates/nsb/data/manifest.toml` pins
-# sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
+# sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
 # for `starlight_nside128.csv`. Issue #94's invalidated checksum
 # 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
 # retained only as provenance. `dataset starlight validation run --candidate-map-sha256`
 # should be invoked with the pinned UV v2 digest.
 checksum_pinning_status = "pinned-uv-v2"
-checksum_note = "candidate sha256 5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563 (UV v2 Ladon rebuild). Pin the same digest via --candidate-map-sha256 on each run."
+checksum_note = "candidate sha256 76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a (UV v2 Ladon rebuild). Pin the same digest via --candidate-map-sha256 on each run."
 
 [tolerances]
 # Preregistered technical gates, copied verbatim from issue #87:

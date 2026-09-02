@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "description": "XP-scale validation cases anchored to flux_model(G,BP-RP) with zero point 1.4e4 ph/m\u00b2/s at G=15, BP-RP=0.8. Disjoint from photometric branch fitting partitions.",
+  "production_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
+  "fixture_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
+  "cases": [
+    {
+      "label": "bright_blue",
+      "phot_g_mean_mag": 5.0,
+      "phot_bp_mean_mag": 4.2,
+      "phot_rp_mean_mag": 5.8,
+      "bp_rp": -1.5,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 192365876.50175247
+    },
+    {
+      "label": "bright_solar",
+      "phot_g_mean_mag": 5.0,
+      "phot_bp_mean_mag": 5.3,
+      "phot_rp_mean_mag": 4.7,
+      "bp_rp": 0.0,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 156360854.68927857
+    },
+    {
+      "label": "bright_red",
+      "phot_g_mean_mag": 5.0,
+      "phot_bp_mean_mag": 6.0,
+      "phot_rp_mean_mag": 3.5,
+      "bp_rp": 2.5,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 110695007.91997543
+    },
+    {
+      "label": "g10_blue",
+      "phot_g_mean_mag": 10.0,
+      "phot_bp_mean_mag": 9.5,
+      "phot_rp_mean_mag": 10.8,
+      "bp_rp": -0.5,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 1675436.743830142
+    },
+    {
+      "label": "g10_solar",
+      "phot_g_mean_mag": 10.0,
+      "phot_bp_mean_mag": 10.3,
+      "phot_rp_mean_mag": 9.7,
+      "bp_rp": 0.0,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 1563608.5468927857
+    },
+    {
+      "label": "g10_red",
+      "phot_g_mean_mag": 10.0,
+      "phot_bp_mean_mag": 11.0,
+      "phot_rp_mean_mag": 8.8,
+      "bp_rp": 1.2,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 1324732.025912111
+    },
+    {
+      "label": "g15_anchor",
+      "phot_g_mean_mag": 15.0,
+      "phot_bp_mean_mag": 15.32,
+      "phot_rp_mean_mag": 14.48,
+      "bp_rp": 0.8,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 14000.0
+    },
+    {
+      "label": "g18_solar",
+      "phot_g_mean_mag": 18.0,
+      "phot_bp_mean_mag": 18.2,
+      "phot_rp_mean_mag": 17.6,
+      "bp_rp": 0.0,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 986.570296554006
+    },
+    {
+      "label": "g20_blue",
+      "phot_g_mean_mag": 20.0,
+      "phot_bp_mean_mag": 19.4,
+      "phot_rp_mean_mag": 20.6,
+      "bp_rp": -0.5,
+      "branch": "photometric_g_bp_rp",
+      "xp_flux_336_650_ph_m2_s": 167.54367438301412
+    },
+    {
+      "label": "partial_g18",
+      "phot_g_mean_mag": 18.0,
+      "phot_bp_mean_mag": null,
+      "phot_rp_mean_mag": 17.4,
+      "bp_rp": null,
+      "branch": "photometric_partial",
+      "xp_flux_336_650_ph_m2_s": 908.0882069675334
+    },
+    {
+      "label": "gonly_g17",
+      "phot_g_mean_mag": 17.0,
+      "phot_bp_mean_mag": null,
+      "phot_rp_mean_mag": null,
+      "bp_rp": null,
+      "branch": "photometric_g_only",
+      "xp_flux_336_650_ph_m2_s": 2218.8504694455587
+    }
+  ],
+  "thresholds": {
+    "median_abs_log10_ratio_max": 0.02,
+    "p95_abs_log10_ratio_max": 0.1,
+    "catastrophic_outlier_fraction_max": 0.0,
+    "catastrophic_abs_log10_ratio": 1.0
+  }
+}

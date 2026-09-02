@@ -209,6 +209,65 @@ enum StarlightAction {
     /// Verify a release-candidate manifest and both human decisions, pack a
     /// runtime map, and draft (or `--apply`) the production registry change (#102).
     Promote(PromoteArgs),
+    /// Issue #116 diagnostic baseline and ablation suite.
+    Diagnose(StarlightDiagnoseArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseArgs {
+    #[command(subcommand)]
+    command: StarlightDiagnoseCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum StarlightDiagnoseCommand {
+    /// Write a machine-readable Phase 0 baseline report from existing smoke shards.
+    Baseline(StarlightDiagnoseBaselineArgs),
+    /// Run Phases 1–6 diagnostic accounting and ablation on smoke partitions.
+    Suite(StarlightDiagnoseSuiteArgs),
+    /// Export a sparse candidate-v5 CSV from merged workspace shards.
+    ExportMap(StarlightDiagnoseExportMapArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseBaselineArgs {
+    #[arg(long)]
+    config: PathBuf,
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    repo_root: PathBuf,
+    #[arg(long)]
+    commit: String,
+    #[arg(long)]
+    output: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseSuiteArgs {
+    #[arg(long)]
+    config: PathBuf,
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    repo_root: PathBuf,
+    #[arg(long)]
+    commit: String,
+    #[arg(long)]
+    output_dir: PathBuf,
+    /// Override photometric artifact path (for ablation with legacy/miscalibrated models).
+    #[arg(long)]
+    photometric_artifact_path: Option<PathBuf>,
+    #[arg(long)]
+    photometric_artifact_sha256: Option<String>,
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseExportMapArgs {
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    output: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -557,6 +616,7 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
         StarlightAction::Validation(args) => return execute_starlight_validation(args),
         StarlightAction::Pack(args) => return pack_starlight(args),
         StarlightAction::Promote(args) => return promote(args),
+        StarlightAction::Diagnose(args) => return execute_starlight_diagnose(args),
     };
     dataset::execute(
         &common.config,
@@ -566,6 +626,81 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
         common.concurrency,
         &common.partitions,
     )
+}
+
+fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
+    match args.command {
+        StarlightDiagnoseCommand::Baseline(args) => {
+            let full_sky = [9_u32, 11, 13, 25, 27, 32, 33, 37];
+            let report = crate::starlight::diagnostics::write_baseline_report(
+                &args.repo_root,
+                &args.config,
+                &args.workspace,
+                &args.commit,
+                &args.output,
+                &full_sky,
+            )?;
+            println!(
+                "baseline written to {} (anomalous_parents={:?}, boundary_ratio={:.4})",
+                args.output.display(),
+                report.anomaly_report.anomalous_parents,
+                report.boundary_report.cross_to_internal_ratio
+            );
+            Ok(())
+        }
+        StarlightDiagnoseCommand::Suite(args) => {
+            let photometric_override = match (
+                args.photometric_artifact_path,
+                args.photometric_artifact_sha256,
+            ) {
+                (Some(path), Some(sha256)) => {
+                    Some(crate::starlight::diagnostics::PhotometricArtifactOverride {
+                        path,
+                        sha256,
+                    })
+                }
+                (None, None) => None,
+                _ => anyhow::bail!(
+                    "suite diagnose requires both --photometric-artifact-path and --photometric-artifact-sha256 when overriding"
+                ),
+            };
+            let report = crate::starlight::diagnostics::run_diagnostic_suite(
+                &args.repo_root,
+                &args.config,
+                &args.workspace,
+                &args.commit,
+                &args.output_dir,
+                photometric_override,
+            )?;
+            println!(
+                "diagnostic suite written to {}/diagnostic-suite.json",
+                args.output_dir.display()
+            );
+            println!("phase2_gate: {}", report.phase2_exclusion_gate);
+            println!("phase3_gate: {}", report.phase3_branch_gate);
+            println!("phase4_gate: {}", report.phase4_weighting_gate);
+            for stage in &report.ablation_stages {
+                println!(
+                    "  {} anomalous_parents={:?} boundary_ratio={:.4}",
+                    stage.stage,
+                    stage.anomaly_report.anomalous_parents,
+                    stage.boundary_report.cross_to_internal_ratio
+                );
+            }
+            Ok(())
+        }
+        StarlightDiagnoseCommand::ExportMap(args) => {
+            let sha256 = crate::starlight::diagnostics::export_workspace_candidate_map(
+                &args.workspace,
+                &args.output,
+            )?;
+            println!(
+                "candidate map written to {} (sha256={sha256})",
+                args.output.display()
+            );
+            Ok(())
+        }
+    }
 }
 
 fn execute_starlight_validation(args: StarlightValidationArgs) -> Result<()> {

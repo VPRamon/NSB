@@ -1,10 +1,10 @@
 schema_version = 1
-generated_at_unix_seconds = 1787573939
+generated_at_unix_seconds = 1788174212
 
 [[artifacts]]
 name = "preregistration-v1.toml"
 path = "docs/nsb_components/starlight/validation/preregistration-v1.toml"
-sha256 = "3fd2bd7bdc12136b2ff338041f2d27967ae8cc70a5936dcb548aca825feb0b39"
+sha256 = "b85c3e3e9bd1e5430393ff48f6dad45ddc2335d60e8c546998eba1b4715d0b50"
 bytes = 3670
 
 [[artifacts]]
@@ -22,23 +22,23 @@ bytes = 7129
 [[artifacts]]
 name = "candidate-map"
 path = "crates/nsb/data/starlight_nside128.csv"
-sha256 = "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563"
-bytes = 20394694
+sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+bytes = 20240461
 
 [[artifacts]]
 name = "validation-results-v1.json"
 path = "docs/nsb_components/starlight/validation/results/validation-results-v1.json"
-sha256 = "7ad6db10836e044bbf74202b3dbe9dd78aecd7e8c4ea2d6b182d147f3e9037c8"
+sha256 = "f2abbfac86d8f45550ea89e1c270890864cb86eddd1a57a73648413c5429bc77"
 bytes = 2689
 
 [[artifacts]]
 name = "validation-report-v1.md"
 path = "docs/nsb_components/starlight/validation/results/validation-report-v1.md"
-sha256 = "17e2e689534931a04d3614456455157b908d2da9743de9c5f820306871e339cb"
+sha256 = "9c320b42b5be25430ccee7933aa641d9c3f57aeae4724e0288a3df169a8c946d"
 bytes = 2314
 
 [[artifacts]]
 name = "validation-report-v1.html"
 path = "docs/nsb_components/starlight/validation/results/validation-report-v1.html"
-sha256 = "5eda03774784b77425ba8202795c44b67f3687fc47eff2c8bedc911780d97611"
+sha256 = "855edbfea50cabb8a8ef8066d06168fd550b488ac59b5f460013eeb23fd9695f"
 bytes = 1921

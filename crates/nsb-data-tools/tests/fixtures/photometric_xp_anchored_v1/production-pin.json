@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "production_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
+  "fixture_path": "crates/nsb-data-tools/tests/fixtures/photometric_xp_anchored_v1/artifact.json",
+  "fixture_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
+  "model_id": "gaia-dr3-photometric-logflux-xp-anchored-v1",
+  "calibration_status": "validated",
+  "notes": "Byte-identical copy of the Ladon smoke/production photometric artifact pinned by starlight-production-300-650.ladon.toml."
+}

@@ -1,0 +1,64 @@
+schema_version = 1
+calibration_status = "production"
+dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
+version = "uv-v2-packed-from-76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+generation_date = "2026-08-24T00:00:00Z"
+source_catalogue = "Gaia DR3 GaiaSource and XP continuous"
+source_catalogue_release = "Gaia DR3"
+source_catalogue_license = "CC BY-NC 3.0 IGO"
+source_catalogue_checksum = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+source_selection = "Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights"
+magnitude_limit = "Gaia DR3 catalogue as admitted by the frozen merge report"
+map_resolution = "HEALPix nside=128 ordering=ring"
+photometry_model = "gaia_dr3_xp_photon_radiance_300_650nm_packed_v1"
+band_definition = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
+smoothing = "none"
+generated_by = "nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-packed-v1)"
+generation_command = "nsb-data dataset starlight promote --apply"
+map_sha256 = "sha256:c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b"
+validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+independent_comparison = "no_admissible_independent_reference; human review #103"
+flux_conservation_validated = true
+input_integrated_flux_sum = 8.9627714159326666e-1
+integrated_flux_conservation_tolerance = 1e-12
+
+[source_candidate]
+sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+
+[[upstream_inputs]]
+id = "gaia-source"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+
+[[upstream_inputs]]
+id = "xp-continuous"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+
+[header]
+map_type = "healpix"
+coordinate_frame = "galactic"
+nside = "128"
+ordering = "ring"
+s10_diagnostics = "not_provided"
+dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
+version = "uv-v2-packed-from-76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+generation_date_utc = "2026-08-24T00:00:00Z"
+source_catalogue = "Gaia DR3 GaiaSource and XP continuous"
+source_catalogue_release = "Gaia DR3"
+source_catalogue_license = "CC BY-NC 3.0 IGO"
+source_catalogue_checksum = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+source_candidate_sha256 = "sha256:76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+gaia_source_checksum_manifest_sha256 = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+xp_continuous_checksum_manifest_sha256 = "sha256:f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+source_selection = "Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights"
+magnitude_limit = "Gaia DR3 catalogue as admitted by the frozen merge report"
+map_resolution = "HEALPix nside=128 ordering=ring"
+calibration_status = "production"
+photometry_model = "gaia_dr3_xp_photon_radiance_300_650nm_packed_v1"
+band_definition = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
+smoothing = "none"
+generated_by = "nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-packed-v1)"
+generation_command = "nsb-data dataset starlight promote --apply"
+validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+independent_comparison = "no_admissible_independent_reference; human review #103"
