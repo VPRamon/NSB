@@ -349,18 +349,22 @@ pub fn analyse_candidate_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::starlight::pack::{CANONICAL_CANDIDATE_SHA256, LEGACY_FRAME_BUG_CANDIDATE_SHA256};
+    use crate::starlight::pack::{
+        CANONICAL_CANDIDATE_SHA256, LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH,
+        LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256,
+    };
     use crate::starlight::validation::candidate_map::{CandidateMap, CandidatePixel};
 
     #[test]
     fn legacy_candidate_exhibits_six_nside2_anomalies() -> Result<()> {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let candidate = root.join(
-            "docs/nsb_components/starlight/diagnostics/fixtures/starlight_nside128_legacy_frame_bug.csv",
-        );
-        let report =
-            analyse_candidate_path(&candidate, 128, Some(LEGACY_FRAME_BUG_CANDIDATE_SHA256))?;
-        assert_eq!(report.pixel_count, 196_608);
+        let candidate = root.join(LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH);
+        let report = analyse_candidate_path(
+            &candidate,
+            128,
+            Some(LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256),
+        )?;
+        assert_eq!(report.pixel_count, 48);
         assert!(
             report.anomalous_parents.len() >= 6,
             "expected at least six anomalous NSIDE=2 parents, got {:?}",

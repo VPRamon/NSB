@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 pub const SMOKE_PARTITIONS_PATH: &str =
-    "docs/nsb_components/starlight/diagnostics/smoke-partitions-48.txt";
+    "crates/nsb-data-tools/config/starlight-smoke-partitions-48.txt";
 
 /// Frozen baseline metrics for a smoke workspace before further scientific changes.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
