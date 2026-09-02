@@ -730,22 +730,141 @@ mod tests {
     }
 
     #[test]
-    fn production_accumulation_uses_icrs_ra_dec_not_source_id_pixel() -> Result<()> {
+    fn production_partition_accumulates_source_in_galactic_pixel_not_legacy_source_id_pixel(
+    ) -> Result<()> {
         use crate::starlight::healpix::{
-            gaia_source_id_equatorial_nested_pixel, galactic_nested_pixel_from_icrs_position,
+            fixture_icrs_from_source_id, galactic_nested_pixel_from_icrs_position,
             legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,
         };
 
+        const CANONICAL_NSIDE: u32 = 128;
         let source_id = 4_295_806_660_u64;
-        let icrs = crate::starlight::healpix::fixture_icrs_from_source_id(source_id);
-        let production = galactic_nested_pixel_from_icrs_position(icrs.ra_deg, icrs.dec_deg, 128)?;
-        let legacy = legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(source_id, 128)?;
-        let equatorial = gaia_source_id_equatorial_nested_pixel(source_id, 128)?;
+        let icrs = fixture_icrs_from_source_id(source_id);
+        let expected_galactic =
+            galactic_nested_pixel_from_icrs_position(icrs.ra_deg, icrs.dec_deg, CANONICAL_NSIDE)?;
+        let legacy_pixel =
+            legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(source_id, CANONICAL_NSIDE)?;
         assert_ne!(
-            production, legacy,
-            "production Galactic pixel must not reuse equatorial source_id bit-shift"
+            expected_galactic, legacy_pixel,
+            "fixture must separate production Galactic pixel from legacy source_id pixel"
         );
-        assert_ne!(production, equatorial);
+
+        let temporary = tempfile::tempdir()?;
+        let workspace = temporary.path();
+        let partition = "000000-003111";
+        let oracle: Value = serde_json::from_slice(&fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/gaiaxpy_oracle/record-01.json"),
+        )?)?;
+        let gaia_bytes = gzip_bytes(
+            format!(
+                "source_id,ra,dec\n{source_id},{},{}\n",
+                icrs.ra_deg, icrs.dec_deg
+            )
+            .as_bytes(),
+        )?;
+        let correlations = vec![0.0; 55 * 54 / 2];
+        let arrays = |name: &str| serde_json::to_string(&oracle[name]).unwrap();
+        let mut xp_csv = csv::Writer::from_writer(Vec::new());
+        xp_csv.write_record([
+            "source_id",
+            "bp_n_parameters",
+            "bp_standard_deviation",
+            "rp_n_parameters",
+            "rp_standard_deviation",
+            "bp_coefficients",
+            "bp_coefficient_errors",
+            "bp_coefficient_correlations",
+            "rp_coefficients",
+            "rp_coefficient_errors",
+            "rp_coefficient_correlations",
+            "bp_n_relevant_bases",
+            "rp_n_relevant_bases",
+        ])?;
+        xp_csv.write_record([
+            &source_id.to_string(),
+            "55",
+            oracle["bp_standard_deviation"]
+                .as_f64()
+                .context("bp standard deviation")?
+                .to_string()
+                .as_str(),
+            "55",
+            oracle["rp_standard_deviation"]
+                .as_f64()
+                .context("rp standard deviation")?
+                .to_string()
+                .as_str(),
+            &arrays("bp_coefficients"),
+            &arrays("bp_coefficient_errors"),
+            &serde_json::to_string(&correlations)?,
+            &arrays("rp_coefficients"),
+            &arrays("rp_coefficient_errors"),
+            &serde_json::to_string(&correlations)?,
+            "55",
+            "55",
+        ])?;
+        let xp_bytes = gzip_bytes(&xp_csv.into_inner()?)?;
+
+        let products = vec![
+            product("gaia-source", "GaiaSource_"),
+            product("xp-continuous", "XpContinuousMeanSpectrum_"),
+        ];
+        install_object_and_receipt(
+            workspace,
+            &products[0],
+            partition,
+            &gaia_bytes,
+            "GaiaSource_000000-003111.csv.gz",
+        )?;
+        install_object_and_receipt(
+            workspace,
+            &products[1],
+            partition,
+            &xp_bytes,
+            "XpContinuousMeanSpectrum_000000-003111.csv.gz",
+        )?;
+
+        let artifacts = build_partitions(
+            workspace,
+            &products,
+            &[partition.to_string()],
+            1,
+            CANONICAL_NSIDE,
+            StarlightProductBand::Measured336To650,
+            None,
+            None,
+            None,
+        )?;
+        assert_eq!(artifacts.len(), 1);
+        let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
+        assert_eq!(shard.nside, CANONICAL_NSIDE);
+        assert_eq!(
+            shard
+                .pixels
+                .values()
+                .map(|pixel| pixel.admitted_sources)
+                .sum::<u64>(),
+            1,
+            "exactly one source must be admitted through the production XP path"
+        );
+        assert_eq!(
+            shard
+                .pixels
+                .get(&expected_galactic)
+                .map(|pixel| pixel.admitted_sources),
+            Some(1),
+            "production accumulation must land in the ICRS→Galactic pixel {expected_galactic}"
+        );
+        assert_eq!(
+            shard
+                .pixels
+                .get(&legacy_pixel)
+                .map(|pixel| pixel.admitted_sources)
+                .unwrap_or(0),
+            0,
+            "legacy source_id-derived pixel {legacy_pixel} must remain empty"
+        );
         Ok(())
     }
 }
