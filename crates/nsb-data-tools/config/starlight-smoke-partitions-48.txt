@@ -1,4 +1,4 @@
-# Pinned 48-partition Ladon smoke subset for issue #116 diagnostics.
+# Pinned 48-partition Ladon smoke subset for Starlight diagnostic baselines.
 # One partition per ~1/48 of the inventory (sorted partition_id, uniform stride).
 000000-003111
 042767-043485

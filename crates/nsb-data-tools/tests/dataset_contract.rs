@@ -123,14 +123,6 @@ fn no_tracked_python_or_shell_programs_exist() {
                 path.extension().and_then(|v| v.to_str()),
                 Some("py" | "sh" | "bash" | "ipynb")
             ) {
-                let allowed = path
-                    .components()
-                    .map(|c| c.as_os_str().to_string_lossy())
-                    .collect::<Vec<_>>()
-                    .join("/");
-                if allowed.contains("docs/nsb_components/starlight/diagnostics/") {
-                    continue;
-                }
                 found.push(path);
             }
         }

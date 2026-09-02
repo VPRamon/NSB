@@ -1,6 +1,6 @@
 # Provenance of existing starlight datasets
 
-Status: Historical provenance record.
+Status: Current provenance record.
 Audience: Maintainers, scientific reviewers, and users auditing bundled data.
 
 ## Active Gaia DR3 candidate
@@ -20,56 +20,16 @@ off-git. The candidate stays `calibration_status = "candidate"` and
 `runtime_embedded = false` until issue #103 signs and the promotion workflow
 registers the packed runtime map.
 
-### Historical nside-128 candidate (superseded)
+Full-sky production diagnostics frozen for #103 review live in
+`docs/nsb_components/starlight/release-candidate/fullsky-production-evidence-v1.json`.
+That file is intentionally outside the checksum-pinned `review-bundle-v1.toml`.
 
-The previous published candidate used SHA-256
-`4080ad95a057dda68ca89e48cdd32583829fc0ee2d58ba1398a6bd875fa70657` (merge
-`333ec450a9f38bb59e7cd832a622a66082962de51e90e65eaf9699529b2044e0`). That
-map integrated 336–650 nm without the UV-v2 correction.
+### Historical note
 
-The nside-128 scientific rows are identical to the artifact first published by
-commit `6e515a6e7dc01b37594a765021d415fd5f7e768a`. PR #77 added the v2 physical
-metadata. Issue #74 adds only the v3 sparse-representation headers and report
-cardinality fields; the Gaia production pipeline was not rerun for either
-metadata-only migration. The sparse file contains 196,604 strictly ordered
-rows in a 196,608-pixel domain. Its four omitted pixels have zero integrated
-flux and zero admitted/excluded source counts by contract.
-
-The retained report records 219,197,642 observed sources, 219,109,593 admitted
-sources, and 88,049 `invalid_flux` exclusions. Flux was integrated directly
-over 336–650 nm. No validated selection-function correction, faint-tail
-correction, or independently calibrated 300–336 nm correction was applied.
-The candidate remains `calibration_status = "candidate"` and
-`runtime_embedded = false`.
-
-The original lifecycle `run.json`, `validation.json`, normalized inventories,
-receipts, exact command, shard set, and site-local workspace were not retained.
-The checked-in v4 report therefore has integrity and explicit science-policy
-evidence but only the historical single-pixel deterministic reference. It is
-not retroactively presented as complete-map deterministic evidence. New clean
-runs use shard schema v3 and report schema v6, compare every pixel accumulator
-and exclusion counter, and retain equal dataset-wide digests before publication.
-
-## Retired derived artifacts
-
-The original publication also included three maps derived from nside 128:
-
-| Retired artifact | Historical role | Historical SHA-256 |
-| --- | --- | --- |
-| `starlight_nside64.csv` | NESTED downsample | `1cba5f154a801605d93f35501426c86e40bc120b620dc96f7f4372ff1ded3003` |
-| `starlight_nside256.csv` | Diagnostic nearest-neighbour upsample | `4c7d437994b7105415973b0e99ebb09812798323b13b7ae8952f6674685c8fad` |
-| `starlight_nside512.csv` | Diagnostic higher-grid upsample | `7da040ea844969f44062eb76c172e2df7f75645d3d98006931968be7bbbb53e8` |
-
-These files are no longer active assets. Nside 256 and 512 contained no
-independent source localization or scientific resolution, and the historical
-implementation copied integrated parent-pixel flux into every child. Issue #76
-superseded the repair direction in #72: derived maps are retired instead of
-being repaired and republished. The nside-512 Git LFS object remains only in
-repository history; normal checkouts and scientific CI no longer require it.
-
-Future nside 256 or 512 candidates must start from Gaia source-level
-contributions in a clean run. A resolution-selection study must compare such
-independently generated candidates and publish only the selected map.
+Earlier nside-128 candidates without the UV-v2 correction, derived nside 64/256/512
+maps, and pre-fix HEALPix frame bugs are superseded. Checksums, investigation
+reports, and intermediate evidence are preserved in Git history and closed
+issues/PRs (#72, #74, #76, #94, #116).
 
 ## Supported regeneration procedure
 

@@ -19,9 +19,13 @@ pub const PACKER_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
 pub const CANONICAL_CANDIDATE_SHA256: &str =
     "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a";
 
-/// Frozen legacy candidate that exhibited the issue #116 frame/coordinate bug.
-pub const LEGACY_FRAME_BUG_CANDIDATE_SHA256: &str =
-    "5946fa170b1be911b8996ac4a36200133743bac6ba39a1392358cd3007a91563";
+/// SHA-256 of the minimal HEALPix anomaly regression fixture used to verify
+/// issue #116 diagnostic detection without retaining the historical 20 MB map.
+pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256: &str =
+    "09cac5a58d0089529c8b8967cca02e893152cc51eeec0417864e8c04e9c0a1f0";
+/// Repository-relative path to the minimal regression fixture.
+pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH: &str =
+    "crates/nsb-data-tools/tests/fixtures/healpix_legacy_anomaly_regression.csv";
 /// Packed RING runtime map SHA-256 for the canonical nside=128 candidate
 /// after siderust NESTED→RING conversion **and** production admission CSV
 /// headers required by `ValidatedStarlightMap`. The same digest without those

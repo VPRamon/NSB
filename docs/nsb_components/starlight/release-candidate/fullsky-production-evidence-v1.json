@@ -1,4 +1,5 @@
 {
+  "schema_version": 1,
   "phase": "phase9_fullsky_production",
   "workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric",
   "partitions_built": 3386,

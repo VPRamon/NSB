@@ -7,7 +7,8 @@ use nsb_data_tools::starlight::{
     },
     pack::{
         pack_candidate_map, PackInputs, CANONICAL_CANDIDATE_SHA256,
-        LEGACY_FRAME_BUG_CANDIDATE_SHA256,
+        LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH,
+        LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256,
     },
     validation::candidate_map,
 };
@@ -197,13 +198,11 @@ fn gaia_source_id_equatorial_and_galactic_pixels_are_not_interchangeable() {
 #[test]
 fn legacy_candidate_nside2_anomaly_diagnostic_reproduces_issue_116() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let candidate_path = root.join(
-        "docs/nsb_components/starlight/diagnostics/fixtures/starlight_nside128_legacy_frame_bug.csv",
-    );
+    let candidate_path = root.join(LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH);
     let report = analyse_candidate_path(
         &candidate_path,
         NSIDE,
-        Some(LEGACY_FRAME_BUG_CANDIDATE_SHA256),
+        Some(LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256),
     )
     .unwrap();
     assert_eq!(report.anomalous_parents.len(), 6);
