@@ -1,8 +1,11 @@
 use super::calibration::{load_builtin_standard, AirglowContinuum};
-use super::continuum::{evaluate_continuum, evaluate_continuum_with_time_bin};
+use super::continuum::{
+    evaluate_continuum, evaluate_continuum_with_time_bin, AirglowEvaluationContext,
+};
 use super::geometry::target_altitude;
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
+use crate::components::moonlight::AtmosphericConditions;
 use crate::error::Result;
 use crate::site::SiteProfileId;
 use crate::units::ScaleFactors;
@@ -17,14 +20,19 @@ use tempoch::{Time, UTC};
 pub struct Airglow {
     location: Geodetic<ECEF>,
     continuum: Arc<AirglowContinuum>,
+    atmosphere: AtmosphericConditions,
     solar_radio_flux: SolarFluxUnits,
     scale: ScaleFactors,
 }
 
 impl Airglow {
     /// Build the generic clear-sky airglow model.
+    ///
+    /// Uses altitude-derived generic clear-sky [`AtmosphericConditions`] for the
+    /// Noll effective Rayleigh/Mie scattering stage.
     pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Self> {
-        Ok(Self::with_continuum(location, load_builtin_standard()?))
+        Ok(Self::with_continuum(location, load_builtin_standard()?)
+            .with_atmosphere(AtmosphericConditions::generic_clear_sky(location)))
     }
 
     /// Build an airglow model from a named NSB site profile.
@@ -36,10 +44,14 @@ impl Airglow {
     pub fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Result<Self> {
         let profile = site_profile.profile(location);
         Ok(Self::with_continuum(location, load_builtin_standard()?)
+            .with_atmosphere(profile.atmosphere)
             .with_scale(profile.airglow.scale))
     }
 
     /// Build an airglow model with caller-provided continuum calibration.
+    ///
+    /// Atmospheric scattering defaults to generic clear-sky conditions derived
+    /// from `location`. Override with [`Self::with_atmosphere`] when needed.
     pub fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {
         Self::with_shared_continuum(location, Arc::new(continuum))
     }
@@ -51,9 +63,16 @@ impl Airglow {
         Self {
             location,
             continuum,
+            atmosphere: AtmosphericConditions::generic_clear_sky(location),
             solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
             scale: ScaleFactors::new(1.0),
         }
+    }
+
+    /// Select atmospheric pressure/Rayleigh/Mie assumptions for Noll scattering.
+    pub fn with_atmosphere(mut self, atmosphere: AtmosphericConditions) -> Self {
+        self.atmosphere = atmosphere;
+        self
     }
 
     /// Set the F10.7 solar-radio-flux input.
@@ -83,10 +102,13 @@ impl Airglow {
         Ok(evaluate_continuum(
             &self.continuum,
             time,
-            self.location,
             altitude,
-            self.solar_radio_flux,
-            self.scale,
+            AirglowEvaluationContext {
+                location: self.location,
+                atmosphere: self.atmosphere,
+                solar_radio_flux: self.solar_radio_flux,
+                user_scale: self.scale,
+            },
         ))
     }
 
@@ -100,10 +122,13 @@ impl Airglow {
         Ok(evaluate_continuum_with_time_bin(
             &self.continuum,
             time,
-            self.location,
             altitude,
-            self.solar_radio_flux,
-            self.scale,
+            AirglowEvaluationContext {
+                location: self.location,
+                atmosphere: self.atmosphere,
+                solar_radio_flux: self.solar_radio_flux,
+                user_scale: self.scale,
+            },
             time_bin,
         ))
     }

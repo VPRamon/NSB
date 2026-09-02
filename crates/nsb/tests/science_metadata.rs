@@ -99,8 +99,22 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         airglow
             .metadata
             .validated_domain
+            .contains("Noll-2012 effective Rayleigh/Mie airglow scattering"),
+        "validated_domain must record applied Noll scattering stage"
+    );
+    assert!(
+        airglow
+            .metadata
+            .validated_domain
+            .contains("molecular atmospheric absorption"),
+        "validated_domain must record missing molecular absorption"
+    );
+    assert!(
+        !airglow
+            .metadata
+            .validated_domain
             .contains("does not apply the upstream Cerro Paranal atmospheric extinction"),
-        "validated_domain must record missing extinction so full SkyCalc parity cannot be claimed"
+        "validated_domain must not claim extinction is absent"
     );
     assert!(airglow
         .metadata
@@ -169,7 +183,7 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
 }
 
 #[test]
-fn airglow_values_do_not_change_between_neutral_scale_site_profiles() {
+fn airglow_site_profiles_differ_when_atmosphere_differs() {
     let observer = observatories::EL_PARANAL.geodetic();
     let time = parse_utc("2023-09-04T01:48:00Z");
     let target = sgr_a_star();
@@ -189,7 +203,7 @@ fn airglow_values_do_not_change_between_neutral_scale_site_profiles() {
         .find(|c| c.name == "airglow")
         .unwrap();
 
-    let cta_n = NsbEvaluator::with_config(nsb::NsbModelConfig::cta_n_planning())
+    let cta_s = NsbEvaluator::with_config(nsb::NsbModelConfig::cta_s_planning())
         .unwrap()
         .evaluate(&PointQuery {
             observer,
@@ -198,16 +212,16 @@ fn airglow_values_do_not_change_between_neutral_scale_site_profiles() {
             components: ComponentMask::AIRGLOW,
         })
         .unwrap();
-    let cta_n_airglow = cta_n
+    let cta_s_airglow = cta_s
         .components
         .iter()
         .find(|c| c.name == "airglow")
         .unwrap();
 
-    assert!((cta_n_airglow.integrated.value() - generic_airglow.integrated.value()).abs() < 1e-12);
-    assert_eq!(
-        cta_n_airglow.relative_uncertainty,
-        generic_airglow.relative_uncertainty
+    assert_ne!(
+        cta_s_airglow.integrated.value(),
+        generic_airglow.integrated.value(),
+        "CTAO-S Paranal-like atmosphere should differ from generic altitude-derived pressure"
     );
 }
 

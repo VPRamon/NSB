@@ -156,16 +156,22 @@ These coefficients are part of the Paranal-trained continuum model (Noll/SkyCalc
 
 Alternative vertical-emission geometry is tracked by #110 and is out of scope here.
 
-### 7) Site/profile scaling (separation boundary)
+### 7) Site/profile scaling and atmospheric scattering (separation boundary)
 7.1. Runtime radiance scaling is:
-`global_scale × solar_corr × seasonal_corr × Van Rhijn × user_scale`.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs`.
+`global_scale × solar_corr × seasonal_corr × Van Rhijn × Noll_scatter(λ) × user_scale`,
+where `Noll_scatter(λ)` is the wavelength-dependent Noll-2012 effective
+Rayleigh/Mie transmission applied spectrally before 300–650 nm integration.  
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs` and
+`crates/nsb/src/components/airglow/extinction.rs`.
 
-**No separate atmospheric extinction stage is applied** (see § Unapplied upstream extinction).
+Van Rhijn remains LOS/emitting-layer geometry only. Noll scattering is a separate
+atmospheric stage using `SiteProfile.atmosphere` pressure/Rayleigh/Mie inputs.
+Molecular atmospheric absorption from the full ASM/SkyCalc pipeline is still not
+reproduced (see § Remaining ASM gaps).
 
-7.2. `user_scale` is set from the active site profile (or caller scale).  
+7.2. `user_scale` and `profile.atmosphere` are set from the active site profile.  
 **Origin**: `crates/nsb/src/evaluator/core.rs::evaluate_airglow` calls:
-`Airglow::with_shared_continuum(...).with_scale(profile.airglow.scale)`
+`Airglow::with_shared_continuum(...).with_atmosphere(profile.atmosphere).with_scale(profile.airglow.scale)`
 
 7.3. Bundled Airglow profile scale provenance and calibration maturity are site-profile metadata.  
 **Origin**: `crates/nsb/src/site.rs::AirglowSiteCalibration`:
@@ -186,9 +192,9 @@ used to compute `integrated_relative_300_650`.
 8.2. Central diagnostic “B” and “V” wavelengths are hard-coded (445 and 551 nm).  
 **Origin**: `crates/nsb/src/components/airglow/continuum.rs::{B_FILTER,V_FILTER}`.
 
-8.3. Integrated result uses baseline shape × radiance scaling.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_time_bin`:
-`integrated = integrated_relative_300_650 * radiance_scale`
+8.3. Integrated result uses spectrally attenuated baseline shape × scalar radiance scaling.  
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs::integrate_attenuated_continuum`
+then `integrated = integrated_relative_attenuated * radiance_scale`.
 
 ### 9) Scientific metadata / provenance surface
 9.1. Airglow’s maturity classification in evaluator outputs is driven by `SiteProfileId`.  
@@ -256,7 +262,8 @@ The following list enumerates every scientific/default assumption used in the de
 | 40 | Astronomical-night bracketing search parameters (adaptive window) | (4) | `temporal.rs` search-radius constants |
 | 41 | Exact historical upstream file/release imported into NSB | (5) | not recorded in repo; lineage known (see § Baseline continuum audit) |
 | 42 | Upstream redistribution/license terms | (5) | `manifest.toml` `license` explicitly unresolved |
-| 43 | Upstream atmospheric extinction / effective airmass attenuation stage | **known unapplied limitation** (not category 5) | asset header lists “Additional corrections: airmass and extinction”; NSB does **not** apply a separate extinction stage (see below) |
+| 43 | Noll-2012 effective Rayleigh/Mie airglow scattering (wavelength-dependent) | (2)/(4) | `extinction.rs` + Siderust `rayleigh_optical_depth_bodhaine99` / `mie_optical_depth`; uses `profile.atmosphere` |
+| 44 | ASM molecular atmospheric absorption for airglow | **known unapplied limitation** | full Cerro Paranal ASM/SkyCalc molecular transmission dataset not bundled |
 
 Notes:
 - Category (2) for this asset means **Paranal-derived empirical model reused as a geographically generic planning proxy**, not “globally empirically calibrated”.
@@ -299,24 +306,33 @@ Notes:
 1. **Exact historical source file / SkyCalc or ASM release** that was originally imported into NSB is not recorded.
 2. **Upstream redistribution / license terms** are not established in the repository (`manifest.toml` records this explicitly). Do not invent a license.
 
-### Unapplied upstream extinction (known model limitation — not unresolved provenance)
+### Remaining ASM gaps (known model limitations — not unresolved provenance)
 
-Upstream Cerro Paranal Advanced Sky Model documentation applies additional airmass/extinction attenuation to airglow (effective extinction depending on zenith distance; Cerro Paranal extinction curve / scattering treatment — see ASM §§6.2.6–6.2.7).
+Upstream Cerro Paranal Advanced Sky Model documentation also applies molecular
+atmospheric absorption to airglow using a wavelength-dependent transmission
+dataset (ASM §§6.2.6–6.2.7). NSB does **not** reproduce that molecular stage.
 
-The bundled asset header likewise lists “Additional corrections: airmass and extinction” after the full template correction.
+**NSB Airglow now applies** (since #114):
+- Van Rhijn emitting-layer geometry (`siderust::atmosphere::van_rhijn_factor`)
+- Noll-2012 effective Rayleigh/Mie scattering using `SiteProfile.atmosphere`
+  pressure/Rayleigh/Mie assumptions and Siderust optical-depth kernels
 
-**NSB Airglow currently applies:**
-`global_scale × solar_corr × seasonal_corr × Van Rhijn × user_scale`
+**NSB Airglow stack:**
+`global_scale × solar_corr × seasonal_corr × Van Rhijn × Noll_scatter(λ) × user_scale`
 
-**NSB Airglow does not currently apply** a separate atmospheric extinction / effective-airmass attenuation stage from the upstream model.
+The Noll `f_R`/`f_M` fits were derived primarily for `z ≲ 60°` (Noll §4.1). NSB
+evaluates the same parametric form at larger zenith distances for numerical
+stability, but those results are extrapolations with weaker upstream validation.
 
 Therefore:
-- Van Rhijn ≠ extinction
-- Extinction must **not** be described as “might already be embedded” in a way that implies NSB has full upstream parity
-- This is a **known difference from the upstream Cerro Paranal model**, documented here and in runtime `validated_domain` metadata
-- Implementing a full extinction stage is intentionally out of scope for #108; see focused follow-up **#114** (linked from #112/#108).
+- Van Rhijn ≠ Noll scattering (separate modules and metadata)
+- Full SkyCalc/ASM numerical parity is **still not claimed** while molecular
+  absorption remains absent
+- Generic and CTAO planning profiles remain planning assumptions, not calibrated
 
-NSB must **not** claim SkyCalc/ASM numerical parity while this stage is absent.
+The bundled asset header still lists “Additional corrections: airmass and
+extinction”; NSB now implements the Rayleigh/Mie scattering portion of that
+correction. Molecular absorption remains an explicit documented gap.
 
 ### Spectral domain limitation (300–650 nm)
 
@@ -335,11 +351,8 @@ The Airglow default path uses three location-dependent computations:
 2. `season_bin(...)` uses caller longitude to compute local solar date/month.
 3. `time_of_night_bin(...)` uses caller location to compute astronomical night intervals via Siderust solar-altitude events.
 
-The Airglow evaluation does **not** use:
-- site pressure / Rayleigh scale height / aerosol Mie parameters
-- site atmosphere state as an Airglow extinction stage
-
-Those atmosphere fields are computed when building `SiteProfile` in `crates/nsb/src/site.rs`, but the Airglow evaluator multiplies only by `profile.airglow.scale` (currently neutral 1.0 for built-ins).
+The Airglow evaluation now uses `profile.atmosphere` for Noll Rayleigh/Mie
+scattering (`extinction.rs`) in addition to `profile.airglow.scale`.
 
 Therefore:
 - **Location is an input, not a whitelist.** Arbitrary valid terrestrial coordinates remain supported.
@@ -363,7 +376,7 @@ Key distinction: **geographically generic API ≠ globally calibrated scientific
 1. Keep the Paranal-derived continuum as the shared reference template for arbitrary locations.
 2. Label results as generic/planning (never site-calibrated merely because a named profile exists).
 3. Expose provenance: Paranal / Noll / SkyCalc lineage, checksum, schema, unresolved license/exact release.
-4. Document applicability limitations: UV-end weakness, missing upstream extinction stage, planning-proxy uncertainty.
+4. Document applicability limitations: UV-end weakness, missing ASM molecular absorption, planning-proxy uncertainty.
 5. Preserve architecture so #38 can add optional site calibration on top without changing location-as-input.
 
 Applicability domain (honest):
@@ -386,7 +399,8 @@ Applicability domain (honest):
 | CTAO remain planning presets | `CalibrationStatus::PlanningPreset`; not Calibrated |
 | Applicability domain | documented above |
 | 300–650 / UV-end limitations | documented; file header + FORS1 coverage |
-| Missing extinction | documented as unapplied upstream stage |
+| Noll Rayleigh/Mie scattering | implemented (#114); uses `profile.atmosphere` |
+| Missing molecular ASM absorption | documented as remaining upstream gap |
 | Uncertainty limitations | tabulated sigmas + UV-end/non-uniform evidence quality |
 | Recommended future path | replace/refine proxy with global/climatological baseline without changing location-as-input; #38 site calibration overlay |
 
@@ -394,13 +408,13 @@ Applicability domain (honest):
 - #109 (F10.7 resolver): Not modified; fixed F10.7 remains a convenience default until #109.
 - #110 (alternative geometry model): Not modified; Van Rhijn remains the current geometry; follow-up in #110.
 - #38 (CTAO scientific calibration): Not modified; CTAO remain planning presets.
-- Focused follow-up for **unapplied Airglow extinction / airmass attenuation**: #114 (linked from #112/#108; implementation intentionally deferred).
+- #114 (effective Rayleigh/Mie airglow scattering): Implemented; Van Rhijn remains separate geometry.
 
 ## Recommended remediation (Phase 1 — implemented)
 1. Reclassify outcome as **Option D** with Paranal-derived generic/planning-proxy semantics.
 2. Strengthen scientific asset registry provenance (KNOWN vs UNKNOWN; FORS1/Paranal/Noll/SkyCalc).
 3. Derive runtime Airglow scientific provenance from `assets::asset_registry()` (canonical `manifest.toml`).
-4. Document missing extinction and UV-end domain limitations in audit + metadata.
+4. Document Noll scattering, remaining molecular-absorption gap, and UV-end domain limitations in audit + metadata.
 5. Preserve / refine regression tests:
    - arbitrary Earth location uses generic path (no Paranal/CTAO required)
    - CTAO planning presets remain non-calibrated in metadata
@@ -408,4 +422,4 @@ Applicability domain (honest):
    - location-dependent quantities depend on caller location
    - named site choice does not alter baseline-only parameters when scale is neutral
    - daytime returns zero without false calibration claims
-   - metadata must not claim full upstream parity while extinction is absent
+   - metadata must not claim full upstream parity while molecular ASM absorption is absent

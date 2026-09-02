@@ -102,9 +102,14 @@ pub struct AirglowContinuum {
     pub n_season: usize,
     /// Number of time-of-night bins in the file.
     pub n_time: usize,
+    /// Unextincted integrated relative continuum over 300–650 nm (load-time reference).
+    #[allow(dead_code)]
     pub(crate) integrated_relative_300_650: f64,
+    #[allow(dead_code)]
     pub(crate) integrated_uncertainty_abs_300_650: f64,
+    #[allow(dead_code)]
     pub(crate) b_relative: f64,
+    #[allow(dead_code)]
     pub(crate) v_relative: f64,
 }
 

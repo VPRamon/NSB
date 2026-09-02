@@ -63,8 +63,9 @@ calibrated site model. That contract is unchanged:
 - **a measured F10.7 value does not make Airglow site-calibrated**.
 
 F10.7 resolution only replaces the previous single neutralizing default for
-automatic evaluations. Continuum geometry, extinction, and calibration maturity
-are out of scope here (#110 / #114 / #38 are intentionally not implemented).
+automatic evaluations. Continuum geometry (#110) and site calibration (#38) remain
+separate follow-ups. Effective Rayleigh/Mie airglow scattering is implemented in
+#114; molecular ASM absorption is not.
 
 ## Precedence (tested)
 
