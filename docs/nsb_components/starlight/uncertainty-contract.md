@@ -208,22 +208,14 @@ where `systematic_uncertainty_ph_m2_s` is itself
   by this contract — no per-source, per-pixel, or CSV-column representation
   changed.
 
-## Known defect corrected by issue #94
+## UV log-ratio floor contract
 
-The first Gaia DR3 combined 300–650 nm candidate (`7b375939…1319a`, PR #93)
-published relative uncertainties of order `10^12` because the UV log-ratio
-artifact `calspec-linear-log-ratio-v1` stored the absolute CALSPEC holdout RMSE
-(~`4×10^19` ph m⁻² s⁻¹) in `statistical_floor_ph_m2_s` and applied that floor
-to every Gaia source. With
-`systematic_correlation = fully-correlated-between-sources`, the absolute
-systematic floor (~`6×10^18`) then summed linearly across ~1.5×10⁹ admitted
-sources and dominated the map.
-
-**Correction:** log-ratio artifacts must set absolute floors to exactly `0` and
-encode residual/systematic floors as dimensionless
+Log-ratio UV artifacts (`NaturalLogUvToMeasuredFluxRatio`) must encode
+residual and systematic floors as dimensionless
 `statistical_floor_log_ratio` / `systematic_floor_log_ratio`, converted to flux
-units by the local Jacobian `F_UV`. The replacement artifact is
-`calspec-linear-log-ratio-v2` (SHA-256
+units by the local Jacobian `F_UV`. Absolute CALSPEC holdout RMSE values must
+not be copied into `statistical_floor_ph_m2_s` or `systematic_floor_ph_m2_s`.
+The current production artifact is `calspec-linear-log-ratio-v2` (SHA-256
 `5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367`).
-The previous candidate bytes are **invalidated** and must be regenerated; they
-also fail the new `uncertainty-scale-plausible` gate.
+Candidates that violate this contract fail the `uncertainty-scale-plausible`
+gate.
