@@ -7,6 +7,9 @@ use crate::starlight::config::StarlightProductBand;
 use crate::starlight::uncertainty::CorrelationScope;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
+use siderust::coordinates::frames::Galactic;
+use siderust::healpix::HealpixIndex;
+use siderust::qtty::Degrees;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
@@ -1778,9 +1781,12 @@ fn galactic_plane_coverage(path: &Path, nside: u32) -> Result<f64> {
         .collect::<BTreeSet<_>>();
     let mut plane_pixels = 0_u64;
     let mut covered = 0_u64;
-    let plane_sin_latitude_limit = 20_f64.to_radians().sin();
+    let plane_latitude_limit = Degrees::new(20.0);
+    let grid = crate::starlight::healpix::gaia_nested_grid(nside)?;
     for pixel in 0..12_u32 * nside * nside {
-        if nested_pixel_center_sin_latitude(nside, pixel).abs() < plane_sin_latitude_limit {
+        let direction =
+            grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(u64::from(pixel)))?;
+        if direction.b().abs() < plane_latitude_limit {
             plane_pixels += 1;
             if occupied.contains(&pixel) {
                 covered += 1;
@@ -1791,40 +1797,6 @@ fn galactic_plane_coverage(path: &Path, nside: u32) -> Result<f64> {
         bail!("HEALPix geometry produced no Galactic-plane pixels");
     }
     Ok(covered as f64 / plane_pixels as f64)
-}
-
-/// Return `sin(latitude)` for the centre of a NESTED HEALPix pixel.
-fn nested_pixel_center_sin_latitude(nside: u32, pixel: u32) -> f64 {
-    let grid = crate::starlight::healpix::gaia_nested_grid(nside).expect("validated nside");
-    debug_assert!(u64::from(pixel) < grid.npix());
-
-    const JRLL: [u32; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
-
-    let pixels_per_face = nside * nside;
-    let face = pixel / pixels_per_face;
-    let face_pixel = pixel % pixels_per_face;
-    let mut x = 0_u32;
-    let mut y = 0_u32;
-    let mut source_bit = 0_u32;
-    let mut coordinate_bit = 1_u32;
-    while coordinate_bit < nside {
-        x |= ((face_pixel >> source_bit) & 1) * coordinate_bit;
-        y |= ((face_pixel >> (source_bit + 1)) & 1) * coordinate_bit;
-        source_bit += 2;
-        coordinate_bit <<= 1;
-    }
-
-    let ring = i64::from(JRLL[face as usize] * nside) - i64::from(x) - i64::from(y) - 1;
-    let nside_i64 = i64::from(nside);
-    let nside_f64 = f64::from(nside);
-    if ring < nside_i64 {
-        1.0 - (ring * ring) as f64 / (3.0 * nside_f64 * nside_f64)
-    } else if ring > 3 * nside_i64 {
-        let south_ring = 4 * nside_i64 - ring;
-        -1.0 + (south_ring * south_ring) as f64 / (3.0 * nside_f64 * nside_f64)
-    } else {
-        (2 * nside_i64 - ring) as f64 * (2.0 / (3.0 * nside_f64))
-    }
 }
 
 #[cfg(test)]
@@ -2436,14 +2408,25 @@ mod tests {
 
     #[test]
     fn internal_nested_latitudes_cover_expected_pixels() {
-        let north = 2.0 / 3.0;
+        let grid = crate::starlight::healpix::gaia_nested_grid(1).unwrap();
         for pixel in 0..4 {
-            assert_eq!(nested_pixel_center_sin_latitude(1, pixel), north);
+            assert_eq!(
+                grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(u64::from(pixel)))
+                    .unwrap()
+                    .b()
+                    .value()
+                    .sin(),
+                2.0 / 3.0
+            );
         }
-        let plane_sin_latitude_limit = 20_f64.to_radians().sin();
+        let grid = crate::starlight::healpix::gaia_nested_grid(128).unwrap();
         let plane_pixels = (0..12_u32 * 128 * 128)
             .filter(|pixel| {
-                nested_pixel_center_sin_latitude(128, *pixel).abs() < plane_sin_latitude_limit
+                grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(u64::from(*pixel)))
+                    .unwrap()
+                    .b()
+                    .abs()
+                    < Degrees::new(20.0)
             })
             .count();
         assert_eq!(plane_pixels, 67_072);

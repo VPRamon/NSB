@@ -183,8 +183,15 @@ impl StarlightMap {
 
     /// Galactic longitude/latitude of a stored pixel centre.
     pub fn pixel_lon_lat_deg(&self, index: u64) -> Result<(f64, f64)> {
-        let direction = healpix_pixel_direction(self.grid(), HealpixIndex::new(index))?;
+        let direction = self.pixel_direction(HealpixIndex::new(index))?;
         Ok((direction.l().value(), direction.b().value()))
+    }
+
+    /// Galactic spherical direction of a stored pixel centre.
+    pub fn pixel_direction(&self, index: HealpixIndex) -> Result<SphericalDirection<Galactic>> {
+        self.grid()
+            .pixel_center_spherical(index)
+            .map_err(|err| invalid_map(err.to_string()))
     }
 
     /// Equal-area solid angle of every pixel on this map.
@@ -399,7 +406,9 @@ fn diagnostic_values(grid: HealpixGrid, pixels: &[StarlightPixel]) -> Result<(f6
     let mut low = Vec::new();
     let mut high = Vec::new();
     for (index, pixel) in pixels.iter().enumerate() {
-        let direction = healpix_pixel_direction(grid, HealpixIndex::new(index as u64))?;
+        let direction = grid
+            .pixel_center_spherical::<Galactic>(HealpixIndex::new(index as u64))
+            .map_err(|err| invalid_map(err.to_string()))?;
         let lon = direction.l();
         let lat = direction.b();
         let value = pixel.integrated.value();
@@ -543,16 +552,6 @@ fn parse_record_f64(record: &StringRecord, idx: usize, row: usize, name: &str) -
             file: "starlight map csv",
             message: format!("HEALPix CSV row {row} invalid {name}: {err}"),
         })
-}
-
-fn healpix_pixel_direction(
-    grid: HealpixGrid,
-    index: HealpixIndex,
-) -> Result<SphericalDirection<Galactic>> {
-    let direction: CartesianDirection<Galactic> = grid
-        .pixel_center(index)
-        .map_err(|err| invalid_map(err.to_string()))?;
-    Ok(SphericalDirection::<Galactic>::from_cartesian(&direction))
 }
 
 fn invalid_map(message: impl Into<String>) -> NsbError {

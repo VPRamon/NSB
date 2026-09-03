@@ -438,9 +438,9 @@ fn invalid(message: impl Into<String>) -> NsbError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use siderust::coordinates::cartesian::Direction;
     use siderust::coordinates::frames::Galactic;
     use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
+    use siderust::qtty::Degrees;
 
     fn fixture() -> (Vec<u8>, String) {
         let grid = HealpixGrid::new(Nside::new(8).unwrap(), HealpixOrdering::Ring).unwrap();
@@ -475,10 +475,16 @@ mod tests {
         ));
         let mut source_flux = 0.0;
         for index in 0..grid.npix() {
-            let direction: Direction<Galactic> =
-                grid.pixel_center(HealpixIndex::new(index)).unwrap();
-            let latitude = direction.as_array()[2].asin().to_degrees().abs();
-            let value = if latitude <= 10.0 { 2.0 } else { 1.0 };
+            let latitude = grid
+                .pixel_center_spherical::<Galactic>(HealpixIndex::new(index))
+                .unwrap()
+                .b()
+                .abs();
+            let value = if latitude <= Degrees::new(10.0) {
+                2.0
+            } else {
+                1.0
+            };
             source_flux += value * grid.pixel_area_sr();
             raw.push_str(&format!(
                 "{index},{value},{},{},{}\n",

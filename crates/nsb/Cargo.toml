@@ -18,7 +18,7 @@ name = "nsb"
 qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch  = "0.6"
 optica   = "0.2"
-siderust = { version = "0.11.0" , features = ["atmosphere", "photometry"] }
+siderust = { git = "https://github.com/Siderust/siderust", rev = "8cf28b0e9048f24fdacdb8cb99edccfad3dab458", features = ["atmosphere", "photometry"] }
 
 thiserror = "2.0"
 bitflags  = "2.13"

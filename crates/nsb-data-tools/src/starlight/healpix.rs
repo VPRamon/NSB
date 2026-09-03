@@ -240,59 +240,8 @@ where
     F: ReferenceFrame,
 {
     gaia_nested_grid(nside)?
-        .validate_index(HealpixIndex::new(ipnest))
-        .map_err(|error| {
-            anyhow::anyhow!("nested pixel {ipnest} is outside nside={nside}: {error}")
-        })?;
-    let nside = i64::from(nside);
-    const JRLL: [i64; 12] = [2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4];
-    const JPLL: [i64; 12] = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
-    let npface = nside * nside;
-    let ipnest = i64::try_from(ipnest).context("nested index fits i64")?;
-    let face = ipnest / npface;
-    let ipf = ipnest % npface;
-    let mut ix = 0i64;
-    let mut iy = 0i64;
-    for bit in 0..16 {
-        ix |= ((ipf >> (2 * bit)) & 1) << bit;
-        iy |= ((ipf >> (2 * bit + 1)) & 1) << bit;
-    }
-    let jr = JRLL[usize::try_from(face).expect("face fits")] * nside - ix - iy - 1;
-    let nl4 = 4 * nside;
-    let nside_f = nside as f64;
-    let fact1 = 1.0 / (1.5 * nside_f);
-    let fact2 = 1.0 / (3.0 * nside_f * nside_f);
-    let (nr, z, kshift) = if jr < nside {
-        let nr = jr;
-        (nr, 1.0 - (nr as f64) * (nr as f64) * fact2, 0)
-    } else if jr > 3 * nside {
-        let nr = nl4 - jr;
-        (nr, (nr as f64) * (nr as f64) * fact2 - 1.0, 0)
-    } else {
-        (nside, (2.0 * nside_f - jr as f64) * fact1, (jr - nside) & 1)
-    };
-    let mut jp = (JPLL[usize::try_from(face).expect("face fits")] * nr + ix - iy + 1 + kshift) / 2;
-    if jp > nl4 {
-        jp -= nl4;
-    }
-    if jp < 1 {
-        jp += nl4;
-    }
-    let phi = (jp as f64 - (kshift as f64 + 1.0) * 0.5) * std::f64::consts::FRAC_PI_2 / nr as f64;
-    let z = z.clamp(-1.0, 1.0);
-    let sin_theta = (1.0 - z * z).max(0.0).sqrt();
-    Ok(Direction::<F>::from_array([
-        sin_theta * phi.cos(),
-        sin_theta * phi.sin(),
-        z,
-    ]))
-}
-
-/// Angular separation in radians between two unit directions.
-pub fn angular_separation_rad<F: ReferenceFrame>(a: Direction<F>, b: Direction<F>) -> f64 {
-    let [ax, ay, az] = a.as_array();
-    let [bx, by, bz] = b.as_array();
-    (ax * bx + ay * by + az * bz).clamp(-1.0, 1.0).acos()
+        .pixel_center(HealpixIndex::new(ipnest))
+        .with_context(|| format!("nested pixel {ipnest} is outside nside={nside}"))
 }
 
 /// Convert nested index to RING at `nside` using the Galactic pixel-centre path.
@@ -444,7 +393,12 @@ mod tests {
         let nested_dir = nested_pixel_center::<Galactic>(128, nest)?;
         let ring_dir = galactic_ring_grid(128)?.pixel_center(HealpixIndex::new(ring))?;
         assert!(
-            angular_separation_rad(nested_dir, ring_dir) < 1.0e-7,
+            nested_dir
+                .to_spherical()
+                .angular_separation(&ring_dir.to_spherical())
+                .value()
+                .to_radians()
+                < 1.0e-7,
             "nested centre must match siderust RING centre"
         );
         Ok(())
