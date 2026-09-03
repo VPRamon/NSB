@@ -10,7 +10,7 @@ use tempoch::{Period, UTC};
 
 const POINT_SCHEMA_V3: &str = "nsb-cli-point-csv-v3";
 const POINT_SCHEMA_V4: &str = "nsb-cli-point-csv-v4";
-const WINDOW_SCHEMA_V2: &str = "nsb-cli-window-csv-v2";
+const WINDOW_SCHEMA_V3: &str = "nsb-cli-window-csv-v3";
 
 const AIRGLOW_GEOMETRY_COLUMNS: [&str; 17] = [
     "airglow_geometry_model",
@@ -161,6 +161,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
     let mut writer = csv::Writer::from_writer(std::io::stdout());
     let mut header = vec![
         "schema_version",
+        "record_type",
         "start_utc",
         "end_utc",
         "duration_seconds",
@@ -179,9 +180,27 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
         .descriptions
         .iter()
         .find_map(|description| description.metadata.airglow_geometry.as_ref());
+    let mut summary_row = vec![
+        WINDOW_SCHEMA_V3.to_string(),
+        "query_summary".to_string(),
+        format_utc(output.start),
+        format_utc(output.end),
+        duration_seconds(Period::new(output.start, output.end))
+            .map(|value| value.to_string())
+            .unwrap_or_default(),
+        component_names.clone(),
+        NSB_VERSION.to_string(),
+        MODEL_VERSION.to_string(),
+        SIDERUST_SOURCE.to_string(),
+        output.config.site_profile.as_str().to_string(),
+        assets.clone(),
+    ];
+    summary_row.extend(airglow_geometry_fields(geometry));
+    writer.write_record(summary_row)?;
     for period in output.periods {
         let mut row = vec![
-            WINDOW_SCHEMA_V2.to_string(),
+            WINDOW_SCHEMA_V3.to_string(),
+            "period".to_string(),
             format_utc(period.start),
             format_utc(period.end),
             duration_seconds(*period)

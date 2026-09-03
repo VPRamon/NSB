@@ -12,6 +12,26 @@ use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
 use siderust::qtty::{Degrees, Kilometers, Nanometers};
 use std::fs;
 
+const AIRGLOW_CSV_PROVENANCE_COLUMNS: [&str; 17] = [
+    "airglow_geometry_model",
+    "airglow_geometry_version",
+    "airglow_geometry_emission_height_km",
+    "airglow_profile_id",
+    "airglow_profile_schema_version",
+    "airglow_profile_checksum_sha256",
+    "airglow_profile_normalization",
+    "airglow_profile_altitude_min_km",
+    "airglow_profile_altitude_max_km",
+    "airglow_profile_wavelength_min_nm",
+    "airglow_profile_wavelength_max_nm",
+    "airglow_profile_wavelength_band",
+    "airglow_geometry_assumptions",
+    "airglow_profile_validated_zenith_min_deg",
+    "airglow_profile_validated_zenith_max_deg",
+    "airglow_geometry_provenance",
+    "airglow_profile_license",
+];
+
 fn synthetic_vertical_profile(id: &str, peak_emissivity: f64) -> VerticalEmissionProfile {
     VerticalEmissionProfile::new(VerticalEmissionProfileDefinition {
         schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
@@ -421,20 +441,140 @@ fn window_csv_preserves_selected_vertical_profile_identity() {
         .clone();
     let mut reader = csv::Reader::from_reader(output.as_slice());
     let headers = reader.headers().unwrap().clone();
-    let row = reader.records().next().unwrap().unwrap();
-    assert_eq!(row.get(0), Some("nsb-cli-window-csv-v2"));
+    let rows = reader.records().collect::<Result<Vec<_>, _>>().unwrap();
+    assert!(rows.len() >= 2);
+    assert_eq!(rows[0].get(0), Some("nsb-cli-window-csv-v3"));
     assert_eq!(
-        csv_value(&headers, &row, "airglow_geometry_model"),
+        csv_value(&headers, &rows[0], "record_type"),
+        "query_summary"
+    );
+    assert!(rows
+        .iter()
+        .skip(1)
+        .all(|row| csv_value(&headers, row, "record_type") == "period"));
+    for row in &rows {
+        assert_eq!(row.get(0), Some("nsb-cli-window-csv-v3"));
+        assert_eq!(
+            csv_value(&headers, row, "airglow_geometry_model"),
+            "vertical_profile"
+        );
+        assert_eq!(
+            csv_value(&headers, row, "airglow_profile_id"),
+            profile.profile_id()
+        );
+        assert_eq!(
+            csv_value(&headers, row, "airglow_profile_checksum_sha256"),
+            profile.checksum_sha256()
+        );
+    }
+}
+
+#[test]
+fn empty_window_csv_preserves_selected_vertical_profile_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    let profile = synthetic_vertical_profile("empty-window-csv-profile", 1.0);
+    let path = dir.path().join("empty-window-profile.toml");
+    fs::write(&path, profile.to_toml_string().unwrap()).unwrap();
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "csv",
+            "window",
+            "--start",
+            "2023-09-04T01:00:00Z",
+            "--end",
+            "2023-09-04T02:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--max-nsb",
+            "0",
+            "--step",
+            "3600",
+            "--no-pre-filter",
+            "--components",
+            "airglow",
+            "--airglow-vertical-profile",
+            path.to_str().unwrap(),
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let mut reader = csv::Reader::from_reader(output.as_slice());
+    let headers = reader.headers().unwrap().clone();
+    let rows = reader.records().collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(
+        rows.len(),
+        1,
+        "an empty result must contain only its summary"
+    );
+    let row = &rows[0];
+    assert_eq!(row.get(0), Some("nsb-cli-window-csv-v3"));
+    assert_eq!(csv_value(&headers, row, "record_type"), "query_summary");
+    assert_eq!(
+        csv_value(&headers, row, "airglow_geometry_model"),
         "vertical_profile"
     );
     assert_eq!(
-        csv_value(&headers, &row, "airglow_profile_id"),
+        csv_value(&headers, row, "airglow_profile_id"),
         profile.profile_id()
     );
     assert_eq!(
-        csv_value(&headers, &row, "airglow_profile_checksum_sha256"),
+        csv_value(&headers, row, "airglow_profile_checksum_sha256"),
         profile.checksum_sha256()
     );
+}
+
+#[test]
+fn non_airglow_empty_window_csv_does_not_expose_airglow_metadata() {
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    let output = cmd
+        .args([
+            "--format",
+            "csv",
+            "window",
+            "--start",
+            "2023-09-04T01:00:00Z",
+            "--end",
+            "2023-09-04T02:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--max-nsb",
+            "0",
+            "--step",
+            "3600",
+            "--no-pre-filter",
+            "--components",
+            "zodiacal",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let mut reader = csv::Reader::from_reader(output.as_slice());
+    let headers = reader.headers().unwrap().clone();
+    let rows = reader.records().collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(
+        rows.len(),
+        1,
+        "an empty result must contain only its summary"
+    );
+    let row = &rows[0];
+    assert_eq!(csv_value(&headers, row, "record_type"), "query_summary");
+    for column in AIRGLOW_CSV_PROVENANCE_COLUMNS {
+        assert_eq!(csv_value(&headers, row, column), "");
+    }
 }
 
 #[test]

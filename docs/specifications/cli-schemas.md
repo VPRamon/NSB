@@ -110,7 +110,7 @@ model_version,siderust_source,model_preset,asset_checksums
 This historical schema did not serialize structured Airglow geometry
 provenance and is no longer emitted.
 
-## Window CSV v2
+## Window CSV v2 (superseded)
 
 Identifier in every row: `nsb-cli-window-csv-v2`.
 
@@ -120,6 +120,31 @@ from the selected Airglow component description when Airglow is requested and
 remain blank when it is not. Consequently every emitted window period records
 the exact configured Van Rhijn implementation or checksum-pinned vertical
 profile that governed its Airglow evaluations.
+
+This historical schema emitted only period rows. A valid query returning zero
+periods therefore emitted only the header and could not preserve query-level
+model provenance. It is no longer emitted.
+
+## Window CSV v3
+
+Identifier in every row: `nsb-cli-window-csv-v3`.
+
+Window CSV v3 inserts `record_type` after `schema_version`; all remaining
+columns retain the window CSV v2 order and meaning. Every result starts with
+exactly one `query_summary` row followed by zero or more `period` rows:
+
+- A `query_summary` row records the requested `start_utc`, `end_utc`, and
+  `duration_seconds`, together with the selected components, version fields,
+  asset checksums, model preset, and applicable Airglow geometry/profile
+  provenance.
+- A `period` row represents one matching interval. Its fields are populated as
+  in window CSV v2, and its Airglow metadata repeats the query configuration for
+  row-local auditability.
+
+Consequently an empty result consists of the header plus its `query_summary`
+row; it does not invent a matching period. Airglow fields are populated only
+when Airglow was requested, including on empty results, and remain blank for
+non-Airglow queries.
 
 The `asset_checksums` field is a semicolon-separated `path=sha256` list. CSV
 quoting follows RFC 4180 through the Rust `csv` crate.
