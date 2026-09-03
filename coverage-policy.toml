@@ -19,7 +19,7 @@ lcov_artifact_name = "coverage-lcov"
 
 [baseline]
 # Updated after the LCOV-based gate lands; SHA must identify the measured tree.
-commit = ""'9d5f61ce15edd4e293d47928f9fdcb5090a94b9e'""
+commit = "9d5f61ce15edd4e293d47928f9fdcb5090a94b9e"
 date = "2026-09-03"
 rust_nightly = "1.100.0-nightly (5db7f4be8 2026-09-01)"
 rust_nightly_toolchain = "nightly-2026-09-02"
