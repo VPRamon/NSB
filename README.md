@@ -17,6 +17,7 @@ uncertainty where available.
 | [`nsb`](crates/nsb) | Typed scientific runtime library, component models, point evaluation, threshold-window search, runtime assets, and maturity metadata |
 | [`nsb-cli`](crates/nsb-cli) | Operational CLI, named site aliases, parsing, stable table/JSON/CSV output, and logging |
 | [`nsb-data-tools`](crates/nsb-data-tools) | Offline acquisition, transformation, validation, reconciliation, and packaging of scientific data products |
+| [`nsb-coverage-gate`](crates/nsb-coverage-gate) | Local overall and diff coverage checks used by CI |
 
 Runtime evaluation never downloads catalogues or invokes data-generation tools.
 Scientific assets are prepared offline, validated, checksum-pinned, registered in

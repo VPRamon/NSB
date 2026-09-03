@@ -23,7 +23,7 @@ scientific calibration evidence.
 - [ ] CTAO profiles remain uncalibrated unless dedicated validation data justify promotion.
 - [ ] B/V values remain labelled diagnostic unless passband validation lands.
 - [ ] Format, check, Clippy, unit tests, integration tests, doctests, docs, release build, MSRV, `cargo deny`, and the aggregate `CI success` gate pass.
-- [ ] The coverage summary and HTML artifact are reviewed and any material line-coverage regression is explained.
+- [ ] Coverage gates in [`coverage-policy.toml`](../../coverage-policy.toml) pass on `main`: workspace and `nsb` line floors are blocking, and the HTML/JSON artifacts remain available. Do not lower a floor merely to make a PR pass. See [Coverage policy](../developer-guide/coverage.md).
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
 - [ ] Scheduled/manual benchmarks compile and performance changes are summarized.
 - [ ] `CHANGELOG.md` and version constants are updated.

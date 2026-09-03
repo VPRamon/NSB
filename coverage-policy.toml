@@ -1,0 +1,53 @@
+# NSB coverage policy — single source of truth for CI-consumed thresholds.
+#
+# Do not lower floors merely to make a pull request pass. Raise them only after
+# a reproduced measurement on the intended base, with the command recorded below.
+# Function and region figures are diagnostic; only line floors are blocking.
+
+schema_version = 1
+
+# "provisional" until GitHub issues #122 (obsolete cleanup) and #123 (test-suite
+# audit) land. Re-measure and replace this file's baseline after those audits.
+baseline_kind = "provisional-pre-audit"
+
+html_artifact_name = "coverage-html"
+json_artifact_name = "coverage-json"
+cobertura_artifact_name = "coverage-cobertura"
+
+[baseline]
+commit = "0a191814dd9a8d5b941c4a7a098e3f08d1468f5a"
+date = "2026-09-03"
+rust_nightly = "1.100.0-nightly (2e2b193f8 2026-09-02)"
+cargo_llvm_cov = "0.9.0"
+command = "cargo +nightly llvm-cov --workspace --all-features --doctests --locked --no-report"
+
+[measured]
+workspace_lines = 79.92
+workspace_functions = 75.63
+workspace_regions = 78.77
+nsb_lines = 86.87
+nsb_functions = 86.99
+nsb_regions = 88.90
+nsb_cli_lines = 85.27
+nsb_cli_functions = 85.59
+nsb_cli_regions = 81.74
+nsb_data_tools_lines = 77.58
+nsb_data_tools_functions = 71.27
+nsb_data_tools_regions = 75.80
+
+# Blocking floors. About 1.4 percentage points below the reproduced line
+# coverage so immaterial nightly/llvm-cov reporting jitter does not fail CI.
+# Re-measure after #122/#123 rather than treating these as the final release
+# numbers.
+[floors]
+workspace_lines = 78.5
+nsb_lines = 85.5
+
+[diff]
+changed_production_lines = 90.0
+base_ref = "origin/main"
+
+# No filename or region exclusions are currently approved.
+[exclusions]
+files = []
+notes = "No coverage exclusions. Do not exclude a crate or production module to manufacture a passing percentage."
