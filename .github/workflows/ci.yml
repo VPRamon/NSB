@@ -223,6 +223,12 @@ jobs:
     name: Test and coverage
     if: ${{ github.event_name == 'push' || github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # Do not inherit workflow RUSTFLAGS=-D warnings: instrumented nightly
+    # builds emit long_running_const_eval while verifying bundled starlight
+    # checksums, which would abort llvm-cov collection.
+    env:
+      RUSTFLAGS: "-A long_running_const_eval"
     permissions:
       contents: read
       pull-requests: write
