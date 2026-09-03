@@ -72,12 +72,8 @@ fn north_pole_target() -> Target {
 }
 
 fn point_query(components: ComponentMask) -> PointQuery {
-    PointQuery {
-        observer: paranal(),
-        time: parse("2023-09-04T01:48:00Z"),
-        target: target_sgr_a(),
-        components,
-    }
+    PointQuery::new(paranal(), parse("2023-09-04T01:48:00Z"), target_sgr_a())
+        .with_components(components)
 }
 
 fn experimental_starlight_model() -> StarlightModel {
@@ -208,16 +204,16 @@ fn window_case(
     WindowBenchCase {
         label,
         days,
-        query: ThresholdQuery {
+        query: ThresholdQuery::new(
             observer,
             target,
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(0.21),
-            components,
-            sample_step: Second::new(600.0),
-            sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
-            target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
-        },
+            Period::new(start, end),
+            BandPhotonRadiance::new(0.21),
+        )
+        .with_components(components)
+        .with_sample_step(Second::new(600.0))
+        .with_sun_altitude_ceiling(Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING))
+        .with_target_altitude_floor(Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR)),
     }
 }
 
@@ -225,16 +221,16 @@ fn smoke_test() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse("2023-09-04T00:00:00Z");
     let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + chrono::Duration::hours(2));
-    let query = ThresholdQuery {
-        observer: paranal(),
-        target: target_sgr_a(),
-        window: Period::new(start, end),
-        threshold: BandPhotonRadiance::new(0.21),
-        components: ComponentMask::ALL,
-        sample_step: Second::new(3_600.0),
-        sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
-        target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
-    };
+    let query = ThresholdQuery::new(
+        paranal(),
+        target_sgr_a(),
+        Period::new(start, end),
+        BandPhotonRadiance::new(0.21),
+    )
+    .with_components(ComponentMask::ALL)
+    .with_sample_step(Second::new(3_600.0))
+    .with_sun_altitude_ceiling(Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING))
+    .with_target_altitude_floor(Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR));
     evaluator
         .periods_below_threshold(&query)
         .expect("window smoke");

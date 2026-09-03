@@ -14,7 +14,10 @@ use std::sync::Arc;
 use tempoch::{Time, UTC};
 
 /// How Airglow / the evaluator obtains F10.7.
+///
+/// Additional resolution sources may be added; match with a wildcard.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub enum SolarActivitySource {
     /// Caller-owned scalar override (highest precedence).
     Explicit(SolarFluxUnits),
@@ -46,6 +49,7 @@ impl PartialEq for SolarActivitySource {
 
 /// Resolved F10.7 value plus full provenance for scientific metadata.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct ResolvedSolarActivity {
     /// Flux applied to the airglow continuum correction.
     pub value: SolarFluxUnits,
@@ -228,7 +232,7 @@ fn from_evidence(
 }
 
 /// UTC calendar date for a `Time<UTC>`.
-pub fn utc_calendar_date(time: Time<UTC>) -> NaiveDate {
+pub(crate) fn utc_calendar_date(time: Time<UTC>) -> NaiveDate {
     time.to_chrono()
         .expect("F10.7 resolution requires a chrono-representable UTC instant")
         .date_naive()

@@ -675,16 +675,16 @@ mod tests {
         let evaluator = NsbEvaluator::new().unwrap();
         let start = parse("2023-09-04T02:00:00Z");
         let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + Duration::hours(4));
-        let query = ThresholdQuery {
-            observer: paranal(),
-            target: target_sgr_a(),
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(0.21),
-            components: ComponentMask::ZODIACAL,
-            sample_step: Second::new(1_800.0),
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        };
+        let query = ThresholdQuery::new(
+            paranal(),
+            target_sgr_a(),
+            Period::new(start, end),
+            BandPhotonRadiance::new(0.21),
+        )
+        .with_components(ComponentMask::ZODIACAL)
+        .with_sample_step(Second::new(1_800.0))
+        .with_sun_altitude_ceiling(None)
+        .with_target_altitude_floor(None);
 
         let adaptive = evaluator.periods_below_threshold(&query).unwrap();
         let scan = scan_threshold_periods(&evaluator, &query).unwrap();

@@ -53,6 +53,11 @@ pub type Target = SphericalDirection<EquatorialMeanJ2000>;
 
 #[derive(Debug, Clone)]
 /// Inputs for one point evaluation.
+///
+/// Construct with [`Self::new`] and [`Self::with_components`]. Fields remain
+/// readable for diagnostics; the struct is `#[non_exhaustive]` so new inputs can
+/// be added without breaking external struct literals.
+#[non_exhaustive]
 pub struct PointQuery {
     /// Ground observer.
     pub observer: Observer,
@@ -64,8 +69,31 @@ pub struct PointQuery {
     pub components: ComponentMask,
 }
 
+impl PointQuery {
+    /// Point evaluation of the production-safe default component set.
+    pub fn new(observer: Observer, time: Time<UTC>, target: Target) -> Self {
+        Self {
+            observer,
+            time,
+            target,
+            components: ComponentMask::ALL,
+        }
+    }
+
+    /// Restrict or expand the composed contributors.
+    pub fn with_components(mut self, components: ComponentMask) -> Self {
+        self.components = components;
+        self
+    }
+}
+
 #[derive(Debug, Clone)]
 /// Inputs for a below-threshold observing-window search.
+///
+/// Construct with [`Self::new`] and the `with_*` builders. The struct is
+/// `#[non_exhaustive]` so additional filters can be added without breaking
+/// external struct literals.
+#[non_exhaustive]
 pub struct ThresholdQuery {
     /// Ground observer.
     pub observer: Observer,
@@ -92,10 +120,54 @@ impl ThresholdQuery {
     pub const DEFAULT_SUN_ALTITUDE_CEILING: Degrees = Degrees::new(-18.0);
     /// Default target-above-horizon altitude floor.
     pub const DEFAULT_TARGET_ALTITUDE_FLOOR: Degrees = Degrees::new(0.0);
+
+    /// Window search with production-safe default components and night/horizon filters.
+    pub fn new(
+        observer: Observer,
+        target: Target,
+        window: Period<UTC>,
+        threshold: BandPhotonRadiance,
+    ) -> Self {
+        Self {
+            observer,
+            target,
+            window,
+            threshold,
+            components: ComponentMask::ALL,
+            sample_step: Self::DEFAULT_SAMPLE_STEP,
+            sun_altitude_ceiling: Some(Self::DEFAULT_SUN_ALTITUDE_CEILING),
+            target_altitude_floor: Some(Self::DEFAULT_TARGET_ALTITUDE_FLOOR),
+        }
+    }
+
+    /// Restrict or expand the composed contributors.
+    pub fn with_components(mut self, components: ComponentMask) -> Self {
+        self.components = components;
+        self
+    }
+
+    /// Replace the coarse radiance scan step.
+    pub fn with_sample_step(mut self, sample_step: Second) -> Self {
+        self.sample_step = sample_step;
+        self
+    }
+
+    /// Replace or clear the optional Sun-altitude pre-filter.
+    pub fn with_sun_altitude_ceiling(mut self, sun_altitude_ceiling: Option<Degrees>) -> Self {
+        self.sun_altitude_ceiling = sun_altitude_ceiling;
+        self
+    }
+
+    /// Replace or clear the optional target-altitude pre-filter.
+    pub fn with_target_altitude_floor(mut self, target_altitude_floor: Option<Degrees>) -> Self {
+        self.target_altitude_floor = target_altitude_floor;
+        self
+    }
 }
 
 #[derive(Debug, Clone)]
 /// One reported component contribution.
+#[non_exhaustive]
 pub struct NsbComponent {
     /// Stable component name.
     pub name: &'static str,
@@ -119,6 +191,7 @@ pub struct NsbComponent {
 
 /// Metadata-only description of a selected component.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct NsbComponentDescriptor {
     /// Stable component name.
     pub name: &'static str,
@@ -128,6 +201,7 @@ pub struct NsbComponentDescriptor {
 
 #[derive(Debug, Clone)]
 /// Complete result of one point evaluation.
+#[non_exhaustive]
 pub struct NsbResult {
     /// Sum of selected integrated radiances.
     pub integrated: BandPhotonRadiance,
@@ -143,6 +217,7 @@ pub struct NsbResult {
 
 #[derive(Debug, Clone)]
 /// Result of a below-threshold window search.
+#[non_exhaustive]
 pub struct ThresholdQueryResult {
     /// Threshold used by the search.
     pub threshold: BandPhotonRadiance,
@@ -152,6 +227,9 @@ pub struct ThresholdQueryResult {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Supported scattered-moonlight implementations.
+///
+/// Additional published implementations may be added; match with a wildcard.
+#[non_exhaustive]
 pub enum MoonlightModel {
     /// Published analytic V-band reference model.
     KrisciunasSchaefer1991,
@@ -171,6 +249,9 @@ impl MoonlightModel {
 
 #[derive(Debug, Clone)]
 /// Explicit starlight data-product selection.
+///
+/// Additional admission paths may be added; match with a wildcard.
+#[non_exhaustive]
 pub enum StarlightModel {
     /// Use the validated bundled Gaia DR3 XP-derived production map.
     BundledProductionGaiaDr3,
@@ -199,6 +280,12 @@ impl StarlightModel {
 
 #[derive(Debug, Clone)]
 /// Immutable model choices used to construct an evaluator.
+///
+/// Prefer [`Self::generic_clear_sky`] and the `with_*` builders. The struct is
+/// `#[non_exhaustive]` so new model choices can be added without breaking
+/// external struct literals. Public fields remain assignable for existing
+/// builder-style configuration.
+#[non_exhaustive]
 pub struct NsbModelConfig {
     /// Scattered-moonlight implementation.
     pub moonlight_model: MoonlightModel,

@@ -4,9 +4,9 @@ Status: Current source-module inventory.
 Audience: Developers and maintainers.
 Scope: Responsibility and ownership of crate-level modules and important internal module groups.
 
-This page maps source modules to their responsibility. Public API details remain
-in rustdoc; this reference explains where behaviour belongs and which boundaries
-must remain stable.
+This page maps source modules to their responsibility. Public API classification,
+SemVer policy, and the snapshot gate are documented in
+[Public API policy](public-api.md). Rustdoc remains the per-item reference.
 
 ## Workspace boundaries
 
@@ -28,7 +28,8 @@ must remain stable.
 | `error` | Public | `NsbError` and the crate-wide `Result` alias |
 | `evaluator` | Public | Evaluator construction, point queries, threshold queries, component selection, and result metadata |
 | `site` | Public | Generic and named planning profiles, atmospheric assumptions, airglow scaling, and calibration status |
-| `reference` | Internal | Shared immutable scientific reference inputs used by more than one component |
+| `site_calibration` | Public | Evidence contract for dedicated site-calibration assets |
+| `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
 | `spectrum` | Crate-private | Spectral integration and interpolation helpers |
 | `units` | Crate-private with selected re-exports | NSB-specific typed quantities and scale-factor aliases |
 | `window_search` | Internal | Adaptive interval scanning and threshold-crossing refinement |

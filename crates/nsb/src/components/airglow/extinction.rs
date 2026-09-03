@@ -62,7 +62,7 @@ use siderust::atmosphere::{mie_optical_depth, rayleigh_optical_depth_bodhaine99}
 use siderust::qtty::{Kilometers, Nanometers, OpticalDepths};
 
 /// Noll effective-extinction fit is calibrated primarily through this zenith angle.
-pub const NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG: f64 = 60.0;
+pub(crate) const NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG: f64 = 60.0;
 
 /// Coefficient in the Noll effective airglow airmass (Eq. 23).
 const AIRGLOW_AIRMASS_SIN2_COEFF: f64 = 0.972;
@@ -91,7 +91,7 @@ pub(crate) struct NollAirglowScatteringGeometry {
 
 /// Effective airglow airmass `X_ag` for zenith distance `z` (Noll Eq. 23).
 #[inline]
-pub fn effective_airglow_airmass(zenith: Degrees) -> f64 {
+pub(crate) fn effective_airglow_airmass(zenith: Degrees) -> f64 {
     let sin_z = zenith.to::<Radian>().value().sin();
     let denom = 1.0 - AIRGLOW_AIRMASS_SIN2_COEFF * sin_z * sin_z;
     if denom <= 0.0 {
@@ -102,7 +102,7 @@ pub fn effective_airglow_airmass(zenith: Degrees) -> f64 {
 
 /// Noll Rayleigh and Mie scattering multipliers for zenith distance `z`.
 #[inline]
-pub fn noll_scattering_factors(zenith: Degrees) -> (f64, f64) {
+pub(crate) fn noll_scattering_factors(zenith: Degrees) -> (f64, f64) {
     let x_ag = effective_airglow_airmass(zenith);
     let log_x = x_ag.log10();
     let f_rayleigh = F_RAYLEIGH_SLOPE * log_x + F_RAYLEIGH_INTERCEPT;
@@ -153,7 +153,8 @@ pub(crate) fn bodhaine_rayleigh_tau_sea_level(wavelength_um: f64) -> f64 {
 }
 
 /// Wavelength-dependent Noll effective airglow scattering transmission.
-pub fn spectral_airglow_scattering_transmission(
+#[cfg(test)]
+pub(crate) fn spectral_airglow_scattering_transmission(
     wavelength: Nanometers,
     zenith: Degrees,
     atmosphere: AtmosphericConditions,

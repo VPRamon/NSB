@@ -7,6 +7,14 @@ once a stable public release is cut.
 
 ### Changed
 
+- Froze the `nsb` first-release public API: classified supported surfaces,
+  hid implementation-only constants/helpers, added constructors for
+  `PointQuery`/`ThresholdQuery`, and marked evolvable structs/enums/`NsbError`
+  `#[non_exhaustive]`. CI now enforces a `cargo-public-api` snapshot and
+  SemVer diffs against `origin/main` (#121).
+- Merged Starlight build-time checksum verification so library/rustdoc builds
+  no longer pay siderust const-eval SHA-256 on the bundled map (#129).
+
 - Replaced single-pixel Starlight merge evidence with exact mergeable numeric
   accumulators, complete pixel/accounting comparison, and versioned dataset-wide
   deterministic digests (#73).

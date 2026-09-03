@@ -12,6 +12,9 @@ use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 /// Scientific calibration/maturity classification.
+///
+/// Additional maturity labels may be added; match with a wildcard.
+#[non_exhaustive]
 pub enum ComponentCalibrationStatus {
     /// Validated for its stated release domain.
     Production,
@@ -43,6 +46,7 @@ impl ComponentCalibrationStatus {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Meaning and zero point of reported B/V diagnostics.
+#[non_exhaustive]
 pub struct BandDiagnostic {
     /// Stable diagnostic convention identifier.
     pub convention: &'static str,
@@ -66,6 +70,7 @@ impl BandDiagnostic {
 
 #[derive(Debug, Clone, PartialEq)]
 /// Scientific interpretation attached to a component result.
+#[non_exhaustive]
 pub struct NsbComponentMetadata {
     /// Calibration/maturity classification.
     pub status: ComponentCalibrationStatus,

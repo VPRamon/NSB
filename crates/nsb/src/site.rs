@@ -13,7 +13,10 @@ use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Kilometer, Kilometers};
 
 /// Identifier for a built-in NSB site profile.
+///
+/// Additional named profiles may be added; match with a wildcard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SiteProfileId {
     /// Generic clear-sky fallback derived from the query observer altitude.
     GenericClearSky,
@@ -24,7 +27,10 @@ pub enum SiteProfileId {
 }
 
 /// Scientific maturity of a named site profile.
+///
+/// Additional maturity labels may be added; match with a wildcard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum CalibrationStatus {
     /// Generic, location-agnostic fallback; not a named-site calibration.
     GenericFallback,
@@ -36,6 +42,7 @@ pub enum CalibrationStatus {
 
 /// Airglow-side calibration assumptions associated with a site profile.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct AirglowSiteCalibration {
     /// Multiplicative scale applied to the bundled continuum template.
     pub scale: ScaleFactors,
@@ -70,6 +77,7 @@ impl AirglowSiteCalibration {
 
 /// Complete atmospheric and airglow assumptions for a built-in site profile.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct SiteProfile {
     /// Stable profile identifier.
     pub id: SiteProfileId,

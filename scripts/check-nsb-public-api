@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+# Public API snapshot and SemVer gate for crate `nsb`.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+SNAPSHOT="crates/nsb/api/public-api.txt"
+PUBLIC_API_VERSION="${NSB_PUBLIC_API_TOOL_VERSION:-0.50.1}"
+NIGHTLY="${NSB_PUBLIC_API_RUSTDOC_TOOLCHAIN:-nightly-2026-09-02}"
+WRITE=0
+BASE="${NSB_PUBLIC_API_BASE:-}"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") [--write] [--base REV]
+
+  --write     Regenerate $SNAPSHOT from the working tree (maintainer use).
+  --base REV  Merge-base or commit for historical diff (default: origin/main or HEAD~1).
+
+Environment:
+  NSB_PUBLIC_API_TOOL_VERSION       cargo-public-api pin (default: $PUBLIC_API_VERSION)
+  NSB_PUBLIC_API_RUSTDOC_TOOLCHAIN  nightly toolchain for rustdoc JSON (default: $NIGHTLY)
+  NSB_PUBLIC_API_BASE               override diff base revision
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --write) WRITE=1; shift ;;
+    --base)
+      BASE="${2:?--base requires a revision}"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [[ -z "$BASE" ]]; then
+  if git rev-parse --verify origin/main >/dev/null 2>&1; then
+    if git merge-base --is-ancestor origin/main HEAD 2>/dev/null; then
+      BASE="$(git merge-base HEAD origin/main)"
+    else
+      BASE="origin/main"
+    fi
+  else
+    BASE="HEAD~1"
+  fi
+fi
+
+ensure_toolchain() {
+  if ! rustup toolchain list | grep -q "${NIGHTLY}"; then
+    rustup toolchain install "$NIGHTLY" -c rust-src,rustfmt
+  fi
+}
+
+ensure_cargo_public_api() {
+  if ! command -v cargo-public-api >/dev/null 2>&1; then
+    cargo install cargo-public-api --locked --version "$PUBLIC_API_VERSION"
+  fi
+  installed="$(cargo public-api --version 2>/dev/null | awk '{print $2}')"
+  if [[ "$installed" != "$PUBLIC_API_VERSION" ]]; then
+    cargo install cargo-public-api --locked --version "$PUBLIC_API_VERSION" --force
+  fi
+}
+
+reject_removed_compat_apis() {
+  # Guard against deliberately removed compatibility-only symbols.
+  # Note: do not match generic `allow(dead_code)` — legitimate production code uses it.
+  if rg -n 'ALL_SUPPORTED|python_parity|periods_below_threshold_legacy|#\[deprecated' crates/*/src; then
+    echo 'removed or compatibility-only API found in production source' >&2
+    exit 1
+  fi
+}
+
+generate_snapshot() {
+  RUSTDOCFLAGS="${RUSTDOCFLAGS:-}" \
+    cargo +"$NIGHTLY" public-api -p nsb -sss --all-features --color=never
+}
+
+validate_snapshot_file() {
+  if [[ ! -s "$SNAPSHOT" ]]; then
+    echo "missing or empty public API snapshot: $SNAPSHOT" >&2
+    exit 1
+  fi
+  if ! grep -q 'pub ' "$SNAPSHOT"; then
+    echo "malformed public API snapshot (no exported items): $SNAPSHOT" >&2
+    exit 1
+  fi
+}
+
+check_snapshot_matches_head() {
+  local generated
+  generated="$(mktemp)"
+  trap 'rm -f "$generated"' RETURN
+  generate_snapshot >"$generated"
+  if ! diff -u "$SNAPSHOT" "$generated"; then
+    echo "public API snapshot drift: run scripts/check-nsb-public-api --write" >&2
+    exit 1
+  fi
+}
+
+check_historical_semver() {
+  if git cat-file -e "${BASE}:${SNAPSHOT}" 2>/dev/null; then
+    echo "SemVer gate: cargo public-api diff ${BASE}..HEAD (deny removed/changed)"
+    RUSTDOCFLAGS="${RUSTDOCFLAGS:-}" \
+      cargo +"$NIGHTLY" public-api diff "${BASE}..HEAD" -p nsb -sss --all-features \
+      --deny=removed --deny=changed --color=never
+  else
+    echo "SemVer gate: no snapshot at ${BASE}; bootstrap mode (snapshot match only)"
+  fi
+}
+
+reject_removed_compat_apis
+ensure_toolchain
+ensure_cargo_public_api
+
+if [[ "$WRITE" -eq 1 ]]; then
+  mkdir -p "$(dirname "$SNAPSHOT")"
+  generate_snapshot >"$SNAPSHOT"
+  echo "wrote $SNAPSHOT"
+  exit 0
+fi
+
+validate_snapshot_file
+check_snapshot_matches_head
+check_historical_semver
+
+echo "public API policy: OK"

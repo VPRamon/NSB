@@ -43,10 +43,11 @@ pub(crate) type SkyCalcSpectralPhotonRadiance =
     dimension = qtty::radiometry::SpectralRadiance,
     ratio = 1.0e6
 )]
-pub struct WattPerSquareMeterSteradianMicrometer;
+pub(crate) struct WattPerSquareMeterSteradianMicrometer;
 
 /// Spectral radiance in W m⁻² sr⁻¹ µm⁻¹.
-pub type WattsPerSquareMeterSteradianMicrometer = Quantity<WattPerSquareMeterSteradianMicrometer>;
+pub(crate) type WattsPerSquareMeterSteradianMicrometer =
+    Quantity<WattPerSquareMeterSteradianMicrometer>;
 
 /// Solar radio flux unit:
 /// 1 SFU = 10⁻²² W m⁻² Hz⁻¹.

@@ -8,12 +8,12 @@ fn main() -> nsb::Result<()> {
         .expect("valid example timestamp")
         .with_timezone(&Utc);
 
-    let query = PointQuery {
-        observer: observatories::EL_PARANAL.geodetic(),
-        time: Time::<UTC>::from_chrono(time),
-        target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-        components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
-    };
+    let query = PointQuery::new(
+        observatories::EL_PARANAL.geodetic(),
+        Time::<UTC>::from_chrono(time),
+        Target::new(266.41683 * DEG, -29.00781 * DEG),
+    )
+    .with_components(ComponentMask::ZODIACAL | ComponentMask::AIRGLOW);
 
     let result = NsbEvaluator::new()?.evaluate(&query)?;
 

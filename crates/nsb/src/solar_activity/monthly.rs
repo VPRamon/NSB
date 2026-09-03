@@ -65,7 +65,7 @@ pub struct MonthlyF107Evidence {
 }
 
 /// Inclusive calendar-month bounds for `date`.
-pub fn month_bounds_for(date: NaiveDate) -> (NaiveDate, NaiveDate) {
+pub(crate) fn month_bounds_for(date: NaiveDate) -> (NaiveDate, NaiveDate) {
     let start = NaiveDate::from_ymd_opt(date.year(), date.month(), 1).expect("valid month start");
     let end = if date.month() == 12 {
         NaiveDate::from_ymd_opt(date.year() + 1, 1, 1)
@@ -78,7 +78,7 @@ pub fn month_bounds_for(date: NaiveDate) -> (NaiveDate, NaiveDate) {
 }
 
 /// Number of calendar days in the month containing `date`.
-pub fn days_in_month(date: NaiveDate) -> u32 {
+pub(crate) fn days_in_month(date: NaiveDate) -> u32 {
     let (start, end) = month_bounds_for(date);
     (end - start).num_days() as u32 + 1
 }
@@ -90,7 +90,10 @@ pub fn days_in_month(date: NaiveDate) -> u32 {
 /// - cadence is monthly observed;
 /// - product is the finalized SWPC monthly index (not month-to-date / provisional);
 /// - its last calendar day is strictly before `evidence_as_of`.
-pub fn is_finalized_monthly_observation(record: &F107Record, evidence_as_of: NaiveDate) -> bool {
+pub(crate) fn is_finalized_monthly_observation(
+    record: &F107Record,
+    evidence_as_of: NaiveDate,
+) -> bool {
     if record.kind != F107Kind::Observed {
         return false;
     }

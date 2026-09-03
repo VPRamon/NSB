@@ -37,17 +37,12 @@ mod units;
 
 pub(crate) use calibration::load_builtin_standard;
 pub use calibration::AirglowContinuum;
-pub use extinction::{
-    effective_airglow_airmass, noll_scattering_factors, spectral_airglow_scattering_transmission,
-    NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
-};
+pub(crate) use extinction::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
 pub use geometry::{
     AirglowGeometryMetadata, AirglowGeometryModel, AirglowWavelengthApplicability,
     ValidatedZenithDomain, VanRhijnConfig, VerticalEmissionProfile,
     VerticalEmissionProfileDefinition, VerticalEmissionProfileError, VerticalProfileNormalization,
-    AIRGLOW_MEAN_EARTH_RADIUS_KM, DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM,
-    VAN_RHIJN_IMPLEMENTATION_VERSION, VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
-    VERTICAL_PROFILE_INTEGRATOR_VERSION, VERTICAL_PROFILE_REFERENCE_SUBSTEPS,
+    DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM, VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
 pub use model::Airglow;
 pub use output::AirglowOutputs;

@@ -120,12 +120,10 @@ fn production_all_matches_reference_envelopes() {
 
     for case in cases {
         let result = evaluator
-            .evaluate(&PointQuery {
-                observer: ctao_s(),
-                time: parse(case.time),
-                target: case.target,
-                components: case.components,
-            })
+            .evaluate(
+                &PointQuery::new(ctao_s(), parse(case.time), case.target)
+                    .with_components(case.components),
+            )
             .unwrap_or_else(|err| panic!("{} failed: {err}", case.name));
 
         let integrated = result.integrated.value();
@@ -172,12 +170,10 @@ fn explicit_starlight_with_fixture_preserves_galactic_contrast() {
 
     let evaluate = |target| {
         evaluator
-            .evaluate(&PointQuery {
-                observer: ctao_s(),
-                time: parse("2023-09-04T01:48:00Z"),
-                target,
-                components: ComponentMask::ALL | ComponentMask::STARLIGHT,
-            })
+            .evaluate(
+                &PointQuery::new(ctao_s(), parse("2023-09-04T01:48:00Z"), target)
+                    .with_components(ComponentMask::ALL | ComponentMask::STARLIGHT),
+            )
             .expect("all-supported point query")
     };
 
@@ -246,16 +242,13 @@ fn threshold_windows_match_independent_sampled_curve() {
 
     let threshold = BandPhotonRadiance::new(0.5 * (min + max));
     let result = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer,
-            target,
-            window: Period::new(start, end),
-            threshold,
-            components: ComponentMask::AIRGLOW,
-            sample_step: Second::new(3_600.0),
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
+        .periods_below_threshold(
+            &ThresholdQuery::new(observer, target, Period::new(start, end), threshold)
+                .with_components(ComponentMask::AIRGLOW)
+                .with_sample_step(Second::new(3_600.0))
+                .with_sun_altitude_ceiling(None)
+                .with_target_altitude_floor(None),
+        )
         .expect("threshold query");
 
     let mut saw_below = false;
@@ -288,16 +281,16 @@ fn unrestrictive_threshold_windows_match_independent_observability_intervals() {
     let target = sgr_a_star();
     let start = parse("2023-09-04T00:00:00Z");
     let end = parse("2023-09-05T00:00:00Z");
-    let query = ThresholdQuery {
+    let query = ThresholdQuery::new(
         observer,
         target,
-        window: Period::new(start, end),
-        threshold: BandPhotonRadiance::new(1.0e12),
-        components: ComponentMask::AIRGLOW,
-        sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
-        sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
-        target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
-    };
+        Period::new(start, end),
+        BandPhotonRadiance::new(1.0e12),
+    )
+    .with_components(ComponentMask::AIRGLOW)
+    .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
+    .with_sun_altitude_ceiling(Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING))
+    .with_target_altitude_floor(Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR));
 
     let actual = evaluator
         .periods_below_threshold(&query)
@@ -345,12 +338,7 @@ fn sampled_curve(
     while t < end {
         let time = Time::<UTC>::from_chrono(t);
         let value = evaluator
-            .evaluate(&PointQuery {
-                observer,
-                time,
-                target,
-                components,
-            })
+            .evaluate(&PointQuery::new(observer, time, target).with_components(components))
             .expect("sampled point query")
             .integrated
             .value();

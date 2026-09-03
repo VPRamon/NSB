@@ -176,20 +176,28 @@ jobs:
         run: cargo build --workspace --release --all-features --locked
 
   api_policy:
-    name: Production API policy
+    name: Public API policy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout without Git LFS payloads
         uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           lfs: false
-      - name: Reject removed production APIs
-        shell: bash
-        run: |
-          if rg -n 'ALL_SUPPORTED|python_parity|periods_below_threshold_legacy|#\[deprecated|allow\(dead_code\)' crates/*/src; then
-            echo 'removed or compatibility-only API found in production source' >&2
-            exit 1
-          fi
+      - name: Install nightly rustdoc toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-09-02
+      - name: Install stable Rust for cargo install
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: public-api
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --locked --version 0.50.1 --force
+      - name: Check public API snapshot and SemVer gate
+        run: scripts/check-nsb-public-api
 
   dependencies:
     name: Dependency policy

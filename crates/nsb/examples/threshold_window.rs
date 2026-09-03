@@ -8,16 +8,13 @@ fn main() -> nsb::Result<()> {
     let start = parse_utc("2023-09-04T00:00:00Z");
     let end = parse_utc("2023-09-04T12:00:00Z");
 
-    let query = ThresholdQuery {
-        observer: observatories::EL_PARANAL.geodetic(),
-        target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-        window: Period::new(start, end),
-        threshold: BandPhotonRadiance::new(0.21),
-        components: ComponentMask::ZODIACAL | ComponentMask::AIRGLOW,
-        sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
-        sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
-        target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
-    };
+    let query = ThresholdQuery::new(
+        observatories::EL_PARANAL.geodetic(),
+        Target::new(266.41683 * DEG, -29.00781 * DEG),
+        Period::new(start, end),
+        BandPhotonRadiance::new(0.21),
+    )
+    .with_components(ComponentMask::ZODIACAL | ComponentMask::AIRGLOW);
 
     let result = NsbEvaluator::new()?.periods_below_threshold(&query)?;
 

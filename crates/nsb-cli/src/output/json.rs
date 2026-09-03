@@ -4,8 +4,8 @@ use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
     assets::asset_registry, AirglowGeometryMetadata, BandDiagnostic, ComponentMask,
-    NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightModel, Target, ZodiacalExtinction,
-    MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
+    NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightModel, Target, MODEL_VERSION,
+    NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
@@ -304,9 +304,8 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
         nsb::SolarActivitySource::Explicit(_) | nsb::SolarActivitySource::LegacyDefault => {
             Some(config.solar_radio_flux().value())
         }
-        // Date-dependent sources: point evaluations supply the resolved value used;
-        // window evaluations omit the scalar (samples can differ).
         nsb::SolarActivitySource::Dataset(_) | nsb::SolarActivitySource::Automatic => resolved_sfu,
+        _ => resolved_sfu,
     };
     ModelJson {
         preset: config.site_profile.as_str(),
@@ -316,6 +315,7 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
             Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
             Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
+            _ => "unknown-starlight-model",
         },
         solar_radio_flux_sfu,
         solar_activity_source: match &config.solar_activity {
@@ -323,6 +323,7 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             nsb::SolarActivitySource::Dataset(_) => "dataset",
             nsb::SolarActivitySource::Automatic => "automatic",
             nsb::SolarActivitySource::LegacyDefault => "legacy-default",
+            _ => "unknown",
         },
         f107_dataset_id: match &config.solar_activity {
             nsb::SolarActivitySource::Dataset(store) => Some(store.dataset_id.clone()),
@@ -342,10 +343,7 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             _ => None,
         },
         airglow_geometry: config.airglow_geometry.model_id(),
-        zodiacal_extinction: match config.zodiacal_extinction {
-            ZodiacalExtinction::None => "none",
-            ZodiacalExtinction::Noll2012Approx => "noll-2012-approximation",
-        },
+        zodiacal_extinction: config.zodiacal_extinction.as_str(),
     }
 }
 
@@ -458,6 +456,7 @@ fn starlight_label(config: &NsbModelConfig) -> &'static str {
         Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
         None => "starlight",
+        _ => "unknown-starlight-model",
     }
 }
 

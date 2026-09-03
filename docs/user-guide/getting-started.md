@@ -137,12 +137,14 @@ use siderust::catalogs::observatories;
 
 # fn evaluate(time: tempoch::Time<tempoch::UTC>) -> nsb::Result<()> {
 let evaluator = NsbEvaluator::new()?;
-let result = evaluator.evaluate(&PointQuery {
-    observer: observatories::EL_PARANAL.geodetic(),
-    time,
-    target: Target::new(266.41683 * DEG, -29.00781 * DEG),
-    components: ComponentMask::ALL,
-})?;
+let result = evaluator.evaluate(
+    &PointQuery::new(
+        observatories::EL_PARANAL.geodetic(),
+        time,
+        Target::new(266.41683 * DEG, -29.00781 * DEG),
+    )
+    .with_components(ComponentMask::ALL),
+)?;
 
 println!("{}", result.integrated);
 for component in &result.components {

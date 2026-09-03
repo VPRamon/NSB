@@ -62,25 +62,18 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         filters
     };
 
-    let base_query = ThresholdQuery {
-        observer,
-        target,
-        window: Period::new(start, end),
-        threshold: max,
-        components,
-        sample_step: Second::new(args.step),
-        sun_altitude_ceiling,
-        target_altitude_floor,
-    };
+    let base_query = ThresholdQuery::new(observer, target, Period::new(start, end), max)
+        .with_components(components)
+        .with_sample_step(Second::new(args.step))
+        .with_sun_altitude_ceiling(sun_altitude_ceiling)
+        .with_target_altitude_floor(target_altitude_floor);
 
     info!("running max-threshold search");
     let max_result = evaluator.periods_below_threshold(&base_query)?;
     let periods = if let Some(min) = min {
         info!("running min-threshold exclusion search");
-        let min_query = ThresholdQuery {
-            threshold: min,
-            ..base_query.clone()
-        };
+        let mut min_query = base_query.clone();
+        min_query.threshold = min;
         let below_min = evaluator.periods_below_threshold(&min_query)?;
         subtract_periods(&max_result.periods, &below_min.periods)
     } else {
