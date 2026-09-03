@@ -1099,3 +1099,112 @@ fn config_init_contract_is_stable() {
         .stdout(predicate::str::contains("starlight = false"))
         .stdout(predicate::str::contains("sample_step_seconds = 600.0"));
 }
+
+#[test]
+fn config_validate_accepts_init_template() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nsb.toml");
+    let template = Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["config", "init"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    std::fs::write(&path, template).unwrap();
+
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["config", "validate", path.to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("ok:"));
+}
+
+#[test]
+fn config_validate_rejects_invalid_toml() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("bad.toml");
+    std::fs::write(&path, "this is not = toml [").unwrap();
+
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["config", "validate", path.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("invalid config file"));
+}
+
+#[test]
+fn config_validate_rejects_missing_file() {
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["config", "validate", "/no/such/nsb-config.toml"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("failed to read config file"));
+}
+
+#[test]
+fn window_zero_max_reports_no_matching_periods() {
+    let assertion = Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "--format",
+            "table",
+            "window",
+            "--start",
+            "2023-09-04T01:00:00Z",
+            "--end",
+            "2023-09-04T02:00:00Z",
+            "--site",
+            "PARANAL",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--max-nsb",
+            "0",
+            "--components",
+            "zodiacal,airglow",
+            "--no-pre-filter",
+        ])
+        .assert()
+        .success();
+    assertion.stdout(predicate::str::contains("(no matching periods)"));
+}
+
+#[test]
+fn window_json_empty_periods_keep_schema() {
+    let output = Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "--format",
+            "json",
+            "window",
+            "--start",
+            "2023-09-04T01:00:00Z",
+            "--end",
+            "2023-09-04T02:00:00Z",
+            "--site",
+            "PARANAL",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--max-nsb",
+            "0",
+            "--components",
+            "zodiacal,airglow",
+            "--no-pre-filter",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["schema_version"], "nsb-cli-window-json-v1");
+    assert_eq!(value["periods"].as_array().unwrap().len(), 0);
+}

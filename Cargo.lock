@@ -1082,6 +1082,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nsb-coverage-gate"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "nsb-data-tools"
 version = "0.1.0"
 dependencies = [

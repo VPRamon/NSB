@@ -20,6 +20,10 @@ cargo build --workspace --release --locked
 cargo deny check
 ```
 
+Coverage floors in [`coverage-policy.toml`](../../coverage-policy.toml) are
+blocking on `main`. See [Coverage policy](../developer-guide/coverage.md) and
+the [release checklist](../operations/release-checklist.md).
+
 Runtime assets are authoritative in `crates/nsb/data/manifest.toml`. Dataset
 configuration and run manifests provide generation identity; scientific
 maturity remains authoritative in runtime metadata and

@@ -283,3 +283,31 @@ fn incomplete_healpix_maps_are_rejected() {
         .unwrap_err();
     assert!(matches!(err, crate::NsbError::InvalidMap { .. }));
 }
+
+#[test]
+fn unsupported_csv_header_is_rejected() {
+    let raw = "pixel,value\n0,1.0\n";
+    let error = StarlightMap::from_csv_str(raw, StarlightProvenance::test_fixture()).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("unsupported starlight map header"));
+}
+
+#[test]
+fn mixed_uncertainty_schema_is_rejected() {
+    let grid = HealpixGrid::new(Nside::new(1).unwrap(), HealpixOrdering::Ring).unwrap();
+    let with_uncertainty =
+        StarlightPixel::new(BandPhotonRadiance::new(1.0), S10s::new(0.0), S10s::new(0.0))
+            .without_s10_diagnostics()
+            .with_uncertainties(
+                BandPhotonRadiance::new(0.1),
+                BandPhotonRadiance::new(0.2),
+                BandPhotonRadiance::new(0.25),
+            );
+    let mut pixels = vec![with_uncertainty; 12];
+    pixels[5] = StarlightPixel::new(BandPhotonRadiance::new(1.0), S10s::new(0.0), S10s::new(0.0))
+        .without_s10_diagnostics();
+    let err =
+        StarlightMap::from_healpix(grid, pixels, StarlightProvenance::test_fixture()).unwrap_err();
+    assert!(err.to_string().contains("same uncertainty schema"));
+}

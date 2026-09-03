@@ -39,6 +39,7 @@ through explicit runtime-manifest contracts.
 - [Developer guide](developer-guide/README.md)
 - [Architecture and modules](developer-guide/architecture.md)
 - [Module reference](developer-guide/module-reference.md)
+- [Coverage policy](developer-guide/coverage.md)
 - [Performance contract](specifications/performance.md)
 - [Logging contract](specifications/logging.md)
 - [Siderust compatibility](specifications/siderust-compatibility.md)
