@@ -267,6 +267,130 @@ fn threshold_query_returns_full_window_for_large_threshold() {
 }
 
 #[test]
+fn threshold_query_returns_no_periods_when_threshold_is_unreachable() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let start = parse_obstime("2023-09-04 01:00:00");
+    let end = parse_obstime("2023-09-04 02:00:00");
+    let result = evaluator
+        .periods_below_threshold(&ThresholdQuery {
+            observer: paranal(),
+            target: sgr_a_star(),
+            window: Period::new(start, end),
+            threshold: BandPhotonRadiance::new(0.0),
+            components: default_components(),
+            sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
+            sun_altitude_ceiling: None,
+            target_altitude_floor: None,
+        })
+        .expect("threshold query");
+
+    assert!(result.periods.is_empty());
+}
+
+#[test]
+fn threshold_query_empty_window_returns_no_periods() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let start = parse_obstime("2023-09-04 01:00:00");
+    let result = evaluator
+        .periods_below_threshold(&ThresholdQuery {
+            observer: paranal(),
+            target: sgr_a_star(),
+            window: Period::new(start, start),
+            threshold: BandPhotonRadiance::new(1.0e6),
+            components: default_components(),
+            sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
+            sun_altitude_ceiling: None,
+            target_altitude_floor: None,
+        })
+        .expect("empty window");
+
+    assert!(result.periods.is_empty());
+}
+
+#[test]
+fn threshold_query_rejects_non_finite_threshold_and_non_positive_step() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let start = parse_obstime("2023-09-04 01:00:00");
+    let end = parse_obstime("2023-09-04 02:00:00");
+
+    let nan = evaluator
+        .periods_below_threshold(&ThresholdQuery {
+            observer: paranal(),
+            target: sgr_a_star(),
+            window: Period::new(start, end),
+            threshold: BandPhotonRadiance::new(f64::NAN),
+            components: default_components(),
+            sample_step: Second::new(600.0),
+            sun_altitude_ceiling: None,
+            target_altitude_floor: None,
+        })
+        .expect_err("NaN threshold");
+    assert!(nan.to_string().contains("threshold must be finite"));
+
+    let step = evaluator
+        .periods_below_threshold(&ThresholdQuery {
+            observer: paranal(),
+            target: sgr_a_star(),
+            window: Period::new(start, end),
+            threshold: BandPhotonRadiance::new(0.2),
+            components: default_components(),
+            sample_step: Second::new(0.0),
+            sun_altitude_ceiling: None,
+            target_altitude_floor: None,
+        })
+        .expect_err("zero sample step");
+    assert!(step.to_string().contains("sample_step"));
+}
+
+#[test]
+fn point_query_evaluates_individual_supported_components() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let time = parse_obstime("2023-09-04 01:48:00");
+    for mask in [
+        ComponentMask::ZODIACAL,
+        ComponentMask::AIRGLOW,
+        ComponentMask::MOON,
+    ] {
+        let result = evaluator
+            .evaluate(&PointQuery {
+                observer: paranal(),
+                time,
+                target: sgr_a_star(),
+                components: mask,
+            })
+            .expect("component evaluates");
+        assert_eq!(result.components.len(), 1);
+        assert!(result.integrated.value().is_finite());
+    }
+}
+
+#[test]
+fn explicit_f107_configuration_changes_airglow_relative_to_automatic() {
+    let time = parse_obstime("2023-09-04 01:48:00");
+    let query = PointQuery {
+        observer: paranal(),
+        time,
+        target: sgr_a_star(),
+        components: ComponentMask::AIRGLOW,
+    };
+
+    let automatic = NsbEvaluator::new()
+        .expect("evaluator")
+        .evaluate(&query)
+        .expect("automatic F10.7");
+    let explicit = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky().with_solar_radio_flux(nsb::SolarFluxUnits::new(250.0)),
+    )
+    .expect("explicit evaluator")
+    .evaluate(&query)
+    .expect("explicit F10.7");
+
+    assert_ne!(automatic.integrated.value(), explicit.integrated.value());
+    assert!(automatic.integrated.value().is_finite());
+    assert!(explicit.integrated.value().is_finite());
+}
+
+#[test]
 fn threshold_query_fails_closed_on_selected_component_error() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse_obstime("2023-09-04 01:00:00");

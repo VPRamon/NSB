@@ -584,6 +584,103 @@ fn bundled_store_loads_and_resolves_offline() {
 }
 
 #[test]
+fn store_rejects_unsupported_schema_and_empty_identity() {
+    let schema = F107Store::from_json_str(
+        r#"{
+  "schema_version": 2,
+  "dataset_id": "x",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.2,
+  "records": []
+}"#,
+    )
+    .unwrap_err();
+    assert!(schema.0.contains("unsupported F10.7 store schema"));
+
+    let empty_id = F107Store::from_json_str(
+        r#"{
+  "schema_version": 1,
+  "dataset_id": "   ",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.2,
+  "records": []
+}"#,
+    )
+    .unwrap_err();
+    assert!(empty_id.0.contains("dataset_id"));
+}
+
+#[test]
+fn store_rejects_conflicting_duplicate_identity() {
+    let err = F107Store::from_json_str(
+        r#"{
+  "schema_version": 1,
+  "dataset_id": "dup",
+  "snapshot_id": "s",
+  "convention": "test",
+  "climatology_sfu": 129.2,
+  "records": [
+    {
+      "date": "2024-06-01",
+      "value_sfu": 180.0,
+      "kind": "observed",
+      "provider": "noaa-swpc",
+      "product": "observed-solar-cycle-indices",
+      "observation_date": "2024-06-01",
+      "valid_from": "2024-06-01",
+      "valid_through": "2024-06-30",
+      "cadence": "monthly"
+    },
+    {
+      "date": "2024-06-01",
+      "value_sfu": 190.0,
+      "kind": "observed",
+      "provider": "noaa-swpc",
+      "product": "observed-solar-cycle-indices",
+      "observation_date": "2024-06-01",
+      "valid_from": "2024-06-01",
+      "valid_through": "2024-06-30",
+      "cadence": "monthly"
+    }
+  ]
+}"#,
+    )
+    .unwrap_err();
+    assert!(err.0.contains("conflicting F10.7 records"));
+}
+
+#[test]
+fn automatic_resolution_uses_bundled_store_identity() {
+    let resolved =
+        resolve_f107(t("2040-01-01T00:00:00Z"), &SolarActivitySource::Automatic).unwrap();
+    let bundled = bundled_f107_store().unwrap();
+    assert_eq!(
+        resolved.dataset_id.as_deref(),
+        Some(bundled.dataset_id.as_str())
+    );
+    assert_eq!(resolved.record.kind, F107Kind::Climatology);
+    assert!(resolved.is_degraded_planning_input());
+}
+
+#[test]
+fn dataset_resolution_does_not_silently_use_bundled_store() {
+    let store = std::sync::Arc::new(sample_store());
+    let resolved = resolve_f107(
+        t("2035-01-01T00:00:00Z"),
+        &SolarActivitySource::Dataset(store.clone()),
+    )
+    .unwrap();
+    assert_eq!(resolved.dataset_id.as_deref(), Some("test-f107"));
+    assert_ne!(
+        resolved.dataset_id.as_deref(),
+        Some(bundled_f107_store().unwrap().dataset_id.as_str())
+    );
+    assert_eq!(resolved.record.kind, F107Kind::Climatology);
+}
+
+#[test]
 fn utc_calendar_date_matches_chrono() {
     assert_eq!(
         utc_calendar_date(t("2024-06-01T23:59:59Z")),
