@@ -19,7 +19,8 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | Zodiacal table | Leinert selected anchors | S10 diagnostic | exact anchors | Implementation error |
 | Noll extinction | numeric formula fixture | dimensionless transmission | `1e-12` absolute | Implementation error |
 | KS91 full Moon | `external_reference_cases.csv` citing PASP 103, 1033 | approximate Johnson V mag arcsec⁻² | 0.7 mag | Model choice |
-| Airglow | deterministic temporal/domain checks | 300–650 nm plus 445/551 nm diagnostics | implementation-specific | Implementation error |
+| Airglow default | historical integrated/B/V regressions plus explicit/default Van Rhijn bit parity | 300–650 nm plus 445/551 nm diagnostics | exact factor parity; strict stored output tolerances | Implementation error |
+| Airglow vertical geometry | synthetic thin/broad/two-layer profiles; spherical LOS refinement; observer-height cases | dimensionless geometry factor | zenith exact; thin-shell relative tolerance derived from 20 m profile; refinement convergence | Implementation error; profile representativeness remains a data limitation |
 | Experimental starlight | synthetic contrast and HEALPix completeness | proxy radiance plus S10 diagnostics | deterministic | Implementation error only; no science claim |
 | Validated external starlight admission | caller map plus TOML sidecar | declared calibrated integrated band plus B/V diagnostics | exact integrity/header checks; plane/pole >= 1; seam jump <= 1; declared flux tolerance | Implementation error or rejected caller evidence |
 | Jones spectral fixture | historical Jones-model regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |

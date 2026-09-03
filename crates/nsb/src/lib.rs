@@ -36,7 +36,13 @@ pub(crate) mod units;
 mod window_search;
 
 pub use components::airglow::{
-    Airglow, AirglowContinuum, AirglowOutputs, SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX,
+    Airglow, AirglowContinuum, AirglowGeometryMetadata, AirglowGeometryModel, AirglowOutputs,
+    AirglowWavelengthApplicability, SolarFluxUnits, ValidatedZenithDomain, VanRhijnConfig,
+    VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalEmissionProfileError,
+    VerticalProfileNormalization, AIRGLOW_MEAN_EARTH_RADIUS_KM, DEFAULT_SOLAR_RADIO_FLUX,
+    DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM, VAN_RHIJN_IMPLEMENTATION_VERSION,
+    VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION, VERTICAL_PROFILE_INTEGRATOR_VERSION,
+    VERTICAL_PROFILE_REFERENCE_SUBSTEPS,
 };
 pub use components::moonlight::{AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991};
 pub use components::starlight::{

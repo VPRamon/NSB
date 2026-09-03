@@ -44,6 +44,7 @@ Run the real benchmark suite manually or in scheduled performance jobs:
 
 ```bash
 cargo bench -p nsb --bench threshold_window
+cargo bench -p nsb --bench airglow_geometry
 ```
 
 For review runs that need a shorter wall-clock time while preserving Criterion
@@ -77,6 +78,32 @@ library tests enforce that path. Exact integrated-evaluation and crossing counts
 are not emitted by the Criterion harness, but the adaptive search tests compare
 against the scan fallback and verify reduced exact sample calls on clear smooth
 intervals.
+
+The `airglow_geometry` Criterion target separately measures the legacy-fast Van
+Rhijn factor, direct spherical vertical-profile integration with 64 and 128
+substeps per altitude interval, and normal Airglow evaluations using each model:
+
+```bash
+cargo bench -p nsb --bench airglow_geometry -- \
+  --warm-up-time 0.1 --measurement-time 0.2 --sample-size 10 --noplot
+```
+
+The direct integrator is the reference and production profile path. No geometry
+cache or interpolation is currently used; refinement tests protect convergence
+if future measurements justify an acceleration layer.
+
+A short review run on 2026-09-02 used an Intel Core Ultra 9 185H, Linux 7.0,
+Rust 1.97.1, locked dependencies, and the command above. Criterion reported:
+
+| Airglow geometry workload | Measured interval |
+|---|---:|
+| Van Rhijn factor | 8.96-9.12 ns |
+| Vertical profile, 64 substeps/interval | 1.64-1.66 us |
+| Vertical profile, 128 substeps/interval | 3.14-3.19 us |
+| Complete default Van Rhijn evaluation | 13.70-13.94 ms |
+| Complete vertical-profile evaluation | 13.53-13.63 ms |
+
+These short-run values are review evidence, not portable pass/fail thresholds.
 
 Representative release-build measurements from the 2026-06-24 development
 container are baselines, not portable pass/fail thresholds:

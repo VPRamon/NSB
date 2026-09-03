@@ -4,8 +4,8 @@ use crate::parsing::{components, location, target, time};
 use anyhow::Result;
 use log::{debug, info};
 use nsb::{
-    F107Store, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits,
-    ZodiacalExtinction,
+    AirglowGeometryModel, F107Store, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
+    SolarFluxUnits, VerticalEmissionProfile, ZodiacalExtinction,
 };
 use std::sync::Arc;
 use std::time::Instant;
@@ -81,6 +81,23 @@ pub(crate) fn model_config(
             store.dataset_id, store.snapshot_id, store.checksum_sha256
         );
         config = config.with_f107_store(Arc::new(store));
+    }
+    if let Some(path) = &args.airglow_vertical_profile {
+        let raw = std::fs::read_to_string(path).map_err(|error| {
+            anyhow::anyhow!("read Airglow vertical profile {}: {error}", path.display())
+        })?;
+        let profile = VerticalEmissionProfile::from_toml_str(&raw).map_err(|error| {
+            anyhow::anyhow!(
+                "invalid Airglow vertical profile {}: {error}",
+                path.display()
+            )
+        })?;
+        debug!(
+            "using Airglow vertical profile {} checksum {}",
+            profile.profile_id(),
+            profile.checksum_sha256()
+        );
+        config = config.with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile));
     }
     config.zodiacal_extinction = match args.zodiacal_extinction {
         crate::cli::ZodiacalExtinctionArg::Noll2012 => ZodiacalExtinction::Noll2012Approx,

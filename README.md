@@ -32,7 +32,7 @@ component is site-calibrated.
 | Component | Default implementation | Current role |
 | --- | --- | --- |
 | Zodiacal light | Leinert brightness grid, solar spectrum, and Noll-style extinction | Generic clear-sky model |
-| Airglow | Empirical continuum with seasonal, nightly, solar, and Van Rhijn terms | Generic model or explicit planning preset |
+| Airglow | Empirical continuum with seasonal, nightly, solar, selectable emitting-volume geometry (Van Rhijn default), and independent Noll attenuation terms | Generic model or explicit planning preset |
 | Moonlight | Jones et al. (2013) spectral model | Generic model or explicit planning preset |
 | KS91 moonlight | Published analytic V-band implementation | Reference/alternate model |
 | Integrated starlight | Validated bundled or external HEALPix map; explicit experimental seed/map | Production only after complete asset admission; otherwise experimental |

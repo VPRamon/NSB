@@ -9,7 +9,7 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
-use siderust::qtty::{Degrees, Meters};
+use siderust::qtty::{Degrees, Kilometers, Meters, Nanometers};
 use siderust::time::{ModifiedJulianDate, TT};
 use tempoch::{Time, UTC};
 
@@ -51,6 +51,34 @@ fn high_arctic(latitude_deg: f64) -> Geodetic<ECEF> {
         Degrees::new(latitude_deg),
         Meters::new(0.0),
     )
+}
+
+fn synthetic_vertical_profile() -> VerticalEmissionProfile {
+    VerticalEmissionProfile::new(VerticalEmissionProfileDefinition {
+        schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+        profile_id: "synthetic-airglow-integration-test".into(),
+        altitude_km: vec![
+            Kilometers::new(75.0),
+            Kilometers::new(85.0),
+            Kilometers::new(95.0),
+            Kilometers::new(110.0),
+        ],
+        relative_emissivity: vec![0.0, 0.7, 1.0, 0.0],
+        normalization: VerticalProfileNormalization::UnitVerticalIntegral,
+        wavelength: AirglowWavelengthApplicability {
+            min: Nanometers::new(300.0),
+            max: Nanometers::new(650.0),
+            band: "synthetic-300-650-nm".into(),
+        },
+        assumptions: "synthetic broad optical layer for software integration tests".into(),
+        provenance: "deterministic NSB test fixture; not observational data".into(),
+        license: "CC0-1.0 synthetic fixture".into(),
+        validated_zenith: ValidatedZenithDomain {
+            min: Degrees::new(0.0),
+            max: Degrees::new(90.0),
+        },
+    })
+    .unwrap()
 }
 
 fn tt_mjd_to_utc(time: ModifiedJulianDate) -> Time<UTC> {
@@ -206,6 +234,137 @@ fn custom_continuum_path_works() {
 }
 
 #[test]
+fn explicit_van_rhijn_is_bitwise_identical_to_default_airglow() {
+    let location = paranal();
+    let time = t("2023-09-04T01:48:00Z");
+    let query_target = target(80.0, -20.0);
+    let default = Airglow::standard_clear_sky(location)
+        .unwrap()
+        .compute(time, query_target)
+        .unwrap();
+    let explicit = Airglow::standard_clear_sky(location)
+        .unwrap()
+        .with_geometry(AirglowGeometryModel::VanRhijn(
+            VanRhijnConfig::new(Kilometers::new(90.0)).unwrap(),
+        ))
+        .compute(time, query_target)
+        .unwrap();
+
+    assert_eq!(
+        default.integrated.value().to_bits(),
+        explicit.integrated.value().to_bits()
+    );
+    assert_eq!(
+        default.b_flux_s10.value().to_bits(),
+        explicit.b_flux_s10.value().to_bits()
+    );
+    assert_eq!(
+        default.v_flux_s10.value().to_bits(),
+        explicit.v_flux_s10.value().to_bits()
+    );
+    assert_eq!(default.relative_uncertainty, explicit.relative_uncertainty);
+}
+
+#[test]
+fn geometry_selection_changes_only_the_geometry_multiplier() {
+    let location = Geodetic::new_raw(
+        Degrees::new(44.0),
+        Degrees::new(-11.0),
+        Meters::new(1_234.0),
+    );
+    let altitude = Degrees::new(15.0);
+    let zenith = Degrees::new(75.0);
+    let continuum = load_builtin_standard().unwrap();
+    let atmosphere = AtmosphericConditions::generic_clear_sky(location);
+    let van = AirglowGeometryModel::default();
+    let vertical = AirglowGeometryModel::VerticalProfile(synthetic_vertical_profile());
+    let van_factor = van.geometry_factor(location, zenith).unwrap().value();
+    let vertical_factor = vertical.geometry_factor(location, zenith).unwrap().value();
+
+    let evaluate = |geometry: AirglowGeometryModel| {
+        super::continuum::evaluate_continuum_with_time_bin(
+            &continuum,
+            t("2023-09-04T01:48:00Z"),
+            altitude,
+            super::continuum::AirglowEvaluationContext {
+                location,
+                atmosphere,
+                geometry: geometry.clone(),
+                solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
+                user_scale: crate::ScaleFactors::new(1.0),
+            },
+            1,
+        )
+        .unwrap()
+    };
+    let van_output = evaluate(van);
+    let vertical_output = evaluate(vertical);
+    let expected_ratio = vertical_factor / van_factor;
+
+    for ratio in [
+        vertical_output.integrated.value() / van_output.integrated.value(),
+        vertical_output.b_flux_s10.value() / van_output.b_flux_s10.value(),
+        vertical_output.v_flux_s10.value() / van_output.v_flux_s10.value(),
+    ] {
+        assert!((ratio - expected_ratio).abs() < 1.0e-12);
+    }
+    assert_eq!(
+        van_output.relative_uncertainty,
+        vertical_output.relative_uncertainty,
+        "multiplicative geometry must propagate through signal and absolute uncertainty consistently"
+    );
+}
+
+#[test]
+fn vertical_profile_runs_through_normal_airglow_api_at_arbitrary_location() {
+    let location = Geodetic::new_raw(Degrees::new(18.4), Degrees::new(-33.9), Meters::new(120.0));
+    let model = Airglow::standard_clear_sky(location)
+        .unwrap()
+        .with_geometry(AirglowGeometryModel::VerticalProfile(
+            synthetic_vertical_profile(),
+        ));
+    assert_eq!(model.geometry().model_id(), "vertical_profile");
+    let out = model
+        .compute(t("2023-06-21T22:00:00Z"), target(200.0, -45.0))
+        .unwrap();
+    assert!(out.integrated.value().is_finite() && out.integrated.value() >= 0.0);
+}
+
+#[test]
+fn below_horizon_contract_clamps_to_horizon_for_both_geometry_models() {
+    let location = cta_s();
+    let continuum = load_builtin_standard().unwrap();
+    let atmosphere = AtmosphericConditions::generic_clear_sky(location);
+    for geometry in [
+        AirglowGeometryModel::default(),
+        AirglowGeometryModel::VerticalProfile(synthetic_vertical_profile()),
+    ] {
+        let evaluate = |altitude| {
+            super::continuum::evaluate_continuum_with_time_bin(
+                &continuum,
+                t("2023-09-04T04:00:00Z"),
+                Degrees::new(altitude),
+                super::continuum::AirglowEvaluationContext {
+                    location,
+                    atmosphere,
+                    geometry: geometry.clone(),
+                    solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
+                    user_scale: crate::ScaleFactors::new(1.0),
+                },
+                1,
+            )
+            .unwrap()
+        };
+        let horizon = evaluate(0.0);
+        let below = evaluate(-20.0);
+        assert_eq!(
+            horizon.integrated.value().to_bits(),
+            below.integrated.value().to_bits()
+        );
+    }
+}
+
+#[test]
 fn time_of_night_bins_follow_cta_s_astronomical_night_phase() {
     let location = cta_s();
     let seed = t("2023-09-04T04:00:00Z");
@@ -279,6 +438,7 @@ fn airglow_ctx(
     super::continuum::AirglowEvaluationContext {
         location,
         atmosphere,
+        geometry: AirglowGeometryModel::default(),
         solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
         user_scale: crate::ScaleFactors::new(1.0),
     }
@@ -300,7 +460,8 @@ fn polar_winter_astronomical_night_preserves_airglow() {
             location,
             AtmosphericConditions::generic_clear_sky(paranal()),
         ),
-    );
+    )
+    .unwrap();
 
     assert!(out.integrated > BandPhotonRadiance::zero());
 }
@@ -313,7 +474,8 @@ fn daytime_airglow_continuum_is_zero_outside_calibration_domain() {
         t("2023-09-04T16:00:00Z"),
         Degrees::new(60.0),
         airglow_ctx(cta_s(), AtmosphericConditions::generic_clear_sky(cta_s())),
-    );
+    )
+    .unwrap();
 
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
 }
@@ -329,7 +491,8 @@ fn invalid_altitude_returns_zero_stable_result() {
             paranal(),
             AtmosphericConditions::generic_clear_sky(paranal()),
         ),
-    );
+    )
+    .unwrap();
 
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
 }
@@ -401,7 +564,7 @@ fn van_rhijn_and_extinction_are_independent_stages() {
     let (f_r, f_m) = noll_scattering_factors(zenith);
     assert!(x_ag > 1.0);
     assert!(f_r.is_finite() && f_m.is_finite());
-    // Van Rhijn is evaluated separately in continuum.rs via siderust.
+    // The selected emitting-volume geometry is evaluated separately from extinction.
     let van_rhijn = siderust::atmosphere::van_rhijn_factor(
         zenith.to::<siderust::qtty::Radian>(),
         siderust::qtty::Kilometers::new(90.0),

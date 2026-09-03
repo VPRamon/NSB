@@ -1,7 +1,7 @@
 //! Noll et al. (2012) effective Rayleigh/Mie scattering for airglow.
 //!
 //! This stage models atmospheric scattering of emitted airglow along the
-//! observer line of sight. It is distinct from the Van Rhijn emitting-layer
+//! observer line of sight. It is distinct from the selected emitting-volume
 //! geometry correction applied elsewhere in the airglow stack.
 //!
 //! # Model (Cerro Paranal Advanced Sky Model / Noll+2012 §4.1)

@@ -77,6 +77,8 @@ pub struct NsbComponentMetadata {
     pub band_diagnostic: BandDiagnostic,
     /// Optional resolved F10.7 provenance for airglow evaluations.
     pub solar_activity: Option<crate::solar_activity::ResolvedSolarActivity>,
+    /// Optional emitting-volume geometry provenance for Airglow evaluations.
+    pub airglow_geometry: Option<crate::components::airglow::AirglowGeometryMetadata>,
 }
 
 pub(super) fn component_status_for_site_profile(
@@ -97,6 +99,7 @@ pub(super) fn zodiacal_metadata() -> NsbComponentMetadata {
         validated_domain: "exoatmospheric Leinert table geometry plus generic Noll-style clear-sky attenuation".into(),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         solar_activity: None,
+        airglow_geometry: None,
     }
 }
 
@@ -104,6 +107,7 @@ pub(super) fn airglow_metadata(
     site_profile: SiteProfileId,
     observer: Observer,
     solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
+    geometry: &crate::components::airglow::AirglowGeometryModel,
 ) -> NsbComponentMetadata {
     let profile = site_profile.profile(observer);
     let asset = airglow_continuum_asset();
@@ -133,13 +137,15 @@ pub(super) fn airglow_metadata(
             f107_fragment
         )),
         validated_domain: Cow::Owned(format!(
-            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, Van Rhijn (LOS/emitting-layer geometry), and Noll-2012 effective Rayleigh/Mie airglow scattering (Noll §4.1; fitted primarily for zenith distances z≲{}°, larger angles are parametric extrapolation) using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); measured F10.7 does not make Airglow site-calibrated; {}",
+            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, selected emitting-volume LOS geometry ({}), and independent Noll-2012 effective Rayleigh/Mie airglow scattering (Noll §4.1; fitted primarily for zenith distances z≲{}°, larger angles are parametric extrapolation) using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); measured F10.7 or geometry choice does not make Airglow site-calibrated; {}",
+            geometry.model_id(),
             NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG as i32,
             profile.atmosphere_provenance,
             profile.airglow.assumptions
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         solar_activity: solar.cloned(),
+        airglow_geometry: Some(geometry.metadata()),
     }
 }
 
@@ -172,6 +178,7 @@ pub(super) fn starlight_metadata(
             validated_domain: "not evaluable".into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
             solar_activity: None,
+            airglow_geometry: None,
         },
     }
 }
@@ -219,6 +226,7 @@ fn starlight_map_metadata(
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         solar_activity: None,
+        airglow_geometry: None,
     }
 }
 
@@ -242,6 +250,7 @@ pub(super) fn moonlight_metadata(
                 )),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
                 solar_activity: None,
+                airglow_geometry: None,
             }
         }
         MoonlightModel::KrisciunasSchaefer1991 => NsbComponentMetadata {
@@ -252,6 +261,7 @@ pub(super) fn moonlight_metadata(
                     .into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
             solar_activity: None,
+            airglow_geometry: None,
         },
     }
 }

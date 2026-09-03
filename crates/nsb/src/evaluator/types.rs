@@ -208,6 +208,8 @@ pub struct NsbModelConfig {
     pub starlight_model: Option<StarlightModel>,
     /// How F10.7 is obtained for airglow (explicit, dataset, or automatic offline).
     pub solar_activity: crate::solar_activity::SolarActivitySource,
+    /// Airglow emitting-volume line-of-sight geometry (separate from extinction).
+    pub airglow_geometry: airglow::AirglowGeometryModel,
     /// Zodiacal atmospheric propagation choice.
     pub zodiacal_extinction: ZodiacalExtinction,
 }
@@ -220,6 +222,7 @@ impl NsbModelConfig {
             site_profile: SiteProfileId::GenericClearSky,
             starlight_model: default_starlight_model(),
             solar_activity: crate::solar_activity::SolarActivitySource::Automatic,
+            airglow_geometry: airglow::AirglowGeometryModel::default(),
             zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
         }
     }
@@ -263,6 +266,12 @@ impl NsbModelConfig {
         store: std::sync::Arc<crate::solar_activity::F107Store>,
     ) -> Self {
         self.solar_activity = crate::solar_activity::SolarActivitySource::Dataset(store);
+        self
+    }
+
+    /// Select Airglow emitting-volume LOS geometry without changing extinction.
+    pub fn with_airglow_geometry(mut self, geometry: airglow::AirglowGeometryModel) -> Self {
+        self.airglow_geometry = geometry;
         self
     }
 

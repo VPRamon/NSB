@@ -28,7 +28,7 @@ uncertainty metadata.
 | --- | --- | --- | --- | --- |
 | Zodiacal light | Sunlight scattered by interplanetary dust | Ecliptic geometry, solar spectrum, line-of-sight extinction | Leinert brightness grid with solar spectrum and optional Noll-style atmospheric extinction | Included in `all` |
 | Integrated starlight | Unresolved stellar flux represented by a Galactic HEALPix product | Galactic direction and the selected map/manifest | Bundled validated production map, validated external map, or explicit experimental map/seed | Included in `all` only when a production asset is embedded |
-| Airglow | Emission from the upper atmosphere | Season, time within the night, solar activity, zenith angle, site profile | Empirical continuum with temporal, solar, and Van Rhijn corrections | Included in `all` |
+| Airglow | Emission from the upper atmosphere | Season, time within the night, solar activity, zenith angle, observer altitude, geometry/profile, site profile | Empirical continuum with temporal and solar terms, selectable emitting-volume geometry, and independent Noll attenuation | Included in `all` |
 | Moonlight | Lunar light scattered by the atmosphere | Moon phase and geometry, target separation, atmosphere, wavelength | Jones et al. (2013) spectral model or KS91 analytic V-band reference | Included in `all` |
 
 ## Zodiacal light
@@ -72,7 +72,13 @@ See the [external manifest contract](../nsb_components/starlight/external-manife
 ## Airglow
 
 The airglow model uses a bundled continuum template and applies empirical
-corrections for observing geometry and temporal conditions. Its solar-activity
+corrections for observing geometry and temporal conditions. Van Rhijn is the
+unchanged default geometry: an explicit thin shell at 90 km. Callers can instead
+provide a validated, checksum-pinned vertical emission profile; the spherical
+line-of-sight integration uses the observer's real altitude. Geometry remains
+separate from the wavelength-dependent Noll atmospheric attenuation stage.
+
+Its solar-activity
 input is F10.7 radio flux in solar flux units. By default NSB resolves F10.7
 from the bundled offline store for the evaluation UTC date; use
 `--solar-radio-flux-sfu` for an explicit override or `--f107-store` for a pinned
@@ -83,11 +89,15 @@ CLI selection and override:
 ```bash
 --components airglow
 --solar-radio-flux-sfu 130
+--airglow-vertical-profile profile.toml
 ```
 
 When no value is supplied, NSB uses the documented default. Built-in site
 profiles may select explicit planning assumptions, but the current CTAO profiles
-do not include dedicated site-calibrated airglow continua.
+do not include dedicated site-calibrated airglow continua. Selecting a geometry,
+extinction model, or measured F10.7 does not upgrade scientific maturity.
+See the [Airglow runtime guide](../nsb_components/airglow/README.md) and
+[optical profile audit](../nsb_components/airglow/110-optical-vertical-profile-audit.md).
 
 ## Scattered moonlight
 

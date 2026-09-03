@@ -7,6 +7,13 @@ It also inspects whether any **implicit Paranal/CTAO/whitelist site dependence**
 
 **Verdict (Option D):** NSB exposes an arbitrary-location Airglow evaluator, but the empirical continuum is **Paranal-derived / Paranal-trained**. Outside Paranal it is an **explicit generic/planning proxy** with provenance and limitations exposed in metadata. It must **not** be described as a globally calibrated or globally validated scientific baseline. Geographically generic API ≠ globally calibrated dataset.
 
+> Post-audit note (#110): the hard-coded viewing term described below has since
+> become an explicit `AirglowGeometryModel`. The unchanged default is a 90 km
+> Van Rhijn thin shell; caller-provided vertical emission profiles use the real
+> observer altitude. This API change does not alter this audit's maturity verdict
+> or turn any generic/planning result into a site calibration. See the
+> [current runtime guide](README.md).
+
 ## Scope (default pipeline)
 Default Airglow computation is the path used by:
 - `NsbEvaluator` airglow evaluation (default model composition) via `NsbModelConfig::generic_clear_sky()`, `NsbModelConfig::cta_n_planning()`, and `NsbModelConfig::cta_s_planning()`.
@@ -405,8 +412,8 @@ Applicability domain (honest):
 | Recommended future path | replace/refine proxy with global/climatological baseline without changing location-as-input; #38 site calibration overlay |
 
 ## Relationship to other issues
-- #109 (F10.7 resolver): Not modified; fixed F10.7 remains a convenience default until #109.
-- #110 (alternative geometry model): Not modified; Van Rhijn remains the current geometry; follow-up in #110.
+- #109 (F10.7 resolver): Subsequently implemented with explicit/bundled offline resolution and structured provenance.
+- #110 (alternative geometry model): Subsequently implemented with explicit Van Rhijn and caller-provided vertical-profile geometry; Van Rhijn remains the default.
 - #38 (CTAO scientific calibration): Not modified; CTAO remain planning presets.
 - #114 (effective Rayleigh/Mie airglow scattering): Implemented; Van Rhijn remains separate geometry.
 
