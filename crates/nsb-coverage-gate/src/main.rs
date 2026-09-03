@@ -47,7 +47,10 @@ fn parse_options(args: &[String]) -> Result<GateOptions, String> {
                 options.policy_path = Some(require_value(args, &mut index, "--policy")?.into());
             }
             "--report" => {
-                options.report_path = require_value(args, &mut index, "--report")?.into();
+                options.report_path = Some(require_value(args, &mut index, "--report")?.into());
+            }
+            "--lcov" => {
+                options.lcov_path = require_value(args, &mut index, "--lcov")?.into();
             }
             "--workspace-lines-floor" => {
                 options.workspace_lines_floor = Some(parse_f64(require_value(
@@ -95,7 +98,11 @@ fn require_value<'a>(args: &'a [String], index: &mut usize, flag: &str) -> Resul
 }
 
 fn parse_f64(value: &str) -> Result<f64, String> {
-    value.parse().map_err(|_| format!("invalid number {value}"))
+    let parsed: f64 = value
+        .parse()
+        .map_err(|_| format!("invalid number {value}"))?;
+    nsb_coverage_gate::validate_percent("percentage override", parsed)
+        .map_err(|error| error.to_string())
 }
 
 fn print_help() {
@@ -105,6 +112,7 @@ nsb-coverage-gate overall|diff [options]
 
 Options:
   --policy PATH
+  --lcov PATH
   --report PATH
   --workspace-lines-floor PCT
   --nsb-lines-floor PCT

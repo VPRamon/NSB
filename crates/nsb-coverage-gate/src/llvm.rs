@@ -15,7 +15,7 @@ pub struct CoverageReport {
 }
 
 /// Line/function/region totals.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Metric {
     pub count: u64,
     pub covered: u64,
@@ -77,8 +77,6 @@ struct ExportData {
 #[derive(Debug, Deserialize)]
 struct ExportFile {
     filename: String,
-    #[serde(default)]
-    segments: Vec<Segment>,
     summary: ExportSummary,
 }
 
@@ -99,11 +97,20 @@ struct ExportMetric {
     percent: f64,
 }
 
-/// llvm-cov segment: `[line, col, count, hasCount, isRegionEntry, isGapRegion]`.
-#[derive(Debug, Deserialize)]
-struct Segment(u32, u32, u64, bool, bool, bool);
+fn metric_from_export(metric: &ExportMetric) -> Metric {
+    let percent = if metric.percent == 0.0 && metric.count > 0 {
+        Metric::from_counts(metric.covered, metric.count).percent
+    } else {
+        metric.percent
+    };
+    Metric {
+        count: metric.count,
+        covered: metric.covered,
+        percent,
+    }
+}
 
-/// Load llvm-cov JSON export from disk.
+/// Load llvm-cov JSON export from disk (function/region diagnostics).
 pub fn load_report(path: &Path) -> Result<CoverageReport, LlvmError> {
     let bytes = std::fs::read(path).map_err(|error| LlvmError::Io {
         path: path.to_path_buf(),
@@ -123,7 +130,6 @@ pub fn parse_report(bytes: &[u8]) -> Result<CoverageReport, LlvmError> {
     let mut files = BTreeMap::new();
     for file in data.files {
         let relative = repo_relative(&file.filename);
-        let line_hits = line_hits_from_segments(&file.segments);
         let coverage = FileCoverage {
             crate_name: workspace_crate(&relative).map(str::to_string),
             relative_path: relative.clone(),
@@ -140,7 +146,7 @@ pub fn parse_report(bytes: &[u8]) -> Result<CoverageReport, LlvmError> {
                 .as_ref()
                 .map(metric_from_export)
                 .unwrap_or_default(),
-            line_hits,
+            line_hits: BTreeMap::new(),
         };
         files.insert(relative, coverage);
     }
@@ -162,21 +168,9 @@ pub fn parse_report(bytes: &[u8]) -> Result<CoverageReport, LlvmError> {
     })
 }
 
-fn metric_from_export(metric: &ExportMetric) -> Metric {
-    let percent = if metric.percent == 0.0 && metric.count > 0 {
-        Metric::from_counts(metric.covered, metric.count).percent
-    } else {
-        metric.percent
-    };
-    Metric {
-        count: metric.count,
-        covered: metric.covered,
-        percent,
-    }
-}
-
 /// Workspace package totals from already-collected file summaries.
-pub fn crate_metrics(report: &CoverageReport, crate_name: &str) -> (Metric, Metric, Metric) {
+pub fn crate_metrics(report: &CoverageReport, crate_name: &str) -> CrateCoverage {
+    let mut files = 0u64;
     let mut lines_covered = 0;
     let mut lines_count = 0;
     let mut fn_covered = 0;
@@ -187,6 +181,7 @@ pub fn crate_metrics(report: &CoverageReport, crate_name: &str) -> (Metric, Metr
         if file.crate_name.as_deref() != Some(crate_name) {
             continue;
         }
+        files += 1;
         lines_covered += file.lines.covered;
         lines_count += file.lines.count;
         fn_covered += file.functions.covered;
@@ -194,32 +189,26 @@ pub fn crate_metrics(report: &CoverageReport, crate_name: &str) -> (Metric, Metr
         region_covered += file.regions.covered;
         region_count += file.regions.count;
     }
-    (
-        Metric::from_counts(lines_covered, lines_count),
-        Metric::from_counts(fn_covered, fn_count),
-        Metric::from_counts(region_covered, region_count),
-    )
+    CrateCoverage {
+        files,
+        lines: Metric::from_counts(lines_covered, lines_count),
+        functions: Metric::from_counts(fn_covered, fn_count),
+        regions: Metric::from_counts(region_covered, region_count),
+    }
 }
 
-fn line_hits_from_segments(segments: &[Segment]) -> BTreeMap<u32, u64> {
-    let mut hits = BTreeMap::new();
-    for pair in segments.windows(2) {
-        let prev = &pair[0];
-        let next = &pair[1];
-        let _is_region_entry = prev.4;
-        if !prev.3 || prev.5 {
-            continue;
-        }
-        let start = prev.0;
-        let end = if next.1 == 1 && next.0 > start {
-            next.0 - 1
-        } else {
-            next.0
-        };
-        for line in start..=end {
-            let entry = hits.entry(line).or_insert(0);
-            *entry = (*entry).max(prev.2);
-        }
+/// Aggregated coverage for one workspace crate.
+#[derive(Debug, Clone, Copy)]
+pub struct CrateCoverage {
+    pub files: u64,
+    pub lines: Metric,
+    pub functions: Metric,
+    pub regions: Metric,
+}
+
+impl CrateCoverage {
+    /// Fail-closed: a crate with no files or no instrumented lines is missing.
+    pub fn is_present(&self) -> bool {
+        self.files > 0 && self.lines.count > 0
     }
-    hits
 }

@@ -233,8 +233,9 @@ jobs:
           fetch-depth: 0
           lfs: false
       - name: Install nightly Rust and LLVM tools
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: nightly-2026-09-02
           components: llvm-tools-preview
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -243,17 +244,19 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov
+          tool: cargo-llvm-cov@0.9.0
       - name: Clean previous coverage data
-        run: cargo +nightly llvm-cov clean --workspace
+        run: cargo +nightly-2026-09-02 llvm-cov clean --workspace
       - name: Collect coverage
-        run: cargo +nightly llvm-cov --workspace --all-features --doctests --locked --no-report
+        run: cargo +nightly-2026-09-02 llvm-cov --workspace --all-features --doctests --locked --no-report
       - name: Write Cobertura report
-        run: cargo +nightly llvm-cov report --cobertura --output-path coverage.xml
+        run: cargo +nightly-2026-09-02 llvm-cov report --cobertura --output-path coverage.xml
       - name: Write JSON report
-        run: cargo +nightly llvm-cov report --json --output-path coverage.json
+        run: cargo +nightly-2026-09-02 llvm-cov report --json --output-path coverage.json
+      - name: Write LCOV report
+        run: cargo +nightly-2026-09-02 llvm-cov report --lcov --output-path coverage.lcov
       - name: Write HTML report
-        run: cargo +nightly llvm-cov report --html --output-dir coverage_html
+        run: cargo +nightly-2026-09-02 llvm-cov report --html --output-dir coverage_html
       - name: Build coverage summary
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
@@ -291,22 +294,31 @@ jobs:
           name: coverage-cobertura
           path: coverage.xml
           retention-days: 7
+      - name: Upload coverage LCOV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-lcov
+          path: coverage.lcov
+          retention-days: 7
       - name: Enforce coverage floors
         env:
           ARTIFACT_HINT: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -o pipefail
           status=0
-          cargo +nightly run --locked -p nsb-coverage-gate -- \
+          cargo +nightly-2026-09-02 run --locked -p nsb-coverage-gate -- \
             overall \
+            --lcov coverage.lcov \
             --report coverage.json \
             --policy coverage-policy.toml \
             --artifact-hint "$ARTIFACT_HINT" \
             | tee coverage-gate-overall.txt || status=1
           cat coverage-gate-overall.txt >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            cargo +nightly run --locked -p nsb-coverage-gate -- \
+            cargo +nightly-2026-09-02 run --locked -p nsb-coverage-gate -- \
               diff \
+              --lcov coverage.lcov \
               --report coverage.json \
               --policy coverage-policy.toml \
               --base "${{ github.event.pull_request.base.sha }}" \

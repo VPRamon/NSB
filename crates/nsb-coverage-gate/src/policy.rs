@@ -11,11 +11,21 @@ pub struct CoveragePolicy {
     pub json_artifact_name: String,
     #[serde(default)]
     pub cobertura_artifact_name: String,
+    #[serde(default = "default_lcov_artifact")]
+    pub lcov_artifact_name: String,
     pub baseline: Baseline,
     pub measured: MeasuredCoverage,
     pub floors: Floors,
     pub diff: DiffPolicy,
     pub exclusions: Exclusions,
+}
+
+fn default_lcov_artifact() -> String {
+    "coverage-lcov".to_string()
+}
+
+fn default_nightly_toolchain() -> String {
+    "nightly-2026-09-02".to_string()
 }
 
 /// Recorded measurement identity for the approved baseline.
@@ -24,6 +34,8 @@ pub struct Baseline {
     pub commit: String,
     pub date: String,
     pub rust_nightly: String,
+    #[serde(default = "default_nightly_toolchain")]
+    pub rust_nightly_toolchain: String,
     pub cargo_llvm_cov: String,
     pub command: String,
 }
@@ -93,7 +105,60 @@ pub fn parse_policy_str(text: &str) -> Result<CoveragePolicy, PolicyError> {
             policy.schema_version
         )));
     }
+    if !policy.exclusions.files.is_empty() {
+        return Err(PolicyError::Parse(
+            "exclusions.files is not empty; nonempty exclusion lists are not supported and would be silently ignored. Leave the list empty until an exclusion is implemented and reviewed"
+                .into(),
+        ));
+    }
+    validate_policy_percents(&policy)?;
     Ok(policy)
+}
+
+fn validate_policy_percents(policy: &CoveragePolicy) -> Result<(), PolicyError> {
+    let measured = &policy.measured;
+    for (name, value) in [
+        ("measured.workspace_lines", measured.workspace_lines),
+        ("measured.workspace_functions", measured.workspace_functions),
+        ("measured.workspace_regions", measured.workspace_regions),
+        ("measured.nsb_lines", measured.nsb_lines),
+        ("measured.nsb_functions", measured.nsb_functions),
+        ("measured.nsb_regions", measured.nsb_regions),
+        ("measured.nsb_cli_lines", measured.nsb_cli_lines),
+        ("measured.nsb_cli_functions", measured.nsb_cli_functions),
+        ("measured.nsb_cli_regions", measured.nsb_cli_regions),
+        (
+            "measured.nsb_data_tools_lines",
+            measured.nsb_data_tools_lines,
+        ),
+        (
+            "measured.nsb_data_tools_functions",
+            measured.nsb_data_tools_functions,
+        ),
+        (
+            "measured.nsb_data_tools_regions",
+            measured.nsb_data_tools_regions,
+        ),
+        ("floors.workspace_lines", policy.floors.workspace_lines),
+        ("floors.nsb_lines", policy.floors.nsb_lines),
+        (
+            "diff.changed_production_lines",
+            policy.diff.changed_production_lines,
+        ),
+    ] {
+        validate_percent(name, value)?;
+    }
+    Ok(())
+}
+
+/// Reject non-finite percentages outside `[0, 100]`.
+pub fn validate_percent(name: &str, value: f64) -> Result<f64, PolicyError> {
+    if !value.is_finite() || !(0.0..=100.0).contains(&value) {
+        return Err(PolicyError::Parse(format!(
+            "{name} must be a finite percentage in [0, 100], got {value}"
+        )));
+    }
+    Ok(value)
 }
 
 /// Load a policy file from an explicit path.

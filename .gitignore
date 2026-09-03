@@ -50,9 +50,13 @@ build/
 dist/
 .eggs/
 
+# Scratch
+/scratch/
+
 # Local coverage reports (CI uploads these as artifacts)
 coverage.json
 coverage.xml
+coverage.lcov
 coverage_html/
 code-coverage-results.md
 coverage-gate-overall.txt

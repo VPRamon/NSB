@@ -3,6 +3,8 @@
 # Do not lower floors merely to make a pull request pass. Raise them only after
 # a reproduced measurement on the intended base, with the command recorded below.
 # Function and region figures are diagnostic; only line floors are blocking.
+# Line percentages below are from LLVM LCOV (`DA:line,hits`). Function/region
+# percentages are from the companion llvm-cov JSON export.
 
 schema_version = 1
 
@@ -13,41 +15,45 @@ baseline_kind = "provisional-pre-audit"
 html_artifact_name = "coverage-html"
 json_artifact_name = "coverage-json"
 cobertura_artifact_name = "coverage-cobertura"
+lcov_artifact_name = "coverage-lcov"
 
 [baseline]
-commit = "0a191814dd9a8d5b941c4a7a098e3f08d1468f5a"
+# Updated after the LCOV-based gate lands; SHA must identify the measured tree.
+commit = "PLACEHOLDER_AFTER_COMMIT"
 date = "2026-09-03"
-rust_nightly = "1.100.0-nightly (2e2b193f8 2026-09-02)"
+rust_nightly = "1.100.0-nightly (5db7f4be8 2026-09-01)"
+rust_nightly_toolchain = "nightly-2026-09-02"
 cargo_llvm_cov = "0.9.0"
-command = "cargo +nightly llvm-cov --workspace --all-features --doctests --locked --no-report"
+command = "cargo +nightly-2026-09-02 llvm-cov --workspace --all-features --doctests --locked --no-report"
 
 [measured]
-workspace_lines = 79.92
-workspace_functions = 75.63
-workspace_regions = 78.77
-nsb_lines = 86.87
+workspace_lines = 81.39
+workspace_functions = 76.06
+workspace_regions = 79.23
+nsb_lines = 87.46
 nsb_functions = 86.99
 nsb_regions = 88.90
-nsb_cli_lines = 85.27
+nsb_cli_lines = 85.84
 nsb_cli_functions = 85.59
 nsb_cli_regions = 81.74
-nsb_data_tools_lines = 77.58
+nsb_data_tools_lines = 78.78
 nsb_data_tools_functions = 71.27
 nsb_data_tools_regions = 75.80
 
-# Blocking floors. About 1.4 percentage points below the reproduced line
-# coverage so immaterial nightly/llvm-cov reporting jitter does not fail CI.
+# Blocking floors. About 1.4 percentage points below the reproduced LCOV line
+# coverage so immaterial reporting jitter does not fail CI.
 # Re-measure after #122/#123 rather than treating these as the final release
 # numbers.
 [floors]
-workspace_lines = 78.5
-nsb_lines = 85.5
+workspace_lines = 80.0
+nsb_lines = 86.0
 
 [diff]
 changed_production_lines = 90.0
 base_ref = "origin/main"
 
-# No filename or region exclusions are currently approved.
+# No filename or region exclusions are currently approved. A nonempty
+# `files` list is rejected at load time so it cannot be silently ignored.
 [exclusions]
 files = []
 notes = "No coverage exclusions. Do not exclude a crate or production module to manufacture a passing percentage."

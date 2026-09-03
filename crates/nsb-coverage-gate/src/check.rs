@@ -48,9 +48,18 @@ pub fn check_overall(
         .unwrap_or(policy.floors.workspace_lines);
     let nsb_floor = options.nsb_lines_floor.unwrap_or(policy.floors.nsb_lines);
     let workspace_lines = report.lines;
-    let (nsb_lines, nsb_functions, nsb_regions) = crate_metrics(report, "nsb");
-    let (nsb_cli_lines, nsb_cli_functions, nsb_cli_regions) = crate_metrics(report, "nsb-cli");
-    let (tools_lines, tools_functions, tools_regions) = crate_metrics(report, "nsb-data-tools");
+    let nsb = crate_metrics(report, "nsb");
+    let nsb_cli = crate_metrics(report, "nsb-cli");
+    let tools = crate_metrics(report, "nsb-data-tools");
+    let nsb_lines = nsb.lines;
+    let nsb_functions = nsb.functions;
+    let nsb_regions = nsb.regions;
+    let nsb_cli_lines = nsb_cli.lines;
+    let nsb_cli_functions = nsb_cli.functions;
+    let nsb_cli_regions = nsb_cli.regions;
+    let tools_lines = tools.lines;
+    let tools_functions = tools.functions;
+    let tools_regions = tools.regions;
     let workspace_functions = report.functions;
     let workspace_regions = report.regions;
 
@@ -86,14 +95,25 @@ pub fn check_overall(
     ];
 
     let mut failed = false;
-    if workspace_lines.percent + 1e-9 < workspace_floor {
+    if workspace_lines.count == 0 {
+        failed = true;
+        lines.push("FAIL: coverage report contains no instrumented lines".to_string());
+    }
+    if !nsb.is_present() {
+        failed = true;
+        lines.push(
+            "FAIL: no nsb coverage data in the report (fail-closed; missing crates/nsb files or instrumented lines)"
+                .to_string(),
+        );
+    }
+    if workspace_lines.count > 0 && workspace_lines.percent + 1e-9 < workspace_floor {
         failed = true;
         lines.push(format!(
             "FAIL: workspace line coverage {:.2}% is below the floor {:.2}%",
             workspace_lines.percent, workspace_floor
         ));
     }
-    if nsb_lines.percent + 1e-9 < nsb_floor {
+    if nsb.is_present() && nsb_lines.percent + 1e-9 < nsb_floor {
         failed = true;
         lines.push(format!(
             "FAIL: nsb line coverage {:.2}% is below the floor {:.2}%",

@@ -1,22 +1,24 @@
 //! Local coverage floors and changed-production-code gates.
 //!
-//! The checker consumes `cargo llvm-cov report --json` output and the
-//! repository-root `coverage-policy.toml`. It does not contact hosted coverage
-//! services.
+//! Line coverage is taken from LLVM LCOV (`DA:line,hits`). JSON is optional
+//! diagnostic input for function/region totals. The checker does not contact
+//! hosted coverage services.
 
 #![forbid(unsafe_code)]
 
 mod check;
 mod diff;
+mod lcov;
 mod llvm;
 mod paths;
 mod policy;
 
 pub use check::{check_diff, check_overall, CheckKind, CheckOutcome, CheckStatus};
 pub use diff::{parse_unified_diff, ChangedLine, DiffError};
+pub use lcov::{load_lcov, parse_lcov, LcovError};
 pub use llvm::{load_report, parse_report, CoverageReport, LlvmError};
 pub use paths::{is_production_rust_file, repo_relative, workspace_crate};
-pub use policy::{load_policy, parse_policy_str, CoveragePolicy, PolicyError};
+pub use policy::{load_policy, parse_policy_str, validate_percent, CoveragePolicy, PolicyError};
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -27,8 +29,10 @@ use thiserror::Error;
 pub struct GateOptions {
     /// Policy file. When `None`, search from the current directory.
     pub policy_path: Option<PathBuf>,
-    /// `cargo llvm-cov report --json` output.
-    pub report_path: PathBuf,
+    /// `cargo llvm-cov report --lcov` output (required for line gates).
+    pub lcov_path: PathBuf,
+    /// Optional `cargo llvm-cov report --json` for function/region diagnostics.
+    pub report_path: Option<PathBuf>,
     /// Override workspace line floor (percent).
     pub workspace_lines_floor: Option<f64>,
     /// Override `nsb` line floor (percent).
@@ -47,7 +51,8 @@ impl Default for GateOptions {
     fn default() -> Self {
         Self {
             policy_path: None,
-            report_path: PathBuf::from("coverage.json"),
+            lcov_path: PathBuf::from("coverage.lcov"),
+            report_path: None,
             workspace_lines_floor: None,
             nsb_lines_floor: None,
             diff_lines_floor: None,
@@ -63,6 +68,8 @@ impl Default for GateOptions {
 pub enum GateError {
     #[error(transparent)]
     Policy(#[from] PolicyError),
+    #[error(transparent)]
+    Lcov(#[from] LcovError),
     #[error(transparent)]
     Llvm(#[from] LlvmError),
     #[error(transparent)]
@@ -81,7 +88,20 @@ pub fn run(
         Some(path) => load_policy(path)?,
         None => policy::load_policy_from_cwd()?,
     };
-    let report = load_report(&options.report_path)?;
+    if let Some(value) = options.workspace_lines_floor {
+        validate_percent("--workspace-lines-floor", value)?;
+    }
+    if let Some(value) = options.nsb_lines_floor {
+        validate_percent("--nsb-lines-floor", value)?;
+    }
+    if let Some(value) = options.diff_lines_floor {
+        validate_percent("--diff-lines-floor", value)?;
+    }
+    let mut report = load_lcov(&options.lcov_path)?;
+    if let Some(json_path) = &options.report_path {
+        let json = load_report(json_path)?;
+        attach_json_diagnostics(&mut report, json);
+    }
     match kind {
         CheckKind::Overall => {
             let outcome = check_overall(&policy, &report, options);
@@ -144,14 +164,15 @@ fn write_outcome(
     }
     let html = &policy.html_artifact_name;
     let json = &policy.json_artifact_name;
+    let lcov = policy.lcov_artifact_name.as_str();
     match artifact_hint {
         Some(hint) => writeln!(
             out,
-            "reports: HTML artifact `{html}`, JSON artifact `{json}` ({hint})"
+            "reports: HTML artifact `{html}`, JSON artifact `{json}`, LCOV artifact `{lcov}` ({hint})"
         )?,
         None => writeln!(
             out,
-            "reports: HTML artifact `{html}`, JSON artifact `{json}`"
+            "reports: HTML artifact `{html}`, JSON artifact `{json}`, LCOV artifact `{lcov}`"
         )?,
     }
     match outcome.status {
@@ -164,4 +185,15 @@ fn write_outcome(
 /// Locate `coverage-policy.toml` starting at `start`.
 pub fn find_policy_file(start: &Path) -> Option<PathBuf> {
     policy::find_policy_file(start)
+}
+
+fn attach_json_diagnostics(lines: &mut CoverageReport, json: CoverageReport) {
+    lines.functions = json.functions;
+    lines.regions = json.regions;
+    for (path, file) in json.files {
+        if let Some(existing) = lines.files.get_mut(&path) {
+            existing.functions = file.functions;
+            existing.regions = file.regions;
+        }
+    }
 }
