@@ -89,7 +89,9 @@ The diff gate:
 
 - diffs `*.rs` from `git merge-base <base> HEAD` to `HEAD` (`<base>` is the PR
   base SHA in GitHub Actions, otherwise `origin/main`);
-- treats files under `crates/<crate>/src/` as production code;
+- treats runtime production files under `crates/nsb/src/`, `crates/nsb-cli/src/`, and
+  `crates/nsb-data-tools/src/` as diff-coverage targets (tooling crates like
+  `nsb-coverage-gate` are excluded);
 - ignores integration tests (`crates/*/tests/`), unit-test modules named
   `tests.rs`, benches, and examples as coverage *targets*;
 - classifies each changed line from LCOV `DA:line,hits` the same way LLVM does:

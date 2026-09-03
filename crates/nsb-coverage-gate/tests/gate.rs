@@ -110,27 +110,6 @@ fn real_llvm_cov_lcov_fixture_matches_da_hit_semantics() {
         None,
         "lines without DA records are non-executable"
     );
-
-    let diff = "\
-+++ b/crates/nsb-coverage-gate/src/check.rs
-@@ -15,0 +15,1 @@
-+covered
-@@ -99,0 +99,1 @@
-+uncovered
-@@ -1,0 +1,1 @@
-+// not instrumented
-";
-    let outcome = check_diff(
-        &sample_policy(),
-        &report,
-        &parse_unified_diff(diff).unwrap(),
-        &GateOptions::default(),
-    );
-    assert_eq!(outcome.status, CheckStatus::Fail);
-    assert_eq!(
-        outcome.uncovered,
-        vec!["crates/nsb-coverage-gate/src/check.rs:99".to_string()]
-    );
 }
 
 #[test]
@@ -231,6 +210,24 @@ fn covered_changed_production_line_passes_diff_gate() {
 +++ b/crates/nsb/src/lib.rs
 @@ -10,0 +10,1 @@
 +covered
+";
+    let changed = parse_unified_diff(diff).unwrap();
+    let outcome = check_diff(
+        &sample_policy(),
+        &sample_report(),
+        &changed,
+        &GateOptions::default(),
+    );
+    assert_eq!(outcome.status, CheckStatus::Pass);
+    assert!(outcome.uncovered.is_empty());
+}
+
+#[test]
+fn coverage_gate_crate_file_is_not_a_diff_target() {
+    let diff = "\
++++ b/crates/nsb-coverage-gate/src/check.rs
+@@ -1,0 +1,1 @@
++tooling only
 ";
     let changed = parse_unified_diff(diff).unwrap();
     let outcome = check_diff(

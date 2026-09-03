@@ -42,6 +42,9 @@ pub fn is_production_rust_file(relative_path: &str) -> bool {
     let Some(crate_name) = workspace_crate(&path) else {
         return false;
     };
+    if crate_name == "nsb-coverage-gate" {
+        return false;
+    }
     let prefix = format!("crates/{crate_name}/");
     let rest = &path[prefix.len()..];
     if !(rest.starts_with("src/") || rest == "src") {
@@ -80,6 +83,9 @@ mod tests {
         ));
         assert!(!is_production_rust_file(
             "crates/nsb-cli/src/commands/tests.rs"
+        ));
+        assert!(!is_production_rust_file(
+            "crates/nsb-coverage-gate/src/check.rs"
         ));
     }
 
