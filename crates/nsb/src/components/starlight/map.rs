@@ -4,15 +4,15 @@ use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
 use crate::units::PixelIntegratedPhotonFlux;
 use csv::{ReaderBuilder, StringRecord};
+use qtty::angular::Degrees;
 use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use qtty::solid_angle::Steradians;
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
+use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixMap, HealpixOrdering, Nside};
 use std::collections::BTreeMap;
 use std::path::Path;
-
-const EPS: f64 = 1.0e-10;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// One directional starlight-map sample.
@@ -183,7 +183,8 @@ impl StarlightMap {
 
     /// Galactic longitude/latitude of a stored pixel centre.
     pub fn pixel_lon_lat_deg(&self, index: u64) -> Result<(f64, f64)> {
-        healpix_pixel_lon_lat_deg(self.grid(), HealpixIndex::new(index))
+        let direction = healpix_pixel_direction(self.grid(), HealpixIndex::new(index))?;
+        Ok((direction.l().value(), direction.b().value()))
     }
 
     /// Equal-area solid angle of every pixel on this map.
@@ -388,23 +389,30 @@ fn diagnostic_values(grid: HealpixGrid, pixels: &[StarlightPixel]) -> Result<(f6
         }
         Ok(values.iter().sum::<f64>() / values.len() as f64)
     };
+    let plane_lat_limit = Degrees::new(10.0);
+    let pole_lat_limit = Degrees::new(60.0);
+    let wrap_lat_limit = Degrees::new(30.0);
+    let wrap_low_lon_limit = Degrees::new(10.0);
+    let wrap_high_lon_limit = Degrees::new(350.0);
     let mut plane = Vec::new();
     let mut pole = Vec::new();
     let mut low = Vec::new();
     let mut high = Vec::new();
     for (index, pixel) in pixels.iter().enumerate() {
-        let (lon, lat) = healpix_pixel_lon_lat_deg(grid, HealpixIndex::new(index as u64))?;
+        let direction = healpix_pixel_direction(grid, HealpixIndex::new(index as u64))?;
+        let lon = direction.l();
+        let lat = direction.b();
         let value = pixel.integrated.value();
-        if lat.abs() <= 10.0 {
+        if lat.abs() <= plane_lat_limit {
             plane.push(value);
         }
-        if lat.abs() >= 60.0 {
+        if lat.abs() >= pole_lat_limit {
             pole.push(value);
         }
-        if lat.abs() <= 30.0 && lon <= 10.0 {
+        if lat.abs() <= wrap_lat_limit && lon <= wrap_low_lon_limit {
             low.push(value);
         }
-        if lat.abs() <= 30.0 && lon >= 350.0 {
+        if lat.abs() <= wrap_lat_limit && lon >= wrap_high_lon_limit {
             high.push(value);
         }
     }
@@ -537,26 +545,14 @@ fn parse_record_f64(record: &StringRecord, idx: usize, row: usize, name: &str) -
         })
 }
 
-fn healpix_pixel_lon_lat_deg(grid: HealpixGrid, index: HealpixIndex) -> Result<(f64, f64)> {
+fn healpix_pixel_direction(
+    grid: HealpixGrid,
+    index: HealpixIndex,
+) -> Result<SphericalDirection<Galactic>> {
     let direction: CartesianDirection<Galactic> = grid
         .pixel_center(index)
         .map_err(|err| invalid_map(err.to_string()))?;
-    let [x, y, z] = direction.as_array();
-    let lon = normalize_lon_deg(y.atan2(x).to_degrees());
-    let lat = z.clamp(-1.0, 1.0).asin().to_degrees();
-    Ok((lon, lat))
-}
-
-fn normalize_lon_deg(value: f64) -> f64 {
-    let mut out = value % 360.0;
-    if out < 0.0 {
-        out += 360.0;
-    }
-    if (out - 360.0).abs() <= EPS {
-        0.0
-    } else {
-        out
-    }
+    Ok(SphericalDirection::<Galactic>::from_cartesian(&direction))
 }
 
 fn invalid_map(message: impl Into<String>) -> NsbError {
