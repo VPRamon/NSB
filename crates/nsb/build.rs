@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use sha2::{Digest, Sha256};
 use std::env;
 use std::fmt::Write as _;
 use std::fs;
@@ -50,6 +51,8 @@ fn main() {
         ([map], [manifest]) => {
             require_registered_file(&data_dir, map);
             require_registered_file(&data_dir, manifest);
+            verify_registered_file_checksum(&data_dir, map);
+            verify_registered_file_checksum(&data_dir, manifest);
             println!("cargo:rerun-if-changed=data/{}", map.path);
             println!("cargo:rerun-if-changed=data/{}", manifest.path);
             println!("cargo:rustc-cfg=nsb_bundled_production_starlight");
@@ -88,6 +91,19 @@ fn require_registered_file(data_dir: &Path, asset: &Asset) {
             "registered production starlight asset {} is missing from {}",
             asset.path,
             data_dir.display()
+        );
+    }
+}
+
+fn verify_registered_file_checksum(data_dir: &Path, asset: &Asset) {
+    let path = data_dir.join(&asset.path);
+    let bytes = fs::read(&path)
+        .unwrap_or_else(|err| panic!("failed to read {} for checksum: {err}", path.display()));
+    let actual = format!("{:x}", Sha256::digest(&bytes));
+    if actual != asset.sha256 {
+        panic!(
+            "checksum mismatch for registered production starlight asset {}: manifest {}, actual {}",
+            asset.path, asset.sha256, actual
         );
     }
 }
@@ -141,20 +157,6 @@ fn generate_available(map: &Asset, manifest: &Asset) -> String {
         out,
         "pub(crate) const BUNDLED_PRODUCTION_STARLIGHT_MANIFEST: &str = include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), {:?}));",
         format!("/data/{}", manifest.path)
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "siderust::assert_data_checksum!({:?}, BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(), {:?});",
-        format!("NSB/data/{}", map.path),
-        map.sha256
-    )
-    .unwrap();
-    writeln!(
-        out,
-        "siderust::assert_data_checksum!({:?}, BUNDLED_PRODUCTION_STARLIGHT_MANIFEST.as_bytes(), {:?});",
-        format!("NSB/data/{}", manifest.path),
-        manifest.sha256
     )
     .unwrap();
     out
