@@ -184,7 +184,7 @@ impl StarlightMap {
     /// Galactic longitude/latitude of a stored pixel centre.
     pub fn pixel_lon_lat_deg(&self, index: u64) -> Result<(f64, f64)> {
         let direction = healpix_pixel_direction(self.grid(), HealpixIndex::new(index))?;
-        Ok((direction.lon().value(), direction.lat().value()))
+        Ok((direction.l().value(), direction.b().value()))
     }
 
     /// Equal-area solid angle of every pixel on this map.
@@ -400,8 +400,8 @@ fn diagnostic_values(grid: HealpixGrid, pixels: &[StarlightPixel]) -> Result<(f6
     let mut high = Vec::new();
     for (index, pixel) in pixels.iter().enumerate() {
         let direction = healpix_pixel_direction(grid, HealpixIndex::new(index as u64))?;
-        let lon = direction.lon();
-        let lat = direction.lat();
+        let lon = direction.l();
+        let lat = direction.b();
         let value = pixel.integrated.value();
         if lat.abs() <= plane_lat_limit {
             plane.push(value);
