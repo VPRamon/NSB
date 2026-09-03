@@ -99,7 +99,11 @@ fn verify_registered_file_checksum(data_dir: &Path, asset: &Asset) {
     let path = data_dir.join(&asset.path);
     let bytes = fs::read(&path)
         .unwrap_or_else(|err| panic!("failed to read {} for checksum: {err}", path.display()));
-    let actual = format!("{:x}", Sha256::digest(&bytes));
+    let digest = Sha256::digest(&bytes);
+    let actual = digest
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
     if actual != asset.sha256 {
         panic!(
             "checksum mismatch for registered production starlight asset {}: manifest {}, actual {}",
