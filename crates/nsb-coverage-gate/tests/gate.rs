@@ -324,6 +324,25 @@ fn multiline_use_reexport_absent_from_lcov_passes() {
 }
 
 #[test]
+fn const_provenance_literals_absent_from_lcov_pass() {
+    let diff = "\
++++ b/crates/nsb/src/lib.rs
+@@ -1,0 +1,2 @@
++pub const SIDERUST_VERSION: &str = \"0.11.1\";
++pub const SIDERUST_SOURCE: &str = \"crates.io:siderust:0.11.1\";
+";
+    let changed = parse_unified_diff(diff).unwrap();
+    let outcome = check_diff(
+        &sample_policy(),
+        &sample_report(),
+        &changed,
+        &GateOptions::default(),
+    );
+    assert_eq!(outcome.status, CheckStatus::Pass);
+    assert!(outcome.missing_files.is_empty());
+}
+
+#[test]
 fn changed_executable_line_hit_zero_fails() {
     let lcov = "SF:/repo/crates/nsb/src/lib.rs\nDA:40,0\nend_of_record\n";
     let report = parse_lcov(lcov).unwrap();

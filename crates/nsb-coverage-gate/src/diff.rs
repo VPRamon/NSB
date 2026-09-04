@@ -177,6 +177,8 @@ pub fn is_likely_non_instrumentable_rust_line(text: &str) -> bool {
         || without_vis.starts_with("union ")
         || without_vis.starts_with("trait ")
         || without_vis.starts_with("impl ")
+        || without_vis.starts_with("const ")
+        || without_vis.starts_with("static ")
     {
         return true;
     }
