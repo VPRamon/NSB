@@ -1,7 +1,9 @@
-# Airglow component completion audit (#112)
+# Airglow component completion audit
 
-Status: Machine-actionable acceptance audit.
-Scope: Current Airglow implementation after #108, #109, #110, and #114.
+Status: Machine-actionable completion evidence (originated as issue #112
+acceptance audit). Not the canonical Airglow runtime guide — see
+[../README.md](../README.md).
+Scope: Airglow implementation after #108, #109, #110, and #114.
 Out of scope: measurement-led CTAO site calibration (#38).
 
 | #112 acceptance area | Repository evidence and result |
@@ -15,7 +17,7 @@ Out of scope: measurement-led CTAO site calibration (#38).
 | Scientific metadata | Component metadata independently records maturity/provenance, F10.7 resolution, extinction assumptions, and structured geometry identity/configuration. JSON and the versioned point/window CSV schemas preserve that geometry identity, including the exact vertical-profile checksum. |
 | Numerical/scientific validation | Tests protect exact default/explicit Van Rhijn parity, zenith normalization, honest failure when no emission is visible above the observer, thin-shell convergence, near-horizon stability, integration refinement, altitude sensitivity, invalid-input rejection, and independent extinction scaling. |
 | Performance | Criterion coverage measures Van Rhijn, direct profile integration at two resolutions, and complete Airglow evaluation for both paths. The exact/reference integration remains available and no unmeasured cache was introduced. |
-| Documentation | Runtime, profile schema, mathematics, metadata, audit evidence, limits, and issue boundaries are documented under this directory and in user/specification guides. |
+| Documentation | Runtime, profile schema, mathematics, metadata, audit evidence, limits, and issue boundaries are documented under `docs/nsb_components/airglow/` (runtime guide plus this validation/evidence directory) and in user/specification guides. |
 | Calibration boundary | No geometry choice upgrades a result to `Calibrated`. No hidden Paranal/CTAO height or site whitelist exists. Dedicated CTAO calibration remains #38 and does not block component completion. |
 
 ## Final scope finding

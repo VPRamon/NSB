@@ -36,7 +36,7 @@ component is site-calibrated.
 | Airglow | Empirical continuum with seasonal, nightly, solar, selectable emitting-volume geometry (Van Rhijn default), and independent Noll attenuation terms | Generic model or explicit planning preset |
 | Moonlight | Jones et al. (2013) spectral model | Generic model or explicit planning preset |
 | KS91 moonlight | Published analytic V-band implementation | Reference/alternate model |
-| Integrated starlight | Validated bundled or external HEALPix map; explicit experimental seed/map | Production only after complete asset admission; otherwise experimental |
+| Integrated starlight | Validated bundled or external HEALPix map | Production only after complete asset admission; experimental only when explicitly configured |
 | CTAO-N / CTAO-S profiles | Explicit atmospheric planning assumptions | Planning presets, not calibrated site products |
 
 B/V magnitude and S10 fields are diagnostic central-wavelength proxies, not
@@ -169,8 +169,8 @@ cargo run --locked -p nsb-data-tools --bin nsb-data -- assets verify \
   --manifest crates/nsb/data/manifest.toml
 ```
 
-Use the [Data-product workflow](docs/maintainer-guide/data-products.md) and the
-[Complete data-tool reference](docs/maintainer-guide/tools.md). The normative
+Use the [Dataset workflow](docs/maintainer-guide/datasets.md) and the
+[`nsb-data-tools` README](crates/nsb-data-tools/README.md). The normative
 command inventory is `crates/nsb-data-tools/tool-registry.toml`.
 
 ## Documentation

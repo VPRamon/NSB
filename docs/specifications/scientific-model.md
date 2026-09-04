@@ -32,9 +32,11 @@ coordinates.
 `ALL` is the complete production-safe default. In a tree without a registered
 bundled production starlight CSV/TOML pair, it is the three-component planning
 model. When the Gaia DR3 XP-derived production pair is registered and embedded,
-`ALL` includes starlight. Experimental starlight remains excluded because the
-bundled seed is incomplete. A caller-supplied experimental map or explicit seed
-can still exercise the directional component. A validated external override
+`ALL` includes starlight. Experimental starlight remains excluded from `ALL`; the
+frozen Gaia DR3 release candidate is not production-embedded until #103 signs
+and the promotion workflow registers the packed runtime map. A caller-supplied
+experimental map or explicit seed can still exercise the directional component.
+A validated external override
 admits production metadata only after its map and provenance sidecar pass the
 complete fail-closed contract.
 

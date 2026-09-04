@@ -83,18 +83,6 @@ pub enum ReviewStatus {
     Rejected,
 }
 
-impl ReviewStatus {
-    #[allow(dead_code)]
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Pending => "pending",
-            Self::Approved => "approved",
-            Self::ApprovedWithConditions => "approved_with_conditions",
-            Self::Rejected => "rejected",
-        }
-    }
-}
-
 /// `[candidate]` table of the release-candidate manifest.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

@@ -93,8 +93,6 @@ pub struct DiagnosticSuiteReport {
     pub source_traces: Vec<SourceTrace>,
 }
 
-pub type MergedDiagnosticReport = DiagnosticSuiteReport;
-
 #[derive(Default)]
 struct DiagnosticAccumulator {
     pixels: BTreeMap<u32, PixelDiagnosticCell>,

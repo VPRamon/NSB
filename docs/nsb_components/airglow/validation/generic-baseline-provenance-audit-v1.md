@@ -1,4 +1,8 @@
-# Audit: Airglow generic baseline vs site calibration (Issue #108)
+# Airglow generic baseline provenance audit
+
+Status: Scientific provenance and Option D planning-proxy decision record
+(originated as issue #108 audit). Not the canonical Airglow runtime guide — see
+[../README.md](../README.md).
 
 ## Summary
 This audit documents the complete **default Airglow computation pipeline** and the provenance/classification of every scientific/default assumption that the current implementation uses.
@@ -12,7 +16,7 @@ It also inspects whether any **implicit Paranal/CTAO/whitelist site dependence**
 > Van Rhijn thin shell; caller-provided vertical emission profiles use the real
 > observer altitude. This API change does not alter this audit's maturity verdict
 > or turn any generic/planning result into a site calibration. See the
-> [current runtime guide](README.md).
+> [current runtime guide](../README.md).
 
 ## Scope (default pipeline)
 Default Airglow computation is the path used by:
@@ -164,10 +168,13 @@ These coefficients are part of the Paranal-trained continuum model (Noll/SkyCalc
 Alternative vertical-emission geometry is tracked by #110 and is out of scope here.
 
 ### 7) Site/profile scaling and atmospheric scattering (separation boundary)
-7.1. Runtime radiance scaling is:
-`global_scale × solar_corr × seasonal_corr × Van Rhijn × Noll_scatter(λ) × user_scale`,
-where `Noll_scatter(λ)` is the wavelength-dependent Noll-2012 effective
-Rayleigh/Mie transmission applied spectrally before 300–650 nm integration.  
+7.1. The complete wavelength-dependent continuum expression before spectral
+integration is:
+`global_scale × solar_corr × seasonal_corr × Van Rhijn × Noll_scatter(λ) × user_scale`.
+Scalar corrections and Van Rhijn/geometry form `scalar_scale`; `Noll_scatter(λ)`
+is the wavelength-dependent Noll-2012 effective Rayleigh/Mie transmission applied
+exactly once inside `integrate_attenuated_continuum` before the 300–650 nm
+integral (not a second post-equation attenuation stage).
 **Origin**: `crates/nsb/src/components/airglow/continuum.rs` and
 `crates/nsb/src/components/airglow/extinction.rs`.
 
@@ -324,8 +331,11 @@ dataset (ASM §§6.2.6–6.2.7). NSB does **not** reproduce that molecular stage
 - Noll-2012 effective Rayleigh/Mie scattering using `SiteProfile.atmosphere`
   pressure/Rayleigh/Mie assumptions and Siderust optical-depth kernels
 
-**NSB Airglow stack:**
+**NSB Airglow stack (complete continuum expression before spectral integration):**
 `global_scale × solar_corr × seasonal_corr × Van Rhijn × Noll_scatter(λ) × user_scale`
+
+`Noll_scatter(λ)` is applied once spectrally; there is no second atmospheric-
+scattering multiplication after that term.
 
 The Noll `f_R`/`f_M` fits were derived primarily for `z ≲ 60°` (Noll §4.1). NSB
 evaluates the same parametric form at larger zenith distances for numerical

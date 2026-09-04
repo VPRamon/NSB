@@ -59,9 +59,9 @@ represented as production quality.
 ## Release-candidate status
 
 Technical packing and post-approval promotion automation are implemented
-under issue #102. The frozen UV-v2 candidate remains scientifically
+under issue #102 (closed). The frozen UV-v2 candidate remains scientifically
 unapproved. Human scientific and redistribution review is issue #103, the
-only remaining Starlight production blocker after #102 closes.
+only remaining Starlight production blocker.
 
 `nsb-data dataset starlight promote` packs a runtime-loadable RING HEALPix
 map from the immutable candidate-v5 bytes. `gates.promotion_eligible` is

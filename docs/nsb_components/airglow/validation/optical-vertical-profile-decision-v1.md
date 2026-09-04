@@ -1,6 +1,8 @@
-# Optical 300-650 nm airglow vertical-profile audit (#110)
+# Optical 300-650 nm airglow vertical-profile decision record
 
-Status: Scientific source audit and implementation decision.
+Status: Scientific evidence and implementation decision record (originated as
+issue #110 audit). Not the canonical Airglow runtime guide — see
+[../README.md](../README.md).
 Reviewed: 2026-09-02.
 Decision: Do not bundle or recommend a single production broadband profile;
 retain the explicit 90 km Van Rhijn thin shell as the default and support
@@ -138,4 +140,4 @@ reference integration path take priority until measurements show a real need.
 The 2026-09-02 short review run measured about 9 ns for Van Rhijn, 1.65 us for
 the 64-substep profile factor, 3.16 us at 128 substeps, and 13.5-13.9 ms for a
 complete evaluation with either geometry. Hardware and exact intervals are
-recorded in the [performance contract](../../specifications/performance.md).
+recorded in the [performance contract](../../../specifications/performance.md).

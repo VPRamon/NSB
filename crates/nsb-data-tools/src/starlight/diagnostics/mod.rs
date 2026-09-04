@@ -8,15 +8,13 @@ pub mod processor;
 
 pub use baseline::{write_baseline_report, BaselineReport, SMOKE_PARTITIONS_PATH};
 pub use processor::{
-    run_diagnostic_suite, DiagnosticSuiteReport, MergedDiagnosticReport,
-    PhotometricArtifactOverride, TRACE_PARENTS_SMOKE,
+    run_diagnostic_suite, DiagnosticSuiteReport, PhotometricArtifactOverride, TRACE_PARENTS_SMOKE,
 };
 
 use crate::platform::artifact_store;
 use crate::platform::checksum_io;
 use crate::starlight::healpix::{nested_neighbours, nested_parent_at_coarser_nside};
 use crate::starlight::map::accumulator::{merge_shards, PartitionShard};
-use crate::starlight::selection::SelectionCorrection;
 use crate::starlight::validation::candidate_map::{self, CandidateMap, CandidatePixel};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -300,21 +298,6 @@ pub fn boundary_discontinuity_report(
         median_cross_parent_log_jump: median_cross,
         cross_to_internal_ratio: ratio,
     })
-}
-
-/// Evaluate mean selection weight at a fixed G magnitude over the equatorial grid.
-pub fn mean_selection_weight_map(
-    selection: &SelectionCorrection,
-    g_mag: f64,
-    bp_rp: Option<f64>,
-) -> Result<Vec<f64>> {
-    let nside = selection.artifact().healpix_nside;
-    let npix = 12usize * nside as usize * nside as usize;
-    let mut weights = vec![0.0; npix];
-    for (healpix, weight) in weights.iter_mut().enumerate().take(npix) {
-        *weight = selection.evaluate(healpix as u32, g_mag, bp_rp)?.weight;
-    }
-    Ok(weights)
 }
 
 fn log10_jump(left: f64, right: f64) -> f64 {

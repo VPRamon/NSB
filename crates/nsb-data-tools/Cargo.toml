@@ -31,5 +31,5 @@ toml_edit = "0.23"
 tempfile = "3"
 tempoch = "0.6"
 
-[dev-dependencies]
-approx = "0.5"
+[package.metadata.cargo-machete]
+ignored = ["md-5"]

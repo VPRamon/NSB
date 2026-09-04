@@ -104,14 +104,17 @@ the referenced catalogue license, calibration, and comparison report.
 
 ## Gaia DR3 bundled starlight candidate
 
-The Gaia DR3 release pipeline now has maintainer tooling for extraction
-documentation, passband source preparation, HEALPix map generation, validation
-reporting, and asset packing. CI uses tiny fixtures only. A real bundled asset
-is not production until the Gaia extract checksum, canonical input checksum, map
-checksum, validation report, longitude seam diagnostic, and structured
-independent regional comparison are all reviewed. The independent reference file
-declares regions and expected radiance ranges; it does not provide trusted pass
-booleans.
+The exact Gaia DR3 nside128 UV-v2 release candidate is frozen and checksum-pinned
+under `docs/nsb_components/starlight/release-candidate/`. Machine-actionable
+technical work for issue #102 is complete: packing, technical validation, and
+post-approval promotion automation exist. Pipeline
+`validation_status = technical_pass` is technical evidence only;
+`scientifically_validated` remains false and independent-reference limitations
+(`no_admissible_independent_reference`) are frozen for human review. Production
+admission still requires the qualified human scientific decision and authorized
+redistribution decision recorded in issue #103, followed by the prepared
+promotion workflow. The candidate must not be described as scientifically
+validated or production-approved until those #103 decisions exist.
 
 ## Missing external campaigns
 
