@@ -1050,6 +1050,34 @@ mod tests {
     }
 
     #[test]
+    fn absent_cell_angular_nearest_runs_when_resolved_pixel_lacks_bin() {
+        // Healpix 0 is tabulated only for the faint magnitude bin; healpix 2
+        // carries the bright bin. Querying an untabulated pixel for the bright
+        // bin therefore resolves onto healpix 0, misses the exact key, and must
+        // fall through to absent_cell angular nearest (healpix 2).
+        let mut artifact = tiny_artifact(CalibrationStatus::Candidate);
+        artifact.completeness_table = vec![cell(0, 1, 0, 0.5), cell(2, 0, 0, 0.8)];
+        let correction = load_artifact(&artifact);
+        let evaluation = correction.evaluate(1, 12.0, Some(0.4)).unwrap();
+        assert_eq!(
+            (evaluation.completeness, evaluation.weight),
+            (0.8, 1.0 / 0.8)
+        );
+    }
+
+    #[test]
+    fn selection_pixel_center_supports_equatorial_and_galactic_frames() {
+        let mut artifact = tiny_artifact(CalibrationStatus::Candidate);
+        let equatorial = selection_pixel_center(&artifact, 1, 0).unwrap();
+        artifact.coordinate_frame = HealpixCoordinateFrame::Galactic;
+        let galactic = selection_pixel_center(&artifact, 1, 0).unwrap();
+        assert!(
+            equatorial.angular_separation(&galactic).value() > 0.0,
+            "Galactic frame transform must move the typed ICRS query direction"
+        );
+    }
+
+    #[test]
     fn checksum_mismatch_and_placeholders_fail_closed() {
         let artifact = tiny_artifact(CalibrationStatus::TestOnly);
         let temporary = TempDir::new().unwrap();

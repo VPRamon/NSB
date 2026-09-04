@@ -2433,4 +2433,17 @@ mod tests {
             .count();
         assert_eq!(plane_pixels, 67_072);
     }
+
+    #[test]
+    fn galactic_plane_coverage_is_finite_for_fixture_map() {
+        let temp = TempDir::new().unwrap();
+        let _ = emit_fixture(&temp, 1);
+        let map_path = temp.path().join("outputs").join(canonical_map_name(1));
+        let coverage = galactic_plane_coverage(&map_path, 1).unwrap();
+        assert!(coverage.is_finite(), "coverage={coverage}");
+        assert!(
+            (0.0..=1.0).contains(&coverage),
+            "plane coverage must be a fraction, got {coverage}"
+        );
+    }
 }
