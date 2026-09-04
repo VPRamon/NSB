@@ -121,9 +121,20 @@ Some scientific taxonomies are intentionally closed:
 
 ### `NsbError`
 
-`NsbError` is `#[non_exhaustive]`. Match documented variants you handle and keep
-a wildcard arm. Treat `Display` and `source()` as the stable diagnostic
-contract; do not depend on exhaustive variant matching across minor releases.
+`NsbError` is `#[non_exhaustive]` so **new variants** may be added in minor
+releases. Match the documented variants you handle and keep a wildcard arm.
+
+Existing variant shapes and field payloads are part of the public contract.
+Adding fields to an existing variant is SemVer-breaking unless that variant is
+explicitly redesigned for extensibility. Prefer `Display` and `source()` for
+stable diagnostics rather than depending on exhaustive matching across releases.
+
+### Site profile inventory
+
+`SiteProfileId` is `#[non_exhaustive]`. Prefer
+`SiteProfileId::all() -> &'static [SiteProfileId]` when enumerating built-in
+profiles: the return type does not encode the profile count, so new profiles can
+be added without a signature break.
 
 ## Public API snapshot and CI
 
@@ -132,34 +143,54 @@ The canonical machine-readable inventory lives at
 generated with [`cargo-public-api`](https://github.com/cargo-public-api/cargo-public-api)
 (simplified output: `-sss`).
 
-[`scripts/check-nsb-public-api`](../../scripts/check-nsb-public-api) enforces:
+[`crates/nsb-public-api-gate`](../../crates/nsb-public-api-gate) enforces:
 
 1. **Snapshot integrity** — committed baseline must exist, be non-empty, and match
    the API generated from the current tree (fail closed on missing/malformed data).
-2. **Historical SemVer gate** — when `origin/main` (merge-base for PRs) already
-   contains `crates/nsb/api/public-api.txt`, `cargo public-api diff
-   $BASE..HEAD` runs with `--deny=removed --deny=changed`. Updating the snapshot
-   in the same PR cannot hide removals or signature changes against the merge-base.
-3. **Regex guard** — retained check for deliberately removed compatibility-only
+2. **Historical SemVer gate** — `cargo public-api diff $BASE..HEAD` with
+   `--deny=removed --deny=changed` when `$BASE` already contains
+   `crates/nsb/api/public-api.txt`. Updating the snapshot in the same commit or PR
+   cannot hide removals or signature changes against that historical revision.
+3. **Compat guard** — retained check for deliberately removed compatibility-only
    symbols (`ALL_SUPPORTED`, `python_parity`, etc.).
+
+### How `$BASE` is chosen
+
+| Context | Base revision |
+| --- | --- |
+| GitHub Actions `pull_request` | Explicit `${{ github.event.pull_request.base.sha }}` via `--base` / `NSB_PUBLIC_API_BASE` |
+| GitHub Actions `push` | Explicit `${{ github.event.before }}` (commit **before** the push) |
+| Local without `--base` | Merge-base with `origin/main` when it differs from `HEAD`, otherwise `HEAD~1` |
+
+CI always passes `--base` explicitly. The gate **refuses** a base that resolves
+to `HEAD` (empty `HEAD..HEAD` comparison) and **fails closed** when an explicit
+non-null base revision does not exist.
+
+Initial/root pushes where `github.event.before` is the all-zero SHA run in
+**bootstrap** mode (snapshot match only). Missing snapshot at a valid historical
+base is also bootstrap until the baseline lands on `main`.
+
+Do **not** rely on `origin/main == HEAD` inference for push protection: after a
+push to `main`, `origin/main` points at the new tip.
 
 ### Bootstrap (no prior release)
 
 There is no GitHub release or tag baseline yet. This PR introduces the first
 committed snapshot. CI requires HEAD to match that file; the historical
-`diff --deny` step is skipped until `main` contains the snapshot.
+`diff --deny` step is skipped until a prior revision contains the snapshot.
 
 ### After the first release
 
 Once a git tag and GitHub release exist:
 
-- Keep comparing PRs against the merge-base snapshot on `main` (primary gate).
-- Optionally extend the script to compare against the latest release tag that
+- Keep comparing PRs against the PR base SHA and pushes against
+  `github.event.before` (primary gate).
+- Optionally extend the gate to compare against the latest release tag that
   ships `crates/nsb/api/public-api.txt` for release-branch workflows.
 
 Regenerating the snapshot is only allowed together with an intentional SemVer
 decision; incompatible diffs must fail CI unless the baseline itself is being
-introduced on `main` for the first time.
+introduced for the first time (no snapshot at `$BASE`).
 
 ## Updating the snapshot
 
@@ -168,7 +199,7 @@ introduced on `main` for the first time.
 rustup toolchain install nightly-2026-09-02
 cargo install cargo-public-api --locked --version 0.50.1
 
-scripts/check-nsb-public-api --write
+cargo run --locked -p nsb-public-api-gate -- --write
 git add crates/nsb/api/public-api.txt
 ```
 

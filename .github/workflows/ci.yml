@@ -196,8 +196,28 @@ jobs:
           shared-key: public-api
       - name: Install cargo-public-api
         run: cargo install cargo-public-api --locked --version 0.50.1 --force
+      - name: Resolve public API SemVer base
+        id: api_base
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "base=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            BEFORE="${{ github.event.before }}"
+            if [[ -z "$BEFORE" ]]; then
+              echo "push event is missing github.event.before; refuse empty SemVer base" >&2
+              exit 1
+            fi
+            echo "base=${BEFORE}" >> "$GITHUB_OUTPUT"
+          else
+            echo "unsupported event for public API policy: ${{ github.event_name }}" >&2
+            exit 1
+          fi
       - name: Check public API snapshot and SemVer gate
-        run: scripts/check-nsb-public-api
+        env:
+          NSB_PUBLIC_API_BASE: ${{ steps.api_base.outputs.base }}
+        run: cargo run --locked -p nsb-public-api-gate -- --base "$NSB_PUBLIC_API_BASE"
 
   dependencies:
     name: Dependency policy

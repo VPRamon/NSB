@@ -15,10 +15,14 @@ use thiserror::Error;
 
 /// Failures returned by NSB model construction and evaluation.
 ///
-/// This enum is `#[non_exhaustive]`. Supported callers should match on the
-/// documented variants they handle and keep a wildcard for future additions.
-/// Variant payloads may grow; treat displayed messages and `source()` as the
-/// stable diagnostic contract rather than depending on every field.
+/// This enum is `#[non_exhaustive]`: new variants may be added in minor
+/// releases. Supported callers should match the documented variants they handle
+/// and keep a wildcard arm.
+///
+/// Existing variant shapes and field payloads are part of the public contract.
+/// Adding fields to an existing variant is a breaking change unless that
+/// variant is separately redesigned for extensibility. Treat `Display` and
+/// `source()` as the stable diagnostic interfaces for logging and reporting.
 #[derive(Debug, Error)]
 #[non_exhaustive]
 pub enum NsbError {

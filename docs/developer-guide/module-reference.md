@@ -16,6 +16,7 @@ SemVer policy, and the snapshot gate are documented in
 | `nsb-cli` | User-facing parsing, site aliases, configuration templates, logging, and stable output rendering | Installed as the `nsb` executable |
 | `nsb-data-tools` | Offline acquisition, transformation, validation, reconciliation, and packaging of scientific data | Maintainer-only; never invoked by runtime evaluation |
 | `nsb-coverage-gate` | Overall and changed-production coverage gates over llvm-cov LCOV (JSON diagnostics) | CI/local quality tool; not a scientific runtime |
+| `nsb-public-api-gate` | Public API snapshot integrity and historical SemVer gates via `cargo-public-api` | CI/local quality tool; not a scientific runtime |
 
 ## `nsb` modules
 

@@ -184,6 +184,7 @@ pub fn nsb::StarlightMap::from_csv_str(raw: &str, provenance: nsb::StarlightProv
 pub fn nsb::StarlightMap::from_healpix(grid: siderust::healpix::grid::HealpixGrid, pixels: alloc::vec::Vec<nsb::StarlightPixel>, provenance: nsb::StarlightProvenance) -> nsb::error::Result<Self>
 pub fn nsb::StarlightMap::grid(&self) -> siderust::healpix::grid::HealpixGrid
 pub fn nsb::StarlightMap::lookup(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::StarlightOutputs
+pub fn nsb::StarlightMap::pixel_direction(&self, index: siderust::healpix::index::HealpixIndex) -> nsb::error::Result<affn::spherical::direction::Direction<affn::frames::astro::Galactic>>
 pub fn nsb::StarlightMap::pixel_lon_lat_deg(&self, index: u64) -> nsb::error::Result<(f64, f64)>
 pub fn nsb::StarlightMap::pixel_solid_angle(&self) -> qtty_core::units::solid_angle::Steradians
 pub fn nsb::StarlightMap::pixels(&self) -> &[nsb::StarlightPixel]
@@ -512,7 +513,7 @@ pub nsb::site::SiteProfileId::CtaNorth
 pub nsb::site::SiteProfileId::CtaSouth
 pub nsb::site::SiteProfileId::GenericClearSky
 impl nsb::site::SiteProfileId
-pub fn nsb::site::SiteProfileId::all() -> [Self; 3]
+pub fn nsb::site::SiteProfileId::all() -> &'static [Self]
 pub const fn nsb::site::SiteProfileId::as_str(self) -> &'static str
 pub fn nsb::site::SiteProfileId::profile(self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
 #[non_exhaustive] pub struct nsb::site::AirglowSiteCalibration
@@ -747,7 +748,7 @@ pub nsb::SiteProfileId::CtaNorth
 pub nsb::SiteProfileId::CtaSouth
 pub nsb::SiteProfileId::GenericClearSky
 impl nsb::site::SiteProfileId
-pub fn nsb::site::SiteProfileId::all() -> [Self; 3]
+pub fn nsb::site::SiteProfileId::all() -> &'static [Self]
 pub const fn nsb::site::SiteProfileId::as_str(self) -> &'static str
 pub fn nsb::site::SiteProfileId::profile(self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
 #[non_exhaustive] pub enum nsb::SolarActivitySource
@@ -1158,6 +1159,7 @@ pub fn nsb::StarlightMap::from_csv_str(raw: &str, provenance: nsb::StarlightProv
 pub fn nsb::StarlightMap::from_healpix(grid: siderust::healpix::grid::HealpixGrid, pixels: alloc::vec::Vec<nsb::StarlightPixel>, provenance: nsb::StarlightProvenance) -> nsb::error::Result<Self>
 pub fn nsb::StarlightMap::grid(&self) -> siderust::healpix::grid::HealpixGrid
 pub fn nsb::StarlightMap::lookup(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::StarlightOutputs
+pub fn nsb::StarlightMap::pixel_direction(&self, index: siderust::healpix::index::HealpixIndex) -> nsb::error::Result<affn::spherical::direction::Direction<affn::frames::astro::Galactic>>
 pub fn nsb::StarlightMap::pixel_lon_lat_deg(&self, index: u64) -> nsb::error::Result<(f64, f64)>
 pub fn nsb::StarlightMap::pixel_solid_angle(&self) -> qtty_core::units::solid_angle::Steradians
 pub fn nsb::StarlightMap::pixels(&self) -> &[nsb::StarlightPixel]

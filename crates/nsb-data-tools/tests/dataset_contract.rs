@@ -109,6 +109,49 @@ fn maintained_code_has_no_python_shell_usb_or_recursive_cargo_orchestration() {
 
 #[test]
 fn no_tracked_python_or_shell_programs_exist() {
+    fn is_forbidden_extension(path: &Path) -> bool {
+        matches!(
+            path.extension().and_then(|v| v.to_str()),
+            Some("py" | "sh" | "bash" | "zsh" | "fish" | "ipynb" | "ps1" | "cmd" | "bat")
+        )
+    }
+
+    fn has_forbidden_shebang(path: &Path) -> bool {
+        let Ok(bytes) = fs::read(path) else {
+            return false;
+        };
+        // Skip large/binary assets; shebang interpreters fit in the first line.
+        if bytes.len() > 256 * 1024 || bytes.contains(&0) {
+            return false;
+        }
+        let Ok(text) = std::str::from_utf8(&bytes) else {
+            return false;
+        };
+        let Some(first) = text.lines().next() else {
+            return false;
+        };
+        let Some(rest) = first.strip_prefix("#!") else {
+            return false;
+        };
+        let rest = rest.trim();
+        // `#!/usr/bin/env bash`, `#!/bin/sh`, `#!/usr/bin/python3`, …
+        let interpreter = rest
+            .strip_prefix("/usr/bin/env ")
+            .or_else(|| rest.strip_prefix("/bin/env "))
+            .unwrap_or(rest)
+            .split_whitespace()
+            .next()
+            .unwrap_or("");
+        let name = Path::new(interpreter)
+            .file_name()
+            .and_then(|v| v.to_str())
+            .unwrap_or(interpreter);
+        matches!(
+            name,
+            "sh" | "bash" | "zsh" | "dash" | "fish" | "python" | "python2" | "python3" | "ipython"
+        )
+    }
+
     fn visit(path: &Path, found: &mut Vec<PathBuf>) {
         for entry in fs::read_dir(path).unwrap() {
             let path = entry.unwrap().path();
@@ -119,10 +162,7 @@ fn no_tracked_python_or_shell_programs_exist() {
                 ) {
                     visit(&path, found);
                 }
-            } else if matches!(
-                path.extension().and_then(|v| v.to_str()),
-                Some("py" | "sh" | "bash" | "ipynb")
-            ) {
+            } else if is_forbidden_extension(&path) || has_forbidden_shebang(&path) {
                 found.push(path);
             }
         }

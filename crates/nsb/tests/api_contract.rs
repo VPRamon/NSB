@@ -90,3 +90,19 @@ fn nsb_error_non_exhaustive_matching_covers_documented_variants() {
         assert!(!err.to_string().is_empty());
     }
 }
+
+#[test]
+fn site_profile_id_all_is_length_independent_inventory() {
+    let profiles = SiteProfileId::all();
+    assert!(!profiles.is_empty());
+    // Callers iterate a slice; adding profiles must not require a signature change.
+    let mut seen = 0usize;
+    for id in profiles {
+        let _ = std::mem::size_of_val(id);
+        seen += 1;
+    }
+    assert_eq!(seen, profiles.len());
+    assert!(profiles.contains(&SiteProfileId::GenericClearSky));
+    assert!(profiles.contains(&SiteProfileId::CtaNorth));
+    assert!(profiles.contains(&SiteProfileId::CtaSouth));
+}

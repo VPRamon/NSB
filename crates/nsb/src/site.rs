@@ -166,8 +166,16 @@ impl SiteProfileId {
     }
 
     /// Return every built-in profile identifier.
-    pub fn all() -> [Self; 3] {
-        [Self::GenericClearSky, Self::CtaNorth, Self::CtaSouth]
+    ///
+    /// The inventory is a static slice so adding profiles later does not change
+    /// this function's public type signature.
+    pub fn all() -> &'static [Self] {
+        const ALL: &[SiteProfileId] = &[
+            SiteProfileId::GenericClearSky,
+            SiteProfileId::CtaNorth,
+            SiteProfileId::CtaSouth,
+        ];
+        ALL
     }
 }
 

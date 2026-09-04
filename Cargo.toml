@@ -1,4 +1,4 @@
 [workspace]
-members = ["crates/nsb", "crates/nsb-cli", "crates/nsb-data-tools", "crates/nsb-coverage-gate"]
+members = ["crates/nsb", "crates/nsb-cli", "crates/nsb-data-tools", "crates/nsb-coverage-gate", "crates/nsb-public-api-gate"]
 exclude = ["siderust"]
 resolver = "2"

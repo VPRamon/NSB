@@ -280,6 +280,85 @@ fn changed_production_file_without_coverage_data_fails() {
 }
 
 #[test]
+fn declaration_only_production_file_absent_from_lcov_passes() {
+    let diff = "\
++++ b/crates/nsb/src/components/airglow/mod.rs
+@@ -1,0 +1,4 @@
++//! Airglow component.
++pub mod continuum;
++pub use continuum::Airglow;
++#[cfg(test)]
+";
+    let changed = parse_unified_diff(diff).unwrap();
+    let outcome = check_diff(
+        &sample_policy(),
+        &sample_report(),
+        &changed,
+        &GateOptions::default(),
+    );
+    assert_eq!(outcome.status, CheckStatus::Pass);
+    assert!(outcome.missing_files.is_empty());
+    assert!(outcome.uncovered.is_empty());
+}
+
+#[test]
+fn multiline_use_reexport_absent_from_lcov_passes() {
+    let diff = "\
++++ b/crates/nsb/src/lib.rs
+@@ -1,0 +1,5 @@
++pub use components::moonlight::{
++    AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991, DEFAULT_K_EXT,
++};
++    DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM, VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
++pub(crate) use extinction::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
+";
+    let changed = parse_unified_diff(diff).unwrap();
+    let outcome = check_diff(
+        &sample_policy(),
+        &sample_report(),
+        &changed,
+        &GateOptions::default(),
+    );
+    assert_eq!(outcome.status, CheckStatus::Pass);
+    assert!(outcome.missing_files.is_empty());
+}
+
+#[test]
+fn changed_executable_line_hit_zero_fails() {
+    let lcov = "SF:/repo/crates/nsb/src/lib.rs\nDA:40,0\nend_of_record\n";
+    let report = parse_lcov(lcov).unwrap();
+    let diff = "+++ b/crates/nsb/src/lib.rs\n@@ -40,0 +40,1 @@\n+return value;\n";
+    let outcome = check_diff(
+        &sample_policy(),
+        &report,
+        &parse_unified_diff(diff).unwrap(),
+        &GateOptions::default(),
+    );
+    assert_eq!(outcome.status, CheckStatus::Fail);
+    assert_eq!(
+        outcome.uncovered,
+        vec!["crates/nsb/src/lib.rs:40".to_string()]
+    );
+    assert!(outcome.missing_files.is_empty());
+}
+
+#[test]
+fn changed_executable_line_above_threshold_passes() {
+    let lcov = "SF:/repo/crates/nsb/src/lib.rs\nDA:40,2\nend_of_record\n";
+    let report = parse_lcov(lcov).unwrap();
+    let diff = "+++ b/crates/nsb/src/lib.rs\n@@ -40,0 +40,1 @@\n+return value;\n";
+    let outcome = check_diff(
+        &sample_policy(),
+        &report,
+        &parse_unified_diff(diff).unwrap(),
+        &GateOptions::default(),
+    );
+    assert_eq!(outcome.status, CheckStatus::Pass);
+    assert!(outcome.uncovered.is_empty());
+    assert!(outcome.missing_files.is_empty());
+}
+
+#[test]
 fn comment_only_changed_line_is_ignored() {
     let diff = "\
 +++ b/crates/nsb/src/lib.rs
