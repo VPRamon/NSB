@@ -27,19 +27,29 @@ continuum baseline
   x F10.7 solar-activity correction
   x selected emitting-volume line-of-sight geometry
   x user/site scale
-  -> independent Noll-2012 Rayleigh/Mie effective attenuation
+  -> Noll-2012 Rayleigh/Mie effective transmission (once, spectrally)
   -> spectral and 300-650 nm photon-radiance outputs
 ```
 
-Equivalently, the continuum path multiplies
+The complete wavelength-dependent continuum expression before spectral
+integration is
 
 ```text
 global_scale × solar_corr × seasonal_corr × G(z) × Noll_scatter(λ) × user_scale
 ```
 
-before independent attenuation and spectral integration. Geometry and
-atmospheric attenuation are intentionally separate stages. Uncertainty
-propagation uses the same selected geometry multiplier as the nominal continuum.
+In code this is split so Noll scattering is applied exactly once:
+
+- `scalar_scale` holds `global_scale × solar_corr × seasonal_corr × G(z) × user_scale`
+  (scalar corrections and emitting-volume LOS geometry);
+- `integrate_attenuated_continuum` applies `Noll_scatter(λ)` as wavelength-
+  dependent Rayleigh/Mie transmission, then integrates over 300–650 nm.
+
+There is not a second atmospheric-scattering multiplication after
+`Noll_scatter(λ)`. Emitting-volume geometry (`G(z)` / Van Rhijn / vertical
+profile) and atmospheric scattering/transmission (Noll Rayleigh/Mie) remain
+conceptually distinct stages. Uncertainty propagation uses the same selected
+geometry multiplier as the nominal continuum.
 
 The Noll effective extinction factors were fitted primarily for zenith distances
 `z <= 60 deg`. NSB evaluates the same parametric form at larger angles but marks
@@ -99,7 +109,10 @@ limb products such as SABER are not optical ground truth for this band.
 NSB therefore keeps the 90 km Van Rhijn default, accepts validated
 checksum-pinned caller profiles with provenance/licence/applicability, and makes
 no claim that selecting advanced geometry improves accuracy by itself.
-Measurement-led CTAO profiles belong to issue #38.
+Measurement-led CTAO profiles belong to issue #38. Durable source evidence,
+candidate-data assessment, licence notes, and cross-model validation numbers are
+retained in the
+[optical vertical-profile decision record](validation/optical-vertical-profile-decision-v1.md).
 
 ## Spherical vertical-profile formulation
 
@@ -181,6 +194,7 @@ representativeness of any single global 300–650 nm VER profile (#38).
 
 ## Related documentation
 
+- [Scientific evidence and decision records](validation/README.md)
 - [F10.7 solar-activity resolver](f107-resolver.md)
 - [Scientific metadata](../../specifications/scientific-metadata.md)
 - [Model maturity](../../specifications/model-maturity.md)
