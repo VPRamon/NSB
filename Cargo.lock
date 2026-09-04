@@ -1630,9 +1630,9 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "siderust"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93d7f2e00728e8df5c6bfa18cc113cdeda159f6062d54ea3c02b14a80bcd5a54"
+checksum = "f29dbbc5a57841db1cb37b022469e3ac911c113497408b6c14e0dee20159fa08"
 dependencies = [
  "affn",
  "approx",
