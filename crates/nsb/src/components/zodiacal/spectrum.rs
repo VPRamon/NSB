@@ -33,9 +33,8 @@ use qtty::radiometry::{
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
-    S10s as S10, WattPerSquareMeterSteradianNanometer, WattsPerSquareMeterSteradianNanometer,
+    S10s as S10, WattsPerSquareMeterSteradianNanometer,
 };
-use qtty::solid_angle::Steradians;
 
 pub(super) const WL_LOW: Nanometers = Nanometers::new(300.0);
 pub(super) const WL_HIGH: Nanometers = Nanometers::new(650.0);
@@ -137,8 +136,7 @@ fn zodiacal_samples(
         }
 
         let solar_irradiance = SolarSpectralIrradiance::new(solar_flux);
-        let f_sun_sr = (solar_irradiance / Steradians::new(std::f64::consts::PI))
-            .to::<WattPerSquareMeterSteradianNanometer>();
+        let f_sun_sr = solar_irradiance_to_mean_radiance(solar_irradiance);
         let zl = f_sun_sr * scale * reddening_factor(geom.beta, geom.delta_lambda, lambda_nm);
         let trans = extinction.transmission_for_spectral_radiance(zl, wavelength, zenith);
         let zl_ext = zl * trans.value();
@@ -187,6 +185,19 @@ fn integrate_photon_spectrum(spectrum: &ZodiacalPhotonSpectrum) -> BandPhotonRad
         .to::<BandPhotonRadianceUnit>()
 }
 
+/// Convert the solar spectral irradiance convention to the mean radiance used
+/// by the historical zodiacal model (`F_sun / π`).
+///
+/// This is a domain transform, not a unit conversion: the division by π sr
+/// encodes the model convention. Both sides remain explicitly typed, while the
+/// scalar extraction is confined to this physical boundary instead of being
+/// used to drive interpolation or integration kernels.
+fn solar_irradiance_to_mean_radiance(
+    irradiance: SolarSpectralIrradiance,
+) -> WattsPerSquareMeterSteradianNanometer {
+    WattsPerSquareMeterSteradianNanometer::new(irradiance.value() / std::f64::consts::PI)
+}
+
 fn spectral_scale_from_s10(s10_500: S10, solar: &SolarSpectrum) -> Result<f64> {
     if !s10_500.is_finite() || s10_500.value() < 0.0 {
         return Err(NsbError::OutOfRange(format!(
@@ -196,16 +207,14 @@ fn spectral_scale_from_s10(s10_500: S10, solar: &SolarSpectrum) -> Result<f64> {
     }
     let target_500 = S10_TO_W_M2_SR_NM * s10_500.value();
     let f_sun_500 = solar.interp_at(S10_SCALE_WAVELENGTH);
-    let f_sun_500_sr: WattsPerSquareMeterSteradianNanometer =
-        (f_sun_500 / Steradians::new(std::f64::consts::PI))
-            .to::<WattPerSquareMeterSteradianNanometer>();
+    let f_sun_500_sr = solar_irradiance_to_mean_radiance(f_sun_500);
     if !f_sun_500_sr.is_finite() || f_sun_500_sr.value() <= 0.0 {
         return Err(NsbError::DataParse {
             file: "solar_spectrum.dat",
             message: "non-positive flux at 500 nm".into(),
         });
     }
-    Ok((target_500 / f_sun_500_sr).value())
+    Ok(target_500 / f_sun_500_sr)
 }
 
 fn interpolate_bv(
