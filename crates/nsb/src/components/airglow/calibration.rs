@@ -268,8 +268,7 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         file: "airglow_cont.dat",
         message: e.to_string(),
     })?;
-    let integrated_relative_300_650 =
-        spectrum.integrate_range(WL_LOW, WL_HIGH).to::<Nanometer>();
+    let integrated_relative_300_650 = spectrum.integrate_range(WL_LOW, WL_HIGH).to::<Nanometer>();
     let uncertainty_abs = SampledSpectrum::<Nanometer, Ratio>::from_raw(
         uncertainty.xs_raw().to_vec(),
         uncertainty
