@@ -5,7 +5,7 @@ use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhot
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
 use siderust::coordinates::spherical;
-use siderust::healpix::{HealpixGrid, HealpixOrdering, Nside};
+use siderust::healpix::{HealpixGrid, HealpixIndex, HealpixOrdering, Nside};
 use siderust::qtty::Degrees;
 
 const FIXTURE: &str = include_str!("../../../tests/data/starlight_fixture_map.csv");
@@ -151,8 +151,11 @@ fn healpix_csv_fixture_loads_from_test_data_only() {
 fn packed_uncertainties_parse_and_survive_lookup() {
     let raw = packed_uncertainty_fixture(0.1, 0.2, 0.25);
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
-    let (lon, lat) = map.pixel_lon_lat_deg(7).unwrap();
-    let output = map.lookup(galactic_direction(lon, lat));
+    let output = map.lookup(
+        map.pixel_direction(HealpixIndex::new(7))
+            .unwrap()
+            .to_cartesian(),
+    );
 
     assert_eq!(output.integrated.value(), 8.0);
     assert_eq!(output.statistical_uncertainty.unwrap().value(), 0.8);
@@ -184,8 +187,11 @@ fn packed_candidate_header_loads_without_invented_s10() {
         ));
     }
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
-    let (lon, lat) = map.pixel_lon_lat_deg(0).unwrap();
-    let occupied = map.lookup(galactic_direction(lon, lat));
+    let occupied = map.lookup(
+        map.pixel_direction(HealpixIndex::new(0))
+            .unwrap()
+            .to_cartesian(),
+    );
     assert_eq!(occupied.integrated.value(), 1.0);
     assert!(!occupied.s10_diagnostics_provided);
     assert_eq!(occupied.b_flux_s10.value(), 0.0);

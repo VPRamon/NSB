@@ -260,8 +260,7 @@ fn flux_to_runtime_radiance(flux_ph_m2_s: f64, pixel_sr: f64) -> Result<f64> {
     Ok(radiance)
 }
 
-/// Convert a NESTED HEALPix index to RING by taking the nested pixel centre
-/// and asking `siderust` to assign the RING pixel for that direction.
+/// Convert a NESTED HEALPix index to RING via the reference integer map.
 fn nest2ring(nside: u32, ipnest: u64) -> Result<u64> {
     crate::starlight::healpix::galactic_nested_to_ring(nside, ipnest)
 }
@@ -283,8 +282,9 @@ pub fn is_packed_runtime_header(header: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use siderust::coordinates::cartesian::Direction;
     use siderust::coordinates::frames::Galactic;
+    use siderust::coordinates::spherical::Direction;
+    use siderust::qtty::Degrees;
     use tempfile::TempDir;
 
     const HEADER: &str = concat!(
@@ -302,15 +302,8 @@ mod tests {
         path
     }
 
-    fn angular_separation_rad(a: Direction<Galactic>, b: Direction<Galactic>) -> f64 {
-        crate::starlight::healpix::angular_separation_rad(a, b)
-    }
-
     fn galactic_direction(lon_deg: f64, lat_deg: f64) -> Direction<Galactic> {
-        let lon = lon_deg.to_radians();
-        let lat = lat_deg.to_radians();
-        let cos_lat = lat.cos();
-        Direction::<Galactic>::from_array([cos_lat * lon.cos(), cos_lat * lon.sin(), lat.sin()])
+        Direction::<Galactic>::new(Degrees::new(lon_deg), Degrees::new(lat_deg))
     }
 
     #[test]
@@ -403,7 +396,8 @@ mod tests {
         let mut seen = vec![false; usize::try_from(npix).unwrap()];
         let mut ring_to_nest = vec![0u64; usize::try_from(npix).unwrap()];
         for nest in 0..npix {
-            let nested_dir = crate::starlight::healpix::nested_pixel_center(NSIDE, nest).unwrap();
+            let nested_dir =
+                crate::starlight::healpix::nested_pixel_center::<Galactic>(NSIDE, nest).unwrap();
             let ring = nest2ring(NSIDE, nest).unwrap();
             assert!(ring < npix);
             let slot = usize::try_from(ring).unwrap();
@@ -413,7 +407,11 @@ mod tests {
             let ring_dir = grid
                 .pixel_center(siderust::healpix::HealpixIndex::new(ring))
                 .unwrap();
-            let sep = angular_separation_rad(nested_dir, ring_dir);
+            let sep = nested_dir
+                .to_spherical()
+                .angular_separation(&ring_dir.to_spherical())
+                .value()
+                .to_radians();
             assert!(
                 sep < MAX_SEP_RAD,
                 "nested {nest} -> RING {ring} angular error {sep} rad"
@@ -430,15 +428,21 @@ mod tests {
             ("longitude-seam", 359.9, 0.0),
         ];
         for (label, lon, lat) in sky {
-            let dir = galactic_direction(lon, lat);
+            let dir = galactic_direction(lon, lat).to_cartesian();
             let ring = grid.direction_to_pixel(dir).unwrap().get();
             let nest = ring_to_nest[usize::try_from(ring).unwrap()];
-            let nested_dir = crate::starlight::healpix::nested_pixel_center(NSIDE, nest).unwrap();
+            let nested_dir =
+                crate::starlight::healpix::nested_pixel_center::<Galactic>(NSIDE, nest).unwrap();
             let ring_dir = grid
                 .pixel_center(siderust::healpix::HealpixIndex::new(ring))
                 .unwrap();
             assert!(
-                angular_separation_rad(nested_dir, ring_dir) < MAX_SEP_RAD,
+                nested_dir
+                    .to_spherical()
+                    .angular_separation(&ring_dir.to_spherical())
+                    .value()
+                    .to_radians()
+                    < MAX_SEP_RAD,
                 "{label} lost directional identity"
             );
         }

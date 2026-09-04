@@ -12,10 +12,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-use super::healpix::{self, nested_pixel_center, HealpixCoordinateFrame, HealpixOrderingScheme};
+use super::healpix::{self, HealpixCoordinateFrame, HealpixOrderingScheme};
 use super::uv::CalibrationStatus;
-use siderust::coordinates::cartesian::Direction;
 use siderust::coordinates::frames::{Galactic, ICRS};
+use siderust::coordinates::spherical::Direction;
 use siderust::coordinates::transform::TransformFrame;
 
 pub const SELECTION_ARTIFACT_SCHEMA_VERSION: u32 = 1;
@@ -428,7 +428,9 @@ impl SelectionCorrection {
             }
             let candidate_direction =
                 selection_pixel_center(&self.artifact, self.artifact.healpix_nside, *hpx)?;
-            let distance = healpix::angular_separation_rad(query_direction, candidate_direction);
+            let distance = query_direction
+                .angular_separation(&candidate_direction)
+                .value();
             match best {
                 None => best = Some((distance, *completeness)),
                 Some((best_distance, _)) if distance < best_distance => {
@@ -550,7 +552,7 @@ fn build_angular_nearest_healpix_map(
         let mut best_distance = f64::INFINITY;
         for sample in &samples {
             let candidate = selection_pixel_center(artifact, nside, *sample)?;
-            let distance = healpix::angular_separation_rad(query, candidate);
+            let distance = query.angular_separation(&candidate).value();
             if distance < best_distance {
                 best_distance = distance;
                 best_pixel = *sample;
@@ -637,7 +639,9 @@ fn build_hierarchical_resolve_map(
         let mut best_parent = tabulated_parents[0];
         let mut best_distance = f64::INFINITY;
         for candidate_parent in &tabulated_parents {
-            let distance = healpix::angular_separation_rad(query, parent_centers[candidate_parent]);
+            let distance = query
+                .angular_separation(&parent_centers[candidate_parent])
+                .value();
             if distance < best_distance {
                 best_distance = distance;
                 best_parent = *candidate_parent;
@@ -663,9 +667,14 @@ fn selection_pixel_center(
     healpix: u32,
 ) -> Result<Direction<ICRS>> {
     match artifact.coordinate_frame {
-        HealpixCoordinateFrame::Equatorial => nested_pixel_center(nside, u64::from(healpix)),
+        HealpixCoordinateFrame::Equatorial => {
+            healpix::nested_pixel_center_spherical(nside, u64::from(healpix))
+                .context("selection HEALPix index is outside the declared grid")
+        }
         HealpixCoordinateFrame::Galactic => {
-            let galactic: Direction<Galactic> = nested_pixel_center(nside, u64::from(healpix))?;
+            let galactic: Direction<Galactic> =
+                healpix::nested_pixel_center_spherical(nside, u64::from(healpix))
+                    .context("selection HEALPix index is outside the declared grid")?;
             Ok(galactic.to_frame())
         }
     }
@@ -1038,6 +1047,34 @@ mod tests {
             (1.0, 1.0)
         );
         validated.require_production_status().unwrap();
+    }
+
+    #[test]
+    fn absent_cell_angular_nearest_runs_when_resolved_pixel_lacks_bin() {
+        // Healpix 0 is tabulated only for the faint magnitude bin; healpix 2
+        // carries the bright bin. Querying an untabulated pixel for the bright
+        // bin therefore resolves onto healpix 0, misses the exact key, and must
+        // fall through to absent_cell angular nearest (healpix 2).
+        let mut artifact = tiny_artifact(CalibrationStatus::Candidate);
+        artifact.completeness_table = vec![cell(0, 1, 0, 0.5), cell(2, 0, 0, 0.8)];
+        let correction = load_artifact(&artifact);
+        let evaluation = correction.evaluate(1, 12.0, Some(0.4)).unwrap();
+        assert_eq!(
+            (evaluation.completeness, evaluation.weight),
+            (0.8, 1.0 / 0.8)
+        );
+    }
+
+    #[test]
+    fn selection_pixel_center_supports_equatorial_and_galactic_frames() {
+        let mut artifact = tiny_artifact(CalibrationStatus::Candidate);
+        let equatorial = selection_pixel_center(&artifact, 1, 0).unwrap();
+        artifact.coordinate_frame = HealpixCoordinateFrame::Galactic;
+        let galactic = selection_pixel_center(&artifact, 1, 0).unwrap();
+        assert!(
+            equatorial.angular_separation(&galactic).value() > 0.0,
+            "Galactic frame transform must move the typed ICRS query direction"
+        );
     }
 
     #[test]
