@@ -339,6 +339,12 @@ diff --git a/crates/nsb/src/lib.rs b/crates/nsb/src/lib.rs
             "    AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991, DEFAULT_K_EXT,"
         ));
         assert!(is_likely_non_instrumentable_rust_line(
+            "pub const SIDERUST_VERSION: &str = \"0.11.1\";"
+        ));
+        assert!(is_likely_non_instrumentable_rust_line(
+            "pub const SIDERUST_SOURCE: &str = \"crates.io:siderust:0.11.1\";"
+        ));
+        assert!(is_likely_non_instrumentable_rust_line(
             "pub use components::moonlight::{"
         ));
         assert!(!is_likely_non_instrumentable_rust_line("return value;"));
