@@ -18,10 +18,9 @@ use qtty::length::{Nanometer, Nanometers};
 use qtty::radiometry::{
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
-    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
 };
-use qtty::unit::{self, Ratio};
+use qtty::unit::Ratio;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Time, UTC};
@@ -153,8 +152,8 @@ pub(crate) fn evaluate_continuum_with_time_bin(
 
     let radiance_scale: SpectralBandPhotonRadiance = SkyCalcSpectralPhotonRadiance::new(scalar_scale)
         .to::<SpectralBandPhotonRadianceUnit>();
-    let integrated = (radiance_scale * spectral.integrated_relative)
-        .to::<BandPhotonRadianceUnit>();
+    let integrated =
+        (radiance_scale * spectral.integrated_relative).to::<BandPhotonRadianceUnit>();
 
     let relative_uncertainty = continuum
         .sigma_corrections
@@ -189,10 +188,12 @@ pub(crate) fn evaluate_continuum_with_time_bin(
                 .then_some(relative_uncertainty)
         });
 
-    let b_density = (radiance_scale * spectral.b_relative)
-        .to::<SpectralBandPhotonRadianceUnit>();
-    let v_density = (radiance_scale * spectral.v_relative)
-        .to::<SpectralBandPhotonRadianceUnit>();
+    // qtty's Ratio marker is intentionally not registered as a built-in unit
+    // arithmetic operand. Extracting the dimensionless scalar here preserves
+    // the physical unit of `radiance_scale` while avoiding any unit erasure in
+    // interpolation or integration.
+    let b_density = radiance_scale * spectral.b_relative.value();
+    let v_density = radiance_scale * spectral.v_relative.value();
 
     Ok(AirglowOutputs {
         integrated,
