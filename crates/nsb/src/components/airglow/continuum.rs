@@ -150,10 +150,9 @@ pub(crate) fn evaluate_continuum_with_time_bin(
 
     let spectral = integrate_attenuated_continuum(continuum, zenith, ctx.atmosphere);
 
-    let radiance_scale: SpectralBandPhotonRadiance = SkyCalcSpectralPhotonRadiance::new(scalar_scale)
-        .to::<SpectralBandPhotonRadianceUnit>();
-    let integrated =
-        (radiance_scale * spectral.integrated_relative).to::<BandPhotonRadianceUnit>();
+    let radiance_scale: SpectralBandPhotonRadiance =
+        SkyCalcSpectralPhotonRadiance::new(scalar_scale).to::<SpectralBandPhotonRadianceUnit>();
+    let integrated = (radiance_scale * spectral.integrated_relative).to::<BandPhotonRadianceUnit>();
 
     let relative_uncertainty = continuum
         .sigma_corrections
@@ -175,10 +174,9 @@ pub(crate) fn evaluate_continuum_with_time_bin(
             let uncertainty_scale: SpectralBandPhotonRadiance =
                 SkyCalcSpectralPhotonRadiance::new(common_scale)
                     .to::<SpectralBandPhotonRadianceUnit>();
-            let shape_sigma_integrated =
-                (uncertainty_scale * spectral.integrated_uncertainty_abs)
-                    .to::<BandPhotonRadianceUnit>()
-                    .value();
+            let shape_sigma_integrated = (uncertainty_scale * spectral.integrated_uncertainty_abs)
+                .to::<BandPhotonRadianceUnit>()
+                .value();
             let level_relative_uncertainty = seasonal_sigma.abs() / seasonal_corr_value;
             let shape_relative_uncertainty = shape_sigma_integrated / integrated_value;
             let relative_uncertainty = level_relative_uncertainty.hypot(shape_relative_uncertainty);
