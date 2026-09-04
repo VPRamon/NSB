@@ -12,6 +12,10 @@ once a stable public release is cut.
   `PointQuery`/`ThresholdQuery`, and marked evolvable structs/enums/`NsbError`
   `#[non_exhaustive]`. CI now enforces a `cargo-public-api` snapshot and
   SemVer diffs against `origin/main` (#121).
+- Corrected public Siderust provenance (`SIDERUST_VERSION` /
+  `SIDERUST_SOURCE`) and CLI metadata to the locked crates.io package
+  `0.11.1` (`crates.io:siderust:0.11.1`), with a contract test preventing
+  dependency/provenance drift (#121).
 - Merged Starlight build-time checksum verification so library/rustdoc builds
   no longer pay siderust const-eval SHA-256 on the bundled map (#129).
 

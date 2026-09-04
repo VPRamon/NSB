@@ -40,7 +40,7 @@
 //! # Rayleigh optical depth and local pressure
 //!
 //! [`AtmosphericConditions::surface_pressure`] is the observatory-local
-//! pressure. Siderust 0.11.0's [`rayleigh_optical_depth_bodhaine99`] scales by
+//! pressure. Siderust's [`rayleigh_optical_depth_bodhaine99`] scales by
 //! both `surface_pressure / 1013.25 hPa` and `exp(-observer_altitude / H)`. Passing
 //! local pressure together with a non-zero observer altitude therefore applies
 //! the atmospheric-column reduction twice. Airglow therefore evaluates Bodhaine

@@ -65,6 +65,13 @@ starlight provenance/validation records, solar-activity resolution metadata,
 `BandDiagnostic`, and persisted schema version constants such as
 `VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION` and `F107_STORE_SCHEMA_VERSION`.
 
+Also includes the intentional Siderust dependency provenance exports
+[`SIDERUST_VERSION`](../../crates/nsb/src/lib.rs) and
+[`SIDERUST_SOURCE`](../../crates/nsb/src/lib.rs). These are not computational
+entry points; they identify the crates.io Siderust package actually resolved by
+the locked workspace so CLI/JSON/CSV metadata and release documentation stay
+truthful. They must agree with `crates/nsb/Cargo.toml` and `Cargo.lock`.
+
 ### Implementation detail / not supported
 
 Must not appear in the public API. These remain `pub(crate)` or private:
