@@ -21,6 +21,7 @@ use crate::units::ScaleFactors;
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
+use qtty::dimensionless::Ratios;
 use qtty::length::{Kilometers, Micrometers, Nanometer, Nanometers};
 use qtty::unit::Ratio;
 
@@ -105,13 +106,13 @@ pub struct AirglowContinuum {
     pub n_time: usize,
     /// Unextincted integrated relative continuum over 300–650 nm (load-time reference).
     #[allow(dead_code)]
-    pub(crate) integrated_relative_300_650: f64,
+    pub(crate) integrated_relative_300_650: Nanometers,
     #[allow(dead_code)]
-    pub(crate) integrated_uncertainty_abs_300_650: f64,
+    pub(crate) integrated_uncertainty_abs_300_650: Nanometers,
     #[allow(dead_code)]
-    pub(crate) b_relative: f64,
+    pub(crate) b_relative: Ratios,
     #[allow(dead_code)]
-    pub(crate) v_relative: f64,
+    pub(crate) v_relative: Ratios,
 }
 
 /// Load the built-in empirical airglow continuum calibration.
@@ -267,7 +268,8 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         file: "airglow_cont.dat",
         message: e.to_string(),
     })?;
-    let integrated_relative_300_650 = spectrum.integrate_range(WL_LOW, WL_HIGH).value();
+    let integrated_relative_300_650 =
+        spectrum.integrate_range(WL_LOW, WL_HIGH).to::<Nanometer>();
     let uncertainty_abs = SampledSpectrum::<Nanometer, Ratio>::from_raw(
         uncertainty.xs_raw().to_vec(),
         uncertainty
@@ -283,10 +285,11 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         file: "airglow_cont.dat",
         message: e.to_string(),
     })?;
-    let integrated_uncertainty_abs_300_650 =
-        uncertainty_abs.integrate_range(WL_LOW, WL_HIGH).value();
-    let b_relative = spectrum.interp_at(B_FILTER).value();
-    let v_relative = spectrum.interp_at(V_FILTER).value();
+    let integrated_uncertainty_abs_300_650 = uncertainty_abs
+        .integrate_range(WL_LOW, WL_HIGH)
+        .to::<Nanometer>();
+    let b_relative = spectrum.interp_at(B_FILTER);
+    let v_relative = spectrum.interp_at(V_FILTER);
     Ok(AirglowContinuum {
         global_scale,
         emission_height_km,
