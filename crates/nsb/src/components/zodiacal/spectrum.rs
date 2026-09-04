@@ -31,9 +31,8 @@ use qtty::radiometry::{
     spectral_radiance_to_photon_radiance_ns_nm,
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
-    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
-    PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
-    S10s as S10, WattsPerSquareMeterSteradianNanometer,
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
+    WattsPerSquareMeterSteradianNanometer,
 };
 
 pub(super) const WL_LOW: Nanometers = Nanometers::new(300.0);
@@ -42,8 +41,7 @@ pub(super) const B_FILTER: Nanometers = Nanometers::new(445.0);
 pub(super) const V_FILTER: Nanometers = Nanometers::new(551.0);
 const S10_SCALE_WAVELENGTH: Nanometers = Nanometers::new(500.0);
 
-type ZodiacalPhotonSpectrum =
-    SampledSpectrum<Nanometer, SpectralBandPhotonRadianceUnit>;
+type ZodiacalPhotonSpectrum = SampledSpectrum<Nanometer, SpectralBandPhotonRadianceUnit>;
 
 /// Compute scalar zodiacal outputs using the default Leinert brightness source.
 pub(super) fn compute_outputs(
