@@ -260,8 +260,7 @@ fn flux_to_runtime_radiance(flux_ph_m2_s: f64, pixel_sr: f64) -> Result<f64> {
     Ok(radiance)
 }
 
-/// Convert a NESTED HEALPix index to RING by taking the nested pixel centre
-/// and asking `siderust` to assign the RING pixel for that direction.
+/// Convert a NESTED HEALPix index to RING via the reference integer map.
 fn nest2ring(nside: u32, ipnest: u64) -> Result<u64> {
     crate::starlight::healpix::galactic_nested_to_ring(nside, ipnest)
 }
@@ -397,7 +396,8 @@ mod tests {
         let mut seen = vec![false; usize::try_from(npix).unwrap()];
         let mut ring_to_nest = vec![0u64; usize::try_from(npix).unwrap()];
         for nest in 0..npix {
-            let nested_dir = crate::starlight::healpix::nested_pixel_center(NSIDE, nest).unwrap();
+            let nested_dir =
+                crate::starlight::healpix::nested_pixel_center::<Galactic>(NSIDE, nest).unwrap();
             let ring = nest2ring(NSIDE, nest).unwrap();
             assert!(ring < npix);
             let slot = usize::try_from(ring).unwrap();
@@ -431,7 +431,8 @@ mod tests {
             let dir = galactic_direction(lon, lat).to_cartesian();
             let ring = grid.direction_to_pixel(dir).unwrap().get();
             let nest = ring_to_nest[usize::try_from(ring).unwrap()];
-            let nested_dir = crate::starlight::healpix::nested_pixel_center(NSIDE, nest).unwrap();
+            let nested_dir =
+                crate::starlight::healpix::nested_pixel_center::<Galactic>(NSIDE, nest).unwrap();
             let ring_dir = grid
                 .pixel_center(siderust::healpix::HealpixIndex::new(ring))
                 .unwrap();

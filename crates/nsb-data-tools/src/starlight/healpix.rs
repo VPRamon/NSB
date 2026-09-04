@@ -235,23 +235,53 @@ pub fn galactic_nested_pixel_from_direction(
 }
 
 /// Nested pixel centre as a typed unit direction (frame-neutral HEALPix `pix2ang`).
+///
+/// Siderust currently exposes pixel-centre geometry for RING grids. Nested
+/// centres are obtained by the reference integer NESTED→RING map, then Siderust
+/// RING [`HealpixGrid::pixel_center`].
 pub fn nested_pixel_center<F>(nside: u32, ipnest: u64) -> Result<Direction<F>>
 where
     F: ReferenceFrame,
 {
-    gaia_nested_grid(nside)?
-        .pixel_center(HealpixIndex::new(ipnest))
-        .with_context(|| format!("nested pixel {ipnest} is outside nside={nside}"))
+    let nested = gaia_nested_grid(nside)?;
+    nested
+        .validate_index(HealpixIndex::new(ipnest))
+        .with_context(|| format!("nested pixel {ipnest} is outside nside={nside}"))?;
+    let ring = reference_nest2ring(nside, ipnest);
+    HealpixGrid::new(nested.nside(), HealpixOrdering::Ring)
+        .context("invalid RING grid for nested pixel centre")?
+        .pixel_center(HealpixIndex::new(ring))
+        .with_context(|| format!("RING centre for nested pixel {ipnest} failed"))
 }
 
-/// Convert nested index to RING at `nside` using the Galactic pixel-centre path.
+/// Nested pixel centre as a typed spherical direction.
+///
+/// Same Nested→RING bridge as [`nested_pixel_center`], then Siderust RING
+/// [`HealpixGrid::pixel_center_spherical`].
+pub fn nested_pixel_center_spherical<F>(
+    nside: u32,
+    ipnest: u64,
+) -> Result<siderust::coordinates::spherical::Direction<F>>
+where
+    F: ReferenceFrame,
+{
+    let nested = gaia_nested_grid(nside)?;
+    nested
+        .validate_index(HealpixIndex::new(ipnest))
+        .with_context(|| format!("nested pixel {ipnest} is outside nside={nside}"))?;
+    let ring = reference_nest2ring(nside, ipnest);
+    HealpixGrid::new(nested.nside(), HealpixOrdering::Ring)
+        .context("invalid RING grid for nested pixel centre")?
+        .pixel_center_spherical(HealpixIndex::new(ring))
+        .with_context(|| format!("RING spherical centre for nested pixel {ipnest} failed"))
+}
+
+/// Convert nested index to RING at `nside` using the reference integer map.
 pub fn galactic_nested_to_ring(nside: u32, ipnest: u64) -> Result<u64> {
-    let direction = nested_pixel_center::<Galactic>(nside, ipnest)?;
-    let ring_grid = galactic_ring_grid(nside)?;
-    Ok(ring_grid
-        .direction_to_pixel(direction)
-        .map_err(|error| anyhow::anyhow!("Galactic RING assignment failed: {error}"))?
-        .get())
+    gaia_nested_grid(nside)?
+        .validate_index(HealpixIndex::new(ipnest))
+        .with_context(|| format!("nested pixel {ipnest} is outside nside={nside}"))?;
+    Ok(reference_nest2ring(nside, ipnest))
 }
 
 /// Convert RING index to nested at `nside` using the reference integer map.

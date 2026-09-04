@@ -667,13 +667,14 @@ fn selection_pixel_center(
     healpix: u32,
 ) -> Result<Direction<ICRS>> {
     match artifact.coordinate_frame {
-        HealpixCoordinateFrame::Equatorial => crate::starlight::healpix::gaia_nested_grid(nside)?
-            .pixel_center_spherical(siderust::healpix::HealpixIndex::new(u64::from(healpix)))
-            .context("selection HEALPix index is outside the declared grid"),
+        HealpixCoordinateFrame::Equatorial => {
+            healpix::nested_pixel_center_spherical(nside, u64::from(healpix))
+                .context("selection HEALPix index is outside the declared grid")
+        }
         HealpixCoordinateFrame::Galactic => {
-            let galactic: Direction<Galactic> = crate::starlight::healpix::gaia_nested_grid(nside)?
-                .pixel_center_spherical(siderust::healpix::HealpixIndex::new(u64::from(healpix)))
-                .context("selection HEALPix index is outside the declared grid")?;
+            let galactic: Direction<Galactic> =
+                healpix::nested_pixel_center_spherical(nside, u64::from(healpix))
+                    .context("selection HEALPix index is outside the declared grid")?;
             Ok(galactic.to_frame())
         }
     }

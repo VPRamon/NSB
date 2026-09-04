@@ -8,7 +8,6 @@ use crate::starlight::uncertainty::CorrelationScope;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use siderust::coordinates::frames::Galactic;
-use siderust::healpix::HealpixIndex;
 use siderust::qtty::Degrees;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -1782,10 +1781,11 @@ fn galactic_plane_coverage(path: &Path, nside: u32) -> Result<f64> {
     let mut plane_pixels = 0_u64;
     let mut covered = 0_u64;
     let plane_latitude_limit = Degrees::new(20.0);
-    let grid = crate::starlight::healpix::gaia_nested_grid(nside)?;
     for pixel in 0..12_u32 * nside * nside {
-        let direction =
-            grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(u64::from(pixel)))?;
+        let direction = crate::starlight::healpix::nested_pixel_center_spherical::<Galactic>(
+            nside,
+            u64::from(pixel),
+        )?;
         if direction.b().abs() < plane_latitude_limit {
             plane_pixels += 1;
             if occupied.contains(&pixel) {
@@ -2408,24 +2408,26 @@ mod tests {
 
     #[test]
     fn internal_nested_latitudes_cover_expected_pixels() {
-        let grid = crate::starlight::healpix::gaia_nested_grid(1).unwrap();
-        for pixel in 0..4 {
-            assert_eq!(
-                grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(u64::from(pixel)))
+        for pixel in 0_u64..4 {
+            let actual =
+                crate::starlight::healpix::nested_pixel_center_spherical::<Galactic>(1, pixel)
                     .unwrap()
                     .b()
-                    .value()
-                    .sin(),
-                2.0 / 3.0
+                    .sin();
+            assert!(
+                (actual - 2.0 / 3.0).abs() < 1.0e-12,
+                "NSIDE=1 north-cap pixel {pixel} sin(b) = {actual}, expected 2/3"
             );
         }
-        let grid = crate::starlight::healpix::gaia_nested_grid(128).unwrap();
         let plane_pixels = (0..12_u32 * 128 * 128)
             .filter(|pixel| {
-                grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(u64::from(*pixel)))
-                    .unwrap()
-                    .b()
-                    .abs()
+                crate::starlight::healpix::nested_pixel_center_spherical::<Galactic>(
+                    128,
+                    u64::from(*pixel),
+                )
+                .unwrap()
+                .b()
+                .abs()
                     < Degrees::new(20.0)
             })
             .count();
