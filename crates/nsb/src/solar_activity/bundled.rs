@@ -8,15 +8,13 @@ use std::sync::OnceLock;
 const RAW: &str = include_str!("../../data/f107_store.json");
 
 /// Path relative to `crates/nsb/data` as recorded in the scientific asset registry.
-pub const BUNDLED_F107_RELATIVE_PATH: &str = "f107_store.json";
-/// Runtime/API asset path label for the bundled F10.7 store.
-pub const BUNDLED_F107_ASSET_PATH: &str = "NSB/data/f107_store.json";
+pub(crate) const BUNDLED_F107_RELATIVE_PATH: &str = "f107_store.json";
 /// Pin of embedded F10.7 store bytes (integrity only; not provenance).
 ///
 /// Verified at load time rather than via a compile-time `assert_data_checksum!`
 /// because the JSON snapshot is large enough that const SHA-256 evaluation is
 /// impractically slow. Manifest + this constant remain the dual pin.
-pub const BUNDLED_F107_EMBEDDED_SHA256: &str =
+pub(crate) const BUNDLED_F107_EMBEDDED_SHA256: &str =
     "90aec6a640befd23f1fffbd6e3ddcfc7d005a8365cc56652f5324330e3b3f6b8";
 
 /// Canonical scientific provenance for the bundled F10.7 store.

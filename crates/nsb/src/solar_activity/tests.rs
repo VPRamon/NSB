@@ -1,5 +1,7 @@
 //! Unit tests for offline F10.7 resolution.
 
+use super::monthly::{days_in_month, is_finalized_monthly_observation};
+use super::resolve::utc_calendar_date;
 use super::*;
 use crate::components::airglow::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use chrono::{DateTime, NaiveDate, Utc};

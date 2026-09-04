@@ -33,7 +33,9 @@
 //! # Reference
 //! Noll et al. (2012), *A&A* 543, A92.
 
-use crate::units::{WattPerSquareMeterSteradianMicrometer, WattsPerSquareMeterSteradianMicrometer};
+use crate::units::WattPerSquareMeterSteradianMicrometer;
+#[cfg(test)]
+use crate::units::WattsPerSquareMeterSteradianMicrometer;
 use qtty::angular::{Degrees, Radian};
 use qtty::dimensionless::Transmittances;
 use qtty::radiometry::WattsPerSquareMeterSteradianNanometer;
@@ -43,9 +45,9 @@ use siderust::qtty::Nanometers;
 
 /// Atmospheric extinction strategy for zodiacal-light propagation.
 ///
-/// Determines whether — and how — the exoatmospheric zodiacal signal is
-/// attenuated before reaching a ground-based observer.
+/// Additional site-calibrated strategies may be added; match with a wildcard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
 pub enum ZodiacalExtinction {
     /// No atmospheric attenuation. Use this for exoatmospheric predictions
     /// or when attenuation is handled externally.
@@ -60,6 +62,14 @@ pub enum ZodiacalExtinction {
 }
 
 impl ZodiacalExtinction {
+    /// Stable machine-readable identifier.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Noll2012Approx => "noll-2012-approximation",
+        }
+    }
+
     /// Compute the transmission `T(λ, zenith) ∈ (0, 1]` for a photon at
     /// wavelength `lambda_nm` observed at zenith distance `zenith`.
     ///
@@ -68,7 +78,8 @@ impl ZodiacalExtinction {
     /// parametric extinction model.
     ///
     /// Returns `1.0` for [`ZodiacalExtinction::None`].
-    pub fn transmission(
+    #[cfg(test)]
+    pub(crate) fn transmission(
         &self,
         spectral_radiance: WattsPerSquareMeterSteradianMicrometer,
         wavelength: Nanometers,

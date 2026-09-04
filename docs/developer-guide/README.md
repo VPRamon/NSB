@@ -17,7 +17,8 @@ NSB is a Cargo workspace with deliberately separated responsibilities:
 
 Read [Architecture and modules](architecture.md) for system flow and design
 boundaries. Use the [Module reference](module-reference.md) to locate every
-crate-level module and its ownership.
+crate-level module and its ownership. The frozen `nsb` public API contract is
+documented in [Public API policy](public-api.md).
 
 ## Development setup
 

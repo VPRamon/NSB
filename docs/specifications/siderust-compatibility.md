@@ -10,18 +10,22 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.11.0 | crates.io registry | `crates.io:siderust:0.11.0` | 1.89 | Locked registry dependency |
+| 0.1.x | 0.11.1 | crates.io registry | `crates.io:siderust:0.11.1` | 1.89 | Locked registry dependency |
 
 All three workspace crates currently declare Siderust from the same crates.io
 package release:
 
 ```toml
-siderust = { version = "0.11.0", features = ["atmosphere", "photometry"] }
+siderust = { version = "0.11.1", features = ["atmosphere", "photometry"] }
 ```
 
 `Cargo.lock` records the resolved crates.io package version and checksum.
 Release documentation and CLI metadata must use the source identity above and
 must not invent a Git revision for this dependency.
+
+Public library exports `nsb::SIDERUST_VERSION` and `nsb::SIDERUST_SOURCE` must
+match this matrix. A workspace contract test fails if the declared dependency,
+lockfile package, or published provenance constants disagree.
 
 ## Release Requirement
 
@@ -48,7 +52,8 @@ outputs without changing NSB public API shapes.
 3. Keep `crates/nsb`, `crates/nsb-cli`, and `crates/nsb-data-tools` on the same
    dependency source.
 4. Run `cargo update -p siderust` and review `Cargo.lock`.
-5. Rerun release gates, scientific validation tests, starlight admission tests,
+5. Update `nsb::SIDERUST_VERSION` and `nsb::SIDERUST_SOURCE` to match the
+   resolved package (and keep this matrix / CLI expectations in sync).
+6. Rerun release gates, scientific validation tests, starlight admission tests,
    and CLI schema tests.
-6. Update this matrix, root README dependency text, CLI version metadata, and
-   `CHANGELOG.md`.
+7. Update root README dependency text when present and `CHANGELOG.md`.

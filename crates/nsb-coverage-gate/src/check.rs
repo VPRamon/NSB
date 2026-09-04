@@ -1,4 +1,4 @@
-use crate::diff::{group_by_path, ChangedLine};
+use crate::diff::{group_by_path, is_likely_non_instrumentable_rust_line, ChangedLine};
 use crate::llvm::{crate_metrics, CoverageReport};
 use crate::paths::is_production_rust_file;
 use crate::policy::CoveragePolicy;
@@ -160,15 +160,23 @@ pub fn check_diff(
             continue;
         }
         let Some(file) = report.files.get(&path) else {
-            missing_files.push(path);
+            // Absent from LCOV: fail closed only when changed lines look
+            // instrumentable. Declaration-only edits (mod/use/docs/attrs/types)
+            // produce no DA records and must not fail the gate by filename alone.
+            if lines
+                .iter()
+                .any(|line| !is_likely_non_instrumentable_rust_line(&line.text))
+            {
+                missing_files.push(path);
+            }
             continue;
         };
         for line in lines {
-            match file.line_hits.get(&line).copied() {
+            match file.line_hits.get(&line.line).copied() {
                 None => {}
                 Some(0) => {
                     executable += 1;
-                    uncovered.push(format!("{path}:{line}"));
+                    uncovered.push(format!("{path}:{}", line.line));
                 }
                 Some(_) => {
                     executable += 1;

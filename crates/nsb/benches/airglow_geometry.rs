@@ -3,14 +3,13 @@
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, Criterion};
 use nsb::{
-    Airglow, AirglowGeometryModel, AirglowWavelengthApplicability, ValidatedZenithDomain,
-    VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalProfileNormalization,
+    Airglow, AirglowGeometryModel, AirglowWavelengthApplicability, Target, ValidatedZenithDomain,
+    VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalProfileNormalization, DEG,
     VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::coordinates::spherical::Direction;
 use siderust::qtty::{Degrees, Kilometers, Nanometers};
 use tempoch::{Time, UTC};
 
@@ -48,8 +47,8 @@ fn time() -> Time<UTC> {
     )
 }
 
-fn target() -> Direction<nsb::EquatorialMeanJ2000> {
-    Direction::<nsb::EquatorialMeanJ2000>::new(Degrees::new(80.0), Degrees::new(-20.0))
+fn target() -> Target {
+    Target::new(80.0 * DEG, -20.0 * DEG)
 }
 
 fn bench_geometry(c: &mut Criterion) {

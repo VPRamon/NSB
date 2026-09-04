@@ -96,7 +96,10 @@ The diff gate:
   `tests.rs`, benches, and examples as coverage *targets*;
 - classifies each changed line from LCOV `DA:line,hits` the same way LLVM does:
   hits `> 0` covered, hits `= 0` uncovered, no `DA` record non-executable;
-- fails if a changed production file is absent from the LCOV report entirely;
+- if a changed production file is **absent** from LCOV, inspects the changed line
+  text: declaration-only edits (module declarations, re-exports, attributes,
+  docs, type/struct/enum headers, fields) pass; any changed line that looks
+  instrumentable fails closed as missing coverage data;
 - lists uncovered changed production lines and missing files in the job log.
 
 The target is approximately 90% of executable changed production lines. The

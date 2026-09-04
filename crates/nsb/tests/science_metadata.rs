@@ -54,12 +54,14 @@ fn synthetic_profile() -> VerticalEmissionProfile {
 fn point_results_expose_calibration_provenance_uncertainty_and_band_convention() {
     let evaluator = NsbEvaluator::new().unwrap();
     let result = evaluator
-        .evaluate(&PointQuery {
-            observer: observatories::EL_PARANAL.geodetic(),
-            time: parse_utc("2023-09-04T01:48:00Z"),
-            target: sgr_a_star(),
-            components: ComponentMask::ALL,
-        })
+        .evaluate(
+            &PointQuery::new(
+                observatories::EL_PARANAL.geodetic(),
+                parse_utc("2023-09-04T01:48:00Z"),
+                sgr_a_star(),
+            )
+            .with_components(ComponentMask::ALL),
+        )
         .unwrap();
 
     assert_eq!(
@@ -179,12 +181,7 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
 
     let generic = NsbEvaluator::with_config(nsb::NsbModelConfig::generic_clear_sky())
         .unwrap()
-        .evaluate(&PointQuery {
-            observer,
-            time,
-            target,
-            components: ComponentMask::AIRGLOW,
-        })
+        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
         .unwrap();
 
     let airglow = generic
@@ -199,12 +196,7 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
 
     let cta_s = NsbEvaluator::with_config(nsb::NsbModelConfig::cta_s_planning())
         .unwrap()
-        .evaluate(&PointQuery {
-            observer,
-            time,
-            target,
-            components: ComponentMask::AIRGLOW,
-        })
+        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
         .unwrap();
     let airglow = cta_s
         .components
@@ -225,12 +217,14 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
         .with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile));
     let result = NsbEvaluator::with_config(config)
         .unwrap()
-        .evaluate(&PointQuery {
-            observer: observatories::EL_PARANAL.geodetic(),
-            time: parse_utc("2023-09-04T01:48:00Z"),
-            target: sgr_a_star(),
-            components: ComponentMask::AIRGLOW,
-        })
+        .evaluate(
+            &PointQuery::new(
+                observatories::EL_PARANAL.geodetic(),
+                parse_utc("2023-09-04T01:48:00Z"),
+                sgr_a_star(),
+            )
+            .with_components(ComponentMask::AIRGLOW),
+        )
         .unwrap();
     let airglow = result.components.first().unwrap();
     assert_eq!(
@@ -268,12 +262,7 @@ fn airglow_site_profiles_differ_when_atmosphere_differs() {
 
     let generic = NsbEvaluator::with_config(nsb::NsbModelConfig::generic_clear_sky())
         .unwrap()
-        .evaluate(&PointQuery {
-            observer,
-            time,
-            target,
-            components: ComponentMask::AIRGLOW,
-        })
+        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
         .unwrap();
     let generic_airglow = generic
         .components
@@ -283,12 +272,7 @@ fn airglow_site_profiles_differ_when_atmosphere_differs() {
 
     let cta_s = NsbEvaluator::with_config(nsb::NsbModelConfig::cta_s_planning())
         .unwrap()
-        .evaluate(&PointQuery {
-            observer,
-            time,
-            target,
-            components: ComponentMask::AIRGLOW,
-        })
+        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
         .unwrap();
     let cta_s_airglow = cta_s
         .components
@@ -313,12 +297,7 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
 
     let evaluator = NsbEvaluator::new().unwrap(); // generic clear-sky
     let result = evaluator
-        .evaluate(&PointQuery {
-            observer,
-            time,
-            target,
-            components: ComponentMask::AIRGLOW,
-        })
+        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
         .unwrap();
 
     let airglow = result
@@ -348,12 +327,14 @@ fn airglow_runtime_provenance_tracks_asset_registry() {
         .expect("airglow continuum must be registered");
     let evaluator = NsbEvaluator::new().unwrap();
     let result = evaluator
-        .evaluate(&PointQuery {
-            observer: observatories::EL_PARANAL.geodetic(),
-            time: parse_utc("2023-09-04T01:48:00Z"),
-            target: sgr_a_star(),
-            components: ComponentMask::AIRGLOW,
-        })
+        .evaluate(
+            &PointQuery::new(
+                observatories::EL_PARANAL.geodetic(),
+                parse_utc("2023-09-04T01:48:00Z"),
+                sgr_a_star(),
+            )
+            .with_components(ComponentMask::AIRGLOW),
+        )
         .unwrap();
     let airglow = result
         .components
@@ -400,12 +381,9 @@ fn daytime_queries_return_zero_without_false_calibration_claims() {
     ] {
         let evaluator = NsbEvaluator::with_config(config).unwrap();
         let result = evaluator
-            .evaluate(&PointQuery {
-                observer,
-                time,
-                target,
-                components: ComponentMask::AIRGLOW,
-            })
+            .evaluate(
+                &PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW),
+            )
             .unwrap();
         let airglow = result
             .components

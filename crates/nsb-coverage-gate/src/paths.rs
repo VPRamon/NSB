@@ -1,6 +1,12 @@
 use std::path::Path;
 
-const CRATE_NAMES: [&str; 4] = ["nsb-coverage-gate", "nsb-data-tools", "nsb-cli", "nsb"];
+const CRATE_NAMES: [&str; 5] = [
+    "nsb-public-api-gate",
+    "nsb-coverage-gate",
+    "nsb-data-tools",
+    "nsb-cli",
+    "nsb",
+];
 
 /// Normalize an llvm-cov filename to a repo-relative POSIX path.
 pub fn repo_relative(filename: &str) -> String {
@@ -42,7 +48,7 @@ pub fn is_production_rust_file(relative_path: &str) -> bool {
     let Some(crate_name) = workspace_crate(&path) else {
         return false;
     };
-    if crate_name == "nsb-coverage-gate" {
+    if crate_name == "nsb-coverage-gate" || crate_name == "nsb-public-api-gate" {
         return false;
     }
     let prefix = format!("crates/{crate_name}/");
@@ -86,6 +92,9 @@ mod tests {
         ));
         assert!(!is_production_rust_file(
             "crates/nsb-coverage-gate/src/check.rs"
+        ));
+        assert!(!is_production_rust_file(
+            "crates/nsb-public-api-gate/src/base.rs"
         ));
     }
 

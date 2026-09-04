@@ -1,0 +1,15 @@
+[package]
+name = "nsb-public-api-gate"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+publish = false
+license = "AGPL-3.0-only"
+description = "Public API snapshot integrity and SemVer gates for the nsb crate."
+
+[[bin]]
+name = "nsb-public-api-gate"
+path = "src/main.rs"
+
+[dependencies]
+thiserror = "2.0"

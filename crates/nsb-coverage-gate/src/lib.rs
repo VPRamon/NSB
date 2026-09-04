@@ -14,7 +14,9 @@ mod paths;
 mod policy;
 
 pub use check::{check_diff, check_overall, CheckKind, CheckOutcome, CheckStatus};
-pub use diff::{parse_unified_diff, ChangedLine, DiffError};
+pub use diff::{
+    is_likely_non_instrumentable_rust_line, parse_unified_diff, ChangedLine, DiffError,
+};
 pub use lcov::{load_lcov, parse_lcov, LcovError};
 pub use llvm::{load_report, parse_report, CoverageReport, LlvmError};
 pub use paths::{is_production_rust_file, repo_relative, workspace_crate};

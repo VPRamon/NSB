@@ -32,15 +32,15 @@ use thiserror::Error;
 /// Current schema accepted for persisted vertical-emission profiles.
 pub const VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION: u32 = 1;
 /// Current implementation identifier for the reference spherical LOS integrator.
-pub const VERTICAL_PROFILE_INTEGRATOR_VERSION: &str = "spherical-los-simpson-v1";
+pub(crate) const VERTICAL_PROFILE_INTEGRATOR_VERSION: &str = "spherical-los-simpson-v1";
 /// Implementation identifier for the preserved Siderust Van Rhijn baseline.
-pub const VAN_RHIJN_IMPLEMENTATION_VERSION: &str = "siderust-0.11.0-mean-earth-radius";
+pub(crate) const VAN_RHIJN_IMPLEMENTATION_VERSION: &str = "siderust-0.11.0-mean-earth-radius";
 /// Historical NSB effective emitting-shell height.
 pub const DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM: Kilometers = Kilometers::new(90.0);
 /// Mean spherical Earth radius used by Siderust's Van Rhijn implementation.
-pub const AIRGLOW_MEAN_EARTH_RADIUS_KM: Kilometers = Kilometers::new(6_371.0);
+pub(crate) const AIRGLOW_MEAN_EARTH_RADIUS_KM: Kilometers = Kilometers::new(6_371.0);
 /// Production reference resolution per profile interval (must be even).
-pub const VERTICAL_PROFILE_REFERENCE_SUBSTEPS: usize = 64;
+pub(crate) const VERTICAL_PROFILE_REFERENCE_SUBSTEPS: usize = 64;
 
 const NSB_WAVELENGTH_MIN_NM: f64 = 300.0;
 const NSB_WAVELENGTH_MAX_NM: f64 = 650.0;
@@ -48,6 +48,7 @@ const MIN_PROFILE_SAMPLES: usize = 3;
 
 /// Validation failure for a caller-provided or persisted vertical profile.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[non_exhaustive]
 pub enum VerticalEmissionProfileError {
     /// A field or sample violates the profile contract.
     #[error("invalid vertical-emission profile: {0}")]
@@ -250,7 +251,7 @@ impl VerticalEmissionProfile {
     /// Evaluate the same reference integrator at an explicit even resolution.
     ///
     /// This is exposed for convergence validation and benchmarking. Production
-    /// evaluation uses [`VERTICAL_PROFILE_REFERENCE_SUBSTEPS`].
+    /// evaluation uses `VERTICAL_PROFILE_REFERENCE_SUBSTEPS`.
     pub fn geometry_factor_with_substeps(
         &self,
         observer: Geodetic<ECEF>,
@@ -363,7 +364,10 @@ impl Default for VanRhijnConfig {
 }
 
 /// Configurable Airglow emitting-volume line-of-sight geometry.
+///
+/// Additional validated geometries may be added; match with a wildcard.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum AirglowGeometryModel {
     /// Fast, geometrically thin emitting shell; the historical NSB default.
     VanRhijn(VanRhijnConfig),

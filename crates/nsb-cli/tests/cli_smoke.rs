@@ -114,10 +114,10 @@ fn default_components_include_moonlight() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
     assert_eq!(value["version"]["model_version"], "nsb-model-2026.1");
-    assert_eq!(value["version"]["siderust_version"], "0.11.0");
+    assert_eq!(value["version"]["siderust_version"], "0.11.1");
     assert_eq!(
         value["version"]["siderust_source"],
-        "crates.io:siderust:0.11.0"
+        "crates.io:siderust:0.11.1"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert_eq!(value["model"]["airglow_geometry"], "van_rhijn");

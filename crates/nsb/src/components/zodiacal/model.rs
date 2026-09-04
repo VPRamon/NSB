@@ -134,6 +134,9 @@ fn bilinear(v00: S10, v01: S10, v10: S10, v11: S10, tx: f64, ty: f64) -> S10 {
 
 #[derive(Debug, Clone)]
 /// Directional zodiacal surface-brightness source.
+///
+/// Additional brightness tables may be added; match with a wildcard.
+#[non_exhaustive]
 pub enum ZodiacalBrightnessModel {
     /// Built-in Leinert et al. (1998) table.
     Leinert1998,

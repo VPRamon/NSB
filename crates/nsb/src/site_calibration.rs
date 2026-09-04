@@ -13,10 +13,13 @@ use std::path::{Component, Path};
 use thiserror::Error;
 
 /// Supported schema version for [`SiteCalibrationAsset`].
-pub const SITE_CALIBRATION_ASSET_SCHEMA_VERSION: u32 = 1;
+pub(crate) const SITE_CALIBRATION_ASSET_SCHEMA_VERSION: u32 = 1;
 
 /// CTAO site that may receive a dedicated calibrated profile.
+///
+/// Additional calibrated sites may be added; match with a wildcard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub enum CalibratedSiteId {
     /// CTAO-North at the Roque de los Muchachos Observatory.
     #[serde(rename = "ctao-north")]
@@ -116,7 +119,7 @@ pub struct SiteCalibrationReference {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SiteCalibrationAsset {
-    /// Schema version, currently [`SITE_CALIBRATION_ASSET_SCHEMA_VERSION`].
+    /// Schema version, currently `SITE_CALIBRATION_ASSET_SCHEMA_VERSION`.
     pub schema_version: u32,
     /// Stable lowercase identifier for this calibration release.
     pub calibration_id: String,

@@ -38,12 +38,8 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
         location::site_profile(&args.observer),
     )?)?;
 
-    let result = evaluator.evaluate(&PointQuery {
-        observer,
-        time,
-        target,
-        components,
-    })?;
+    let result =
+        evaluator.evaluate(&PointQuery::new(observer, time, target).with_components(components))?;
 
     info!(
         "completed point evaluation: component_count={}, elapsed_ms={}",

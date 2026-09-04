@@ -321,6 +321,7 @@ fn starlight_label(config: &NsbModelConfig) -> &'static str {
         Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
         Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
         None => "starlight",
+        _ => "unknown-starlight-model",
     }
 }
 

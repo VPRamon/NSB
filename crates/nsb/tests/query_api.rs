@@ -116,12 +116,14 @@ fn all_components_are_the_production_safe_default() {
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let result = evaluator
-        .evaluate(&PointQuery {
-            observer: paranal(),
-            time: parse_obstime("2023-09-04 01:48:00"),
-            target: sgr_a_star(),
-            components: ComponentMask::ALL,
-        })
+        .evaluate(
+            &PointQuery::new(
+                paranal(),
+                parse_obstime("2023-09-04 01:48:00"),
+                sgr_a_star(),
+            )
+            .with_components(ComponentMask::ALL),
+        )
         .expect("generic clear-sky ALL evaluates");
 
     assert!(result.integrated.value() > 0.0);
@@ -154,12 +156,14 @@ fn all_components_are_the_production_safe_default() {
 fn point_query_uses_direct_geodetic_observer() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let result = evaluator
-        .evaluate(&PointQuery {
-            observer: paranal(),
-            time: parse_obstime("2023-09-04 01:48:00"),
-            target: sgr_a_star(),
-            components: default_components(),
-        })
+        .evaluate(
+            &PointQuery::new(
+                paranal(),
+                parse_obstime("2023-09-04 01:48:00"),
+                sgr_a_star(),
+            )
+            .with_components(default_components()),
+        )
         .expect("point query");
 
     assert!(result.integrated.value() > 0.0);
@@ -170,12 +174,14 @@ fn point_query_uses_direct_geodetic_observer() {
 fn point_query_propagates_selected_component_error() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
 
-    let result = evaluator.evaluate(&PointQuery {
-        observer: paranal(),
-        time: parse_obstime("2023-09-04 01:48:00"),
-        target: invalid_target(),
-        components: ComponentMask::ZODIACAL,
-    });
+    let result = evaluator.evaluate(
+        &PointQuery::new(
+            paranal(),
+            parse_obstime("2023-09-04 01:48:00"),
+            invalid_target(),
+        )
+        .with_components(ComponentMask::ZODIACAL),
+    );
 
     assert!(
         result.is_err(),
@@ -189,12 +195,14 @@ fn starlight_request_without_model_fails_explicitly() {
     config.starlight_model = None;
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let error = evaluator
-        .evaluate(&PointQuery {
-            observer: paranal(),
-            time: parse_obstime("2023-09-04 01:48:00"),
-            target: sgr_a_star(),
-            components: ComponentMask::STARLIGHT,
-        })
+        .evaluate(
+            &PointQuery::new(
+                paranal(),
+                parse_obstime("2023-09-04 01:48:00"),
+                sgr_a_star(),
+            )
+            .with_components(ComponentMask::STARLIGHT),
+        )
         .expect_err("unconfigured starlight must fail when requested");
 
     assert!(error.to_string().contains("starlight component requested"));
@@ -208,12 +216,14 @@ fn custom_starlight_map_evaluates_when_explicitly_configured() {
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let result = evaluator
-        .evaluate(&PointQuery {
-            observer: paranal(),
-            time: parse_obstime("2023-09-04 01:48:00"),
-            target: sgr_a_star(),
-            components: ComponentMask::STARLIGHT,
-        })
+        .evaluate(
+            &PointQuery::new(
+                paranal(),
+                parse_obstime("2023-09-04 01:48:00"),
+                sgr_a_star(),
+            )
+            .with_components(ComponentMask::STARLIGHT),
+        )
         .expect("explicit starlight map");
 
     assert_eq!(result.components.len(), 1);
@@ -228,12 +238,14 @@ fn starlight_uncertainties_reach_nsb_component() {
     );
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let result = evaluator
-        .evaluate(&PointQuery {
-            observer: paranal(),
-            time: parse_obstime("2023-09-04 01:48:00"),
-            target: sgr_a_star(),
-            components: ComponentMask::STARLIGHT,
-        })
+        .evaluate(
+            &PointQuery::new(
+                paranal(),
+                parse_obstime("2023-09-04 01:48:00"),
+                sgr_a_star(),
+            )
+            .with_components(ComponentMask::STARLIGHT),
+        )
         .expect("starlight uncertainty evaluation");
 
     let component = &result.components[0];
@@ -249,16 +261,18 @@ fn threshold_query_returns_full_window_for_large_threshold() {
     let start = parse_obstime("2023-09-04 01:00:00");
     let end = parse_obstime("2023-09-04 02:00:00");
     let result = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer: paranal(),
-            target: sgr_a_star(),
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(1.0e6),
-            components: default_components(),
-            sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, end),
+                BandPhotonRadiance::new(1.0e6),
+            )
+            .with_components(default_components())
+            .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
         .expect("threshold query");
 
     assert_eq!(result.periods.len(), 1);
@@ -272,16 +286,18 @@ fn threshold_query_returns_no_periods_when_threshold_is_unreachable() {
     let start = parse_obstime("2023-09-04 01:00:00");
     let end = parse_obstime("2023-09-04 02:00:00");
     let result = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer: paranal(),
-            target: sgr_a_star(),
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(0.0),
-            components: default_components(),
-            sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, end),
+                BandPhotonRadiance::new(0.0),
+            )
+            .with_components(default_components())
+            .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
         .expect("threshold query");
 
     assert!(result.periods.is_empty());
@@ -292,16 +308,18 @@ fn threshold_query_empty_window_returns_no_periods() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse_obstime("2023-09-04 01:00:00");
     let result = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer: paranal(),
-            target: sgr_a_star(),
-            window: Period::new(start, start),
-            threshold: BandPhotonRadiance::new(1.0e6),
-            components: default_components(),
-            sample_step: ThresholdQuery::DEFAULT_SAMPLE_STEP,
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, start),
+                BandPhotonRadiance::new(1.0e6),
+            )
+            .with_components(default_components())
+            .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
         .expect("empty window");
 
     assert!(result.periods.is_empty());
@@ -314,30 +332,34 @@ fn threshold_query_rejects_non_finite_threshold_and_non_positive_step() {
     let end = parse_obstime("2023-09-04 02:00:00");
 
     let nan = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer: paranal(),
-            target: sgr_a_star(),
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(f64::NAN),
-            components: default_components(),
-            sample_step: Second::new(600.0),
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, end),
+                BandPhotonRadiance::new(f64::NAN),
+            )
+            .with_components(default_components())
+            .with_sample_step(Second::new(600.0))
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
         .expect_err("NaN threshold");
     assert!(nan.to_string().contains("threshold must be finite"));
 
     let step = evaluator
-        .periods_below_threshold(&ThresholdQuery {
-            observer: paranal(),
-            target: sgr_a_star(),
-            window: Period::new(start, end),
-            threshold: BandPhotonRadiance::new(0.2),
-            components: default_components(),
-            sample_step: Second::new(0.0),
-            sun_altitude_ceiling: None,
-            target_altitude_floor: None,
-        })
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, end),
+                BandPhotonRadiance::new(0.2),
+            )
+            .with_components(default_components())
+            .with_sample_step(Second::new(0.0))
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
         .expect_err("zero sample step");
     assert!(step.to_string().contains("sample_step"));
 }
@@ -352,12 +374,7 @@ fn point_query_evaluates_individual_supported_components() {
         ComponentMask::MOON,
     ] {
         let result = evaluator
-            .evaluate(&PointQuery {
-                observer: paranal(),
-                time,
-                target: sgr_a_star(),
-                components: mask,
-            })
+            .evaluate(&PointQuery::new(paranal(), time, sgr_a_star()).with_components(mask))
             .expect("component evaluates");
         assert_eq!(result.components.len(), 1);
         assert!(result.integrated.value().is_finite());
@@ -367,12 +384,8 @@ fn point_query_evaluates_individual_supported_components() {
 #[test]
 fn explicit_f107_configuration_changes_airglow_relative_to_automatic() {
     let time = parse_obstime("2023-09-04 01:48:00");
-    let query = PointQuery {
-        observer: paranal(),
-        time,
-        target: sgr_a_star(),
-        components: ComponentMask::AIRGLOW,
-    };
+    let query =
+        PointQuery::new(paranal(), time, sgr_a_star()).with_components(ComponentMask::AIRGLOW);
 
     let automatic = NsbEvaluator::new()
         .expect("evaluator")
@@ -396,16 +409,18 @@ fn threshold_query_fails_closed_on_selected_component_error() {
     let start = parse_obstime("2023-09-04 01:00:00");
     let end = parse_obstime("2023-09-04 02:00:00");
 
-    let result = evaluator.periods_below_threshold(&ThresholdQuery {
-        observer: paranal(),
-        target: invalid_target(),
-        window: Period::new(start, end),
-        threshold: BandPhotonRadiance::new(1.0e6),
-        components: ComponentMask::ZODIACAL,
-        sample_step: Second::new(600.0),
-        sun_altitude_ceiling: None,
-        target_altitude_floor: None,
-    });
+    let result = evaluator.periods_below_threshold(
+        &ThresholdQuery::new(
+            paranal(),
+            invalid_target(),
+            Period::new(start, end),
+            BandPhotonRadiance::new(1.0e6),
+        )
+        .with_components(ComponentMask::ZODIACAL)
+        .with_sample_step(Second::new(600.0))
+        .with_sun_altitude_ceiling(None)
+        .with_target_altitude_floor(None),
+    );
 
     assert!(
         result.is_err(),
