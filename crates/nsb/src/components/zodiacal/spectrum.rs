@@ -12,9 +12,7 @@
 
 use crate::error::{NsbError, Result};
 use crate::reference::solar::SolarSpectrum;
-use crate::units::{
-    s10_for_spectral_photon_radiance, SolarSpectralIrradiance, S10_TO_W_M2_SR_NM,
-};
+use crate::units::{s10_for_spectral_photon_radiance, SolarSpectralIrradiance, S10_TO_W_M2_SR_NM};
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
@@ -215,11 +213,7 @@ fn spectral_scale_from_s10(s10_500: S10, solar: &SolarSpectrum) -> Result<f64> {
     Ok(target_500 / f_sun_500_sr)
 }
 
-fn interpolate_bv(
-    spectrum: &ZodiacalPhotonSpectrum,
-    b_zl_um: f64,
-    v_zl_um: f64,
-) -> (S10, S10) {
+fn interpolate_bv(spectrum: &ZodiacalPhotonSpectrum, b_zl_um: f64, v_zl_um: f64) -> (S10, S10) {
     let b_s10 = interp_linear_or_nearest(spectrum, B_FILTER, b_zl_um);
     let v_s10 = interp_linear_or_nearest(spectrum, V_FILTER, v_zl_um);
     (b_s10, v_s10)
