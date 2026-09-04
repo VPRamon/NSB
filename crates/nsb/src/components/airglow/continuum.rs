@@ -11,28 +11,31 @@ use crate::error::Result;
 use crate::units::ScaleFactors;
 use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
 use optica::grid::OutOfRange;
-use optica::spectrum::algo;
+use optica::spectrum::{Interpolation, SampledSpectrum};
 use qtty::angular::Degrees;
+use qtty::dimensionless::Ratios;
+use qtty::length::{Nanometer, Nanometers};
 use qtty::radiometry::{
+    PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
+    PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
 };
-use qtty::unit;
+use qtty::unit::{self, Ratio};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Nanometer, Nanometers};
 use tempoch::{Time, UTC};
 
-const WL_LOW_NM: f64 = 300.0;
-const WL_HIGH_NM: f64 = 650.0;
+const WL_LOW: Nanometers = Nanometers::new(300.0);
+const WL_HIGH: Nanometers = Nanometers::new(650.0);
 const B_FILTER: Nanometers = Nanometers::new(445.0);
 const V_FILTER: Nanometers = Nanometers::new(551.0);
 
 pub(crate) struct SpectralContinuumIntegrals {
-    pub(crate) integrated_relative: f64,
-    pub(crate) integrated_uncertainty_abs: f64,
-    pub(crate) b_relative: f64,
-    pub(crate) v_relative: f64,
+    pub(crate) integrated_relative: Nanometers,
+    pub(crate) integrated_uncertainty_abs: Nanometers,
+    pub(crate) b_relative: Ratios,
+    pub(crate) v_relative: Ratios,
 }
 
 pub(crate) fn integrate_attenuated_continuum(
@@ -40,10 +43,10 @@ pub(crate) fn integrate_attenuated_continuum(
     zenith: Degrees,
     atmosphere: AtmosphericConditions,
 ) -> SpectralContinuumIntegrals {
-    let geometry = noll_airglow_scattering_geometry(zenith);
     let xs = continuum.spectrum.xs_raw();
     let ys = continuum.spectrum.ys_raw();
     let sigs = continuum.uncertainty.ys_raw();
+    let geometry = noll_airglow_scattering_geometry(zenith);
 
     let mut attenuated_ys = Vec::with_capacity(ys.len());
     let mut attenuated_sigs = Vec::with_capacity(sigs.len());
@@ -54,26 +57,34 @@ pub(crate) fn integrate_attenuated_continuum(
         )
         .value();
         attenuated_ys.push(ys[idx] * transmission);
-        attenuated_sigs.push(sigs[idx] * transmission);
+        attenuated_sigs.push((sigs[idx] * transmission).abs());
     }
 
-    let integrated_relative = algo::trapz_range(xs, &attenuated_ys, WL_LOW_NM, WL_HIGH_NM);
-    let uncertainty_abs: Vec<f64> = attenuated_sigs.iter().map(|value| value.abs()).collect();
-    let integrated_uncertainty_abs = algo::trapz_range(xs, &uncertainty_abs, WL_LOW_NM, WL_HIGH_NM);
-    let b_relative = algo::interp_linear(
-        xs,
-        &attenuated_ys,
-        B_FILTER.to::<Nanometer>().value(),
+    let attenuated = SampledSpectrum::<Nanometer, Ratio>::from_raw(
+        xs.to_vec(),
+        attenuated_ys,
+        Interpolation::Linear,
         OutOfRange::ClampToEndpoints,
+        None,
     )
-    .expect("validated airglow spectrum covers B diagnostic");
-    let v_relative = algo::interp_linear(
-        xs,
-        &attenuated_ys,
-        V_FILTER.to::<Nanometer>().value(),
+    .expect("validated airglow spectrum remains valid after attenuation");
+    let attenuated_uncertainty = SampledSpectrum::<Nanometer, Ratio>::from_raw(
+        xs.to_vec(),
+        attenuated_sigs,
+        Interpolation::Linear,
         OutOfRange::ClampToEndpoints,
+        None,
     )
-    .expect("validated airglow spectrum covers V diagnostic");
+    .expect("validated airglow uncertainty spectrum remains valid after attenuation");
+
+    let integrated_relative = attenuated
+        .integrate_range(WL_LOW, WL_HIGH)
+        .to::<Nanometer>();
+    let integrated_uncertainty_abs = attenuated_uncertainty
+        .integrate_range(WL_LOW, WL_HIGH)
+        .to::<Nanometer>();
+    let b_relative = attenuated.interp_at(B_FILTER);
+    let v_relative = attenuated.interp_at(V_FILTER);
 
     SpectralContinuumIntegrals {
         integrated_relative,
@@ -140,10 +151,10 @@ pub(crate) fn evaluate_continuum_with_time_bin(
 
     let spectral = integrate_attenuated_continuum(continuum, zenith, ctx.atmosphere);
 
-    let radiance_scale = SkyCalcSpectralPhotonRadiance::new(scalar_scale)
-        .to::<unit::PhotonPerSquareCentimeterNanosecondSteradianNanometer>()
-        .value();
-    let integrated = BandPhotonRadiance::new(spectral.integrated_relative * radiance_scale);
+    let radiance_scale: SpectralBandPhotonRadiance = SkyCalcSpectralPhotonRadiance::new(scalar_scale)
+        .to::<SpectralBandPhotonRadianceUnit>();
+    let integrated = (radiance_scale * spectral.integrated_relative)
+        .to::<BandPhotonRadianceUnit>();
 
     let relative_uncertainty = continuum
         .sigma_corrections
@@ -162,9 +173,12 @@ pub(crate) fn evaluate_continuum_with_time_bin(
                 * seasonal_corr_value
                 * geometry_factor.abs()
                 * user_scale;
-            let shape_sigma_integrated = spectral.integrated_uncertainty_abs
-                * SkyCalcSpectralPhotonRadiance::new(common_scale)
-                    .to::<unit::PhotonPerSquareCentimeterNanosecondSteradianNanometer>()
+            let uncertainty_scale: SpectralBandPhotonRadiance =
+                SkyCalcSpectralPhotonRadiance::new(common_scale)
+                    .to::<SpectralBandPhotonRadianceUnit>();
+            let shape_sigma_integrated =
+                (uncertainty_scale * spectral.integrated_uncertainty_abs)
+                    .to::<BandPhotonRadianceUnit>()
                     .value();
             let level_relative_uncertainty = seasonal_sigma.abs() / seasonal_corr_value;
             let shape_relative_uncertainty = shape_sigma_integrated / integrated_value;
@@ -175,19 +189,15 @@ pub(crate) fn evaluate_continuum_with_time_bin(
                 .then_some(relative_uncertainty)
         });
 
-    let b_density = spectral.b_relative * radiance_scale;
-    let v_density = spectral.v_relative * radiance_scale;
+    let b_density = (radiance_scale * spectral.b_relative)
+        .to::<SpectralBandPhotonRadianceUnit>();
+    let v_density = (radiance_scale * spectral.v_relative)
+        .to::<SpectralBandPhotonRadianceUnit>();
 
     Ok(AirglowOutputs {
         integrated,
-        b_flux_s10: s10_for_spectral_photon_radiance(
-            SpectralBandPhotonRadiance::new(b_density),
-            B_FILTER,
-        ),
-        v_flux_s10: s10_for_spectral_photon_radiance(
-            SpectralBandPhotonRadiance::new(v_density),
-            V_FILTER,
-        ),
+        b_flux_s10: s10_for_spectral_photon_radiance(b_density, B_FILTER),
+        v_flux_s10: s10_for_spectral_photon_radiance(v_density, V_FILTER),
         relative_uncertainty,
     })
 }
