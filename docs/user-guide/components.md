@@ -96,8 +96,7 @@ When no value is supplied, NSB uses the documented default. Built-in site
 profiles may select explicit planning assumptions, but the current CTAO profiles
 do not include dedicated site-calibrated airglow continua. Selecting a geometry,
 extinction model, or measured F10.7 does not upgrade scientific maturity.
-See the [Airglow runtime guide](../nsb_components/airglow/README.md) and
-[optical profile audit](../nsb_components/airglow/110-optical-vertical-profile-audit.md).
+See the [Airglow runtime guide](../nsb_components/airglow/README.md).
 
 ## Scattered moonlight
 

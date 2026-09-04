@@ -7,6 +7,10 @@ once a stable public release is cut.
 
 ### Changed
 
+- Consolidated Airglow historical audit documents into the canonical runtime
+  guide and removed obsolete development-history prose (#122).
+- Removed unused `approx` dev-dependencies, orphan provisional validation
+  envelope, and unused Starlight diagnostic helpers (#122).
 - Froze the `nsb` first-release public API: classified supported surfaces,
   hid implementation-only constants/helpers, added constructors for
   `PointQuery`/`ThresholdQuery`, and marked evolvable structs/enums/`NsbError`

@@ -12,6 +12,13 @@ geometry, wavelength, and local conditions. NSB uses a generic empirical
 continuum baseline; it is not a line-by-line physical atmosphere simulation and
 does not claim site calibration unless the caller supplies one.
 
+**Option D (current policy):** NSB exposes an arbitrary-location Airglow
+evaluator, but the empirical continuum is **Paranal-derived / Paranal-trained**
+(Noll/SkyCalc lineage, including FORS1 residual continuum heritage). Outside a
+dedicated site calibration it is an **explicit generic/planning proxy**. A
+geographically generic API is not a globally calibrated dataset. Geometry,
+F10.7, or extinction choices do not upgrade maturity to `Calibrated`.
+
 ## Evaluation stack
 
 ```text
@@ -24,15 +31,35 @@ continuum baseline
   -> spectral and 300-650 nm photon-radiance outputs
 ```
 
-Geometry and atmospheric attenuation are intentionally separate stages. A longer
-path through an emitting layer is not the same physical effect as transmission
-through the lower atmosphere. Uncertainty propagation uses the same selected
-geometry multiplier as the nominal continuum.
+Equivalently, the continuum path multiplies
+
+```text
+global_scale × solar_corr × seasonal_corr × G(z) × Noll_scatter(λ) × user_scale
+```
+
+before independent attenuation and spectral integration. Geometry and
+atmospheric attenuation are intentionally separate stages. Uncertainty
+propagation uses the same selected geometry multiplier as the nominal continuum.
 
 The Noll effective extinction factors were fitted primarily for zenith distances
 `z <= 60 deg`. NSB evaluates the same parametric form at larger angles but marks
 that use as extrapolation with weaker upstream validation. Molecular absorption
 from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced.
+
+## Continuum provenance and UV-end limits
+
+The bundled continuum (`crates/nsb/data/airglow_cont.dat`) inherits Paranal
+training assumptions (seasonal and time-of-night matrices; solar slope/constant;
+effective emitting-shell height 90 km). Upstream FORS1 windows are roughly
+0.365–0.89 µm and are weaker below ~0.44 µm; asset headers note extra uncertainty
+below ~0.4 µm and above ~0.9 µm. NSB's 300–650 nm band therefore inherits
+elevated uncertainty toward ~300–365/400 nm. NSB does not invent an extra UV
+envelope beyond the continuum's reported relative uncertainty.
+
+Exact upstream import file/release and some licence details remain unresolved
+where the asset registry records them; treat those as release limitations, not
+as calibrated global science. There is no Paranal/CTAO location whitelist:
+location is a caller input while the continuum remains Paranal-derived.
 
 ## Geometry models
 
@@ -46,8 +73,7 @@ dependent emission altitude.
 `AirglowGeometryModel::VerticalProfile(VerticalEmissionProfile)` integrates a
 caller-provided relative volume-emission-rate profile through spherical Earth
 geometry. It is opt-in because the available evidence does not justify one
-global production profile for all optical emission from 300 to 650 nm. See the
-[optical vertical-profile audit](110-optical-vertical-profile-audit.md).
+global production profile for all optical emission from 300 to 650 nm.
 
 ```rust
 use nsb::{Airglow, AirglowGeometryModel, VanRhijnConfig};
@@ -59,6 +85,21 @@ let airglow = Airglow::standard_clear_sky(location)?
 A persisted profile can be selected in the CLI with
 `--airglow-vertical-profile profile.toml`. No network access is used to resolve
 or evaluate it.
+
+### Why no bundled broadband VER profile
+
+Optical 300–650 nm airglow mixes physically different sources (for example
+OI 557.7 nm near ~90–100 km, OI 630.0/636.4 nm near ~200–400 km, Na D near
+~90 km, O₂ bands near ~91–95 km, FeO-like continuum near ~85–89 km, plus other
+continua). Species, latitude, season, local time, and solar activity do not
+necessarily vary together. Line-specific public products (ICON/MIGHTI, WINDII)
+and Paranal X-shooter continuum climatology inform this limitation; infrared
+limb products such as SABER are not optical ground truth for this band.
+
+NSB therefore keeps the 90 km Van Rhijn default, accepts validated
+checksum-pinned caller profiles with provenance/licence/applicability, and makes
+no claim that selecting advanced geometry improves accuracy by itself.
+Measurement-led CTAO profiles belong to issue #38.
 
 ## Spherical vertical-profile formulation
 
@@ -85,9 +126,17 @@ component contract, valid targets below the apparent horizon but above altitude
 `-90 deg` use the horizon geometry; the nadir endpoint and invalid coordinates
 produce zero component output.
 
+At the geometric horizon a thin shell produces altitude-dependent factors
+(approximately 6.012, 6.097, and 6.185 at observer altitudes 0, 2.5, and 5 km).
+That dependence is expected from spherical ray geometry and differs from the
+observer-altitude-independent historical Van Rhijn formula. Cross-model
+comparisons are available via
+`cargo run -p nsb --example airglow_geometry_comparison`.
+
 The direct/reference algorithm is retained as the runtime path. It has an
 explicit, configurable even subdivision count for convergence testing and no
-cache or interpolation layer.
+cache or interpolation layer. Benchmark numbers live in the
+[performance contract](../../specifications/performance.md).
 
 ## Vertical profile contract
 
@@ -121,25 +170,20 @@ with explicit uncalibrated provenance. Choosing an F10.7 source, extinction
 model, or geometry model does not change that maturity to `Calibrated`.
 Dedicated CTAO site calibration remains issue #38 and is deliberately separate.
 
-## Issue relationship and scientific boundary
-
-- #108 established the generic/planning baseline and audited site assumptions.
-- #109 made F10.7 value and provenance deterministic and offline.
-- #114 added the independent Noll Rayleigh/Mie effective attenuation stage.
-- #110 adds explicit Van Rhijn and vertical-profile emitting-volume geometry.
-- #112 is the parent completion audit for the machine-actionable component work.
-- #38 remains the separate measurement-led CTAO site-calibration track.
+## Scientific boundary
 
 Airglow has substantial natural variability. A different geometry model is not
 by itself a more accurate prediction. Site/science use requiring calibrated
 precision must supply documented measurements and validate the full model under
-the intended conditions.
+the intended conditions. Machine-actionable Airglow geometry, F10.7 resolution,
+and attenuation stages are complete; the remaining limitation is scientific
+representativeness of any single global 300–650 nm VER profile (#38).
 
 ## Related documentation
 
-- [Optical vertical-profile audit and numerical comparison](110-optical-vertical-profile-audit.md)
-- [Airglow completion audit (#112)](112-completion-audit.md)
 - [F10.7 solar-activity resolver](f107-resolver.md)
-- [Generic baseline vs site calibration audit (#108)](108-audit-generic-baseline-vs-site-calibration.md)
 - [Scientific metadata](../../specifications/scientific-metadata.md)
 - [Model maturity](../../specifications/model-maturity.md)
+- [Validation matrix](../../specifications/validation.md)
+- [Performance contract](../../specifications/performance.md)
+- [CTAO site profiles](../../specifications/ctao-site-profiles.md)
