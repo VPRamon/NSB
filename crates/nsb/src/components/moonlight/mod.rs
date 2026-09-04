@@ -27,7 +27,6 @@ use crate::site::SiteProfileId;
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
 use optica::grid::OutOfRange;
-use optica::spectrum::algo;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
 use qtty::radiometry::{
     self, spectral_radiance_to_photon_radiance_ns_nm,
