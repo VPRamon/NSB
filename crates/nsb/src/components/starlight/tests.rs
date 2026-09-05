@@ -124,8 +124,6 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
             .expect("production sidecar metadata");
         assert_eq!(map_meta.schema, "nsb-healpix-starlight-v2");
         assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v1");
-        assert!(map_meta.runtime_embedded);
-        assert!(sidecar_meta.runtime_embedded);
         assert_eq!(map_meta.calibration_status, "production");
         assert_eq!(sidecar_meta.calibration_status, "production");
         assert!(!map_meta.sha256.is_empty());

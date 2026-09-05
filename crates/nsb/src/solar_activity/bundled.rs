@@ -48,7 +48,6 @@ mod tests {
         let asset = bundled_f107_asset();
         assert_eq!(asset.path, BUNDLED_F107_RELATIVE_PATH);
         assert_eq!(asset.schema, "nsb-f107-store-v1");
-        assert!(asset.runtime_embedded);
         assert_eq!(hex_sha256(RAW.as_bytes()), asset.sha256);
         assert!(!asset.source.is_empty());
         assert!(!asset.validation_report.is_empty());

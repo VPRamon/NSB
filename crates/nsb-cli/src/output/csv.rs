@@ -3,8 +3,8 @@ use crate::parsing::location::SitePreset;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
-    assets::runtime_embedded_assets, AirglowGeometryMetadata, ComponentMask, NsbModelConfig,
-    NsbResult, StarlightModel, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
+    assets::bundled_assets, AirglowGeometryMetadata, ComponentMask, NsbModelConfig, NsbResult,
+    StarlightModel, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
 };
 use tempoch::{Period, UTC};
 
@@ -281,7 +281,7 @@ pub fn write_sites(sites: &[SitePreset]) -> Result<()> {
 }
 
 fn asset_checksums() -> String {
-    runtime_embedded_assets()
+    bundled_assets()
         .map(|asset| format!("{}={}", asset.path, asset.sha256))
         .collect::<Vec<_>>()
         .join(";")

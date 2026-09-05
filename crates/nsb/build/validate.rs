@@ -1,6 +1,9 @@
 //! Structural and integrity validation for the scientific asset manifest.
 
-use super::types::{Asset, Manifest, EXPECTED_MANIFEST_SCHEMA_VERSION, REQUIRED_RUNTIME_ASSETS};
+use super::types::{
+    is_safe_data_relative_path, Asset, Manifest, EXPECTED_MANIFEST_SCHEMA_VERSION,
+    REQUIRED_RUNTIME_ASSETS, STARLIGHT_MANIFEST_SCHEMA, STARLIGHT_MAP_SCHEMA,
+};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::fs;
@@ -18,6 +21,8 @@ pub enum ManifestValidationError {
     },
     /// Duplicate `assets.path` entries.
     DuplicatePath(String),
+    /// Manifest path escapes `crates/nsb/data` or is otherwise unsafe.
+    UnsafePath(String),
     /// A required component asset is missing, not embedded, or has the wrong schema.
     RequiredAsset {
         /// Relative path that must be registered.
@@ -38,13 +43,8 @@ pub enum ManifestValidationError {
         /// Digest of the file bytes.
         actual: String,
     },
-    /// Production Starlight CSV/manifest pair count is invalid.
-    StarlightPair {
-        /// Number of production map assets.
-        maps: usize,
-        /// Number of production sidecar assets.
-        manifests: usize,
-    },
+    /// A release-shaped Starlight registration is incomplete or inconsistent.
+    StarlightPolicy(String),
     /// Generic structural problem.
     Message(String),
 }
@@ -57,6 +57,10 @@ impl std::fmt::Display for ManifestValidationError {
                 "unsupported asset manifest schema_version {found}; expected {expected}"
             ),
             Self::DuplicatePath(path) => write!(f, "duplicate asset path {path:?}"),
+            Self::UnsafePath(path) => write!(
+                f,
+                "asset path {path:?} must be a relative path confined under crates/nsb/data"
+            ),
             Self::RequiredAsset {
                 path,
                 expected_schema,
@@ -76,10 +80,9 @@ impl std::fmt::Display for ManifestValidationError {
                 f,
                 "checksum mismatch for runtime_embedded asset {path:?}: manifest {expected}, actual {actual}"
             ),
-            Self::StarlightPair { maps, manifests } => write!(
-                f,
-                "expected either zero or one production starlight CSV/TOML pair; found {maps} maps and {manifests} manifests"
-            ),
+            Self::StarlightPolicy(message) => {
+                write!(f, "starlight production asset policy: {message}")
+            }
             Self::Message(message) => f.write_str(message),
         }
     }
@@ -92,7 +95,9 @@ pub fn parse_manifest(raw: &str) -> Result<Manifest, String> {
     toml::from_str(raw).map_err(|err| format!("failed to parse scientific asset manifest: {err}"))
 }
 
-/// Validate manifest structure and required component constraints (no filesystem I/O).
+/// Validate manifest structure, path confinement, and required component constraints.
+///
+/// This performs no filesystem I/O.
 pub fn validate_manifest_structure(manifest: &Manifest) -> Result<(), ManifestValidationError> {
     if manifest.schema_version != EXPECTED_MANIFEST_SCHEMA_VERSION {
         return Err(ManifestValidationError::SchemaVersion {
@@ -109,6 +114,7 @@ pub fn validate_manifest_structure(manifest: &Manifest) -> Result<(), ManifestVa
     let mut seen = BTreeSet::new();
     for asset in &manifest.assets {
         validate_required_fields(asset)?;
+        validate_path_confinement(&asset.path)?;
         if !seen.insert(asset.path.as_str()) {
             return Err(ManifestValidationError::DuplicatePath(asset.path.clone()));
         }
@@ -141,20 +147,7 @@ pub fn validate_manifest_structure(manifest: &Manifest) -> Result<(), ManifestVa
         }
     }
 
-    let maps = manifest
-        .assets
-        .iter()
-        .filter(|asset| asset.is_production_starlight_map())
-        .count();
-    let manifests = manifest
-        .assets
-        .iter()
-        .filter(|asset| asset.is_production_starlight_manifest())
-        .count();
-    if !matches!((maps, manifests), (0, 0) | (1, 1)) {
-        return Err(ManifestValidationError::StarlightPair { maps, manifests });
-    }
-
+    validate_starlight_release_policy(manifest)?;
     Ok(())
 }
 
@@ -186,6 +179,15 @@ fn validate_required_fields(asset: &Asset) -> Result<(), ManifestValidationError
     Ok(())
 }
 
+/// Reject absolute paths, `..`, and other escapes from `crates/nsb/data`.
+pub fn validate_path_confinement(path: &str) -> Result<(), ManifestValidationError> {
+    if is_safe_data_relative_path(path) {
+        Ok(())
+    } else {
+        Err(ManifestValidationError::UnsafePath(path.to_string()))
+    }
+}
+
 /// Lowercase hexadecimal SHA-256 of `bytes`.
 pub fn hex_sha256(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
@@ -204,6 +206,7 @@ pub fn validate_runtime_embedded_files(
         if !asset.runtime_embedded {
             continue;
         }
+        validate_path_confinement(&asset.path)?;
         let path = data_dir.join(&asset.path);
         if !path.is_file() {
             return Err(ManifestValidationError::MissingEmbeddedFile(
@@ -228,26 +231,153 @@ pub fn validate_runtime_embedded_files(
     Ok(())
 }
 
+/// Assets whose bundled runtime identity was verified (existence + SHA-256).
+pub fn verified_runtime_embedded_assets(manifest: &Manifest) -> Vec<&Asset> {
+    manifest
+        .assets
+        .iter()
+        .filter(|asset| asset.runtime_embedded)
+        .collect()
+}
+
 /// Select the optional production Starlight CSV/sidecar pair.
+///
+/// Distinguishes intentional absence of a production release from a malformed
+/// release-shaped registration, which must fail the build.
 pub fn select_production_starlight(
     manifest: &Manifest,
 ) -> Result<Option<(&Asset, &Asset)>, ManifestValidationError> {
+    validate_starlight_release_policy(manifest)?;
     let maps: Vec<&Asset> = manifest
         .assets
         .iter()
-        .filter(|asset| asset.is_production_starlight_map())
+        .filter(|asset| asset.is_valid_production_starlight_map())
         .collect();
     let manifests: Vec<&Asset> = manifest
         .assets
         .iter()
-        .filter(|asset| asset.is_production_starlight_manifest())
+        .filter(|asset| asset.is_valid_production_starlight_manifest())
         .collect();
     match (maps.as_slice(), manifests.as_slice()) {
         ([], []) => Ok(None),
         ([map], [sidecar]) => Ok(Some((*map, *sidecar))),
-        _ => Err(ManifestValidationError::StarlightPair {
-            maps: maps.len(),
-            manifests: manifests.len(),
-        }),
+        _ => unreachable!("validate_starlight_release_policy guarantees 0 or 1 valid pairs"),
     }
+}
+
+fn validate_starlight_release_policy(manifest: &Manifest) -> Result<(), ManifestValidationError> {
+    let map_claims: Vec<&Asset> = manifest
+        .assets
+        .iter()
+        .filter(|asset| asset.is_starlight_release_map_claim())
+        .collect();
+    let sidecar_claims: Vec<&Asset> = manifest
+        .assets
+        .iter()
+        .filter(|asset| asset.is_starlight_release_manifest_claim())
+        .collect();
+
+    if map_claims.is_empty() && sidecar_claims.is_empty() {
+        return Ok(());
+    }
+
+    if map_claims.len() != 1 || sidecar_claims.len() != 1 {
+        return Err(ManifestValidationError::StarlightPolicy(format!(
+            "expected exactly one release map claim and one release sidecar claim; found {} map claim(s) and {} sidecar claim(s)",
+            map_claims.len(),
+            sidecar_claims.len()
+        )));
+    }
+
+    let map = map_claims[0];
+    let sidecar = sidecar_claims[0];
+
+    let map_stem = map.starlight_release_stem().ok_or_else(|| {
+        ManifestValidationError::StarlightPolicy(format!(
+            "release map claim {:?} must use a *.release.csv path",
+            map.path
+        ))
+    })?;
+    let sidecar_stem = sidecar.starlight_release_stem().ok_or_else(|| {
+        ManifestValidationError::StarlightPolicy(format!(
+            "release sidecar claim {:?} must use a *.manifest.toml path",
+            sidecar.path
+        ))
+    })?;
+    if map_stem != sidecar_stem {
+        return Err(ManifestValidationError::StarlightPolicy(format!(
+            "release map {:?} and sidecar {:?} do not share a release stem",
+            map.path, sidecar.path
+        )));
+    }
+
+    require_valid_production_map(map)?;
+    require_valid_production_sidecar(sidecar)?;
+    Ok(())
+}
+
+fn require_valid_production_map(asset: &Asset) -> Result<(), ManifestValidationError> {
+    if asset.is_valid_production_starlight_map() {
+        return Ok(());
+    }
+    let mut reasons = Vec::new();
+    if !asset.path.ends_with(".release.csv") {
+        reasons.push(format!(
+            "path must end with .release.csv (found {:?})",
+            asset.path
+        ));
+    }
+    if asset.schema != STARLIGHT_MAP_SCHEMA {
+        reasons.push(format!(
+            "schema must be {STARLIGHT_MAP_SCHEMA} (found {:?})",
+            asset.schema
+        ));
+    }
+    if !asset.calibration_status.eq_ignore_ascii_case("production") {
+        reasons.push(format!(
+            "calibration_status must be production (found {:?})",
+            asset.calibration_status
+        ));
+    }
+    if !asset.runtime_embedded {
+        reasons.push("runtime_embedded must be true".into());
+    }
+    Err(ManifestValidationError::StarlightPolicy(format!(
+        "release map claim {:?} is not a valid production registration: {}",
+        asset.path,
+        reasons.join("; ")
+    )))
+}
+
+fn require_valid_production_sidecar(asset: &Asset) -> Result<(), ManifestValidationError> {
+    if asset.is_valid_production_starlight_manifest() {
+        return Ok(());
+    }
+    let mut reasons = Vec::new();
+    if !asset.path.ends_with(".manifest.toml") {
+        reasons.push(format!(
+            "path must end with .manifest.toml (found {:?})",
+            asset.path
+        ));
+    }
+    if asset.schema != STARLIGHT_MANIFEST_SCHEMA {
+        reasons.push(format!(
+            "schema must be {STARLIGHT_MANIFEST_SCHEMA} (found {:?})",
+            asset.schema
+        ));
+    }
+    if !asset.calibration_status.eq_ignore_ascii_case("production") {
+        reasons.push(format!(
+            "calibration_status must be production (found {:?})",
+            asset.calibration_status
+        ));
+    }
+    if !asset.runtime_embedded {
+        reasons.push("runtime_embedded must be true".into());
+    }
+    Err(ManifestValidationError::StarlightPolicy(format!(
+        "release sidecar claim {:?} is not a valid production registration: {}",
+        asset.path,
+        reasons.join("; ")
+    )))
 }

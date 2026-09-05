@@ -330,7 +330,6 @@ mod tests {
         let asset = airglow_continuum_asset();
         assert_eq!(asset.path, AIRGLOW_CONTINUUM_RELATIVE_PATH);
         assert_eq!(asset.schema, "skycalc-airglow-continuum-v1");
-        assert!(asset.runtime_embedded);
         assert!(
             asset.source.contains("Cerro Paranal")
                 && asset.source.contains("Noll")

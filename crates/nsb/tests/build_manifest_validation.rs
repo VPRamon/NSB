@@ -3,20 +3,24 @@
 //! These tests exercise the same pure functions used by `crates/nsb/build.rs`
 //! without spawning Cargo recursively.
 
-#[path = "../build_support/generate.rs"]
+#[path = "../build/generate.rs"]
 mod generate;
-#[path = "../build_support/types.rs"]
+#[path = "../build/types.rs"]
 mod types;
-#[path = "../build_support/validate.rs"]
+#[path = "../build/validate.rs"]
 mod validate;
 
 use generate::generate_bundled_assets_rs;
 use std::fs;
 use std::path::PathBuf;
-use types::{Asset, Manifest, EXPECTED_MANIFEST_SCHEMA_VERSION};
+use types::{
+    is_safe_data_relative_path, Asset, Manifest, EXPECTED_MANIFEST_SCHEMA_VERSION,
+    STARLIGHT_MANIFEST_SCHEMA, STARLIGHT_MAP_SCHEMA,
+};
 use validate::{
     hex_sha256, parse_manifest, select_production_starlight, validate_manifest_structure,
-    validate_runtime_embedded_files, ManifestValidationError,
+    validate_path_confinement, validate_runtime_embedded_files, verified_runtime_embedded_assets,
+    ManifestValidationError,
 };
 
 fn repository_manifest() -> Manifest {
@@ -39,6 +43,18 @@ fn sample_asset(path: &str, schema: &str, sha: &str, embedded: bool) -> Asset {
         runtime_embedded: embedded,
         header: Default::default(),
     }
+}
+
+fn production_map(path: &str, sha: &str) -> Asset {
+    let mut asset = sample_asset(path, STARLIGHT_MAP_SCHEMA, sha, true);
+    asset.calibration_status = "production".into();
+    asset
+}
+
+fn production_sidecar(path: &str, sha: &str) -> Asset {
+    let mut asset = sample_asset(path, STARLIGHT_MANIFEST_SCHEMA, sha, true);
+    asset.calibration_status = "production".into();
+    asset
 }
 
 fn valid_required_set() -> Vec<Asset> {
@@ -70,7 +86,6 @@ fn schema_version_mismatch_is_rejected() {
         schema_version: 99,
         assets: valid_required_set(),
     };
-    // Keep starlight pair empty.
     let err = validate_manifest_structure(&manifest).unwrap_err();
     assert!(matches!(
         err,
@@ -134,34 +149,88 @@ fn invalid_required_schema_is_rejected() {
 }
 
 #[test]
-fn candidate_non_embedded_assets_do_not_block_structure_validation() {
+fn unsafe_manifest_paths_are_rejected() {
+    for path in [
+        "../Cargo.toml",
+        "../../some-file",
+        "/absolute/path",
+        "\\windows\\style",
+        "C:\\abs\\path",
+        "nested/../../escape.dat",
+    ] {
+        assert!(
+            !is_safe_data_relative_path(path),
+            "expected unsafe path {path:?}"
+        );
+        assert!(matches!(
+            validate_path_confinement(path),
+            Err(ManifestValidationError::UnsafePath(_))
+        ));
+    }
+    assert!(is_safe_data_relative_path("airglow_cont.dat"));
+    assert!(is_safe_data_relative_path("nested/ok.dat"));
+    assert!(validate_path_confinement("nested/ok.dat").is_ok());
+
     let mut assets = valid_required_set();
     assets.push(sample_asset(
-        "candidate_only.dat",
-        "nsb-test-candidate-v1",
+        "../Cargo.toml",
+        "nsb-test-v1",
         &"a".repeat(64),
         false,
     ));
-    validate_manifest_structure(&Manifest {
+    let err = validate_manifest_structure(&Manifest {
         schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
         assets,
     })
-    .unwrap();
+    .unwrap_err();
+    assert!(matches!(err, ManifestValidationError::UnsafePath(_)));
+}
+
+#[test]
+fn candidate_non_embedded_assets_do_not_block_or_enter_verified_codegen() {
+    let zero = "0".repeat(64);
+    let tmp = tempfile_dir();
+    let mut rewritten = Vec::new();
+    for (path, schema) in types::REQUIRED_RUNTIME_ASSETS {
+        let bytes = format!("fixture:{path}").into_bytes();
+        let digest = hex_sha256(&bytes);
+        fs::write(tmp.join(path), &bytes).unwrap();
+        rewritten.push(sample_asset(path, schema, &digest, true));
+    }
+    rewritten.push(sample_asset(
+        "absent_candidate.dat",
+        "nsb-test-candidate-v1",
+        &zero,
+        false,
+    ));
+    let manifest = Manifest {
+        schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
+        assets: rewritten,
+    };
+    validate_manifest_structure(&manifest).unwrap();
+    validate_runtime_embedded_files(&tmp, &manifest).unwrap();
+
+    let verified = verified_runtime_embedded_assets(&manifest);
+    assert!(verified.iter().all(|asset| asset.runtime_embedded));
+    assert!(verified
+        .iter()
+        .all(|asset| asset.path != "absent_candidate.dat"));
+    let generated = generate_bundled_assets_rs(manifest.schema_version, &verified, None);
+    assert!(generated.contains("airglow_cont.dat"));
+    assert!(!generated.contains("absent_candidate.dat"));
 }
 
 #[test]
 fn missing_runtime_embedded_file_is_rejected() {
     let zero = "0".repeat(64);
-    let assets = vec![sample_asset(
-        "missing_embedded.dat",
-        "nsb-test-v1",
-        &zero,
-        true,
-    )];
-    // Bypass required-asset checks by validating files only.
     let manifest = Manifest {
         schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
-        assets,
+        assets: vec![sample_asset(
+            "missing_embedded.dat",
+            "nsb-test-v1",
+            &zero,
+            true,
+        )],
     };
     let tmp = tempfile_dir();
     let err = validate_runtime_embedded_files(&tmp, &manifest).unwrap_err();
@@ -176,9 +245,7 @@ fn checksum_mismatch_is_rejected() {
     let tmp = tempfile_dir();
     let path = "bad_checksum.dat";
     fs::write(tmp.join(path), b"hello").unwrap();
-    let actual = hex_sha256(b"hello");
     let wrong = "0".repeat(64);
-    assert_ne!(actual, wrong);
     let manifest = Manifest {
         schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
         assets: vec![sample_asset(path, "nsb-test-v1", &wrong, true)],
@@ -191,21 +258,14 @@ fn checksum_mismatch_is_rejected() {
 }
 
 #[test]
-fn non_embedded_candidate_missing_on_disk_is_ignored() {
-    let tmp = tempfile_dir();
-    let zero = "0".repeat(64);
-    // Create only required embedded assets with matching digests.
-    let mut assets = Vec::new();
-    for (path, schema) in types::REQUIRED_RUNTIME_ASSETS {
-        let bytes = format!("fixture:{path}").into_bytes();
-        let digest = hex_sha256(&bytes);
-        fs::write(tmp.join(path), &bytes).unwrap();
-        assets.push(sample_asset(path, schema, &digest, true));
-    }
+fn legitimate_absence_of_production_starlight_is_allowed() {
+    let assets = valid_required_set();
+    // Candidate-shaped entry must not be treated as a production claim.
+    let mut assets = assets;
     assets.push(sample_asset(
-        "absent_candidate.dat",
-        "nsb-test-candidate-v1",
-        &zero,
+        "starlight_nside128.csv",
+        "nsb-healpix-starlight-candidate-v5",
+        &"b".repeat(64),
         false,
     ));
     let manifest = Manifest {
@@ -213,51 +273,121 @@ fn non_embedded_candidate_missing_on_disk_is_ignored() {
         assets,
     };
     validate_manifest_structure(&manifest).unwrap();
-    validate_runtime_embedded_files(&tmp, &manifest).unwrap();
+    assert!(select_production_starlight(&manifest).unwrap().is_none());
 }
 
 #[test]
-fn starlight_pair_must_be_zero_or_one() {
+fn release_map_without_sidecar_fails_build_policy() {
     let mut assets = valid_required_set();
     let zero = "0".repeat(64);
-    assets.push(Asset {
-        path: "a.release.csv".into(),
-        schema: types::STARLIGHT_MAP_SCHEMA.into(),
-        sha256: zero.clone(),
-        source: "s".into(),
-        license: "l".into(),
-        generator: "g".into(),
-        generation_command: "c".into(),
-        validation_report: "v".into(),
-        calibration_status: "production".into(),
-        runtime_embedded: true,
-        header: Default::default(),
-    });
-    // Map without matching sidecar.
+    assets.push(production_map("starlight_nside128.release.csv", &zero));
     let err = validate_manifest_structure(&Manifest {
         schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
         assets,
     })
     .unwrap_err();
-    assert!(matches!(
-        err,
-        ManifestValidationError::StarlightPair {
-            maps: 1,
-            manifests: 0
-        }
-    ));
+    assert!(matches!(err, ManifestValidationError::StarlightPolicy(_)));
 }
 
 #[test]
-fn generated_output_is_deterministic() {
+fn release_sidecar_without_map_fails_build_policy() {
+    let mut assets = valid_required_set();
+    let zero = "0".repeat(64);
+    assets.push(production_sidecar(
+        "starlight_nside128.manifest.toml",
+        &zero,
+    ));
+    let err = validate_manifest_structure(&Manifest {
+        schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
+        assets,
+    })
+    .unwrap_err();
+    assert!(matches!(err, ManifestValidationError::StarlightPolicy(_)));
+}
+
+#[test]
+fn demoted_release_map_cannot_silently_disable_starlight() {
+    let mut assets = valid_required_set();
+    let zero = "0".repeat(64);
+    let mut map = production_map("starlight_nside128.release.csv", &zero);
+    map.calibration_status = "candidate".into();
+    map.runtime_embedded = false;
+    assets.push(map);
+    assets.push(production_sidecar(
+        "starlight_nside128.manifest.toml",
+        &zero,
+    ));
+    let err = validate_manifest_structure(&Manifest {
+        schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
+        assets,
+    })
+    .unwrap_err();
+    match err {
+        ManifestValidationError::StarlightPolicy(message) => {
+            assert!(
+                message.contains("not a valid production registration")
+                    || message.contains("runtime_embedded"),
+                "unexpected message: {message}"
+            );
+        }
+        other => panic!("expected StarlightPolicy, got {other:?}"),
+    }
+}
+
+#[test]
+fn incompatible_release_schema_fails_build_policy() {
+    let mut assets = valid_required_set();
+    let zero = "0".repeat(64);
+    let mut map = production_map("starlight_nside128.release.csv", &zero);
+    map.schema = "nsb-healpix-starlight-candidate-v5".into();
+    assets.push(map);
+    assets.push(production_sidecar(
+        "starlight_nside128.manifest.toml",
+        &zero,
+    ));
+    let err = validate_manifest_structure(&Manifest {
+        schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
+        assets,
+    })
+    .unwrap_err();
+    assert!(matches!(err, ManifestValidationError::StarlightPolicy(_)));
+}
+
+#[test]
+fn valid_production_starlight_pair_is_selected() {
+    let mut assets = valid_required_set();
+    let zero = "0".repeat(64);
+    assets.push(production_map("starlight_nside128.release.csv", &zero));
+    assets.push(production_sidecar(
+        "starlight_nside128.manifest.toml",
+        &zero,
+    ));
+    let manifest = Manifest {
+        schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
+        assets,
+    };
+    validate_manifest_structure(&manifest).unwrap();
+    let pair = select_production_starlight(&manifest).unwrap().unwrap();
+    assert_eq!(pair.0.path, "starlight_nside128.release.csv");
+    assert_eq!(pair.1.path, "starlight_nside128.manifest.toml");
+}
+
+#[test]
+fn generated_output_is_deterministic_and_verified_only() {
     let manifest = repository_manifest();
     let starlight = select_production_starlight(&manifest).unwrap();
-    let once = generate_bundled_assets_rs(manifest.schema_version, &manifest.assets, starlight);
-    let twice = generate_bundled_assets_rs(manifest.schema_version, &manifest.assets, starlight);
+    let verified = verified_runtime_embedded_assets(&manifest);
+    let once = generate_bundled_assets_rs(manifest.schema_version, &verified, starlight);
+    let twice = generate_bundled_assets_rs(manifest.schema_version, &verified, starlight);
     assert_eq!(once, twice);
     assert!(once.contains("ASSET_MANIFEST_SCHEMA_VERSION"));
     assert!(once.contains("BUNDLED_ASSETS"));
-    assert!(!once.contains("toml::"));
+    assert!(once.contains("airglow_cont.dat"));
+    assert!(once.contains("f107_store.json"));
+    // Candidate registry entries must not appear in verified runtime metadata.
+    assert!(!once.contains("merge_report.json"));
+    assert!(!once.contains("starlight_nside128.csv"));
+    assert!(!once.contains("nsb-healpix-starlight-candidate-v5"));
 }
 
 fn tempfile_dir() -> PathBuf {

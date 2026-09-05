@@ -1,6 +1,6 @@
 //! Build script: validate scientific assets and generate static Rust metadata.
 
-#[path = "build_support/mod.rs"]
+#[path = "build/mod.rs"]
 mod nsb_build;
 
 fn main() {

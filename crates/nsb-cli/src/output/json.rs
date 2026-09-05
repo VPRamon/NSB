@@ -3,7 +3,7 @@ use crate::parsing::location::SitePreset;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
-    assets::{runtime_embedded_assets, ASSET_MANIFEST_SCHEMA_VERSION},
+    assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
     AirglowGeometryMetadata, BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig,
     NsbResult, StarlightModel, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
     SIDERUST_VERSION,
@@ -285,7 +285,7 @@ fn version_json() -> VersionJson {
         siderust_version: SIDERUST_VERSION,
         siderust_source: SIDERUST_SOURCE,
         asset_manifest_schema: ASSET_MANIFEST_SCHEMA_VERSION,
-        data_assets: runtime_embedded_assets()
+        data_assets: bundled_assets()
             .map(|asset| AssetJson {
                 path: asset.path,
                 schema: asset.schema,

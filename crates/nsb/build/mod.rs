@@ -7,7 +7,7 @@ pub mod validate;
 use self::generate::generate_bundled_assets_rs;
 use self::validate::{
     parse_manifest, select_production_starlight, validate_manifest_structure,
-    validate_runtime_embedded_files,
+    validate_runtime_embedded_files, verified_runtime_embedded_assets,
 };
 use std::env;
 use std::fs;
@@ -34,21 +34,17 @@ pub fn run() {
         panic!("scientific asset integrity validation failed: {err}");
     });
 
-    for asset in &manifest.assets {
-        if asset.runtime_embedded {
-            println!("cargo:rerun-if-changed=data/{}", asset.path);
-        }
+    for asset in verified_runtime_embedded_assets(&manifest) {
+        println!("cargo:rerun-if-changed=data/{}", asset.path);
     }
 
     let starlight = select_production_starlight(&manifest).unwrap_or_else(|err| panic!("{err}"));
-    if let Some((map, sidecar)) = starlight {
-        // Existence/checksum already verified for all runtime_embedded assets.
+    if starlight.is_some() {
         println!("cargo:rustc-cfg=nsb_bundled_production_starlight");
-        let _ = (map, sidecar);
     }
 
-    let generated =
-        generate_bundled_assets_rs(manifest.schema_version, &manifest.assets, starlight);
+    let verified = verified_runtime_embedded_assets(&manifest);
+    let generated = generate_bundled_assets_rs(manifest.schema_version, &verified, starlight);
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap()).join(GENERATED);
     fs::write(&out_path, generated)
         .unwrap_or_else(|err| panic!("failed to write {}: {err}", out_path.display()));
