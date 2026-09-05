@@ -186,7 +186,7 @@ fn below_horizon_observed_returns_zero() {
 }
 
 #[test]
-fn b_v_are_interpolated_not_nearest_sample() {
+fn b_and_v_diagnostics_follow_spectrally_resolved_solar_shape() {
     use super::geometry::ZodiacalGeometry;
     use super::spectrum::compute_outputs;
     use optica::data::Provenance;
@@ -194,16 +194,21 @@ fn b_v_are_interpolated_not_nearest_sample() {
     use optica::spectrum::Interpolation;
     use siderust::qtty::{length::Meter, Nanometer};
 
+    // Non-flat spectrum: B (~440 nm) is bright, V (~550 nm) is faint so the
+    // band diagnostics cannot collapse to one nearest-sample value.
     let lam: Vec<f64> = (300..=650).map(|i| i as f64).collect();
-    let flux: Vec<f64> = vec![1.0; lam.len()];
+    let flux: Vec<f64> = lam
+        .iter()
+        .map(|wavelength| if *wavelength < 500.0 { 2.0 } else { 0.25 })
+        .collect();
     let solar = optica::spectrum::SampledSpectrum::<Nanometer, Meter>::from_raw(
         lam,
         flux,
         Interpolation::Linear,
         OutOfRange::ClampToEndpoints,
-        Some(Provenance::computed("test-flat")),
+        Some(Provenance::computed("test-step")),
     )
-    .expect("flat spectrum");
+    .expect("step spectrum");
 
     let geom = ZodiacalGeometry {
         beta: Radians::new(0.3),
@@ -217,23 +222,14 @@ fn b_v_are_interpolated_not_nearest_sample() {
     assert!(out.b_flux_s10.value() > 0.0);
     assert!(out.v_flux_s10.value() > 0.0);
     assert!(out.b_flux_s10.value().is_finite() && out.v_flux_s10.value().is_finite());
+    assert!(
+        out.b_flux_s10.value() > 2.0 * out.v_flux_s10.value(),
+        "B diagnostic must track the brighter blue continuum relative to V"
+    );
 }
 
 #[test]
-fn leinert1998_compute_returns_positive_integrated() {
-    let model = ZodiacalLight::leinert1998().expect("model");
-    let time = parse_utc("2023-09-04T01:48:00Z");
-    let observer = observatories::EL_PARANAL.geodetic();
-    let target = sgr_a_star();
-
-    let out = model.compute(time, observer, target).expect("compute");
-    assert!(out.integrated.value() > 0.0);
-    assert!(out.b_flux_s10.value() >= 0.0);
-    assert!(out.v_flux_s10.value() >= 0.0);
-}
-
-#[test]
-fn custom_grid_path_works() {
+fn custom_brightness_grid_evaluates_finite_positive_radiance() {
     let grid = ZodiacalBrightnessGrid::new(
         vec![Degrees::new(0.0), Degrees::new(90.0)],
         vec![Degrees::new(0.0), Degrees::new(180.0)],
@@ -252,12 +248,22 @@ fn custom_grid_path_works() {
     let observer = observatories::EL_PARANAL.geodetic();
     let target = sgr_a_star();
 
-    let out = model
+    let custom = model
         .compute(time, observer, target)
         .expect("custom grid compute");
-    assert!(out.integrated.value() >= 0.0);
-    assert!(out.b_flux_s10.value() >= 0.0);
-    assert!(out.v_flux_s10.value() >= 0.0);
+    let leinert = ZodiacalLight::leinert1998()
+        .expect("leinert")
+        .compute(time, observer, target)
+        .expect("leinert compute");
+
+    assert!(custom.integrated.value() > 0.0);
+    assert!(custom.b_flux_s10.value() > 0.0);
+    assert!(custom.v_flux_s10.value() > 0.0);
+    assert_ne!(
+        custom.integrated.value(),
+        leinert.integrated.value(),
+        "custom brightness grid must change the observable radiance"
+    );
 }
 
 #[test]

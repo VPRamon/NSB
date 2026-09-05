@@ -511,6 +511,34 @@ license = "Redistribution terms recorded with the reference asset"
         let invalid_date = VALID_ASSET.replacen("2025-12-31", "2025-02-30", 1);
         assert!(SiteCalibrationAsset::from_toml_str(&invalid_date).is_err());
 
+        let inverted_validity = VALID_ASSET.replacen(
+            "valid_from = \"2025-01-01\"",
+            "valid_from = \"2026-01-01\"",
+            1,
+        );
+        let inverted_err = SiteCalibrationAsset::from_toml_str(&inverted_validity)
+            .expect_err("valid_from after valid_through must fail closed");
+        assert_eq!(
+            inverted_err.to_string(),
+            "validity.valid_from must not follow validity.valid_through"
+        );
+
+        let equal_validity = VALID_ASSET
+            .replacen(
+                "valid_from = \"2025-01-01\"",
+                "valid_from = \"2025-06-01\"",
+                1,
+            )
+            .replacen(
+                "valid_through = \"2025-12-31\"",
+                "valid_through = \"2025-06-01\"",
+                1,
+            );
+        assert!(
+            SiteCalibrationAsset::from_toml_str(&equal_validity).is_ok(),
+            "inclusive equal validity bounds must remain accepted"
+        );
+
         let negative_altitude = VALID_ASSET.replacen(
             "representative_altitude_m = 2150.0",
             "representative_altitude_m = -1.0",
@@ -552,6 +580,95 @@ license = "Redistribution terms recorded with the reference asset"
             1,
         );
         assert!(SiteCalibrationAsset::from_toml_str(&unsafe_path).is_err());
+    }
+
+    #[test]
+    fn rejects_wavelength_bounds_bad_identifiers_and_invalid_uncertainties() {
+        let low_wavelength = VALID_ASSET.replacen(
+            "wavelength_nm = [300, 650]",
+            "wavelength_nm = [99, 650]",
+            1,
+        );
+        assert!(
+            SiteCalibrationAsset::from_toml_str(&low_wavelength).is_err(),
+            "wavelength minimum below 100 nm must fail"
+        );
+
+        let high_wavelength = VALID_ASSET.replacen(
+            "wavelength_nm = [300, 650]",
+            "wavelength_nm = [300, 3001]",
+            1,
+        );
+        assert!(
+            SiteCalibrationAsset::from_toml_str(&high_wavelength).is_err(),
+            "wavelength maximum above 3000 nm must fail"
+        );
+
+        let non_increasing = VALID_ASSET.replacen(
+            "wavelength_nm = [300, 650]",
+            "wavelength_nm = [650, 650]",
+            1,
+        );
+        assert!(
+            SiteCalibrationAsset::from_toml_str(&non_increasing).is_err(),
+            "non-increasing wavelength interval must fail"
+        );
+
+        let edge_wavelength = VALID_ASSET.replacen(
+            "wavelength_nm = [300, 650]",
+            "wavelength_nm = [100, 3000]",
+            1,
+        );
+        assert!(
+            SiteCalibrationAsset::from_toml_str(&edge_wavelength).is_ok(),
+            "inclusive 100..=3000 wavelength bounds must remain accepted"
+        );
+
+        let bad_calibration_id = VALID_ASSET.replacen(
+            "calibration_id = \"ctao-south-reference-v1\"",
+            "calibration_id = \"CTA_South\"",
+            1,
+        );
+        assert!(SiteCalibrationAsset::from_toml_str(&bad_calibration_id).is_err());
+
+        let empty_calibration_id = VALID_ASSET.replacen(
+            "calibration_id = \"ctao-south-reference-v1\"",
+            "calibration_id = \"\"",
+            1,
+        );
+        assert!(SiteCalibrationAsset::from_toml_str(&empty_calibration_id).is_err());
+
+        let double_hyphen_id = VALID_ASSET.replacen(
+            "calibration_id = \"ctao-south-reference-v1\"",
+            "calibration_id = \"ctao--south\"",
+            1,
+        );
+        assert!(
+            SiteCalibrationAsset::from_toml_str(&double_hyphen_id).is_err(),
+            "empty identifier segments between hyphens must fail"
+        );
+
+        let oversized_uncertainty = VALID_ASSET.replacen(
+            "surface_pressure_uncertainty_hpa = 5.0",
+            "surface_pressure_uncertainty_hpa = 800.0",
+            1,
+        );
+        assert!(SiteCalibrationAsset::from_toml_str(&oversized_uncertainty).is_err());
+
+        let uncertainty_equal_to_value = VALID_ASSET.replacen(
+            "surface_pressure_uncertainty_hpa = 5.0",
+            "surface_pressure_uncertainty_hpa = 743.0",
+            1,
+        );
+        assert!(
+            SiteCalibrationAsset::from_toml_str(&uncertainty_equal_to_value).is_ok(),
+            "uncertainty equal to the parent value remains inclusive"
+        );
+
+        let mut bad_model = SiteCalibrationAsset::from_toml_str(VALID_ASSET).unwrap();
+        bad_model.airglow.temporal_correction_applied = true;
+        bad_model.airglow.correction_model = Some("Not A Stable Id".into());
+        assert!(bad_model.validate().is_err());
     }
 
     #[test]

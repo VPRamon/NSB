@@ -62,10 +62,17 @@ The distinction between generic and site/planning presets is intentional. Produc
 case_id,reference,phase_angle_deg,moon_target_sep_deg,moon_zenith_deg,source_zenith_deg,moon_distance_km,atmosphere,wavelength_nm,expected_ph_cm2_ns_sr_nm,expected_integrated_300_650,relative_tolerance
 ```
 
-The initial fixture is retained as a historical Jones-model regression LUT. It
-is useful as a deterministic regression manifest for integrated scattered
-moonlight values, but it is not an independent SkyCalc or Jones-table validation
-campaign. Calibration requires independently generated spectral densities for
+The CSV remains the schema and scientific-tolerance manifest for those geometry
+cases. Its historical `expected_*` columns are not an independent SkyCalc or
+Jones-table agreement campaign.
+
+Numeric protection for the current spectral implementation uses regression pins
+in `crates/nsb/src/components/moonlight/jones_2013_spectral.rs` for the same
+fixture geometries. Those pins detect silent radiance changes in the spectral
+model; they intentionally do not reuse the historical LUT expected columns,
+which diverge from the present scattering path.
+
+Calibration still requires independently generated spectral densities for
 matching geometry and atmospheric profiles.
 
 ## Expected accuracy

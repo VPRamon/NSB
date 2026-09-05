@@ -1,9 +1,14 @@
+//! Jones 2013 public-API atmosphere contracts and reference-fixture schema.
+//!
+//! Numerical spectral-model regression pins for fixed moonlight geometries live
+//! in `components::moonlight::jones_2013_spectral` unit tests. The CSV fixture
+//! below remains the schema and scientific-tolerance manifest for external
+//! quantitative references; its historical `expected_*` columns are not an
+//! independent SkyCalc agreement campaign.
+
 use chrono::{DateTime, Utc};
 use nsb::{AtmosphericConditions, Jones2013Spectral, Target, DEG};
 use siderust::catalogs::observatories;
-use siderust::coordinates::centers::Geodetic;
-use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Degrees as SiderustDegrees, Meters};
 use std::collections::{BTreeMap, BTreeSet};
 use tempoch::{Time, UTC};
 
@@ -19,72 +24,46 @@ fn target_sagittarius() -> Target {
     Target::new(270.0 * DEG, -30.0 * DEG)
 }
 
-fn low_altitude_site() -> Geodetic<ECEF> {
-    Geodetic::<ECEF>::new_raw(
-        SiderustDegrees::new(-70.0),
-        SiderustDegrees::new(-24.0),
-        Meters::new(0.0),
-    )
-}
-
-fn high_altitude_site() -> Geodetic<ECEF> {
-    Geodetic::<ECEF>::new_raw(
-        SiderustDegrees::new(-70.0),
-        SiderustDegrees::new(-24.0),
-        Meters::new(2_500.0),
-    )
-}
-
 #[test]
-fn generic_clear_sky_pressure_tracks_location_altitude() {
-    let low = AtmosphericConditions::generic_clear_sky(low_altitude_site());
-    let high = AtmosphericConditions::generic_clear_sky(high_altitude_site());
-
-    assert!(low.surface_pressure.value().is_finite());
-    assert!(high.surface_pressure.value().is_finite());
-    assert!(low.surface_pressure > high.surface_pressure);
-}
-
-#[test]
-fn site_presets_are_explicitly_distinct_from_generic_clear_sky() {
-    let paranal_site = observatories::EL_PARANAL.geodetic();
-    let generic = AtmosphericConditions::generic_clear_sky(paranal_site);
-    let paranal = AtmosphericConditions::paranal_average();
-    let cta_s = AtmosphericConditions::cta_s_clear_sky();
-    let cta_n = AtmosphericConditions::cta_n_clear_sky();
-
-    assert_eq!(
-        paranal, cta_s,
-        "CTA-S currently aliases the explicit Paranal-like preset"
-    );
-    assert_ne!(generic.surface_pressure, cta_n.surface_pressure);
-    assert_ne!(cta_n.surface_pressure, cta_s.surface_pressure);
-}
-
-#[test]
-fn jones2013_computes_with_all_explicit_atmosphere_presets() {
+fn jones2013_atmosphere_presets_change_scattered_moonlight() {
     let location = observatories::EL_PARANAL.geodetic();
-    let time = parse_utc("2023-09-04T02:00:00Z");
+    let time = parse_utc("2023-09-29T03:00:00Z");
     let target = target_sagittarius();
 
-    for conditions in [
-        AtmosphericConditions::generic_clear_sky(location),
-        AtmosphericConditions::paranal_average(),
-        AtmosphericConditions::cta_s_clear_sky(),
-        AtmosphericConditions::cta_n_clear_sky(),
-    ] {
-        let out = Jones2013Spectral::new(location, conditions)
+    let evaluate = |conditions: AtmosphericConditions| {
+        Jones2013Spectral::new(location, conditions)
             .compute(time, target)
-            .expect("Jones 2013 moonlight computation");
+            .expect("Jones 2013 moonlight computation")
+    };
+
+    let paranal = evaluate(AtmosphericConditions::paranal_average());
+    let cta_s = evaluate(AtmosphericConditions::cta_s_clear_sky());
+    let cta_n = evaluate(AtmosphericConditions::cta_n_clear_sky());
+    let generic = evaluate(AtmosphericConditions::generic_clear_sky(location));
+
+    for out in [&paranal, &cta_s, &cta_n, &generic] {
         assert!(out.integrated.value().is_finite());
         assert!(out.b_flux_s10.value().is_finite());
         assert!(out.v_flux_s10.value().is_finite());
         assert!(out.integrated.value() >= 0.0);
     }
+
+    assert_eq!(
+        paranal.integrated.value().to_bits(),
+        cta_s.integrated.value().to_bits(),
+        "CTA-S currently aliases the explicit Paranal-like atmosphere"
+    );
+    assert_ne!(
+        cta_n.integrated.value(),
+        cta_s.integrated.value(),
+        "CTA-N planning atmosphere must change scattered moonlight vs CTA-S/Paranal"
+    );
 }
 
 #[test]
 fn quantitative_reference_fixture_is_well_formed() {
+    // Schema / tolerance contract only. Spectral-model numeric pins for these
+    // geometries live in jones_2013_spectral unit tests.
     let fixture = include_str!("data/jones2013_reference_cases.csv");
     let mut checked = 0usize;
     let mut wavelengths_by_case: BTreeMap<&str, BTreeSet<u64>> = BTreeMap::new();

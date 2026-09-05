@@ -146,6 +146,10 @@ fn explicit_override_wins() {
     assert_eq!(resolved.value.value(), 99.0);
     assert_eq!(resolved.record.kind, F107Kind::Explicit);
     assert_eq!(resolved.resolution_step, "explicit-override");
+    assert!(
+        !resolved.is_degraded_planning_input(),
+        "caller-explicit F10.7 is not a degraded planning substitute"
+    );
 }
 
 #[test]
@@ -172,6 +176,10 @@ fn historical_prefers_completed_monthly_observation() {
         Some(MonthlyCompleteness::CompleteObserved)
     );
     assert_eq!(resolved.resolution_step, "monthly-observed-complete");
+    assert!(
+        !resolved.is_degraded_planning_input(),
+        "finalized monthly observed F10.7 must not be labelled degraded planning input"
+    );
 }
 
 #[test]
@@ -186,6 +194,7 @@ fn incomplete_month_two_forecast_days_does_not_become_msolflux() {
         resolved.monthly_completeness,
         Some(MonthlyCompleteness::OfficialMonthlyPrediction)
     );
+    assert!(resolved.is_degraded_planning_input());
 }
 
 #[test]
@@ -664,6 +673,36 @@ fn automatic_resolution_uses_bundled_store_identity() {
     );
     assert_eq!(resolved.record.kind, F107Kind::Climatology);
     assert!(resolved.is_degraded_planning_input());
+}
+
+#[test]
+fn degraded_planning_input_flags_kind_or_completeness_independently() {
+    // Public maturity helper is intentionally fail-open on either signal so a
+    // future resolver pairing change cannot silently drop the degraded label.
+    let mut observed_but_provisional = resolve_f107(
+        t("2024-06-15T12:00:00Z"),
+        &SolarActivitySource::Dataset(std::sync::Arc::new(sample_store())),
+    )
+    .unwrap();
+    assert_eq!(observed_but_provisional.record.kind, F107Kind::Observed);
+    observed_but_provisional.monthly_completeness =
+        Some(MonthlyCompleteness::ProvisionalObservedPlusForecast);
+    assert!(
+        observed_but_provisional.is_degraded_planning_input(),
+        "degraded monthly completeness must flag planning maturity even when kind stays Observed"
+    );
+
+    let mut forecast_without_completeness = resolve_f107(
+        t("2026-09-15T00:00:00Z"),
+        &SolarActivitySource::Dataset(std::sync::Arc::new(sample_store())),
+    )
+    .unwrap();
+    assert_eq!(forecast_without_completeness.record.kind, F107Kind::Forecast);
+    forecast_without_completeness.monthly_completeness = None;
+    assert!(
+        forecast_without_completeness.is_degraded_planning_input(),
+        "Forecast/Climatology kind must flag planning maturity even without completeness metadata"
+    );
 }
 
 #[test]

@@ -1,0 +1,53 @@
+# cargo-mutants policy for release-critical NSB logic.
+#
+# This is a maintainer workflow, not a blocking per-PR CI gate. Full-tree
+# mutation of scientific datasets, generated bindings, and formatting-only code
+# is intentionally out of scope. See docs/developer-guide/testing.md.
+#
+# Default examine set keeps the run finishable for release audits while still
+# covering silent orchestration / validation failures. Broader component
+# physics can be mutated in focused follow-up passes with the same tool version.
+
+test_tool = "cargo"
+all_features = true
+additional_cargo_test_args = ["--locked", "--lib"]
+copy_vcs = true
+minimum_test_timeout = 60
+timeout_multiplier = 2.0
+
+examine_globs = [
+  "crates/nsb/src/evaluator/core.rs",
+  "crates/nsb/src/solar_activity/resolve.rs",
+  "crates/nsb/src/site_calibration.rs",
+]
+
+exclude_globs = [
+  "crates/nsb/src/**/tests.rs",
+  "crates/nsb/src/solar_activity/tests.rs",
+  "crates/nsb/src/reference/**/*.rs",
+  "crates/nsb/src/components/moonlight/scattering.rs",
+  "crates/nsb/src/components/zodiacal/leinert.rs",
+  "crates/nsb/src/components/starlight/map.rs",
+  "crates/nsb/src/assets.rs",
+  "crates/nsb/build.rs",
+]
+
+exclude_re = [
+  "SiteProfileId::as_str",
+  "CalibratedSiteId::as_str",
+  "replace .*as_str ->",
+  # Derived equality / Display helpers: behaviour is covered via typed policy tests.
+  "PartialEq",
+  "provenance_fragment",
+]
+
+skip_calls = [
+  "clone",
+  "to_owned",
+  "to_string",
+  "into",
+  "as_str",
+  "as_ref",
+  "expect",
+  "unwrap",
+]

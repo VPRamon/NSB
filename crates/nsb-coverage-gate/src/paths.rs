@@ -82,7 +82,7 @@ mod tests {
             "crates/nsb/src/solar_activity/tests.rs"
         ));
         assert!(!is_production_rust_file(
-            "crates/nsb-cli/tests/cli_smoke.rs"
+            "crates/nsb-cli/tests/starlight_contract.rs"
         ));
         assert!(!is_production_rust_file(
             "crates/nsb/benches/threshold_window.rs"

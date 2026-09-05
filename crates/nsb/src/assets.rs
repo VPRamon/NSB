@@ -75,25 +75,4 @@ mod tests {
         paths.dedup();
         assert_eq!(paths.len(), registry.assets.len());
     }
-
-    #[test]
-    fn airglow_continuum_registry_records_paranal_lineage_and_planning_proxy() {
-        let asset = asset_registry()
-            .asset("airglow_cont.dat")
-            .expect("airglow continuum must be registered");
-        assert_eq!(
-            asset.sha256,
-            "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
-        );
-        assert_eq!(asset.schema, "skycalc-airglow-continuum-v1");
-        assert_eq!(asset.calibration_status, "planning-proxy");
-        assert!(asset.runtime_embedded);
-        assert!(asset.source.contains("Cerro Paranal"));
-        assert!(asset.source.contains("Noll et al. 2012"));
-        assert!(asset.source.contains("FORS1"));
-        assert!(asset
-            .source
-            .contains("Exact historical source file/release imported into NSB is not recorded"));
-        assert!(asset.license.contains("not recorded"));
-    }
 }

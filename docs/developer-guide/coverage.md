@@ -79,9 +79,13 @@ data-tool coverage is expected to move after the obsolete-code cleanup
 ([#123](https://github.com/VPRamon/NSB/issues/123)).
 
 The current `baseline_kind` in `coverage-policy.toml` is
-`provisional-pre-audit` until those issues land. Re-measure on the post-audit
-tree and replace the recorded SHA, toolchain versions, observed percentages,
-and floors together.
+`provisional-pre-audit` until the test-suite audit
+([#123](https://github.com/VPRamon/NSB/issues/123)) lands and the follow-on
+coverage re-baseline ([#124](https://github.com/VPRamon/NSB/issues/124))
+re-measures the post-audit tree. Do not treat coverage percentage as a
+substitute for the contract taxonomy in [Testing and mutation policy](testing.md).
+Re-measure on the post-audit tree and replace the recorded SHA, toolchain
+versions, observed percentages, and floors together.
 
 ## Diff-coverage semantics
 

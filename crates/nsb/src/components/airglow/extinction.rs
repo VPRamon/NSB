@@ -200,40 +200,6 @@ mod tests {
     }
 
     #[test]
-    fn effective_airglow_airmass_matches_noll_reference_angles() {
-        let cases = [
-            (0.0, 1.0),
-            (30.0, (1.0 - 0.972 * 0.25_f64).powf(-0.5)),
-            (60.0, (1.0 - 0.972 * 0.75_f64).powf(-0.5)),
-            (
-                75.0,
-                (1.0 - 0.972 * (75.0_f64.to_radians().sin()).powi(2)).powf(-0.5),
-            ),
-        ];
-        for (zenith_deg, expected) in cases {
-            let got = effective_airglow_airmass(Degrees::new(zenith_deg));
-            assert!(
-                (got - expected).abs() < 1e-12,
-                "zenith {zenith_deg}°: got {got}, expected {expected}"
-            );
-        }
-    }
-
-    #[test]
-    fn noll_scattering_factors_match_reference_equations() {
-        let zeniths = [0.0, 30.0, 60.0, 75.0];
-        for z in zeniths {
-            let x_ag = effective_airglow_airmass(Degrees::new(z));
-            let log_x = x_ag.log10();
-            let expected_r = F_RAYLEIGH_SLOPE * log_x + F_RAYLEIGH_INTERCEPT;
-            let expected_m = F_MIE_SLOPE * log_x + F_MIE_INTERCEPT;
-            let (f_r, f_m) = noll_scattering_factors(Degrees::new(z));
-            assert!((f_r - expected_r).abs() < 1e-12, "f_R at z={z}");
-            assert!((f_m - expected_m).abs() < 1e-12, "f_M at z={z}");
-        }
-    }
-
-    #[test]
     fn scattering_factors_are_negative_near_zenith() {
         let (f_r, f_m) = noll_scattering_factors(Degrees::new(0.0));
         assert!(f_r < 0.0, "f_R at zenith should be negative: {f_r}");

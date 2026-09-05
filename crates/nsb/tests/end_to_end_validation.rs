@@ -25,13 +25,11 @@ const COMPONENT_SUM_TOLERANCE: f64 = 1.0e-12;
 const EVENT_BOUNDARY_TOLERANCE_SECS: f64 = 120.0;
 
 #[derive(Debug, Clone, Copy)]
-struct ReferenceEnvelope {
+struct CompositionCase {
     name: &'static str,
     time: &'static str,
     target: Target,
     components: ComponentMask,
-    accepted_min: f64,
-    accepted_max: f64,
     expected_components: &'static [&'static str],
 }
 
@@ -77,46 +75,43 @@ fn expected_all_components() -> &'static [&'static str] {
 }
 
 #[test]
-fn production_all_matches_reference_envelopes() {
+fn production_all_preserves_component_composition_and_scene_contrast() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let cases = [
-        ReferenceEnvelope {
+        CompositionCase {
             name: "dark-time high Galactic latitude",
             time: "2023-09-04T01:48:00Z",
             target: north_galactic_pole(),
             components: ComponentMask::ALL,
-            accepted_min: 1.0e-8,
-            accepted_max: 1.0e9,
             expected_components: expected_all_components(),
         },
-        ReferenceEnvelope {
+        CompositionCase {
             name: "near Galactic plane planning field",
             time: "2023-09-04T01:48:00Z",
             target: sgr_a_star(),
             components: ComponentMask::ALL,
-            accepted_min: 1.0e-8,
-            accepted_max: 1.0e9,
             expected_components: expected_all_components(),
         },
-        ReferenceEnvelope {
+        CompositionCase {
             name: "bright-Moon field",
-            time: "2023-09-29T04:00:00Z",
+            // 05:00 UTC keeps the Moon above the horizon for Crab at CTAO-S;
+            // 04:00 previously produced a zero moonlight contribution.
+            time: "2023-09-29T05:00:00Z",
             target: crab_nebula(),
             components: ComponentMask::ALL,
-            accepted_min: 1.0e-8,
-            accepted_max: 1.0e12,
             expected_components: expected_all_components(),
         },
-        ReferenceEnvelope {
+        CompositionCase {
             name: "astronomical-twilight boundary",
             time: "2023-09-04T23:30:00Z",
             target: sgr_a_star(),
             components: ComponentMask::ALL,
-            accepted_min: 1.0e-8,
-            accepted_max: 1.0e12,
             expected_components: expected_all_components(),
         },
     ];
+
+    let mut totals = std::collections::BTreeMap::<&'static str, f64>::new();
+    let mut moon_contribution = None;
 
     for case in cases {
         let result = evaluator
@@ -131,13 +126,6 @@ fn production_all_matches_reference_envelopes() {
             integrated.is_finite() && integrated > 0.0,
             "{} produced non-physical total {integrated}",
             case.name
-        );
-        assert!(
-            (case.accepted_min..=case.accepted_max).contains(&integrated),
-            "{} total {integrated} outside accepted [{}, {}] envelope",
-            case.name,
-            case.accepted_min,
-            case.accepted_max
         );
 
         let component_names: Vec<_> = result
@@ -157,7 +145,31 @@ fn production_all_matches_reference_envelopes() {
             "{} total {integrated} is not the sum of reported components {component_sum}",
             case.name
         );
+
+        totals.insert(case.name, integrated);
+        if case.name == "bright-Moon field" {
+            let moon = result
+                .components
+                .iter()
+                .find(|component| component.name == "moon")
+                .expect("moon component")
+                .integrated
+                .value();
+            moon_contribution = Some(moon);
+        }
     }
+
+    let dark = totals["dark-time high Galactic latitude"];
+    let moonlit = totals["bright-Moon field"];
+    let moon = moon_contribution.expect("moon contribution");
+    assert!(
+        moon > 0.5,
+        "bright-Moon scene must include substantial moonlight, got {moon}"
+    );
+    assert!(
+        moonlit > 2.0 * dark,
+        "moonlit Crab total {moonlit} should dominate dark-time NGP total {dark}"
+    );
 }
 
 #[test]

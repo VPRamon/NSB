@@ -253,31 +253,6 @@ mod tests {
     }
 
     #[test]
-    fn spectral_moonlight_computes_non_negative_result() {
-        let model = Jones2013Spectral::standard_clear_sky(test_location());
-        let out = model
-            .compute(parse_utc("2023-09-04T02:00:00Z"), test_target())
-            .unwrap();
-        assert!(out.integrated.value() >= 0.0);
-        assert!(out.b_flux_s10.value() >= 0.0);
-        assert!(out.v_flux_s10.value() >= 0.0);
-    }
-
-    #[test]
-    fn periods_in_range_covers_window_for_large_bound() {
-        let model = Jones2013Spectral::standard_clear_sky(test_location());
-        let periods = model
-            .periods_in_range(
-                test_window(),
-                test_target(),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(0.0),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(1.0e9),
-            )
-            .unwrap();
-        assert_eq!(periods, vec![test_window()]);
-    }
-
-    #[test]
     fn periods_in_range_with_step_rejects_bad_step() {
         let model = Jones2013Spectral::standard_clear_sky(test_location());
         let err = model
@@ -290,5 +265,83 @@ mod tests {
             )
             .unwrap_err();
         assert!(err.to_string().contains("sample_step"));
+    }
+
+    fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
+        use siderust::qtty::{IlluminationFractions, Radians};
+        MoonPhaseGeometry {
+            phase_angle: Radians::new(alpha_deg.to_radians()),
+            illuminated_fraction: IlluminationFractions::new(
+                0.5 * (1.0 + alpha_deg.to_radians().cos()),
+            ),
+            elongation: Radians::new(0.0),
+            waxing: true,
+        }
+    }
+
+    fn geometry(
+        phase_deg: f64,
+        separation_deg: f64,
+        moon_zenith_deg: f64,
+        source_zenith_deg: f64,
+        moon_distance_km: f64,
+    ) -> MoonlightGeometry {
+        MoonlightGeometry {
+            separation: Degrees::new(separation_deg),
+            moon_zenith: Degrees::new(moon_zenith_deg),
+            phase: make_phase(phase_deg),
+            source_zenith: Degrees::new(source_zenith_deg),
+            moon_distance: Kilometers::new(moon_distance_km),
+        }
+    }
+
+    fn paranal_like_profile() -> AtmosphereProfile {
+        let conditions = AtmosphericConditions::paranal_average();
+        AtmosphereProfile {
+            surface_pressure: conditions.surface_pressure,
+            observer_altitude: Kilometers::new(2.635),
+            rayleigh_scale_height: conditions.rayleigh_scale_height,
+            mie_params: conditions.mie_params,
+        }
+    }
+
+    /// Regression pins for the three historical fixture geometries.
+    ///
+    /// The CSV `expected_*` columns remain a schema/tolerance manifest for
+    /// external references. Those historical LUT values diverge from the
+    /// current spectral implementation (~85% relative); these pins protect the
+    /// spectral model itself against silent radiance changes.
+    #[test]
+    fn historical_fixture_geometries_match_spectral_regression_pins() {
+        const REL_TOL: f64 = 1.0e-9;
+        let cases = [
+            (
+                85.5,
+                97.523,
+                36.0,
+                60.0,
+                384_400.0,
+                0.081_651_100_816_024_92,
+            ),
+            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.302_669_644_974_378_37),
+            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.066_186_634_791_062),
+        ];
+        let profile = paranal_like_profile();
+        for (phase, sep, z_moon, z_src, dist, expected) in cases {
+            let out = compute_jones_2013_spectral(
+                &geometry(phase, sep, z_moon, z_src, dist),
+                bundled_solar_samples(),
+                crate::units::ScaleFactors::new(1.0),
+                profile,
+            )
+            .expect("spectral evaluate");
+            let actual = out.integrated.value();
+            let rel = (actual - expected).abs() / expected.max(1.0e-12);
+            assert!(
+                rel <= REL_TOL,
+                "geometry phase={phase} sep={sep}: actual={actual} expected={expected} rel={rel}"
+            );
+            assert!(actual > 0.0);
+        }
     }
 }
