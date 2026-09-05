@@ -584,11 +584,8 @@ license = "Redistribution terms recorded with the reference asset"
 
     #[test]
     fn rejects_wavelength_bounds_bad_identifiers_and_invalid_uncertainties() {
-        let low_wavelength = VALID_ASSET.replacen(
-            "wavelength_nm = [300, 650]",
-            "wavelength_nm = [99, 650]",
-            1,
-        );
+        let low_wavelength =
+            VALID_ASSET.replacen("wavelength_nm = [300, 650]", "wavelength_nm = [99, 650]", 1);
         assert!(
             SiteCalibrationAsset::from_toml_str(&low_wavelength).is_err(),
             "wavelength minimum below 100 nm must fail"

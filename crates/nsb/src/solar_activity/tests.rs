@@ -697,7 +697,10 @@ fn degraded_planning_input_flags_kind_or_completeness_independently() {
         &SolarActivitySource::Dataset(std::sync::Arc::new(sample_store())),
     )
     .unwrap();
-    assert_eq!(forecast_without_completeness.record.kind, F107Kind::Forecast);
+    assert_eq!(
+        forecast_without_completeness.record.kind,
+        F107Kind::Forecast
+    );
     forecast_without_completeness.monthly_completeness = None;
     assert!(
         forecast_without_completeness.is_degraded_planning_input(),
