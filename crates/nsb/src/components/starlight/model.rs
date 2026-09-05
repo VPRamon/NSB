@@ -4,15 +4,14 @@ use super::photometry::scale_outputs;
 use super::provenance::StarlightProvenance;
 #[cfg(nsb_bundled_production_starlight)]
 use super::validated::ValidatedStarlightMap;
+use crate::assets::BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE;
 #[cfg(nsb_bundled_production_starlight)]
-use crate::assets::asset_registry;
+use crate::assets::{BUNDLED_PRODUCTION_STARLIGHT_MANIFEST, BUNDLED_PRODUCTION_STARLIGHT_MAP};
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use crate::units::ScaleFactors;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
-
-include!(concat!(env!("OUT_DIR"), "/bundled_starlight_assets.rs"));
 
 #[derive(Debug, Clone)]
 /// Directional starlight evaluator backed by one immutable map.
@@ -30,11 +29,11 @@ impl Starlight {
     /// Load the bundled production Gaia DR3 XP-derived starlight map.
     ///
     /// This succeeds only when a release CSV and runtime manifest are both
-    /// registered in `crates/nsb/data/manifest.toml`, checksum-pinned, embedded
-    /// by the build script, and admitted by [`ValidatedStarlightMap`].
+    /// registered in `crates/nsb/data/manifest.toml`, checksum-verified by the
+    /// build script, embedded as static bytes, and admitted by
+    /// [`ValidatedStarlightMap`].
     #[cfg(nsb_bundled_production_starlight)]
     pub fn bundled_production_model() -> Result<Self> {
-        verify_production_registry()?;
         let validated = ValidatedStarlightMap::from_bytes_and_manifest(
             BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
             BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
@@ -98,45 +97,4 @@ fn missing_bundled_production_asset() -> NsbError {
         )
         .to_string(),
     }
-}
-
-#[cfg(nsb_bundled_production_starlight)]
-fn verify_production_registry() -> Result<()> {
-    verify_registered_asset(
-        BUNDLED_PRODUCTION_STARLIGHT_MAP_PATH,
-        BUNDLED_PRODUCTION_STARLIGHT_MAP_SHA256,
-        "nsb-healpix-starlight-v2",
-    )?;
-    verify_registered_asset(
-        BUNDLED_PRODUCTION_STARLIGHT_MANIFEST_PATH,
-        BUNDLED_PRODUCTION_STARLIGHT_MANIFEST_SHA256,
-        "nsb-starlight-runtime-manifest-v1",
-    )
-}
-
-#[cfg(nsb_bundled_production_starlight)]
-fn verify_registered_asset(
-    path: &'static str,
-    sha256: &'static str,
-    schema: &'static str,
-) -> Result<()> {
-    let asset = asset_registry()
-        .asset(path)
-        .ok_or_else(|| NsbError::DataMissing {
-            file: "data/manifest.toml",
-            message: format!("missing registry entry for {path}"),
-        })?;
-    if asset.sha256 != sha256
-        || asset.schema != schema
-        || !asset.calibration_status.eq_ignore_ascii_case("production")
-        || !asset.runtime_embedded
-    {
-        return Err(NsbError::DataParse {
-            file: "data/manifest.toml",
-            message: format!(
-                "production starlight registry metadata does not match embedded asset {path}"
-            ),
-        });
-    }
-    Ok(())
 }

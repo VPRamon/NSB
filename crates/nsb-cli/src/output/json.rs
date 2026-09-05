@@ -3,9 +3,10 @@ use crate::parsing::location::SitePreset;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
-    assets::asset_registry, AirglowGeometryMetadata, BandDiagnostic, ComponentMask,
-    NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightModel, Target, MODEL_VERSION,
-    NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
+    assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
+    AirglowGeometryMetadata, BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig,
+    NsbResult, StarlightModel, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
+    SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
@@ -51,10 +52,10 @@ struct VersionJson {
 
 #[derive(Serialize)]
 struct AssetJson {
-    path: String,
-    schema: String,
-    sha256: String,
-    calibration_status: String,
+    path: &'static str,
+    schema: &'static str,
+    sha256: &'static str,
+    calibration_status: &'static str,
 }
 
 #[derive(Serialize)]
@@ -278,22 +279,18 @@ pub fn write_sites(sites: &[SitePreset]) -> Result<()> {
 }
 
 fn version_json() -> VersionJson {
-    let registry = asset_registry();
     VersionJson {
         nsb_version: NSB_VERSION,
         model_version: MODEL_VERSION,
         siderust_version: SIDERUST_VERSION,
         siderust_source: SIDERUST_SOURCE,
-        asset_manifest_schema: registry.schema_version,
-        data_assets: registry
-            .assets
-            .iter()
-            .filter(|asset| asset.runtime_embedded)
+        asset_manifest_schema: ASSET_MANIFEST_SCHEMA_VERSION,
+        data_assets: bundled_assets()
             .map(|asset| AssetJson {
-                path: asset.path.clone(),
-                schema: asset.schema.clone(),
-                sha256: asset.sha256.clone(),
-                calibration_status: asset.calibration_status.clone(),
+                path: asset.path,
+                schema: asset.schema,
+                sha256: asset.sha256,
+                calibration_status: asset.calibration_status,
             })
             .collect(),
     }
