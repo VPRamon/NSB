@@ -106,7 +106,9 @@ pub fn run_check(options: &CheckOptions) -> Result<GateOutcome, GateError> {
         resolve_base_decision(&options.repo, options.base.clone(), options.base_explicit)?;
     let frozen_at_base = match &decision {
         BaseDecision::BootstrapNoBase => false,
-        BaseDecision::UseBase { rev } => path_exists_at(&options.repo, rev, PUBLIC_API_FREEZE_MARKER),
+        BaseDecision::UseBase { rev } => {
+            path_exists_at(&options.repo, rev, PUBLIC_API_FREEZE_MARKER)
+        }
     };
 
     let mode = if frozen_at_base {
