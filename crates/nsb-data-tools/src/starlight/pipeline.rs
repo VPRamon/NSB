@@ -247,6 +247,60 @@ fn production_output_names(canonical_nside: u32) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dataset::RunConfig;
+    use crate::starlight::config::{
+        AcquisitionConfig, ArtifactPinConfig, GaiaProductConfig, OfficialChecksumAlgorithm,
+        StarlightConfig, StarlightMapConfig, StarlightProductBand,
+    };
+    use std::path::PathBuf;
+
+    fn valid_gaia_products() -> Vec<GaiaProductConfig> {
+        ["gaia-source", "xp-continuous"]
+            .into_iter()
+            .map(|id| GaiaProductConfig {
+                id: id.to_string(),
+                base_url: format!("https://example.test/{id}/"),
+                checksum_manifest_url: format!("https://example.test/{id}/MD5SUM.txt"),
+                checksum_manifest_sha256: "a".repeat(64),
+                checksum_algorithm: OfficialChecksumAlgorithm::Md5,
+                expected_partitions: Some(1),
+                filename_prefix: format!("{id}-"),
+                filename_suffix: ".csv.gz".to_string(),
+            })
+            .collect()
+    }
+
+    fn base_config(starlight: Option<StarlightConfig>) -> RunConfig {
+        let mut config: RunConfig = toml::from_str(
+            r#"
+schema_version = 1
+dataset = "starlight"
+
+[workspace]
+root = "/tmp/nsb-starlight-test"
+
+[execution]
+executor = "local"
+concurrency = 1
+lease_timeout_seconds = 60
+"#,
+        )
+        .expect("minimal starlight run config");
+        config.starlight = starlight;
+        config
+    }
+
+    fn measured_config() -> StarlightConfig {
+        StarlightConfig {
+            gaia_products: valid_gaia_products(),
+            acquisition: AcquisitionConfig::default(),
+            map: StarlightMapConfig::default(),
+            product_band: StarlightProductBand::Measured336To650,
+            ultraviolet_correction: None,
+            photometric_inference: None,
+            selection_function: None,
+        }
+    }
 
     #[test]
     fn changing_canonical_nside_changes_output_name() {
@@ -270,5 +324,99 @@ mod tests {
         ] {
             assert!(!outputs.iter().any(|output| output == retired));
         }
+    }
+
+    #[test]
+    fn validate_config_accepts_measured_production_policy() {
+        PIPELINE
+            .validate_config(&base_config(Some(measured_config())))
+            .expect("measured config");
+    }
+
+    #[test]
+    fn validate_config_rejects_combined_band_without_uv_correction() {
+        let mut starlight = measured_config();
+        starlight.product_band = StarlightProductBand::Combined300To650;
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("combined band requires UV");
+        assert!(err
+            .to_string()
+            .contains("300–650 nm Starlight product requires a validated UV correction"));
+    }
+
+    #[test]
+    fn validate_config_rejects_measured_band_with_uv_correction() {
+        let mut starlight = measured_config();
+        starlight.ultraviolet_correction = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("uv.toml"),
+            sha256: "b".repeat(64),
+        });
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("measured band forbids UV");
+        assert!(err
+            .to_string()
+            .contains("300–650 nm Starlight product requires a validated UV correction"));
+    }
+
+    #[test]
+    fn validate_config_rejects_invalid_artifact_sha_and_zero_acquisition() {
+        let mut starlight = measured_config();
+        starlight.product_band = StarlightProductBand::Combined300To650;
+        starlight.ultraviolet_correction = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("uv.toml"),
+            sha256: "not-a-sha".to_string(),
+        });
+        let sha_err = PIPELINE
+            .validate_config(&base_config(Some(starlight.clone())))
+            .expect_err("invalid sha");
+        assert!(sha_err
+            .to_string()
+            .contains("UV correction SHA-256 must be 64 lowercase hexadecimal"));
+
+        starlight.ultraviolet_correction = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("uv.toml"),
+            sha256: "c".repeat(64),
+        });
+        starlight.acquisition.max_attempts = 0;
+        let timeout_err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("zero max_attempts");
+        assert!(timeout_err
+            .to_string()
+            .contains("timeouts and max_attempts must be greater than zero"));
+    }
+
+    #[test]
+    fn validate_config_rejects_incomplete_gaia_product_set() {
+        let mut starlight = measured_config();
+        starlight.gaia_products.pop();
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("missing xp-continuous");
+        assert!(err
+            .to_string()
+            .contains("exactly the gaia-source and xp-continuous products"));
+    }
+
+    #[test]
+    fn update_without_starlight_config_is_inventory_noop() {
+        let artifacts = PIPELINE
+            .update(&base_config(None), &[])
+            .expect("missing config");
+        assert!(artifacts.is_none());
+    }
+
+    #[test]
+    fn update_rejects_empty_gaia_product_inventory() {
+        let mut starlight = measured_config();
+        starlight.gaia_products.clear();
+        let err = PIPELINE
+            .update(&base_config(Some(starlight)), &["00000".into()])
+            .expect_err("empty products");
+        assert!(err
+            .to_string()
+            .contains("requires at least one Gaia product inventory"));
     }
 }

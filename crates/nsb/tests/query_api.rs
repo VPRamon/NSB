@@ -1,14 +1,16 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::{
-    CalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
-    SiteProfileId, Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target,
-    ThresholdQuery, DEG,
+    bundled_f107_store, resolve_f107, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
+    MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SiteProfileId, SolarActivitySource,
+    Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target, ThresholdQuery,
+    DEFAULT_SOLAR_RADIO_FLUX, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use std::sync::Arc;
 use tempoch::{Period, Time, UTC};
 
 fn parse_obstime(s: &str) -> Time<UTC> {
@@ -346,6 +348,22 @@ fn threshold_query_rejects_non_finite_threshold_and_non_positive_step() {
         .expect_err("NaN threshold");
     assert!(nan.to_string().contains("threshold must be finite"));
 
+    let infinity = evaluator
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, end),
+                BandPhotonRadiance::new(f64::INFINITY),
+            )
+            .with_components(default_components())
+            .with_sample_step(Second::new(600.0))
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
+        .expect_err("infinite threshold");
+    assert!(infinity.to_string().contains("threshold must be finite"));
+
     let step = evaluator
         .periods_below_threshold(
             &ThresholdQuery::new(
@@ -361,6 +379,68 @@ fn threshold_query_rejects_non_finite_threshold_and_non_positive_step() {
         )
         .expect_err("zero sample step");
     assert!(step.to_string().contains("sample_step"));
+
+    let infinite_step = evaluator
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, end),
+                BandPhotonRadiance::new(0.2),
+            )
+            .with_components(default_components())
+            .with_sample_step(Second::new(f64::INFINITY))
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
+        .expect_err("infinite sample step");
+    assert!(infinite_step.to_string().contains("sample_step"));
+}
+
+#[test]
+fn threshold_query_rejects_inverted_window() {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let start = parse_obstime("2023-09-04 02:00:00");
+    let end = parse_obstime("2023-09-04 01:00:00");
+
+    let err = evaluator
+        .periods_below_threshold(
+            &ThresholdQuery::new(
+                paranal(),
+                sgr_a_star(),
+                Period::new(start, end),
+                BandPhotonRadiance::new(1.0e6),
+            )
+            .with_components(default_components())
+            .with_sample_step(Second::new(600.0))
+            .with_sun_altitude_ceiling(None)
+            .with_target_altitude_floor(None),
+        )
+        .expect_err("inverted window");
+    assert!(err.to_string().contains("start must not be after end"));
+}
+
+#[test]
+fn threshold_query_new_applies_production_safe_defaults() {
+    let start = parse_obstime("2023-09-04 01:00:00");
+    let end = parse_obstime("2023-09-04 02:00:00");
+    let query = ThresholdQuery::new(
+        paranal(),
+        sgr_a_star(),
+        Period::new(start, end),
+        BandPhotonRadiance::new(0.2),
+    );
+
+    assert_eq!(query.components, ComponentMask::ALL);
+    assert_eq!(query.sample_step, ThresholdQuery::DEFAULT_SAMPLE_STEP);
+    assert_eq!(
+        query.sun_altitude_ceiling,
+        Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING)
+    );
+    assert_eq!(
+        query.target_altitude_floor,
+        Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR)
+    );
 }
 
 #[test]
@@ -426,4 +506,96 @@ fn threshold_query_fails_closed_on_selected_component_error() {
         result.is_err(),
         "threshold search must not treat a failed component as zero"
     );
+}
+
+#[test]
+fn legacy_default_solar_activity_uses_neutralizing_constant_and_labels_step() {
+    let time = parse_obstime("2023-09-04 01:48:00");
+    let resolved = resolve_f107(time, &SolarActivitySource::LegacyDefault).expect("resolve");
+    assert_eq!(resolved.value, DEFAULT_SOLAR_RADIO_FLUX);
+    assert_eq!(resolved.resolution_step, "legacy-default-constant");
+    assert!(resolved.dataset_id.is_none());
+
+    let mut config = NsbModelConfig::generic_clear_sky();
+    config.solar_activity = SolarActivitySource::LegacyDefault;
+    assert_eq!(config.solar_radio_flux(), DEFAULT_SOLAR_RADIO_FLUX);
+
+    let result = NsbEvaluator::with_config(config)
+        .expect("evaluator")
+        .evaluate(
+            &PointQuery::new(paranal(), time, sgr_a_star()).with_components(ComponentMask::AIRGLOW),
+        )
+        .expect("legacy airglow");
+    let solar = result.components[0]
+        .metadata
+        .solar_activity
+        .as_ref()
+        .expect("solar metadata");
+    assert_eq!(solar.resolution_step, "legacy-default-constant");
+    assert_eq!(solar.value, DEFAULT_SOLAR_RADIO_FLUX);
+}
+
+#[test]
+fn with_f107_store_resolves_airglow_through_evaluator() {
+    // Stay inside the bundled UT1 horizon used by the evaluator.
+    let time = parse_obstime("2023-09-04 01:48:00");
+    let store = Arc::new(bundled_f107_store().expect("bundled store").clone());
+    let config = NsbModelConfig::generic_clear_sky().with_f107_store(store.clone());
+    assert!(matches!(
+        config.solar_activity,
+        SolarActivitySource::Dataset(_)
+    ));
+
+    let result = NsbEvaluator::with_config(config)
+        .expect("evaluator")
+        .evaluate(
+            &PointQuery::new(paranal(), time, sgr_a_star()).with_components(ComponentMask::AIRGLOW),
+        )
+        .expect("dataset airglow");
+    let solar = result.components[0]
+        .metadata
+        .solar_activity
+        .as_ref()
+        .expect("solar metadata");
+    assert_eq!(solar.dataset_id.as_deref(), Some(store.dataset_id.as_str()));
+    assert!(solar.value.value().is_finite() && solar.value.value() > 0.0);
+}
+
+#[test]
+fn ks91_moonlight_model_evaluates_and_labels_published_reference() {
+    let time = parse_obstime("2023-09-04 01:48:00");
+    let mut config = NsbModelConfig::generic_clear_sky();
+    config.moonlight_model = MoonlightModel::KrisciunasSchaefer1991;
+    assert_eq!(config.moonlight_model.as_str(), "krisciunas-schaefer-1991");
+
+    let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
+    let result = evaluator
+        .evaluate(
+            &PointQuery::new(paranal(), time, sgr_a_star()).with_components(ComponentMask::MOON),
+        )
+        .expect("KS91 moonlight");
+    assert_eq!(result.components.len(), 1);
+    assert_eq!(result.components[0].name, "moon");
+    assert!(result.integrated.value().is_finite());
+    assert_eq!(
+        result.components[0].metadata.status,
+        ComponentCalibrationStatus::PublishedReference
+    );
+    assert!(result.components[0]
+        .metadata
+        .provenance
+        .contains("Krisciunas & Schaefer 1991"));
+
+    let descriptions = evaluator
+        .describe_components(paranal(), ComponentMask::MOON | ComponentMask::ZODIACAL)
+        .expect("describe");
+    let names: Vec<_> = descriptions.iter().map(|d| d.name).collect();
+    assert_eq!(names, ["zodiacal", "moon"]);
+    assert!(descriptions
+        .iter()
+        .find(|d| d.name == "moon")
+        .unwrap()
+        .metadata
+        .provenance
+        .contains("Krisciunas & Schaefer 1991"));
 }

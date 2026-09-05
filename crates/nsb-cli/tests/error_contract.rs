@@ -46,3 +46,28 @@ fn invalid_nsb_range_errors() {
         "--min-nsb must be less than or equal to --max-nsb",
     ));
 }
+
+#[test]
+fn invalid_min_nsb_non_finite_errors() {
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "window",
+            "--start",
+            "2026-06-18T20:00:00Z",
+            "--end",
+            "2026-06-19T06:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--min-nsb",
+            "nan",
+            "--max-nsb",
+            "1.0",
+        ])
+        .assert()
+        .failure();
+}
