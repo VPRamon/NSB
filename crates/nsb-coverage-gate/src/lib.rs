@@ -6,6 +6,7 @@
 
 #![forbid(unsafe_code)]
 
+mod cfg_test;
 mod check;
 mod diff;
 mod lcov;
@@ -13,7 +14,10 @@ mod llvm;
 mod paths;
 mod policy;
 
-pub use check::{check_diff, check_overall, CheckKind, CheckOutcome, CheckStatus};
+pub use cfg_test::{cfg_test_line_numbers, is_cfg_test_line};
+pub use check::{
+    check_diff, check_diff_with_sources, check_overall, CheckKind, CheckOutcome, CheckStatus,
+};
 pub use diff::{
     is_likely_non_instrumentable_rust_line, parse_unified_diff, ChangedLine, DiffError,
 };

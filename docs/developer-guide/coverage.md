@@ -95,13 +95,21 @@ The diff gate:
   `nsb-coverage-gate` are excluded);
 - ignores integration tests (`crates/*/tests/`), unit-test modules named
   `tests.rs`, benches, and examples as coverage *targets*;
-- classifies each changed line from LCOV `DA:line,hits` the same way LLVM does:
-  hits `> 0` covered, hits `= 0` uncovered, no `DA` record non-executable;
+- also ignores executable lines inside file-level inline modules guarded by
+  `#[cfg(test)]` (for example `mod tests` or `mod regression`) so test-only
+  edits cannot dilute changed-production coverage;
+- classifies each remaining changed line from LCOV `DA:line,hits` the same way
+  LLVM does: hits `> 0` covered, hits `= 0` uncovered, no `DA` record
+  non-executable;
 - if a changed production file is **absent** from LCOV, inspects the changed line
   text: declaration-only edits (module declarations, re-exports, attributes,
   docs, type/struct/enum headers, fields) pass; any changed line that looks
   instrumentable fails closed as missing coverage data;
 - lists uncovered changed production lines and missing files in the job log.
+
+When a pull request changes only non-production or inline `#[cfg(test)]` lines,
+the diff gate reports zero executable production lines and passes. That is the
+intended contract: there is no production coverage regression to enforce.
 
 The exact changed-production floor is `diff.changed_production_lines` in the
 policy file.

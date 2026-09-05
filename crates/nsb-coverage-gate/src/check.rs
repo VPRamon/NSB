@@ -1,8 +1,11 @@
+use crate::cfg_test::cfg_test_line_numbers;
 use crate::diff::{group_by_path, is_likely_non_instrumentable_rust_line, ChangedLine};
 use crate::llvm::{crate_metrics, CoverageReport};
 use crate::paths::is_production_rust_file;
 use crate::policy::CoveragePolicy;
 use crate::GateOptions;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 /// Which gate to evaluate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,6 +144,21 @@ pub fn check_diff(
     changed: &[ChangedLine],
     options: &GateOptions,
 ) -> CheckOutcome {
+    check_diff_with_sources(policy, report, changed, options, load_workspace_source)
+}
+
+/// Like [`check_diff`], but loads file text through `load_source` so tests can
+/// supply in-memory fixtures without touching the workspace tree.
+pub fn check_diff_with_sources<F>(
+    policy: &CoveragePolicy,
+    report: &CoverageReport,
+    changed: &[ChangedLine],
+    options: &GateOptions,
+    mut load_source: F,
+) -> CheckOutcome
+where
+    F: FnMut(&str) -> Option<String>,
+{
     let floor = options
         .diff_lines_floor
         .unwrap_or(policy.diff.changed_production_lines);
@@ -150,6 +168,8 @@ pub fn check_diff(
     let mut uncovered = Vec::new();
     let mut missing_files = Vec::new();
     let mut ignored_test_files = 0usize;
+    let mut ignored_inline_test_lines = 0usize;
+    let mut source_cache: BTreeMap<String, BTreeSet<u32>> = BTreeMap::new();
 
     for (path, lines) in grouped {
         if !path.ends_with(".rs") {
@@ -159,11 +179,32 @@ pub fn check_diff(
             ignored_test_files += 1;
             continue;
         }
+        let test_only = source_cache.entry(path.clone()).or_insert_with(|| {
+            load_source(&path)
+                .map(|source| cfg_test_line_numbers(&source))
+                // Unreadable sources stay fail-closed: treat every line as
+                // production rather than silently dropping coverage targets.
+                .unwrap_or_default()
+        });
+        let production_lines: Vec<&&ChangedLine> = lines
+            .iter()
+            .filter(|line| {
+                if test_only.contains(&line.line) {
+                    ignored_inline_test_lines += 1;
+                    false
+                } else {
+                    true
+                }
+            })
+            .collect();
+        if production_lines.is_empty() {
+            continue;
+        }
         let Some(file) = report.files.get(&path) else {
             // Absent from LCOV: fail closed only when changed lines look
             // instrumentable. Declaration-only edits (mod/use/docs/attrs/types)
             // produce no DA records and must not fail the gate by filename alone.
-            if lines
+            if production_lines
                 .iter()
                 .any(|line| !is_likely_non_instrumentable_rust_line(&line.text))
             {
@@ -171,7 +212,7 @@ pub fn check_diff(
             }
             continue;
         };
-        for line in lines {
+        for line in production_lines {
             match file.line_hits.get(&line.line).copied() {
                 None => {}
                 Some(0) => {
@@ -198,6 +239,7 @@ pub fn check_diff(
             percent, floor
         ),
         format!("ignored non-production/test Rust files: {ignored_test_files}"),
+        format!("ignored inline #[cfg(test)] lines: {ignored_inline_test_lines}"),
     ];
     let mut failed = false;
     if !missing_files.is_empty() {
@@ -229,4 +271,12 @@ pub fn check_diff(
         uncovered,
         missing_files,
     }
+}
+
+fn load_workspace_source(path: &str) -> Option<String> {
+    let candidate = Path::new(path);
+    if candidate.is_file() {
+        return std::fs::read_to_string(candidate).ok();
+    }
+    None
 }

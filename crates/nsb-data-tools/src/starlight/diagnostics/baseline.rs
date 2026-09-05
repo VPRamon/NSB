@@ -178,8 +178,11 @@ mod tests {
 
     #[test]
     fn missing_smoke_partition_list_fails_closed() {
-        let err = load_smoke_partitions(Path::new("/tmp/nsb-missing-repo-root"))
-            .expect_err("missing partition list");
+        let temporary = tempfile::tempdir().expect("isolated temp root");
+        let missing_root = temporary.path().join("nsb-missing-repo-root");
+        // Guarantee the smoke-partition pin path does not exist under this root.
+        assert!(!missing_root.join(SMOKE_PARTITIONS_PATH).exists());
+        let err = load_smoke_partitions(&missing_root).expect_err("missing partition list");
         assert!(err.to_string().contains("read smoke partition list"));
     }
 }
