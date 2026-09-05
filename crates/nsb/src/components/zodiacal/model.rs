@@ -1,12 +1,13 @@
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use crate::reference::solar;
+use crate::units::SolarSpectralIrradianceUnit;
 use optica::spectrum::SampledSpectrum;
 use qtty::angular::Degrees;
+use qtty::length::Nanometer;
 use qtty::radiometry::S10s as S10;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{length::Meter, Nanometer};
 use tempoch::{Time, UTC};
 
 use super::extinction::ZodiacalExtinction;
@@ -148,7 +149,7 @@ pub enum ZodiacalBrightnessModel {
 /// Zodiacal-light spectral and integrated-radiance evaluator.
 pub struct ZodiacalLight {
     brightness_model: ZodiacalBrightnessModel,
-    solar_spectrum: SampledSpectrum<Nanometer, Meter>,
+    solar_spectrum: SampledSpectrum<Nanometer, SolarSpectralIrradianceUnit>,
     extinction: ZodiacalExtinction,
 }
 
@@ -174,7 +175,7 @@ impl ZodiacalLight {
     /// Replace the solar reference spectrum.
     pub fn with_solar_spectrum(
         mut self,
-        solar_spectrum: SampledSpectrum<Nanometer, Meter>,
+        solar_spectrum: SampledSpectrum<Nanometer, SolarSpectralIrradianceUnit>,
     ) -> Self {
         self.solar_spectrum = solar_spectrum;
         self
@@ -320,10 +321,11 @@ fn zero_spectrum() -> Result<ZodiacalSpectrum> {
     use optica::grid::OutOfRange;
     use optica::spectrum::Interpolation;
     use qtty::radiometry::{
+        PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
         PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
     };
 
-    let spectrum = SampledSpectrum::<Nanometer, Meter>::from_raw(
+    let spectrum = SampledSpectrum::<Nanometer, SpectralBandPhotonRadianceUnit>::from_raw(
         vec![300.0, 650.0],
         vec![0.0, 0.0],
         Interpolation::Linear,

@@ -1,6 +1,13 @@
 use super::*;
+use crate::reference::solar::SolarSpectrum;
 use crate::units::s10_for_spectral_photon_radiance;
 use crate::units::ScaleFactors;
+use optica::spectrum::{Interpolation, SampledSpectrum};
+use qtty::length::Nanometer;
+use qtty::radiometry::{
+    PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
+    PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
+};
 use qtty::Second;
 
 /// Wavelength-resolved Jones et al. (2013) scattered-moonlight evaluator.
@@ -43,7 +50,7 @@ impl Jones2013Spectral {
         let geometry = lunar_geometry(time, self.location, target);
         compute_jones_2013_spectral(
             &geometry,
-            bundled_solar_samples(),
+            bundled_solar_spectrum(),
             self.extinction_scale.unwrap_or(ScaleFactors::new(1.0)),
             self.atmosphere_profile(),
         )
@@ -86,7 +93,7 @@ impl Jones2013Spectral {
 
 fn compute_jones_2013_spectral(
     inp: &MoonlightGeometry,
-    solar_samples: &[(f64, f64)],
+    solar: &SolarSpectrum,
     tau_scale: ScaleFactors,
     profile: AtmosphereProfile,
 ) -> Result<MoonOutputs> {
@@ -116,7 +123,7 @@ fn compute_jones_2013_spectral(
 
     let mut lam = Vec::new();
     let mut density = Vec::new();
-    for &(lambda_nm, solar_irradiance) in solar_samples {
+    for (&lambda_nm, &solar_irradiance) in solar.xs_raw().iter().zip(solar.ys_raw()) {
         if !(WL_LOW.value()..=WL_HIGH.value()).contains(&lambda_nm) {
             continue;
         }
@@ -162,32 +169,26 @@ fn compute_jones_2013_spectral(
         return Ok(zero_outputs());
     }
 
-    let integrated = algo::trapz_range(&lam, &density, WL_LOW.value(), WL_HIGH.value());
-    let b_density = algo::interp_linear(
-        &lam,
-        &density,
-        B_FILTER.value(),
+    let spectrum = SampledSpectrum::<Nanometer, SpectralBandPhotonRadianceUnit>::from_raw(
+        lam,
+        density,
+        Interpolation::Linear,
         OutOfRange::ClampToEndpoints,
+        None,
     )
-    .unwrap_or(0.0);
-    let v_density = algo::interp_linear(
-        &lam,
-        &density,
-        V_FILTER.value(),
-        OutOfRange::ClampToEndpoints,
-    )
-    .unwrap_or(0.0);
+    .map_err(|error| {
+        crate::error::NsbError::Interpolation(format!("Jones 2013 moonlight spectrum: {error}"))
+    })?;
+    let integrated = spectrum
+        .integrate_range(WL_LOW, WL_HIGH)
+        .to::<BandPhotonRadianceUnit>();
+    let b_density = spectrum.interp_at(B_FILTER);
+    let v_density = spectrum.interp_at(V_FILTER);
 
     Ok(MoonOutputs {
-        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(integrated),
-        b_flux_s10: s10_for_spectral_photon_radiance(
-            SpectralBandPhotonRadiance::new(b_density),
-            B_FILTER,
-        ),
-        v_flux_s10: s10_for_spectral_photon_radiance(
-            SpectralBandPhotonRadiance::new(v_density),
-            V_FILTER,
-        ),
+        integrated,
+        b_flux_s10: s10_for_spectral_photon_radiance(b_density, B_FILTER),
+        v_flux_s10: s10_for_spectral_photon_radiance(v_density, V_FILTER),
     })
 }
 
@@ -203,17 +204,9 @@ fn correction_grid() -> &'static ScatterGrid {
     })
 }
 
-fn bundled_solar_samples() -> &'static Vec<(f64, f64)> {
-    static SAMPLES: OnceLock<Vec<(f64, f64)>> = OnceLock::new();
-    SAMPLES.get_or_init(|| {
-        let solar = solar::load().expect("bundled solar spectrum");
-        solar
-            .xs_raw()
-            .iter()
-            .copied()
-            .zip(solar.ys_raw().iter().copied())
-            .collect()
-    })
+fn bundled_solar_spectrum() -> &'static SolarSpectrum {
+    static SPECTRUM: OnceLock<SolarSpectrum> = OnceLock::new();
+    SPECTRUM.get_or_init(|| solar::load().expect("bundled solar spectrum"))
 }
 
 #[cfg(test)]
@@ -330,7 +323,7 @@ mod tests {
         for (phase, sep, z_moon, z_src, dist, expected) in cases {
             let out = compute_jones_2013_spectral(
                 &geometry(phase, sep, z_moon, z_src, dist),
-                bundled_solar_samples(),
+                bundled_solar_spectrum(),
                 crate::units::ScaleFactors::new(1.0),
                 profile,
             )

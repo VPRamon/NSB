@@ -1,12 +1,23 @@
 # Public API policy (crate `nsb`)
 
-Status: Authoritative contract for the first NSB release (`0.1.0`).
+Status: Pre-release policy; the `nsb` public API is **not frozen yet**.
 Audience: Library consumers, contributors, and release maintainers.
-Scope: Supported surface, classification, forward-compatibility rules, and CI enforcement.
+Scope: Intended public surface, forward-compatibility design, and the transition to an enforced API freeze.
+
+## Current pre-freeze status
+
+The project is still defining and correcting the first public API. Public
+signatures may therefore change before the explicit freeze. In particular,
+correctness fixes that replace dimensionally invalid public types with the
+physical types actually represented by the data are allowed during this phase.
+
+The classifications below describe the intended support level after the freeze
+and guide review today, but they are not yet a SemVer compatibility promise.
+The freeze becomes effective only when `crates/nsb/api/API_FROZEN` is committed.
 
 ## Recommended application path
 
-Most callers should use only the **core stable API**:
+Most callers should prefer the intended **core API**:
 
 1. Construct an [`NsbEvaluator`](../../crates/nsb/src/evaluator/core.rs) from
    [`NsbModelConfig`](../../crates/nsb/src/evaluator/types.rs) presets or builders.
@@ -30,25 +41,24 @@ Typical imports from the crate root:
 
 ## API classification
 
-Every root re-export and public nested module path is intentional. Items fall into
-one of four classes:
+Every root re-export and public nested module path should be intentional. Items
+fall into one of four intended classes.
 
-### Core stable API
+### Core API
 
-Supported for normal integrations. SemVer-breaking changes require a major
-version after the first release.
+Intended for normal integrations and to become stable at the public API freeze.
 
-Includes: evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
+Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
 `Observer`, `Target`), `NsbModelConfig` and model-selection enums,
 `SiteProfile` / `SiteProfileId`, crate version constants (`NSB_VERSION`,
 `MODEL_VERSION`), and the [`DEG`](../../crates/nsb/src/lib.rs) re-export used in
 documented equatorial constructors.
 
-### Advanced stable API
+### Advanced API
 
-Supported for component-level construction, calibration experiments, and
-offline tooling. Stable within a major release but not required for the default
-evaluator workflow.
+Intended for component-level construction, calibration experiments, and offline
+tooling. After the freeze this surface is supported within the release contract,
+but it is not required for the default evaluator workflow.
 
 Includes root re-exports under airglow, moonlight, starlight, zodiacal,
 `solar_activity`, and the public `components::*` module tree (`Airglow`,
@@ -60,46 +70,48 @@ etc.).
 Read-mostly records describing maturity, calibration, asset identity, and
 diagnostics. Fields may grow; structs are `#[non_exhaustive]` where noted.
 
-Includes: `assets` module, `NsbComponentMetadata`, site-calibration asset types,
-starlight provenance/validation records, solar-activity resolution metadata,
-`BandDiagnostic`, and persisted schema version constants such as
+Includes the `assets` module, `NsbComponentMetadata`, site-calibration asset
+types, starlight provenance/validation records, solar-activity resolution
+metadata, `BandDiagnostic`, and persisted schema-version constants such as
 `VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION` and `F107_STORE_SCHEMA_VERSION`.
 
-Also includes the intentional Siderust dependency provenance exports
+The Siderust dependency provenance exports
 [`SIDERUST_VERSION`](../../crates/nsb/src/lib.rs) and
-[`SIDERUST_SOURCE`](../../crates/nsb/src/lib.rs). These are not computational
-entry points; they identify the crates.io Siderust package actually resolved by
-the locked workspace so CLI/JSON/CSV metadata and release documentation stay
-truthful. They must agree with `crates/nsb/Cargo.toml` and `Cargo.lock`.
+[`SIDERUST_SOURCE`](../../crates/nsb/src/lib.rs) identify the package actually
+resolved by the locked workspace. They must agree with `crates/nsb/Cargo.toml`
+and `Cargo.lock`.
 
 ### Implementation detail / not supported
 
-Must not appear in the public API. These remain `pub(crate)` or private:
+These must remain `pub(crate)` or private:
 
 - Noll extinction helper functions and internal geometry integrator constants
 - Bundled asset filesystem paths and internal date/storage helpers
 - Unit conversions and SkyCalc-specific internal quantity aliases
-- `reference`, `spectrum`, and internal `window_search` orchestration
+- `reference`, internal spectral orchestration, and `window_search`
 
-If a needed type is missing from the supported classes above, open an issue
-before depending on a newly discovered path.
+If a needed type is missing from the intended supported classes above, open an
+issue before depending on a newly discovered path.
 
 ## Dependency types at the boundary
 
-NSB deliberately exposes types from **Siderust**, **qtty**, and **tempoch** at
-public boundaries (`Observer`, `Target`, `Time<UTC>`, radiances, angles). Callers
-may construct these directly; NSB does not wrap them solely to hide dependencies.
+NSB deliberately exposes types from **Siderust**, **qtty**, **Optica**, and
+**tempoch** at public boundaries when those types are the correct domain model.
+NSB should not wrap or erase physical units merely to hide dependencies.
 
 Re-export policy:
 
 | Dependency symbol | Policy |
 | --- | --- |
-| `siderust::qtty::DEG` | Re-exported as `nsb::DEG` (documented getting-started path) |
+| `siderust::qtty::DEG` | Re-exported as `nsb::DEG` for documented constructors |
 | `Geodetic<ECEF>`, `SphericalDirection<EquatorialMeanJ2000>` | Type aliases `Observer`, `Target` |
-| `Time<UTC>`, `Period<UTC>`, radiance units | Used in public query/result signatures |
-| Other Siderust frames/catalog helpers | Not re-exported; import from Siderust when needed |
+| `Time<UTC>`, `Period<UTC>`, radiance and spectral quantity units | May appear in public signatures |
+| Other Siderust frames/catalog helpers | Import from Siderust when needed |
 
-## Forward compatibility
+## Forward-compatibility design
+
+These rules are already useful before the freeze because they reduce avoidable
+future breakage.
 
 ### Caller-constructed structs
 
@@ -117,9 +129,9 @@ existing builder-style CLI configuration continues to work.
 
 `NsbResult`, `ThresholdQueryResult`, `NsbComponent`, metadata structs, and most
 status enums are `#[non_exhaustive]`. Prefer field access over exhaustive
-destructuring so new diagnostics can ship in minor releases.
+destructuring so new diagnostics can be added later without unnecessary breaks.
 
-### Closed contracts (exhaustive enums)
+### Closed contracts
 
 Some scientific taxonomies are intentionally closed:
 
@@ -128,93 +140,86 @@ Some scientific taxonomies are intentionally closed:
 
 ### `NsbError`
 
-`NsbError` is `#[non_exhaustive]` so **new variants** may be added in minor
-releases. Match the documented variants you handle and keep a wildcard arm.
-
-Existing variant shapes and field payloads are part of the public contract.
-Adding fields to an existing variant is SemVer-breaking unless that variant is
-explicitly redesigned for extensibility. Prefer `Display` and `source()` for
-stable diagnostics rather than depending on exhaustive matching across releases.
+`NsbError` is `#[non_exhaustive]`. Consumers should match the variants they need
+and retain a wildcard arm. Existing variant shapes should still be designed with
+future compatibility in mind even though the API is not frozen yet.
 
 ### Site profile inventory
 
 `SiteProfileId` is `#[non_exhaustive]`. Prefer
 `SiteProfileId::all() -> &'static [SiteProfileId]` when enumerating built-in
-profiles: the return type does not encode the profile count, so new profiles can
-be added without a signature break.
+profiles because the return type does not encode the profile count.
 
-## Public API snapshot and CI
+## Public API CI lifecycle
 
-The canonical machine-readable inventory lives at
-[`crates/nsb/api/public-api.txt`](../../crates/nsb/api/public-api.txt). It is
-generated with [`cargo-public-api`](https://github.com/cargo-public-api/cargo-public-api)
-(simplified output: `-sss`).
+[`crates/nsb-public-api-gate`](../../crates/nsb-public-api-gate) has two modes.
 
-[`crates/nsb-public-api-gate`](../../crates/nsb-public-api-gate) enforces:
+### Pre-freeze mode (current)
 
-1. **Snapshot integrity** — committed baseline must exist, be non-empty, and match
-   the API generated from the current tree (fail closed on missing/malformed data).
-2. **Historical SemVer gate** — `cargo public-api diff $BASE..HEAD` with
-   `--deny=removed --deny=changed` when `$BASE` already contains
-   `crates/nsb/api/public-api.txt`. Updating the snapshot in the same commit or PR
-   cannot hide removals or signature changes against that historical revision.
-3. **Compat guard** — retained check for deliberately removed compatibility-only
-   symbols (`ALL_SUPPORTED`, `python_parity`, etc.).
+The marker `crates/nsb/api/API_FROZEN` does not exist.
 
-### How `$BASE` is chosen
+CI enforces the compatibility-only source guard, but it **does not** require
+`crates/nsb/api/public-api.txt` and it **does not** reject changed or removed
+public signatures. This is intentional: the first-release API is still being
+corrected.
+
+A stale pre-freeze snapshot is misleading, so `public-api.txt` is not committed
+as the canonical contract in this phase.
+
+### Freeze bootstrap
+
+When maintainers decide the public surface is ready:
+
+1. review all public exports and signatures;
+2. add `crates/nsb/api/API_FROZEN`;
+3. generate `crates/nsb/api/public-api.txt` from that same tree;
+4. commit the marker and snapshot together.
+
+The first commit containing the marker is a bootstrap: the snapshot must match
+HEAD, but there is no historical frozen contract to compare against yet.
+
+### Frozen mode
+
+Once the selected historical base also contains `API_FROZEN`, CI enforces:
+
+1. **Snapshot integrity** — `public-api.txt` must exist, be non-empty, and match
+   the API generated from HEAD.
+2. **Historical SemVer gate** — `cargo public-api diff $BASE..HEAD` runs with
+   `--deny=removed --deny=changed`.
+3. **Compat guard** — deliberately removed compatibility-only symbols remain
+   forbidden.
+
+Updating the snapshot cannot hide a breaking change after the freeze because the
+historical diff is evaluated against a previously frozen base revision.
+
+### How `$BASE` is chosen after freeze
 
 | Context | Base revision |
 | --- | --- |
 | GitHub Actions `pull_request` | Explicit `${{ github.event.pull_request.base.sha }}` via `--base` / `NSB_PUBLIC_API_BASE` |
-| GitHub Actions `push` | Explicit `${{ github.event.before }}` (commit **before** the push) |
+| GitHub Actions `push` | Explicit `${{ github.event.before }}` (commit before the push) |
 | Local without `--base` | Merge-base with `origin/main` when it differs from `HEAD`, otherwise `HEAD~1` |
 
-CI always passes `--base` explicitly. The gate **refuses** a base that resolves
-to `HEAD` (empty `HEAD..HEAD` comparison) and **fails closed** when an explicit
-non-null base revision does not exist.
+The gate refuses an empty `HEAD..HEAD` comparison and fails closed when an
+explicit non-null historical base required by frozen mode cannot be resolved.
 
-Initial/root pushes where `github.event.before` is the all-zero SHA run in
-**bootstrap** mode (snapshot match only). Missing snapshot at a valid historical
-base is also bootstrap until the baseline lands on `main`.
-
-Do **not** rely on `origin/main == HEAD` inference for push protection: after a
-push to `main`, `origin/main` points at the new tip.
-
-### Bootstrap (no prior release)
-
-There is no GitHub release or tag baseline yet. This PR introduces the first
-committed snapshot. CI requires HEAD to match that file; the historical
-`diff --deny` step is skipped until a prior revision contains the snapshot.
-
-### After the first release
-
-Once a git tag and GitHub release exist:
-
-- Keep comparing PRs against the PR base SHA and pushes against
-  `github.event.before` (primary gate).
-- Optionally extend the gate to compare against the latest release tag that
-  ships `crates/nsb/api/public-api.txt` for release-branch workflows.
-
-Regenerating the snapshot is only allowed together with an intentional SemVer
-decision; incompatible diffs must fail CI unless the baseline itself is being
-introduced for the first time (no snapshot at `$BASE`).
-
-## Updating the snapshot
+## Generating the freeze snapshot
 
 ```bash
-# Requires nightly rustdoc (same toolchain as CI)
 rustup toolchain install nightly-2026-09-02
 cargo install cargo-public-api --locked --version 0.50.1
 
+# Add the freeze marker when the project is actually ready to freeze the API.
+touch crates/nsb/api/API_FROZEN
 cargo run --locked -p nsb-public-api-gate -- --write
-git add crates/nsb/api/public-api.txt
+git add crates/nsb/api/API_FROZEN crates/nsb/api/public-api.txt
 ```
 
-Review the diff carefully. Any removal or signature change is semver-breaking
-after the baseline lands on `main`.
+Review the generated public surface before committing the freeze. After that
+point, changed or removed signatures are governed by the frozen compatibility
+policy.
 
 ## Related issues
 
 - [#125](https://github.com/VPRamon/NSB/issues/125) — canonical examples and
-  expanded user documentation (out of scope for the API-freeze PR beyond
-  compile-checked snippets).
+  expanded user documentation.

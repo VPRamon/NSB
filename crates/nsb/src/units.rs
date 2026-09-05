@@ -4,15 +4,27 @@
 //! part of `qtty` itself. Pure dimensional conversions should be expressed by
 //! constructing one of these quantities and calling `.to::<unit::...>()`.
 
+use qtty::area::SquareMeter;
+use qtty::length::{Meter, Nanometer, Nanometers};
+use qtty::power::Watt;
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance, S10s,
     WattsPerSquareMeterSteradianMeter, WattsPerSquareMeterSteradianNanometer,
 };
-use qtty::{unit, Quantity};
-use siderust::qtty::{Meter, Nanometers};
+use qtty::{unit, Per, Quantity};
 
 /// A generic multiplicative scale factor.
 pub type ScaleFactors = qtty::dimensionless::Ratios;
+
+/// Structural qtty unit for spectral solar irradiance, W m⁻² nm⁻¹.
+///
+/// This is deliberately expressed as qtty unit algebra rather than as an
+/// unrelated placeholder unit, so dimensional correctness remains enforced by
+/// the compiler without requiring a bespoke NSB unit marker.
+pub type SolarSpectralIrradianceUnit = Per<Per<Watt, SquareMeter>, Nanometer>;
+
+/// Spectral solar irradiance in W m⁻² nm⁻¹.
+pub type SolarSpectralIrradiance = Quantity<SolarSpectralIrradianceUnit>;
 
 /// Quantity type for Planck's constant times the speed of light, in joule metre.
 pub(crate) type JouleMeters = Quantity<unit::Prod<unit::Joule, unit::Meter>>;
@@ -164,5 +176,11 @@ mod tests {
     fn s10_calibration_constants_preserve_historical_um_and_nm_values() {
         assert!((S10_TO_W_M2_SR_UM.value() - 1.28e-8).abs() < 1.0e-20);
         assert!((S10_TO_W_M2_SR_NM.value() - 1.28e-11).abs() < 1.0e-23);
+    }
+
+    #[test]
+    fn solar_spectral_irradiance_uses_qtty_dimension_algebra() {
+        let irradiance = SolarSpectralIrradiance::new(2.5);
+        assert_eq!(irradiance.value(), 2.5);
     }
 }

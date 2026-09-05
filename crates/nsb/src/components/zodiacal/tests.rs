@@ -189,10 +189,10 @@ fn below_horizon_observed_returns_zero() {
 fn b_and_v_diagnostics_follow_spectrally_resolved_solar_shape() {
     use super::geometry::ZodiacalGeometry;
     use super::spectrum::compute_outputs;
+    use crate::reference::solar::SolarSpectrum;
     use optica::data::Provenance;
     use optica::grid::OutOfRange;
     use optica::spectrum::Interpolation;
-    use siderust::qtty::{length::Meter, Nanometer};
 
     // Non-flat spectrum: B (~440 nm) is bright, V (~550 nm) is faint so the
     // band diagnostics cannot collapse to one nearest-sample value.
@@ -201,7 +201,7 @@ fn b_and_v_diagnostics_follow_spectrally_resolved_solar_shape() {
         .iter()
         .map(|wavelength| if *wavelength < 500.0 { 2.0 } else { 0.25 })
         .collect();
-    let solar = optica::spectrum::SampledSpectrum::<Nanometer, Meter>::from_raw(
+    let solar = SolarSpectrum::from_raw(
         lam,
         flux,
         Interpolation::Linear,
