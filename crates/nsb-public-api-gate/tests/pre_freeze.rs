@@ -17,8 +17,11 @@ fn temporary_repo() -> std::path::PathBuf {
 fn pre_freeze_check_does_not_require_snapshot_or_semver_base() {
     let repo = temporary_repo();
     fs::create_dir_all(repo.join("crates/nsb/src")).expect("create temporary repo");
-    fs::write(repo.join("crates/nsb/src/lib.rs"), "pub fn api_can_change() {}\n")
-        .expect("write temporary source");
+    fs::write(
+        repo.join("crates/nsb/src/lib.rs"),
+        "pub fn api_can_change() {}\n",
+    )
+    .expect("write temporary source");
 
     let outcome = run_check(&CheckOptions {
         repo: repo.clone(),
