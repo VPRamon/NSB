@@ -12,10 +12,11 @@
 //!
 //! Provenance:
 //! Scientific metadata for the bundled continuum is owned by
-//! `crates/nsb/data/manifest.toml` and read through [`crate::assets::asset_registry`].
-//! This module pins only the embedded-byte checksum for integrity.
+//! `crates/nsb/data/manifest.toml` and surfaced through build-generated
+//! [`crate::assets::BundledAssetMetadata`]. Integrity of the embedded bytes is
+//! guaranteed by the build script (existence + SHA-256) before compilation.
 
-use crate::assets::{asset_registry, ScientificAsset};
+use crate::assets::{bundled_asset, BundledAssetMetadata};
 use crate::error::{NsbError, Result};
 use crate::units::ScaleFactors;
 use optica::data::Provenance;
@@ -35,46 +36,14 @@ const V_FILTER: Nanometers = Nanometers::new(551.0);
 pub(crate) const AIRGLOW_CONTINUUM_RELATIVE_PATH: &str = "airglow_cont.dat";
 /// Runtime/API asset path label for the bundled continuum.
 pub(crate) const AIRGLOW_CONTINUUM_ASSET_PATH: &str = "NSB/data/airglow_cont.dat";
-/// Compile-time pin of embedded continuum bytes (integrity only; not provenance).
-pub(crate) const AIRGLOW_CONTINUUM_EMBEDDED_SHA256: &str =
-    "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f";
-
-// Pinned SHA-256 of the airglow continuum reference file (embedded-byte integrity).
-siderust::assert_data_checksum!(
-    "NSB/data/airglow_cont.dat",
-    RAW.as_bytes(),
-    "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
-);
 
 /// Canonical scientific provenance for the bundled airglow continuum.
 ///
 /// Schema, source, license, generator, validation report, and calibration status
-/// are derived from [`asset_registry`] so they cannot drift independently of
-/// `crates/nsb/data/manifest.toml`.
-pub(crate) fn airglow_continuum_asset() -> &'static ScientificAsset {
-    asset_registry()
-        .asset(AIRGLOW_CONTINUUM_RELATIVE_PATH)
-        .expect("airglow_cont.dat must be registered in the scientific asset manifest")
-}
-
-fn ensure_registry_matches_embedded_bytes() -> Result<()> {
-    let asset = airglow_continuum_asset();
-    if asset.sha256 != AIRGLOW_CONTINUUM_EMBEDDED_SHA256 {
-        return Err(NsbError::DataParse {
-            file: "data/manifest.toml",
-            message: format!(
-                "airglow continuum registry sha256 {} does not match embedded pin {}",
-                asset.sha256, AIRGLOW_CONTINUUM_EMBEDDED_SHA256
-            ),
-        });
-    }
-    if !asset.runtime_embedded {
-        return Err(NsbError::DataParse {
-            file: "data/manifest.toml",
-            message: "airglow_cont.dat must be marked runtime_embedded".into(),
-        });
-    }
-    Ok(())
+/// come from build-generated metadata derived from `crates/nsb/data/manifest.toml`.
+pub(crate) fn airglow_continuum_asset() -> &'static BundledAssetMetadata {
+    bundled_asset(AIRGLOW_CONTINUUM_RELATIVE_PATH)
+        .expect("airglow_cont.dat must be registered by the build script")
 }
 
 /// Airglow continuum calibration data loaded from the bundled reference file.
@@ -129,7 +98,6 @@ pub struct AirglowContinuum {
 /// 7. `(ntime + 1)` sigma-correction rows, same shape.
 /// 8. `ndat` rows of `wavelength_um  relative_mean  relative_sigma`.
 pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
-    ensure_registry_matches_embedded_bytes()?;
     let mut iter = RAW.lines().filter_map(|l| {
         let t = l.trim();
         if t.is_empty() || t.starts_with('#') {
@@ -353,17 +321,14 @@ mod tests {
     #[test]
     fn airglow_builtin_calibration_checksum_matches() {
         use siderust::checksum::{sha256, to_hex};
-        assert_eq!(
-            to_hex(&sha256(RAW.as_bytes())),
-            AIRGLOW_CONTINUUM_EMBEDDED_SHA256,
-        );
+        let asset = airglow_continuum_asset();
+        assert_eq!(to_hex(&sha256(RAW.as_bytes())), asset.sha256);
     }
 
     #[test]
-    fn airglow_continuum_registry_provenance_matches_embedded_bytes() {
+    fn airglow_continuum_build_metadata_provenance() {
         let asset = airglow_continuum_asset();
         assert_eq!(asset.path, AIRGLOW_CONTINUUM_RELATIVE_PATH);
-        assert_eq!(asset.sha256, AIRGLOW_CONTINUUM_EMBEDDED_SHA256);
         assert_eq!(asset.schema, "skycalc-airglow-continuum-v1");
         assert!(asset.runtime_embedded);
         assert!(

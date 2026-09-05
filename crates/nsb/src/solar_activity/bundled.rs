@@ -1,76 +1,57 @@
-//! Bundled offline F10.7 store (runtime-embedded, checksum-pinned).
+//! Bundled offline F10.7 store (runtime-embedded, build-time checksum-verified).
 
-use super::store::{hex_sha256, F107Store};
-use crate::assets::{asset_registry, ScientificAsset};
+use super::store::F107Store;
+use crate::assets::{bundled_asset, BundledAssetMetadata};
 use crate::error::{NsbError, Result};
 use std::sync::OnceLock;
 
 const RAW: &str = include_str!("../../data/f107_store.json");
 
 /// Path relative to `crates/nsb/data` as recorded in the scientific asset registry.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) const BUNDLED_F107_RELATIVE_PATH: &str = "f107_store.json";
-/// Pin of embedded F10.7 store bytes (integrity only; not provenance).
-///
-/// Verified at load time rather than via a compile-time `assert_data_checksum!`
-/// because the JSON snapshot is large enough that const SHA-256 evaluation is
-/// impractically slow. Manifest + this constant remain the dual pin.
-pub(crate) const BUNDLED_F107_EMBEDDED_SHA256: &str =
-    "90aec6a640befd23f1fffbd6e3ddcfc7d005a8365cc56652f5324330e3b3f6b8";
 
 /// Canonical scientific provenance for the bundled F10.7 store.
-pub fn bundled_f107_asset() -> &'static ScientificAsset {
-    asset_registry()
-        .asset(BUNDLED_F107_RELATIVE_PATH)
-        .expect("f107_store.json must be registered in the scientific asset manifest")
-}
-
-fn ensure_registry_matches_embedded_bytes() -> Result<()> {
-    let digest = hex_sha256(RAW.as_bytes());
-    if digest != BUNDLED_F107_EMBEDDED_SHA256 {
-        return Err(NsbError::DataParse {
-            file: "data/f107_store.json",
-            message: format!(
-                "embedded F10.7 store sha256 {digest} does not match pin {BUNDLED_F107_EMBEDDED_SHA256}"
-            ),
-        });
-    }
-    let asset = bundled_f107_asset();
-    if asset.sha256 != BUNDLED_F107_EMBEDDED_SHA256 {
-        return Err(NsbError::DataParse {
-            file: "data/manifest.toml",
-            message: format!(
-                "F10.7 store registry sha256 {} does not match embedded pin {}",
-                asset.sha256, BUNDLED_F107_EMBEDDED_SHA256
-            ),
-        });
-    }
-    if !asset.runtime_embedded {
-        return Err(NsbError::DataParse {
-            file: "data/manifest.toml",
-            message: "f107_store.json must be marked runtime_embedded".into(),
-        });
-    }
-    if asset.schema != "nsb-f107-store-v1" {
-        return Err(NsbError::DataParse {
-            file: "data/manifest.toml",
-            message: format!("unexpected F10.7 store schema {}", asset.schema),
-        });
-    }
-    Ok(())
+///
+/// Integrity and schema constraints are enforced by `build.rs`; this returns the
+/// generated static metadata without re-checking the registry at runtime.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn bundled_f107_asset() -> &'static BundledAssetMetadata {
+    bundled_asset(BUNDLED_F107_RELATIVE_PATH)
+        .expect("f107_store.json must be registered by the build script")
 }
 
 /// Load the bundled offline F10.7 store (parsed once).
+///
+/// Provenance/integrity were validated at build time. The scientific JSON store
+/// is still deserialized once at runtime because converting it to Rust literals
+/// would bloat compile time without changing scientific behaviour.
 pub fn bundled_f107_store() -> Result<&'static F107Store> {
     static STORE: OnceLock<std::result::Result<F107Store, String>> = OnceLock::new();
-    let loaded = STORE.get_or_init(|| {
-        ensure_registry_matches_embedded_bytes().map_err(|error| error.to_string())?;
-        F107Store::from_json_str(RAW).map_err(|error| error.0)
-    });
+    let loaded = STORE.get_or_init(|| F107Store::from_json_str(RAW).map_err(|error| error.0));
     match loaded {
         Ok(store) => Ok(store),
         Err(message) => Err(NsbError::DataParse {
             file: "data/f107_store.json",
             message: message.clone(),
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::solar_activity::store::hex_sha256;
+
+    #[test]
+    fn bundled_f107_metadata_matches_embedded_bytes() {
+        let asset = bundled_f107_asset();
+        assert_eq!(asset.path, BUNDLED_F107_RELATIVE_PATH);
+        assert_eq!(asset.schema, "nsb-f107-store-v1");
+        assert!(asset.runtime_embedded);
+        assert_eq!(hex_sha256(RAW.as_bytes()), asset.sha256);
+        assert!(!asset.source.is_empty());
+        assert!(!asset.validation_report.is_empty());
+        assert_eq!(asset.calibration_status, "planning-proxy");
     }
 }

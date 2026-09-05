@@ -35,7 +35,7 @@ The bundled baseline continuum is:
 - `crates/nsb/data/airglow_cont.dat`
 - registered in `crates/nsb/data/manifest.toml` (canonical scientific provenance)
 - loaded by `crates/nsb/src/components/airglow/calibration.rs`
-- surfaced at runtime via `assets::asset_registry()` → Airglow metadata (not independently copied provenance constants)
+- surfaced at runtime via build-generated `assets::bundled_asset(...)` metadata → Airglow metadata (not independently copied provenance constants)
 
 The Airglow scientific maturity/status surface that downstream users see is produced by:
 - `crates/nsb/src/evaluator/metadata.rs` (`airglow_metadata`)
@@ -80,7 +80,7 @@ If altitude is non-finite or `altitude <= -90.0`, Airglow returns zero outputs f
 2.3. Built-in continuum byte integrity is compile-time pinned; scientific provenance is registry-derived.  
 **Origin**:
 - `siderust::assert_data_checksum!` pins embedded bytes to SHA-256 `d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f`
-- `assets::asset_registry().asset("airglow_cont.dat")` supplies schema/source/license/generator/calibration_status for metadata
+- `assets::bundled_asset("airglow_cont.dat")` supplies schema/source/license/generator/calibration_status for metadata
 
 ### 3) Seasonal correction
 3.1. `season_bin = season_bin(time, location)`  
@@ -430,7 +430,7 @@ Applicability domain (honest):
 ## Recommended remediation (Phase 1 — implemented)
 1. Reclassify outcome as **Option D** with Paranal-derived generic/planning-proxy semantics.
 2. Strengthen scientific asset registry provenance (KNOWN vs UNKNOWN; FORS1/Paranal/Noll/SkyCalc).
-3. Derive runtime Airglow scientific provenance from `assets::asset_registry()` (canonical `manifest.toml`).
+3. Derive runtime Airglow scientific provenance from build-generated `assets::bundled_asset()` metadata (canonical `manifest.toml` interpreted at compile time).
 4. Document Noll scattering, remaining molecular-absorption gap, and UV-end domain limitations in audit + metadata.
 5. Preserve / refine regression tests:
    - arbitrary Earth location uses generic path (no Paranal/CTAO required)

@@ -135,6 +135,13 @@ Runtime data live under `crates/nsb/data/` and are registered in
 `crates/nsb/data/manifest.toml`. The manifest is authoritative for file coverage,
 checksums, provenance, license information, schema, and maturity.
 
+At crate build time, `crates/nsb/build.rs` (with helpers in
+`crates/nsb/build_support/`) parses that manifest, validates
+`runtime_embedded` assets (existence + SHA-256), and emits static Rust metadata
+consumed by `nsb::assets`. Runtime code does not parse `manifest.toml`.
+Candidate or external assets (`runtime_embedded = false`) may remain registered
+without becoming compile requirements.
+
 Generated catalogues, maps, checkpoints, diagnostics, and reports belong in a
 caller-selected output directory. They are not repository source until a
 reviewed release explicitly admits the required runtime artifact and metadata.

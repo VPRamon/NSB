@@ -117,6 +117,19 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
             Some("gaia_dr3_xp_photon_radiance_300_650nm_packed_v1")
         );
         assert!(model.map().pixels().len() > 12);
+
+        let map_meta = crate::assets::bundled_asset("starlight_nside128.release.csv")
+            .expect("production map metadata");
+        let sidecar_meta = crate::assets::bundled_asset("starlight_nside128.manifest.toml")
+            .expect("production sidecar metadata");
+        assert_eq!(map_meta.schema, "nsb-healpix-starlight-v2");
+        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v1");
+        assert!(map_meta.runtime_embedded);
+        assert!(sidecar_meta.runtime_embedded);
+        assert_eq!(map_meta.calibration_status, "production");
+        assert_eq!(sidecar_meta.calibration_status, "production");
+        assert!(!map_meta.sha256.is_empty());
+        assert!(!sidecar_meta.sha256.is_empty());
     } else {
         let error = Starlight::bundled_production_model().unwrap_err();
         assert!(error

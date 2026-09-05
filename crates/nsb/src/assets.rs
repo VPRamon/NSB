@@ -1,61 +1,49 @@
-//! Runtime-readable registry for scientific assets shipped with NSB.
+//! Build-time verified scientific asset metadata.
+//!
+//! `crates/nsb/data/manifest.toml` remains the canonical declarative registry.
+//! The build script parses and validates it, then embeds the resulting metadata
+//! as static Rust data. Runtime code must not parse the TOML manifest.
 
-use serde::Deserialize;
-use std::collections::BTreeMap;
-use std::sync::OnceLock;
-
-const MANIFEST: &str = include_str!("../data/manifest.toml");
-
-/// Versioned registry of all scientific files under `crates/nsb/data`.
-#[derive(Debug, Deserialize)]
-pub struct AssetRegistry {
-    /// Manifest schema version.
-    pub schema_version: u32,
-    /// Registered scientific assets.
-    pub assets: Vec<ScientificAsset>,
-}
-
-/// Provenance and integrity metadata for one scientific asset.
-#[derive(Debug, Deserialize)]
-pub struct ScientificAsset {
+/// Provenance and integrity metadata for one verified bundled scientific asset.
+///
+/// Values are generated from `crates/nsb/data/manifest.toml` during compilation
+/// for assets whose existence and SHA-256 digest were verified by the build.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct BundledAssetMetadata {
     /// Path relative to `crates/nsb/data`.
-    pub path: String,
+    pub path: &'static str,
     /// Versioned file-format identifier.
-    pub schema: String,
+    pub schema: &'static str,
     /// Lowercase hexadecimal SHA-256 digest.
-    pub sha256: String,
+    pub sha256: &'static str,
     /// Scientific source and release information.
-    pub source: String,
+    pub source: &'static str,
     /// Dataset redistribution terms or an explicit unresolved limitation.
-    pub license: String,
+    pub license: &'static str,
     /// Program or workflow that generated the file.
-    pub generator: String,
+    pub generator: &'static str,
     /// Reproduction command or an explicit non-reproducibility statement.
-    pub generation_command: String,
+    pub generation_command: &'static str,
     /// Repository path to validation evidence.
-    pub validation_report: String,
+    pub validation_report: &'static str,
     /// Scientific maturity of the asset.
-    pub calibration_status: String,
-    /// Whether runtime code embeds the asset.
-    pub runtime_embedded: bool,
-    /// Header key/value pairs that must agree with the manifest.
-    #[serde(default)]
-    pub header: BTreeMap<String, String>,
+    pub calibration_status: &'static str,
 }
 
-impl AssetRegistry {
-    /// Look up a registered asset by path relative to `crates/nsb/data`.
-    pub fn asset(&self, path: &str) -> Option<&ScientificAsset> {
-        self.assets.iter().find(|asset| asset.path == path)
-    }
+include!(concat!(env!("OUT_DIR"), "/nsb_bundled_assets.rs"));
+
+/// Look up a verified bundled asset by path relative to `crates/nsb/data`.
+///
+/// Only `runtime_embedded` assets that passed build-time existence and SHA-256
+/// checks are present. Candidate/external registry entries are not exposed.
+pub fn bundled_asset(path: &str) -> Option<&'static BundledAssetMetadata> {
+    BUNDLED_ASSETS.iter().find(|asset| asset.path == path)
 }
 
-/// Return the parsed, immutable scientific-asset registry.
-pub fn asset_registry() -> &'static AssetRegistry {
-    static REGISTRY: OnceLock<AssetRegistry> = OnceLock::new();
-    REGISTRY.get_or_init(|| {
-        toml::from_str(MANIFEST).expect("bundled scientific asset manifest must parse")
-    })
+/// Iterate every verified bundled (`runtime_embedded`) asset.
+pub fn bundled_assets() -> impl Iterator<Item = &'static BundledAssetMetadata> {
+    BUNDLED_ASSETS.iter()
 }
 
 #[cfg(test)]
@@ -63,16 +51,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn manifest_is_versioned_and_paths_are_unique() {
-        let registry = asset_registry();
-        assert_eq!(registry.schema_version, 1);
-        let mut paths: Vec<&str> = registry
-            .assets
-            .iter()
-            .map(|asset| asset.path.as_str())
-            .collect();
+    fn verified_bundled_assets_are_versioned_and_unique() {
+        assert_eq!(ASSET_MANIFEST_SCHEMA_VERSION, 1);
+        let mut paths: Vec<&str> = BUNDLED_ASSETS.iter().map(|asset| asset.path).collect();
+        let before = paths.len();
         paths.sort_unstable();
         paths.dedup();
-        assert_eq!(paths.len(), registry.assets.len());
+        assert_eq!(paths.len(), before);
+        assert!(bundled_assets().count() >= 5);
+        assert!(bundled_asset("airglow_cont.dat").is_some());
+        assert!(bundled_asset("f107_store.json").is_some());
+        // Candidates are registered in manifest.toml but not build-verified here.
+        assert!(bundled_asset("starlight_nside128.csv").is_none());
+        assert!(bundled_asset("merge_report.json").is_none());
     }
 }

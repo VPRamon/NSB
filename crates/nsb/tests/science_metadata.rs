@@ -319,12 +319,10 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
 }
 
 #[test]
-fn airglow_runtime_provenance_tracks_asset_registry() {
-    use nsb::assets::asset_registry;
+fn airglow_runtime_provenance_tracks_bundled_asset_metadata() {
+    use nsb::assets::bundled_asset;
 
-    let asset = asset_registry()
-        .asset("airglow_cont.dat")
-        .expect("airglow continuum must be registered");
+    let asset = bundled_asset("airglow_cont.dat").expect("airglow continuum must be registered");
     let evaluator = NsbEvaluator::new().unwrap();
     let result = evaluator
         .evaluate(
@@ -354,13 +352,13 @@ fn airglow_runtime_provenance_tracks_asset_registry() {
         .metadata
         .provenance
         .contains(&format!("calibration_status {}", asset.calibration_status)));
-    assert!(airglow.metadata.provenance.contains(&asset.source));
-    assert!(airglow.metadata.provenance.contains(&asset.license));
-    assert!(airglow.metadata.provenance.contains(&asset.generator));
+    assert!(airglow.metadata.provenance.contains(asset.source));
+    assert!(airglow.metadata.provenance.contains(asset.license));
+    assert!(airglow.metadata.provenance.contains(asset.generator));
     assert!(airglow
         .metadata
         .provenance
-        .contains(&asset.validation_report));
+        .contains(asset.validation_report));
 }
 
 #[test]

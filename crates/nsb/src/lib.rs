@@ -47,7 +47,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-/// Runtime scientific-asset registry (checksums, provenance, maturity).
+/// Build-time verified scientific-asset metadata (checksums, provenance, maturity).
 pub mod assets;
 /// Advanced component models used to construct or inspect individual contributors.
 pub mod components;
