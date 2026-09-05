@@ -72,7 +72,9 @@ A change normally needs tests at more than one level:
 - validation fixtures for scientific claims;
 - benchmarks when point or threshold-window performance can change.
 
-Read the [Validation matrix](../specifications/validation.md),
+Read the [Testing and mutation policy](testing.md) for taxonomy, CLI suite
+ownership, regression-fixture rules, and `cargo-mutants` scope. Also read the
+[Validation matrix](../specifications/validation.md),
 [Performance contract](../specifications/performance.md),
 [Logging contract](../specifications/logging.md), and
 [Coverage policy](coverage.md) before changing those surfaces.

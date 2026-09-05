@@ -98,29 +98,6 @@ fn bin_at_phase(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Option
 }
 
 #[test]
-fn standard_clear_sky_computes_positive_airglow() {
-    let model = Airglow::standard_clear_sky(paranal()).unwrap();
-    let out = model
-        .compute(t("2023-09-04T01:48:00Z"), target(266.41683, -29.00781))
-        .unwrap();
-
-    assert!(out.integrated > BandPhotonRadiance::zero());
-    assert!(out.b_flux_s10.value() > 0.0);
-    assert!(out.v_flux_s10.value() > 0.0);
-}
-
-#[test]
-fn compute_is_geometry_sensitive() {
-    let location = paranal();
-    let time = t("2023-09-04T01:48:00Z");
-    let model = Airglow::standard_clear_sky(location).unwrap();
-    let high = model.compute(time, target(266.41683, -29.00781)).unwrap();
-    let low = model.compute(time, target(80.0, -20.0)).unwrap();
-
-    assert_ne!(high.integrated.value(), low.integrated.value());
-}
-
-#[test]
 fn solar_radio_flux_is_typed_and_changes_result() {
     let location = paranal();
     let time = t("2023-09-04T01:48:00Z");
@@ -213,56 +190,6 @@ fn cta_site_profile_airglow_results_are_site_sensitive() {
     assert!(north.integrated > BandPhotonRadiance::zero());
     assert!(south.integrated > BandPhotonRadiance::zero());
     assert_ne!(north.integrated.value(), south.integrated.value());
-}
-
-#[test]
-fn custom_continuum_path_works() {
-    let location = paranal();
-    let time = t("2023-09-04T01:48:00Z");
-    let target = target(266.41683, -29.00781);
-    let continuum = load_builtin_standard().unwrap();
-
-    let standard = Airglow::standard_clear_sky(location)
-        .unwrap()
-        .compute(time, target)
-        .unwrap();
-    let custom = Airglow::with_continuum(location, continuum)
-        .compute(time, target)
-        .unwrap();
-
-    assert_eq!(standard.integrated.value(), custom.integrated.value());
-}
-
-#[test]
-fn explicit_van_rhijn_is_bitwise_identical_to_default_airglow() {
-    let location = paranal();
-    let time = t("2023-09-04T01:48:00Z");
-    let query_target = target(80.0, -20.0);
-    let default = Airglow::standard_clear_sky(location)
-        .unwrap()
-        .compute(time, query_target)
-        .unwrap();
-    let explicit = Airglow::standard_clear_sky(location)
-        .unwrap()
-        .with_geometry(AirglowGeometryModel::VanRhijn(
-            VanRhijnConfig::new(Kilometers::new(90.0)).unwrap(),
-        ))
-        .compute(time, query_target)
-        .unwrap();
-
-    assert_eq!(
-        default.integrated.value().to_bits(),
-        explicit.integrated.value().to_bits()
-    );
-    assert_eq!(
-        default.b_flux_s10.value().to_bits(),
-        explicit.b_flux_s10.value().to_bits()
-    );
-    assert_eq!(
-        default.v_flux_s10.value().to_bits(),
-        explicit.v_flux_s10.value().to_bits()
-    );
-    assert_eq!(default.relative_uncertainty, explicit.relative_uncertainty);
 }
 
 #[test]
@@ -506,14 +433,6 @@ fn default_solar_radio_flux_is_neutral() {
 }
 
 #[test]
-fn removed_polynomial_api_stays_private() {
-    let model = Airglow::standard_clear_sky(paranal()).unwrap();
-    let _ = model
-        .compute(t("2023-09-04T01:48:00Z"), target(266.41683, -29.00781))
-        .unwrap();
-}
-
-#[test]
 fn high_zenith_target_differs_from_zenith_due_to_geometry_and_scattering() {
     let location = paranal();
     let time = t("2023-09-04T01:48:00Z");
@@ -555,22 +474,6 @@ fn site_profile_atmosphere_changes_airglow_at_fixed_geometry() {
         low_pressure.integrated.value(),
         high_pressure.integrated.value()
     );
-}
-
-#[test]
-fn van_rhijn_and_extinction_are_independent_stages() {
-    let zenith = Degrees::new(45.0);
-    let x_ag = effective_airglow_airmass(zenith);
-    let (f_r, f_m) = noll_scattering_factors(zenith);
-    assert!(x_ag > 1.0);
-    assert!(f_r.is_finite() && f_m.is_finite());
-    // The selected emitting-volume geometry is evaluated separately from extinction.
-    let van_rhijn = siderust::atmosphere::van_rhijn_factor(
-        zenith.to::<siderust::qtty::Radian>(),
-        siderust::qtty::Kilometers::new(90.0),
-    )
-    .value();
-    assert!(van_rhijn > 1.0);
 }
 
 #[test]

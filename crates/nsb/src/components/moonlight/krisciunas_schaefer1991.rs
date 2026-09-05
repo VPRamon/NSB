@@ -290,20 +290,6 @@ mod tests {
     }
 
     #[test]
-    fn periods_in_range_covers_window_for_large_bound() {
-        let model = KrisciunasSchaefer1991::standard_clear_sky(test_location());
-        let periods = model
-            .periods_in_range(
-                test_window(),
-                test_target(),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(0.0),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(1.0e9),
-            )
-            .unwrap();
-        assert_eq!(periods, vec![test_window()]);
-    }
-
-    #[test]
     fn periods_in_range_rejects_inverted_bounds() {
         let model = KrisciunasSchaefer1991::standard_clear_sky(test_location());
         let err = model

@@ -63,25 +63,24 @@ fn fixture_starlight_map_with_uncertainty() -> StarlightMap {
 }
 
 #[test]
-fn evaluator_defaults_to_generic_clear_sky_config() {
-    let evaluator = NsbEvaluator::new().expect("evaluator");
-    let config = evaluator.config();
-    assert_eq!(config.moonlight_model, MoonlightModel::Jones2013Spectral);
-    assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
-    assert_eq!(
-        config.starlight_model.is_some(),
-        Starlight::bundled_production_available()
-    );
-}
-
-#[test]
-fn default_model_config_is_generic_clear_sky() {
+fn default_evaluator_config_matches_generic_clear_sky() {
     let default = NsbModelConfig::default();
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model, explicit.moonlight_model);
+    assert_eq!(default.moonlight_model, MoonlightModel::Jones2013Spectral);
     assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
+    assert_eq!(explicit.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(
         default.starlight_model.is_some(),
+        Starlight::bundled_production_available()
+    );
+
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let config = evaluator.config();
+    assert_eq!(config.moonlight_model, default.moonlight_model);
+    assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
+    assert_eq!(
+        config.starlight_model.is_some(),
         Starlight::bundled_production_available()
     );
 }
@@ -368,15 +367,16 @@ fn threshold_query_rejects_non_finite_threshold_and_non_positive_step() {
 fn point_query_evaluates_individual_supported_components() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let time = parse_obstime("2023-09-04 01:48:00");
-    for mask in [
-        ComponentMask::ZODIACAL,
-        ComponentMask::AIRGLOW,
-        ComponentMask::MOON,
+    for (mask, expected_name) in [
+        (ComponentMask::ZODIACAL, "zodiacal"),
+        (ComponentMask::AIRGLOW, "airglow"),
+        (ComponentMask::MOON, "moon"),
     ] {
         let result = evaluator
             .evaluate(&PointQuery::new(paranal(), time, sgr_a_star()).with_components(mask))
             .expect("component evaluates");
         assert_eq!(result.components.len(), 1);
+        assert_eq!(result.components[0].name, expected_name);
         assert!(result.integrated.value().is_finite());
     }
 }
