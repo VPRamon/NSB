@@ -1,6 +1,4 @@
-use nsb::{
-    AirglowContinuum, SolarSpectralIrradianceUnit, ZodiacalLight, ZodiacalSpectrum,
-};
+use nsb::{AirglowContinuum, SolarSpectralIrradianceUnit, ZodiacalLight, ZodiacalSpectrum};
 use optica::spectrum::SampledSpectrum;
 use qtty::length::Nanometer;
 use qtty::radiometry::PhotonPerSquareCentimeterNanosecondSteradianNanometer;
@@ -14,10 +12,8 @@ fn public_spectrum_types_encode_physical_units() {
     }
 
     fn assert_zodiacal_type(output: &ZodiacalSpectrum) {
-        let _: &SampledSpectrum<
-            Nanometer,
-            PhotonPerSquareCentimeterNanosecondSteradianNanometer,
-        > = &output.spectrum;
+        let _: &SampledSpectrum<Nanometer, PhotonPerSquareCentimeterNanosecondSteradianNanometer> =
+            &output.spectrum;
     }
 
     fn assert_solar_setter(
