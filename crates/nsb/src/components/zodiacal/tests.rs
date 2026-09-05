@@ -189,14 +189,14 @@ fn below_horizon_observed_returns_zero() {
 fn b_v_are_interpolated_not_nearest_sample() {
     use super::geometry::ZodiacalGeometry;
     use super::spectrum::compute_outputs;
+    use crate::reference::solar::SolarSpectrum;
     use optica::data::Provenance;
     use optica::grid::OutOfRange;
     use optica::spectrum::Interpolation;
-    use siderust::qtty::{length::Meter, Nanometer};
 
     let lam: Vec<f64> = (300..=650).map(|i| i as f64).collect();
     let flux: Vec<f64> = vec![1.0; lam.len()];
-    let solar = optica::spectrum::SampledSpectrum::<Nanometer, Meter>::from_raw(
+    let solar = SolarSpectrum::from_raw(
         lam,
         flux,
         Interpolation::Linear,

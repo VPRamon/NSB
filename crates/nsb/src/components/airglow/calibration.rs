@@ -20,14 +20,16 @@ use crate::error::{NsbError, Result};
 use crate::units::ScaleFactors;
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
-use optica::spectrum::{algo, Interpolation, SampledSpectrum};
-use siderust::qtty::{length::Meter, Kilometers, Micrometers, Nanometer};
+use optica::spectrum::{Interpolation, SampledSpectrum};
+use qtty::dimensionless::Ratios;
+use qtty::length::{Kilometers, Micrometers, Nanometer, Nanometers};
+use qtty::unit::Ratio;
 
 const RAW: &str = include_str!("../../../data/airglow_cont.dat");
-const WL_LOW_NM: f64 = 300.0;
-const WL_HIGH_NM: f64 = 650.0;
-const B_FILTER_NM: f64 = 445.0;
-const V_FILTER_NM: f64 = 551.0;
+const WL_LOW: Nanometers = Nanometers::new(300.0);
+const WL_HIGH: Nanometers = Nanometers::new(650.0);
+const B_FILTER: Nanometers = Nanometers::new(445.0);
+const V_FILTER: Nanometers = Nanometers::new(551.0);
 
 /// Path relative to `crates/nsb/data` as recorded in the scientific asset registry.
 pub(crate) const AIRGLOW_CONTINUUM_RELATIVE_PATH: &str = "airglow_cont.dat";
@@ -95,22 +97,22 @@ pub struct AirglowContinuum {
     /// [`mean_corrections`](Self::mean_corrections).
     pub sigma_corrections: Vec<Vec<f64>>,
     /// Wavelength in nm versus relative mean radiance.
-    pub spectrum: SampledSpectrum<Nanometer, Meter>,
+    pub spectrum: SampledSpectrum<Nanometer, Ratio>,
     /// Wavelength in nm versus relative uncertainty.
-    pub uncertainty: SampledSpectrum<Nanometer, Meter>,
+    pub uncertainty: SampledSpectrum<Nanometer, Ratio>,
     /// Number of seasons / time windows in the file.
     pub n_season: usize,
     /// Number of time-of-night bins in the file.
     pub n_time: usize,
     /// Unextincted integrated relative continuum over 300–650 nm (load-time reference).
     #[allow(dead_code)]
-    pub(crate) integrated_relative_300_650: f64,
+    pub(crate) integrated_relative_300_650: Nanometers,
     #[allow(dead_code)]
-    pub(crate) integrated_uncertainty_abs_300_650: f64,
+    pub(crate) integrated_uncertainty_abs_300_650: Nanometers,
     #[allow(dead_code)]
-    pub(crate) b_relative: f64,
+    pub(crate) b_relative: Ratios,
     #[allow(dead_code)]
-    pub(crate) v_relative: f64,
+    pub(crate) v_relative: Ratios,
 }
 
 /// Load the built-in empirical airglow continuum calibration.
@@ -244,7 +246,7 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         rel.push(r);
         sig.push(dr);
     }
-    let spectrum = SampledSpectrum::<Nanometer, Meter>::from_raw(
+    let spectrum = SampledSpectrum::<Nanometer, Ratio>::from_raw(
         lam.clone(),
         rel,
         Interpolation::Linear,
@@ -255,7 +257,7 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         file: "airglow_cont.dat",
         message: e.to_string(),
     })?;
-    let uncertainty = SampledSpectrum::<Nanometer, Meter>::from_raw(
+    let uncertainty = SampledSpectrum::<Nanometer, Ratio>::from_raw(
         lam,
         sig,
         Interpolation::Linear,
@@ -266,33 +268,27 @@ pub(crate) fn load_builtin_standard() -> Result<AirglowContinuum> {
         file: "airglow_cont.dat",
         message: e.to_string(),
     })?;
-    let integrated_relative_300_650 =
-        algo::trapz_range(spectrum.xs_raw(), spectrum.ys_raw(), WL_LOW_NM, WL_HIGH_NM);
-    let uncertainty_abs: Vec<f64> = uncertainty
-        .ys_raw()
-        .iter()
-        .map(|value| value.abs())
-        .collect();
-    let integrated_uncertainty_abs_300_650 = algo::trapz_range(
-        uncertainty.xs_raw(),
-        &uncertainty_abs,
-        WL_LOW_NM,
-        WL_HIGH_NM,
-    );
-    let b_relative = algo::interp_linear(
-        spectrum.xs_raw(),
-        spectrum.ys_raw(),
-        B_FILTER_NM,
+    let integrated_relative_300_650 = spectrum.integrate_range(WL_LOW, WL_HIGH).to::<Nanometer>();
+    let uncertainty_abs = SampledSpectrum::<Nanometer, Ratio>::from_raw(
+        uncertainty.xs_raw().to_vec(),
+        uncertainty
+            .ys_raw()
+            .iter()
+            .map(|value| value.abs())
+            .collect(),
+        Interpolation::Linear,
         OutOfRange::ClampToEndpoints,
+        None,
     )
-    .expect("validated airglow spectrum covers B diagnostic");
-    let v_relative = algo::interp_linear(
-        spectrum.xs_raw(),
-        spectrum.ys_raw(),
-        V_FILTER_NM,
-        OutOfRange::ClampToEndpoints,
-    )
-    .expect("validated airglow spectrum covers V diagnostic");
+    .map_err(|e| NsbError::DataParse {
+        file: "airglow_cont.dat",
+        message: e.to_string(),
+    })?;
+    let integrated_uncertainty_abs_300_650 = uncertainty_abs
+        .integrate_range(WL_LOW, WL_HIGH)
+        .to::<Nanometer>();
+    let b_relative = spectrum.interp_at(B_FILTER);
+    let v_relative = spectrum.interp_at(V_FILTER);
     Ok(AirglowContinuum {
         global_scale,
         emission_height_km,

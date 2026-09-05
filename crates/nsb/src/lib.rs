@@ -62,7 +62,6 @@ pub mod site;
 pub mod site_calibration;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
-pub(crate) mod spectrum;
 pub(crate) mod units;
 mod window_search;
 
@@ -103,7 +102,10 @@ pub use solar_activity::{
     F107ValidationError, MonthlyCompleteness, MonthlyF107Evidence, ResolvedSolarActivity,
     SolarActivitySource, F107_STORE_SCHEMA_VERSION,
 };
-pub use units::{MagnitudesPerAirmass, ScaleFactors, SolarFluxUnit};
+pub use units::{
+    MagnitudesPerAirmass, ScaleFactors, SolarFluxUnit, SolarSpectralIrradiance,
+    SolarSpectralIrradianceUnit,
+};
 
 /// Angle unit used with [`Target::new`] in documented examples.
 pub use siderust::qtty::DEG;

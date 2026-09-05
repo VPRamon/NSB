@@ -13,10 +13,11 @@
 //!   resolved photon-radiance spectrum in addition to the scalar fields.
 
 use optica::spectrum::SampledSpectrum;
+use qtty::length::Nanometer;
 use qtty::radiometry::{
+    PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
-use siderust::qtty::{length::Meter, Nanometer};
 
 /// Default zodiacal-light output: scalar summaries only.
 ///
@@ -43,7 +44,7 @@ pub struct ZodiacalOutputs {
 pub struct ZodiacalSpectrum {
     /// Full photon-radiance spectrum in ph cm⁻² ns⁻¹ sr⁻¹ nm⁻¹
     /// sampled on the solar-spectrum wavelength grid, clipped to 300–650 nm.
-    pub spectrum: SampledSpectrum<Nanometer, Meter>,
+    pub spectrum: SampledSpectrum<Nanometer, SpectralBandPhotonRadianceUnit>,
     /// Integrated photon radiance (300–650 nm band).
     pub integrated: BandPhotonRadiance,
     /// B-band (445 nm) S10 surface brightness.

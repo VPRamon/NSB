@@ -17,17 +17,20 @@
 //! solar reference spectrum lives in `reference::solar`.
 
 use crate::error::{NsbError, Result};
+use crate::units::SolarSpectralIrradianceUnit;
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
 use optica::spectrum::{loaders::ascii::two_column, Interpolation, SampledSpectrum};
-use siderust::qtty::{length::Meter, Nanometer};
+use qtty::length::Nanometer;
 
 const RAW: &str = include_str!("../../data/solar_spectrum.dat");
 
+pub(crate) type SolarSpectrum = SampledSpectrum<Nanometer, SolarSpectralIrradianceUnit>;
+
 /// Returns the solar reference spectrum as
 /// `(wavelength [nm], irradiance [W m⁻² nm⁻¹])`.
-pub(crate) fn load() -> Result<SampledSpectrum<Nanometer, Meter>> {
-    two_column::<Nanometer, Meter>(
+pub(crate) fn load() -> Result<SolarSpectrum> {
+    two_column::<Nanometer, SolarSpectralIrradianceUnit>(
         RAW,
         1.0,
         1.0,
