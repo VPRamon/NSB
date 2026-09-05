@@ -12,6 +12,14 @@ use crate::snapshot::{
     validate_snapshot_file, SnapshotError, ToolConfig, DEFAULT_SNAPSHOT_PATH,
 };
 
+/// Marker whose presence means the public API contract has been frozen.
+///
+/// Before this marker is committed, API signatures may still change and CI does
+/// not enforce snapshot equality or historical SemVer compatibility. The freeze
+/// commit itself bootstraps the snapshot; subsequent commits are compared
+/// against historical frozen revisions.
+pub const PUBLIC_API_FREEZE_MARKER: &str = "crates/nsb/api/API_FROZEN";
+
 #[derive(Debug, Clone, Default)]
 pub struct CheckOptions {
     pub repo: PathBuf,
@@ -45,7 +53,7 @@ pub enum GateError {
     Message(String),
 }
 
-/// Regenerate the committed public API snapshot.
+/// Regenerate the public API snapshot used once the API is frozen.
 pub fn run_write(options: &CheckOptions) -> Result<GateOutcome, GateError> {
     let config = ToolConfig::from_env(&options.repo);
     ensure_cargo_public_api(&config.public_api_version)?;
@@ -68,9 +76,27 @@ pub fn run_write(options: &CheckOptions) -> Result<GateOutcome, GateError> {
     })
 }
 
-/// Run snapshot integrity + historical SemVer checks.
+/// Run the public API policy.
+///
+/// Pre-freeze, only compatibility-only symbol guards apply. Once
+/// [`PUBLIC_API_FREEZE_MARKER`] exists, CI additionally requires the committed
+/// snapshot to match HEAD. Historical SemVer diffs start after the freeze marker
+/// also exists at the selected base revision.
 pub fn run_check(options: &CheckOptions) -> Result<GateOutcome, GateError> {
     reject_removed_compat_apis(&options.repo)?;
+
+    if !options.repo.join(PUBLIC_API_FREEZE_MARKER).is_file() {
+        let mode = HistoricalMode::Bootstrap {
+            reason: "public API is not frozen; snapshot and historical SemVer checks are disabled",
+        };
+        eprintln!("SemVer gate: public API is pre-freeze; compatibility diff skipped");
+        return Ok(GateOutcome {
+            status: GateStatus::Pass,
+            message: "public API policy: pre-freeze (compatibility guard only)".into(),
+            historical: Some(mode),
+        });
+    }
+
     let config = ToolConfig::from_env(&options.repo);
     ensure_cargo_public_api(&config.public_api_version)?;
     validate_snapshot_file(&config.snapshot_path)?;
@@ -78,11 +104,25 @@ pub fn run_check(options: &CheckOptions) -> Result<GateOutcome, GateError> {
 
     let decision =
         resolve_base_decision(&options.repo, options.base.clone(), options.base_explicit)?;
-    let snapshot_at_base = match &decision {
+    let frozen_at_base = match &decision {
         BaseDecision::BootstrapNoBase => false,
-        BaseDecision::UseBase { rev } => path_exists_at(&options.repo, rev, DEFAULT_SNAPSHOT_PATH),
+        BaseDecision::UseBase { rev } => path_exists_at(&options.repo, rev, PUBLIC_API_FREEZE_MARKER),
     };
-    let mode = decide_historical_mode(decision, snapshot_at_base);
+
+    let mode = if frozen_at_base {
+        let snapshot_at_base = match &decision {
+            BaseDecision::BootstrapNoBase => false,
+            BaseDecision::UseBase { rev } => {
+                path_exists_at(&options.repo, rev, DEFAULT_SNAPSHOT_PATH)
+            }
+        };
+        decide_historical_mode(decision, snapshot_at_base)
+    } else {
+        HistoricalMode::Bootstrap {
+            reason: "API freeze marker absent at historical base; freeze bootstrap (snapshot match only)",
+        }
+    };
+
     match &mode {
         HistoricalMode::Bootstrap { reason } => {
             eprintln!("SemVer gate: {reason}");
@@ -94,12 +134,12 @@ pub fn run_check(options: &CheckOptions) -> Result<GateOutcome, GateError> {
 
     Ok(GateOutcome {
         status: GateStatus::Pass,
-        message: "public API policy: OK".into(),
+        message: "public API policy: frozen API OK".into(),
         historical: Some(mode),
     })
 }
 
-/// Discover the workspace root containing `crates/nsb/api/public-api.txt`.
+/// Discover the workspace root containing the `nsb` crate or API snapshot.
 pub fn discover_repo(start: &Path) -> Result<PathBuf, GateError> {
     let mut current = start.to_path_buf();
     loop {
