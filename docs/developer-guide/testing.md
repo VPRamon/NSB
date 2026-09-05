@@ -17,8 +17,8 @@ Coverage answers “was this line executed?”. Release test quality answers:
 A suite can raise coverage while remaining weak: constant self-checks,
 `Default::default()` smoke, assertion-free execution, or duplicated happy paths
 that leave rejection and boundary behaviour unprotected. Issue #123 audited the
-suite against that standard. Coverage floors remain provisional until the
-follow-on baseline work in #124.
+suite against that standard. Coverage floors are the post-audit release baseline
+in [Coverage policy](coverage.md) (`baseline_kind = release-post-audit`).
 
 ## Test taxonomy
 
