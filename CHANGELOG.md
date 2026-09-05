@@ -11,11 +11,12 @@ once a stable public release is cut.
   guide and removed obsolete development-history prose (#122).
 - Removed unused `approx` dev-dependencies, orphan provisional validation
   envelope, and unused Starlight diagnostic helpers (#122).
-- Froze the `nsb` first-release public API: classified supported surfaces,
-  hid implementation-only constants/helpers, added constructors for
-  `PointQuery`/`ThresholdQuery`, and marked evolvable structs/enums/`NsbError`
-  `#[non_exhaustive]`. CI now enforces a `cargo-public-api` snapshot and
-  SemVer diffs against `origin/main` (#121).
+- Prepared the `nsb` first-release public API for an eventual freeze: classified
+  supported surfaces, hid implementation-only constants/helpers, added
+  constructors for `PointQuery`/`ThresholdQuery`, and marked evolvable
+  structs/enums/`NsbError` `#[non_exhaustive]`. The API remains pre-freeze;
+  snapshot equality and historical SemVer enforcement activate only after the
+  explicit `crates/nsb/api/API_FROZEN` marker is committed (#121).
 - Corrected public Siderust provenance (`SIDERUST_VERSION` /
   `SIDERUST_SOURCE`) and CLI metadata to the locked crates.io package
   `0.11.1` (`crates.io:siderust:0.11.1`), with a contract test preventing
