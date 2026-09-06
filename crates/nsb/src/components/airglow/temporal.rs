@@ -1,3 +1,4 @@
+use super::domain::{AirglowNightPhase, AirglowSeason};
 use chrono::Datelike;
 use qtty::angular::Degrees;
 use siderust::bodies::Sun as SunBody;
@@ -24,7 +25,7 @@ pub(crate) struct AstronomicalNightPeriod {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AirglowPhasePeriod {
     pub(crate) period: TimePeriod<ModifiedJulianDate>,
-    pub(crate) time_bin: usize,
+    pub(crate) phase: AirglowNightPhase,
 }
 
 #[cfg(test)]
@@ -32,37 +33,44 @@ thread_local! {
     static POINT_NIGHT_SEARCH_FORBIDDEN: Cell<bool> = const { Cell::new(false) };
 }
 
-pub(crate) fn season_bin(time: Time<UTC>, location: Geodetic<ECEF>) -> usize {
+/// Return the empirical Airglow season for the observer's local-solar month.
+///
+/// `FullYear` preserves the existing aggregate fallback when the UTC instant
+/// cannot be represented by `chrono`; normal month mappings always select one
+/// of the six named double-month seasons.
+pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason {
     let Some(dt) = local_solar_datetime(time, location) else {
-        return 0;
+        return AirglowSeason::FullYear;
     };
     match dt.month() {
-        12 | 1 => 1,
-        2 | 3 => 2,
-        4 | 5 => 3,
-        6 | 7 => 4,
-        8 | 9 => 5,
-        10 | 11 => 6,
-        _ => 0,
+        12 | 1 => AirglowSeason::DecJan,
+        2 | 3 => AirglowSeason::FebMar,
+        4 | 5 => AirglowSeason::AprMay,
+        6 | 7 => AirglowSeason::JunJul,
+        8 | 9 => AirglowSeason::AugSep,
+        10 | 11 => AirglowSeason::OctNov,
+        _ => AirglowSeason::FullYear,
     }
 }
 
-/// Site-aware airglow time bin based on astronomical-night phase.
+/// Site-aware Airglow night phase based on astronomical-night thirds.
 ///
-/// The SkyCalc-derived airglow calibration table defines three equal time
-/// ranges over the full astronomical-night interval (`alt_sun < -18°`). We
-/// therefore compute the complete astronomical night containing `time` from
-/// Siderust solar-altitude events, normalize `time` to phase in that interval,
-/// and map `[0, 1/3)`, `[1/3, 2/3)`, `[2/3, 1]` to rows 1, 2, and 3.
+/// The SkyCalc-derived Airglow calibration table defines three equal periods
+/// over the full astronomical-night interval (`alt_sun < -18°`). We compute the
+/// complete astronomical night containing `time`, normalize the instant to that
+/// interval, and return the corresponding semantic phase.
 ///
 /// The search expands adaptively so high-latitude winter nights are not
-/// mistaken for missing airglow merely because the first local window is clipped.
-/// If a final expanded search still sees continuous night without both bounding
-/// crossings, row 0 (full-night correction) is used rather than returning zero.
-pub(crate) fn time_of_night_bin(time: Time<UTC>, location: Geodetic<ECEF>) -> Option<usize> {
+/// mistaken for missing Airglow merely because the first local window is clipped.
+/// If the final expanded search still sees continuous night without both bounding
+/// crossings, [`AirglowNightPhase::FullNight`] is used explicitly.
+pub(crate) fn night_phase(
+    time: Time<UTC>,
+    location: Geodetic<ECEF>,
+) -> Option<AirglowNightPhase> {
     let time_tt = utc_time_to_tt_mjd(time);
     let night = astronomical_night_containing(time_tt, location)?;
-    time_of_night_bin_from_night(time_tt, &night)
+    night_phase_from_night(time_tt, &night)
 }
 
 pub(crate) fn is_astronomical_twilight(threshold: Degrees) -> bool {
@@ -114,7 +122,7 @@ pub(crate) fn airglow_phase_periods_for_window(
             if let Some(period) = intersect_period(night.period, window) {
                 periods.push(AirglowPhasePeriod {
                     period,
-                    time_bin: 0,
+                    phase: AirglowNightPhase::FullNight,
                 });
             }
             continue;
@@ -129,49 +137,58 @@ pub(crate) fn airglow_phase_periods_for_window(
 
         let first = ModifiedJulianDate::new(start + duration / 3.0);
         let second = ModifiedJulianDate::new(start + duration * 2.0 / 3.0);
-        for (period, time_bin) in [
-            (TimePeriod::new(night.period.start, first), 1),
-            (TimePeriod::new(first, second), 2),
-            (TimePeriod::new(second, night.period.end), 3),
+        for (period, phase) in [
+            (
+                TimePeriod::new(night.period.start, first),
+                AirglowNightPhase::FirstThird,
+            ),
+            (
+                TimePeriod::new(first, second),
+                AirglowNightPhase::MiddleThird,
+            ),
+            (
+                TimePeriod::new(second, night.period.end),
+                AirglowNightPhase::LastThird,
+            ),
         ] {
             if let Some(period) = intersect_period(period, window) {
-                periods.push(AirglowPhasePeriod { period, time_bin });
+                periods.push(AirglowPhasePeriod { period, phase });
             }
         }
     }
     periods
 }
 
-pub(crate) fn time_of_night_bin_from_nights(
+pub(crate) fn night_phase_from_nights(
     time_tt: ModifiedJulianDate,
     nights: &[AstronomicalNightPeriod],
-) -> Option<usize> {
+) -> Option<AirglowNightPhase> {
     nights
         .iter()
         .find(|night| night.period.start < time_tt && time_tt < night.period.end)
-        .and_then(|night| time_of_night_bin_from_night(time_tt, night))
+        .and_then(|night| night_phase_from_night(time_tt, night))
 }
 
-pub(crate) fn time_of_night_bin_from_phase_periods(
+pub(crate) fn night_phase_from_phase_periods(
     time_tt: ModifiedJulianDate,
     phases: &[AirglowPhasePeriod],
-) -> Option<usize> {
+) -> Option<AirglowNightPhase> {
     phases
         .iter()
         .find(|phase| phase.period.start < time_tt && time_tt < phase.period.end)
-        .map(|phase| phase.time_bin)
+        .map(|phase| phase.phase)
 }
 
-fn time_of_night_bin_from_night(
+fn night_phase_from_night(
     time_tt: ModifiedJulianDate,
     night: &AstronomicalNightPeriod,
-) -> Option<usize> {
+) -> Option<AirglowNightPhase> {
     if !(night.period.start < time_tt && time_tt < night.period.end) {
         return None;
     }
 
     if !night.phase_bounded {
-        return Some(0);
+        return Some(AirglowNightPhase::FullNight);
     }
 
     let duration_days = night.period.end.raw().value() - night.period.start.raw().value();
@@ -183,11 +200,11 @@ fn time_of_night_bin_from_night(
         .clamp(0.0, 1.0);
 
     Some(if phase < 1.0 / 3.0 {
-        1
+        AirglowNightPhase::FirstThird
     } else if phase < 2.0 / 3.0 {
-        2
+        AirglowNightPhase::MiddleThird
     } else {
-        3
+        AirglowNightPhase::LastThird
     })
 }
 
@@ -272,11 +289,11 @@ fn local_solar_datetime(
 }
 
 #[cfg(test)]
-pub(crate) fn time_of_night_bin_for_test(
+pub(crate) fn night_phase_for_test(
     time: Time<UTC>,
     location: Geodetic<ECEF>,
-) -> Option<usize> {
-    time_of_night_bin(time, location)
+) -> Option<AirglowNightPhase> {
+    night_phase(time, location)
 }
 
 #[cfg(test)]
@@ -302,4 +319,88 @@ pub(crate) fn forbid_point_night_search_for_test<R>(f: impl FnOnce() -> R) -> R 
     });
     let _reset = ResetForbidden;
     f()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+    use qtty::angular::Degrees;
+    use siderust::coordinates::centers::Geodetic;
+    use siderust::coordinates::frames::ECEF;
+    use siderust::qtty::Meters;
+
+    fn utc(year: i32, month: u32, day: u32) -> Time<UTC> {
+        Time::<UTC>::from_chrono(
+            Utc.with_ymd_and_hms(year, month, day, 12, 0, 0)
+                .single()
+                .unwrap(),
+        )
+    }
+
+    fn equator() -> Geodetic<ECEF> {
+        Geodetic::new_raw(Degrees::new(0.0), Degrees::new(0.0), Meters::new(0.0))
+    }
+
+    #[test]
+    fn season_maps_all_named_double_months() {
+        let location = equator();
+        for (month, expected) in [
+            (12, AirglowSeason::DecJan),
+            (1, AirglowSeason::DecJan),
+            (2, AirglowSeason::FebMar),
+            (3, AirglowSeason::FebMar),
+            (4, AirglowSeason::AprMay),
+            (5, AirglowSeason::AprMay),
+            (6, AirglowSeason::JunJul),
+            (7, AirglowSeason::JunJul),
+            (8, AirglowSeason::AugSep),
+            (9, AirglowSeason::AugSep),
+            (10, AirglowSeason::OctNov),
+            (11, AirglowSeason::OctNov),
+        ] {
+            assert_eq!(season(utc(2023, month, 15), location), expected);
+        }
+    }
+
+    #[test]
+    fn bounded_night_phase_uses_current_third_boundaries() {
+        let night = AstronomicalNightPeriod {
+            period: TimePeriod::new(ModifiedJulianDate::new(0.0), ModifiedJulianDate::new(3.0)),
+            phase_bounded: true,
+        };
+
+        assert_eq!(
+            night_phase_from_night(ModifiedJulianDate::new(0.5), &night),
+            Some(AirglowNightPhase::FirstThird)
+        );
+        assert_eq!(
+            night_phase_from_night(ModifiedJulianDate::new(1.0), &night),
+            Some(AirglowNightPhase::MiddleThird)
+        );
+        assert_eq!(
+            night_phase_from_night(ModifiedJulianDate::new(1.5), &night),
+            Some(AirglowNightPhase::MiddleThird)
+        );
+        assert_eq!(
+            night_phase_from_night(ModifiedJulianDate::new(2.0), &night),
+            Some(AirglowNightPhase::LastThird)
+        );
+        assert_eq!(
+            night_phase_from_night(ModifiedJulianDate::new(2.5), &night),
+            Some(AirglowNightPhase::LastThird)
+        );
+    }
+
+    #[test]
+    fn unbounded_astronomical_night_uses_explicit_full_night_phase() {
+        let night = AstronomicalNightPeriod {
+            period: TimePeriod::new(ModifiedJulianDate::new(0.0), ModifiedJulianDate::new(3.0)),
+            phase_bounded: false,
+        };
+        assert_eq!(
+            night_phase_from_night(ModifiedJulianDate::new(1.5), &night),
+            Some(AirglowNightPhase::FullNight)
+        );
+    }
 }
