@@ -31,18 +31,21 @@ fn paranal() -> Geodetic<ECEF> {
 }
 
 fn cta_s() -> Geodetic<ECEF> {
+    // Test-only CTAO South geometry fixture. `nsb` cannot depend on `nsb-cli`,
+    // where the #140 ObservatoryCatalog extension is owned.
     Geodetic::new_raw(
-        Degrees::new(-70.406944),
-        Degrees::new(-24.627222),
-        Meters::new(2100.0),
+        Degrees::new(-70.31634444444444),
+        Degrees::new(-24.683427777777776),
+        Meters::new(2184.6),
     )
 }
 
 fn cta_n() -> Geodetic<ECEF> {
+    // Test-only CTAO North geometry fixture matching the #140 CLI catalog record.
     Geodetic::new_raw(
-        Degrees::new(-17.892),
-        Degrees::new(28.762),
-        Meters::new(2396.0),
+        Degrees::new(-17.892005),
+        Degrees::new(28.762164),
+        Meters::new(2240.2),
     )
 }
 
@@ -94,11 +97,7 @@ fn night_phase_time(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Ti
     tt_mjd_to_utc(ModifiedJulianDate::new(start + (end - start) * phase))
 }
 
-fn phase_at(
-    seed: Time<UTC>,
-    location: Geodetic<ECEF>,
-    phase: f64,
-) -> Option<AirglowNightPhase> {
+fn phase_at(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Option<AirglowNightPhase> {
     super::temporal::night_phase_for_test(night_phase_time(seed, location, phase), location)
 }
 
@@ -354,7 +353,10 @@ fn twilight_edges_are_outside_airglow_calibration_domain() {
         night.end.raw().value() + one_minute_days,
     ));
 
-    assert_eq!(super::temporal::night_phase_for_test(before_dusk, location), None);
+    assert_eq!(
+        super::temporal::night_phase_for_test(before_dusk, location),
+        None
+    );
     assert_eq!(
         super::temporal::night_phase_for_test(after_dusk, location),
         Some(AirglowNightPhase::FirstThird)
@@ -363,7 +365,10 @@ fn twilight_edges_are_outside_airglow_calibration_domain() {
         super::temporal::night_phase_for_test(before_dawn, location),
         Some(AirglowNightPhase::LastThird)
     );
-    assert_eq!(super::temporal::night_phase_for_test(after_dawn, location), None);
+    assert_eq!(
+        super::temporal::night_phase_for_test(after_dawn, location),
+        None
+    );
 }
 
 #[test]
@@ -536,7 +541,8 @@ fn spectral_extinction_differs_from_unextincted_baseline_integral() {
     let spectral = super::continuum::integrate_attenuated_continuum(&continuum, zenith, atmosphere);
     let baseline = continuum
         .spectrum()
-        .integrate_range(Nanometers::new(300.0), Nanometers::new(650.0));
+        .integrate_range(Nanometers::new(300.0), Nanometers::new(650.0))
+        .to::<Nanometer>();
     assert!(
         spectral.integrated_relative < baseline,
         "60° zenith scattering should reduce the spectrally integrated continuum"
