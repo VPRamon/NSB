@@ -56,9 +56,9 @@ pub mod error;
 /// Evaluator, queries, results, and component-selection types.
 pub mod evaluator;
 mod reference;
-/// Named site profiles and calibration maturity.
+/// Site profiles, shared atmosphere, and canonical calibration evidence.
 pub mod site;
-/// Evidence contract for future dedicated site calibration assets.
+/// Compatibility facade for the site-calibration evidence contract.
 pub mod site_calibration;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
@@ -72,9 +72,7 @@ pub use components::airglow::{
     VerticalProfileNormalization, DEFAULT_SOLAR_RADIO_FLUX, DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM,
     VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
-pub use components::moonlight::{
-    AtmosphericConditions, Jones2013Spectral, KrisciunasSchaefer1991, DEFAULT_K_EXT,
-};
+pub use components::moonlight::{Jones2013Spectral, KrisciunasSchaefer1991, DEFAULT_K_EXT};
 pub use components::starlight::{
     Starlight, StarlightMap, StarlightOutputs, StarlightPixel, StarlightProvenance,
     StarlightValidationDiagnostics, ValidatedStarlightMap,
@@ -90,8 +88,8 @@ pub use evaluator::{
     NsbResult, Observer, PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
 pub use site::{
-    AirglowSiteCalibration, CalibrationStatus, CalibrationStatus as SiteCalibrationStatus,
-    SiteProfile, SiteProfileId,
+    AirglowSiteCalibration, AtmosphericConditions, CalibrationStatus,
+    CalibrationStatus as SiteCalibrationStatus, SiteProfile, SiteProfileId,
 };
 pub use site_calibration::{
     AirglowCalibrationEvidence, AtmosphericSiteCalibration, CalibratedSiteId, SiteCalibrationAsset,

@@ -8,8 +8,8 @@
 //!   internally from `(time, target)`.
 //! * [`Jones2013Spectral`] is the wavelength-resolved scattered moonlight
 //!   model. It stores the observing location and [`AtmosphericConditions`],
-//!   builds a Siderust [`AtmosphereProfile`] internally, and derives observer
-//!   altitude only from the model location.
+//!   builds a Siderust [`siderust::atmosphere::AtmosphereProfile`] internally,
+//!   and derives observer altitude only from the model location.
 //!
 //! [`Jones2013Spectral::standard_clear_sky`] is a generic approximate
 //! clear-sky fallback: it estimates surface pressure from altitude, uses
@@ -35,15 +35,14 @@ use qtty::radiometry::{
 use scattering::ScatterGrid;
 use siderust::atmosphere::{
     airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,
-    AtmosphereProfile, KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass, MieParams,
-    DEFAULT_SCALE_HEIGHT,
+    KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass,
 };
 use siderust::bodies::Moon;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::event::horizontal::star_horizontal;
-use siderust::qtty::{Hectopascals, Kilometer, Kilometers, Nanometers};
+use siderust::qtty::{Kilometer, Kilometers, Nanometers};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
 use std::sync::OnceLock;
 use tempoch::{Period, Time, JD, TT, UTC};
@@ -52,6 +51,7 @@ mod jones_2013_spectral;
 mod krisciunas_schaefer1991;
 mod scattering;
 
+pub use crate::site::AtmosphericConditions;
 pub use jones_2013_spectral::Jones2013Spectral;
 pub use krisciunas_schaefer1991::KrisciunasSchaefer1991;
 
@@ -86,72 +86,6 @@ const V_FILTER: Nanometers = Nanometers::new(551.0);
 /// by this implementation. Site-calibrated profiles should be validated against
 /// reference spectra before changing this factor.
 const JONES_MIE_WEIGHT: f64 = 0.05;
-
-/// Atmospheric inputs used by the Jones 2013 spectral scattered-moonlight model.
-///
-/// The observer altitude is deliberately not stored here. It is always taken
-/// from the [`Geodetic`] location passed to [`Jones2013Spectral`], avoiding the
-/// ambiguity of mixing a site profile with an unrelated observer altitude.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AtmosphericConditions {
-    /// Surface pressure used for Rayleigh scattering.
-    pub surface_pressure: Hectopascals,
-    /// Rayleigh atmospheric scale height.
-    pub rayleigh_scale_height: Kilometers,
-    /// Aerosol optical-depth and phase-function parameters.
-    pub mie_params: MieParams,
-}
-
-impl AtmosphericConditions {
-    /// Convert a Siderust profile while intentionally discarding its altitude.
-    pub fn from_profile_without_altitude(profile: AtmosphereProfile) -> Self {
-        Self {
-            surface_pressure: profile.surface_pressure,
-            rayleigh_scale_height: profile.rayleigh_scale_height,
-            mie_params: profile.mie_params,
-        }
-    }
-
-    /// Generic clear-sky conditions for an arbitrary location.
-    ///
-    /// This is the atmosphere used by [`Jones2013Spectral::standard_clear_sky`].
-    /// Pressure is estimated from the supplied altitude and the Mie parameters
-    /// are the generic Paranal-like clear-sky values available from Siderust.
-    /// This is not a CTA site-calibrated atmosphere.
-    pub fn generic_clear_sky(location: Geodetic<ECEF>) -> Self {
-        standard_clear_sky_conditions(location)
-    }
-
-    /// Paranal-like average clear-sky conditions from Siderust's built-in profile.
-    pub fn paranal_average() -> Self {
-        Self::from_profile_without_altitude(AtmosphereProfile::EL_PARANAL)
-    }
-
-    /// CTA-S clear-sky planning preset.
-    ///
-    /// The current NSB preset intentionally aliases the Paranal-like profile
-    /// because no dedicated CTA-S aerosol calibration has been bundled yet. It
-    /// is nevertheless explicit at call sites, so science users can distinguish
-    /// it from the generic altitude-derived fallback and replace it with a
-    /// calibrated profile when available.
-    pub fn cta_s_clear_sky() -> Self {
-        Self::paranal_average()
-    }
-
-    /// CTA-N clear-sky planning preset.
-    ///
-    /// This uses a pressure representative of the La Palma/ORM altitude range
-    /// and the same bundled clear-sky Mie parameterization used elsewhere in
-    /// NSB. It should be treated as a planning preset until CTA-N aerosol phase
-    /// functions are bundled and validated.
-    pub fn cta_n_clear_sky() -> Self {
-        Self {
-            surface_pressure: Hectopascals::new(770.0),
-            rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
-            mie_params: MieParams::PARANAL,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 struct MoonlightGeometry {
@@ -209,13 +143,7 @@ fn zero_outputs() -> MoonOutputs {
 }
 
 fn standard_clear_sky_conditions(location: Geodetic<ECEF>) -> AtmosphericConditions {
-    let altitude_m = location.height.value().max(0.0);
-    let pressure = 1013.25 * (-altitude_m / 8_400.0).exp();
-    AtmosphericConditions {
-        surface_pressure: Hectopascals::new(pressure),
-        rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
-        mie_params: MieParams::PARANAL,
-    }
+    AtmosphericConditions::generic_clear_sky(location)
 }
 
 #[cfg(test)]

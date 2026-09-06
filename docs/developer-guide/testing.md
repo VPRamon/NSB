@@ -115,7 +115,7 @@ Scope concentrates on a finishable release-critical `nsb` default pass:
 
 - evaluator orchestration (`evaluator/core.rs`);
 - solar-activity resolution policy (`solar_activity/resolve.rs`);
-- site-calibration fail-closed validation (`site_calibration.rs`).
+- site-calibration fail-closed validation (`site/calibration.rs`).
 
 Threshold-window search (`window_search.rs`, `evaluator/search.rs`) and broader
 component physics (Jones spectral radiance, airglow geometry/extinction) are

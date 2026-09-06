@@ -5,9 +5,8 @@ use super::continuum::{
 use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
-use crate::components::moonlight::AtmosphericConditions;
 use crate::error::Result;
-use crate::site::SiteProfileId;
+use crate::site::{AtmosphericConditions, SiteProfileId};
 use crate::units::ScaleFactors;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
