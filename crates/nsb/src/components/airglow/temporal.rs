@@ -64,10 +64,7 @@ pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason
 /// mistaken for missing Airglow merely because the first local window is clipped.
 /// If the final expanded search still sees continuous night without both bounding
 /// crossings, [`AirglowNightPhase::FullNight`] is used explicitly.
-pub(crate) fn night_phase(
-    time: Time<UTC>,
-    location: Geodetic<ECEF>,
-) -> Option<AirglowNightPhase> {
+pub(crate) fn night_phase(time: Time<UTC>, location: Geodetic<ECEF>) -> Option<AirglowNightPhase> {
     let time_tt = utc_time_to_tt_mjd(time);
     let night = astronomical_night_containing(time_tt, location)?;
     night_phase_from_night(time_tt, &night)
