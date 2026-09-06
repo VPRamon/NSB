@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
+#
+# NSB-owned named observing sites used by the CLI. This is deliberately separate
+# from Siderust's bundled observatory catalog: Siderust provides coordinate types,
+# while NSB decides which facilities are useful to expose as built-in CLI sites.
+#
+# `height_m` is the representative site/telescope altitude reported by the cited
+# source. It preserves the existing CLI contract, whose explicit `--height` input
+# is also expressed in metres. Site-specific atmospheric calibration remains a
+# separate NSB `SiteProfile`; a catalog entry is only an observing location.
+
+[[site]]
+canonical_alias = "CTAO-S"
+display_name = "CTAO South"
+lon_deg = -70.31634444444444
+lat_deg = -24.683427777777776
+height_m = 2150.0
+aliases = ["CTAO-S", "CTA-S", "CTAO-SOUTH", "CTA-SOUTH"]
+source_urls = [
+  "https://www.ctao.org/emission-to-discovery/array-sites/ctao-south/",
+  "https://pos.sissa.it/358/733/pdf",
+]
+
+[[site]]
+canonical_alias = "CTAO-N"
+display_name = "CTAO North"
+lon_deg = -17.892005
+lat_deg = 28.762164
+height_m = 2200.0
+aliases = ["CTAO-N", "CTA-N", "CTAO-NORTH", "CTA-NORTH"]
+source_urls = [
+  "https://www.ctao.org/emission-to-discovery/array-sites/ctao-north/",
+  "https://www.ctao.org/about/locations/ctao-north/",
+]
+
+[[site]]
+canonical_alias = "HESS"
+display_name = "H.E.S.S."
+lon_deg = 16.5
+lat_deg = -23.271666666666665
+height_m = 1800.0
+aliases = ["HESS", "H.E.S.S.", "HIGH-ENERGY-STEREOSCOPIC-SYSTEM"]
+source_urls = ["https://hess-experiment.eu/"]
+
+[[site]]
+canonical_alias = "MAGIC"
+display_name = "MAGIC Telescopes"
+lon_deg = -17.89
+lat_deg = 28.761944
+height_m = 2231.28
+aliases = ["MAGIC", "MAGIC-TELESCOPES"]
+source_urls = ["https://www.magic.iac.es/site/"]
+
+[[site]]
+canonical_alias = "FACT"
+display_name = "First G-APD Cherenkov Telescope"
+# IAC describes FACT as being at the MAGIC site. Use the published MAGIC site
+# coordinate as the representative location rather than invent sub-site precision.
+lon_deg = -17.89
+lat_deg = 28.761944
+height_m = 2200.0
+aliases = ["FACT", "FIRST-G-APD-CHERENKOV-TELESCOPE"]
+source_urls = [
+  "https://www.iac.es/en/observatorios-de-canarias/telescopes-and-experiments/first-g-apd-cherenkov-telescope",
+  "https://www.magic.iac.es/site/",
+]
+
+[[site]]
+canonical_alias = "VERITAS"
+display_name = "VERITAS"
+lon_deg = -110.95215833333333
+lat_deg = 31.675058333333334
+height_m = 1268.0
+aliases = ["VERITAS", "VERY-ENERGETIC-RADIATION-IMAGING-TELESCOPE-ARRAY-SYSTEM"]
+source_urls = ["https://veritas.sao.arizona.edu/about-veritas/veritas-specifications"]
+
+[[site]]
+canonical_alias = "FAST"
+display_name = "Five-hundred-meter Aperture Spherical Telescope"
+# Public sources agree on the present Dawodang coordinates. Project literature
+# reports the site altitude at approximately 1000 m, so the height is intentionally
+# not given false sub-metre precision.
+lon_deg = 106.856667
+lat_deg = 25.653056
+height_m = 1000.0
+aliases = ["FAST", "TIANYAN", "FIVE-HUNDRED-METER-APERTURE-SPHERICAL-TELESCOPE"]
+source_urls = [
+  "https://lssf.cas.cn/en/facilities/sa/fast/202505/t20250528_5070737.html",
+  "https://science.nasa.gov/photojournal/five-hundred-meter-aperture-spherical-telescope-china/",
+  "https://www.sciengine.com/doi/pdfView/c402589c5c0642c5bd2a5c8dd5b8c32d",
+]
+
+[[site]]
+canonical_alias = "PARANAL"
+display_name = "Cerro Paranal"
+lon_deg = -70.4044
+lat_deg = -24.6275
+height_m = 2635.0
+aliases = ["PARANAL", "CERRO-PARANAL", "VLT"]
+source_urls = ["https://www.eso.org/public/teles-instr/paranal-observatory/"]
+
+[[site]]
+canonical_alias = "ROQUE-DE-LOS-MUCHACHOS"
+display_name = "Roque de los Muchachos"
+lon_deg = -17.8914
+lat_deg = 28.7619
+height_m = 2200.0
+aliases = ["ROQUE-DE-LOS-MUCHACHOS", "ORM", "LA-PALMA", "LAPALMA"]
+source_urls = ["https://www.iac.es/en/observatorios-de-canarias/roque-de-los-muchachos-observatory"]
+
+[[site]]
+canonical_alias = "MAUNA-KEA"
+display_name = "Mauna Kea"
+lon_deg = -155.4681
+lat_deg = 19.8206
+height_m = 4205.0
+aliases = ["MAUNA-KEA", "MAUNAKEA"]
+source_urls = ["https://www.ifa.hawaii.edu/mko/"]
+
+[[site]]
+canonical_alias = "LA-SILLA"
+display_name = "La Silla Observatory"
+lon_deg = -70.7346
+lat_deg = -29.2567
+height_m = 2400.0
+aliases = ["LA-SILLA", "LASILLA"]
+source_urls = ["https://www.eso.org/public/teles-instr/lasilla/"]
+
+[[site]]
+canonical_alias = "GTC"
+display_name = "Gran Telescopio Canarias"
+lon_deg = -17.891944444444444
+lat_deg = 28.756666666666668
+height_m = 2300.0
+aliases = ["GTC", "GRANTECAN", "GRAN-TELESCOPIO-CANARIAS"]
+source_urls = ["https://www.gtc.iac.es/gtc/gtc.php"]
