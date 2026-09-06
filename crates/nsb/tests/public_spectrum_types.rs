@@ -7,8 +7,8 @@ use qtty::unit::Ratio;
 #[test]
 fn public_spectrum_types_encode_physical_units() {
     fn assert_airglow_types(continuum: &AirglowContinuum) {
-        let _: &SampledSpectrum<Nanometer, Ratio> = &continuum.spectrum;
-        let _: &SampledSpectrum<Nanometer, Ratio> = &continuum.uncertainty;
+        let _: &SampledSpectrum<Nanometer, Ratio> = continuum.spectrum();
+        let _: &SampledSpectrum<Nanometer, Ratio> = continuum.uncertainty();
     }
 
     fn assert_zodiacal_type(output: &ZodiacalSpectrum) {
