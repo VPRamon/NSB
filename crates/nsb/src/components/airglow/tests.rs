@@ -1,4 +1,5 @@
 use super::calibration::load_builtin_standard;
+use super::domain::{AirglowNightPhase, AirglowSeason};
 use super::extinction::{effective_airglow_airmass, noll_scattering_factors};
 use super::*;
 use crate::components::moonlight::AtmosphericConditions;
@@ -93,8 +94,12 @@ fn night_phase_time(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Ti
     tt_mjd_to_utc(ModifiedJulianDate::new(start + (end - start) * phase))
 }
 
-fn bin_at_phase(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Option<usize> {
-    super::temporal::time_of_night_bin_for_test(night_phase_time(seed, location, phase), location)
+fn phase_at(
+    seed: Time<UTC>,
+    location: Geodetic<ECEF>,
+    phase: f64,
+) -> Option<AirglowNightPhase> {
+    super::temporal::night_phase_for_test(night_phase_time(seed, location, phase), location)
 }
 
 #[test]
@@ -138,20 +143,19 @@ fn scale_changes_result() {
 }
 
 #[test]
-fn season_bin_changes_with_longitude_near_month_boundary() {
-    // `season_bin` uses local-solar month derived from longitude; we pick a time where
-    // rounding pushes the local month across a boundary.
+fn season_changes_with_longitude_near_month_boundary() {
+    // The Airglow season uses local-solar month derived from longitude; pick a
+    // time where the observer-local month crosses the March/April boundary.
     let time = t("2023-03-31T18:00:00Z");
     let east = Geodetic::new_raw(Degrees::new(179.0), Degrees::new(0.0), Meters::new(0.0));
     let west = Geodetic::new_raw(Degrees::new(-179.0), Degrees::new(0.0), Meters::new(0.0));
 
-    let east_bin = super::temporal::season_bin(time, east);
-    let west_bin = super::temporal::season_bin(time, west);
+    let east_season = super::temporal::season(time, east);
+    let west_season = super::temporal::season(time, west);
 
-    assert_ne!(east_bin, west_bin);
-    // 2023-03 => season bin 2, 2023-04 => season bin 3 per `temporal.rs::season_bin`.
-    assert_eq!(west_bin, 2);
-    assert_eq!(east_bin, 3);
+    assert_ne!(east_season, west_season);
+    assert_eq!(west_season, AirglowSeason::FebMar);
+    assert_eq!(east_season, AirglowSeason::AprMay);
 }
 
 #[test]
@@ -209,7 +213,7 @@ fn geometry_selection_changes_only_the_geometry_multiplier() {
     let vertical_factor = vertical.geometry_factor(location, zenith).unwrap().value();
 
     let evaluate = |geometry: AirglowGeometryModel| {
-        super::continuum::evaluate_continuum_with_time_bin(
+        super::continuum::evaluate_continuum_with_night_phase(
             &continuum,
             t("2023-09-04T01:48:00Z"),
             altitude,
@@ -220,7 +224,7 @@ fn geometry_selection_changes_only_the_geometry_multiplier() {
                 solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
                 user_scale: crate::ScaleFactors::new(1.0),
             },
-            1,
+            AirglowNightPhase::FirstThird,
         )
         .unwrap()
     };
@@ -267,7 +271,7 @@ fn below_horizon_contract_clamps_to_horizon_for_both_geometry_models() {
         AirglowGeometryModel::VerticalProfile(synthetic_vertical_profile()),
     ] {
         let evaluate = |altitude| {
-            super::continuum::evaluate_continuum_with_time_bin(
+            super::continuum::evaluate_continuum_with_night_phase(
                 &continuum,
                 t("2023-09-04T04:00:00Z"),
                 Degrees::new(altitude),
@@ -278,7 +282,7 @@ fn below_horizon_contract_clamps_to_horizon_for_both_geometry_models() {
                     solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
                     user_scale: crate::ScaleFactors::new(1.0),
                 },
-                1,
+                AirglowNightPhase::FirstThird,
             )
             .unwrap()
         };
@@ -292,23 +296,41 @@ fn below_horizon_contract_clamps_to_horizon_for_both_geometry_models() {
 }
 
 #[test]
-fn time_of_night_bins_follow_cta_s_astronomical_night_phase() {
+fn night_phases_follow_cta_s_astronomical_night_phase() {
     let location = cta_s();
     let seed = t("2023-09-04T04:00:00Z");
 
-    assert_eq!(bin_at_phase(seed, location, 1.0 / 6.0), Some(1));
-    assert_eq!(bin_at_phase(seed, location, 0.5), Some(2));
-    assert_eq!(bin_at_phase(seed, location, 5.0 / 6.0), Some(3));
+    assert_eq!(
+        phase_at(seed, location, 1.0 / 6.0),
+        Some(AirglowNightPhase::FirstThird)
+    );
+    assert_eq!(
+        phase_at(seed, location, 0.5),
+        Some(AirglowNightPhase::MiddleThird)
+    );
+    assert_eq!(
+        phase_at(seed, location, 5.0 / 6.0),
+        Some(AirglowNightPhase::LastThird)
+    );
 }
 
 #[test]
-fn time_of_night_bins_follow_cta_n_astronomical_night_phase() {
+fn night_phases_follow_cta_n_astronomical_night_phase() {
     let location = cta_n();
     let seed = t("2023-09-04T02:00:00Z");
 
-    assert_eq!(bin_at_phase(seed, location, 1.0 / 6.0), Some(1));
-    assert_eq!(bin_at_phase(seed, location, 0.5), Some(2));
-    assert_eq!(bin_at_phase(seed, location, 5.0 / 6.0), Some(3));
+    assert_eq!(
+        phase_at(seed, location, 1.0 / 6.0),
+        Some(AirglowNightPhase::FirstThird)
+    );
+    assert_eq!(
+        phase_at(seed, location, 0.5),
+        Some(AirglowNightPhase::MiddleThird)
+    );
+    assert_eq!(
+        phase_at(seed, location, 5.0 / 6.0),
+        Some(AirglowNightPhase::LastThird)
+    );
 }
 
 #[test]
@@ -332,28 +354,22 @@ fn twilight_edges_are_outside_airglow_calibration_domain() {
         night.end.raw().value() + one_minute_days,
     ));
 
+    assert_eq!(super::temporal::night_phase_for_test(before_dusk, location), None);
     assert_eq!(
-        super::temporal::time_of_night_bin_for_test(before_dusk, location),
-        None
+        super::temporal::night_phase_for_test(after_dusk, location),
+        Some(AirglowNightPhase::FirstThird)
     );
     assert_eq!(
-        super::temporal::time_of_night_bin_for_test(after_dusk, location),
-        Some(1)
+        super::temporal::night_phase_for_test(before_dawn, location),
+        Some(AirglowNightPhase::LastThird)
     );
-    assert_eq!(
-        super::temporal::time_of_night_bin_for_test(before_dawn, location),
-        Some(3)
-    );
-    assert_eq!(
-        super::temporal::time_of_night_bin_for_test(after_dawn, location),
-        None
-    );
+    assert_eq!(super::temporal::night_phase_for_test(after_dawn, location), None);
 }
 
 #[test]
-fn polar_summer_without_astronomical_night_has_no_time_bin() {
+fn polar_summer_without_astronomical_night_has_no_phase() {
     assert_eq!(
-        super::temporal::time_of_night_bin_for_test(t("2023-06-21T12:00:00Z"), high_arctic(78.0),),
+        super::temporal::night_phase_for_test(t("2023-06-21T12:00:00Z"), high_arctic(78.0)),
         None
     );
 }
@@ -376,7 +392,10 @@ fn polar_winter_astronomical_night_preserves_airglow() {
     let location = high_arctic(89.0);
     let time = t("2023-12-21T12:00:00Z");
 
-    assert!(super::temporal::time_of_night_bin_for_test(time, location).is_some());
+    assert_eq!(
+        super::temporal::night_phase_for_test(time, location),
+        Some(AirglowNightPhase::FullNight)
+    );
 
     let continuum = load_builtin_standard().unwrap();
     let out = super::continuum::evaluate_continuum(
@@ -427,8 +446,7 @@ fn invalid_altitude_returns_zero_stable_result() {
 #[test]
 fn default_solar_radio_flux_is_neutral() {
     let continuum = load_builtin_standard().unwrap();
-    let correction = continuum.solar_activity_const
-        + continuum.solar_activity_slope * DEFAULT_SOLAR_RADIO_FLUX.value();
+    let correction = continuum.solar_activity_correction(DEFAULT_SOLAR_RADIO_FLUX.value());
     assert!((correction - 1.0).abs() < 1e-12);
 }
 
@@ -516,8 +534,11 @@ fn spectral_extinction_differs_from_unextincted_baseline_integral() {
     let atmosphere = AtmosphericConditions::cta_s_clear_sky();
     let zenith = Degrees::new(60.0);
     let spectral = super::continuum::integrate_attenuated_continuum(&continuum, zenith, atmosphere);
+    let baseline = continuum
+        .spectrum()
+        .integrate_range(Nanometers::new(300.0), Nanometers::new(650.0));
     assert!(
-        spectral.integrated_relative < continuum.integrated_relative_300_650,
+        spectral.integrated_relative < baseline,
         "60° zenith scattering should reduce the spectrally integrated continuum"
     );
 }
