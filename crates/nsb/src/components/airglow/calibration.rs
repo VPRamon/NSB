@@ -463,9 +463,9 @@ fn parse_one_float(row: &str, label: &'static str) -> Result<f64> {
 fn parse_floats(row: &str, label: &'static str) -> Result<Vec<f64>> {
     row.split_whitespace()
         .map(|value| {
-            value.parse::<f64>().map_err(|_| {
-                data_error(format!("bad numeric value in {label}: {value:?}"))
-            })
+            value
+                .parse::<f64>()
+                .map_err(|_| data_error(format!("bad numeric value in {label}: {value:?}")))
         })
         .collect()
 }
@@ -665,7 +665,11 @@ mod tests {
 
     #[test]
     fn parser_rejects_premature_eof_and_non_finite_numeric_values() {
-        let truncated = RAW.rsplit_once('\n').expect("fixture newline").0;
+        let truncated = RAW
+            .trim_end()
+            .rsplit_once('\n')
+            .expect("fixture has multiple rows")
+            .0;
         let error = truncated
             .parse::<AirglowContinuum>()
             .expect_err("truncated calibration must fail");
