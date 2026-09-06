@@ -68,10 +68,22 @@ fn scientific_profile_is_machine_readable_and_uses_site_maturity_as_source_of_tr
     assert_eq!(south.site_profile(), Some(SiteProfileId::CtaSouth));
     assert_eq!(custom.site_profile(), None);
 
-    assert_eq!(generic.calibration_status(), CalibrationStatus::GenericFallback);
-    assert_eq!(north.calibration_status(), CalibrationStatus::PlanningPreset);
-    assert_eq!(south.calibration_status(), CalibrationStatus::PlanningPreset);
-    assert_eq!(custom.calibration_status(), CalibrationStatus::GenericFallback);
+    assert_eq!(
+        generic.calibration_status(),
+        CalibrationStatus::GenericFallback
+    );
+    assert_eq!(
+        north.calibration_status(),
+        CalibrationStatus::PlanningPreset
+    );
+    assert_eq!(
+        south.calibration_status(),
+        CalibrationStatus::PlanningPreset
+    );
+    assert_eq!(
+        custom.calibration_status(),
+        CalibrationStatus::GenericFallback
+    );
     assert!(!generic.is_site_calibrated());
     assert!(!north.is_site_calibrated());
     assert!(!south.is_site_calibrated());
@@ -102,7 +114,10 @@ fn arbitrary_location_and_paranal_are_generic_without_explicit_profile_selection
             model.scientific_profile(),
             AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky)
         );
-        assert_eq!(model.calibration_status(), CalibrationStatus::GenericFallback);
+        assert_eq!(
+            model.calibration_status(),
+            CalibrationStatus::GenericFallback
+        );
         assert!(!model.is_site_calibrated());
     }
 
@@ -122,9 +137,15 @@ fn explicit_ctao_profiles_remain_planning_presets_at_any_observer_location() {
             model.scientific_profile(),
             AirglowScientificProfile::BuiltIn(profile)
         );
-        assert_eq!(model.calibration_status(), CalibrationStatus::PlanningPreset);
+        assert_eq!(
+            model.calibration_status(),
+            CalibrationStatus::PlanningPreset
+        );
         assert!(!model.is_site_calibrated());
-        assert_eq!(profile.calibration_status(), CalibrationStatus::PlanningPreset);
+        assert_eq!(
+            profile.calibration_status(),
+            CalibrationStatus::PlanningPreset
+        );
         assert!(!profile.is_site_calibrated());
     }
 
@@ -142,9 +163,8 @@ fn direct_airglow_operational_builders_cannot_upgrade_maturity() {
     let model = Airglow::standard_clear_sky(location).unwrap();
     assert_eq!(model.calibration_status(), expected);
 
-    let geometry = AirglowGeometryModel::VanRhijn(
-        VanRhijnConfig::new(Kilometers::new(105.0)).unwrap(),
-    );
+    let geometry =
+        AirglowGeometryModel::VanRhijn(VanRhijnConfig::new(Kilometers::new(105.0)).unwrap());
     let model = model.with_geometry(geometry);
     assert_eq!(model.calibration_status(), expected);
 
@@ -190,9 +210,11 @@ fn model_config_maturity_is_invariant_under_f107_geometry_and_observer_changes()
         CalibrationStatus::GenericFallback
     );
 
-    let changed_geometry = generic.clone().with_airglow_geometry(
-        AirglowGeometryModel::VanRhijn(VanRhijnConfig::new(Kilometers::new(110.0)).unwrap()),
-    );
+    let changed_geometry = generic
+        .clone()
+        .with_airglow_geometry(AirglowGeometryModel::VanRhijn(
+            VanRhijnConfig::new(Kilometers::new(110.0)).unwrap(),
+        ));
     assert_eq!(
         changed_geometry.airglow_calibration_status(),
         CalibrationStatus::GenericFallback
@@ -227,12 +249,8 @@ fn explicit_planning_config_and_result_metadata_agree_without_calibration_promot
         let evaluator = NsbEvaluator::with_config(config).unwrap();
         let result = evaluator
             .evaluate(
-                &PointQuery::new(
-                    paranal(),
-                    parse_obstime("2023-09-04 01:48:00"),
-                    target(),
-                )
-                .with_components(ComponentMask::AIRGLOW),
+                &PointQuery::new(paranal(), parse_obstime("2023-09-04 01:48:00"), target())
+                    .with_components(ComponentMask::AIRGLOW),
             )
             .unwrap();
         let airglow = result
@@ -245,7 +263,10 @@ fn explicit_planning_config_and_result_metadata_agree_without_calibration_promot
             ComponentCalibrationStatus::PlanningPreset
         );
         assert!(airglow.metadata.provenance.contains("Paranal-derived"));
-        assert!(airglow.metadata.provenance.contains("site_calibrated false"));
+        assert!(airglow
+            .metadata
+            .provenance
+            .contains("site_calibrated false"));
         assert!(airglow
             .metadata
             .validated_domain
