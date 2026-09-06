@@ -528,14 +528,10 @@ fn airglow_night_phase(
     prepared: &PreparedThresholdQuery,
     time: ModifiedJulianDate,
 ) -> Option<airglow::AirglowNightPhase> {
-    let phase = airglow::temporal::night_phase_from_nights(
-        time,
-        &prepared.astronomical_night_periods,
-    );
-    let precomputed_phase = airglow::temporal::night_phase_from_phase_periods(
-        time,
-        &prepared.airglow_phase_periods,
-    );
+    let phase =
+        airglow::temporal::night_phase_from_nights(time, &prepared.astronomical_night_periods);
+    let precomputed_phase =
+        airglow::temporal::night_phase_from_phase_periods(time, &prepared.airglow_phase_periods);
     if let (Some(phase), Some(precomputed_phase)) = (phase, precomputed_phase) {
         debug_assert_eq!(phase, precomputed_phase);
     }
