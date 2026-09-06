@@ -12,6 +12,26 @@ height_m = 800.0
 reference_pressure_hpa = 920.0
 "#;
 
+fn explicit_coordinate_args<'a>(lon: &'a str, lat: &'a str, height: &'a str) -> Vec<&'a str> {
+    vec![
+        "point",
+        "--time",
+        "2026-06-18T23:00:00Z",
+        "--lon",
+        lon,
+        "--lat",
+        lat,
+        "--height",
+        height,
+        "--ra",
+        "83",
+        "--dec",
+        "22",
+        "--components",
+        "zodiacal",
+    ]
+}
+
 #[test]
 fn external_catalog_replaces_bundled_scope_and_selects_unknown_site() {
     let directory = tempdir().unwrap();
@@ -30,6 +50,21 @@ fn external_catalog_replaces_bundled_scope_and_selects_unknown_site() {
     .stdout(predicate::str::contains("Fictional Test Observatory"))
     .stdout(predicate::str::contains("El Paranal Observatory").not())
     .stdout(predicate::str::contains("CTAO South").not());
+
+    let mut show_missing_builtin = Command::cargo_bin("nsb").unwrap();
+    show_missing_builtin
+        .args([
+            "sites",
+            "--observatory-catalog",
+            path.to_str().unwrap(),
+            "show",
+            "PARANAL",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "unknown observatory name or alias",
+        ));
 
     let mut point = Command::cargo_bin("nsb").unwrap();
     point
@@ -100,38 +135,45 @@ fn malformed_missing_and_duplicate_catalogs_report_useful_errors() {
 }
 
 #[test]
-fn explicit_coordinates_are_validated() {
-    let base = [
-        "point",
-        "--time",
-        "2026-06-18T23:00:00Z",
-        "--lon",
-        "10",
-        "--lat",
-        "20",
-        "--height",
-        "30",
-        "--ra",
-        "83",
-        "--dec",
-        "22",
-        "--components",
-        "zodiacal",
-    ];
-    Command::cargo_bin("nsb")
-        .unwrap()
-        .args(base)
-        .assert()
-        .success();
+fn explicit_coordinate_boundaries_are_valid() {
+    for (lon, lat, height) in [
+        ("10", "20", "30"),
+        ("-180", "-90", "-500"),
+        ("180", "90", "10000"),
+    ] {
+        Command::cargo_bin("nsb")
+            .unwrap()
+            .args(explicit_coordinate_args(lon, lat, height))
+            .assert()
+            .success();
+    }
+}
 
-    let mut invalid = base;
-    invalid[4] = "181";
-    Command::cargo_bin("nsb")
-        .unwrap()
-        .args(invalid)
-        .assert()
-        .failure()
-        .stderr(predicate::str::contains("--lon must be finite"));
+#[test]
+fn explicit_coordinates_reject_each_invalid_dimension() {
+    let cases = [
+        ("-180.0001", "20", "30", "--lon must be finite"),
+        ("180.0001", "20", "30", "--lon must be finite"),
+        ("NaN", "20", "30", "--lon must be finite"),
+        ("inf", "20", "30", "--lon must be finite"),
+        ("10", "-90.0001", "30", "--lat must be finite"),
+        ("10", "90.0001", "30", "--lat must be finite"),
+        ("10", "NaN", "30", "--lat must be finite"),
+        ("10", "inf", "30", "--lat must be finite"),
+        ("10", "20", "-500.0001", "--height must be finite"),
+        ("10", "20", "10000.0001", "--height must be finite"),
+        ("10", "20", "NaN", "--height must be finite"),
+        ("10", "20", "inf", "--height must be finite"),
+    ];
+
+    for (lon, lat, height, expected_error) in cases {
+        Command::cargo_bin("nsb")
+            .unwrap()
+            .args(explicit_coordinate_args(lon, lat, height))
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains(expected_error));
+    }
 }
 
 #[test]
