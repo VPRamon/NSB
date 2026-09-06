@@ -23,14 +23,15 @@ The workspace contains three crates:
 
 ## Point evaluation
 
-Evaluate the sky background at one UTC instant:
+Evaluate the sky background at one UTC instant for CTAO South with the CTAO
+South planning profile:
 
 ```bash
 cargo run --locked -p nsb-cli -- \
   --format table \
   point \
   --time 2026-06-18T23:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -40,16 +41,18 @@ cargo run --locked -p nsb-cli -- \
 Global options such as `--format`, `--log-level`, and `-v` must appear before the
 subcommand. Available output formats are `table`, `json`, and `csv`.
 
-Use explicit geodetic coordinates instead of a named site when required:
+Use explicit geodetic coordinates instead of a named site when required. This
+example is deliberately an arbitrary location, not an alias for CTAO-S or
+Paranal:
 
 ```bash
 cargo run --locked -p nsb-cli -- \
   --format json \
   point \
   --time 2026-06-18T23:00:00Z \
-  --lon -70.406944 \
-  --lat -24.627222 \
-  --height 2100 \
+  --lon 12.5 \
+  --lat 41.9 \
+  --height 800 \
   --ra 83.6331 \
   --dec 22.0145
 ```
@@ -59,7 +62,7 @@ ellipsoidal height in metres.
 
 ## Window search
 
-Find periods below a maximum NSB radiance:
+Find periods below a maximum NSB radiance for CTAO South:
 
 ```bash
 cargo run --locked -p nsb-cli -- \
@@ -67,7 +70,7 @@ cargo run --locked -p nsb-cli -- \
   window \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -88,12 +91,19 @@ disabled explicitly.
 cargo run --locked -p nsb-cli -- sites list
 cargo run --locked -p nsb-cli -- sites show PARANAL
 cargo run --locked -p nsb-cli -- sites show CTAO-N
+cargo run --locked -p nsb-cli -- sites show CTAO-S
 ```
 
 Named locations come from the composed catalog: Siderust builtins plus NSB's
 bundled `[[observatory]]` extensions. Aliases are CLI conveniences only. Every
 observatory uses the generic clear-sky profile unless `--site-profile` selects
-another NSB planning profile explicitly.
+another NSB planning profile explicitly. CTAO-N is distinct from ORM, and
+CTAO-S is distinct from Paranal.
+
+Location and scientific profile are deliberately independent. For example,
+`--site PARANAL --site-profile cta-south` is technically valid when explicitly
+studying CTAO-S planning assumptions at Paranal geometry; it does **not** mean
+that Paranal and CTAO-S are the same observatory.
 
 ## Select components and model options
 
