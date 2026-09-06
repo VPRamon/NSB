@@ -17,6 +17,13 @@ It also inspects whether any **implicit Paranal/CTAO/whitelist site dependence**
 > observer altitude. This API change does not alter this audit's maturity verdict
 > or turn any generic/planning result into a site calibration. See the
 > [current runtime guide](../README.md).
+>
+> Post-audit note (#147): Airglow calibration and temporal domains are now
+> valid-by-construction. Runtime code carries semantic `AirglowNightPhase` and
+> `AirglowSeason` values, and validated correction tables have fixed `4 × 7`
+> shape. The intentional unbounded-night fallback is represented explicitly as
+> `AirglowNightPhase::FullNight`; malformed correction structure can no longer
+> fall through to a neutral `1.0` correction.
 
 ## Scope (default pipeline)
 Default Airglow computation is the path used by:
@@ -64,52 +71,52 @@ Input:
 **Origin**: `crates/nsb/src/components/airglow/geometry.rs::target_altitude`  
 
 1.2. `zenith = (90.0 - altitude).clamp(0.0, 90.0)`  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_time_bin`  
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_night_phase`  
 
 1.3. Altitude acceptance / failure mode  
 If altitude is non-finite or `altitude <= -90.0`, Airglow returns zero outputs for the query.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_time_bin` checks `!alt.is_finite() || alt <= -90.0`.
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_night_phase` checks `!alt.is_finite() || alt <= -90.0`.
 
 ### 2) Baseline continuum (Paranal-derived empirical template)
 2.1. The built-in baseline continuum is loaded once per evaluator.  
 **Origin**: `crates/nsb/src/evaluator/core.rs::NsbEvaluator::with_config` loads `airglow::load_builtin_standard()`.
 
 2.2. `AirglowContinuum` is populated from the bundled file `crates/nsb/data/airglow_cont.dat`.  
-**Origin**: `crates/nsb/src/components/airglow/calibration.rs::load_builtin_standard` parses `include_str!("../../../data/airglow_cont.dat")`.
+**Origin**: `crates/nsb/src/components/airglow/calibration.rs::load_builtin_standard` sends `include_str!("../../../data/airglow_cont.dat")` through the same parser and validation boundary used by `AirglowContinuum::from_str`.
 
 2.3. Built-in continuum byte integrity is compile-time pinned; scientific provenance is registry-derived.  
 **Origin**:
-- `siderust::assert_data_checksum!` pins embedded bytes to SHA-256 `d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f`
+- the build-time scientific asset validation pins the embedded bytes to the manifest SHA-256 `d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f`
 - `assets::bundled_asset("airglow_cont.dat")` supplies schema/source/license/generator/calibration_status for metadata
 
 ### 3) Seasonal correction
-3.1. `season_bin = season_bin(time, location)`  
-**Origin**: `crates/nsb/src/components/airglow/temporal.rs::season_bin`.
+3.1. `season = season(time, location)` returns an `AirglowSeason`.  
+**Origin**: `crates/nsb/src/components/airglow/temporal.rs::season`.
 
 3.2. Local-solar-month logic is computed from longitude.  
 **Origin**: `temporal.rs::local_solar_datetime`, which computes:
 - `offset_seconds = (location.lon.value() / 15.0 * 3600.0).round() as i64`
 - and then `dt + offset_seconds`, where `dt` is derived from `time.to_chrono()`.
 
-3.3. Monthly mapping to 6 “double-month” seasons.  
-**Origin**: `temporal.rs::season_bin` match:
-- `12 | 1 => 1`
-- `2 | 3 => 2`
-- `4 | 5 => 3`
-- `6 | 7 => 4`
-- `8 | 9 => 5`
-- `10 | 11 => 6`
+3.3. Monthly mapping to the six named “double-month” seasons.  
+**Origin**: `temporal.rs::season` match:
+- December / January → `AirglowSeason::DecJan`
+- February / March → `AirglowSeason::FebMar`
+- April / May → `AirglowSeason::AprMay`
+- June / July → `AirglowSeason::JunJul`
+- August / September → `AirglowSeason::AugSep`
+- October / November → `AirglowSeason::OctNov`
 
-3.4. Seasonal correction term is read from the baseline matrix.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_time_bin`:
-`continuum.mean_corrections[time_bin][season_bin]`, with fallback `1.0` if missing.
+`AirglowSeason::FullYear` is the explicit aggregate fallback when the UTC instant cannot be represented by `chrono`; it is not a structural table-lookup fallback.
+
+3.4. Seasonal correction is a typed, infallible lookup in the validated calibration table.  
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_night_phase` calls `continuum.mean_correction(phase, season)`. `CorrectionTable` is validated once as a fixed `4 × 7` table, so no runtime bounds fallback is possible.
 
 These seasonal/TON matrices are **inherited from the Paranal-trained continuum model**, not independently re-derived for the caller site.
 
 ### 4) Time-of-night correction
 4.1. Airglow is only evaluated inside an “astronomical night” interval.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum` uses:
-- `time_of_night_bin(time, location)` and returns zero if it is `None`.
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum` uses `night_phase(time, location)` and returns zero if it is `None`.
 
 4.2. Astronomical-night classification uses hard-coded solar-altitude threshold -18°.  
 **Origin**: `crates/nsb/src/components/airglow/temporal.rs::ASTRONOMICAL_TWILIGHT` and
@@ -121,17 +128,15 @@ These seasonal/TON matrices are **inherited from the Paranal-trained continuum m
 - `MAX_NIGHT_SEARCH_RADIUS = 200.0 days`
 - `NIGHT_SEARCH_EXPANSION_FACTOR = 4.0`
 
-4.4. Mapping within a classified astronomical night uses 3 equal phases.  
-**Origin**: `temporal.rs::airglow_phase_periods_for_window` splits `night.period` into thirds,
-and `temporal.rs::time_of_night_bin_from_night` maps:
-- `[0, 1/3) => 1`
-- `[1/3, 2/3) => 2`
-- `[2/3, 1] => 3`
+4.4. Mapping within a classified astronomical night uses 3 equal semantic phases.  
+**Origin**: `temporal.rs::airglow_phase_periods_for_window` splits `night.period` into thirds, and `temporal.rs::night_phase_from_night` maps:
+- `[0, 1/3)` → `AirglowNightPhase::FirstThird`
+- `[1/3, 2/3)` → `AirglowNightPhase::MiddleThird`
+- `[2/3, 1]` → `AirglowNightPhase::LastThird`
 
-4.5. Phase unbounded fallback uses “row 0 full-night correction”.  
-If the night is found but its phase is not bounded, `time_bin = 0`.  
-**Origin**: `temporal.rs::airglow_phase_periods_for_window` and
-`temporal.rs::time_of_night_bin_from_night` returns `Some(0)` when `!night.phase_bounded`.
+4.5. A phase-unbounded astronomical night uses the explicit full-night calibration semantics.  
+If the night is found but its phase is not bounded, the temporal model returns `AirglowNightPhase::FullNight`.  
+**Origin**: `temporal.rs::airglow_phase_periods_for_window` and `temporal.rs::night_phase_from_night`.
 
 ### 5) Solar/F10.7 correction
 5.1. Default solar radio flux (F10.7) is “neutralizing” for the bundled slope+const.  
@@ -140,30 +145,24 @@ If the night is found but its phase is not bounded, `time_bin = 0`.
 
 5.2. Solar-radio-flux validation and failure mode.  
 If solar flux is non-finite or `<= 0`, Airglow returns zero.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::is_valid_solar_flux` called from
-`evaluate_continuum_with_time_bin`.
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_night_phase` calls `is_valid_solar_flux`.
 
 5.3. Solar correction is linear in solar radio flux.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_time_bin`:
-`solar_corr = continuum.solar_activity_const + continuum.solar_activity_slope * solar_radio_flux`.
+**Origin**: `crates/nsb/src/components/airglow/calibration.rs::AirglowContinuum::solar_activity_correction`, which evaluates the validated intercept + slope × solar-radio-flux expression.
 
-5.4. Coefficients are parsed from the bundled baseline file.  
-**Origin**: `crates/nsb/src/components/airglow/calibration.rs::load_builtin_standard` parses:
-- `solar_activity_const`
-- `solar_activity_slope`
+5.4. Coefficients are parsed from the bundled baseline file and validated as finite before `AirglowContinuum` can exist.  
+**Origin**: `crates/nsb/src/components/airglow/calibration.rs` parses and validates `solar_activity_const` and `solar_activity_slope`.
 
 These coefficients are part of the Paranal-trained continuum model (Noll/SkyCalc lineage).
 
 ### 6) Van Rhijn viewing-geometry correction (not atmospheric extinction)
-6.1. The code computes Van Rhijn geometry from zenith angle and baseline emission height.  
-**Origin**: `crates/nsb/src/components/airglow/continuum.rs::evaluate_continuum_with_time_bin`:
-`van_rhijn_factor(Degrees::new(zenith).to::<Radian>(), continuum.emission_height_km)`.
+6.1. The default geometry uses the validated baseline emission height to construct the Van Rhijn model.  
+**Origin**: `crates/nsb/src/components/airglow/model.rs::with_shared_continuum` constructs `VanRhijnConfig::from_continuum_height(continuum.emission_height_km())`; the selected geometry supplies the scalar LOS factor during evaluation.
 
 **Van Rhijn is a LOS / emitting-layer geometric path-length correction.** It is **not** atmospheric extinction (Rayleigh/Mie/molecular absorption).
 
-6.2. Emission height is taken directly from the bundled baseline file.  
-**Origin**: `crates/nsb/src/components/airglow/calibration.rs::load_builtin_standard`:
-`emission_height_km` parsed from the `height` block (label: “height (typical altitude of emission [km])”).
+6.2. Emission height is taken directly from the bundled baseline file and must be finite and greater than zero before calibration construction succeeds.  
+**Origin**: `crates/nsb/src/components/airglow/calibration.rs` parsing/validation of the `height` block (label: “height (typical altitude of emission [km])”).
 
 Alternative vertical-emission geometry is tracked by #110 and is out of scope here.
 
@@ -184,7 +183,7 @@ Molecular atmospheric absorption from the full ASM/SkyCalc pipeline is still not
 reproduced (see § Remaining ASM gaps).
 
 7.2. `user_scale` and `profile.atmosphere` are set from the active site profile.  
-**Origin**: `crates/nsb/src/evaluator/core.rs::evaluate_airglow` calls:
+**Origin**: `crates/nsb/src/evaluator/core.rs` Airglow evaluation calls:
 `Airglow::with_shared_continuum(...).with_atmosphere(profile.atmosphere).with_scale(profile.airglow.scale)`
 
 7.3. Bundled Airglow profile scale provenance and calibration maturity are site-profile metadata.  
@@ -200,8 +199,7 @@ reproduced (see § Remaining ASM gaps).
 
 ### 8) Spectral + integrated 300–650 nm results
 8.1. Wavelength integration domain is hard-coded to 300–650 nm.  
-**Origin**: `crates/nsb/src/components/airglow/calibration.rs::WL_LOW_NM` and `WL_HIGH_NM`,
-used to compute `integrated_relative_300_650`.
+**Origin**: `crates/nsb/src/components/airglow/continuum.rs::{WL_LOW,WL_HIGH}` used by `integrate_attenuated_continuum`.
 
 8.2. Central diagnostic “B” and “V” wavelengths are hard-coded (445 and 551 nm).  
 **Origin**: `crates/nsb/src/components/airglow/continuum.rs::{B_FILTER,V_FILTER}`.
@@ -236,43 +234,43 @@ The following list enumerates every scientific/default assumption used in the de
 | # | Assumption / default input | Category | Exact origin |
 |---|------------------------------|----------|---------------|
 | 1 | Observer location `lon/lat/height` | (1) | caller `NsbEvaluator::evaluate` → `PointQuery.observer` → `airglow::Airglow` uses `self.location` |
-| 2 | Observer longitude drives `season_bin` | (1) | `temporal.rs::local_solar_datetime` uses `location.lon` |
+| 2 | Observer longitude drives `AirglowSeason` | (1) | `temporal.rs::local_solar_datetime` uses `location.lon` |
 | 3 | Observer location drives astronomical-night interval | (1) | `temporal.rs::astronomical_night_containing` uses `SunBody::below_threshold(&location, ...)` |
 | 4 | Caller time `Time<UTC>` | (1) | `NsbEvaluator::evaluate` → `PointQuery.time` → `Airglow::compute` |
 | 5 | Caller target direction `ra/dec` | (1) | `PointQuery.target` → `target_altitude(...)` |
 | 6 | Altitude `target_altitude` | (1) | `geometry.rs::target_altitude` |
-| 7 | Zenith angle is computed by clamped `90-altitude` | (1) | `continuum.rs::evaluate_continuum_with_time_bin` |
-| 8 | Altitude hard acceptance threshold `altitude <= -90` | (4) | `continuum.rs::evaluate_continuum_with_time_bin` check |
+| 7 | Zenith angle is computed by clamped `90-altitude` | (1) | `continuum.rs::evaluate_continuum_with_night_phase` |
+| 8 | Altitude hard acceptance threshold `altitude <= -90` | (4) | `continuum.rs::evaluate_continuum_with_night_phase` check |
 | 9 | Solar-flux default value (neutralizing F10.7) | (4) | `components/airglow/units.rs::DEFAULT_SOLAR_RADIO_FLUX` (date-aware resolver: #109) |
-| 10 | Solar-flux positivity requirement | (4) | `components/airglow/continuum.rs::is_valid_solar_flux` |
-| 11 | Solar-correction linear form | (2) | `continuum.rs` uses `solar_activity_const/slope` from Paranal-trained baseline |
-| 12 | Solar-correction intercept/coefficients | (2) | `calibration.rs::load_builtin_standard` parses solar constants from `airglow_cont.dat` |
+| 10 | Solar-flux positivity requirement | (4) | `components/airglow/units.rs::is_valid_solar_flux` |
+| 11 | Solar-correction linear form | (2) | `AirglowContinuum::solar_activity_correction` uses validated intercept/slope from Paranal-trained baseline |
+| 12 | Solar-correction intercept/coefficients | (2) | `calibration.rs` parses and validates solar constants from `airglow_cont.dat` |
 | 13 | Bundled continuum `global_scale` (~79.829) | (2) | Paranal-trained scale block in `airglow_cont.dat` |
 | 14 | Bundled emission height for Van Rhijn | (2) | height block in `airglow_cont.dat` (typical 90 km) |
-| 15 | Van Rhijn geometry factor (LOS / emitting-layer geometry; **not** extinction) | (4) | `siderust::atmosphere::van_rhijn_factor(...)` (alt. geometry: #110) |
+| 15 | Van Rhijn geometry factor (LOS / emitting-layer geometry; **not** extinction) | (4) | `AirglowGeometryModel::VanRhijn` / `VanRhijnConfig` (alt. geometry: #110) |
 | 16 | Astronomical twilight threshold -18° defines night domain | (2) | `temporal.rs::ASTRONOMICAL_TWILIGHT` (matches upstream model convention) |
-| 17 | Time binning splits the astronomical night into 3 equal phases | (2) | `temporal.rs::time_of_night_bin_from_night` (Paranal-trained TON structure) |
-| 18 | Unbounded-phase fallback uses `time_bin=0` full-night row | (4) | `temporal.rs::time_of_night_bin_from_night` |
-| 19 | Season binning maps months into 6 bins | (1) | `temporal.rs::season_bin` month mapping (caller longitude) |
-| 20 | Seasonal correction lookup (time_bin, season_bin matrix) | (2) | Paranal-trained `mean_corrections` in `airglow_cont.dat` |
-| 21 | Baseline uncertainty matrices | (2) | Paranal-trained `sigma_corrections` in `airglow_cont.dat` |
+| 17 | Astronomical night is split into 3 equal semantic phases | (2) | `temporal.rs::night_phase_from_night` → `FirstThird` / `MiddleThird` / `LastThird` |
+| 18 | Unbounded-phase fallback uses `AirglowNightPhase::FullNight` | (4) | `temporal.rs::night_phase_from_night` |
+| 19 | Season mapping maps months into six named `AirglowSeason` variants | (1) | `temporal.rs::season` month mapping (caller longitude) |
+| 20 | Seasonal/night-phase correction lookup | (2) | validated fixed `CorrectionTable` from Paranal-trained `mean` block in `airglow_cont.dat` |
+| 21 | Baseline uncertainty correction table | (2) | validated fixed `CorrectionTable` from Paranal-trained `sig` block in `airglow_cont.dat` |
 | 22 | Radiance scaling uses SkyCalc-native photon radiance unit | (4) | `units.rs::SkyCalcSpectralPhotonRadiance` |
-| 23 | Wavelength integration domain 300–650 nm | (4) | `calibration.rs::{WL_LOW_NM,WL_HIGH_NM}` |
+| 23 | Wavelength integration domain 300–650 nm | (4) | `continuum.rs::{WL_LOW,WL_HIGH}` |
 | 24 | Diagnostic B/V wavelengths 445/551 nm | (4) | `continuum.rs::{B_FILTER,V_FILTER}` |
-| 25 | Site/profile scale `profile.airglow.scale` is applied multiplicatively | (3) | `evaluator/core.rs::evaluate_airglow` uses `profile.airglow.scale` |
+| 25 | Site/profile scale `profile.airglow.scale` is applied multiplicatively | (3) | `evaluator/core.rs` Airglow evaluation uses `profile.airglow.scale` |
 | 26 | Built-in profiles use a neutral site scale (1.0) | (4) | `site.rs::AirglowSiteCalibration::skycalc_neutral` sets `scale: 1.0` |
 | 27 | Built-in CTAO profiles are declared `PlanningPreset`, not calibrated | (4) | `site.rs::SiteProfileId::profile` sets `CalibrationStatus::PlanningPreset` |
 | 28 | Metadata classification for Airglow component uses `SiteProfileId` mapping | (4) | `evaluator/metadata.rs::component_status_for_site_profile` |
-| 29 | Fallback seasonal correction value `unwrap_or(1.0)` | (4) | `continuum.rs::evaluate_continuum_with_time_bin` |
-| 30 | Baseline template identity/checksum from asset registry + compile-time byte pin | (2) | `manifest.toml` + `assert_data_checksum!` |
-| 31 | Time/season/solar/Van Rhijn correction model domain limited to astronomical night | (2) | `continuum.rs` returns zero if `time_of_night_bin` is `None` |
+| 29 | Correction lookup is structurally infallible after construction | (4) | `calibration.rs::CorrectionTable`; dimensions and numeric entries validated before `AirglowContinuum` construction |
+| 30 | Baseline template identity/checksum from asset registry + build-time byte validation | (2) | `manifest.toml` + generated asset metadata |
+| 31 | Time/season/solar/Van Rhijn correction model domain limited to astronomical night | (2) | `continuum.rs` returns zero if `night_phase` is `None` |
 | 33 | Baseline wavelength-resolved relative mean spectrum | (2) | Paranal/FORS1-derived relative continuum in `airglow_cont.dat` |
 | 34 | Baseline wavelength-resolved relative uncertainty spectrum | (2) | relative_sigma column in `airglow_cont.dat` |
-| 35 | Integrated relative 300–650 nm shape from baseline spectrum | (2) | `calibration.rs` trapz over 300–650 nm |
-| 36 | Integrated absolute uncertainty shape from baseline uncertainty spectrum | (2) | `calibration.rs` trapz on `|relative_sigma|` |
-| 37 | B/V relative diagnostics from baseline spectrum at 445/551 nm | (2) | `calibration.rs` linear interp |
+| 35 | Integrated relative 300–650 nm shape from baseline spectrum | (2) | `continuum.rs::integrate_attenuated_continuum` integrates validated spectrum over 300–650 nm |
+| 36 | Integrated absolute uncertainty shape from baseline uncertainty spectrum | (2) | `continuum.rs::integrate_attenuated_continuum` integrates `|relative_sigma × transmission|` |
+| 37 | B/V relative diagnostics from baseline spectrum at 445/551 nm | (2) | `continuum.rs::integrate_attenuated_continuum` linear interpolation |
 | 38 | Relative uncertainty aggregation as quadrature of level and shape | (4) | `continuum.rs` `level.hypot(shape)` |
-| 39 | Time-of-night bin uses UTC→TT conversion before phase/search | (1) | `temporal.rs::utc_time_to_tt_mjd` |
+| 39 | Night phase uses UTC→TT conversion before phase/search | (1) | `temporal.rs::utc_time_to_tt_mjd` |
 | 40 | Astronomical-night bracketing search parameters (adaptive window) | (4) | `temporal.rs` search-radius constants |
 | 41 | Exact historical upstream file/release imported into NSB | (5) | not recorded in repo; lineage known (see § Baseline continuum audit) |
 | 42 | Upstream redistribution/license terms | (5) | `manifest.toml` `license` explicitly unresolved |
@@ -365,8 +363,8 @@ No numeric UV-end uncertainty envelope is invented here beyond what the asset’
 ## Hidden site dependence audit (Paranal/CTAO whitelist risk)
 The Airglow default path uses three location-dependent computations:
 1. `target_altitude(...)` uses the caller `Observer` location and UTC time.
-2. `season_bin(...)` uses caller longitude to compute local solar date/month.
-3. `time_of_night_bin(...)` uses caller location to compute astronomical night intervals via Siderust solar-altitude events.
+2. `season(...)` uses caller longitude to compute local solar date/month and returns an `AirglowSeason`.
+3. `night_phase(...)` uses caller location to compute astronomical night intervals via Siderust solar-altitude events and returns an `AirglowNightPhase` while inside the calibration domain.
 
 The Airglow evaluation now uses `profile.atmosphere` for Noll Rayleigh/Mie
 scattering (`extinction.rs`) in addition to `profile.airglow.scale`.
@@ -409,7 +407,7 @@ Applicability domain (honest):
 | Lineage | Noll 2012 / Cerro Paranal ASM / ESO SkyCalc (§ Baseline continuum audit) |
 | Paranal origin | FORS1 Cerro Paranal derivation; established (not unresolved) |
 | Unresolved items | Exact historical import file/release; license |
-| Vars from caller location/time | altitude, season bin via longitude, astronomical night interval |
+| Vars from caller location/time | altitude, `AirglowSeason` via longitude, astronomical night / `AirglowNightPhase` |
 | Corrections inherited from Paranal-trained baseline | continuum shape, global_scale, solar coeffs, seasonal/TON matrices, emission height |
 | Arbitrary coords supported | location-as-input; regression tests for non-Paranal locations |
 | Outputs are planning/generic proxy | Option D; metadata `calibration_status` + `site_calibrated=false` |
@@ -426,12 +424,13 @@ Applicability domain (honest):
 - #110 (alternative geometry model): Subsequently implemented with explicit Van Rhijn and caller-provided vertical-profile geometry; Van Rhijn remains the default.
 - #38 (CTAO scientific calibration): Not modified; CTAO remain planning presets.
 - #114 (effective Rayleigh/Mie airglow scattering): Implemented; Van Rhijn remains separate geometry.
+- #147 (valid-by-construction calibration/domain model): Implemented with typed phase/season semantics, fixed correction-table shape, and a shared validated loading boundary.
 
 ## Recommended remediation (Phase 1 — implemented)
 1. Reclassify outcome as **Option D** with Paranal-derived generic/planning-proxy semantics.
 2. Strengthen scientific asset registry provenance (KNOWN vs UNKNOWN; FORS1/Paranal/Noll/SkyCalc).
 3. Derive runtime Airglow scientific provenance from build-generated `assets::bundled_asset()` metadata (canonical `manifest.toml` interpreted at compile time).
-4. Document Noll scattering, remaining molecular-absorption gap, and UV-end domain limitations in audit + metadata.
+4. Document Noll scattering, remaining molecular-absorption gap, UV-end domain limitations, and valid-by-construction calibration/domain semantics in audit + metadata.
 5. Preserve / refine regression tests:
    - arbitrary Earth location uses generic path (no Paranal/CTAO required)
    - CTAO planning presets remain non-calibrated in metadata
