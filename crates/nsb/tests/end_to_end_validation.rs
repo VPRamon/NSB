@@ -17,6 +17,7 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::coordinates::spherical::direction;
 use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
+use siderust::qtty::{Degrees, Meters};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Period, Time, MJD, UTC};
 
@@ -38,7 +39,15 @@ fn parse(s: &str) -> Time<UTC> {
 }
 
 fn ctao_s() -> Geodetic<ECEF> {
-    siderust::catalogs::observatories::EL_PARANAL.geodetic()
+    // `nsb` deliberately does not depend on `nsb-cli`, so this test fixture
+    // mirrors the CTAO South WGS84 record owned by the CLI catalog in #140.
+    // It exists only to validate CTAO geometry paths and is not a production
+    // observatory registry or a substitute for Siderust ObservatoryCatalog.
+    Geodetic::<ECEF>::new_raw(
+        Degrees::new(-70.31634444444444),
+        Degrees::new(-24.683427777777776),
+        Meters::new(2184.6),
+    )
 }
 
 fn sgr_a_star() -> Target {
@@ -67,6 +76,14 @@ fn expected_all_components() -> &'static [&'static str] {
     } else {
         &["zodiacal", "airglow", "moon"]
     }
+}
+
+#[test]
+fn ctao_s_geometry_fixture_is_distinct_from_paranal() {
+    assert_ne!(
+        ctao_s(),
+        siderust::catalogs::observatories::EL_PARANAL.geodetic()
+    );
 }
 
 #[test]
