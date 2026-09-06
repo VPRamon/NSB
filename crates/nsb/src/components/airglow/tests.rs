@@ -30,18 +30,21 @@ fn paranal() -> Geodetic<ECEF> {
 }
 
 fn cta_s() -> Geodetic<ECEF> {
+    // Test-only CTAO South geometry fixture. `nsb` cannot depend on `nsb-cli`,
+    // where the #140 ObservatoryCatalog extension is owned.
     Geodetic::new_raw(
-        Degrees::new(-70.406944),
-        Degrees::new(-24.627222),
-        Meters::new(2100.0),
+        Degrees::new(-70.31634444444444),
+        Degrees::new(-24.683427777777776),
+        Meters::new(2184.6),
     )
 }
 
 fn cta_n() -> Geodetic<ECEF> {
+    // Test-only CTAO North geometry fixture matching the #140 CLI catalog record.
     Geodetic::new_raw(
-        Degrees::new(-17.892),
-        Degrees::new(28.762),
-        Meters::new(2396.0),
+        Degrees::new(-17.892005),
+        Degrees::new(28.762164),
+        Meters::new(2240.2),
     )
 }
 

@@ -1,111 +1,149 @@
 use crate::cli::ObserverArgs;
 use crate::error::CliError;
-use nsb::SiteProfileId;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use siderust::catalogs::{Observatory, ObservatoryCatalog};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Degrees, Meters};
+use std::collections::BTreeMap;
+use std::path::Path;
+use std::sync::OnceLock;
 
-#[derive(Debug, Clone, Copy, Serialize)]
-pub struct SitePreset {
-    pub canonical_alias: &'static str,
-    pub display_name: &'static str,
-    pub lon_deg: f64,
-    pub lat_deg: f64,
-    pub height_m: f64,
-    pub aliases: &'static [&'static str],
+const NSB_BUNDLED_OBSERVATORIES: &str = include_str!("../../data/observatories.toml");
+
+#[derive(Debug, Deserialize)]
+struct AliasFile {
+    aliases: BTreeMap<String, String>,
 }
 
-impl SitePreset {
-    pub fn geodetic(self) -> Geodetic<ECEF> {
-        Geodetic::<ECEF>::new_raw(
-            Degrees::new(self.lon_deg),
-            Degrees::new(self.lat_deg),
-            Meters::new(self.height_m),
-        )
+/// Serialization/formatting view derived from a Siderust observatory.
+///
+/// This is not an observatory domain model: it owns no maintained scientific
+/// data and is constructed only at the output boundary.
+#[derive(Debug, Serialize)]
+pub struct ObservatoryOutput {
+    pub name: String,
+    pub longitude_deg: f64,
+    pub latitude_deg: f64,
+    pub height_m: f64,
+    pub aliases: Vec<String>,
+}
+
+impl ObservatoryOutput {
+    pub fn from_observatory(observatory: &Observatory) -> Self {
+        let geodetic = observatory.geodetic();
+        Self {
+            name: observatory.name.to_string(),
+            longitude_deg: geodetic.lon.value(),
+            latitude_deg: geodetic.lat.value(),
+            height_m: geodetic.height.value(),
+            aliases: aliases_for(&observatory.name),
+        }
     }
 }
 
-pub const SITE_PRESETS: &[SitePreset] = &[
-    SitePreset {
-        canonical_alias: "CTAO-S",
-        display_name: "CTAO South",
-        lon_deg: -70.406944,
-        lat_deg: -24.627222,
-        height_m: 2100.0,
-        aliases: &["CTAO-S", "CTA-S", "CTAO-SOUTH", "CTA-SOUTH"],
-    },
-    SitePreset {
-        canonical_alias: "CTAO-N",
-        display_name: "CTAO North / Roque de los Muchachos",
-        lon_deg: -17.8914,
-        lat_deg: 28.7619,
-        height_m: 2200.0,
-        aliases: &["CTAO-N", "CTA-N", "CTAO-NORTH", "CTA-NORTH"],
-    },
-    SitePreset {
-        canonical_alias: "PARANAL",
-        display_name: "Cerro Paranal",
-        lon_deg: -70.4044,
-        lat_deg: -24.6275,
-        height_m: 2635.0,
-        aliases: &["PARANAL", "CERRO-PARANAL", "VLT"],
-    },
-    SitePreset {
-        canonical_alias: "ROQUE-DE-LOS-MUCHACHOS",
-        display_name: "Roque de los Muchachos",
-        lon_deg: -17.8914,
-        lat_deg: 28.7619,
-        height_m: 2200.0,
-        aliases: &["ROQUE-DE-LOS-MUCHACHOS", "ORM", "LA-PALMA", "LAPALMA"],
-    },
-    SitePreset {
-        canonical_alias: "MAUNA-KEA",
-        display_name: "Mauna Kea",
-        lon_deg: -155.4681,
-        lat_deg: 19.8206,
-        height_m: 4205.0,
-        aliases: &["MAUNA-KEA", "MAUNAKEA"],
-    },
-    SitePreset {
-        canonical_alias: "LA-SILLA",
-        display_name: "La Silla Observatory",
-        lon_deg: -70.7346,
-        lat_deg: -29.2567,
-        height_m: 2400.0,
-        aliases: &["LA-SILLA", "LASILLA"],
-    },
-];
+fn alias_map() -> &'static BTreeMap<String, String> {
+    static ALIASES: OnceLock<BTreeMap<String, String>> = OnceLock::new();
+    ALIASES.get_or_init(|| {
+        toml::from_str::<AliasFile>(include_str!("../../data/observatory-aliases.toml"))
+            .expect("bundled observatory alias metadata must be valid TOML")
+            .aliases
+    })
+}
+
+/// Loads the active observatory catalog for a command.
+///
+/// Precedence policy:
+///
+/// 1. With `--observatory-catalog PATH`, the user file **replaces** the entire
+///    effective catalog for that command (neither Siderust builtins nor NSB
+///    extensions are consulted).
+/// 2. Without that flag, the effective catalog is
+///    `ObservatoryCatalog::builtin()` extended with NSB's bundled
+///    `observatories.toml`. Exact name collisions between those layers are
+///    errors; there is no silent override and no CTAO→ORM/Paranal fallback.
+pub fn load_catalog(path: Option<&Path>) -> Result<ObservatoryCatalog, CliError> {
+    match path {
+        Some(path) => ObservatoryCatalog::from_path(path)
+            .map_err(|source| CliError::ObservatoryCatalog(source.to_string())),
+        None => effective_bundled_catalog(),
+    }
+}
+
+fn effective_bundled_catalog() -> Result<ObservatoryCatalog, CliError> {
+    let mut catalog = ObservatoryCatalog::builtin();
+    let extensions = ObservatoryCatalog::from_toml(NSB_BUNDLED_OBSERVATORIES)
+        .map_err(|source| CliError::ObservatoryCatalog(source.to_string()))?;
+    catalog
+        .extend(extensions)
+        .map_err(|source| CliError::ObservatoryCatalog(source.to_string()))?;
+    Ok(catalog)
+}
 
 pub fn resolve_observer(args: &ObserverArgs) -> Result<Geodetic<ECEF>, CliError> {
     match (args.site.as_deref(), args.lon, args.lat, args.height) {
-        (Some(site), None, None, None) => resolve_site(site)
-            .map(SitePreset::geodetic)
-            .ok_or_else(|| CliError::UnknownSite(site.to_string())),
-        (None, Some(lon), Some(lat), Some(height)) => Ok(Geodetic::<ECEF>::new_raw(
-            Degrees::new(lon),
-            Degrees::new(lat),
-            Meters::new(height),
-        )),
+        (Some(site), None, None, None) => {
+            let catalog = load_catalog(args.observatory_catalog.as_deref())?;
+            resolve_site(&catalog, site)
+                .map(Observatory::geodetic)
+                .ok_or_else(|| CliError::UnknownSite(site.to_string()))
+        }
+        (None, Some(lon), Some(lat), Some(height)) => {
+            validate_coordinates(lon, lat, height)?;
+            Ok(Geodetic::<ECEF>::new_raw(
+                Degrees::new(lon),
+                Degrees::new(lat),
+                Meters::new(height),
+            ))
+        }
         _ => Err(CliError::InvalidObserver),
     }
 }
 
-pub fn resolve_site(alias: &str) -> Option<SitePreset> {
-    let normalized = normalize_alias(alias);
-    SITE_PRESETS.iter().copied().find(|site| {
-        site.aliases
-            .iter()
-            .any(|candidate| normalize_alias(candidate) == normalized)
-    })
+pub fn resolve_site<'a>(catalog: &'a ObservatoryCatalog, name: &str) -> Option<&'a Observatory> {
+    if let Some(observatory) = catalog.get(name.trim()) {
+        return Some(observatory);
+    }
+    let normalized = normalize_alias(name);
+    let catalog_name = alias_map()
+        .iter()
+        .find(|(alias, _)| normalize_alias(alias) == normalized)
+        .map(|(_, catalog_name)| catalog_name)?;
+    catalog.get(catalog_name)
 }
 
-pub fn site_profile(args: &ObserverArgs) -> SiteProfileId {
-    match args.site.as_deref().and_then(resolve_site) {
-        Some(site) if site.canonical_alias == "CTAO-N" => SiteProfileId::CtaNorth,
-        Some(site) if site.canonical_alias == "CTAO-S" => SiteProfileId::CtaSouth,
-        _ => SiteProfileId::GenericClearSky,
+pub fn catalog_output(catalog: &ObservatoryCatalog) -> Vec<ObservatoryOutput> {
+    catalog
+        .iter()
+        .map(ObservatoryOutput::from_observatory)
+        .collect()
+}
+
+fn aliases_for(name: &str) -> Vec<String> {
+    alias_map()
+        .iter()
+        .filter(|(_, catalog_name)| catalog_name.as_str() == name)
+        .map(|(alias, _)| alias.clone())
+        .collect()
+}
+
+fn validate_coordinates(lon: f64, lat: f64, height: f64) -> Result<(), CliError> {
+    if !lon.is_finite() || !(-180.0..=180.0).contains(&lon) {
+        return Err(CliError::InvalidCoordinates(
+            "--lon must be finite and in [-180, 180] degrees".into(),
+        ));
     }
+    if !lat.is_finite() || !(-90.0..=90.0).contains(&lat) {
+        return Err(CliError::InvalidCoordinates(
+            "--lat must be finite and in [-90, 90] degrees".into(),
+        ));
+    }
+    if !height.is_finite() || !(-500.0..=10_000.0).contains(&height) {
+        return Err(CliError::InvalidCoordinates(
+            "--height must be finite and in [-500, 10000] metres".into(),
+        ));
+    }
+    Ok(())
 }
 
 fn normalize_alias(alias: &str) -> String {
@@ -117,13 +155,67 @@ mod tests {
     use super::*;
 
     #[test]
-    fn resolves_ctao_s_alias() {
-        let site = resolve_site("ctao-s").expect("site");
-        assert_eq!(site.canonical_alias, "CTAO-S");
+    fn effective_catalog_includes_siderust_and_nsb_extensions() {
+        let catalog = effective_bundled_catalog().unwrap();
+        assert!(catalog.get("El Paranal Observatory").is_some());
+        assert!(catalog.get("Roque de los Muchachos Observatory").is_some());
+        assert!(catalog.get("CTAO North").is_some());
+        assert!(catalog.get("CTAO South").is_some());
+        assert!(catalog.get("H.E.S.S.").is_some());
+        assert!(catalog.get("MAGIC Telescopes").is_some());
+        assert!(catalog.get("First G-APD Cherenkov Telescope").is_some());
+        assert!(catalog.get("VERITAS").is_some());
+        assert!(catalog
+            .get("Five-hundred-meter Aperture Spherical Telescope")
+            .is_some());
+        assert!(catalog.get("Gran Telescopio Canarias").is_some());
     }
 
     #[test]
-    fn rejects_unknown_site() {
-        assert!(resolve_site("not-a-site").is_none());
+    fn bundled_alias_resolves_to_catalog_record() {
+        let catalog = effective_bundled_catalog().unwrap();
+        assert_eq!(
+            resolve_site(&catalog, "paranal").map(|site| site.name.as_ref()),
+            Some("El Paranal Observatory")
+        );
+    }
+
+    #[test]
+    fn ctao_aliases_resolve_to_distinct_records() {
+        let catalog = effective_bundled_catalog().unwrap();
+        let ctao_n = resolve_site(&catalog, "CTAO-N").unwrap();
+        let ctao_s = resolve_site(&catalog, "CTAO-S").unwrap();
+        let orm = catalog.get("Roque de los Muchachos Observatory").unwrap();
+        let paranal = catalog.get("El Paranal Observatory").unwrap();
+
+        assert_eq!(ctao_n.name.as_ref(), "CTAO North");
+        assert_eq!(ctao_s.name.as_ref(), "CTAO South");
+        assert_ne!(ctao_n.geodetic(), orm.geodetic());
+        assert_ne!(ctao_s.geodetic(), paranal.geodetic());
+        assert!((ctao_n.geodetic().lon.value() - (-17.892005)).abs() < 1.0e-12);
+        assert!((ctao_n.geodetic().lat.value() - 28.762164).abs() < 1.0e-12);
+        assert!((ctao_n.geodetic().height.value() - 2240.2).abs() < 1.0e-9);
+        assert!((ctao_s.geodetic().lon.value() - (-70.31634444444444)).abs() < 1.0e-12);
+        assert!((ctao_s.geodetic().lat.value() - (-24.683427777777776)).abs() < 1.0e-12);
+        assert!((ctao_s.geodetic().height.value() - 2184.6).abs() < 1.0e-9);
+    }
+
+    #[test]
+    fn nsb_extension_aliases_resolve() {
+        let catalog = effective_bundled_catalog().unwrap();
+        for (alias, name) in [
+            ("HESS", "H.E.S.S."),
+            ("MAGIC", "MAGIC Telescopes"),
+            ("FACT", "First G-APD Cherenkov Telescope"),
+            ("VERITAS", "VERITAS"),
+            ("FAST", "Five-hundred-meter Aperture Spherical Telescope"),
+            ("GTC", "Gran Telescopio Canarias"),
+        ] {
+            assert_eq!(
+                resolve_site(&catalog, alias).map(|site| site.name.as_ref()),
+                Some(name),
+                "alias {alias}"
+            );
+        }
     }
 }

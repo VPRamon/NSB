@@ -3,7 +3,7 @@ pub mod json;
 pub mod table;
 
 use crate::cli::OutputFormat;
-use crate::parsing::location::SitePreset;
+use crate::parsing::location::ObservatoryOutput;
 use anyhow::Result;
 use nsb::{ComponentMask, NsbComponentDescriptor, NsbModelConfig, NsbResult, Target};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
@@ -45,7 +45,7 @@ pub fn write_window(format: OutputFormat, output: &WindowOutput<'_>) -> Result<(
     }
 }
 
-pub fn write_sites(format: OutputFormat, sites: &[SitePreset]) -> Result<()> {
+pub fn write_sites(format: OutputFormat, sites: &[ObservatoryOutput]) -> Result<()> {
     match format {
         OutputFormat::Table => table::write_sites(sites),
         OutputFormat::Json => json::write_sites(sites),

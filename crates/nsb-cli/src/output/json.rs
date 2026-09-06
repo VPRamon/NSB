@@ -1,5 +1,5 @@
 use super::WindowOutput;
-use crate::parsing::location::SitePreset;
+use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
@@ -273,7 +273,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
     Ok(())
 }
 
-pub fn write_sites(sites: &[SitePreset]) -> Result<()> {
+pub fn write_sites(sites: &[ObservatoryOutput]) -> Result<()> {
     println!("{}", serde_json::to_string_pretty(sites)?);
     Ok(())
 }

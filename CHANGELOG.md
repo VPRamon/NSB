@@ -7,6 +7,11 @@ once a stable public release is cut.
 
 ### Changed
 
+- Refactored CLI observatory handling onto Siderust `ObservatoryCatalog`, with
+  NSB bundled `[[observatory]]` extensions for CTAO-N/S, H.E.S.S., MAGIC, FACT,
+  VERITAS, FAST, and GTC; separated `--site` location selection from
+  `--site-profile` scientific assumptions; and documented catalog precedence
+  for Siderust builtins, NSB extensions, and `--observatory-catalog` (#140).
 - Finalized the post-#122/#123 release coverage baseline (`baseline_kind =
   release-post-audit`) and raised the blocking `nsb` line floor to match the
   measured tree; coverage policy and developer docs supersede the provisional

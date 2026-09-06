@@ -1,5 +1,5 @@
 use super::WindowOutput;
-use crate::parsing::location::SitePreset;
+use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{
@@ -263,15 +263,20 @@ fn airglow_geometry_fields(metadata: Option<&AirglowGeometryMetadata>) -> [Strin
     ]
 }
 
-pub fn write_sites(sites: &[SitePreset]) -> Result<()> {
+pub fn write_sites(sites: &[ObservatoryOutput]) -> Result<()> {
     let mut writer = csv::Writer::from_writer(std::io::stdout());
-    writer.write_record(["alias", "name", "lon_deg", "lat_deg", "height_m", "aliases"])?;
+    writer.write_record([
+        "name",
+        "longitude_deg",
+        "latitude_deg",
+        "height_m",
+        "aliases",
+    ])?;
     for site in sites {
         writer.write_record([
-            site.canonical_alias.to_string(),
-            site.display_name.to_string(),
-            site.lon_deg.to_string(),
-            site.lat_deg.to_string(),
+            site.name.to_string(),
+            site.longitude_deg.to_string(),
+            site.latitude_deg.to_string(),
             site.height_m.to_string(),
             site.aliases.join(";"),
         ])?;

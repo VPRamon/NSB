@@ -20,7 +20,7 @@ Default CLI behavior is `warn`, so normal successful table, JSON, and CSV output
 Use an explicit level:
 
 ```sh
-nsb --log-level info point --time 2026-06-18T23:00:00Z --site CTAO-S --ra 83.0 --dec 22.0
+nsb --log-level info point --time 2026-06-18T23:00:00Z --site CTAO-S --site-profile cta-south --ra 83.0 --dec 22.0
 ```
 
 Use verbosity shorthands:

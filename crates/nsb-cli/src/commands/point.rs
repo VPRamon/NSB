@@ -35,7 +35,7 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
     let evaluator = NsbEvaluator::with_config(model_config(
         &args.model,
         selection,
-        location::site_profile(&args.observer),
+        args.model.site_profile.into(),
     )?)?;
 
     let result =

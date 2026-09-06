@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
+#
+# NSB bundled observatory extensions in Siderust's canonical [[observatory]]
+# format. These records are composed onto ObservatoryCatalog::builtin() at
+# runtime; they do not replace Siderust's generic catalog and must not redefine
+# any exact Siderust observatory name.
+#
+# A catalog entry is only an observing location (WGS84 geodetic position plus
+# reference atmosphere). NSB scientific assumptions remain a separate
+# --site-profile / SiteProfileId concern. Inclusion here does not imply a
+# site-calibrated NSB model.
+#
+# Longitude and latitude are WGS84 geodetic degrees. Height is WGS84 ellipsoidal
+# metres. Pressure is hPa. Temperature (K) and relative humidity ([0, 1]) are
+# optional.
+
+[[observatory]]
+# Array coordinates: CTAO-South site documentation (DMS → decimal degrees).
+# CTA literature reports a nominal 2150 m above-sea-level altitude. Because no
+# WGS84 ellipsoidal datum is stated, treat 2150 m as orthometric height H and
+# convert with the EGM96 15' geoid undulation N = +34.6407 m:
+# h(WGS84) = H + N = 2184.6407 m, rounded to 2184.6 m.
+# Pressure: ISA troposphere estimate at H = 2150 m ≈ 780 hPa.
+# Sources:
+#   https://www.ctao.org/emission-to-discovery/array-sites/ctao-south/
+#   https://pos.sissa.it/358/733/pdf
+name = "CTAO South"
+longitude_deg = -70.31634444444444
+latitude_deg = -24.683427777777776
+height_m = 2184.6
+reference_pressure_hpa = 780.0
+
+[[observatory]]
+# Array coordinates: CTAO-North site documentation (DMS → decimal degrees).
+# Nominal 2200 m above-sea-level altitude treated as orthometric height H and
+# converted with EGM96 15' geoid undulation N = +40.2246 m:
+# h(WGS84) = H + N = 2240.2246 m, rounded to 2240.2 m.
+# Pressure: ISA troposphere estimate at H = 2200 m ≈ 775 hPa.
+# Sources:
+#   https://www.ctao.org/emission-to-discovery/array-sites/ctao-north/
+#   https://www.ctao.org/about/locations/ctao-north/
+name = "CTAO North"
+longitude_deg = -17.892005
+latitude_deg = 28.762164
+height_m = 2240.2
+reference_pressure_hpa = 775.0
+
+[[observatory]]
+# Coordinates/height: H.E.S.S. collaboration site documentation.
+# Pressure: ISA troposphere estimate at 1800 m ≈ 815 hPa.
+# Source: https://hess-experiment.eu/
+name = "H.E.S.S."
+longitude_deg = 16.5
+latitude_deg = -23.271666666666665
+height_m = 1800.0
+reference_pressure_hpa = 815.0
+
+[[observatory]]
+# Coordinates/height: MAGIC site documentation (IAC).
+# Pressure: ISA troposphere estimate at 2231.28 m ≈ 773 hPa.
+# Source: https://www.magic.iac.es/site/
+name = "MAGIC Telescopes"
+longitude_deg = -17.89
+latitude_deg = 28.761944
+height_m = 2231.28
+reference_pressure_hpa = 773.0
+
+[[observatory]]
+# IAC describes FACT as being at the MAGIC site. Use the published MAGIC site
+# coordinate as the representative location rather than inventing sub-site
+# precision. Pressure: ISA estimate at 2200 m ≈ 775 hPa.
+# Sources:
+#   https://www.iac.es/en/observatorios-de-canarias/telescopes-and-experiments/first-g-apd-cherenkov-telescope
+#   https://www.magic.iac.es/site/
+name = "First G-APD Cherenkov Telescope"
+longitude_deg = -17.89
+latitude_deg = 28.761944
+height_m = 2200.0
+reference_pressure_hpa = 775.0
+
+[[observatory]]
+# Coordinates/height: VERITAS collaboration site documentation.
+# Pressure: ISA troposphere estimate at 1268 m ≈ 870 hPa.
+# Source: https://veritas.sao.arizona.edu/about-veritas/veritas-specifications
+name = "VERITAS"
+longitude_deg = -110.95215833333333
+latitude_deg = 31.675058333333334
+height_m = 1268.0
+reference_pressure_hpa = 870.0
+
+[[observatory]]
+# Public sources agree on the present Dawodang coordinates. Project literature
+# reports the site altitude at approximately 1000 m; height is intentionally
+# not given false sub-metre precision. Pressure: ISA estimate ≈ 899 hPa.
+# Sources:
+#   https://lssf.cas.cn/en/facilities/sa/fast/202505/t20250528_5070737.html
+#   https://science.nasa.gov/photojournal/five-hundred-meter-aperture-spherical-telescope-china/
+#   https://www.sciengine.com/doi/pdfView/c402589c5c0642c5bd2a5c8dd5b8c32d
+name = "Five-hundred-meter Aperture Spherical Telescope"
+longitude_deg = 106.856667
+latitude_deg = 25.653056
+height_m = 1000.0
+reference_pressure_hpa = 899.0
+
+[[observatory]]
+# Coordinates/height: Gran Telescopio Canarias site documentation.
+# Pressure: ISA troposphere estimate at 2300 m ≈ 767 hPa.
+# Source: https://www.gtc.iac.es/gtc/gtc.php
+name = "Gran Telescopio Canarias"
+longitude_deg = -17.891944444444444
+latitude_deg = 28.756666666666668
+height_m = 2300.0
+reference_pressure_hpa = 767.0
