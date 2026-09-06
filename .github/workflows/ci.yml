@@ -80,6 +80,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Run library and binary unit tests
         run: cargo test --workspace --lib --bins --all-features --locked
+      - name: Run all workspace targets acceptance gate
+        run: cargo test --workspace --all-targets --locked
 
   runtime_integration_tests:
     name: Runtime integration tests
