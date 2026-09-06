@@ -16,9 +16,9 @@ The CLI accepts a named alias or an explicit geodetic position.
 ```bash
 nsb point \
   --time 2026-06-18T23:00:00Z \
-  --lon -70.406944 \
-  --lat -24.627222 \
-  --height 2100 \
+  --lon -70.316344 \
+  --lat -24.683428 \
+  --height 2150 \
   --ra 83.6331 \
   --dec 22.0145
 ```
@@ -30,21 +30,31 @@ geometry is evaluated at the supplied longitude and latitude.
 This level is appropriate when you need correct observatory geometry but do not
 have a validated site-specific atmospheric or airglow calibration.
 
-## Level 2: use a built-in planning profile
+## Level 2: use a bundled named observatory
 
-The CLI currently provides named aliases for CTAO-S, CTAO-N, Paranal, Roque de
-los Muchachos, Mauna Kea, and La Silla. Inspect them with:
+The CLI ships an NSB-owned catalog at
+`crates/nsb-cli/data/observatories.toml`. It includes CTAO-S, CTAO-N, H.E.S.S.,
+MAGIC, FACT, VERITAS, FAST, GTC, Paranal, Roque de los Muchachos, Mauna Kea,
+and La Silla. Inspect the current catalog with:
 
 ```bash
 nsb sites list
 nsb sites show CTAO-S
+nsb sites show HESS
 ```
 
-CTAO-S and CTAO-N select explicit planning profiles. These profiles carry
-machine-readable provenance and assumptions, but they are not marked as
-site-calibrated.
+The bundled catalog is a location catalog, not a calibration catalog. It is kept
+in NSB so adding a facility useful to NSB does not require adding that facility
+to Siderust or waiting for a Siderust release. Siderust remains the provider of
+coordinate and quantity types used by the runtime; it is not the authority for
+which named sites NSB exposes.
 
-Rust applications can select them directly:
+CTAO-S and CTAO-N currently select explicit NSB planning profiles. These
+profiles carry machine-readable provenance and assumptions, but they are not
+marked as site-calibrated. Other bundled sites use the generic clear-sky profile
+unless the application configures another supported profile explicitly.
+
+Rust applications can select the CTAO planning assumptions directly:
 
 ```rust,no_run
 use nsb::{NsbEvaluator, NsbModelConfig};
@@ -110,22 +120,28 @@ gates. Failure is fatal; there is no bundled experimental starlight fallback.
 The complete sidecar schema is documented in
 [Validated external starlight manifest](../nsb_components/starlight/external-manifest.md).
 
-## Level 5: add a new named observatory alias
+## Level 5: add a new bundled named observatory
 
-A CLI alias is an operational convenience, not a scientific calibration. To add
-one, maintainers update `SITE_PRESETS` in
-`crates/nsb-cli/src/parsing/location.rs` with:
+A CLI site is an operational location, not a scientific calibration. To add one,
+maintainers add a `[[site]]` record to
+`crates/nsb-cli/data/observatories.toml` with:
 
 - a stable canonical alias;
 - display name;
 - east-positive longitude;
 - north-positive latitude;
-- ellipsoidal height;
-- accepted alternative aliases.
+- representative site/telescope altitude in metres;
+- accepted alternative aliases;
+- one or more HTTPS provenance sources.
 
-Add resolution tests and document whether the alias maps to a built-in planning
-profile or to `GenericClearSky`. Do not silently map a new observatory to CTAO-N
-or CTAO-S merely because its altitude or climate is similar.
+The catalog loader validates finite coordinate ranges, non-empty source
+provenance, canonical aliases, and globally unique normalized aliases. Add a CLI
+contract test for important new facilities. Do not silently map a new observatory
+to CTAO-N or CTAO-S merely because its altitude or climate is similar.
+
+Adding a named location here does **not** require adding it to Siderust's bundled
+catalog. This keeps NSB free to support facilities such as H.E.S.S., FAST, or a
+future experiment without an upstream data release.
 
 ## Level 6: add a calibrated observatory profile
 
@@ -158,8 +174,8 @@ validation, and packaging. Start with the
 
 - The CLI can generate and validate a TOML configuration template, but point and
   window commands do not yet execute directly from a `--config` file.
-- Arbitrary CLI coordinates use generic clear-sky assumptions unless a built-in
-  named profile is selected through the library or alias mapping.
+- Arbitrary CLI coordinates and bundled sites other than CTAO-N/S use generic
+  clear-sky assumptions unless a supported profile is configured separately.
 - The built-in CTAO profiles are planning presets, not calibrated products.
 - Site-specific airglow or atmospheric parameters are not currently exposed as
   arbitrary CLI flags; a validated new profile is a library and data change.
