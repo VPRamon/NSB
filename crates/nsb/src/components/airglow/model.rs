@@ -268,11 +268,7 @@ mod maturity_tests {
     use siderust::qtty::{Degrees, Meters};
 
     fn location() -> Geodetic<ECEF> {
-        Geodetic::new_raw(
-            Degrees::new(12.5),
-            Degrees::new(41.9),
-            Meters::new(800.0),
-        )
+        Geodetic::new_raw(Degrees::new(12.5), Degrees::new(41.9), Meters::new(800.0))
     }
 
     #[test]
@@ -283,7 +279,10 @@ mod maturity_tests {
             model.scientific_profile(),
             AirglowScientificProfile::UnvalidatedCustomContinuum
         );
-        assert_eq!(model.calibration_status(), CalibrationStatus::GenericFallback);
+        assert_eq!(
+            model.calibration_status(),
+            CalibrationStatus::GenericFallback
+        );
         assert!(!model.is_site_calibrated());
     }
 }

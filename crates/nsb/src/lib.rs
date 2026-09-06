@@ -65,9 +65,10 @@ mod window_search;
 pub use components::airglow::{
     Airglow, AirglowContinuum, AirglowGeometryMetadata, AirglowGeometryModel, AirglowOutputs,
     AirglowScientificProfile, AirglowWavelengthApplicability, SolarFluxUnits,
-    ValidatedZenithDomain, VanRhijnConfig, VerticalEmissionProfile, VerticalEmissionProfileDefinition,
-    VerticalEmissionProfileError, VerticalProfileNormalization, DEFAULT_SOLAR_RADIO_FLUX,
-    DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM, VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+    ValidatedZenithDomain, VanRhijnConfig, VerticalEmissionProfile,
+    VerticalEmissionProfileDefinition, VerticalEmissionProfileError, VerticalProfileNormalization,
+    DEFAULT_SOLAR_RADIO_FLUX, DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM,
+    VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
 pub use components::moonlight::{Jones2013Spectral, KrisciunasSchaefer1991, DEFAULT_K_EXT};
 pub use components::starlight::{
