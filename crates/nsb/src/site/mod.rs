@@ -1,10 +1,11 @@
 //! Named site profiles, shared atmospheric assumptions, and calibration metadata.
 //!
-//! NSB deliberately separates generic fallbacks from named site profiles. The
-//! CTAO entries below are first-class planning profiles with machine-readable
-//! provenance and calibration maturity. They are not marked as fully
-//! site-calibrated until dedicated CTAO atmospheric and airglow validation data
-//! are bundled with the crate.
+//! NSB deliberately separates observer location from scientific site profiles.
+//! A location answers where the observer is; [`SiteProfileId`] answers which NSB
+//! assumptions and evidence-backed calibration maturity are selected. The CTAO
+//! entries below are first-class planning profiles and are not promoted to
+//! calibrated status by observatory identity, coordinates, or operational model
+//! settings.
 
 /// Shared atmospheric assumptions used by site-aware NSB components.
 pub mod atmosphere;
@@ -18,17 +19,19 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Kilometer, Kilometers};
 
-/// Identifier for a built-in NSB site profile.
+/// Identifier for a built-in NSB scientific site profile.
 ///
-/// Additional named profiles may be added; match with a wildcard.
+/// This identifies assumptions and calibration maturity, not an observatory or
+/// physical location. Additional named profiles may be added; match with a
+/// wildcard.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SiteProfileId {
     /// Generic clear-sky fallback derived from the query observer altitude.
     GenericClearSky,
-    /// CTAO-North planning profile for La Palma / ORM use.
+    /// CTAO-North planning assumptions; not an observatory identity.
     CtaNorth,
-    /// CTAO-South planning profile for the Paranal/Atacama use case.
+    /// CTAO-South planning assumptions; not an observatory identity.
     CtaSouth,
 }
 
@@ -74,8 +77,10 @@ impl AirglowSiteCalibration {
                 "No CTAO-specific airglow continuum scale is bundled yet; ",
                 "the named profile records this explicitly instead of silently ",
                 "claiming a calibrated site airglow model. ",
-                "Arbitrary-location results remain planning approximations based on ",
-                "the Paranal-trained continuum, not globally calibrated predictions."
+                "Arbitrary-location and Paranal-location results remain planning ",
+                "approximations unless an explicit validated scientific profile ",
+                "is selected; provenance from Paranal is not calibration evidence ",
+                "for the observer location."
             ),
         }
     }
@@ -118,18 +123,36 @@ impl SiteProfileId {
         }
     }
 
+    /// Evidence-backed calibration maturity for this scientific profile.
+    ///
+    /// This is the single source of truth used by Airglow and evaluator metadata.
+    /// Observer coordinates and observatory identity do not participate in this
+    /// classification.
+    pub const fn calibration_status(self) -> CalibrationStatus {
+        match self {
+            Self::GenericClearSky => CalibrationStatus::GenericFallback,
+            Self::CtaNorth | Self::CtaSouth => CalibrationStatus::PlanningPreset,
+        }
+    }
+
+    /// Return true only for a dedicated validated site calibration.
+    pub const fn is_site_calibrated(self) -> bool {
+        matches!(self.calibration_status(), CalibrationStatus::Calibrated)
+    }
+
     /// Resolve this identifier to the concrete profile used for a query observer.
     ///
     /// [`SiteProfileId::GenericClearSky`] derives pressure from the supplied
     /// observer altitude. Named CTAO profiles use explicit pressure and aerosol
-    /// assumptions while still evaluating geometry at the caller-provided
-    /// observer location.
+    /// planning assumptions while still evaluating geometry at the caller-
+    /// provided observer location. Resolving a profile does not assert that the
+    /// observer is physically located at the site named by that profile.
     pub fn profile(self, observer: Geodetic<ECEF>) -> SiteProfile {
         match self {
             Self::GenericClearSky => SiteProfile {
                 id: self,
                 name: "generic-clear-sky",
-                calibration_status: CalibrationStatus::GenericFallback,
+                calibration_status: self.calibration_status(),
                 representative_altitude: observer.height.to::<Kilometer>(),
                 atmosphere: AtmosphericConditions::generic_clear_sky(observer),
                 atmosphere_provenance: concat!(
@@ -142,7 +165,7 @@ impl SiteProfileId {
             Self::CtaNorth => SiteProfile {
                 id: self,
                 name: "ctao-north-planning",
-                calibration_status: CalibrationStatus::PlanningPreset,
+                calibration_status: self.calibration_status(),
                 representative_altitude: Kilometers::new(2.2),
                 atmosphere: AtmosphericConditions::cta_n_clear_sky(),
                 atmosphere_provenance: concat!(
@@ -150,21 +173,21 @@ impl SiteProfileId {
                     "altitude, fixed planning pressure, Siderust default ",
                     "Rayleigh scale height, and bundled Paranal-like clear-sky ",
                     "Mie parameterization. This is not yet a validated CTA-N ",
-                    "aerosol calibration."
+                    "aerosol calibration and does not identify the observer as ORM."
                 ),
                 airglow: AirglowSiteCalibration::skycalc_neutral(),
             },
             Self::CtaSouth => SiteProfile {
                 id: self,
                 name: "ctao-south-planning",
-                calibration_status: CalibrationStatus::PlanningPreset,
+                calibration_status: self.calibration_status(),
                 representative_altitude: Kilometers::new(2.1),
                 atmosphere: AtmosphericConditions::cta_s_clear_sky(),
                 atmosphere_provenance: concat!(
                     "CTAO-South planning preset: Paranal-like atmosphere from ",
-                    "Siderust AtmosphereProfile::EL_PARANAL, used explicitly for ",
-                    "the Paranal/Atacama CTAO use case. This is not yet a ",
-                    "dedicated CTA-S aerosol calibration."
+                    "Siderust AtmosphereProfile::EL_PARANAL used as a planning ",
+                    "assumption. This is not yet a dedicated CTA-S aerosol ",
+                    "calibration and does not identify the observer as Paranal."
                 ),
                 airglow: AirglowSiteCalibration::skycalc_neutral(),
             },
@@ -206,8 +229,18 @@ mod tests {
 
         assert_eq!(north.calibration_status, CalibrationStatus::PlanningPreset);
         assert_eq!(south.calibration_status, CalibrationStatus::PlanningPreset);
+        assert_eq!(
+            SiteProfileId::CtaNorth.calibration_status(),
+            CalibrationStatus::PlanningPreset
+        );
+        assert_eq!(
+            SiteProfileId::CtaSouth.calibration_status(),
+            CalibrationStatus::PlanningPreset
+        );
         assert!(!north.is_site_calibrated());
         assert!(!south.is_site_calibrated());
+        assert!(!SiteProfileId::CtaNorth.is_site_calibrated());
+        assert!(!SiteProfileId::CtaSouth.is_site_calibrated());
         assert_eq!(north.airglow.scale, ScaleFactors::new(1.0));
         assert_eq!(south.airglow.scale, ScaleFactors::new(1.0));
         assert!(north.atmosphere_provenance.contains("CTAO-North"));
@@ -215,13 +248,19 @@ mod tests {
     }
 
     #[test]
-    fn generic_profile_derives_pressure_from_observer_altitude() {
+    fn generic_profile_derives_pressure_from_observer_altitude_without_calibrating() {
         let low = SiteProfileId::GenericClearSky.profile(observer(0.0));
         let high = SiteProfileId::GenericClearSky.profile(observer(2_500.0));
 
         assert_eq!(low.calibration_status, CalibrationStatus::GenericFallback);
+        assert_eq!(
+            SiteProfileId::GenericClearSky.calibration_status(),
+            CalibrationStatus::GenericFallback
+        );
+        assert!(!SiteProfileId::GenericClearSky.is_site_calibrated());
         assert!(low.atmosphere.surface_pressure > high.atmosphere.surface_pressure);
         assert_ne!(low.representative_altitude, high.representative_altitude);
+        assert_eq!(low.calibration_status, high.calibration_status);
     }
 
     #[test]

@@ -10,14 +10,65 @@ Airglow is natural optical emission from Earth's upper atmosphere. Its intensity
 varies with season, progression through the night, solar activity, viewing
 geometry, wavelength, and local conditions. NSB uses a generic empirical
 continuum baseline; it is not a line-by-line physical atmosphere simulation and
-does not claim site calibration unless the caller supplies one.
+the current runtime does not contain a validated dedicated Airglow site
+calibration.
 
 **Option D (current policy):** NSB exposes an arbitrary-location Airglow
 evaluator, but the empirical continuum is **Paranal-derived / Paranal-trained**
-(Noll/SkyCalc lineage, including FORS1 residual continuum heritage). Outside a
-dedicated site calibration it is an **explicit generic/planning proxy**. A
-geographically generic API is not a globally calibrated dataset. Geometry,
-F10.7, or extinction choices do not upgrade maturity to `Calibrated`.
+(Noll/SkyCalc lineage, including FORS1 residual continuum heritage). Without an
+explicit validated scientific profile it is an **explicit generic/planning
+proxy**, including when the observer is physically at Paranal. A geographically
+generic API is not a globally calibrated dataset, and source provenance is not
+calibration evidence for the source location. Geometry, F10.7, atmosphere,
+extinction, or an explicit scale cannot upgrade maturity to `Calibrated`.
+
+## Geographic support versus scientific calibration
+
+```text
+Observatory / coordinates
+        =
+physical observer location and geometry
+
+SiteProfileId / AirglowScientificProfile
+        =
+NSB assumptions and evidence-backed scientific maturity
+```
+
+These concerns are independent. Arbitrary valid Earth coordinates, named
+observatories, and user-provided Siderust observatory catalogs are supported
+geometrically. They default to `SiteProfileId::GenericClearSky` unless the
+scientific profile is selected explicitly. In particular:
+
+- `--site PARANAL` does not create a calibrated Paranal Airglow result;
+- `--site CTAO-N` does not select `SiteProfileId::CtaNorth`;
+- `--site CTAO-S` does not select `SiteProfileId::CtaSouth`;
+- `--site-profile cta-north` and `--site-profile cta-south` deliberately select
+  planning assumptions, not calibrated products; and
+- supplying a custom `AirglowContinuum` is classified as an unvalidated custom
+  continuum, not as calibration evidence.
+
+Direct component users can inspect the scientific state programmatically:
+
+```rust
+use nsb::{
+    Airglow, AirglowScientificProfile, CalibrationStatus, SiteProfileId,
+};
+
+let airglow = Airglow::standard_clear_sky(location)?;
+assert_eq!(
+    airglow.scientific_profile(),
+    AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky),
+);
+assert_eq!(airglow.calibration_status(), CalibrationStatus::GenericFallback);
+assert!(!airglow.is_site_calibrated());
+```
+
+Evaluator users can inspect the same scientific choice through
+`NsbModelConfig::airglow_scientific_profile()`,
+`airglow_calibration_status()`, and `is_airglow_site_calibrated()`. Component
+result metadata derives its structured calibration status from the selected
+site profile's `CalibrationStatus`; geometry and solar-activity provenance are
+reported separately.
 
 ## Evaluation stack
 
@@ -69,7 +120,9 @@ envelope beyond the continuum's reported relative uncertainty.
 Exact upstream import file/release and some licence details remain unresolved
 where the asset registry records them; treat those as release limitations, not
 as calibrated global science. There is no Paranal/CTAO location whitelist:
-location is a caller input while the continuum remains Paranal-derived.
+location is a caller input while the continuum remains Paranal-derived. The
+Paranal lineage explains where the empirical baseline came from; it does not
+constitute a dedicated, admitted Paranal site-calibration contract.
 
 ## Geometry models
 
@@ -94,7 +147,8 @@ let airglow = Airglow::standard_clear_sky(location)?
 
 A persisted profile can be selected in the CLI with
 `--airglow-vertical-profile profile.toml`. No network access is used to resolve
-or evaluate it.
+or evaluate it. Selecting either geometry leaves `AirglowScientificProfile` and
+its calibration status unchanged.
 
 ### Why no bundled broadband VER profile
 
@@ -179,18 +233,22 @@ store for the evaluation UTC date. Callers can set an explicit value with
 [F10.7 resolver](f107-resolver.md).
 
 The generic and CTAO planning profiles use a SkyCalc-derived continuum baseline
-with explicit uncalibrated provenance. Choosing an F10.7 source, extinction
-model, or geometry model does not change that maturity to `Calibrated`.
-Dedicated CTAO site calibration remains issue #38 and is deliberately separate.
+with explicit uncalibrated provenance. Automatic F10.7, an explicit value, or a
+pinned dataset changes solar-activity provenance only. Likewise, selecting an
+atmosphere/extinction model, Airglow geometry, observer coordinates, or user
+scale does not change maturity to `Calibrated`. Dedicated CTAO site calibration
+remains issue #38 and is deliberately separate.
 
 ## Scientific boundary
 
 Airglow has substantial natural variability. A different geometry model is not
 by itself a more accurate prediction. Site/science use requiring calibrated
-precision must supply documented measurements and validate the full model under
-the intended conditions. Machine-actionable Airglow geometry, F10.7 resolution,
-and attenuation stages are complete; the remaining limitation is scientific
-representativeness of any single global 300–650 nm VER profile (#38).
+precision requires documented measurements, admitted calibration evidence, and
+validation of the full model under the intended conditions. The current runtime
+has no path that promotes generic/CTAO Airglow to `Calibrated`; CTAO promotion
+remains blocked by issue #38. Machine-actionable Airglow geometry, F10.7
+resolution, and attenuation stages are complete, while scientific
+representativeness remains explicitly limited.
 
 ## Related documentation
 
