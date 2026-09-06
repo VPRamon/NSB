@@ -91,6 +91,11 @@ nsb point \
 carry machine-readable provenance and assumptions, but are not site-calibrated.
 CTAO North/South are distinct physical array locations from ORM/Paranal.
 
+Location and scientific assumptions are deliberately orthogonal. For example,
+`--site PARANAL --site-profile cta-south` is valid when intentionally evaluating
+CTAO-S planning assumptions at Paranal geometry. It is a decoupling example,
+not a claim that Paranal and CTAO-S are the same observatory.
+
 ### External observatory catalogs
 
 Use Siderust's native catalog format:
@@ -143,7 +148,7 @@ The CLI exposes model choices that are safe to vary per run:
 ```bash
 nsb point \
   --time 2026-06-18T23:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -171,7 +176,7 @@ An observatory or experiment may provide its own integrated starlight map:
 ```bash
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
