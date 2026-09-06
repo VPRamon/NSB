@@ -308,7 +308,10 @@ mod maturity_tests {
                 AirglowScientificProfile::BuiltIn(site_profile)
             );
             assert_eq!(model.calibration_status(), expected_status);
-            assert_eq!(model.is_site_calibrated(), site_profile.is_site_calibrated());
+            assert_eq!(
+                model.is_site_calibrated(),
+                site_profile.is_site_calibrated()
+            );
         }
     }
 }
