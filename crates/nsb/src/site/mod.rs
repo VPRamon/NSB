@@ -1,4 +1,4 @@
-//! Named atmospheric and airglow profile metadata.
+//! Named site profiles, shared atmospheric assumptions, and calibration metadata.
 //!
 //! NSB deliberately separates generic fallbacks from named site profiles. The
 //! CTAO entries below are first-class planning profiles with machine-readable
@@ -6,7 +6,13 @@
 //! site-calibrated until dedicated CTAO atmospheric and airglow validation data
 //! are bundled with the crate.
 
-use crate::components::moonlight::AtmosphericConditions;
+/// Shared atmospheric assumptions used by site-aware NSB components.
+pub mod atmosphere;
+/// Versioned evidence contract for dedicated site-calibration assets.
+pub mod calibration;
+
+pub use atmosphere::AtmosphericConditions;
+
 use crate::units::ScaleFactors;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;

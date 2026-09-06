@@ -55,7 +55,7 @@
 //! Noll, S., et al. (2012). "An atmospheric radiation model for Cerro Paranal".
 //! *A&A* 543, A92. §4.1; Eqs. (23)–(25).
 
-use crate::components::moonlight::AtmosphericConditions;
+use crate::site::AtmosphericConditions;
 use qtty::angular::{Degrees, Radian};
 use qtty::dimensionless::Transmittances;
 use siderust::atmosphere::{mie_optical_depth, rayleigh_optical_depth_bodhaine99};

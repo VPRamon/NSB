@@ -18,7 +18,7 @@ timeout_multiplier = 2.0
 examine_globs = [
   "crates/nsb/src/evaluator/core.rs",
   "crates/nsb/src/solar_activity/resolve.rs",
-  "crates/nsb/src/site_calibration.rs",
+  "crates/nsb/src/site/calibration.rs",
 ]
 
 exclude_globs = [
