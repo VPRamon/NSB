@@ -208,9 +208,7 @@ where
             let declaration_only = source.as_deref().is_some_and(|source| {
                 production_lines.iter().all(|line| {
                     is_likely_non_instrumentable_rust_line_with_context(
-                        source,
-                        line.line,
-                        &line.text,
+                        source, line.line, &line.text,
                     )
                 })
             });
