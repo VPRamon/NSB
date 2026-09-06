@@ -73,19 +73,16 @@ overall gate **fails** (fail-closed). Empty coverage is not treated as 100%.
 | `nsb-cli` / `nsb-data-tools` lines | Always printed | same LCOV/JSON reports | No |
 
 `nsb-cli` and `nsb-data-tools` are recorded but not given separate floors.
-Their production changes are still subject to the diff gate. Broad CLI and
-data-tool coverage is expected to move after the obsolete-code cleanup
-([#122](https://github.com/VPRamon/NSB/issues/122)) and test-suite audit
-([#123](https://github.com/VPRamon/NSB/issues/123)).
+Their production changes are still subject to the diff gate. Offline
+maintenance paths (for example full Starlight diagnose suites that need a
+cluster workspace) remain intentionally below 100% coverage; protect them with
+contract tests where the failure mode is reachable without inventing public
+APIs.
 
-The current `baseline_kind` in `coverage-policy.toml` is
-`provisional-pre-audit` until the test-suite audit
-([#123](https://github.com/VPRamon/NSB/issues/123)) lands and the follow-on
-coverage re-baseline ([#124](https://github.com/VPRamon/NSB/issues/124))
-re-measures the post-audit tree. Do not treat coverage percentage as a
-substitute for the contract taxonomy in [Testing and mutation policy](testing.md).
-Re-measure on the post-audit tree and replace the recorded SHA, toolchain
-versions, observed percentages, and floors together.
+The current `baseline_kind` in `coverage-policy.toml` is `release-post-audit`:
+the recorded baseline was measured after the public API freeze (#121), obsolete
+cleanup (#122), and test-suite audit (#123). Do not treat coverage percentage as
+a substitute for the contract taxonomy in [Testing and mutation policy](testing.md).
 
 ## Diff-coverage semantics
 
@@ -98,16 +95,24 @@ The diff gate:
   `nsb-coverage-gate` are excluded);
 - ignores integration tests (`crates/*/tests/`), unit-test modules named
   `tests.rs`, benches, and examples as coverage *targets*;
-- classifies each changed line from LCOV `DA:line,hits` the same way LLVM does:
-  hits `> 0` covered, hits `= 0` uncovered, no `DA` record non-executable;
+- also ignores executable lines inside file-level inline modules guarded by
+  `#[cfg(test)]` (for example `mod tests` or `mod regression`) so test-only
+  edits cannot dilute changed-production coverage;
+- classifies each remaining changed line from LCOV `DA:line,hits` the same way
+  LLVM does: hits `> 0` covered, hits `= 0` uncovered, no `DA` record
+  non-executable;
 - if a changed production file is **absent** from LCOV, inspects the changed line
   text: declaration-only edits (module declarations, re-exports, attributes,
   docs, type/struct/enum headers, fields) pass; any changed line that looks
   instrumentable fails closed as missing coverage data;
 - lists uncovered changed production lines and missing files in the job log.
 
-The target is approximately 90% of executable changed production lines. The
-exact floor is `diff.changed_production_lines` in the policy file.
+When a pull request changes only non-production or inline `#[cfg(test)]` lines,
+the diff gate reports zero executable production lines and passes. That is the
+intended contract: there is no production coverage regression to enforce.
+
+The exact changed-production floor is `diff.changed_production_lines` in the
+policy file.
 
 ## Exclusion policy
 
@@ -140,6 +145,5 @@ rejected when the policy is loaded so it cannot be silently ignored.
 5. Do **not** lower a floor merely to make a pull request pass. If coverage
    dropped, add or restore meaningful tests, or justify a real deletion of
    covered code.
-
-After #122 and #123, replace this provisional baseline with the post-audit
-release baseline rather than keeping a pre-cleanup number.
+6. Prefer raising floors after a deliberate, measured improvement rather than
+   leaving large unused margin that would hide regressions.

@@ -413,6 +413,218 @@ fn lcov_hit_count_zero_is_uncovered_even_when_json_summary_would_pass() {
 }
 
 #[test]
+fn inline_cfg_test_modules_are_excluded_from_diff_production_coverage() {
+    use nsb_coverage_gate::{check_diff_with_sources, ChangedLine};
+    use std::collections::HashMap;
+
+    let path = "crates/nsb/src/mixed.rs";
+    let source = "\
+fn production_before() {
+    let x = 1;
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn foo() {
+        assert_eq!(1, 1);
+    }
+}
+
+fn production_after() {
+    let y = 2;
+}
+
+#[cfg(test)]
+mod regression {
+    #[test]
+    fn case() {
+        assert!(true);
+    }
+}
+";
+    let lcov = format!("SF:/repo/{path}\nDA:2,0\nDA:9,1\nDA:14,1\nDA:21,1\nend_of_record\n");
+    let report = parse_lcov(&lcov).unwrap();
+    let changed = vec![
+        ChangedLine {
+            path: path.into(),
+            line: 2,
+            text: "    let x = 1;".into(),
+        },
+        ChangedLine {
+            path: path.into(),
+            line: 5,
+            text: "#[cfg(test)]".into(),
+        },
+        ChangedLine {
+            path: path.into(),
+            line: 9,
+            text: "        assert_eq!(1, 1);".into(),
+        },
+        ChangedLine {
+            path: path.into(),
+            line: 14,
+            text: "    let y = 2;".into(),
+        },
+        ChangedLine {
+            path: path.into(),
+            line: 17,
+            text: "#[cfg(test)]".into(),
+        },
+        ChangedLine {
+            path: path.into(),
+            line: 21,
+            text: "        assert!(true);".into(),
+        },
+    ];
+    let sources = HashMap::from([(path.to_string(), source.to_string())]);
+    let outcome = check_diff_with_sources(
+        &sample_policy(),
+        &report,
+        &changed,
+        &GateOptions::default(),
+        |p| sources.get(p).cloned(),
+    );
+
+    assert!(
+        outcome
+            .lines
+            .iter()
+            .any(|line| line.contains("ignored inline #[cfg(test)] lines: 4")),
+        "{:?}",
+        outcome.lines
+    );
+    // Only production DA lines 2 (uncovered) and 14 (covered) count.
+    assert!(
+        outcome
+            .lines
+            .iter()
+            .any(|line| line.contains("diff production lines: 50.00% (1/2")),
+        "expected production-only ratio, got {:?}",
+        outcome.lines
+    );
+    assert_eq!(outcome.status, CheckStatus::Fail);
+    assert_eq!(outcome.uncovered, vec![format!("{path}:2")]);
+}
+
+#[test]
+fn covered_inline_tests_cannot_hide_uncovered_production_line() {
+    use nsb_coverage_gate::check_diff_with_sources;
+    use std::collections::HashMap;
+
+    let path = "crates/nsb/src/hide.rs";
+    let source = "\
+fn prod() {
+    uncovered_production();
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a() { assert!(true); }
+    #[test]
+    fn b() { assert!(true); }
+    #[test]
+    fn c() { assert!(true); }
+    #[test]
+    fn d() { assert!(true); }
+    #[test]
+    fn e() { assert!(true); }
+}
+";
+    let mut lcov = format!("SF:/repo/{path}\nDA:2,0\n");
+    for line in 8..=12 {
+        lcov.push_str(&format!("DA:{line},5\n"));
+    }
+    lcov.push_str("end_of_record\n");
+    let report = parse_lcov(&lcov).unwrap();
+    let changed = vec![
+        nsb_coverage_gate::ChangedLine {
+            path: path.into(),
+            line: 2,
+            text: "    uncovered_production();".into(),
+        },
+        nsb_coverage_gate::ChangedLine {
+            path: path.into(),
+            line: 8,
+            text: "    fn a() { assert!(true); }".into(),
+        },
+        nsb_coverage_gate::ChangedLine {
+            path: path.into(),
+            line: 9,
+            text: "    fn b() { assert!(true); }".into(),
+        },
+        nsb_coverage_gate::ChangedLine {
+            path: path.into(),
+            line: 10,
+            text: "    fn c() { assert!(true); }".into(),
+        },
+        nsb_coverage_gate::ChangedLine {
+            path: path.into(),
+            line: 11,
+            text: "    fn d() { assert!(true); }".into(),
+        },
+        nsb_coverage_gate::ChangedLine {
+            path: path.into(),
+            line: 12,
+            text: "    fn e() { assert!(true); }".into(),
+        },
+    ];
+    let sources = HashMap::from([(path.to_string(), source.to_string())]);
+    let outcome = check_diff_with_sources(
+        &sample_policy(),
+        &report,
+        &changed,
+        &GateOptions {
+            diff_lines_floor: Some(90.0),
+            ..GateOptions::default()
+        },
+        |p| sources.get(p).cloned(),
+    );
+    assert_eq!(outcome.status, CheckStatus::Fail);
+    assert_eq!(outcome.uncovered, vec![format!("{path}:2")]);
+    assert!(
+        outcome
+            .lines
+            .iter()
+            .any(|line| line.contains("(0/1 executable changed lines")),
+        "five covered inline tests must not dilute one uncovered production line: {:?}",
+        outcome.lines
+    );
+}
+
+#[test]
+fn path_level_test_exclusions_still_apply_with_inline_scanner() {
+    let cases = [
+        "crates/nsb/src/solar_activity/tests.rs",
+        "crates/nsb-cli/tests/window_contract.rs",
+        "crates/nsb/benches/threshold_window.rs",
+        "crates/nsb/examples/threshold_window.rs",
+        "crates/nsb-coverage-gate/src/check.rs",
+        "crates/nsb-public-api-gate/src/base.rs",
+    ];
+    for path in cases {
+        let diff = format!("+++ b/{path}\n@@ -1,0 +1,1 @@\n+let x = 1;\n");
+        let outcome = check_diff(
+            &sample_policy(),
+            &sample_report(),
+            &parse_unified_diff(&diff).unwrap(),
+            &GateOptions::default(),
+        );
+        assert_eq!(outcome.status, CheckStatus::Pass, "{path}");
+        assert!(outcome.uncovered.is_empty(), "{path}");
+        assert!(
+            outcome
+                .lines
+                .iter()
+                .any(|line| line.contains("ignored non-production/test Rust files: 1")),
+            "{path}: {:?}",
+            outcome.lines
+        );
+    }
+}
+
+#[test]
 fn run_overall_and_diff_write_actionable_output() {
     let dir = fixture_dir();
     let diff_path = dir.join("change.diff");

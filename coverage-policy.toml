@@ -8,9 +8,9 @@
 
 schema_version = 1
 
-# "provisional" until GitHub issues #122 (obsolete cleanup) and #123 (test-suite
-# audit) land. Re-measure and replace this file's baseline after those audits.
-baseline_kind = "provisional-pre-audit"
+# Final release baseline after #121 (API freeze), #122 (obsolete cleanup), and
+# #123 (test-suite audit). Replaces the provisional-pre-audit baseline from #127.
+baseline_kind = "release-post-audit"
 
 html_artifact_name = "coverage-html"
 json_artifact_name = "coverage-json"
@@ -18,35 +18,34 @@ cobertura_artifact_name = "coverage-cobertura"
 lcov_artifact_name = "coverage-lcov"
 
 [baseline]
-# Updated after the LCOV-based gate lands; SHA must identify the measured tree.
-commit = "9d5f61ce15edd4e293d47928f9fdcb5090a94b9e"
-date = "2026-09-03"
+# Source tree that was instrumented for this measurement (tests land first;
+# this policy-only commit does not change instrumented production lines).
+commit = "455a069a71d967d865ed5f58caeb32469ae742e5"
+date = "2026-09-05"
 rust_nightly = "1.100.0-nightly (5db7f4be8 2026-09-01)"
 rust_nightly_toolchain = "nightly-2026-09-02"
 cargo_llvm_cov = "0.9.0"
 command = "cargo +nightly-2026-09-02 llvm-cov --workspace --all-features --doctests --locked --no-report"
 
 [measured]
-workspace_lines = 81.39
-workspace_functions = 76.06
-workspace_regions = 79.23
-nsb_lines = 87.46
-nsb_functions = 86.99
-nsb_regions = 88.90
-nsb_cli_lines = 85.84
-nsb_cli_functions = 85.59
-nsb_cli_regions = 81.74
-nsb_data_tools_lines = 78.78
-nsb_data_tools_functions = 71.27
-nsb_data_tools_regions = 75.80
+workspace_lines = 81.35
+workspace_functions = 75.69
+workspace_regions = 79.14
+nsb_lines = 88.23
+nsb_functions = 86.64
+nsb_regions = 89.19
+nsb_cli_lines = 89.46
+nsb_cli_functions = 88.98
+nsb_cli_regions = 86.45
+nsb_data_tools_lines = 79.49
+nsb_data_tools_functions = 72.09
+nsb_data_tools_regions = 76.46
 
-# Blocking floors. About 1.4 percentage points below the reproduced LCOV line
-# coverage so immaterial reporting jitter does not fail CI.
-# Re-measure after #122/#123 rather than treating these as the final release
-# numbers.
+# Blocking floors. About 1.2–1.4 percentage points below the reproduced LCOV
+# line coverage so immaterial reporting jitter does not fail CI.
 [floors]
 workspace_lines = 80.0
-nsb_lines = 86.0
+nsb_lines = 87.0
 
 [diff]
 changed_production_lines = 90.0

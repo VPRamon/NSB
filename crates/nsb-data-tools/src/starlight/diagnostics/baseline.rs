@@ -148,3 +148,41 @@ fn load_workspace_shards(workspace: &Path, partitions: &[String]) -> Result<Vec<
     }
     Ok(shards)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn smoke_partition_list_is_non_empty_and_ignores_comments() {
+        let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let partitions = load_smoke_partitions(&repo_root).expect("smoke partition list");
+        assert!(
+            partitions.len() >= 8,
+            "smoke partition pin must remain a multi-partition baseline, got {}",
+            partitions.len()
+        );
+        assert!(partitions
+            .iter()
+            .all(|id| !id.is_empty() && !id.starts_with('#')));
+        assert_eq!(
+            partitions.len(),
+            partitions
+                .iter()
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            "smoke partitions must be unique"
+        );
+    }
+
+    #[test]
+    fn missing_smoke_partition_list_fails_closed() {
+        let temporary = tempfile::tempdir().expect("isolated temp root");
+        let missing_root = temporary.path().join("nsb-missing-repo-root");
+        // Guarantee the smoke-partition pin path does not exist under this root.
+        assert!(!missing_root.join(SMOKE_PARTITIONS_PATH).exists());
+        let err = load_smoke_partitions(&missing_root).expect_err("missing partition list");
+        assert!(err.to_string().contains("read smoke partition list"));
+    }
+}
