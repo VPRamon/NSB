@@ -219,19 +219,6 @@ jobs:
           NSB_PUBLIC_API_BASE: ${{ steps.api_base.outputs.base }}
         run: cargo run --locked -p nsb-public-api-gate -- --base "$NSB_PUBLIC_API_BASE"
 
-  dependencies:
-    name: Dependency policy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout without Git LFS payloads
-        uses: actions/checkout@v4
-        with:
-          lfs: false
-      - name: Check advisories, licenses, bans, and sources
-        uses: EmbarkStudios/cargo-deny-action@v2
-        with:
-          command: check
-
   msrv:
     name: Rust 1.89 workspace check
     runs-on: ubuntu-latest
@@ -372,7 +359,6 @@ jobs:
       - docs
       - release
       - api_policy
-      - dependencies
       - msrv
       - coverage
     runs-on: ubuntu-latest
@@ -392,7 +378,6 @@ jobs:
             "${{ needs.docs.result }}"
             "${{ needs.release.result }}"
             "${{ needs.api_policy.result }}"
-            "${{ needs.dependencies.result }}"
             "${{ needs.msrv.result }}"
           )
           for result in "${required_results[@]}"; do

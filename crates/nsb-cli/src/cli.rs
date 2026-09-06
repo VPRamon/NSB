@@ -43,9 +43,13 @@ pub enum OutputFormat {
 
 #[derive(Debug, Args)]
 pub struct ObserverArgs {
-    /// Named site alias, for example CTAO-S or PARANAL.
+    /// Exact Siderust observatory name or an NSB CLI alias such as PARANAL.
     #[arg(long, conflicts_with_all = ["lon", "lat", "height"])]
     pub site: Option<String>,
+
+    /// Replace the bundled Siderust observatory catalog with this TOML catalog.
+    #[arg(long, requires = "site")]
+    pub observatory_catalog: Option<PathBuf>,
 
     /// Geodetic longitude in degrees, east-positive.
     #[arg(long, requires_all = ["lat", "height"], allow_hyphen_values = true)]
@@ -83,6 +87,23 @@ pub enum ZodiacalExtinctionArg {
     None,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum SiteProfileArg {
+    GenericClearSky,
+    CtaNorth,
+    CtaSouth,
+}
+
+impl From<SiteProfileArg> for nsb::SiteProfileId {
+    fn from(value: SiteProfileArg) -> Self {
+        match value {
+            SiteProfileArg::GenericClearSky => Self::GenericClearSky,
+            SiteProfileArg::CtaNorth => Self::CtaNorth,
+            SiteProfileArg::CtaSouth => Self::CtaSouth,
+        }
+    }
+}
+
 #[derive(Debug, Args)]
 pub struct ModelArgs {
     /// Components: comma-separated zodiacal, starlight, airglow, moon, or all.
@@ -90,6 +111,10 @@ pub struct ModelArgs {
     /// `--starlight-manifest` provide a validated external override.
     #[arg(long, default_value = "all")]
     pub components: String,
+
+    /// NSB scientific assumptions, selected independently of observatory location.
+    #[arg(long, value_enum, default_value_t = SiteProfileArg::GenericClearSky)]
+    pub site_profile: SiteProfileArg,
 
     /// Production starlight HEALPix CSV override selected with starlight.
     #[arg(long, requires = "starlight_manifest")]
@@ -182,6 +207,10 @@ pub struct WindowArgs {
 
 #[derive(Debug, Args)]
 pub struct SitesArgs {
+    /// Replace the bundled Siderust observatory catalog with this TOML catalog.
+    #[arg(long)]
+    pub observatory_catalog: Option<PathBuf>,
+
     #[command(subcommand)]
     pub command: SitesCommand,
 }

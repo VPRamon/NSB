@@ -21,8 +21,8 @@ the `nsb` crate. Offline catalogue and data-product generation remain in
 | --- | --- |
 | `nsb point` | Evaluate NSB at one UTC instant and target direction |
 | `nsb window` | Find UTC periods satisfying NSB and visibility constraints |
-| `nsb sites list` | List known operational site aliases |
-| `nsb sites show <alias>` | Inspect one alias and its coordinates |
+| `nsb sites list` | List the effective observatory catalog (Siderust + NSB extensions) |
+| `nsb sites show <name-or-alias>` | Inspect one catalog observatory |
 | `nsb config init` | Print a starter TOML configuration structure |
 | `nsb config validate <path>` | Validate the TOML configuration schema |
 
@@ -32,6 +32,7 @@ the `nsb` crate. Offline catalogue and data-product generation remain in
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
   --site CTAO-S \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components all
@@ -40,6 +41,7 @@ nsb --format csv window \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
   --site CTAO-S \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --max-nsb 0.25
@@ -47,6 +49,14 @@ nsb --format csv window \
 
 Global options such as `--format`, `--log-level`, and `-v` precede the
 subcommand.
+
+Siderust owns the observatory catalog model and `[[observatory]]` parsing. The
+default effective catalog is Siderust builtins extended by
+`crates/nsb-cli/data/observatories.toml` (CTAO-N/S, H.E.S.S., MAGIC, FACT,
+VERITAS, FAST, GTC, …). Pass `--observatory-catalog <path>` to `point`,
+`window`, or `sites` to **replace** that effective catalog for the command.
+NSB aliases are naming conveniences only, and `--site-profile` independently
+selects `generic-clear-sky`, `cta-north`, or `cta-south` scientific assumptions.
 
 ## Production starlight
 
@@ -57,6 +67,7 @@ A validated external override requires both files:
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
   --site CTAO-S \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components starlight \

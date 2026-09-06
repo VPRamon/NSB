@@ -177,7 +177,7 @@ pub fn is_likely_non_instrumentable_rust_line(text: &str) -> bool {
         || without_vis.starts_with("union ")
         || without_vis.starts_with("trait ")
         || without_vis.starts_with("impl ")
-        || without_vis.starts_with("const ")
+        || is_const_item_start(without_vis)
         || without_vis.starts_with("static ")
     {
         return true;
@@ -195,6 +195,89 @@ pub fn is_likely_non_instrumentable_rust_line(text: &str) -> bool {
         return true;
     }
     false
+}
+
+/// Context-aware extension of [`is_likely_non_instrumentable_rust_line`].
+///
+/// A `git diff -U0` hunk can add only a continuation line of a declaration, for
+/// example the string literal in a formatted multi-line `const`. Such a line is
+/// ambiguous in isolation, so this helper consults the HEAD source and only
+/// ignores it when a nearby, unterminated declaration proves the context.
+/// Executable constructs and mismatched source text stay fail-closed.
+pub(crate) fn is_likely_non_instrumentable_rust_line_with_context(
+    source: &str,
+    line_number: u32,
+    text: &str,
+) -> bool {
+    if is_likely_non_instrumentable_rust_line(text) {
+        return true;
+    }
+
+    let Some(index) = line_number.checked_sub(1).map(|line| line as usize) else {
+        return false;
+    };
+    let source_lines: Vec<&str> = source.lines().collect();
+    let Some(actual) = source_lines.get(index) else {
+        return false;
+    };
+    if actual.trim() != text.trim() || !safe_declaration_continuation(text) {
+        return false;
+    }
+
+    // Keep the heuristic local. A declaration formatter may span several lines,
+    // but scanning arbitrarily far backwards risks associating unrelated code.
+    for previous in source_lines[..index].iter().rev().take(64) {
+        let t = previous.trim();
+        if t.is_empty() || t.starts_with("//") || t.starts_with("/*") || t.starts_with('*') {
+            continue;
+        }
+        let without_vis = strip_visibility(t);
+        if is_non_instrumentable_declaration_start(without_vis) {
+            return true;
+        }
+        if declaration_scan_boundary(t) || !safe_declaration_continuation(t) {
+            return false;
+        }
+    }
+    false
+}
+
+fn is_const_item_start(text: &str) -> bool {
+    text.starts_with("const ") && !text.starts_with("const fn ")
+}
+
+fn is_non_instrumentable_declaration_start(text: &str) -> bool {
+    is_const_item_start(text)
+        || text.starts_with("static ")
+        || text.starts_with("type ")
+        || text.starts_with("use ")
+        || text.starts_with("extern crate ")
+}
+
+fn declaration_scan_boundary(text: &str) -> bool {
+    text.ends_with(';') || text == "}" || text.ends_with("};")
+}
+
+fn safe_declaration_continuation(text: &str) -> bool {
+    let t = text.trim();
+    if t.is_empty() {
+        return true;
+    }
+    if t.contains('{')
+        || t.contains('}')
+        || t.contains("=>")
+        || t.contains("||")
+        || t.starts_with("let ")
+        || t.starts_with("return ")
+        || t.starts_with("if ")
+        || t.starts_with("match ")
+        || t.starts_with("for ")
+        || t.starts_with("while ")
+        || t.starts_with("loop ")
+    {
+        return false;
+    }
+    true
 }
 
 /// Continuation lines of multi-line `use` / re-export lists.
@@ -347,8 +430,32 @@ diff --git a/crates/nsb/src/lib.rs b/crates/nsb/src/lib.rs
         assert!(is_likely_non_instrumentable_rust_line(
             "pub use components::moonlight::{"
         ));
+        assert!(!is_likely_non_instrumentable_rust_line(
+            "pub const fn execute() {}"
+        ));
         assert!(!is_likely_non_instrumentable_rust_line("return value;"));
         assert!(!is_likely_non_instrumentable_rust_line("fn missing() {}"));
         assert!(!is_likely_non_instrumentable_rust_line("let x = 1;"));
+    }
+
+    #[test]
+    fn multiline_const_continuation_uses_source_context() {
+        let source =
+            "pub const SOME_SOURCE: &str =\n    \"git:https://example.com/repository?rev=abc\";\n";
+        assert!(is_likely_non_instrumentable_rust_line_with_context(
+            source,
+            2,
+            "    \"git:https://example.com/repository?rev=abc\";"
+        ));
+    }
+
+    #[test]
+    fn executable_assignment_literal_is_not_hidden_by_context() {
+        let source = "fn run() {\n    let source =\n        \"runtime\";\n}\n";
+        assert!(!is_likely_non_instrumentable_rust_line_with_context(
+            source,
+            3,
+            "        \"runtime\";"
+        ));
     }
 }

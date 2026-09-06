@@ -58,6 +58,7 @@ cargo run --locked -p nsb-cli -- \
   point \
   --time 2026-06-18T23:00:00Z \
   --site CTAO-S \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components all
@@ -72,6 +73,7 @@ cargo run --locked -p nsb-cli -- \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
   --site CTAO-S \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --max-nsb 0.25 \
@@ -82,6 +84,19 @@ cargo run --locked -p nsb-cli -- \
 Global options such as `--format`, `--log-level`, and `-v` precede the
 subcommand. Use `nsb sites list` to inspect named observatory aliases, or provide
 `--lon`, `--lat`, and `--height` explicitly.
+
+Siderust owns the generic observatory catalog model and parsing. NSB's default
+effective catalog is Siderust's builtins plus NSB-local
+`[[observatory]]` extensions (CTAO-N/S and other facilities useful to NSB).
+Aliases are naming conveniences only, while `--site-profile` independently
+selects NSB scientific assumptions. `--observatory-catalog path/to/observatories.toml`
+loads Siderust `[[observatory]]` records and **replaces** the effective catalog
+for that command. See the customization guide for the complete schema and policy.
+
+This development revision temporarily pins Siderust commit
+`2af7c21096551b69a72bba6aa391523f3a4fca9a`, which contains
+`ObservatoryCatalog` and `ObservatoryCatalog::extend`. Replace the git pin with
+the first released Siderust version containing that API when available.
 
 Read the complete [Getting started guide](docs/user-guide/getting-started.md).
 
@@ -133,6 +148,7 @@ A validated external starlight override requires both files:
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
   --site CTAO-S \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components starlight \
@@ -185,7 +201,12 @@ command inventory is `crates/nsb-data-tools/tool-registry.toml`.
 
 ## Quality gates
 
-The minimum supported Rust version is 1.89. Pull requests run:
+The minimum supported Rust version is 1.89. Pull requests run the Rust build,
+test, documentation, API-policy, MSRV, and coverage checks below. The
+`cargo deny check` policy remains active for local/release validation; its
+dedicated GitHub Actions job is temporarily disabled for the #140 development
+phase while Siderust is pinned to an unreleased git revision, and should be
+restored when the dependency returns to a released source.
 
 ```bash
 cargo fmt --all -- --check

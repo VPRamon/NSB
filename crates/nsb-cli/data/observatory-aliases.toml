@@ -1,0 +1,44 @@
+# NSB command-line conveniences only. Scientific and geodetic observatory data
+# live in Siderust's ObservatoryCatalog plus NSB's bundled observatories.toml
+# extension. Aliases map to exact catalog names and never carry coordinates or
+# SiteProfile selection.
+
+[aliases]
+# Siderust bundled observatories
+PARANAL = "El Paranal Observatory"
+CERRO-PARANAL = "El Paranal Observatory"
+VLT = "El Paranal Observatory"
+ORM = "Roque de los Muchachos Observatory"
+LA-PALMA = "Roque de los Muchachos Observatory"
+LAPALMA = "Roque de los Muchachos Observatory"
+ROQUE-DE-LOS-MUCHACHOS = "Roque de los Muchachos Observatory"
+MAUNA-KEA = "Mauna Kea Observatory"
+MAUNAKEA = "Mauna Kea Observatory"
+LA-SILLA = "La Silla Observatory"
+LASILLA = "La Silla Observatory"
+
+# NSB bundled extensions. CTAO aliases deliberately do not fall back to ORM or
+# Paranal; they resolve only to the distinct CTAO catalog records.
+CTAO-N = "CTAO North"
+CTA-N = "CTAO North"
+CTAO-NORTH = "CTAO North"
+CTA-NORTH = "CTAO North"
+CTAO-S = "CTAO South"
+CTA-S = "CTAO South"
+CTAO-SOUTH = "CTAO South"
+CTA-SOUTH = "CTAO South"
+HESS = "H.E.S.S."
+"H.E.S.S." = "H.E.S.S."
+HIGH-ENERGY-STEREOSCOPIC-SYSTEM = "H.E.S.S."
+MAGIC = "MAGIC Telescopes"
+MAGIC-TELESCOPES = "MAGIC Telescopes"
+FACT = "First G-APD Cherenkov Telescope"
+FIRST-G-APD-CHERENKOV-TELESCOPE = "First G-APD Cherenkov Telescope"
+VERITAS = "VERITAS"
+VERY-ENERGETIC-RADIATION-IMAGING-TELESCOPE-ARRAY-SYSTEM = "VERITAS"
+FAST = "Five-hundred-meter Aperture Spherical Telescope"
+TIANYAN = "Five-hundred-meter Aperture Spherical Telescope"
+FIVE-HUNDRED-METER-APERTURE-SPHERICAL-TELESCOPE = "Five-hundred-meter Aperture Spherical Telescope"
+GTC = "Gran Telescopio Canarias"
+GRANTECAN = "Gran Telescopio Canarias"
+GRAN-TELESCOPIO-CANARIAS = "Gran Telescopio Canarias"

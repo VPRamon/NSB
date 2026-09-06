@@ -1,4 +1,4 @@
-use crate::parsing::location::SitePreset;
+use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::{NsbResult, Target};
@@ -70,12 +70,16 @@ pub fn write_window(
     Ok(())
 }
 
-pub fn write_sites(sites: &[SitePreset]) -> Result<()> {
-    println!("alias                      name                                  lon_deg      lat_deg     height_m");
+pub fn write_sites(sites: &[ObservatoryOutput]) -> Result<()> {
+    println!("name                                  lon_deg      lat_deg     height_m aliases");
     for site in sites {
         println!(
-            "{:<26} {:<36} {:>10.6} {:>10.6} {:>10.1}",
-            site.canonical_alias, site.display_name, site.lon_deg, site.lat_deg, site.height_m
+            "{:<36} {:>10.6} {:>10.6} {:>10.1} {}",
+            site.name,
+            site.longitude_deg,
+            site.latitude_deg,
+            site.height_m,
+            site.aliases.join(",")
         );
     }
     Ok(())

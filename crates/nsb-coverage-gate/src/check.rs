@@ -1,10 +1,12 @@
 use crate::cfg_test::cfg_test_line_numbers;
-use crate::diff::{group_by_path, is_likely_non_instrumentable_rust_line, ChangedLine};
+use crate::diff::{
+    group_by_path, is_likely_non_instrumentable_rust_line,
+    is_likely_non_instrumentable_rust_line_with_context, ChangedLine,
+};
 use crate::llvm::{crate_metrics, CoverageReport};
 use crate::paths::is_production_rust_file;
 use crate::policy::CoveragePolicy;
 use crate::GateOptions;
-use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 /// Which gate to evaluate.
@@ -169,7 +171,6 @@ where
     let mut missing_files = Vec::new();
     let mut ignored_test_files = 0usize;
     let mut ignored_inline_test_lines = 0usize;
-    let mut source_cache: BTreeMap<String, BTreeSet<u32>> = BTreeMap::new();
 
     for (path, lines) in grouped {
         if !path.ends_with(".rs") {
@@ -179,13 +180,16 @@ where
             ignored_test_files += 1;
             continue;
         }
-        let test_only = source_cache.entry(path.clone()).or_insert_with(|| {
-            load_source(&path)
-                .map(|source| cfg_test_line_numbers(&source))
-                // Unreadable sources stay fail-closed: treat every line as
-                // production rather than silently dropping coverage targets.
-                .unwrap_or_default()
-        });
+
+        // Each grouped path is visited once, so keep the exact source alongside
+        // the cfg(test) scan. Missing source remains fail-closed for ambiguous
+        // lines, while self-evident declarations can still be classified from
+        // their diff text alone.
+        let source = load_source(&path);
+        let test_only = source
+            .as_deref()
+            .map(cfg_test_line_numbers)
+            .unwrap_or_default();
         let production_lines: Vec<&&ChangedLine> = lines
             .iter()
             .filter(|line| {
@@ -201,13 +205,18 @@ where
             continue;
         }
         let Some(file) = report.files.get(&path) else {
-            // Absent from LCOV: fail closed only when changed lines look
-            // instrumentable. Declaration-only edits (mod/use/docs/attrs/types)
-            // produce no DA records and must not fail the gate by filename alone.
-            if production_lines
-                .iter()
-                .any(|line| !is_likely_non_instrumentable_rust_line(&line.text))
-            {
+            // Absent from LCOV: declaration syntax that is unambiguous in the
+            // changed line itself remains non-instrumentable without source.
+            // Only ambiguous continuation lines require HEAD source context.
+            let declaration_only = production_lines.iter().all(|line| {
+                is_likely_non_instrumentable_rust_line(&line.text)
+                    || source.as_deref().is_some_and(|source| {
+                        is_likely_non_instrumentable_rust_line_with_context(
+                            source, line.line, &line.text,
+                        )
+                    })
+            });
+            if !declaration_only {
                 missing_files.push(path);
             }
             continue;

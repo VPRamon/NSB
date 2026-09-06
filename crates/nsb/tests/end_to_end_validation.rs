@@ -39,10 +39,14 @@ fn parse(s: &str) -> Time<UTC> {
 }
 
 fn ctao_s() -> Geodetic<ECEF> {
+    // `nsb` deliberately does not depend on `nsb-cli`, so this test fixture
+    // mirrors the CTAO South WGS84 record owned by the CLI catalog in #140.
+    // It exists only to validate CTAO geometry paths and is not a production
+    // observatory registry or a substitute for Siderust ObservatoryCatalog.
     Geodetic::<ECEF>::new_raw(
-        Degrees::new(-70.406944),
-        Degrees::new(-24.627222),
-        Meters::new(2100.0),
+        Degrees::new(-70.31634444444444),
+        Degrees::new(-24.683427777777776),
+        Meters::new(2184.6),
     )
 }
 
@@ -72,6 +76,14 @@ fn expected_all_components() -> &'static [&'static str] {
     } else {
         &["zodiacal", "airglow", "moon"]
     }
+}
+
+#[test]
+fn ctao_s_geometry_fixture_is_distinct_from_paranal() {
+    assert_ne!(
+        ctao_s(),
+        siderust::catalogs::observatories::EL_PARANAL.geodetic()
+    );
 }
 
 #[test]
