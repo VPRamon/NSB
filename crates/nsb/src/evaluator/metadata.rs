@@ -4,7 +4,7 @@ use crate::components::airglow::calibration::{
 };
 use crate::components::airglow::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
 use crate::components::starlight::StarlightProvenance;
-use crate::site::SiteProfileId;
+use crate::site::{CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
 use crate::NSB_S10_ZP;
 use qtty::photometry::SurfaceBrightness;
 use siderust::qtty::Nanometers;
@@ -40,6 +40,16 @@ impl ComponentCalibrationStatus {
             Self::Proxy => "proxy",
             Self::PublishedReference => "published-reference",
             Self::Experimental => "experimental",
+        }
+    }
+}
+
+impl From<SiteCalibrationStatus> for ComponentCalibrationStatus {
+    fn from(status: SiteCalibrationStatus) -> Self {
+        match status {
+            SiteCalibrationStatus::GenericFallback => Self::GenericClearSky,
+            SiteCalibrationStatus::PlanningPreset => Self::PlanningPreset,
+            SiteCalibrationStatus::Calibrated => Self::Production,
         }
     }
 }
@@ -89,12 +99,7 @@ pub struct NsbComponentMetadata {
 pub(super) fn component_status_for_site_profile(
     site_profile: SiteProfileId,
 ) -> ComponentCalibrationStatus {
-    match site_profile {
-        SiteProfileId::GenericClearSky => ComponentCalibrationStatus::GenericClearSky,
-        SiteProfileId::CtaNorth | SiteProfileId::CtaSouth => {
-            ComponentCalibrationStatus::PlanningPreset
-        }
-    }
+    site_profile.calibration_status().into()
 }
 
 pub(super) fn zodiacal_metadata() -> NsbComponentMetadata {
@@ -129,12 +134,12 @@ pub(super) fn airglow_metadata(
     );
     let f107_fragment = match solar {
         Some(resolved) => resolved.provenance_fragment(),
-        None => "F10.7 resolved per evaluation UTC date via SolarActivitySource (Automatic/Dataset/Explicit); not a site calibration".to_string(),
+        None => "F10.7 resolved per evaluation UTC date via SolarActivitySource (Automatic/Dataset/Explicit); solar-activity provenance only, not a site calibration".to_string(),
     };
     NsbComponentMetadata {
-        status: component_status_for_site_profile(site_profile),
+        status: profile.calibration_status.into(),
         provenance: Cow::Owned(format!(
-            "{}; site profile {}; template {}; {}; {}",
+            "{}; scientific site profile {}; template {}; {}; {}; observer coordinates provide geometry only and do not select or promote this profile",
             profile.airglow.provenance,
             profile.name,
             profile.airglow.template,
@@ -142,7 +147,7 @@ pub(super) fn airglow_metadata(
             f107_fragment
         )),
         validated_domain: Cow::Owned(format!(
-            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy for arbitrary locations (not globally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, selected emitting-volume LOS geometry ({}), and independent Noll-2012 effective Rayleigh/Mie airglow scattering (Noll §4.1; fitted primarily for zenith distances z≲{}°, larger angles are parametric extrapolation) using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); measured F10.7 or geometry choice does not make Airglow site-calibrated; {}",
+            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy at Paranal and arbitrary Earth locations unless an explicit validated scientific profile exists (not globally or automatically locally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, selected emitting-volume LOS geometry ({}), and independent Noll-2012 effective Rayleigh/Mie airglow scattering (Noll §4.1; fitted primarily for zenith distances z≲{}°, larger angles are parametric extrapolation) using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); observer location, measured/explicit F10.7, geometry, atmosphere/extinction, and user scaling do not upgrade Airglow calibration maturity; {}",
             geometry.model_id(),
             NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG as i32,
             profile.atmosphere_provenance,

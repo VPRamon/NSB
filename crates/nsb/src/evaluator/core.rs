@@ -275,12 +275,12 @@ impl NsbEvaluator {
             total += prepared.starlight_integrated;
         }
         if prepared.components.contains(ComponentMask::AIRGLOW) {
-            if let Some(phase) = airglow_night_phase(prepared, mjd_tt) {
-                let out = self.evaluate_airglow_with_night_phase(
+            if let Some(time_bin) = airglow_time_bin(prepared, mjd_tt) {
+                let out = self.evaluate_airglow_with_time_bin(
                     prepared.observer,
                     time,
                     prepared.target,
-                    phase,
+                    time_bin,
                 )?;
                 total += out.integrated;
             }
@@ -414,31 +414,38 @@ impl NsbEvaluator {
     )> {
         let solar = crate::solar_activity::resolve_f107(time, &self.config.solar_activity)?;
         let profile = self.config.site_profile.profile(observer);
-        let outputs =
-            airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
-                .with_atmosphere(profile.atmosphere)
-                .with_geometry(self.config.airglow_geometry.clone())
-                .with_solar_radio_flux(solar.value)
-                .with_scale(profile.airglow.scale)
-                .compute(time, target)?;
+        let outputs = airglow::Airglow::with_shared_continuum(
+            observer,
+            Arc::clone(&self.airglow_continuum),
+            self.config.site_profile,
+        )
+        .with_atmosphere(profile.atmosphere)
+        .with_geometry(self.config.airglow_geometry.clone())
+        .with_solar_radio_flux(solar.value)
+        .with_scale(profile.airglow.scale)
+        .compute(time, target)?;
         Ok((outputs, solar))
     }
 
-    fn evaluate_airglow_with_night_phase(
+    fn evaluate_airglow_with_time_bin(
         &self,
         observer: Observer,
         time: Time<UTC>,
         target: Target,
-        phase: airglow::AirglowNightPhase,
+        time_bin: usize,
     ) -> Result<airglow::AirglowOutputs> {
         let solar = crate::solar_activity::resolve_f107(time, &self.config.solar_activity)?;
         let profile = self.config.site_profile.profile(observer);
-        airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
-            .with_atmosphere(profile.atmosphere)
-            .with_geometry(self.config.airglow_geometry.clone())
-            .with_solar_radio_flux(solar.value)
-            .with_scale(profile.airglow.scale)
-            .compute_with_night_phase(time, target, phase)
+        airglow::Airglow::with_shared_continuum(
+            observer,
+            Arc::clone(&self.airglow_continuum),
+            self.config.site_profile,
+        )
+        .with_atmosphere(profile.atmosphere)
+        .with_geometry(self.config.airglow_geometry.clone())
+        .with_solar_radio_flux(solar.value)
+        .with_scale(profile.airglow.scale)
+        .compute_with_time_of_night_bin(time, target, time_bin)
     }
 
     fn evaluate_starlight(&self, target: Target) -> Result<starlight::StarlightOutputs> {
@@ -524,18 +531,16 @@ fn collect_internal_boundaries(
     }
 }
 
-fn airglow_night_phase(
-    prepared: &PreparedThresholdQuery,
-    time: ModifiedJulianDate,
-) -> Option<airglow::AirglowNightPhase> {
-    let phase =
-        airglow::temporal::night_phase_from_nights(time, &prepared.astronomical_night_periods);
-    let precomputed_phase =
-        airglow::temporal::night_phase_from_phase_periods(time, &prepared.airglow_phase_periods);
-    if let (Some(phase), Some(precomputed_phase)) = (phase, precomputed_phase) {
-        debug_assert_eq!(phase, precomputed_phase);
-    }
-    phase
+fn airglow_time_bin(prepared: &PreparedThresholdQuery, time: ModifiedJulianDate) -> Option<usize> {
+    let bin = airglow::temporal::time_of_night_bin_from_nights(
+        time,
+        &prepared.astronomical_night_periods,
+    );
+    let _phase_bin = airglow::temporal::time_of_night_bin_from_phase_periods(
+        time,
+        &prepared.airglow_phase_periods,
+    );
+    bin
 }
 
 #[cfg(test)]

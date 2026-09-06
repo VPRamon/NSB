@@ -6,6 +6,7 @@
 //! as named-site parsing and timestamp parsing intentionally live outside this
 //! crate.
 
+mod airglow_maturity;
 mod core;
 mod metadata;
 mod search;
