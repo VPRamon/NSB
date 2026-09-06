@@ -1,6 +1,7 @@
 use crate::cfg_test::cfg_test_line_numbers;
 use crate::diff::{
-    group_by_path, is_likely_non_instrumentable_rust_line_with_context, ChangedLine,
+    group_by_path, is_likely_non_instrumentable_rust_line,
+    is_likely_non_instrumentable_rust_line_with_context, ChangedLine,
 };
 use crate::llvm::{crate_metrics, CoverageReport};
 use crate::paths::is_production_rust_file;
@@ -181,7 +182,9 @@ where
         }
 
         // Each grouped path is visited once, so keep the exact source alongside
-        // the cfg(test) scan. Missing source remains fail-closed below.
+        // the cfg(test) scan. Missing source remains fail-closed for ambiguous
+        // lines, while self-evident declarations can still be classified from
+        // their diff text alone.
         let source = load_source(&path);
         let test_only = source
             .as_deref()
@@ -202,15 +205,16 @@ where
             continue;
         }
         let Some(file) = report.files.get(&path) else {
-            // Absent from LCOV: fail closed only when changed lines look
-            // instrumentable. Source context is required before treating an
-            // otherwise ambiguous continuation line as declaration-only.
-            let declaration_only = source.as_deref().is_some_and(|source| {
-                production_lines.iter().all(|line| {
-                    is_likely_non_instrumentable_rust_line_with_context(
-                        source, line.line, &line.text,
-                    )
-                })
+            // Absent from LCOV: declaration syntax that is unambiguous in the
+            // changed line itself remains non-instrumentable without source.
+            // Only ambiguous continuation lines require HEAD source context.
+            let declaration_only = production_lines.iter().all(|line| {
+                is_likely_non_instrumentable_rust_line(&line.text)
+                    || source.as_deref().is_some_and(|source| {
+                        is_likely_non_instrumentable_rust_line_with_context(
+                            source, line.line, &line.text,
+                        )
+                    })
             });
             if !declaration_only {
                 missing_files.push(path);
