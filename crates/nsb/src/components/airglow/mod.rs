@@ -35,11 +35,14 @@
 //! A caller-provided [`AirglowContinuum`] is classified as
 //! [`AirglowScientificProfile::UnvalidatedCustomContinuum`]. Providing custom
 //! bytes, a scale, F10.7, atmosphere or geometry is not a calibration-evidence
-//! contract. Future site-calibrated use must enter through an explicit validated
-//! scientific profile/evidence path.
+//! contract. Caller-provided SkyCalc-format text must parse into the validated
+//! continuum type before it can be supplied to [`Airglow::with_continuum`].
+//! Future site-calibrated use must enter through an explicit validated scientific
+//! profile/evidence path.
 
 pub(crate) mod calibration;
 mod continuum;
+mod domain;
 mod extinction;
 mod geometry;
 mod model;
@@ -49,6 +52,7 @@ mod units;
 
 pub(crate) use calibration::load_builtin_standard;
 pub use calibration::AirglowContinuum;
+pub(crate) use domain::AirglowNightPhase;
 pub(crate) use extinction::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
 pub use geometry::{
     AirglowGeometryMetadata, AirglowGeometryModel, AirglowWavelengthApplicability,
