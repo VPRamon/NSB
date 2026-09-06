@@ -44,11 +44,7 @@ fn parser_rejects_invalid_header_arity_and_numbers() {
             "bad numeric value in height",
         ),
         (
-            RAW.replacen(
-                "2.068E-01 6.139E-03",
-                "2.068E-01",
-                1,
-            ),
+            RAW.replacen("2.068E-01 6.139E-03", "2.068E-01", 1),
             "expected 2 solar-activity values, got 1",
         ),
     ] {
@@ -60,7 +56,10 @@ fn parser_rejects_invalid_header_arity_and_numbers() {
 fn parser_rejects_malformed_matrix_and_spectral_rows() {
     let mean_row = "0.998 0.809 0.916 1.24 1.071 1.036 0.918";
     let bad_mean = RAW.replacen(mean_row, "0.998 0.809 0.916 1.24 1.071 1.036", 1);
-    assert_rejected(&bad_mean, "mean corrections row 0 has 6 columns, expected 7");
+    assert_rejected(
+        &bad_mean,
+        "mean corrections row 0 has 6 columns, expected 7",
+    );
 
     let first_sample = "0.3 0.92 0.65";
     let bad_sample = RAW.replacen(first_sample, "0.3 0.92", 1);
@@ -76,11 +75,7 @@ fn parser_rejects_malformed_matrix_and_spectral_rows() {
 #[test]
 fn validated_boundary_rejects_remaining_invalid_numeric_domains() {
     let sigma_row = "0.382 0.305 0.255 0.458 0.379 0.448 0.232";
-    let negative_sigma = RAW.replacen(
-        sigma_row,
-        "-0.382 0.305 0.255 0.458 0.379 0.448 0.232",
-        1,
-    );
+    let negative_sigma = RAW.replacen(sigma_row, "-0.382 0.305 0.255 0.458 0.379 0.448 0.232", 1);
     assert_rejected(&negative_sigma, "must be non-negative");
 
     let first_sample = "0.3 0.92 0.65";
@@ -91,16 +86,9 @@ fn validated_boundary_rejects_remaining_invalid_numeric_domains() {
     );
 
     let non_finite_mean = RAW.replacen(first_sample, "0.3 NaN 0.65", 1);
-    assert_rejected(
-        &non_finite_mean,
-        "relative mean sample 0 must be finite",
-    );
+    assert_rejected(&non_finite_mean, "relative mean sample 0 must be finite");
 
-    let non_finite_solar = RAW.replacen(
-        "2.068E-01 6.139E-03",
-        "NaN 6.139E-03",
-        1,
-    );
+    let non_finite_solar = RAW.replacen("2.068E-01 6.139E-03", "NaN 6.139E-03", 1);
     assert_rejected(
         &non_finite_solar,
         "solar-activity intercept and slope must be finite",
