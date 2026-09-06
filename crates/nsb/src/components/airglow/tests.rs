@@ -10,7 +10,7 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
-use siderust::qtty::{Degrees, Kilometers, Meters, Nanometers};
+use siderust::qtty::{Degrees, Kilometers, Meters, Nanometer, Nanometers};
 use siderust::time::{ModifiedJulianDate, TT};
 use tempoch::{Time, UTC};
 
