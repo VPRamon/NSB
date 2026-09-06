@@ -1,4 +1,4 @@
-//! Empirical continuum airglow component.
+//! Empirical continuum Airglow component.
 //!
 //! Airglow is terrestrial atmospheric emission and a natural part of the night
 //! sky background. NSB exposes an arbitrary-location empirical continuum model
@@ -23,11 +23,13 @@
 //! [`AirglowGeometryModel::VerticalProfile`]. Emitting-volume geometry is
 //! independent of the Noll Rayleigh/Mie atmospheric attenuation stage.
 //!
-//! For site-specific calibration, load or build an [`AirglowContinuum`] and pass
-//! it to [`Airglow::with_continuum`].
+//! For caller-provided calibration, parse SkyCalc-format text into a validated
+//! [`AirglowContinuum`] and pass it to [`Airglow::with_continuum`]. Invalid
+//! calibration structure is rejected before an `AirglowContinuum` can exist.
 
 pub(crate) mod calibration;
 mod continuum;
+mod domain;
 mod extinction;
 mod geometry;
 mod model;
@@ -37,6 +39,7 @@ mod units;
 
 pub(crate) use calibration::load_builtin_standard;
 pub use calibration::AirglowContinuum;
+pub(crate) use domain::AirglowNightPhase;
 pub(crate) use extinction::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
 pub use geometry::{
     AirglowGeometryMetadata, AirglowGeometryModel, AirglowWavelengthApplicability,
