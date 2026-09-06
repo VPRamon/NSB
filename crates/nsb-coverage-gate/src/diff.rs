@@ -440,7 +440,8 @@ diff --git a/crates/nsb/src/lib.rs b/crates/nsb/src/lib.rs
 
     #[test]
     fn multiline_const_continuation_uses_source_context() {
-        let source = "pub const SOME_SOURCE: &str =\n    \"git:https://example.com/repository?rev=abc\";\n";
+        let source =
+            "pub const SOME_SOURCE: &str =\n    \"git:https://example.com/repository?rev=abc\";\n";
         assert!(is_likely_non_instrumentable_rust_line_with_context(
             source,
             2,
