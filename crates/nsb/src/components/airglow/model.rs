@@ -1,7 +1,8 @@
 use super::calibration::{load_builtin_standard, AirglowContinuum};
 use super::continuum::{
-    evaluate_continuum, evaluate_continuum_with_time_bin, AirglowEvaluationContext,
+    evaluate_continuum, evaluate_continuum_with_night_phase, AirglowEvaluationContext,
 };
+use super::domain::AirglowNightPhase;
 use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
@@ -144,7 +145,7 @@ impl Airglow {
         scientific_profile: AirglowScientificProfile,
     ) -> Self {
         let geometry = AirglowGeometryModel::VanRhijn(VanRhijnConfig::from_continuum_height(
-            continuum.emission_height_km,
+            continuum.emission_height_km(),
         ));
         Self {
             location,
@@ -240,14 +241,14 @@ impl Airglow {
         )
     }
 
-    pub(crate) fn compute_with_time_of_night_bin(
+    pub(crate) fn compute_with_night_phase(
         &self,
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
-        time_bin: usize,
+        phase: AirglowNightPhase,
     ) -> Result<AirglowOutputs> {
         let altitude = target_altitude(time, self.location, target);
-        evaluate_continuum_with_time_bin(
+        evaluate_continuum_with_night_phase(
             &self.continuum,
             time,
             altitude,
@@ -258,7 +259,7 @@ impl Airglow {
                 solar_radio_flux: self.solar_radio_flux,
                 user_scale: self.scale,
             },
-            time_bin,
+            phase,
         )
     }
 }
