@@ -21,7 +21,7 @@ the `nsb` crate. Offline catalogue and data-product generation remain in
 | --- | --- |
 | `nsb point` | Evaluate NSB at one UTC instant and target direction |
 | `nsb window` | Find UTC periods satisfying NSB and visibility constraints |
-| `nsb sites list` | List the active Siderust observatory catalog |
+| `nsb sites list` | List the effective observatory catalog (Siderust + NSB extensions) |
 | `nsb sites show <name-or-alias>` | Inspect one catalog observatory |
 | `nsb config init` | Print a starter TOML configuration structure |
 | `nsb config validate <path>` | Validate the TOML configuration schema |
@@ -50,11 +50,13 @@ nsb --format csv window \
 Global options such as `--format`, `--log-level`, and `-v` precede the
 subcommand.
 
-Siderust owns observatory names, coordinates, reference atmosphere, and custom
-`[[observatory]]` parsing. Pass `--observatory-catalog <path>` to `point`,
-`window`, or `sites` to replace the bundled catalog for that command. NSB's
-aliases contain naming policy only, and `--site-profile` independently selects
-`generic-clear-sky`, `cta-north`, or `cta-south` scientific assumptions.
+Siderust owns the observatory catalog model and `[[observatory]]` parsing. The
+default effective catalog is Siderust builtins extended by
+`crates/nsb-cli/data/observatories.toml` (CTAO-N/S, H.E.S.S., MAGIC, FACT,
+VERITAS, FAST, GTC, …). Pass `--observatory-catalog <path>` to `point`,
+`window`, or `sites` to **replace** that effective catalog for the command.
+NSB aliases are naming conveniences only, and `--site-profile` independently
+selects `generic-clear-sky`, `cta-north`, or `cta-south` scientific assumptions.
 
 ## Production starlight
 

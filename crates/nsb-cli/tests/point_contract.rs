@@ -31,7 +31,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     assert_eq!(value["version"]["siderust_version"], "0.11.1");
     assert_eq!(
         value["version"]["siderust_source"],
-        "git:https://github.com/Siderust/siderust?rev=5d650497b2b6873eef50f9046b0946cab42c0bf2"
+        "git:https://github.com/Siderust/siderust?rev=2af7c21096551b69a72bba6aa391523f3a4fca9a"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert_eq!(value["model"]["airglow_geometry"], "van_rhijn");

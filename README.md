@@ -85,16 +85,18 @@ Global options such as `--format`, `--log-level`, and `-v` precede the
 subcommand. Use `nsb sites list` to inspect named observatory aliases, or provide
 `--lon`, `--lat`, and `--height` explicitly.
 
-Siderust owns observatory location and reference-atmosphere data. NSB aliases
-are naming conveniences only, while `--site-profile` independently selects NSB
-scientific assumptions. `--observatory-catalog path/to/observatories.toml`
-loads Siderust `[[observatory]]` records and replaces the bundled catalog for
-that command. See the customization guide for the complete schema and policy.
+Siderust owns the generic observatory catalog model and parsing. NSB's default
+effective catalog is Siderust's builtins plus NSB-local
+`[[observatory]]` extensions (CTAO-N/S and other facilities useful to NSB).
+Aliases are naming conveniences only, while `--site-profile` independently
+selects NSB scientific assumptions. `--observatory-catalog path/to/observatories.toml`
+loads Siderust `[[observatory]]` records and **replaces** the effective catalog
+for that command. See the customization guide for the complete schema and policy.
 
-This development revision temporarily pins Siderust `main` commit
-`5d650497b2b6873eef50f9046b0946cab42c0bf2`, which contains
-`ObservatoryCatalog`. Replace the git pin with the first released Siderust
-version containing that API when available.
+This development revision temporarily pins Siderust commit
+`2af7c21096551b69a72bba6aa391523f3a4fca9a`, which contains
+`ObservatoryCatalog` and `ObservatoryCatalog::extend`. Replace the git pin with
+the first released Siderust version containing that API when available.
 
 Read the complete [Getting started guide](docs/user-guide/getting-started.md).
 

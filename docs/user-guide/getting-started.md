@@ -87,11 +87,13 @@ disabled explicitly.
 ```bash
 cargo run --locked -p nsb-cli -- sites list
 cargo run --locked -p nsb-cli -- sites show PARANAL
+cargo run --locked -p nsb-cli -- sites show CTAO-N
 ```
 
-Named locations and coordinates come from Siderust's observatory catalog.
-Aliases are CLI conveniences only. Every observatory uses the generic clear-sky
-profile unless `--site-profile` selects another NSB planning profile explicitly.
+Named locations come from the composed catalog: Siderust builtins plus NSB's
+bundled `[[observatory]]` extensions. Aliases are CLI conveniences only. Every
+observatory uses the generic clear-sky profile unless `--site-profile` selects
+another NSB planning profile explicitly.
 
 ## Select components and model options
 

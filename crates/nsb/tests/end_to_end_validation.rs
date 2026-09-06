@@ -17,7 +17,6 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::coordinates::spherical::direction;
 use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
-use siderust::qtty::{Degrees, Meters};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Period, Time, MJD, UTC};
 

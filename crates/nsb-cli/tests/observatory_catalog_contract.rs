@@ -28,7 +28,8 @@ fn external_catalog_replaces_bundled_scope_and_selects_unknown_site() {
     .assert()
     .success()
     .stdout(predicate::str::contains("Fictional Test Observatory"))
-    .stdout(predicate::str::contains("El Paranal Observatory").not());
+    .stdout(predicate::str::contains("El Paranal Observatory").not())
+    .stdout(predicate::str::contains("CTAO South").not());
 
     let mut point = Command::cargo_bin("nsb").unwrap();
     point
@@ -139,7 +140,7 @@ fn profile_selection_is_independent_and_custom_sites_default_to_generic() {
     let path = directory.path().join("observatories.toml");
     fs::write(&path, CUSTOM_CATALOG).unwrap();
 
-    let run = |profile: Option<&str>| {
+    let run = |site: &str, catalog: Option<&str>, profile: Option<&str>| {
         let mut args = vec![
             "--format",
             "json",
@@ -147,9 +148,7 @@ fn profile_selection_is_independent_and_custom_sites_default_to_generic() {
             "--time",
             "2026-06-18T23:00:00Z",
             "--site",
-            "Fictional Test Observatory",
-            "--observatory-catalog",
-            path.to_str().unwrap(),
+            site,
             "--ra",
             "83",
             "--dec",
@@ -157,6 +156,9 @@ fn profile_selection_is_independent_and_custom_sites_default_to_generic() {
             "--components",
             "zodiacal",
         ];
+        if let Some(catalog) = catalog {
+            args.extend(["--observatory-catalog", catalog]);
+        }
         if let Some(profile) = profile {
             args.extend(["--site-profile", profile]);
         }
@@ -171,9 +173,85 @@ fn profile_selection_is_independent_and_custom_sites_default_to_generic() {
         serde_json::from_slice::<serde_json::Value>(&output).unwrap()
     };
 
-    assert_eq!(run(None)["model"]["preset"], "generic-clear-sky");
     assert_eq!(
-        run(Some("cta-north"))["model"]["preset"],
+        run(
+            "Fictional Test Observatory",
+            Some(path.to_str().unwrap()),
+            None
+        )["model"]["preset"],
+        "generic-clear-sky"
+    );
+    assert_eq!(
+        run(
+            "Fictional Test Observatory",
+            Some(path.to_str().unwrap()),
+            Some("cta-north")
+        )["model"]["preset"],
         "ctao-north-planning"
     );
+
+    assert_eq!(
+        run("CTAO-N", None, None)["model"]["preset"],
+        "generic-clear-sky"
+    );
+    assert_eq!(
+        run("CTAO-N", None, Some("cta-north"))["model"]["preset"],
+        "ctao-north-planning"
+    );
+    assert_eq!(
+        run("CTAO-S", None, None)["model"]["preset"],
+        "generic-clear-sky"
+    );
+    assert_eq!(
+        run("CTAO-S", None, Some("cta-south"))["model"]["preset"],
+        "ctao-south-planning"
+    );
+}
+
+#[test]
+fn point_and_window_accept_composed_site_aliases() {
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "point",
+            "--time",
+            "2026-06-18T23:00:00Z",
+            "--site",
+            "CTAO-S",
+            "--site-profile",
+            "cta-south",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--components",
+            "zodiacal",
+        ])
+        .assert()
+        .success();
+
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "window",
+            "--start",
+            "2026-06-18T20:00:00Z",
+            "--end",
+            "2026-06-18T22:00:00Z",
+            "--site",
+            "HESS",
+            "--ra",
+            "83.0",
+            "--dec",
+            "22.0",
+            "--max-nsb",
+            "10",
+            "--components",
+            "zodiacal",
+            "--step",
+            "1800",
+            "--no-pre-filter",
+        ])
+        .assert()
+        .success();
 }
