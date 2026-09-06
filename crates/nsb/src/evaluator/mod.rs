@@ -13,8 +13,7 @@ mod types;
 
 pub use core::NsbEvaluator;
 pub use metadata::{
-    BandDiagnostic, ComponentCalibrationStatus, ComponentCalibrationStatus as CalibrationStatus,
-    NsbComponentMetadata,
+    BandDiagnostic, ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
 };
 pub use types::{
     ComponentMask, MoonlightModel, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult,

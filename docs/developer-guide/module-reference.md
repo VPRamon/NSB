@@ -27,9 +27,8 @@ SemVer policy, and the snapshot gate are documented in
 | `assets` | Public | Build-verified bundled asset metadata only (checksums, provenance, maturity); no runtime TOML parsing of `manifest.toml` |
 | `components` | Public | Night-sky contributors and their typed inputs, outputs, metadata, and validation boundaries |
 | `error` | Public | `NsbError` and the crate-wide `Result` alias |
-| `evaluator` | Public | Evaluator construction, point queries, threshold queries, component selection, and result metadata |
-| `site` | Public | Generic and named planning profiles, atmospheric assumptions, airglow scaling, and calibration status |
-| `site_calibration` | Public | Evidence contract for dedicated site-calibration assets |
+| `evaluator` | Crate-private with selected root re-exports | Evaluator construction, point queries, threshold queries, component selection, and result metadata |
+| `site` | Public | Generic and named planning profiles, atmospheric assumptions, airglow scaling, calibration status, and canonical site-calibration evidence |
 | `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
 | `spectrum` | Crate-private | Spectral integration and interpolation helpers |
 | `units` | Crate-private with selected re-exports | NSB-specific typed quantities and scale-factor aliases |

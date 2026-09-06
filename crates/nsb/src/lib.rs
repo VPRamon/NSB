@@ -53,13 +53,10 @@ pub mod assets;
 pub mod components;
 /// Public error type and crate [`Result`].
 pub mod error;
-/// Evaluator, queries, results, and component-selection types.
-pub mod evaluator;
+mod evaluator;
 mod reference;
 /// Site profiles, shared atmosphere, and canonical calibration evidence.
 pub mod site;
-/// Compatibility facade for the site-calibration evidence contract.
-pub mod site_calibration;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
 pub(crate) mod units;
@@ -87,13 +84,13 @@ pub use evaluator::{
     NsbComponent, NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig,
     NsbResult, Observer, PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
+pub use site::calibration::{
+    AirglowCalibrationEvidence, AtmosphericSiteCalibration, CalibratedSiteId, SiteCalibrationAsset,
+    SiteCalibrationAssetError, SiteCalibrationReference, SiteCalibrationValidity,
+};
 pub use site::{
     AirglowSiteCalibration, AtmosphericConditions, CalibrationStatus,
     CalibrationStatus as SiteCalibrationStatus, SiteProfile, SiteProfileId,
-};
-pub use site_calibration::{
-    AirglowCalibrationEvidence, AtmosphericSiteCalibration, CalibratedSiteId, SiteCalibrationAsset,
-    SiteCalibrationAssetError, SiteCalibrationReference, SiteCalibrationValidity,
 };
 pub use solar_activity::{
     bundled_f107_store, resolve_f107, F107Kind, F107Record, F107Store, F107StoreError,
