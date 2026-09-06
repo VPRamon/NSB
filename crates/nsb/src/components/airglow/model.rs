@@ -129,11 +129,12 @@ impl Airglow {
     pub(crate) fn with_shared_continuum(
         location: Geodetic<ECEF>,
         continuum: Arc<AirglowContinuum>,
+        site_profile: SiteProfileId,
     ) -> Self {
         Self::with_shared_continuum_and_profile(
             location,
             continuum,
-            AirglowScientificProfile::UnvalidatedCustomContinuum,
+            AirglowScientificProfile::BuiltIn(site_profile),
         )
     }
 
@@ -284,5 +285,30 @@ mod maturity_tests {
             CalibrationStatus::GenericFallback
         );
         assert!(!model.is_site_calibrated());
+    }
+
+    #[test]
+    fn shared_builtin_continuum_preserves_selected_site_profile() {
+        for (site_profile, expected_status) in [
+            (
+                SiteProfileId::GenericClearSky,
+                CalibrationStatus::GenericFallback,
+            ),
+            (SiteProfileId::CtaNorth, CalibrationStatus::PlanningPreset),
+            (SiteProfileId::CtaSouth, CalibrationStatus::PlanningPreset),
+        ] {
+            let model = Airglow::with_shared_continuum(
+                location(),
+                Arc::new(load_builtin_standard().unwrap()),
+                site_profile,
+            );
+
+            assert_eq!(
+                model.scientific_profile(),
+                AirglowScientificProfile::BuiltIn(site_profile)
+            );
+            assert_eq!(model.calibration_status(), expected_status);
+            assert_eq!(model.is_site_calibrated(), site_profile.is_site_calibrated());
+        }
     }
 }
