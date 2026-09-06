@@ -25,7 +25,8 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
-siderust = "0.11.1"
+# Temporary until ObservatoryCatalog is included in a Siderust release.
+siderust = { git = "https://github.com/Siderust/siderust", rev = "5d650497b2b6873eef50f9046b0946cab42c0bf2" }
 toml = "1.1.2"
 toml_edit = "0.23"
 tempfile = "3"

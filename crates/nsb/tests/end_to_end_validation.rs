@@ -39,11 +39,7 @@ fn parse(s: &str) -> Time<UTC> {
 }
 
 fn ctao_s() -> Geodetic<ECEF> {
-    Geodetic::<ECEF>::new_raw(
-        Degrees::new(-70.406944),
-        Degrees::new(-24.627222),
-        Meters::new(2100.0),
-    )
+    siderust::catalogs::observatories::EL_PARANAL.geodetic()
 }
 
 fn sgr_a_star() -> Target {

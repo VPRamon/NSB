@@ -16,21 +16,16 @@ fn workspace_root() -> PathBuf {
         .expect("workspace root")
 }
 
-fn declared_siderust_version(manifest: &str) -> Option<String> {
+fn declared_siderust_revision(manifest: &str) -> Option<String> {
     for line in manifest.lines() {
         let trimmed = line.trim();
-        // siderust = "0.11.1"
-        if let Some(rest) = trimmed.strip_prefix("siderust = \"") {
-            return Some(rest.trim_end_matches('"').to_string());
-        }
-        // siderust = { version = "0.11.1", ... }
         if trimmed.starts_with("siderust = {") {
-            let Some(after) = trimmed.split("version = \"").nth(1) else {
+            let Some(after) = trimmed.split("rev = \"").nth(1) else {
                 continue;
             };
-            let version = after.split('"').next()?.to_string();
-            if !version.is_empty() {
-                return Some(version);
+            let revision = after.split('"').next()?.to_string();
+            if !revision.is_empty() {
+                return Some(revision);
             }
         }
     }
@@ -53,6 +48,23 @@ fn locked_siderust_version(lockfile: &str) -> Option<String> {
     None
 }
 
+fn locked_siderust_source(lockfile: &str) -> Option<String> {
+    let mut lines = lockfile.lines().peekable();
+    while let Some(line) = lines.next() {
+        if line.trim() != "name = \"siderust\"" {
+            continue;
+        }
+        lines.next()?;
+        return lines
+            .next()?
+            .trim()
+            .strip_prefix("source = \"")?
+            .strip_suffix('"')
+            .map(str::to_owned);
+    }
+    None
+}
+
 #[test]
 fn siderust_provenance_matches_manifest_and_lockfile() {
     let root = workspace_root();
@@ -64,10 +76,11 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         .expect("data-tools Cargo.toml");
     let lockfile = fs::read_to_string(root.join("Cargo.lock")).expect("Cargo.lock");
 
-    let nsb = declared_siderust_version(&nsb_manifest).expect("nsb siderust declaration");
-    let cli = declared_siderust_version(&cli_manifest).expect("cli siderust declaration");
-    let tools = declared_siderust_version(&tools_manifest).expect("tools siderust declaration");
+    let nsb = declared_siderust_revision(&nsb_manifest).expect("nsb siderust declaration");
+    let cli = declared_siderust_revision(&cli_manifest).expect("cli siderust declaration");
+    let tools = declared_siderust_revision(&tools_manifest).expect("tools siderust declaration");
     let locked = locked_siderust_version(&lockfile).expect("locked siderust package");
+    let locked_source = locked_siderust_source(&lockfile).expect("locked siderust source");
 
     assert_eq!(
         nsb, cli,
@@ -78,8 +91,9 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         "workspace crates must declare the same Siderust version"
     );
     assert_eq!(
-        nsb, locked,
-        "Cargo.lock siderust package must match crates/nsb/Cargo.toml"
+        locked_source,
+        format!("git+https://github.com/Siderust/siderust?rev={nsb}#{nsb}"),
+        "Cargo.lock must pin the declared Siderust git revision"
     );
     assert_eq!(
         SIDERUST_VERSION,
@@ -88,7 +102,7 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
     );
     assert_eq!(
         SIDERUST_SOURCE,
-        format!("crates.io:siderust:{locked}"),
-        "nsb::SIDERUST_SOURCE must be the crates.io identity for the locked package"
+        format!("git:https://github.com/Siderust/siderust?rev={nsb}"),
+        "nsb::SIDERUST_SOURCE must identify the pinned git revision"
     );
 }

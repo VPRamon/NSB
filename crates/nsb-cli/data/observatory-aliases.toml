@@ -1,0 +1,24 @@
+# NSB command-line conveniences only. Scientific and geodetic observatory data
+# live in Siderust's ObservatoryCatalog.
+[aliases]
+PARANAL = "El Paranal Observatory"
+CERRO-PARANAL = "El Paranal Observatory"
+VLT = "El Paranal Observatory"
+ORM = "Roque de los Muchachos Observatory"
+LA-PALMA = "Roque de los Muchachos Observatory"
+LAPALMA = "Roque de los Muchachos Observatory"
+MAUNA-KEA = "Mauna Kea Observatory"
+MAUNAKEA = "Mauna Kea Observatory"
+LA-SILLA = "La Silla Observatory"
+LASILLA = "La Silla Observatory"
+
+# These aliases deliberately do not fall back to ORM or Paranal. They become
+# resolvable only when the active Siderust catalog contains distinct records.
+CTAO-N = "CTAO North"
+CTA-N = "CTAO North"
+CTAO-NORTH = "CTAO North"
+CTA-NORTH = "CTAO North"
+CTAO-S = "CTAO South"
+CTA-S = "CTAO South"
+CTAO-SOUTH = "CTAO South"
+CTA-SOUTH = "CTAO South"

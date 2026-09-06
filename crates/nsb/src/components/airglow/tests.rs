@@ -30,19 +30,11 @@ fn paranal() -> Geodetic<ECEF> {
 }
 
 fn cta_s() -> Geodetic<ECEF> {
-    Geodetic::new_raw(
-        Degrees::new(-70.406944),
-        Degrees::new(-24.627222),
-        Meters::new(2100.0),
-    )
+    observatories::EL_PARANAL.geodetic()
 }
 
 fn cta_n() -> Geodetic<ECEF> {
-    Geodetic::new_raw(
-        Degrees::new(-17.892),
-        Degrees::new(28.762),
-        Meters::new(2396.0),
-    )
+    observatories::ROQUE_DE_LOS_MUCHACHOS.geodetic()
 }
 
 fn high_arctic(latitude_deg: f64) -> Geodetic<ECEF> {

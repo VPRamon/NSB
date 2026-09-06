@@ -21,8 +21,8 @@ the `nsb` crate. Offline catalogue and data-product generation remain in
 | --- | --- |
 | `nsb point` | Evaluate NSB at one UTC instant and target direction |
 | `nsb window` | Find UTC periods satisfying NSB and visibility constraints |
-| `nsb sites list` | List known operational site aliases |
-| `nsb sites show <alias>` | Inspect one alias and its coordinates |
+| `nsb sites list` | List the active Siderust observatory catalog |
+| `nsb sites show <name-or-alias>` | Inspect one catalog observatory |
 | `nsb config init` | Print a starter TOML configuration structure |
 | `nsb config validate <path>` | Validate the TOML configuration schema |
 
@@ -31,7 +31,8 @@ the `nsb` crate. Offline catalogue and data-product generation remain in
 ```bash
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components all
@@ -39,7 +40,8 @@ nsb --format json point \
 nsb --format csv window \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --max-nsb 0.25
@@ -47,6 +49,12 @@ nsb --format csv window \
 
 Global options such as `--format`, `--log-level`, and `-v` precede the
 subcommand.
+
+Siderust owns observatory names, coordinates, reference atmosphere, and custom
+`[[observatory]]` parsing. Pass `--observatory-catalog <path>` to `point`,
+`window`, or `sites` to replace the bundled catalog for that command. NSB's
+aliases contain naming policy only, and `--site-profile` independently selects
+`generic-clear-sky`, `cta-north`, or `cta-south` scientific assumptions.
 
 ## Production starlight
 
@@ -56,7 +64,8 @@ A validated external override requires both files:
 ```bash
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components starlight \

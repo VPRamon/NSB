@@ -17,7 +17,9 @@ fn invalid_site_errors() {
     ])
     .assert()
     .failure()
-    .stderr(predicate::str::contains("unknown site alias"));
+    .stderr(predicate::str::contains(
+        "unknown observatory name or alias",
+    ));
 }
 
 #[test]
@@ -30,7 +32,9 @@ fn invalid_nsb_range_errors() {
         "--end",
         "2026-06-19T06:00:00Z",
         "--site",
-        "CTAO-S",
+        "PARANAL",
+        "--site-profile",
+        "cta-south",
         "--ra",
         "83.0",
         "--dec",

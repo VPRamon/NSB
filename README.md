@@ -57,7 +57,8 @@ cargo run --locked -p nsb-cli -- \
   --format json \
   point \
   --time 2026-06-18T23:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components all
@@ -71,7 +72,8 @@ cargo run --locked -p nsb-cli -- \
   window \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --max-nsb 0.25 \
@@ -82,6 +84,17 @@ cargo run --locked -p nsb-cli -- \
 Global options such as `--format`, `--log-level`, and `-v` precede the
 subcommand. Use `nsb sites list` to inspect named observatory aliases, or provide
 `--lon`, `--lat`, and `--height` explicitly.
+
+Siderust owns observatory location and reference-atmosphere data. NSB aliases
+are naming conveniences only, while `--site-profile` independently selects NSB
+scientific assumptions. `--observatory-catalog path/to/observatories.toml`
+loads Siderust `[[observatory]]` records and replaces the bundled catalog for
+that command. See the customization guide for the complete schema and policy.
+
+This development revision temporarily pins Siderust `main` commit
+`5d650497b2b6873eef50f9046b0946cab42c0bf2`, which contains
+`ObservatoryCatalog`. Replace the git pin with the first released Siderust
+version containing that API when available.
 
 Read the complete [Getting started guide](docs/user-guide/getting-started.md).
 
@@ -132,7 +145,8 @@ A validated external starlight override requires both files:
 ```bash
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components starlight \

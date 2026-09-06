@@ -30,7 +30,8 @@ cargo run --locked -p nsb-cli -- \
   --format table \
   point \
   --time 2026-06-18T23:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --components all
@@ -66,7 +67,8 @@ cargo run --locked -p nsb-cli -- \
   window \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
-  --site CTAO-S \
+  --site PARANAL \
+  --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
   --max-nsb 0.25 \
@@ -84,12 +86,12 @@ disabled explicitly.
 
 ```bash
 cargo run --locked -p nsb-cli -- sites list
-cargo run --locked -p nsb-cli -- sites show CTAO-S
+cargo run --locked -p nsb-cli -- sites show PARANAL
 ```
 
-Named aliases provide coordinates. CTAO-N and CTAO-S additionally select their
-corresponding planning profiles. Other aliases currently use the generic
-clear-sky profile unless the application configures the library directly.
+Named locations and coordinates come from Siderust's observatory catalog.
+Aliases are CLI conveniences only. Every observatory uses the generic clear-sky
+profile unless `--site-profile` selects another NSB planning profile explicitly.
 
 ## Select components and model options
 
