@@ -57,7 +57,7 @@ cargo run --locked -p nsb-cli -- \
   --format json \
   point \
   --time 2026-06-18T23:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -72,7 +72,7 @@ cargo run --locked -p nsb-cli -- \
   window \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -147,7 +147,7 @@ A validated external starlight override requires both files:
 ```bash
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -201,7 +201,12 @@ command inventory is `crates/nsb-data-tools/tool-registry.toml`.
 
 ## Quality gates
 
-The minimum supported Rust version is 1.89. Pull requests run:
+The minimum supported Rust version is 1.89. Pull requests run the Rust build,
+test, documentation, API-policy, MSRV, and coverage checks below. The
+`cargo deny check` policy remains active for local/release validation; its
+dedicated GitHub Actions job is temporarily disabled for the #140 development
+phase while Siderust is pinned to an unreleased git revision, and should be
+restored when the dependency returns to a released source.
 
 ```bash
 cargo fmt --all -- --check
