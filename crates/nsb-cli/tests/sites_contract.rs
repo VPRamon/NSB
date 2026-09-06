@@ -84,8 +84,16 @@ fn sites_show_ctao_and_extension_aliases() {
             .clone();
         let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
         assert_eq!(value[0]["name"], name, "alias {alias}");
-        assert_eq!(value[0]["longitude_deg"], lon, "alias {alias}");
-        assert_eq!(value[0]["latitude_deg"], lat, "alias {alias}");
+        let got_lon = value[0]["longitude_deg"].as_f64().unwrap();
+        let got_lat = value[0]["latitude_deg"].as_f64().unwrap();
+        assert!(
+            (got_lon - lon).abs() < 1.0e-12,
+            "alias {alias}: lon {got_lon} != {lon}"
+        );
+        assert!(
+            (got_lat - lat).abs() < 1.0e-12,
+            "alias {alias}: lat {got_lat} != {lat}"
+        );
     }
 }
 
