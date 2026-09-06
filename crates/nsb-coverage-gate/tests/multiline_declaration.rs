@@ -52,7 +52,8 @@ fn report_without_target_file() -> nsb_coverage_gate::CoverageReport {
 #[test]
 fn multiline_const_continuation_absent_from_lcov_is_not_instrumentable() {
     let path = "crates/nsb/src/provenance.rs";
-    let source = "pub const SOME_SOURCE: &str =\n    \"git:https://example.com/repository?rev=abc123\";\n";
+    let source =
+        "pub const SOME_SOURCE: &str =\n    \"git:https://example.com/repository?rev=abc123\";\n";
     let diff = "\
 +++ b/crates/nsb/src/provenance.rs
 @@ -1,0 +1,2 @@
