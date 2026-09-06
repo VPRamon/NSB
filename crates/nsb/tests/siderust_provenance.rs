@@ -89,13 +89,31 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
     let locked_version = locked_siderust_version(&lockfile).expect("locked siderust package");
     let locked_source = locked_siderust_source(&lockfile).expect("locked siderust source");
 
-    assert_eq!(nsb_version, cli_version, "workspace crates must declare the same Siderust version");
-    assert_eq!(nsb_version, tools_version, "workspace crates must declare the same Siderust version");
-    assert_eq!(nsb_version, locked_version, "Cargo.lock Siderust version must match the manifests");
-    assert_eq!(SIDERUST_VERSION, nsb_version, "nsb::SIDERUST_VERSION must match the declared Siderust version");
+    assert_eq!(
+        nsb_version, cli_version,
+        "workspace crates must declare the same Siderust version"
+    );
+    assert_eq!(
+        nsb_version, tools_version,
+        "workspace crates must declare the same Siderust version"
+    );
+    assert_eq!(
+        nsb_version, locked_version,
+        "Cargo.lock Siderust version must match the manifests"
+    );
+    assert_eq!(
+        SIDERUST_VERSION, nsb_version,
+        "nsb::SIDERUST_VERSION must match the declared Siderust version"
+    );
 
-    assert_eq!(nsb_rev, cli_rev, "workspace crates must pin the same Siderust revision");
-    assert_eq!(nsb_rev, tools_rev, "workspace crates must pin the same Siderust revision");
+    assert_eq!(
+        nsb_rev, cli_rev,
+        "workspace crates must pin the same Siderust revision"
+    );
+    assert_eq!(
+        nsb_rev, tools_rev,
+        "workspace crates must pin the same Siderust revision"
+    );
     assert_eq!(
         locked_source,
         format!("git+https://github.com/Siderust/siderust?rev={nsb_rev}#{nsb_rev}"),
