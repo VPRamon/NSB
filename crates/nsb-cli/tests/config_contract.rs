@@ -7,9 +7,7 @@ fn config_init_contract_is_stable() {
     cmd.args(["config", "init"])
         .assert()
         .success()
-        .stdout(predicate::str::contains(
-            "site = \"El Paranal Observatory\"",
-        ))
+        .stdout(predicate::str::contains("site = \"CTAO-S\""))
         .stdout(predicate::str::contains("starlight = false"))
         .stdout(predicate::str::contains("sample_step_seconds = 600.0"));
 }
