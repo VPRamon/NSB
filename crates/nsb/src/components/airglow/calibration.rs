@@ -142,19 +142,11 @@ impl AirglowContinuum {
         self.solar_activity_const + self.solar_activity_slope * solar_radio_flux
     }
 
-    pub(crate) fn mean_correction(
-        &self,
-        phase: AirglowNightPhase,
-        season: AirglowSeason,
-    ) -> f64 {
+    pub(crate) fn mean_correction(&self, phase: AirglowNightPhase, season: AirglowSeason) -> f64 {
         self.mean_corrections.get(phase, season)
     }
 
-    pub(crate) fn sigma_correction(
-        &self,
-        phase: AirglowNightPhase,
-        season: AirglowSeason,
-    ) -> f64 {
+    pub(crate) fn sigma_correction(&self, phase: AirglowNightPhase, season: AirglowSeason) -> f64 {
         self.sigma_corrections.get(phase, season)
     }
 }
@@ -552,9 +544,7 @@ mod tests {
         let continuum = load_builtin_standard().expect("airglow continuum calibration");
         assert_eq!(continuum.spectrum().len(), 46);
         assert_eq!(continuum.uncertainty().len(), 46);
-        assert!(
-            (continuum.emission_height_km().to::<Kilometer>().value() - 90.0).abs() < 1.0e-12
-        );
+        assert!((continuum.emission_height_km().to::<Kilometer>().value() - 90.0).abs() < 1.0e-12);
         assert!((continuum.global_scale().value() - 79.829).abs() < 1.0e-12);
         assert_eq!(
             continuum.mean_correction(AirglowNightPhase::FullNight, AirglowSeason::FullYear),
@@ -656,7 +646,10 @@ mod tests {
     fn invalid_emission_height_and_scale_are_rejected() {
         let mut height = raw_definition();
         height.emission_height_km = 0.0;
-        assert_invalid(height, "emission height must be finite and greater than zero");
+        assert_invalid(
+            height,
+            "emission height must be finite and greater than zero",
+        );
 
         let mut scale = raw_definition();
         scale.global_scale = -1.0;
