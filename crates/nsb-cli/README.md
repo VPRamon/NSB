@@ -31,7 +31,7 @@ the `nsb` crate. Offline catalogue and data-product generation remain in
 ```bash
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -40,7 +40,7 @@ nsb --format json point \
 nsb --format csv window \
   --start 2026-06-18T20:00:00Z \
   --end 2026-06-19T06:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
@@ -66,7 +66,7 @@ A validated external override requires both files:
 ```bash
 nsb --format json point \
   --time 2026-06-18T23:00:00Z \
-  --site PARANAL \
+  --site CTAO-S \
   --site-profile cta-south \
   --ra 83.6331 \
   --dec 22.0145 \
