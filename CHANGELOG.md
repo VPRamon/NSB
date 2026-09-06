@@ -7,6 +7,10 @@ once a stable public release is cut.
 
 ### Changed
 
+- Replaced hardcoded CLI `SITE_PRESETS` coordinates with an NSB-owned,
+  provenance-backed `observatories.toml` catalog and expanded bundled locations
+  to CTAO-N/S, H.E.S.S., MAGIC, FACT, VERITAS, FAST, GTC, Paranal, Roque de los
+  Muchachos, Mauna Kea, and La Silla.
 - Finalized the post-#122/#123 release coverage baseline (`baseline_kind =
   release-post-audit`) and raised the blocking `nsb` line floor to match the
   measured tree; coverage policy and developer docs supersede the provisional
