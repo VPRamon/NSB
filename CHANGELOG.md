@@ -7,6 +7,10 @@ once a stable public release is cut.
 
 ### Changed
 
+- Finalized the post-#122/#123 release coverage baseline (`baseline_kind =
+  release-post-audit`) and raised the blocking `nsb` line floor to match the
+  measured tree; coverage policy and developer docs supersede the provisional
+  #127 baseline (#124).
 - Consolidated Airglow historical audit documents into the canonical runtime
   guide and removed obsolete development-history prose (#122).
 - Removed unused `approx` dev-dependencies, orphan provisional validation
