@@ -42,6 +42,51 @@ fn sites_show_json_reports_catalog_name_and_cli_aliases() {
 }
 
 #[test]
+fn sites_show_unknown_observatory_fails_usefully() {
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["sites", "show", "NOT-A-REAL-OBSERVATORY"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "unknown observatory name or alias",
+        ));
+}
+
+#[test]
+fn sites_show_csv_is_parseable_and_preserves_observatory_fields() {
+    let output = Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["--format", "csv", "sites", "show", "CTAO-S"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let mut reader = csv::Reader::from_reader(output.as_slice());
+    assert_eq!(
+        reader.headers().unwrap(),
+        &csv::StringRecord::from(vec![
+            "name",
+            "longitude_deg",
+            "latitude_deg",
+            "height_m",
+            "aliases",
+        ])
+    );
+
+    let records = reader.records().collect::<Result<Vec<_>, _>>().unwrap();
+    assert_eq!(records.len(), 1);
+    let record = &records[0];
+    assert_eq!(&record[0], "CTAO South");
+    assert!((record[1].parse::<f64>().unwrap() - (-70.31634444444444)).abs() < 1.0e-12);
+    assert!((record[2].parse::<f64>().unwrap() - (-24.683427777777776)).abs() < 1.0e-12);
+    assert!((record[3].parse::<f64>().unwrap() - 2184.6).abs() < 1.0e-9);
+    assert!(record[4].split(';').any(|alias| alias == "CTAO-S"));
+}
+
+#[test]
 fn sites_show_ctao_and_extension_aliases() {
     let cases = [
         (
