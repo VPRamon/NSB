@@ -1,7 +1,8 @@
 use super::calibration::{load_builtin_standard, AirglowContinuum};
 use super::continuum::{
-    evaluate_continuum, evaluate_continuum_with_time_bin, AirglowEvaluationContext,
+    evaluate_continuum, evaluate_continuum_with_night_phase, AirglowEvaluationContext,
 };
+use super::domain::AirglowNightPhase;
 use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
@@ -15,7 +16,7 @@ use std::sync::Arc;
 use tempoch::{Time, UTC};
 
 #[derive(Debug, Clone)]
-/// Empirical airglow continuum evaluator for an arbitrary Earth location.
+/// Empirical Airglow continuum evaluator for an arbitrary Earth location.
 pub struct Airglow {
     location: Geodetic<ECEF>,
     continuum: Arc<AirglowContinuum>,
@@ -26,7 +27,7 @@ pub struct Airglow {
 }
 
 impl Airglow {
-    /// Build the generic clear-sky airglow model.
+    /// Build the generic clear-sky Airglow model.
     ///
     /// Uses altitude-derived generic clear-sky [`AtmosphericConditions`] for the
     /// Noll effective Rayleigh/Mie scattering stage.
@@ -35,7 +36,7 @@ impl Airglow {
             .with_atmosphere(AtmosphericConditions::generic_clear_sky(location)))
     }
 
-    /// Build an airglow model from a named NSB site profile.
+    /// Build an Airglow model from a named NSB site profile.
     ///
     /// CTAO profiles currently use the bundled SkyCalc-derived continuum with a
     /// neutral site scale and explicit uncalibrated provenance. This constructor
@@ -48,7 +49,11 @@ impl Airglow {
             .with_scale(profile.airglow.scale))
     }
 
-    /// Build an airglow model with caller-provided continuum calibration.
+    /// Build an Airglow model with caller-provided validated continuum calibration.
+    ///
+    /// [`AirglowContinuum`] cannot be constructed with unchecked structural
+    /// fields; caller-provided SkyCalc-format text must first parse into the
+    /// validated type.
     ///
     /// Atmospheric scattering defaults to generic clear-sky conditions derived
     /// from `location`. Override with [`Self::with_atmosphere`] when needed.
@@ -61,7 +66,7 @@ impl Airglow {
         continuum: Arc<AirglowContinuum>,
     ) -> Self {
         let geometry = AirglowGeometryModel::VanRhijn(VanRhijnConfig::from_continuum_height(
-            continuum.emission_height_km,
+            continuum.emission_height_km(),
         ));
         Self {
             location,
@@ -110,7 +115,7 @@ impl Airglow {
         self
     }
 
-    /// Evaluate airglow toward a target at one UTC instant.
+    /// Evaluate Airglow toward a target at one UTC instant.
     pub fn compute(
         &self,
         time: Time<UTC>,
@@ -131,14 +136,14 @@ impl Airglow {
         )
     }
 
-    pub(crate) fn compute_with_time_of_night_bin(
+    pub(crate) fn compute_with_night_phase(
         &self,
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
-        time_bin: usize,
+        phase: AirglowNightPhase,
     ) -> Result<AirglowOutputs> {
         let altitude = target_altitude(time, self.location, target);
-        evaluate_continuum_with_time_bin(
+        evaluate_continuum_with_night_phase(
             &self.continuum,
             time,
             altitude,
@@ -149,7 +154,7 @@ impl Airglow {
                 solar_radio_flux: self.solar_radio_flux,
                 user_scale: self.scale,
             },
-            time_bin,
+            phase,
         )
     }
 }
