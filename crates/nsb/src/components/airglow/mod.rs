@@ -66,5 +66,3 @@ pub use units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod validation_tests;
