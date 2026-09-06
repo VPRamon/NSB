@@ -54,7 +54,7 @@ impl Default for CliConfig {
     fn default() -> Self {
         Self {
             observer: Some(ObserverConfig {
-                site: Some("El Paranal Observatory".to_string()),
+                site: Some("CTAO-S".to_string()),
                 lon_deg: None,
                 lat_deg: None,
                 height_m: None,
