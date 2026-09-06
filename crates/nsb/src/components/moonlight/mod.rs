@@ -35,7 +35,7 @@ use qtty::radiometry::{
 use scattering::ScatterGrid;
 use siderust::atmosphere::{
     airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,
-    KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass,
+    AtmosphereProfile, KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass,
 };
 use siderust::bodies::Moon;
 use siderust::coordinates::centers::Geodetic;
