@@ -13,14 +13,21 @@ continuum baseline; it is not a line-by-line physical atmosphere simulation and
 the current runtime does not contain a validated dedicated Airglow site
 calibration.
 
-**Option D (current policy):** NSB exposes an arbitrary-location Airglow
-evaluator, but the empirical continuum is **Paranal-derived / Paranal-trained**
-(Noll/SkyCalc lineage, including FORS1 residual continuum heritage). Without an
-explicit validated scientific profile it is an **explicit generic/planning
-proxy**, including when the observer is physically at Paranal. A geographically
-generic API is not a globally calibrated dataset, and source provenance is not
-calibration evidence for the source location. Geometry, F10.7, atmosphere,
-extinction, or an explicit scale cannot upgrade maturity to `Calibrated`.
+**Option D (current policy):** NSB supports arbitrary-location Airglow evaluation
+through `NsbEvaluator`, but the empirical continuum is **Paranal-derived /
+Paranal-trained** (Noll/SkyCalc lineage, including FORS1 residual continuum
+heritage). Without an explicit validated scientific profile it is an **explicit
+generic/planning proxy**, including when the observer is physically at Paranal.
+A geographically generic API is not a globally calibrated dataset, and source
+provenance is not calibration evidence for the source location. Geometry,
+F10.7, atmosphere, extinction, or an explicit scale cannot upgrade maturity to
+`Calibrated`.
+
+Normal applications configure Airglow through `NsbModelConfig` and evaluate it
+through `NsbEvaluator`. Direct construction of the internal Airglow component or
+its continuum calibration is not part of the supported public API. The public
+`components::airglow` route is intentionally limited to advanced geometry and
+scientific-profile types needed by supported configuration and diagnostics.
 
 ## Geographic support versus scientific calibration
 
@@ -44,31 +51,30 @@ scientific profile is selected explicitly. In particular:
 - `--site CTAO-S` does not select `SiteProfileId::CtaSouth`;
 - `--site-profile cta-north` and `--site-profile cta-south` deliberately select
   planning assumptions, not calibrated products; and
-- supplying a custom `AirglowContinuum` is classified as an unvalidated custom
-  continuum, not as calibration evidence.
+- selecting a custom vertical-emission profile changes Airglow geometry only; it
+  is not calibration evidence and does not upgrade scientific maturity.
 
-Direct component users can inspect the scientific state programmatically:
+Library users inspect the selected scientific maturity through
+`NsbModelConfig` and result metadata:
 
 ```rust
-use nsb::{
-    Airglow, AirglowScientificProfile, CalibrationStatus, SiteProfileId,
-};
+use nsb::{CalibrationStatus, NsbModelConfig, SiteProfileId};
 
-let airglow = Airglow::standard_clear_sky(location)?;
+let config = NsbModelConfig::generic_clear_sky();
+assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
 assert_eq!(
-    airglow.scientific_profile(),
-    AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky),
+    config.airglow_calibration_status(),
+    CalibrationStatus::GenericFallback,
 );
-assert_eq!(airglow.calibration_status(), CalibrationStatus::GenericFallback);
-assert!(!airglow.is_site_calibrated());
+assert!(!config.is_airglow_site_calibrated());
 ```
 
-Evaluator users can inspect the same scientific choice through
 `NsbModelConfig::airglow_scientific_profile()`,
-`airglow_calibration_status()`, and `is_airglow_site_calibrated()`. Component
-result metadata derives its structured calibration status from the selected
-site profile's `CalibrationStatus`; geometry and solar-activity provenance are
-reported separately.
+`airglow_calibration_status()`, and `is_airglow_site_calibrated()` describe the
+selected scientific assumptions before evaluation. Per-component result metadata
+derives its structured calibration status from the selected site profile's
+`CalibrationStatus`; geometry and solar-activity provenance are reported
+separately.
 
 ## Evaluation stack
 
@@ -128,8 +134,8 @@ constitute a dedicated, admitted Paranal site-calibration contract.
 
 `AirglowGeometryModel::VanRhijn(VanRhijnConfig)` is the default. It preserves the
 previous NSB calculation exactly: a fast, geometrically thin spherical shell at
-an effective height of 90 km for the standard continuum. The height is now
-explicit in configuration and scientific metadata. The approximation does not
+an effective height of 90 km for the standard continuum. The height is explicit
+in advanced configuration and scientific metadata. The approximation does not
 represent a layer's finite thickness, multiple emitting layers, or wavelength-
 dependent emission altitude.
 
@@ -138,17 +144,23 @@ caller-provided relative volume-emission-rate profile through spherical Earth
 geometry. It is opt-in because the available evidence does not justify one
 global production profile for all optical emission from 300 to 650 nm.
 
-```rust
-use nsb::{Airglow, AirglowGeometryModel, VanRhijnConfig};
+Advanced library configuration uses the public geometry types under
+`components::airglow` and applies them through `NsbModelConfig`:
 
-let airglow = Airglow::standard_clear_sky(location)?
-    .with_geometry(AirglowGeometryModel::VanRhijn(VanRhijnConfig::default()));
+```rust
+use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
+use nsb::NsbModelConfig;
+
+let config = NsbModelConfig::generic_clear_sky().with_airglow_geometry(
+    AirglowGeometryModel::VanRhijn(VanRhijnConfig::default()),
+);
 ```
 
-A persisted profile can be selected in the CLI with
-`--airglow-vertical-profile profile.toml`. No network access is used to resolve
-or evaluate it. Selecting either geometry leaves `AirglowScientificProfile` and
-its calibration status unchanged.
+Evaluation still goes through `NsbEvaluator`; the geometry types are not a
+second direct component-evaluation API. A persisted profile can be selected in
+the CLI with `--airglow-vertical-profile profile.toml`. No network access is
+used to resolve or evaluate it. Selecting either geometry leaves the selected
+site profile and its calibration status unchanged.
 
 ### Why no bundled broadband VER profile
 
@@ -229,7 +241,7 @@ persisted profiles must pin and reproduce it.
 
 The automatic path resolves monthly-averaged F10.7 from the bundled offline
 store for the evaluation UTC date. Callers can set an explicit value with
-`with_solar_radio_flux` or `--solar-radio-flux-sfu`. See the
+`NsbModelConfig::with_solar_radio_flux` or `--solar-radio-flux-sfu`. See the
 [F10.7 resolver](f107-resolver.md).
 
 The generic and CTAO planning profiles use a SkyCalc-derived continuum baseline
