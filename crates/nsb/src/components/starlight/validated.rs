@@ -129,6 +129,22 @@ impl ValidatedStarlightMap {
     }
 }
 
+/// Load the immutable build-verified bundled map without repeating external
+/// admission checks on every process start.
+pub(super) fn load_build_verified_bundled_map(
+    binary: &[u8],
+    manifest_raw: &str,
+) -> Result<StarlightMap> {
+    let manifest: ExternalManifest = toml::from_str(manifest_raw)
+        .map_err(|err| invalid(format!("invalid bundled starlight manifest: {err}")))?;
+    manifest.validate_contract()?;
+    let provenance = manifest.provenance(format!(
+        "sha256:{}",
+        normalize_checksum(&manifest.map_sha256)
+    ));
+    StarlightMap::from_build_packed_bytes(binary, provenance)
+}
+
 impl ExternalManifest {
     fn validate_contract(&self) -> Result<()> {
         if self.schema_version != MANIFEST_SCHEMA_VERSION {

@@ -4,7 +4,7 @@ pub mod generate;
 pub mod types;
 pub mod validate;
 
-use self::generate::generate_bundled_assets_rs;
+use self::generate::{generate_bundled_assets_rs, pack_starlight_csv, STARLIGHT_BINARY_FILENAME};
 use self::validate::{
     parse_manifest, select_production_starlight, validate_manifest_structure,
     validate_runtime_embedded_files, verified_runtime_embedded_assets,
@@ -39,8 +39,18 @@ pub fn run() {
     }
 
     let starlight = select_production_starlight(&manifest).unwrap_or_else(|err| panic!("{err}"));
-    if starlight.is_some() {
+    if let Some((map, _)) = starlight {
         println!("cargo:rustc-cfg=nsb_bundled_production_starlight");
+        let map_path = data_dir.join(&map.path);
+        let raw = fs::read_to_string(&map_path).unwrap_or_else(|err| {
+            panic!("failed to read {}: {err}", map_path.display());
+        });
+        let packed = pack_starlight_csv(&raw)
+            .unwrap_or_else(|err| panic!("failed to pack {}: {err}", map_path.display()));
+        let packed_path =
+            PathBuf::from(env::var("OUT_DIR").unwrap()).join(STARLIGHT_BINARY_FILENAME);
+        fs::write(&packed_path, packed)
+            .unwrap_or_else(|err| panic!("failed to write {}: {err}", packed_path.display()));
     }
 
     let verified = verified_runtime_embedded_assets(&manifest);

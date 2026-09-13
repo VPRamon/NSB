@@ -2,6 +2,7 @@ use super::*;
 use crate::reference::solar::SolarSpectrum;
 use crate::units::s10_for_spectral_photon_radiance;
 use crate::units::ScaleFactors;
+use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
 use qtty::length::Nanometer;
 use qtty::radiometry::{
@@ -48,6 +49,20 @@ impl Jones2013Spectral {
         target: SphericalDirection<EquatorialMeanJ2000>,
     ) -> Result<MoonOutputs> {
         let geometry = lunar_geometry(time, self.location, target);
+        compute_jones_2013_spectral(
+            &geometry,
+            bundled_solar_spectrum(),
+            self.extinction_scale.unwrap_or(ScaleFactors::new(1.0)),
+            self.atmosphere_profile(),
+        )
+    }
+
+    pub(crate) fn compute_for_discovery(
+        &self,
+        time: Time<UTC>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+    ) -> Result<MoonOutputs> {
+        let geometry = approximate_lunar_geometry(time, self.location, target);
         compute_jones_2013_spectral(
             &geometry,
             bundled_solar_spectrum(),

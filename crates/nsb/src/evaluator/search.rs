@@ -37,6 +37,8 @@ where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
+    #[cfg(feature = "window-search-diagnostics")]
+    super::diagnostics::update(|diagnostics| diagnostics.fallback_intervals += 1);
     if window.start >= window.end || step <= Days::new(0.0) {
         debug!(
             "skipping scan threshold search: non-positive window or step; start_mjd={}, end_mjd={}, step_days={}",
@@ -103,16 +105,101 @@ where
     Ok(periods)
 }
 
-pub(super) fn adaptive_above_threshold_periods<V, F>(
+/// Discover crossings with a cheap signal, then validate and refine every
+/// retained crossing against the authoritative signal.
+pub(crate) fn validated_above_threshold_periods<V, F, E>(
     window: TimePeriod<ModifiedJulianDate>,
-    fallback_step: Days,
-    f: &F,
+    step: Days,
+    approximate: &F,
+    exact: &E,
     threshold: Quantity<V>,
 ) -> Result<Vec<TimePeriod<ModifiedJulianDate>>>
 where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+    E: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
+    if window.start >= window.end || step <= Days::new(0.0) {
+        return Ok(Vec::new());
+    }
+
+    let exact_start = exact(window.start)?;
+    let mut above = exact_start > threshold;
+    let mut open_start = above.then_some(window.start);
+    let mut periods = Vec::new();
+    let mut t0 = window.start;
+    let mut approximate_above0 = approximate(t0)? > threshold;
+
+    while t0 < window.end {
+        let t1 = add_days_clamped(t0, step, window.end);
+        if t1 <= t0 {
+            break;
+        }
+        let approximate_above1 = approximate(t1)? > threshold;
+        if approximate_above0 != approximate_above1 {
+            let mut bracket_lo = t0;
+            let mut bracket_hi = t1;
+            let mut exact_lo = exact(bracket_lo)?;
+            let mut exact_hi = exact(bracket_hi)?;
+            if (exact_lo > threshold) == (exact_hi > threshold) {
+                bracket_lo = ModifiedJulianDate::new(
+                    (t0.raw().value() - step.value()).max(window.start.raw().value()),
+                );
+                bracket_hi = ModifiedJulianDate::new(
+                    (t1.raw().value() + step.value()).min(window.end.raw().value()),
+                );
+                exact_lo = exact(bracket_lo)?;
+                exact_hi = exact(bracket_hi)?;
+            }
+
+            let exact_lo_above = exact_lo > threshold;
+            let exact_hi_above = exact_hi > threshold;
+            if exact_lo_above != exact_hi_above {
+                let crossing = refine_threshold_crossing(
+                    bracket_lo,
+                    exact_lo,
+                    bracket_hi,
+                    exact_hi,
+                    exact,
+                    threshold,
+                )?;
+                if above != exact_hi_above {
+                    if above {
+                        if let Some(start) = open_start.take() {
+                            push_non_empty_period(&mut periods, start, crossing);
+                        }
+                    } else {
+                        open_start = Some(crossing);
+                    }
+                    above = exact_hi_above;
+                }
+            }
+        }
+        t0 = t1;
+        approximate_above0 = approximate_above1;
+    }
+
+    if let Some(start) = open_start {
+        push_non_empty_period(&mut periods, start, window.end);
+    }
+    coalesce_periods(&mut periods);
+    Ok(periods)
+}
+
+pub(super) fn adaptive_above_threshold_periods<V, F, E>(
+    window: TimePeriod<ModifiedJulianDate>,
+    fallback_step: Days,
+    f: &F,
+    exact_f: &E,
+    threshold: Quantity<V>,
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+    E: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
+    #[cfg(feature = "window-search-diagnostics")]
+    super::diagnostics::update(|diagnostics| diagnostics.adaptive_intervals += 1);
     if window.start >= window.end || fallback_step <= Days::new(0.0) {
         debug!(
             "skipping adaptive threshold search: non-positive window or step; start_mjd={}, end_mjd={}, fallback_step_days={}",
@@ -128,7 +215,7 @@ where
             interval_width_days(window.start, window.end).value(),
             fallback_step.value()
         );
-        return above_threshold_periods(window, fallback_step, f, threshold);
+        return above_threshold_periods(window, fallback_step, exact_f, threshold);
     }
 
     debug!(
@@ -142,7 +229,16 @@ where
     let start = threshold_sample(window.start, f, threshold)?;
     let end = threshold_sample(window.end, f, threshold)?;
     let mut periods = Vec::new();
-    collect_adaptive_above(start, end, fallback_step, f, threshold, 0, &mut periods)?;
+    collect_adaptive_above(
+        start,
+        end,
+        fallback_step,
+        f,
+        exact_f,
+        threshold,
+        0,
+        &mut periods,
+    )?;
     coalesce_periods(&mut periods);
     debug!(
         "completed adaptive threshold search: above_periods={}",
@@ -179,11 +275,12 @@ struct ThresholdSample<V: Unit> {
     above: bool,
 }
 
-fn collect_adaptive_above<V, F>(
+fn collect_adaptive_above<V, F, E>(
     lo: ThresholdSample<V>,
     hi: ThresholdSample<V>,
     fallback_step: Days,
     f: &F,
+    exact_f: &E,
     threshold: Quantity<V>,
     depth: usize,
     periods: &mut Vec<TimePeriod<ModifiedJulianDate>>,
@@ -191,19 +288,20 @@ fn collect_adaptive_above<V, F>(
 where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+    E: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     let width = interval_width_days(lo.time, hi.time);
     if width <= Days::new(0.0) {
         return Ok(());
     }
     if width <= fallback_step {
-        collect_terminal_pair(lo, hi, f, threshold, periods)?;
+        collect_terminal_pair(lo, hi, exact_f, threshold, periods)?;
         return Ok(());
     }
 
     let mid_time = midpoint_mjd(lo.time, hi.time);
     if mid_time <= lo.time || mid_time >= hi.time {
-        collect_terminal_pair(lo, hi, f, threshold, periods)?;
+        collect_terminal_pair(lo, hi, exact_f, threshold, periods)?;
         return Ok(());
     }
 
@@ -214,8 +312,8 @@ where
             depth,
             width.value()
         );
-        collect_terminal_pair(lo, mid, f, threshold, periods)?;
-        collect_terminal_pair(mid, hi, f, threshold, periods)?;
+        collect_terminal_pair(lo, mid, exact_f, threshold, periods)?;
+        collect_terminal_pair(mid, hi, exact_f, threshold, periods)?;
         return Ok(());
     }
 
@@ -224,46 +322,99 @@ where
         && width <= MAX_ADAPTIVE_ACCEPT_SPAN
         && samples_are_smooth_and_clear(lo, mid, hi, threshold)
     {
-        trace!(
-            "adaptive threshold search accepted smooth interval: depth={}, width_days={}, above={}",
-            depth,
-            width.value(),
-            lo.above
-        );
-        if lo.above {
-            push_non_empty_period(periods, lo.time, hi.time);
+        let exact_lo = threshold_sample(lo.time, exact_f, threshold)?;
+        let exact_mid = threshold_sample(mid.time, exact_f, threshold)?;
+        let exact_hi = threshold_sample(hi.time, exact_f, threshold)?;
+        if exact_lo.above == exact_mid.above
+            && exact_mid.above == exact_hi.above
+            && samples_are_smooth_and_clear(exact_lo, exact_mid, exact_hi, threshold)
+        {
+            #[cfg(feature = "window-search-diagnostics")]
+            super::diagnostics::update(|diagnostics| diagnostics.accepted_smooth_intervals += 1);
+            trace!(
+                "adaptive threshold search accepted exact-validated smooth interval: depth={}, width_days={}, above={}",
+                depth,
+                width.value(),
+                exact_lo.above
+            );
+            if exact_lo.above {
+                push_non_empty_period(periods, lo.time, hi.time);
+            }
+            return Ok(());
         }
-        return Ok(());
     }
 
-    collect_adaptive_above(lo, mid, fallback_step, f, threshold, depth + 1, periods)?;
-    collect_adaptive_above(mid, hi, fallback_step, f, threshold, depth + 1, periods)
+    collect_adaptive_above(
+        lo,
+        mid,
+        fallback_step,
+        f,
+        exact_f,
+        threshold,
+        depth + 1,
+        periods,
+    )?;
+    collect_adaptive_above(
+        mid,
+        hi,
+        fallback_step,
+        f,
+        exact_f,
+        threshold,
+        depth + 1,
+        periods,
+    )
 }
 
-fn collect_terminal_pair<V, F>(
+fn collect_terminal_pair<V, E>(
     lo: ThresholdSample<V>,
     hi: ThresholdSample<V>,
-    f: &F,
+    exact_f: &E,
     threshold: Quantity<V>,
     periods: &mut Vec<TimePeriod<ModifiedJulianDate>>,
 ) -> Result<()>
 where
     V: Unit,
-    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+    E: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     if hi.time <= lo.time {
         return Ok(());
     }
-    if lo.above != hi.above {
-        let crossing =
-            refine_threshold_crossing(lo.time, lo.value, hi.time, hi.value, f, threshold)?;
-        if lo.above {
-            push_non_empty_period(periods, lo.time, crossing);
-        } else {
-            push_non_empty_period(periods, crossing, hi.time);
+    let mid_time = midpoint_mjd(lo.time, hi.time);
+    let exact_lo = exact_f(lo.time)?;
+    let exact_mid = exact_f(mid_time)?;
+    let exact_hi = exact_f(hi.time)?;
+    collect_exact_pair(lo.time, exact_lo, mid_time, exact_mid, exact_f, threshold, periods)?;
+    collect_exact_pair(mid_time, exact_mid, hi.time, exact_hi, exact_f, threshold, periods)?;
+    Ok(())
+}
+
+fn collect_exact_pair<V, E>(
+    lo: ModifiedJulianDate,
+    y_lo: Quantity<V>,
+    hi: ModifiedJulianDate,
+    y_hi: Quantity<V>,
+    exact_f: &E,
+    threshold: Quantity<V>,
+    periods: &mut Vec<TimePeriod<ModifiedJulianDate>>,
+) -> Result<()>
+where
+    V: Unit,
+    E: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
+    let lo_above = y_lo > threshold;
+    let hi_above = y_hi > threshold;
+    if lo_above == hi_above {
+        if lo_above {
+            push_non_empty_period(periods, lo, hi);
         }
-    } else if lo.above {
-        push_non_empty_period(periods, lo.time, hi.time);
+        return Ok(());
+    }
+    let crossing = refine_threshold_crossing(lo, y_lo, hi, y_hi, exact_f, threshold)?;
+    if lo_above {
+        push_non_empty_period(periods, lo, crossing);
+    } else {
+        push_non_empty_period(periods, crossing, hi);
     }
     Ok(())
 }
@@ -319,9 +470,9 @@ where
 
 fn refine_threshold_crossing<V, F>(
     mut lo: ModifiedJulianDate,
-    mut y_lo: Quantity<V>,
+    y_lo: Quantity<V>,
     mut hi: ModifiedJulianDate,
-    mut y_hi: Quantity<V>,
+    y_hi: Quantity<V>,
     f: &F,
     threshold: Quantity<V>,
 ) -> Result<ModifiedJulianDate>
@@ -329,53 +480,67 @@ where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
-    let lo_above = y_lo > threshold;
+    #[cfg(feature = "window-search-diagnostics")]
+    super::diagnostics::update(|diagnostics| diagnostics.threshold_crossings += 1);
+    let threshold_value = threshold.value();
+    let mut f_lo = y_lo.value() - threshold_value;
+    let mut f_hi = y_hi.value() - threshold_value;
+    debug_assert!(f_lo.signum() != f_hi.signum());
     let mut refinements = 0usize;
+    let mut retained_lo = 0usize;
+    let mut retained_hi = 0usize;
     for _ in 0..MAX_CROSSING_REFINEMENTS {
-        let mid = midpoint_mjd(lo, hi);
-        if mid <= lo || mid >= hi {
-            break;
-        }
-        let y_mid = f(mid)?;
-        refinements += 1;
-        if y_mid == threshold {
-            trace!("threshold crossing exactly sampled after {refinements} refinements");
-            return Ok(mid);
-        }
-        if (y_mid > threshold) == lo_above {
-            lo = mid;
-            y_lo = y_mid;
-        } else {
-            hi = mid;
-            y_hi = y_mid;
-        }
         if (hi.raw() - lo.raw()).abs() <= CROSSING_TOLERANCE {
             break;
+        }
+
+        let lo_raw = lo.raw().value();
+        let hi_raw = hi.raw().value();
+        let denom = f_hi - f_lo;
+        let secant_raw = hi_raw - f_hi * (hi_raw - lo_raw) / denom;
+        let guard = (hi_raw - lo_raw) * 1.0e-6;
+        let candidate = if denom.is_finite()
+            && secant_raw.is_finite()
+            && secant_raw > lo_raw + guard
+            && secant_raw < hi_raw - guard
+        {
+            ModifiedJulianDate::new(secant_raw)
+        } else {
+            midpoint_mjd(lo, hi)
+        };
+        let y_candidate = f(candidate)?;
+        #[cfg(feature = "window-search-diagnostics")]
+        super::diagnostics::update(|diagnostics| {
+            diagnostics.crossing_refinement_evaluations += 1;
+        });
+        refinements += 1;
+        let f_candidate = y_candidate.value() - threshold_value;
+        if f_candidate == 0.0 {
+            trace!("threshold crossing exactly sampled after {refinements} refinements");
+            return Ok(candidate);
+        }
+
+        if f_candidate.signum() == f_lo.signum() {
+            lo = candidate;
+            f_lo = f_candidate;
+            retained_hi += 1;
+            retained_lo = 0;
+            if retained_hi > 1 {
+                f_hi *= 0.5;
+            }
+        } else {
+            hi = candidate;
+            f_hi = f_candidate;
+            retained_lo += 1;
+            retained_hi = 0;
+            if retained_lo > 1 {
+                f_lo *= 0.5;
+            }
         }
     }
 
     trace!("threshold crossing refined with {refinements} samples");
-    Ok(linear_crossing_estimate(lo, y_lo, hi, y_hi, threshold))
-}
-
-fn linear_crossing_estimate<V>(
-    lo: ModifiedJulianDate,
-    y_lo: Quantity<V>,
-    hi: ModifiedJulianDate,
-    y_hi: Quantity<V>,
-    threshold: Quantity<V>,
-) -> ModifiedJulianDate
-where
-    V: Unit,
-{
-    let denom = y_hi.value() - y_lo.value();
-    if !denom.is_finite() || denom == 0.0 {
-        return midpoint_mjd(lo, hi);
-    }
-    let frac = ((threshold.value() - y_lo.value()) / denom).clamp(0.0, 1.0);
-    let lo_raw = lo.raw().value();
-    let hi_raw = hi.raw().value();
-    ModifiedJulianDate::new(lo_raw + (hi_raw - lo_raw) * frac)
+    Ok(midpoint_mjd(lo, hi))
 }
 
 fn midpoint_mjd(lo: ModifiedJulianDate, hi: ModifiedJulianDate) -> ModifiedJulianDate {
@@ -462,17 +627,14 @@ mod tests {
         let step = Days::new(1.0 / 144.0);
 
         let adaptive_calls = Cell::new(0);
-        let adaptive = adaptive_above_threshold_periods(
-            window,
-            step,
-            &|time| {
-                adaptive_calls.set(adaptive_calls.get() + 1);
-                let dt = time.raw().value() - 60_000.5;
-                Ok(BandPhotonRadiance::new(0.2 + 0.001 * dt * dt))
-            },
-            threshold,
-        )
-        .unwrap();
+        let adaptive_f = |time: ModifiedJulianDate| {
+            adaptive_calls.set(adaptive_calls.get() + 1);
+            let dt = time.raw().value() - 60_000.5;
+            Ok(BandPhotonRadiance::new(0.2 + 0.001 * dt * dt))
+        };
+        let adaptive =
+            adaptive_above_threshold_periods(window, step, &adaptive_f, &adaptive_f, threshold)
+                .unwrap();
 
         let scan_calls = Cell::new(0);
         let scan = above_threshold_periods(
@@ -503,13 +665,9 @@ mod tests {
         let threshold = BandPhotonRadiance::new(0.5);
         let step = Days::new(1.0);
 
-        let periods = adaptive_above_threshold_periods(
-            window,
-            step,
-            &|time| Ok(BandPhotonRadiance::new(time.raw().value() - 60_000.0)),
-            threshold,
-        )
-        .unwrap();
+        let f =
+            |time: ModifiedJulianDate| Ok(BandPhotonRadiance::new(time.raw().value() - 60_000.0));
+        let periods = adaptive_above_threshold_periods(window, step, &f, &f, threshold).unwrap();
 
         assert_eq!(periods.len(), 1);
         assert!((periods[0].start.raw().value() - 60_000.5).abs() <= CROSSING_TOLERANCE.value());

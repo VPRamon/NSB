@@ -221,6 +221,19 @@ impl ZodiacalLight {
         self.evaluate_geometry(&geom, self.extinction)
     }
 
+    pub(crate) fn compute_observed_for_discovery(
+        &self,
+        time: Time<UTC>,
+        location: Geodetic<ECEF>,
+        target: Target,
+    ) -> Result<ZodiacalOutputs> {
+        let geom = geometry::compute_observed_for_discovery(time, location, target)?;
+        if is_below_horizon(&geom) {
+            return Ok(zero_outputs());
+        }
+        self.evaluate_geometry(&geom, self.extinction)
+    }
+
     /// Return the observed wavelength-resolved spectrum.
     pub fn compute_spectrum(
         &self,

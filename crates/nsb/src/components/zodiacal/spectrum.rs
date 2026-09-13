@@ -176,9 +176,11 @@ fn zodiacal_samples(
 }
 
 fn integrate_photon_spectrum(spectrum: &ZodiacalPhotonSpectrum) -> BandPhotonRadiance {
-    spectrum
-        .integrate_range(WL_LOW, WL_HIGH)
-        .to::<BandPhotonRadianceUnit>()
+    // `zodiacal_samples` already retains only the 300–650 nm samples. Using
+    // the full-domain trapezoid is therefore identical to `integrate_range`
+    // here and avoids re-running a binary-search interpolation for both ends
+    // of every one-nanometre segment.
+    spectrum.integrate().to::<BandPhotonRadianceUnit>()
 }
 
 /// Convert the solar spectral irradiance convention to the mean radiance used

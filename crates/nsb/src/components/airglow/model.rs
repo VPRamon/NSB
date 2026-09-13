@@ -2,7 +2,8 @@
 use super::calibration::load_builtin_standard;
 use super::calibration::AirglowContinuum;
 use super::continuum::{
-    evaluate_continuum, evaluate_continuum_with_night_phase, AirglowEvaluationContext,
+    evaluate_continuum, evaluate_integrated_continuum_with_night_phase,
+    AirglowEvaluationContext,
 };
 use super::domain::AirglowNightPhase;
 use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
@@ -15,6 +16,7 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use std::sync::Arc;
+use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use tempoch::{Time, UTC};
 
 /// Scientific profile selected by an Airglow configuration.
@@ -190,14 +192,15 @@ impl Airglow {
         )
     }
 
-    pub(crate) fn compute_with_night_phase(
+    pub(crate) fn compute_integrated_with_night_phase(
         &self,
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
         phase: AirglowNightPhase,
-    ) -> Result<AirglowOutputs> {
+        solar_radio_flux: SolarFluxUnits,
+    ) -> Result<BandPhotonRadiance> {
         let altitude = target_altitude(time, self.location, target);
-        evaluate_continuum_with_night_phase(
+        evaluate_integrated_continuum_with_night_phase(
             &self.continuum,
             time,
             altitude,
@@ -205,10 +208,11 @@ impl Airglow {
                 location: self.location,
                 atmosphere: self.atmosphere,
                 geometry: self.geometry.clone(),
-                solar_radio_flux: self.solar_radio_flux,
+                solar_radio_flux,
                 user_scale: self.scale,
             },
             phase,
         )
     }
+
 }

@@ -81,6 +81,38 @@ pub(super) fn compute_observed(
     })
 }
 
+/// Reduced solar ephemeris used only for threshold-crossing discovery.
+pub(super) fn compute_observed_for_discovery(
+    time: Time<UTC>,
+    location: Geodetic<ECEF>,
+    target: Target,
+) -> Result<ZodiacalGeometry> {
+    let jd = to_jd(time);
+    let ecl: SphericalDirection<EclipticMeanJ2000> = target.to_frame();
+    let beta = ecl.lat().to::<Radian>();
+    let ecliptic_lon = ecl.lon().to::<Radian>();
+    let delta_lambda = ecliptic_lon.abs_separation(approximate_solar_longitude_j2000(jd));
+    let hz = star_horizontal(target.ra(), target.dec(), &location, jd);
+    Ok(ZodiacalGeometry {
+        beta,
+        delta_lambda,
+        zenith: Some(Degrees::new(90.0) - hz.alt()),
+    })
+}
+
+fn approximate_solar_longitude_j2000(jd: JulianDate) -> Radians {
+    let days = jd.raw().value() - 2_451_545.0;
+    let centuries = days / 36_525.0;
+    let mean_longitude = (280.466_46 + 0.985_647_36 * days).to_radians();
+    let mean_anomaly = (357.529_11 + 0.985_600_28 * days).to_radians();
+    let longitude_of_date = mean_longitude
+        + 1.914_602_f64.to_radians() * mean_anomaly.sin()
+        + 0.019_993_f64.to_radians() * (2.0 * mean_anomaly).sin()
+        + 0.000_289_f64.to_radians() * (3.0 * mean_anomaly).sin();
+    let ecliptic_precession = (1.397 * centuries + 0.000_31 * centuries * centuries).to_radians();
+    Radians::new((longitude_of_date - ecliptic_precession).rem_euclid(std::f64::consts::TAU))
+}
+
 fn ecliptic_geometry(target: Target, jd: JulianDate) -> Result<(Radians, Radians)> {
     let ecl: SphericalDirection<EclipticMeanJ2000> = target.to_frame();
     let beta = ecl.lat().to::<Radian>();
@@ -105,4 +137,35 @@ fn ecliptic_geometry(target: Target, jd: JulianDate) -> Result<(Radians, Radians
 fn to_jd(time: Time<UTC>) -> JulianDate {
     use tempoch::{JD, TT};
     time.to::<TT>().to::<JD>()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+
+    #[test]
+    fn reduced_solar_longitude_tracks_vsop87_over_a_year() {
+        let start = Time::<UTC>::from_chrono(
+            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
+                .single()
+                .unwrap(),
+        );
+        let mut max_error_deg = 0.0_f64;
+        for day in 0..=365 {
+            let time = Time::<UTC>::from_chrono(
+                start.to_chrono().unwrap() + chrono::Duration::days(day),
+            );
+            let jd = to_jd(time);
+            let exact = SunBody::ecliptic_longitude_geocentric(jd);
+            let approximate = approximate_solar_longitude_j2000(jd);
+            max_error_deg = max_error_deg.max(
+                exact
+                    .abs_separation(approximate)
+                    .value()
+                    .to_degrees(),
+            );
+        }
+        assert!(max_error_deg < 0.02, "maximum longitude error {max_error_deg} deg");
+    }
 }

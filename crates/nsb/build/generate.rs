@@ -3,6 +3,93 @@
 use super::types::Asset;
 use std::fmt::Write as _;
 
+pub const STARLIGHT_BINARY_FILENAME: &str = "nsb_starlight_v1.bin";
+#[allow(dead_code)]
+const STARLIGHT_BINARY_MAGIC: &[u8; 8] = b"NSBSTL01";
+
+/// Convert the checksum-verified packed CSV into a compact, trusted runtime
+/// image. The source CSV and sidecar remain the canonical scientific assets;
+/// this is only a build artifact that avoids reparsing 18 MiB on every process
+/// start.
+#[allow(dead_code)]
+pub fn pack_starlight_csv(raw: &str) -> Result<Vec<u8>, String> {
+    let mut lines = raw
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'));
+    let header = lines
+        .next()
+        .ok_or_else(|| "starlight CSV is missing its data header".to_string())?;
+    const EXPECTED_HEADER: &str = "healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,systematic_uncertainty_ph_cm2_ns_sr,total_uncertainty_ph_cm2_ns_sr";
+    if header != EXPECTED_HEADER {
+        return Err(format!("unsupported starlight CSV header {header:?}"));
+    }
+
+    let mut values = Vec::<[f64; 4]>::new();
+    for (row, line) in lines.enumerate() {
+        let fields: Vec<_> = line.split(',').map(str::trim).collect();
+        if fields.len() != 5 {
+            return Err(format!(
+                "starlight CSV row {} has {} fields, expected 5",
+                row + 1,
+                fields.len()
+            ));
+        }
+        let index = fields[0]
+            .parse::<usize>()
+            .map_err(|error| format!("invalid starlight index on row {}: {error}", row + 1))?;
+        if index != row {
+            return Err(format!(
+                "starlight CSV index {index} on row {} is not sequential",
+                row + 1
+            ));
+        }
+        let mut pixel = [0.0; 4];
+        for (column, value) in pixel.iter_mut().enumerate() {
+            *value = fields[column + 1].parse::<f64>().map_err(|error| {
+                format!(
+                    "invalid starlight value in row {}, column {}: {error}",
+                    row + 1,
+                    column + 2
+                )
+            })?;
+            if !value.is_finite() || *value < 0.0 {
+                return Err(format!(
+                    "non-finite or negative starlight value in row {}, column {}",
+                    row + 1,
+                    column + 2
+                ));
+            }
+        }
+        if pixel[3] < pixel[1] || pixel[3] < pixel[2] {
+            return Err(format!(
+                "starlight total uncertainty is smaller than a component on row {}",
+                row + 1
+            ));
+        }
+        values.push(pixel);
+    }
+
+    let expected_pixels = 12 * 128 * 128;
+    if values.len() != expected_pixels {
+        return Err(format!(
+            "starlight CSV has {} pixels, expected {expected_pixels}",
+            values.len()
+        ));
+    }
+
+    let mut packed = Vec::with_capacity(16 + values.len() * 32);
+    packed.extend_from_slice(STARLIGHT_BINARY_MAGIC);
+    packed.extend_from_slice(&128_u32.to_le_bytes());
+    packed.extend_from_slice(&(values.len() as u32).to_le_bytes());
+    for pixel in values {
+        for value in pixel {
+            packed.extend_from_slice(&value.to_le_bytes());
+        }
+    }
+    Ok(packed)
+}
+
 /// Emit the generated Rust module consumed by `src/assets.rs` and Starlight.
 ///
 /// `verified_embedded` must contain only assets that passed existence + SHA-256
@@ -56,10 +143,10 @@ pub fn generate_bundled_assets_rs(
                 "pub(crate) const BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE: bool = true;"
             )
             .unwrap();
+            let _ = map;
             writeln!(
                 out,
-                "pub(crate) const BUNDLED_PRODUCTION_STARLIGHT_MAP: &str = include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), {:?}));",
-                format!("/data/{}", map.path)
+                "pub(crate) const BUNDLED_PRODUCTION_STARLIGHT_BINARY: &[u8] = include_bytes!(concat!(env!(\"OUT_DIR\"), \"/{STARLIGHT_BINARY_FILENAME}\"));"
             )
             .unwrap();
             writeln!(
