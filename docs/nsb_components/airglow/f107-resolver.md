@@ -69,7 +69,7 @@ separate follow-ups. Effective Rayleigh/Mie airglow scattering is implemented in
 
 ## Precedence (tested)
 
-1. Explicit caller override (`with_f10_7` / `--solar-radio-flux-sfu`), validated
+1. Explicit caller override (`with_solar_radio_flux` / `--solar-radio-flux-sfu`), validated
    finite and positive
 2. **Finalized monthly observed** covering the requested UTC date
    (`product=observed-solar-cycle-indices`, month complete relative to store
@@ -88,8 +88,6 @@ separate follow-ups. Effective Rayleigh/Mie airglow scattering is implemented in
      (retrieval is **not** treated as issuance)
 6. Documented climatological fallback (`climatology_sfu` = Noll/SkyCalc
    neutralizing reference ≈ 129.207 sfu / `DEFAULT_SOLAR_RADIO_FLUX`)
-7. Legacy neutralizing constant only via `SolarActivitySource::LegacyDefault`
-
 **Incomplete months never become `msolflux`.** A 2-day / 10-day subset of a
 month must not be stamped valid for the whole month. Fall back to the official
 monthly prediction (or climatology) instead.
@@ -123,14 +121,14 @@ use tempoch::{Time, UTC};
 let config = NsbModelConfig::generic_clear_sky();
 
 // Explicit override
-let config = config.with_f10_7(SolarFluxUnits::new(130.0));
+let config = config.with_solar_radio_flux(SolarFluxUnits::new(130.0));
 
 // Or resolve directly
 let resolved = resolve_f107(time, &SolarActivitySource::Automatic)?;
 ```
 
-`Airglow::compute` and the evaluator perform **no network I/O**. Online updates
-must materialize a local dataset first.
+The evaluator performs **no network I/O**. Online updates must materialize a
+local dataset first.
 
 ## Store schema (`nsb-f107-store-v1`)
 
@@ -223,7 +221,7 @@ snapshot was retrieved more than 31 days ago is therefore `stale`, not
 - **Offline Automatic**: bundled `f107_store.json`.
 - **Local dataset**: `--f107-store PATH` / `SolarActivitySource::Dataset`.
 - **Import**: `nsb-data solar f107 import`.
-- **Explicit**: `--solar-radio-flux-sfu` / `with_f10_7`.
+- **Explicit**: `--solar-radio-flux-sfu` / `with_solar_radio_flux`.
 
 ## Reproducibility
 

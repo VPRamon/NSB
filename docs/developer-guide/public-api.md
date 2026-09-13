@@ -56,14 +56,15 @@ documented equatorial constructors.
 
 ### Advanced API
 
-Intended for component-level construction, calibration experiments, and offline
-tooling. After the freeze this surface is supported within the release contract,
-but it is not required for the default evaluator workflow.
+Intended for a concrete specialized configuration or inspection need that the
+evaluator cannot express through its defaults. Airglow's only advanced public
+route is `components::airglow`: its geometry/profile types configure
+`NsbModelConfig::with_airglow_geometry`. `Airglow`, `AirglowContinuum`, and
+their component-only output are implementation details; applications evaluate
+Airglow through `NsbEvaluator` results.
 
-Includes root re-exports under airglow, moonlight, starlight, zodiacal,
-`solar_activity`, and the public `components::*` module tree (`Airglow`,
-`StarlightMap`, `Jones2013Spectral`, geometry/profile types, F10.7 store types,
-etc.).
+Other advanced component models and offline F10.7 store types remain available
+through their deliberate component or `solar_activity` routes.
 
 ### Scientific metadata / provenance API
 
@@ -73,7 +74,8 @@ diagnostics. Fields may grow; structs are `#[non_exhaustive]` where noted.
 Includes the `assets` module, `NsbComponentMetadata`, site-calibration asset
 types, starlight provenance/validation records, solar-activity resolution
 metadata, `BandDiagnostic`, and persisted schema-version constants such as
-`VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION` and `F107_STORE_SCHEMA_VERSION`.
+`components::airglow::VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION` and
+`F107_STORE_SCHEMA_VERSION`.
 
 The Siderust dependency provenance exports
 [`SIDERUST_VERSION`](../../crates/nsb/src/lib.rs) and

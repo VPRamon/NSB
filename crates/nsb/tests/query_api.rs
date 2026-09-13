@@ -1,9 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::{
-    bundled_f107_store, resolve_f107, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
+    bundled_f107_store, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
     MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SiteProfileId, SolarActivitySource,
-    Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target, ThresholdQuery,
-    DEFAULT_SOLAR_RADIO_FLUX, DEG,
+    Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -506,33 +505,6 @@ fn threshold_query_fails_closed_on_selected_component_error() {
         result.is_err(),
         "threshold search must not treat a failed component as zero"
     );
-}
-
-#[test]
-fn legacy_default_solar_activity_uses_neutralizing_constant_and_labels_step() {
-    let time = parse_obstime("2023-09-04 01:48:00");
-    let resolved = resolve_f107(time, &SolarActivitySource::LegacyDefault).expect("resolve");
-    assert_eq!(resolved.value, DEFAULT_SOLAR_RADIO_FLUX);
-    assert_eq!(resolved.resolution_step, "legacy-default-constant");
-    assert!(resolved.dataset_id.is_none());
-
-    let mut config = NsbModelConfig::generic_clear_sky();
-    config.solar_activity = SolarActivitySource::LegacyDefault;
-    assert_eq!(config.solar_radio_flux(), DEFAULT_SOLAR_RADIO_FLUX);
-
-    let result = NsbEvaluator::with_config(config)
-        .expect("evaluator")
-        .evaluate(
-            &PointQuery::new(paranal(), time, sgr_a_star()).with_components(ComponentMask::AIRGLOW),
-        )
-        .expect("legacy airglow");
-    let solar = result.components[0]
-        .metadata
-        .solar_activity
-        .as_ref()
-        .expect("solar metadata");
-    assert_eq!(solar.resolution_step, "legacy-default-constant");
-    assert_eq!(solar.value, DEFAULT_SOLAR_RADIO_FLUX);
 }
 
 #[test]

@@ -2,7 +2,7 @@ use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhot
 
 #[derive(Debug, Clone)]
 /// Integrated airglow radiance and diagnostic B/V values.
-pub struct AirglowOutputs {
+pub(crate) struct AirglowOutputs {
     /// Photon radiance integrated over 300–650 nm.
     pub integrated: BandPhotonRadiance,
     /// Monochromatic B-reference S10 diagnostic.

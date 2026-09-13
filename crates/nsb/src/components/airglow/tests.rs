@@ -1,9 +1,11 @@
 use super::calibration::load_builtin_standard;
 use super::domain::{AirglowNightPhase, AirglowSeason};
 use super::extinction::{effective_airglow_airmass, noll_scattering_factors};
+use super::units::DEFAULT_SOLAR_RADIO_FLUX;
 use super::*;
 use crate::components::moonlight::AtmosphericConditions;
 use crate::site::SiteProfileId;
+use crate::units::SolarFluxUnits;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::catalogs::observatories;

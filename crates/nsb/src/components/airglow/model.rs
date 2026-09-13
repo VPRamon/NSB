@@ -1,4 +1,6 @@
-use super::calibration::{load_builtin_standard, AirglowContinuum};
+#[cfg(test)]
+use super::calibration::load_builtin_standard;
+use super::calibration::AirglowContinuum;
 use super::continuum::{
     evaluate_continuum, evaluate_continuum_with_night_phase, AirglowEvaluationContext,
 };
@@ -15,7 +17,7 @@ use siderust::coordinates::spherical::Direction as SphericalDirection;
 use std::sync::Arc;
 use tempoch::{Time, UTC};
 
-/// Scientific profile carried by an [`Airglow`] model.
+/// Scientific profile selected by an Airglow configuration.
 ///
 /// Location and operational settings are deliberately absent from this enum:
 /// coordinates, atmosphere, emitting-volume geometry, F10.7 and user scaling
@@ -26,8 +28,6 @@ use tempoch::{Time, UTC};
 pub enum AirglowScientificProfile {
     /// One of NSB's explicit built-in scientific assumption profiles.
     BuiltIn(SiteProfileId),
-    /// Caller-provided continuum without an admitted site-calibration contract.
-    UnvalidatedCustomContinuum,
 }
 
 impl AirglowScientificProfile {
@@ -35,7 +35,6 @@ impl AirglowScientificProfile {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::BuiltIn(profile) => profile.as_str(),
-            Self::UnvalidatedCustomContinuum => "unvalidated-custom-continuum",
         }
     }
 
@@ -43,7 +42,6 @@ impl AirglowScientificProfile {
     pub const fn calibration_status(self) -> CalibrationStatus {
         match self {
             Self::BuiltIn(profile) => profile.calibration_status(),
-            Self::UnvalidatedCustomContinuum => CalibrationStatus::GenericFallback,
         }
     }
 
@@ -51,7 +49,6 @@ impl AirglowScientificProfile {
     pub const fn site_profile(self) -> Option<SiteProfileId> {
         match self {
             Self::BuiltIn(profile) => Some(profile),
-            Self::UnvalidatedCustomContinuum => None,
         }
     }
 
@@ -67,10 +64,9 @@ impl AirglowScientificProfile {
 /// Geographic support is independent of scientific calibration maturity. The
 /// bundled continuum is Paranal-derived and is used as a generic/planning proxy
 /// unless a future, explicit validated calibration path selects otherwise.
-pub struct Airglow {
+pub(crate) struct Airglow {
     location: Geodetic<ECEF>,
     continuum: Arc<AirglowContinuum>,
-    scientific_profile: AirglowScientificProfile,
     atmosphere: AtmosphericConditions,
     geometry: AirglowGeometryModel,
     solar_radio_flux: SolarFluxUnits,
@@ -78,20 +74,17 @@ pub struct Airglow {
 }
 
 impl Airglow {
-    /// Build the generic clear-sky Airglow planning proxy.
+    /// Build the generic clear-sky Airglow planning proxy for component tests.
     ///
     /// The supplied location controls geometry and altitude-derived generic
     /// atmospheric conditions. It does not make the bundled Paranal-derived
     /// continuum calibrated for that location, including when `location` is
     /// Paranal itself.
-    pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Self> {
+    #[cfg(test)]
+    pub(crate) fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Self> {
         let continuum = Arc::new(load_builtin_standard()?);
-        Ok(Self::with_shared_continuum_and_profile(
-            location,
-            continuum,
-            AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky),
-        )
-        .with_atmosphere(AtmosphericConditions::generic_clear_sky(location)))
+        Ok(Self::with_shared_continuum(location, continuum)
+            .with_atmosphere(AtmosphericConditions::generic_clear_sky(location)))
     }
 
     /// Build an Airglow model from an explicitly selected NSB site profile.
@@ -99,50 +92,21 @@ impl Airglow {
     /// CTAO profiles currently use the bundled Paranal-derived continuum with a
     /// neutral site scale and [`CalibrationStatus::PlanningPreset`] maturity.
     /// Selecting a profile is distinct from selecting an observatory/location.
-    pub fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Result<Self> {
+    #[cfg(test)]
+    pub(crate) fn for_site_profile(
+        location: Geodetic<ECEF>,
+        site_profile: SiteProfileId,
+    ) -> Result<Self> {
         let profile = site_profile.profile(location);
         let continuum = Arc::new(load_builtin_standard()?);
-        Ok(Self::with_shared_continuum_and_profile(
-            location,
-            continuum,
-            AirglowScientificProfile::BuiltIn(site_profile),
-        )
-        .with_atmosphere(profile.atmosphere)
-        .with_scale(profile.airglow.scale))
-    }
-
-    /// Build an Airglow model with a caller-provided continuum.
-    ///
-    /// Supplying continuum bytes is not evidence of site calibration. This path
-    /// is therefore explicitly classified as
-    /// [`AirglowScientificProfile::UnvalidatedCustomContinuum`]. A future
-    /// calibrated path must require an admitted scientific evidence contract.
-    /// Atmospheric scattering defaults to generic clear-sky conditions derived
-    /// from `location`; override it with [`Self::with_atmosphere`] when needed.
-    pub fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {
-        Self::with_shared_continuum_and_profile(
-            location,
-            Arc::new(continuum),
-            AirglowScientificProfile::UnvalidatedCustomContinuum,
-        )
+        Ok(Self::with_shared_continuum(location, continuum)
+            .with_atmosphere(profile.atmosphere)
+            .with_scale(profile.airglow.scale))
     }
 
     pub(crate) fn with_shared_continuum(
         location: Geodetic<ECEF>,
         continuum: Arc<AirglowContinuum>,
-        site_profile: SiteProfileId,
-    ) -> Self {
-        Self::with_shared_continuum_and_profile(
-            location,
-            continuum,
-            AirglowScientificProfile::BuiltIn(site_profile),
-        )
-    }
-
-    fn with_shared_continuum_and_profile(
-        location: Geodetic<ECEF>,
-        continuum: Arc<AirglowContinuum>,
-        scientific_profile: AirglowScientificProfile,
     ) -> Self {
         let geometry = AirglowGeometryModel::VanRhijn(VanRhijnConfig::from_continuum_height(
             continuum.emission_height_km(),
@@ -150,7 +114,6 @@ impl Airglow {
         Self {
             location,
             continuum,
-            scientific_profile,
             atmosphere: AtmosphericConditions::generic_clear_sky(location),
             geometry,
             solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
@@ -158,19 +121,9 @@ impl Airglow {
         }
     }
 
-    /// Return the scientific profile selected for this model.
-    pub const fn scientific_profile(&self) -> AirglowScientificProfile {
-        self.scientific_profile
-    }
-
-    /// Return the evidence-backed scientific calibration maturity.
-    pub const fn calibration_status(&self) -> CalibrationStatus {
-        self.scientific_profile.calibration_status()
-    }
-
-    /// Return true only for an explicit, dedicated site calibration.
-    pub const fn is_site_calibrated(&self) -> bool {
-        self.scientific_profile.is_site_calibrated()
+    #[cfg(test)]
+    pub(crate) fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {
+        Self::with_shared_continuum(location, Arc::new(continuum))
     }
 
     /// Select atmospheric pressure/Rayleigh/Mie assumptions for Noll scattering.
@@ -193,7 +146,8 @@ impl Airglow {
     }
 
     /// Return the selected emitting-volume geometry model.
-    pub fn geometry(&self) -> &AirglowGeometryModel {
+    #[cfg(test)]
+    pub(crate) fn geometry(&self) -> &AirglowGeometryModel {
         &self.geometry
     }
 
@@ -204,11 +158,6 @@ impl Airglow {
     pub fn with_solar_radio_flux(mut self, flux: SolarFluxUnits) -> Self {
         self.solar_radio_flux = flux;
         self
-    }
-
-    /// Alias for [`Self::with_solar_radio_flux`].
-    pub fn with_f10_7(self, flux: SolarFluxUnits) -> Self {
-        self.with_solar_radio_flux(flux)
     }
 
     /// Apply an explicit multiplicative continuum scale.
@@ -261,58 +210,5 @@ impl Airglow {
             },
             phase,
         )
-    }
-}
-
-#[cfg(test)]
-mod maturity_tests {
-    use super::*;
-    use siderust::qtty::{Degrees, Meters};
-
-    fn location() -> Geodetic<ECEF> {
-        Geodetic::new_raw(Degrees::new(12.5), Degrees::new(41.9), Meters::new(800.0))
-    }
-
-    #[test]
-    fn caller_continuum_does_not_claim_site_calibration() {
-        let model = Airglow::with_continuum(location(), load_builtin_standard().unwrap());
-
-        assert_eq!(
-            model.scientific_profile(),
-            AirglowScientificProfile::UnvalidatedCustomContinuum
-        );
-        assert_eq!(
-            model.calibration_status(),
-            CalibrationStatus::GenericFallback
-        );
-        assert!(!model.is_site_calibrated());
-    }
-
-    #[test]
-    fn shared_builtin_continuum_preserves_selected_site_profile() {
-        for (site_profile, expected_status) in [
-            (
-                SiteProfileId::GenericClearSky,
-                CalibrationStatus::GenericFallback,
-            ),
-            (SiteProfileId::CtaNorth, CalibrationStatus::PlanningPreset),
-            (SiteProfileId::CtaSouth, CalibrationStatus::PlanningPreset),
-        ] {
-            let model = Airglow::with_shared_continuum(
-                location(),
-                Arc::new(load_builtin_standard().unwrap()),
-                site_profile,
-            );
-
-            assert_eq!(
-                model.scientific_profile(),
-                AirglowScientificProfile::BuiltIn(site_profile)
-            );
-            assert_eq!(model.calibration_status(), expected_status);
-            assert_eq!(
-                model.is_site_calibrated(),
-                site_profile.is_site_calibrated()
-            );
-        }
     }
 }

@@ -1,9 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
+use nsb::components::airglow::{AirglowGeometryModel, AirglowScientificProfile, VanRhijnConfig};
 use nsb::{
-    bundled_f107_store, Airglow, AirglowGeometryModel, AirglowScientificProfile,
-    AtmosphericConditions, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
-    NsbEvaluator, NsbModelConfig, PointQuery, ScaleFactors, SiteProfileId, SolarFluxUnits, Target,
-    VanRhijnConfig, DEG,
+    bundled_f107_store, CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbEvaluator,
+    NsbModelConfig, PointQuery, SiteProfileId, SolarFluxUnits, Target, DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -56,17 +55,14 @@ fn scientific_profile_is_machine_readable_and_uses_site_maturity_as_source_of_tr
     let generic = AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky);
     let north = AirglowScientificProfile::BuiltIn(SiteProfileId::CtaNorth);
     let south = AirglowScientificProfile::BuiltIn(SiteProfileId::CtaSouth);
-    let custom = AirglowScientificProfile::UnvalidatedCustomContinuum;
 
     assert_eq!(generic.as_str(), "generic-clear-sky");
     assert_eq!(north.as_str(), "ctao-north-planning");
     assert_eq!(south.as_str(), "ctao-south-planning");
-    assert_eq!(custom.as_str(), "unvalidated-custom-continuum");
 
     assert_eq!(generic.site_profile(), Some(SiteProfileId::GenericClearSky));
     assert_eq!(north.site_profile(), Some(SiteProfileId::CtaNorth));
     assert_eq!(south.site_profile(), Some(SiteProfileId::CtaSouth));
-    assert_eq!(custom.site_profile(), None);
 
     assert_eq!(
         generic.calibration_status(),
@@ -80,14 +76,9 @@ fn scientific_profile_is_machine_readable_and_uses_site_maturity_as_source_of_tr
         south.calibration_status(),
         CalibrationStatus::PlanningPreset
     );
-    assert_eq!(
-        custom.calibration_status(),
-        CalibrationStatus::GenericFallback
-    );
     assert!(!generic.is_site_calibrated());
     assert!(!north.is_site_calibrated());
     assert!(!south.is_site_calibrated());
-    assert!(!custom.is_site_calibrated());
 }
 
 #[test]
@@ -104,82 +95,6 @@ fn component_metadata_status_is_deliberately_derived_from_site_calibration_statu
         ComponentCalibrationStatus::from(CalibrationStatus::Calibrated),
         ComponentCalibrationStatus::Production
     );
-}
-
-#[test]
-fn arbitrary_location_and_paranal_are_generic_without_explicit_profile_selection() {
-    for location in [arbitrary_location(), paranal()] {
-        let model = Airglow::standard_clear_sky(location).unwrap();
-        assert_eq!(
-            model.scientific_profile(),
-            AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky)
-        );
-        assert_eq!(
-            model.calibration_status(),
-            CalibrationStatus::GenericFallback
-        );
-        assert!(!model.is_site_calibrated());
-    }
-
-    let output = Airglow::standard_clear_sky(arbitrary_location())
-        .unwrap()
-        .compute(parse_obstime("2023-06-21 22:00:00"), target())
-        .unwrap();
-    assert!(output.integrated.value().is_finite());
-    assert!(output.integrated.value() >= 0.0);
-}
-
-#[test]
-fn explicit_ctao_profiles_remain_planning_presets_at_any_observer_location() {
-    for profile in [SiteProfileId::CtaNorth, SiteProfileId::CtaSouth] {
-        let model = Airglow::for_site_profile(arbitrary_location(), profile).unwrap();
-        assert_eq!(
-            model.scientific_profile(),
-            AirglowScientificProfile::BuiltIn(profile)
-        );
-        assert_eq!(
-            model.calibration_status(),
-            CalibrationStatus::PlanningPreset
-        );
-        assert!(!model.is_site_calibrated());
-        assert_eq!(
-            profile.calibration_status(),
-            CalibrationStatus::PlanningPreset
-        );
-        assert!(!profile.is_site_calibrated());
-    }
-
-    assert_eq!(
-        SiteProfileId::GenericClearSky.calibration_status(),
-        CalibrationStatus::GenericFallback
-    );
-    assert!(!SiteProfileId::GenericClearSky.is_site_calibrated());
-}
-
-#[test]
-fn direct_airglow_operational_builders_cannot_upgrade_maturity() {
-    let location = paranal();
-    let expected = CalibrationStatus::GenericFallback;
-    let model = Airglow::standard_clear_sky(location).unwrap();
-    assert_eq!(model.calibration_status(), expected);
-
-    let geometry =
-        AirglowGeometryModel::VanRhijn(VanRhijnConfig::new(Kilometers::new(105.0)).unwrap());
-    let model = model.with_geometry(geometry);
-    assert_eq!(model.calibration_status(), expected);
-
-    let model = model.with_solar_radio_flux(SolarFluxUnits::new(220.0));
-    assert_eq!(model.calibration_status(), expected);
-
-    let model = model.with_f10_7(SolarFluxUnits::new(95.0));
-    assert_eq!(model.calibration_status(), expected);
-
-    let model = model.with_atmosphere(AtmosphericConditions::paranal_average());
-    assert_eq!(model.calibration_status(), expected);
-
-    let model = model.with_scale(ScaleFactors::new(1.75));
-    assert_eq!(model.calibration_status(), expected);
-    assert!(!model.is_site_calibrated());
 }
 
 #[test]

@@ -108,7 +108,7 @@ impl CorrectionTable {
 /// schema, numeric coefficients, fixed `4 × 7` correction tables, and spectral
 /// grids before runtime evaluation can access them.
 #[derive(Debug, Clone)]
-pub struct AirglowContinuum {
+pub(crate) struct AirglowContinuum {
     global_scale: ScaleFactors,
     emission_height_km: Kilometers,
     solar_activity_const: f64,

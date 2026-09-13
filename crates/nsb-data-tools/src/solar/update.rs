@@ -527,7 +527,7 @@ fn empty_store(dataset_id: &str, snapshot_id: &str, retrieved_at: &str) -> F107S
              NSB does not convert between Earth-observed and 1-AU-adjusted variants; product identity is retained. \
              Airglow applies the Noll/SkyCalc monthly-averaged F10.7 quantity (msolflux)."
         ).into(),
-        climatology_sfu: nsb::DEFAULT_SOLAR_RADIO_FLUX.value(),
+        climatology_sfu: (1.0 - 2.068e-1) / 6.139e-3,
         climatology_notes: (
             "Noll/SkyCalc-compatible climatological fallback equal to the Airglow neutralizing \
              F10.7 (DEFAULT_SOLAR_RADIO_FLUX ≈ 129.207 sfu), aligned with the ~129 sfu reference \

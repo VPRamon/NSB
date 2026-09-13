@@ -4,7 +4,7 @@
 //! subset of helpers, so unused-item linting is expected here.
 #![allow(dead_code)]
 
-use nsb::{
+use nsb::components::airglow::{
     AirglowWavelengthApplicability, ValidatedZenithDomain, VerticalEmissionProfile,
     VerticalEmissionProfileDefinition, VerticalProfileNormalization,
     VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,

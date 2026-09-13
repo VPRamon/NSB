@@ -7,20 +7,10 @@
 //! explicitly a generic/planning proxy unless a validated scientific profile is
 //! selected.
 //!
-//! ```no_run
-//! use nsb::{
-//!     Airglow, AirglowGeometryModel, CalibrationStatus, Observer, Target, VanRhijnConfig,
-//! };
-//! use tempoch::{Time, UTC};
-//!
-//! fn evaluate(location: Observer, time: Time<UTC>, target: Target) -> nsb::Result<()> {
-//!     let airglow = Airglow::standard_clear_sky(location)?
-//!         .with_geometry(AirglowGeometryModel::VanRhijn(VanRhijnConfig::default()));
-//!     assert_eq!(airglow.calibration_status(), CalibrationStatus::GenericFallback);
-//!     let _output = airglow.compute(time, target)?;
-//!     Ok(())
-//! }
-//! ```
+//! This module is the deliberately narrow advanced Airglow configuration API.
+//! Normal applications configure geometry through [`crate::NsbModelConfig`] and
+//! evaluate with [`crate::NsbEvaluator`]; they do not construct component
+//! evaluators or continuum calibrations directly.
 //!
 //! `standard_clear_sky` uses generic clear-sky atmospheric assumptions derived
 //! from the observer location for Noll effective Rayleigh/Mie scattering. The
@@ -32,13 +22,9 @@
 //! independent of the Noll Rayleigh/Mie atmospheric attenuation stage and does
 //! not change calibration maturity.
 //!
-//! A caller-provided [`AirglowContinuum`] is classified as
-//! [`AirglowScientificProfile::UnvalidatedCustomContinuum`]. Providing custom
-//! bytes, a scale, F10.7, atmosphere or geometry is not a calibration-evidence
-//! contract. Caller-provided SkyCalc-format text must parse into the validated
-//! continuum type before it can be supplied to [`Airglow::with_continuum`].
-//! Future site-calibrated use must enter through an explicit validated scientific
-//! profile/evidence path.
+//! A custom vertical-emission profile is configuration for emitting-volume
+//! geometry, not a calibration-evidence contract. It does not upgrade the
+//! maturity reported by evaluator result metadata.
 
 pub(crate) mod calibration;
 mod continuum;
@@ -48,21 +34,21 @@ mod geometry;
 mod model;
 mod output;
 pub(crate) mod temporal;
-mod units;
+pub(crate) mod units;
 
 pub(crate) use calibration::load_builtin_standard;
-pub use calibration::AirglowContinuum;
+pub(crate) use calibration::AirglowContinuum;
 pub(crate) use domain::AirglowNightPhase;
 pub(crate) use extinction::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
 pub use geometry::{
     AirglowGeometryMetadata, AirglowGeometryModel, AirglowWavelengthApplicability,
     ValidatedZenithDomain, VanRhijnConfig, VerticalEmissionProfile,
     VerticalEmissionProfileDefinition, VerticalEmissionProfileError, VerticalProfileNormalization,
-    DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM, VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+    VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
-pub use model::{Airglow, AirglowScientificProfile};
-pub use output::AirglowOutputs;
-pub use units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
+pub(crate) use model::Airglow;
+pub use model::AirglowScientificProfile;
+pub(crate) use output::AirglowOutputs;
 
 #[cfg(test)]
 mod tests;

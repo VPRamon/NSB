@@ -337,14 +337,9 @@ impl NsbModelConfig {
     }
 
     /// Set an explicit caller-owned F10.7 override (highest resolver precedence).
-    pub fn with_solar_radio_flux(mut self, flux: airglow::SolarFluxUnits) -> Self {
+    pub fn with_solar_radio_flux(mut self, flux: crate::SolarFluxUnits) -> Self {
         self.solar_activity = crate::solar_activity::SolarActivitySource::Explicit(flux);
         self
-    }
-
-    /// Alias for [`Self::with_solar_radio_flux`].
-    pub fn with_f10_7(self, flux: airglow::SolarFluxUnits) -> Self {
-        self.with_solar_radio_flux(flux)
     }
 
     /// Resolve against a pinned local F10.7 store.
@@ -360,26 +355,6 @@ impl NsbModelConfig {
     pub fn with_airglow_geometry(mut self, geometry: airglow::AirglowGeometryModel) -> Self {
         self.airglow_geometry = geometry;
         self
-    }
-
-    /// Explicit F10.7 when configured; otherwise the legacy neutralizing constant.
-    ///
-    /// Date-aware automatic / dataset resolution uses
-    /// [`crate::solar_activity::resolve_f107`] at evaluation time and is **not**
-    /// represented by this accessor (it returns the neutralizing constant for
-    /// those sources). Prefer component metadata `solar_activity` for the value
-    /// actually applied.
-    pub fn solar_radio_flux(&self) -> airglow::SolarFluxUnits {
-        match &self.solar_activity {
-            crate::solar_activity::SolarActivitySource::Explicit(flux) => *flux,
-            crate::solar_activity::SolarActivitySource::LegacyDefault => {
-                airglow::DEFAULT_SOLAR_RADIO_FLUX
-            }
-            crate::solar_activity::SolarActivitySource::Dataset(_)
-            | crate::solar_activity::SolarActivitySource::Automatic => {
-                airglow::DEFAULT_SOLAR_RADIO_FLUX
-            }
-        }
     }
 }
 

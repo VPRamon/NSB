@@ -229,7 +229,7 @@ persisted profiles must pin and reproduce it.
 
 The automatic path resolves monthly-averaged F10.7 from the bundled offline
 store for the evaluation UTC date. Callers can set an explicit value with
-`with_solar_radio_flux` / `with_f10_7` or `--solar-radio-flux-sfu`. See the
+`with_solar_radio_flux` or `--solar-radio-flux-sfu`. See the
 [F10.7 resolver](f107-resolver.md).
 
 The generic and CTAO planning profiles use a SkyCalc-derived continuum baseline

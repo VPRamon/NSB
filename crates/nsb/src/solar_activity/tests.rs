@@ -3,7 +3,8 @@
 use super::monthly::{days_in_month, is_finalized_monthly_observation};
 use super::resolve::utc_calendar_date;
 use super::*;
-use crate::components::airglow::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
+use crate::components::airglow::units::DEFAULT_SOLAR_RADIO_FLUX;
+use crate::units::SolarFluxUnits;
 use chrono::{DateTime, NaiveDate, Utc};
 use tempoch::{Time, UTC};
 

@@ -8,7 +8,7 @@
 use super::monthly::{resolve_monthly_evidence, MonthlyCompleteness, MonthlyF107Evidence};
 use super::record::{explicit_record, F107Kind, F107Record};
 use super::store::F107Store;
-use crate::components::airglow::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
+use crate::SolarFluxUnits;
 use chrono::NaiveDate;
 use std::sync::Arc;
 use tempoch::{Time, UTC};
@@ -27,16 +27,13 @@ pub enum SolarActivitySource {
     /// climatology). Never performs network I/O.
     #[default]
     Automatic,
-    /// Compatibility path that always returns [`DEFAULT_SOLAR_RADIO_FLUX`]
-    /// labelled as an explicit legacy constant (not automatic resolution).
-    LegacyDefault,
 }
 
 impl PartialEq for SolarActivitySource {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::Explicit(a), Self::Explicit(b)) => a == b,
-            (Self::Automatic, Self::Automatic) | (Self::LegacyDefault, Self::LegacyDefault) => true,
+            (Self::Automatic, Self::Automatic) => true,
             (Self::Dataset(a), Self::Dataset(b)) => {
                 a.dataset_id == b.dataset_id
                     && a.snapshot_id == b.snapshot_id
@@ -131,7 +128,6 @@ impl ResolvedSolarActivity {
 /// 4. future month: complete calendar-month 45-day forecast mean (time-valid)
 /// 5. official monthly solar-cycle prediction (issued_at or retrieved_at ≤ requested)
 /// 6. documented climatological fallback
-/// 7. legacy neutralizing constant only via [`SolarActivitySource::LegacyDefault`]
 ///
 /// Partial-month averages are never selected. Forecasts issued (or, when
 /// issuance is absent, retrieved) after the requested evaluation instant never
@@ -163,19 +159,6 @@ pub fn resolve_f107(
                 total_days: None,
             })
         }
-        SolarActivitySource::LegacyDefault => Ok(ResolvedSolarActivity {
-            value: DEFAULT_SOLAR_RADIO_FLUX,
-            record: explicit_record(requested_date, DEFAULT_SOLAR_RADIO_FLUX.value()),
-            dataset_id: None,
-            snapshot_id: None,
-            checksum_sha256: None,
-            requested_date,
-            resolution_step: "legacy-default-constant",
-            monthly_completeness: None,
-            observed_days: None,
-            forecast_days: None,
-            total_days: None,
-        }),
         SolarActivitySource::Dataset(store) => {
             resolve_from_store(requested_date, requested_at, store)
         }

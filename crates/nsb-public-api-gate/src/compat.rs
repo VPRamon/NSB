@@ -12,6 +12,9 @@ const FORBIDDEN_PATTERNS: &[&str] = &[
     "#[deprecated]",
 ];
 
+/// Debt patterns forbidden specifically in production Airglow implementation.
+const AIRGLOW_FORBIDDEN_PATTERNS: &[&str] = &["#[allow(dead_code)]", "with_f10_7", "LegacyDefault"];
+
 #[derive(Debug, Error)]
 pub enum CompatError {
     #[error("removed or compatibility-only API found in production source:\n{0}")]
@@ -59,13 +62,27 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
     }
     let text = fs::read_to_string(path).map_err(|error| CompatError::Io(error.to_string()))?;
     for (index, line) in text.lines().enumerate() {
-        for pattern in FORBIDDEN_PATTERNS {
+        for pattern in FORBIDDEN_PATTERNS.iter().copied().chain(
+            is_airglow_source(path)
+                .then_some(AIRGLOW_FORBIDDEN_PATTERNS)
+                .into_iter()
+                .flatten()
+                .copied(),
+        ) {
             if line.contains(pattern) {
                 hits.push(format!("{}:{}:{line}", display_repo_path(path), index + 1));
             }
         }
     }
     Ok(())
+}
+
+fn is_airglow_source(path: &Path) -> bool {
+    path.components()
+        .map(|component| component.as_os_str())
+        .collect::<Vec<_>>()
+        .windows(2)
+        .any(|parts| parts[0] == "airglow" && parts[1].to_string_lossy().ends_with(".rs"))
 }
 
 fn display_repo_path(path: &Path) -> String {

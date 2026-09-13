@@ -41,3 +41,27 @@ fn pre_freeze_check_does_not_require_snapshot_or_semver_base() {
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }
+
+#[test]
+fn pre_freeze_check_rejects_airglow_compatibility_debt() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/airglow");
+    fs::create_dir_all(&source).expect("create temporary source");
+    fs::write(
+        source.join("model.rs"),
+        "#[allow(dead_code)]\nfn stale() {}\nfn with_f10_7() {}\n",
+    )
+    .expect("write stale allowance");
+
+    let error = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect_err("compatibility debt must be rejected");
+    assert!(error.to_string().contains("#[allow(dead_code)]"));
+    assert!(error.to_string().contains("with_f10_7"));
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}

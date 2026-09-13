@@ -10,7 +10,7 @@
 //! models. Output is CSV so reviewers can inspect or plot the large-zenith
 //! behavior without committing generated plots.
 
-use nsb::{
+use nsb::components::airglow::{
     AirglowGeometryModel, AirglowWavelengthApplicability, ValidatedZenithDomain,
     VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalProfileNormalization,
     VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,

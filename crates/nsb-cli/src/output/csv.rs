@@ -2,9 +2,10 @@ use super::WindowOutput;
 use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
+use nsb::components::airglow::AirglowGeometryMetadata;
 use nsb::{
-    assets::bundled_assets, AirglowGeometryMetadata, ComponentMask, NsbModelConfig, NsbResult,
-    StarlightModel, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
+    assets::bundled_assets, ComponentMask, NsbModelConfig, NsbResult, StarlightModel,
+    MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
 };
 use tempoch::{Period, UTC};
 

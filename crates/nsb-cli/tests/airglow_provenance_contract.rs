@@ -1,5 +1,5 @@
 use assert_cmd::Command;
-use nsb::VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION;
+use nsb::components::airglow::VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION;
 use std::fs;
 
 mod common;

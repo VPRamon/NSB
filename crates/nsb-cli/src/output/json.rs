@@ -2,11 +2,11 @@ use super::WindowOutput;
 use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
+use nsb::components::airglow::AirglowGeometryMetadata;
 use nsb::{
     assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
-    AirglowGeometryMetadata, BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig,
-    NsbResult, StarlightModel, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
-    SIDERUST_VERSION,
+    BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightModel,
+    Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
@@ -298,9 +298,7 @@ fn version_json() -> VersionJson {
 
 fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
     let solar_radio_flux_sfu = match &config.solar_activity {
-        nsb::SolarActivitySource::Explicit(_) | nsb::SolarActivitySource::LegacyDefault => {
-            Some(config.solar_radio_flux().value())
-        }
+        nsb::SolarActivitySource::Explicit(flux) => Some(flux.value()),
         nsb::SolarActivitySource::Dataset(_) | nsb::SolarActivitySource::Automatic => resolved_sfu,
         _ => resolved_sfu,
     };
@@ -319,7 +317,6 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             nsb::SolarActivitySource::Explicit(_) => "explicit",
             nsb::SolarActivitySource::Dataset(_) => "dataset",
             nsb::SolarActivitySource::Automatic => "automatic",
-            nsb::SolarActivitySource::LegacyDefault => "legacy-default",
             _ => "unknown",
         },
         f107_dataset_id: match &config.solar_activity {

@@ -2,11 +2,12 @@
 
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, Criterion};
-use nsb::{
-    Airglow, AirglowGeometryModel, AirglowWavelengthApplicability, Target, ValidatedZenithDomain,
-    VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalProfileNormalization, DEG,
+use nsb::components::airglow::{
+    AirglowGeometryModel, AirglowWavelengthApplicability, ValidatedZenithDomain,
+    VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalProfileNormalization,
     VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
+use nsb::{ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, Target, DEG};
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -77,17 +78,21 @@ fn bench_geometry(c: &mut Criterion) {
 
 fn bench_airglow_evaluation(c: &mut Criterion) {
     let observer: Geodetic<ECEF> = observatories::EL_PARANAL.geodetic();
-    let van = Airglow::standard_clear_sky(observer).unwrap();
-    let vertical = Airglow::standard_clear_sky(observer)
-        .unwrap()
-        .with_geometry(AirglowGeometryModel::VerticalProfile(profile()));
+    let van = NsbEvaluator::new().unwrap();
+    let vertical = NsbEvaluator::with_config(
+        NsbModelConfig::generic_clear_sky()
+            .with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile())),
+    )
+    .unwrap();
+    let query =
+        || PointQuery::new(observer, time(), target()).with_components(ComponentMask::AIRGLOW);
 
     let mut group = c.benchmark_group("airglow_evaluation");
     group.bench_function("default_van_rhijn", |b| {
-        b.iter(|| van.compute(time(), target()).unwrap())
+        b.iter(|| van.evaluate(&query()).unwrap())
     });
     group.bench_function("vertical_profile", |b| {
-        b.iter(|| vertical.compute(time(), target()).unwrap())
+        b.iter(|| vertical.evaluate(&query()).unwrap())
     });
     group.finish();
 }

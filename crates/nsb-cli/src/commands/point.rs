@@ -3,9 +3,10 @@ use crate::output;
 use crate::parsing::{components, location, target, time};
 use anyhow::Result;
 use log::{debug, info};
+use nsb::components::airglow::{AirglowGeometryModel, VerticalEmissionProfile};
 use nsb::{
-    AirglowGeometryModel, F107Store, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
-    SolarFluxUnits, VerticalEmissionProfile, ZodiacalExtinction,
+    F107Store, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits,
+    ZodiacalExtinction,
 };
 use std::sync::Arc;
 use std::time::Instant;

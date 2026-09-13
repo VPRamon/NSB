@@ -1,9 +1,12 @@
 use chrono::{DateTime, Utc};
+use nsb::components::airglow::{
+    AirglowGeometryModel, AirglowWavelengthApplicability, ValidatedZenithDomain,
+    VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalProfileNormalization,
+    VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+};
 use nsb::{
-    AirglowGeometryModel, AirglowWavelengthApplicability, BandDiagnostic,
-    ComponentCalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target,
-    ValidatedZenithDomain, VerticalEmissionProfile, VerticalEmissionProfileDefinition,
-    VerticalProfileNormalization, DEG, VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+    BandDiagnostic, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target,
+    DEG,
 };
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;

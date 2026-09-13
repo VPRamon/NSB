@@ -36,7 +36,7 @@ pub(crate) const VERTICAL_PROFILE_INTEGRATOR_VERSION: &str = "spherical-los-simp
 /// Implementation identifier for the preserved Siderust Van Rhijn baseline.
 pub(crate) const VAN_RHIJN_IMPLEMENTATION_VERSION: &str = "siderust-0.11.0-mean-earth-radius";
 /// Historical NSB effective emitting-shell height.
-pub const DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM: Kilometers = Kilometers::new(90.0);
+pub(crate) const DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM: Kilometers = Kilometers::new(90.0);
 /// Mean spherical Earth radius used by Siderust's Van Rhijn implementation.
 pub(crate) const AIRGLOW_MEAN_EARTH_RADIUS_KM: Kilometers = Kilometers::new(6_371.0);
 /// Production reference resolution per profile interval (must be even).
