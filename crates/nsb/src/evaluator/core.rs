@@ -1098,6 +1098,28 @@ mod tests {
     }
 
     #[test]
+    fn moon_rise_and_set_threshold_boundaries_match_exact_scan() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        let start = parse("2026-01-14T00:00:00Z");
+        let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + Duration::hours(72));
+        let query = ThresholdQuery::new(
+            paranal(),
+            target_sgr_a(),
+            Period::new(start, end),
+            BandPhotonRadiance::new(0.0),
+        )
+        .with_components(ComponentMask::MOON)
+        .with_sample_step(Second::new(1_800.0))
+        .with_sun_altitude_ceiling(None)
+        .with_target_altitude_floor(None);
+
+        let adaptive = evaluator.periods_below_threshold(&query).unwrap();
+        let scan = scan_threshold_periods(&evaluator, &query).unwrap();
+        assert!(!scan.periods.is_empty());
+        assert_periods_match_within_seconds(&adaptive, &scan, 2);
+    }
+
+    #[test]
     fn reusable_site_context_matches_independent_queries_for_multiple_targets() {
         let evaluator = NsbEvaluator::new().unwrap();
         let first = threshold_query(

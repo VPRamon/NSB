@@ -473,7 +473,8 @@ where
     let threshold_value = threshold.value();
     let mut f_lo = y_lo.value() - threshold_value;
     let mut f_hi = y_hi.value() - threshold_value;
-    debug_assert!(f_lo.signum() != f_hi.signum());
+    let lo_above = f_lo > 0.0;
+    debug_assert_ne!(lo_above, f_hi > 0.0);
     let mut refinements = 0usize;
     let mut retained_lo = 0usize;
     let mut retained_hi = 0usize;
@@ -503,12 +504,7 @@ where
         });
         refinements += 1;
         let f_candidate = y_candidate.value() - threshold_value;
-        if f_candidate == 0.0 {
-            trace!("threshold crossing exactly sampled after {refinements} refinements");
-            return Ok(candidate);
-        }
-
-        if f_candidate.signum() == f_lo.signum() {
+        if (f_candidate > 0.0) == lo_above {
             lo = candidate;
             f_lo = f_candidate;
             retained_hi += 1;
