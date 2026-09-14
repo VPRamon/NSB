@@ -146,26 +146,21 @@ mod tests {
 
     #[test]
     fn reduced_solar_longitude_tracks_vsop87_over_a_year() {
-        let start = Time::<UTC>::from_chrono(
-            Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
-                .single()
-                .unwrap(),
-        );
+        let start =
+            Time::<UTC>::from_chrono(Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).single().unwrap());
         let mut max_error_deg = 0.0_f64;
         for day in 0..=365 {
-            let time = Time::<UTC>::from_chrono(
-                start.to_chrono().unwrap() + chrono::Duration::days(day),
-            );
+            let time =
+                Time::<UTC>::from_chrono(start.to_chrono().unwrap() + chrono::Duration::days(day));
             let jd = to_jd(time);
             let exact = SunBody::ecliptic_longitude_geocentric(jd);
             let approximate = approximate_solar_longitude_j2000(jd);
-            max_error_deg = max_error_deg.max(
-                exact
-                    .abs_separation(approximate)
-                    .value()
-                    .to_degrees(),
-            );
+            max_error_deg =
+                max_error_deg.max(exact.abs_separation(approximate).value().to_degrees());
         }
-        assert!(max_error_deg < 0.02, "maximum longitude error {max_error_deg} deg");
+        assert!(
+            max_error_deg < 0.02,
+            "maximum longitude error {max_error_deg} deg"
+        );
     }
 }

@@ -220,11 +220,8 @@ pub(crate) fn evaluate_integrated_continuum_with_night_phase(
         * seasonal_corr
         * geometry_factor
         * ctx.user_scale.value();
-    let integrated_relative = integrate_attenuated_continuum_scalar(
-        continuum,
-        zenith,
-        ctx.atmosphere,
-    );
+    let integrated_relative =
+        integrate_attenuated_continuum_scalar(continuum, zenith, ctx.atmosphere);
     let radiance_scale: SpectralBandPhotonRadiance =
         SkyCalcSpectralPhotonRadiance::new(scalar_scale).to::<SpectralBandPhotonRadianceUnit>();
     Ok((radiance_scale * integrated_relative).to::<BandPhotonRadianceUnit>())
@@ -242,9 +239,7 @@ fn integrate_attenuated_continuum_scalar(
         let wavelength = Nanometers::new(xs[index]);
         ys[index]
             * spectral_airglow_scattering_transmission_with_geometry(
-                wavelength,
-                atmosphere,
-                &geometry,
+                wavelength, atmosphere, &geometry,
             )
             .value()
     };

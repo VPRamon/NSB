@@ -2,8 +2,7 @@
 use super::calibration::load_builtin_standard;
 use super::calibration::AirglowContinuum;
 use super::continuum::{
-    evaluate_continuum, evaluate_integrated_continuum_with_night_phase,
-    AirglowEvaluationContext,
+    evaluate_continuum, evaluate_integrated_continuum_with_night_phase, AirglowEvaluationContext,
 };
 use super::domain::AirglowNightPhase;
 use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
@@ -12,11 +11,11 @@ use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
 use crate::site::{AtmosphericConditions, CalibrationStatus, SiteProfileId};
 use crate::units::ScaleFactors;
+use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use std::sync::Arc;
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use tempoch::{Time, UTC};
 
 /// Scientific profile selected by an Airglow configuration.
@@ -214,5 +213,4 @@ impl Airglow {
             phase,
         )
     }
-
 }

@@ -12,8 +12,8 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
-use tempoch::{Period, Time, UTC};
 use std::sync::Arc;
+use tempoch::{Period, Time, UTC};
 
 bitflags::bitflags! {
     /// Components that can be composed by [`NsbEvaluator`](super::NsbEvaluator).
@@ -174,7 +174,7 @@ impl ThresholdQuery {
 /// by another evaluator or for incompatible site/window/component settings.
 #[derive(Clone)]
 pub struct SiteWindowContext {
-    pub(super) evaluator_id: u64,
+    pub(super) evaluator_identity: Arc<()>,
     pub(super) observer: Observer,
     pub(super) window: Period<UTC>,
     pub(super) components: ComponentMask,
@@ -201,7 +201,10 @@ impl std::fmt::Debug for SiteWindowContext {
                 "astronomical_night_periods",
                 &self.astronomical_night_periods.len(),
             )
-            .field("moon_visible_periods", &self.moon_visible_periods.as_ref().map(|p| p.len()))
+            .field(
+                "moon_visible_periods",
+                &self.moon_visible_periods.as_ref().map(|p| p.len()),
+            )
             .finish_non_exhaustive()
     }
 }

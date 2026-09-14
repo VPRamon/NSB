@@ -37,7 +37,12 @@ impl SolarActivityValueCache {
             .expect("F10.7 resolution requires a chrono-representable UTC instant")
             .date_naive();
         if !self.volatile_dates.contains(&date) {
-            if let Some(value) = self.values.read().expect("solar cache lock poisoned").get(&date) {
+            if let Some(value) = self
+                .values
+                .read()
+                .expect("solar cache lock poisoned")
+                .get(&date)
+            {
                 return Ok(*value);
             }
         }
@@ -66,4 +71,34 @@ fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
         .filter_map(|value| DateTime::parse_from_rfc3339(value).ok())
         .map(|date_time| date_time.date_naive())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{Duration, TimeZone, Utc};
+
+    #[test]
+    fn cached_values_match_full_resolution_across_stable_and_transition_dates() {
+        let source = SolarActivitySource::Automatic;
+        let cache = SolarActivityValueCache::new(&source).unwrap();
+        let transitions = transition_dates(bundled_f107_store().unwrap());
+        assert!(!transitions.is_empty());
+        let start = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).single().unwrap();
+        let mut checked_transition = false;
+        let mut checked_stable = false;
+
+        for hour in (0..365 * 24).step_by(6) {
+            let time = Time::<UTC>::from_chrono(start + Duration::hours(hour));
+            let date = time.to_chrono().unwrap().date_naive();
+            let cached = cache.value_at(time).unwrap();
+            let exact = resolve_f107(time, &source).unwrap().value;
+            assert_eq!(cached, exact, "cache changed F10.7 at {date}");
+            checked_transition |= transitions.contains(&date);
+            checked_stable |= !transitions.contains(&date);
+        }
+
+        assert!(checked_transition);
+        assert!(checked_stable);
+    }
 }

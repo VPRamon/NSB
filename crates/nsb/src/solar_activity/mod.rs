@@ -11,11 +11,11 @@ mod resolve;
 mod store;
 
 pub use bundled::bundled_f107_store;
+pub(crate) use cache::SolarActivityValueCache;
 pub use monthly::{MonthlyCompleteness, MonthlyF107Evidence};
 pub use record::{F107Kind, F107Record, F107ValidationError};
 pub use resolve::{resolve_f107, ResolvedSolarActivity, SolarActivitySource};
 pub use store::{F107Store, F107StoreError, F107_STORE_SCHEMA_VERSION};
-pub(crate) use cache::SolarActivityValueCache;
 
 #[cfg(test)]
 mod tests;

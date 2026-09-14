@@ -92,18 +92,16 @@ pub(crate) fn astronomical_nights_for_window(
     let mut radius = INITIAL_NIGHT_SEARCH_RADIUS;
     loop {
         let search_window = expand_window(window, radius);
-        let nights: Vec<_> = sun_below_threshold_periods(
-            search_window,
-            location,
-            ASTRONOMICAL_TWILIGHT,
-        )
-            .into_iter()
-            .filter(|night| night.end > window.start && night.start < window.end)
-            .map(|night| AstronomicalNightPeriod {
-                phase_bounded: night.start > search_window.start && night.end < search_window.end,
-                period: night,
-            })
-            .collect();
+        let nights: Vec<_> =
+            sun_below_threshold_periods(search_window, location, ASTRONOMICAL_TWILIGHT)
+                .into_iter()
+                .filter(|night| night.end > window.start && night.start < window.end)
+                .map(|night| AstronomicalNightPeriod {
+                    phase_bounded: night.start > search_window.start
+                        && night.end < search_window.end,
+                    period: night,
+                })
+                .collect();
 
         if nights.iter().all(|night| night.phase_bounded) || radius >= MAX_NIGHT_SEARCH_RADIUS {
             return nights;
@@ -238,11 +236,7 @@ fn astronomical_night_containing(
             ModifiedJulianDate::new(time_tt.raw().value() + radius.value()),
         );
 
-        let night = sun_below_threshold_periods(
-            search_window,
-            location,
-            ASTRONOMICAL_TWILIGHT,
-        )
+        let night = sun_below_threshold_periods(search_window, location, ASTRONOMICAL_TWILIGHT)
             .into_iter()
             .find(|night| night.start < time_tt && time_tt < night.end)?;
 
@@ -287,9 +281,8 @@ pub(crate) fn sun_below_threshold_periods(
     }
     let threshold_sin = threshold.to::<Radian>().sin();
     let approximate = |time| approximate_solar_sin_altitude(time, location) - threshold_sin;
-    let exact = |time: ModifiedJulianDate| {
-        SunBody.altitude_at(&location, time).sin() - threshold_sin
-    };
+    let exact =
+        |time: ModifiedJulianDate| SunBody.altitude_at(&location, time).sin() - threshold_sin;
 
     let mut samples = Vec::new();
     let mut time = window.start;
@@ -316,12 +309,7 @@ pub(crate) fn sun_below_threshold_periods(
             && middle.abs() < right.abs()
             && left.signum() == right.signum()
     }) {
-        return SunBody.below_threshold(
-            &location,
-            window,
-            threshold,
-            SearchOpts::default(),
-        );
+        return SunBody.below_threshold(&location, window, threshold, SearchOpts::default());
     }
 
     let mut candidates = Vec::new();
@@ -350,8 +338,7 @@ pub(crate) fn sun_below_threshold_periods(
     let roots: Option<Vec<_>> = candidates
         .par_iter()
         .map(|candidate| {
-            polish_solar_root(*candidate, &approximate, &exact)
-                .map(|root| (root, candidate.rising))
+            polish_solar_root(*candidate, &approximate, &exact).map(|root| (root, candidate.rising))
         })
         .collect();
     let Some(roots) = roots else {
@@ -441,9 +428,8 @@ where
         return refine_exact_solar_bracket(candidate.bracket, exact);
     }
 
-    let mut next_time = ModifiedJulianDate::new(
-        previous_time.raw().value() - previous_residual / derivative,
-    );
+    let mut next_time =
+        ModifiedJulianDate::new(previous_time.raw().value() - previous_residual / derivative);
     for _ in 0..MAX_SOLAR_POLISH_STEPS {
         if next_time < candidate.bracket.start || next_time > candidate.bracket.end {
             return refine_exact_solar_bracket(candidate.bracket, exact);
@@ -498,10 +484,7 @@ where
 }
 
 #[inline]
-fn approximate_solar_sin_altitude(
-    time: ModifiedJulianDate,
-    location: Geodetic<ECEF>,
-) -> f64 {
+fn approximate_solar_sin_altitude(time: ModifiedJulianDate, location: Geodetic<ECEF>) -> f64 {
     let j2000_mjd = 51_544.5;
     let days = time.raw().value() - j2000_mjd;
     let mean_longitude = (280.466_46 + 0.985_647_36 * days).to_radians();
@@ -618,9 +601,8 @@ mod tests {
 
     fn period(start: (i32, u32, u32), days: i64) -> TimePeriod<ModifiedJulianDate> {
         let start = utc(start.0, start.1, start.2);
-        let end = Time::<UTC>::from_chrono(
-            start.to_chrono().unwrap() + chrono::Duration::days(days),
-        );
+        let end =
+            Time::<UTC>::from_chrono(start.to_chrono().unwrap() + chrono::Duration::days(days));
         TimePeriod::new(utc_time_to_tt_mjd(start), utc_time_to_tt_mjd(end))
     }
 
@@ -629,21 +611,27 @@ mod tests {
         window: TimePeriod<ModifiedJulianDate>,
         threshold: Degrees,
     ) {
-        let reference = SunBody.below_threshold(
-            &location,
-            window,
-            threshold,
-            SearchOpts::default(),
-        );
+        let reference =
+            SunBody.below_threshold(&location, window, threshold, SearchOpts::default());
         let actual = sun_below_threshold_periods(window, location, threshold);
-        assert_eq!(actual.len(), reference.len(), "actual={actual:?} reference={reference:?}");
+        assert_eq!(
+            actual.len(),
+            reference.len(),
+            "actual={actual:?} reference={reference:?}"
+        );
         for (actual, reference) in actual.iter().zip(reference) {
             let start_error_seconds =
                 (actual.start.raw().value() - reference.start.raw().value()).abs() * 86_400.0;
             let end_error_seconds =
                 (actual.end.raw().value() - reference.end.raw().value()).abs() * 86_400.0;
-            assert!(start_error_seconds <= 1.0, "solar start error {start_error_seconds}s");
-            assert!(end_error_seconds <= 1.0, "solar end error {end_error_seconds}s");
+            assert!(
+                start_error_seconds <= 1.0,
+                "solar start error {start_error_seconds}s"
+            );
+            assert!(
+                end_error_seconds <= 1.0,
+                "solar end error {end_error_seconds}s"
+            );
         }
     }
 

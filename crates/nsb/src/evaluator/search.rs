@@ -156,12 +156,7 @@ where
             let exact_hi_above = exact_hi > threshold;
             if exact_lo_above != exact_hi_above {
                 let crossing = refine_threshold_crossing(
-                    bracket_lo,
-                    exact_lo,
-                    bracket_hi,
-                    exact_hi,
-                    exact,
-                    threshold,
+                    bracket_lo, exact_lo, bracket_hi, exact_hi, exact, threshold,
                 )?;
                 if above != exact_hi_above {
                     if above {
@@ -232,10 +227,12 @@ where
     collect_adaptive_above(
         start,
         end,
-        fallback_step,
+        AdaptiveSearchConfig {
+            fallback_step,
+            threshold,
+        },
         f,
         exact_f,
-        threshold,
         0,
         &mut periods,
     )?;
@@ -275,13 +272,18 @@ struct ThresholdSample<V: Unit> {
     above: bool,
 }
 
+#[derive(Clone, Copy)]
+struct AdaptiveSearchConfig<V: Unit> {
+    fallback_step: Days,
+    threshold: Quantity<V>,
+}
+
 fn collect_adaptive_above<V, F, E>(
     lo: ThresholdSample<V>,
     hi: ThresholdSample<V>,
-    fallback_step: Days,
+    config: AdaptiveSearchConfig<V>,
     f: &F,
     exact_f: &E,
-    threshold: Quantity<V>,
     depth: usize,
     periods: &mut Vec<TimePeriod<ModifiedJulianDate>>,
 ) -> Result<()>
@@ -294,40 +296,40 @@ where
     if width <= Days::new(0.0) {
         return Ok(());
     }
-    if width <= fallback_step {
-        collect_terminal_pair(lo, hi, exact_f, threshold, periods)?;
+    if width <= config.fallback_step {
+        collect_terminal_pair(lo, hi, exact_f, config.threshold, periods)?;
         return Ok(());
     }
 
     let mid_time = midpoint_mjd(lo.time, hi.time);
     if mid_time <= lo.time || mid_time >= hi.time {
-        collect_terminal_pair(lo, hi, exact_f, threshold, periods)?;
+        collect_terminal_pair(lo, hi, exact_f, config.threshold, periods)?;
         return Ok(());
     }
 
-    let mid = threshold_sample(mid_time, f, threshold)?;
+    let mid = threshold_sample(mid_time, f, config.threshold)?;
     if depth >= MAX_ADAPTIVE_SUBDIVISIONS || width <= CROSSING_TOLERANCE * 2.0 {
         trace!(
             "adaptive threshold search reached refinement limit: depth={}, width_days={}",
             depth,
             width.value()
         );
-        collect_terminal_pair(lo, mid, exact_f, threshold, periods)?;
-        collect_terminal_pair(mid, hi, exact_f, threshold, periods)?;
+        collect_terminal_pair(lo, mid, exact_f, config.threshold, periods)?;
+        collect_terminal_pair(mid, hi, exact_f, config.threshold, periods)?;
         return Ok(());
     }
 
     let same_side = lo.above == mid.above && mid.above == hi.above;
     if same_side
         && width <= MAX_ADAPTIVE_ACCEPT_SPAN
-        && samples_are_smooth_and_clear(lo, mid, hi, threshold)
+        && samples_are_smooth_and_clear(lo, mid, hi, config.threshold)
     {
-        let exact_lo = threshold_sample(lo.time, exact_f, threshold)?;
-        let exact_mid = threshold_sample(mid.time, exact_f, threshold)?;
-        let exact_hi = threshold_sample(hi.time, exact_f, threshold)?;
+        let exact_lo = threshold_sample(lo.time, exact_f, config.threshold)?;
+        let exact_mid = threshold_sample(mid.time, exact_f, config.threshold)?;
+        let exact_hi = threshold_sample(hi.time, exact_f, config.threshold)?;
         if exact_lo.above == exact_mid.above
             && exact_mid.above == exact_hi.above
-            && samples_are_smooth_and_clear(exact_lo, exact_mid, exact_hi, threshold)
+            && samples_are_smooth_and_clear(exact_lo, exact_mid, exact_hi, config.threshold)
         {
             #[cfg(feature = "window-search-diagnostics")]
             super::diagnostics::update(|diagnostics| diagnostics.accepted_smooth_intervals += 1);
@@ -344,26 +346,8 @@ where
         }
     }
 
-    collect_adaptive_above(
-        lo,
-        mid,
-        fallback_step,
-        f,
-        exact_f,
-        threshold,
-        depth + 1,
-        periods,
-    )?;
-    collect_adaptive_above(
-        mid,
-        hi,
-        fallback_step,
-        f,
-        exact_f,
-        threshold,
-        depth + 1,
-        periods,
-    )
+    collect_adaptive_above(lo, mid, config, f, exact_f, depth + 1, periods)?;
+    collect_adaptive_above(mid, hi, config, f, exact_f, depth + 1, periods)
 }
 
 fn collect_terminal_pair<V, E>(
@@ -384,8 +368,12 @@ where
     let exact_lo = exact_f(lo.time)?;
     let exact_mid = exact_f(mid_time)?;
     let exact_hi = exact_f(hi.time)?;
-    collect_exact_pair(lo.time, exact_lo, mid_time, exact_mid, exact_f, threshold, periods)?;
-    collect_exact_pair(mid_time, exact_mid, hi.time, exact_hi, exact_f, threshold, periods)?;
+    collect_exact_pair(
+        lo.time, exact_lo, mid_time, exact_mid, exact_f, threshold, periods,
+    )?;
+    collect_exact_pair(
+        mid_time, exact_mid, hi.time, exact_hi, exact_f, threshold, periods,
+    )?;
     Ok(())
 }
 
@@ -672,5 +660,66 @@ mod tests {
         assert_eq!(periods.len(), 1);
         assert!((periods[0].start.raw().value() - 60_000.5).abs() <= CROSSING_TOLERANCE.value());
         assert_eq!(periods[0].end, window.end);
+    }
+
+    #[test]
+    fn approximate_signal_cannot_hide_exact_extrema_or_crossings() {
+        let window = test_window();
+        let threshold = BandPhotonRadiance::new(0.5);
+        let step = Days::new(1.0 / 144.0);
+        let approximate = |_time| Ok(BandPhotonRadiance::new(0.1));
+        let exact = |time: ModifiedJulianDate| {
+            let x = (time.raw().value() - 60_000.5) * 4.0;
+            Ok(BandPhotonRadiance::new(1.0 - x * x))
+        };
+
+        let adaptive =
+            adaptive_above_threshold_periods(window, step, &approximate, &exact, threshold)
+                .unwrap();
+        let scan = above_threshold_periods(window, step, &exact, threshold).unwrap();
+
+        assert_eq!(adaptive.len(), 1);
+        assert_eq!(scan.len(), 1);
+        assert!((adaptive[0].start.raw().value() - scan[0].start.raw().value()).abs() < 2.0e-5);
+        assert!((adaptive[0].end.raw().value() - scan[0].end.raw().value()).abs() < 2.0e-5);
+    }
+
+    #[test]
+    fn approximate_crossings_are_rejected_when_exact_signal_stays_below() {
+        let window = test_window();
+        let threshold = BandPhotonRadiance::new(0.5);
+        let step = Days::new(1.0 / 144.0);
+        let approximate = |time: ModifiedJulianDate| {
+            let x = (time.raw().value() - 60_000.5) * 4.0;
+            Ok(BandPhotonRadiance::new(1.0 - x * x))
+        };
+        let exact = |_time| Ok(BandPhotonRadiance::new(0.49));
+
+        let periods =
+            adaptive_above_threshold_periods(window, step, &approximate, &exact, threshold)
+                .unwrap();
+        assert!(periods.is_empty());
+    }
+
+    #[test]
+    fn thresholds_around_a_grazing_extremum_are_distinguished() {
+        let window = test_window();
+        let step = Days::new(1.0 / 144.0);
+        let f = |time: ModifiedJulianDate| {
+            let x = (time.raw().value() - 60_000.5) * 4.0;
+            Ok(BandPhotonRadiance::new(1.0 - x * x))
+        };
+
+        let below_max =
+            adaptive_above_threshold_periods(window, step, &f, &f, BandPhotonRadiance::new(0.999))
+                .unwrap();
+        let above_max =
+            adaptive_above_threshold_periods(window, step, &f, &f, BandPhotonRadiance::new(1.001))
+                .unwrap();
+
+        assert_eq!(below_max.len(), 1);
+        assert!(below_max[0].start < ModifiedJulianDate::new(60_000.5));
+        assert!(below_max[0].end > ModifiedJulianDate::new(60_000.5));
+        assert!(above_max.is_empty());
     }
 }
