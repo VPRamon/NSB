@@ -18,6 +18,7 @@ use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 use qtty::Second;
+#[cfg(not(feature = "window-search-diagnostics"))]
 use rayon::prelude::*;
 use siderust::bodies::Moon as MoonBody;
 use siderust::coordinates::spherical::direction;
@@ -26,7 +27,7 @@ use siderust::event::altitude::AltitudeProvider;
 use siderust::event::altitude::{above_threshold as altitude_above_threshold, SearchOpts};
 #[cfg(test)]
 use siderust::qtty::Degree;
-use siderust::qtty::{Day, Days, Degrees};
+use siderust::qtty::{Day, Degrees};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -320,8 +321,17 @@ impl NsbEvaluator {
                 Vec::new()
             }
         };
-        let prepare_moon =
-            || uses_moon.then(|| moon_above_horizon_periods(tt_window, query.observer));
+        let prepare_moon = || {
+            uses_moon.then(|| {
+                altitude_above_threshold(
+                    &MoonBody,
+                    &query.observer,
+                    tt_window,
+                    Degrees::new(0.0),
+                    SearchOpts::default(),
+                )
+            })
+        };
         #[cfg(feature = "window-search-diagnostics")]
         let (astronomical_night_periods, moon_visible_periods) = {
             let phase_started = Instant::now();
@@ -704,47 +714,6 @@ impl NsbEvaluator {
     }
 }
 
-const SIDERUST_MOON_EVENT_CHUNK: Days = Days::new(32.0);
-
-fn moon_above_horizon_periods(
-    window: TimePeriod<ModifiedJulianDate>,
-    observer: Observer,
-) -> Vec<TimePeriod<ModifiedJulianDate>> {
-    let mut periods: Vec<_> = split_time_period(window, SIDERUST_MOON_EVENT_CHUNK)
-        .into_par_iter()
-        .flat_map_iter(|chunk| {
-            altitude_above_threshold(
-                &MoonBody,
-                &observer,
-                chunk,
-                Degrees::new(0.0),
-                SearchOpts::default(),
-            )
-        })
-        .collect();
-    coalesce_periods(&mut periods);
-    periods
-}
-
-fn split_time_period(
-    window: TimePeriod<ModifiedJulianDate>,
-    chunk: Days,
-) -> Vec<TimePeriod<ModifiedJulianDate>> {
-    if window.start >= window.end {
-        return Vec::new();
-    }
-    let mut periods = Vec::new();
-    let mut start = window.start;
-    while start < window.end {
-        let end = ModifiedJulianDate::new(
-            (start.raw().value() + chunk.value()).min(window.end.raw().value()),
-        );
-        periods.push(TimePeriod::new(start, end));
-        start = end;
-    }
-    periods
-}
-
 fn contains_time(periods: &[TimePeriod<ModifiedJulianDate>], time: ModifiedJulianDate) -> bool {
     periods
         .iter()
@@ -944,7 +913,7 @@ mod tests {
     }
 
     #[test]
-    fn adaptive_threshold_search_matches_scan_oracle_for_representative_window() {
+    fn authoritative_threshold_search_matches_scan_oracle_for_representative_window() {
         let evaluator = NsbEvaluator::new().unwrap();
         let start = parse("2023-09-04T02:00:00Z");
         let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + Duration::hours(4));
@@ -959,14 +928,14 @@ mod tests {
         .with_sun_altitude_ceiling(None)
         .with_target_altitude_floor(None);
 
-        let adaptive = evaluator.periods_below_threshold(&query).unwrap();
+        let authoritative = evaluator.periods_below_threshold(&query).unwrap();
         let scan = scan_threshold_periods(&evaluator, &query).unwrap();
 
-        assert_periods_match_within_seconds(&adaptive, &scan, 2);
+        assert_periods_match_within_seconds(&authoritative, &scan, 2);
     }
 
     #[test]
-    fn adaptive_search_matches_exact_scan_across_components_and_year_boundary() {
+    fn authoritative_search_matches_exact_scan_across_components_and_year_boundary() {
         let evaluator = NsbEvaluator::new().unwrap();
         for (start, hours, target, components, threshold) in [
             (
@@ -994,9 +963,9 @@ mod tests {
             let mut query = threshold_query(paranal(), target, start, hours, components);
             query.threshold = BandPhotonRadiance::new(threshold);
             query.sample_step = Second::new(600.0);
-            let adaptive = evaluator.periods_below_threshold(&query).unwrap();
+            let authoritative = evaluator.periods_below_threshold(&query).unwrap();
             let scan = scan_threshold_periods(&evaluator, &query).unwrap();
-            assert_periods_match_within_seconds(&adaptive, &scan, 2);
+            assert_periods_match_within_seconds(&authoritative, &scan, 2);
         }
     }
 
@@ -1016,10 +985,10 @@ mod tests {
         .with_sun_altitude_ceiling(None)
         .with_target_altitude_floor(None);
 
-        let adaptive = evaluator.periods_below_threshold(&query).unwrap();
+        let authoritative = evaluator.periods_below_threshold(&query).unwrap();
         let scan = scan_threshold_periods(&evaluator, &query).unwrap();
         assert!(!scan.periods.is_empty());
-        assert_periods_match_within_seconds(&adaptive, &scan, 2);
+        assert_periods_match_within_seconds(&authoritative, &scan, 2);
     }
 
     #[test]
@@ -1072,14 +1041,12 @@ mod tests {
             .periods_below_threshold_with_context(&context, &min_query)
             .unwrap();
 
-        assert_eq!(
-            reused_max,
-            evaluator.periods_below_threshold(&max_query).unwrap()
-        );
-        assert_eq!(
-            reused_min,
-            evaluator.periods_below_threshold(&min_query).unwrap()
-        );
+        let independent_max = evaluator.periods_below_threshold(&max_query).unwrap();
+        let independent_min = evaluator.periods_below_threshold(&min_query).unwrap();
+        assert_eq!(reused_max.threshold, independent_max.threshold);
+        assert_eq!(reused_max.periods, independent_max.periods);
+        assert_eq!(reused_min.threshold, independent_min.threshold);
+        assert_eq!(reused_min.periods, independent_min.periods);
     }
 
     #[cfg(not(feature = "window-search-diagnostics"))]
@@ -1106,7 +1073,10 @@ mod tests {
                 })
         };
 
-        assert_eq!(run(1), run(4));
+        let sequential = run(1);
+        let parallel = run(4);
+        assert_eq!(sequential.threshold, parallel.threshold);
+        assert_eq!(sequential.periods, parallel.periods);
     }
 
     #[test]

@@ -453,11 +453,12 @@ mod tests {
     }
 
     #[test]
-    fn fast_solar_boundaries_match_precise_reference_across_regimes() {
+    fn delegated_siderust_solar_events_cover_sites_thresholds_and_year_boundary() {
         for (location, window, threshold) in [
             (cta_south(), period((2026, 1, 1), 31), Degrees::new(-18.0)),
             (cta_south(), period((2026, 6, 1), 31), Degrees::new(0.0)),
             (equator(), period((2026, 3, 15), 20), Degrees::new(-12.0)),
+            (equator(), period((2026, 12, 30), 5), Degrees::new(0.0)),
             (
                 Geodetic::new_raw(
                     Degrees::new(18.9553),

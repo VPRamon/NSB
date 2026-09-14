@@ -34,7 +34,7 @@ where
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
     #[cfg(feature = "window-search-diagnostics")]
-    super::diagnostics::update(|diagnostics| diagnostics.fallback_intervals += 1);
+    super::diagnostics::update(|diagnostics| diagnostics.authoritative_scan_windows += 1);
     if window.start >= window.end || step <= Days::new(0.0) {
         debug!(
             "skipping scan threshold search: non-positive window or step; start_mjd={}, end_mjd={}, step_days={}",
