@@ -199,7 +199,7 @@ impl StarlightMap {
             f64::from_le_bytes(chunk[offset..offset + 8].try_into().unwrap())
         };
         let mut pixels = Vec::with_capacity(count);
-        for chunk in bytes[HEADER_BYTES..].chunks_exact(PIXEL_BYTES) {
+        for chunk in bytes[HEADER_BYTES..].as_chunks::<PIXEL_BYTES>().0 {
             pixels.push(
                 StarlightPixel::new(
                     BandPhotonRadiance::new(read_f64(chunk, 0)),
