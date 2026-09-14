@@ -137,7 +137,7 @@ The principal measured checkpoints were:
 | --- | ---: | ---: | --- |
 | Bundled starlight construction | 178.96 ms | about 8 ms | None; packed values and source checksum are validated. |
 | Exact Jones Moon point geometry | 854–859 µs | 500–504 µs | None within floating-point tolerance; the same precise ephemeris state is reused. |
-| Site/time threshold preparation | 2.992 s | 66.26 ms diagnostics / 45.95 ms Criterion context | Exact roots are polished or use the precise fallback. |
+| Site/time threshold preparation | 2.992 s | 65.46 ms diagnostics / 45.95 ms Criterion context | Exact roots are polished or use the precise fallback. |
 | Crossing refinement calls | 2,086 | 1,449 | None; safeguarded interpolation retains the one-second stopping tolerance. |
 | Full sequential optimized search | 5.88 s baseline | 2.23 s including preparation | Every smooth classification and crossing remains exact-validated. |
 | Full production search | 5.88 s baseline | 0.36 s | Same model; independent physical windows execute in parallel. |
@@ -145,7 +145,7 @@ The principal measured checkpoints were:
 ## Final measurements
 
 Five final representative executions took 0.35, 0.36, 0.36, 0.36, and 0.37
-seconds: median 0.36 seconds, median user CPU time 4.70 seconds, and about 32 MiB
+seconds: median 0.36 seconds, median user CPU time 4.71 seconds, and about 32 MiB
 maximum resident memory. This is a 16.3x wall-time speedup with 140 ms margin to
 the required 500 ms target.
 
@@ -160,7 +160,7 @@ the required 500 ms target.
 The final sequential diagnostics build reports 5,832 exact integrated
 evaluations (2.2% fewer than baseline) and 1,449 crossing-refinement evaluations
 (30.5% fewer), with 5,567 Airglow and 2,663 Moonlight calls. Preparation is
-66.26 ms and search is 2.165 s. The modest exact-call reduction shows that most
+65.46 ms and search is 2.173 s. The modest exact-call reduction shows that most
 speedup comes from removing repeated preparation, reducing authoritative-sample
 cost, and parallelizing independent intervals—not weakening the model.
 
@@ -169,7 +169,7 @@ target, 10 samples, and no plots:
 
 ```text
 threshold_window_duration_component/all/1y
-time: [353.94 ms 357.23 ms 360.36 ms]
+time: [356.86 ms 359.27 ms 361.55 ms]
 ```
 
 The complete short-run duration/component matrix was:
