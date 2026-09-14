@@ -136,6 +136,26 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
     }
 }
 
+#[cfg(nsb_bundled_production_starlight)]
+#[test]
+fn bundled_production_model_is_the_canonical_admitted_csv_map() {
+    let canonical = ValidatedStarlightMap::from_bytes_and_manifest(
+        crate::assets::BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
+        crate::assets::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
+    )
+    .unwrap();
+    let bundled = Starlight::bundled_production_model().unwrap();
+
+    assert_eq!(bundled.map().grid(), canonical.map().grid());
+    assert_eq!(bundled.map().pixels(), canonical.map().pixels());
+    assert_eq!(bundled.map().provenance(), canonical.map().provenance());
+    assert_eq!(
+        canonical.diagnostics().pixel_count,
+        canonical.map().pixels().len()
+    );
+    assert!(canonical.diagnostics().flux_conservation_recomputed);
+}
+
 #[test]
 fn healpix_csv_fixture_loads_from_test_data_only() {
     let map =

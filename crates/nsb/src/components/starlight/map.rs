@@ -156,68 +156,6 @@ impl StarlightMap {
         Self::from_csv_str(&raw, provenance)
     }
 
-    /// Decode the build-script-produced image of the checksum-verified bundled
-    /// production map. External maps continue through the full CSV admission
-    /// path; only this immutable build artifact may use the trusted fast path.
-    pub(super) fn from_build_packed_bytes(
-        bytes: &[u8],
-        provenance: StarlightProvenance,
-    ) -> Result<Self> {
-        const HEADER_BYTES: usize = 16;
-        const PIXEL_BYTES: usize = 4 * std::mem::size_of::<f64>();
-        if bytes.len() < HEADER_BYTES || &bytes[..8] != b"NSBSTL01" {
-            return Err(invalid_map("invalid bundled starlight binary header"));
-        }
-        let nside = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
-        let count = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
-        let expected_len = HEADER_BYTES
-            .checked_add(
-                count
-                    .checked_mul(PIXEL_BYTES)
-                    .ok_or_else(|| invalid_map("bundled starlight binary pixel count overflows"))?,
-            )
-            .ok_or_else(|| invalid_map("bundled starlight binary length overflows"))?;
-        if bytes.len() != expected_len {
-            return Err(invalid_map(format!(
-                "bundled starlight binary has {} bytes, expected {expected_len}",
-                bytes.len()
-            )));
-        }
-
-        let grid = HealpixGrid::new(
-            Nside::new(nside).map_err(|error| invalid_map(error.to_string()))?,
-            HealpixOrdering::Ring,
-        )
-        .map_err(|error| invalid_map(error.to_string()))?;
-        if usize::try_from(grid.npix()).expect("HEALPix npix fits usize") != count {
-            return Err(invalid_map(
-                "bundled starlight binary pixel count does not match nside",
-            ));
-        }
-
-        let read_f64 = |chunk: &[u8], offset: usize| {
-            f64::from_le_bytes(chunk[offset..offset + 8].try_into().unwrap())
-        };
-        let mut pixels = Vec::with_capacity(count);
-        for chunk in bytes[HEADER_BYTES..].as_chunks::<PIXEL_BYTES>().0 {
-            pixels.push(
-                StarlightPixel::new(
-                    BandPhotonRadiance::new(read_f64(chunk, 0)),
-                    S10s::new(0.0),
-                    S10s::new(0.0),
-                )
-                .without_s10_diagnostics()
-                .with_uncertainties(
-                    BandPhotonRadiance::new(read_f64(chunk, 8)),
-                    BandPhotonRadiance::new(read_f64(chunk, 16)),
-                    BandPhotonRadiance::new(read_f64(chunk, 24)),
-                ),
-            );
-        }
-        let map = HealpixMap::new(grid, pixels).map_err(|error| invalid_map(error.to_string()))?;
-        Ok(Self { provenance, map })
-    }
-
     /// Look up radiance for a Galactic direction (nearest HEALPix pixel).
     pub fn lookup(&self, direction: CartesianDirection<Galactic>) -> StarlightOutputs {
         let index = self

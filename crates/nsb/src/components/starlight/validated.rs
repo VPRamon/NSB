@@ -129,22 +129,6 @@ impl ValidatedStarlightMap {
     }
 }
 
-/// Load the immutable build-verified bundled map without repeating external
-/// admission checks on every process start.
-pub(super) fn load_build_verified_bundled_map(
-    binary: &[u8],
-    manifest_raw: &str,
-) -> Result<StarlightMap> {
-    let manifest: ExternalManifest = toml::from_str(manifest_raw)
-        .map_err(|err| invalid(format!("invalid bundled starlight manifest: {err}")))?;
-    manifest.validate_contract()?;
-    let provenance = manifest.provenance(format!(
-        "sha256:{}",
-        normalize_checksum(&manifest.map_sha256)
-    ));
-    StarlightMap::from_build_packed_bytes(binary, provenance)
-}
-
 impl ExternalManifest {
     fn validate_contract(&self) -> Result<()> {
         if self.schema_version != MANIFEST_SCHEMA_VERSION {
@@ -632,6 +616,44 @@ independent_comparison = "synthetic trusted reference fixture"
         );
         let err = ValidatedStarlightMap::from_bytes_and_manifest(&map, &proxy).unwrap_err();
         assert!(err.to_string().contains("proxy or experimental photometry"));
+    }
+
+    #[test]
+    fn rejects_stale_sidecar_checksum_and_header_metadata() {
+        let (map, manifest) = fixture();
+        let checksum_line = manifest
+            .lines()
+            .find(|line| line.starts_with("map_sha256 = "))
+            .unwrap();
+        let stale = manifest.replacen(
+            checksum_line,
+            "map_sha256 = \"sha256:0000000000000000000000000000000000000000000000000000000000000000\"",
+            1,
+        );
+        let err = ValidatedStarlightMap::from_bytes_and_manifest(&map, &stale).unwrap_err();
+        assert!(err.to_string().contains("map checksum mismatch"), "{err}");
+
+        let mismatched_ordering =
+            manifest.replacen("ordering = \"ring\"", "ordering = \"nested\"", 1);
+        let err =
+            ValidatedStarlightMap::from_bytes_and_manifest(&map, &mismatched_ordering).unwrap_err();
+        assert!(err.to_string().contains("header mismatch"), "{err}");
+    }
+
+    #[test]
+    fn rejects_sidecar_that_claims_unreproduced_flux_conservation() {
+        let (map, manifest) = fixture();
+        let wrong_flux = manifest.replacen(
+            "input_integrated_flux_sum = ",
+            "input_integrated_flux_sum = 999999999999999 # original: ",
+            1,
+        );
+        let err = ValidatedStarlightMap::from_bytes_and_manifest(&map, &wrong_flux).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("flux-conservation validation failed"),
+            "{err}"
+        );
     }
 
     #[test]

@@ -52,9 +52,12 @@ Diagnostic wall time is therefore not production performance.
 
 ## Retained neutral optimizations
 
-- The bundled validated starlight map is packed at build time. Runtime decoding
-  checks its header while the manifest and source checksum contracts remain in
-  force.
+- The bundled production starlight map follows the same canonical CSV admission
+  path as external production maps. It rechecks the sidecar against the actual
+  CSV bytes and headers, parses the declared HEALPix geometry, validates every
+  value and uncertainty, and recomputes flux-conservation and map diagnostics.
+  The former build-packed shortcut was removed because it bypassed parts of
+  this contract.
 - Airglow threshold evaluation computes the integrated scalar without
   allocating a full spectrum. Broad equivalence tests cover three site
   profiles, two seasons, three night phases, four altitudes, and three F10.7
@@ -98,10 +101,10 @@ RAYON_NUM_THREADS=2 nice -n 10 ./target/release/nsb \
   --step 600 >/dev/null
 ```
 
-Five resource-capped production executions took 3.02, 3.04, 2.93, 3.07, and
-3.13 seconds: median 3.04 seconds, median user CPU time 5.03 seconds, and about
-32 MiB maximum resident memory. The original issue-160 implementation measured
-5.88 seconds on this host, so the correctness-first result retains a 1.93x
+Five resource-capped production executions took 3.62, 3.82, 3.70, 3.62, and
+3.68 seconds: median 3.68 seconds, median user CPU time 5.67 seconds, and about
+59 MiB maximum resident memory. The original issue-160 implementation measured
+5.88 seconds on this host, so the correctness-first result retains a 1.60x
 wall-time improvement. The reviewed but unsafe PR state measured about 0.36
 seconds; it is recorded only as historical context and is not a valid scientific
 performance target because its discovery paths could produce false negatives.
@@ -111,7 +114,7 @@ The dedicated Criterion run used production code, a 0.1 s warm-up, a requested
 
 ```text
 threshold_window_duration_component/all/1y
-time: [2.9770 s 2.9869 s 2.9983 s]
+time: [3.5184 s 3.5306 s 3.5460 s]
 ```
 
 ## Workload results
@@ -121,12 +124,12 @@ single resource-capped runs except for the five-run annual median above.
 
 | One-year production workload | Baseline | Final | Baseline / final |
 | --- | ---: | ---: | ---: |
-| All components | 5.88 s | 3.04 s median | 1.93x |
-| Zodiacal only | 1.08 s | 1.15 s | 0.94x |
-| Starlight only | 0.98 s | 0.83 s | 1.18x |
-| Airglow only | 1.76 s | 0.86 s | 2.05x |
-| Moonlight only | 3.51 s | 3.31 s | 1.06x |
-| All components, max plus min threshold | not recorded | 4.55 s | n/a |
+| All components | 5.88 s | 3.68 s median | 1.60x |
+| Zodiacal only | 1.08 s | 1.40 s | 0.77x |
+| Starlight only | 0.98 s | 1.08 s | 0.91x |
+| Airglow only | 1.76 s | 1.08 s | 1.63x |
+| Moonlight only | 3.51 s | 3.85 s | 0.91x |
+| All components, max plus min threshold | not recorded | 5.30 s | n/a |
 
 Context/multitarget measurements use the deterministic target sequence defined
 in `threshold_window.rs`. Preparation is excluded from each target row. To
@@ -151,17 +154,17 @@ For comparison, the pre-context one-shot baselines were 9.221, 76.845, and
 ## Sequential diagnostics
 
 One diagnostic run of the representative year reported the following. These
-numbers explain work; its 4.707 s combined preparation/search time must not be
+numbers explain work; its 5.031 s combined preparation/search time must not be
 compared with production wall time.
 
 | Diagnostic phase or counter | Value |
 | --- | ---: |
-| Evaluator construction | 7.54 ms |
-| Threshold preparation | 2.199 s |
-| Astronomical-night preparation | 626.44 ms |
-| Target visibility | 166.01 ms |
-| Moon visibility | 1.406 s |
-| Threshold search | 2.508 s |
+| Evaluator construction | 187.37 ms |
+| Threshold preparation | 2.516 s |
+| Astronomical-night preparation | 660.84 ms |
+| Target visibility | 166.68 ms |
+| Moon visibility | 1.688 s |
+| Threshold search | 2.515 s |
 | Authoritative integrated evaluations | 7,459 |
 | Zodiacal / Airglow / Moonlight evaluations | 7,459 / 7,194 / 3,283 |
 | Candidate / authoritative-scan windows | 268 / 573 |

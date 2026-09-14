@@ -3,10 +3,10 @@ use super::output::StarlightOutputs;
 use super::photometry::scale_outputs;
 use super::provenance::StarlightProvenance;
 #[cfg(nsb_bundled_production_starlight)]
-use super::validated::load_build_verified_bundled_map;
+use super::validated::ValidatedStarlightMap;
 use crate::assets::BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE;
 #[cfg(nsb_bundled_production_starlight)]
-use crate::assets::{BUNDLED_PRODUCTION_STARLIGHT_BINARY, BUNDLED_PRODUCTION_STARLIGHT_MANIFEST};
+use crate::assets::{BUNDLED_PRODUCTION_STARLIGHT_MANIFEST, BUNDLED_PRODUCTION_STARLIGHT_MAP};
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use crate::units::ScaleFactors;
@@ -34,11 +34,11 @@ impl Starlight {
     /// [`ValidatedStarlightMap`](super::ValidatedStarlightMap).
     #[cfg(nsb_bundled_production_starlight)]
     pub fn bundled_production_model() -> Result<Self> {
-        let map = load_build_verified_bundled_map(
-            BUNDLED_PRODUCTION_STARLIGHT_BINARY,
+        let validated = ValidatedStarlightMap::from_bytes_and_manifest(
+            BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
             BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
         )?;
-        Ok(Self::with_map(map))
+        Ok(Self::with_map(validated.map().clone()))
     }
 
     /// Report a missing bundled production starlight asset.
