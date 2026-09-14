@@ -12,6 +12,7 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
+use std::sync::Arc;
 use tempoch::{Period, Time, UTC};
 
 bitflags::bitflags! {
@@ -162,6 +163,49 @@ impl ThresholdQuery {
     pub fn with_target_altitude_floor(mut self, target_altitude_floor: Option<Degrees>) -> Self {
         self.target_altitude_floor = target_altitude_floor;
         self
+    }
+}
+
+/// Reusable target-independent preparation for searches at one site and time window.
+///
+/// Create this with [`NsbEvaluator::prepare_site_window_context`](super::NsbEvaluator::prepare_site_window_context)
+/// and reuse it for queries that differ only in target, target-altitude floor,
+/// radiance threshold, or sampling step. The evaluator rejects contexts created
+/// by another evaluator or for incompatible site/window/component settings.
+#[derive(Clone)]
+pub struct SiteWindowContext {
+    pub(super) evaluator_identity: Arc<()>,
+    pub(super) observer: Observer,
+    pub(super) window: Period<UTC>,
+    pub(super) components: ComponentMask,
+    pub(super) sun_altitude_ceiling: Option<Degrees>,
+    pub(super) tt_window: TimePeriod<ModifiedJulianDate>,
+    pub(super) sun_filter_periods: Arc<[TimePeriod<ModifiedJulianDate>]>,
+    pub(super) astronomical_night_periods: Arc<[airglow::temporal::AstronomicalNightPeriod]>,
+    pub(super) airglow_phase_periods: Arc<[airglow::temporal::AirglowPhasePeriod]>,
+    pub(super) airglow_model: Option<airglow::Airglow>,
+    pub(super) solar_activity_cache: Option<crate::solar_activity::SolarActivityValueCache>,
+    pub(super) moon_visible_periods: Option<Arc<[TimePeriod<ModifiedJulianDate>]>>,
+}
+
+impl std::fmt::Debug for SiteWindowContext {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("SiteWindowContext")
+            .field("observer", &self.observer)
+            .field("window", &self.window)
+            .field("components", &self.components)
+            .field("sun_altitude_ceiling", &self.sun_altitude_ceiling)
+            .field("sun_filter_periods", &self.sun_filter_periods.len())
+            .field(
+                "astronomical_night_periods",
+                &self.astronomical_night_periods.len(),
+            )
+            .field(
+                "moon_visible_periods",
+                &self.moon_visible_periods.as_ref().map(|p| p.len()),
+            )
+            .finish_non_exhaustive()
     }
 }
 
@@ -388,10 +432,10 @@ pub(super) struct PreparedThresholdQuery {
     pub(super) components: ComponentMask,
     pub(super) starlight_integrated: BandPhotonRadiance,
     pub(super) tt_window: TimePeriod<ModifiedJulianDate>,
-    pub(super) sun_filter_periods: Vec<TimePeriod<ModifiedJulianDate>>,
-    pub(super) astronomical_night_periods: Vec<airglow::temporal::AstronomicalNightPeriod>,
-    pub(super) target_visible_periods: Vec<TimePeriod<ModifiedJulianDate>>,
+    pub(super) astronomical_night_periods: Arc<[airglow::temporal::AstronomicalNightPeriod]>,
     pub(super) candidate_windows: Vec<TimePeriod<ModifiedJulianDate>>,
-    pub(super) airglow_phase_periods: Vec<airglow::temporal::AirglowPhasePeriod>,
-    pub(super) moon_visible_periods: Option<Vec<TimePeriod<ModifiedJulianDate>>>,
+    pub(super) airglow_phase_periods: Arc<[airglow::temporal::AirglowPhasePeriod]>,
+    pub(super) airglow_model: Option<airglow::Airglow>,
+    pub(super) solar_activity_cache: Option<crate::solar_activity::SolarActivityValueCache>,
+    pub(super) moon_visible_periods: Option<Arc<[TimePeriod<ModifiedJulianDate>]>>,
 }

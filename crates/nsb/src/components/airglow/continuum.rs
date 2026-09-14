@@ -19,6 +19,7 @@ use qtty::length::{Nanometer, Nanometers};
 use qtty::radiometry::{
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
 };
 use qtty::unit::Ratio;
@@ -190,4 +191,77 @@ pub(crate) fn evaluate_continuum_with_night_phase(
         v_flux_s10: s10_for_spectral_photon_radiance(v_density, V_FILTER),
         relative_uncertainty,
     })
+}
+
+/// Allocation-free integrated-only path for threshold searches.
+pub(crate) fn evaluate_integrated_continuum_with_night_phase(
+    continuum: &AirglowContinuum,
+    time: Time<UTC>,
+    altitude: Degrees,
+    ctx: AirglowEvaluationContext,
+    phase: AirglowNightPhase,
+) -> Result<BandPhotonRadiance> {
+    let alt = altitude.value();
+    if !alt.is_finite()
+        || alt <= -90.0
+        || !is_valid_solar_flux(ctx.solar_radio_flux)
+        || !ctx.user_scale.is_finite()
+        || ctx.user_scale < ScaleFactors::new(0.0)
+    {
+        return Ok(BandPhotonRadiance::new(0.0));
+    }
+
+    let zenith = Degrees::new((90.0 - alt).clamp(0.0, 90.0));
+    let geometry_factor = ctx.geometry.geometry_factor(ctx.location, zenith)?.value();
+    let solar_corr = continuum.solar_activity_correction(ctx.solar_radio_flux.value());
+    let seasonal_corr = continuum.mean_correction(phase, season(time, ctx.location));
+    let scalar_scale = continuum.global_scale().value()
+        * solar_corr
+        * seasonal_corr
+        * geometry_factor
+        * ctx.user_scale.value();
+    let integrated_relative =
+        integrate_attenuated_continuum_scalar(continuum, zenith, ctx.atmosphere);
+    let radiance_scale: SpectralBandPhotonRadiance =
+        SkyCalcSpectralPhotonRadiance::new(scalar_scale).to::<SpectralBandPhotonRadianceUnit>();
+    Ok((radiance_scale * integrated_relative).to::<BandPhotonRadianceUnit>())
+}
+
+fn integrate_attenuated_continuum_scalar(
+    continuum: &AirglowContinuum,
+    zenith: Degrees,
+    atmosphere: AtmosphericConditions,
+) -> Nanometers {
+    let xs = continuum.spectrum().xs_raw();
+    let ys = continuum.spectrum().ys_raw();
+    let geometry = noll_airglow_scattering_geometry(zenith);
+    let attenuated_at = |index: usize| {
+        let wavelength = Nanometers::new(xs[index]);
+        ys[index]
+            * spectral_airglow_scattering_transmission_with_geometry(
+                wavelength, atmosphere, &geometry,
+            )
+            .value()
+    };
+    let mut integral = 0.0;
+    let Some(mut y0) = (!xs.is_empty()).then(|| attenuated_at(0)) else {
+        return Nanometers::new(0.0);
+    };
+    for index in 0..xs.len().saturating_sub(1) {
+        let x0 = xs[index];
+        let x1 = xs[index + 1];
+        let lo = x0.max(WL_LOW.value());
+        let hi = x1.min(WL_HIGH.value());
+        let y1 = attenuated_at(index + 1);
+        if hi <= lo || x1 <= x0 {
+            y0 = y1;
+            continue;
+        }
+        let slope = (y1 - y0) / (x1 - x0);
+        let y_lo = y0 + slope * (lo - x0);
+        let y_hi = y0 + slope * (hi - x0);
+        integral += 0.5 * (y_lo + y_hi) * (hi - lo);
+        y0 = y1;
+    }
+    Nanometers::new(integral)
 }
