@@ -1,10 +1,11 @@
 use super::metadata::{
     airglow_metadata, moonlight_metadata, starlight_metadata, zodiacal_metadata,
 };
+#[cfg(test)]
+use super::search::above_threshold_periods;
 use super::search::{
-    above_threshold_periods, adaptive_above_threshold_periods, coalesce_periods,
-    complement_periods, tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
-    validated_above_threshold_periods,
+    authoritative_above_threshold_periods, coalesce_periods, complement_periods,
+    tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
 };
 use super::types::*;
 use crate::components::airglow::AirglowContinuum;
@@ -17,14 +18,15 @@ use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 use qtty::Second;
-#[cfg(not(feature = "window-search-diagnostics"))]
 use rayon::prelude::*;
-use siderust::astro::apparent::CorrectionPolicy;
+use siderust::bodies::Moon as MoonBody;
 use siderust::coordinates::spherical::direction;
+#[cfg(test)]
 use siderust::event::altitude::AltitudeProvider;
-use siderust::event::horizontal::{star_horizontal, star_horizontal_with_policy};
-use siderust::event::lunar::meeus_ch47::moon_position_meeus_ch47;
-use siderust::qtty::{Day, Degree, Degrees, Hours};
+use siderust::event::altitude::{above_threshold as altitude_above_threshold, SearchOpts};
+#[cfg(test)]
+use siderust::qtty::Degree;
+use siderust::qtty::{Day, Days, Degrees};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -198,31 +200,13 @@ impl NsbEvaluator {
             Ok(value)
         };
         #[cfg(feature = "window-search-diagnostics")]
-        let discovery_evaluations = RefCell::new(HashMap::<u64, BandPhotonRadiance>::new());
-        #[cfg(feature = "window-search-diagnostics")]
-        let discovery_f = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
-            let key = mjd_tt.raw().value().to_bits();
-            if let Some(value) = discovery_evaluations.borrow().get(&key) {
-                return Ok(*value);
-            }
-            let value = self.evaluate_integrated_discovery(&prepared, mjd_tt)?;
-            discovery_evaluations.borrow_mut().insert(key, value);
-            Ok(value)
-        };
-
-        #[cfg(feature = "window-search-diagnostics")]
         let search_started = Instant::now();
         #[cfg(feature = "window-search-diagnostics")]
         let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = Vec::new();
         #[cfg(feature = "window-search-diagnostics")]
         for window in smooth_threshold_windows(&prepared) {
-            let brighter = adaptive_above_threshold_periods(
-                window,
-                step,
-                &discovery_f,
-                &exact_f,
-                query.threshold,
-            )?;
+            let brighter =
+                authoritative_above_threshold_periods(window, step, &exact_f, query.threshold)?;
             darker_periods.extend(complement_periods(window, &brighter));
         }
         #[cfg(not(feature = "window-search-diagnostics"))]
@@ -240,21 +224,9 @@ impl NsbEvaluator {
                         exact_evaluations.borrow_mut().insert(key, value);
                         Ok(value)
                     };
-                    let discovery_evaluations =
-                        RefCell::new(HashMap::<u64, BandPhotonRadiance>::new());
-                    let discovery_f = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
-                        let key = mjd_tt.raw().value().to_bits();
-                        if let Some(value) = discovery_evaluations.borrow().get(&key) {
-                            return Ok(*value);
-                        }
-                        let value = self.evaluate_integrated_discovery(&prepared, mjd_tt)?;
-                        discovery_evaluations.borrow_mut().insert(key, value);
-                        Ok(value)
-                    };
-                    let brighter = adaptive_above_threshold_periods(
+                    let brighter = authoritative_above_threshold_periods(
                         window,
                         step,
-                        &discovery_f,
                         &exact_f,
                         query.threshold,
                     )?;
@@ -285,9 +257,24 @@ impl NsbEvaluator {
         &self,
         query: &ThresholdQuery,
     ) -> Result<(ThresholdQueryResult, super::WindowSearchDiagnostics)> {
+        let (_, result, diagnostics) = self.prepare_and_search_diagnosed(query)?;
+        Ok((result, diagnostics))
+    }
+
+    /// Prepare a reusable context and run one diagnosed search.
+    #[cfg(feature = "window-search-diagnostics")]
+    pub fn prepare_and_search_diagnosed(
+        &self,
+        query: &ThresholdQuery,
+    ) -> Result<(
+        SiteWindowContext,
+        ThresholdQueryResult,
+        super::WindowSearchDiagnostics,
+    )> {
         super::diagnostics::reset();
-        let result = self.periods_below_threshold(query)?;
-        Ok((result, super::diagnostics::snapshot()))
+        let context = self.prepare_site_window_context(query)?;
+        let result = self.periods_below_threshold_with_context(&context, query)?;
+        Ok((context, result, super::diagnostics::snapshot()))
     }
 
     fn validate_threshold(query: &ThresholdQuery) -> Result<()> {
@@ -325,17 +312,33 @@ impl NsbEvaluator {
         tt_window: TimePeriod<ModifiedJulianDate>,
     ) -> Result<SiteWindowContext> {
         let uses_airglow = query.components.contains(ComponentMask::AIRGLOW);
-        #[cfg(feature = "window-search-diagnostics")]
-        let phase_started = Instant::now();
-        let astronomical_night_periods = if uses_airglow {
-            airglow::temporal::astronomical_nights_for_window(tt_window, query.observer)
-        } else {
-            Vec::new()
+        let uses_moon = query.components.contains(ComponentMask::MOON);
+        let prepare_nights = || {
+            if uses_airglow {
+                airglow::temporal::astronomical_nights_for_window(tt_window, query.observer)
+            } else {
+                Vec::new()
+            }
         };
+        let prepare_moon =
+            || uses_moon.then(|| moon_above_horizon_periods(tt_window, query.observer));
         #[cfg(feature = "window-search-diagnostics")]
-        super::diagnostics::update(|diagnostics| {
-            diagnostics.astronomical_night_preparation += phase_started.elapsed();
-        });
+        let (astronomical_night_periods, moon_visible_periods) = {
+            let phase_started = Instant::now();
+            let nights = prepare_nights();
+            let night_elapsed = phase_started.elapsed();
+            let phase_started = Instant::now();
+            let moon = prepare_moon();
+            let moon_elapsed = phase_started.elapsed();
+            super::diagnostics::update(|diagnostics| {
+                diagnostics.astronomical_night_preparation += night_elapsed;
+                diagnostics.moon_visibility += moon_elapsed;
+            });
+            (nights, moon)
+        };
+        #[cfg(not(feature = "window-search-diagnostics"))]
+        let (astronomical_night_periods, moon_visible_periods) =
+            rayon::join(prepare_nights, prepare_moon);
         #[cfg(feature = "window-search-diagnostics")]
         let phase_started = Instant::now();
         let sun_filter_periods = match query.sun_altitude_ceiling {
@@ -376,20 +379,6 @@ impl NsbEvaluator {
                 crate::solar_activity::SolarActivityValueCache::new(&self.config.solar_activity)
             })
             .transpose()?;
-        #[cfg(feature = "window-search-diagnostics")]
-        let phase_started = Instant::now();
-        let moon_visible_periods = if query.components.contains(ComponentMask::MOON) {
-            Some(conservative_moon_candidate_periods(
-                tt_window,
-                query.observer,
-            )?)
-        } else {
-            None
-        };
-        #[cfg(feature = "window-search-diagnostics")]
-        super::diagnostics::update(|diagnostics| {
-            diagnostics.moon_visibility += phase_started.elapsed();
-        });
         Ok(SiteWindowContext {
             evaluator_identity: Arc::clone(&self.identity),
             observer: query.observer,
@@ -443,25 +432,13 @@ impl NsbEvaluator {
         let phase_started = Instant::now();
         let target_visible_periods = if let Some(target_min) = query.target_altitude_floor {
             let target_dir = direction::ICRS::new(query.target.ra(), query.target.dec());
-            let approximate_altitude = |mjd: ModifiedJulianDate| -> Result<Degrees> {
-                Ok(star_horizontal(
-                    query.target.ra().to::<Degree>(),
-                    query.target.dec().to::<Degree>(),
-                    &query.observer,
-                    mjd.to::<siderust::JD>(),
-                )
-                .alt())
-            };
-            let exact_altitude = |mjd: ModifiedJulianDate| -> Result<Degrees> {
-                Ok(target_dir.altitude_at(&query.observer, mjd).to::<Degree>())
-            };
-            validated_above_threshold_periods(
+            altitude_above_threshold(
+                &target_dir,
+                &query.observer,
                 context.tt_window,
-                Hours::new(4.0).to::<Day>(),
-                &approximate_altitude,
-                &exact_altitude,
                 target_min,
-            )?
+                SearchOpts::default(),
+            )
         } else {
             vec![context.tt_window]
         };
@@ -561,72 +538,6 @@ impl NsbEvaluator {
                 #[cfg(feature = "window-search-diagnostics")]
                 super::diagnostics::update(|diagnostics| {
                     diagnostics.exact_moonlight_time += component_started.elapsed();
-                });
-            }
-        }
-
-        Ok(total)
-    }
-
-    fn evaluate_integrated_discovery(
-        &self,
-        prepared: &PreparedThresholdQuery,
-        mjd_tt: ModifiedJulianDate,
-    ) -> Result<BandPhotonRadiance> {
-        #[cfg(feature = "window-search-diagnostics")]
-        super::diagnostics::update(|diagnostics| diagnostics.discovery_evaluations += 1);
-        let time = tt_mjd_to_utc_time(mjd_tt);
-        let mut total = BandPhotonRadiance::new(0.0);
-
-        if prepared.components.contains(ComponentMask::ZODIACAL) {
-            #[cfg(feature = "window-search-diagnostics")]
-            let component_started = Instant::now();
-            total += self
-                .zodiacal
-                .compute_observed_for_discovery(time, prepared.observer, prepared.target)?
-                .integrated;
-            #[cfg(feature = "window-search-diagnostics")]
-            super::diagnostics::update(|diagnostics| {
-                diagnostics.discovery_zodiacal_time += component_started.elapsed();
-            });
-        }
-        if prepared.components.contains(ComponentMask::STARLIGHT) {
-            total += prepared.starlight_integrated;
-        }
-        if prepared.components.contains(ComponentMask::AIRGLOW) {
-            if let Some(phase) = airglow_night_phase(prepared, mjd_tt) {
-                #[cfg(feature = "window-search-diagnostics")]
-                let component_started = Instant::now();
-                let solar = prepared
-                    .solar_activity_cache
-                    .as_ref()
-                    .expect("solar activity cache is prepared with airglow")
-                    .value_at(time)?;
-                total += prepared
-                    .airglow_model
-                    .as_ref()
-                    .expect("airglow model is prepared when airglow is selected")
-                    .compute_integrated_with_night_phase(time, prepared.target, phase, solar)?;
-                #[cfg(feature = "window-search-diagnostics")]
-                super::diagnostics::update(|diagnostics| {
-                    diagnostics.discovery_airglow_time += component_started.elapsed();
-                });
-            }
-        }
-        if prepared.components.contains(ComponentMask::MOON) {
-            let moon_visible = prepared
-                .moon_visible_periods
-                .as_ref()
-                .is_none_or(|periods| contains_time(periods, mjd_tt));
-            if moon_visible {
-                #[cfg(feature = "window-search-diagnostics")]
-                let component_started = Instant::now();
-                total += self
-                    .evaluate_moonlight_discovery(prepared.observer, time, prepared.target)?
-                    .integrated;
-                #[cfg(feature = "window-search-diagnostics")]
-                super::diagnostics::update(|diagnostics| {
-                    diagnostics.discovery_moonlight_time += component_started.elapsed();
                 });
             }
         }
@@ -791,56 +702,47 @@ impl NsbEvaluator {
             }
         }
     }
-
-    fn evaluate_moonlight_discovery(
-        &self,
-        observer: Observer,
-        time: Time<UTC>,
-        target: Target,
-    ) -> Result<moonlight::MoonOutputs> {
-        match self.config.moonlight_model {
-            MoonlightModel::KrisciunasSchaefer1991 => {
-                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer)
-                    .compute_for_discovery(time, target)
-            }
-            MoonlightModel::Jones2013Spectral => {
-                moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile)
-                    .compute_for_discovery(time, target)
-            }
-        }
-    }
 }
 
-/// Cheap Moon-up discovery for threshold searches.
-///
-/// The reduced Meeus model is used only to exclude times when the Moon is well
-/// below the horizon. A five-degree guard covers the measured reduced-geometry
-/// envelope, topocentric parallax approximation, and frame-conversion drift.
-/// Every
-/// retained sample is still evaluated by the authoritative configured
-/// moonlight model.
-fn conservative_moon_candidate_periods(
+const SIDERUST_MOON_EVENT_CHUNK: Days = Days::new(32.0);
+
+fn moon_above_horizon_periods(
     window: TimePeriod<ModifiedJulianDate>,
     observer: Observer,
-) -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
-    const CONSERVATIVE_ALTITUDE: Degrees = Degrees::new(-5.0);
-    let altitude = |mjd: ModifiedJulianDate| -> Result<Degrees> {
-        let moon = moon_position_meeus_ch47(mjd.to::<siderust::JD>());
-        let horizontal = star_horizontal_with_policy(
-            moon.ra.to::<Degree>(),
-            moon.dec.to::<Degree>(),
-            &observer,
-            mjd.to::<siderust::JD>(),
-            CorrectionPolicy::GEOMETRIC,
+) -> Vec<TimePeriod<ModifiedJulianDate>> {
+    let mut periods: Vec<_> = split_time_period(window, SIDERUST_MOON_EVENT_CHUNK)
+        .into_par_iter()
+        .flat_map_iter(|chunk| {
+            altitude_above_threshold(
+                &MoonBody,
+                &observer,
+                chunk,
+                Degrees::new(0.0),
+                SearchOpts::default(),
+            )
+        })
+        .collect();
+    coalesce_periods(&mut periods);
+    periods
+}
+
+fn split_time_period(
+    window: TimePeriod<ModifiedJulianDate>,
+    chunk: Days,
+) -> Vec<TimePeriod<ModifiedJulianDate>> {
+    if window.start >= window.end {
+        return Vec::new();
+    }
+    let mut periods = Vec::new();
+    let mut start = window.start;
+    while start < window.end {
+        let end = ModifiedJulianDate::new(
+            (start.raw().value() + chunk.value()).min(window.end.raw().value()),
         );
-        Ok(horizontal.alt())
-    };
-    above_threshold_periods(
-        window,
-        Hours::new(4.0).to::<Day>(),
-        &altitude,
-        CONSERVATIVE_ALTITUDE,
-    )
+        periods.push(TimePeriod::new(start, end));
+        start = end;
+    }
+    periods
 }
 
 fn contains_time(periods: &[TimePeriod<ModifiedJulianDate>], time: ModifiedJulianDate) -> bool {
@@ -914,7 +816,8 @@ mod tests {
     use siderust::catalogs::observatories;
     use siderust::coordinates::centers::Geodetic;
     use siderust::coordinates::frames::ECEF;
-    use siderust::qtty::{Degrees, Meters};
+    use siderust::event::altitude::{above_threshold as siderust_above_threshold, SearchOpts};
+    use siderust::qtty::{Degrees, Hours, Meters};
     use tempoch::Period;
 
     fn parse(input: &str) -> Time<UTC> {
@@ -1149,6 +1052,64 @@ mod tests {
     }
 
     #[test]
+    fn one_site_context_serves_max_and_min_threshold_queries() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        let max_query = threshold_query(
+            paranal(),
+            target_sgr_a(),
+            "2026-01-01T00:00:00Z",
+            48,
+            ComponentMask::ALL,
+        );
+        let context = evaluator.prepare_site_window_context(&max_query).unwrap();
+        let reused_max = evaluator
+            .periods_below_threshold_with_context(&context, &max_query)
+            .unwrap();
+
+        let mut min_query = max_query.clone();
+        min_query.threshold = BandPhotonRadiance::new(0.18);
+        let reused_min = evaluator
+            .periods_below_threshold_with_context(&context, &min_query)
+            .unwrap();
+
+        assert_eq!(
+            reused_max,
+            evaluator.periods_below_threshold(&max_query).unwrap()
+        );
+        assert_eq!(
+            reused_min,
+            evaluator.periods_below_threshold(&min_query).unwrap()
+        );
+    }
+
+    #[cfg(not(feature = "window-search-diagnostics"))]
+    #[test]
+    fn exact_search_output_is_deterministic_across_rayon_parallelism() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        let query = threshold_query(
+            paranal(),
+            Target::new(83.6331 * crate::DEG, 22.0145 * crate::DEG),
+            "2026-01-12T00:00:00Z",
+            72,
+            ComponentMask::ALL,
+        );
+        let context = evaluator.prepare_site_window_context(&query).unwrap();
+        let run = |threads| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    evaluator
+                        .periods_below_threshold_with_context(&context, &query)
+                        .unwrap()
+                })
+        };
+
+        assert_eq!(run(1), run(4));
+    }
+
+    #[test]
     fn site_context_rejects_another_evaluator_or_incompatible_site_state() {
         let evaluator = NsbEvaluator::new().unwrap();
         let other = NsbEvaluator::new().unwrap();
@@ -1215,6 +1176,110 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn grazing_target_excursion_between_four_hour_samples_is_not_pruned() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        let observer = Geodetic::new_raw(
+            Degrees::new(-70.3147),
+            Degrees::new(-24.6834),
+            Meters::new(2_147.0),
+        );
+        let target = Target::new(0.0 * crate::DEG, 45.0 * crate::DEG);
+        let target_dir = direction::ICRS::new(target.ra(), target.dec());
+        let floor = Degrees::new(20.0);
+        let day_start = tt_time(parse("2026-01-01T00:00:00Z"));
+
+        let mut transit = day_start;
+        let mut maximum = target_dir.altitude_at(&observer, transit);
+        for minute in 1..=1_440 {
+            let candidate =
+                ModifiedJulianDate::new(day_start.raw().value() + minute as f64 / 1_440.0);
+            let altitude = target_dir.altitude_at(&observer, candidate);
+            if altitude > maximum {
+                maximum = altitude;
+                transit = candidate;
+            }
+        }
+        assert!(maximum.to::<Degree>() > floor);
+
+        let tt_window = TimePeriod::new(
+            ModifiedJulianDate::new(transit.raw().value() - 2.0 / 24.0),
+            ModifiedJulianDate::new(transit.raw().value() + 6.0 / 24.0),
+        );
+        let query = ThresholdQuery::new(
+            observer,
+            target,
+            Period::new(
+                tt_mjd_to_utc_time(tt_window.start),
+                tt_mjd_to_utc_time(tt_window.end),
+            ),
+            BandPhotonRadiance::new(0.25),
+        )
+        .with_components(ComponentMask::ZODIACAL)
+        .with_sun_altitude_ceiling(None)
+        .with_target_altitude_floor(Some(floor));
+
+        let precise = siderust_above_threshold(
+            &target_dir,
+            &observer,
+            tt_window,
+            floor,
+            SearchOpts::default(),
+        );
+        assert_eq!(
+            precise.len(),
+            1,
+            "Siderust must resolve the grazing transit"
+        );
+        assert!(
+            precise[0].length() < Hours::new(1.0).to::<Day>(),
+            "the adversarial excursion should be much shorter than four hours"
+        );
+
+        let prepared = evaluator.prepare_threshold(&query, tt_window).unwrap();
+        assert_eq!(prepared.candidate_windows, precise);
+    }
+
+    #[test]
+    fn siderust_moon_events_preserve_short_grazing_visibility() {
+        let observer = Geodetic::new_raw(Degrees::new(0.0), Degrees::new(61.0), Meters::new(0.0));
+        let transit = ModifiedJulianDate::new(61_055.390_384_074_07);
+        let tt_window = TimePeriod::new(
+            ModifiedJulianDate::new(transit.raw().value() - 2.0 / 24.0),
+            ModifiedJulianDate::new(transit.raw().value() + 6.0 / 24.0),
+        );
+        let precise = siderust_above_threshold(
+            &MoonBody,
+            &observer,
+            tt_window,
+            Degrees::new(0.0),
+            SearchOpts::default(),
+        );
+        assert_eq!(precise.len(), 1, "Siderust must resolve the grazing Moon");
+        assert!(
+            precise[0].length() < Hours::new(4.0).to::<Day>(),
+            "the fixture must remain a short Moon-visibility excursion"
+        );
+
+        let query = ThresholdQuery::new(
+            observer,
+            target_sgr_a(),
+            Period::new(
+                tt_mjd_to_utc_time(tt_window.start),
+                tt_mjd_to_utc_time(tt_window.end),
+            ),
+            BandPhotonRadiance::new(0.25),
+        )
+        .with_components(ComponentMask::MOON)
+        .with_sun_altitude_ceiling(None)
+        .with_target_altitude_floor(None);
+        let context = NsbEvaluator::new()
+            .unwrap()
+            .prepare_site_window_context(&query)
+            .unwrap();
+        assert_eq!(context.moon_visible_periods.as_deref().unwrap(), precise);
     }
 
     #[test]

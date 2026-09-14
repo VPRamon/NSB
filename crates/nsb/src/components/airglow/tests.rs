@@ -576,3 +576,56 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
         low.integrated.value()
     );
 }
+
+#[test]
+fn integrated_only_matches_full_path_across_profiles_seasons_phases_and_fluxes() {
+    let continuum = load_builtin_standard().unwrap();
+    for (location, profile_id) in [
+        (cta_s(), SiteProfileId::GenericClearSky),
+        (cta_s(), SiteProfileId::CtaSouth),
+        (cta_n(), SiteProfileId::CtaNorth),
+    ] {
+        let profile = profile_id.profile(location);
+        for time in [t("2023-01-15T05:00:00Z"), t("2023-07-15T05:00:00Z")] {
+            for phase in [
+                AirglowNightPhase::FirstThird,
+                AirglowNightPhase::MiddleThird,
+                AirglowNightPhase::LastThird,
+            ] {
+                for altitude in [0.0, 30.0, 60.0, 90.0] {
+                    for flux in [50.0, 130.0, 250.0] {
+                        let context = || super::continuum::AirglowEvaluationContext {
+                            location,
+                            atmosphere: profile.atmosphere,
+                            geometry: AirglowGeometryModel::default(),
+                            solar_radio_flux: SolarFluxUnits::new(flux),
+                            user_scale: profile.airglow.scale,
+                        };
+                        let full = super::continuum::evaluate_continuum_with_night_phase(
+                            &continuum,
+                            time,
+                            Degrees::new(altitude),
+                            context(),
+                            phase,
+                        )
+                        .unwrap()
+                        .integrated;
+                        let integrated =
+                            super::continuum::evaluate_integrated_continuum_with_night_phase(
+                                &continuum,
+                                time,
+                                Degrees::new(altitude),
+                                context(),
+                                phase,
+                            )
+                            .unwrap();
+                        assert!(
+                            (full.value() - integrated.value()).abs() <= 1.0e-12,
+                            "integrated mismatch: profile={profile_id:?}, time={time:?}, phase={phase:?}, altitude={altitude}, flux={flux}, full={full:?}, integrated={integrated:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}

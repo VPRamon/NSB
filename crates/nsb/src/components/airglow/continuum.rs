@@ -244,20 +244,24 @@ fn integrate_attenuated_continuum_scalar(
             .value()
     };
     let mut integral = 0.0;
+    let Some(mut y0) = (!xs.is_empty()).then(|| attenuated_at(0)) else {
+        return Nanometers::new(0.0);
+    };
     for index in 0..xs.len().saturating_sub(1) {
         let x0 = xs[index];
         let x1 = xs[index + 1];
         let lo = x0.max(WL_LOW.value());
         let hi = x1.min(WL_HIGH.value());
+        let y1 = attenuated_at(index + 1);
         if hi <= lo || x1 <= x0 {
+            y0 = y1;
             continue;
         }
-        let y0 = attenuated_at(index);
-        let y1 = attenuated_at(index + 1);
         let slope = (y1 - y0) / (x1 - x0);
         let y_lo = y0 + slope * (lo - x0);
         let y_hi = y0 + slope * (hi - x0);
         integral += 0.5 * (y_lo + y_hi) * (hi - lo);
+        y0 = y1;
     }
     Nanometers::new(integral)
 }

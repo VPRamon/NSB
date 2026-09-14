@@ -32,15 +32,6 @@ impl KrisciunasSchaefer1991 {
         compute_krisciunas_schaefer_1991(&geometry, self.k_ext)
     }
 
-    pub(crate) fn compute_for_discovery(
-        &self,
-        time: Time<UTC>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-    ) -> Result<MoonOutputs> {
-        let geometry = approximate_lunar_geometry(time, self.location, target);
-        compute_krisciunas_schaefer_1991(&geometry, self.k_ext)
-    }
-
     /// Find periods whose integrated moonlight lies in the inclusive range.
     pub fn periods_in_range(
         &self,

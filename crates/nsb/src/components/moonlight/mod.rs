@@ -32,6 +32,7 @@ use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian, WattsPerSquareMeterSteradianNanometer,
 };
 use scattering::ScatterGrid;
+#[cfg(test)]
 use siderust::astro::apparent::CorrectionPolicy;
 use siderust::atmosphere::{
     airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,
@@ -44,7 +45,10 @@ use siderust::coordinates::spherical::Direction as SphericalDirection;
 use siderust::coordinates::transform::TransformFrame;
 use siderust::ephemeris::{Ephemeris, Vsop87Ephemeris};
 use siderust::event::horizontal;
-use siderust::event::horizontal::{star_horizontal, star_horizontal_with_policy};
+use siderust::event::horizontal::star_horizontal;
+#[cfg(test)]
+use siderust::event::horizontal::star_horizontal_with_policy;
+#[cfg(test)]
 use siderust::event::lunar::meeus_ch47::moon_position_meeus_ch47;
 use siderust::qtty::{AstronomicalUnit, IlluminationFractions, Kilometer, Kilometers, Nanometers};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
@@ -126,7 +130,8 @@ fn lunar_geometry(
     lunar_geometry_from_position(jd, location, target, moon_geo_ecliptic)
 }
 
-/// Reduced lunar geometry used only to discover threshold crossings.
+/// Test-only reduced lunar geometry retained to quantify approximation error.
+#[cfg(test)]
 fn approximate_lunar_geometry(
     time: Time<UTC>,
     location: Geodetic<ECEF>,

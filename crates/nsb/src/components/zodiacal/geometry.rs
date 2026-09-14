@@ -81,25 +81,7 @@ pub(super) fn compute_observed(
     })
 }
 
-/// Reduced solar ephemeris used only for threshold-crossing discovery.
-pub(super) fn compute_observed_for_discovery(
-    time: Time<UTC>,
-    location: Geodetic<ECEF>,
-    target: Target,
-) -> Result<ZodiacalGeometry> {
-    let jd = to_jd(time);
-    let ecl: SphericalDirection<EclipticMeanJ2000> = target.to_frame();
-    let beta = ecl.lat().to::<Radian>();
-    let ecliptic_lon = ecl.lon().to::<Radian>();
-    let delta_lambda = ecliptic_lon.abs_separation(approximate_solar_longitude_j2000(jd));
-    let hz = star_horizontal(target.ra(), target.dec(), &location, jd);
-    Ok(ZodiacalGeometry {
-        beta,
-        delta_lambda,
-        zenith: Some(Degrees::new(90.0) - hz.alt()),
-    })
-}
-
+#[cfg(test)]
 fn approximate_solar_longitude_j2000(jd: JulianDate) -> Radians {
     let days = jd.raw().value() - 2_451_545.0;
     let centuries = days / 36_525.0;

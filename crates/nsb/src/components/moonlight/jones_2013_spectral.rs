@@ -57,20 +57,6 @@ impl Jones2013Spectral {
         )
     }
 
-    pub(crate) fn compute_for_discovery(
-        &self,
-        time: Time<UTC>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-    ) -> Result<MoonOutputs> {
-        let geometry = approximate_lunar_geometry(time, self.location, target);
-        compute_jones_2013_spectral(
-            &geometry,
-            bundled_solar_spectrum(),
-            self.extinction_scale.unwrap_or(ScaleFactors::new(1.0)),
-            self.atmosphere_profile(),
-        )
-    }
-
     /// Find periods whose integrated moonlight lies in the inclusive range.
     pub fn periods_in_range(
         &self,
