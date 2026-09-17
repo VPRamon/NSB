@@ -112,7 +112,6 @@ fn run() -> AppResult<()> {
         &cells,
         color_range,
         &component_names,
-        elapsed.as_secs_f64(),
     )?;
 
     println!(
@@ -321,7 +320,6 @@ fn render_map(
     cells: &[SkyCell],
     range: ColorRange,
     components: &[&'static str],
-    elapsed_seconds: f64,
 ) -> AppResult<()> {
     let root = BitMapBackend::new(output, (IMAGE_WIDTH, IMAGE_HEIGHT)).into_drawing_area();
     root.fill(&WHITE)?;
@@ -357,7 +355,7 @@ fn render_map(
     draw_altitude_grid(&root)?;
     draw_cardinals(&root)?;
     draw_color_bar(&root, range)?;
-    draw_metadata(&root, args, components, cells.len(), elapsed_seconds)?;
+    draw_metadata(&root, args, components, cells.len())?;
 
     root.present()?;
     Ok(())
@@ -369,13 +367,21 @@ fn draw_altitude_grid(
     let center = to_pixel(SKY_CENTER);
     let grid_style = ShapeStyle::from(&BLACK.mix(0.55)).stroke_width(1);
 
+    // Put altitude labels in the north-west quadrant of the *sky* (upper-right
+    // on this overhead chart), away from the cardinal labels and colour bar.
+    const LABEL_AZIMUTH_DEG: f64 = 315.0;
     for altitude in [0.0, 30.0, 60.0] {
         let radius = SKY_RADIUS * (90.0 - altitude) / 90.0;
         root.draw(&Circle::new(center, radius.round() as i32, grid_style))?;
-        let label = format!("{altitude:.0} deg");
+        let label_position = project_fisheye(
+            LABEL_AZIMUTH_DEG,
+            altitude,
+            SKY_CENTER,
+            SKY_RADIUS,
+        );
         root.draw(&Text::new(
-            label,
-            to_pixel((SKY_CENTER.0 + radius + 6.0, SKY_CENTER.1 - 4.0)),
+            format!("{altitude:.0} deg"),
+            to_pixel((label_position.0 + 7.0, label_position.1 - 5.0)),
             ("sans-serif", 15).into_font(),
         ))?;
     }
@@ -387,8 +393,8 @@ fn draw_altitude_grid(
     ))?;
     root.draw(&Circle::new(center, 3, BLACK.filled()))?;
     root.draw(&Text::new(
-        "90 deg / zenith",
-        to_pixel((SKY_CENTER.0 + 10.0, SKY_CENTER.1 - 10.0)),
+        "Zenith (90 deg)",
+        to_pixel((SKY_CENTER.0 + 10.0, SKY_CENTER.1 - 12.0)),
         ("sans-serif", 15).into_font(),
     ))?;
 
@@ -472,17 +478,17 @@ fn draw_metadata(
     args: &Args,
     components: &[&'static str],
     sample_count: usize,
-    elapsed_seconds: f64,
 ) -> AppResult<()> {
     let timestamp = args.time.to_rfc3339_opts(SecondsFormat::Secs, true);
-    let components = components.join(" + ");
-    let lines = [
+    let mut lines = vec![
         format!("UTC: {timestamp}"),
         format!("Site: {ORM_NAME} (ORM, La Palma)"),
         format!("Grid step: {:.3} deg", args.step_deg),
         format!("Evaluated directions: {sample_count}"),
-        format!("Model evaluation: {elapsed_seconds:.3} s"),
-        format!("Components: {components}"),
+        "Components used:".to_string(),
+    ];
+    lines.extend(components.iter().map(|name| format!("  - {name}")));
+    lines.extend([
         "Evaluator: NsbEvaluator::new(), ComponentMask::ALL".to_string(),
         String::new(),
         "Scientific interpretation:".to_string(),
@@ -491,17 +497,22 @@ fn draw_metadata(
         "- No artificial light pollution or clouds.".to_string(),
         "- No measured nightly aerosol state or local horizon mask.".to_string(),
         "- No additional local meteorological variability.".to_string(),
-    ];
+    ]);
 
-    let mut y = 675;
+    let scientific_heading = lines
+        .iter()
+        .position(|line| line == "Scientific interpretation:")
+        .ok_or_else(|| io::Error::other("missing scientific interpretation heading"))?;
+
+    let mut y = 665;
     for (index, line) in lines.iter().enumerate() {
-        let font = if index == 8 {
-            ("sans-serif", 18).into_font().style(FontStyle::Bold)
+        let font = if index == scientific_heading {
+            ("sans-serif", 17).into_font().style(FontStyle::Bold)
         } else {
-            ("sans-serif", 16).into_font()
+            ("sans-serif", 14).into_font()
         };
         root.draw(&Text::new(line.clone(), (900, y), font))?;
-        y += 23;
+        y += 20;
     }
 
     Ok(())
