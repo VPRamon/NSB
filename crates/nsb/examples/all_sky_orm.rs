@@ -493,7 +493,7 @@ fn draw_metadata(
         .position(|line| line == "Scientific interpretation:")
         .ok_or_else(|| io::Error::other("missing scientific interpretation heading"))?;
 
-    let mut y = 665;
+    let mut y = 640;
     for (index, line) in lines.iter().enumerate() {
         let font = if index == scientific_heading {
             ("sans-serif", 17).into_font().style(FontStyle::Bold)
@@ -501,7 +501,7 @@ fn draw_metadata(
             ("sans-serif", 14).into_font()
         };
         root.draw(&Text::new(line.clone(), (900, y), font))?;
-        y += 20;
+        y += 18;
     }
 
     Ok(())
