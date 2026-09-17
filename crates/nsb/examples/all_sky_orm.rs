@@ -395,9 +395,7 @@ fn draw_altitude_grid(
     Ok(())
 }
 
-fn draw_cardinals(
-    root: &DrawingArea<BitMapBackend<'_>, plotters::coord::Shift>,
-) -> AppResult<()> {
+fn draw_cardinals(root: &DrawingArea<BitMapBackend<'_>, plotters::coord::Shift>) -> AppResult<()> {
     let offset = SKY_RADIUS + 28.0;
     let labels = [
         ("N", (SKY_CENTER.0, SKY_CENTER.1 - offset)),
