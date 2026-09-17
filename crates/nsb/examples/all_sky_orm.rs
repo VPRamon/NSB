@@ -25,6 +25,7 @@ use std::env;
 use std::error::Error;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::thread;
 use std::time::Instant;
 use tempoch::{Time, JD, TT, UTC};
 
@@ -37,7 +38,7 @@ const IMAGE_HEIGHT: u32 = 1000;
 const SKY_CENTER: (f64, f64) = (500.0, 515.0);
 const SKY_RADIUS: f64 = 390.0;
 
-type AppResult<T> = Result<T, Box<dyn Error>>;
+type AppResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 #[derive(Debug)]
 struct Args {
@@ -248,6 +249,43 @@ fn generate_sky_grid(step_deg: f64) -> Vec<SkyCellGeometry> {
 }
 
 fn evaluate_sky(
+    evaluator: &NsbEvaluator,
+    observer: Observer,
+    time: Time<UTC>,
+    jd_tt: JulianDate,
+    grid: &[SkyCellGeometry],
+) -> AppResult<Vec<SkyCell>> {
+    if grid.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let worker_count = thread::available_parallelism()
+        .map(|parallelism| parallelism.get())
+        .unwrap_or(1)
+        .min(grid.len());
+    let chunk_size = grid.len().div_ceil(worker_count);
+
+    thread::scope(|scope| {
+        let chunks = grid
+            .chunks(chunk_size)
+            .map(|chunk| {
+                scope.spawn(move || evaluate_sky_chunk(evaluator, observer, time, jd_tt, chunk))
+            })
+            .collect::<Vec<_>>();
+
+        let mut cells = Vec::with_capacity(grid.len());
+        for chunk in chunks {
+            let chunk_cells = chunk
+                .join()
+                .map_err(|_| io::Error::other("sky evaluation worker panicked"))??;
+            cells.extend(chunk_cells);
+        }
+
+        Ok(cells)
+    })
+}
+
+fn evaluate_sky_chunk(
     evaluator: &NsbEvaluator,
     observer: Observer,
     time: Time<UTC>,
