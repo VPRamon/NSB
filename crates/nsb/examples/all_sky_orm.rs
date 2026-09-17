@@ -364,13 +364,8 @@ fn draw_altitude_grid(
     // Put altitude labels in the north-west quadrant of the *sky* (upper-right
     // on this overhead chart), away from the cardinal labels and colour bar.
     const LABEL_AZIMUTH: Degrees = Degrees::new(315.0);
-    for altitude in [
-        Degrees::zero(),
-        Degrees::new(30.0),
-        Degrees::new(60.0),
-    ] {
-        let radius =
-            SKY_RADIUS * ((Degrees::QUARTER_TURN - altitude) / Degrees::QUARTER_TURN);
+    for altitude in [Degrees::zero(), Degrees::new(30.0), Degrees::new(60.0)] {
+        let radius = SKY_RADIUS * ((Degrees::QUARTER_TURN - altitude) / Degrees::QUARTER_TURN);
         root.draw(&Circle::new(center, radius.round() as i32, grid_style))?;
         let label_position = project_fisheye(LABEL_AZIMUTH, altitude, SKY_CENTER, SKY_RADIUS);
         root.draw(&Text::new(
@@ -558,8 +553,7 @@ fn project_fisheye(
     center: (f64, f64),
     radius: f64,
 ) -> (f64, f64) {
-    let zenith_distance_fraction =
-        (Degrees::QUARTER_TURN - altitude) / Degrees::QUARTER_TURN;
+    let zenith_distance_fraction = (Degrees::QUARTER_TURN - altitude) / Degrees::QUARTER_TURN;
     let r = radius * zenith_distance_fraction;
     let (sin_azimuth, cos_azimuth) = azimuth.sin_cos();
 
@@ -597,12 +591,7 @@ mod tests {
     #[test]
     fn fisheye_places_zenith_at_center() {
         let center = (10.0, 20.0);
-        let projected = project_fisheye(
-            Degrees::new(217.0),
-            Degrees::QUARTER_TURN,
-            center,
-            5.0,
-        );
+        let projected = project_fisheye(Degrees::new(217.0), Degrees::QUARTER_TURN, center, 5.0);
         assert!(close(projected.0, center.0));
         assert!(close(projected.1, center.1));
     }
