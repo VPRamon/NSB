@@ -106,13 +106,7 @@ fn run() -> AppResult<()> {
     let elapsed = started.elapsed();
     let color_range = radiance_range(&cells)?;
 
-    render_map(
-        &args.output,
-        &args,
-        &cells,
-        color_range,
-        &component_names,
-    )?;
+    render_map(&args.output, &args, &cells, color_range, &component_names)?;
 
     println!(
         "wrote {} samples to {} in {:.3} s (radiance {:.6e}..{:.6e} ph cm^-2 ns^-1 sr^-1)",
@@ -373,12 +367,7 @@ fn draw_altitude_grid(
     for altitude in [0.0, 30.0, 60.0] {
         let radius = SKY_RADIUS * (90.0 - altitude) / 90.0;
         root.draw(&Circle::new(center, radius.round() as i32, grid_style))?;
-        let label_position = project_fisheye(
-            LABEL_AZIMUTH_DEG,
-            altitude,
-            SKY_CENTER,
-            SKY_RADIUS,
-        );
+        let label_position = project_fisheye(LABEL_AZIMUTH_DEG, altitude, SKY_CENTER, SKY_RADIUS);
         root.draw(&Text::new(
             format!("{altitude:.0} deg"),
             to_pixel((label_position.0 + 7.0, label_position.1 - 5.0)),
