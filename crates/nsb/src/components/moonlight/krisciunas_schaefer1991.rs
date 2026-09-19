@@ -110,34 +110,10 @@ fn scattered_brightness_nanolamberts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, Utc};
     use qtty::angular::Radians;
     use qtty::photometry::s10_to_surface_brightness;
     use qtty::radiometry::S10s;
-    use siderust::qtty::{Degrees as SiderustDegrees, IlluminationFractions, Meters};
-
-    fn parse_utc(input: &str) -> Time<UTC> {
-        Time::<UTC>::from_chrono(
-            DateTime::parse_from_rfc3339(input)
-                .unwrap()
-                .with_timezone(&Utc),
-        )
-    }
-
-    fn test_location() -> Geodetic<ECEF> {
-        Geodetic::<ECEF>::new_raw(
-            SiderustDegrees::new(-70.0),
-            SiderustDegrees::new(-24.0),
-            Meters::new(2500.0),
-        )
-    }
-
-    fn test_target() -> SphericalDirection<EquatorialMeanJ2000> {
-        SphericalDirection::<EquatorialMeanJ2000>::new(
-            SiderustDegrees::new(270.0),
-            SiderustDegrees::new(-30.0),
-        )
-    }
+    use siderust::qtty::IlluminationFractions;
 
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         MoonPhaseGeometry {
