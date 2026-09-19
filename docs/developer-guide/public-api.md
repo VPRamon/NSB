@@ -34,7 +34,7 @@ Typical imports from the crate root:
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult` |
-| Model configuration | `NsbModelConfig`, `MoonlightModel`, `StarlightModel`, `SiteProfileId` |
+| Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightModel`, `SiteProfileId` |
 | Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfile`, `SiteProfileId` |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
 | Errors | `NsbError`, `Result` |
