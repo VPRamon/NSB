@@ -106,7 +106,7 @@ Producing calibrated CTAO profiles requires measurements and belongs to #38.
 Run:
 
 ```bash
-cargo run -p nsb --example airglow_geometry_comparison
+internal `components::airglow::geometry` convergence and cross-model tests
 ```
 
 The example emits reviewable CSV for observer altitudes 0, 2.5, and 5 km;
