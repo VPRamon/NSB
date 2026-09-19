@@ -1,4 +1,4 @@
-//! Criterion benchmarks for Airglow geometry and end-to-end evaluation.
+//! Criterion benchmarks for end-to-end Airglow evaluation.
 
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, Criterion};
