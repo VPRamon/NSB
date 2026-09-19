@@ -24,23 +24,32 @@ time + site + target
   -> 300–650 nm photon radiance and B/V diagnostics
 ```
 
-`Jones2013Spectral` is the default wavelength-resolved model used by integrated
-NSB evaluation. It combines the Jones et al. (2013) lunar formulation supplied
-by Siderust with NSB's solar spectrum, Mie phase grid, and
-multiple-scattering correction grid. `KrisciunasSchaefer1991` is a published
-analytic V-band reference model, intended for comparison and V-band use.
+`MoonlightModel` is the stable scientific selection contract. Its
+`Jones2013Spectral` variant is the deterministic default wavelength-resolved
+model used by integrated NSB evaluation. It combines the Jones et al. (2013)
+lunar formulation supplied by Siderust with NSB's solar spectrum, Mie phase
+grid, and multiple-scattering correction grid. The
+`KrisciunasSchaefer1991` variant remains a deliberately supported published
+analytic V-band reference and comparison model.
+
+Concrete evaluator implementation types are internal. Library callers select a
+model through `NsbModelConfig::with_moonlight_model` and evaluate Moonlight
+through `NsbEvaluator`; component-specific `compute` and range-search APIs are
+not part of the supported contract.
 
 For non-observable geometries, including a Moon or target below the horizon,
 the component returns zero.
 
 ## Atmospheric inputs and site profiles
 
-The Jones model takes surface pressure, Rayleigh scale height, and Mie/aerosol
-parameters. Observer altitude always comes from the supplied location, avoiding
-an inconsistent combination of an atmosphere profile from one site with another
-site's altitude. `standard_clear_sky` is an altitude-derived generic fallback;
-named CTAO profiles are explicit planning presets. Neither substitutes for a
-site-calibrated aerosol model.
+The Jones implementation uses surface pressure, Rayleigh scale height, and
+Mie/aerosol parameters supplied by the selected `SiteProfileId`. Observer
+altitude always comes from the query observer, avoiding an inconsistent
+combination of a site profile from one observatory with another site's altitude.
+`GenericClearSky` is the altitude-derived generic fallback; named CTAO profiles
+are explicit planning presets. Neither substitutes for a site-calibrated aerosol
+model. Site assumptions and `MoonlightModel` scientific identity are independent
+configuration concepts.
 
 The implementation includes `JONES_MIE_WEIGHT = 0.05`, an empirical correction
 for its simplified scattering path and bundled phase grid. It is not a physical
