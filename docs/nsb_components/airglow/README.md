@@ -25,9 +25,10 @@ F10.7, atmosphere, extinction, or an explicit scale cannot upgrade maturity to
 
 Normal applications configure Airglow through `NsbModelConfig` and evaluate it
 through `NsbEvaluator`. Direct construction of the internal Airglow component or
-its continuum calibration is not part of the supported public API. The public
-`components::airglow` route is intentionally limited to advanced geometry
-types needed by supported configuration and diagnostics.
+its continuum calibration is not part of the supported public API. The public `components::airglow` route contains the scientific `AirglowModel`
+selector plus advanced geometry types needed by supported configuration and
+diagnostics. The root API also re-exports `AirglowModel` for normal
+configuration.
 
 NSB exposes `AirglowModel` as the stable scientific model-selection contract
 even though the first release supports one scientific implementation. The
