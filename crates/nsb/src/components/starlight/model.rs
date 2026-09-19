@@ -31,7 +31,7 @@ impl Starlight {
     /// This succeeds only when a release CSV and runtime manifest are both
     /// registered in `crates/nsb/data/manifest.toml`, checksum-verified by the
     /// build script, embedded as static bytes, and admitted by
-    /// [`ValidatedStarlightMap`].
+    /// [`ValidatedStarlightMap`](super::ValidatedStarlightMap).
     #[cfg(nsb_bundled_production_starlight)]
     pub fn bundled_production_model() -> Result<Self> {
         let validated = ValidatedStarlightMap::from_bytes_and_manifest(

@@ -4,12 +4,14 @@
 //! pinned/local stores and resolves values offline.
 
 mod bundled;
+mod cache;
 mod monthly;
 mod record;
 mod resolve;
 mod store;
 
 pub use bundled::bundled_f107_store;
+pub(crate) use cache::SolarActivityValueCache;
 pub use monthly::{MonthlyCompleteness, MonthlyF107Evidence};
 pub use record::{F107Kind, F107Record, F107ValidationError};
 pub use resolve::{resolve_f107, ResolvedSolarActivity, SolarActivitySource};

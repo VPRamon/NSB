@@ -8,15 +8,20 @@
 
 mod airglow_maturity;
 mod core;
+#[cfg(feature = "window-search-diagnostics")]
+mod diagnostics;
 mod metadata;
-mod search;
+pub(crate) mod search;
 mod types;
 
 pub use core::NsbEvaluator;
+#[cfg(feature = "window-search-diagnostics")]
+pub use diagnostics::WindowSearchDiagnostics;
 pub use metadata::{
     BandDiagnostic, ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
 };
 pub use types::{
     ComponentMask, MoonlightModel, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult,
-    Observer, PointQuery, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
+    Observer, PointQuery, SiteWindowContext, StarlightModel, Target, ThresholdQuery,
+    ThresholdQueryResult,
 };
