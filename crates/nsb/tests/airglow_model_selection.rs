@@ -78,15 +78,15 @@ fn default_and_explicit_model_selection_are_inspectable_and_numerically_identica
 #[test]
 fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_maturity() {
     let base = NsbModelConfig::generic_clear_sky();
-    let changed_geometry = base.clone().with_airglow_geometry(AirglowGeometryModel::VanRhijn(
-        VanRhijnConfig::new(Kilometers::new(110.0)).unwrap(),
-    ));
+    let changed_geometry = base
+        .clone()
+        .with_airglow_geometry(AirglowGeometryModel::VanRhijn(
+            VanRhijnConfig::new(Kilometers::new(110.0)).unwrap(),
+        ));
     let changed_f107 = base
         .clone()
         .with_solar_radio_flux(SolarFluxUnits::new(170.0));
-    let changed_site = base
-        .clone()
-        .with_site_profile(SiteProfileId::CtaSouth);
+    let changed_site = base.clone().with_site_profile(SiteProfileId::CtaSouth);
 
     for config in [&base, &changed_geometry, &changed_f107, &changed_site] {
         assert_eq!(config.airglow_model(), REFERENCE_MODEL);
