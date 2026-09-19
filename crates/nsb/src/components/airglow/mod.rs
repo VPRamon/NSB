@@ -47,7 +47,6 @@ pub use geometry::{
     VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
 pub(crate) use model::Airglow;
-pub use model::AirglowScientificProfile;
 pub(crate) use output::AirglowOutputs;
 
 #[cfg(test)]
