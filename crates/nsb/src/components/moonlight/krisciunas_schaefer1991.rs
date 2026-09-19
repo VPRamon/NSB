@@ -248,5 +248,4 @@ mod tests {
         let am = airmass::<KrisciunasSchaeferAirmass>(Degrees::new(0.0).to::<Radian>());
         assert!((am.value() - 1e0).abs() < 1e-12, "X(0) = {:?}", am);
     }
-
 }
