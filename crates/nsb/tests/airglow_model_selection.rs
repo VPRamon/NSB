@@ -102,22 +102,31 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
 
     let arbitrary = observer(18.4, -33.9, 120.0);
     let paranal = observer(-70.4044, -24.6275, 2_635.0);
-    let cases = [
-        evaluate_airglow(base, arbitrary),
-        evaluate_airglow(changed_geometry, arbitrary),
-        evaluate_airglow(changed_f107, paranal),
-        evaluate_airglow(changed_site, paranal),
-    ];
+    let base_arbitrary = evaluate_airglow(base.clone(), arbitrary);
+    let base_paranal = evaluate_airglow(base, paranal);
+    let changed_geometry = evaluate_airglow(changed_geometry, arbitrary);
+    let changed_f107 = evaluate_airglow(changed_f107, paranal);
+    let changed_site = evaluate_airglow(changed_site, paranal);
 
-    for component in &cases {
+    for component in [
+        &base_arbitrary,
+        &base_paranal,
+        &changed_geometry,
+        &changed_f107,
+        &changed_site,
+    ] {
         assert_eq!(component.metadata.airglow_model, Some(REFERENCE_MODEL));
     }
     assert_eq!(
-        cases[0].metadata.status,
+        base_arbitrary.metadata.status,
         ComponentCalibrationStatus::GenericClearSky
     );
     assert_eq!(
-        cases[3].metadata.status,
+        base_paranal.metadata.status,
+        ComponentCalibrationStatus::GenericClearSky
+    );
+    assert_eq!(
+        changed_site.metadata.status,
         ComponentCalibrationStatus::PlanningPreset
     );
 }
