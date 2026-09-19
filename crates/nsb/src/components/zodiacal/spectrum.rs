@@ -176,21 +176,9 @@ fn zodiacal_samples(
 }
 
 fn integrate_photon_spectrum(spectrum: &ZodiacalPhotonSpectrum) -> BandPhotonRadiance {
-    let mut integrated = spectrum
+    spectrum
         .integrate_range(WL_LOW, WL_HIGH)
-        .to::<BandPhotonRadianceUnit>();
-    let wavelengths = spectrum.xs_raw();
-    let densities = spectrum.ys_raw();
-
-    // The bundled solar grid has no exact samples at either declared band
-    // edge. Preserve the spectrum's endpoint-clamping behavior over those
-    // short gaps instead of silently integrating only the retained grid.
-    integrated += BandPhotonRadiance::new(
-        (wavelengths[0] - WL_LOW.value()).max(0.0) * densities[0]
-            + (WL_HIGH.value() - wavelengths[wavelengths.len() - 1]).max(0.0)
-                * densities[densities.len() - 1],
-    );
-    integrated
+        .to::<BandPhotonRadianceUnit>()
 }
 
 /// Convert the solar spectral irradiance convention to the mean radiance used
@@ -268,7 +256,7 @@ mod tests {
     }
 
     #[test]
-    fn integration_includes_declared_band_edges_when_grid_omits_them() {
+    fn integration_matches_sampled_domain_when_band_edge_samples_are_missing() {
         let spectrum = ZodiacalPhotonSpectrum::from_raw(
             vec![300.5, 649.0],
             vec![2.0, 4.0],
@@ -279,15 +267,13 @@ mod tests {
         .expect("edge-missing spectrum");
 
         let integrated = integrate_photon_spectrum(&spectrum);
-        let previous_authoritative = BandPhotonRadiance::new(1_050.5);
-        let truncated_grid_integral = spectrum.integrate().to::<BandPhotonRadianceUnit>();
+        let range_integral = spectrum
+            .integrate_range(WL_LOW, WL_HIGH)
+            .to::<BandPhotonRadianceUnit>();
+        let full_grid_integral = spectrum.integrate().to::<BandPhotonRadianceUnit>();
 
-        assert!((integrated.value() - previous_authoritative.value()).abs() < 1.0e-12);
-        assert!(
-            (integrated.value() - truncated_grid_integral.value()).abs() > 1.0e-12,
-            "the fixture must detect loss of the 300–300.5 and 649–650 nm edges: range={}, grid={}",
-            integrated.value(),
-            truncated_grid_integral.value()
-        );
+        assert!((integrated.value() - 1_045.5).abs() < 1.0e-12);
+        assert!((integrated.value() - range_integral.value()).abs() < 1.0e-12);
+        assert!((integrated.value() - full_grid_integral.value()).abs() < 1.0e-12);
     }
 }

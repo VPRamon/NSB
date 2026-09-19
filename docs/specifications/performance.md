@@ -104,13 +104,15 @@ RAYON_NUM_THREADS=2 nice -n 10 ./target/release/nsb \
   --step 600 >/dev/null
 ```
 
-The final 2026-09-19 review measurement used three resource-capped production
-executions after restoring the declared zodiacal band and removing the unused
-exact-evaluation cache: 3.27, 3.29, and 3.13 seconds (median 3.27 seconds), with
+The latest 2026-09-19 review measurement used three resource-capped production
+executions at commit `a12043c`, after removing the unused exact-evaluation
+cache: 3.27, 3.29, and 3.13 seconds (median 3.27 seconds), with
 5.19, 5.07, and 5.00 seconds user CPU time and about 58 MiB maximum resident
 memory. The immediately preceding branch head measured 3.34, 2.89, and 2.99
 seconds (median 2.99 seconds) under the same command and build profile; this
 small three-run sample does not establish a statistically significant speedup.
+The subsequent sampled-domain zodiacal correction only removes the accidental
+constant edge additions and was not given a new benchmark campaign.
 The original issue-160 implementation measured 5.88 seconds on this host, so
 the correctness-first result retains a 1.80x wall-time improvement. The reviewed
 but unsafe PR state measured about 0.36
@@ -128,7 +130,7 @@ time: [3.5184 s 3.5306 s 3.5460 s]
 ## Workload results
 
 The baseline column is the historical issue-160 measurement. Final values are
-single resource-capped runs except for the five-run annual median above.
+single resource-capped runs except for the three-run annual median above.
 
 | One-year production workload | Baseline | Final | Baseline / final |
 | --- | ---: | ---: | ---: |
