@@ -31,7 +31,6 @@ use std::env;
 use std::error::Error;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::thread;
 use std::time::Instant;
 use tempoch::{Time, JD, TT, UTC};
 
