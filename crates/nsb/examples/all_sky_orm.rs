@@ -238,9 +238,9 @@ fn sky_grid_dimensions(step: Degrees) -> AppResult<(usize, usize, usize)> {
     // the allocation size can never wrap even if these constraints change.
     let altitude_bins = altitude_bins as usize;
     let azimuth_bins = azimuth_bins as usize;
-    let cell_count = altitude_bins
-        .checked_mul(azimuth_bins)
-        .ok_or_else(|| invalid_input("--step-deg produces a sky grid whose size overflows usize"))?;
+    let cell_count = altitude_bins.checked_mul(azimuth_bins).ok_or_else(|| {
+        invalid_input("--step-deg produces a sky grid whose size overflows usize")
+    })?;
 
     if cell_count > MAX_SKY_CELLS {
         return Err(invalid_input(format!(
