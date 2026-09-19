@@ -60,7 +60,6 @@ pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
 pub(crate) mod units;
-mod window_search;
 
 pub use components::airglow::AirglowModel;
 pub use components::moonlight::MoonlightModel;
