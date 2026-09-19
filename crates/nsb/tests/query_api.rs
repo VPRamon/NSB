@@ -67,8 +67,11 @@ fn fixture_starlight_map_with_uncertainty() -> StarlightMap {
 fn default_evaluator_config_matches_generic_clear_sky() {
     let default = NsbModelConfig::default();
     let explicit = NsbModelConfig::generic_clear_sky();
-    assert_eq!(default.moonlight_model, explicit.moonlight_model);
-    assert_eq!(default.moonlight_model, MoonlightModel::Jones2013Spectral);
+    assert_eq!(default.moonlight_model(), explicit.moonlight_model());
+    assert_eq!(
+        default.moonlight_model(),
+        MoonlightModel::Jones2013Spectral
+    );
     assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(explicit.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(
@@ -78,7 +81,7 @@ fn default_evaluator_config_matches_generic_clear_sky() {
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let config = evaluator.config();
-    assert_eq!(config.moonlight_model, default.moonlight_model);
+    assert_eq!(config.moonlight_model(), default.moonlight_model());
     assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(
         config.starlight_model.is_some(),
@@ -536,9 +539,12 @@ fn with_f107_store_resolves_airglow_through_evaluator() {
 #[test]
 fn ks91_moonlight_model_evaluates_and_labels_published_reference() {
     let time = parse_obstime("2023-09-04 01:48:00");
-    let mut config = NsbModelConfig::generic_clear_sky();
-    config.moonlight_model = MoonlightModel::KrisciunasSchaefer1991;
-    assert_eq!(config.moonlight_model.as_str(), "krisciunas-schaefer-1991");
+    let config = NsbModelConfig::generic_clear_sky()
+        .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991);
+    assert_eq!(
+        config.moonlight_model().as_str(),
+        "krisciunas-schaefer-1991"
+    );
 
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let result = evaluator
