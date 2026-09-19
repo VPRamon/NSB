@@ -237,8 +237,7 @@ fn evaluate_sky(
             let target = horizontal
                 .to_equatorial(&jd_tt, &observer)
                 .to_frame::<EquatorialMeanJ2000>(&jd_tt);
-            let query =
-                PointQuery::new(observer, time, target).with_components(ComponentMask::ALL);
+            let query = PointQuery::new(observer, time, target).with_components(ComponentMask::ALL);
             let radiance = evaluator.evaluate(&query)?.integrated;
 
             if !radiance.is_finite() || radiance < BandPhotonRadiance::zero() {
