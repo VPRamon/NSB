@@ -2,6 +2,7 @@ use super::*;
 use crate::reference::solar::SolarSpectrum;
 use crate::units::s10_for_spectral_photon_radiance;
 use crate::units::ScaleFactors;
+use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
 use qtty::length::Nanometer;
 use qtty::radiometry::{

@@ -6,6 +6,9 @@ rust-version = "1.89"
 publish = false
 license = "AGPL-3.0-only"
 
+[features]
+window-search-diagnostics = ["nsb/window-search-diagnostics"]
+
 [[bin]]
 name = "nsb"
 path = "src/main.rs"

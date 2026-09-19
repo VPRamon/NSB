@@ -11,6 +11,7 @@ use qtty::Second;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use std::hint::black_box;
 use tempoch::{Period, Time, UTC};
 
 const HEALPIX_FIXTURE: &str = r#"# map_type=healpix
@@ -53,6 +54,14 @@ fn parse(s: &str) -> Time<UTC> {
 
 fn paranal() -> Geodetic<ECEF> {
     observatories::EL_PARANAL.geodetic()
+}
+
+fn cta_south() -> Geodetic<ECEF> {
+    Geodetic::new_raw(
+        siderust::qtty::Degrees::new(-70.316_344_444_444_44),
+        siderust::qtty::Degrees::new(-24.683_427_777_777_776),
+        siderust::qtty::Meters::new(2_184.6),
+    )
 }
 
 fn high_arctic() -> Geodetic<ECEF> {
@@ -109,48 +118,62 @@ fn bench_point_components(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_window(c: &mut Criterion) {
+fn bench_window_duration_components(c: &mut Criterion) {
+    let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning()).expect("evaluator");
+    let durations = [("1d", 1), ("1w", 7), ("1mo", 30), ("1y", 365)];
+    let components = [
+        ("all", ComponentMask::ALL),
+        ("airglow", ComponentMask::AIRGLOW),
+        ("moon", ComponentMask::MOON),
+        ("zodiacal", ComponentMask::ZODIACAL),
+    ];
+    let mut group = c.benchmark_group("threshold_window_duration_component");
+    group.sample_size(10);
+
+    for (component_name, component_mask) in components {
+        for (duration_name, days) in durations {
+            let case = window_case(
+                duration_name,
+                "2026-01-01T00:00:00Z",
+                days,
+                cta_south(),
+                Target::new(83.6331 * DEG, 22.0145 * DEG),
+                component_mask,
+                0.25,
+            );
+            group.throughput(Throughput::Elements(days as u64));
+            group.bench_with_input(
+                BenchmarkId::new(component_name, duration_name),
+                &case.query,
+                |b, query| {
+                    b.iter(|| evaluator.periods_below_threshold(query).expect("window"));
+                },
+            );
+        }
+    }
+    group.finish();
+}
+
+fn bench_physical_regimes(c: &mut Criterion) {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let cases = [
         window_case(
-            "1d",
-            "2023-09-04T00:00:00Z",
-            1,
-            paranal(),
-            target_sgr_a(),
-            ComponentMask::ALL,
-        ),
-        window_case(
-            "1w",
-            "2023-09-04T00:00:00Z",
-            7,
-            paranal(),
-            target_sgr_a(),
-            ComponentMask::ALL,
-        ),
-        window_case(
-            "1mo",
-            "2023-09-04T00:00:00Z",
-            30,
-            paranal(),
-            target_sgr_a(),
-            ComponentMask::ALL,
-        ),
-        window_case(
-            "moon_low",
+            "moon_down",
             "2023-09-15T00:00:00Z",
             3,
             paranal(),
             target_sgr_a(),
             ComponentMask::MOON,
+            0.21,
         ),
         window_case(
-            "moon_up_bright",
+            "bright_moon",
             "2023-09-29T00:00:00Z",
             3,
             paranal(),
             target_sgr_a(),
             ComponentMask::MOON,
+            0.21,
         ),
         window_case(
             "target_never_visible",
@@ -159,6 +182,7 @@ fn bench_window(c: &mut Criterion) {
             paranal(),
             north_pole_target(),
             ComponentMask::ALL,
+            0.21,
         ),
         window_case(
             "long_astronomical_night",
@@ -167,9 +191,28 @@ fn bench_window(c: &mut Criterion) {
             high_arctic(),
             north_pole_target(),
             ComponentMask::AIRGLOW,
+            0.21,
+        ),
+        window_case(
+            "ordinary_target",
+            "2026-01-01T00:00:00Z",
+            30,
+            cta_south(),
+            Target::new(83.6331 * DEG, 22.0145 * DEG),
+            ComponentMask::ALL,
+            0.25,
+        ),
+        window_case(
+            "near_threshold_crossing",
+            "2026-01-01T00:00:00Z",
+            30,
+            cta_south(),
+            Target::new(83.6331 * DEG, 22.0145 * DEG),
+            ComponentMask::ALL,
+            0.205,
         ),
     ];
-    let mut group = c.benchmark_group("threshold_window");
+    let mut group = c.benchmark_group("threshold_window_physical_regime");
     group.sample_size(10);
 
     for case in cases {
@@ -181,6 +224,121 @@ fn bench_window(c: &mut Criterion) {
                 b.iter(|| evaluator.periods_below_threshold(query).expect("window"));
             },
         );
+    }
+    group.finish();
+}
+
+fn bench_regression_workloads(c: &mut Criterion) {
+    let evaluator = NsbEvaluator::new().expect("evaluator");
+    let mut cases = [
+        window_case(
+            "1d",
+            "2023-09-04T00:00:00Z",
+            1,
+            paranal(),
+            target_sgr_a(),
+            ComponentMask::ALL,
+            0.21,
+        ),
+        window_case(
+            "1w",
+            "2023-09-04T00:00:00Z",
+            7,
+            paranal(),
+            target_sgr_a(),
+            ComponentMask::ALL,
+            0.21,
+        ),
+        window_case(
+            "1mo",
+            "2023-09-04T00:00:00Z",
+            30,
+            paranal(),
+            target_sgr_a(),
+            ComponentMask::ALL,
+            0.21,
+        ),
+    ];
+    for case in &mut cases {
+        case.query.target_altitude_floor = Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR);
+    }
+
+    let mut group = c.benchmark_group("threshold_window_regression");
+    group.sample_size(10);
+    for case in cases {
+        group.throughput(Throughput::Elements(case.days as u64));
+        group.bench_with_input(
+            BenchmarkId::from_parameter(case.label),
+            &case.query,
+            |b, query| b.iter(|| evaluator.periods_below_threshold(query).expect("window")),
+        );
+    }
+    group.finish();
+}
+
+fn bench_site_context_and_multi_target(c: &mut Criterion) {
+    let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning()).expect("evaluator");
+    let seed = window_case(
+        "seed",
+        "2026-01-01T00:00:00Z",
+        365,
+        cta_south(),
+        Target::new(83.6331 * DEG, 22.0145 * DEG),
+        ComponentMask::ALL,
+        0.25,
+    )
+    .query;
+
+    let mut preparation = c.benchmark_group("site_window_context_preparation");
+    preparation.sample_size(10);
+    preparation.bench_function("all/1y", |b| {
+        b.iter(|| {
+            evaluator
+                .prepare_site_window_context(black_box(&seed))
+                .expect("context")
+        });
+    });
+    preparation.finish();
+
+    let context = evaluator
+        .prepare_site_window_context(&seed)
+        .expect("shared site/year context");
+    let queries: Vec<_> = (0..100)
+        .map(|index| {
+            let ra = (83.6331 + index as f64 * 137.507_764).rem_euclid(360.0);
+            let dec = -60.0 + (index % 25) as f64 * 5.0;
+            ThresholdQuery::new(
+                seed.observer,
+                Target::new(ra * DEG, dec * DEG),
+                seed.window,
+                seed.threshold,
+            )
+            .with_components(seed.components)
+            .with_sample_step(seed.sample_step)
+            .with_sun_altitude_ceiling(seed.sun_altitude_ceiling)
+            .with_target_altitude_floor(seed.target_altitude_floor)
+        })
+        .collect();
+
+    // Evaluator and site/year preparation are deliberately excluded here.
+    // Each iteration includes target visibility, target-static starlight, and
+    // authoritative threshold searches while reusing site/Moon/Sun state.
+    let mut group = c.benchmark_group("multi_target_reused_site_year");
+    group.sample_size(10);
+    for count in [1_usize, 10, 100] {
+        group.throughput(Throughput::Elements(count as u64));
+        group.bench_with_input(BenchmarkId::from_parameter(count), &count, |b, &count| {
+            b.iter(|| {
+                queries[..count]
+                    .iter()
+                    .map(|query| {
+                        evaluator
+                            .periods_below_threshold_with_context(&context, black_box(query))
+                            .expect("window")
+                    })
+                    .collect::<Vec<_>>()
+            });
+        });
     }
     group.finish();
 }
@@ -198,6 +356,7 @@ fn window_case(
     observer: Geodetic<ECEF>,
     target: Target,
     components: ComponentMask,
+    threshold: f64,
 ) -> WindowBenchCase {
     let start = parse(start);
     let end = Time::<UTC>::from_chrono(start.to_chrono().unwrap() + chrono::Duration::days(days));
@@ -208,12 +367,12 @@ fn window_case(
             observer,
             target,
             Period::new(start, end),
-            BandPhotonRadiance::new(0.21),
+            BandPhotonRadiance::new(threshold),
         )
         .with_components(components)
         .with_sample_step(Second::new(600.0))
         .with_sun_altitude_ceiling(Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING))
-        .with_target_altitude_floor(Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR)),
+        .with_target_altitude_floor(Some(siderust::qtty::Degrees::new(20.0))),
     }
 }
 
@@ -245,4 +404,11 @@ fn main() {
     }
 }
 
-criterion_group!(benches, bench_point_components, bench_window);
+criterion_group!(
+    benches,
+    bench_point_components,
+    bench_window_duration_components,
+    bench_physical_regimes,
+    bench_regression_workloads,
+    bench_site_context_and_multi_target
+);

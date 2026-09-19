@@ -25,6 +25,7 @@ pub(crate) struct AstronomicalNightPeriod {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AirglowPhasePeriod {
     pub(crate) period: TimePeriod<ModifiedJulianDate>,
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
     pub(crate) phase: AirglowNightPhase,
 }
 
@@ -82,21 +83,25 @@ pub(crate) fn astronomical_nights_for_window(
         return Vec::new();
     }
 
-    let search_window = expand_window(window, MAX_NIGHT_SEARCH_RADIUS);
-    SunBody
-        .below_threshold(
-            &location,
-            search_window,
-            ASTRONOMICAL_TWILIGHT,
-            SearchOpts::default(),
-        )
-        .into_iter()
-        .filter(|night| night.end > window.start && night.start < window.end)
-        .map(|night| AstronomicalNightPeriod {
-            phase_bounded: night.start > search_window.start && night.end < search_window.end,
-            period: night,
-        })
-        .collect()
+    let mut radius = INITIAL_NIGHT_SEARCH_RADIUS;
+    loop {
+        let search_window = expand_window(window, radius);
+        let nights: Vec<_> =
+            sun_below_threshold_periods(search_window, location, ASTRONOMICAL_TWILIGHT)
+                .into_iter()
+                .filter(|night| night.end > window.start && night.start < window.end)
+                .map(|night| AstronomicalNightPeriod {
+                    phase_bounded: night.start > search_window.start
+                        && night.end < search_window.end,
+                    period: night,
+                })
+                .collect();
+
+        if nights.iter().all(|night| night.phase_bounded) || radius >= MAX_NIGHT_SEARCH_RADIUS {
+            return nights;
+        }
+        radius = (radius * NIGHT_SEARCH_EXPANSION_FACTOR).min(MAX_NIGHT_SEARCH_RADIUS);
+    }
 }
 
 pub(crate) fn clipped_night_periods(
@@ -166,6 +171,7 @@ pub(crate) fn night_phase_from_nights(
         .and_then(|night| night_phase_from_night(time_tt, night))
 }
 
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
 pub(crate) fn night_phase_from_phase_periods(
     time_tt: ModifiedJulianDate,
     phases: &[AirglowPhasePeriod],
@@ -193,12 +199,13 @@ fn night_phase_from_night(
         return None;
     }
 
-    let phase = ((time_tt.raw().value() - night.period.start.raw().value()) / duration_days)
-        .clamp(0.0, 1.0);
+    let start = night.period.start.raw().value();
+    let first = start + duration_days / 3.0;
+    let second = start + duration_days * 2.0 / 3.0;
 
-    Some(if phase < 1.0 / 3.0 {
+    Some(if time_tt.raw().value() < first {
         AirglowNightPhase::FirstThird
-    } else if phase < 2.0 / 3.0 {
+    } else if time_tt.raw().value() < second {
         AirglowNightPhase::MiddleThird
     } else {
         AirglowNightPhase::LastThird
@@ -225,13 +232,7 @@ fn astronomical_night_containing(
             ModifiedJulianDate::new(time_tt.raw().value() + radius.value()),
         );
 
-        let night = SunBody
-            .below_threshold(
-                &location,
-                search_window,
-                ASTRONOMICAL_TWILIGHT,
-                SearchOpts::default(),
-            )
+        let night = sun_below_threshold_periods(search_window, location, ASTRONOMICAL_TWILIGHT)
             .into_iter()
             .find(|night| night.start < time_tt && time_tt < night.end)?;
 
@@ -251,6 +252,15 @@ fn astronomical_night_containing(
 
         radius = (radius * NIGHT_SEARCH_EXPANSION_FACTOR).min(MAX_NIGHT_SEARCH_RADIUS);
     }
+}
+
+/// Delegate solar-event discovery, exact validation, and fallback to Siderust.
+pub(crate) fn sun_below_threshold_periods(
+    window: TimePeriod<ModifiedJulianDate>,
+    location: Geodetic<ECEF>,
+    threshold: Degrees,
+) -> Vec<TimePeriod<ModifiedJulianDate>> {
+    SunBody.below_threshold(&location, window, threshold, SearchOpts::default())
 }
 
 fn expand_window(
@@ -339,6 +349,50 @@ mod tests {
         Geodetic::new_raw(Degrees::new(0.0), Degrees::new(0.0), Meters::new(0.0))
     }
 
+    fn cta_south() -> Geodetic<ECEF> {
+        Geodetic::new_raw(
+            Degrees::new(-70.3147),
+            Degrees::new(-24.6834),
+            Meters::new(2_147.0),
+        )
+    }
+
+    fn period(start: (i32, u32, u32), days: i64) -> TimePeriod<ModifiedJulianDate> {
+        let start = utc(start.0, start.1, start.2);
+        let end =
+            Time::<UTC>::from_chrono(start.to_chrono().unwrap() + chrono::Duration::days(days));
+        TimePeriod::new(utc_time_to_tt_mjd(start), utc_time_to_tt_mjd(end))
+    }
+
+    fn assert_solar_periods_match_reference(
+        location: Geodetic<ECEF>,
+        window: TimePeriod<ModifiedJulianDate>,
+        threshold: Degrees,
+    ) {
+        let reference =
+            SunBody.below_threshold(&location, window, threshold, SearchOpts::default());
+        let actual = sun_below_threshold_periods(window, location, threshold);
+        assert_eq!(
+            actual.len(),
+            reference.len(),
+            "actual={actual:?} reference={reference:?}"
+        );
+        for (actual, reference) in actual.iter().zip(reference) {
+            let start_error_seconds =
+                (actual.start.raw().value() - reference.start.raw().value()).abs() * 86_400.0;
+            let end_error_seconds =
+                (actual.end.raw().value() - reference.end.raw().value()).abs() * 86_400.0;
+            assert!(
+                start_error_seconds <= 1.0,
+                "solar start error {start_error_seconds}s"
+            );
+            assert!(
+                end_error_seconds <= 1.0,
+                "solar end error {end_error_seconds}s"
+            );
+        }
+    }
+
     #[test]
     fn season_maps_all_named_double_months() {
         let location = equator();
@@ -368,6 +422,11 @@ mod tests {
         };
 
         assert_eq!(
+            night_phase_from_nights(ModifiedJulianDate::new(0.0), &[night]),
+            None
+        );
+
+        assert_eq!(
             night_phase_from_night(ModifiedJulianDate::new(0.5), &night),
             Some(AirglowNightPhase::FirstThird)
         );
@@ -387,6 +446,37 @@ mod tests {
             night_phase_from_night(ModifiedJulianDate::new(2.5), &night),
             Some(AirglowNightPhase::LastThird)
         );
+        assert_eq!(
+            night_phase_from_nights(ModifiedJulianDate::new(3.0), &[night]),
+            None
+        );
+
+        for time in [0.5, 1.0, 1.5, 2.0, 2.5] {
+            let time = ModifiedJulianDate::new(time);
+            assert_eq!(
+                night_phase_from_nights(time, &[night]),
+                night_phase_from_night(time, &night),
+                "the threshold hot path must preserve canonical phase semantics"
+            );
+        }
+    }
+
+    #[test]
+    fn precomputed_strict_intervals_do_not_define_third_boundary_semantics() {
+        let night = AstronomicalNightPeriod {
+            period: TimePeriod::new(ModifiedJulianDate::new(0.0), ModifiedJulianDate::new(3.0)),
+            phase_bounded: true,
+        };
+        let phases = airglow_phase_periods_for_window(&[night], night.period);
+
+        for (time, canonical) in [
+            (1.0, AirglowNightPhase::MiddleThird),
+            (2.0, AirglowNightPhase::LastThird),
+        ] {
+            let time = ModifiedJulianDate::new(time);
+            assert_eq!(night_phase_from_nights(time, &[night]), Some(canonical));
+            assert_eq!(night_phase_from_phase_periods(time, &phases), None);
+        }
     }
 
     #[test]
@@ -399,5 +489,26 @@ mod tests {
             night_phase_from_night(ModifiedJulianDate::new(1.5), &night),
             Some(AirglowNightPhase::FullNight)
         );
+    }
+
+    #[test]
+    fn delegated_siderust_solar_events_cover_sites_thresholds_and_year_boundary() {
+        for (location, window, threshold) in [
+            (cta_south(), period((2026, 1, 1), 31), Degrees::new(-18.0)),
+            (cta_south(), period((2026, 6, 1), 31), Degrees::new(0.0)),
+            (equator(), period((2026, 3, 15), 20), Degrees::new(-12.0)),
+            (equator(), period((2026, 12, 30), 5), Degrees::new(0.0)),
+            (
+                Geodetic::new_raw(
+                    Degrees::new(18.9553),
+                    Degrees::new(69.6492),
+                    Meters::new(0.0),
+                ),
+                period((2026, 5, 10), 40),
+                Degrees::new(-18.0),
+            ),
+        ] {
+            assert_solar_periods_match_reference(location, window, threshold);
+        }
     }
 }

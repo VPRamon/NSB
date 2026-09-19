@@ -41,11 +41,15 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         !args.no_pre_filter
     );
 
+    #[cfg(feature = "window-search-diagnostics")]
+    let evaluator_started = Instant::now();
     let evaluator = NsbEvaluator::with_config(model_config(
         &args.model,
         selection,
         args.model.site_profile.into(),
     )?)?;
+    #[cfg(feature = "window-search-diagnostics")]
+    let evaluator_elapsed = evaluator_started.elapsed();
 
     let (sun_altitude_ceiling, target_altitude_floor) = if args.no_pre_filter {
         info!("threshold pre-filters disabled");
@@ -69,12 +73,21 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         .with_target_altitude_floor(target_altitude_floor);
 
     info!("running max-threshold search");
-    let max_result = evaluator.periods_below_threshold(&base_query)?;
+    #[cfg(feature = "window-search-diagnostics")]
+    let (context, max_result, diagnostics) = evaluator.prepare_and_search_diagnosed(&base_query)?;
+    #[cfg(not(feature = "window-search-diagnostics"))]
+    let context = evaluator.prepare_site_window_context(&base_query)?;
+    #[cfg(not(feature = "window-search-diagnostics"))]
+    let max_result = evaluator.periods_below_threshold_with_context(&context, &base_query)?;
+    #[cfg(feature = "window-search-diagnostics")]
+    if std::env::var_os("NSB_WINDOW_DIAGNOSTICS").is_some() {
+        eprintln!("evaluator_construction={evaluator_elapsed:?}\n{diagnostics:#?}");
+    }
     let periods = if let Some(min) = min {
         info!("running min-threshold exclusion search");
         let mut min_query = base_query.clone();
         min_query.threshold = min;
-        let below_min = evaluator.periods_below_threshold(&min_query)?;
+        let below_min = evaluator.periods_below_threshold_with_context(&context, &min_query)?;
         subtract_periods(&max_result.periods, &below_min.periods)
     } else {
         max_result.periods

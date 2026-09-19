@@ -254,4 +254,26 @@ mod tests {
         let midpoint = spectrum.interp_at(Nanometers::new(475.0));
         let _: qtty::Quantity<PhotonPerSquareCentimeterNanosecondSteradianNanometer> = midpoint;
     }
+
+    #[test]
+    fn integration_matches_sampled_domain_when_band_edge_samples_are_missing() {
+        let spectrum = ZodiacalPhotonSpectrum::from_raw(
+            vec![300.5, 649.0],
+            vec![2.0, 4.0],
+            Interpolation::Linear,
+            OutOfRange::ClampToEndpoints,
+            None,
+        )
+        .expect("edge-missing spectrum");
+
+        let integrated = integrate_photon_spectrum(&spectrum);
+        let range_integral = spectrum
+            .integrate_range(WL_LOW, WL_HIGH)
+            .to::<BandPhotonRadianceUnit>();
+        let full_grid_integral = spectrum.integrate().to::<BandPhotonRadianceUnit>();
+
+        assert!((integrated.value() - 1_045.5).abs() < 1.0e-12);
+        assert!((integrated.value() - range_integral.value()).abs() < 1.0e-12);
+        assert!((integrated.value() - full_grid_integral.value()).abs() < 1.0e-12);
+    }
 }
