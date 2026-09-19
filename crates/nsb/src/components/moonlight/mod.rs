@@ -73,10 +73,7 @@ impl MoonlightModel {
 }
 
 impl Jones2013Spectral {
-    pub(crate) fn for_site_profile(
-        location: Geodetic<ECEF>,
-        site_profile: SiteProfileId,
-    ) -> Self {
+    pub(crate) fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Self {
         let profile = site_profile.profile(location);
         Self::new(location, profile.atmosphere)
     }
