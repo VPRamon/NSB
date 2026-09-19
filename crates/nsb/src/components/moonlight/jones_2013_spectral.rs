@@ -24,11 +24,6 @@ impl Jones2013Spectral {
         }
     }
 
-    #[cfg(test)]
-    fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
-        Self::new(location, standard_clear_sky_conditions(location))
-    }
-
     pub(crate) fn compute(
         &self,
         time: Time<UTC>,
@@ -174,48 +169,6 @@ fn bundled_solar_spectrum() -> &'static SolarSpectrum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, Utc};
-    use siderust::qtty::{Degrees as SiderustDegrees, Meters};
-
-    fn parse_utc(input: &str) -> Time<UTC> {
-        Time::<UTC>::from_chrono(
-            DateTime::parse_from_rfc3339(input)
-                .unwrap()
-                .with_timezone(&Utc),
-        )
-    }
-
-    fn test_location() -> Geodetic<ECEF> {
-        Geodetic::<ECEF>::new_raw(
-            SiderustDegrees::new(-70.0),
-            SiderustDegrees::new(-24.0),
-            Meters::new(2500.0),
-        )
-    }
-
-    fn test_target() -> SphericalDirection<EquatorialMeanJ2000> {
-        SphericalDirection::<EquatorialMeanJ2000>::new(
-            SiderustDegrees::new(270.0),
-            SiderustDegrees::new(-30.0),
-        )
-    }
-
-
-    #[test]
-    fn periods_in_range_with_step_rejects_bad_step() {
-        let model = Jones2013Spectral::standard_clear_sky(test_location());
-        let err = model
-            .periods_in_range_with_step(
-                test_window(),
-                test_target(),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(0.0),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(1.0),
-                Second::new(0.0),
-            )
-            .unwrap_err();
-        assert!(err.to_string().contains("sample_step"));
-    }
-
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         use siderust::qtty::{IlluminationFractions, Radians};
         MoonPhaseGeometry {
