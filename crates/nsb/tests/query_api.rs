@@ -68,10 +68,7 @@ fn default_evaluator_config_matches_generic_clear_sky() {
     let default = NsbModelConfig::default();
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model(), explicit.moonlight_model());
-    assert_eq!(
-        default.moonlight_model(),
-        MoonlightModel::Jones2013Spectral
-    );
+    assert_eq!(default.moonlight_model(), MoonlightModel::Jones2013Spectral);
     assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(explicit.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(
