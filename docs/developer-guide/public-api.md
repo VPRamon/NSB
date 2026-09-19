@@ -63,6 +63,14 @@ route is `components::airglow`: its geometry/profile types configure
 their component-only output are implementation details; applications evaluate
 Airglow through `NsbEvaluator` results.
 
+Airglow intentionally has no public model-selection enum while there is only one
+supported runtime model. The concrete Airglow continuum/model implementation is
+not part of the stable API contract: callers configure durable inputs through
+`NsbModelConfig`, evaluate through `NsbEvaluator`, and inspect scientific
+identity, maturity, and provenance in component metadata. A scientifically
+updated Airglow implementation must update the relevant metadata/provenance and
+`MODEL_VERSION` without requiring a new compatibility-only legacy model.
+
 Other advanced component models and offline F10.7 store types remain available
 through their deliberate component or `solar_activity` routes.
 
