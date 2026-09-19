@@ -8,18 +8,24 @@
 //! local terrain/horizon mask, or local meteorological variability not already
 //! represented by the current NSB component models.
 //!
+//! This example intentionally keeps physical quantities typed end-to-end:
+//! `qtty` owns angles and radiance, while Siderust owns observatory lookup and
+//! coordinate transformations. Raw `f64` values are reserved for plot-space
+//! coordinates, colour interpolation, and other dimensionless rendering data.
+//!
 //! The fisheye projection is equidistant in zenith distance: zenith is at the
 //! centre and the astronomical horizon is the outer circle. The view is that of
 //! an observer looking upward with North at the top and East at the left.
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery, Target};
+use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery};
 use plotters::prelude::*;
+use qtty::angular::Degrees;
+use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::catalogs::observatories::ObservatoryCatalog;
 use siderust::coordinates::frames::EquatorialMeanJ2000;
-use siderust::coordinates::spherical;
+use siderust::coordinates::spherical::direction::Horizontal as HorizontalDirection;
 use siderust::coordinates::transform::SphericalDirectionAstroExt;
-use siderust::qtty::Degrees;
 use siderust::time::JulianDate;
 use std::env;
 use std::error::Error;
@@ -32,7 +38,8 @@ use tempoch::{Time, JD, TT, UTC};
 const ORM_NAME: &str = "Roque de los Muchachos Observatory";
 const DEFAULT_TIME: &str = "2026-09-17T23:00:00Z";
 const DEFAULT_OUTPUT: &str = "orm_nsb.png";
-const DEFAULT_STEP_DEG: f64 = 5.0;
+const DEFAULT_STEP: Degrees = Degrees::new(5.0);
+const MAX_STEP: Degrees = Degrees::new(30.0);
 const IMAGE_WIDTH: u32 = 1400;
 const IMAGE_HEIGHT: u32 = 1000;
 const SKY_CENTER: (f64, f64) = (500.0, 515.0);
@@ -44,29 +51,22 @@ type AppResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 struct Args {
     time: DateTime<Utc>,
     output: PathBuf,
-    step_deg: f64,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct SkyCellGeometry {
-    az_min_deg: f64,
-    az_max_deg: f64,
-    alt_min_deg: f64,
-    alt_max_deg: f64,
-    sample_az_deg: f64,
-    sample_alt_deg: f64,
+    step: Degrees,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct SkyCell {
-    geometry: SkyCellGeometry,
-    radiance: f64,
+    az_min: Degrees,
+    az_max: Degrees,
+    alt_min: Degrees,
+    alt_max: Degrees,
+    radiance: BandPhotonRadiance,
 }
 
 #[derive(Debug, Clone, Copy)]
 struct ColorRange {
-    min: f64,
-    max: f64,
+    min: BandPhotonRadiance,
+    max: BandPhotonRadiance,
 }
 
 fn main() {
@@ -101,23 +101,15 @@ fn run() -> AppResult<()> {
         .map(|component| display_component_name(component.name))
         .collect::<Vec<_>>();
 
-    let grid = generate_sky_grid(args.step_deg);
     let started = Instant::now();
-    let cells = evaluate_sky(&evaluator, observer, time, jd_tt, &grid)?;
+    let cells = evaluate_sky(&evaluator, observer, time, jd_tt, args.step)?;
     let elapsed = started.elapsed();
     let color_range = radiance_range(&cells)?;
 
-    render_map(
-        &args.output,
-        &args,
-        &cells,
-        color_range,
-        &component_names,
-        elapsed.as_secs_f64(),
-    )?;
+    render_map(&args.output, &args, &cells, color_range, &component_names)?;
 
     println!(
-        "wrote {} samples to {} in {:.3} s (radiance {:.6e}..{:.6e} ph cm^-2 ns^-1 sr^-1)",
+        "wrote {} samples to {} in {:.3} s (radiance {:.6e}..{:.6e})",
         cells.len(),
         args.output.display(),
         elapsed.as_secs_f64(),
@@ -134,7 +126,7 @@ where
 {
     let mut time_text = DEFAULT_TIME.to_string();
     let mut output = PathBuf::from(DEFAULT_OUTPUT);
-    let mut step_deg = DEFAULT_STEP_DEG;
+    let mut step = DEFAULT_STEP;
     let mut iter = args.into_iter();
 
     while let Some(arg) = iter.next() {
@@ -148,9 +140,10 @@ where
             }
             "--step-deg" => {
                 let text = next_value(&mut iter, "--step-deg")?;
-                step_deg = text.parse::<f64>().map_err(|error| {
+                let scalar = text.parse::<f64>().map_err(|error| {
                     invalid_input(format!("invalid --step-deg `{text}`: {error}"))
                 })?;
+                step = Degrees::new(scalar);
             }
             _ => {
                 return Err(invalid_input(format!(
@@ -161,9 +154,9 @@ where
         }
     }
 
-    if !step_deg.is_finite() || !(0.0 < step_deg && step_deg <= 30.0) {
+    if !step.is_finite() || step <= Degrees::zero() || step > MAX_STEP {
         return Err(invalid_input(format!(
-            "--step-deg must be finite and in (0, 30], got {step_deg}"
+            "--step-deg must be finite and in (0, {MAX_STEP}], got {step}"
         ))
         .into());
     }
@@ -198,7 +191,7 @@ where
     Ok(Some(Args {
         time: parsed.with_timezone(&Utc),
         output,
-        step_deg,
+        step,
     }))
 }
 
@@ -215,37 +208,10 @@ fn print_help() {
     println!(
         "all_sky_orm - render a natural NSB all-sky map for ORM\n\n\
 Usage:\n  cargo run --release --locked -p nsb --example all_sky_orm -- [OPTIONS]\n\n\
-Options:\n  --time <RFC3339 UTC>   Observation time [default: {DEFAULT_TIME}]\n  --output <path.png>    Output PNG [default: {DEFAULT_OUTPUT}]\n  --step-deg <degrees>   Horizontal grid angular step in (0, 30] [default: {DEFAULT_STEP_DEG}]\n  -h, --help             Show this help\n\n\
+Options:\n  --time <RFC3339 UTC>   Observation time [default: {DEFAULT_TIME}]\n  --output <path.png>    Output PNG [default: {DEFAULT_OUTPUT}]\n  --step-deg <degrees>   Horizontal grid angular step in (0, {MAX_STEP}] [default: {DEFAULT_STEP}]\n  -h, --help             Show this help\n\n\
 Projection: observer looking upward, North up, East left, zenith at centre, horizon at rim.\n\
 Colour: linear total integrated 300-650 nm photon radiance."
     );
-}
-
-fn generate_sky_grid(step_deg: f64) -> Vec<SkyCellGeometry> {
-    let altitude_bins = (90.0 / step_deg).ceil() as usize;
-    let azimuth_bins = (360.0 / step_deg).ceil() as usize;
-    let mut cells = Vec::with_capacity(altitude_bins * azimuth_bins);
-
-    let mut alt_min_deg = 0.0;
-    while alt_min_deg < 90.0 {
-        let alt_max_deg = (alt_min_deg + step_deg).min(90.0);
-        let mut az_min_deg = 0.0;
-        while az_min_deg < 360.0 {
-            let az_max_deg = (az_min_deg + step_deg).min(360.0);
-            cells.push(SkyCellGeometry {
-                az_min_deg,
-                az_max_deg,
-                alt_min_deg,
-                alt_max_deg,
-                sample_az_deg: 0.5 * (az_min_deg + az_max_deg),
-                sample_alt_deg: 0.5 * (alt_min_deg + alt_max_deg),
-            });
-            az_min_deg = az_max_deg;
-        }
-        alt_min_deg = alt_max_deg;
-    }
-
-    cells
 }
 
 fn evaluate_sky(
@@ -253,94 +219,53 @@ fn evaluate_sky(
     observer: Observer,
     time: Time<UTC>,
     jd_tt: JulianDate,
-    grid: &[SkyCellGeometry],
+    step: Degrees,
 ) -> AppResult<Vec<SkyCell>> {
-    if grid.is_empty() {
-        return Ok(Vec::new());
-    }
+    let altitude_bins = (Degrees::QUARTER_TURN / step).ceil() as usize;
+    let azimuth_bins = (Degrees::FULL_TURN / step).ceil() as usize;
+    let mut cells = Vec::with_capacity(altitude_bins * azimuth_bins);
 
-    let worker_count = thread::available_parallelism()
-        .map(|parallelism| parallelism.get())
-        .unwrap_or(1)
-        .min(grid.len());
-    let chunk_size = grid.len().div_ceil(worker_count);
+    let mut alt_min = Degrees::zero();
+    while alt_min < Degrees::QUARTER_TURN {
+        let alt_max = (alt_min + step).min(Degrees::QUARTER_TURN);
+        let mut az_min = Degrees::zero();
 
-    thread::scope(|scope| {
-        let chunks = grid
-            .chunks(chunk_size)
-            .map(|chunk| {
-                scope.spawn(move || evaluate_sky_chunk(evaluator, observer, time, jd_tt, chunk))
-            })
-            .collect::<Vec<_>>();
+        while az_min < Degrees::FULL_TURN {
+            let az_max = (az_min + step).min(Degrees::FULL_TURN);
+            let sample_alt = alt_min.mean(alt_max);
+            let sample_az = az_min.mean(az_max);
+            let horizontal = HorizontalDirection::new(sample_alt, sample_az);
+            let target = horizontal
+                .to_equatorial(&jd_tt, &observer)
+                .to_frame::<EquatorialMeanJ2000>(&jd_tt);
+            let query = PointQuery::new(observer, time, target).with_components(ComponentMask::ALL);
+            let radiance = evaluator.evaluate(&query)?.integrated;
 
-        let mut cells = Vec::with_capacity(grid.len());
-        for chunk in chunks {
-            let chunk_cells = chunk
-                .join()
-                .map_err(|_| io::Error::other("sky evaluation worker panicked"))??;
-            cells.extend(chunk_cells);
+            if !radiance.is_finite() || radiance < BandPhotonRadiance::zero() {
+                return Err(io::Error::other(format!(
+                    "non-finite or negative NSB at az={sample_az:.3} alt={sample_alt:.3}: {radiance}"
+                ))
+                .into());
+            }
+
+            cells.push(SkyCell {
+                az_min,
+                az_max,
+                alt_min,
+                alt_max,
+                radiance,
+            });
+            az_min = az_max;
         }
-
-        Ok(cells)
-    })
-}
-
-fn evaluate_sky_chunk(
-    evaluator: &NsbEvaluator,
-    observer: Observer,
-    time: Time<UTC>,
-    jd_tt: JulianDate,
-    grid: &[SkyCellGeometry],
-) -> AppResult<Vec<SkyCell>> {
-    let mut cells = Vec::with_capacity(grid.len());
-
-    for geometry in grid {
-        let target = horizontal_to_target(
-            observer,
-            jd_tt,
-            geometry.sample_az_deg,
-            geometry.sample_alt_deg,
-        );
-        let query = PointQuery::new(observer, time, target).with_components(ComponentMask::ALL);
-        let result = evaluator.evaluate(&query)?;
-        let radiance = result.integrated.value();
-        if !radiance.is_finite() || radiance < 0.0 {
-            return Err(io::Error::other(format!(
-                "non-finite or negative NSB at az={:.3} deg alt={:.3} deg: {radiance}",
-                geometry.sample_az_deg, geometry.sample_alt_deg
-            ))
-            .into());
-        }
-        cells.push(SkyCell {
-            geometry: *geometry,
-            radiance,
-        });
+        alt_min = alt_max;
     }
 
     Ok(cells)
 }
 
-fn horizontal_to_target(
-    observer: Observer,
-    jd_tt: JulianDate,
-    azimuth_deg: f64,
-    altitude_deg: f64,
-) -> Target {
-    // Siderust's horizontal direction constructor is (altitude, azimuth), with
-    // azimuth measured clockwise from North through East. The public horizontal
-    // transform returns true-of-date equatorial coordinates; rotate those into
-    // the J2000 mean equatorial frame used by NSB's Target alias.
-    let horizontal = spherical::direction::Horizontal::new(
-        Degrees::new(altitude_deg),
-        Degrees::new(azimuth_deg),
-    );
-    let true_of_date = horizontal.to_equatorial(&jd_tt, &observer);
-    true_of_date.to_frame::<EquatorialMeanJ2000>(&jd_tt)
-}
-
 fn radiance_range(cells: &[SkyCell]) -> AppResult<ColorRange> {
-    let mut min = f64::INFINITY;
-    let mut max = f64::NEG_INFINITY;
+    let mut min = BandPhotonRadiance::INFINITY;
+    let mut max = BandPhotonRadiance::NEG_INFINITY;
     for cell in cells {
         min = min.min(cell.radiance);
         max = max.max(cell.radiance);
@@ -359,7 +284,6 @@ fn render_map(
     cells: &[SkyCell],
     range: ColorRange,
     components: &[&'static str],
-    elapsed_seconds: f64,
 ) -> AppResult<()> {
     let root = BitMapBackend::new(output, (IMAGE_WIDTH, IMAGE_HEIGHT)).into_drawing_area();
     root.fill(&WHITE)?;
@@ -376,12 +300,11 @@ fn render_map(
     ))?;
 
     for cell in cells {
-        let g = cell.geometry;
         let corners = [
-            project_fisheye(g.az_min_deg, g.alt_min_deg, SKY_CENTER, SKY_RADIUS),
-            project_fisheye(g.az_max_deg, g.alt_min_deg, SKY_CENTER, SKY_RADIUS),
-            project_fisheye(g.az_max_deg, g.alt_max_deg, SKY_CENTER, SKY_RADIUS),
-            project_fisheye(g.az_min_deg, g.alt_max_deg, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_min, cell.alt_min, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_max, cell.alt_min, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_max, cell.alt_max, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_min, cell.alt_max, SKY_CENTER, SKY_RADIUS),
         ]
         .into_iter()
         .map(to_pixel)
@@ -395,7 +318,7 @@ fn render_map(
     draw_altitude_grid(&root)?;
     draw_cardinals(&root)?;
     draw_color_bar(&root, range)?;
-    draw_metadata(&root, args, components, cells.len(), elapsed_seconds)?;
+    draw_metadata(&root, args, components, cells.len())?;
 
     root.present()?;
     Ok(())
@@ -407,13 +330,16 @@ fn draw_altitude_grid(
     let center = to_pixel(SKY_CENTER);
     let grid_style = ShapeStyle::from(&BLACK.mix(0.55)).stroke_width(1);
 
-    for altitude in [0.0, 30.0, 60.0] {
-        let radius = SKY_RADIUS * (90.0 - altitude) / 90.0;
+    // Put altitude labels in the north-west quadrant of the *sky* (upper-right
+    // on this overhead chart), away from the cardinal labels and colour bar.
+    const LABEL_AZIMUTH: Degrees = Degrees::new(315.0);
+    for altitude in [Degrees::zero(), Degrees::new(30.0), Degrees::new(60.0)] {
+        let radius = SKY_RADIUS * ((Degrees::QUARTER_TURN - altitude) / Degrees::QUARTER_TURN);
         root.draw(&Circle::new(center, radius.round() as i32, grid_style))?;
-        let label = format!("{altitude:.0} deg");
+        let label_position = project_fisheye(LABEL_AZIMUTH, altitude, SKY_CENTER, SKY_RADIUS);
         root.draw(&Text::new(
-            label,
-            to_pixel((SKY_CENTER.0 + radius + 6.0, SKY_CENTER.1 - 4.0)),
+            format!("{altitude:.0}"),
+            to_pixel((label_position.0 + 7.0, label_position.1 - 5.0)),
             ("sans-serif", 15).into_font(),
         ))?;
     }
@@ -425,8 +351,8 @@ fn draw_altitude_grid(
     ))?;
     root.draw(&Circle::new(center, 3, BLACK.filled()))?;
     root.draw(&Text::new(
-        "90 deg / zenith",
-        to_pixel((SKY_CENTER.0 + 10.0, SKY_CENTER.1 - 10.0)),
+        "Zenith (90°)",
+        to_pixel((SKY_CENTER.0 + 10.0, SKY_CENTER.1 - 12.0)),
         ("sans-serif", 15).into_font(),
     ))?;
 
@@ -485,7 +411,7 @@ fn draw_color_bar(
         ("sans-serif", 18).into_font(),
     ))?;
     root.draw(&Text::new(
-        "ph cm^-2 ns^-1 sr^-1  (linear scale)",
+        "linear scale",
         (955, 145),
         ("sans-serif", 17).into_font(),
     ))?;
@@ -493,7 +419,7 @@ fn draw_color_bar(
     for tick in 0..=5 {
         let t = f64::from(tick) / 5.0;
         let y = Y1 - (f64::from(height) * t).round() as i32;
-        let value = range.min + t * (range.max - range.min);
+        let value = range.min + (range.max - range.min) * t;
         root.draw(&PathElement::new(vec![(X1, y), (X1 + 8, y)], BLACK))?;
         root.draw(&Text::new(
             format!("{value:.3e}"),
@@ -510,17 +436,17 @@ fn draw_metadata(
     args: &Args,
     components: &[&'static str],
     sample_count: usize,
-    elapsed_seconds: f64,
 ) -> AppResult<()> {
     let timestamp = args.time.to_rfc3339_opts(SecondsFormat::Secs, true);
-    let components = components.join(" + ");
-    let lines = [
+    let mut lines = vec![
         format!("UTC: {timestamp}"),
         format!("Site: {ORM_NAME} (ORM, La Palma)"),
-        format!("Grid step: {:.3} deg", args.step_deg),
+        format!("Grid step: {:.3}", args.step),
         format!("Evaluated directions: {sample_count}"),
-        format!("Model evaluation: {elapsed_seconds:.3} s"),
-        format!("Components: {components}"),
+        "Components used:".to_string(),
+    ];
+    lines.extend(components.iter().map(|name| format!("  - {name}")));
+    lines.extend([
         "Evaluator: NsbEvaluator::new(), ComponentMask::ALL".to_string(),
         String::new(),
         "Scientific interpretation:".to_string(),
@@ -529,25 +455,30 @@ fn draw_metadata(
         "- No artificial light pollution or clouds.".to_string(),
         "- No measured nightly aerosol state or local horizon mask.".to_string(),
         "- No additional local meteorological variability.".to_string(),
-    ];
+    ]);
 
-    let mut y = 675;
+    let scientific_heading = lines
+        .iter()
+        .position(|line| line == "Scientific interpretation:")
+        .ok_or_else(|| io::Error::other("missing scientific interpretation heading"))?;
+
+    let mut y = 640;
     for (index, line) in lines.iter().enumerate() {
-        let font = if index == 8 {
-            ("sans-serif", 18).into_font().style(FontStyle::Bold)
+        let font = if index == scientific_heading {
+            ("sans-serif", 17).into_font().style(FontStyle::Bold)
         } else {
-            ("sans-serif", 16).into_font()
+            ("sans-serif", 14).into_font()
         };
         root.draw(&Text::new(line.clone(), (900, y), font))?;
-        y += 23;
+        y += 18;
     }
 
     Ok(())
 }
 
-fn normalize(value: f64, range: ColorRange) -> f64 {
+fn normalize(value: BandPhotonRadiance, range: ColorRange) -> f64 {
     let span = range.max - range.min;
-    if span <= f64::EPSILON {
+    if span <= BandPhotonRadiance::zero() {
         0.5
     } else {
         ((value - range.min) / span).clamp(0.0, 1.0)
@@ -585,19 +516,19 @@ fn lerp_u8(a: u8, b: u8, t: f64) -> u8 {
 }
 
 fn project_fisheye(
-    azimuth_deg: f64,
-    altitude_deg: f64,
+    azimuth: Degrees,
+    altitude: Degrees,
     center: (f64, f64),
     radius: f64,
 ) -> (f64, f64) {
-    let zenith_distance_fraction = (90.0 - altitude_deg) / 90.0;
+    let zenith_distance_fraction = (Degrees::QUARTER_TURN - altitude) / Degrees::QUARTER_TURN;
     let r = radius * zenith_distance_fraction;
-    let azimuth = azimuth_deg.to_radians();
+    let (sin_azimuth, cos_azimuth) = azimuth.sin_cos();
 
     // Siderust azimuth increases North -> East. For a chart viewed from below
     // (observer looking upward), East is on the left: x therefore uses -sin(Az).
-    let x = center.0 - r * azimuth.sin();
-    let y = center.1 - r * azimuth.cos();
+    let x = center.0 - r * sin_azimuth;
+    let y = center.1 - r * cos_azimuth;
     (x, y)
 }
 
@@ -628,7 +559,7 @@ mod tests {
     #[test]
     fn fisheye_places_zenith_at_center() {
         let center = (10.0, 20.0);
-        let projected = project_fisheye(217.0, 90.0, center, 5.0);
+        let projected = project_fisheye(Degrees::new(217.0), Degrees::QUARTER_TURN, center, 5.0);
         assert!(close(projected.0, center.0));
         assert!(close(projected.1, center.1));
     }
@@ -637,10 +568,11 @@ mod tests {
     fn fisheye_cardinals_match_overhead_orientation() {
         let center = (0.0, 0.0);
         let radius = 10.0;
-        let north = project_fisheye(0.0, 0.0, center, radius);
-        let east = project_fisheye(90.0, 0.0, center, radius);
-        let south = project_fisheye(180.0, 0.0, center, radius);
-        let west = project_fisheye(270.0, 0.0, center, radius);
+        let horizon = Degrees::zero();
+        let north = project_fisheye(Degrees::new(0.0), horizon, center, radius);
+        let east = project_fisheye(Degrees::new(90.0), horizon, center, radius);
+        let south = project_fisheye(Degrees::new(180.0), horizon, center, radius);
+        let west = project_fisheye(Degrees::new(270.0), horizon, center, radius);
 
         assert!(close(north.0, 0.0) && close(north.1, -radius));
         assert!(close(east.0, -radius) && close(east.1, 0.0));
