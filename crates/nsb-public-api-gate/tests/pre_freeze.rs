@@ -46,12 +46,18 @@ fn pre_freeze_check_does_not_require_snapshot_or_semver_base() {
 fn pre_freeze_check_rejects_airglow_compatibility_debt() {
     let repo = temporary_repo();
     let source = repo.join("crates/nsb/src/components/airglow");
-    fs::create_dir_all(&source).expect("create temporary source");
+    let nested = source.join("models");
+    fs::create_dir_all(&nested).expect("create temporary source");
     fs::write(
         source.join("model.rs"),
-        "#[allow(dead_code)]\nfn stale() {}\nenum LegacyDefault { Old }\n",
+        "#[allow(dead_code)]\nfn stale() {}\n",
     )
     .expect("write stale allowance");
+    fs::write(
+        nested.join("legacy.rs"),
+        "enum LegacyDefault { Old }\n",
+    )
+    .expect("write nested compatibility debt");
 
     let error = run_check(&CheckOptions {
         repo: repo.clone(),
