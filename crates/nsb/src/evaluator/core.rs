@@ -52,6 +52,11 @@ impl NsbEvaluator {
     /// Construct from explicit immutable model choices.
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
         let zodiacal = ZodiacalLight::leinert1998()?.with_extinction(config.zodiacal_extinction);
+        let airglow_continuum = match config.airglow_model {
+            airglow::AirglowModel::ParanalNollSkyCalcFors1 => {
+                Arc::new(airglow::load_builtin_standard()?)
+            }
+        };
         let starlight = match config.starlight_model.as_ref() {
             None => None,
             Some(StarlightModel::BundledProductionGaiaDr3) => {
@@ -67,7 +72,7 @@ impl NsbEvaluator {
         Ok(Self {
             identity: Arc::new(()),
             zodiacal,
-            airglow_continuum: Arc::new(airglow::load_builtin_standard()?),
+            airglow_continuum,
             starlight,
             config,
         })
@@ -112,6 +117,7 @@ impl NsbEvaluator {
             descriptions.push(NsbComponentDescriptor {
                 name: "airglow",
                 metadata: airglow_metadata(
+                    self.config.airglow_model,
                     self.config.site_profile,
                     observer,
                     None,
@@ -594,6 +600,7 @@ impl NsbEvaluator {
                 systematic_uncertainty: None,
                 total_uncertainty: None,
                 metadata: airglow_metadata(
+                    self.config.airglow_model,
                     self.config.site_profile,
                     query.observer,
                     Some(&solar),

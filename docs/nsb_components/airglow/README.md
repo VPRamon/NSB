@@ -16,7 +16,7 @@ calibration.
 **Option D (current policy):** NSB supports arbitrary-location Airglow evaluation
 through `NsbEvaluator`, but the empirical continuum is **Paranal-derived /
 Paranal-trained** (Noll/SkyCalc lineage, including FORS1 residual continuum
-heritage). Without an explicit validated scientific profile it is an **explicit
+heritage). Without explicit admitted site-calibration evidence it is an **explicit
 generic/planning proxy**, including when the observer is physically at Paranal.
 A geographically generic API is not a globally calibrated dataset, and source
 provenance is not calibration evidence for the source location. Geometry,
@@ -25,26 +25,48 @@ F10.7, atmosphere, extinction, or an explicit scale cannot upgrade maturity to
 
 Normal applications configure Airglow through `NsbModelConfig` and evaluate it
 through `NsbEvaluator`. Direct construction of the internal Airglow component or
-its continuum calibration is not part of the supported public API. The public
-`components::airglow` route is intentionally limited to advanced geometry and
-scientific-profile types needed by supported configuration and diagnostics.
+its continuum calibration is not part of the supported public API. The public `components::airglow` route contains the scientific `AirglowModel`
+selector plus advanced geometry types needed by supported configuration and
+diagnostics. The root API also re-exports `AirglowModel` for normal
+configuration.
+
+NSB exposes `AirglowModel` as the stable scientific model-selection contract
+even though the first release supports one scientific implementation. The
+deterministic default is `AirglowModel::ParanalNollSkyCalcFors1`, named for the
+repository-documented Paranal-derived Noll/SkyCalc/FORS1 lineage. Callers may
+select it explicitly with `NsbModelConfig::with_airglow_model` and inspect the
+selection with `NsbModelConfig::airglow_model`.
+
+The concrete continuum/evaluator remains internal. Future scientifically
+validated models can extend the non-exhaustive enum without redesigning the
+configuration/evaluation path. Result metadata reports the scientific model
+identity separately from implementation/data provenance, geometry, site
+maturity, and the repository-wide `MODEL_VERSION`.
 
 ## Geographic support versus scientific calibration
 
 ```text
 Observatory / coordinates
         =
-physical observer location and geometry
+physical observer location
 
-SiteProfileId / AirglowScientificProfile
+AirglowModel
         =
-NSB assumptions and evidence-backed scientific maturity
+scientific Airglow model / parameterization
+
+AirglowGeometryModel
+        =
+emitting-volume line-of-sight geometry
+
+SiteProfileId
+        =
+site assumptions and evidence-backed scientific maturity
 ```
 
 These concerns are independent. Arbitrary valid Earth coordinates, named
 observatories, and user-provided Siderust observatory catalogs are supported
-geometrically. They default to `SiteProfileId::GenericClearSky` unless the
-scientific profile is selected explicitly. In particular:
+geometrically. They default to `SiteProfileId::GenericClearSky` unless another
+site profile is selected explicitly. In particular:
 
 - `--site PARANAL` does not create a calibrated Paranal Airglow result;
 - `--site CTAO-N` does not select `SiteProfileId::CtaNorth`;
@@ -58,9 +80,13 @@ Library users inspect the selected scientific maturity through
 `NsbModelConfig` and result metadata:
 
 ```rust
-use nsb::{CalibrationStatus, NsbModelConfig, SiteProfileId};
+use nsb::{AirglowModel, CalibrationStatus, NsbModelConfig, SiteProfileId};
 
 let config = NsbModelConfig::generic_clear_sky();
+assert_eq!(
+    config.airglow_model(),
+    AirglowModel::ParanalNollSkyCalcFors1,
+);
 assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
 assert_eq!(
     config.airglow_calibration_status(),
@@ -69,17 +95,20 @@ assert_eq!(
 assert!(!config.is_airglow_site_calibrated());
 ```
 
-`NsbModelConfig::airglow_scientific_profile()`,
-`airglow_calibration_status()`, and `is_airglow_site_calibrated()` describe the
-selected scientific assumptions before evaluation. Per-component result metadata
-derives its structured calibration status from the selected site profile's
+`NsbModelConfig::airglow_model()` reports the selected scientific model before
+evaluation. `airglow_calibration_status()` and
+`is_airglow_site_calibrated()` independently describe site-profile maturity.
+Per-component result metadata exposes `airglow_model` machine-readably and
+derives its calibration status from the selected site profile's
 `CalibrationStatus`; geometry and solar-activity provenance are reported
-separately.
+separately. Changing observer coordinates, F10.7, geometry, or site maturity does
+not silently change the declared scientific model identity.
 
 ## Evaluation stack
 
 ```text
-continuum baseline
+selected AirglowModel
+  -> model-specific continuum baseline
   x seasonal/time-of-night correction
   x F10.7 solar-activity correction
   x selected emitting-volume line-of-sight geometry
@@ -208,13 +237,13 @@ produce zero component output.
 At the geometric horizon a thin shell produces altitude-dependent factors
 (approximately 6.012, 6.097, and 6.185 at observer altitudes 0, 2.5, and 5 km).
 That dependence is expected from spherical ray geometry and differs from the
-observer-altitude-independent historical Van Rhijn formula. Cross-model
-comparisons are available via
-`cargo run -p nsb --example airglow_geometry_comparison`.
+observer-altitude-independent historical Van Rhijn formula. Cross-model and
+resolution-convergence checks remain internal validation tests so the numerical
+integrator is not part of the public API contract.
 
-The direct/reference algorithm is retained as the runtime path. It has an
-explicit, configurable even subdivision count for convergence testing and no
-cache or interpolation layer. Benchmark numbers live in the
+The direct/reference algorithm is retained as the runtime path. Its subdivision
+count is an internal convergence/performance choice rather than caller
+configuration. Benchmark numbers live in the
 [performance contract](../../specifications/performance.md).
 
 ## Vertical profile contract

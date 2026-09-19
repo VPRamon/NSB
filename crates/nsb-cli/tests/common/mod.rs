@@ -6,8 +6,7 @@
 
 use nsb::components::airglow::{
     AirglowWavelengthApplicability, ValidatedZenithDomain, VerticalEmissionProfile,
-    VerticalEmissionProfileDefinition, VerticalProfileNormalization,
-    VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+    VerticalEmissionProfileDefinition,
 };
 use siderust::checksum::{sha256, to_hex};
 use siderust::coordinates::frames::Galactic;
@@ -173,29 +172,26 @@ pub(crate) fn synthetic_vertical_profile(
     id: &str,
     peak_emissivity: f64,
 ) -> VerticalEmissionProfile {
-    VerticalEmissionProfile::new(VerticalEmissionProfileDefinition {
-        schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
-        profile_id: id.into(),
-        altitude_km: vec![
-            Kilometers::new(80.0),
-            Kilometers::new(90.0),
-            Kilometers::new(100.0),
-        ],
-        relative_emissivity: vec![0.0, peak_emissivity, 0.0],
-        normalization: VerticalProfileNormalization::UnitVerticalIntegral,
-        wavelength: AirglowWavelengthApplicability {
-            min: Nanometers::new(300.0),
-            max: Nanometers::new(650.0),
-            band: "synthetic NSB optical validation band".into(),
-        },
-        assumptions: "Synthetic triangular layer for CLI transport validation only".into(),
-        provenance: "Generated in crates/nsb-cli/tests/common/mod.rs".into(),
-        license: "Synthetic test data; AGPL-3.0-only repository fixture".into(),
-        validated_zenith: ValidatedZenithDomain {
-            min: Degrees::new(0.0),
-            max: Degrees::new(90.0),
-        },
-    })
+    VerticalEmissionProfile::new(
+        VerticalEmissionProfileDefinition::new(
+            id,
+            vec![
+                Kilometers::new(80.0),
+                Kilometers::new(90.0),
+                Kilometers::new(100.0),
+            ],
+            vec![0.0, peak_emissivity, 0.0],
+            AirglowWavelengthApplicability::new(
+                Nanometers::new(300.0),
+                Nanometers::new(650.0),
+                "synthetic NSB optical validation band",
+            ),
+            ValidatedZenithDomain::new(Degrees::new(0.0), Degrees::new(90.0)),
+        )
+        .with_assumptions("Synthetic triangular layer for CLI transport validation only")
+        .with_provenance("Generated in crates/nsb-cli/tests/common/mod.rs")
+        .with_license("Synthetic test data; AGPL-3.0-only repository fixture"),
+    )
     .unwrap()
 }
 

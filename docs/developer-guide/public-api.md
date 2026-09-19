@@ -34,7 +34,7 @@ Typical imports from the crate root:
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult` |
-| Model configuration | `NsbModelConfig`, `MoonlightModel`, `StarlightModel`, `SiteProfileId` |
+| Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightModel`, `SiteProfileId` |
 | Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfile`, `SiteProfileId` |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
 | Errors | `NsbError`, `Result` |
@@ -57,11 +57,31 @@ documented equatorial constructors.
 ### Advanced API
 
 Intended for a concrete specialized configuration or inspection need that the
-evaluator cannot express through its defaults. Airglow's only advanced public
-route is `components::airglow`: its geometry/profile types configure
-`NsbModelConfig::with_airglow_geometry`. `Airglow`, `AirglowContinuum`, and
-their component-only output are implementation details; applications evaluate
-Airglow through `NsbEvaluator` results.
+evaluator cannot express through its defaults. Airglow's public scientific model
+selector is root-exported as `AirglowModel`; the advanced
+`components::airglow` route also exposes geometry/profile types that configure
+`NsbModelConfig::with_airglow_geometry`. Direct geometry evaluation,
+integrator-resolution controls, and geometry-metadata construction are internal
+validation/runtime details. `Airglow`, `AirglowContinuum`, and their
+component-only output are implementation details; applications evaluate Airglow
+through `NsbEvaluator` results.
+
+Airglow exposes `AirglowModel` as a stable scientific model-selection contract
+independently of how many implementations are currently supported. The
+first-release `NsbModelConfig::generic_clear_sky()` deterministically selects
+`AirglowModel::ParanalNollSkyCalcFors1`; callers can select the same scientific
+model explicitly with `with_airglow_model` and inspect it with `airglow_model`.
+The enum is `#[non_exhaustive]` so later validated models can be added without
+redesigning `NsbModelConfig`.
+
+The concrete continuum/evaluator remains internal. Scientific model identity is
+separate from `AirglowGeometryModel` (line-of-sight/emitting-volume geometry)
+and `SiteProfileId` (site assumptions and evidence-backed maturity). Evaluated
+Airglow metadata exposes the selected `airglow_model` machine-readably while
+asset provenance/schema/checksum, geometry metadata, site maturity, and
+`MODEL_VERSION` retain their distinct meanings. NSB does not retain unsupported
+implementations solely for API compatibility; intentionally supported scientific
+reference models may coexist behind this selection contract.
 
 Other advanced component models and offline F10.7 store types remain available
 through their deliberate component or `solar_activity` routes.

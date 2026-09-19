@@ -69,6 +69,7 @@ struct ModelJson {
     f107_dataset_id: Option<String>,
     f107_snapshot_id: Option<String>,
     f107_checksum_sha256: Option<String>,
+    airglow_model: &'static str,
     airglow_geometry: &'static str,
     zodiacal_extinction: &'static str,
 }
@@ -114,6 +115,7 @@ struct ComponentMetadataJson {
     provenance: String,
     validated_domain: String,
     band_diagnostic: BandDiagnosticJson,
+    airglow_model: Option<&'static str>,
     solar_activity: Option<SolarActivityJson>,
     airglow_geometry: Option<AirglowGeometryJson>,
 }
@@ -336,6 +338,7 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             nsb::SolarActivitySource::Dataset(store) => store.checksum_sha256.clone(),
             _ => None,
         },
+        airglow_model: config.airglow_model().as_str(),
         airglow_geometry: config.airglow_geometry.model_id(),
         zodiacal_extinction: config.zodiacal_extinction.as_str(),
     }
@@ -357,6 +360,7 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
         provenance: metadata.provenance.to_string(),
         validated_domain: metadata.validated_domain.to_string(),
         band_diagnostic: band_diagnostic_json(metadata.band_diagnostic),
+        airglow_model: metadata.airglow_model.map(|model| model.as_str()),
         solar_activity: metadata
             .solar_activity
             .as_ref()

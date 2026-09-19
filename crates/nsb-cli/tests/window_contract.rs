@@ -35,6 +35,10 @@ fn window_json_v1_contains_audit_metadata() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-window-json-v1");
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
+    assert_eq!(
+        value["model"]["airglow_model"],
+        "paranal-noll-skycalc-fors1"
+    );
     let expected_component_count = if nsb::Starlight::bundled_production_available() {
         4
     } else {
@@ -43,6 +47,16 @@ fn window_json_v1_contains_audit_metadata() {
     assert_eq!(
         value["component_metadata"].as_array().unwrap().len(),
         expected_component_count
+    );
+    let airglow = value["component_metadata"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|component| component["name"] == "airglow")
+        .expect("airglow component metadata");
+    assert_eq!(
+        airglow["metadata"]["airglow_model"],
+        "paranal-noll-skycalc-fors1"
     );
 }
 

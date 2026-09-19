@@ -333,6 +333,8 @@ impl StarlightModel {
 pub struct NsbModelConfig {
     /// Scattered-moonlight implementation.
     pub moonlight_model: MoonlightModel,
+    /// Airglow scientific model/parameterization.
+    pub airglow_model: airglow::AirglowModel,
     /// Atmospheric and airglow site profile.
     pub site_profile: SiteProfileId,
     /// Optional explicit starlight product.
@@ -350,6 +352,7 @@ impl NsbModelConfig {
     pub fn generic_clear_sky() -> Self {
         Self {
             moonlight_model: MoonlightModel::Jones2013Spectral,
+            airglow_model: airglow::AirglowModel::ParanalNollSkyCalcFors1,
             site_profile: SiteProfileId::GenericClearSky,
             starlight_model: default_starlight_model(),
             solar_activity: crate::solar_activity::SolarActivitySource::Automatic,
@@ -366,6 +369,17 @@ impl NsbModelConfig {
     /// CTAO-South planning configuration.
     pub fn cta_s_planning() -> Self {
         Self::generic_clear_sky().with_site_profile(SiteProfileId::CtaSouth)
+    }
+
+    /// Select the Airglow scientific model independently of geometry and site maturity.
+    pub fn with_airglow_model(mut self, model: airglow::AirglowModel) -> Self {
+        self.airglow_model = model;
+        self
+    }
+
+    /// Return the selected Airglow scientific model.
+    pub const fn airglow_model(&self) -> airglow::AirglowModel {
+        self.airglow_model
     }
 
     /// Replace the site profile.
