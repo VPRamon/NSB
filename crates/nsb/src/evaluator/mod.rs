@@ -21,7 +21,6 @@ pub use metadata::{
     BandDiagnostic, ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
 };
 pub use types::{
-    ComponentMask, MoonlightModel, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult,
-    Observer, PointQuery, SiteWindowContext, StarlightModel, Target, ThresholdQuery,
-    ThresholdQueryResult,
+    ComponentMask, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult, Observer,
+    PointQuery, SiteWindowContext, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
 };
