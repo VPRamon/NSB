@@ -9,8 +9,8 @@ use super::search::{
 };
 use super::types::*;
 use crate::components::airglow::AirglowContinuum;
-use crate::components::zodiacal::ZodiacalLight;
 use crate::components::moonlight::MoonlightModel;
+use crate::components::zodiacal::ZodiacalLight;
 use crate::components::{airglow, moonlight, starlight};
 use crate::error::{NsbError, Result};
 use crate::NSB_S10_ZP;
