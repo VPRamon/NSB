@@ -283,10 +283,6 @@ fn zero_outputs() -> MoonOutputs {
     }
 }
 
-fn standard_clear_sky_conditions(location: Geodetic<ECEF>) -> AtmosphericConditions {
-    AtmosphericConditions::generic_clear_sky(location)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -306,7 +302,7 @@ mod tests {
     #[test]
     fn cta_n_moonlight_profile_changes_atmospheric_conditions() {
         let location = cta_n();
-        let generic = standard_clear_sky_conditions(location);
+        let generic = AtmosphericConditions::generic_clear_sky(location);
         let profile = SiteProfileId::CtaNorth.profile(location);
 
         assert_ne!(
