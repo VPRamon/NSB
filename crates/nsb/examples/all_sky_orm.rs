@@ -18,13 +18,13 @@
 //! an observer looking upward with North at the top and East at the left.
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery, Target};
+use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery};
 use plotters::prelude::*;
 use qtty::angular::Degrees;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::catalogs::observatories::ObservatoryCatalog;
 use siderust::coordinates::frames::EquatorialMeanJ2000;
-use siderust::coordinates::spherical;
+use siderust::coordinates::spherical::direction::Horizontal as HorizontalDirection;
 use siderust::coordinates::transform::SphericalDirectionAstroExt;
 use siderust::time::JulianDate;
 use std::env;
@@ -54,18 +54,11 @@ struct Args {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct SkyCellGeometry {
+struct SkyCell {
     az_min: Degrees,
     az_max: Degrees,
     alt_min: Degrees,
     alt_max: Degrees,
-    sample_az: Degrees,
-    sample_alt: Degrees,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct SkyCell {
-    geometry: SkyCellGeometry,
     radiance: BandPhotonRadiance,
 }
 
@@ -107,9 +100,8 @@ fn run() -> AppResult<()> {
         .map(|component| display_component_name(component.name))
         .collect::<Vec<_>>();
 
-    let grid = generate_sky_grid(args.step);
     let started = Instant::now();
-    let cells = evaluate_sky(&evaluator, observer, time, jd_tt, &grid)?;
+    let cells = evaluate_sky(&evaluator, observer, time, jd_tt, args.step)?;
     let elapsed = started.elapsed();
     let color_range = radiance_range(&cells)?;
 
@@ -221,7 +213,13 @@ Colour: linear total integrated 300-650 nm photon radiance."
     );
 }
 
-fn generate_sky_grid(step: Degrees) -> Vec<SkyCellGeometry> {
+fn evaluate_sky(
+    evaluator: &NsbEvaluator,
+    observer: Observer,
+    time: Time<UTC>,
+    jd_tt: JulianDate,
+    step: Degrees,
+) -> AppResult<Vec<SkyCell>> {
     let altitude_bins = (Degrees::QUARTER_TURN / step).ceil() as usize;
     let azimuth_bins = (Degrees::FULL_TURN / step).ceil() as usize;
     let mut cells = Vec::with_capacity(altitude_bins * azimuth_bins);
@@ -230,67 +228,39 @@ fn generate_sky_grid(step: Degrees) -> Vec<SkyCellGeometry> {
     while alt_min < Degrees::QUARTER_TURN {
         let alt_max = (alt_min + step).min(Degrees::QUARTER_TURN);
         let mut az_min = Degrees::zero();
+
         while az_min < Degrees::FULL_TURN {
             let az_max = (az_min + step).min(Degrees::FULL_TURN);
-            cells.push(SkyCellGeometry {
+            let sample_alt = alt_min.mean(alt_max);
+            let sample_az = az_min.mean(az_max);
+            let horizontal = HorizontalDirection::new(sample_alt, sample_az);
+            let target = horizontal
+                .to_equatorial(&jd_tt, &observer)
+                .to_frame::<EquatorialMeanJ2000>(&jd_tt);
+            let query =
+                PointQuery::new(observer, time, target).with_components(ComponentMask::ALL);
+            let radiance = evaluator.evaluate(&query)?.integrated;
+
+            if !radiance.is_finite() || radiance < BandPhotonRadiance::zero() {
+                return Err(io::Error::other(format!(
+                    "non-finite or negative NSB at az={sample_az:.3} alt={sample_alt:.3}: {radiance}"
+                ))
+                .into());
+            }
+
+            cells.push(SkyCell {
                 az_min,
                 az_max,
                 alt_min,
                 alt_max,
-                sample_az: az_min.mean(az_max),
-                sample_alt: alt_min.mean(alt_max),
+                radiance,
             });
             az_min = az_max;
         }
         alt_min = alt_max;
     }
 
-    cells
-}
-
-fn evaluate_sky(
-    evaluator: &NsbEvaluator,
-    observer: Observer,
-    time: Time<UTC>,
-    jd_tt: JulianDate,
-    grid: &[SkyCellGeometry],
-) -> AppResult<Vec<SkyCell>> {
-    let mut cells = Vec::with_capacity(grid.len());
-
-    for geometry in grid {
-        let target = horizontal_to_target(observer, jd_tt, geometry.sample_az, geometry.sample_alt);
-        let query = PointQuery::new(observer, time, target).with_components(ComponentMask::ALL);
-        let result = evaluator.evaluate(&query)?;
-        let radiance = result.integrated;
-        if !radiance.is_finite() || radiance < BandPhotonRadiance::zero() {
-            return Err(io::Error::other(format!(
-                "non-finite or negative NSB at az={:.3} alt={:.3}: {radiance}",
-                geometry.sample_az, geometry.sample_alt
-            ))
-            .into());
-        }
-        cells.push(SkyCell {
-            geometry: *geometry,
-            radiance,
-        });
-    }
-
     Ok(cells)
-}
-
-fn horizontal_to_target(
-    observer: Observer,
-    jd_tt: JulianDate,
-    azimuth: Degrees,
-    altitude: Degrees,
-) -> Target {
-    // Siderust's horizontal direction constructor is (altitude, azimuth), with
-    // azimuth measured clockwise from North through East. The public horizontal
-    // transform returns true-of-date equatorial coordinates; rotate those into
-    // the J2000 mean equatorial frame used by NSB's Target alias.
-    let horizontal = spherical::direction::Horizontal::new(altitude, azimuth);
-    let true_of_date = horizontal.to_equatorial(&jd_tt, &observer);
-    true_of_date.to_frame::<EquatorialMeanJ2000>(&jd_tt)
 }
 
 fn radiance_range(cells: &[SkyCell]) -> AppResult<ColorRange> {
@@ -330,12 +300,11 @@ fn render_map(
     ))?;
 
     for cell in cells {
-        let g = cell.geometry;
         let corners = [
-            project_fisheye(g.az_min, g.alt_min, SKY_CENTER, SKY_RADIUS),
-            project_fisheye(g.az_max, g.alt_min, SKY_CENTER, SKY_RADIUS),
-            project_fisheye(g.az_max, g.alt_max, SKY_CENTER, SKY_RADIUS),
-            project_fisheye(g.az_min, g.alt_max, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_min, cell.alt_min, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_max, cell.alt_min, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_max, cell.alt_max, SKY_CENTER, SKY_RADIUS),
+            project_fisheye(cell.az_min, cell.alt_max, SKY_CENTER, SKY_RADIUS),
         ]
         .into_iter()
         .map(to_pixel)
@@ -442,7 +411,7 @@ fn draw_color_bar(
         ("sans-serif", 18).into_font(),
     ))?;
     root.draw(&Text::new(
-        "ph cm^-2 ns^-1 sr^-1  (linear scale)",
+        "linear scale",
         (955, 145),
         ("sans-serif", 17).into_font(),
     ))?;
@@ -451,10 +420,9 @@ fn draw_color_bar(
         let t = f64::from(tick) / 5.0;
         let y = Y1 - (f64::from(height) * t).round() as i32;
         let value = range.min + (range.max - range.min) * t;
-        let numeric = value / BandPhotonRadiance::one();
         root.draw(&PathElement::new(vec![(X1, y), (X1 + 8, y)], BLACK))?;
         root.draw(&Text::new(
-            format!("{numeric:.3e}"),
+            format!("{value:.3e}"),
             (X1 + 14, y + 5),
             ("monospace", 16).into_font(),
         ))?;
