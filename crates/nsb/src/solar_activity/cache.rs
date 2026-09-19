@@ -1,6 +1,6 @@
 use super::{bundled_f107_store, resolve_f107, F107Store, SolarActivitySource};
 use crate::components::airglow::units::SolarFluxUnits;
-use chrono::{DateTime, NaiveDate};
+use chrono::{DateTime, NaiveDate, Utc};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use tempoch::{Time, UTC};
@@ -69,7 +69,7 @@ fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
         })
         .flatten()
         .filter_map(|value| DateTime::parse_from_rfc3339(value).ok())
-        .map(|date_time| date_time.date_naive())
+        .map(|date_time| date_time.with_timezone(&Utc).date_naive())
         .collect()
 }
 
@@ -77,6 +77,26 @@ fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
 mod tests {
     use super::*;
     use chrono::{Duration, TimeZone, Utc};
+
+    #[test]
+    fn transition_dates_are_normalized_to_utc() {
+        let mut store = bundled_f107_store().unwrap().clone();
+        let mut record = store
+            .records
+            .first()
+            .expect("bundled F10.7 store must contain records")
+            .clone();
+        record.forecast_issued_at_utc = None;
+        record.retrieved_at_utc = Some("2026-01-01T23:30:00-02:00".into());
+        store.records = vec![record];
+
+        let transitions = transition_dates(&store);
+        let local_offset_date = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let utc_date = NaiveDate::from_ymd_opt(2026, 1, 2).unwrap();
+
+        assert!(!transitions.contains(&local_offset_date));
+        assert!(transitions.contains(&utc_date));
+    }
 
     #[test]
     fn cached_values_match_full_resolution_across_stable_and_transition_dates() {
