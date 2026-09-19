@@ -160,6 +160,7 @@ where
         ))
         .into());
     }
+    sky_grid_dimensions(step)?;
 
     if output.as_os_str().is_empty() {
         return Err(invalid_input("--output path must not be empty").into());
@@ -214,6 +215,43 @@ Colour: linear total integrated 300-650 nm photon radiance."
     );
 }
 
+fn sky_grid_dimensions(step: Degrees) -> AppResult<(usize, usize, usize)> {
+    let altitude_bins = (Degrees::QUARTER_TURN / step).ceil();
+    let azimuth_bins = (Degrees::FULL_TURN / step).ceil();
+    let requested_cells = altitude_bins * azimuth_bins;
+
+    if !altitude_bins.is_finite()
+        || !azimuth_bins.is_finite()
+        || !requested_cells.is_finite()
+        || altitude_bins < 1.0
+        || azimuth_bins < 1.0
+        || requested_cells > MAX_SKY_CELLS as f64
+    {
+        return Err(invalid_input(format!(
+            "--step-deg {step} produces a sky grid exceeding the {MAX_SKY_CELLS}-cell limit"
+        ))
+        .into());
+    }
+
+    // The practical cell limit above bounds each positive dimension before the
+    // float-to-usize conversion. Keep checked arithmetic as a second guard so
+    // the allocation size can never wrap even if these constraints change.
+    let altitude_bins = altitude_bins as usize;
+    let azimuth_bins = azimuth_bins as usize;
+    let cell_count = altitude_bins
+        .checked_mul(azimuth_bins)
+        .ok_or_else(|| invalid_input("--step-deg produces a sky grid whose size overflows usize"))?;
+
+    if cell_count > MAX_SKY_CELLS {
+        return Err(invalid_input(format!(
+            "--step-deg {step} produces {cell_count} sky cells; maximum is {MAX_SKY_CELLS}"
+        ))
+        .into());
+    }
+
+    Ok((altitude_bins, azimuth_bins, cell_count))
+}
+
 fn evaluate_sky(
     evaluator: &NsbEvaluator,
     observer: Observer,
@@ -221,9 +259,8 @@ fn evaluate_sky(
     jd_tt: JulianDate,
     step: Degrees,
 ) -> AppResult<Vec<SkyCell>> {
-    let altitude_bins = (Degrees::QUARTER_TURN / step).ceil() as usize;
-    let azimuth_bins = (Degrees::FULL_TURN / step).ceil() as usize;
-    let mut cells = Vec::with_capacity(altitude_bins * azimuth_bins);
+    let (_, _, cell_count) = sky_grid_dimensions(step)?;
+    let mut cells = Vec::with_capacity(cell_count);
 
     let mut alt_min = Degrees::zero();
     while alt_min < Degrees::QUARTER_TURN {
@@ -554,6 +591,25 @@ mod tests {
 
     fn close(a: f64, b: f64) -> bool {
         (a - b).abs() < 1.0e-10
+    }
+
+    #[test]
+    fn rejects_grid_resolution_exceeding_cell_limit() {
+        for step in ["0.001", "1e-20"] {
+            let error = parse_args(["--step-deg".to_string(), step.to_string()])
+                .expect_err("pathological grid resolution should fail");
+            assert!(
+                error.to_string().contains("cell limit"),
+                "unexpected error for {step}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn accepts_default_grid_resolution() {
+        let (_, _, cell_count) =
+            sky_grid_dimensions(DEFAULT_STEP).expect("default grid should fit allocation limit");
+        assert_eq!(cell_count, 18 * 72);
     }
 
     #[test]
