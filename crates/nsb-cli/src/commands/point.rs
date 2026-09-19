@@ -56,12 +56,13 @@ pub(crate) fn model_config(
     components: components::ParsedComponents,
     site_profile: nsb::SiteProfileId,
 ) -> Result<NsbModelConfig> {
-    let mut config = NsbModelConfig::generic_clear_sky();
-    config.site_profile = site_profile;
-    config.moonlight_model = match args.moonlight_model {
+    let moonlight_model = match args.moonlight_model {
         crate::cli::MoonlightModelArg::Jones2013 => MoonlightModel::Jones2013Spectral,
         crate::cli::MoonlightModelArg::Ks1991 => MoonlightModel::KrisciunasSchaefer1991,
     };
+    let mut config = NsbModelConfig::generic_clear_sky()
+        .with_site_profile(site_profile)
+        .with_moonlight_model(moonlight_model);
     if let Some(sfu) = args.solar_radio_flux_sfu {
         if !sfu.is_finite() || sfu <= 0.0 {
             anyhow::bail!("--solar-radio-flux-sfu must be finite and positive, got {sfu}");
