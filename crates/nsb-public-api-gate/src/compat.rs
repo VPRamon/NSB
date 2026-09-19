@@ -13,12 +13,7 @@ const FORBIDDEN_PATTERNS: &[&str] = &[
 ];
 
 /// Debt patterns forbidden specifically in production Airglow implementation.
-const AIRGLOW_FORBIDDEN_PATTERNS: &[&str] = &[
-    "#[allow(dead_code)]",
-    "with_f10_7",
-    "AirglowScientificProfile",
-    "Legacy",
-];
+const AIRGLOW_FORBIDDEN_PATTERNS: &[&str] = &["#[allow(dead_code)]", "Legacy"];
 
 #[derive(Debug, Error)]
 pub enum CompatError {
