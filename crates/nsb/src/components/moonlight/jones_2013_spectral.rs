@@ -9,41 +9,27 @@ use qtty::radiometry::{
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
 };
-use qtty::Second;
 
 /// Wavelength-resolved Jones et al. (2013) scattered-moonlight evaluator.
-pub struct Jones2013Spectral {
+pub(crate) struct Jones2013Spectral {
     location: Geodetic<ECEF>,
     conditions: AtmosphericConditions,
-    extinction_scale: Option<ScaleFactors>,
 }
 
 impl Jones2013Spectral {
-    /// Default coarse scan step for range searches.
-    pub const DEFAULT_PERIOD_SEARCH_STEP: Second = Second::new(600.0);
-
-    /// Build with explicit observer and atmospheric conditions.
-    pub fn new(location: Geodetic<ECEF>, conditions: AtmosphericConditions) -> Self {
+    pub(crate) fn new(location: Geodetic<ECEF>, conditions: AtmosphericConditions) -> Self {
         Self {
             location,
             conditions,
-            extinction_scale: None,
         }
     }
 
-    /// Build with generic altitude-derived clear-sky conditions.
-    pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
+    #[cfg(test)]
+    fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
         Self::new(location, standard_clear_sky_conditions(location))
     }
 
-    /// Override the default extinction coefficient by relative scaling.
-    pub fn with_extinction_scale(mut self, k_ext: MagnitudesPerAirmass) -> Self {
-        self.extinction_scale = Some(ScaleFactors::new(k_ext.value() / DEFAULT_K_EXT.value()));
-        self
-    }
-
-    /// Evaluate scattered moonlight toward a target at one UTC instant.
-    pub fn compute(
+    pub(crate) fn compute(
         &self,
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
@@ -52,34 +38,9 @@ impl Jones2013Spectral {
         compute_jones_2013_spectral(
             &geometry,
             bundled_solar_spectrum(),
-            self.extinction_scale.unwrap_or(ScaleFactors::new(1.0)),
+            ScaleFactors::new(1.0),
             self.atmosphere_profile(),
         )
-    }
-
-    /// Find periods whose integrated moonlight lies in the inclusive range.
-    pub fn periods_in_range(
-        &self,
-        window: Period<UTC>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-        min: PhotonsPerSquareCentimeterNanosecondSteradian,
-        max: PhotonsPerSquareCentimeterNanosecondSteradian,
-    ) -> Result<Vec<Period<UTC>>> {
-        self.periods_in_range_with_step(window, target, min, max, Self::DEFAULT_PERIOD_SEARCH_STEP)
-    }
-
-    /// Find in-range periods with an explicit coarse scan step.
-    pub fn periods_in_range_with_step(
-        &self,
-        window: Period<UTC>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-        min: PhotonsPerSquareCentimeterNanosecondSteradian,
-        max: PhotonsPerSquareCentimeterNanosecondSteradian,
-        sample_step: Second,
-    ) -> Result<Vec<Period<UTC>>> {
-        crate::window_search::periods_in_range(window, sample_step, min, max, |time| {
-            Ok(self.compute(time, target)?.integrated)
-        })
     }
 
     fn atmosphere_profile(&self) -> AtmosphereProfile {
@@ -239,12 +200,6 @@ mod tests {
         )
     }
 
-    fn test_window() -> Period<UTC> {
-        Period::new(
-            parse_utc("2023-09-04T02:00:00Z"),
-            parse_utc("2023-09-04T03:00:00Z"),
-        )
-    }
 
     #[test]
     fn periods_in_range_with_step_rejects_bad_step() {
