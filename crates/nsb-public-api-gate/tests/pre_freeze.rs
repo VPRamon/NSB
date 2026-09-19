@@ -50,11 +50,14 @@ fn pre_freeze_check_rejects_airglow_compatibility_debt() {
     fs::create_dir_all(&nested).expect("create temporary source");
     fs::write(
         source.join("model.rs"),
-        "#[allow(dead_code)]\nfn stale() {}\n",
+        "#[allow(dead_code)]\nfn stale() {}\nfn with_f10_7() {}\n",
     )
-    .expect("write stale allowance");
-    fs::write(nested.join("legacy.rs"), "enum LegacyDefault { Old }\n")
-        .expect("write nested compatibility debt");
+    .expect("write stale compatibility debt");
+    fs::write(
+        nested.join("legacy.rs"),
+        "enum LegacyDefault { Old }\nenum AirglowScientificProfile { Old }\n",
+    )
+    .expect("write nested compatibility debt");
 
     let error = run_check(&CheckOptions {
         repo: repo.clone(),
@@ -64,7 +67,32 @@ fn pre_freeze_check_rejects_airglow_compatibility_debt() {
     })
     .expect_err("compatibility debt must be rejected");
     assert!(error.to_string().contains("#[allow(dead_code)]"));
+    assert!(error.to_string().contains("with_f10_7"));
     assert!(error.to_string().contains("LegacyDefault"));
+    assert!(error.to_string().contains("AirglowScientificProfile"));
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}
+
+#[test]
+fn pre_freeze_check_allows_supported_airglow_model_names_containing_legacy() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/airglow/models");
+    fs::create_dir_all(&source).expect("create temporary source");
+    fs::write(
+        source.join("reference.rs"),
+        "pub enum ParanalLegacyReference { Reference }\n",
+    )
+    .expect("write supported scientific model name");
+
+    let outcome = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect("scientific model names must not be rejected solely for containing Legacy");
+    assert_eq!(outcome.status, GateStatus::Pass);
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }

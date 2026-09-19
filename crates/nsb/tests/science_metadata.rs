@@ -4,8 +4,8 @@ use nsb::components::airglow::{
     VerticalEmissionProfile, VerticalEmissionProfileDefinition,
 };
 use nsb::{
-    BandDiagnostic, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target,
-    DEG,
+    AirglowModel, BandDiagnostic, ComponentCalibrationStatus, ComponentMask, NsbEvaluator,
+    PointQuery, Target, DEG,
 };
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
@@ -87,6 +87,10 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
     assert_eq!(
         airglow.metadata.status,
         ComponentCalibrationStatus::GenericClearSky
+    );
+    assert_eq!(
+        airglow.metadata.airglow_model,
+        Some(AirglowModel::ParanalNollSkyCalcFors1)
     );
     assert!(airglow.metadata.provenance.contains("airglow_cont.dat"));
     // Bundled scientific baseline identity is pinned and machine-checkable.
@@ -229,6 +233,10 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
     assert_eq!(
         airglow.metadata.status,
         ComponentCalibrationStatus::GenericClearSky
+    );
+    assert_eq!(
+        airglow.metadata.airglow_model,
+        Some(AirglowModel::ParanalNollSkyCalcFors1)
     );
     let geometry = airglow.metadata.airglow_geometry.as_ref().unwrap();
     assert_eq!(geometry.model, "vertical_profile");

@@ -29,23 +29,37 @@ its continuum calibration is not part of the supported public API. The public
 `components::airglow` route is intentionally limited to advanced geometry
 types needed by supported configuration and diagnostics.
 
-NSB does not expose a public Airglow model-selection enum while only one runtime
-model is supported. The concrete continuum/model implementation is intentionally
-internal and may be replaced by a later scientifically validated implementation
-without changing the stable configuration/evaluation API. Such scientific
-changes must remain visible through component metadata/provenance and
-`MODEL_VERSION`.
+NSB exposes `AirglowModel` as the stable scientific model-selection contract
+even though the first release supports one scientific implementation. The
+deterministic default is `AirglowModel::ParanalNollSkyCalcFors1`, named for the
+repository-documented Paranal-derived Noll/SkyCalc/FORS1 lineage. Callers may
+select it explicitly with `NsbModelConfig::with_airglow_model` and inspect the
+selection with `NsbModelConfig::airglow_model`.
+
+The concrete continuum/evaluator remains internal. Future scientifically
+validated models can extend the non-exhaustive enum without redesigning the
+configuration/evaluation path. Result metadata reports the scientific model
+identity separately from implementation/data provenance, geometry, site
+maturity, and the repository-wide `MODEL_VERSION`.
 
 ## Geographic support versus scientific calibration
 
 ```text
 Observatory / coordinates
         =
-physical observer location and geometry
+physical observer location
+
+AirglowModel
+        =
+scientific Airglow model / parameterization
+
+AirglowGeometryModel
+        =
+emitting-volume line-of-sight geometry
 
 SiteProfileId
         =
-NSB assumptions and evidence-backed scientific maturity
+site assumptions and evidence-backed scientific maturity
 ```
 
 These concerns are independent. Arbitrary valid Earth coordinates, named
@@ -65,9 +79,13 @@ Library users inspect the selected scientific maturity through
 `NsbModelConfig` and result metadata:
 
 ```rust
-use nsb::{CalibrationStatus, NsbModelConfig, SiteProfileId};
+use nsb::{AirglowModel, CalibrationStatus, NsbModelConfig, SiteProfileId};
 
 let config = NsbModelConfig::generic_clear_sky();
+assert_eq!(
+    config.airglow_model(),
+    AirglowModel::ParanalNollSkyCalcFors1,
+);
 assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
 assert_eq!(
     config.airglow_calibration_status(),
@@ -76,17 +94,20 @@ assert_eq!(
 assert!(!config.is_airglow_site_calibrated());
 ```
 
-`NsbModelConfig::airglow_calibration_status()` and
-`is_airglow_site_calibrated()` describe the selected scientific maturity before
-evaluation. Per-component result metadata
-derives its structured calibration status from the selected site profile's
+`NsbModelConfig::airglow_model()` reports the selected scientific model before
+evaluation. `airglow_calibration_status()` and
+`is_airglow_site_calibrated()` independently describe site-profile maturity.
+Per-component result metadata exposes `airglow_model` machine-readably and
+derives its calibration status from the selected site profile's
 `CalibrationStatus`; geometry and solar-activity provenance are reported
-separately.
+separately. Changing observer coordinates, F10.7, geometry, or site maturity does
+not silently change the declared scientific model identity.
 
 ## Evaluation stack
 
 ```text
-continuum baseline
+selected AirglowModel
+  -> model-specific continuum baseline
   x seasonal/time-of-night correction
   x F10.7 solar-activity correction
   x selected emitting-volume line-of-sight geometry

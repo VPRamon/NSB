@@ -65,13 +65,22 @@ validation/runtime details. `Airglow`, `AirglowContinuum`, and their
 component-only output are implementation details; applications evaluate Airglow
 through `NsbEvaluator` results.
 
-Airglow intentionally has no public model-selection enum while there is only one
-supported runtime model. The concrete Airglow continuum/model implementation is
-not part of the stable API contract: callers configure durable inputs through
-`NsbModelConfig`, evaluate through `NsbEvaluator`, and inspect scientific
-identity, maturity, and provenance in component metadata. A scientifically
-updated Airglow implementation must update the relevant metadata/provenance and
-`MODEL_VERSION` without requiring a new compatibility-only legacy model.
+Airglow exposes `AirglowModel` as a stable scientific model-selection contract
+independently of how many implementations are currently supported. The
+first-release `NsbModelConfig::generic_clear_sky()` deterministically selects
+`AirglowModel::ParanalNollSkyCalcFors1`; callers can select the same scientific
+model explicitly with `with_airglow_model` and inspect it with `airglow_model`.
+The enum is `#[non_exhaustive]` so later validated models can be added without
+redesigning `NsbModelConfig`.
+
+The concrete continuum/evaluator remains internal. Scientific model identity is
+separate from `AirglowGeometryModel` (line-of-sight/emitting-volume geometry)
+and `SiteProfileId` (site assumptions and evidence-backed maturity). Evaluated
+Airglow metadata exposes the selected `airglow_model` machine-readably while
+asset provenance/schema/checksum, geometry metadata, site maturity, and
+`MODEL_VERSION` retain their distinct meanings. NSB does not retain unsupported
+implementations solely for API compatibility; intentionally supported scientific
+reference models may coexist behind this selection contract.
 
 Other advanced component models and offline F10.7 store types remain available
 through their deliberate component or `solar_activity` routes.

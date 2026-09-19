@@ -2,7 +2,7 @@ use super::{MoonlightModel, Observer, StarlightModel};
 use crate::components::airglow::calibration::{
     airglow_continuum_asset, AIRGLOW_CONTINUUM_ASSET_PATH,
 };
-use crate::components::airglow::NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG;
+use crate::components::airglow::{AirglowModel, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG};
 use crate::components::starlight::StarlightProvenance;
 use crate::site::{CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
 use crate::NSB_S10_ZP;
@@ -90,6 +90,8 @@ pub struct NsbComponentMetadata {
     pub validated_domain: Cow<'static, str>,
     /// Meaning of B/V fields.
     pub band_diagnostic: BandDiagnostic,
+    /// Optional scientific Airglow model identity for Airglow evaluations.
+    pub airglow_model: Option<AirglowModel>,
     /// Optional resolved F10.7 provenance for airglow evaluations.
     pub solar_activity: Option<crate::solar_activity::ResolvedSolarActivity>,
     /// Optional emitting-volume geometry provenance for Airglow evaluations.
@@ -108,12 +110,14 @@ pub(super) fn zodiacal_metadata() -> NsbComponentMetadata {
         provenance: "Leinert+1998 zodiacal S10 table; Noll+2012 approximate extinction; bundled solar spectrum".into(),
         validated_domain: "exoatmospheric Leinert table geometry plus generic Noll-style clear-sky attenuation".into(),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        airglow_model: None,
         solar_activity: None,
         airglow_geometry: None,
     }
 }
 
 pub(super) fn airglow_metadata(
+    model: AirglowModel,
     site_profile: SiteProfileId,
     observer: Observer,
     solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
@@ -139,7 +143,8 @@ pub(super) fn airglow_metadata(
     NsbComponentMetadata {
         status: profile.calibration_status.into(),
         provenance: Cow::Owned(format!(
-            "{}; scientific site profile {}; template {}; {}; {}; observer coordinates provide geometry only and do not select or promote this profile",
+            "scientific model {}; {}; scientific site profile {}; template {}; {}; {}; observer coordinates provide geometry only and do not select or promote this profile",
+            model.as_str(),
             profile.airglow.provenance,
             profile.name,
             profile.airglow.template,
@@ -154,6 +159,7 @@ pub(super) fn airglow_metadata(
             profile.airglow.assumptions
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        airglow_model: Some(model),
         solar_activity: solar.cloned(),
         airglow_geometry: Some(geometry.metadata()),
     }
@@ -187,6 +193,7 @@ pub(super) fn starlight_metadata(
             provenance: "no starlight model configured".into(),
             validated_domain: "not evaluable".into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+            airglow_model: None,
             solar_activity: None,
             airglow_geometry: None,
         },
@@ -235,6 +242,7 @@ fn starlight_map_metadata(
             map_checksum,
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        airglow_model: None,
         solar_activity: None,
         airglow_geometry: None,
     }
@@ -259,6 +267,7 @@ pub(super) fn moonlight_metadata(
                     profile.name
                 )),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+                airglow_model: None,
                 solar_activity: None,
                 airglow_geometry: None,
             }
@@ -270,6 +279,7 @@ pub(super) fn moonlight_metadata(
                 "published analytic V-band reference model; not the wavelength-resolved default"
                     .into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+            airglow_model: None,
             solar_activity: None,
             airglow_geometry: None,
         },

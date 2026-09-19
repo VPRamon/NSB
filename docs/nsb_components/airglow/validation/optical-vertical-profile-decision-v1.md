@@ -103,15 +103,19 @@ Producing calibrated CTAO profiles requires measurements and belongs to #38.
 
 ## Deterministic cross-model validation
 
-Run:
+Run the retained deterministic geometry checks directly:
 
 ```bash
-internal `components::airglow::geometry` convergence and cross-model tests
+cargo test -p nsb --lib components::airglow::geometry::tests::thin_profile_converges_to_same_height_van_rhijn_shell -- --exact
+cargo test -p nsb --lib components::airglow::geometry::tests::integration_converges_under_resolution_refinement -- --exact
 ```
 
-The example emits reviewable CSV for observer altitudes 0, 2.5, and 5 km;
-zenith angles 0, 30, 60, 75, 85, 89, and 90 degrees; and a 20 m thin shell,
-a broad layer, and a two-layer profile. Selected sea-level results are:
+The table below records the deterministic comparison matrix originally used for
+observer altitudes 0, 2.5, and 5 km; zenith angles 0, 30, 60, 75, 85, 89, and 90
+degrees; and a 20 m thin shell, a broad layer, and a two-layer profile. The
+public comparison example has been removed; the executable regression and
+convergence checks now live in the internal geometry tests. Selected sea-level
+results are:
 
 | Zenith angle | Van Rhijn | 20 m profile | Relative difference | Broad profile | Two-layer profile |
 |---:|---:|---:|---:|---:|---:|
@@ -131,13 +135,18 @@ Van Rhijn formula.
 
 ## Benchmark method
 
-`cargo bench -p nsb --bench airglow_geometry` measures the unchanged Van Rhijn
-factor, reference profile integration at 64 and 128 substeps, and complete
-Airglow evaluations on both paths. It uses Criterion with fixed input profiles
-and no network access. Caching was not added: correctness and an auditable
-reference integration path take priority until measurements show a real need.
+`cargo bench -p nsb --bench airglow_geometry` now measures complete Airglow
+evaluations for the default Van Rhijn geometry and a representative vertical
+profile. It uses Criterion with fixed input profiles and no network access.
+Integrator-resolution convergence is intentionally exercised by internal tests,
+not exposed as benchmark-time caller configuration. Caching was not added:
+correctness and an auditable reference integration path take priority until
+measurements show a real need.
 
-The 2026-09-02 short review run measured about 9 ns for Van Rhijn, 1.65 us for
-the 64-substep profile factor, 3.16 us at 128 substeps, and 13.5-13.9 ms for a
-complete evaluation with either geometry. Hardware and exact intervals are
-recorded in the [performance contract](../../../specifications/performance.md).
+The 2026-09-02 review numbers for direct geometry-factor microbenchmarks (about
+9 ns for Van Rhijn, 1.65 us at 64 profile substeps, and 3.16 us at 128 substeps)
+are recorded historical validation results; the current benchmark no longer
+exposes those internal resolution controls. The same review measured about
+13.5-13.9 ms for complete evaluation with either geometry. Hardware and exact
+intervals are recorded in the
+[performance contract](../../../specifications/performance.md).
