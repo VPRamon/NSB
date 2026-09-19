@@ -320,21 +320,51 @@ mod tests {
     }
 
     #[test]
-    fn jones_site_profile_constructor_is_explicit_api() {
-        let location = cta_n();
-        let model = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaNorth);
+    fn jones_site_profiles_preserve_atmospheric_dispatch_behavior() {
+        let location = Geodetic::new_raw(
+            SiderustDegrees::new(-70.4044),
+            SiderustDegrees::new(-24.6275),
+            Meters::new(2_635.0),
+        );
         let target = SphericalDirection::<EquatorialMeanJ2000>::new(
             SiderustDegrees::new(270.0),
             SiderustDegrees::new(-30.0),
         );
         let time = Time::<UTC>::from_chrono(
-            chrono::DateTime::parse_from_rfc3339("2023-09-04T02:00:00Z")
+            chrono::DateTime::parse_from_rfc3339("2023-09-29T03:00:00Z")
                 .unwrap()
                 .with_timezone(&chrono::Utc),
         );
 
-        let out = model.compute(time, target).unwrap();
-        assert!(out.integrated.value() >= 0.0);
+        let paranal = Jones2013Spectral::new(location, AtmosphericConditions::paranal_average())
+            .compute(time, target)
+            .unwrap();
+        let cta_s = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaSouth)
+            .compute(time, target)
+            .unwrap();
+        let cta_n = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaNorth)
+            .compute(time, target)
+            .unwrap();
+        let generic = Jones2013Spectral::for_site_profile(location, SiteProfileId::GenericClearSky)
+            .compute(time, target)
+            .unwrap();
+
+        for output in [&paranal, &cta_s, &cta_n, &generic] {
+            assert!(output.integrated.value().is_finite());
+            assert!(output.b_flux_s10.value().is_finite());
+            assert!(output.v_flux_s10.value().is_finite());
+            assert!(output.integrated.value() >= 0.0);
+        }
+        assert_eq!(
+            paranal.integrated.value().to_bits(),
+            cta_s.integrated.value().to_bits(),
+            "CTA-S currently aliases the explicit Paranal-like atmosphere"
+        );
+        assert_ne!(
+            cta_n.integrated.value(),
+            cta_s.integrated.value(),
+            "CTA-N planning atmosphere must change scattered moonlight vs CTA-S/Paranal"
+        );
     }
 
     #[test]
