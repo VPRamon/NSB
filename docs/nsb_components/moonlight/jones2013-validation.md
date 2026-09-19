@@ -7,10 +7,12 @@ accuracy limits.
 Non-goals: This document does not claim CTAO site calibration or independent
 SkyCalc agreement for every geometry.
 
-`Jones2013Spectral` implements wavelength-resolved scattered moonlight using the
-Jones et al. 2013 lunar reflectance/scattering formulation as provided through
-Siderust lunar photometry plus NSB's bundled solar spectrum, Mie phase grid, and
-multiple-scattering correction grid.
+The `MoonlightModel::Jones2013Spectral` implementation computes
+wavelength-resolved scattered moonlight using the Jones et al. 2013 lunar
+reflectance/scattering formulation as provided through Siderust lunar photometry
+plus NSB's bundled solar spectrum, Mie phase grid, and multiple-scattering
+correction grid. Callers select this scientific model through `NsbModelConfig`
+and evaluate it through `NsbEvaluator`; the concrete evaluator type is internal.
 
 ## Validated domain
 
@@ -21,34 +23,27 @@ The validation target is the optical planning band used by NSB:
 - target above horizon;
 - positive Moon-target separation;
 - topocentric Moon distance greater than zero;
-- clear-sky atmospheric conditions selected explicitly by the caller.
+- clear-sky atmospheric conditions supplied by the selected `SiteProfileId`.
 
 Outside that domain the implementation returns zero for non-observable geometry or propagates component errors through the evaluator.
 
 ## Atmospheric conditions
 
-`AtmosphericConditions` deliberately contains only atmospheric properties:
+The Jones implementation uses the atmospheric properties carried by the selected
+`SiteProfileId`: surface pressure, Rayleigh scale height, and Mie/aerosol
+optical-depth parameters. Observer altitude remains a property of the query
+observer rather than the site profile, so changing observer coordinates does not
+silently change `MoonlightModel`.
 
-- surface pressure;
-- Rayleigh scale height;
-- Mie/aerosol optical-depth parameters.
+`SiteProfileId::GenericClearSky` supplies the altitude-derived fallback.
+`CtaNorth` and `CtaSouth` supply explicit planning assumptions with their
+documented maturity. The current CTA-S atmosphere remains Paranal-like until
+dedicated CTA-S aerosol calibration data are bundled.
 
-It does not contain observer altitude. Altitude is taken from the `Geodetic<ECEF>` location supplied to `Jones2013Spectral`, so callers cannot accidentally combine a site profile from one observatory with the altitude of another site.
-
-The available constructors are:
-
-- `AtmosphericConditions::generic_clear_sky(location)`: altitude-derived
-  fallback; not site calibrated;
-- `AtmosphericConditions::paranal_average()`: Siderust's built-in Paranal-like
-  average atmosphere;
-- `AtmosphericConditions::cta_s_clear_sky()`: explicit CTA-S planning preset;
-  currently aliases the Paranal-like profile until dedicated CTA-S aerosol
-  calibration data are bundled;
-- `AtmosphericConditions::cta_n_clear_sky()`: explicit CTA-N planning preset
-  using a La Palma/ORM-range pressure with the currently bundled clear-sky Mie
-  parameterization.
-
-The distinction between generic and site/planning presets is intentional. Production CTA science should use explicit presets or externally calibrated atmospheric profiles rather than relying on `standard_clear_sky`.
+Callers select these assumptions with `NsbModelConfig::with_site_profile`.
+There is no stable direct Jones constructor, extinction-scale override, or
+model-specific atmosphere override in the Moonlight API. Scientific model
+identity and site calibration/maturity remain separate concepts.
 
 ## Empirical Mie weight
 
