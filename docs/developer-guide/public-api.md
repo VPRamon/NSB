@@ -83,6 +83,29 @@ asset provenance/schema/checksum, geometry metadata, site maturity, and
 implementations solely for API compatibility; intentionally supported scientific
 reference models may coexist behind this selection contract.
 
+Moonlight follows the same runtime-selection architecture at a smaller public
+surface. `MoonlightModel` is root-exported from the Moonlight component domain,
+is `#[non_exhaustive]`, and is the durable scientific selection contract.
+`NsbModelConfig::default()` deterministically selects
+`MoonlightModel::Jones2013Spectral`; callers can select either that
+wavelength-resolved model or the deliberately supported published
+`MoonlightModel::KrisciunasSchaefer1991` reference model with
+`with_moonlight_model` and inspect the choice with `moonlight_model`.
+
+The concrete Jones and Krisciunas–Schaefer evaluator types, `MoonOutputs`,
+`DEFAULT_K_EXT`, model-specific range-search helpers/constants, and the Jones
+extinction-scale tuning hook are implementation or validation details rather
+than a second public evaluation API. Applications evaluate Moonlight through
+`NsbEvaluator` and receive the shared `NsbComponent` result contract.
+
+Moonlight scientific model identity is independent from `SiteProfileId`.
+Site profiles select atmospheric assumptions and maturity; they do not silently
+replace the selected `MoonlightModel`. The CLI model audit reports the
+selection through the canonical `MoonlightModel::as_str()` identity. Existing
+Moonlight provenance/status metadata remains unchanged in this release; adding a
+component-specific Moonlight model field or a generic cross-component identity
+framework is deferred to the separate metadata review.
+
 Other advanced component models and offline F10.7 store types remain available
 through their deliberate component or `solar_activity` routes.
 
@@ -110,6 +133,7 @@ These must remain `pub(crate)` or private:
 - Noll extinction helper functions and internal geometry integrator constants
 - Bundled asset filesystem paths and internal date/storage helpers
 - Unit conversions and SkyCalc-specific internal quantity aliases
+- Moonlight concrete evaluators, component-only outputs, tuning constants, and model-specific search helpers
 - `reference`, internal spectral orchestration, and `window_search`
 
 If a needed type is missing from the intended supported classes above, open an
