@@ -1,8 +1,8 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
-use nsb::components::airglow::{AirglowGeometryModel, AirglowScientificProfile, VanRhijnConfig};
+use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
 use nsb::{
     bundled_f107_store, CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbEvaluator,
-    NsbModelConfig, PointQuery, SiteProfileId, SolarFluxUnits, Target, DEG,
+    NsbModelConfig, PointQuery, SolarFluxUnits, Target, DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -51,37 +51,6 @@ fn descriptor_status(
 }
 
 #[test]
-fn scientific_profile_is_machine_readable_and_uses_site_maturity_as_source_of_truth() {
-    let generic = AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky);
-    let north = AirglowScientificProfile::BuiltIn(SiteProfileId::CtaNorth);
-    let south = AirglowScientificProfile::BuiltIn(SiteProfileId::CtaSouth);
-
-    assert_eq!(generic.as_str(), "generic-clear-sky");
-    assert_eq!(north.as_str(), "ctao-north-planning");
-    assert_eq!(south.as_str(), "ctao-south-planning");
-
-    assert_eq!(generic.site_profile(), Some(SiteProfileId::GenericClearSky));
-    assert_eq!(north.site_profile(), Some(SiteProfileId::CtaNorth));
-    assert_eq!(south.site_profile(), Some(SiteProfileId::CtaSouth));
-
-    assert_eq!(
-        generic.calibration_status(),
-        CalibrationStatus::GenericFallback
-    );
-    assert_eq!(
-        north.calibration_status(),
-        CalibrationStatus::PlanningPreset
-    );
-    assert_eq!(
-        south.calibration_status(),
-        CalibrationStatus::PlanningPreset
-    );
-    assert!(!generic.is_site_calibrated());
-    assert!(!north.is_site_calibrated());
-    assert!(!south.is_site_calibrated());
-}
-
-#[test]
 fn component_metadata_status_is_deliberately_derived_from_site_calibration_status() {
     assert_eq!(
         ComponentCalibrationStatus::from(CalibrationStatus::GenericFallback),
@@ -100,10 +69,6 @@ fn component_metadata_status_is_deliberately_derived_from_site_calibration_statu
 #[test]
 fn model_config_maturity_is_invariant_under_f107_geometry_and_observer_changes() {
     let generic = NsbModelConfig::generic_clear_sky();
-    assert_eq!(
-        generic.airglow_scientific_profile(),
-        AirglowScientificProfile::BuiltIn(SiteProfileId::GenericClearSky)
-    );
     assert_eq!(
         generic.airglow_calibration_status(),
         CalibrationStatus::GenericFallback

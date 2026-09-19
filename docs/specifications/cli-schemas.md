@@ -17,7 +17,11 @@ Top-level fields are `schema_version`, `version`, `model`, `time_utc`,
 `observer`, `target`, `components`, `total`, and `band_diagnostic`. Each
 component includes radiance, B/V diagnostics, relative uncertainty, calibration
 status, provenance, validated domain, and band convention. `version` includes
-NSB/model/Siderust versions and every runtime asset checksum.
+NSB/model/Siderust versions and every runtime asset checksum. The `model`
+audit block includes the selected scientific `airglow_model` identity separately
+from `airglow_geometry`. Airglow component metadata repeats the actual
+`airglow_model` used for that component alongside solar-activity and geometry
+provenance; non-Airglow components leave that field empty.
 Starlight component labels are stable by source: bundled production starlight is
 `starlight`, a validated external override is `validated-starlight`, and a
 caller-supplied experimental library map is labelled `experimental-starlight`.

@@ -9,7 +9,9 @@ use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
-use crate::site::{AtmosphericConditions, CalibrationStatus, SiteProfileId};
+use crate::site::AtmosphericConditions;
+#[cfg(test)]
+use crate::site::SiteProfileId;
 use crate::units::ScaleFactors;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
@@ -18,44 +20,29 @@ use siderust::coordinates::spherical::Direction as SphericalDirection;
 use std::sync::Arc;
 use tempoch::{Time, UTC};
 
-/// Scientific profile selected by an Airglow configuration.
+/// Supported scientific Airglow models.
 ///
-/// Location and operational settings are deliberately absent from this enum:
-/// coordinates, atmosphere, emitting-volume geometry, F10.7 and user scaling
-/// may change a numerical result, but they cannot upgrade its scientific
-/// calibration maturity.
+/// This selects the scientific parameterization used to estimate Airglow. It is
+/// independent of emitting-volume geometry and site calibration/maturity.
+/// Additional scientifically supported models may be added in future releases;
+/// downstream matches should include a wildcard arm.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum AirglowScientificProfile {
-    /// One of NSB's explicit built-in scientific assumption profiles.
-    BuiltIn(SiteProfileId),
+pub enum AirglowModel {
+    /// Paranal-derived empirical model with Noll/SkyCalc/FORS1 lineage.
+    ///
+    /// This is the first-release reference/planning model. Its asset provenance,
+    /// applicability limits, and implementation data identity are reported in
+    /// component metadata.
+    ParanalNollSkyCalcFors1,
 }
 
-impl AirglowScientificProfile {
-    /// Stable machine-readable profile identifier.
+impl AirglowModel {
+    /// Stable machine-readable scientific model identifier.
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::BuiltIn(profile) => profile.as_str(),
+            Self::ParanalNollSkyCalcFors1 => "paranal-noll-skycalc-fors1",
         }
-    }
-
-    /// Evidence-backed calibration maturity for this profile.
-    pub const fn calibration_status(self) -> CalibrationStatus {
-        match self {
-            Self::BuiltIn(profile) => profile.calibration_status(),
-        }
-    }
-
-    /// Return the built-in site profile when one was explicitly selected.
-    pub const fn site_profile(self) -> Option<SiteProfileId> {
-        match self {
-            Self::BuiltIn(profile) => Some(profile),
-        }
-    }
-
-    /// Return true only for a dedicated scientifically calibrated profile.
-    pub const fn is_site_calibrated(self) -> bool {
-        matches!(self.calibration_status(), CalibrationStatus::Calibrated)
     }
 }
 

@@ -8,9 +8,9 @@
 //! selected.
 //!
 //! This module is the deliberately narrow advanced Airglow configuration API.
-//! Normal applications configure geometry through [`crate::NsbModelConfig`] and
-//! evaluate with [`crate::NsbEvaluator`]; they do not construct component
-//! evaluators or continuum calibrations directly.
+//! Normal applications select the scientific model and configure geometry through
+//! [`crate::NsbModelConfig`], then evaluate with [`crate::NsbEvaluator`]; they do
+//! not construct component evaluators or continuum calibrations directly.
 //!
 //! `standard_clear_sky` uses generic clear-sky atmospheric assumptions derived
 //! from the observer location for Noll effective Rayleigh/Mie scattering. The
@@ -47,7 +47,7 @@ pub use geometry::{
     VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
 };
 pub(crate) use model::Airglow;
-pub use model::AirglowScientificProfile;
+pub use model::AirglowModel;
 pub(crate) use output::AirglowOutputs;
 
 #[cfg(test)]

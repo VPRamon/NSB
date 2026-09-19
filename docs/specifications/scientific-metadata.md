@@ -9,8 +9,10 @@ Non-goals: This document does not promote any component beyond the evidence
 listed in [Validation matrix](validation.md).
 
 Every `NsbComponent` includes a maturity status, provenance, validated domain,
-band diagnostic, and optional relative uncertainty. CLI JSON preserves those
-fields; CSV v1 provides equivalent columns.
+band diagnostic, and optional relative uncertainty. Airglow additionally carries
+structured scientific-model, solar-activity, and geometry identity where
+applicable. CLI JSON preserves those structured fields; CSV output retains the
+scientific provenance and geometry audit columns.
 
 ## Status vocabulary
 
@@ -67,6 +69,20 @@ status, and runtime inclusion. Runtime JSON exposes checksums for every embedded
 asset. Incomplete inherited provenance is an explicit scientific limitation.
 External starlight uses the equivalent sidecar contract because its bytes are
 not part of the bundled registry.
+
+## Airglow scientific model identity
+
+Airglow component metadata includes `airglow_model`, an `AirglowModel` value
+that identifies the scientific model/parameterization actually selected by the
+evaluator. The first-release identity is
+`paranal-noll-skycalc-fors1`, corresponding to the repository-documented
+Paranal-derived Noll/SkyCalc/FORS1 empirical lineage.
+
+This identity is not the geometry model, site profile/maturity, F10.7 source, or
+repository-wide `MODEL_VERSION`. Implementation/data provenance remains pinned
+separately by the Airglow asset schema/checksum and provenance fields. This
+separation allows later supported scientific models to coexist without changing
+the configuration or result-metadata shape.
 
 ## Airglow F10.7 solar activity
 

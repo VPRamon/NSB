@@ -62,6 +62,7 @@ pub mod solar_activity;
 pub(crate) mod units;
 mod window_search;
 
+pub use components::airglow::AirglowModel;
 pub use components::moonlight::{Jones2013Spectral, KrisciunasSchaefer1991, DEFAULT_K_EXT};
 pub use components::starlight::{
     Starlight, StarlightMap, StarlightOutputs, StarlightPixel, StarlightProvenance,
