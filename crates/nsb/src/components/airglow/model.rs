@@ -9,7 +9,7 @@ use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
-use crate::site::{AtmosphericConditions, CalibrationStatus, SiteProfileId};
+use crate::site::{AtmosphericConditions, SiteProfileId};
 use crate::units::ScaleFactors;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
@@ -17,47 +17,6 @@ use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
 use std::sync::Arc;
 use tempoch::{Time, UTC};
-
-/// Scientific profile selected by an Airglow configuration.
-///
-/// Location and operational settings are deliberately absent from this enum:
-/// coordinates, atmosphere, emitting-volume geometry, F10.7 and user scaling
-/// may change a numerical result, but they cannot upgrade its scientific
-/// calibration maturity.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum AirglowScientificProfile {
-    /// One of NSB's explicit built-in scientific assumption profiles.
-    BuiltIn(SiteProfileId),
-}
-
-impl AirglowScientificProfile {
-    /// Stable machine-readable profile identifier.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::BuiltIn(profile) => profile.as_str(),
-        }
-    }
-
-    /// Evidence-backed calibration maturity for this profile.
-    pub const fn calibration_status(self) -> CalibrationStatus {
-        match self {
-            Self::BuiltIn(profile) => profile.calibration_status(),
-        }
-    }
-
-    /// Return the built-in site profile when one was explicitly selected.
-    pub const fn site_profile(self) -> Option<SiteProfileId> {
-        match self {
-            Self::BuiltIn(profile) => Some(profile),
-        }
-    }
-
-    /// Return true only for a dedicated scientifically calibrated profile.
-    pub const fn is_site_calibrated(self) -> bool {
-        matches!(self.calibration_status(), CalibrationStatus::Calibrated)
-    }
-}
 
 #[derive(Debug, Clone)]
 /// Empirical airglow continuum evaluator for an arbitrary Earth location.
