@@ -40,6 +40,7 @@ const DEFAULT_TIME: &str = "2026-09-17T23:00:00Z";
 const DEFAULT_OUTPUT: &str = "orm_nsb.png";
 const DEFAULT_STEP: Degrees = Degrees::new(5.0);
 const MAX_STEP: Degrees = Degrees::new(30.0);
+const MAX_SKY_CELLS: usize = 1_000_000;
 const IMAGE_WIDTH: u32 = 1400;
 const IMAGE_HEIGHT: u32 = 1000;
 const SKY_CENTER: (f64, f64) = (500.0, 515.0);
