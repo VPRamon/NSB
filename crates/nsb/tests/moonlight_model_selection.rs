@@ -26,19 +26,13 @@ fn paranal() -> Geodetic<ECEF> {
 }
 
 fn arbitrary_observer() -> Geodetic<ECEF> {
-    Geodetic::new_raw(
-        Degrees::new(18.4),
-        Degrees::new(-33.9),
-        Meters::new(120.0),
-    )
+    Geodetic::new_raw(Degrees::new(18.4), Degrees::new(-33.9), Meters::new(120.0))
 }
 
 fn evaluate_moonlight(config: NsbModelConfig, observer: Geodetic<ECEF>) -> NsbComponent {
     NsbEvaluator::with_config(config)
         .unwrap()
-        .evaluate(
-            &PointQuery::new(observer, time(), target()).with_components(ComponentMask::MOON),
-        )
+        .evaluate(&PointQuery::new(observer, time(), target()).with_components(ComponentMask::MOON))
         .unwrap()
         .components
         .into_iter()
@@ -50,10 +44,7 @@ fn evaluate_moonlight(config: NsbModelConfig, observer: Geodetic<ECEF>) -> NsbCo
 fn moonlight_model_identity_and_default_are_stable() {
     let default = NsbModelConfig::default();
 
-    assert_eq!(
-        default.moonlight_model(),
-        MoonlightModel::Jones2013Spectral
-    );
+    assert_eq!(default.moonlight_model(), MoonlightModel::Jones2013Spectral);
     assert_eq!(
         MoonlightModel::Jones2013Spectral.as_str(),
         "jones-2013-spectral"
@@ -102,8 +93,7 @@ fn explicit_default_selection_is_bitwise_identical_and_dispatches_to_jones() {
 #[test]
 fn ks_selection_dispatches_to_published_reference_implementation() {
     let component = evaluate_moonlight(
-        NsbModelConfig::default()
-            .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991),
+        NsbModelConfig::default().with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991),
         paranal(),
     );
 
@@ -128,10 +118,7 @@ fn site_profile_and_observer_do_not_change_selected_scientific_model() {
         .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991);
 
     assert_eq!(jones.moonlight_model(), MoonlightModel::Jones2013Spectral);
-    assert_eq!(
-        ks.moonlight_model(),
-        MoonlightModel::KrisciunasSchaefer1991
-    );
+    assert_eq!(ks.moonlight_model(), MoonlightModel::KrisciunasSchaefer1991);
 
     let jones_paranal = evaluate_moonlight(jones.clone(), paranal());
     let jones_arbitrary = evaluate_moonlight(jones, arbitrary_observer());
