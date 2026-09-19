@@ -1,6 +1,6 @@
 use super::{bundled_f107_store, resolve_f107, F107Store, SolarActivitySource};
 use crate::components::airglow::units::SolarFluxUnits;
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, NaiveDate};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, RwLock};
 use tempoch::{Time, UTC};
@@ -69,7 +69,7 @@ fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
         })
         .flatten()
         .filter_map(|value| DateTime::parse_from_rfc3339(value).ok())
-        .map(|date_time| date_time.with_timezone(&Utc).date_naive())
+        .map(|date_time| date_time.with_timezone(&chrono::Utc).date_naive())
         .collect()
 }
 
