@@ -176,11 +176,21 @@ fn zodiacal_samples(
 }
 
 fn integrate_photon_spectrum(spectrum: &ZodiacalPhotonSpectrum) -> BandPhotonRadiance {
-    // `zodiacal_samples` already retains only the 300–650 nm samples. Using
-    // the full-domain trapezoid is therefore identical to `integrate_range`
-    // here and avoids re-running a binary-search interpolation for both ends
-    // of every one-nanometre segment.
-    spectrum.integrate().to::<BandPhotonRadianceUnit>()
+    let mut integrated = spectrum
+        .integrate_range(WL_LOW, WL_HIGH)
+        .to::<BandPhotonRadianceUnit>();
+    let wavelengths = spectrum.xs_raw();
+    let densities = spectrum.ys_raw();
+
+    // The bundled solar grid has no exact samples at either declared band
+    // edge. Preserve the spectrum's endpoint-clamping behavior over those
+    // short gaps instead of silently integrating only the retained grid.
+    integrated += BandPhotonRadiance::new(
+        (wavelengths[0] - WL_LOW.value()).max(0.0) * densities[0]
+            + (WL_HIGH.value() - wavelengths[wavelengths.len() - 1]).max(0.0)
+                * densities[densities.len() - 1],
+    );
+    integrated
 }
 
 /// Convert the solar spectral irradiance convention to the mean radiance used
@@ -255,5 +265,29 @@ mod tests {
         assert!((integrated.value() - 350.0).abs() < 1.0e-12);
         let midpoint = spectrum.interp_at(Nanometers::new(475.0));
         let _: qtty::Quantity<PhotonPerSquareCentimeterNanosecondSteradianNanometer> = midpoint;
+    }
+
+    #[test]
+    fn integration_includes_declared_band_edges_when_grid_omits_them() {
+        let spectrum = ZodiacalPhotonSpectrum::from_raw(
+            vec![300.5, 649.0],
+            vec![2.0, 4.0],
+            Interpolation::Linear,
+            OutOfRange::ClampToEndpoints,
+            None,
+        )
+        .expect("edge-missing spectrum");
+
+        let integrated = integrate_photon_spectrum(&spectrum);
+        let previous_authoritative = BandPhotonRadiance::new(1_050.5);
+        let truncated_grid_integral = spectrum.integrate().to::<BandPhotonRadianceUnit>();
+
+        assert!((integrated.value() - previous_authoritative.value()).abs() < 1.0e-12);
+        assert!(
+            (integrated.value() - truncated_grid_integral.value()).abs() > 1.0e-12,
+            "the fixture must detect loss of the 300–300.5 and 649–650 nm edges: range={}, grid={}",
+            integrated.value(),
+            truncated_grid_integral.value()
+        );
     }
 }

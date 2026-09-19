@@ -25,6 +25,7 @@ pub(crate) struct AstronomicalNightPeriod {
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct AirglowPhasePeriod {
     pub(crate) period: TimePeriod<ModifiedJulianDate>,
+    #[cfg_attr(not(debug_assertions), allow(dead_code))]
     pub(crate) phase: AirglowNightPhase,
 }
 
@@ -170,6 +171,7 @@ pub(crate) fn night_phase_from_nights(
         .and_then(|night| night_phase_from_night(time_tt, night))
 }
 
+#[cfg_attr(not(debug_assertions), allow(dead_code))]
 pub(crate) fn night_phase_from_phase_periods(
     time_tt: ModifiedJulianDate,
     phases: &[AirglowPhasePeriod],
@@ -197,12 +199,13 @@ fn night_phase_from_night(
         return None;
     }
 
-    let phase = ((time_tt.raw().value() - night.period.start.raw().value()) / duration_days)
-        .clamp(0.0, 1.0);
+    let start = night.period.start.raw().value();
+    let first = start + duration_days / 3.0;
+    let second = start + duration_days * 2.0 / 3.0;
 
-    Some(if phase < 1.0 / 3.0 {
+    Some(if time_tt.raw().value() < first {
         AirglowNightPhase::FirstThird
-    } else if phase < 2.0 / 3.0 {
+    } else if time_tt.raw().value() < second {
         AirglowNightPhase::MiddleThird
     } else {
         AirglowNightPhase::LastThird
@@ -419,6 +422,11 @@ mod tests {
         };
 
         assert_eq!(
+            night_phase_from_nights(ModifiedJulianDate::new(0.0), &[night]),
+            None
+        );
+
+        assert_eq!(
             night_phase_from_night(ModifiedJulianDate::new(0.5), &night),
             Some(AirglowNightPhase::FirstThird)
         );
@@ -438,6 +446,37 @@ mod tests {
             night_phase_from_night(ModifiedJulianDate::new(2.5), &night),
             Some(AirglowNightPhase::LastThird)
         );
+        assert_eq!(
+            night_phase_from_nights(ModifiedJulianDate::new(3.0), &[night]),
+            None
+        );
+
+        for time in [0.5, 1.0, 1.5, 2.0, 2.5] {
+            let time = ModifiedJulianDate::new(time);
+            assert_eq!(
+                night_phase_from_nights(time, &[night]),
+                night_phase_from_night(time, &night),
+                "the threshold hot path must preserve canonical phase semantics"
+            );
+        }
+    }
+
+    #[test]
+    fn precomputed_strict_intervals_do_not_define_third_boundary_semantics() {
+        let night = AstronomicalNightPeriod {
+            period: TimePeriod::new(ModifiedJulianDate::new(0.0), ModifiedJulianDate::new(3.0)),
+            phase_bounded: true,
+        };
+        let phases = airglow_phase_periods_for_window(&[night], night.period);
+
+        for (time, canonical) in [
+            (1.0, AirglowNightPhase::MiddleThird),
+            (2.0, AirglowNightPhase::LastThird),
+        ] {
+            let time = ModifiedJulianDate::new(time);
+            assert_eq!(night_phase_from_nights(time, &[night]), Some(canonical));
+            assert_eq!(night_phase_from_phase_periods(time, &phases), None);
+        }
     }
 
     #[test]

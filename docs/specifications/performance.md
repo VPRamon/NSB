@@ -44,8 +44,10 @@ in tests that quantify approximation error; it is not in the production window
 search.
 
 Production independently prepares Sun/Airglow and Moon state with one
-`rayon::join`, then processes independent threshold windows in Rayon with local
-evaluation caches. Collection order and final coalescing are deterministic.
+`rayon::join`, then processes independent threshold windows in Rayon. Collection
+order and final coalescing are deterministic. Each scan carries its previous
+authoritative endpoint value forward, and crossing refinement receives both
+bracket endpoint values directly; no per-window exact-evaluation map is needed.
 The `window-search-diagnostics` feature deliberately uses the same scientific
 search sequentially so thread-local counters and phase timings are stable.
 Diagnostic wall time is therefore not production performance.
@@ -66,8 +68,9 @@ Diagnostic wall time is therefore not production performance.
   dates bypass unsafe reuse.
 - A `SiteWindowContext` is reusable across many targets and thresholds. The CLI
   prepares it once for `--max-nsb` and reuses it for optional `--min-nsb`.
-- Exact point evaluations reuse Moon ephemeris state, and threshold windows use
-  local per-window memoization.
+- Exact point evaluations reuse Moon ephemeris state. Instrumentation of the
+  former per-window exact-evaluation map on the representative annual workload
+  recorded 0 hits and 7,764 misses across 573 windows, so the map was removed.
 
 ## Measurement environment
 
@@ -101,11 +104,16 @@ RAYON_NUM_THREADS=2 nice -n 10 ./target/release/nsb \
   --step 600 >/dev/null
 ```
 
-Five resource-capped production executions took 3.62, 3.82, 3.70, 3.62, and
-3.68 seconds: median 3.68 seconds, median user CPU time 5.67 seconds, and about
-59 MiB maximum resident memory. The original issue-160 implementation measured
-5.88 seconds on this host, so the correctness-first result retains a 1.60x
-wall-time improvement. The reviewed but unsafe PR state measured about 0.36
+The final 2026-09-19 review measurement used three resource-capped production
+executions after restoring the declared zodiacal band and removing the unused
+exact-evaluation cache: 3.27, 3.29, and 3.13 seconds (median 3.27 seconds), with
+5.19, 5.07, and 5.00 seconds user CPU time and about 58 MiB maximum resident
+memory. The immediately preceding branch head measured 3.34, 2.89, and 2.99
+seconds (median 2.99 seconds) under the same command and build profile; this
+small three-run sample does not establish a statistically significant speedup.
+The original issue-160 implementation measured 5.88 seconds on this host, so
+the correctness-first result retains a 1.80x wall-time improvement. The reviewed
+but unsafe PR state measured about 0.36
 seconds; it is recorded only as historical context and is not a valid scientific
 performance target because its discovery paths could produce false negatives.
 
@@ -124,7 +132,7 @@ single resource-capped runs except for the five-run annual median above.
 
 | One-year production workload | Baseline | Final | Baseline / final |
 | --- | ---: | ---: | ---: |
-| All components | 5.88 s | 3.68 s median | 1.60x |
+| All components | 5.88 s | 3.27 s median | 1.80x |
 | Zodiacal only | 1.08 s | 1.40 s | 0.77x |
 | Starlight only | 0.98 s | 1.08 s | 0.91x |
 | Airglow only | 1.76 s | 1.08 s | 1.63x |

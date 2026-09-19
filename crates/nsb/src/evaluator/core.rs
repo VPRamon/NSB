@@ -29,8 +29,6 @@ use siderust::event::altitude::{above_threshold as altitude_above_threshold, Sea
 use siderust::qtty::Degree;
 use siderust::qtty::{Day, Degrees};
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::sync::Arc;
 #[cfg(feature = "window-search-diagnostics")]
 use std::time::Instant;
@@ -189,23 +187,12 @@ impl NsbEvaluator {
         super::diagnostics::begin_threshold_search();
         let step = query.sample_step.to::<Day>();
         #[cfg(feature = "window-search-diagnostics")]
-        let exact_evaluations = RefCell::new(HashMap::<u64, BandPhotonRadiance>::new());
-        #[cfg(feature = "window-search-diagnostics")]
-        let exact_f = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
-            let key = mjd_tt.raw().value().to_bits();
-            if let Some(value) = exact_evaluations.borrow().get(&key) {
-                return Ok(*value);
-            }
-            let value = self.evaluate_integrated(&prepared, mjd_tt)?;
-            exact_evaluations.borrow_mut().insert(key, value);
-            Ok(value)
-        };
-        #[cfg(feature = "window-search-diagnostics")]
         let search_started = Instant::now();
         #[cfg(feature = "window-search-diagnostics")]
         let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = Vec::new();
         #[cfg(feature = "window-search-diagnostics")]
         for window in smooth_threshold_windows(&prepared) {
+            let exact_f = |mjd_tt: ModifiedJulianDate| self.evaluate_integrated(&prepared, mjd_tt);
             let brighter =
                 authoritative_above_threshold_periods(window, step, &exact_f, query.threshold)?;
             darker_periods.extend(complement_periods(window, &brighter));
@@ -215,16 +202,8 @@ impl NsbEvaluator {
             smooth_threshold_windows(&prepared)
                 .into_par_iter()
                 .map(|window| -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
-                    let exact_evaluations = RefCell::new(HashMap::<u64, BandPhotonRadiance>::new());
-                    let exact_f = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
-                        let key = mjd_tt.raw().value().to_bits();
-                        if let Some(value) = exact_evaluations.borrow().get(&key) {
-                            return Ok(*value);
-                        }
-                        let value = self.evaluate_integrated(&prepared, mjd_tt)?;
-                        exact_evaluations.borrow_mut().insert(key, value);
-                        Ok(value)
-                    };
+                    let exact_f =
+                        |mjd_tt: ModifiedJulianDate| self.evaluate_integrated(&prepared, mjd_tt);
                     let brighter = authoritative_above_threshold_periods(
                         window,
                         step,
@@ -769,10 +748,15 @@ fn airglow_night_phase(
 ) -> Option<airglow::AirglowNightPhase> {
     let phase =
         airglow::temporal::night_phase_from_nights(time, &prepared.astronomical_night_periods);
-    let precomputed_phase =
-        airglow::temporal::night_phase_from_phase_periods(time, &prepared.airglow_phase_periods);
-    if let (Some(phase), Some(precomputed_phase)) = (phase, precomputed_phase) {
-        debug_assert_eq!(phase, precomputed_phase);
+    #[cfg(debug_assertions)]
+    {
+        let precomputed_phase = airglow::temporal::night_phase_from_phase_periods(
+            time,
+            &prepared.airglow_phase_periods,
+        );
+        if let (Some(phase), Some(precomputed_phase)) = (phase, precomputed_phase) {
+            debug_assert_eq!(phase, precomputed_phase);
+        }
     }
     phase
 }
