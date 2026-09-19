@@ -87,6 +87,7 @@ impl VerticalProfileNormalization {
 
 /// Optical wavelength/band domain represented by one vertical profile.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct AirglowWavelengthApplicability {
     /// Inclusive lower wavelength bound.
     pub min: Nanometers,
@@ -96,8 +97,20 @@ pub struct AirglowWavelengthApplicability {
     pub band: String,
 }
 
+impl AirglowWavelengthApplicability {
+    /// Define the wavelength applicability declared by a vertical-emission profile.
+    pub fn new(min: Nanometers, max: Nanometers, band: impl Into<String>) -> Self {
+        Self {
+            min,
+            max,
+            band: band.into(),
+        }
+    }
+}
+
 /// Zenith-angle interval for which a profile is declared usable.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct ValidatedZenithDomain {
     /// Inclusive minimum zenith angle.
     pub min: Degrees,
@@ -105,8 +118,16 @@ pub struct ValidatedZenithDomain {
     pub max: Degrees,
 }
 
+impl ValidatedZenithDomain {
+    /// Define the declared zenith-angle applicability of a vertical profile.
+    pub const fn new(min: Degrees, max: Degrees) -> Self {
+        Self { min, max }
+    }
+}
+
 /// Complete programmatic definition of a vertical-emission profile.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct VerticalEmissionProfileDefinition {
     /// Profile schema version.
     pub schema_version: u32,
@@ -128,6 +149,51 @@ pub struct VerticalEmissionProfileDefinition {
     pub license: String,
     /// Declared zenith-angle domain.
     pub validated_zenith: ValidatedZenithDomain,
+}
+
+impl VerticalEmissionProfileDefinition {
+    /// Build a definition using the current schema and normalization convention.
+    ///
+    /// Scientific context fields remain explicit builders so future schema
+    /// additions do not force a breaking constructor signature.
+    pub fn new(
+        profile_id: impl Into<String>,
+        altitude_km: Vec<Kilometers>,
+        relative_emissivity: Vec<f64>,
+        wavelength: AirglowWavelengthApplicability,
+        validated_zenith: ValidatedZenithDomain,
+    ) -> Self {
+        Self {
+            schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+            profile_id: profile_id.into(),
+            altitude_km,
+            relative_emissivity,
+            normalization: VerticalProfileNormalization::UnitVerticalIntegral,
+            wavelength,
+            assumptions: String::new(),
+            provenance: String::new(),
+            license: String::new(),
+            validated_zenith,
+        }
+    }
+
+    /// Attach the scientific assumptions/reference state.
+    pub fn with_assumptions(mut self, assumptions: impl Into<String>) -> Self {
+        self.assumptions = assumptions.into();
+        self
+    }
+
+    /// Attach the source/dataset provenance.
+    pub fn with_provenance(mut self, provenance: impl Into<String>) -> Self {
+        self.provenance = provenance.into();
+        self
+    }
+
+    /// Attach the profile licence or caller-owned-data statement.
+    pub fn with_license(mut self, license: impl Into<String>) -> Self {
+        self.license = license.into();
+        self
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -240,7 +306,7 @@ impl VerticalEmissionProfile {
     }
 
     /// Evaluate the auditable reference spherical LOS integral.
-    pub fn geometry_factor(
+    pub(crate) fn geometry_factor(
         &self,
         observer: Geodetic<ECEF>,
         zenith: Degrees,
@@ -250,9 +316,9 @@ impl VerticalEmissionProfile {
 
     /// Evaluate the same reference integrator at an explicit even resolution.
     ///
-    /// This is exposed for convergence validation and benchmarking. Production
-    /// evaluation uses `VERTICAL_PROFILE_REFERENCE_SUBSTEPS`.
-    pub fn geometry_factor_with_substeps(
+    /// Internal convergence tests use this path; production evaluation uses
+    /// `VERTICAL_PROFILE_REFERENCE_SUBSTEPS`.
+    pub(crate) fn geometry_factor_with_substeps(
         &self,
         observer: Geodetic<ECEF>,
         zenith: Degrees,
@@ -377,7 +443,7 @@ pub enum AirglowGeometryModel {
 
 impl AirglowGeometryModel {
     /// Evaluate the selected dimensionless line-of-sight correction.
-    pub fn geometry_factor(
+    pub(crate) fn geometry_factor(
         &self,
         observer: Geodetic<ECEF>,
         zenith: Degrees,
@@ -412,7 +478,7 @@ impl AirglowGeometryModel {
     }
 
     /// Structured provenance for saved scientific results.
-    pub fn metadata(&self) -> AirglowGeometryMetadata {
+    pub(crate) fn metadata(&self) -> AirglowGeometryMetadata {
         match self {
             Self::VanRhijn(config) => AirglowGeometryMetadata {
                 model: self.model_id(),
@@ -465,6 +531,7 @@ impl Default for AirglowGeometryModel {
 
 /// Geometry provenance attached to Airglow component metadata.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct AirglowGeometryMetadata {
     /// `van_rhijn` or `vertical_profile`.
     pub model: &'static str,
