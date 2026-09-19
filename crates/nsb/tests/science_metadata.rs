@@ -1,8 +1,7 @@
 use chrono::{DateTime, Utc};
 use nsb::components::airglow::{
     AirglowGeometryModel, AirglowWavelengthApplicability, ValidatedZenithDomain,
-    VerticalEmissionProfile, VerticalEmissionProfileDefinition, VerticalProfileNormalization,
-    VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
+    VerticalEmissionProfile, VerticalEmissionProfileDefinition,
 };
 use nsb::{
     BandDiagnostic, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, PointQuery, Target,
@@ -27,29 +26,26 @@ fn sgr_a_star() -> Target {
 }
 
 fn synthetic_profile() -> VerticalEmissionProfile {
-    VerticalEmissionProfile::new(VerticalEmissionProfileDefinition {
-        schema_version: VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION,
-        profile_id: "science-metadata-synthetic".into(),
-        altitude_km: vec![
-            Kilometers::new(80.0),
-            Kilometers::new(90.0),
-            Kilometers::new(105.0),
-        ],
-        relative_emissivity: vec![0.0, 1.0, 0.0],
-        normalization: VerticalProfileNormalization::UnitVerticalIntegral,
-        wavelength: AirglowWavelengthApplicability {
-            min: Nanometers::new(300.0),
-            max: Nanometers::new(650.0),
-            band: "synthetic-300-650-nm".into(),
-        },
-        assumptions: "synthetic metadata validation profile; not production data".into(),
-        provenance: "deterministic NSB integration test".into(),
-        license: "CC0-1.0 synthetic fixture".into(),
-        validated_zenith: ValidatedZenithDomain {
-            min: Degrees::new(0.0),
-            max: Degrees::new(90.0),
-        },
-    })
+    VerticalEmissionProfile::new(
+        VerticalEmissionProfileDefinition::new(
+            "science-metadata-synthetic",
+            vec![
+                Kilometers::new(80.0),
+                Kilometers::new(90.0),
+                Kilometers::new(105.0),
+            ],
+            vec![0.0, 1.0, 0.0],
+            AirglowWavelengthApplicability::new(
+                Nanometers::new(300.0),
+                Nanometers::new(650.0),
+                "synthetic-300-650-nm",
+            ),
+            ValidatedZenithDomain::new(Degrees::new(0.0), Degrees::new(90.0)),
+        )
+        .with_assumptions("synthetic metadata validation profile; not production data")
+        .with_provenance("deterministic NSB integration test")
+        .with_license("CC0-1.0 synthetic fixture"),
+    )
     .unwrap()
 }
 
