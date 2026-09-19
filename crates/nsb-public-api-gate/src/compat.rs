@@ -79,10 +79,7 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
 
 fn is_airglow_source(path: &Path) -> bool {
     path.components()
-        .map(|component| component.as_os_str())
-        .collect::<Vec<_>>()
-        .windows(2)
-        .any(|parts| parts[0] == "airglow" && parts[1].to_string_lossy().ends_with(".rs"))
+        .any(|component| component.as_os_str() == "airglow")
 }
 
 fn display_repo_path(path: &Path) -> String {
