@@ -53,11 +53,8 @@ fn pre_freeze_check_rejects_airglow_compatibility_debt() {
         "#[allow(dead_code)]\nfn stale() {}\n",
     )
     .expect("write stale allowance");
-    fs::write(
-        nested.join("legacy.rs"),
-        "enum LegacyDefault { Old }\n",
-    )
-    .expect("write nested compatibility debt");
+    fs::write(nested.join("legacy.rs"), "enum LegacyDefault { Old }\n")
+        .expect("write nested compatibility debt");
 
     let error = run_check(&CheckOptions {
         repo: repo.clone(),
