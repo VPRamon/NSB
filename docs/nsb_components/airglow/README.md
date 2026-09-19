@@ -16,7 +16,7 @@ calibration.
 **Option D (current policy):** NSB supports arbitrary-location Airglow evaluation
 through `NsbEvaluator`, but the empirical continuum is **Paranal-derived /
 Paranal-trained** (Noll/SkyCalc lineage, including FORS1 residual continuum
-heritage). Without an explicit validated scientific profile it is an **explicit
+heritage). Without explicit admitted site-calibration evidence it is an **explicit
 generic/planning proxy**, including when the observer is physically at Paranal.
 A geographically generic API is not a globally calibrated dataset, and source
 provenance is not calibration evidence for the source location. Geometry,
@@ -65,8 +65,8 @@ site assumptions and evidence-backed scientific maturity
 
 These concerns are independent. Arbitrary valid Earth coordinates, named
 observatories, and user-provided Siderust observatory catalogs are supported
-geometrically. They default to `SiteProfileId::GenericClearSky` unless the
-scientific profile is selected explicitly. In particular:
+geometrically. They default to `SiteProfileId::GenericClearSky` unless another
+site profile is selected explicitly. In particular:
 
 - `--site PARANAL` does not create a calibrated Paranal Airglow result;
 - `--site CTAO-N` does not select `SiteProfileId::CtaNorth`;
