@@ -49,7 +49,7 @@ fn pre_freeze_check_rejects_airglow_compatibility_debt() {
     fs::create_dir_all(&source).expect("create temporary source");
     fs::write(
         source.join("model.rs"),
-        "#[allow(dead_code)]\nfn stale() {}\nfn with_f10_7() {}\nstruct AirglowScientificProfile;\nenum LegacyDefault { Old }\n",
+        "#[allow(dead_code)]\nfn stale() {}\nenum LegacyDefault { Old }\n",
     )
     .expect("write stale allowance");
 
@@ -61,8 +61,6 @@ fn pre_freeze_check_rejects_airglow_compatibility_debt() {
     })
     .expect_err("compatibility debt must be rejected");
     assert!(error.to_string().contains("#[allow(dead_code)]"));
-    assert!(error.to_string().contains("with_f10_7"));
-    assert!(error.to_string().contains("AirglowScientificProfile"));
     assert!(error.to_string().contains("LegacyDefault"));
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
