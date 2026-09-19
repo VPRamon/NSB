@@ -59,9 +59,11 @@ documented equatorial constructors.
 Intended for a concrete specialized configuration or inspection need that the
 evaluator cannot express through its defaults. Airglow's only advanced public
 route is `components::airglow`: its geometry/profile types configure
-`NsbModelConfig::with_airglow_geometry`. `Airglow`, `AirglowContinuum`, and
-their component-only output are implementation details; applications evaluate
-Airglow through `NsbEvaluator` results.
+`NsbModelConfig::with_airglow_geometry`. Direct geometry evaluation,
+integrator-resolution controls, and geometry-metadata construction are internal
+validation/runtime details. `Airglow`, `AirglowContinuum`, and their
+component-only output are implementation details; applications evaluate Airglow
+through `NsbEvaluator` results.
 
 Airglow intentionally has no public model-selection enum while there is only one
 supported runtime model. The concrete Airglow continuum/model implementation is
