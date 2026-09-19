@@ -134,7 +134,7 @@ These must remain `pub(crate)` or private:
 - Bundled asset filesystem paths and internal date/storage helpers
 - Unit conversions and SkyCalc-specific internal quantity aliases
 - Moonlight concrete evaluators, component-only outputs, tuning constants, and model-specific search helpers
-- `reference`, internal spectral orchestration, and `window_search`
+- `reference` and internal spectral/threshold-search orchestration
 
 If a needed type is missing from the intended supported classes above, open an
 issue before depending on a newly discovered path.
