@@ -9,7 +9,9 @@ use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
 use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
-use crate::site::{AtmosphericConditions, SiteProfileId};
+use crate::site::AtmosphericConditions;
+#[cfg(test)]
+use crate::site::SiteProfileId;
 use crate::units::ScaleFactors;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
