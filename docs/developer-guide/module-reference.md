@@ -32,7 +32,6 @@ SemVer policy, and the snapshot gate are documented in
 | `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
 | `spectrum` | Crate-private | Spectral integration and interpolation helpers |
 | `units` | Crate-private with selected re-exports | NSB-specific typed quantities and scale-factor aliases |
-| `window_search` | Internal | Adaptive interval scanning and threshold-crossing refinement |
 
 ### Component modules
 
