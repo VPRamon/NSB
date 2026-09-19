@@ -8,11 +8,6 @@ pub(crate) struct KrisciunasSchaefer1991 {
 }
 
 impl KrisciunasSchaefer1991 {
-    #[cfg(test)]
-    fn new(location: Geodetic<ECEF>, k_ext: MagnitudesPerAirmass) -> Self {
-        Self { location, k_ext }
-    }
-
     pub(crate) fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
         Self {
             location,
