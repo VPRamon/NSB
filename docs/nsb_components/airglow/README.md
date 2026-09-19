@@ -26,8 +26,15 @@ F10.7, atmosphere, extinction, or an explicit scale cannot upgrade maturity to
 Normal applications configure Airglow through `NsbModelConfig` and evaluate it
 through `NsbEvaluator`. Direct construction of the internal Airglow component or
 its continuum calibration is not part of the supported public API. The public
-`components::airglow` route is intentionally limited to advanced geometry and
-scientific-profile types needed by supported configuration and diagnostics.
+`components::airglow` route is intentionally limited to advanced geometry
+types needed by supported configuration and diagnostics.
+
+NSB does not expose a public Airglow model-selection enum while only one runtime
+model is supported. The concrete continuum/model implementation is intentionally
+internal and may be replaced by a later scientifically validated implementation
+without changing the stable configuration/evaluation API. Such scientific
+changes must remain visible through component metadata/provenance and
+`MODEL_VERSION`.
 
 ## Geographic support versus scientific calibration
 
@@ -36,7 +43,7 @@ Observatory / coordinates
         =
 physical observer location and geometry
 
-SiteProfileId / AirglowScientificProfile
+SiteProfileId
         =
 NSB assumptions and evidence-backed scientific maturity
 ```
@@ -69,9 +76,9 @@ assert_eq!(
 assert!(!config.is_airglow_site_calibrated());
 ```
 
-`NsbModelConfig::airglow_scientific_profile()`,
-`airglow_calibration_status()`, and `is_airglow_site_calibrated()` describe the
-selected scientific assumptions before evaluation. Per-component result metadata
+`NsbModelConfig::airglow_calibration_status()` and
+`is_airglow_site_calibrated()` describe the selected scientific maturity before
+evaluation. Per-component result metadata
 derives its structured calibration status from the selected site profile's
 `CalibrationStatus`; geometry and solar-activity provenance are reported
 separately.
