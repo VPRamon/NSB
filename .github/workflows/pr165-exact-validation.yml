@@ -35,7 +35,7 @@ jobs:
       - name: Install nightly rustdoc toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2026-09-01
+          toolchain: nightly-2026-09-02
           components: rustdoc
       - name: Install cargo-public-api
         run: cargo install cargo-public-api --locked --version 0.50.1 --force
