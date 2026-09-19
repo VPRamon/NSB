@@ -70,6 +70,7 @@ pub enum VerticalEmissionProfileError {
 
 /// Supported normalization convention for relative vertical emissivity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 #[serde(rename_all = "kebab-case")]
 pub enum VerticalProfileNormalization {
     /// Emissivity is rescaled so its trapezoidal vertical integral is one.
