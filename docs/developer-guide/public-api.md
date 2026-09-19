@@ -57,8 +57,9 @@ documented equatorial constructors.
 ### Advanced API
 
 Intended for a concrete specialized configuration or inspection need that the
-evaluator cannot express through its defaults. Airglow's only advanced public
-route is `components::airglow`: its geometry/profile types configure
+evaluator cannot express through its defaults. Airglow's public scientific model
+selector is root-exported as `AirglowModel`; the advanced
+`components::airglow` route also exposes geometry/profile types that configure
 `NsbModelConfig::with_airglow_geometry`. Direct geometry evaluation,
 integrator-resolution controls, and geometry-metadata construction are internal
 validation/runtime details. `Airglow`, `AirglowContinuum`, and their
