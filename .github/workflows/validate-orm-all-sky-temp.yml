@@ -55,6 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           cargo test -p nsb --locked 2>&1 | tee /tmp/orm-validation/test.log
+          cargo test -p nsb --locked --example all_sky_orm 2>&1 | tee /tmp/orm-validation/all_sky_tests.log
       - name: Run representative all-sky map
         shell: bash
         run: |
