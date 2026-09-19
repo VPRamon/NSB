@@ -1,4 +1,5 @@
-use super::{MoonlightModel, Observer, StarlightModel};
+use super::{Observer, StarlightModel};
+use crate::components::moonlight::MoonlightModel;
 use crate::components::airglow::calibration::{
     airglow_continuum_asset, AIRGLOW_CONTINUUM_ASSET_PATH,
 };
