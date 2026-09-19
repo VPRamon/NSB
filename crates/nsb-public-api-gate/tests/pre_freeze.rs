@@ -97,7 +97,6 @@ fn pre_freeze_check_allows_supported_airglow_model_names_containing_legacy() {
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }
 
-
 #[test]
 fn pre_freeze_check_rejects_public_moonlight_implementation_surface() {
     let repo = temporary_repo();
@@ -133,7 +132,10 @@ fn pre_freeze_check_rejects_public_moonlight_implementation_surface() {
         "pub fn with_extinction_scale",
         "pub fn periods_in_range",
     ] {
-        assert!(error.to_string().contains(expected), "missing guard for {expected}");
+        assert!(
+            error.to_string().contains(expected),
+            "missing guard for {expected}"
+        );
     }
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
