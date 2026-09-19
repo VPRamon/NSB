@@ -1,6 +1,6 @@
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
 use crate::components::zodiacal::ZodiacalExtinction;
-use crate::components::{airglow, starlight};
+use crate::components::{airglow, moonlight, starlight};
 use crate::site::SiteProfileId;
 use qtty::angular::Degrees;
 use qtty::photometry::SurfaceBrightness;
@@ -269,28 +269,6 @@ pub struct ThresholdQueryResult {
     pub periods: Vec<Period<UTC>>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// Supported scattered-moonlight implementations.
-///
-/// Additional published implementations may be added; match with a wildcard.
-#[non_exhaustive]
-pub enum MoonlightModel {
-    /// Published analytic V-band reference model.
-    KrisciunasSchaefer1991,
-    /// Wavelength-resolved Jones et al. (2013) model.
-    Jones2013Spectral,
-}
-
-impl MoonlightModel {
-    /// Stable operational model identifier.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::KrisciunasSchaefer1991 => "krisciunas-schaefer-1991",
-            Self::Jones2013Spectral => "jones-2013-spectral",
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 /// Explicit starlight data-product selection.
 ///
@@ -332,7 +310,7 @@ impl StarlightModel {
 #[non_exhaustive]
 pub struct NsbModelConfig {
     /// Scattered-moonlight implementation.
-    pub moonlight_model: MoonlightModel,
+    pub moonlight_model: moonlight::MoonlightModel,
     /// Airglow scientific model/parameterization.
     pub airglow_model: airglow::AirglowModel,
     /// Atmospheric and airglow site profile.
@@ -351,7 +329,7 @@ impl NsbModelConfig {
     /// Generic clear-sky planning configuration.
     pub fn generic_clear_sky() -> Self {
         Self {
-            moonlight_model: MoonlightModel::Jones2013Spectral,
+            moonlight_model: moonlight::MoonlightModel::Jones2013Spectral,
             airglow_model: airglow::AirglowModel::ParanalNollSkyCalcFors1,
             site_profile: SiteProfileId::GenericClearSky,
             starlight_model: default_starlight_model(),
@@ -369,6 +347,17 @@ impl NsbModelConfig {
     /// CTAO-South planning configuration.
     pub fn cta_s_planning() -> Self {
         Self::generic_clear_sky().with_site_profile(SiteProfileId::CtaSouth)
+    }
+
+    /// Select the Moonlight scientific model independently of site assumptions.
+    pub fn with_moonlight_model(mut self, model: moonlight::MoonlightModel) -> Self {
+        self.moonlight_model = model;
+        self
+    }
+
+    /// Return the selected Moonlight scientific model.
+    pub const fn moonlight_model(&self) -> moonlight::MoonlightModel {
+        self.moonlight_model
     }
 
     /// Select the Airglow scientific model independently of geometry and site maturity.
