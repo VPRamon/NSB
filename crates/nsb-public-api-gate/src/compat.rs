@@ -20,6 +20,16 @@ const AIRGLOW_FORBIDDEN_PATTERNS: &[&str] = &[
     "LegacyDefault",
 ];
 
+const MOONLIGHT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
+    "pub struct Jones2013Spectral",
+    "pub struct KrisciunasSchaefer1991",
+    "pub struct MoonOutputs",
+    "pub const DEFAULT_K_EXT",
+    "pub const DEFAULT_PERIOD_SEARCH_STEP",
+    "pub fn with_extinction_scale",
+    "pub fn periods_in_range",
+];
+
 #[derive(Debug, Error)]
 pub enum CompatError {
     #[error("removed or compatibility-only API found in production source:\n{0}")]
@@ -67,13 +77,19 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
     }
     let text = fs::read_to_string(path).map_err(|error| CompatError::Io(error.to_string()))?;
     for (index, line) in text.lines().enumerate() {
-        for pattern in FORBIDDEN_PATTERNS.iter().copied().chain(
-            is_airglow_source(path)
-                .then_some(AIRGLOW_FORBIDDEN_PATTERNS)
-                .into_iter()
-                .flatten()
-                .copied(),
-        ) {
+        let domain_patterns = is_airglow_source(path)
+            .then_some(AIRGLOW_FORBIDDEN_PATTERNS)
+            .into_iter()
+            .flatten()
+            .copied()
+            .chain(
+                is_moonlight_source(path)
+                    .then_some(MOONLIGHT_PUBLIC_IMPL_PATTERNS)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            );
+        for pattern in FORBIDDEN_PATTERNS.iter().copied().chain(domain_patterns) {
             if line.contains(pattern) {
                 hits.push(format!("{}:{}:{line}", display_repo_path(path), index + 1));
             }
@@ -85,6 +101,11 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
 fn is_airglow_source(path: &Path) -> bool {
     path.components()
         .any(|component| component.as_os_str() == "airglow")
+}
+
+fn is_moonlight_source(path: &Path) -> bool {
+    path.components()
+        .any(|component| component.as_os_str() == "moonlight")
 }
 
 fn display_repo_path(path: &Path) -> String {
