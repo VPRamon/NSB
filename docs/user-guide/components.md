@@ -41,9 +41,11 @@ source implementation.
 
 Atmospheric propagation is configured independently through
 `ZodiacalExtinction`. `Noll2012Approx` is the default; `None` disables
-attenuation without selecting a different scientific source model. Library
-callers configure both choices through `NsbModelConfig` and evaluate with
-`NsbEvaluator`; there is no separate public `ZodiacalLight` evaluation API.
+attenuation without selecting a different scientific source model. `None`
+still uses ground-observer geometry and horizon gating; it is not an
+exoatmospheric evaluation mode. Library callers configure both choices through
+`NsbModelConfig` and evaluate with `NsbEvaluator`; there is no separate public
+`ZodiacalLight` evaluation API.
 
 CLI selection:
 
