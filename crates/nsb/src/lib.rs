@@ -40,8 +40,9 @@
 //!
 //! # Architecture
 //!
-//! Shared reference inputs live in internal `reference` modules; component-
-//! specific calibrations and grids live inside their component modules.
+//! Shared physical spectra used across components live in the internal `spectra`
+//! module; component-specific calibrations and grids live inside their component
+//! modules.
 //!
 //! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
 //! photometry, and passbands. NSB owns NSB-specific component composition,
@@ -59,11 +60,11 @@ pub mod components;
 pub mod error;
 mod evaluator;
 mod planning;
-mod reference;
 /// Site profiles, shared atmosphere, and canonical calibration evidence.
 pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
+mod spectra;
 pub(crate) mod units;
 
 pub use components::airglow::AirglowModel;

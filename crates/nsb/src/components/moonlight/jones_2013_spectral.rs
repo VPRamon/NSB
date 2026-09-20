@@ -1,5 +1,5 @@
 use super::*;
-use crate::reference::solar::SolarSpectrum;
+use crate::spectra::solar::SolarSpectrum;
 use crate::units::s10_for_spectral_photon_radiance;
 use crate::units::ScaleFactors;
 use optica::grid::OutOfRange;

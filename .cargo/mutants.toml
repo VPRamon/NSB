@@ -24,7 +24,7 @@ examine_globs = [
 exclude_globs = [
   "crates/nsb/src/**/tests.rs",
   "crates/nsb/src/solar_activity/tests.rs",
-  "crates/nsb/src/reference/**/*.rs",
+  "crates/nsb/src/spectra/**/*.rs",
   "crates/nsb/src/components/moonlight/scattering.rs",
   "crates/nsb/src/components/zodiacal/leinert.rs",
   "crates/nsb/src/components/starlight/map.rs",

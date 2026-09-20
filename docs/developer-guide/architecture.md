@@ -41,7 +41,7 @@ manifest and build-time checks.
 | `planning` | Observing-window preparation, astronomical filters, and threshold search |
 | `site` | Built-in atmospheric and airglow profile metadata with explicit maturity |
 
-Internal `reference`, `spectrum`, and `units` modules support the public surface
+Internal `spectra` and `units` modules support the public surface
 without becoming independent operational APIs. Threshold-search orchestration
 lives under `planning`.
 

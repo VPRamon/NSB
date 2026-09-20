@@ -1,4 +1,4 @@
-//! Solar irradiance reference spectrum loader.
+//! Solar spectral irradiance loader.
 //!
 //! Loads `data/solar_spectrum.dat` (CSV: `wavelength_nm, irradiance_W_m2_nm`)
 //! shipped with the crate, embedded via `include_str!`.
@@ -14,7 +14,8 @@
 //! spectrum integrated over the NSB band.
 //!
 //! Provenance:
-//! solar reference spectrum lives in `reference::solar`.
+//! the bundled solar spectrum is owned by `spectra::solar` and shared by
+//! components that model scattered sunlight.
 
 use crate::error::{NsbError, Result};
 use crate::units::SolarSpectralIrradianceUnit;
@@ -49,14 +50,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn solar_reference_loader_loads_nonempty() {
+    fn solar_spectrum_loader_loads_nonempty() {
         let s = load().expect("load solar reference spectrum");
         assert!(!s.is_empty());
         assert!(s.xs_raw()[0] > 0.0);
     }
 
     #[test]
-    fn solar_reference_checksum_matches() {
+    fn solar_spectrum_checksum_matches() {
         use siderust::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),

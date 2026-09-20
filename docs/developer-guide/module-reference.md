@@ -31,7 +31,7 @@ SemVer policy, and the snapshot gate are documented in
 | `planning` | Crate-private with selected root re-exports | Observing-window preparation, astronomical filters, and threshold-window search |
 | `site` | Public | Generic and named planning profiles, atmospheric assumptions, airglow scaling, calibration status, and canonical site-calibration evidence |
 | `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
-| `spectrum` | Crate-private | Spectral integration and interpolation helpers |
+| `spectra` | Crate-private | Shared physical spectra consumed by multiple components; currently owns the bundled solar spectral irradiance loader and typed `SolarSpectrum` |
 | `units` | Crate-private with selected re-exports | NSB-specific typed quantities and scale-factor aliases |
 
 ### Component modules

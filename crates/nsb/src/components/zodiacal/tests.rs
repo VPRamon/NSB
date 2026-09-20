@@ -189,7 +189,7 @@ fn below_horizon_observed_returns_zero() {
 fn b_and_v_diagnostics_follow_spectrally_resolved_solar_shape() {
     use super::geometry::ZodiacalGeometry;
     use super::spectrum::compute_outputs;
-    use crate::reference::solar::SolarSpectrum;
+    use crate::spectra::solar::SolarSpectrum;
     use optica::data::Provenance;
     use optica::grid::OutOfRange;
     use optica::spectrum::Interpolation;
