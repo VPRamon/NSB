@@ -114,11 +114,11 @@ pub(super) fn zodiacal_metadata(
         ZodiacalModel::Leinert1998 => match extinction {
             ZodiacalExtinction::None => (
                 "atmospheric propagation none",
-                "exoatmospheric Leinert table geometry; no atmospheric attenuation applied",
+                "ground-observer Leinert table geometry with horizon gating; no atmospheric attenuation applied",
             ),
             ZodiacalExtinction::Noll2012Approx => (
                 "atmospheric propagation noll-2012-approximation (Noll+2012 approximate extinction)",
-                "exoatmospheric Leinert table geometry plus generic Noll-style clear-sky attenuation",
+                "ground-observer Leinert table geometry with horizon gating plus generic Noll-style clear-sky attenuation",
             ),
         },
     };
