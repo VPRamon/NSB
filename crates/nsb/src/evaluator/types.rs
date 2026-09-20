@@ -1,6 +1,5 @@
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
-use crate::components::zodiacal::ZodiacalExtinction;
-use crate::components::{airglow, moonlight, starlight};
+use crate::components::{airglow, moonlight, starlight, zodiacal};
 use crate::site::SiteProfileId;
 use qtty::angular::Degrees;
 use qtty::photometry::SurfaceBrightness;
@@ -282,6 +281,8 @@ pub struct NsbModelConfig {
     pub moonlight_model: moonlight::MoonlightModel,
     /// Airglow scientific model/parameterization.
     pub airglow_model: airglow::AirglowModel,
+    /// Zodiacal-light scientific source model.
+    pub zodiacal_model: zodiacal::ZodiacalModel,
     /// Atmospheric and airglow site profile.
     pub site_profile: SiteProfileId,
     /// Optional explicit starlight product.
@@ -291,7 +292,7 @@ pub struct NsbModelConfig {
     /// Airglow emitting-volume line-of-sight geometry (separate from extinction).
     pub airglow_geometry: airglow::AirglowGeometryModel,
     /// Zodiacal atmospheric propagation choice.
-    pub zodiacal_extinction: ZodiacalExtinction,
+    pub zodiacal_extinction: zodiacal::ZodiacalExtinction,
 }
 
 impl NsbModelConfig {
@@ -300,11 +301,12 @@ impl NsbModelConfig {
         Self {
             moonlight_model: moonlight::MoonlightModel::Jones2013Spectral,
             airglow_model: airglow::AirglowModel::ParanalNollSkyCalcFors1,
+            zodiacal_model: zodiacal::ZodiacalModel::Leinert1998,
             site_profile: SiteProfileId::GenericClearSky,
             starlight_product: default_starlight_product(),
             solar_activity: crate::solar_activity::SolarActivitySource::Automatic,
             airglow_geometry: airglow::AirglowGeometryModel::default(),
-            zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
+            zodiacal_extinction: zodiacal::ZodiacalExtinction::Noll2012Approx,
         }
     }
 
@@ -338,6 +340,31 @@ impl NsbModelConfig {
     /// Return the selected Airglow scientific model.
     pub const fn airglow_model(&self) -> airglow::AirglowModel {
         self.airglow_model
+    }
+
+    /// Select the Zodiacal-light scientific source model independently of propagation.
+    pub fn with_zodiacal_model(mut self, model: zodiacal::ZodiacalModel) -> Self {
+        self.zodiacal_model = model;
+        self
+    }
+
+    /// Return the selected Zodiacal-light scientific source model.
+    pub const fn zodiacal_model(&self) -> zodiacal::ZodiacalModel {
+        self.zodiacal_model
+    }
+
+    /// Select Zodiacal atmospheric propagation independently of the source model.
+    pub fn with_zodiacal_extinction(
+        mut self,
+        extinction: zodiacal::ZodiacalExtinction,
+    ) -> Self {
+        self.zodiacal_extinction = extinction;
+        self
+    }
+
+    /// Return the selected Zodiacal atmospheric propagation.
+    pub const fn zodiacal_extinction(&self) -> zodiacal::ZodiacalExtinction {
+        self.zodiacal_extinction
     }
 
     /// Replace the site profile.
