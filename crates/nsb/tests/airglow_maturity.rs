@@ -2,7 +2,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
 use nsb::{
     bundled_f107_store, CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbEvaluator,
-    NsbModelConfig, PointQuery, SolarFluxUnits, Target, DEG,
+    NsbModelConfig, PointQuery, SiteProfileId, SolarFluxUnits, Target, DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -51,7 +51,20 @@ fn descriptor_status(
 }
 
 #[test]
-fn component_metadata_status_is_deliberately_derived_from_site_calibration_status() {
+fn site_profile_maturity_is_the_source_of_truth_for_component_metadata_status() {
+    assert_eq!(
+        SiteProfileId::GenericClearSky.calibration_status(),
+        CalibrationStatus::GenericFallback
+    );
+    assert_eq!(
+        SiteProfileId::CtaNorth.calibration_status(),
+        CalibrationStatus::PlanningPreset
+    );
+    assert_eq!(
+        SiteProfileId::CtaSouth.calibration_status(),
+        CalibrationStatus::PlanningPreset
+    );
+
     assert_eq!(
         ComponentCalibrationStatus::from(CalibrationStatus::GenericFallback),
         ComponentCalibrationStatus::GenericClearSky
