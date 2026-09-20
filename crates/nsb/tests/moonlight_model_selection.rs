@@ -229,29 +229,8 @@ fn jones_uses_selected_site_profile_atmosphere() {
 }
 
 #[test]
-fn ks_uses_selected_site_profile_atmosphere() {
+fn ks_published_reference_is_independent_of_site_profile() {
     let observer = paranal();
-    let generic_profile = SiteProfileId::GenericClearSky.profile(observer);
-    let north_profile = SiteProfileId::CtaNorth.profile(observer);
-    let south_profile = SiteProfileId::CtaSouth.profile(observer);
-
-    assert_ne!(
-        generic_profile.atmosphere.surface_pressure,
-        north_profile.atmosphere.surface_pressure
-    );
-    assert_ne!(
-        generic_profile.atmosphere.surface_pressure,
-        south_profile.atmosphere.surface_pressure
-    );
-    assert_eq!(
-        generic_profile.atmosphere.mie_params,
-        north_profile.atmosphere.mie_params
-    );
-    assert_eq!(
-        north_profile.atmosphere.mie_params,
-        south_profile.atmosphere.mie_params
-    );
-    assert!(north_profile.atmosphere.surface_pressure > south_profile.atmosphere.surface_pressure);
 
     let evaluate = |site_profile| {
         evaluate_moonlight_at(
@@ -271,18 +250,21 @@ fn ks_uses_selected_site_profile_atmosphere() {
         assert!(output.integrated.value().is_finite());
         assert!(output.integrated.value() > 0.0);
     }
-    assert_ne!(
-        generic.integrated.value().to_bits(),
-        north.integrated.value().to_bits()
-    );
-    assert_ne!(
-        generic.integrated.value().to_bits(),
-        south.integrated.value().to_bits()
-    );
-    assert_ne!(
-        north.integrated.value().to_bits(),
-        south.integrated.value().to_bits()
-    );
+
+    for candidate in [&north, &south] {
+        assert_eq!(
+            generic.integrated.value().to_bits(),
+            candidate.integrated.value().to_bits()
+        );
+        assert_eq!(
+            generic.b_flux_s10.value().to_bits(),
+            candidate.b_flux_s10.value().to_bits()
+        );
+        assert_eq!(
+            generic.v_flux_s10.value().to_bits(),
+            candidate.v_flux_s10.value().to_bits()
+        );
+    }
 }
 
 #[test]
@@ -319,5 +301,9 @@ fn metadata_preserves_model_identity_and_records_site_assumptions_separately() {
         .provenance
         .contains("Krisciunas & Schaefer 1991"));
     assert!(ks.metadata.provenance.contains("ctao-north-planning"));
+    assert!(ks
+        .metadata
+        .provenance
+        .contains("fixed validated V-band extinction k=0.172"));
     assert!(!ks.metadata.provenance.contains("Jones+2013"));
 }

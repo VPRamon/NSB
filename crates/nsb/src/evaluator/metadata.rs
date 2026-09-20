@@ -278,11 +278,11 @@ pub(super) fn moonlight_metadata(
             NsbComponentMetadata {
                 status: ComponentCalibrationStatus::PublishedReference,
                 provenance: Cow::Owned(format!(
-                    "Krisciunas & Schaefer 1991 analytic V-band moonlight model; site profile {}; V-band extinction derived from profile atmosphere: {}",
-                    profile.name, profile.atmosphere_provenance
+                    "Krisciunas & Schaefer 1991 analytic V-band moonlight model; fixed validated V-band extinction k=0.172 mag/airmass; selected site profile {} does not alter this reference parameterization",
+                    profile.name
                 )),
                 validated_domain:
-                    "published analytic V-band reference model; not the wavelength-resolved default"
+                    "published analytic V-band reference model with fixed k=0.172 mag/airmass; not the wavelength-resolved default"
                         .into(),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
                 airglow_model: None,

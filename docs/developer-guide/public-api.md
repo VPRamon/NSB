@@ -99,10 +99,12 @@ than a second public evaluation API. Applications evaluate Moonlight through
 `NsbEvaluator` and receive the shared `NsbComponent` result contract.
 
 Moonlight scientific model identity is independent from `SiteProfileId`.
-Site profiles select atmospheric assumptions and maturity; they do not silently
-replace the selected `MoonlightModel`. The CLI model audit reports the
-selection through the canonical `MoonlightModel::as_str()` identity. Existing
-Moonlight provenance/status metadata remains unchanged in this release; adding a
+For Jones 2013, site profiles select the atmospheric assumptions used by the
+spectral model. The K&S 1991 published-reference path instead preserves its
+validated fixed `k = 0.172 mag/airmass` parameterization, so selecting a site
+profile does not change K&S numerics. In neither case does a profile silently
+replace the selected `MoonlightModel`. The CLI model audit reports the selection
+through the canonical `MoonlightModel::as_str()` identity. Adding a
 component-specific Moonlight model field or a generic cross-component identity
 framework is deferred to the separate metadata review.
 

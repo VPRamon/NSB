@@ -8,11 +8,10 @@ pub(crate) struct KrisciunasSchaefer1991 {
 }
 
 impl KrisciunasSchaefer1991 {
-    pub(crate) fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Self {
-        let atmosphere = site_profile.profile(location).atmosphere;
+    pub(crate) fn published_reference(location: Geodetic<ECEF>) -> Self {
         Self {
             location,
-            k_ext: krisciunas_schaefer_v_band_extinction(atmosphere),
+            k_ext: DEFAULT_K_EXT,
         }
     }
 

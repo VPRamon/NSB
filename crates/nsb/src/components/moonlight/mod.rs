@@ -13,7 +13,6 @@
 
 use crate::error::Result;
 use crate::reference::solar;
-use crate::site::atmosphere::rayleigh_optical_depth_local_pressure;
 use crate::site::{AtmosphericConditions, SiteProfileId};
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
@@ -80,7 +79,6 @@ impl Jones2013Spectral {
     }
 }
 
-#[cfg(test)]
 const DEFAULT_K_EXT: MagnitudesPerAirmass = MagnitudesPerAirmass::new(0.172);
 
 const S10_V_TO_INTEGRATED_PH: PhotonsPerSquareCentimeterNanosecondSteradian =
@@ -89,25 +87,6 @@ const WL_LOW: Nanometers = Nanometers::new(300.0);
 const WL_HIGH: Nanometers = Nanometers::new(650.0);
 const B_FILTER: Nanometers = Nanometers::new(445.0);
 const V_FILTER: Nanometers = Nanometers::new(551.0);
-
-/// Derive the scalar V-band extinction coefficient required by K&S 1991.
-///
-/// K&S uses `k` in magnitudes per airmass. For Beer-Lambert transmission
-/// `T = exp(-tau * X)`, the corresponding magnitude extinction is
-/// `-2.5 log10(T) = 2.5 log10(e) tau X`. The selected site atmosphere
-/// therefore maps to `k_V` through its Rayleigh + Mie vertical optical depth
-/// at the V diagnostic wavelength.
-///
-/// The profile pressure is already local, so the Rayleigh term deliberately
-/// uses the shared local-pressure helper rather than applying observer altitude
-/// a second time.
-fn krisciunas_schaefer_v_band_extinction(
-    atmosphere: AtmosphericConditions,
-) -> MagnitudesPerAirmass {
-    let tau_rayleigh = rayleigh_optical_depth_local_pressure(V_FILTER, atmosphere);
-    let tau_mie = mie_optical_depth(&atmosphere.mie_params, V_FILTER);
-    MagnitudesPerAirmass::new(2.5 * std::f64::consts::LOG10_E * (tau_rayleigh + tau_mie).value())
-}
 
 /// Empirical aerosol-scattering weight applied to the Jones 2013 Mie phase term.
 ///
@@ -331,41 +310,6 @@ mod tests {
             profile.atmosphere.surface_pressure
         );
         assert_eq!(profile.atmosphere.surface_pressure.value(), 770.0);
-    }
-
-    #[test]
-    fn ks_v_band_extinction_is_derived_from_site_profile_atmosphere() {
-        let location = cta_n();
-        let generic = SiteProfileId::GenericClearSky.profile(location).atmosphere;
-        let north = SiteProfileId::CtaNorth.profile(location).atmosphere;
-        let south = SiteProfileId::CtaSouth.profile(location).atmosphere;
-
-        assert!(generic.surface_pressure > north.surface_pressure);
-        assert_eq!(north.surface_pressure.value(), 770.0);
-        assert_eq!(south.surface_pressure.value(), 744.0);
-        assert_eq!(generic.mie_params, north.mie_params);
-        assert_eq!(north.mie_params, south.mie_params);
-
-        let expected = |atmosphere: AtmosphericConditions| {
-            let tau_rayleigh = rayleigh_optical_depth_local_pressure(V_FILTER, atmosphere);
-            let tau_mie = mie_optical_depth(&atmosphere.mie_params, V_FILTER);
-            2.5 * std::f64::consts::LOG10_E * (tau_rayleigh + tau_mie).value()
-        };
-        let generic_k = krisciunas_schaefer_v_band_extinction(generic);
-        let north_k = krisciunas_schaefer_v_band_extinction(north);
-        let south_k = krisciunas_schaefer_v_band_extinction(south);
-
-        for (actual, expected) in [
-            (generic_k, expected(generic)),
-            (north_k, expected(north)),
-            (south_k, expected(south)),
-        ] {
-            assert!((actual.value() - expected).abs() < 1.0e-15);
-        }
-        assert!(
-            generic_k > north_k && north_k > south_k,
-            "with identical Mie parameters, higher local pressure must produce larger V-band extinction"
-        );
     }
 
     #[test]

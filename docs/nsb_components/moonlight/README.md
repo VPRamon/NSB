@@ -42,33 +42,24 @@ the component returns zero.
 
 ## Atmospheric inputs and site profiles
 
-Both implementations consume atmospheric assumptions from the selected
-`SiteProfileId`, but in the representation required by each scientific model.
+The two scientific models deliberately treat atmospheric configuration
+differently.
 
-Jones uses the profile's surface pressure, Rayleigh scale height, and Mie/aerosol
-parameters wavelength by wavelength. Its geometric altitude remains the actual
-query observer altitude.
+Jones uses the selected `SiteProfileId` profile's surface pressure, Rayleigh
+scale height, and Mie/aerosol parameters wavelength by wavelength. Its geometric
+altitude remains the actual query observer altitude.
 
-Krisciunas & Schaefer requires a scalar V-band extinction coefficient `k` in
-magnitudes per airmass. NSB derives it from the same selected profile at the
-551 nm V diagnostic wavelength:
+Krisciunas & Schaefer remains the published analytic V-band reference
+parameterization validated by the repository regression fixture. It uses the
+fixed `k = 0.172 mag/airmass` reference extinction used by that validation;
+selecting a different `SiteProfileId` does not rewrite this parameter or change
+the K&S numerical result. The selected profile may still be reported alongside
+the model in provenance so callers can audit the complete evaluator
+configuration without implying that the profile calibrates the K&S reference.
 
-```text
-k_V = 2.5 log10(e) [tau_R(551 nm) + tau_M(551 nm)]
-```
-
-The profile pressure is already local, so this conversion does not apply the
-observer altitude a second time to the Rayleigh column. The derived coefficient
-contains the clear-sky extinction represented by the current profile model
-(Rayleigh + Mie); `AtmosphericConditions` does not introduce a separate
-molecular-absorption term. For `GenericClearSky`, the local pressure is itself
-derived from the query observer altitude; named CTAO profiles use their explicit
-planning pressure and aerosol assumptions. The query observer continues to
-determine lunar/target geometry.
-
-Neither profile substitutes for a site-calibrated aerosol model. Site
-assumptions and `MoonlightModel` scientific identity are independent
-configuration concepts.
+Named CTAO profiles remain planning assumptions rather than site-calibrated
+aerosol models. Site-profile selection and `MoonlightModel` scientific identity
+are independent configuration concepts.
 
 The implementation includes `JONES_MIE_WEIGHT = 0.05`, an empirical correction
 for its simplified scattering path and bundled phase grid. It is not a physical
