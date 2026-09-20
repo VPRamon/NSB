@@ -889,6 +889,19 @@ mod tests {
     }
 
     #[test]
+    fn describe_components_rejects_starlight_without_configured_product() {
+        let mut config = NsbModelConfig::generic_clear_sky();
+        config.starlight_product = None;
+        let evaluator = NsbEvaluator::with_config(config).unwrap();
+
+        assert!(matches!(
+            evaluator.describe_components(paranal(), ComponentMask::STARLIGHT),
+            Err(NsbError::Unsupported(message))
+                if message == "starlight component requested but no starlight product is configured"
+        ));
+    }
+
+    #[test]
     fn threshold_airglow_does_not_use_point_night_search_hot_path() {
         let evaluator = NsbEvaluator::new().unwrap();
         let query = threshold_query(
