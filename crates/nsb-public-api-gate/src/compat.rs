@@ -180,6 +180,18 @@ fn inspect_zodiacal_item(
         Item::Trait(item_trait) if check_declarations && is_public(&item_trait.vis) => {
             reject_removed_type_name(path, &item_trait.ident.to_string(), hits);
         }
+        Item::Fn(item_fn) if check_declarations && is_public(&item_fn.vis) => {
+            let name = item_fn.sig.ident.to_string();
+            if ZODIACAL_REMOVED_IMPL_METHODS
+                .iter()
+                .any(|removed| *removed == name.as_str())
+            {
+                hits.push(format!(
+                    "{}: public function from removed Zodiacal implementation API {name}",
+                    display_repo_path(path)
+                ));
+            }
+        }
         Item::Impl(item_impl) if check_declarations => {
             for impl_item in &item_impl.items {
                 if let ImplItem::Fn(method) = impl_item {
@@ -187,7 +199,7 @@ fn inspect_zodiacal_item(
                     if is_public(&method.vis)
                         && ZODIACAL_REMOVED_IMPL_METHODS
                             .iter()
-                            .any(|removed| *removed == name)
+                            .any(|removed| *removed == name.as_str())
                     {
                         hits.push(format!(
                             "{}: public method from removed Zodiacal implementation API {name}",
