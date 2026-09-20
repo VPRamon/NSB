@@ -5,7 +5,7 @@ use anyhow::Result;
 use nsb::components::airglow::AirglowGeometryMetadata;
 use nsb::{
     assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
-    BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightModel,
+    BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightProduct,
     Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
 };
 use serde::Serialize;
@@ -307,11 +307,11 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
     ModelJson {
         preset: config.site_profile.as_str(),
         moonlight_model: config.moonlight_model().as_str(),
-        starlight_model: match config.starlight_model.as_ref() {
+        starlight_model: match config.starlight_product.as_ref() {
             None => "not-configured-non-production-component",
-            Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
-            Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
-            Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
+            Some(StarlightProduct::BundledProductionGaiaDr3) => "starlight",
+            Some(StarlightProduct::ExperimentalMap(_)) => "experimental-starlight",
+            Some(StarlightProduct::ValidatedExternalMap(_)) => "validated-starlight",
             _ => "unknown-starlight-model",
         },
         solar_radio_flux_sfu,
@@ -449,10 +449,10 @@ fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str 
 }
 
 fn starlight_label(config: &NsbModelConfig) -> &'static str {
-    match config.starlight_model.as_ref() {
-        Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
-        Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
-        Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
+    match config.starlight_product.as_ref() {
+        Some(StarlightProduct::BundledProductionGaiaDr3) => "starlight",
+        Some(StarlightProduct::ValidatedExternalMap(_)) => "validated-starlight",
+        Some(StarlightProduct::ExperimentalMap(_)) => "experimental-starlight",
         None => "starlight",
         _ => "unknown-starlight-model",
     }
