@@ -120,10 +120,7 @@ fn none_extinction_dispatches_through_evaluator_and_metadata_is_truthful() {
         .metadata
         .provenance
         .contains("scientific model leinert-1998"));
-    assert!(noll
-        .metadata
-        .provenance
-        .contains("noll-2012-approximation"));
+    assert!(noll.metadata.provenance.contains("noll-2012-approximation"));
     assert!(noll.metadata.provenance.contains("Noll+2012"));
 
     assert!(none
