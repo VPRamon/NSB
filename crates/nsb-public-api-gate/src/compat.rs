@@ -181,10 +181,7 @@ fn inspect_zodiacal_item(
         }
         Item::Fn(item_fn) if check_declarations && is_public(&item_fn.vis) => {
             let name = item_fn.sig.ident.to_string();
-            if ZODIACAL_REMOVED_IMPL_METHODS
-                .iter()
-                .any(|removed| *removed == name.as_str())
-            {
+            if ZODIACAL_REMOVED_IMPL_METHODS.contains(&name.as_str()) {
                 hits.push(format!(
                     "{}: public function from removed Zodiacal implementation API {name}",
                     display_repo_path(path)
@@ -196,9 +193,7 @@ fn inspect_zodiacal_item(
                 if let ImplItem::Fn(method) = impl_item {
                     let name = method.sig.ident.to_string();
                     if is_public(&method.vis)
-                        && ZODIACAL_REMOVED_IMPL_METHODS
-                            .iter()
-                            .any(|removed| *removed == name.as_str())
+                        && ZODIACAL_REMOVED_IMPL_METHODS.contains(&name.as_str())
                     {
                         hits.push(format!(
                             "{}: public method from removed Zodiacal implementation API {name}",
