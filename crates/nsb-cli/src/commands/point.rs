@@ -97,10 +97,10 @@ pub(crate) fn model_config(
         );
         config = config.with_airglow_geometry(AirglowGeometryModel::VerticalProfile(profile));
     }
-    config.zodiacal_extinction = match args.zodiacal_extinction {
+    config = config.with_zodiacal_extinction(match args.zodiacal_extinction {
         crate::cli::ZodiacalExtinctionArg::Noll2012 => ZodiacalExtinction::Noll2012Approx,
         crate::cli::ZodiacalExtinctionArg::None => ZodiacalExtinction::None,
-    };
+    });
     match components.starlight {
         Some(components::StarlightSelection::Production) => {
             config.starlight_product =
