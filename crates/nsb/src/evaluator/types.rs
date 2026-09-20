@@ -354,10 +354,7 @@ impl NsbModelConfig {
     }
 
     /// Select Zodiacal atmospheric propagation independently of the source model.
-    pub fn with_zodiacal_extinction(
-        mut self,
-        extinction: zodiacal::ZodiacalExtinction,
-    ) -> Self {
+    pub fn with_zodiacal_extinction(mut self, extinction: zodiacal::ZodiacalExtinction) -> Self {
         self.zodiacal_extinction = extinction;
         self
     }
