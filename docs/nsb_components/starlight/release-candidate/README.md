@@ -121,7 +121,7 @@ matrix, exercised only against clearly synthetic fixtures.
 
 ## Runtime gate (already enforced on `main`)
 
-`crates/nsb::StarlightProduct::BundledProductionGaiaDr3` and
+`crates/nsb::StarlightModel::BundledProductionGaiaDr3` and
 `ComponentMask::ALL` already implement the fail-closed production gate:
 
 - `Starlight::bundled_production_model()` only succeeds when
@@ -134,7 +134,7 @@ matrix, exercised only against clearly synthetic fixtures.
   under `cfg(nsb_bundled_production_starlight)`, which is not set while no
   production pair is registered.
 - `crates/nsb-cli`'s `--components starlight` production selection always
-  calls `StarlightProduct::bundled_production_gaia_dr3()` explicitly; missing
+  calls `StarlightModel::bundled_production_gaia_dr3()` explicitly; missing
   production evidence is an error.
 
 The final-promotion workflow, after valid #103 signatures, registers that
