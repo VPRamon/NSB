@@ -1,5 +1,5 @@
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
-use crate::components::zodiacal::{self, ZodiacalExtinction};
+use crate::components::zodiacal;
 use crate::components::{airglow, moonlight, starlight};
 use crate::site::{CalibrationStatus, SiteProfileId};
 use qtty::angular::Degrees;
