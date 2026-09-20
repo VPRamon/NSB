@@ -346,6 +346,54 @@ jobs:
           fi
           exit "$status"
 
+  moonlight_profile_exact_validation:
+    name: Exact Moonlight profile validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt,clippy
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: moonlight-profile-exact
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Run targeted Moonlight model-selection tests
+        run: cargo test --locked -p nsb --test moonlight_model_selection
+      - name: Run query API tests
+        run: cargo test --locked -p nsb --test query_api
+      - name: Run site-profile unit tests
+        run: cargo test --locked -p nsb --lib site::
+      - name: Run Moonlight unit tests
+        run: cargo test --locked -p nsb --lib components::moonlight::
+      - name: Run CLI model-audit contract tests
+        run: cargo test --locked -p nsb-cli --test point_contract
+      - name: Run workspace tests
+        run: cargo test --workspace --all-targets --locked
+      - name: Build rustdoc with warnings denied
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --all-features --no-deps
+      - name: Install nightly rustdoc toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-09-02
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --locked --version 0.50.1 --force
+      - name: Run public API gate from merge base
+        run: |
+          BASE="$(git merge-base HEAD origin/main)"
+          cargo run --locked -p nsb-public-api-gate -- --base "$BASE"
+
   ci_success:
     name: CI success
     if: always()
