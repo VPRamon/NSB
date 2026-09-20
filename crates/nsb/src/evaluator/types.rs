@@ -1,6 +1,7 @@
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
-use crate::components::{airglow, moonlight, starlight, zodiacal};
-use crate::site::SiteProfileId;
+use crate::components::zodiacal::ZodiacalExtinction;
+use crate::components::{airglow, moonlight, starlight};
+use crate::site::{CalibrationStatus, SiteProfileId};
 use qtty::angular::Degrees;
 use qtty::photometry::SurfaceBrightness;
 use qtty::radiometry::{
@@ -368,6 +369,19 @@ impl NsbModelConfig {
     pub fn with_site_profile(mut self, site_profile: SiteProfileId) -> Self {
         self.site_profile = site_profile;
         self
+    }
+
+    /// Return the evidence-backed Airglow calibration maturity.
+    ///
+    /// Observer coordinates, geometry, and solar-activity inputs do not change
+    /// the scientific maturity selected by the site profile.
+    pub const fn airglow_calibration_status(&self) -> CalibrationStatus {
+        self.site_profile.calibration_status()
+    }
+
+    /// Return true only when the selected Airglow site profile is calibrated.
+    pub const fn is_airglow_site_calibrated(&self) -> bool {
+        self.site_profile.is_site_calibrated()
     }
 
     /// Configure an explicit Starlight data product.

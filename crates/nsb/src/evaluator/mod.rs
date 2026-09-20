@@ -6,7 +6,6 @@
 //! as named-site parsing and timestamp parsing intentionally live outside this
 //! crate.
 
-mod airglow_maturity;
 mod core;
 #[cfg(feature = "window-search-diagnostics")]
 mod diagnostics;
