@@ -5,6 +5,7 @@ use crate::components::airglow::calibration::{
 use crate::components::airglow::{AirglowModel, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG};
 use crate::components::moonlight::MoonlightModel;
 use crate::components::starlight::{StarlightProduct, StarlightProvenance};
+use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
 use crate::site::{CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
 use crate::NSB_S10_ZP;
 use qtty::photometry::SurfaceBrightness;
@@ -105,11 +106,30 @@ pub(super) fn component_status_for_site_profile(
     site_profile.calibration_status().into()
 }
 
-pub(super) fn zodiacal_metadata() -> NsbComponentMetadata {
+pub(super) fn zodiacal_metadata(
+    model: ZodiacalModel,
+    extinction: ZodiacalExtinction,
+) -> NsbComponentMetadata {
+    let (propagation, validated_domain) = match model {
+        ZodiacalModel::Leinert1998 => match extinction {
+            ZodiacalExtinction::None => (
+                "atmospheric propagation none",
+                "ground-observer Leinert table geometry with horizon gating; no atmospheric attenuation applied",
+            ),
+            ZodiacalExtinction::Noll2012Approx => (
+                "atmospheric propagation noll-2012-approximation (Noll+2012 approximate extinction)",
+                "ground-observer Leinert table geometry with horizon gating plus generic Noll-style clear-sky attenuation",
+            ),
+        },
+    };
+
     NsbComponentMetadata {
         status: ComponentCalibrationStatus::GenericClearSky,
-        provenance: "Leinert+1998 zodiacal S10 table; Noll+2012 approximate extinction; bundled solar spectrum".into(),
-        validated_domain: "exoatmospheric Leinert table geometry plus generic Noll-style clear-sky attenuation".into(),
+        provenance: Cow::Owned(format!(
+            "scientific model {}; Leinert+1998 zodiacal S10 table; bundled solar spectrum; {propagation}",
+            model.as_str()
+        )),
+        validated_domain: validated_domain.into(),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         airglow_model: None,
         solar_activity: None,

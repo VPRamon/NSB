@@ -26,8 +26,10 @@
 //!
 //! # Advanced extensibility
 //!
-//! The enum is designed so a future `AtmosphereProfile(Box<dyn ...>)` variant
-//! can be added without breaking existing code. Currently only `None` and
+//! The enum is non-exhaustive so additional propagation strategies that preserve
+//! the selector's current public traits can be added compatibly. Stateful or
+//! profile-owning propagation requires a separate configuration design rather
+//! than adding a non-`Copy` payload variant here. Currently only `None` and
 //! `Noll2012Approx` are implemented.
 //!
 //! # Reference
@@ -49,8 +51,10 @@ use siderust::qtty::Nanometers;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum ZodiacalExtinction {
-    /// No atmospheric attenuation. Use this for exoatmospheric predictions
-    /// or when attenuation is handled externally.
+    /// No atmospheric attenuation in ground-observer evaluation.
+    ///
+    /// Horizon visibility still applies; this does not switch evaluation to an
+    /// exoatmospheric geometry mode. Use this when attenuation is handled externally.
     None,
 
     /// Noll et al. (2012) piecewise-linear Rayleigh + Mie approximation.

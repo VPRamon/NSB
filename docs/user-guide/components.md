@@ -33,9 +33,19 @@ uncertainty metadata.
 
 ## Zodiacal light
 
-The zodiacal component combines a directional brightness model with a reference
-solar spectrum. Atmospheric extinction can be applied using the default
-Noll-style approximation or disabled explicitly.
+The zodiacal component uses the component-owned scientific selector
+`ZodiacalModel`. The deterministic default is `ZodiacalModel::Leinert1998`,
+whose stable audit identity is `leinert-1998`. Its Leinert brightness table,
+bundled solar reference spectrum, and wavelength reddening form the celestial
+source implementation.
+
+Atmospheric propagation is configured independently through
+`ZodiacalExtinction`. `Noll2012Approx` is the default; `None` disables
+attenuation without selecting a different scientific source model. `None`
+still uses ground-observer geometry and horizon gating; it is not an
+exoatmospheric evaluation mode. Library callers configure both choices through
+`NsbModelConfig` and evaluate with `NsbEvaluator`; there is no separate public
+`ZodiacalLight` evaluation API.
 
 CLI selection:
 
@@ -45,9 +55,11 @@ CLI selection:
 ```
 
 Use `--zodiacal-extinction none` only when the caller intentionally wants the
-unattenuated model contribution. The default component metadata describes a
-generic clear-sky scientific surface rather than an observatory-specific
-calibration.
+unattenuated model contribution. The CLI model audit reports both
+`zodiacal_model` and the existing `zodiacal_extinction` field. The default
+component metadata describes a generic clear-sky scientific surface rather than
+an observatory-specific calibration, and its provenance reflects the propagation
+choice that was actually evaluated.
 
 ## Integrated starlight
 

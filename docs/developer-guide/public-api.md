@@ -34,7 +34,7 @@ Typical imports from the crate root:
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult`, `SiteWindowContext` |
-| Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightProduct`, `SiteProfileId` |
+| Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileId` |
 | Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfile`, `SiteProfileId` |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
 | Errors | `NsbError`, `Result` |
@@ -51,6 +51,7 @@ Intended for normal integrations and to become stable at the public API freeze.
 Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
 `Observer`, `Target`), `NsbModelConfig` and model-selection enums,
 `SiteProfile` / `SiteProfileId`, the `StarlightProduct` data-product selector,
+the Zodiacal atmospheric-propagation selector `ZodiacalExtinction`,
 crate version constants (`NSB_VERSION`, `MODEL_VERSION`), and the
 [`DEG`](../../crates/nsb/src/lib.rs) re-export used in
 documented equatorial constructors.
@@ -125,6 +126,30 @@ may construct or inspect `StarlightMap` / `StarlightPixel`, load
 the target-to-Galactic transform and component radiance evaluation remain owned
 by `NsbEvaluator`.
 
+Zodiacal follows the component-owned selector pattern while preserving a
+scientifically important independent propagation dimension. The
+`#[non_exhaustive] ZodiacalModel` enum is root-exported and currently contains
+`ZodiacalModel::Leinert1998`, with stable identity `leinert-1998`.
+`NsbModelConfig::generic_clear_sky()` selects it deterministically;
+`with_zodiacal_model` and `zodiacal_model` provide the supported
+configuration/inspection contract.
+
+`ZodiacalExtinction` is not a scientific source-model identity. It independently
+selects atmospheric propagation: `Noll2012Approx` is the default and
+`None` disables attenuation. Callers use `with_zodiacal_extinction` and
+`zodiacal_extinction`. The evaluator reports the selected source model and
+propagation truthfully in provenance, and the CLI model audit exposes both
+machine-readable identities.
+
+The concrete `ZodiacalLight` evaluator, `ZodiacalOutputs`, the removed
+wavelength-resolved `ZodiacalSpectrum` application surface, custom brightness
+grid/source injection, and solar-spectrum replacement are implementation or
+validation details. The first release deliberately does not freeze caller-
+supplied grids or spectra because they have no product-admission, validation, or
+runtime-provenance contract comparable to Starlight. Applications evaluate
+Zodiacal light through `NsbEvaluator` and receive the shared `NsbComponent`
+contract.
+
 Other advanced component models and offline F10.7 store types remain available
 through their deliberate component or `solar_activity` routes.
 
@@ -154,6 +179,7 @@ These must remain `pub(crate)` or private:
 - Unit conversions and SkyCalc-specific internal quantity aliases
 - Moonlight concrete evaluators, component-only outputs, tuning constants, and model-specific search helpers
 - Starlight concrete evaluator/component-only output and the removed `StarlightModel` naming
+- Zodiacal concrete evaluator/output, custom brightness-grid injection, and solar-spectrum replacement
 - `reference` and internal spectral/threshold-search orchestration
 
 If a needed type is missing from the intended supported classes above, open an

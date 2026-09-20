@@ -38,7 +38,10 @@ pub(crate) fn evaluate(
             statistical_uncertainty: None,
             systematic_uncertainty: None,
             total_uncertainty: None,
-            metadata: zodiacal_metadata(),
+            metadata: zodiacal_metadata(
+                evaluator.model_config().zodiacal_model,
+                evaluator.model_config().zodiacal_extinction,
+            ),
         });
     }
     if query.components.contains(ComponentMask::STARLIGHT) {

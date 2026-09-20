@@ -1,10 +1,14 @@
-use crate::error::{NsbError, Result};
+#[cfg(test)]
+use crate::error::NsbError;
+use crate::error::Result;
 use crate::evaluator::Target;
 use crate::reference::solar;
 use crate::units::SolarSpectralIrradianceUnit;
 use optica::spectrum::SampledSpectrum;
+#[cfg(test)]
 use qtty::angular::Degrees;
 use qtty::length::Nanometer;
+#[cfg(test)]
 use qtty::radiometry::S10s as S10;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -12,26 +16,44 @@ use tempoch::{Time, UTC};
 
 use super::extinction::ZodiacalExtinction;
 use super::geometry;
-use super::output::{ZodiacalOutputs, ZodiacalSpectrum};
+use super::output::ZodiacalOutputs;
 use super::spectrum as zl_spectrum;
 
-#[derive(Debug, Clone)]
-/// Caller-defined zodiacal surface-brightness grid.
-pub struct ZodiacalBrightnessGrid {
-    pub(super) beta_axis: Vec<Degrees>,
-    pub(super) delta_lambda_axis: Vec<Degrees>,
-    pub(super) s10_values: Vec<Vec<S10>>,
-    /// Optional source/provenance note for the custom grid.
-    pub provenance: Option<String>,
+/// Supported Zodiacal-light scientific source models.
+///
+/// This selects the celestial source parameterization independently from
+/// atmospheric propagation. Additional independently validated models may be
+/// added in future releases; downstream matches should include a wildcard arm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ZodiacalModel {
+    /// Leinert et al. (1998) empirical directional brightness model.
+    Leinert1998,
 }
 
+impl ZodiacalModel {
+    /// Stable machine-readable scientific model identity.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Leinert1998 => "leinert-1998",
+        }
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone)]
+pub(super) struct ZodiacalBrightnessGrid {
+    beta_axis: Vec<Degrees>,
+    delta_lambda_axis: Vec<Degrees>,
+    s10_values: Vec<Vec<S10>>,
+}
+
+#[cfg(test)]
 impl ZodiacalBrightnessGrid {
-    /// Validate and construct a rectangular grid in degrees and S10 units.
-    pub fn new(
+    pub(super) fn new(
         beta_axis: Vec<Degrees>,
         delta_lambda_axis: Vec<Degrees>,
         s10_values: Vec<Vec<S10>>,
-        provenance: Option<String>,
     ) -> Result<Self> {
         if beta_axis.len() < 2 || delta_lambda_axis.len() < 2 {
             return Err(NsbError::OutOfRange(
@@ -78,11 +100,11 @@ impl ZodiacalBrightnessGrid {
                     delta_lambda_axis.len()
                 )));
             }
-            for &v in row {
-                if !v.is_finite() || v < S10::new(0.0) {
+            for &value in row {
+                if !value.is_finite() || value < S10::new(0.0) {
                     return Err(NsbError::OutOfRange(format!(
                         "s10_values[{i}] contains non-finite or negative value: {}",
-                        v.value()
+                        value.value()
                     )));
                 }
             }
@@ -91,11 +113,10 @@ impl ZodiacalBrightnessGrid {
             beta_axis,
             delta_lambda_axis,
             s10_values,
-            provenance,
         })
     }
 
-    pub(super) fn lookup_s10(&self, beta: Degrees, delta_lambda: Degrees) -> Result<S10> {
+    fn lookup_s10(&self, beta: Degrees, delta_lambda: Degrees) -> Result<S10> {
         let beta = beta.abs().min(Degrees::new(90.0));
         let delta_lambda = delta_lambda.abs().min(Degrees::new(180.0));
         let (ib0, ib1, tb) = bracket(&self.beta_axis, beta);
@@ -111,10 +132,12 @@ impl ZodiacalBrightnessGrid {
     }
 }
 
-fn is_strictly_increasing(v: &[Degrees]) -> bool {
-    v.windows(2).all(|w| w[1] > w[0])
+#[cfg(test)]
+fn is_strictly_increasing(values: &[Degrees]) -> bool {
+    values.windows(2).all(|window| window[1] > window[0])
 }
 
+#[cfg(test)]
 fn bracket(axis: &[Degrees], value: Degrees) -> (usize, usize, f64) {
     let pos = axis.partition_point(|&x| x <= value);
     let i1 = pos.min(axis.len() - 1);
@@ -127,6 +150,7 @@ fn bracket(axis: &[Degrees], value: Degrees) -> (usize, usize, f64) {
     (i0, i1, t.clamp(0.0, 1.0))
 }
 
+#[cfg(test)]
 fn bilinear(v00: S10, v01: S10, v10: S10, v11: S10, tx: f64, ty: f64) -> S10 {
     let r0 = v00 + (v10 - v00) * tx;
     let r1 = v01 + (v11 - v01) * tx;
@@ -134,28 +158,21 @@ fn bilinear(v00: S10, v01: S10, v10: S10, v11: S10, tx: f64, ty: f64) -> S10 {
 }
 
 #[derive(Debug, Clone)]
-/// Directional zodiacal surface-brightness source.
-///
-/// Additional brightness tables may be added; match with a wildcard.
-#[non_exhaustive]
-pub enum ZodiacalBrightnessModel {
-    /// Built-in Leinert et al. (1998) table.
+pub(super) enum ZodiacalBrightnessModel {
     Leinert1998,
-    /// Caller-provided validated rectangular grid.
+    #[cfg(test)]
     CustomGrid(ZodiacalBrightnessGrid),
 }
 
 #[derive(Debug, Clone)]
-/// Zodiacal-light spectral and integrated-radiance evaluator.
-pub struct ZodiacalLight {
+pub(crate) struct ZodiacalLight {
     brightness_model: ZodiacalBrightnessModel,
     solar_spectrum: SampledSpectrum<Nanometer, SolarSpectralIrradianceUnit>,
     extinction: ZodiacalExtinction,
 }
 
 impl ZodiacalLight {
-    /// Build with the Leinert table and bundled solar spectrum.
-    pub fn leinert1998() -> Result<Self> {
+    pub(crate) fn leinert1998() -> Result<Self> {
         Ok(Self {
             brightness_model: ZodiacalBrightnessModel::Leinert1998,
             solar_spectrum: solar::load()?,
@@ -163,8 +180,8 @@ impl ZodiacalLight {
         })
     }
 
-    /// Build with an explicit brightness source and bundled solar spectrum.
-    pub fn with_brightness_model(model: ZodiacalBrightnessModel) -> Result<Self> {
+    #[cfg(test)]
+    pub(super) fn with_brightness_model(model: ZodiacalBrightnessModel) -> Result<Self> {
         Ok(Self {
             brightness_model: model,
             solar_spectrum: solar::load()?,
@@ -172,23 +189,12 @@ impl ZodiacalLight {
         })
     }
 
-    /// Replace the solar reference spectrum.
-    pub fn with_solar_spectrum(
-        mut self,
-        solar_spectrum: SampledSpectrum<Nanometer, SolarSpectralIrradianceUnit>,
-    ) -> Self {
-        self.solar_spectrum = solar_spectrum;
-        self
-    }
-
-    /// Select atmospheric attenuation for observed computations.
-    pub fn with_extinction(mut self, extinction: ZodiacalExtinction) -> Self {
+    pub(crate) fn with_extinction(mut self, extinction: ZodiacalExtinction) -> Self {
         self.extinction = extinction;
         self
     }
 
-    /// Evaluate observed zodiacal radiance at a ground location.
-    pub fn compute(
+    pub(crate) fn compute(
         &self,
         time: Time<UTC>,
         location: Geodetic<ECEF>,
@@ -197,8 +203,8 @@ impl ZodiacalLight {
         self.compute_observed(time, location, target)
     }
 
-    /// Evaluate exoatmospheric zodiacal radiance.
-    pub fn compute_exoatmospheric(
+    #[cfg(test)]
+    pub(super) fn compute_exoatmospheric(
         &self,
         time: Time<UTC>,
         target: Target,
@@ -207,8 +213,7 @@ impl ZodiacalLight {
         self.evaluate_geometry(&geom, ZodiacalExtinction::None)
     }
 
-    /// Evaluate observed zodiacal radiance with atmospheric attenuation.
-    pub fn compute_observed(
+    pub(crate) fn compute_observed(
         &self,
         time: Time<UTC>,
         location: Geodetic<ECEF>,
@@ -221,30 +226,6 @@ impl ZodiacalLight {
         self.evaluate_geometry(&geom, self.extinction)
     }
 
-    /// Return the observed wavelength-resolved spectrum.
-    pub fn compute_spectrum(
-        &self,
-        time: Time<UTC>,
-        location: Geodetic<ECEF>,
-        target: Target,
-    ) -> Result<ZodiacalSpectrum> {
-        let geom = geometry::compute_observed(time, location, target)?;
-        if is_below_horizon(&geom) {
-            return zero_spectrum();
-        }
-        self.evaluate_geometry_spectrum(&geom, self.extinction)
-    }
-
-    /// Return the exoatmospheric wavelength-resolved spectrum.
-    pub fn compute_spectrum_exoatmospheric(
-        &self,
-        time: Time<UTC>,
-        target: Target,
-    ) -> Result<ZodiacalSpectrum> {
-        let geom = geometry::compute_exoatmospheric(time, target)?;
-        self.evaluate_geometry_spectrum(&geom, ZodiacalExtinction::None)
-    }
-
     fn evaluate_geometry(
         &self,
         geom: &geometry::ZodiacalGeometry,
@@ -254,8 +235,12 @@ impl ZodiacalLight {
             ZodiacalBrightnessModel::Leinert1998 => {
                 zl_spectrum::compute_outputs(geom, &self.solar_spectrum, extinction)
             }
+            #[cfg(test)]
             ZodiacalBrightnessModel::CustomGrid(grid) => {
-                let s10_500 = self.custom_s10_500(geom, grid)?;
+                let s10_500 = grid.lookup_s10(
+                    geom.beta.abs().to::<qtty::angular::Degree>(),
+                    geom.delta_lambda.to::<qtty::angular::Degree>(),
+                )?;
                 zl_spectrum::compute_outputs_with_s10(
                     geom,
                     &self.solar_spectrum,
@@ -265,43 +250,11 @@ impl ZodiacalLight {
             }
         }
     }
-
-    fn evaluate_geometry_spectrum(
-        &self,
-        geom: &geometry::ZodiacalGeometry,
-        extinction: ZodiacalExtinction,
-    ) -> Result<ZodiacalSpectrum> {
-        match &self.brightness_model {
-            ZodiacalBrightnessModel::Leinert1998 => {
-                zl_spectrum::compute_spectrum(geom, &self.solar_spectrum, extinction)
-            }
-            ZodiacalBrightnessModel::CustomGrid(grid) => {
-                let s10_500 = self.custom_s10_500(geom, grid)?;
-                zl_spectrum::compute_spectrum_with_s10(
-                    geom,
-                    &self.solar_spectrum,
-                    extinction,
-                    s10_500,
-                )
-            }
-        }
-    }
-
-    fn custom_s10_500(
-        &self,
-        geom: &geometry::ZodiacalGeometry,
-        grid: &ZodiacalBrightnessGrid,
-    ) -> Result<S10> {
-        grid.lookup_s10(
-            geom.beta.abs().to::<qtty::angular::Degree>(),
-            geom.delta_lambda.to::<qtty::angular::Degree>(),
-        )
-    }
 }
 
 fn is_below_horizon(geom: &geometry::ZodiacalGeometry) -> bool {
     geom.zenith
-        .map(|z| (qtty::angular::Degrees::new(90.0) - z).value() <= 0.0)
+        .map(|zenith| (qtty::angular::Degrees::new(90.0) - zenith).value() <= 0.0)
         .unwrap_or(false)
 }
 
@@ -314,30 +267,4 @@ fn zero_outputs() -> ZodiacalOutputs {
         b_flux_s10: S10::new(0.0),
         v_flux_s10: S10::new(0.0),
     }
-}
-
-fn zero_spectrum() -> Result<ZodiacalSpectrum> {
-    use optica::data::Provenance;
-    use optica::grid::OutOfRange;
-    use optica::spectrum::Interpolation;
-    use qtty::radiometry::{
-        PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
-        PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
-    };
-
-    let spectrum = SampledSpectrum::<Nanometer, SpectralBandPhotonRadianceUnit>::from_raw(
-        vec![300.0, 650.0],
-        vec![0.0, 0.0],
-        Interpolation::Linear,
-        OutOfRange::ClampToEndpoints,
-        Some(Provenance::computed("zodiacal-zero")),
-    )
-    .map_err(|e| NsbError::Interpolation(format!("zodiacal zero spectrum: {e}")))?;
-
-    Ok(ZodiacalSpectrum {
-        spectrum,
-        integrated: BandPhotonRadiance::new(0.0),
-        b_flux_s10: S10::new(0.0),
-        v_flux_s10: S10::new(0.0),
-    })
 }

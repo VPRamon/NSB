@@ -49,7 +49,7 @@ lives under `planning`.
 
 | Component module | Role | Primary extension concern |
 | --- | --- | --- |
-| `components::zodiacal` | Directional zodiacal brightness, reference spectrum, and atmospheric extinction | Preserve grid/reference provenance and typed radiometry |
+| `components::zodiacal` | Scientific source-model selection, directional zodiacal brightness, bundled solar reference spectrum, and independent atmospheric propagation | Keep `ZodiacalModel` identity separate from `ZodiacalExtinction`; preserve source/reference provenance and typed radiometry |
 | `components::starlight` | HEALPix map lookup, provenance, validation, and runtime admission | Keep experimental and production paths strictly separate |
 | `components::airglow` | Continuum, temporal/seasonal behaviour, solar activity, geometry, and site scaling | Preserve explicit calibration assumptions and time-domain tests |
 | `components::moonlight` | Scientific model selection plus internal scattered-moonlight implementations | Keep model identity separate from site/atmospheric assumptions while preserving reference and spectral provenance |

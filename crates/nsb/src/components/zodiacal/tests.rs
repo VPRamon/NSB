@@ -237,7 +237,6 @@ fn custom_brightness_grid_evaluates_finite_positive_radiance() {
             vec![S10s::new(100.0), S10s::new(50.0)],
             vec![S10s::new(63.0), S10s::new(63.0)],
         ],
-        Some("test-grid".to_string()),
     )
     .expect("custom grid");
 

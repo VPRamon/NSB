@@ -2,56 +2,87 @@
 
 Status: Current runtime-model guide.
 Audience: Users and developers interpreting zodiacal-light outputs.
-Scope: Physical origin, calculation path, atmospheric treatment, and model limits.
+Scope: Scientific source model, atmospheric propagation, provenance, and model limits.
 
-## What it is
+## Public configuration
 
-Zodiacal light is sunlight scattered by micron-scale dust in the inner Solar
-System. It is directional: it is generally brightest near the ecliptic plane
-and at small angular distance from the Sun. NSB models the celestial source and
-the optional propagation through the observer's atmosphere separately.
+Normal applications configure Zodiacal light through `NsbModelConfig` and
+evaluate it through `NsbEvaluator`. The first-release scientific selector is:
 
-## How NSB calculates it
+```rust
+use nsb::{NsbModelConfig, ZodiacalExtinction, ZodiacalModel};
 
-The default `ZodiacalLight::leinert1998()` path is:
+let config = NsbModelConfig::default()
+    .with_zodiacal_model(ZodiacalModel::Leinert1998)
+    .with_zodiacal_extinction(ZodiacalExtinction::Noll2012Approx);
+
+assert_eq!(config.zodiacal_model().as_str(), "leinert-1998");
+assert_eq!(
+    config.zodiacal_extinction().as_str(),
+    "noll-2012-approximation"
+);
+```
+
+`ZodiacalModel` identifies the celestial scientific source model.
+`ZodiacalExtinction` is an independent atmospheric-propagation choice. Changing
+propagation does not change the selected source model.
+
+## Default scientific model
+
+`ZodiacalModel::Leinert1998` is the deterministic default. Its calculation path
+is:
 
 ```text
 UTC time + target direction
   -> target ecliptic latitude and longitude offset from the Sun
   -> Leinert et al. (1998) S10 brightness lookup
-  -> scale bundled solar spectrum at 500 nm
+  -> scale the bundled solar reference spectrum at 500 nm
   -> apply Leinert wavelength reddening
-  -> optionally apply Noll et al. (2012) atmospheric extinction
+  -> apply the selected atmospheric propagation
   -> convert energy radiance to photon radiance
   -> integrate 300–650 nm
 ```
 
 The Leinert lookup interpolates the brightness table in absolute ecliptic
-latitude and absolute Sun-relative ecliptic longitude. The source brightness is
-expressed in S10 units before it is converted to a spectrum. For an observed
-ground-based value, NSB derives the target altitude and returns zero below the
-horizon.
+latitude and absolute Sun-relative ecliptic longitude. B/V diagnostics are
+central-wavelength S10 proxies at 445 nm and 551 nm. Ground-observer evaluation
+returns zero for targets below the horizon.
 
-`compute_exoatmospheric` evaluates only the celestial source. `compute_observed`
-and `compute` include the selected extinction treatment. The default is the
-Noll-2012 approximation; `ZodiacalExtinction::None` is available when the
-unattenuated source contribution is explicitly required.
+## Atmospheric propagation
 
-## Inputs and generated data
+The default is `ZodiacalExtinction::Noll2012Approx`, the repository's existing
+Noll et al. (2012)-style Rayleigh/Mie attenuation approximation.
+`ZodiacalExtinction::None` applies no atmospheric attenuation. The latter is
+useful when a caller intentionally wants the unattenuated contribution or
+handles propagation outside NSB. It remains a ground-observer evaluation:
+horizon visibility is still enforced, so `None` is not an exoatmospheric mode.
 
-This component does not use an offline catalogue-generation pipeline. Its
-runtime inputs are the built-in Leinert brightness table and the bundled solar
-reference spectrum. A caller may supply a validated rectangular
-`ZodiacalBrightnessGrid` or replacement solar spectrum; custom inputs must
-carry their own scientific provenance and validation.
+The Noll approximation is generic rather than site-calibrated. Selecting it
+must not be interpreted as evidence for a local aerosol profile. Runtime
+metadata records whether Noll attenuation or no attenuation was actually used.
+
+## Inputs and provenance
+
+The first-release `Leinert1998` model owns its bundled Leinert brightness
+table and bundled solar reference spectrum as implementation/provenance inputs.
+They are not independently replaceable through the stable application API.
+
+Earlier pre-release code exposed caller-defined `ZodiacalBrightnessGrid`,
+`ZodiacalBrightnessModel`, `ZodiacalLight`, and solar-spectrum replacement.
+Those paths did not provide a scientific admission contract, did not participate
+correctly in evaluator configuration/provenance, and created a second evaluation
+API. They are therefore not part of the first stable surface.
+
+A future custom grid, custom solar spectrum, alternative scientific model, or
+site-calibrated extinction path should first define validation, admission, and
+provenance semantics rather than re-exposing raw implementation dependencies.
 
 ## Scientific boundaries
 
 The default model is an empirical directional brightness model, not a
 site-calibrated all-sky measurement. Its atmospheric correction is an explicit
-approximation and should not be read as a complete local aerosol model. Results
-should be interpreted together with their returned maturity and provenance
-metadata.
+approximation. Results should be interpreted together with their returned
+maturity and provenance metadata.
 
 ## References and related documentation
 

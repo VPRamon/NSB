@@ -7,7 +7,7 @@ use super::point;
 use super::types::*;
 use crate::components::airglow::AirglowContinuum;
 use crate::components::moonlight::MoonlightModel;
-use crate::components::zodiacal::ZodiacalLight;
+use crate::components::zodiacal::{self, ZodiacalLight};
 use crate::components::{airglow, moonlight, starlight};
 use crate::error::{NsbError, Result};
 use std::sync::Arc;
@@ -30,7 +30,10 @@ impl NsbEvaluator {
 
     /// Construct from explicit immutable model choices.
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
-        let zodiacal = ZodiacalLight::leinert1998()?.with_extinction(config.zodiacal_extinction);
+        let zodiacal = match config.zodiacal_model {
+            zodiacal::ZodiacalModel::Leinert1998 => ZodiacalLight::leinert1998()?,
+        }
+        .with_extinction(config.zodiacal_extinction);
         let airglow_continuum = match config.airglow_model {
             airglow::AirglowModel::ParanalNollSkyCalcFors1 => {
                 Arc::new(airglow::load_builtin_standard()?)
@@ -73,7 +76,10 @@ impl NsbEvaluator {
         if components.contains(ComponentMask::ZODIACAL) {
             descriptions.push(NsbComponentDescriptor {
                 name: "zodiacal",
-                metadata: zodiacal_metadata(),
+                metadata: zodiacal_metadata(
+                    self.config.zodiacal_model,
+                    self.config.zodiacal_extinction,
+                ),
             });
         }
         if components.contains(ComponentMask::STARLIGHT) {
