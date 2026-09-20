@@ -40,24 +40,27 @@ const STARLIGHT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
 ];
 
 const ZODIACAL_PUBLIC_IMPL_PATTERNS: &[&str] = &[
-    "pub struct ZodiacalLight",
-    "pub struct ZodiacalOutputs",
-    "pub struct ZodiacalSpectrum",
-    "pub enum ZodiacalBrightnessModel",
-    "pub struct ZodiacalBrightnessGrid",
-    "pub fn with_solar_spectrum",
-    "pub fn with_brightness_model",
-    "pub use model::ZodiacalLight",
-    "pub use output::ZodiacalOutputs",
+    "pub struct ZodiacalLight {",
+    "pub struct ZodiacalOutputs {",
+    "pub struct ZodiacalSpectrum {",
+    "pub enum ZodiacalBrightnessModel {",
+    "pub struct ZodiacalBrightnessGrid {",
+    "pub fn with_solar_spectrum(",
+    "pub fn with_brightness_model(",
+    "pub use model::ZodiacalLight;",
+    "pub use output::ZodiacalOutputs;",
     "pub use output::{ZodiacalOutputs",
 ];
 
 const ZODIACAL_ROOT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
-    "ZodiacalBrightnessGrid",
-    "ZodiacalBrightnessModel",
-    "ZodiacalLight",
-    "ZodiacalOutputs",
-    "ZodiacalSpectrum",
+    "ZodiacalBrightnessGrid,",
+    "ZodiacalBrightnessModel,",
+    "ZodiacalLight,",
+    "ZodiacalOutputs,",
+    "ZodiacalSpectrum,",
+    "pub use components::zodiacal::ZodiacalLight;",
+    "pub use components::zodiacal::ZodiacalOutputs;",
+    "pub use components::zodiacal::ZodiacalSpectrum;",
 ];
 
 #[derive(Debug, Error)]
