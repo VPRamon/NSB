@@ -8,10 +8,14 @@ pub(crate) struct KrisciunasSchaefer1991 {
 }
 
 impl KrisciunasSchaefer1991 {
-    pub(crate) fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
+    pub(crate) fn for_site_profile(
+        location: Geodetic<ECEF>,
+        site_profile: SiteProfileId,
+    ) -> Self {
+        let atmosphere = site_profile.profile(location).atmosphere;
         Self {
             location,
-            k_ext: DEFAULT_K_EXT,
+            k_ext: krisciunas_schaefer_v_band_extinction(atmosphere),
         }
     }
 

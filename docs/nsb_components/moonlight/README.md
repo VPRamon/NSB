@@ -42,13 +42,29 @@ the component returns zero.
 
 ## Atmospheric inputs and site profiles
 
-The Jones implementation uses surface pressure, Rayleigh scale height, and
-Mie/aerosol parameters supplied by the selected `SiteProfileId`. Observer
-altitude always comes from the query observer, avoiding an inconsistent
-combination of a site profile from one observatory with another site's altitude.
-`GenericClearSky` is the altitude-derived generic fallback; named CTAO profiles
-are explicit planning presets. Neither substitutes for a site-calibrated aerosol
-model. Site assumptions and `MoonlightModel` scientific identity are independent
+Both implementations consume atmospheric assumptions from the selected
+`SiteProfileId`, but in the representation required by each scientific model.
+
+Jones uses the profile's surface pressure, Rayleigh scale height, and Mie/aerosol
+parameters wavelength by wavelength. Its geometric altitude remains the actual
+query observer altitude.
+
+Krisciunas & Schaefer requires a scalar V-band extinction coefficient `k` in
+magnitudes per airmass. NSB derives it from the same selected profile at the
+551 nm V diagnostic wavelength:
+
+```text
+k_V = 2.5 log10(e) [tau_R(551 nm) + tau_M(551 nm)]
+```
+
+The profile pressure is already local, so this conversion does not apply the
+observer altitude a second time to the Rayleigh column. For
+`GenericClearSky`, that local pressure is itself derived from the query observer
+altitude; named CTAO profiles use their explicit planning pressure and aerosol
+assumptions. The query observer continues to determine lunar/target geometry.
+
+Neither profile substitutes for a site-calibrated aerosol model. Site
+assumptions and `MoonlightModel` scientific identity are independent
 configuration concepts.
 
 The implementation includes `JONES_MIE_WEIGHT = 0.05`, an empirical correction

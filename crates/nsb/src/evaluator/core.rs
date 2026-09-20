@@ -688,10 +688,13 @@ impl NsbEvaluator {
         time: Time<UTC>,
         target: Target,
     ) -> Result<moonlight::MoonOutputs> {
-        match self.config.moonlight_model {
+        match self.config.moonlight_model() {
             MoonlightModel::KrisciunasSchaefer1991 => {
-                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer)
-                    .compute(time, target)
+                moonlight::KrisciunasSchaefer1991::for_site_profile(
+                    observer,
+                    self.config.site_profile,
+                )
+                .compute(time, target)
             }
             MoonlightModel::Jones2013Spectral => {
                 moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile)

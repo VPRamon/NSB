@@ -71,6 +71,10 @@ let evaluator = NsbEvaluator::with_config(config)?;
 
 Concrete Moonlight evaluator types are internal; site assumptions are applied
 through `NsbModelConfig` and normal evaluation goes through `NsbEvaluator`.
+Both supported Moonlight models consume the selected profile: Jones uses its
+wavelength-resolved Rayleigh/Mie inputs, while Krisciunas & Schaefer derives its
+V-band extinction coefficient from the same profile atmosphere. The profile
+never selects or rewrites the scientific `MoonlightModel`.
 
 CLI location and scientific-profile selection are intentionally separate:
 

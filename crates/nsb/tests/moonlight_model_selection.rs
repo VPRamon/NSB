@@ -9,16 +9,28 @@ use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Degrees, Meters};
 use tempoch::{Time, UTC};
 
-fn time() -> Time<UTC> {
+fn parse_time(value: &str) -> Time<UTC> {
     Time::<UTC>::from_chrono(
-        DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+        DateTime::parse_from_rfc3339(value)
             .unwrap()
             .with_timezone(&Utc),
     )
 }
 
+fn time() -> Time<UTC> {
+    parse_time("2023-09-04T01:48:00Z")
+}
+
+fn profile_time() -> Time<UTC> {
+    parse_time("2023-09-29T03:00:00Z")
+}
+
 fn target() -> Target {
     Target::new(266.41683 * DEG, -29.00781 * DEG)
+}
+
+fn profile_target() -> Target {
+    Target::new(270.0 * DEG, -30.0 * DEG)
 }
 
 fn paranal() -> Geodetic<ECEF> {
@@ -29,15 +41,24 @@ fn arbitrary_observer() -> Geodetic<ECEF> {
     Geodetic::new_raw(Degrees::new(18.4), Degrees::new(-33.9), Meters::new(120.0))
 }
 
-fn evaluate_moonlight(config: NsbModelConfig, observer: Geodetic<ECEF>) -> NsbComponent {
+fn evaluate_moonlight_at(
+    config: NsbModelConfig,
+    observer: Geodetic<ECEF>,
+    time: Time<UTC>,
+    target: Target,
+) -> NsbComponent {
     NsbEvaluator::with_config(config)
         .unwrap()
-        .evaluate(&PointQuery::new(observer, time(), target()).with_components(ComponentMask::MOON))
+        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::MOON))
         .unwrap()
         .components
         .into_iter()
         .next()
         .unwrap()
+}
+
+fn evaluate_moonlight(config: NsbModelConfig, observer: Geodetic<ECEF>) -> NsbComponent {
+    evaluate_moonlight_at(config, observer, time(), target())
 }
 
 #[test]
@@ -109,19 +130,194 @@ fn ks_selection_dispatches_to_published_reference_implementation() {
 }
 
 #[test]
-fn site_profile_and_observer_do_not_change_selected_scientific_model() {
-    let jones = NsbModelConfig::default()
-        .with_site_profile(SiteProfileId::CtaSouth)
-        .with_moonlight_model(MoonlightModel::Jones2013Spectral);
-    let ks = NsbModelConfig::default()
-        .with_site_profile(SiteProfileId::CtaNorth)
-        .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991);
+fn site_profile_selection_does_not_change_scientific_model() {
+    for model in [
+        MoonlightModel::Jones2013Spectral,
+        MoonlightModel::KrisciunasSchaefer1991,
+    ] {
+        for site_profile in [
+            SiteProfileId::GenericClearSky,
+            SiteProfileId::CtaNorth,
+            SiteProfileId::CtaSouth,
+        ] {
+            let config = NsbModelConfig::default()
+                .with_moonlight_model(model)
+                .with_site_profile(site_profile);
+            assert_eq!(config.moonlight_model(), model);
+        }
+    }
+}
 
-    assert_eq!(jones.moonlight_model(), MoonlightModel::Jones2013Spectral);
-    assert_eq!(ks.moonlight_model(), MoonlightModel::KrisciunasSchaefer1991);
+#[test]
+fn observer_coordinates_do_not_change_selected_scientific_model() {
+    for (model, expected_provenance) in [
+        (MoonlightModel::Jones2013Spectral, "Jones+2013"),
+        (
+            MoonlightModel::KrisciunasSchaefer1991,
+            "Krisciunas & Schaefer 1991",
+        ),
+    ] {
+        let config = NsbModelConfig::default()
+            .with_site_profile(SiteProfileId::CtaSouth)
+            .with_moonlight_model(model);
 
-    let jones_paranal = evaluate_moonlight(jones.clone(), paranal());
-    let jones_arbitrary = evaluate_moonlight(jones, arbitrary_observer());
-    assert!(jones_paranal.metadata.provenance.contains("Jones+2013"));
-    assert!(jones_arbitrary.metadata.provenance.contains("Jones+2013"));
+        for observer in [paranal(), arbitrary_observer()] {
+            let evaluator = NsbEvaluator::with_config(config.clone()).unwrap();
+            assert_eq!(evaluator.config().moonlight_model(), model);
+            let component = evaluator
+                .evaluate(
+                    &PointQuery::new(observer, time(), target())
+                        .with_components(ComponentMask::MOON),
+                )
+                .unwrap()
+                .components
+                .into_iter()
+                .next()
+                .unwrap();
+            assert!(component.metadata.provenance.contains(expected_provenance));
+        }
+    }
+}
+
+#[test]
+fn jones_uses_selected_site_profile_atmosphere() {
+    let observer = paranal();
+    let generic_profile = SiteProfileId::GenericClearSky.profile(observer);
+    let north_profile = SiteProfileId::CtaNorth.profile(observer);
+    let south_profile = SiteProfileId::CtaSouth.profile(observer);
+
+    assert_ne!(
+        generic_profile.atmosphere.surface_pressure,
+        north_profile.atmosphere.surface_pressure
+    );
+    assert_ne!(
+        generic_profile.atmosphere.surface_pressure,
+        south_profile.atmosphere.surface_pressure
+    );
+    assert!(north_profile.atmosphere.surface_pressure > south_profile.atmosphere.surface_pressure);
+
+    let evaluate = |site_profile| {
+        evaluate_moonlight_at(
+            NsbModelConfig::default()
+                .with_moonlight_model(MoonlightModel::Jones2013Spectral)
+                .with_site_profile(site_profile),
+            observer,
+            profile_time(),
+            profile_target(),
+        )
+    };
+    let generic = evaluate(SiteProfileId::GenericClearSky);
+    let north = evaluate(SiteProfileId::CtaNorth);
+    let south = evaluate(SiteProfileId::CtaSouth);
+
+    for output in [&generic, &north, &south] {
+        assert!(output.integrated.value().is_finite());
+        assert!(output.integrated.value() > 0.0);
+    }
+    assert_ne!(
+        generic.integrated.value().to_bits(),
+        north.integrated.value().to_bits()
+    );
+    assert_ne!(
+        generic.integrated.value().to_bits(),
+        south.integrated.value().to_bits()
+    );
+    assert_ne!(
+        north.integrated.value().to_bits(),
+        south.integrated.value().to_bits()
+    );
+}
+
+#[test]
+fn ks_uses_selected_site_profile_atmosphere() {
+    let observer = paranal();
+    let generic_profile = SiteProfileId::GenericClearSky.profile(observer);
+    let north_profile = SiteProfileId::CtaNorth.profile(observer);
+    let south_profile = SiteProfileId::CtaSouth.profile(observer);
+
+    assert_ne!(
+        generic_profile.atmosphere.surface_pressure,
+        north_profile.atmosphere.surface_pressure
+    );
+    assert_ne!(
+        generic_profile.atmosphere.surface_pressure,
+        south_profile.atmosphere.surface_pressure
+    );
+    assert_eq!(
+        generic_profile.atmosphere.mie_params,
+        north_profile.atmosphere.mie_params
+    );
+    assert_eq!(
+        north_profile.atmosphere.mie_params,
+        south_profile.atmosphere.mie_params
+    );
+    assert!(north_profile.atmosphere.surface_pressure > south_profile.atmosphere.surface_pressure);
+
+    let evaluate = |site_profile| {
+        evaluate_moonlight_at(
+            NsbModelConfig::default()
+                .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991)
+                .with_site_profile(site_profile),
+            observer,
+            profile_time(),
+            profile_target(),
+        )
+    };
+    let generic = evaluate(SiteProfileId::GenericClearSky);
+    let north = evaluate(SiteProfileId::CtaNorth);
+    let south = evaluate(SiteProfileId::CtaSouth);
+
+    for output in [&generic, &north, &south] {
+        assert!(output.integrated.value().is_finite());
+        assert!(output.integrated.value() > 0.0);
+    }
+    assert_ne!(
+        generic.integrated.value().to_bits(),
+        north.integrated.value().to_bits()
+    );
+    assert_ne!(
+        generic.integrated.value().to_bits(),
+        south.integrated.value().to_bits()
+    );
+    assert_ne!(
+        north.integrated.value().to_bits(),
+        south.integrated.value().to_bits()
+    );
+}
+
+#[test]
+fn metadata_preserves_model_identity_and_records_site_assumptions_separately() {
+    let jones = evaluate_moonlight_at(
+        NsbModelConfig::default()
+            .with_site_profile(SiteProfileId::CtaSouth)
+            .with_moonlight_model(MoonlightModel::Jones2013Spectral),
+        paranal(),
+        profile_time(),
+        profile_target(),
+    );
+    assert!(jones.metadata.provenance.contains("Jones+2013"));
+    assert!(jones.metadata.provenance.contains("ctao-south-planning"));
+    assert!(!jones
+        .metadata
+        .provenance
+        .contains("Krisciunas & Schaefer 1991"));
+
+    let ks = evaluate_moonlight_at(
+        NsbModelConfig::default()
+            .with_site_profile(SiteProfileId::CtaNorth)
+            .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991),
+        paranal(),
+        profile_time(),
+        profile_target(),
+    );
+    assert_eq!(
+        ks.metadata.status,
+        ComponentCalibrationStatus::PublishedReference
+    );
+    assert!(ks
+        .metadata
+        .provenance
+        .contains("Krisciunas & Schaefer 1991"));
+    assert!(ks.metadata.provenance.contains("ctao-north-planning"));
+    assert!(!ks.metadata.provenance.contains("Jones+2013"));
 }

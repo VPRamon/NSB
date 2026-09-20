@@ -273,16 +273,22 @@ pub(super) fn moonlight_metadata(
                 airglow_geometry: None,
             }
         }
-        MoonlightModel::KrisciunasSchaefer1991 => NsbComponentMetadata {
-            status: ComponentCalibrationStatus::PublishedReference,
-            provenance: "Krisciunas & Schaefer 1991 analytic V-band moonlight model".into(),
-            validated_domain:
-                "published analytic V-band reference model; not the wavelength-resolved default"
-                    .into(),
-            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-            airglow_model: None,
-            solar_activity: None,
-            airglow_geometry: None,
-        },
+        MoonlightModel::KrisciunasSchaefer1991 => {
+            let profile = site_profile.profile(observer);
+            NsbComponentMetadata {
+                status: ComponentCalibrationStatus::PublishedReference,
+                provenance: Cow::Owned(format!(
+                    "Krisciunas & Schaefer 1991 analytic V-band moonlight model; site profile {}; V-band extinction derived from profile atmosphere: {}",
+                    profile.name, profile.atmosphere_provenance
+                )),
+                validated_domain:
+                    "published analytic V-band reference model; not the wavelength-resolved default"
+                        .into(),
+                band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+                airglow_model: None,
+                solar_activity: None,
+                airglow_geometry: None,
+            }
+        }
     }
 }

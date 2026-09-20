@@ -112,6 +112,8 @@ fn point_ks1991_moonlight_model_is_labelled_in_json() {
             "2023-09-04T01:48:00Z",
             "--site",
             "PARANAL",
+            "--site-profile",
+            "cta-north",
             "--ra",
             "266.41683",
             "--dec",
@@ -127,6 +129,7 @@ fn point_ks1991_moonlight_model_is_labelled_in_json() {
         .stdout
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["model"]["preset"], "ctao-north-planning");
     assert_eq!(
         value["model"]["moonlight_model"],
         "krisciunas-schaefer-1991"
