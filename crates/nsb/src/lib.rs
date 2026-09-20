@@ -55,11 +55,11 @@ pub mod components;
 /// Public error type and crate [`Result`].
 pub mod error;
 mod evaluator;
-mod spectra;
 /// Site profiles, shared atmosphere, and canonical calibration evidence.
 pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
+mod spectra;
 pub(crate) mod units;
 
 pub use components::airglow::AirglowModel;
