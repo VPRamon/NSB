@@ -52,6 +52,7 @@ pub(super) struct ZodiacalGeometry {
 
 /// Compute zodiacal geometry from a UTC time and an equatorial target
 /// direction, without an observer location (exoatmospheric).
+#[cfg(test)]
 pub(super) fn compute_exoatmospheric(time: Time<UTC>, target: Target) -> Result<ZodiacalGeometry> {
     let jd = to_jd(time);
     let (beta, delta_lambda) = ecliptic_geometry(target, jd)?;
