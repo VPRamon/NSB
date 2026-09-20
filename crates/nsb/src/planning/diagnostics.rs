@@ -1,3 +1,4 @@
+#![allow(missing_docs)]
 use std::cell::Cell;
 use std::time::Duration;
 
@@ -31,15 +32,15 @@ thread_local! {
     static CURRENT: Cell<WindowSearchDiagnostics> = Cell::new(WindowSearchDiagnostics::default());
 }
 
-pub(super) fn reset() {
+pub(crate) fn reset() {
     CURRENT.set(WindowSearchDiagnostics::default());
 }
 
-pub(super) fn snapshot() -> WindowSearchDiagnostics {
+pub(crate) fn snapshot() -> WindowSearchDiagnostics {
     CURRENT.get()
 }
 
-pub(super) fn update(f: impl FnOnce(&mut WindowSearchDiagnostics)) {
+pub(crate) fn update(f: impl FnOnce(&mut WindowSearchDiagnostics)) {
     CURRENT.set({
         let mut diagnostics = CURRENT.get();
         f(&mut diagnostics);
@@ -47,7 +48,7 @@ pub(super) fn update(f: impl FnOnce(&mut WindowSearchDiagnostics)) {
     });
 }
 
-pub(super) fn begin_threshold_search() {
+pub(crate) fn begin_threshold_search() {
     update(|diagnostics| {
         diagnostics.integrated_evaluations = 0;
         diagnostics.zodiacal_evaluations = 0;

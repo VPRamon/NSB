@@ -1,25 +1,19 @@
-//! NSB evaluator: point evaluation and threshold-period search.
+//! NSB evaluator: point evaluation and component composition.
 //!
-//! This module is the library-facing orchestration layer. It accepts typed
-//! observing inputs, invokes the physical component models, sums their
-//! radiances, and provides an event-driven planning search. CLI concerns such
-//! as named-site parsing and timestamp parsing intentionally live outside this
-//! crate.
+//! This module constructs immutable component models and evaluates night-sky
+//! background at a single observing instant. Observing-window planning and
+//! threshold search live in [`crate::planning`].
 
 mod core;
-#[cfg(feature = "window-search-diagnostics")]
-mod diagnostics;
 mod metadata;
-pub(crate) mod search;
+mod point;
 mod types;
 
 pub use core::NsbEvaluator;
-#[cfg(feature = "window-search-diagnostics")]
-pub use diagnostics::WindowSearchDiagnostics;
 pub use metadata::{
     BandDiagnostic, ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
 };
 pub use types::{
     ComponentMask, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult, Observer,
-    PointQuery, SiteWindowContext, Target, ThresholdQuery, ThresholdQueryResult,
+    PointQuery, Target,
 };
