@@ -43,11 +43,17 @@ alone does not establish scientific validity.
 - `starlight` uses a bundled production asset when one is registered and
   validated, or a caller-provided map plus manifest that passes the fail-closed
   admission contract.
-- `Starlight::with_map` and `StarlightModel::with_experimental_map` allow
-  explicit caller-supplied maps, but do not promote them to production.
+- `StarlightProduct::with_experimental_map` selects an explicit caller-supplied
+  map without promoting it to production; validated external products enter
+  through `ValidatedStarlightMap` plus `StarlightProduct::validated_external`.
 
 There is no bundled experimental seed. Accordingly, `--components all` contains
 starlight only if a production asset is available.
+
+Normal applications configure the product through `NsbModelConfig` and evaluate
+through `NsbEvaluator`. The concrete directional evaluator and its component-only
+output are internal. `StarlightMap`, `StarlightPixel`, provenance, and admission
+types remain available as the advanced product construction/inspection API.
 
 ## Scientific boundaries
 

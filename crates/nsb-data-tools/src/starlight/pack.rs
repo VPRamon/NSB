@@ -349,7 +349,7 @@ mod tests {
         assert_eq!(map.pixels().len(), 12);
         let (lon, lat) = map.pixel_lon_lat_deg(0).unwrap();
         let occupied =
-            map.lookup(
+            map.pixel_at(
                 siderust::coordinates::spherical::Direction::<
                     siderust::coordinates::frames::Galactic,
                 >::new(
@@ -631,7 +631,7 @@ mod tests {
         assert_eq!(map.pixels().len(), 196_608);
         let (lon, lat) = map.pixel_lon_lat_deg(0).unwrap();
         let looked =
-            map.lookup(
+            map.pixel_at(
                 siderust::coordinates::spherical::Direction::<
                     siderust::coordinates::frames::Galactic,
                 >::new(

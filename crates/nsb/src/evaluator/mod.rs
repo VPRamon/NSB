@@ -22,5 +22,5 @@ pub use metadata::{
 };
 pub use types::{
     ComponentMask, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult, Observer,
-    PointQuery, SiteWindowContext, StarlightModel, Target, ThresholdQuery, ThresholdQueryResult,
+    PointQuery, SiteWindowContext, Target, ThresholdQuery, ThresholdQueryResult,
 };

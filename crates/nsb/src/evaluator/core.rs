@@ -58,15 +58,15 @@ impl NsbEvaluator {
                 Arc::new(airglow::load_builtin_standard()?)
             }
         };
-        let starlight = match config.starlight_model.as_ref() {
+        let starlight = match config.starlight_product.as_ref() {
             None => None,
-            Some(StarlightModel::BundledProductionGaiaDr3) => {
+            Some(starlight::StarlightProduct::BundledProductionGaiaDr3) => {
                 Some(starlight::Starlight::bundled_production_model()?)
             }
-            Some(StarlightModel::ExperimentalMap(map)) => {
+            Some(starlight::StarlightProduct::ExperimentalMap(map)) => {
                 Some(starlight::Starlight::with_map((**map).clone()))
             }
-            Some(StarlightModel::ValidatedExternalMap(map)) => {
+            Some(starlight::StarlightProduct::ValidatedExternalMap(map)) => {
                 Some(starlight::Starlight::with_map(map.map().clone()))
             }
         };
@@ -101,13 +101,13 @@ impl NsbEvaluator {
         if components.contains(ComponentMask::STARLIGHT) {
             if self.starlight.is_none() {
                 return Err(NsbError::Unsupported(
-                    "starlight component requested but no starlight model is configured".into(),
+                    "starlight component requested but no starlight product is configured".into(),
                 ));
             }
             descriptions.push(NsbComponentDescriptor {
                 name: "starlight",
                 metadata: starlight_metadata(
-                    self.config.starlight_model.as_ref(),
+                    self.config.starlight_product.as_ref(),
                     self.starlight
                         .as_ref()
                         .map(|model| model.map().provenance()),
@@ -578,7 +578,7 @@ impl NsbEvaluator {
                 systematic_uncertainty: out.systematic_uncertainty,
                 total_uncertainty: out.total_uncertainty,
                 metadata: starlight_metadata(
-                    self.config.starlight_model.as_ref(),
+                    self.config.starlight_product.as_ref(),
                     self.starlight
                         .as_ref()
                         .map(|model| model.map().provenance()),
@@ -671,10 +671,10 @@ impl NsbEvaluator {
         let model = self.starlight.as_ref().ok_or_else(|| {
             NsbError::Unsupported(
                 concat!(
-                    "starlight component requested but no starlight model is configured; ",
-                    "provide a validated map with StarlightModel::validated_external(...), ",
-                    "use StarlightModel::bundled_production_gaia_dr3(), or ",
-                    "explicitly opt into StarlightModel::with_experimental_map(...)"
+                    "starlight component requested but no starlight product is configured; ",
+                    "provide a validated map with StarlightProduct::validated_external(...), ",
+                    "use StarlightProduct::bundled_production_gaia_dr3(), or ",
+                    "explicitly opt into StarlightProduct::with_experimental_map(...)"
                 )
                 .to_string(),
             )
@@ -886,6 +886,19 @@ mod tests {
                 "period end differs by {end_delta}s"
             );
         }
+    }
+
+    #[test]
+    fn describe_components_rejects_starlight_without_configured_product() {
+        let mut config = NsbModelConfig::generic_clear_sky();
+        config.starlight_product = None;
+        let evaluator = NsbEvaluator::with_config(config).unwrap();
+
+        assert!(matches!(
+            evaluator.describe_components(paranal(), ComponentMask::STARLIGHT),
+            Err(NsbError::Unsupported(message))
+                if message == "starlight component requested but no starlight product is configured"
+        ));
     }
 
     #[test]

@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 /// One directional starlight-map sample.
 ///
 /// Pixel centre coordinates and solid angle are derived from the owning
@@ -156,14 +157,22 @@ impl StarlightMap {
         Self::from_csv_str(&raw, provenance)
     }
 
-    /// Look up radiance for a Galactic direction (nearest HEALPix pixel).
-    pub fn lookup(&self, direction: CartesianDirection<Galactic>) -> StarlightOutputs {
+    /// Return the stored sample nearest a Galactic direction.
+    ///
+    /// This is an advanced map-inspection operation. Normal NSB evaluation
+    /// transforms [`crate::Target`] values and returns the shared
+    /// [`crate::NsbComponent`] result contract through [`crate::NsbEvaluator`].
+    pub fn pixel_at(&self, direction: CartesianDirection<Galactic>) -> StarlightPixel {
         let index = self
             .map
             .grid()
             .direction_to_pixel(direction)
             .expect("validated HEALPix lookup direction is finite");
-        self.map.values()[usize::try_from(index.get()).expect("pixel index fits usize")].output()
+        self.map.values()[usize::try_from(index.get()).expect("pixel index fits usize")]
+    }
+
+    pub(crate) fn lookup(&self, direction: CartesianDirection<Galactic>) -> StarlightOutputs {
+        self.pixel_at(direction).output()
     }
 
     /// Return map provenance.

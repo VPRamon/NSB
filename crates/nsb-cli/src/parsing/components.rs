@@ -52,7 +52,7 @@ mod tests {
         assert!(mask.contains(ComponentMask::MOON));
         assert_eq!(
             mask.contains(ComponentMask::STARLIGHT),
-            nsb::Starlight::bundled_production_available()
+            nsb::StarlightProduct::bundled_production_available()
         );
     }
 

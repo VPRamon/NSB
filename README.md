@@ -139,7 +139,7 @@ the same production-safe composition.
   starlight.
 - A missing or invalid production starlight product is an error; there is no
   bundled experimental fallback.
-- Caller-supplied experimental maps use `StarlightModel::with_experimental_map`
+- Caller-supplied experimental maps use `StarlightProduct::with_experimental_map`
   and are never promoted by that path alone.
 
 A validated external starlight override requires both files:

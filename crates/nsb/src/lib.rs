@@ -64,7 +64,7 @@ pub(crate) mod units;
 pub use components::airglow::AirglowModel;
 pub use components::moonlight::MoonlightModel;
 pub use components::starlight::{
-    Starlight, StarlightMap, StarlightOutputs, StarlightPixel, StarlightProvenance,
+    StarlightMap, StarlightPixel, StarlightProduct, StarlightProvenance,
     StarlightValidationDiagnostics, ValidatedStarlightMap,
 };
 pub use components::zodiacal::{
@@ -75,8 +75,7 @@ pub use error::{NsbError, Result};
 pub use evaluator::{
     BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,
     NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
-    Observer, PointQuery, SiteWindowContext, StarlightModel, Target, ThresholdQuery,
-    ThresholdQueryResult,
+    Observer, PointQuery, SiteWindowContext, Target, ThresholdQuery, ThresholdQueryResult,
 };
 pub use site::calibration::{
     AirglowCalibrationEvidence, AtmosphericSiteCalibration, CalibratedSiteId, SiteCalibrationAsset,

@@ -22,7 +22,7 @@ fn galactic_direction(lon_deg: f64, lat_deg: f64) -> CartesianDirection<Galactic
 #[test]
 fn fixture_lookup_preserves_precision_and_throughput_budget() {
     let map = fixture_map();
-    let equatorial = map.lookup(galactic_direction(45.0, 0.0));
+    let equatorial = map.pixel_at(galactic_direction(45.0, 0.0));
     assert!((equatorial.integrated.value() - 4.0).abs() < 1.0e-12);
     assert!(!equatorial.s10_diagnostics_provided);
 
@@ -31,7 +31,7 @@ fn fixture_lookup_preserves_precision_and_throughput_budget() {
     for index in 0..20_000 {
         let lon = (index as f64 * 7.5) % 360.0;
         let lat = ((index as f64 * 1.25) % 180.0) - 90.0;
-        accumulated += black_box(map.lookup(galactic_direction(lon, lat)))
+        accumulated += black_box(map.pixel_at(galactic_direction(lon, lat)))
             .integrated
             .value();
     }

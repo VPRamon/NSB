@@ -1,10 +1,10 @@
-use super::{Observer, StarlightModel};
+use super::Observer;
 use crate::components::airglow::calibration::{
     airglow_continuum_asset, AIRGLOW_CONTINUUM_ASSET_PATH,
 };
 use crate::components::airglow::{AirglowModel, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG};
 use crate::components::moonlight::MoonlightModel;
-use crate::components::starlight::StarlightProvenance;
+use crate::components::starlight::{StarlightProduct, StarlightProvenance};
 use crate::site::{CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
 use crate::NSB_S10_ZP;
 use qtty::photometry::SurfaceBrightness;
@@ -167,23 +167,23 @@ pub(super) fn airglow_metadata(
 }
 
 pub(super) fn starlight_metadata(
-    model: Option<&StarlightModel>,
+    product: Option<&StarlightProduct>,
     provenance: Option<&StarlightProvenance>,
 ) -> NsbComponentMetadata {
-    match model {
-        Some(StarlightModel::BundledProductionGaiaDr3) => starlight_map_metadata(
+    match product {
+        Some(StarlightProduct::BundledProductionGaiaDr3) => starlight_map_metadata(
             provenance.expect("bundled production map is loaded during evaluator construction"),
             "bundled Gaia DR3 XP production map",
             ComponentCalibrationStatus::Production,
             "bundled validated Gaia DR3 XP-derived HEALPix map with checksum/header consistency, flux-conservation evidence, plane/pole contrast, longitude wrap, and independent comparison",
         ),
-        Some(StarlightModel::ExperimentalMap(_)) => starlight_map_metadata(
+        Some(StarlightProduct::ExperimentalMap(_)) => starlight_map_metadata(
             provenance.expect("custom map is loaded during evaluator construction"),
             "caller-provided map",
             ComponentCalibrationStatus::Experimental,
             "caller-provided map without the production manifest contract",
         ),
-        Some(StarlightModel::ValidatedExternalMap(_)) => starlight_map_metadata(
+        Some(StarlightProduct::ValidatedExternalMap(_)) => starlight_map_metadata(
             provenance.expect("validated external map is loaded during evaluator construction"),
             "validated external map",
             ComponentCalibrationStatus::Production,
@@ -191,7 +191,7 @@ pub(super) fn starlight_metadata(
         ),
         None => NsbComponentMetadata {
             status: ComponentCalibrationStatus::Experimental,
-            provenance: "no starlight model configured".into(),
+            provenance: "no starlight product configured".into(),
             validated_domain: "not evaluable".into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
             airglow_model: None,

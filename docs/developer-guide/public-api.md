@@ -34,7 +34,7 @@ Typical imports from the crate root:
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult` |
-| Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightModel`, `SiteProfileId` |
+| Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightProduct`, `SiteProfileId` |
 | Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfile`, `SiteProfileId` |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
 | Errors | `NsbError`, `Result` |
@@ -50,8 +50,9 @@ Intended for normal integrations and to become stable at the public API freeze.
 
 Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
 `Observer`, `Target`), `NsbModelConfig` and model-selection enums,
-`SiteProfile` / `SiteProfileId`, crate version constants (`NSB_VERSION`,
-`MODEL_VERSION`), and the [`DEG`](../../crates/nsb/src/lib.rs) re-export used in
+`SiteProfile` / `SiteProfileId`, the `StarlightProduct` data-product selector,
+crate version constants (`NSB_VERSION`, `MODEL_VERSION`), and the
+[`DEG`](../../crates/nsb/src/lib.rs) re-export used in
 documented equatorial constructors.
 
 ### Advanced API
@@ -107,6 +108,22 @@ replace the selected `MoonlightModel`. The CLI model audit reports the selection
 through the canonical `MoonlightModel::as_str()` identity. Adding a
 component-specific Moonlight model field or a generic cross-component identity
 framework is deferred to the separate metadata review.
+Starlight deliberately differs from Airglow and Moonlight: the durable public
+choice is a data product, not a scientific-model implementation. The
+`#[non_exhaustive] StarlightProduct` enum is owned by `components::starlight`
+and root-exported for normal configuration. It selects the validated bundled
+Gaia DR3 XP product, an explicit caller experimental map, or a manifest-admitted
+validated external map. `NsbModelConfig::with_starlight_product` configures the
+selection and `starlight_product()` inspects it.
+
+The concrete directional `Starlight` evaluator and `StarlightOutputs` are
+runtime implementation details. Applications evaluate Starlight through
+`NsbEvaluator` and receive the shared `NsbComponent` contract. Advanced callers
+may construct or inspect `StarlightMap` / `StarlightPixel`, load
+`ValidatedStarlightMap`, and retain `StarlightProvenance` /
+`StarlightValidationDiagnostics`. `StarlightMap::pixel_at` is an inspection API;
+the target-to-Galactic transform and component radiance evaluation remain owned
+by `NsbEvaluator`.
 
 Other advanced component models and offline F10.7 store types remain available
 through their deliberate component or `solar_activity` routes.
@@ -136,6 +153,7 @@ These must remain `pub(crate)` or private:
 - Bundled asset filesystem paths and internal date/storage helpers
 - Unit conversions and SkyCalc-specific internal quantity aliases
 - Moonlight concrete evaluators, component-only outputs, tuning constants, and model-specific search helpers
+- Starlight concrete evaluator/component-only output and the removed `StarlightModel` naming
 - `reference` and internal spectral/threshold-search orchestration
 
 If a needed type is missing from the intended supported classes above, open an
@@ -164,6 +182,9 @@ future breakage.
 ### Caller-constructed structs
 
 `PointQuery`, `ThresholdQuery`, and `NsbModelConfig` are `#[non_exhaustive]`.
+`StarlightPixel`, `StarlightProvenance`, and `StarlightValidationDiagnostics`
+are also non-exhaustive records; construct maps/provenance through their public
+constructors and builders rather than external struct literals.
 
 - **Outside** the `nsb` crate: use `::new` and `with_*` builders (or field
   assignment on values returned from builders). Struct literals and functional

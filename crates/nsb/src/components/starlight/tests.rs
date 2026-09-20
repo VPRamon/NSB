@@ -108,7 +108,7 @@ fn healpix_experimental_map_is_explicitly_labelled() {
 
 #[test]
 fn bundled_production_model_is_available_only_with_registered_release_assets() {
-    if Starlight::bundled_production_available() {
+    if StarlightProduct::bundled_production_available() {
         let model = Starlight::bundled_production_model().unwrap();
         let provenance = model.map().provenance();
         assert_eq!(provenance.calibration_status.as_deref(), Some("production"));

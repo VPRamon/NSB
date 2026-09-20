@@ -169,3 +169,90 @@ fn pre_freeze_check_allows_internal_supported_moonlight_implementations() {
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }
+
+#[test]
+fn pre_freeze_check_rejects_public_starlight_implementation_surface() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/starlight");
+    let evaluator = repo.join("crates/nsb/src/evaluator");
+    fs::create_dir_all(&source).expect("create temporary Starlight source");
+    fs::create_dir_all(&evaluator).expect("create temporary evaluator source");
+    fs::write(
+        source.join("model.rs"),
+        concat!(
+            "pub struct Starlight { value: f64 }\n",
+            "pub struct StarlightOutputs { value: f64 }\n",
+        ),
+    )
+    .expect("write accidental Starlight implementation surface");
+    fs::write(
+        source.join("mod.rs"),
+        "pub use model::Starlight;\npub use output::StarlightOutputs;\n",
+    )
+    .expect("write accidental Starlight re-exports");
+    fs::write(
+        evaluator.join("types.rs"),
+        concat!(
+            "pub enum StarlightModel { Bundled }\n",
+            "pub struct Config { pub starlight_model: Option<StarlightModel> }\n",
+            "impl Config { pub fn with_starlight_model(self) -> Self { self } }\n",
+        ),
+    )
+    .expect("write removed Starlight configuration surface in its historical location");
+
+    let error = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect_err("accidental Starlight implementation API must be rejected");
+    for expected in [
+        "pub struct Starlight {",
+        "pub struct StarlightOutputs {",
+        "pub enum StarlightModel {",
+        "pub fn with_starlight_model",
+        "pub starlight_model:",
+        "pub use model::Starlight;",
+        "pub use output::StarlightOutputs;",
+    ] {
+        assert!(
+            error.to_string().contains(expected),
+            "missing guard for {expected}"
+        );
+    }
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}
+
+#[test]
+fn pre_freeze_check_allows_starlight_product_and_advanced_records() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/starlight");
+    fs::create_dir_all(&source).expect("create temporary source");
+    fs::write(
+        source.join("product.rs"),
+        concat!(
+            "#[non_exhaustive]\n",
+            "pub enum StarlightProduct { BundledProductionGaiaDr3, ExperimentalMap }\n",
+            "#[non_exhaustive]\n",
+            "pub struct StarlightPixel { pub integrated: f64 }\n",
+            "#[non_exhaustive]\n",
+            "pub struct StarlightProvenance { pub dataset_name: String }\n",
+            "pub(crate) struct Starlight;\n",
+            "pub(crate) struct StarlightOutputs;\n",
+        ),
+    )
+    .expect("write intentional Starlight surface");
+
+    let outcome = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect("product selection and advanced records must remain allowed");
+    assert_eq!(outcome.status, GateStatus::Pass);
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}

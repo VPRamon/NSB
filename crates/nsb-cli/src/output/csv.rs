@@ -4,7 +4,7 @@ use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::components::airglow::AirglowGeometryMetadata;
 use nsb::{
-    assets::bundled_assets, ComponentMask, NsbModelConfig, NsbResult, StarlightModel,
+    assets::bundled_assets, ComponentMask, NsbModelConfig, NsbResult, StarlightProduct,
     MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
 };
 use tempoch::{Period, UTC};
@@ -319,10 +319,10 @@ fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str 
 }
 
 fn starlight_label(config: &NsbModelConfig) -> &'static str {
-    match config.starlight_model.as_ref() {
-        Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",
-        Some(StarlightModel::ValidatedExternalMap(_)) => "validated-starlight",
-        Some(StarlightModel::ExperimentalMap(_)) => "experimental-starlight",
+    match config.starlight_product.as_ref() {
+        Some(StarlightProduct::BundledProductionGaiaDr3) => "starlight",
+        Some(StarlightProduct::ValidatedExternalMap(_)) => "validated-starlight",
+        Some(StarlightProduct::ExperimentalMap(_)) => "experimental-starlight",
         None => "starlight",
         _ => "unknown-starlight-model",
     }

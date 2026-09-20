@@ -2,7 +2,7 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::{
     bundled_f107_store, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
     MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SiteProfileId, SolarActivitySource,
-    Starlight, StarlightMap, StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
+    StarlightMap, StarlightProduct, StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -72,8 +72,8 @@ fn default_evaluator_config_matches_generic_clear_sky() {
     assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(explicit.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(
-        default.starlight_model.is_some(),
-        Starlight::bundled_production_available()
+        default.starlight_product.is_some(),
+        StarlightProduct::bundled_production_available()
     );
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
@@ -81,8 +81,8 @@ fn default_evaluator_config_matches_generic_clear_sky() {
     assert_eq!(config.moonlight_model(), default.moonlight_model());
     assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
     assert_eq!(
-        config.starlight_model.is_some(),
-        Starlight::bundled_production_available()
+        config.starlight_product.is_some(),
+        StarlightProduct::bundled_production_available()
     );
 }
 
@@ -111,7 +111,7 @@ fn cta_planning_configs_select_named_site_profiles() {
 fn all_components_are_the_production_safe_default() {
     assert_eq!(
         ComponentMask::ALL.contains(ComponentMask::STARLIGHT),
-        Starlight::bundled_production_available()
+        StarlightProduct::bundled_production_available()
     );
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
@@ -137,7 +137,7 @@ fn all_components_are_the_production_safe_default() {
         .find(|component| component.name == "starlight");
     assert_eq!(
         starlight.is_some(),
-        Starlight::bundled_production_available()
+        StarlightProduct::bundled_production_available()
     );
     if let Some(component) = starlight {
         assert!(component.integrated.value() > 0.0);
@@ -190,9 +190,21 @@ fn point_query_propagates_selected_component_error() {
 }
 
 #[test]
-fn starlight_request_without_model_fails_explicitly() {
+fn starlight_product_identity_is_data_product_identity() {
+    assert_eq!(
+        StarlightProduct::bundled_production_gaia_dr3().as_str(),
+        "bundled-production-gaia-dr3"
+    );
+    assert_eq!(
+        StarlightProduct::with_experimental_map(fixture_starlight_map()).as_str(),
+        "experimental-map"
+    );
+}
+
+#[test]
+fn starlight_request_without_product_fails_explicitly() {
     let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_model = None;
+    config.starlight_product = None;
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let error = evaluator
         .evaluate(
@@ -210,8 +222,15 @@ fn starlight_request_without_model_fails_explicitly() {
 
 #[test]
 fn custom_starlight_map_evaluates_when_explicitly_configured() {
-    let config = NsbModelConfig::generic_clear_sky().with_starlight_model(
-        StarlightModel::with_experimental_map(fixture_starlight_map()),
+    let config = NsbModelConfig::generic_clear_sky().with_starlight_product(
+        StarlightProduct::with_experimental_map(fixture_starlight_map()),
+    );
+    assert_eq!(
+        config
+            .starlight_product()
+            .expect("configured product")
+            .as_str(),
+        "experimental-map"
     );
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
@@ -233,8 +252,8 @@ fn custom_starlight_map_evaluates_when_explicitly_configured() {
 
 #[test]
 fn starlight_uncertainties_reach_nsb_component() {
-    let config = NsbModelConfig::generic_clear_sky().with_starlight_model(
-        StarlightModel::with_experimental_map(fixture_starlight_map_with_uncertainty()),
+    let config = NsbModelConfig::generic_clear_sky().with_starlight_product(
+        StarlightProduct::with_experimental_map(fixture_starlight_map_with_uncertainty()),
     );
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
     let result = evaluator
