@@ -83,6 +83,8 @@ source model. `ZodiacalExtinction::Noll2012Approx` and
 The component's provenance string includes the selected source identity, the
 Leinert table, bundled solar spectrum, and the propagation actually applied.
 When extinction is `None`, metadata must not claim Noll-2012 attenuation.
+It must also describe the actual ground-observer semantics: horizon gating remains
+active and `None` does not select an exoatmospheric evaluation mode.
 The top-level CLI model audit exposes `zodiacal_model` and
 `zodiacal_extinction` as separate stable identifiers.
 
