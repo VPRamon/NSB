@@ -12,8 +12,8 @@
 //! [`crate::SiteProfileId`].
 
 use crate::error::Result;
-use crate::spectra::solar;
 use crate::site::{AtmosphericConditions, SiteProfileId};
+use crate::spectra::solar;
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
