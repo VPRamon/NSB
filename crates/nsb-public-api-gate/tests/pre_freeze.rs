@@ -319,6 +319,49 @@ fn pre_freeze_check_rejects_public_zodiacal_implementation_surface() {
 }
 
 #[test]
+fn pre_freeze_check_rejects_zodiacal_aliases_and_multiline_reexports() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/zodiacal");
+    fs::create_dir_all(&source).expect("create temporary Zodiacal source");
+    fs::write(source.join("aliases.rs"), "pub type ZodiacalOutputs = ();\n")
+        .expect("write accidental Zodiacal type alias");
+    fs::write(
+        source.join("mod.rs"),
+        concat!(
+            "mod output;\n",
+            "pub use output::{\n",
+            "    ZodiacalSpectrum\n",
+            "};\n",
+        ),
+    )
+    .expect("write accidental multiline Zodiacal re-export");
+    fs::write(source.join("output.rs"), "pub struct ZodiacalSpectrum;\n")
+        .expect("write accidental Zodiacal spectrum");
+    fs::write(
+        repo.join("crates/nsb/src/lib.rs"),
+        concat!(
+            "pub use components::zodiacal::{\n",
+            "    ZodiacalSpectrum\n",
+            "};\n",
+        ),
+    )
+    .expect("write accidental multiline root re-export");
+
+    let error = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect_err("aliases and multiline re-exports of removed Zodiacal APIs must be rejected");
+
+    assert!(error.to_string().contains("ZodiacalOutputs"));
+    assert!(error.to_string().contains("ZodiacalSpectrum"));
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}
+
+#[test]
 fn pre_freeze_check_allows_durable_zodiacal_selection_surface() {
     let repo = temporary_repo();
     let source = repo.join("crates/nsb/src/components/zodiacal");
@@ -331,6 +374,7 @@ fn pre_freeze_check_allows_durable_zodiacal_selection_surface() {
             "pub(crate) struct ZodiacalLight;\n",
             "pub(super) struct ZodiacalBrightnessGrid;\n",
             "pub(super) enum ZodiacalBrightnessModel { Leinert1998 }\n",
+            "pub(crate) type ZodiacalSpectrum = ();\n",
         ),
     )
     .expect("write intentional Zodiacal model surface");
@@ -346,7 +390,7 @@ fn pre_freeze_check_allows_durable_zodiacal_selection_surface() {
     .expect("write internal Zodiacal output");
     fs::write(
         source.join("mod.rs"),
-        "pub use extinction::ZodiacalExtinction;\npub use model::ZodiacalModel;\npub(crate) use model::ZodiacalLight;\n",
+        "pub use extinction::ZodiacalExtinction;\npub use model::ZodiacalModel;\npub(crate) use model::{ZodiacalLight, ZodiacalSpectrum};\n",
     )
     .expect("write intentional Zodiacal re-exports");
     fs::write(
