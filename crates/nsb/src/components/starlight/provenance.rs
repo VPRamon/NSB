@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 /// Provenance carried by every starlight map.
 pub struct StarlightProvenance {
     /// Human-readable dataset name.

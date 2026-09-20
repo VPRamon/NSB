@@ -14,6 +14,7 @@ const GAIA_DR3_XP_CONTINUOUS_MANIFEST_SHA256: &str =
     "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd";
 
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 /// Diagnostics proven before an external starlight map can enter production mode.
 pub struct StarlightValidationDiagnostics {
     /// Number of complete HEALPix pixels.

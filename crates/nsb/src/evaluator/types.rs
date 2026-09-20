@@ -270,37 +270,6 @@ pub struct ThresholdQueryResult {
 }
 
 #[derive(Debug, Clone)]
-/// Explicit starlight data-product selection.
-///
-/// Additional admission paths may be added; match with a wildcard.
-#[non_exhaustive]
-pub enum StarlightModel {
-    /// Use the validated bundled Gaia DR3 XP-derived production map.
-    BundledProductionGaiaDr3,
-    /// Use a caller-supplied map for experiments without a production claim.
-    ExperimentalMap(Box<starlight::StarlightMap>),
-    /// Use an external map admitted through the production manifest contract.
-    ValidatedExternalMap(Box<starlight::ValidatedStarlightMap>),
-}
-
-impl StarlightModel {
-    /// Select the bundled production Gaia DR3 XP-derived map.
-    pub fn bundled_production_gaia_dr3() -> Self {
-        Self::BundledProductionGaiaDr3
-    }
-
-    /// Select a caller-provided map without a production validation claim.
-    pub fn with_experimental_map(map: starlight::StarlightMap) -> Self {
-        Self::ExperimentalMap(Box::new(map))
-    }
-
-    /// Select a manifest-validated external production map.
-    pub fn validated_external(map: starlight::ValidatedStarlightMap) -> Self {
-        Self::ValidatedExternalMap(Box::new(map))
-    }
-}
-
-#[derive(Debug, Clone)]
 /// Immutable model choices used to construct an evaluator.
 ///
 /// Prefer [`Self::generic_clear_sky`] and the `with_*` builders. The struct is
@@ -316,7 +285,7 @@ pub struct NsbModelConfig {
     /// Atmospheric and airglow site profile.
     pub site_profile: SiteProfileId,
     /// Optional explicit starlight product.
-    pub starlight_model: Option<StarlightModel>,
+    pub starlight_product: Option<starlight::StarlightProduct>,
     /// How F10.7 is obtained for airglow (explicit, dataset, or automatic offline).
     pub solar_activity: crate::solar_activity::SolarActivitySource,
     /// Airglow emitting-volume line-of-sight geometry (separate from extinction).
@@ -332,7 +301,7 @@ impl NsbModelConfig {
             moonlight_model: moonlight::MoonlightModel::Jones2013Spectral,
             airglow_model: airglow::AirglowModel::ParanalNollSkyCalcFors1,
             site_profile: SiteProfileId::GenericClearSky,
-            starlight_model: default_starlight_model(),
+            starlight_product: default_starlight_product(),
             solar_activity: crate::solar_activity::SolarActivitySource::Automatic,
             airglow_geometry: airglow::AirglowGeometryModel::default(),
             zodiacal_extinction: ZodiacalExtinction::Noll2012Approx,
@@ -377,10 +346,18 @@ impl NsbModelConfig {
         self
     }
 
-    /// Configure an explicit starlight product.
-    pub fn with_starlight_model(mut self, starlight_model: StarlightModel) -> Self {
-        self.starlight_model = Some(starlight_model);
+    /// Configure an explicit Starlight data product.
+    pub fn with_starlight_product(
+        mut self,
+        starlight_product: starlight::StarlightProduct,
+    ) -> Self {
+        self.starlight_product = Some(starlight_product);
         self
+    }
+
+    /// Return the configured Starlight data product, if any.
+    pub fn starlight_product(&self) -> Option<&starlight::StarlightProduct> {
+        self.starlight_product.as_ref()
     }
 
     /// Set an explicit caller-owned F10.7 override (highest resolver precedence).
@@ -412,12 +389,12 @@ impl Default for NsbModelConfig {
 }
 
 #[cfg(nsb_bundled_production_starlight)]
-fn default_starlight_model() -> Option<StarlightModel> {
-    Some(StarlightModel::BundledProductionGaiaDr3)
+fn default_starlight_product() -> Option<starlight::StarlightProduct> {
+    Some(starlight::StarlightProduct::BundledProductionGaiaDr3)
 }
 
 #[cfg(not(nsb_bundled_production_starlight))]
-fn default_starlight_model() -> Option<StarlightModel> {
+fn default_starlight_product() -> Option<starlight::StarlightProduct> {
     None
 }
 
