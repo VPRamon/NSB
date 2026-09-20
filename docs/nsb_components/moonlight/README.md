@@ -58,10 +58,13 @@ k_V = 2.5 log10(e) [tau_R(551 nm) + tau_M(551 nm)]
 ```
 
 The profile pressure is already local, so this conversion does not apply the
-observer altitude a second time to the Rayleigh column. For
-`GenericClearSky`, that local pressure is itself derived from the query observer
-altitude; named CTAO profiles use their explicit planning pressure and aerosol
-assumptions. The query observer continues to determine lunar/target geometry.
+observer altitude a second time to the Rayleigh column. The derived coefficient
+contains the clear-sky extinction represented by the current profile model
+(Rayleigh + Mie); `AtmosphericConditions` does not introduce a separate
+molecular-absorption term. For `GenericClearSky`, the local pressure is itself
+derived from the query observer altitude; named CTAO profiles use their explicit
+planning pressure and aerosol assumptions. The query observer continues to
+determine lunar/target geometry.
 
 Neither profile substitutes for a site-calibrated aerosol model. Site
 assumptions and `MoonlightModel` scientific identity are independent
