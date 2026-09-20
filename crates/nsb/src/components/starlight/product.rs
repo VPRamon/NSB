@@ -5,7 +5,7 @@ use crate::assets::BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE;
 ///
 /// This selects the admitted map product that backs the Starlight component; it
 /// is deliberately separate from scientific-model selectors such as
-/// `AirglowModel` and `MoonlightModel`. Additional admission paths may be
+/// [`crate::AirglowModel`] and [`crate::MoonlightModel`]. Additional admission paths may be
 /// added; downstream matches should include a wildcard arm.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -20,16 +20,24 @@ pub enum StarlightProduct {
 
 impl StarlightProduct {
     /// Select the bundled production Gaia DR3 XP-derived map.
-    pub fn bundled_production_gaia_dr3() -> Self { Self::BundledProductionGaiaDr3 }
+    pub fn bundled_production_gaia_dr3() -> Self {
+        Self::BundledProductionGaiaDr3
+    }
 
     /// Select a caller-provided map without a production validation claim.
-    pub fn with_experimental_map(map: StarlightMap) -> Self { Self::ExperimentalMap(Box::new(map)) }
+    pub fn with_experimental_map(map: StarlightMap) -> Self {
+        Self::ExperimentalMap(Box::new(map))
+    }
 
     /// Select a manifest-validated external production map.
-    pub fn validated_external(map: ValidatedStarlightMap) -> Self { Self::ValidatedExternalMap(Box::new(map)) }
+    pub fn validated_external(map: ValidatedStarlightMap) -> Self {
+        Self::ValidatedExternalMap(Box::new(map))
+    }
 
     /// Return whether a validated production Gaia DR3 starlight map is bundled.
-    pub const fn bundled_production_available() -> bool { BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE }
+    pub const fn bundled_production_available() -> bool {
+        BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE
+    }
 
     /// Stable machine-readable product identity.
     pub const fn as_str(&self) -> &'static str {

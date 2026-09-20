@@ -61,7 +61,7 @@ The supported selections are deliberately distinct:
 - **validated external starlight**: selected with `starlight` plus both
   `--starlight-map` and `--starlight-manifest`;
 - **experimental library map**: supplied through
-  `StarlightModel::with_experimental_map`.
+  `StarlightProduct::with_experimental_map`.
 
 There is no bundled experimental seed. Missing or invalid production evidence is
 an error.

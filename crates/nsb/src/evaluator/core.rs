@@ -672,9 +672,9 @@ impl NsbEvaluator {
             NsbError::Unsupported(
                 concat!(
                     "starlight component requested but no starlight product is configured; ",
-                    "provide a validated map with starlight::StarlightProduct::validated_external(...), ",
-                    "use starlight::StarlightProduct::bundled_production_gaia_dr3(), or ",
-                    "explicitly opt into starlight::StarlightProduct::with_experimental_map(...)"
+                    "provide a validated map with StarlightProduct::validated_external(...), ",
+                    "use StarlightProduct::bundled_production_gaia_dr3(), or ",
+                    "explicitly opt into StarlightProduct::with_experimental_map(...)"
                 )
                 .to_string(),
             )
