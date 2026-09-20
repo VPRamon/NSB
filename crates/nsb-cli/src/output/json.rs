@@ -71,6 +71,7 @@ struct ModelJson {
     f107_checksum_sha256: Option<String>,
     airglow_model: &'static str,
     airglow_geometry: &'static str,
+    zodiacal_model: &'static str,
     zodiacal_extinction: &'static str,
 }
 
@@ -340,7 +341,8 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
         },
         airglow_model: config.airglow_model().as_str(),
         airglow_geometry: config.airglow_geometry.model_id(),
-        zodiacal_extinction: config.zodiacal_extinction.as_str(),
+        zodiacal_model: config.zodiacal_model().as_str(),
+        zodiacal_extinction: config.zodiacal_extinction().as_str(),
     }
 }
 
