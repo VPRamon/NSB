@@ -40,7 +40,7 @@ manifest and build-time checks.
 | `evaluator` | Public orchestration layer for point queries and threshold-window searches |
 | `site` | Built-in atmospheric and airglow profile metadata with explicit maturity |
 
-Internal `reference`, `spectrum`, and `units` modules support the public surface
+Internal `spectra` and `units` modules support the public surface
 without becoming independent operational APIs; threshold-search orchestration
 lives under `evaluator::search`.
 
