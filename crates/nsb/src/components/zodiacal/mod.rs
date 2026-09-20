@@ -30,8 +30,8 @@ pub(crate) mod reddening;
 pub(crate) mod spectrum;
 
 pub use extinction::ZodiacalExtinction;
-pub use model::ZodiacalModel;
 pub(crate) use model::ZodiacalLight;
+pub use model::ZodiacalModel;
 
 #[cfg(test)]
 mod tests;
