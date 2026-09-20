@@ -8,22 +8,22 @@ use tempoch::{Period, Time, MJD, UTC};
 const MAX_CROSSING_REFINEMENTS: usize = 24;
 const CROSSING_TOLERANCE: Days = Days::new(1.0e-5);
 
-pub(super) fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
+pub(crate) fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
     ModifiedJulianDate::from(time.to::<TT>().to::<MJD>())
 }
 
-pub(super) fn tt_mjd_to_utc_time(time: ModifiedJulianDate) -> Time<UTC> {
+pub(crate) fn tt_mjd_to_utc_time(time: ModifiedJulianDate) -> Time<UTC> {
     tempoch::Time::<TT>::from(time).to::<UTC>()
 }
 
-pub(super) fn utc_period_to_tt_mjd(window: Period<UTC>) -> TimePeriod<ModifiedJulianDate> {
+pub(crate) fn utc_period_to_tt_mjd(window: Period<UTC>) -> TimePeriod<ModifiedJulianDate> {
     TimePeriod::new(
         utc_time_to_tt_mjd(window.start),
         utc_time_to_tt_mjd(window.end),
     )
 }
 
-pub(super) fn above_threshold_periods<V, F>(
+pub(crate) fn above_threshold_periods<V, F>(
     window: TimePeriod<ModifiedJulianDate>,
     step: Days,
     f: &F,
@@ -108,7 +108,7 @@ where
 /// crossing is refined against that same model. Features narrower than the
 /// explicitly selected resolution remain outside this discrete search
 /// contract; callers can reduce `step` when they need finer completeness.
-pub(super) fn authoritative_above_threshold_periods<V, E>(
+pub(crate) fn authoritative_above_threshold_periods<V, E>(
     window: TimePeriod<ModifiedJulianDate>,
     step: Days,
     exact_f: &E,
@@ -121,7 +121,7 @@ where
     above_threshold_periods(window, step, exact_f, threshold)
 }
 
-pub(super) fn complement_periods(
+pub(crate) fn complement_periods(
     window: TimePeriod<ModifiedJulianDate>,
     periods: &[TimePeriod<ModifiedJulianDate>],
 ) -> Vec<TimePeriod<ModifiedJulianDate>> {
@@ -236,7 +236,7 @@ fn push_non_empty_period(
     }
 }
 
-pub(super) fn coalesce_periods(periods: &mut Vec<TimePeriod<ModifiedJulianDate>>) {
+pub(crate) fn coalesce_periods(periods: &mut Vec<TimePeriod<ModifiedJulianDate>>) {
     if periods.len() <= 1 {
         return;
     }
@@ -255,7 +255,7 @@ pub(super) fn coalesce_periods(periods: &mut Vec<TimePeriod<ModifiedJulianDate>>
     *periods = out;
 }
 
-pub(super) fn tt_mjd_period_to_utc(
+pub(crate) fn tt_mjd_period_to_utc(
     window: TimePeriod<ModifiedJulianDate>,
     query_window_tt: TimePeriod<ModifiedJulianDate>,
     query_window_utc: Period<UTC>,

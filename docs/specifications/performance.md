@@ -3,13 +3,13 @@
 Status: current correctness and performance evidence for long-horizon threshold
 searches. Timings are review evidence, not portable pass/fail thresholds.
 
-`NsbEvaluator` owns immutable parsed component data. `SiteWindowContext` is the
-target-independent reuse boundary for workloads with one evaluator, site, UTC
-window, component mask, and Sun filter. It holds the astronomical-night and
-Airglow-phase intervals, Siderust Moon-visible intervals, the prepared Airglow
-model, and a query-local solar-activity cache. Target, target-altitude floor,
-radiance threshold, and sample step may vary. The context validates its owner
-and invariant fields before every reuse.
+`NsbEvaluator` owns immutable parsed component data. Planning owns
+`SiteWindowContext`, the target-independent reuse boundary for workloads with
+one evaluator, site, UTC window, component mask, and Sun filter. It holds the
+astronomical-night and Airglow-phase intervals, Siderust Moon-visible intervals,
+the prepared Airglow model, and a query-local solar-activity cache. Target,
+target-altitude floor, radiance threshold, and sample step may vary. The context
+validates its owner and invariant fields before every reuse.
 
 ## Correctness contract
 

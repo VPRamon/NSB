@@ -22,10 +22,10 @@ Most callers should prefer the intended **core API**:
 1. Construct an [`NsbEvaluator`](../../crates/nsb/src/evaluator/core.rs) from
    [`NsbModelConfig`](../../crates/nsb/src/evaluator/types.rs) presets or builders.
 2. Build a [`PointQuery`](../../crates/nsb/src/evaluator/types.rs) or
-   [`ThresholdQuery`](../../crates/nsb/src/evaluator/types.rs) with constructors
+   [`ThresholdQuery`](../../crates/nsb/src/planning/types.rs) with constructors
    (`::new`, `with_*`), not struct literals.
 3. Read [`NsbResult`](../../crates/nsb/src/evaluator/types.rs) /
-   [`ThresholdQueryResult`](../../crates/nsb/src/evaluator/types.rs) and per-component
+   [`ThresholdQueryResult`](../../crates/nsb/src/planning/types.rs) and per-component
    [`NsbComponentMetadata`](../../crates/nsb/src/evaluator/metadata.rs).
 
 Typical imports from the crate root:
@@ -33,7 +33,7 @@ Typical imports from the crate root:
 | Task | Primary types |
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
-| Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult` |
+| Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult`, `SiteWindowContext` |
 | Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileId` |
 | Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfile`, `SiteProfileId` |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
