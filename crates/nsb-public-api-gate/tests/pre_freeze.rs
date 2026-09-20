@@ -256,3 +256,114 @@ fn pre_freeze_check_allows_starlight_product_and_advanced_records() {
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }
+
+
+#[test]
+fn pre_freeze_check_rejects_public_zodiacal_implementation_surface() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/zodiacal");
+    fs::create_dir_all(&source).expect("create temporary Zodiacal source");
+    fs::write(
+        source.join("model.rs"),
+        concat!(
+            "pub struct ZodiacalLight;\n",
+            "pub struct ZodiacalBrightnessGrid;\n",
+            "pub enum ZodiacalBrightnessModel { Leinert1998 }\n",
+            "impl ZodiacalLight {\n",
+            "    pub fn with_solar_spectrum(self) -> Self { self }\n",
+            "    pub fn with_brightness_model() {}\n",
+            "}\n",
+        ),
+    )
+    .expect("write accidental Zodiacal implementation surface");
+    fs::write(
+        source.join("output.rs"),
+        "pub struct ZodiacalOutputs;\npub struct ZodiacalSpectrum;\n",
+    )
+    .expect("write accidental Zodiacal output surface");
+    fs::write(
+        source.join("mod.rs"),
+        "pub use model::ZodiacalLight;\npub use output::ZodiacalOutputs;\n",
+    )
+    .expect("write accidental Zodiacal re-exports");
+    fs::write(
+        repo.join("crates/nsb/src/lib.rs"),
+        "pub use components::zodiacal::{ZodiacalBrightnessGrid, ZodiacalBrightnessModel, ZodiacalLight, ZodiacalOutputs, ZodiacalSpectrum};\n",
+    )
+    .expect("write historical Zodiacal root exports");
+
+    let error = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect_err("accidental Zodiacal implementation API must be rejected");
+
+    for expected in [
+        "pub struct ZodiacalLight",
+        "pub struct ZodiacalBrightnessGrid",
+        "pub enum ZodiacalBrightnessModel",
+        "pub fn with_solar_spectrum",
+        "pub fn with_brightness_model",
+        "pub struct ZodiacalOutputs",
+        "pub struct ZodiacalSpectrum",
+        "ZodiacalSpectrum",
+    ] {
+        assert!(
+            error.to_string().contains(expected),
+            "missing Zodiacal guard for {expected}"
+        );
+    }
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}
+
+#[test]
+fn pre_freeze_check_allows_durable_zodiacal_selection_surface() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/zodiacal");
+    fs::create_dir_all(&source).expect("create temporary Zodiacal source");
+    fs::write(
+        source.join("model.rs"),
+        concat!(
+            "#[non_exhaustive]\n",
+            "pub enum ZodiacalModel { Leinert1998 }\n",
+            "pub(crate) struct ZodiacalLight;\n",
+            "pub(super) struct ZodiacalBrightnessGrid;\n",
+            "pub(super) enum ZodiacalBrightnessModel { Leinert1998 }\n",
+        ),
+    )
+    .expect("write intentional Zodiacal model surface");
+    fs::write(
+        source.join("extinction.rs"),
+        "#[non_exhaustive]\npub enum ZodiacalExtinction { None, Noll2012Approx }\n",
+    )
+    .expect("write intentional Zodiacal extinction surface");
+    fs::write(
+        source.join("output.rs"),
+        "pub(crate) struct ZodiacalOutputs;\n",
+    )
+    .expect("write internal Zodiacal output");
+    fs::write(
+        source.join("mod.rs"),
+        "pub use extinction::ZodiacalExtinction;\npub use model::ZodiacalModel;\npub(crate) use model::ZodiacalLight;\n",
+    )
+    .expect("write intentional Zodiacal re-exports");
+    fs::write(
+        repo.join("crates/nsb/src/lib.rs"),
+        "pub use components::zodiacal::{ZodiacalExtinction, ZodiacalModel};\n",
+    )
+    .expect("write intentional Zodiacal root exports");
+
+    let outcome = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect("durable Zodiacal selectors and internal implementation must be allowed");
+    assert_eq!(outcome.status, GateStatus::Pass);
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}
