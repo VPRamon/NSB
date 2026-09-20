@@ -257,7 +257,6 @@ fn pre_freeze_check_allows_starlight_product_and_advanced_records() {
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }
 
-
 #[test]
 fn pre_freeze_check_rejects_public_zodiacal_implementation_surface() {
     let repo = temporary_repo();
