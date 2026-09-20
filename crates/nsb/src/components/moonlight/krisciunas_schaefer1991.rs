@@ -1,60 +1,27 @@
 use super::*;
 use crate::units::Nanolamberts;
-use qtty::Second;
 
 /// Published analytic V-band moonlight reference model.
-pub struct KrisciunasSchaefer1991 {
+pub(crate) struct KrisciunasSchaefer1991 {
     location: Geodetic<ECEF>,
     k_ext: MagnitudesPerAirmass,
 }
 
 impl KrisciunasSchaefer1991 {
-    /// Default coarse scan step for range searches.
-    pub const DEFAULT_PERIOD_SEARCH_STEP: Second = Second::new(600.0);
-
-    /// Build with an explicit extinction coefficient.
-    pub fn new(location: Geodetic<ECEF>, k_ext: MagnitudesPerAirmass) -> Self {
-        Self { location, k_ext }
+    pub(crate) fn published_reference(location: Geodetic<ECEF>) -> Self {
+        Self {
+            location,
+            k_ext: DEFAULT_K_EXT,
+        }
     }
 
-    /// Build with the standard clear-sky extinction coefficient.
-    pub fn standard_clear_sky(location: Geodetic<ECEF>) -> Self {
-        Self::new(location, DEFAULT_K_EXT)
-    }
-
-    /// Evaluate analytic scattered moonlight toward a target.
-    pub fn compute(
+    pub(crate) fn compute(
         &self,
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
     ) -> Result<MoonOutputs> {
         let geometry = lunar_geometry(time, self.location, target);
         compute_krisciunas_schaefer_1991(&geometry, self.k_ext)
-    }
-
-    /// Find periods whose integrated moonlight lies in the inclusive range.
-    pub fn periods_in_range(
-        &self,
-        window: Period<UTC>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-        min: PhotonsPerSquareCentimeterNanosecondSteradian,
-        max: PhotonsPerSquareCentimeterNanosecondSteradian,
-    ) -> Result<Vec<Period<UTC>>> {
-        self.periods_in_range_with_step(window, target, min, max, Self::DEFAULT_PERIOD_SEARCH_STEP)
-    }
-
-    /// Find in-range periods with an explicit coarse scan step.
-    pub fn periods_in_range_with_step(
-        &self,
-        window: Period<UTC>,
-        target: SphericalDirection<EquatorialMeanJ2000>,
-        min: PhotonsPerSquareCentimeterNanosecondSteradian,
-        max: PhotonsPerSquareCentimeterNanosecondSteradian,
-        sample_step: Second,
-    ) -> Result<Vec<Period<UTC>>> {
-        crate::window_search::periods_in_range(window, sample_step, min, max, |time| {
-            Ok(self.compute(time, target)?.integrated)
-        })
     }
 }
 
@@ -143,41 +110,10 @@ fn scattered_brightness_nanolamberts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{DateTime, Utc};
     use qtty::angular::Radians;
     use qtty::photometry::s10_to_surface_brightness;
     use qtty::radiometry::S10s;
-    use siderust::qtty::{Degrees as SiderustDegrees, IlluminationFractions, Meters};
-
-    fn parse_utc(input: &str) -> Time<UTC> {
-        Time::<UTC>::from_chrono(
-            DateTime::parse_from_rfc3339(input)
-                .unwrap()
-                .with_timezone(&Utc),
-        )
-    }
-
-    fn test_location() -> Geodetic<ECEF> {
-        Geodetic::<ECEF>::new_raw(
-            SiderustDegrees::new(-70.0),
-            SiderustDegrees::new(-24.0),
-            Meters::new(2500.0),
-        )
-    }
-
-    fn test_target() -> SphericalDirection<EquatorialMeanJ2000> {
-        SphericalDirection::<EquatorialMeanJ2000>::new(
-            SiderustDegrees::new(270.0),
-            SiderustDegrees::new(-30.0),
-        )
-    }
-
-    fn test_window() -> Period<UTC> {
-        Period::new(
-            parse_utc("2023-09-04T02:00:00Z"),
-            parse_utc("2023-09-04T03:00:00Z"),
-        )
-    }
+    use siderust::qtty::IlluminationFractions;
 
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         MoonPhaseGeometry {
@@ -287,19 +223,5 @@ mod tests {
     fn airmass_at_zenith_is_unity() {
         let am = airmass::<KrisciunasSchaeferAirmass>(Degrees::new(0.0).to::<Radian>());
         assert!((am.value() - 1e0).abs() < 1e-12, "X(0) = {:?}", am);
-    }
-
-    #[test]
-    fn periods_in_range_rejects_inverted_bounds() {
-        let model = KrisciunasSchaefer1991::standard_clear_sky(test_location());
-        let err = model
-            .periods_in_range(
-                test_window(),
-                test_target(),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(2.0),
-                PhotonsPerSquareCentimeterNanosecondSteradian::new(1.0),
-            )
-            .unwrap_err();
-        assert!(err.to_string().contains("minimum radiance"));
     }
 }

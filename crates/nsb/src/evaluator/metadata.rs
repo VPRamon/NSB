@@ -1,8 +1,9 @@
-use super::{MoonlightModel, Observer, StarlightModel};
+use super::{Observer, StarlightModel};
 use crate::components::airglow::calibration::{
     airglow_continuum_asset, AIRGLOW_CONTINUUM_ASSET_PATH,
 };
 use crate::components::airglow::{AirglowModel, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG};
+use crate::components::moonlight::MoonlightModel;
 use crate::components::starlight::StarlightProvenance;
 use crate::site::{CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
 use crate::NSB_S10_ZP;
@@ -272,16 +273,22 @@ pub(super) fn moonlight_metadata(
                 airglow_geometry: None,
             }
         }
-        MoonlightModel::KrisciunasSchaefer1991 => NsbComponentMetadata {
-            status: ComponentCalibrationStatus::PublishedReference,
-            provenance: "Krisciunas & Schaefer 1991 analytic V-band moonlight model".into(),
-            validated_domain:
-                "published analytic V-band reference model; not the wavelength-resolved default"
-                    .into(),
-            band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-            airglow_model: None,
-            solar_activity: None,
-            airglow_geometry: None,
-        },
+        MoonlightModel::KrisciunasSchaefer1991 => {
+            let profile = site_profile.profile(observer);
+            NsbComponentMetadata {
+                status: ComponentCalibrationStatus::PublishedReference,
+                provenance: Cow::Owned(format!(
+                    "Krisciunas & Schaefer 1991 analytic V-band moonlight model; fixed validated V-band extinction k=0.172 mag/airmass; selected site profile {} does not alter this reference parameterization",
+                    profile.name
+                )),
+                validated_domain:
+                    "published analytic V-band reference model with fixed k=0.172 mag/airmass; not the wavelength-resolved default"
+                        .into(),
+                band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+                airglow_model: None,
+                solar_activity: None,
+                airglow_geometry: None,
+            }
+        }
     }
 }

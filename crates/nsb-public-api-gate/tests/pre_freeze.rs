@@ -96,3 +96,76 @@ fn pre_freeze_check_allows_supported_airglow_model_names_containing_legacy() {
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }
+
+#[test]
+fn pre_freeze_check_rejects_public_moonlight_implementation_surface() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/moonlight");
+    fs::create_dir_all(&source).expect("create temporary source");
+    fs::write(
+        source.join("model.rs"),
+        concat!(
+            "pub struct Jones2013Spectral;\n",
+            "pub struct KrisciunasSchaefer1991;\n",
+            "pub struct MoonOutputs;\n",
+            "pub const DEFAULT_K_EXT: f64 = 0.172;\n",
+            "pub const DEFAULT_PERIOD_SEARCH_STEP: u64 = 600;\n",
+            "pub fn with_extinction_scale() {}\n",
+            "pub fn periods_in_range() {}\n",
+        ),
+    )
+    .expect("write accidental Moonlight public surface");
+
+    let error = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect_err("accidental Moonlight implementation API must be rejected");
+    for expected in [
+        "pub struct Jones2013Spectral",
+        "pub struct KrisciunasSchaefer1991",
+        "pub struct MoonOutputs",
+        "pub const DEFAULT_K_EXT",
+        "pub const DEFAULT_PERIOD_SEARCH_STEP",
+        "pub fn with_extinction_scale",
+        "pub fn periods_in_range",
+    ] {
+        assert!(
+            error.to_string().contains(expected),
+            "missing guard for {expected}"
+        );
+    }
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}
+
+#[test]
+fn pre_freeze_check_allows_internal_supported_moonlight_implementations() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/moonlight");
+    fs::create_dir_all(&source).expect("create temporary source");
+    fs::write(
+        source.join("model.rs"),
+        concat!(
+            "pub enum MoonlightModel { Jones2013Spectral, KrisciunasSchaefer1991 }\n",
+            "pub(crate) struct Jones2013Spectral;\n",
+            "pub(crate) struct KrisciunasSchaefer1991;\n",
+            "pub(crate) struct MoonOutputs;\n",
+            "const DEFAULT_K_EXT: f64 = 0.172;\n",
+        ),
+    )
+    .expect("write intentional Moonlight surface");
+
+    let outcome = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect("supported model identity and internal implementations must be allowed");
+    assert_eq!(outcome.status, GateStatus::Pass);
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}

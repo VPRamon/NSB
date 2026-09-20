@@ -34,6 +34,7 @@ fn default_point_json_reports_schema_versions_and_components() {
         "git:https://github.com/Siderust/siderust?rev=2af7c21096551b69a72bba6aa391523f3a4fca9a"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
+    assert_eq!(value["model"]["moonlight_model"], "jones-2013-spectral");
     assert_eq!(
         value["model"]["airglow_model"],
         "paranal-noll-skycalc-fors1"
@@ -111,6 +112,8 @@ fn point_ks1991_moonlight_model_is_labelled_in_json() {
             "2023-09-04T01:48:00Z",
             "--site",
             "PARANAL",
+            "--site-profile",
+            "cta-north",
             "--ra",
             "266.41683",
             "--dec",
@@ -126,6 +129,7 @@ fn point_ks1991_moonlight_model_is_labelled_in_json() {
         .stdout
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["model"]["preset"], "ctao-north-planning");
     assert_eq!(
         value["model"]["moonlight_model"],
         "krisciunas-schaefer-1991"

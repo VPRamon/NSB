@@ -4,10 +4,12 @@
 //! both consume the same pressure, Rayleigh, and aerosol assumptions selected by
 //! a [`super::SiteProfile`].
 
-use siderust::atmosphere::{AtmosphereProfile, MieParams, DEFAULT_SCALE_HEIGHT};
+use siderust::atmosphere::{
+    rayleigh_optical_depth_bodhaine99, AtmosphereProfile, MieParams, DEFAULT_SCALE_HEIGHT,
+};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Hectopascals, Kilometers};
+use siderust::qtty::{Hectopascals, Kilometers, Nanometers, OpticalDepths};
 
 /// Atmospheric inputs shared by NSB components that model scattering.
 ///
@@ -21,6 +23,24 @@ pub struct AtmosphericConditions {
     pub rayleigh_scale_height: Kilometers,
     /// Aerosol optical-depth and phase-function parameters.
     pub mie_params: MieParams,
+}
+
+/// Bodhaine Rayleigh optical depth for conditions whose pressure is already local.
+///
+/// `AtmosphericConditions::surface_pressure` represents the local atmospheric
+/// column selected by the site profile. Siderust's Bodhaine helper also applies
+/// an exponential reduction from observer altitude, so supplying both local
+/// pressure and the query altitude would reduce the Rayleigh column twice.
+pub(crate) fn rayleigh_optical_depth_local_pressure(
+    wavelength: Nanometers,
+    atmosphere: AtmosphericConditions,
+) -> OpticalDepths {
+    rayleigh_optical_depth_bodhaine99(
+        wavelength,
+        atmosphere.surface_pressure,
+        Kilometers::new(0.0),
+        atmosphere.rayleigh_scale_height,
+    )
 }
 
 impl AtmosphericConditions {

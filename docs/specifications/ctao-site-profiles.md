@@ -52,20 +52,29 @@ assert!(!config.is_airglow_site_calibrated());
 let evaluator = NsbEvaluator::with_config(config)?;
 ```
 
-Component-level explicit profile selection:
+Moonlight scientific-model selection remains independent of the site profile:
 
 ```rust
-use nsb::{Airglow, CalibrationStatus, Jones2013Spectral, SiteProfileId};
+use nsb::{MoonlightModel, NsbEvaluator, NsbModelConfig, SiteProfileId};
 
-let moonlight = Jones2013Spectral::for_site_profile(observer, SiteProfileId::CtaSouth);
-let airglow = Airglow::for_site_profile(observer, SiteProfileId::CtaSouth)?;
-let profile = SiteProfileId::CtaSouth.profile(observer);
+let config = NsbModelConfig::default()
+    .with_site_profile(SiteProfileId::CtaSouth)
+    .with_moonlight_model(MoonlightModel::Jones2013Spectral);
 
-assert_eq!(profile.calibration_status, CalibrationStatus::PlanningPreset);
-assert_eq!(airglow.calibration_status(), CalibrationStatus::PlanningPreset);
-assert!(!profile.is_site_calibrated());
-assert!(!airglow.is_site_calibrated());
+assert_eq!(config.site_profile, SiteProfileId::CtaSouth);
+assert_eq!(
+    config.moonlight_model(),
+    MoonlightModel::Jones2013Spectral,
+);
+let evaluator = NsbEvaluator::with_config(config)?;
 ```
+
+Concrete Moonlight evaluator types are internal; normal evaluation goes through
+`NsbEvaluator`. Jones consumes the selected profile's wavelength-resolved
+Rayleigh/Mie inputs. Krisciunas & Schaefer remains the validated published
+reference parameterization with fixed `k = 0.172 mag/airmass`; selecting a site
+profile does not change its numerical result. The profile never selects or
+rewrites the scientific `MoonlightModel`.
 
 CLI location and scientific-profile selection are intentionally separate:
 

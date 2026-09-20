@@ -9,6 +9,7 @@ use super::search::{
 };
 use super::types::*;
 use crate::components::airglow::AirglowContinuum;
+use crate::components::moonlight::MoonlightModel;
 use crate::components::zodiacal::ZodiacalLight;
 use crate::components::{airglow, moonlight, starlight};
 use crate::error::{NsbError, Result};
@@ -687,9 +688,9 @@ impl NsbEvaluator {
         time: Time<UTC>,
         target: Target,
     ) -> Result<moonlight::MoonOutputs> {
-        match self.config.moonlight_model {
+        match self.config.moonlight_model() {
             MoonlightModel::KrisciunasSchaefer1991 => {
-                moonlight::KrisciunasSchaefer1991::standard_clear_sky(observer)
+                moonlight::KrisciunasSchaefer1991::published_reference(observer)
                     .compute(time, target)
             }
             MoonlightModel::Jones2013Spectral => {

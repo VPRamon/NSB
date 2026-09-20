@@ -1,64 +1,11 @@
-//! Jones 2013 public-API atmosphere contracts and reference-fixture schema.
+//! Jones 2013 reference-fixture schema validation.
 //!
 //! Numerical spectral-model regression pins for fixed moonlight geometries live
-//! in `components::moonlight::jones_2013_spectral` unit tests. The CSV fixture
-//! below remains the schema and scientific-tolerance manifest for external
-//! quantitative references; its historical `expected_*` columns are not an
-//! independent SkyCalc agreement campaign.
+//! in the internal `components::moonlight::jones_2013_spectral` unit tests.
+//! Public model selection and evaluator dispatch are covered by
+//! `moonlight_model_selection`.
 
-use chrono::{DateTime, Utc};
-use nsb::{AtmosphericConditions, Jones2013Spectral, Target, DEG};
-use siderust::catalogs::observatories;
 use std::collections::{BTreeMap, BTreeSet};
-use tempoch::{Time, UTC};
-
-fn parse_utc(input: &str) -> Time<UTC> {
-    Time::<UTC>::from_chrono(
-        DateTime::parse_from_rfc3339(input)
-            .expect("RFC3339 timestamp")
-            .with_timezone(&Utc),
-    )
-}
-
-fn target_sagittarius() -> Target {
-    Target::new(270.0 * DEG, -30.0 * DEG)
-}
-
-#[test]
-fn jones2013_atmosphere_presets_change_scattered_moonlight() {
-    let location = observatories::EL_PARANAL.geodetic();
-    let time = parse_utc("2023-09-29T03:00:00Z");
-    let target = target_sagittarius();
-
-    let evaluate = |conditions: AtmosphericConditions| {
-        Jones2013Spectral::new(location, conditions)
-            .compute(time, target)
-            .expect("Jones 2013 moonlight computation")
-    };
-
-    let paranal = evaluate(AtmosphericConditions::paranal_average());
-    let cta_s = evaluate(AtmosphericConditions::cta_s_clear_sky());
-    let cta_n = evaluate(AtmosphericConditions::cta_n_clear_sky());
-    let generic = evaluate(AtmosphericConditions::generic_clear_sky(location));
-
-    for out in [&paranal, &cta_s, &cta_n, &generic] {
-        assert!(out.integrated.value().is_finite());
-        assert!(out.b_flux_s10.value().is_finite());
-        assert!(out.v_flux_s10.value().is_finite());
-        assert!(out.integrated.value() >= 0.0);
-    }
-
-    assert_eq!(
-        paranal.integrated.value().to_bits(),
-        cta_s.integrated.value().to_bits(),
-        "CTA-S currently aliases the explicit Paranal-like atmosphere"
-    );
-    assert_ne!(
-        cta_n.integrated.value(),
-        cta_s.integrated.value(),
-        "CTA-N planning atmosphere must change scattered moonlight vs CTA-S/Paranal"
-    );
-}
 
 #[test]
 fn quantitative_reference_fixture_is_well_formed() {

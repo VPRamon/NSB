@@ -40,12 +40,12 @@
 //! # Rayleigh optical depth and local pressure
 //!
 //! [`AtmosphericConditions::surface_pressure`] is the observatory-local
-//! pressure. Siderust's [`rayleigh_optical_depth_bodhaine99`] scales by
+//! pressure. Siderust's [`siderust::atmosphere::rayleigh_optical_depth_bodhaine99`] scales by
 //! both `surface_pressure / 1013.25 hPa` and `exp(-observer_altitude / H)`. Passing
 //! local pressure together with a non-zero observer altitude therefore applies
 //! the atmospheric-column reduction twice. Airglow therefore evaluates Bodhaine
 //! Rayleigh depth with the local pressure only (`observer_altitude = 0` in the
-//! Siderust call). See [`rayleigh_optical_depth_local_pressure`].
+//! Siderust call) through the shared site-atmosphere helper.
 //!
 //! Molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc
 //! pipeline is not reproduced here.
@@ -55,11 +55,12 @@
 //! Noll, S., et al. (2012). "An atmospheric radiation model for Cerro Paranal".
 //! *A&A* 543, A92. §4.1; Eqs. (23)–(25).
 
+use crate::site::atmosphere::rayleigh_optical_depth_local_pressure;
 use crate::site::AtmosphericConditions;
 use qtty::angular::{Degrees, Radian};
 use qtty::dimensionless::Transmittances;
-use siderust::atmosphere::{mie_optical_depth, rayleigh_optical_depth_bodhaine99};
-use siderust::qtty::{Kilometers, Nanometers, OpticalDepths};
+use siderust::atmosphere::mie_optical_depth;
+use siderust::qtty::Nanometers;
 
 /// Noll effective-extinction fit is calibrated primarily through this zenith angle.
 pub(crate) const NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG: f64 = 60.0;
@@ -121,28 +122,6 @@ pub(crate) fn noll_airglow_scattering_geometry(zenith: Degrees) -> NollAirglowSc
     }
 }
 
-/// Bodhaine Rayleigh optical depth using observatory-local pressure only.
-///
-/// `AtmosphericConditions::surface_pressure` already encodes the reduced column
-/// mass at the site altitude. Siderust's [`rayleigh_optical_depth_bodhaine99`]
-/// also applies `exp(-observer_altitude / scale_height)`, which would reduce the
-/// column a second time if both local pressure and site altitude were supplied.
-///
-/// Until Siderust exposes an explicit local-pressure Bodhaine entry point, this
-/// helper calls the published function with `observer_altitude = 0 km` so the
-/// pressure ratio is applied once.
-pub(crate) fn rayleigh_optical_depth_local_pressure(
-    wavelength: Nanometers,
-    atmosphere: AtmosphericConditions,
-) -> OpticalDepths {
-    rayleigh_optical_depth_bodhaine99(
-        wavelength,
-        atmosphere.surface_pressure,
-        Kilometers::new(0.0),
-        atmosphere.rayleigh_scale_height,
-    )
-}
-
 /// Independent Bodhaine sea-level kernel used only for regression tests.
 #[cfg(test)]
 pub(crate) fn bodhaine_rayleigh_tau_sea_level(wavelength_um: f64) -> f64 {
@@ -183,9 +162,9 @@ pub(crate) fn spectral_airglow_scattering_transmission_with_geometry(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use siderust::atmosphere::mie_optical_depth;
     use siderust::atmosphere::profile::AtmosphereProfile;
-    use siderust::qtty::Hectopascals;
+    use siderust::atmosphere::{mie_optical_depth, rayleigh_optical_depth_bodhaine99};
+    use siderust::qtty::{Hectopascals, Kilometers};
 
     const SEA_LEVEL_PRESSURE_HPA: f64 = 1013.25;
 

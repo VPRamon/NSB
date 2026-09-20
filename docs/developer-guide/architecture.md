@@ -40,8 +40,9 @@ manifest and build-time checks.
 | `evaluator` | Public orchestration layer for point queries and threshold-window searches |
 | `site` | Built-in atmospheric and airglow profile metadata with explicit maturity |
 
-Internal `reference`, `spectrum`, `units`, and window-search modules support the
-public surface without becoming independent operational APIs.
+Internal `reference`, `spectrum`, and `units` modules support the public surface
+without becoming independent operational APIs; threshold-search orchestration
+lives under `evaluator::search`.
 
 ### Component modules
 
@@ -50,7 +51,7 @@ public surface without becoming independent operational APIs.
 | `components::zodiacal` | Directional zodiacal brightness, reference spectrum, and atmospheric extinction | Preserve grid/reference provenance and typed radiometry |
 | `components::starlight` | HEALPix map lookup, provenance, validation, and runtime admission | Keep experimental and production paths strictly separate |
 | `components::airglow` | Continuum, temporal/seasonal behaviour, solar activity, geometry, and site scaling | Preserve explicit calibration assumptions and time-domain tests |
-| `components::moonlight` | Atmospheric conditions and scattered-moonlight models | Keep published-reference and spectral models distinguishable in metadata |
+| `components::moonlight` | Scientific model selection plus internal scattered-moonlight implementations | Keep model identity separate from site/atmospheric assumptions while preserving reference and spectral provenance |
 
 The evaluator composes components but does not erase their individual results or
 metadata.

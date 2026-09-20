@@ -306,7 +306,7 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
     };
     ModelJson {
         preset: config.site_profile.as_str(),
-        moonlight_model: config.moonlight_model.as_str(),
+        moonlight_model: config.moonlight_model().as_str(),
         starlight_model: match config.starlight_model.as_ref() {
             None => "not-configured-non-production-component",
             Some(StarlightModel::BundledProductionGaiaDr3) => "starlight",

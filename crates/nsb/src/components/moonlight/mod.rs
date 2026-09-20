@@ -1,29 +1,19 @@
-//! Scattered moonlight component: Krisciunas & Schaefer (1991) and Jones et al. (2013).
+//! Scattered moonlight scientific-model selection and implementation.
 //!
-//! This module exposes two site-bound models:
+//! Public callers select a supported scientific model with [`MoonlightModel`]
+//! through [`crate::NsbModelConfig`] and evaluate it through
+//! [`crate::NsbEvaluator`]. The concrete Jones et al. (2013) spectral and
+//! Krisciunas & Schaefer (1991) evaluators are implementation details.
 //!
-//! * [`KrisciunasSchaefer1991`] is the published analytic V-band reference model. It stores
-//!   the observing location and `k_ext`, then computes lunar phase, Moon
-//!   zenith, Moon-target separation, source zenith, and Moon distance
-//!   internally from `(time, target)`.
-//! * [`Jones2013Spectral`] is the wavelength-resolved scattered moonlight
-//!   model. It stores the observing location and [`AtmosphericConditions`],
-//!   builds a Siderust [`siderust::atmosphere::AtmosphereProfile`] internally,
-//!   and derives observer altitude only from the model location.
-//!
-//! [`Jones2013Spectral::standard_clear_sky`] is a generic approximate
-//! clear-sky fallback: it estimates surface pressure from altitude, uses
-//! Siderust's default Rayleigh scale height, and uses a generic clear-sky Mie
-//! parameter set. It is not a site-calibrated atmosphere.
-//!
-//! For CTAO use, prefer [`Jones2013Spectral::for_site_profile`] with an explicit
-//! [`crate::SiteProfileId`]. The built-in CTAO profiles document their current
-//! planning assumptions and calibration maturity instead of silently relying on
-//! `standard_clear_sky`.
+//! [`MoonlightModel::Jones2013Spectral`] is the deterministic default and
+//! wavelength-resolved implementation. [`MoonlightModel::KrisciunasSchaefer1991`]
+//! remains a deliberately supported published analytic V-band reference model.
+//! Site/atmospheric assumptions are selected independently with
+//! [`crate::SiteProfileId`].
 
 use crate::error::Result;
 use crate::reference::solar;
-use crate::site::SiteProfileId;
+use crate::site::{AtmosphericConditions, SiteProfileId};
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
 use qtty::angular::{Degree, Degrees, Radian, Radians};
@@ -53,32 +43,43 @@ use siderust::event::lunar::meeus_ch47::moon_position_meeus_ch47;
 use siderust::qtty::{AstronomicalUnit, IlluminationFractions, Kilometer, Kilometers, Nanometers};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
 use std::sync::OnceLock;
-use tempoch::{Period, Time, JD, TT, UTC};
+use tempoch::{Time, JD, TT, UTC};
 
 mod jones_2013_spectral;
 mod krisciunas_schaefer1991;
 mod scattering;
 
-pub use crate::site::AtmosphericConditions;
-pub use jones_2013_spectral::Jones2013Spectral;
-pub use krisciunas_schaefer1991::KrisciunasSchaefer1991;
+pub(crate) use jones_2013_spectral::Jones2013Spectral;
+pub(crate) use krisciunas_schaefer1991::KrisciunasSchaefer1991;
+
+/// Supported scattered-moonlight scientific models.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum MoonlightModel {
+    /// Published analytic V-band reference model.
+    KrisciunasSchaefer1991,
+    /// Wavelength-resolved Jones et al. (2013) model.
+    Jones2013Spectral,
+}
+
+impl MoonlightModel {
+    /// Stable machine-readable scientific model identity.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::KrisciunasSchaefer1991 => "krisciunas-schaefer-1991",
+            Self::Jones2013Spectral => "jones-2013-spectral",
+        }
+    }
+}
 
 impl Jones2013Spectral {
-    /// Build the Jones et al. (2013) moonlight model from a named NSB site profile.
-    ///
-    /// This keeps the query geometry tied to `location` while selecting the
-    /// profile's explicit pressure, Rayleigh, aerosol/Mie, and provenance-backed
-    /// assumptions. CTAO profiles are planning presets until dedicated CTAO
-    /// aerosol validation data are bundled.
-    pub fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Self {
+    pub(crate) fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Self {
         let profile = site_profile.profile(location);
         Self::new(location, profile.atmosphere)
     }
 }
 
-/// Default V-band atmospheric extinction coefficient (mag/airmass) used by
-/// K&S 1991 in their published curves.
-pub const DEFAULT_K_EXT: MagnitudesPerAirmass = MagnitudesPerAirmass::new(0.172);
+const DEFAULT_K_EXT: MagnitudesPerAirmass = MagnitudesPerAirmass::new(0.172);
 
 const S10_V_TO_INTEGRATED_PH: PhotonsPerSquareCentimeterNanosecondSteradian =
     PhotonsPerSquareCentimeterNanosecondSteradian::new(1.242e-3);
@@ -110,14 +111,10 @@ struct MoonlightGeometry {
 }
 
 #[derive(Debug, Clone)]
-/// Integrated scattered-moonlight radiance and diagnostic B/V values.
-pub struct MoonOutputs {
-    /// Photon radiance integrated over 300–650 nm.
-    pub integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian,
-    /// Monochromatic B-reference S10 diagnostic.
-    pub b_flux_s10: radiometry::S10s,
-    /// Monochromatic V-reference S10 diagnostic.
-    pub v_flux_s10: radiometry::S10s,
+pub(crate) struct MoonOutputs {
+    pub(crate) integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian,
+    pub(crate) b_flux_s10: radiometry::S10s,
+    pub(crate) v_flux_s10: radiometry::S10s,
 }
 
 fn lunar_geometry(
@@ -286,10 +283,6 @@ fn zero_outputs() -> MoonOutputs {
     }
 }
 
-fn standard_clear_sky_conditions(location: Geodetic<ECEF>) -> AtmosphericConditions {
-    AtmosphericConditions::generic_clear_sky(location)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,7 +302,7 @@ mod tests {
     #[test]
     fn cta_n_moonlight_profile_changes_atmospheric_conditions() {
         let location = cta_n();
-        let generic = standard_clear_sky_conditions(location);
+        let generic = AtmosphericConditions::generic_clear_sky(location);
         let profile = SiteProfileId::CtaNorth.profile(location);
 
         assert_ne!(
@@ -320,21 +313,51 @@ mod tests {
     }
 
     #[test]
-    fn jones_site_profile_constructor_is_explicit_api() {
-        let location = cta_n();
-        let model = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaNorth);
+    fn jones_site_profiles_preserve_atmospheric_dispatch_behavior() {
+        let location = Geodetic::new_raw(
+            SiderustDegrees::new(-70.4044),
+            SiderustDegrees::new(-24.6275),
+            Meters::new(2_635.0),
+        );
         let target = SphericalDirection::<EquatorialMeanJ2000>::new(
             SiderustDegrees::new(270.0),
             SiderustDegrees::new(-30.0),
         );
         let time = Time::<UTC>::from_chrono(
-            chrono::DateTime::parse_from_rfc3339("2023-09-04T02:00:00Z")
+            chrono::DateTime::parse_from_rfc3339("2023-09-29T03:00:00Z")
                 .unwrap()
                 .with_timezone(&chrono::Utc),
         );
 
-        let out = model.compute(time, target).unwrap();
-        assert!(out.integrated.value() >= 0.0);
+        let paranal = Jones2013Spectral::new(location, AtmosphericConditions::paranal_average())
+            .compute(time, target)
+            .unwrap();
+        let cta_s = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaSouth)
+            .compute(time, target)
+            .unwrap();
+        let cta_n = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaNorth)
+            .compute(time, target)
+            .unwrap();
+        let generic = Jones2013Spectral::for_site_profile(location, SiteProfileId::GenericClearSky)
+            .compute(time, target)
+            .unwrap();
+
+        for output in [&paranal, &cta_s, &cta_n, &generic] {
+            assert!(output.integrated.value().is_finite());
+            assert!(output.b_flux_s10.value().is_finite());
+            assert!(output.v_flux_s10.value().is_finite());
+            assert!(output.integrated.value() >= 0.0);
+        }
+        assert_eq!(
+            paranal.integrated.value().to_bits(),
+            cta_s.integrated.value().to_bits(),
+            "CTA-S currently aliases the explicit Paranal-like atmosphere"
+        );
+        assert_ne!(
+            cta_n.integrated.value(),
+            cta_s.integrated.value(),
+            "CTA-N planning atmosphere must change scattered moonlight vs CTA-S/Paranal"
+        );
     }
 
     #[test]

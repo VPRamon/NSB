@@ -60,10 +60,9 @@ pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
 pub(crate) mod units;
-mod window_search;
 
 pub use components::airglow::AirglowModel;
-pub use components::moonlight::{Jones2013Spectral, KrisciunasSchaefer1991, DEFAULT_K_EXT};
+pub use components::moonlight::MoonlightModel;
 pub use components::starlight::{
     Starlight, StarlightMap, StarlightOutputs, StarlightPixel, StarlightProvenance,
     StarlightValidationDiagnostics, ValidatedStarlightMap,
@@ -74,9 +73,9 @@ pub use components::zodiacal::{
 };
 pub use error::{NsbError, Result};
 pub use evaluator::{
-    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, MoonlightModel,
-    NsbComponent, NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig,
-    NsbResult, Observer, PointQuery, SiteWindowContext, StarlightModel, Target, ThresholdQuery,
+    BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,
+    NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
+    Observer, PointQuery, SiteWindowContext, StarlightModel, Target, ThresholdQuery,
     ThresholdQueryResult,
 };
 pub use site::calibration::{

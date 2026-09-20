@@ -32,7 +32,6 @@ SemVer policy, and the snapshot gate are documented in
 | `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
 | `spectrum` | Crate-private | Spectral integration and interpolation helpers |
 | `units` | Crate-private with selected re-exports | NSB-specific typed quantities and scale-factor aliases |
-| `window_search` | Internal | Adaptive interval scanning and threshold-crossing refinement |
 
 ### Component modules
 
@@ -41,7 +40,7 @@ SemVer policy, and the snapshot gate are documented in
 | `components::zodiacal` | Zodiacal brightness grid, solar reference spectrum, atmospheric extinction, and integrated outputs |
 | `components::starlight` | HEALPix lookup, experimental/production separation, manifest validation, provenance, and diagnostics |
 | `components::airglow` | Continuum model, seasonal/nightly/solar corrections, selectable emitting-volume geometry, independent Noll attenuation, and site scaling |
-| `components::moonlight` | Atmospheric inputs plus Jones 2013 spectral and Krisciunas–Schaefer 1991 reference models |
+| `components::moonlight` | Public `MoonlightModel` selection identity plus internal Jones 2013 spectral and Krisciunas–Schaefer 1991 evaluators |
 
 ### Evaluator modules
 
