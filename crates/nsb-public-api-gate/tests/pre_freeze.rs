@@ -174,23 +174,31 @@ fn pre_freeze_check_allows_internal_supported_moonlight_implementations() {
 fn pre_freeze_check_rejects_public_starlight_implementation_surface() {
     let repo = temporary_repo();
     let source = repo.join("crates/nsb/src/components/starlight");
-    fs::create_dir_all(&source).expect("create temporary source");
+    let evaluator = repo.join("crates/nsb/src/evaluator");
+    fs::create_dir_all(&source).expect("create temporary Starlight source");
+    fs::create_dir_all(&evaluator).expect("create temporary evaluator source");
     fs::write(
         source.join("model.rs"),
         concat!(
             "pub struct Starlight { value: f64 }\n",
             "pub struct StarlightOutputs { value: f64 }\n",
-            "pub enum StarlightModel { Bundled }\n",
-            "pub fn with_starlight_model() {}\n",
-            "pub starlight_model: Option<()>\n",
         ),
     )
-    .expect("write accidental Starlight public surface");
+    .expect("write accidental Starlight implementation surface");
     fs::write(
         source.join("mod.rs"),
         "pub use model::Starlight;\npub use output::StarlightOutputs;\n",
     )
     .expect("write accidental Starlight re-exports");
+    fs::write(
+        evaluator.join("types.rs"),
+        concat!(
+            "pub enum StarlightModel { Bundled }\n",
+            "pub struct Config { pub starlight_model: Option<StarlightModel> }\n",
+            "impl Config { pub fn with_starlight_model(self) -> Self { self } }\n",
+        ),
+    )
+    .expect("write removed Starlight configuration surface in its historical location");
 
     let error = run_check(&CheckOptions {
         repo: repo.clone(),
