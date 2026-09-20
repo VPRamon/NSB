@@ -27,7 +27,8 @@ SemVer policy, and the snapshot gate are documented in
 | `assets` | Public | Build-verified bundled asset metadata only (checksums, provenance, maturity); no runtime TOML parsing of `manifest.toml` |
 | `components` | Public | Night-sky contributors and their typed inputs, outputs, metadata, and validation boundaries |
 | `error` | Public | `NsbError` and the crate-wide `Result` alias |
-| `evaluator` | Crate-private with selected root re-exports | Evaluator construction, point queries, threshold queries, component selection, and result metadata |
+| `evaluator` | Crate-private with selected root re-exports | Evaluator construction, point queries, component selection, and result metadata |
+| `planning` | Crate-private with selected root re-exports | Observing-window preparation, astronomical filters, and threshold-window search |
 | `site` | Public | Generic and named planning profiles, atmospheric assumptions, airglow scaling, calibration status, and canonical site-calibration evidence |
 | `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
 | `spectra` | Crate-private | Shared physical spectra consumed by multiple components; currently owns the bundled solar spectral irradiance loader and typed `SolarSpectrum` |
@@ -46,10 +47,21 @@ SemVer policy, and the snapshot gate are documented in
 
 | Module | Responsibility |
 | --- | --- |
-| `evaluator::types` | Query/result types, component masks, immutable model configuration, and model selectors |
-| `evaluator::core` | Evaluator initialization and exact point composition |
-| `evaluator::search` | Prepared threshold-search context, candidate periods, and orchestration |
+| `evaluator::types` | Point query/result types, component masks, and immutable model configuration |
+| `evaluator::core` | Evaluator initialization and the public point-evaluation facade |
+| `evaluator::point` | Exact point composition for one observing instant |
 | `evaluator::metadata` | Component maturity, provenance, validated domain, uncertainty, and diagnostic-band semantics |
+
+### Planning modules
+
+| Module | Responsibility |
+| --- | --- |
+| `planning::types` | Threshold queries/results and reusable `SiteWindowContext` |
+| `planning::prepare` | Site/window and target-specific preparation |
+| `planning::filters` | Candidate-window smoothing and airglow phase helpers |
+| `planning::scan` | Threshold sampling, crossing refinement, and UTC/TT conversion |
+| `planning::threshold` | Search orchestration and thin evaluator convenience wrappers |
+| `planning::diagnostics` | Feature-gated window-search diagnostics |
 
 ## `nsb-cli` modules
 

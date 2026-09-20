@@ -16,7 +16,7 @@ user or scheduler
                                                     typed queries
                                                     component models
                                                     point evaluation
-                                                    window search
+                                                    observing-window planning
                                                     runtime metadata
                                                         ^
                                                         |
@@ -37,12 +37,13 @@ manifest and build-time checks.
 | `assets` | Runtime asset registry access, manifest checks, and embedded scientific data selection |
 | `components` | Physical and empirical contributors to the night-sky background |
 | `error` | Typed library errors and the crate result alias |
-| `evaluator` | Public orchestration layer for point queries and threshold-window searches |
+| `evaluator` | Point NSB evaluation, model construction, and component composition |
+| `planning` | Observing-window preparation, astronomical filters, and threshold search |
 | `site` | Built-in atmospheric and airglow profile metadata with explicit maturity |
 
 Internal `spectra` and `units` modules support the public surface
-without becoming independent operational APIs; threshold-search orchestration
-lives under `evaluator::search`.
+without becoming independent operational APIs. Threshold-search orchestration
+lives under `planning`.
 
 ### Component modules
 
@@ -60,14 +61,25 @@ metadata.
 
 | Module | Responsibility |
 | --- | --- |
-| `evaluator::types` | Query, result, model-configuration, component-mask, and model-selection types |
-| `evaluator::core` | Evaluator construction and point composition |
-| `evaluator::search` | Threshold-window orchestration and prepared search context |
+| `evaluator::types` | Point query/result types, component masks, and immutable model configuration |
+| `evaluator::core` | Evaluator construction and the public point-evaluation facade |
+| `evaluator::point` | Per-component evaluation and composition for one observing instant |
 | `evaluator::metadata` | Maturity, provenance, uncertainty, and diagnostic-band metadata |
 
+### Planning modules
+
+| Module | Responsibility |
+| --- | --- |
+| `planning::types` | Threshold queries/results and reusable `SiteWindowContext` |
+| `planning::prepare` | Site/window and target-specific preparation |
+| `planning::filters` | Candidate-window smoothing and airglow phase helpers |
+| `planning::scan` | Threshold sampling, crossing refinement, and UTC/TT conversion |
+| `planning::threshold` | Search orchestration and thin evaluator convenience wrappers |
+| `planning::diagnostics` | Feature-gated window-search diagnostics |
+
 `NsbModelConfig` selects immutable model choices when the evaluator is created.
-`PointQuery` and `ThresholdQuery` carry per-query geometry, time, component, and
-constraint inputs.
+`PointQuery` carries per-query geometry, time, and component inputs. `ThresholdQuery`
+carries window, threshold, sampling, and observing-constraint inputs for planning.
 
 ### Window-search flow
 
@@ -153,7 +165,9 @@ reviewed release explicitly admits the required runtime artifact and metadata.
 - Siderust owns general astronomy, time, coordinates, events, atmosphere,
   ephemerides, passbands, and HEALPix primitives.
 - NSB owns night-sky component composition, NSB-specific empirical data,
-  planning-window behaviour, and maturity-bearing metadata.
+  observing-window planning, and maturity-bearing metadata.
+- `planning` may depend on `evaluator`; `evaluator` must not depend on
+  `planning`.
 - The CLI may depend on `nsb`; `nsb` must not depend on the CLI.
 - Data tools may use scientific library code and Siderust primitives, but runtime
   evaluation must not invoke data tools.

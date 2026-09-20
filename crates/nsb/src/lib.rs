@@ -21,6 +21,10 @@
 //! 3. Read [`NsbResult`] / [`ThresholdQueryResult`] and per-component
 //!    [`NsbComponentMetadata`].
 //!
+//! Point evaluation is owned by the evaluator layer. Observing-window
+//! preparation and threshold search are owned by the planning layer; thin
+//! convenience methods on [`NsbEvaluator`] remain for compatibility.
+//!
 //! Root re-exports are the supported crate contract. Nested `pub mod` paths
 //! exist for advanced component construction and scientific metadata; they are
 //! not a second, larger accidental API. Implementation helpers remain
@@ -42,8 +46,8 @@
 //!
 //! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
 //! photometry, and passbands. NSB owns NSB-specific component composition,
-//! planning windows, and site-profile metadata that distinguishes generic
-//! fallbacks from explicit named planning presets.
+//! observing-window planning, and site-profile metadata that distinguishes
+//! generic fallbacks from explicit named planning presets.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -55,6 +59,7 @@ pub mod components;
 /// Public error type and crate [`Result`].
 pub mod error;
 mod evaluator;
+mod planning;
 /// Site profiles, shared atmosphere, and canonical calibration evidence.
 pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
@@ -73,8 +78,11 @@ pub use error::{NsbError, Result};
 pub use evaluator::{
     BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,
     NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
-    Observer, PointQuery, SiteWindowContext, Target, ThresholdQuery, ThresholdQueryResult,
+    Observer, PointQuery, Target,
 };
+#[cfg(feature = "window-search-diagnostics")]
+pub use planning::WindowSearchDiagnostics;
+pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::calibration::{
     AirglowCalibrationEvidence, AtmosphericSiteCalibration, CalibratedSiteId, SiteCalibrationAsset,
     SiteCalibrationAssetError, SiteCalibrationReference, SiteCalibrationValidity,

@@ -25,7 +25,7 @@ in [Coverage policy](coverage.md) (`baseline_kind = release-post-audit`).
 | Category | Typical location | Protects |
 | --- | --- | --- |
 | Unit behaviour | `crates/nsb/src/**` `#[cfg(test)]`, `**/tests.rs` | Local scientific or parsing behaviour |
-| Invariant / property | evaluator, window search, component composition | Sums, ordering, monotonicity, fail-closed rules |
+| Invariant / property | evaluator, planning/window search, component composition | Sums, ordering, monotonicity, fail-closed rules |
 | Numerical / physical boundary | component unit tests | Zenith edges, domain cut-offs, FP clamps |
 | Error / rejection | `query_api`, component constructors, CLI error suite | Invalid input, missing assets, inverted ranges |
 | Known regression | named `regression_*` tests, fixtures under `tests/data/` | Previously fixed bugs and pinned radiance cases |
@@ -113,11 +113,11 @@ cargo mutants -p nsb --config .cargo/mutants.toml
 
 Scope concentrates on a finishable release-critical `nsb` default pass:
 
-- evaluator orchestration (`evaluator/core.rs`);
+- evaluator orchestration (`evaluator/core.rs`, `evaluator/point.rs`);
 - solar-activity resolution policy (`solar_activity/resolve.rs`);
 - site-calibration fail-closed validation (`site/calibration.rs`).
 
-Threshold-window search (`evaluator/search.rs`) and broader
+Threshold-window search (`planning/`) and broader
 component physics (Jones spectral radiance, airglow geometry/extinction) are
 intentional follow-up examine targets using the same tool version; keep them out
 of the default pass when wall-clock would make the audit impractical.
