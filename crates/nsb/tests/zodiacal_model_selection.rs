@@ -20,11 +20,15 @@ fn target() -> Target {
     Target::new(266.41683 * DEG, -29.00781 * DEG)
 }
 
-fn evaluate_zodiacal(config: NsbModelConfig) -> NsbComponent {
+fn below_horizon_target() -> Target {
+    Target::new(0.0 * DEG, 89.0 * DEG)
+}
+
+fn evaluate_zodiacal_for_target(config: NsbModelConfig, target: Target) -> NsbComponent {
     NsbEvaluator::with_config(config)
         .unwrap()
         .evaluate(
-            &PointQuery::new(observatories::EL_PARANAL.geodetic(), time(), target())
+            &PointQuery::new(observatories::EL_PARANAL.geodetic(), time(), target)
                 .with_components(ComponentMask::ZODIACAL),
         )
         .unwrap()
@@ -32,6 +36,10 @@ fn evaluate_zodiacal(config: NsbModelConfig) -> NsbComponent {
         .into_iter()
         .next()
         .unwrap()
+}
+
+fn evaluate_zodiacal(config: NsbModelConfig) -> NsbComponent {
+    evaluate_zodiacal_for_target(config, target())
 }
 
 #[test]
@@ -136,4 +144,20 @@ fn none_extinction_dispatches_through_evaluator_and_metadata_is_truthful() {
         .metadata
         .validated_domain
         .contains("no atmospheric attenuation applied"));
+    assert!(none.metadata.validated_domain.contains("ground-observer"));
+    assert!(!none.metadata.validated_domain.contains("exoatmospheric"));
+}
+
+#[test]
+fn none_extinction_preserves_ground_observer_horizon_gating() {
+    let none = evaluate_zodiacal_for_target(
+        NsbModelConfig::default().with_zodiacal_extinction(ZodiacalExtinction::None),
+        below_horizon_target(),
+    );
+
+    assert_eq!(none.integrated.value(), 0.0);
+    assert_eq!(none.b_flux_s10.value(), 0.0);
+    assert_eq!(none.v_flux_s10.value(), 0.0);
+    assert!(none.metadata.validated_domain.contains("horizon gating"));
+    assert!(!none.metadata.validated_domain.contains("exoatmospheric"));
 }
