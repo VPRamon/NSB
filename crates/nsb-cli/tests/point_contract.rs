@@ -217,7 +217,6 @@ fn point_rejects_non_positive_solar_radio_flux() {
         ));
 }
 
-
 #[test]
 fn point_json_reports_none_zodiacal_extinction_without_noll_provenance() {
     let output = Command::cargo_bin("nsb")
