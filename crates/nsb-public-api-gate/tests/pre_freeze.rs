@@ -323,8 +323,11 @@ fn pre_freeze_check_rejects_zodiacal_aliases_and_multiline_reexports() {
     let repo = temporary_repo();
     let source = repo.join("crates/nsb/src/components/zodiacal");
     fs::create_dir_all(&source).expect("create temporary Zodiacal source");
-    fs::write(source.join("aliases.rs"), "pub type ZodiacalOutputs = ();\n")
-        .expect("write accidental Zodiacal type alias");
+    fs::write(
+        source.join("aliases.rs"),
+        "pub type ZodiacalOutputs = ();\n",
+    )
+    .expect("write accidental Zodiacal type alias");
     fs::write(
         source.join("mod.rs"),
         concat!(

@@ -187,10 +187,8 @@ fn reject_public_zodiacal_impl_surface(path: &Path, text: &str, hits: &mut Vec<S
     }
 
     for statement in code.split(';') {
-        let compact_statement: String = statement
-            .chars()
-            .filter(|ch| !ch.is_whitespace())
-            .collect();
+        let compact_statement: String =
+            statement.chars().filter(|ch| !ch.is_whitespace()).collect();
         if !compact_statement.contains("pubuse") {
             continue;
         }
