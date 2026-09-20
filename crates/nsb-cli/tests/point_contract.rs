@@ -40,6 +40,11 @@ fn default_point_json_reports_schema_versions_and_components() {
         "paranal-noll-skycalc-fors1"
     );
     assert_eq!(value["model"]["airglow_geometry"], "van_rhijn");
+    assert_eq!(value["model"]["zodiacal_model"], "leinert-1998");
+    assert_eq!(
+        value["model"]["zodiacal_extinction"],
+        "noll-2012-approximation"
+    );
     assert!(value["version"]["data_assets"].as_array().unwrap().len() >= 4);
     let components = value["components"].as_array().unwrap();
     assert!(components
@@ -210,4 +215,48 @@ fn point_rejects_non_positive_solar_radio_flux() {
         .stderr(predicate::str::contains(
             "--solar-radio-flux-sfu must be finite and positive",
         ));
+}
+
+
+#[test]
+fn point_json_reports_none_zodiacal_extinction_without_noll_provenance() {
+    let output = Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "--format",
+            "json",
+            "point",
+            "--time",
+            "2023-09-04T01:48:00Z",
+            "--site",
+            "PARANAL",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--components",
+            "zodiacal",
+            "--zodiacal-extinction",
+            "none",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["model"]["zodiacal_model"], "leinert-1998");
+    assert_eq!(value["model"]["zodiacal_extinction"], "none");
+
+    let zodiacal = value["components"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|component| component["name"] == "zodiacal")
+        .expect("zodiacal component");
+    let provenance = zodiacal["metadata"]["provenance"].as_str().unwrap();
+    assert!(provenance.contains("scientific model leinert-1998"));
+    assert!(provenance.contains("atmospheric propagation none"));
+    assert!(!provenance.contains("Noll+2012"));
 }
