@@ -1,6 +1,6 @@
-use crate::error::Result;
 #[cfg(test)]
 use crate::error::NsbError;
+use crate::error::Result;
 use crate::evaluator::Target;
 use crate::reference::solar;
 use crate::units::SolarSpectralIrradianceUnit;
