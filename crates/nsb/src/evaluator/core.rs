@@ -98,7 +98,10 @@ impl NsbEvaluator {
         if components.contains(ComponentMask::ZODIACAL) {
             descriptions.push(NsbComponentDescriptor {
                 name: "zodiacal",
-                metadata: zodiacal_metadata(self.config.zodiacal_model, self.config.zodiacal_extinction),
+                metadata: zodiacal_metadata(
+                    self.config.zodiacal_model,
+                    self.config.zodiacal_extinction,
+                ),
             });
         }
         if components.contains(ComponentMask::STARLIGHT) {
@@ -563,7 +566,10 @@ impl NsbEvaluator {
                 statistical_uncertainty: None,
                 systematic_uncertainty: None,
                 total_uncertainty: None,
-                metadata: zodiacal_metadata(self.config.zodiacal_model, self.config.zodiacal_extinction),
+                metadata: zodiacal_metadata(
+                    self.config.zodiacal_model,
+                    self.config.zodiacal_extinction,
+                ),
             });
         }
         if query.components.contains(ComponentMask::STARLIGHT) {
