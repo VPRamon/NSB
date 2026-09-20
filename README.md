@@ -32,7 +32,7 @@ component is site-calibrated.
 
 | Component | Default implementation | Current role |
 | --- | --- | --- |
-| Zodiacal light | Leinert brightness grid, solar spectrum, and Noll-style extinction | Generic clear-sky model |
+| Zodiacal light | `ZodiacalModel::Leinert1998` with bundled solar spectrum; independent Noll-style propagation by default | Generic clear-sky model |
 | Airglow | Empirical continuum with seasonal, nightly, solar, selectable emitting-volume geometry (Van Rhijn default), and independent Noll attenuation terms | Generic model or explicit planning preset |
 | Moonlight | Jones et al. (2013) spectral model | Generic model or explicit planning preset |
 | KS91 moonlight | Published analytic V-band implementation | Reference/alternate model |
@@ -126,7 +126,11 @@ for component in result.components {
 ```
 
 Construct and reuse an evaluator. Immutable calibration data and runtime assets
-are prepared once rather than reparsed for every query.
+are prepared once rather than reparsed for every query. Zodiacal source identity
+and atmospheric propagation are configured independently through
+`NsbModelConfig::with_zodiacal_model` and
+`NsbModelConfig::with_zodiacal_extinction`; ordinary applications still
+evaluate the component only through `NsbEvaluator`.
 
 ## Component and starlight selection
 
