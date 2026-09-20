@@ -12,7 +12,7 @@
 //! [`crate::SiteProfileId`].
 
 use crate::error::Result;
-use crate::reference::solar;
+use crate::spectra::solar;
 use crate::site::{AtmosphericConditions, SiteProfileId};
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
