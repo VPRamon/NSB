@@ -39,6 +39,11 @@ fn window_json_v1_contains_audit_metadata() {
         value["model"]["airglow_model"],
         "paranal-noll-skycalc-fors1"
     );
+    assert_eq!(value["model"]["zodiacal_model"], "leinert-1998");
+    assert_eq!(
+        value["model"]["zodiacal_extinction"],
+        "noll-2012-approximation"
+    );
     let expected_component_count = if nsb::StarlightProduct::bundled_production_available() {
         4
     } else {
