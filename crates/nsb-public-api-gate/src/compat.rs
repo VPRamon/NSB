@@ -174,9 +174,10 @@ fn reject_public_zodiacal_impl_surface(path: &Path, text: &str, hits: &mut Vec<S
         .join("\n");
     let compact: String = code.chars().filter(|ch| !ch.is_whitespace()).collect();
 
-    for symbol in ZODIACAL_REMOVED_IMPL_SYMBOLS {
+    for &symbol in ZODIACAL_REMOVED_IMPL_SYMBOLS {
         for declaration in ["pubstruct", "pubenum", "pubtype"] {
-            if compact.contains(&format!("{declaration}{symbol}")) {
+            let needle = format!("{declaration}{symbol}");
+            if compact.contains(needle.as_str()) {
                 hits.push(format!(
                     "{}: public declaration of removed Zodiacal implementation symbol {symbol}",
                     display_repo_path(path)
@@ -193,7 +194,7 @@ fn reject_public_zodiacal_impl_surface(path: &Path, text: &str, hits: &mut Vec<S
         if !compact_statement.contains("pubuse") {
             continue;
         }
-        for symbol in ZODIACAL_REMOVED_IMPL_SYMBOLS {
+        for &symbol in ZODIACAL_REMOVED_IMPL_SYMBOLS {
             if compact_statement.contains(symbol) {
                 hits.push(format!(
                     "{}: public re-export of removed Zodiacal implementation symbol {symbol}",
