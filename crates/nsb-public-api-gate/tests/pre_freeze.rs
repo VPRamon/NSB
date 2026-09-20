@@ -265,8 +265,8 @@ fn pre_freeze_check_rejects_public_zodiacal_implementation_surface() {
     fs::write(
         source.join("model.rs"),
         concat!(
-            "pub struct ZodiacalLight;\n",
-            "pub struct ZodiacalBrightnessGrid;\n",
+            "pub struct ZodiacalLight { value: f64 }\n",
+            "pub struct ZodiacalBrightnessGrid { value: f64 }\n",
             "pub enum ZodiacalBrightnessModel { Leinert1998 }\n",
             "impl ZodiacalLight {\n",
             "    pub fn with_solar_spectrum(self) -> Self { self }\n",
@@ -277,7 +277,7 @@ fn pre_freeze_check_rejects_public_zodiacal_implementation_surface() {
     .expect("write accidental Zodiacal implementation surface");
     fs::write(
         source.join("output.rs"),
-        "pub struct ZodiacalOutputs;\npub struct ZodiacalSpectrum;\n",
+        "pub struct ZodiacalOutputs { value: f64 }\npub struct ZodiacalSpectrum { value: f64 }\n",
     )
     .expect("write accidental Zodiacal output surface");
     fs::write(
@@ -300,13 +300,13 @@ fn pre_freeze_check_rejects_public_zodiacal_implementation_surface() {
     .expect_err("accidental Zodiacal implementation API must be rejected");
 
     for expected in [
-        "pub struct ZodiacalLight",
-        "pub struct ZodiacalBrightnessGrid",
-        "pub enum ZodiacalBrightnessModel",
-        "pub fn with_solar_spectrum",
-        "pub fn with_brightness_model",
-        "pub struct ZodiacalOutputs",
-        "pub struct ZodiacalSpectrum",
+        "pub struct ZodiacalLight {",
+        "pub struct ZodiacalBrightnessGrid {",
+        "pub enum ZodiacalBrightnessModel {",
+        "pub fn with_solar_spectrum(",
+        "pub fn with_brightness_model(",
+        "pub struct ZodiacalOutputs {",
+        "pub struct ZodiacalSpectrum {",
         "ZodiacalSpectrum",
     ] {
         assert!(
