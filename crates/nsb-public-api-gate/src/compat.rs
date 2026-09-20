@@ -48,8 +48,7 @@ const ZODIACAL_REMOVED_IMPL_SYMBOLS: &[&str] = &[
     "ZodiacalSpectrum",
 ];
 
-const ZODIACAL_REMOVED_IMPL_METHODS: &[&str] =
-    &["with_solar_spectrum", "with_brightness_model"];
+const ZODIACAL_REMOVED_IMPL_METHODS: &[&str] = &["with_solar_spectrum", "with_brightness_model"];
 
 #[derive(Debug, Error)]
 pub enum CompatError {
