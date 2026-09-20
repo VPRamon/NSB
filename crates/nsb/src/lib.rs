@@ -67,10 +67,7 @@ pub use components::starlight::{
     StarlightMap, StarlightPixel, StarlightProduct, StarlightProvenance,
     StarlightValidationDiagnostics, ValidatedStarlightMap,
 };
-pub use components::zodiacal::{
-    ZodiacalBrightnessGrid, ZodiacalBrightnessModel, ZodiacalExtinction, ZodiacalLight,
-    ZodiacalOutputs, ZodiacalSpectrum,
-};
+pub use components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
 pub use error::{NsbError, Result};
 pub use evaluator::{
     BandDiagnostic, CalibrationStatus as ComponentCalibrationStatus, ComponentMask, NsbComponent,

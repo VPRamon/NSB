@@ -11,8 +11,11 @@ listed in [Validation matrix](validation.md).
 Every `NsbComponent` includes a maturity status, provenance, validated domain,
 band diagnostic, and optional relative uncertainty. Airglow additionally carries
 structured scientific-model, solar-activity, and geometry identity where
-applicable. CLI JSON preserves those structured fields; CSV output retains the
-scientific provenance and geometry audit columns.
+applicable. Zodiacal metadata records the selected source model and atmospheric
+propagation truthfully in provenance; the CLI model audit exposes their stable
+machine-readable identities separately. CLI JSON preserves the structured
+Airglow fields; CSV output retains scientific provenance and geometry audit
+columns.
 
 ## Status vocabulary
 
@@ -69,6 +72,27 @@ status, and runtime inclusion. Runtime JSON exposes checksums for every embedded
 asset. Incomplete inherited provenance is an explicit scientific limitation.
 External starlight uses the equivalent sidecar contract because its bytes are
 not part of the bundled registry.
+
+## Zodiacal scientific model and propagation
+
+Zodiacal source identity and atmospheric propagation are separate configuration
+dimensions. `ZodiacalModel::Leinert1998` identifies the current scientific
+source model. `ZodiacalExtinction::Noll2012Approx` and
+`ZodiacalExtinction::None` select propagation independently.
+
+The component's provenance string includes the selected source identity, the
+Leinert table, bundled solar spectrum, and the propagation actually applied.
+When extinction is `None`, metadata must not claim Noll-2012 attenuation.
+It must also describe the actual ground-observer semantics: horizon gating remains
+active and `None` does not select an exoatmospheric evaluation mode.
+The top-level CLI model audit exposes `zodiacal_model` and
+`zodiacal_extinction` as separate stable identifiers.
+
+No Zodiacal-specific field is added to `NsbComponentMetadata` in this
+pre-freeze change. This follows the narrow metadata strategy already used for
+Moonlight and avoids growing a component-specific field for every selector.
+A future cross-component structured model-identity design can address that
+symmetrically if required.
 
 ## Airglow scientific model identity
 

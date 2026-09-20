@@ -12,4 +12,5 @@ name = "nsb-public-api-gate"
 path = "src/main.rs"
 
 [dependencies]
+syn = { version = "2.0", features = ["full"] }
 thiserror = "2.0"

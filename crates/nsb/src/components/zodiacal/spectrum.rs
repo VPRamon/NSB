@@ -20,7 +20,7 @@ use optica::spectrum::{Interpolation, SampledSpectrum};
 use super::extinction::ZodiacalExtinction;
 use super::geometry::ZodiacalGeometry;
 use super::leinert::{Leinert1998Grid, LEINERT_S10_TO_W_M2_SR_UM};
-use super::output::{ZodiacalOutputs, ZodiacalSpectrum};
+use super::output::ZodiacalOutputs;
 use super::reddening::reddening_factor;
 
 use qtty::angular::Degrees;
@@ -69,38 +69,6 @@ pub(super) fn compute_outputs_with_s10(
     let (b_flux, v_flux) = interpolate_bv(&spectrum, b_zl_um, v_zl_um);
 
     Ok(ZodiacalOutputs {
-        integrated,
-        b_flux_s10: b_flux,
-        v_flux_s10: v_flux,
-    })
-}
-
-/// Compute the full zodiacal spectrum using the default Leinert brightness source.
-pub(super) fn compute_spectrum(
-    geom: &ZodiacalGeometry,
-    solar: &SolarSpectrum,
-    extinction: ZodiacalExtinction,
-) -> Result<ZodiacalSpectrum> {
-    let s10_500 = Leinert1998Grid::lookup_s10(geom.beta, geom.delta_lambda)?;
-    compute_spectrum_with_s10(geom, solar, extinction, s10_500)
-}
-
-/// Compute the full zodiacal spectrum from an explicit 500 nm S10 brightness.
-pub(super) fn compute_spectrum_with_s10(
-    geom: &ZodiacalGeometry,
-    solar: &SolarSpectrum,
-    extinction: ZodiacalExtinction,
-    s10_500: S10,
-) -> Result<ZodiacalSpectrum> {
-    let k = spectral_scale_from_s10(s10_500, solar)?;
-    let zenith = geom.zenith.unwrap_or(Degrees::new(0.0));
-    let (spectrum, b_zl_um, v_zl_um) = zodiacal_samples(geom, solar, extinction, k, zenith)?;
-
-    let integrated = integrate_photon_spectrum(&spectrum);
-    let (b_flux, v_flux) = interpolate_bv(&spectrum, b_zl_um, v_zl_um);
-
-    Ok(ZodiacalSpectrum {
-        spectrum,
         integrated,
         b_flux_s10: b_flux,
         v_flux_s10: v_flux,
