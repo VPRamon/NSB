@@ -300,13 +300,12 @@ fn pre_freeze_check_rejects_public_zodiacal_implementation_surface() {
     .expect_err("accidental Zodiacal implementation API must be rejected");
 
     for expected in [
-        "pub struct ZodiacalLight {",
-        "pub struct ZodiacalBrightnessGrid {",
-        "pub enum ZodiacalBrightnessModel {",
-        "pub fn with_solar_spectrum(",
-        "pub fn with_brightness_model(",
-        "pub struct ZodiacalOutputs {",
-        "pub struct ZodiacalSpectrum {",
+        "ZodiacalLight",
+        "ZodiacalBrightnessGrid",
+        "ZodiacalBrightnessModel",
+        "with_solar_spectrum",
+        "with_brightness_model",
+        "ZodiacalOutputs",
         "ZodiacalSpectrum",
     ] {
         assert!(
@@ -360,6 +359,57 @@ fn pre_freeze_check_rejects_zodiacal_aliases_and_multiline_reexports() {
 
     assert!(error.to_string().contains("ZodiacalOutputs"));
     assert!(error.to_string().contains("ZodiacalSpectrum"));
+
+    fs::remove_dir_all(repo).expect("remove temporary repo");
+}
+
+#[test]
+fn pre_freeze_check_allows_names_that_extend_removed_zodiacal_identifiers() {
+    let repo = temporary_repo();
+    let source = repo.join("crates/nsb/src/components/zodiacal");
+    fs::create_dir_all(&source).expect("create temporary Zodiacal source");
+    fs::write(
+        source.join("model.rs"),
+        concat!(
+            "pub struct ZodiacalSpectrumMetadata;\n",
+            "pub struct ZodiacalLightMetadata;\n",
+            "pub type ZodiacalOutputsMetadata = ();\n",
+            "pub enum ZodiacalBrightnessModelMetadata { Stable }\n",
+            "pub fn with_solar_spectrum_metadata() {}\n",
+        ),
+    )
+    .expect("write legitimate extended Zodiacal identifiers");
+    fs::write(
+        source.join("mod.rs"),
+        concat!(
+            "pub use model::{\n",
+            "    ZodiacalSpectrumMetadata,\n",
+            "    ZodiacalLightMetadata,\n",
+            "    ZodiacalOutputsMetadata,\n",
+            "    ZodiacalBrightnessModelMetadata,\n",
+            "};\n",
+        ),
+    )
+    .expect("write legitimate extended Zodiacal re-exports");
+    fs::write(
+        repo.join("crates/nsb/src/lib.rs"),
+        concat!(
+            "pub use components::zodiacal::{\n",
+            "    ZodiacalSpectrumMetadata,\n",
+            "    ZodiacalLightMetadata,\n",
+            "};\n",
+        ),
+    )
+    .expect("write legitimate extended root re-exports");
+
+    let outcome = run_check(&CheckOptions {
+        repo: repo.clone(),
+        write: false,
+        base: None,
+        base_explicit: false,
+    })
+    .expect("extended identifiers must not collide with removed Zodiacal API names");
+    assert_eq!(outcome.status, GateStatus::Pass);
 
     fs::remove_dir_all(repo).expect("remove temporary repo");
 }
