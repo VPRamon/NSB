@@ -63,6 +63,14 @@ const ZODIACAL_ROOT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
     "pub use components::zodiacal::ZodiacalSpectrum;",
 ];
 
+const ZODIACAL_REMOVED_IMPL_SYMBOLS: &[&str] = &[
+    "ZodiacalBrightnessGrid",
+    "ZodiacalBrightnessModel",
+    "ZodiacalLight",
+    "ZodiacalOutputs",
+    "ZodiacalSpectrum",
+];
+
 #[derive(Debug, Error)]
 pub enum CompatError {
     #[error("removed or compatibility-only API found in production source:\n{0}")]
@@ -109,6 +117,8 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
         return Ok(());
     }
     let text = fs::read_to_string(path).map_err(|error| CompatError::Io(error.to_string()))?;
+    reject_public_zodiacal_impl_surface(path, &text, hits);
+
     for (index, line) in text.lines().enumerate() {
         let domain_patterns = is_airglow_source(path)
             .then_some(AIRGLOW_FORBIDDEN_PATTERNS)
@@ -150,6 +160,48 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
         }
     }
     Ok(())
+}
+
+fn reject_public_zodiacal_impl_surface(path: &Path, text: &str, hits: &mut Vec<String>) {
+    if !is_zodiacal_source(path) && !is_nsb_root_source(path) {
+        return;
+    }
+
+    let code = text
+        .lines()
+        .map(|line| line.split_once("//").map_or(line, |(code, _)| code))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let compact: String = code.chars().filter(|ch| !ch.is_whitespace()).collect();
+
+    for symbol in ZODIACAL_REMOVED_IMPL_SYMBOLS {
+        for declaration in ["pubstruct", "pubenum", "pubtype"] {
+            if compact.contains(&format!("{declaration}{symbol}")) {
+                hits.push(format!(
+                    "{}: public declaration of removed Zodiacal implementation symbol {symbol}",
+                    display_repo_path(path)
+                ));
+            }
+        }
+    }
+
+    for statement in code.split(';') {
+        let compact_statement: String = statement
+            .chars()
+            .filter(|ch| !ch.is_whitespace())
+            .collect();
+        if !compact_statement.contains("pubuse") {
+            continue;
+        }
+        for symbol in ZODIACAL_REMOVED_IMPL_SYMBOLS {
+            if compact_statement.contains(symbol) {
+                hits.push(format!(
+                    "{}: public re-export of removed Zodiacal implementation symbol {symbol}",
+                    display_repo_path(path)
+                ));
+            }
+        }
+    }
 }
 
 fn is_airglow_source(path: &Path) -> bool {
