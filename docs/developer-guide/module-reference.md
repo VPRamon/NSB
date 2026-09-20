@@ -37,7 +37,7 @@ SemVer policy, and the snapshot gate are documented in
 
 | Module | Responsibility |
 | --- | --- |
-| `components::zodiacal` | Zodiacal brightness grid, solar reference spectrum, atmospheric extinction, and integrated outputs |
+| `components::zodiacal` | Public `ZodiacalModel` source selection and independent `ZodiacalExtinction` propagation choice; concrete evaluator, brightness grid, spectrum construction, and component-only output remain internal |
 | `components::starlight` | Public `StarlightProduct` selection plus advanced HEALPix map construction/inspection, production admission, provenance, and diagnostics; concrete evaluation remains internal |
 | `components::airglow` | Continuum model, seasonal/nightly/solar corrections, selectable emitting-volume geometry, independent Noll attenuation, and site scaling |
 | `components::moonlight` | Public `MoonlightModel` selection identity plus internal Jones 2013 spectral and Krisciunas–Schaefer 1991 evaluators |
