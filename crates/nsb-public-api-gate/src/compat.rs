@@ -10,6 +10,9 @@ const FORBIDDEN_PATTERNS: &[&str] = &[
     "python_parity",
     "periods_below_threshold_legacy",
     "#[deprecated]",
+    "pub enum StarlightModel {",
+    "pub fn with_starlight_model",
+    "pub starlight_model:",
 ];
 
 /// Debt patterns forbidden specifically in production Airglow implementation.
@@ -34,9 +37,6 @@ const STARLIGHT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
     "pub struct StarlightOutputs {",
     "pub use model::Starlight;",
     "pub use output::StarlightOutputs;",
-    "pub enum StarlightModel {",
-    "pub fn with_starlight_model",
-    "pub starlight_model:",
 ];
 
 #[derive(Debug, Error)]
