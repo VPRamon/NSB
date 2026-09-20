@@ -29,6 +29,15 @@ const MOONLIGHT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
     "pub fn with_extinction_scale",
     "pub fn periods_in_range",
 ];
+const STARLIGHT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
+    "pub struct Starlight {",
+    "pub struct StarlightOutputs {",
+    "pub use model::Starlight;",
+    "pub use output::StarlightOutputs;",
+    "pub enum StarlightModel {",
+    "pub fn with_starlight_model",
+    "pub starlight_model:",
+];
 
 #[derive(Debug, Error)]
 pub enum CompatError {
@@ -88,6 +97,13 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
                     .into_iter()
                     .flatten()
                     .copied(),
+            )
+            .chain(
+                is_starlight_source(path)
+                    .then_some(STARLIGHT_PUBLIC_IMPL_PATTERNS)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
             );
         for pattern in FORBIDDEN_PATTERNS.iter().copied().chain(domain_patterns) {
             if line.contains(pattern) {
@@ -106,6 +122,10 @@ fn is_airglow_source(path: &Path) -> bool {
 fn is_moonlight_source(path: &Path) -> bool {
     path.components()
         .any(|component| component.as_os_str() == "moonlight")
+}
+fn is_starlight_source(path: &Path) -> bool {
+    path.components()
+        .any(|component| component.as_os_str() == "starlight")
 }
 
 fn display_repo_path(path: &Path) -> String {
