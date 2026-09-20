@@ -2,26 +2,26 @@ use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhot
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Integrated starlight radiance and diagnostic B/V values.
-pub struct StarlightOutputs {
+pub(crate) struct StarlightOutputs {
     /// Photon radiance integrated over 300–650 nm.
-    pub integrated: BandPhotonRadiance,
+    pub(crate) integrated: BandPhotonRadiance,
     /// B-reference S10 diagnostic.
-    pub b_flux_s10: S10s,
+    pub(crate) b_flux_s10: S10s,
     /// V-reference S10 diagnostic.
-    pub v_flux_s10: S10s,
+    pub(crate) v_flux_s10: S10s,
     /// Statistical one-sigma uncertainty of the integrated photon radiance.
-    pub statistical_uncertainty: Option<BandPhotonRadiance>,
+    pub(crate) statistical_uncertainty: Option<BandPhotonRadiance>,
     /// Systematic one-sigma uncertainty of the integrated photon radiance.
-    pub systematic_uncertainty: Option<BandPhotonRadiance>,
+    pub(crate) systematic_uncertainty: Option<BandPhotonRadiance>,
     /// Total one-sigma uncertainty of the integrated photon radiance.
-    pub total_uncertainty: Option<BandPhotonRadiance>,
+    pub(crate) total_uncertainty: Option<BandPhotonRadiance>,
     /// Whether B/V S10 columns were supplied by the map (false for packed candidate maps).
-    pub s10_diagnostics_provided: bool,
+    pub(crate) s10_diagnostics_provided: bool,
 }
 
 impl StarlightOutputs {
     /// Construct starlight outputs.
-    pub fn new(integrated: BandPhotonRadiance, b_flux_s10: S10s, v_flux_s10: S10s) -> Self {
+    pub(crate) fn new(integrated: BandPhotonRadiance, b_flux_s10: S10s, v_flux_s10: S10s) -> Self {
         Self {
             integrated,
             b_flux_s10,
@@ -37,7 +37,7 @@ impl StarlightOutputs {
     ///
     /// Map validation rejects non-finite, negative, partial, or inconsistent
     /// triplets before an output can be returned by a [`super::StarlightMap`].
-    pub fn with_uncertainties(
+    pub(crate) fn with_uncertainties(
         mut self,
         statistical: BandPhotonRadiance,
         systematic: BandPhotonRadiance,
@@ -50,7 +50,7 @@ impl StarlightOutputs {
     }
 
     /// Relative total one-sigma uncertainty when it is mathematically defined.
-    pub fn relative_uncertainty(self) -> Option<f64> {
+    pub(crate) fn relative_uncertainty(self) -> Option<f64> {
         let total = self.total_uncertainty?.value();
         let integrated = self.integrated.value();
         if integrated > 0.0 {
