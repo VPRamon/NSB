@@ -123,6 +123,7 @@ fn is_moonlight_source(path: &Path) -> bool {
     path.components()
         .any(|component| component.as_os_str() == "moonlight")
 }
+
 fn is_starlight_source(path: &Path) -> bool {
     path.components()
         .any(|component| component.as_os_str() == "starlight")

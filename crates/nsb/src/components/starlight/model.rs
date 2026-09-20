@@ -1,7 +1,6 @@
 use super::map::StarlightMap;
 use super::output::StarlightOutputs;
 use super::photometry::scale_outputs;
-use super::provenance::StarlightProvenance;
 #[cfg(nsb_bundled_production_starlight)]
 use super::validated::ValidatedStarlightMap;
 #[cfg(nsb_bundled_production_starlight)]
@@ -41,11 +40,6 @@ impl Starlight {
         Err(missing_bundled_production_asset())
     }
 
-    /// Return provenance from the checksum-verified bundled production map.
-    pub(crate) fn bundled_production_provenance() -> Result<StarlightProvenance> {
-        Ok(Self::bundled_production_model()?.map().provenance().clone())
-    }
-
     /// Build from a caller-provided validated map.
     pub(crate) fn with_map(map: StarlightMap) -> Self {
         Self {
@@ -54,7 +48,8 @@ impl Starlight {
         }
     }
 
-    /// Apply a non-negative multiplicative radiance scale.
+    /// Apply a non-negative multiplicative radiance scale in internal regression tests.
+    #[cfg(test)]
     pub(crate) fn with_scale(mut self, scale: ScaleFactors) -> Self {
         self.scale = scale;
         self

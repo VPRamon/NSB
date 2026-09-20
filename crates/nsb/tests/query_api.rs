@@ -226,7 +226,10 @@ fn custom_starlight_map_evaluates_when_explicitly_configured() {
         StarlightProduct::with_experimental_map(fixture_starlight_map()),
     );
     assert_eq!(
-        config.starlight_product().expect("configured product").as_str(),
+        config
+            .starlight_product()
+            .expect("configured product")
+            .as_str(),
         "experimental-map"
     );
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");

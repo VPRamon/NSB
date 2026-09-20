@@ -5,8 +5,8 @@ use anyhow::Result;
 use nsb::components::airglow::AirglowGeometryMetadata;
 use nsb::{
     assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
-    BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig, NsbResult, StarlightProduct,
-    Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
+    BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig, NsbResult,
+    StarlightProduct, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;

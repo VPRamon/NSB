@@ -103,16 +103,17 @@ pub(crate) fn model_config(
     };
     match components.starlight {
         Some(components::StarlightSelection::Production) => {
-            config.starlight_product = Some(match (&args.starlight_map, &args.starlight_manifest) {
-                (Some(_), Some(_)) => validated_external_starlight(args)?,
-                (None, None) => {
-                    debug!("using bundled production Gaia DR3 starlight model");
-                    nsb::StarlightProduct::bundled_production_gaia_dr3()
-                }
-                _ => anyhow::bail!(
-                    "--starlight-map and --starlight-manifest must be provided together"
-                ),
-            });
+            config.starlight_product =
+                Some(match (&args.starlight_map, &args.starlight_manifest) {
+                    (Some(_), Some(_)) => validated_external_starlight(args)?,
+                    (None, None) => {
+                        debug!("using bundled production Gaia DR3 starlight model");
+                        nsb::StarlightProduct::bundled_production_gaia_dr3()
+                    }
+                    _ => anyhow::bail!(
+                        "--starlight-map and --starlight-manifest must be provided together"
+                    ),
+                });
         }
         None => {
             if args.starlight_map.is_some() || args.starlight_manifest.is_some() {

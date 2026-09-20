@@ -94,7 +94,8 @@ fn experimental_starlight_product() -> StarlightProduct {
 fn bench_point_components(c: &mut Criterion) {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let experimental = NsbEvaluator::with_config(
-        NsbModelConfig::generic_clear_sky().with_starlight_product(experimental_starlight_product()),
+        NsbModelConfig::generic_clear_sky()
+            .with_starlight_product(experimental_starlight_product()),
     )
     .expect("experimental evaluator");
     let cases = [
