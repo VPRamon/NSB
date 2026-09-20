@@ -53,8 +53,9 @@ returns zero for targets below the horizon.
 The default is `ZodiacalExtinction::Noll2012Approx`, the repository's existing
 Noll et al. (2012)-style Rayleigh/Mie attenuation approximation.
 `ZodiacalExtinction::None` applies no atmospheric attenuation. The latter is
-useful when a caller intentionally wants the unattenuated source contribution or
-handles propagation outside NSB.
+useful when a caller intentionally wants the unattenuated contribution or
+handles propagation outside NSB. It remains a ground-observer evaluation:
+horizon visibility is still enforced, so `None` is not an exoatmospheric mode.
 
 The Noll approximation is generic rather than site-calibrated. Selecting it
 must not be interpreted as evidence for a local aerosol profile. Runtime
