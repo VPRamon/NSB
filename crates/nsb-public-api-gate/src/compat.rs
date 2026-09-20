@@ -39,6 +39,27 @@ const STARLIGHT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
     "pub use output::StarlightOutputs;",
 ];
 
+const ZODIACAL_PUBLIC_IMPL_PATTERNS: &[&str] = &[
+    "pub struct ZodiacalLight",
+    "pub struct ZodiacalOutputs",
+    "pub struct ZodiacalSpectrum",
+    "pub enum ZodiacalBrightnessModel",
+    "pub struct ZodiacalBrightnessGrid",
+    "pub fn with_solar_spectrum",
+    "pub fn with_brightness_model",
+    "pub use model::ZodiacalLight",
+    "pub use output::ZodiacalOutputs",
+    "pub use output::{ZodiacalOutputs",
+];
+
+const ZODIACAL_ROOT_PUBLIC_IMPL_PATTERNS: &[&str] = &[
+    "ZodiacalBrightnessGrid",
+    "ZodiacalBrightnessModel",
+    "ZodiacalLight",
+    "ZodiacalOutputs",
+    "ZodiacalSpectrum",
+];
+
 #[derive(Debug, Error)]
 pub enum CompatError {
     #[error("removed or compatibility-only API found in production source:\n{0}")]
@@ -104,6 +125,20 @@ fn visit(path: &Path, hits: &mut Vec<String>) -> Result<(), CompatError> {
                     .into_iter()
                     .flatten()
                     .copied(),
+            )
+            .chain(
+                is_zodiacal_source(path)
+                    .then_some(ZODIACAL_PUBLIC_IMPL_PATTERNS)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
+            )
+            .chain(
+                is_nsb_root_source(path)
+                    .then_some(ZODIACAL_ROOT_PUBLIC_IMPL_PATTERNS)
+                    .into_iter()
+                    .flatten()
+                    .copied(),
             );
         for pattern in FORBIDDEN_PATTERNS.iter().copied().chain(domain_patterns) {
             if line.contains(pattern) {
@@ -127,6 +162,15 @@ fn is_moonlight_source(path: &Path) -> bool {
 fn is_starlight_source(path: &Path) -> bool {
     path.components()
         .any(|component| component.as_os_str() == "starlight")
+}
+
+fn is_zodiacal_source(path: &Path) -> bool {
+    path.components()
+        .any(|component| component.as_os_str() == "zodiacal")
+}
+
+fn is_nsb_root_source(path: &Path) -> bool {
+    path.ends_with(Path::new("crates/nsb/src/lib.rs"))
 }
 
 fn display_repo_path(path: &Path) -> String {
