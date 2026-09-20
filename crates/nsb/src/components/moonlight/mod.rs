@@ -106,9 +106,7 @@ fn krisciunas_schaefer_v_band_extinction(
 ) -> MagnitudesPerAirmass {
     let tau_rayleigh = rayleigh_optical_depth_local_pressure(V_FILTER, atmosphere);
     let tau_mie = mie_optical_depth(&atmosphere.mie_params, V_FILTER);
-    MagnitudesPerAirmass::new(
-        2.5 * std::f64::consts::LOG10_E * (tau_rayleigh + tau_mie).value(),
-    )
+    MagnitudesPerAirmass::new(2.5 * std::f64::consts::LOG10_E * (tau_rayleigh + tau_mie).value())
 }
 
 /// Empirical aerosol-scattering weight applied to the Jones 2013 Mie phase term.
