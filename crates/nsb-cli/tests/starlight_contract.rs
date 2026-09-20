@@ -24,7 +24,7 @@ fn starlight_uses_bundled_production_or_reports_missing_asset() {
             "starlight",
         ])
         .assert();
-    if nsb::Starlight::bundled_production_available() {
+    if nsb::StarlightProduct::bundled_production_available() {
         assertion.success();
     } else {
         assertion.failure().stderr(predicate::str::contains(

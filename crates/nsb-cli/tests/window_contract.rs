@@ -39,7 +39,7 @@ fn window_json_v1_contains_audit_metadata() {
         value["model"]["airglow_model"],
         "paranal-noll-skycalc-fors1"
     );
-    let expected_component_count = if nsb::Starlight::bundled_production_available() {
+    let expected_component_count = if nsb::StarlightProduct::bundled_production_available() {
         4
     } else {
         3

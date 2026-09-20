@@ -7,8 +7,8 @@
 
 use chrono::{DateTime, Duration, Utc};
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, Starlight, StarlightMap,
-    StarlightModel, StarlightProvenance, Target, ThresholdQuery, DEG,
+    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap, StarlightProduct,
+    StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -71,7 +71,7 @@ fn fixture_starlight_map() -> StarlightMap {
 }
 
 fn expected_all_components() -> &'static [&'static str] {
-    if Starlight::bundled_production_available() {
+    if StarlightProduct::bundled_production_available() {
         &["zodiacal", "starlight", "airglow", "moon"]
     } else {
         &["zodiacal", "airglow", "moon"]
@@ -187,7 +187,7 @@ fn production_all_preserves_component_composition_and_scene_contrast() {
 #[test]
 fn explicit_starlight_with_fixture_preserves_galactic_contrast() {
     let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_model = Some(StarlightModel::with_experimental_map(
+    config.starlight_product = Some(StarlightProduct::with_experimental_map(
         fixture_starlight_map(),
     ));
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");

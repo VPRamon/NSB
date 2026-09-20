@@ -55,7 +55,7 @@ fn default_point_json_reports_schema_versions_and_components() {
         components
             .iter()
             .any(|component| component["name"] == "starlight"),
-        nsb::Starlight::bundled_production_available()
+        nsb::StarlightProduct::bundled_production_available()
     );
     let airglow = components
         .iter()

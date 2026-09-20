@@ -3,7 +3,7 @@
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, BenchmarkId, Criterion, Throughput};
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap, StarlightModel,
+    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap, StarlightProduct,
     StarlightProvenance, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
@@ -85,16 +85,16 @@ fn point_query(components: ComponentMask) -> PointQuery {
         .with_components(components)
 }
 
-fn experimental_starlight_model() -> StarlightModel {
+fn experimental_starlight_product() -> StarlightProduct {
     let map =
         StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
-    StarlightModel::with_experimental_map(map)
+    StarlightProduct::with_experimental_map(map)
 }
 
 fn bench_point_components(c: &mut Criterion) {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let experimental = NsbEvaluator::with_config(
-        NsbModelConfig::generic_clear_sky().with_starlight_model(experimental_starlight_model()),
+        NsbModelConfig::generic_clear_sky().with_starlight_product(experimental_starlight_product()),
     )
     .expect("experimental evaluator");
     let cases = [
