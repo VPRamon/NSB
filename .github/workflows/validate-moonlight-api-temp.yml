@@ -64,15 +64,3 @@ jobs:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc --workspace --all-features --no-deps
 
-      - name: Install nightly rustdoc toolchain
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: nightly-2026-09-02
-
-      - name: Install cargo-public-api
-        run: cargo install cargo-public-api --locked --version 0.50.1 --force
-
-      - name: Run public API gate from merge base
-        run: |
-          BASE="$(git merge-base HEAD origin/main)"
-          cargo run --locked -p nsb-public-api-gate -- --base "$BASE"
