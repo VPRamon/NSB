@@ -127,7 +127,7 @@ of the default pass when wall-clock would make the audit impractical.
 | Exclusion | Justification |
 | --- | --- |
 | `**/tests.rs` and solar-activity test modules | Test code is not a production mutant target |
-| `reference/`, moonlight `scattering.rs`, zodiacal `leinert.rs`, starlight `map.rs` | Large static grids / loaders where mutants are dominated by table noise |
+| `spectra/`, moonlight `scattering.rs`, zodiacal `leinert.rs`, starlight `map.rs` | Large static grids / loaders where mutants are dominated by table noise |
 | `assets.rs`, `build.rs` | Manifest registration and build glue; checksum contracts live elsewhere |
 | CLI / data-tools crates in the default pass | First pass targets silent scientific/runtime logic changes in `nsb` |
 
