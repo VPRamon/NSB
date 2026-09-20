@@ -11,7 +11,7 @@
 //! computed by interpolation at exactly 445 nm and 551 nm respectively.
 
 use crate::error::{NsbError, Result};
-use crate::reference::solar::SolarSpectrum;
+use crate::spectra::solar::SolarSpectrum;
 use crate::units::{s10_for_spectral_photon_radiance, SolarSpectralIrradiance, S10_TO_W_M2_SR_NM};
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
