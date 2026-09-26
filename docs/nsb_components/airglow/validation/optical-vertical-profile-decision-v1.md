@@ -106,8 +106,8 @@ Producing calibrated CTAO profiles requires measurements and belongs to #38.
 Run the retained deterministic geometry checks directly:
 
 ```bash
-cargo test -p nsb --lib components::airglow::geometry::tests::thin_profile_converges_to_same_height_van_rhijn_shell -- --exact
-cargo test -p nsb --lib components::airglow::geometry::tests::integration_converges_under_resolution_refinement -- --exact
+cargo test -p nsb --lib components::airglow::geometry::integration::tests::thin_profile_converges_to_same_height_van_rhijn_shell -- --exact
+cargo test -p nsb --lib components::airglow::geometry::integration::tests::integration_converges_under_resolution_refinement -- --exact
 ```
 
 The table below records the deterministic comparison matrix originally used for
