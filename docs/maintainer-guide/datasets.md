@@ -49,9 +49,10 @@ repository_root = "/checkout/nsb"
 
 The airglow and scattering snapshots remain limited by incomplete upstream
 provenance and licensing. The solar spectrum is reproducibly generated from
-TSIS-1 HSRS v2, but remains `generic-fallback` because dataset-specific
-redistribution terms were not located and checksum reproducibility alone does
-not establish scientific maturity. See the
+the official 70,001-sample TSIS-1 HSRS v2 p025nm source into a deterministic,
+flux-conserving 351-sample runtime grid. It remains `generic-fallback` because
+dataset-specific redistribution terms were not located and checksum
+reproducibility alone does not establish scientific maturity. See the
 [solar-spectrum validation report](../nsb_components/solar-spectrum-validation.md).
 
 ## Local operation and recovery

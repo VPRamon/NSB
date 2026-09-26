@@ -12,10 +12,12 @@ const HIGH_RESOLUTION_NAME: &str = "tsis1_hsrs_native_300_650.csv";
 const PRODUCT_ID: &str = "tsis1_hsrs_p025nm";
 const RELEASE: &str = "TSIS-1 HSRS Version 2";
 const UNITS: &str = "W m^-2 nm^-1";
-const REFERENCE_DISTANCE: &str =
-    "Earth-orbit spectral irradiance; LISIRD metadata does not state an explicit distance normalization";
+const REFERENCE_DISTANCE: &str = "1 AU";
 const BAND_MIN_NM: f64 = 300.0;
 const BAND_MAX_NM: f64 = 650.0;
+const RUNTIME_STEP_NM: f64 = 1.0;
+const RUNTIME_SAMPLE_COUNT: usize = 351;
+const REQUIRED_ANCHORS_NM: [f64; 3] = [445.0, 500.0, 551.0];
 
 #[derive(Clone, Copy, Debug)]
 struct Sample {
@@ -89,13 +91,17 @@ pub(super) fn validate_artifact(name: &str, path: &Path) -> Result<()> {
         "# source_product=tsis1_hsrs_p025nm\n",
         "# source_release=TSIS-1 HSRS Version 2\n",
         "# units=W m^-2 nm^-1\n",
-        "# reference_distance=Earth-orbit spectral irradiance; explicit normalization not stated by LISIRD\n",
+        "# reference_distance=1 AU\n",
+        "# runtime_grid_method=flux-conserving 1 nm cell means with exact 445/500/551 nm anchors\n",
+        "# runtime_sampling_interval_nm=1\n",
     ] {
         if !text.contains(required) {
             bail!("solar spectrum is missing required header {required:?}");
         }
     }
-    validate_samples(&parse_runtime(&text)?, true)
+    let samples = parse_runtime(&text)?;
+    validate_samples(&samples, true)?;
+    validate_runtime_representation(&samples)
 }
 
 pub(super) fn validation_gates(
@@ -108,9 +114,9 @@ pub(super) fn validation_gates(
         .context("solar runtime artifact is missing")?;
     let runtime_text = fs::read_to_string(&artifact.path)?;
     let runtime = parse_runtime(&runtime_text)?;
-    let regenerated = render_runtime(&parse_candidate_source(
-        &config.workspace.root.join("sources").join(SOURCE_NAME),
-    )?)?;
+    let selected_source =
+        parse_candidate_source(&config.workspace.root.join("sources").join(SOURCE_NAME))?;
+    let regenerated = render_runtime(&selected_source)?;
     let deterministic = regenerated.as_bytes() == runtime_text.as_bytes();
 
     let native = parse_native_source(
@@ -122,11 +128,25 @@ pub(super) fn validation_gates(
     )?;
     validate_samples(&native, true)?;
     let runtime_integral = trapezoid_integral(&runtime);
+    let selected_integral = trapezoid_integral(&selected_source);
     let native_integral = trapezoid_integral(&native);
-    let integral_relative_difference = relative_difference(runtime_integral, native_integral);
+    let selected_native_integral_difference =
+        relative_difference(selected_integral, native_integral);
+    let runtime_integral_difference = relative_difference(runtime_integral, selected_integral);
     let bv_runtime = ratio_at(&runtime, 445.0, 551.0)?;
+    let bv_selected = ratio_at(&selected_source, 445.0, 551.0)?;
     let bv_native = ratio_at(&native, 445.0, 551.0)?;
-    let bv_relative_difference = relative_difference(bv_runtime, bv_native);
+    let selected_native_bv_difference = relative_difference(bv_selected, bv_native);
+    let runtime_bv_difference = relative_difference(bv_runtime, bv_selected);
+    let anchors_preserved = REQUIRED_ANCHORS_NM.iter().all(|wavelength| {
+        let Ok(runtime_value) = exact_value_at(&runtime, *wavelength) else {
+            return false;
+        };
+        let Ok(selected_value) = exact_value_at(&selected_source, *wavelength) else {
+            return false;
+        };
+        relative_difference(runtime_value, selected_value) <= 1.0e-14
+    });
 
     Ok(vec![
         ValidationGate {
@@ -142,17 +162,45 @@ pub(super) fn validation_gates(
             ),
         },
         ValidationGate {
-            name: "native-resolution-integral-comparison".into(),
-            passed: integral_relative_difference <= 5.0e-4,
+            name: "runtime-grid-complexity".into(),
+            passed: runtime.len() <= RUNTIME_SAMPLE_COUNT,
             detail: format!(
-                "p025nm={runtime_integral:.12} W m^-2; native={native_integral:.12} W m^-2; relative_difference={integral_relative_difference:.12e}"
+                "runtime_samples={}; maximum={RUNTIME_SAMPLE_COUNT}; upstream_samples={}",
+                runtime.len(),
+                selected_source.len()
             ),
         },
         ValidationGate {
-            name: "native-resolution-b-v-shape-comparison".into(),
-            passed: bv_relative_difference <= 1.0e-2,
+            name: "runtime-required-anchors".into(),
+            passed: anchors_preserved,
+            detail: "445, 500, and 551 nm are present exactly with p025nm irradiances".into(),
+        },
+        ValidationGate {
+            name: "runtime-p025nm-integral-comparison".into(),
+            passed: runtime_integral_difference <= 1.0e-12,
             detail: format!(
-                "p025nm_445_over_551={bv_runtime:.12}; native_445_over_551={bv_native:.12}; relative_difference={bv_relative_difference:.12e}"
+                "runtime={runtime_integral:.12} W m^-2; p025nm={selected_integral:.12} W m^-2; relative_difference={runtime_integral_difference:.12e}"
+            ),
+        },
+        ValidationGate {
+            name: "runtime-p025nm-b-v-shape-comparison".into(),
+            passed: runtime_bv_difference <= 1.0e-12,
+            detail: format!(
+                "runtime_445_over_551={bv_runtime:.12}; p025nm_445_over_551={bv_selected:.12}; relative_difference={runtime_bv_difference:.12e}"
+            ),
+        },
+        ValidationGate {
+            name: "p025nm-native-integral-comparison".into(),
+            passed: selected_native_integral_difference <= 5.0e-4,
+            detail: format!(
+                "p025nm={selected_integral:.12} W m^-2; native={native_integral:.12} W m^-2; relative_difference={selected_native_integral_difference:.12e}"
+            ),
+        },
+        ValidationGate {
+            name: "p025nm-native-b-v-shape-comparison".into(),
+            passed: selected_native_bv_difference <= 1.0e-2,
+            detail: format!(
+                "p025nm_445_over_551={bv_selected:.12}; native_445_over_551={bv_native:.12}; relative_difference={selected_native_bv_difference:.12e}"
             ),
         },
     ])
@@ -165,9 +213,11 @@ fn render_runtime(samples: &[Sample]) -> Result<String> {
 # source_release=TSIS-1 HSRS Version 2\n\
 # source_doi=https://doi.org/10.25980/ta3f-7h90\n\
 # units=W m^-2 nm^-1\n\
-# spectral_resolution_nm=0.025\n\
-# sampling_interval_nm=0.005\n\
-# reference_distance=Earth-orbit spectral irradiance; explicit normalization not stated by LISIRD\n",
+# upstream_spectral_resolution_nm=0.025\n\
+# upstream_sampling_interval_nm=0.005\n\
+# reference_distance=1 AU\n\
+# runtime_grid_method=flux-conserving 1 nm cell means with exact 445/500/551 nm anchors\n\
+# runtime_sampling_interval_nm=1\n",
     );
     let selected: Vec<_> = samples
         .iter()
@@ -175,7 +225,8 @@ fn render_runtime(samples: &[Sample]) -> Result<String> {
         .filter(|sample| (BAND_MIN_NM..=BAND_MAX_NM).contains(&sample.wavelength_nm))
         .collect();
     validate_samples(&selected, true)?;
-    for sample in selected {
+    let runtime = reduce_to_runtime(&selected)?;
+    for sample in runtime {
         writeln!(
             bytes,
             "{:.3},{:.17e}",
@@ -183,6 +234,63 @@ fn render_runtime(samples: &[Sample]) -> Result<String> {
         )?;
     }
     Ok(bytes)
+}
+
+/// Reduce the official high-resolution source to the grid the runtime models need.
+///
+/// Each integer-nanometre node initially stores the mean irradiance in its
+/// one-nanometre Voronoi cell (half-width cells at the band edges). With the
+/// trapezoidal integration used by NSB, those means preserve the source's
+/// 300–650 nm integral. The three model diagnostics then replace their cell
+/// means with the exact p025nm values; equal compensating corrections at the
+/// adjacent nodes preserve the integral without adding hot-path samples.
+fn reduce_to_runtime(samples: &[Sample]) -> Result<Vec<Sample>> {
+    validate_samples(samples, true)?;
+    let mut runtime = Vec::with_capacity(RUNTIME_SAMPLE_COUNT);
+    for index in 0..RUNTIME_SAMPLE_COUNT {
+        let wavelength_nm = BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM;
+        let left = (wavelength_nm - RUNTIME_STEP_NM / 2.0).max(BAND_MIN_NM);
+        let right = (wavelength_nm + RUNTIME_STEP_NM / 2.0).min(BAND_MAX_NM);
+        runtime.push(Sample {
+            wavelength_nm,
+            irradiance_w_m2_nm: integrate_range(samples, left, right)? / (right - left),
+        });
+    }
+
+    for wavelength_nm in REQUIRED_ANCHORS_NM {
+        let index = runtime
+            .binary_search_by(|sample| sample.wavelength_nm.total_cmp(&wavelength_nm))
+            .map_err(|_| anyhow::anyhow!("runtime anchor {wavelength_nm} nm is missing"))?;
+        let exact = exact_value_at(samples, wavelength_nm)?;
+        let correction = exact - runtime[index].irradiance_w_m2_nm;
+        runtime[index].irradiance_w_m2_nm = exact;
+        runtime[index - 1].irradiance_w_m2_nm -= correction / 2.0;
+        runtime[index + 1].irradiance_w_m2_nm -= correction / 2.0;
+    }
+
+    validate_samples(&runtime, true)?;
+    validate_runtime_representation(&runtime)?;
+    Ok(runtime)
+}
+
+fn validate_runtime_representation(samples: &[Sample]) -> Result<()> {
+    if samples.len() != RUNTIME_SAMPLE_COUNT {
+        bail!(
+            "solar runtime grid requires exactly {RUNTIME_SAMPLE_COUNT} samples, found {}",
+            samples.len()
+        );
+    }
+    for (index, sample) in samples.iter().enumerate() {
+        let expected = BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM;
+        if sample.wavelength_nm != expected {
+            bail!("solar runtime grid must use deterministic 1 nm nodes");
+        }
+    }
+    for wavelength_nm in REQUIRED_ANCHORS_NM {
+        exact_value_at(samples, wavelength_nm)
+            .with_context(|| format!("solar runtime grid requires {wavelength_nm} nm anchor"))?;
+    }
+    Ok(())
 }
 
 fn parse_candidate_source(path: &Path) -> Result<Vec<Sample>> {
@@ -284,6 +392,44 @@ fn trapezoid_integral(samples: &[Sample]) -> f64 {
         .sum()
 }
 
+fn integrate_range(samples: &[Sample], start_nm: f64, end_nm: f64) -> Result<f64> {
+    if start_nm >= end_nm {
+        bail!("solar integration range must have positive width");
+    }
+    let mut previous = Sample {
+        wavelength_nm: start_nm,
+        irradiance_w_m2_nm: interpolate(samples, start_nm)?,
+    };
+    let mut integral = 0.0;
+    for sample in samples
+        .iter()
+        .copied()
+        .filter(|sample| sample.wavelength_nm > start_nm && sample.wavelength_nm < end_nm)
+    {
+        integral += (sample.wavelength_nm - previous.wavelength_nm)
+            * (sample.irradiance_w_m2_nm + previous.irradiance_w_m2_nm)
+            / 2.0;
+        previous = sample;
+    }
+    let end = Sample {
+        wavelength_nm: end_nm,
+        irradiance_w_m2_nm: interpolate(samples, end_nm)?,
+    };
+    integral += (end.wavelength_nm - previous.wavelength_nm)
+        * (end.irradiance_w_m2_nm + previous.irradiance_w_m2_nm)
+        / 2.0;
+    Ok(integral)
+}
+
+fn exact_value_at(samples: &[Sample], wavelength_nm: f64) -> Result<f64> {
+    let index = samples
+        .binary_search_by(|sample| sample.wavelength_nm.total_cmp(&wavelength_nm))
+        .map_err(|_| {
+            anyhow::anyhow!("spectrum does not contain exact {wavelength_nm} nm sample")
+        })?;
+    Ok(samples[index].irradiance_w_m2_nm)
+}
+
 fn ratio_at(samples: &[Sample], numerator_nm: f64, denominator_nm: f64) -> Result<f64> {
     Ok(interpolate(samples, numerator_nm)? / interpolate(samples, denominator_nm)?)
 }
@@ -315,7 +461,7 @@ mod tests {
         let mut file = tempfile::NamedTempFile::new().unwrap();
         write!(
             file,
-            "# wavelength_nm,irradiance_W_m2_nm\n# source_product=tsis1_hsrs_p025nm\n# source_release=TSIS-1 HSRS Version 2\n# units=W m^-2 nm^-1\n# reference_distance=Earth-orbit spectral irradiance; explicit normalization not stated by LISIRD\n{rows}"
+            "# wavelength_nm,irradiance_W_m2_nm\n# source_product=tsis1_hsrs_p025nm\n# source_release=TSIS-1 HSRS Version 2\n# units=W m^-2 nm^-1\n# reference_distance=1 AU\n# runtime_grid_method=flux-conserving 1 nm cell means with exact 445/500/551 nm anchors\n# runtime_sampling_interval_nm=1\n{rows}"
         )
         .unwrap();
         file
@@ -323,7 +469,10 @@ mod tests {
 
     #[test]
     fn runtime_validation_accepts_physical_coverage() {
-        let file = runtime("300.0,1.0\n500.0,2.0\n650.0,1.5\n");
+        let rows = (0..RUNTIME_SAMPLE_COUNT)
+            .map(|index| format!("{:.3},1.0\n", BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM))
+            .collect::<String>();
+        let file = runtime(&rows);
         validate_artifact(RUNTIME_NAME, file.path()).unwrap();
     }
 
@@ -351,5 +500,98 @@ mod tests {
         let mut file = tempfile::NamedTempFile::new().unwrap();
         writeln!(file, "wavelength,flux\n300,1").unwrap();
         assert!(parse_candidate_source(file.path()).is_err());
+    }
+
+    #[test]
+    fn candidate_parser_rejects_malformed_physical_values() {
+        for rows in [
+            "NaN,1.0\n650.0,1.0\n",
+            "0.0,1.0\n650.0,1.0\n",
+            "300.0,1.0\n299.0,1.0\n",
+            "300.0,1.0\n300.0,1.1\n",
+            "300.0,-1.0\n650.0,1.0\n",
+            "300.0,NaN\n650.0,1.0\n",
+        ] {
+            let mut file = tempfile::NamedTempFile::new().unwrap();
+            write!(
+                file,
+                "wavelength (nm),irradiance (W/m^2/nm)\n{rows}"
+            )
+            .unwrap();
+            assert!(
+                parse_candidate_source(file.path()).is_err(),
+                "accepted {rows:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn reduction_rejects_incomplete_band_coverage() {
+        let samples = [
+            Sample {
+                wavelength_nm: 301.0,
+                irradiance_w_m2_nm: 1.0,
+            },
+            Sample {
+                wavelength_nm: 650.0,
+                irradiance_w_m2_nm: 1.0,
+            },
+        ];
+        assert!(reduce_to_runtime(&samples).is_err());
+    }
+
+    #[test]
+    fn runtime_sample_count_guard_rejects_a_short_grid() {
+        let rows = (0..RUNTIME_SAMPLE_COUNT - 1)
+            .map(|index| {
+                format!(
+                    "{:.3},1.0\n",
+                    BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM
+                )
+            })
+            .collect::<String>();
+        let file = runtime(&rows);
+        assert!(validate_artifact(RUNTIME_NAME, file.path()).is_err());
+    }
+
+    #[test]
+    fn reduction_preserves_integral_and_required_anchors() {
+        let samples = (3000..=6500)
+            .map(|index| {
+                let wavelength_nm = f64::from(index) / 10.0;
+                Sample {
+                    wavelength_nm,
+                    irradiance_w_m2_nm: 1.0
+                        + wavelength_nm / 1000.0
+                        + (wavelength_nm * 0.7).sin().abs(),
+                }
+            })
+            .collect::<Vec<_>>();
+        let runtime = reduce_to_runtime(&samples).unwrap();
+        assert_eq!(runtime.len(), RUNTIME_SAMPLE_COUNT);
+        assert!(
+            relative_difference(trapezoid_integral(&runtime), trapezoid_integral(&samples))
+                < 1.0e-13
+        );
+        for wavelength_nm in REQUIRED_ANCHORS_NM {
+            assert_eq!(
+                exact_value_at(&runtime, wavelength_nm).unwrap(),
+                exact_value_at(&samples, wavelength_nm).unwrap()
+            );
+        }
+    }
+
+    #[test]
+    fn reduction_is_byte_deterministic() {
+        let samples = (3000..=6500)
+            .map(|index| Sample {
+                wavelength_nm: f64::from(index) / 10.0,
+                irradiance_w_m2_nm: 1.0 + f64::from(index % 17) / 100.0,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            render_runtime(&samples).unwrap(),
+            render_runtime(&samples).unwrap()
+        );
     }
 }

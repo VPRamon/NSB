@@ -9,8 +9,9 @@ executor = "local"
 concurrency = 1
 
 [[sources]]
-# Minimum official fixed-resolution variant that meets the checked-in native
-# comparison gates; see docs/nsb_components/solar-spectrum-validation.md.
+# Minimum official fixed-resolution upstream variant that meets the checked-in
+# native comparison gates. The build reduces it to the separate 1 nm runtime
+# representation documented in docs/nsb_components/solar-spectrum-validation.md.
 name = "tsis1_hsrs_p025nm_300_650.csv"
 url = "https://lasp.colorado.edu/lisird/latis/dap/tsis1_hsrs_p025nm.csv?wavelength,irradiance&wavelength%3E=300&wavelength%3C=650"
 sha256 = "1548b152d162cf877e890fb0aaf8ec7b8dcc102ad839dbd02b250ec17614de92"
@@ -18,9 +19,9 @@ product_id = "tsis1_hsrs_p025nm"
 release = "TSIS-1 HSRS Version 2"
 metadata_url = "https://doi.org/10.25980/ta3f-7h90"
 retrieved_at = "2026-09-26"
-license = "No dataset-specific redistribution license located; public download and scholarly citation do not by themselves establish redistribution terms"
+license = "Unresolved: DOI/LISIRD and Coddington et al. (2023) assign no dataset license; NASA SPD-41a's conditional CC0 guidance is not an HSRS-specific grant"
 units = "W m^-2 nm^-1"
-reference_distance = "Earth-orbit spectral irradiance; LISIRD metadata does not state an explicit distance normalization"
+reference_distance = "1 AU"
 
 [[sources]]
 name = "tsis1_hsrs_native_300_650.csv"
@@ -30,9 +31,9 @@ product_id = "tsis1_hsrs"
 release = "TSIS-1 HSRS Version 2"
 metadata_url = "https://doi.org/10.25980/ta3f-7h90"
 retrieved_at = "2026-09-26"
-license = "No dataset-specific redistribution license located; downloaded only into the untracked validation workspace"
+license = "Unresolved: DOI/LISIRD and Coddington et al. (2023) assign no dataset license; downloaded only into the untracked validation workspace"
 units = "W m^-2 nm^-1"
-reference_distance = "Earth-orbit spectral irradiance; LISIRD metadata does not state an explicit distance normalization"
+reference_distance = "1 AU"
 
 [publish]
 repository_root = "../../.."

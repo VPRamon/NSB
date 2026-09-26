@@ -180,41 +180,19 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
     let temporary = tempfile::tempdir().unwrap();
     let source = temporary.path().join("candidate.csv");
     let native = temporary.path().join("native.csv");
-    let source_bytes =
-        "wavelength (nm),irradiance (W/m^2/nm)\n300.000,1.0\n500.000,2.0\n650.000,1.5\n";
+    let source_bytes = "wavelength (nm),irradiance (W/m^2/nm)\n\
+300.000,1.0\n445.000,1.8\n500.000,2.0\n551.000,1.7\n650.000,1.5\n";
     fs::write(&source, source_bytes).unwrap();
     fs::write(&native, source_bytes).unwrap();
     let source_checksum = nsb_data_tools::platform::checksum_io::sha256_file(&source).unwrap();
     let native_checksum = nsb_data_tools::platform::checksum_io::sha256_file(&native).unwrap();
-    let expected = "# wavelength_nm,irradiance_W_m2_nm\n\
-# source_product=tsis1_hsrs_p025nm\n\
-# source_release=TSIS-1 HSRS Version 2\n\
-# source_doi=https://doi.org/10.25980/ta3f-7h90\n\
-# units=W m^-2 nm^-1\n\
-# spectral_resolution_nm=0.025\n\
-# sampling_interval_nm=0.005\n\
-# reference_distance=Earth-orbit spectral irradiance; explicit normalization not stated by LISIRD\n\
-300.000,1.00000000000000000e0\n\
-500.000,2.00000000000000000e0\n\
-650.000,1.50000000000000000e0\n";
-    let expected_path = temporary.path().join("expected.dat");
-    fs::write(&expected_path, expected).unwrap();
-    let expected_checksum =
-        nsb_data_tools::platform::checksum_io::sha256_file(&expected_path).unwrap();
     let repository = temporary.path().join("repository");
     fs::create_dir_all(repository.join("crates/nsb/data")).unwrap();
-    fs::write(
-        repository.join("crates/nsb/data/manifest.toml"),
-        format!(
-            "schema_version = 1\n\n[[assets]]\npath = \"solar_spectrum.dat\"\nsha256 = \"{expected_checksum}\"\ngenerator = \"fixture\"\ngeneration_command = \"fixture\"\n"
-        ),
-    )
-    .unwrap();
     let config = temporary.path().join("run.toml");
     fs::write(
         &config,
         format!(
-            "schema_version = 1\ndataset = \"solar-spectrum\"\n\n[workspace]\nroot = \"work\"\n\n[[sources]]\nname = \"tsis1_hsrs_p025nm_300_650.csv\"\npath = \"{}\"\nsha256 = \"{source_checksum}\"\nproduct_id = \"tsis1_hsrs_p025nm\"\nrelease = \"TSIS-1 HSRS Version 2\"\nmetadata_url = \"https://doi.org/10.25980/ta3f-7h90\"\nretrieved_at = \"fixture\"\nlicense = \"fixture\"\nunits = \"W m^-2 nm^-1\"\nreference_distance = \"Earth-orbit spectral irradiance; LISIRD metadata does not state an explicit distance normalization\"\n\n[[sources]]\nname = \"tsis1_hsrs_native_300_650.csv\"\npath = \"{}\"\nsha256 = \"{native_checksum}\"\nproduct_id = \"tsis1_hsrs\"\nrelease = \"TSIS-1 HSRS Version 2\"\nmetadata_url = \"https://doi.org/10.25980/ta3f-7h90\"\nretrieved_at = \"fixture\"\nlicense = \"fixture\"\nunits = \"W m^-2 nm^-1\"\nreference_distance = \"Earth-orbit spectral irradiance; LISIRD metadata does not state an explicit distance normalization\"\n\n[publish]\nrepository_root = \"{}\"\n",
+            "schema_version = 1\ndataset = \"solar-spectrum\"\n\n[workspace]\nroot = \"work\"\n\n[[sources]]\nname = \"tsis1_hsrs_p025nm_300_650.csv\"\npath = \"{}\"\nsha256 = \"{source_checksum}\"\nproduct_id = \"tsis1_hsrs_p025nm\"\nrelease = \"TSIS-1 HSRS Version 2\"\nmetadata_url = \"https://doi.org/10.25980/ta3f-7h90\"\nretrieved_at = \"fixture\"\nlicense = \"fixture\"\nunits = \"W m^-2 nm^-1\"\nreference_distance = \"1 AU\"\n\n[[sources]]\nname = \"tsis1_hsrs_native_300_650.csv\"\npath = \"{}\"\nsha256 = \"{native_checksum}\"\nproduct_id = \"tsis1_hsrs\"\nrelease = \"TSIS-1 HSRS Version 2\"\nmetadata_url = \"https://doi.org/10.25980/ta3f-7h90\"\nretrieved_at = \"fixture\"\nlicense = \"fixture\"\nunits = \"W m^-2 nm^-1\"\nreference_distance = \"1 AU\"\n\n[publish]\nrepository_root = \"{}\"\n",
             source.display(),
             native.display(),
             repository.display()
@@ -222,12 +200,27 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
     )
     .unwrap();
 
-    for operation in ["update", "build", "validate", "publish"] {
-        command(&config, operation).assert_success();
-    }
+    command(&config, "update").assert_success();
+    command(&config, "build").assert_success();
+    let output_path = temporary.path().join("work/outputs/solar_spectrum.dat");
+    let first_build = fs::read(&output_path).unwrap();
+    command(&config, "build").assert_success();
+    assert_eq!(fs::read(&output_path).unwrap(), first_build);
+
+    let expected_checksum =
+        nsb_data_tools::platform::checksum_io::sha256_file(&output_path).unwrap();
+    fs::write(
+        repository.join("crates/nsb/data/manifest.toml"),
+        format!(
+            "schema_version = 1\n\n[[assets]]\npath = \"solar_spectrum.dat\"\nsha256 = \"{expected_checksum}\"\ngenerator = \"fixture\"\ngeneration_command = \"fixture\"\n"
+        ),
+    )
+    .unwrap();
+    command(&config, "validate").assert_success();
+    command(&config, "publish").assert_success();
     assert_eq!(
         fs::read(repository.join("crates/nsb/data/solar_spectrum.dat")).unwrap(),
-        expected.as_bytes()
+        first_build
     );
 
     fs::write(
