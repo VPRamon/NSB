@@ -190,6 +190,29 @@ struct VerticalEmissionProfileData {
 #[derive(Debug, Clone, PartialEq)]
 pub struct VerticalEmissionProfile(Arc<VerticalEmissionProfileData>);
 
+/// Borrowed altitude/emissivity samples from a validated vertical profile.
+///
+/// Fields are private and construction is limited to
+/// [`VerticalEmissionProfile::samples`], so geometry siblings cannot feed the
+/// spherical LOS integrator inconsistent or unvalidated raw slices.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct ValidatedProfileSamples<'a> {
+    altitudes_km: &'a [Kilometers],
+    relative_emissivity: &'a [f64],
+}
+
+impl<'a> ValidatedProfileSamples<'a> {
+    /// Strictly increasing validated altitude grid.
+    pub(super) const fn altitudes_km(self) -> &'a [Kilometers] {
+        self.altitudes_km
+    }
+
+    /// Unit-vertical-integral emissivity samples aligned with [`Self::altitudes_km`].
+    pub(super) const fn relative_emissivity(self) -> &'a [f64] {
+        self.relative_emissivity
+    }
+}
+
 impl VerticalEmissionProfile {
     /// Validate and checksum a programmatic profile definition.
     pub fn new(
@@ -202,6 +225,14 @@ impl VerticalEmissionProfile {
             definition,
             checksum_sha256,
         })))
+    }
+
+    /// Borrow the validated sample grid for spherical LOS integration.
+    pub(super) fn samples(&self) -> ValidatedProfileSamples<'_> {
+        ValidatedProfileSamples {
+            altitudes_km: self.altitude_km(),
+            relative_emissivity: self.relative_emissivity(),
+        }
     }
 
     /// Stable profile identifier.
@@ -310,13 +341,9 @@ impl VerticalEmissionProfile {
                 "observer altitude {observer_height_km} km is at or above profile top {top} km"
             )));
         }
-        let vertical = integrate_profile_los(
-            self.altitude_km(),
-            self.relative_emissivity(),
-            observer_height_km,
-            0.0,
-            substeps_per_interval,
-        );
+        let samples = self.samples();
+        let vertical =
+            integrate_profile_los(samples, observer_height_km, 0.0, substeps_per_interval);
         if !vertical.is_finite() || vertical <= 0.0 {
             return Err(NsbError::Unsupported(format!(
                 "vertical profile {} contains no visible emission above observer altitude {observer_height_km} km; its vertical normalization is invalid",
@@ -328,8 +355,7 @@ impl VerticalEmissionProfile {
         }
 
         let los = integrate_profile_los(
-            self.altitude_km(),
-            self.relative_emissivity(),
+            samples,
             observer_height_km,
             z.to_radians(),
             substeps_per_interval,
@@ -581,6 +607,19 @@ mod tests {
         for definition in cases {
             assert!(VerticalEmissionProfile::new(definition).is_err());
         }
+    }
+
+    #[test]
+    fn validated_samples_mirror_equal_length_profile_grids() {
+        let profile = VerticalEmissionProfile::new(valid_definition()).unwrap();
+        let samples = profile.samples();
+        assert_eq!(
+            samples.altitudes_km().len(),
+            samples.relative_emissivity().len()
+        );
+        assert_eq!(samples.altitudes_km(), profile.altitude_km());
+        assert_eq!(samples.relative_emissivity(), profile.relative_emissivity());
+        assert!(samples.altitudes_km().len() >= 3);
     }
 
     #[test]

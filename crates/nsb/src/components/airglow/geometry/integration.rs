@@ -1,9 +1,11 @@
 //! Spherical line-of-sight numerical integration for vertical emissivity profiles.
 //!
-//! This module owns only the reference integrator. It consumes validated numeric
-//! inputs and does not own persistence, schema parsing, model selection,
-//! climatology, or Airglow spectral semantics.
+//! This module owns only the reference integrator. It consumes
+//! [`ValidatedProfileSamples`] from the validated profile domain and does not
+//! own persistence, schema parsing, model selection, climatology, or Airglow
+//! spectral semantics.
 
+use super::vertical_profile::ValidatedProfileSamples;
 use siderust::qtty::Kilometers;
 
 /// Current implementation identifier for the reference spherical LOS integrator.
@@ -26,16 +28,17 @@ pub(crate) const VERTICAL_PROFILE_REFERENCE_SUBSTEPS: usize = 64;
 /// Interval endpoints are transformed exactly from altitude to path length,
 /// avoiding a plane-parallel approximation and keeping the horizon finite.
 ///
-/// `altitudes_km` must be strictly increasing and the same length as
-/// `relative_emissivity`. Callers are expected to supply already-validated
-/// profile samples.
+/// Sample grids must come from [`super::vertical_profile::VerticalEmissionProfile::samples`];
+/// the validated view type prevents unrelated raw slices from reaching this
+/// boundary through the normal geometry module API.
 pub(super) fn integrate_profile_los(
-    altitudes_km: &[Kilometers],
-    relative_emissivity: &[f64],
+    samples: ValidatedProfileSamples<'_>,
     observer_height_km: f64,
     zenith_rad: f64,
     substeps: usize,
 ) -> f64 {
+    let altitudes_km = samples.altitudes_km();
+    let relative_emissivity = samples.relative_emissivity();
     debug_assert_eq!(altitudes_km.len(), relative_emissivity.len());
     debug_assert!(altitudes_km.len() >= 2);
 
