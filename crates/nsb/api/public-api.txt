@@ -1,0 +1,643 @@
+pub mod nsb
+pub use nsb::DEG
+pub mod nsb::assets
+#[non_exhaustive] pub struct nsb::assets::BundledAssetMetadata
+pub nsb::assets::BundledAssetMetadata::calibration_status: &'static str
+pub nsb::assets::BundledAssetMetadata::generation_command: &'static str
+pub nsb::assets::BundledAssetMetadata::generator: &'static str
+pub nsb::assets::BundledAssetMetadata::license: &'static str
+pub nsb::assets::BundledAssetMetadata::path: &'static str
+pub nsb::assets::BundledAssetMetadata::schema: &'static str
+pub nsb::assets::BundledAssetMetadata::sha256: &'static str
+pub nsb::assets::BundledAssetMetadata::source: &'static str
+pub nsb::assets::BundledAssetMetadata::validation_report: &'static str
+pub const nsb::assets::ASSET_MANIFEST_SCHEMA_VERSION: u32
+pub static nsb::assets::BUNDLED_ASSETS: &[nsb::assets::BundledAssetMetadata]
+pub fn nsb::assets::bundled_asset(path: &str) -> core::option::Option<&'static nsb::assets::BundledAssetMetadata>
+pub fn nsb::assets::bundled_assets() -> impl core::iter::traits::iterator::Iterator<Item = &'static nsb::assets::BundledAssetMetadata>
+pub mod nsb::components
+pub mod nsb::components::airglow
+#[non_exhaustive] pub enum nsb::components::airglow::AirglowGeometryModel
+pub nsb::components::airglow::AirglowGeometryModel::VanRhijn(nsb::components::airglow::VanRhijnConfig)
+pub nsb::components::airglow::AirglowGeometryModel::VerticalProfile(nsb::components::airglow::VerticalEmissionProfile)
+impl nsb::components::airglow::AirglowGeometryModel
+pub const fn nsb::components::airglow::AirglowGeometryModel::model_id(&self) -> &'static str
+impl core::default::Default for nsb::components::airglow::AirglowGeometryModel
+pub fn nsb::components::airglow::AirglowGeometryModel::default() -> Self
+#[non_exhaustive] pub enum nsb::components::airglow::AirglowModel
+pub nsb::components::airglow::AirglowModel::GlobalClimatology
+pub nsb::components::airglow::AirglowModel::ParanalNollSkyCalcFors1
+impl nsb::AirglowModel
+pub const fn nsb::AirglowModel::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::components::airglow::AirglowPhysicalOutcome
+pub nsb::components::airglow::AirglowPhysicalOutcome::Evaluated
+pub nsb::components::airglow::AirglowPhysicalOutcome::PhysicalZero
+impl nsb::components::airglow::AirglowPhysicalOutcome
+pub const fn nsb::components::airglow::AirglowPhysicalOutcome::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::components::airglow::AirglowSelection
+pub nsb::components::airglow::AirglowSelection::Automatic
+pub nsb::components::airglow::AirglowSelection::Explicit(nsb::AirglowModel)
+impl nsb::AirglowSelection
+pub const fn nsb::AirglowSelection::as_str(self) -> &'static str
+pub const fn nsb::AirglowSelection::requested_model(self) -> core::option::Option<nsb::AirglowModel>
+#[non_exhaustive] pub enum nsb::components::airglow::AirglowSelectionKind
+pub nsb::components::airglow::AirglowSelectionKind::Automatic
+pub nsb::components::airglow::AirglowSelectionKind::Explicit
+impl nsb::components::airglow::AirglowSelectionKind
+pub const fn nsb::components::airglow::AirglowSelectionKind::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::components::airglow::VerticalEmissionProfileError
+pub nsb::components::airglow::VerticalEmissionProfileError::ChecksumMismatch
+pub nsb::components::airglow::VerticalEmissionProfileError::ChecksumMismatch::computed: alloc::string::String
+pub nsb::components::airglow::VerticalEmissionProfileError::ChecksumMismatch::expected: alloc::string::String
+pub nsb::components::airglow::VerticalEmissionProfileError::Invalid(alloc::string::String)
+pub nsb::components::airglow::VerticalEmissionProfileError::Toml(alloc::string::String)
+#[non_exhaustive] pub enum nsb::components::airglow::VerticalProfileNormalization
+pub nsb::components::airglow::VerticalProfileNormalization::UnitVerticalIntegral
+impl nsb::components::airglow::VerticalProfileNormalization
+pub const fn nsb::components::airglow::VerticalProfileNormalization::as_str(self) -> &'static str
+#[non_exhaustive] pub struct nsb::components::airglow::AirglowGeometryMetadata
+pub nsb::components::airglow::AirglowGeometryMetadata::altitude_max_km: core::option::Option<qtty_core::units::length::Kilometers>
+pub nsb::components::airglow::AirglowGeometryMetadata::altitude_min_km: core::option::Option<qtty_core::units::length::Kilometers>
+pub nsb::components::airglow::AirglowGeometryMetadata::assumptions: alloc::string::String
+pub nsb::components::airglow::AirglowGeometryMetadata::checksum_sha256: core::option::Option<alloc::string::String>
+pub nsb::components::airglow::AirglowGeometryMetadata::emission_height_km: core::option::Option<qtty_core::units::length::Kilometers>
+pub nsb::components::airglow::AirglowGeometryMetadata::implementation_version: &'static str
+pub nsb::components::airglow::AirglowGeometryMetadata::license: core::option::Option<alloc::string::String>
+pub nsb::components::airglow::AirglowGeometryMetadata::model: &'static str
+pub nsb::components::airglow::AirglowGeometryMetadata::normalization: core::option::Option<&'static str>
+pub nsb::components::airglow::AirglowGeometryMetadata::profile_id: core::option::Option<alloc::string::String>
+pub nsb::components::airglow::AirglowGeometryMetadata::profile_schema_version: core::option::Option<u32>
+pub nsb::components::airglow::AirglowGeometryMetadata::provenance: alloc::string::String
+pub nsb::components::airglow::AirglowGeometryMetadata::validated_zenith: nsb::components::airglow::ValidatedZenithDomain
+pub nsb::components::airglow::AirglowGeometryMetadata::wavelength_band: core::option::Option<alloc::string::String>
+pub nsb::components::airglow::AirglowGeometryMetadata::wavelength_max_nm: core::option::Option<qtty_core::units::length::Nanometers>
+pub nsb::components::airglow::AirglowGeometryMetadata::wavelength_min_nm: core::option::Option<qtty_core::units::length::Nanometers>
+#[non_exhaustive] pub struct nsb::components::airglow::AirglowSelectionReport
+pub nsb::components::airglow::AirglowSelectionReport::fallback_reason: core::option::Option<&'static str>
+pub nsb::components::airglow::AirglowSelectionReport::physical_outcome: nsb::components::airglow::AirglowPhysicalOutcome
+pub nsb::components::airglow::AirglowSelectionReport::physical_zero_reason: core::option::Option<&'static str>
+pub nsb::components::airglow::AirglowSelectionReport::requested_model: core::option::Option<nsb::AirglowModel>
+pub nsb::components::airglow::AirglowSelectionReport::resolved_model: nsb::AirglowModel
+pub nsb::components::airglow::AirglowSelectionReport::selection_kind: nsb::components::airglow::AirglowSelectionKind
+pub nsb::components::airglow::AirglowSelectionReport::used_automatic_fallback: bool
+#[non_exhaustive] pub struct nsb::components::airglow::AirglowWavelengthApplicability
+pub nsb::components::airglow::AirglowWavelengthApplicability::band: alloc::string::String
+pub nsb::components::airglow::AirglowWavelengthApplicability::max: qtty_core::units::length::Nanometers
+pub nsb::components::airglow::AirglowWavelengthApplicability::min: qtty_core::units::length::Nanometers
+impl nsb::components::airglow::AirglowWavelengthApplicability
+pub fn nsb::components::airglow::AirglowWavelengthApplicability::new(min: qtty_core::units::length::Nanometers, max: qtty_core::units::length::Nanometers, band: impl core::convert::Into<alloc::string::String>) -> Self
+#[non_exhaustive] pub struct nsb::components::airglow::ValidatedZenithDomain
+pub nsb::components::airglow::ValidatedZenithDomain::max: qtty_core::units::angular::Degrees
+pub nsb::components::airglow::ValidatedZenithDomain::min: qtty_core::units::angular::Degrees
+impl nsb::components::airglow::ValidatedZenithDomain
+pub const fn nsb::components::airglow::ValidatedZenithDomain::new(min: qtty_core::units::angular::Degrees, max: qtty_core::units::angular::Degrees) -> Self
+pub struct nsb::components::airglow::VanRhijnConfig
+impl nsb::components::airglow::VanRhijnConfig
+pub const fn nsb::components::airglow::VanRhijnConfig::emission_height_km(self) -> qtty_core::units::length::Kilometers
+pub fn nsb::components::airglow::VanRhijnConfig::new(emission_height_km: qtty_core::units::length::Kilometers) -> core::result::Result<Self, nsb::components::airglow::VerticalEmissionProfileError>
+pub const fn nsb::components::airglow::VanRhijnConfig::validated_zenith_domain(self) -> nsb::components::airglow::ValidatedZenithDomain
+impl core::default::Default for nsb::components::airglow::VanRhijnConfig
+pub fn nsb::components::airglow::VanRhijnConfig::default() -> Self
+pub struct nsb::components::airglow::VerticalEmissionProfile(_)
+impl nsb::components::airglow::VerticalEmissionProfile
+pub fn nsb::components::airglow::VerticalEmissionProfile::altitude_km(&self) -> &[qtty_core::units::length::Kilometers]
+pub fn nsb::components::airglow::VerticalEmissionProfile::assumptions(&self) -> &str
+pub fn nsb::components::airglow::VerticalEmissionProfile::checksum_sha256(&self) -> &str
+pub fn nsb::components::airglow::VerticalEmissionProfile::from_toml_str(input: &str) -> core::result::Result<Self, nsb::components::airglow::VerticalEmissionProfileError>
+pub fn nsb::components::airglow::VerticalEmissionProfile::license(&self) -> &str
+pub fn nsb::components::airglow::VerticalEmissionProfile::new(definition: nsb::components::airglow::VerticalEmissionProfileDefinition) -> core::result::Result<Self, nsb::components::airglow::VerticalEmissionProfileError>
+pub fn nsb::components::airglow::VerticalEmissionProfile::normalization(&self) -> nsb::components::airglow::VerticalProfileNormalization
+pub fn nsb::components::airglow::VerticalEmissionProfile::profile_id(&self) -> &str
+pub fn nsb::components::airglow::VerticalEmissionProfile::provenance(&self) -> &str
+pub fn nsb::components::airglow::VerticalEmissionProfile::relative_emissivity(&self) -> &[f64]
+pub fn nsb::components::airglow::VerticalEmissionProfile::schema_version(&self) -> u32
+pub fn nsb::components::airglow::VerticalEmissionProfile::to_toml_string(&self) -> core::result::Result<alloc::string::String, nsb::components::airglow::VerticalEmissionProfileError>
+pub fn nsb::components::airglow::VerticalEmissionProfile::validated_zenith_domain(&self) -> nsb::components::airglow::ValidatedZenithDomain
+pub fn nsb::components::airglow::VerticalEmissionProfile::wavelength_applicability(&self) -> &nsb::components::airglow::AirglowWavelengthApplicability
+#[non_exhaustive] pub struct nsb::components::airglow::VerticalEmissionProfileDefinition
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::altitude_km: alloc::vec::Vec<qtty_core::units::length::Kilometers>
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::assumptions: alloc::string::String
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::license: alloc::string::String
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::normalization: nsb::components::airglow::VerticalProfileNormalization
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::profile_id: alloc::string::String
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::provenance: alloc::string::String
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::relative_emissivity: alloc::vec::Vec<f64>
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::schema_version: u32
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::validated_zenith: nsb::components::airglow::ValidatedZenithDomain
+pub nsb::components::airglow::VerticalEmissionProfileDefinition::wavelength: nsb::components::airglow::AirglowWavelengthApplicability
+impl nsb::components::airglow::VerticalEmissionProfileDefinition
+pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::new(profile_id: impl core::convert::Into<alloc::string::String>, altitude_km: alloc::vec::Vec<qtty_core::units::length::Kilometers>, relative_emissivity: alloc::vec::Vec<f64>, wavelength: nsb::components::airglow::AirglowWavelengthApplicability, validated_zenith: nsb::components::airglow::ValidatedZenithDomain) -> Self
+pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::with_assumptions(self, assumptions: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::with_license(self, license: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::with_provenance(self, provenance: impl core::convert::Into<alloc::string::String>) -> Self
+pub const nsb::components::airglow::TEMPORARY_AUTOMATIC_FALLBACK_REASON: &str
+pub const nsb::components::airglow::VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION: u32
+pub mod nsb::components::moonlight
+#[non_exhaustive] pub enum nsb::components::moonlight::MoonlightModel
+pub nsb::components::moonlight::MoonlightModel::Jones2013Spectral
+pub nsb::components::moonlight::MoonlightModel::KrisciunasSchaefer1991
+impl nsb::components::moonlight::MoonlightModel
+pub const fn nsb::components::moonlight::MoonlightModel::as_str(self) -> &'static str
+pub mod nsb::components::starlight
+#[non_exhaustive] pub enum nsb::components::starlight::StarlightProduct
+pub nsb::components::starlight::StarlightProduct::BundledProductionGaiaDr3
+pub nsb::components::starlight::StarlightProduct::ExperimentalMap(alloc::sync::Arc<nsb::components::starlight::StarlightMap>)
+pub nsb::components::starlight::StarlightProduct::ValidatedExternalMap(alloc::sync::Arc<nsb::components::starlight::ValidatedStarlightMap>)
+impl nsb::StarlightProduct
+pub const fn nsb::StarlightProduct::as_str(&self) -> &'static str
+pub const fn nsb::StarlightProduct::bundled_production_available() -> bool
+pub fn nsb::StarlightProduct::bundled_production_gaia_dr3() -> Self
+pub fn nsb::StarlightProduct::validated_external(map: nsb::components::starlight::ValidatedStarlightMap) -> Self
+pub fn nsb::StarlightProduct::with_experimental_map(map: nsb::components::starlight::StarlightMap) -> Self
+pub fn nsb::StarlightProduct::with_shared_experimental_map(map: alloc::sync::Arc<nsb::components::starlight::StarlightMap>) -> Self
+pub fn nsb::StarlightProduct::with_shared_validated_external_map(map: alloc::sync::Arc<nsb::components::starlight::ValidatedStarlightMap>) -> Self
+pub struct nsb::components::starlight::StarlightMap
+impl nsb::components::starlight::StarlightMap
+pub fn nsb::components::starlight::StarlightMap::from_csv_path(path: impl core::convert::AsRef<std::path::Path>, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
+pub fn nsb::components::starlight::StarlightMap::from_csv_str(raw: &str, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
+pub fn nsb::components::starlight::StarlightMap::from_healpix(grid: siderust::healpix::grid::HealpixGrid, pixels: alloc::vec::Vec<nsb::components::starlight::StarlightPixel>, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
+pub fn nsb::components::starlight::StarlightMap::grid(&self) -> siderust::healpix::grid::HealpixGrid
+pub fn nsb::components::starlight::StarlightMap::pixel_at(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::components::starlight::StarlightPixel
+pub fn nsb::components::starlight::StarlightMap::pixel_direction(&self, index: siderust::healpix::index::HealpixIndex) -> nsb::Result<affn::spherical::direction::Direction<affn::frames::astro::Galactic>>
+pub fn nsb::components::starlight::StarlightMap::pixel_solid_angle(&self) -> qtty_core::units::solid_angle::Steradians
+pub fn nsb::components::starlight::StarlightMap::pixels(&self) -> &[nsb::components::starlight::StarlightPixel]
+pub fn nsb::components::starlight::StarlightMap::provenance(&self) -> &nsb::components::starlight::StarlightProvenance
+#[non_exhaustive] pub struct nsb::components::starlight::StarlightPixel
+pub nsb::components::starlight::StarlightPixel::b_flux_s10: qtty_core::units::radiometry::S10s
+pub nsb::components::starlight::StarlightPixel::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::components::starlight::StarlightPixel::s10_diagnostics_provided: bool
+pub nsb::components::starlight::StarlightPixel::statistical_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::components::starlight::StarlightPixel::systematic_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::components::starlight::StarlightPixel::total_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::components::starlight::StarlightPixel::v_flux_s10: qtty_core::units::radiometry::S10s
+impl nsb::components::starlight::StarlightPixel
+pub fn nsb::components::starlight::StarlightPixel::new(integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian, b_flux_s10: qtty_core::units::radiometry::S10s, v_flux_s10: qtty_core::units::radiometry::S10s) -> Self
+pub fn nsb::components::starlight::StarlightPixel::with_uncertainties(self, statistical: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian, systematic: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian, total: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian) -> Self
+pub fn nsb::components::starlight::StarlightPixel::without_s10_diagnostics(self) -> Self
+#[non_exhaustive] pub struct nsb::components::starlight::StarlightProvenance
+pub nsb::components::starlight::StarlightProvenance::band_definition: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::calibration_status: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::checksum: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::dataset_name: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::generated_by: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::generation_command: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::generation_date: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::independent_comparison: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::license: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::magnitude_limit: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::map_checksum: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::map_resolution: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::photometry_model: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::smoothing: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::source_catalogue: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::source_catalogue_release: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::source_selection: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::validation_report: core::option::Option<alloc::string::String>
+pub nsb::components::starlight::StarlightProvenance::version: alloc::string::String
+impl nsb::components::starlight::StarlightProvenance
+pub fn nsb::components::starlight::StarlightProvenance::new(dataset_name: impl core::convert::Into<alloc::string::String>, version: impl core::convert::Into<alloc::string::String>, generation_date: impl core::convert::Into<alloc::string::String>, source_catalogue: impl core::convert::Into<alloc::string::String>, license: impl core::convert::Into<alloc::string::String>, magnitude_limit: impl core::convert::Into<alloc::string::String>, band_definition: impl core::convert::Into<alloc::string::String>, map_resolution: impl core::convert::Into<alloc::string::String>, checksum: core::option::Option<impl core::convert::Into<alloc::string::String>>) -> Self
+#[non_exhaustive] pub struct nsb::components::starlight::StarlightValidationDiagnostics
+pub nsb::components::starlight::StarlightValidationDiagnostics::flux_conservation_recomputed: bool
+pub nsb::components::starlight::StarlightValidationDiagnostics::longitude_wrap_relative_jump: f64
+pub nsb::components::starlight::StarlightValidationDiagnostics::pixel_count: usize
+pub nsb::components::starlight::StarlightValidationDiagnostics::plane_pole_ratio: f64
+pub nsb::components::starlight::StarlightValidationDiagnostics::radiance_field: &'static str
+pub struct nsb::components::starlight::ValidatedStarlightMap
+impl nsb::components::starlight::ValidatedStarlightMap
+pub fn nsb::components::starlight::ValidatedStarlightMap::diagnostics(&self) -> &nsb::components::starlight::StarlightValidationDiagnostics
+pub fn nsb::components::starlight::ValidatedStarlightMap::from_bytes_and_manifest(map_bytes: &[u8], manifest_raw: &str) -> nsb::Result<Self>
+pub fn nsb::components::starlight::ValidatedStarlightMap::from_files(map_path: impl core::convert::AsRef<std::path::Path>, manifest_path: impl core::convert::AsRef<std::path::Path>) -> nsb::Result<Self>
+pub fn nsb::components::starlight::ValidatedStarlightMap::map(&self) -> &nsb::components::starlight::StarlightMap
+pub fn nsb::components::starlight::ValidatedStarlightMap::shared_map(&self) -> alloc::sync::Arc<nsb::components::starlight::StarlightMap>
+pub mod nsb::components::zodiacal
+#[non_exhaustive] pub enum nsb::components::zodiacal::ZodiacalExtinction
+pub nsb::components::zodiacal::ZodiacalExtinction::Noll2012Approx
+pub nsb::components::zodiacal::ZodiacalExtinction::None
+impl nsb::ZodiacalExtinction
+pub const fn nsb::ZodiacalExtinction::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::components::zodiacal::ZodiacalModel
+pub nsb::components::zodiacal::ZodiacalModel::Leinert1998
+impl nsb::ZodiacalModel
+pub const fn nsb::ZodiacalModel::as_str(self) -> &'static str
+pub mod nsb::site
+#[non_exhaustive] pub enum nsb::site::CalibrationStatus
+pub nsb::site::CalibrationStatus::Calibrated
+pub nsb::site::CalibrationStatus::GenericFallback
+pub nsb::site::CalibrationStatus::PlanningPreset
+impl core::convert::From<nsb::site::CalibrationStatus> for nsb::ComponentCalibrationStatus
+pub fn nsb::ComponentCalibrationStatus::from(status: nsb::site::CalibrationStatus) -> Self
+#[non_exhaustive] pub enum nsb::site::SiteProfileId
+pub nsb::site::SiteProfileId::CtaNorth
+pub nsb::site::SiteProfileId::CtaSouth
+pub nsb::site::SiteProfileId::GenericClearSky
+impl nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::all() -> &'static [Self]
+pub const fn nsb::site::SiteProfileId::as_str(self) -> &'static str
+pub const fn nsb::site::SiteProfileId::calibration_status(self) -> nsb::site::CalibrationStatus
+pub const fn nsb::site::SiteProfileId::is_site_calibrated(self) -> bool
+pub fn nsb::site::SiteProfileId::profile(self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
+#[non_exhaustive] pub struct nsb::site::AirglowSiteCalibration
+pub nsb::site::AirglowSiteCalibration::assumptions: &'static str
+pub nsb::site::AirglowSiteCalibration::provenance: &'static str
+pub nsb::site::AirglowSiteCalibration::scale: qtty_core::units::dimensionless::Ratios
+pub nsb::site::AirglowSiteCalibration::template: &'static str
+#[non_exhaustive] pub struct nsb::site::AtmosphericConditions
+pub nsb::site::AtmosphericConditions::mie_params: siderust::atmosphere::mie::MieParams
+pub nsb::site::AtmosphericConditions::rayleigh_scale_height: qtty_core::units::length::Kilometers
+pub nsb::site::AtmosphericConditions::surface_pressure: qtty_core::units::pressure::Hectopascals
+impl nsb::site::AtmosphericConditions
+pub fn nsb::site::AtmosphericConditions::cta_n_clear_sky() -> Self
+pub fn nsb::site::AtmosphericConditions::cta_s_clear_sky() -> Self
+pub fn nsb::site::AtmosphericConditions::from_profile_without_altitude(profile: siderust::atmosphere::profile::AtmosphereProfile) -> Self
+pub fn nsb::site::AtmosphericConditions::generic_clear_sky(location: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> Self
+pub fn nsb::site::AtmosphericConditions::paranal_average() -> Self
+#[non_exhaustive] pub struct nsb::site::SiteProfile
+pub nsb::site::SiteProfile::airglow: nsb::site::AirglowSiteCalibration
+pub nsb::site::SiteProfile::atmosphere: nsb::site::AtmosphericConditions
+pub nsb::site::SiteProfile::atmosphere_provenance: &'static str
+pub nsb::site::SiteProfile::calibration_status: nsb::site::CalibrationStatus
+pub nsb::site::SiteProfile::id: nsb::site::SiteProfileId
+pub nsb::site::SiteProfile::name: &'static str
+pub nsb::site::SiteProfile::representative_altitude: qtty_core::units::length::Kilometers
+impl nsb::site::SiteProfile
+pub fn nsb::site::SiteProfile::is_site_calibrated(&self) -> bool
+pub mod nsb::solar_activity
+pub enum nsb::solar_activity::F107Kind
+pub nsb::solar_activity::F107Kind::Climatology
+pub nsb::solar_activity::F107Kind::Explicit
+pub nsb::solar_activity::F107Kind::Forecast
+pub nsb::solar_activity::F107Kind::Observed
+impl nsb::solar_activity::F107Kind
+pub const fn nsb::solar_activity::F107Kind::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::solar_activity::MonthlyCompleteness
+pub nsb::solar_activity::MonthlyCompleteness::Climatology
+pub nsb::solar_activity::MonthlyCompleteness::CompleteForecast
+pub nsb::solar_activity::MonthlyCompleteness::CompleteObserved
+pub nsb::solar_activity::MonthlyCompleteness::OfficialMonthlyPrediction
+pub nsb::solar_activity::MonthlyCompleteness::ProvisionalObservedPlusForecast
+impl nsb::solar_activity::MonthlyCompleteness
+pub const fn nsb::solar_activity::MonthlyCompleteness::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::solar_activity::SolarActivitySource
+pub nsb::solar_activity::SolarActivitySource::Automatic
+pub nsb::solar_activity::SolarActivitySource::Dataset(alloc::sync::Arc<nsb::solar_activity::F107Store>)
+pub nsb::solar_activity::SolarActivitySource::Explicit(nsb::SolarFluxUnits)
+impl core::cmp::PartialEq for nsb::solar_activity::SolarActivitySource
+pub fn nsb::solar_activity::SolarActivitySource::eq(&self, other: &Self) -> bool
+pub struct nsb::solar_activity::F107Record
+pub nsb::solar_activity::F107Record::cadence: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Record::date: alloc::string::String
+pub nsb::solar_activity::F107Record::forecast_issued_at_utc: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Record::kind: nsb::solar_activity::F107Kind
+pub nsb::solar_activity::F107Record::observation_date: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Record::product: alloc::string::String
+pub nsb::solar_activity::F107Record::provider: alloc::string::String
+pub nsb::solar_activity::F107Record::range_high_sfu: core::option::Option<f64>
+pub nsb::solar_activity::F107Record::range_low_sfu: core::option::Option<f64>
+pub nsb::solar_activity::F107Record::retrieved_at_utc: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Record::source_locator: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Record::uncertainty_sfu: core::option::Option<f64>
+pub nsb::solar_activity::F107Record::valid_from: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Record::valid_through: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Record::value_sfu: f64
+impl nsb::solar_activity::F107Record
+pub fn nsb::solar_activity::F107Record::covers(&self, requested: chrono::naive::date::NaiveDate) -> core::result::Result<bool, nsb::solar_activity::F107ValidationError>
+pub fn nsb::solar_activity::F107Record::validate(&self) -> core::result::Result<(), nsb::solar_activity::F107ValidationError>
+pub fn nsb::solar_activity::F107Record::validity_window(&self) -> core::result::Result<(chrono::naive::date::NaiveDate, chrono::naive::date::NaiveDate), nsb::solar_activity::F107ValidationError>
+pub struct nsb::solar_activity::F107Store
+pub nsb::solar_activity::F107Store::checksum_sha256: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Store::climatology_notes: alloc::string::String
+pub nsb::solar_activity::F107Store::climatology_sfu: f64
+pub nsb::solar_activity::F107Store::convention: alloc::string::String
+pub nsb::solar_activity::F107Store::convention_notes: alloc::string::String
+pub nsb::solar_activity::F107Store::dataset_id: alloc::string::String
+pub nsb::solar_activity::F107Store::records: alloc::vec::Vec<nsb::solar_activity::F107Record>
+pub nsb::solar_activity::F107Store::retrieved_at_utc: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::F107Store::schema_version: u32
+pub nsb::solar_activity::F107Store::snapshot_id: alloc::string::String
+impl nsb::solar_activity::F107Store
+pub fn nsb::solar_activity::F107Store::forecasts_covering(&self, requested: chrono::naive::date::NaiveDate) -> core::result::Result<alloc::vec::Vec<&nsb::solar_activity::F107Record>, nsb::solar_activity::F107StoreError>
+pub fn nsb::solar_activity::F107Store::from_json_bytes(bytes: &[u8]) -> core::result::Result<Self, nsb::solar_activity::F107StoreError>
+pub fn nsb::solar_activity::F107Store::from_json_str(input: &str) -> core::result::Result<Self, nsb::solar_activity::F107StoreError>
+pub fn nsb::solar_activity::F107Store::merge_with(&self, incoming: &[nsb::solar_activity::F107Record], snapshot_id: impl core::convert::Into<alloc::string::String>, retrieved_at_utc: core::option::Option<alloc::string::String>) -> core::result::Result<Self, nsb::solar_activity::F107StoreError>
+pub fn nsb::solar_activity::F107Store::observed_covering(&self, requested: chrono::naive::date::NaiveDate) -> core::result::Result<alloc::vec::Vec<&nsb::solar_activity::F107Record>, nsb::solar_activity::F107StoreError>
+pub fn nsb::solar_activity::F107Store::to_json_bytes(&self) -> core::result::Result<alloc::vec::Vec<u8>, nsb::solar_activity::F107StoreError>
+pub fn nsb::solar_activity::F107Store::validate(&self) -> core::result::Result<(), nsb::solar_activity::F107StoreError>
+pub struct nsb::solar_activity::F107StoreError(_)
+impl core::convert::From<nsb::solar_activity::F107ValidationError> for nsb::solar_activity::F107StoreError
+pub fn nsb::solar_activity::F107StoreError::from(value: nsb::solar_activity::F107ValidationError) -> Self
+pub struct nsb::solar_activity::F107ValidationError(_)
+impl core::convert::From<nsb::solar_activity::F107ValidationError> for nsb::solar_activity::F107StoreError
+pub fn nsb::solar_activity::F107StoreError::from(value: nsb::solar_activity::F107ValidationError) -> Self
+#[non_exhaustive] pub struct nsb::solar_activity::MonthlyF107Evidence
+pub nsb::solar_activity::MonthlyF107Evidence::forecast_days: u32
+pub nsb::solar_activity::MonthlyF107Evidence::forecast_issued_at_utc: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::MonthlyF107Evidence::method: nsb::solar_activity::MonthlyCompleteness
+pub nsb::solar_activity::MonthlyF107Evidence::month_end: chrono::naive::date::NaiveDate
+pub nsb::solar_activity::MonthlyF107Evidence::month_start: chrono::naive::date::NaiveDate
+pub nsb::solar_activity::MonthlyF107Evidence::observed_days: u32
+pub nsb::solar_activity::MonthlyF107Evidence::provider: alloc::string::String
+pub nsb::solar_activity::MonthlyF107Evidence::record: nsb::solar_activity::F107Record
+pub nsb::solar_activity::MonthlyF107Evidence::resolution_step: &'static str
+pub nsb::solar_activity::MonthlyF107Evidence::retrieved_at_utc: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::MonthlyF107Evidence::total_days: u32
+pub nsb::solar_activity::MonthlyF107Evidence::value_sfu: f64
+#[non_exhaustive] pub struct nsb::solar_activity::ResolvedSolarActivity
+pub nsb::solar_activity::ResolvedSolarActivity::checksum_sha256: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::ResolvedSolarActivity::dataset_id: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::ResolvedSolarActivity::forecast_days: core::option::Option<u32>
+pub nsb::solar_activity::ResolvedSolarActivity::monthly_completeness: core::option::Option<nsb::solar_activity::MonthlyCompleteness>
+pub nsb::solar_activity::ResolvedSolarActivity::observed_days: core::option::Option<u32>
+pub nsb::solar_activity::ResolvedSolarActivity::record: nsb::solar_activity::F107Record
+pub nsb::solar_activity::ResolvedSolarActivity::requested_date: chrono::naive::date::NaiveDate
+pub nsb::solar_activity::ResolvedSolarActivity::resolution_step: &'static str
+pub nsb::solar_activity::ResolvedSolarActivity::snapshot_id: core::option::Option<alloc::string::String>
+pub nsb::solar_activity::ResolvedSolarActivity::total_days: core::option::Option<u32>
+pub nsb::solar_activity::ResolvedSolarActivity::value: nsb::SolarFluxUnits
+impl nsb::solar_activity::ResolvedSolarActivity
+pub fn nsb::solar_activity::ResolvedSolarActivity::is_degraded_planning_input(&self) -> bool
+pub fn nsb::solar_activity::ResolvedSolarActivity::provenance_fragment(&self) -> alloc::string::String
+pub const nsb::solar_activity::F107_STORE_SCHEMA_VERSION: u32
+pub fn nsb::solar_activity::bundled_f107_store() -> nsb::Result<&'static nsb::solar_activity::F107Store>
+pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, source: &nsb::solar_activity::SolarActivitySource) -> nsb::Result<nsb::solar_activity::ResolvedSolarActivity>
+#[non_exhaustive] pub enum nsb::AirglowModel
+pub nsb::AirglowModel::GlobalClimatology
+pub nsb::AirglowModel::ParanalNollSkyCalcFors1
+impl nsb::AirglowModel
+pub const fn nsb::AirglowModel::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::AirglowSelection
+pub nsb::AirglowSelection::Automatic
+pub nsb::AirglowSelection::Explicit(nsb::AirglowModel)
+impl nsb::AirglowSelection
+pub const fn nsb::AirglowSelection::as_str(self) -> &'static str
+pub const fn nsb::AirglowSelection::requested_model(self) -> core::option::Option<nsb::AirglowModel>
+#[non_exhaustive] pub enum nsb::CalibrationStatus
+pub nsb::CalibrationStatus::Calibrated
+pub nsb::CalibrationStatus::GenericFallback
+pub nsb::CalibrationStatus::PlanningPreset
+impl core::convert::From<nsb::site::CalibrationStatus> for nsb::ComponentCalibrationStatus
+pub fn nsb::ComponentCalibrationStatus::from(status: nsb::site::CalibrationStatus) -> Self
+#[non_exhaustive] pub enum nsb::ComponentCalibrationStatus
+pub nsb::ComponentCalibrationStatus::Experimental
+pub nsb::ComponentCalibrationStatus::GenericClearSky
+pub nsb::ComponentCalibrationStatus::PlanningPreset
+pub nsb::ComponentCalibrationStatus::Production
+pub nsb::ComponentCalibrationStatus::Proxy
+pub nsb::ComponentCalibrationStatus::PublishedReference
+impl nsb::ComponentCalibrationStatus
+pub const fn nsb::ComponentCalibrationStatus::as_str(self) -> &'static str
+impl core::convert::From<nsb::site::CalibrationStatus> for nsb::ComponentCalibrationStatus
+pub fn nsb::ComponentCalibrationStatus::from(status: nsb::site::CalibrationStatus) -> Self
+#[non_exhaustive] pub enum nsb::MoonlightModel
+pub nsb::MoonlightModel::Jones2013Spectral
+pub nsb::MoonlightModel::KrisciunasSchaefer1991
+impl nsb::components::moonlight::MoonlightModel
+pub const fn nsb::components::moonlight::MoonlightModel::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::NsbError
+pub nsb::NsbError::DataMissing
+pub nsb::NsbError::DataMissing::file: &'static str
+pub nsb::NsbError::DataMissing::message: alloc::string::String
+pub nsb::NsbError::DataParse
+pub nsb::NsbError::DataParse::file: &'static str
+pub nsb::NsbError::DataParse::message: alloc::string::String
+pub nsb::NsbError::Interpolation(alloc::string::String)
+pub nsb::NsbError::InvalidMap
+pub nsb::NsbError::InvalidMap::message: alloc::string::String
+pub nsb::NsbError::Io(core::io::error::Error)
+pub nsb::NsbError::OutOfRange(alloc::string::String)
+pub nsb::NsbError::Unsupported(alloc::string::String)
+#[non_exhaustive] pub enum nsb::SiteCalibrationStatus
+pub nsb::SiteCalibrationStatus::Calibrated
+pub nsb::SiteCalibrationStatus::GenericFallback
+pub nsb::SiteCalibrationStatus::PlanningPreset
+impl core::convert::From<nsb::site::CalibrationStatus> for nsb::ComponentCalibrationStatus
+pub fn nsb::ComponentCalibrationStatus::from(status: nsb::site::CalibrationStatus) -> Self
+#[non_exhaustive] pub enum nsb::SiteProfileId
+pub nsb::SiteProfileId::CtaNorth
+pub nsb::SiteProfileId::CtaSouth
+pub nsb::SiteProfileId::GenericClearSky
+impl nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::all() -> &'static [Self]
+pub const fn nsb::site::SiteProfileId::as_str(self) -> &'static str
+pub const fn nsb::site::SiteProfileId::calibration_status(self) -> nsb::site::CalibrationStatus
+pub const fn nsb::site::SiteProfileId::is_site_calibrated(self) -> bool
+pub fn nsb::site::SiteProfileId::profile(self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
+#[non_exhaustive] pub enum nsb::StarlightProduct
+pub nsb::StarlightProduct::BundledProductionGaiaDr3
+pub nsb::StarlightProduct::ExperimentalMap(alloc::sync::Arc<nsb::components::starlight::StarlightMap>)
+pub nsb::StarlightProduct::ValidatedExternalMap(alloc::sync::Arc<nsb::components::starlight::ValidatedStarlightMap>)
+impl nsb::StarlightProduct
+pub const fn nsb::StarlightProduct::as_str(&self) -> &'static str
+pub const fn nsb::StarlightProduct::bundled_production_available() -> bool
+pub fn nsb::StarlightProduct::bundled_production_gaia_dr3() -> Self
+pub fn nsb::StarlightProduct::validated_external(map: nsb::components::starlight::ValidatedStarlightMap) -> Self
+pub fn nsb::StarlightProduct::with_experimental_map(map: nsb::components::starlight::StarlightMap) -> Self
+pub fn nsb::StarlightProduct::with_shared_experimental_map(map: alloc::sync::Arc<nsb::components::starlight::StarlightMap>) -> Self
+pub fn nsb::StarlightProduct::with_shared_validated_external_map(map: alloc::sync::Arc<nsb::components::starlight::ValidatedStarlightMap>) -> Self
+#[non_exhaustive] pub enum nsb::ZodiacalExtinction
+pub nsb::ZodiacalExtinction::Noll2012Approx
+pub nsb::ZodiacalExtinction::None
+impl nsb::ZodiacalExtinction
+pub const fn nsb::ZodiacalExtinction::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::ZodiacalModel
+pub nsb::ZodiacalModel::Leinert1998
+impl nsb::ZodiacalModel
+pub const fn nsb::ZodiacalModel::as_str(self) -> &'static str
+#[non_exhaustive] pub struct nsb::BandDiagnostic
+pub nsb::BandDiagnostic::b_reference: qtty_core::units::length::Nanometers
+pub nsb::BandDiagnostic::convention: &'static str
+pub nsb::BandDiagnostic::v_reference: qtty_core::units::length::Nanometers
+pub nsb::BandDiagnostic::zero_point: qtty_core::units::photometry::SurfaceBrightness
+impl nsb::BandDiagnostic
+pub const nsb::BandDiagnostic::MONOCHROMATIC_S10_PROXY: Self
+pub struct nsb::ComponentMask(_)
+impl nsb::ComponentMask
+pub const nsb::ComponentMask::AIRGLOW: Self
+pub const nsb::ComponentMask::ALL: Self
+pub const nsb::ComponentMask::DEFAULT: Self
+pub const nsb::ComponentMask::MOON: Self
+pub const nsb::ComponentMask::STARLIGHT: Self
+pub const nsb::ComponentMask::ZODIACAL: Self
+impl nsb::ComponentMask
+pub const fn nsb::ComponentMask::all() -> Self
+pub const fn nsb::ComponentMask::bits(&self) -> u8
+pub const fn nsb::ComponentMask::complement(self) -> Self
+pub const fn nsb::ComponentMask::contains(&self, other: Self) -> bool
+pub const fn nsb::ComponentMask::difference(self, other: Self) -> Self
+pub const fn nsb::ComponentMask::empty() -> Self
+pub const fn nsb::ComponentMask::from_bits(bits: u8) -> core::option::Option<Self>
+pub const fn nsb::ComponentMask::from_bits_retain(bits: u8) -> Self
+pub const fn nsb::ComponentMask::from_bits_truncate(bits: u8) -> Self
+pub fn nsb::ComponentMask::from_name(name: &str) -> core::option::Option<Self>
+pub fn nsb::ComponentMask::insert(&mut self, other: Self)
+pub const fn nsb::ComponentMask::intersection(self, other: Self) -> Self
+pub const fn nsb::ComponentMask::intersects(&self, other: Self) -> bool
+pub const fn nsb::ComponentMask::is_all(&self) -> bool
+pub const fn nsb::ComponentMask::is_empty(&self) -> bool
+pub fn nsb::ComponentMask::remove(&mut self, other: Self)
+pub fn nsb::ComponentMask::set(&mut self, other: Self, value: bool)
+pub const fn nsb::ComponentMask::symmetric_difference(self, other: Self) -> Self
+pub fn nsb::ComponentMask::toggle(&mut self, other: Self)
+pub const fn nsb::ComponentMask::union(self, other: Self) -> Self
+impl nsb::ComponentMask
+pub const fn nsb::ComponentMask::iter(&self) -> bitflags::iter::Iter<nsb::ComponentMask>
+pub const fn nsb::ComponentMask::iter_names(&self) -> bitflags::iter::IterNames<nsb::ComponentMask>
+impl bitflags::traits::Flags for nsb::ComponentMask
+pub type nsb::ComponentMask::Bits = u8
+pub const nsb::ComponentMask::FLAGS: &'static [bitflags::traits::Flag<nsb::ComponentMask>]
+pub fn nsb::ComponentMask::all_named() -> nsb::ComponentMask
+pub fn nsb::ComponentMask::bits(&self) -> u8
+pub fn nsb::ComponentMask::from_bits_retain(bits: u8) -> nsb::ComponentMask
+impl bitflags::traits::PublicFlags for nsb::ComponentMask
+pub type nsb::ComponentMask::Internal = InternalBitFlags
+pub type nsb::ComponentMask::Primitive = u8
+impl core::fmt::Binary for nsb::ComponentMask
+pub fn nsb::ComponentMask::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::LowerHex for nsb::ComponentMask
+pub fn nsb::ComponentMask::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Octal for nsb::ComponentMask
+pub fn nsb::ComponentMask::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::UpperHex for nsb::ComponentMask
+pub fn nsb::ComponentMask::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::iter::traits::collect::Extend<nsb::ComponentMask> for nsb::ComponentMask
+pub fn nsb::ComponentMask::extend<T: core::iter::traits::collect::IntoIterator<Item = Self>>(&mut self, iterator: T)
+impl core::iter::traits::collect::FromIterator<nsb::ComponentMask> for nsb::ComponentMask
+pub fn nsb::ComponentMask::from_iter<T: core::iter::traits::collect::IntoIterator<Item = Self>>(iterator: T) -> Self
+impl core::iter::traits::collect::IntoIterator for nsb::ComponentMask
+pub type nsb::ComponentMask::IntoIter = bitflags::iter::Iter<nsb::ComponentMask>
+pub type nsb::ComponentMask::Item = nsb::ComponentMask
+pub fn nsb::ComponentMask::into_iter(self) -> Self::IntoIter
+impl core::ops::arith::Sub for nsb::ComponentMask
+pub type nsb::ComponentMask::Output = nsb::ComponentMask
+pub fn nsb::ComponentMask::sub(self, other: Self) -> Self
+impl core::ops::arith::SubAssign for nsb::ComponentMask
+pub fn nsb::ComponentMask::sub_assign(&mut self, other: Self)
+impl core::ops::bit::BitAnd for nsb::ComponentMask
+pub type nsb::ComponentMask::Output = nsb::ComponentMask
+pub fn nsb::ComponentMask::bitand(self, other: Self) -> Self
+impl core::ops::bit::BitAndAssign for nsb::ComponentMask
+pub fn nsb::ComponentMask::bitand_assign(&mut self, other: Self)
+impl core::ops::bit::BitOr for nsb::ComponentMask
+pub type nsb::ComponentMask::Output = nsb::ComponentMask
+pub fn nsb::ComponentMask::bitor(self, other: nsb::ComponentMask) -> Self
+impl core::ops::bit::BitOrAssign for nsb::ComponentMask
+pub fn nsb::ComponentMask::bitor_assign(&mut self, other: Self)
+impl core::ops::bit::BitXor for nsb::ComponentMask
+pub type nsb::ComponentMask::Output = nsb::ComponentMask
+pub fn nsb::ComponentMask::bitxor(self, other: Self) -> Self
+impl core::ops::bit::BitXorAssign for nsb::ComponentMask
+pub fn nsb::ComponentMask::bitxor_assign(&mut self, other: Self)
+impl core::ops::bit::Not for nsb::ComponentMask
+pub type nsb::ComponentMask::Output = nsb::ComponentMask
+pub fn nsb::ComponentMask::not(self) -> Self
+#[non_exhaustive] pub struct nsb::NsbComponent
+pub nsb::NsbComponent::b_flux_s10: qtty_core::units::radiometry::S10s
+pub nsb::NsbComponent::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::NsbComponent::metadata: nsb::NsbComponentMetadata
+pub nsb::NsbComponent::name: &'static str
+pub nsb::NsbComponent::relative_uncertainty: core::option::Option<f64>
+pub nsb::NsbComponent::statistical_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::NsbComponent::systematic_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::NsbComponent::total_uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::NsbComponent::v_flux_s10: qtty_core::units::radiometry::S10s
+#[non_exhaustive] pub struct nsb::NsbComponentDescriptor
+pub nsb::NsbComponentDescriptor::metadata: nsb::NsbComponentMetadata
+pub nsb::NsbComponentDescriptor::name: &'static str
+#[non_exhaustive] pub struct nsb::NsbComponentMetadata
+pub nsb::NsbComponentMetadata::airglow_geometry: core::option::Option<nsb::components::airglow::AirglowGeometryMetadata>
+pub nsb::NsbComponentMetadata::airglow_model: core::option::Option<nsb::AirglowModel>
+pub nsb::NsbComponentMetadata::airglow_selection: core::option::Option<nsb::components::airglow::AirglowSelectionReport>
+pub nsb::NsbComponentMetadata::band_diagnostic: nsb::BandDiagnostic
+pub nsb::NsbComponentMetadata::provenance: alloc::borrow::Cow<'static, str>
+pub nsb::NsbComponentMetadata::solar_activity: core::option::Option<nsb::solar_activity::ResolvedSolarActivity>
+pub nsb::NsbComponentMetadata::status: nsb::ComponentCalibrationStatus
+pub nsb::NsbComponentMetadata::validated_domain: alloc::borrow::Cow<'static, str>
+pub struct nsb::NsbEvaluator
+impl nsb::NsbEvaluator
+pub fn nsb::NsbEvaluator::config(&self) -> &nsb::NsbModelConfig
+pub fn nsb::NsbEvaluator::describe_components(&self, observer: nsb::Observer, components: nsb::ComponentMask) -> nsb::Result<alloc::vec::Vec<nsb::NsbComponentDescriptor>>
+pub fn nsb::NsbEvaluator::evaluate(&self, query: &nsb::PointQuery) -> nsb::Result<nsb::NsbResult>
+pub fn nsb::NsbEvaluator::new() -> nsb::Result<Self>
+pub fn nsb::NsbEvaluator::with_config(config: nsb::NsbModelConfig) -> nsb::Result<Self>
+impl nsb::NsbEvaluator
+pub fn nsb::NsbEvaluator::periods_below_threshold(&self, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
+pub fn nsb::NsbEvaluator::periods_below_threshold_with_context(&self, context: &nsb::SiteWindowContext, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
+pub fn nsb::NsbEvaluator::prepare_site_window_context(&self, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::SiteWindowContext>
+#[non_exhaustive] pub struct nsb::NsbModelConfig
+impl nsb::NsbModelConfig
+pub const fn nsb::NsbModelConfig::airglow_calibration_status(&self) -> nsb::site::CalibrationStatus
+pub fn nsb::NsbModelConfig::airglow_geometry(&self) -> &nsb::components::airglow::AirglowGeometryModel
+pub const fn nsb::NsbModelConfig::airglow_model(&self) -> core::option::Option<nsb::AirglowModel>
+pub const fn nsb::NsbModelConfig::airglow_selection(&self) -> nsb::AirglowSelection
+pub fn nsb::NsbModelConfig::cta_n_planning() -> Self
+pub fn nsb::NsbModelConfig::cta_s_planning() -> Self
+pub fn nsb::NsbModelConfig::generic_clear_sky() -> Self
+pub const fn nsb::NsbModelConfig::is_airglow_site_calibrated(&self) -> bool
+pub const fn nsb::NsbModelConfig::moonlight_model(&self) -> nsb::components::moonlight::MoonlightModel
+pub const fn nsb::NsbModelConfig::site_profile(&self) -> nsb::site::SiteProfileId
+pub fn nsb::NsbModelConfig::solar_activity(&self) -> &nsb::solar_activity::SolarActivitySource
+pub fn nsb::NsbModelConfig::starlight_product(&self) -> core::option::Option<&nsb::StarlightProduct>
+pub fn nsb::NsbModelConfig::with_airglow_geometry(self, geometry: nsb::components::airglow::AirglowGeometryModel) -> Self
+pub fn nsb::NsbModelConfig::with_airglow_model(self, model: nsb::AirglowModel) -> Self
+pub fn nsb::NsbModelConfig::with_airglow_selection(self, selection: nsb::AirglowSelection) -> Self
+pub fn nsb::NsbModelConfig::with_f107_store(self, store: alloc::sync::Arc<nsb::solar_activity::F107Store>) -> Self
+pub fn nsb::NsbModelConfig::with_moonlight_model(self, model: nsb::components::moonlight::MoonlightModel) -> Self
+pub fn nsb::NsbModelConfig::with_site_profile(self, site_profile: nsb::site::SiteProfileId) -> Self
+pub fn nsb::NsbModelConfig::with_solar_radio_flux(self, flux: nsb::SolarFluxUnits) -> Self
+pub fn nsb::NsbModelConfig::with_starlight_product(self, starlight_product: nsb::StarlightProduct) -> Self
+pub fn nsb::NsbModelConfig::with_zodiacal_extinction(self, extinction: nsb::ZodiacalExtinction) -> Self
+pub fn nsb::NsbModelConfig::with_zodiacal_model(self, model: nsb::ZodiacalModel) -> Self
+pub const fn nsb::NsbModelConfig::zodiacal_extinction(&self) -> nsb::ZodiacalExtinction
+pub const fn nsb::NsbModelConfig::zodiacal_model(&self) -> nsb::ZodiacalModel
+impl core::default::Default for nsb::NsbModelConfig
+pub fn nsb::NsbModelConfig::default() -> Self
+#[non_exhaustive] pub struct nsb::NsbResult
+pub nsb::NsbResult::b_mag: qtty_core::units::photometry::SurfaceBrightness
+pub nsb::NsbResult::band_diagnostic: nsb::BandDiagnostic
+pub nsb::NsbResult::components: alloc::vec::Vec<nsb::NsbComponent>
+pub nsb::NsbResult::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::NsbResult::v_mag: qtty_core::units::photometry::SurfaceBrightness
+#[non_exhaustive] pub struct nsb::PointQuery
+pub nsb::PointQuery::components: nsb::ComponentMask
+pub nsb::PointQuery::observer: nsb::Observer
+pub nsb::PointQuery::target: nsb::Target
+pub nsb::PointQuery::time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>
+impl nsb::PointQuery
+pub fn nsb::PointQuery::new(observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, target: nsb::Target) -> Self
+pub fn nsb::PointQuery::with_components(self, components: nsb::ComponentMask) -> Self
+pub struct nsb::SiteWindowContext
+impl core::fmt::Debug for nsb::SiteWindowContext
+pub fn nsb::SiteWindowContext::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+pub struct nsb::SolarFluxUnit
+impl qtty_core::unit::Unit for nsb::SolarFluxUnit
+pub type nsb::SolarFluxUnit::Dim = qtty_core::dimension::Dim<typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0>
+pub const nsb::SolarFluxUnit::RATIO: f64
+pub const nsb::SolarFluxUnit::SYMBOL: &'static str
+#[non_exhaustive] pub struct nsb::ThresholdQuery
+pub nsb::ThresholdQuery::components: nsb::ComponentMask
+pub nsb::ThresholdQuery::observer: nsb::Observer
+pub nsb::ThresholdQuery::sample_step: qtty::Second
+pub nsb::ThresholdQuery::sun_altitude_ceiling: core::option::Option<qtty_core::units::angular::Degrees>
+pub nsb::ThresholdQuery::target: nsb::Target
+pub nsb::ThresholdQuery::target_altitude_floor: core::option::Option<qtty_core::units::angular::Degrees>
+pub nsb::ThresholdQuery::threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::ThresholdQuery::window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>
+impl nsb::ThresholdQuery
+pub const nsb::ThresholdQuery::DEFAULT_SAMPLE_STEP: qtty::Second
+pub const nsb::ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING: qtty_core::units::angular::Degrees
+pub const nsb::ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR: qtty_core::units::angular::Degrees
+pub fn nsb::ThresholdQuery::new(observer: nsb::Observer, target: nsb::Target, window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>, threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian) -> Self
+pub fn nsb::ThresholdQuery::with_components(self, components: nsb::ComponentMask) -> Self
+pub fn nsb::ThresholdQuery::with_sample_step(self, sample_step: qtty::Second) -> Self
+pub fn nsb::ThresholdQuery::with_sun_altitude_ceiling(self, sun_altitude_ceiling: core::option::Option<qtty_core::units::angular::Degrees>) -> Self
+pub fn nsb::ThresholdQuery::with_target_altitude_floor(self, target_altitude_floor: core::option::Option<qtty_core::units::angular::Degrees>) -> Self
+#[non_exhaustive] pub struct nsb::ThresholdQueryResult
+pub nsb::ThresholdQueryResult::periods: alloc::vec::Vec<tempoch_core::period::Period<tempoch_core::model::scale::UTC>>
+pub nsb::ThresholdQueryResult::threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub const nsb::MODEL_VERSION: &str
+pub const nsb::NSB_VERSION: &str
+pub const nsb::SIDERUST_SOURCE: &str
+pub const nsb::SIDERUST_VERSION: &str
+pub type nsb::Observer = siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>
+pub type nsb::Result<T> = core::result::Result<T, nsb::NsbError>
+pub type nsb::SolarFluxUnits = qtty_core::quantity::Quantity<nsb::SolarFluxUnit>
+pub type nsb::Target = affn::spherical::direction::Direction<affn::frames::astro::EquatorialMeanJ2000>
