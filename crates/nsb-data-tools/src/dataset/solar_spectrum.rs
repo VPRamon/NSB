@@ -513,11 +513,7 @@ mod tests {
             "300.0,NaN\n650.0,1.0\n",
         ] {
             let mut file = tempfile::NamedTempFile::new().unwrap();
-            write!(
-                file,
-                "wavelength (nm),irradiance (W/m^2/nm)\n{rows}"
-            )
-            .unwrap();
+            write!(file, "wavelength (nm),irradiance (W/m^2/nm)\n{rows}").unwrap();
             assert!(
                 parse_candidate_source(file.path()).is_err(),
                 "accepted {rows:?}"
@@ -543,12 +539,7 @@ mod tests {
     #[test]
     fn runtime_sample_count_guard_rejects_a_short_grid() {
         let rows = (0..RUNTIME_SAMPLE_COUNT - 1)
-            .map(|index| {
-                format!(
-                    "{:.3},1.0\n",
-                    BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM
-                )
-            })
+            .map(|index| format!("{:.3},1.0\n", BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM))
             .collect::<String>();
         let file = runtime(&rows);
         assert!(validate_artifact(RUNTIME_NAME, file.path()).is_err());

@@ -315,12 +315,10 @@ mod tests {
                 ((candidate.integrated.value() / output.integrated.value()) - 1.0).abs() < 2.0e-5
             );
             assert!(
-                ((candidate.b_flux_s10.value() / output.b_flux_s10.value()) - 1.0).abs()
-                    < 0.0125
+                ((candidate.b_flux_s10.value() / output.b_flux_s10.value()) - 1.0).abs() < 0.0125
             );
             assert!(
-                ((candidate.v_flux_s10.value() / output.v_flux_s10.value()) - 1.0).abs()
-                    < 3.0e-3
+                ((candidate.v_flux_s10.value() / output.v_flux_s10.value()) - 1.0).abs() < 3.0e-3
             );
         }
     }
