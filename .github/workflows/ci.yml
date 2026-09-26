@@ -82,6 +82,8 @@ jobs:
         run: cargo test --workspace --lib --bins --all-features --locked
       - name: Run all workspace targets acceptance gate
         run: cargo test --workspace --all-targets --locked
+      - name: Test coverage gate
+        run: scripts/test-coverage-gate.sh
 
   runtime_integration_tests:
     name: Runtime integration tests
