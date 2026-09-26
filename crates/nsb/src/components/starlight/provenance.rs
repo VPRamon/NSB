@@ -82,7 +82,10 @@ impl StarlightProvenance {
     }
 
     /// Merge machine-readable CSV header metadata over fallback provenance.
-    pub fn from_header_metadata(metadata: &BTreeMap<String, String>, fallback: Self) -> Self {
+    pub(crate) fn from_header_metadata(
+        metadata: &BTreeMap<String, String>,
+        fallback: Self,
+    ) -> Self {
         let nside = metadata.get("nside");
         let ordering = metadata.get("ordering");
         let map_resolution = metadata
@@ -176,7 +179,8 @@ impl StarlightProvenance {
     }
 
     /// Provenance for deterministic test-only maps.
-    pub fn test_fixture() -> Self {
+    #[cfg(test)]
+    pub(crate) fn test_fixture() -> Self {
         Self {
             dataset_name: "NSB test fixture starlight map".to_string(),
             version: "fixture".to_string(),

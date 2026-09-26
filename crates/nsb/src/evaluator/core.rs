@@ -1,7 +1,7 @@
 //! Evaluator construction and the public point-evaluation facade.
 
 use super::metadata::{
-    airglow_metadata, moonlight_metadata, starlight_metadata, zodiacal_metadata,
+    airglow_selection_metadata, moonlight_metadata, starlight_metadata, zodiacal_metadata,
 };
 use super::point;
 use super::types::*;
@@ -18,6 +18,7 @@ pub struct NsbEvaluator {
     identity: Arc<()>,
     zodiacal: ZodiacalLight,
     airglow_continuum: Arc<AirglowContinuum>,
+    airglow_resolved: airglow::ResolvedAirglowSelection,
     starlight: Option<starlight::Starlight>,
     config: NsbModelConfig,
 }
@@ -30,39 +31,37 @@ impl NsbEvaluator {
 
     /// Construct from explicit immutable model choices.
     pub fn with_config(config: NsbModelConfig) -> Result<Self> {
-        let zodiacal = match config.zodiacal_model {
+        let zodiacal = match config.zodiacal_model() {
             zodiacal::ZodiacalModel::Leinert1998 => ZodiacalLight::leinert1998()?,
         }
-        .with_extinction(config.zodiacal_extinction);
-        let airglow_continuum = match config.airglow_model {
-            airglow::AirglowModel::ParanalNollSkyCalcFors1 => {
-                Arc::new(airglow::load_builtin_standard()?)
-            }
-        };
-        let starlight = match config.starlight_product.as_ref() {
+        .with_extinction(config.zodiacal_extinction());
+        let airglow_resolved = airglow::resolve_airglow_selection(config.airglow_selection())?;
+        let airglow_continuum = airglow::load_continuum_for_model(airglow_resolved.model)?;
+        let starlight = match config.starlight_product() {
             None => None,
             Some(starlight::StarlightProduct::BundledProductionGaiaDr3) => {
                 Some(starlight::Starlight::bundled_production_model()?)
             }
             Some(starlight::StarlightProduct::ExperimentalMap(map)) => {
-                Some(starlight::Starlight::with_map((**map).clone()))
+                Some(starlight::Starlight::with_shared_map(Arc::clone(map)))
             }
             Some(starlight::StarlightProduct::ValidatedExternalMap(map)) => {
-                Some(starlight::Starlight::with_map(map.map().clone()))
+                Some(starlight::Starlight::with_shared_map(map.shared_map()))
             }
         };
         Ok(Self {
             identity: Arc::new(()),
             zodiacal,
             airglow_continuum,
+            airglow_resolved,
             starlight,
             config,
         })
     }
 
-    /// Return a clone of the evaluator configuration.
-    pub fn config(&self) -> NsbModelConfig {
-        self.config.clone()
+    /// Borrow the evaluator configuration.
+    pub fn config(&self) -> &NsbModelConfig {
+        &self.config
     }
 
     /// Describe selected components without performing a time-dependent
@@ -77,8 +76,8 @@ impl NsbEvaluator {
             descriptions.push(NsbComponentDescriptor {
                 name: "zodiacal",
                 metadata: zodiacal_metadata(
-                    self.config.zodiacal_model,
-                    self.config.zodiacal_extinction,
+                    self.config.zodiacal_model(),
+                    self.config.zodiacal_extinction(),
                 ),
             });
         }
@@ -91,7 +90,7 @@ impl NsbEvaluator {
             descriptions.push(NsbComponentDescriptor {
                 name: "starlight",
                 metadata: starlight_metadata(
-                    self.config.starlight_product.as_ref(),
+                    self.config.starlight_product(),
                     self.starlight
                         .as_ref()
                         .map(|model| model.map().provenance()),
@@ -101,12 +100,11 @@ impl NsbEvaluator {
         if components.contains(ComponentMask::AIRGLOW) {
             descriptions.push(NsbComponentDescriptor {
                 name: "airglow",
-                metadata: airglow_metadata(
-                    self.config.airglow_model,
-                    self.config.site_profile,
+                metadata: airglow_selection_metadata(
+                    self.airglow_resolved,
+                    self.config.site_profile(),
                     observer,
-                    None,
-                    &self.config.airglow_geometry,
+                    self.config.airglow_geometry(),
                 ),
             });
         }
@@ -114,8 +112,8 @@ impl NsbEvaluator {
             descriptions.push(NsbComponentDescriptor {
                 name: "moon",
                 metadata: moonlight_metadata(
-                    self.config.moonlight_model,
-                    self.config.site_profile,
+                    self.config.moonlight_model(),
+                    self.config.site_profile(),
                     observer,
                 ),
             });
@@ -145,6 +143,10 @@ impl NsbEvaluator {
         &self.airglow_continuum
     }
 
+    pub(crate) fn airglow_resolved(&self) -> airglow::ResolvedAirglowSelection {
+        self.airglow_resolved
+    }
+
     pub(crate) fn starlight(&self) -> Option<&starlight::Starlight> {
         self.starlight.as_ref()
     }
@@ -162,12 +164,12 @@ impl NsbEvaluator {
         airglow::AirglowOutputs,
         crate::solar_activity::ResolvedSolarActivity,
     )> {
-        let solar = crate::solar_activity::resolve_f107(time, &self.config.solar_activity)?;
-        let profile = self.config.site_profile.profile(observer);
+        let solar = crate::solar_activity::resolve_f107(time, self.config.solar_activity())?;
+        let profile = self.config.site_profile().profile(observer);
         let outputs =
             airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
                 .with_atmosphere(profile.atmosphere)
-                .with_geometry(self.config.airglow_geometry.clone())
+                .with_geometry(self.config.airglow_geometry().clone())
                 .with_solar_radio_flux(solar.value)
                 .with_scale(profile.airglow.scale)
                 .compute(time, target)?;
@@ -201,7 +203,7 @@ impl NsbEvaluator {
                     .compute(time, target)
             }
             MoonlightModel::Jones2013Spectral => {
-                moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile)
+                moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile())
                     .compute(time, target)
             }
         }
@@ -222,14 +224,48 @@ mod tests {
 
     #[test]
     fn describe_components_rejects_starlight_without_configured_product() {
-        let mut config = NsbModelConfig::generic_clear_sky();
-        config.starlight_product = None;
-        let evaluator = NsbEvaluator::with_config(config).unwrap();
+        let evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky().without_starlight_product(),
+        )
+        .unwrap();
 
         assert!(matches!(
             evaluator.describe_components(paranal(), ComponentMask::STARLIGHT),
             Err(NsbError::Unsupported(message))
                 if message == "starlight component requested but no starlight product is configured"
         ));
+    }
+
+    #[test]
+    fn evaluate_rejects_starlight_without_configured_product() {
+        use chrono::{DateTime, Utc};
+        use tempoch::{Time, UTC};
+
+        let evaluator = NsbEvaluator::with_config(
+            NsbModelConfig::generic_clear_sky().without_starlight_product(),
+        )
+        .unwrap();
+        let time = Time::<UTC>::from_chrono(
+            DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+                .unwrap()
+                .with_timezone(&Utc),
+        );
+        let target = Target::new(266.41683 * crate::DEG, -29.00781 * crate::DEG);
+        let err = evaluator
+            .evaluate(
+                &PointQuery::new(paranal(), time, target).with_components(ComponentMask::STARLIGHT),
+            )
+            .unwrap_err();
+        assert!(matches!(err, NsbError::Unsupported(_)));
+    }
+
+    #[test]
+    fn config_returns_borrow_not_owned_clone() {
+        let evaluator = NsbEvaluator::new().unwrap();
+        let borrowed: &NsbModelConfig = evaluator.config();
+        assert_eq!(
+            borrowed.airglow_selection(),
+            airglow::AirglowSelection::Automatic
+        );
     }
 }

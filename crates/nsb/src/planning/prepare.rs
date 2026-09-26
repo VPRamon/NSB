@@ -12,8 +12,6 @@ use siderust::event::altitude::{above_threshold as altitude_above_threshold, Sea
 use siderust::qtty::Degrees;
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
 use std::sync::Arc;
-#[cfg(feature = "window-search-diagnostics")]
-use std::time::Instant;
 
 pub(crate) fn validate_threshold(query: &ThresholdQuery) -> Result<()> {
     if !query.threshold.is_finite() {
@@ -57,25 +55,8 @@ pub(crate) fn prepare_site_context(
             )
         })
     };
-    #[cfg(feature = "window-search-diagnostics")]
-    let (astronomical_night_periods, moon_visible_periods) = {
-        let phase_started = Instant::now();
-        let nights = prepare_nights();
-        let night_elapsed = phase_started.elapsed();
-        let phase_started = Instant::now();
-        let moon = prepare_moon();
-        let moon_elapsed = phase_started.elapsed();
-        super::diagnostics::update(|diagnostics| {
-            diagnostics.astronomical_night_preparation += night_elapsed;
-            diagnostics.moon_visibility += moon_elapsed;
-        });
-        (nights, moon)
-    };
-    #[cfg(not(feature = "window-search-diagnostics"))]
     let (astronomical_night_periods, moon_visible_periods) =
         rayon::join(prepare_nights, prepare_moon);
-    #[cfg(feature = "window-search-diagnostics")]
-    let phase_started = Instant::now();
     let sun_filter_periods = match query.sun_altitude_ceiling {
         Some(sun_max) if uses_airglow && airglow::temporal::is_astronomical_twilight(sun_max) => {
             airglow::temporal::clipped_night_periods(&astronomical_night_periods, tt_window)
@@ -85,10 +66,6 @@ pub(crate) fn prepare_site_context(
         }
         None => vec![tt_window],
     };
-    #[cfg(feature = "window-search-diagnostics")]
-    super::diagnostics::update(|diagnostics| {
-        diagnostics.sun_filtering += phase_started.elapsed();
-    });
     let airglow_phase_periods = if uses_airglow {
         airglow::temporal::airglow_phase_periods_for_window(&astronomical_night_periods, tt_window)
     } else {
@@ -97,20 +74,20 @@ pub(crate) fn prepare_site_context(
     let airglow_model = uses_airglow.then(|| {
         let profile = evaluator
             .model_config()
-            .site_profile
+            .site_profile()
             .profile(query.observer);
         airglow::Airglow::with_shared_continuum(
             query.observer,
             Arc::clone(evaluator.airglow_continuum()),
         )
         .with_atmosphere(profile.atmosphere)
-        .with_geometry(evaluator.model_config().airglow_geometry.clone())
+        .with_geometry(evaluator.model_config().airglow_geometry().clone())
         .with_scale(profile.airglow.scale)
     });
     let solar_activity_cache = uses_airglow
         .then(|| {
             crate::solar_activity::SolarActivityValueCache::new(
-                &evaluator.model_config().solar_activity,
+                evaluator.model_config().solar_activity(),
             )
         })
         .transpose()?;
@@ -163,8 +140,6 @@ pub(crate) fn prepare_target_threshold(
     } else {
         BandPhotonRadiance::new(0.0)
     };
-    #[cfg(feature = "window-search-diagnostics")]
-    let phase_started = Instant::now();
     let target_visible_periods = if let Some(target_min) = query.target_altitude_floor {
         let target_dir = direction::ICRS::new(query.target.ra(), query.target.dec());
         altitude_above_threshold(
@@ -177,10 +152,6 @@ pub(crate) fn prepare_target_threshold(
     } else {
         vec![context.tt_window]
     };
-    #[cfg(feature = "window-search-diagnostics")]
-    super::diagnostics::update(|diagnostics| {
-        diagnostics.target_visibility += phase_started.elapsed();
-    });
     let candidate_windows =
         intersect_periods(context.sun_filter_periods.as_ref(), &target_visible_periods);
     let prepared = PreparedThresholdQuery {

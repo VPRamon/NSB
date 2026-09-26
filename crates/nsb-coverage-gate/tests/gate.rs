@@ -601,7 +601,6 @@ fn path_level_test_exclusions_still_apply_with_inline_scanner() {
         "crates/nsb/benches/threshold_window.rs",
         "crates/nsb/examples/threshold_window.rs",
         "crates/nsb-coverage-gate/src/check.rs",
-        "crates/nsb-public-api-gate/src/base.rs",
     ];
     for path in cases {
         let diff = format!("+++ b/{path}\n@@ -1,0 +1,1 @@\n+let x = 1;\n");

@@ -1,8 +1,12 @@
+mod common;
+
 use chrono::{DateTime, NaiveDateTime, Utc};
+use common::starlight_test_provenance;
+use nsb::components::starlight::StarlightMap;
+use nsb::solar_activity::{bundled_f107_store, SolarActivitySource};
 use nsb::{
-    bundled_f107_store, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
-    MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SiteProfileId, SolarActivitySource,
-    StarlightMap, StarlightProduct, StarlightProvenance, Target, ThresholdQuery, DEG,
+    CalibrationStatus, ComponentCalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator,
+    NsbModelConfig, PointQuery, SiteProfileId, StarlightProduct, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -39,7 +43,7 @@ fn default_components() -> ComponentMask {
 fn fixture_starlight_map() -> StarlightMap {
     StarlightMap::from_csv_str(
         include_str!("data/starlight_fixture_map.csv"),
-        StarlightProvenance::test_fixture(),
+        starlight_test_provenance(),
     )
     .expect("starlight fixture")
 }
@@ -59,8 +63,7 @@ fn fixture_starlight_map_with_uncertainty() -> StarlightMap {
     for index in 0..12 {
         raw.push_str(&format!("{index},4.0,0.4,0.8,1.0\n"));
     }
-    StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture())
-        .expect("uncertainty fixture")
+    StarlightMap::from_csv_str(&raw, starlight_test_provenance()).expect("uncertainty fixture")
 }
 
 #[test]
@@ -69,19 +72,19 @@ fn default_evaluator_config_matches_generic_clear_sky() {
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model(), explicit.moonlight_model());
     assert_eq!(default.moonlight_model(), MoonlightModel::Jones2013Spectral);
-    assert_eq!(default.site_profile, SiteProfileId::GenericClearSky);
-    assert_eq!(explicit.site_profile, SiteProfileId::GenericClearSky);
+    assert_eq!(default.site_profile(), SiteProfileId::GenericClearSky);
+    assert_eq!(explicit.site_profile(), SiteProfileId::GenericClearSky);
     assert_eq!(
-        default.starlight_product.is_some(),
+        default.starlight_product().is_some(),
         StarlightProduct::bundled_production_available()
     );
 
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let config = evaluator.config();
     assert_eq!(config.moonlight_model(), default.moonlight_model());
-    assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
+    assert_eq!(config.site_profile(), SiteProfileId::GenericClearSky);
     assert_eq!(
-        config.starlight_product.is_some(),
+        config.starlight_product().is_some(),
         StarlightProduct::bundled_production_available()
     );
 }
@@ -91,8 +94,8 @@ fn cta_planning_configs_select_named_site_profiles() {
     let north = NsbModelConfig::cta_n_planning();
     let south = NsbModelConfig::cta_s_planning();
 
-    assert_eq!(north.site_profile, SiteProfileId::CtaNorth);
-    assert_eq!(south.site_profile, SiteProfileId::CtaSouth);
+    assert_eq!(north.site_profile(), SiteProfileId::CtaNorth);
+    assert_eq!(south.site_profile(), SiteProfileId::CtaSouth);
     assert_eq!(
         SiteProfileId::CtaNorth
             .profile(paranal())
@@ -201,11 +204,11 @@ fn starlight_product_identity_is_data_product_identity() {
     );
 }
 
+#[cfg(not(nsb_bundled_production_starlight))]
 #[test]
 fn starlight_request_without_product_fails_explicitly() {
-    let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_product = None;
-    let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
+    // Default config has no starlight product when production map is not bundled.
+    let evaluator = NsbEvaluator::new().expect("evaluator");
     let error = evaluator
         .evaluate(
             &PointQuery::new(
@@ -533,7 +536,7 @@ fn with_f107_store_resolves_airglow_through_evaluator() {
     let store = Arc::new(bundled_f107_store().expect("bundled store").clone());
     let config = NsbModelConfig::generic_clear_sky().with_f107_store(store.clone());
     assert!(matches!(
-        config.solar_activity,
+        config.solar_activity(),
         SolarActivitySource::Dataset(_)
     ));
 

@@ -35,9 +35,15 @@ fn window_json_v1_contains_audit_metadata() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-window-json-v1");
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
+    assert_eq!(value["model"]["airglow_selection"]["kind"], "automatic");
     assert_eq!(
-        value["model"]["airglow_model"],
+        value["model"]["airglow_selection"]["resolved_model"],
         "paranal-noll-skycalc-fors1"
+    );
+    assert_eq!(value["model"]["airglow_selection"]["used_fallback"], true);
+    assert!(
+        value["model"]["airglow_selection"]["physical_outcome"].is_null(),
+        "window descriptors must not fabricate evaluation outcomes"
     );
     assert_eq!(value["model"]["zodiacal_model"], "leinert-1998");
     assert_eq!(
@@ -60,8 +66,12 @@ fn window_json_v1_contains_audit_metadata() {
         .find(|component| component["name"] == "airglow")
         .expect("airglow component metadata");
     assert_eq!(
-        airglow["metadata"]["airglow_model"],
+        airglow["metadata"]["airglow_selection"]["resolved_model"],
         "paranal-noll-skycalc-fors1"
+    );
+    assert!(
+        airglow["metadata"]["airglow_selection"]["physical_outcome"].is_null(),
+        "window descriptors must not fabricate evaluation outcomes"
     );
 }
 

@@ -558,7 +558,7 @@ fn rejects_nan_and_non_positive() {
     }
     .validate()
     .unwrap_err();
-    assert!(err.0.contains("finite"));
+    assert!(err.to_string().contains("finite"));
 }
 
 #[test]
@@ -608,7 +608,9 @@ fn store_rejects_unsupported_schema_and_empty_identity() {
 }"#,
     )
     .unwrap_err();
-    assert!(schema.0.contains("unsupported F10.7 store schema"));
+    assert!(schema
+        .to_string()
+        .contains("unsupported F10.7 store schema"));
 
     let empty_id = F107Store::from_json_str(
         r#"{
@@ -621,7 +623,7 @@ fn store_rejects_unsupported_schema_and_empty_identity() {
 }"#,
     )
     .unwrap_err();
-    assert!(empty_id.0.contains("dataset_id"));
+    assert!(empty_id.to_string().contains("dataset_id"));
 }
 
 #[test]
@@ -660,7 +662,7 @@ fn store_rejects_conflicting_duplicate_identity() {
 }"#,
     )
     .unwrap_err();
-    assert!(err.0.contains("conflicting F10.7 records"));
+    assert!(err.to_string().contains("conflicting F10.7 records"));
 }
 
 #[test]
@@ -731,4 +733,71 @@ fn utc_calendar_date_matches_chrono() {
         utc_calendar_date(t("2024-06-01T23:59:59Z")),
         NaiveDate::from_ymd_opt(2024, 6, 1).unwrap()
     );
+}
+
+#[test]
+fn f107_validation_and_store_errors_are_displayable_without_tuple_fields() {
+    let mut record = sample_store().records[0].clone();
+    record.provider = " ".into();
+    let err = record.validate().expect_err("empty provider");
+    assert!(err.to_string().contains("provider"));
+
+    record = sample_store().records[0].clone();
+    record.product = String::new();
+    let err = record.validate().expect_err("empty product");
+    assert!(err.to_string().contains("product"));
+
+    record = sample_store().records[0].clone();
+    record.uncertainty_sfu = Some(f64::NAN);
+    let err = record.validate().expect_err("non-finite uncertainty");
+    assert!(err.to_string().contains("uncertainty_sfu"));
+
+    record = sample_store().records[0].clone();
+    record.valid_from = Some("2024-06-02".into());
+    record.valid_through = Some("2024-06-01".into());
+    let err = record.validate().expect_err("inverted validity window");
+    assert!(err.to_string().contains("valid_from"));
+
+    record = sample_store().records[0].clone();
+    record.kind = F107Kind::Observed;
+    record.observation_date = None;
+    let err = record
+        .validate()
+        .expect_err("observed without observation_date");
+    assert!(err.to_string().contains("observation_date"));
+
+    record = sample_store().records[0].clone();
+    record.kind = F107Kind::Observed;
+    record.forecast_issued_at_utc = Some("2024-06-01T00:00:00Z".into());
+    let err = record
+        .validate()
+        .expect_err("observed with forecast issuance");
+    assert!(err.to_string().contains("forecast_issued_at_utc"));
+
+    record = sample_store().records[0].clone();
+    record.kind = F107Kind::Forecast;
+    record.observation_date = Some("2024-06-01".into());
+    record.forecast_issued_at_utc = None;
+    let err = record
+        .validate()
+        .expect_err("forecast with observation_date");
+    assert!(err.to_string().contains("observation_date"));
+
+    let mut store = sample_store();
+    store.dataset_id = String::new();
+    let err = store.validate().expect_err("empty dataset_id");
+    assert!(err.to_string().contains("dataset_id"));
+
+    store = sample_store();
+    store.snapshot_id = " ".into();
+    let err = store.validate().expect_err("empty snapshot_id");
+    assert!(err.to_string().contains("snapshot_id"));
+
+    store = sample_store();
+    store.convention = String::new();
+    let err = store.validate().expect_err("empty convention");
+    assert!(err.to_string().contains("convention"));
+
+    let from_validation = F107StoreError::from(F107ValidationError::new("wrapped"));
+    assert_eq!(from_validation.to_string(), "wrapped");
 }

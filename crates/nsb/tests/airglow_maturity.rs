@@ -1,8 +1,9 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
+use nsb::solar_activity::bundled_f107_store;
 use nsb::{
-    bundled_f107_store, CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbEvaluator,
-    NsbModelConfig, PointQuery, SiteProfileId, SolarFluxUnits, Target, DEG,
+    CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, NsbModelConfig,
+    PointQuery, SiteProfileId, SolarFluxUnits, Target, DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -163,6 +164,6 @@ fn explicit_planning_config_and_result_metadata_agree_without_calibration_promot
         assert!(airglow
             .metadata
             .validated_domain
-            .contains("not globally or automatically locally calibrated"));
+            .contains("not intrinsically the generic global scientific contract"));
     }
 }

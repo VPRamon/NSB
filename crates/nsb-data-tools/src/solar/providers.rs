@@ -2,7 +2,7 @@
 
 use anyhow::{bail, Context, Result};
 use chrono::{Datelike, NaiveDate};
-use nsb::{F107Kind, F107Record};
+use nsb::solar_activity::{F107Kind, F107Record};
 use serde::Deserialize;
 use serde_json::Value;
 

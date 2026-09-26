@@ -5,10 +5,15 @@
 //! Galactic-contrast behaviour with an explicit starlight fixture, and threshold
 //! windows checked against independent sampled curves / observability intervals.
 
+mod common;
+
+use common::starlight_test_provenance;
+
 use chrono::{DateTime, Duration, Utc};
+use nsb::components::starlight::StarlightMap;
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap, StarlightProduct,
-    StarlightProvenance, Target, ThresholdQuery, DEG,
+    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
+    ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -65,7 +70,7 @@ fn crab_nebula() -> Target {
 fn fixture_starlight_map() -> StarlightMap {
     StarlightMap::from_csv_str(
         include_str!("data/starlight_fixture_map.csv"),
-        StarlightProvenance::test_fixture(),
+        starlight_test_provenance(),
     )
     .expect("starlight fixture")
 }
@@ -186,10 +191,9 @@ fn production_all_preserves_component_composition_and_scene_contrast() {
 
 #[test]
 fn explicit_starlight_with_fixture_preserves_galactic_contrast() {
-    let mut config = NsbModelConfig::generic_clear_sky();
-    config.starlight_product = Some(StarlightProduct::with_experimental_map(
-        fixture_starlight_map(),
-    ));
+    let config = NsbModelConfig::generic_clear_sky().with_starlight_product(
+        StarlightProduct::with_experimental_map(fixture_starlight_map()),
+    );
     let evaluator = NsbEvaluator::with_config(config).expect("evaluator");
 
     let evaluate = |target| {

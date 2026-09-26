@@ -4,10 +4,10 @@
 //! scientific code is only as trustworthy as its failure modes. This module
 //! defines the explicit ways the NSB calculation can fail: malformed bundled
 //! reference data, invalid geometry/ranges, unsupported model requests, or
-//! upstream ephemeris/interpolation issues.
+//! interpolation issues.
 //!
 //! Contribution to the science:
-//! by separating parse, range, interpolation, and ephemeris failures, this
+//! by separating parse, range, and interpolation failures, this
 //! file helps users distinguish between "the sky model says the answer is X"
 //! and "the model could not be evaluated reliably for this input or dataset."
 
@@ -59,17 +59,9 @@ pub enum NsbError {
     #[error("unsupported configuration: {0}")]
     Unsupported(String),
 
-    /// An upstream ephemeris computation failed.
-    #[error("ephemeris error: {0}")]
-    Ephemeris(String),
-
     /// A table interpolation failed.
     #[error("interpolation error: {0}")]
     Interpolation(String),
-
-    /// A named site identifier was unknown.
-    #[error("unknown site: {0}")]
-    UnknownSite(String),
 
     /// Filesystem input/output failure.
     #[error("io error: {0}")]

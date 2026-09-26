@@ -46,7 +46,7 @@ fn evaluate_zodiacal(config: NsbModelConfig) -> NsbComponent {
 fn zodiacal_model_identity_default_and_builder_are_stable() {
     let default = NsbModelConfig::default();
     assert_eq!(default.zodiacal_model(), REFERENCE_MODEL);
-    assert_eq!(default.zodiacal_model, REFERENCE_MODEL);
+    assert_eq!(default.zodiacal_model(), REFERENCE_MODEL);
     assert_eq!(REFERENCE_MODEL.as_str(), "leinert-1998");
 
     let explicit = default.with_zodiacal_model(REFERENCE_MODEL);

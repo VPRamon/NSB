@@ -275,7 +275,6 @@ fn one_site_context_serves_max_and_min_threshold_queries() {
     assert_eq!(reused_min.periods, independent_min.periods);
 }
 
-#[cfg(not(feature = "window-search-diagnostics"))]
 #[test]
 fn exact_search_output_is_deterministic_across_rayon_parallelism() {
     let evaluator = NsbEvaluator::new().unwrap();

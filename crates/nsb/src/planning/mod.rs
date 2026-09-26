@@ -15,11 +15,6 @@ mod scan;
 mod threshold;
 mod types;
 
-#[cfg(feature = "window-search-diagnostics")]
-mod diagnostics;
-
-#[cfg(feature = "window-search-diagnostics")]
-pub use diagnostics::WindowSearchDiagnostics;
 pub use types::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 
 #[cfg(test)]

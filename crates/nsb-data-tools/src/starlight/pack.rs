@@ -281,6 +281,22 @@ pub fn is_packed_runtime_header(header: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    fn starlight_test_provenance() -> nsb::components::starlight::StarlightProvenance {
+        let mut provenance = nsb::components::starlight::StarlightProvenance::new(
+            "NSB test fixture starlight map",
+            "fixture",
+            "2026-06-17",
+            "synthetic unit-test fixture",
+            "test-only",
+            "test-only",
+            "integrated 300-650 nm photon radiance",
+            "HEALPix nside=1 ring 12 pixels",
+            None::<String>,
+        );
+        provenance.calibration_status = Some("experimental".to_string());
+        provenance
+    }
     use super::*;
     use siderust::coordinates::frames::Galactic;
     use siderust::coordinates::spherical::Direction;
@@ -343,19 +359,19 @@ mod tests {
         assert_eq!(record.source_candidate_sha256, outcome.candidate_sha256);
 
         let packed = fs::read_to_string(&csv).unwrap();
-        let map =
-            nsb::StarlightMap::from_csv_str(&packed, nsb::StarlightProvenance::test_fixture())
-                .unwrap();
+        let map = nsb::components::starlight::StarlightMap::from_csv_str(
+            &packed,
+            starlight_test_provenance(),
+        )
+        .unwrap();
         assert_eq!(map.pixels().len(), 12);
-        let (lon, lat) = map.pixel_lon_lat_deg(0).unwrap();
+        use siderust::healpix::HealpixIndex;
+        let direction = map.pixel_direction(HealpixIndex::new(0)).unwrap();
         let occupied =
             map.pixel_at(
                 siderust::coordinates::spherical::Direction::<
                     siderust::coordinates::frames::Galactic,
-                >::new(
-                    siderust::qtty::Degrees::new(lon),
-                    siderust::qtty::Degrees::new(lat),
-                )
+                >::new(direction.l(), direction.b())
                 .to_cartesian(),
             );
         assert!(occupied.integrated.value() > 0.0);
@@ -625,24 +641,25 @@ mod tests {
         )
         .unwrap();
         let packed = fs::read_to_string(&csv).unwrap();
-        let map =
-            nsb::StarlightMap::from_csv_str(&packed, nsb::StarlightProvenance::test_fixture())
-                .unwrap();
+        let map = nsb::components::starlight::StarlightMap::from_csv_str(
+            &packed,
+            starlight_test_provenance(),
+        )
+        .unwrap();
         assert_eq!(map.pixels().len(), 196_608);
-        let (lon, lat) = map.pixel_lon_lat_deg(0).unwrap();
+        use siderust::healpix::HealpixIndex;
+        let direction = map.pixel_direction(HealpixIndex::new(0)).unwrap();
         let looked =
             map.pixel_at(
                 siderust::coordinates::spherical::Direction::<
                     siderust::coordinates::frames::Galactic,
-                >::new(
-                    siderust::qtty::Degrees::new(lon),
-                    siderust::qtty::Degrees::new(lat),
-                )
+                >::new(direction.l(), direction.b())
                 .to_cartesian(),
             );
         assert!(!looked.s10_diagnostics_provided);
         assert!(looked.statistical_uncertainty.is_some());
-        nsb::ValidatedStarlightMap::from_files(&csv, &production_sidecar).unwrap();
+        nsb::components::starlight::ValidatedStarlightMap::from_files(&csv, &production_sidecar)
+            .unwrap();
 
         let csv2 = dir.path().join("second.release.csv");
         let sidecar2 = dir.path().join("second.pack.toml");

@@ -79,23 +79,29 @@ pub struct F107Record {
 /// Validation failure for an F10.7 record or store.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{0}")]
-pub struct F107ValidationError(pub String);
+pub struct F107ValidationError(String);
+
+impl F107ValidationError {
+    pub(crate) fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
 
 impl F107Record {
     /// Validate physical and temporal consistency of this record.
     pub fn validate(&self) -> Result<(), F107ValidationError> {
         if !self.value_sfu.is_finite() || self.value_sfu <= 0.0 {
-            return Err(F107ValidationError(format!(
+            return Err(F107ValidationError::new(format!(
                 "value_sfu must be finite and positive, got {}",
                 self.value_sfu
             )));
         }
         let date = parse_date(&self.date, "date")?;
         if self.provider.trim().is_empty() {
-            return Err(F107ValidationError("provider must be non-empty".into()));
+            return Err(F107ValidationError::new("provider must be non-empty"));
         }
         if self.product.trim().is_empty() {
-            return Err(F107ValidationError("product must be non-empty".into()));
+            return Err(F107ValidationError::new("product must be non-empty"));
         }
         for (label, optional) in [
             ("observation_date", &self.observation_date),
@@ -119,7 +125,7 @@ impl F107Record {
         ] {
             if let Some(value) = optional {
                 if !value.is_finite() || value < 0.0 {
-                    return Err(F107ValidationError(format!(
+                    return Err(F107ValidationError::new(format!(
                         "{label} must be finite and non-negative"
                     )));
                 }
@@ -127,8 +133,8 @@ impl F107Record {
         }
         if let (Some(low), Some(high)) = (self.range_low_sfu, self.range_high_sfu) {
             if low > high {
-                return Err(F107ValidationError(
-                    "range_low_sfu must not exceed range_high_sfu".into(),
+                return Err(F107ValidationError::new(
+                    "range_low_sfu must not exceed range_high_sfu",
                 ));
             }
         }
@@ -145,20 +151,20 @@ impl F107Record {
             .transpose()?
             .unwrap_or(date);
         if valid_from > valid_through {
-            return Err(F107ValidationError(
-                "valid_from must not follow valid_through".into(),
+            return Err(F107ValidationError::new(
+                "valid_from must not follow valid_through",
             ));
         }
         match self.kind {
             F107Kind::Observed => {
                 if self.observation_date.is_none() {
-                    return Err(F107ValidationError(
-                        "observed records require observation_date".into(),
+                    return Err(F107ValidationError::new(
+                        "observed records require observation_date",
                     ));
                 }
                 if self.forecast_issued_at_utc.is_some() {
-                    return Err(F107ValidationError(
-                        "observed records must not set forecast_issued_at_utc".into(),
+                    return Err(F107ValidationError::new(
+                        "observed records must not set forecast_issued_at_utc",
                     ));
                 }
             }
@@ -168,8 +174,8 @@ impl F107Record {
                 // (e.g. predicted-solar-cycle) may omit it; retrieval time must
                 // not be fabricated as issuance.
                 if self.observation_date.is_some() {
-                    return Err(F107ValidationError(
-                        "forecast records must not set observation_date".into(),
+                    return Err(F107ValidationError::new(
+                        "forecast records must not set observation_date",
                     ));
                 }
             }
@@ -205,7 +211,7 @@ impl F107Record {
 
 pub(crate) fn parse_date(value: &str, label: &str) -> Result<NaiveDate, F107ValidationError> {
     NaiveDate::parse_from_str(value, "%Y-%m-%d")
-        .map_err(|_| F107ValidationError(format!("{label} must be YYYY-MM-DD, got {value:?}")))
+        .map_err(|_| F107ValidationError::new(format!("{label} must be YYYY-MM-DD, got {value:?}")))
 }
 
 pub(crate) fn parse_datetime(
@@ -218,7 +224,9 @@ pub(crate) fn parse_datetime(
     // Accept trailing Z already handled by RFC3339; also allow space-separated forms.
     NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%SZ")
         .or_else(|_| NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.fZ"))
-        .map_err(|_| F107ValidationError(format!("{label} must be RFC3339 UTC, got {value:?}")))
+        .map_err(|_| {
+            F107ValidationError::new(format!("{label} must be RFC3339 UTC, got {value:?}"))
+        })
 }
 
 /// Build a caller-owned explicit record for a requested date.

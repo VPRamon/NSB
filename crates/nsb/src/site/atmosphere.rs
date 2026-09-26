@@ -16,6 +16,7 @@ use siderust::qtty::{Hectopascals, Kilometers, Nanometers, OpticalDepths};
 /// Observer altitude is deliberately not stored here. Site geometry remains
 /// tied to the [`Geodetic`] observer passed to the component or evaluator.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
 pub struct AtmosphericConditions {
     /// Surface pressure used for Rayleigh scattering.
     pub surface_pressure: Hectopascals,
