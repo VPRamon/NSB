@@ -6,8 +6,8 @@
 use super::vertical_profile::{ValidatedZenithDomain, VerticalEmissionProfileError};
 use crate::error::{NsbError, Result};
 use crate::units::ScaleFactors;
-use siderust::atmosphere::van_rhijn_factor;
-use siderust::qtty::{unit::Radian, Degrees, Kilometers};
+use siderust::atmosphere::{van_rhijn_factor, ScatteringFactor};
+use siderust::qtty::{unit::Radian, Degrees, Kilometers, Quantity};
 
 /// Implementation identifier for the preserved Siderust Van Rhijn baseline.
 pub(crate) const VAN_RHIJN_IMPLEMENTATION_VERSION: &str = "siderust-0.11.0-mean-earth-radius";
@@ -62,15 +62,13 @@ impl VanRhijnConfig {
                 zenith.value()
             )));
         }
-        // Siderust returns a typed scattering factor; ScaleFactors is the local
-        // dimensionless domain type and currently constructs from a scalar.
-        let factor = van_rhijn_factor(zenith.to::<Radian>(), self.emission_height_km()).value();
-        if !factor.is_finite() || factor <= 0.0 {
+        let factor = van_rhijn_factor(zenith.to::<Radian>(), self.emission_height_km());
+        if !factor.is_finite() || factor <= Quantity::<ScatteringFactor>::new(0.0) {
             return Err(NsbError::Unsupported(
                 "Van Rhijn configuration produced a non-finite geometry factor".into(),
             ));
         }
-        Ok(ScaleFactors::new(factor))
+        Ok(factor.to())
     }
 }
 
