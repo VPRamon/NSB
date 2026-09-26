@@ -19,8 +19,11 @@ product_id = "tsis1_hsrs_p025nm"
 release = "TSIS-1 HSRS Version 2"
 metadata_url = "https://doi.org/10.25980/ta3f-7h90"
 retrieved_at = "2026-09-26"
-license = "Unresolved: DOI/LISIRD and Coddington et al. (2023) assign no dataset license; NASA SPD-41a's conditional CC0 guidance is not an HSRS-specific grant"
+# No dataset rightsList on the DOI Handle; LISIRD/DAP expose no license field;
+# article CC BY ≠ dataset; SPD-41a CC0 is conditional and not HSRS-specific.
+license = "Unresolved: no HSRS-specific redistribution grant in DOI/DataCite rights, LISIRD metadata, LASP/CEOS docs, Coddington data-availability, or SPD-41a"
 units = "W m^-2 nm^-1"
+# Inherited via TSIS-1 SIM radiometric scale (LASP SSI docs); not a LISIRD field.
 reference_distance = "1 AU"
 
 [[sources]]
@@ -31,8 +34,9 @@ product_id = "tsis1_hsrs"
 release = "TSIS-1 HSRS Version 2"
 metadata_url = "https://doi.org/10.25980/ta3f-7h90"
 retrieved_at = "2026-09-26"
-license = "Unresolved: DOI/LISIRD and Coddington et al. (2023) assign no dataset license; downloaded only into the untracked validation workspace"
+license = "Unresolved: no HSRS-specific redistribution grant; downloaded only into the untracked validation workspace"
 units = "W m^-2 nm^-1"
+# Inherited via TSIS-1 SIM radiometric scale (LASP SSI docs); not a LISIRD field.
 reference_distance = "1 AU"
 
 [publish]
