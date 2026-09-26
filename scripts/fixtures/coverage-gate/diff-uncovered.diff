@@ -1,0 +1,5 @@
+diff --git a/crates/nsb/src/lib.rs b/crates/nsb/src/lib.rs
+--- a/crates/nsb/src/lib.rs
++++ b/crates/nsb/src/lib.rs
+@@ -9,0 +10,1 @@
++    let uncovered = true;

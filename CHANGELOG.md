@@ -7,6 +7,9 @@ once a stable public release is cut.
 
 ### Changed
 
+- Replaced the `nsb-coverage-gate` Rust crate with `scripts/coverage-gate.sh`,
+  keeping the same blocking overall and PR diff line-coverage floors from
+  `coverage-policy.toml` without a workspace package or extra compile step.
 - Refactored CLI observatory handling onto Siderust `ObservatoryCatalog`, with
   NSB bundled `[[observatory]]` extensions for CTAO-N/S, H.E.S.S., MAGIC, FACT,
   VERITAS, FAST, and GTC; separated `--site` location selection from

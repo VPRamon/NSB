@@ -1,0 +1,40 @@
+schema_version = 1
+baseline_kind = "fixture"
+html_artifact_name = "coverage-html"
+json_artifact_name = "coverage-json"
+cobertura_artifact_name = "coverage-cobertura"
+lcov_artifact_name = "coverage-lcov"
+
+[baseline]
+commit = "fixture"
+date = "2026-01-01"
+rust_nightly = "fixture"
+rust_nightly_toolchain = "nightly-2026-09-02"
+cargo_llvm_cov = "0.9.0"
+command = "fixture"
+
+[measured]
+workspace_lines = 90.0
+workspace_functions = 90.0
+workspace_regions = 90.0
+nsb_lines = 90.0
+nsb_functions = 90.0
+nsb_regions = 90.0
+nsb_cli_lines = 90.0
+nsb_cli_functions = 90.0
+nsb_cli_regions = 90.0
+nsb_data_tools_lines = 90.0
+nsb_data_tools_functions = 90.0
+nsb_data_tools_regions = 90.0
+
+[floors]
+workspace_lines = 80.0
+nsb_lines = 87.0
+
+[diff]
+changed_production_lines = 90.0
+base_ref = "origin/main"
+
+[exclusions]
+files = []
+notes = "fixture"

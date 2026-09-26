@@ -1,0 +1,5 @@
+diff --git a/crates/nsb/tests/integration.rs b/crates/nsb/tests/integration.rs
+--- a/crates/nsb/tests/integration.rs
++++ b/crates/nsb/tests/integration.rs
+@@ -4,0 +5,1 @@
++    assert!(true);
