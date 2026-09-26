@@ -39,23 +39,30 @@ re-exports `AirglowModel` and `AirglowSelection` for normal configuration.
 | Selection policy | `AirglowSelection::{Automatic, Explicit(model)}` | How the model was chosen |
 | Explicit convenience | `with_airglow_model(model)` | Sets `Explicit(model)` |
 | Inspection | `airglow_selection()`, `airglow_model()` | Policy and explicit request (if any) |
-| Outcome report | `NsbComponentMetadata::airglow_selection` | Resolved model, fallback, physical outcome |
+| Selection metadata | `NsbComponentMetadata::airglow_selection` | Kind, requested/resolved model, typed fallback |
+| Evaluation outcome | `NsbComponentMetadata::airglow_evaluation` | Physical outcome after a query (absent from descriptors) |
 
 Required behavior:
 
 - **Explicit wins.** An explicit selection never silently switches to another
-  model. Unsupported explicit models (for example the reserved
-  `AirglowModel::GlobalClimatology`) fail with `NsbError::Unsupported`.
+  model. The first-release `AirglowModel` enum contains only admitted models
+  (`ParanalNollSkyCalcFors1`). Future climatology (#157) adds a new
+  `#[non_exhaustive]` variant when scientifically ready — no speculative public
+  placeholder is frozen.
 - **Automatic is deterministic.** `generic_clear_sky()`, `Default`, and
   `NsbEvaluator::new` use `AirglowSelection::Automatic`.
 - **Automatic is not “Paranal is the global scientific default.”** Until a
   global climatological planning model is admitted (#157 deferred), automatic
   policy resolves to a **temporary Paranal-derived planning fallback**. That
-  fallback is always machine-visible (`used_automatic_fallback`,
-  `fallback_reason`) and must not be read as a globally calibrated contract.
-- **Physical semantics stay distinct.** Physical zero (outside astronomical
-  night), unsupported/out-of-domain, invalid input/data, and deliberate
-  automatic fallback are separate outcomes in metadata / errors (#151).
+  fallback is machine-visible via `used_automatic_fallback` and typed
+  `AirglowFallbackReason::GlobalPlanningModelUnavailable`
+  (`as_str()` → `global-planning-model-unavailable`).
+- **Invalid inputs never become physical zero.** Altitude / F10.7 / scale are
+  validated **before** astronomical-night gating. Outside night with valid
+  inputs yields `AirglowPhysicalOutcome::PhysicalZero` with
+  `AirglowPhysicalZeroReason::OutsideAstronomicalNight`.
+- **Descriptors do not invent outcomes.** `describe_components()` populates
+  selection metadata only; `airglow_evaluation` remains `None`.
 
 `AirglowModel` remains the durable scientific identity enum
 (`#[non_exhaustive]`). Future #157 climatology can extend the enum and refine
@@ -114,8 +121,8 @@ assert!(!config.is_airglow_site_calibrated());
 
 `airglow_selection()` reports the configuration policy before evaluation.
 `airglow_model()` returns `Some` only for explicit selections. After evaluation,
-`NsbComponentMetadata::airglow_selection` reports the resolved model, whether
-automatic fallback was used, and the physical outcome. Site maturity
+`airglow_selection` reports resolved model / typed fallback and
+`airglow_evaluation` reports the physical outcome. Site maturity
 (`airglow_calibration_status()` / `is_airglow_site_calibrated()`) remains
 independent of selection policy. Changing observer coordinates, F10.7,
 geometry, or site maturity does not silently change the declared scientific

@@ -18,13 +18,15 @@ Top-level fields are `schema_version`, `version`, `model`, `time_utc`,
 component includes radiance, B/V diagnostics, relative uncertainty, calibration
 status, provenance, validated domain, and band convention. `version` includes
 NSB/model/Siderust versions and every runtime asset checksum. The `model`
-audit block includes the selected scientific `airglow_model` identity separately
-from `airglow_geometry`. It also includes `zodiacal_model` separately from
+audit block includes nested `airglow_selection` (kind, requested/resolved model,
+typed fallback reason, and physical outcome when evaluated) separately from
+`airglow_geometry`. It also includes `zodiacal_model` separately from
 the existing `zodiacal_extinction` propagation field. Adding
-`zodiacal_model` is an additive JSON-v1 extension; no existing serialized
-field is renamed. Airglow component metadata repeats the actual
-`airglow_model` used for that component alongside solar-activity and geometry
-provenance; non-Airglow components leave that field empty. Zodiacal component
+`zodiacal_model` / `airglow_selection` is an additive JSON-v1 extension; no
+existing serialized field is renamed. Airglow component metadata repeats the
+same nested `airglow_selection` object (with `physical_outcome` only after
+evaluation). Window descriptors omit `physical_outcome` rather than inventing
+one. Non-Airglow components leave `airglow_selection` absent. Zodiacal component
 provenance records the source and propagation actually evaluated.
 Starlight component labels are stable by source: bundled production starlight is
 `starlight`, a validated external override is `validated-starlight`, and a

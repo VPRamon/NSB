@@ -17,6 +17,10 @@ pub fn nsb::assets::bundled_asset(path: &str) -> core::option::Option<&'static n
 pub fn nsb::assets::bundled_assets() -> impl core::iter::traits::iterator::Iterator<Item = &'static nsb::assets::BundledAssetMetadata>
 pub mod nsb::components
 pub mod nsb::components::airglow
+#[non_exhaustive] pub enum nsb::components::airglow::AirglowFallbackReason
+pub nsb::components::airglow::AirglowFallbackReason::GlobalPlanningModelUnavailable
+impl nsb::components::airglow::AirglowFallbackReason
+pub const fn nsb::components::airglow::AirglowFallbackReason::as_str(self) -> &'static str
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowGeometryModel
 pub nsb::components::airglow::AirglowGeometryModel::VanRhijn(nsb::components::airglow::VanRhijnConfig)
 pub nsb::components::airglow::AirglowGeometryModel::VerticalProfile(nsb::components::airglow::VerticalEmissionProfile)
@@ -25,7 +29,6 @@ pub const fn nsb::components::airglow::AirglowGeometryModel::model_id(&self) -> 
 impl core::default::Default for nsb::components::airglow::AirglowGeometryModel
 pub fn nsb::components::airglow::AirglowGeometryModel::default() -> Self
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowModel
-pub nsb::components::airglow::AirglowModel::GlobalClimatology
 pub nsb::components::airglow::AirglowModel::ParanalNollSkyCalcFors1
 impl nsb::AirglowModel
 pub const fn nsb::AirglowModel::as_str(self) -> &'static str
@@ -34,6 +37,10 @@ pub nsb::components::airglow::AirglowPhysicalOutcome::Evaluated
 pub nsb::components::airglow::AirglowPhysicalOutcome::PhysicalZero
 impl nsb::components::airglow::AirglowPhysicalOutcome
 pub const fn nsb::components::airglow::AirglowPhysicalOutcome::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::components::airglow::AirglowPhysicalZeroReason
+pub nsb::components::airglow::AirglowPhysicalZeroReason::OutsideAstronomicalNight
+impl nsb::components::airglow::AirglowPhysicalZeroReason
+pub const fn nsb::components::airglow::AirglowPhysicalZeroReason::as_str(self) -> &'static str
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowSelection
 pub nsb::components::airglow::AirglowSelection::Automatic
 pub nsb::components::airglow::AirglowSelection::Explicit(nsb::AirglowModel)
@@ -55,6 +62,9 @@ pub nsb::components::airglow::VerticalEmissionProfileError::Toml(alloc::string::
 pub nsb::components::airglow::VerticalProfileNormalization::UnitVerticalIntegral
 impl nsb::components::airglow::VerticalProfileNormalization
 pub const fn nsb::components::airglow::VerticalProfileNormalization::as_str(self) -> &'static str
+#[non_exhaustive] pub struct nsb::components::airglow::AirglowEvaluationOutcome
+pub nsb::components::airglow::AirglowEvaluationOutcome::physical_outcome: nsb::components::airglow::AirglowPhysicalOutcome
+pub nsb::components::airglow::AirglowEvaluationOutcome::physical_zero_reason: core::option::Option<nsb::components::airglow::AirglowPhysicalZeroReason>
 #[non_exhaustive] pub struct nsb::components::airglow::AirglowGeometryMetadata
 pub nsb::components::airglow::AirglowGeometryMetadata::altitude_max_km: core::option::Option<qtty_core::units::length::Kilometers>
 pub nsb::components::airglow::AirglowGeometryMetadata::altitude_min_km: core::option::Option<qtty_core::units::length::Kilometers>
@@ -72,14 +82,12 @@ pub nsb::components::airglow::AirglowGeometryMetadata::validated_zenith: nsb::co
 pub nsb::components::airglow::AirglowGeometryMetadata::wavelength_band: core::option::Option<alloc::string::String>
 pub nsb::components::airglow::AirglowGeometryMetadata::wavelength_max_nm: core::option::Option<qtty_core::units::length::Nanometers>
 pub nsb::components::airglow::AirglowGeometryMetadata::wavelength_min_nm: core::option::Option<qtty_core::units::length::Nanometers>
-#[non_exhaustive] pub struct nsb::components::airglow::AirglowSelectionReport
-pub nsb::components::airglow::AirglowSelectionReport::fallback_reason: core::option::Option<&'static str>
-pub nsb::components::airglow::AirglowSelectionReport::physical_outcome: nsb::components::airglow::AirglowPhysicalOutcome
-pub nsb::components::airglow::AirglowSelectionReport::physical_zero_reason: core::option::Option<&'static str>
-pub nsb::components::airglow::AirglowSelectionReport::requested_model: core::option::Option<nsb::AirglowModel>
-pub nsb::components::airglow::AirglowSelectionReport::resolved_model: nsb::AirglowModel
-pub nsb::components::airglow::AirglowSelectionReport::selection_kind: nsb::components::airglow::AirglowSelectionKind
-pub nsb::components::airglow::AirglowSelectionReport::used_automatic_fallback: bool
+#[non_exhaustive] pub struct nsb::components::airglow::AirglowSelectionMetadata
+pub nsb::components::airglow::AirglowSelectionMetadata::fallback_reason: core::option::Option<nsb::components::airglow::AirglowFallbackReason>
+pub nsb::components::airglow::AirglowSelectionMetadata::requested_model: core::option::Option<nsb::AirglowModel>
+pub nsb::components::airglow::AirglowSelectionMetadata::resolved_model: core::option::Option<nsb::AirglowModel>
+pub nsb::components::airglow::AirglowSelectionMetadata::selection_kind: nsb::components::airglow::AirglowSelectionKind
+pub nsb::components::airglow::AirglowSelectionMetadata::used_automatic_fallback: bool
 #[non_exhaustive] pub struct nsb::components::airglow::AirglowWavelengthApplicability
 pub nsb::components::airglow::AirglowWavelengthApplicability::band: alloc::string::String
 pub nsb::components::airglow::AirglowWavelengthApplicability::max: qtty_core::units::length::Nanometers
@@ -130,7 +138,6 @@ pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::new(profile_
 pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::with_assumptions(self, assumptions: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::with_license(self, license: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nsb::components::airglow::VerticalEmissionProfileDefinition::with_provenance(self, provenance: impl core::convert::Into<alloc::string::String>) -> Self
-pub const nsb::components::airglow::TEMPORARY_AUTOMATIC_FALLBACK_REASON: &str
 pub const nsb::components::airglow::VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION: u32
 pub mod nsb::components::moonlight
 #[non_exhaustive] pub enum nsb::components::moonlight::MoonlightModel
@@ -360,7 +367,6 @@ pub const nsb::solar_activity::F107_STORE_SCHEMA_VERSION: u32
 pub fn nsb::solar_activity::bundled_f107_store() -> nsb::Result<&'static nsb::solar_activity::F107Store>
 pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, source: &nsb::solar_activity::SolarActivitySource) -> nsb::Result<nsb::solar_activity::ResolvedSolarActivity>
 #[non_exhaustive] pub enum nsb::AirglowModel
-pub nsb::AirglowModel::GlobalClimatology
 pub nsb::AirglowModel::ParanalNollSkyCalcFors1
 impl nsb::AirglowModel
 pub const fn nsb::AirglowModel::as_str(self) -> &'static str
@@ -405,12 +411,6 @@ pub nsb::NsbError::InvalidMap::message: alloc::string::String
 pub nsb::NsbError::Io(core::io::error::Error)
 pub nsb::NsbError::OutOfRange(alloc::string::String)
 pub nsb::NsbError::Unsupported(alloc::string::String)
-#[non_exhaustive] pub enum nsb::SiteCalibrationStatus
-pub nsb::SiteCalibrationStatus::Calibrated
-pub nsb::SiteCalibrationStatus::GenericFallback
-pub nsb::SiteCalibrationStatus::PlanningPreset
-impl core::convert::From<nsb::site::CalibrationStatus> for nsb::ComponentCalibrationStatus
-pub fn nsb::ComponentCalibrationStatus::from(status: nsb::site::CalibrationStatus) -> Self
 #[non_exhaustive] pub enum nsb::SiteProfileId
 pub nsb::SiteProfileId::CtaNorth
 pub nsb::SiteProfileId::CtaSouth
@@ -543,9 +543,9 @@ pub nsb::NsbComponent::v_flux_s10: qtty_core::units::radiometry::S10s
 pub nsb::NsbComponentDescriptor::metadata: nsb::NsbComponentMetadata
 pub nsb::NsbComponentDescriptor::name: &'static str
 #[non_exhaustive] pub struct nsb::NsbComponentMetadata
+pub nsb::NsbComponentMetadata::airglow_evaluation: core::option::Option<nsb::components::airglow::AirglowEvaluationOutcome>
 pub nsb::NsbComponentMetadata::airglow_geometry: core::option::Option<nsb::components::airglow::AirglowGeometryMetadata>
-pub nsb::NsbComponentMetadata::airglow_model: core::option::Option<nsb::AirglowModel>
-pub nsb::NsbComponentMetadata::airglow_selection: core::option::Option<nsb::components::airglow::AirglowSelectionReport>
+pub nsb::NsbComponentMetadata::airglow_selection: core::option::Option<nsb::components::airglow::AirglowSelectionMetadata>
 pub nsb::NsbComponentMetadata::band_diagnostic: nsb::BandDiagnostic
 pub nsb::NsbComponentMetadata::provenance: alloc::borrow::Cow<'static, str>
 pub nsb::NsbComponentMetadata::solar_activity: core::option::Option<nsb::solar_activity::ResolvedSolarActivity>

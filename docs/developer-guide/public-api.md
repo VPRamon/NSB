@@ -71,21 +71,26 @@ component-only output are implementation details; applications evaluate Airglow
 through `NsbEvaluator` results.
 
 Airglow separates **selection policy** (`AirglowSelection::{Automatic,
-Explicit}`) from **scientific model identity** (`AirglowModel`). Defaults use
-`Automatic`; until #157 admits a global climatological model, automatic policy
-resolves to a temporary Paranal-derived planning fallback with that fallback
-machine-visible in `NsbComponentMetadata::airglow_selection`. Explicit
-`with_airglow_model` / `with_airglow_selection(Explicit(...))` wins and never
-silently switches models. Both enums are `#[non_exhaustive]` so later validated
+Explicit}`) from **scientific model identity** (`AirglowModel`) and from
+**evaluation outcome** (`AirglowEvaluationOutcome`). Defaults use `Automatic`;
+until #157 admits a global climatological model, automatic policy resolves to a
+temporary Paranal-derived planning fallback with typed
+`AirglowFallbackReason::GlobalPlanningModelUnavailable` in
+`NsbComponentMetadata::airglow_selection`. Explicit `with_airglow_model` /
+`with_airglow_selection(Explicit(...))` wins and never silently switches models.
+`describe_components()` reports selection metadata only and must not invent
+`airglow_evaluation`. Both enums are `#[non_exhaustive]` so later validated
 models and climatology can extend the contract without redesigning
 `NsbModelConfig`.
 
 The concrete continuum/evaluator remains internal. Scientific model identity is
 separate from `AirglowGeometryModel` (line-of-sight/emitting-volume geometry)
 and `SiteProfileId` (site assumptions and evidence-backed maturity). Evaluated
-Airglow metadata exposes selection kind, requested/resolved model, fallback
-state, and physical outcome while asset provenance/schema/checksum, geometry
-metadata, site maturity, and `MODEL_VERSION` retain their distinct meanings.
+Airglow metadata exposes selection kind, requested/resolved model, typed
+fallback state, and physical outcome while asset provenance/schema/checksum,
+geometry metadata, site maturity, and `MODEL_VERSION` retain their distinct
+meanings. Resolved model identity lives only under `airglow_selection`
+(no duplicate `airglow_model` metadata field).
 
 Moonlight follows the same runtime-selection architecture at a smaller public
 surface. `MoonlightModel` is root-exported from the Moonlight component domain,
@@ -288,9 +293,10 @@ When maintainers decide the public surface is ready:
 3. generate `crates/nsb/api/public-api.txt` from that same tree;
 4. commit the marker and snapshot together.
 
-The first commit containing the marker is a bootstrap: the snapshot must match
-HEAD, but historical `BASE..HEAD` comparison is skipped until the selected
-historical base also contains the freeze marker.
+The first commit containing the marker is a bootstrap: when the selected
+historical base lacks `API_FROZEN`, the snapshot must match HEAD and historical
+`BASE..HEAD` comparison is skipped. Once HEAD is frozen, a check **without** a
+usable historical base fails closed — missing base is never treated as success.
 
 ### Frozen mode
 

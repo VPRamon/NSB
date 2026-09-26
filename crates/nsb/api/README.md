@@ -21,8 +21,10 @@ The commit that introduces:
 - `crates/nsb/api/API_FROZEN`
 - `crates/nsb/api/public-api.txt`
 
-bootstraps the reviewed baseline. Historical `BASE..HEAD` comparison is skipped
-until the selected historical base also contains the freeze marker.
+bootstraps the reviewed baseline. When the selected historical base lacks the
+freeze marker, snapshot equality is required and historical `BASE..HEAD`
+comparison is skipped. Once HEAD is frozen, omitting a historical base fails
+closed (it is not treated as successful snapshot-only mode).
 
 ### Post-freeze
 
@@ -30,7 +32,7 @@ Once the historical base is frozen:
 
 - HEAD must match `public-api.txt`;
 - `cargo public-api diff BASE..HEAD --deny=removed --deny=changed` must pass;
-- `BASE == HEAD` and empty historical comparisons fail closed.
+- `BASE == HEAD`, empty bases, and unresolvable bases fail closed.
 
 ## Maintainer commands
 
@@ -40,6 +42,9 @@ scripts/check-public-api.sh --write
 
 # local check with an explicit historical base
 scripts/check-public-api.sh --base origin/main
+
+# lifecycle assertions (missing base, BASE==HEAD, bootstrap)
+scripts/test-check-public-api.sh
 ```
 
 Policy: [`docs/developer-guide/public-api.md`](../../../docs/developer-guide/public-api.md).

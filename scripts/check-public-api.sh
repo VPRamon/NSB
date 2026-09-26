@@ -2,12 +2,17 @@
 # Direct cargo-public-api checks for the `nsb` crate (#176).
 #
 # Lifecycle:
-#   pre-freeze  — forbidden-API grep only (no snapshot / SemVer)
-#   freeze bootstrap — snapshot must match HEAD; historical diff skipped
-#   post-freeze — snapshot match + cargo-public-api diff BASE..HEAD
+#   pre-freeze          — HEAD lacks API_FROZEN; forbidden-API grep only
+#   freeze-bootstrap    — HEAD frozen; historical base lacks API_FROZEN;
+#                         snapshot equality required; SemVer diff skipped
+#   post-freeze         — HEAD and historical base both frozen;
+#                         snapshot equality + cargo-public-api diff BASE..HEAD
+#
+# After freeze, a check without a usable historical base fails closed unless
+# bootstrap against a non-frozen base is explicitly identified.
 #
 # Usage:
-#   scripts/check-public-api.sh              # check (requires NSB_PUBLIC_API_BASE when frozen)
+#   scripts/check-public-api.sh              # check (requires --base / NSB_PUBLIC_API_BASE when frozen)
 #   scripts/check-public-api.sh --write      # regenerate crates/nsb/api/public-api.txt
 #   scripts/check-public-api.sh --base REV   # historical base (PR/push SHA)
 
@@ -36,7 +41,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     -h|--help)
-      sed -n '1,20p' "$0"
+      sed -n '1,25p' "$0"
       exit 0
       ;;
     *)
@@ -66,7 +71,7 @@ generate() {
 reject_forbidden_public_api() {
   local api_file="$1"
   local pattern
-  pattern='WindowSearchDiagnostics|periods_below_threshold_diagnosed|prepare_and_search_diagnosed|StarlightProvenance::test_fixture|StarlightMap::pixel_lon_lat_deg|MagnitudesPerAirmass|SolarSpectralIrradiance|pub struct Starlight \{|pub struct StarlightOutputs \{|pub struct ZodiacalLight|pub struct ZodiacalOutputs|SiteCalibrationAsset|CalibratedSiteId|AirglowCalibrationEvidence|pub mod atmosphere|nsb::error::'
+  pattern='WindowSearchDiagnostics|periods_below_threshold_diagnosed|prepare_and_search_diagnosed|StarlightProvenance::test_fixture|StarlightMap::pixel_lon_lat_deg|MagnitudesPerAirmass|SolarSpectralIrradiance|pub struct Starlight \{|pub struct StarlightOutputs \{|pub struct ZodiacalLight|pub struct ZodiacalOutputs|SiteCalibrationAsset|CalibratedSiteId|AirglowCalibrationEvidence|pub mod atmosphere|nsb::error::|GlobalClimatology|TEMPORARY_AUTOMATIC_FALLBACK_REASON|PHYSICAL_ZERO_OUTSIDE_ASTRONOMICAL_NIGHT|AirglowSelectionReport|SiteCalibrationStatus'
   if grep -E "$pattern" "$api_file" >/dev/null; then
     echo "forbidden public API detected:" >&2
     grep -nE "$pattern" "$api_file" >&2 || true
@@ -101,17 +106,23 @@ if ! diff -u "$SNAPSHOT" "$GENERATED"; then
   exit 1
 fi
 
+# Post-freeze: a historical base is mandatory. Missing/empty base fails closed.
+# Bootstrap is only when an explicit resolvable base itself lacks API_FROZEN.
 if [[ -z "$BASE" ]]; then
   if [[ "$BASE_EXPLICIT" -eq 1 ]]; then
     echo "explicit empty --base is invalid" >&2
     exit 1
   fi
-  echo "SemVer gate: no historical base; bootstrap/snapshot-only mode"
-  exit 0
+  echo "frozen HEAD requires a historical base (--base / NSB_PUBLIC_API_BASE); refusing snapshot-only success" >&2
+  exit 1
+fi
+
+if ! BASE_SHA="$(git rev-parse --verify "${BASE}^{commit}" 2>/dev/null)"; then
+  echo "unresolvable historical base: $BASE" >&2
+  exit 1
 fi
 
 HEAD_SHA="$(git rev-parse HEAD)"
-BASE_SHA="$(git rev-parse --verify "$BASE^{commit}")"
 
 if [[ "$BASE_SHA" == "$HEAD_SHA" ]]; then
   echo "invalid historical comparison: BASE == HEAD ($BASE_SHA)" >&2
@@ -119,13 +130,14 @@ if [[ "$BASE_SHA" == "$HEAD_SHA" ]]; then
 fi
 
 if ! git cat-file -e "${BASE_SHA}:${MARKER}" 2>/dev/null; then
-  echo "SemVer gate: base $BASE_SHA is not frozen; bootstrap/snapshot-only mode"
+  echo "SemVer gate: base $BASE_SHA is not frozen; freeze-bootstrap (snapshot-only) mode"
+  echo "public API policy: freeze-bootstrap (snapshot equality; historical SemVer deferred)"
   exit 0
 fi
 
 if ! git cat-file -e "${BASE_SHA}:${SNAPSHOT}" 2>/dev/null; then
-  echo "SemVer gate: base $BASE_SHA lacks $SNAPSHOT; bootstrap/snapshot-only mode"
-  exit 0
+  echo "frozen base $BASE_SHA lacks $SNAPSHOT" >&2
+  exit 1
 fi
 
 echo "SemVer gate: cargo public-api diff ${BASE_SHA}..HEAD --deny=removed --deny=changed"
