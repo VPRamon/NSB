@@ -238,23 +238,9 @@ mod tests {
     fn historical_fixture_geometries_match_spectral_regression_pins() {
         const REL_TOL: f64 = 1.0e-9;
         let cases = [
-            (
-                85.5,
-                97.523,
-                36.0,
-                60.0,
-                384_400.0,
-                0.083_367_447_328_456_61,
-            ),
+            (85.5, 97.523, 36.0, 60.0, 384_400.0, 0.083_367_447_328_456_6),
             (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.308_541_289_220_820_8),
-            (
-                85.5,
-                52.216,
-                62.0,
-                15.0,
-                384_400.0,
-                0.067_532_264_783_783_39,
-            ),
+            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.067_532_264_783_783_4),
         ];
         let profile = paranal_like_profile();
         for (phase, sep, z_moon, z_src, dist, expected) in cases {
@@ -311,6 +297,8 @@ mod tests {
                 output.b_flux_s10.value(),
                 output.v_flux_s10.value()
             );
+            // Source-selection gates (p025nm ↔ native). Measured maxima:
+            // ~0.00116% integrated, ~1.19% B, ~0.27% V.
             assert!(
                 ((candidate.integrated.value() / output.integrated.value()) - 1.0).abs() < 2.0e-5
             );

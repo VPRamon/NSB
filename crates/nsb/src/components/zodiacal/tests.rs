@@ -344,9 +344,10 @@ fn native_hsrs_resolution_comparison() {
         native.b_flux_s10.value(),
         native.v_flux_s10.value()
     );
+    // Source-selection gates (p025nm ↔ native). Measured: ~0.265% / 0.94% / 0.027%.
     assert!(((candidate.integrated.value() / native.integrated.value()) - 1.0).abs() < 3.0e-3);
     assert!(((candidate.b_flux_s10.value() / native.b_flux_s10.value()) - 1.0).abs() < 0.01);
-    assert!(((candidate.v_flux_s10.value() / native.v_flux_s10.value()) - 1.0).abs() < 1.0e-3);
+    assert!(((candidate.v_flux_s10.value() / native.v_flux_s10.value()) - 1.0).abs() < 5.0e-4);
 }
 
 /// Scientific error budget for the compact runtime representation.
