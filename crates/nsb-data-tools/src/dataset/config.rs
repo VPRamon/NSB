@@ -32,6 +32,20 @@ pub struct SourceConfig {
     pub url: Option<String>,
     pub sha256: String,
     #[serde(default)]
+    pub product_id: Option<String>,
+    #[serde(default)]
+    pub release: Option<String>,
+    #[serde(default)]
+    pub metadata_url: Option<String>,
+    #[serde(default)]
+    pub retrieved_at: Option<String>,
+    #[serde(default)]
+    pub license: Option<String>,
+    #[serde(default)]
+    pub units: Option<String>,
+    #[serde(default)]
+    pub reference_distance: Option<String>,
+    #[serde(default)]
     pub partition: Option<String>,
 }
 

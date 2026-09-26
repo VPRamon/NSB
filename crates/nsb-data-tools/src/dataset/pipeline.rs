@@ -46,6 +46,12 @@ pub trait DatasetPipeline: Sync {
             .collect()
     }
 
+    /// Whether a configured source produces a runtime artifact during build.
+    /// Validation-only reference sources return `false`.
+    fn is_build_source(&self, _source_name: &str) -> bool {
+        true
+    }
+
     /// Validate dataset-specific configuration before any state is written.
     fn validate_config(&self, _config: &RunConfig) -> Result<()> {
         Ok(())
@@ -141,27 +147,31 @@ impl DatasetPipeline for SolarPipeline {
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
-        require_expected(self, source_name)
+        super::solar_spectrum::output_name(source_name)
     }
 
-    fn validate_artifact(&self, _name: &str, path: &Path) -> Result<()> {
-        let rows = data_rows(path)?;
-        if rows.is_empty()
-            || rows.iter().any(|line| {
-                let mut fields = line.split(',');
-                fields
-                    .next()
-                    .and_then(|value| value.trim().parse::<f64>().ok())
-                    .is_none()
-                    || fields
-                        .next()
-                        .and_then(|value| value.trim().parse::<f64>().ok())
-                        .is_none()
-            })
-        {
-            bail!("solar spectrum requires two numeric CSV columns");
-        }
-        Ok(())
+    fn is_build_source(&self, source_name: &str) -> bool {
+        source_name == super::solar_spectrum::SOURCE_NAME
+    }
+
+    fn validate_config(&self, config: &RunConfig) -> Result<()> {
+        super::solar_spectrum::validate_config(config)
+    }
+
+    fn transform(&self, source_name: &str, input: &Path, output: &Path) -> Result<()> {
+        super::solar_spectrum::transform(source_name, input, output)
+    }
+
+    fn validation_gates(
+        &self,
+        config: &RunConfig,
+        artifacts: &[Artifact],
+    ) -> Result<Vec<ValidationGate>> {
+        super::solar_spectrum::validation_gates(config, artifacts)
+    }
+
+    fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
+        super::solar_spectrum::validate_artifact(name, path)
     }
 }
 

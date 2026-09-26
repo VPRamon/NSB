@@ -211,8 +211,9 @@ mod tests {
     ///
     /// The CSV `expected_*` columns remain a schema/tolerance manifest for
     /// external references. Those historical LUT values diverge from the
-    /// current spectral implementation (~85% relative); these pins protect the
-    /// spectral model itself against silent radiance changes.
+    /// current spectral implementation (~85% relative). These pins were
+    /// intentionally refreshed for the reviewed TSIS-1 HSRS v2 replacement;
+    /// the validation report records the 1.94–2.10% scientific delta.
     #[test]
     fn historical_fixture_geometries_match_spectral_regression_pins() {
         const REL_TOL: f64 = 1.0e-9;
@@ -223,10 +224,17 @@ mod tests {
                 36.0,
                 60.0,
                 384_400.0,
-                0.081_651_100_816_024_92,
+                0.083_368_957_549_125_52,
             ),
-            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.302_669_644_974_378_37),
-            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.066_186_634_791_062),
+            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.308_542_975_288_559_5),
+            (
+                85.5,
+                52.216,
+                62.0,
+                15.0,
+                384_400.0,
+                0.067_532_888_253_053_81,
+            ),
         ];
         let profile = paranal_like_profile();
         for (phase, sep, z_moon, z_src, dist, expected) in cases {
@@ -244,6 +252,69 @@ mod tests {
                 "geometry phase={phase} sep={sep}: actual={actual} expected={expected} rel={rel}"
             );
             assert!(actual > 0.0);
+        }
+    }
+
+    /// Reproducible resolution study used by the solar-spectrum validation report.
+    #[test]
+    #[ignore = "requires NSB_TSIS_NATIVE from the solar-spectrum update workspace"]
+    fn native_hsrs_resolution_comparison() {
+        let path = std::env::var("NSB_TSIS_NATIVE").expect("NSB_TSIS_NATIVE path");
+        let raw = std::fs::read_to_string(path).expect("native HSRS CSV");
+        let mut wavelengths = Vec::new();
+        let mut irradiances = Vec::new();
+        for line in raw.lines().skip(1) {
+            let (wavelength, irradiance) = line.split_once(',').expect("two columns");
+            wavelengths.push(wavelength.parse().expect("wavelength"));
+            irradiances.push(irradiance.parse().expect("irradiance"));
+        }
+        let native = SolarSpectrum::from_raw(
+            wavelengths,
+            irradiances,
+            Interpolation::Linear,
+            OutOfRange::ClampToEndpoints,
+            None,
+        )
+        .expect("native HSRS spectrum");
+        let profile = paranal_like_profile();
+        for (phase, separation, moon_zenith, source_zenith, distance) in [
+            (85.5, 97.523, 36.0, 60.0, 384_400.0),
+            (85.5, 4.0, 36.0, 40.0, 384_400.0),
+            (85.5, 52.216, 62.0, 15.0, 384_400.0),
+        ] {
+            let case = geometry(phase, separation, moon_zenith, source_zenith, distance);
+            let output = compute_jones_2013_spectral(
+                &case,
+                &native,
+                crate::units::ScaleFactors::new(1.0),
+                profile,
+            )
+            .expect("native-resolution evaluation");
+            let candidate = compute_jones_2013_spectral(
+                &case,
+                bundled_solar_spectrum(),
+                crate::units::ScaleFactors::new(1.0),
+                profile,
+            )
+            .expect("candidate-resolution evaluation");
+            eprintln!(
+                "phase={phase} separation={separation} candidate=({:.17},{:.17},{:.17}) native=({:.17},{:.17},{:.17})",
+                candidate.integrated.value(),
+                candidate.b_flux_s10.value(),
+                candidate.v_flux_s10.value(),
+                output.integrated.value(),
+                output.b_flux_s10.value(),
+                output.v_flux_s10.value()
+            );
+            assert!(
+                ((candidate.integrated.value() / output.integrated.value()) - 1.0).abs() < 2.0e-5
+            );
+            assert!(
+                ((candidate.b_flux_s10.value() / output.b_flux_s10.value()) - 1.0).abs() < 0.02
+            );
+            assert!(
+                ((candidate.v_flux_s10.value() / output.v_flux_s10.value()) - 1.0).abs() < 0.02
+            );
         }
     }
 }

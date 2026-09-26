@@ -26,6 +26,9 @@ values are monochromatic diagnostics, not passband-integrated magnitudes.
 | [Airglow](airglow/README.md) | Upper-atmosphere emission | Bundled empirical continuum adjusted for geometry and observing conditions |
 | [Scattered moonlight](moonlight/README.md) | Lunar light scattered in the atmosphere | Jones et al. (2013) spectral model or Krisciunas & Schaefer (1991) V-band reference |
 
+Zodiacal light and Jones spectral Moonlight share the reproducible
+[TSIS-1 HSRS v2 solar spectrum](solar-spectrum-validation.md).
+
 ## Shared runtime behaviour
 
 The evaluator computes the selected contributors independently and returns both

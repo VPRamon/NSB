@@ -6,6 +6,7 @@ mod execution;
 mod model;
 mod pipeline;
 mod slurm;
+mod solar_spectrum;
 
 pub use config::{RunConfig, SourceConfig};
 pub use engine::{execute, resume, run_worker, status};

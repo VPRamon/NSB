@@ -32,14 +32,23 @@ runtime_embedded = true
 [[assets]]
 path = "solar_spectrum.dat"
 schema = "wavelength-nm_irradiance-w-m2-nm-v1"
-sha256 = "dbf6a6205c9311782f4a084c1a3ded8d9331c3616dd7e71fbaa1db9fdcc7a7df"
-source = "solar irradiance spectrum from a historical import; exact original reference and release are not recorded"
-license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
-generator = "historical import"
-generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/specifications/validation.md#bundled-asset-validation"
+sha256 = "c790cf53e5af435ebf51a46134eb8a6620bced8872c1bdf74b8c712c7d579877"
+source = "TSIS-1 Hybrid Solar Reference Spectrum Version 2, official LASP/LISIRD tsis1_hsrs_p025nm product (0.025 nm resolution, 0.005 nm sampling), 300–650 nm; DOI 10.25980/ta3f-7h90"
+license = "No dataset-specific redistribution license was located in the DOI, LISIRD metadata, or Coddington et al. (2023) data-availability statement; public download and citation availability are recorded, but redistribution terms remain unresolved"
+generator = "nsb-data dataset solar-spectrum build"
+generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset solar-spectrum update --config crates/nsb-data-tools/config/solar-spectrum.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset solar-spectrum build --config crates/nsb-data-tools/config/solar-spectrum.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset solar-spectrum validate --config crates/nsb-data-tools/config/solar-spectrum.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset solar-spectrum publish --config crates/nsb-data-tools/config/solar-spectrum.toml"
+validation_report = "docs/nsb_components/solar-spectrum-validation.md"
 calibration_status = "generic-fallback"
 runtime_embedded = true
+
+[assets.header]
+source_product = "tsis1_hsrs_p025nm"
+source_release = "TSIS-1 HSRS Version 2"
+source_doi = "https://doi.org/10.25980/ta3f-7h90"
+units = "W m^-2 nm^-1"
+spectral_resolution_nm = "0.025"
+sampling_interval_nm = "0.005"
+reference_distance = "Earth-orbit spectral irradiance; explicit normalization not stated by LISIRD"
 
 [[assets]]
 path = "sscatcor_m15s1.dat"

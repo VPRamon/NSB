@@ -9,9 +9,30 @@ executor = "local"
 concurrency = 1
 
 [[sources]]
-name = "solar_spectrum.dat"
-path = "../../nsb/data/solar_spectrum.dat"
-sha256 = "dbf6a6205c9311782f4a084c1a3ded8d9331c3616dd7e71fbaa1db9fdcc7a7df"
+# Minimum official fixed-resolution variant that meets the checked-in native
+# comparison gates; see docs/nsb_components/solar-spectrum-validation.md.
+name = "tsis1_hsrs_p025nm_300_650.csv"
+url = "https://lasp.colorado.edu/lisird/latis/dap/tsis1_hsrs_p025nm.csv?wavelength,irradiance&wavelength%3E=300&wavelength%3C=650"
+sha256 = "1548b152d162cf877e890fb0aaf8ec7b8dcc102ad839dbd02b250ec17614de92"
+product_id = "tsis1_hsrs_p025nm"
+release = "TSIS-1 HSRS Version 2"
+metadata_url = "https://doi.org/10.25980/ta3f-7h90"
+retrieved_at = "2026-09-26"
+license = "No dataset-specific redistribution license located; public download and scholarly citation do not by themselves establish redistribution terms"
+units = "W m^-2 nm^-1"
+reference_distance = "Earth-orbit spectral irradiance; LISIRD metadata does not state an explicit distance normalization"
+
+[[sources]]
+name = "tsis1_hsrs_native_300_650.csv"
+url = "https://lasp.colorado.edu/lisird/latis/dap/tsis1_hsrs.csv?wavelength,irradiance&wavelength%3E=300&wavelength%3C=650"
+sha256 = "3869a52da382587d5af09660fbedc0b99a878b21cd60a6ad5fb7a1e15279c1ed"
+product_id = "tsis1_hsrs"
+release = "TSIS-1 HSRS Version 2"
+metadata_url = "https://doi.org/10.25980/ta3f-7h90"
+retrieved_at = "2026-09-26"
+license = "No dataset-specific redistribution license located; downloaded only into the untracked validation workspace"
+units = "W m^-2 nm^-1"
+reference_distance = "Earth-orbit spectral irradiance; LISIRD metadata does not state an explicit distance normalization"
 
 [publish]
 repository_root = "../../.."
