@@ -33,17 +33,22 @@ pub(crate) fn evaluate_integrated(
         total += prepared.starlight_integrated;
     }
     if prepared.components.contains(ComponentMask::AIRGLOW) {
+        let solar = prepared
+            .solar_activity_cache
+            .as_ref()
+            .expect("solar activity cache is prepared with airglow")
+            .value_at(time)?;
+        let airglow = prepared
+            .airglow_model
+            .as_ref()
+            .expect("airglow model is prepared when airglow is selected");
         if let Some(phase) = super::filters::airglow_night_phase(prepared, mjd_tt) {
-            let solar = prepared
-                .solar_activity_cache
-                .as_ref()
-                .expect("solar activity cache is prepared with airglow")
-                .value_at(time)?;
-            total += prepared
-                .airglow_model
-                .as_ref()
-                .expect("airglow model is prepared when airglow is selected")
-                .compute_integrated_with_night_phase(time, prepared.target, phase, solar)?;
+            total +=
+                airglow.compute_integrated_with_night_phase(time, prepared.target, phase, solar)?;
+        } else {
+            // Outside night contributes physical zero, but invalid inputs must
+            // still fail rather than masquerading as inactivity (#151/#175).
+            airglow.validate_inputs_for_query(time, prepared.target, solar)?;
         }
     }
     if prepared.components.contains(ComponentMask::MOON) {

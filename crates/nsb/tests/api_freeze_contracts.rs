@@ -5,7 +5,8 @@ mod common;
 use chrono::{DateTime, Utc};
 use common::starlight_test_provenance;
 use nsb::components::airglow::{
-    AirglowModel, AirglowPhysicalOutcome, AirglowSelection, AirglowSelectionKind,
+    AirglowFallbackReason, AirglowModel, AirglowPhysicalOutcome, AirglowPhysicalZeroReason,
+    AirglowSelection, AirglowSelectionKind,
 };
 use nsb::components::starlight::{StarlightMap, StarlightProduct};
 use nsb::{ComponentMask, NsbError, NsbEvaluator, NsbModelConfig, PointQuery, Target, DEG};
@@ -13,9 +14,17 @@ use siderust::catalogs::observatories;
 use std::sync::Arc;
 use tempoch::{Time, UTC};
 
-fn time() -> Time<UTC> {
+fn night_time() -> Time<UTC> {
     Time::<UTC>::from_chrono(
         DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
+    )
+}
+
+fn day_time() -> Time<UTC> {
+    Time::<UTC>::from_chrono(
+        DateTime::parse_from_rfc3339("2023-09-04T16:00:00Z")
             .unwrap()
             .with_timezone(&Utc),
     )
@@ -90,31 +99,41 @@ fn automatic_airglow_fallback_is_machine_visible() {
     let result = NsbEvaluator::new()
         .unwrap()
         .evaluate(
-            &PointQuery::new(observatories::EL_PARANAL.geodetic(), time(), target())
+            &PointQuery::new(observatories::EL_PARANAL.geodetic(), night_time(), target())
                 .with_components(ComponentMask::AIRGLOW),
         )
         .unwrap();
     let airglow = &result.components[0];
-    let report = airglow.metadata.airglow_selection.as_ref().unwrap();
-    assert_eq!(report.selection_kind, AirglowSelectionKind::Automatic);
-    assert!(report.used_automatic_fallback);
-    assert_eq!(report.resolved_model, AirglowModel::ParanalNollSkyCalcFors1);
+    let selection = airglow.metadata.airglow_selection.as_ref().unwrap();
+    assert_eq!(selection.selection_kind, AirglowSelectionKind::Automatic);
+    assert!(selection.used_automatic_fallback);
     assert_eq!(
-        airglow.metadata.airglow_model,
+        selection.resolved_model,
         Some(AirglowModel::ParanalNollSkyCalcFors1)
+    );
+    assert_eq!(
+        selection.fallback_reason,
+        Some(AirglowFallbackReason::GlobalPlanningModelUnavailable)
+    );
+    assert_eq!(
+        selection.fallback_reason.unwrap().as_str(),
+        "global-planning-model-unavailable"
+    );
+    let evaluation = airglow.metadata.airglow_evaluation.as_ref().unwrap();
+    assert_eq!(
+        evaluation.physical_outcome,
+        AirglowPhysicalOutcome::Evaluated
     );
 }
 
 #[test]
-fn unsupported_explicit_airglow_model_does_not_silently_fall_back() {
-    let error = NsbEvaluator::with_config(
-        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::GlobalClimatology),
-    )
-    .err()
-    .expect("unadmitted explicit model must fail at construction");
-    assert!(
-        matches!(error, NsbError::Unsupported(message) if message.contains("global-climatology"))
+fn first_release_airglow_model_contains_only_supported_variants() {
+    // Speculative unimplemented variants must not be frozen; #157 adds models later.
+    assert_eq!(
+        AirglowModel::ParanalNollSkyCalcFors1.as_str(),
+        "paranal-noll-skycalc-fors1"
     );
+    let _ = AirglowModel::ParanalNollSkyCalcFors1;
 }
 
 #[test]
@@ -125,19 +144,73 @@ fn explicit_paranal_airglow_is_not_reported_as_automatic_fallback() {
     )
     .unwrap()
     .evaluate(
-        &PointQuery::new(observatories::EL_PARANAL.geodetic(), time(), target())
+        &PointQuery::new(observatories::EL_PARANAL.geodetic(), night_time(), target())
             .with_components(ComponentMask::AIRGLOW),
     )
     .unwrap();
-    let report = result.components[0]
+    let selection = result.components[0]
         .metadata
         .airglow_selection
         .as_ref()
         .unwrap();
-    assert_eq!(report.selection_kind, AirglowSelectionKind::Explicit);
-    assert!(!report.used_automatic_fallback);
-    assert_eq!(report.fallback_reason, None);
-    assert_eq!(report.physical_outcome, AirglowPhysicalOutcome::Evaluated);
+    assert_eq!(selection.selection_kind, AirglowSelectionKind::Explicit);
+    assert!(!selection.used_automatic_fallback);
+    assert_eq!(selection.fallback_reason, None);
+    let evaluation = result.components[0]
+        .metadata
+        .airglow_evaluation
+        .as_ref()
+        .unwrap();
+    assert_eq!(
+        evaluation.physical_outcome,
+        AirglowPhysicalOutcome::Evaluated
+    );
+}
+
+#[test]
+fn describe_components_does_not_fabricate_evaluation_outcome() {
+    let evaluator = NsbEvaluator::new().unwrap();
+    let descriptions = evaluator
+        .describe_components(observatories::EL_PARANAL.geodetic(), ComponentMask::AIRGLOW)
+        .unwrap();
+    let airglow = &descriptions[0];
+    let selection = airglow.metadata.airglow_selection.as_ref().unwrap();
+    assert_eq!(selection.selection_kind, AirglowSelectionKind::Automatic);
+    assert!(selection.used_automatic_fallback);
+    assert_eq!(
+        selection.resolved_model,
+        Some(AirglowModel::ParanalNollSkyCalcFors1)
+    );
+    assert!(
+        airglow.metadata.airglow_evaluation.is_none(),
+        "descriptors must not invent physical evaluation outcomes"
+    );
+}
+
+#[test]
+fn daytime_physical_zero_is_typed_and_distinct_from_evaluation() {
+    let result = NsbEvaluator::new()
+        .unwrap()
+        .evaluate(
+            &PointQuery::new(observatories::EL_PARANAL.geodetic(), day_time(), target())
+                .with_components(ComponentMask::AIRGLOW),
+        )
+        .unwrap();
+    let airglow = &result.components[0];
+    assert_eq!(airglow.integrated.value(), 0.0);
+    let evaluation = airglow.metadata.airglow_evaluation.as_ref().unwrap();
+    assert_eq!(
+        evaluation.physical_outcome,
+        AirglowPhysicalOutcome::PhysicalZero
+    );
+    assert_eq!(
+        evaluation.physical_zero_reason,
+        Some(AirglowPhysicalZeroReason::OutsideAstronomicalNight)
+    );
+    assert_eq!(
+        evaluation.physical_zero_reason.unwrap().as_str(),
+        "outside-astronomical-night"
+    );
 }
 
 #[test]

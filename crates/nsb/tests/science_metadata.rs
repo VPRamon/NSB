@@ -89,7 +89,12 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         ComponentCalibrationStatus::GenericClearSky
     );
     assert_eq!(
-        airglow.metadata.airglow_model,
+        airglow
+            .metadata
+            .airglow_selection
+            .as_ref()
+            .unwrap()
+            .resolved_model,
         Some(AirglowModel::ParanalNollSkyCalcFors1)
     );
     assert!(airglow.metadata.provenance.contains("airglow_cont.dat"));
@@ -235,7 +240,12 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
         ComponentCalibrationStatus::GenericClearSky
     );
     assert_eq!(
-        airglow.metadata.airglow_model,
+        airglow
+            .metadata
+            .airglow_selection
+            .as_ref()
+            .unwrap()
+            .resolved_model,
         Some(AirglowModel::ParanalNollSkyCalcFors1)
     );
     let geometry = airglow.metadata.airglow_geometry.as_ref().unwrap();

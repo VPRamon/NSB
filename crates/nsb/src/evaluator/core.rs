@@ -1,7 +1,7 @@
 //! Evaluator construction and the public point-evaluation facade.
 
 use super::metadata::{
-    airglow_metadata, moonlight_metadata, starlight_metadata, zodiacal_metadata,
+    airglow_selection_metadata, moonlight_metadata, starlight_metadata, zodiacal_metadata,
 };
 use super::point;
 use super::types::*;
@@ -100,14 +100,11 @@ impl NsbEvaluator {
         if components.contains(ComponentMask::AIRGLOW) {
             descriptions.push(NsbComponentDescriptor {
                 name: "airglow",
-                metadata: airglow_metadata(
+                metadata: airglow_selection_metadata(
                     self.airglow_resolved,
                     self.config.site_profile(),
                     observer,
-                    None,
                     self.config.airglow_geometry(),
-                    airglow::AirglowPhysicalOutcome::Evaluated,
-                    None,
                 ),
             });
         }

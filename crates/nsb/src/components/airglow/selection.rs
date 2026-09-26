@@ -1,13 +1,15 @@
-//! Airglow model-selection contract.
+//! Airglow model-selection and evaluation-outcome contracts.
 //!
-//! Distinguishes automatic/default selection policy from explicit caller choice.
+//! Distinguishes:
+//! - configuration/selection metadata (known before evaluation);
+//! - evaluation outcome (known only after a time-dependent query).
+//!
 //! The global climatological planning model from #157 is deferred; automatic
 //! selection currently resolves to a temporary Paranal-derived planning
-//! fallback with that fallback machine-visible in result metadata.
+//! fallback with that fallback machine-visible via typed reason enums.
 
 use super::model::AirglowModel;
-use crate::error::{NsbError, Result};
-use std::sync::Arc;
+use crate::error::Result;
 
 /// How the Airglow scientific model is chosen for an evaluator.
 ///
@@ -21,7 +23,7 @@ pub enum AirglowSelection {
     ///
     /// Until a global climatological model is admitted (#157), this resolves to
     /// the temporary Paranal-derived planning fallback. That fallback is always
-    /// reported in result metadata and is not presented as a globally
+    /// reported in selection metadata and is not presented as a globally
     /// representative scientific default.
     Automatic,
     /// Caller explicitly selected this scientific model.
@@ -68,6 +70,40 @@ impl AirglowSelectionKind {
     }
 }
 
+/// Why automatic Airglow policy deliberately selected a temporary fallback.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AirglowFallbackReason {
+    /// Global climatological planning model is not yet admitted (#157 deferred).
+    GlobalPlanningModelUnavailable,
+}
+
+impl AirglowFallbackReason {
+    /// Stable machine-readable identifier (canonical contract).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::GlobalPlanningModelUnavailable => "global-planning-model-unavailable",
+        }
+    }
+}
+
+/// Why Airglow radiance is physically zero for a query.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum AirglowPhysicalZeroReason {
+    /// Query is outside astronomical night; continuum is physically inactive.
+    OutsideAstronomicalNight,
+}
+
+impl AirglowPhysicalZeroReason {
+    /// Stable machine-readable identifier (canonical contract).
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::OutsideAstronomicalNight => "outside-astronomical-night",
+        }
+    }
+}
+
 /// Physical evaluation outcome distinct from selection/fallback policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -89,35 +125,36 @@ impl AirglowPhysicalOutcome {
     }
 }
 
-/// Machine-readable Airglow selection and outcome report attached to results.
+/// Configuration/selection metadata known without a time-dependent evaluation.
+///
+/// [`crate::NsbEvaluator::describe_components`] may populate this without
+/// inventing a physical evaluation outcome. When automatic selection later
+/// becomes context-dependent (#157), `resolved_model` / fallback fields may be
+/// `None` until evaluation resolves them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct AirglowSelectionReport {
+pub struct AirglowSelectionMetadata {
     /// Automatic versus explicit configuration choice.
     pub selection_kind: AirglowSelectionKind,
     /// Model requested by an explicit selection, if any.
     pub requested_model: Option<AirglowModel>,
-    /// Model actually used for evaluation.
-    pub resolved_model: AirglowModel,
+    /// Model resolved for evaluation when already known.
+    pub resolved_model: Option<AirglowModel>,
     /// True when automatic policy deliberately fell back to a temporary model.
     pub used_automatic_fallback: bool,
-    /// Why automatic policy selected a fallback model, when applicable.
-    pub fallback_reason: Option<&'static str>,
-    /// Physical evaluation outcome for the query.
-    pub physical_outcome: AirglowPhysicalOutcome,
-    /// Machine-readable reason when [`AirglowPhysicalOutcome::PhysicalZero`].
-    pub physical_zero_reason: Option<&'static str>,
+    /// Typed reason when automatic policy selected a fallback model.
+    pub fallback_reason: Option<AirglowFallbackReason>,
 }
 
-/// Reason string for the release-scoped temporary automatic fallback.
-pub const TEMPORARY_AUTOMATIC_FALLBACK_REASON: &str = concat!(
-    "global climatological planning model not yet admitted (#157 deferred); ",
-    "using temporary Paranal-derived Noll/SkyCalc/FORS1 planning fallback"
-);
-
-/// Reason string for physical zero outside the astronomical-night domain.
-pub const PHYSICAL_ZERO_OUTSIDE_ASTRONOMICAL_NIGHT: &str =
-    "outside astronomical night; Airglow continuum is physically inactive";
+/// Evaluation-specific physical outcome known only after a query is evaluated.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AirglowEvaluationOutcome {
+    /// Physical evaluation outcome for the query.
+    pub physical_outcome: AirglowPhysicalOutcome,
+    /// Typed reason when [`AirglowPhysicalOutcome::PhysicalZero`].
+    pub physical_zero_reason: Option<AirglowPhysicalZeroReason>,
+}
 
 /// Resolved Airglow model identity after applying selection policy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -126,21 +163,25 @@ pub(crate) struct ResolvedAirglowSelection {
     pub selection_kind: AirglowSelectionKind,
     pub requested_model: Option<AirglowModel>,
     pub used_automatic_fallback: bool,
-    pub fallback_reason: Option<&'static str>,
+    pub fallback_reason: Option<AirglowFallbackReason>,
 }
 
 impl ResolvedAirglowSelection {
-    pub(crate) fn report(
-        self,
-        physical_outcome: AirglowPhysicalOutcome,
-        physical_zero_reason: Option<&'static str>,
-    ) -> AirglowSelectionReport {
-        AirglowSelectionReport {
+    pub(crate) fn selection_metadata(self) -> AirglowSelectionMetadata {
+        AirglowSelectionMetadata {
             selection_kind: self.selection_kind,
             requested_model: self.requested_model,
-            resolved_model: self.model,
+            resolved_model: Some(self.model),
             used_automatic_fallback: self.used_automatic_fallback,
             fallback_reason: self.fallback_reason,
+        }
+    }
+
+    pub(crate) fn evaluation_outcome(
+        physical_outcome: AirglowPhysicalOutcome,
+        physical_zero_reason: Option<AirglowPhysicalZeroReason>,
+    ) -> AirglowEvaluationOutcome {
+        AirglowEvaluationOutcome {
             physical_outcome,
             physical_zero_reason,
         }
@@ -160,7 +201,7 @@ pub(crate) fn resolve_airglow_selection(
             selection_kind: AirglowSelectionKind::Automatic,
             requested_model: None,
             used_automatic_fallback: true,
-            fallback_reason: Some(TEMPORARY_AUTOMATIC_FALLBACK_REASON),
+            fallback_reason: Some(AirglowFallbackReason::GlobalPlanningModelUnavailable),
         }),
         AirglowSelection::Explicit(model) => match model {
             AirglowModel::ParanalNollSkyCalcFors1 => Ok(ResolvedAirglowSelection {
@@ -170,13 +211,6 @@ pub(crate) fn resolve_airglow_selection(
                 used_automatic_fallback: false,
                 fallback_reason: None,
             }),
-            // Reserved / not-yet-admitted models fail rather than silently
-            // substituting the Paranal fallback or any other model.
-            AirglowModel::GlobalClimatology => Err(NsbError::Unsupported(format!(
-                "explicitly selected Airglow model '{}' is not yet admitted; \
-                 the global climatological model remains deferred (#157)",
-                model.as_str()
-            ))),
         },
     }
 }
@@ -184,15 +218,11 @@ pub(crate) fn resolve_airglow_selection(
 /// Load continuum assets for a resolved scientific model.
 pub(crate) fn load_continuum_for_model(
     model: AirglowModel,
-) -> Result<Arc<super::calibration::AirglowContinuum>> {
+) -> Result<std::sync::Arc<super::calibration::AirglowContinuum>> {
     match model {
-        AirglowModel::ParanalNollSkyCalcFors1 => {
-            Ok(Arc::new(super::calibration::load_builtin_standard()?))
-        }
-        AirglowModel::GlobalClimatology => Err(NsbError::Unsupported(format!(
-            "Airglow model '{}' has no admitted continuum asset in this build",
-            model.as_str()
-        ))),
+        AirglowModel::ParanalNollSkyCalcFors1 => Ok(std::sync::Arc::new(
+            super::calibration::load_builtin_standard()?,
+        )),
     }
 }
 
@@ -207,7 +237,11 @@ mod tests {
         assert!(resolved.used_automatic_fallback);
         assert_eq!(
             resolved.fallback_reason,
-            Some(TEMPORARY_AUTOMATIC_FALLBACK_REASON)
+            Some(AirglowFallbackReason::GlobalPlanningModelUnavailable)
+        );
+        assert_eq!(
+            resolved.fallback_reason.unwrap().as_str(),
+            "global-planning-model-unavailable"
         );
         assert_eq!(resolved.selection_kind, AirglowSelectionKind::Automatic);
     }
@@ -228,12 +262,10 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_explicit_model_does_not_silently_fall_back() {
-        let error =
-            resolve_airglow_selection(AirglowSelection::Explicit(AirglowModel::GlobalClimatology))
-                .expect_err("unadmitted explicit model must fail");
-        assert!(
-            matches!(error, NsbError::Unsupported(message) if message.contains("global-climatology"))
+    fn physical_zero_reason_identifier_is_stable() {
+        assert_eq!(
+            AirglowPhysicalZeroReason::OutsideAstronomicalNight.as_str(),
+            "outside-astronomical-night"
         );
     }
 }

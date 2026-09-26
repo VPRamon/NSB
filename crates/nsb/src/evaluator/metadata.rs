@@ -3,13 +3,14 @@ use crate::components::airglow::calibration::{
     airglow_continuum_asset, AIRGLOW_CONTINUUM_ASSET_PATH,
 };
 use crate::components::airglow::{
-    AirglowModel, AirglowPhysicalOutcome, AirglowSelectionKind, AirglowSelectionReport,
+    AirglowEvaluationOutcome, AirglowFallbackReason, AirglowPhysicalOutcome,
+    AirglowPhysicalZeroReason, AirglowSelectionKind, AirglowSelectionMetadata,
     ResolvedAirglowSelection, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
 };
 use crate::components::moonlight::MoonlightModel;
 use crate::components::starlight::{StarlightProduct, StarlightProvenance};
 use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
-use crate::site::{CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
+use crate::site::{CalibrationStatus, SiteProfileId};
 use crate::NSB_S10_ZP;
 use qtty::photometry::SurfaceBrightness;
 use siderust::qtty::Nanometers;
@@ -49,12 +50,12 @@ impl ComponentCalibrationStatus {
     }
 }
 
-impl From<SiteCalibrationStatus> for ComponentCalibrationStatus {
-    fn from(status: SiteCalibrationStatus) -> Self {
+impl From<CalibrationStatus> for ComponentCalibrationStatus {
+    fn from(status: CalibrationStatus) -> Self {
         match status {
-            SiteCalibrationStatus::GenericFallback => Self::GenericClearSky,
-            SiteCalibrationStatus::PlanningPreset => Self::PlanningPreset,
-            SiteCalibrationStatus::Calibrated => Self::Production,
+            CalibrationStatus::GenericFallback => Self::GenericClearSky,
+            CalibrationStatus::PlanningPreset => Self::PlanningPreset,
+            CalibrationStatus::Calibrated => Self::Production,
         }
     }
 }
@@ -95,10 +96,17 @@ pub struct NsbComponentMetadata {
     pub validated_domain: Cow<'static, str>,
     /// Meaning of B/V fields.
     pub band_diagnostic: BandDiagnostic,
-    /// Optional scientific Airglow model identity for Airglow evaluations.
-    pub airglow_model: Option<AirglowModel>,
-    /// Optional Airglow selection/outcome report for Airglow evaluations.
-    pub airglow_selection: Option<AirglowSelectionReport>,
+    /// Airglow configuration/selection metadata when Airglow is selected.
+    ///
+    /// Present for both descriptors and evaluated results. Does not invent a
+    /// physical evaluation outcome; see [`Self::airglow_evaluation`].
+    /// Resolved model identity lives here (`resolved_model`) as the canonical
+    /// source of truth — there is no separate `airglow_model` field.
+    pub airglow_selection: Option<AirglowSelectionMetadata>,
+    /// Airglow physical evaluation outcome when a time-dependent query ran.
+    ///
+    /// Absent from [`crate::NsbEvaluator::describe_components`] descriptors.
+    pub airglow_evaluation: Option<AirglowEvaluationOutcome>,
     /// Optional resolved F10.7 provenance for airglow evaluations.
     pub solar_activity: Option<crate::solar_activity::ResolvedSolarActivity>,
     /// Optional emitting-volume geometry provenance for Airglow evaluations.
@@ -136,11 +144,21 @@ pub(super) fn zodiacal_metadata(
         )),
         validated_domain: validated_domain.into(),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-        airglow_model: None,
         airglow_selection: None,
+        airglow_evaluation: None,
         solar_activity: None,
         airglow_geometry: None,
     }
+}
+
+/// Selection-only Airglow metadata for pre-evaluation descriptors.
+pub(super) fn airglow_selection_metadata(
+    resolved: ResolvedAirglowSelection,
+    site_profile: SiteProfileId,
+    observer: Observer,
+    geometry: &crate::components::airglow::AirglowGeometryModel,
+) -> NsbComponentMetadata {
+    airglow_metadata_inner(resolved, site_profile, observer, None, geometry, None)
 }
 
 pub(super) fn airglow_metadata(
@@ -150,10 +168,31 @@ pub(super) fn airglow_metadata(
     solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
     geometry: &crate::components::airglow::AirglowGeometryModel,
     physical_outcome: AirglowPhysicalOutcome,
-    physical_zero_reason: Option<&'static str>,
+    physical_zero_reason: Option<AirglowPhysicalZeroReason>,
+) -> NsbComponentMetadata {
+    airglow_metadata_inner(
+        resolved,
+        site_profile,
+        observer,
+        solar,
+        geometry,
+        Some(ResolvedAirglowSelection::evaluation_outcome(
+            physical_outcome,
+            physical_zero_reason,
+        )),
+    )
+}
+
+fn airglow_metadata_inner(
+    resolved: ResolvedAirglowSelection,
+    site_profile: SiteProfileId,
+    observer: Observer,
+    solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
+    geometry: &crate::components::airglow::AirglowGeometryModel,
+    evaluation: Option<AirglowEvaluationOutcome>,
 ) -> NsbComponentMetadata {
     let model = resolved.model;
-    let selection_report = resolved.report(physical_outcome, physical_zero_reason);
+    let selection = resolved.selection_metadata();
     let profile = site_profile.profile(observer);
     let asset = airglow_continuum_asset();
     let baseline_identity = format!(
@@ -171,30 +210,44 @@ pub(super) fn airglow_metadata(
         Some(resolved) => resolved.provenance_fragment(),
         None => "F10.7 resolved per evaluation UTC date via SolarActivitySource (Automatic/Dataset/Explicit); solar-activity provenance only, not a site calibration".to_string(),
     };
-    let selection_fragment = match selection_report.selection_kind {
+    let selection_fragment = match selection.selection_kind {
         AirglowSelectionKind::Automatic => format!(
             "selection automatic; resolved model {}; used_automatic_fallback {}; fallback_reason {}",
-            selection_report.resolved_model.as_str(),
-            selection_report.used_automatic_fallback,
-            selection_report
+            selection
+                .resolved_model
+                .map(|model| model.as_str())
+                .unwrap_or("unresolved"),
+            selection.used_automatic_fallback,
+            selection
                 .fallback_reason
+                .map(AirglowFallbackReason::as_str)
                 .unwrap_or("none")
         ),
         AirglowSelectionKind::Explicit => format!(
             "selection explicit; requested model {}; resolved model {}; used_automatic_fallback false",
-            selection_report
+            selection
                 .requested_model
                 .map(|model| model.as_str())
                 .unwrap_or("none"),
-            selection_report.resolved_model.as_str()
+            selection
+                .resolved_model
+                .map(|model| model.as_str())
+                .unwrap_or("unresolved")
         ),
     };
-    let physical_fragment = match selection_report.physical_outcome {
-        AirglowPhysicalOutcome::Evaluated => "physical_outcome evaluated".to_string(),
-        AirglowPhysicalOutcome::PhysicalZero => format!(
+    let physical_fragment = match &evaluation {
+        None => "physical_outcome not-evaluated (descriptor)".to_string(),
+        Some(AirglowEvaluationOutcome {
+            physical_outcome: AirglowPhysicalOutcome::Evaluated,
+            ..
+        }) => "physical_outcome evaluated".to_string(),
+        Some(AirglowEvaluationOutcome {
+            physical_outcome: AirglowPhysicalOutcome::PhysicalZero,
+            physical_zero_reason,
+        }) => format!(
             "physical_outcome physical-zero; reason {}",
-            selection_report
-                .physical_zero_reason
+            physical_zero_reason
+                .map(AirglowPhysicalZeroReason::as_str)
                 .unwrap_or("unspecified")
         ),
     };
@@ -219,8 +272,8 @@ pub(super) fn airglow_metadata(
             profile.airglow.assumptions
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-        airglow_model: Some(model),
-        airglow_selection: Some(selection_report),
+        airglow_selection: Some(selection),
+        airglow_evaluation: evaluation,
         solar_activity: solar.cloned(),
         airglow_geometry: Some(geometry.metadata()),
     }
@@ -254,8 +307,8 @@ pub(super) fn starlight_metadata(
             provenance: "no starlight product configured".into(),
             validated_domain: "not evaluable".into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-            airglow_model: None,
             airglow_selection: None,
+            airglow_evaluation: None,
             solar_activity: None,
             airglow_geometry: None,
         },
@@ -304,8 +357,8 @@ fn starlight_map_metadata(
             map_checksum,
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-        airglow_model: None,
         airglow_selection: None,
+        airglow_evaluation: None,
         solar_activity: None,
         airglow_geometry: None,
     }
@@ -330,8 +383,8 @@ pub(super) fn moonlight_metadata(
                     profile.name
                 )),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-                airglow_model: None,
                 airglow_selection: None,
+                airglow_evaluation: None,
                 solar_activity: None,
                 airglow_geometry: None,
             }
@@ -348,8 +401,8 @@ pub(super) fn moonlight_metadata(
                     "published analytic V-band reference model with fixed k=0.172 mag/airmass; not the wavelength-resolved default"
                         .into(),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
-                airglow_model: None,
                 airglow_selection: None,
+                airglow_evaluation: None,
                 solar_activity: None,
                 airglow_geometry: None,
             }

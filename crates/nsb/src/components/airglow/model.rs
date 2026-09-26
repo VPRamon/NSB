@@ -2,7 +2,8 @@
 use super::calibration::load_builtin_standard;
 use super::calibration::AirglowContinuum;
 use super::continuum::{
-    evaluate_continuum, evaluate_integrated_continuum_with_night_phase, AirglowEvaluationContext,
+    evaluate_continuum, evaluate_integrated_continuum_with_night_phase,
+    validate_integrated_continuum_inputs, AirglowEvaluationContext,
 };
 use super::domain::AirglowNightPhase;
 use super::geometry::{target_altitude, AirglowGeometryModel, VanRhijnConfig};
@@ -37,15 +38,10 @@ pub enum AirglowModel {
     /// Supported as an explicit legacy/reference planning model and as the
     /// temporary automatic fallback until the global climatological model is
     /// admitted (#157). It is not intrinsically the generic global scientific
-    /// contract.
+    /// contract. Future climatology will add a new `#[non_exhaustive]` variant
+    /// once scientifically implemented and validated — not a speculative
+    /// public placeholder.
     ParanalNollSkyCalcFors1,
-    /// Reserved selector for the future global climatological planning model.
-    ///
-    /// Explicit selection is rejected until the #157 dataset/model is admitted.
-    /// Automatic selection will prefer this model once it is scientifically
-    /// available; until then automatic policy falls back to
-    /// [`Self::ParanalNollSkyCalcFors1`] with visible fallback metadata.
-    GlobalClimatology,
 }
 
 impl AirglowModel {
@@ -53,7 +49,6 @@ impl AirglowModel {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ParanalNollSkyCalcFors1 => "paranal-noll-skycalc-fors1",
-            Self::GlobalClimatology => "global-climatology",
         }
     }
 }
@@ -210,6 +205,29 @@ impl Airglow {
                 user_scale: self.scale,
             },
             phase,
+        )
+    }
+
+    /// Validate Airglow inputs for a sample that may be outside astronomical night.
+    ///
+    /// Planning paths that skip radiance when outside night must still reject
+    /// invalid altitude / F10.7 / scale rather than treating them as physical zero.
+    pub(crate) fn validate_inputs_for_query(
+        &self,
+        time: Time<UTC>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+        solar_radio_flux: SolarFluxUnits,
+    ) -> Result<()> {
+        let altitude = target_altitude(time, self.location, target);
+        validate_integrated_continuum_inputs(
+            altitude,
+            &AirglowEvaluationContext {
+                location: self.location,
+                atmosphere: self.atmosphere,
+                geometry: self.geometry.clone(),
+                solar_radio_flux,
+                user_scale: self.scale,
+            },
         )
     }
 }

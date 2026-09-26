@@ -385,12 +385,26 @@ fn airglow_ctx(
     location: Geodetic<ECEF>,
     atmosphere: AtmosphericConditions,
 ) -> super::continuum::AirglowEvaluationContext {
+    airglow_ctx_with(
+        location,
+        atmosphere,
+        DEFAULT_SOLAR_RADIO_FLUX,
+        crate::units::ScaleFactors::new(1.0),
+    )
+}
+
+fn airglow_ctx_with(
+    location: Geodetic<ECEF>,
+    atmosphere: AtmosphericConditions,
+    solar_radio_flux: SolarFluxUnits,
+    user_scale: crate::units::ScaleFactors,
+) -> super::continuum::AirglowEvaluationContext {
     super::continuum::AirglowEvaluationContext {
         location,
         atmosphere,
         geometry: AirglowGeometryModel::default(),
-        solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
-        user_scale: crate::units::ScaleFactors::new(1.0),
+        solar_radio_flux,
+        user_scale,
     }
 }
 
@@ -417,7 +431,7 @@ fn polar_winter_astronomical_night_preserves_airglow() {
 }
 
 #[test]
-fn daytime_airglow_continuum_is_zero_outside_calibration_domain() {
+fn valid_daytime_airglow_is_physical_zero_outside_astronomical_night() {
     let continuum = load_builtin_standard().unwrap();
     let out = super::continuum::evaluate_continuum(
         &continuum,
@@ -428,22 +442,71 @@ fn daytime_airglow_continuum_is_zero_outside_calibration_domain() {
     .unwrap();
 
     assert_eq!(out.integrated, BandPhotonRadiance::zero());
+    assert_eq!(out.physical_outcome, AirglowPhysicalOutcome::PhysicalZero);
+    assert_eq!(
+        out.physical_zero_reason,
+        Some(AirglowPhysicalZeroReason::OutsideAstronomicalNight)
+    );
+}
+
+fn assert_out_of_range(err: crate::error::NsbError) {
+    assert!(
+        matches!(err, crate::error::NsbError::OutOfRange(_)),
+        "expected OutOfRange, got {err}"
+    );
 }
 
 #[test]
-fn invalid_altitude_returns_out_of_range_error() {
+fn invalid_altitude_errors_at_night_and_outside_astronomical_night() {
     let continuum = load_builtin_standard().unwrap();
-    let err = super::continuum::evaluate_continuum(
-        &continuum,
-        t("2023-09-04T01:48:00Z"),
-        Degrees::new(f64::NAN),
-        airglow_ctx(
-            paranal(),
-            AtmosphericConditions::generic_clear_sky(paranal()),
-        ),
-    )
-    .expect_err("invalid altitude must not silently become zero");
-    assert!(matches!(err, crate::error::NsbError::OutOfRange(_)));
+    let ctx = airglow_ctx(
+        paranal(),
+        AtmosphericConditions::generic_clear_sky(paranal()),
+    );
+    for time in [t("2023-09-04T01:48:00Z"), t("2023-09-04T16:00:00Z")] {
+        let err = super::continuum::evaluate_continuum(
+            &continuum,
+            time,
+            Degrees::new(f64::NAN),
+            ctx.clone(),
+        )
+        .expect_err("invalid altitude must not silently become zero");
+        assert_out_of_range(err);
+    }
+}
+
+#[test]
+fn invalid_f107_errors_at_night_and_outside_astronomical_night() {
+    let continuum = load_builtin_standard().unwrap();
+    let ctx = airglow_ctx_with(
+        paranal(),
+        AtmosphericConditions::generic_clear_sky(paranal()),
+        SolarFluxUnits::new(f64::NAN),
+        crate::units::ScaleFactors::new(1.0),
+    );
+    for time in [t("2023-09-04T01:48:00Z"), t("2023-09-04T16:00:00Z")] {
+        let err =
+            super::continuum::evaluate_continuum(&continuum, time, Degrees::new(60.0), ctx.clone())
+                .expect_err("invalid F10.7 must not silently become zero");
+        assert_out_of_range(err);
+    }
+}
+
+#[test]
+fn invalid_scale_errors_at_night_and_outside_astronomical_night() {
+    let continuum = load_builtin_standard().unwrap();
+    let ctx = airglow_ctx_with(
+        paranal(),
+        AtmosphericConditions::generic_clear_sky(paranal()),
+        DEFAULT_SOLAR_RADIO_FLUX,
+        crate::units::ScaleFactors::new(f64::NEG_INFINITY),
+    );
+    for time in [t("2023-09-04T01:48:00Z"), t("2023-09-04T16:00:00Z")] {
+        let err =
+            super::continuum::evaluate_continuum(&continuum, time, Degrees::new(60.0), ctx.clone())
+                .expect_err("invalid scale must not silently become zero");
+        assert_out_of_range(err);
+    }
 }
 
 #[test]

@@ -12,18 +12,25 @@
 //! silently switches models. Automatic selection is deterministic; until the
 //! global climatological model (#157) is admitted it resolves to the temporary
 //! Paranal-derived planning fallback with that fallback visible in
-//! [`AirglowSelectionReport`].
+//! [`AirglowSelectionMetadata`] via [`AirglowFallbackReason`].
 //!
 //! The bundled Paranal-derived continuum (Noll/SkyCalc/FORS1 lineage) remains a
 //! supported explicit legacy/reference model and the temporary automatic
 //! fallback. It is not intrinsically the generic global scientific contract.
+//! Future climatology adds a new [`AirglowModel`] variant when admitted — the
+//! enum is `#[non_exhaustive]` so no speculative public placeholder is frozen.
 //!
 //! # Outcome semantics
 //!
+//! [`AirglowSelectionMetadata`] is known from configuration (and current
+//! construction-time resolution). [`AirglowEvaluationOutcome`] is known only
+//! after a time-dependent evaluation. [`crate::NsbEvaluator::describe_components`]
+//! must not invent an evaluation outcome.
+//!
 //! Physical zero (for example outside astronomical night), invalid
-//! input/configuration, unsupported explicit selection, and deliberate automatic
-//! fallback are distinct. Invalid inputs error; they are not converted into a
-//! plausible zero radiance.
+//! input/configuration, and deliberate automatic fallback are distinct.
+//! Invalid inputs error; they are never converted into a plausible zero
+//! radiance — even when the query is outside astronomical night.
 //!
 //! This module is the deliberately narrow advanced Airglow configuration API.
 //! Normal applications select the scientific model and configure geometry through
@@ -63,8 +70,8 @@ pub(crate) use selection::{
     load_continuum_for_model, resolve_airglow_selection, ResolvedAirglowSelection,
 };
 pub use selection::{
-    AirglowPhysicalOutcome, AirglowSelection, AirglowSelectionKind, AirglowSelectionReport,
-    TEMPORARY_AUTOMATIC_FALLBACK_REASON,
+    AirglowEvaluationOutcome, AirglowFallbackReason, AirglowPhysicalOutcome,
+    AirglowPhysicalZeroReason, AirglowSelection, AirglowSelectionKind, AirglowSelectionMetadata,
 };
 
 #[cfg(test)]

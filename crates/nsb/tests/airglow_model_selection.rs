@@ -75,13 +75,19 @@ fn default_and_explicit_model_selection_are_inspectable_and_numerically_identica
         explicit_result.v_flux_s10.value().to_bits()
     );
     assert_eq!(
-        explicit_result.metadata.airglow_model,
+        explicit_result
+            .metadata
+            .airglow_selection
+            .as_ref()
+            .unwrap()
+            .resolved_model,
         Some(REFERENCE_MODEL)
     );
     let report = explicit_result.metadata.airglow_selection.as_ref().unwrap();
     assert!(!report.used_automatic_fallback);
     let default_report = default_result.metadata.airglow_selection.as_ref().unwrap();
     assert!(default_report.used_automatic_fallback);
+    assert!(default_result.metadata.airglow_evaluation.is_some());
 }
 
 #[test]
@@ -125,7 +131,15 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
         &changed_f107,
         &changed_site,
     ] {
-        assert_eq!(component.metadata.airglow_model, Some(REFERENCE_MODEL));
+        assert_eq!(
+            component
+                .metadata
+                .airglow_selection
+                .as_ref()
+                .unwrap()
+                .resolved_model,
+            Some(REFERENCE_MODEL)
+        );
     }
     assert_eq!(
         base_arbitrary.metadata.status,

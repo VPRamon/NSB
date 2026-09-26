@@ -38,7 +38,10 @@
 //! [`NsbModelConfig::with_airglow_model`] selection wins and never silently
 //! switches models. Until the global climatological model is admitted (#157),
 //! automatic policy resolves to the temporary Paranal-derived planning fallback
-//! with that fallback visible in [`NsbComponentMetadata::airglow_selection`].
+//! with typed fallback metadata in [`NsbComponentMetadata::airglow_selection`].
+//! Physical evaluation outcomes live in
+//! [`NsbComponentMetadata::airglow_evaluation`] and are absent from
+//! [`NsbEvaluator::describe_components`] descriptors.
 //!
 //! # Dependency types
 //!
@@ -88,7 +91,7 @@ pub use evaluator::{
     Observer, PointQuery, Target,
 };
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
-pub use site::{CalibrationStatus, CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
+pub use site::{CalibrationStatus, SiteProfileId};
 pub use units::{SolarFluxUnit, SolarFluxUnits};
 
 /// Angle unit used with [`Target::new`] in documented examples.

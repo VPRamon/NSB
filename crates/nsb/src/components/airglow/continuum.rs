@@ -5,7 +5,7 @@ use super::extinction::{
 };
 use super::geometry::AirglowGeometryModel;
 use super::output::AirglowOutputs;
-use super::selection::{AirglowPhysicalOutcome, PHYSICAL_ZERO_OUTSIDE_ASTRONOMICAL_NIGHT};
+use super::selection::{AirglowPhysicalOutcome, AirglowPhysicalZeroReason};
 use super::temporal::{night_phase, season};
 use super::units::{is_valid_solar_flux, SolarFluxUnits};
 use crate::error::{NsbError, Result};
@@ -96,6 +96,7 @@ pub(crate) fn integrate_attenuated_continuum(
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct AirglowEvaluationContext {
     pub(crate) location: Geodetic<ECEF>,
     pub(crate) atmosphere: AtmosphericConditions,
@@ -110,15 +111,20 @@ pub(crate) fn evaluate_continuum(
     altitude: Degrees,
     ctx: AirglowEvaluationContext,
 ) -> Result<AirglowOutputs> {
+    // Invalid inputs must fail before physical-zero / domain gating (#151/#175).
+    validate_airglow_inputs(altitude, &ctx)?;
     let Some(phase) = night_phase(time, ctx.location) else {
         return Ok(AirglowOutputs::zero(
-            PHYSICAL_ZERO_OUTSIDE_ASTRONOMICAL_NIGHT,
+            AirglowPhysicalZeroReason::OutsideAstronomicalNight,
         ));
     };
-    evaluate_continuum_with_night_phase(continuum, time, altitude, ctx, phase)
+    evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
 }
 
-fn validate_airglow_inputs(altitude: Degrees, ctx: &AirglowEvaluationContext) -> Result<()> {
+pub(crate) fn validate_airglow_inputs(
+    altitude: Degrees,
+    ctx: &AirglowEvaluationContext,
+) -> Result<()> {
     let alt = altitude.value();
     if !alt.is_finite() {
         return Err(NsbError::OutOfRange(
@@ -143,6 +149,7 @@ fn validate_airglow_inputs(altitude: Degrees, ctx: &AirglowEvaluationContext) ->
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn evaluate_continuum_with_night_phase(
     continuum: &AirglowContinuum,
     time: Time<UTC>,
@@ -151,7 +158,16 @@ pub(crate) fn evaluate_continuum_with_night_phase(
     phase: AirglowNightPhase,
 ) -> Result<AirglowOutputs> {
     validate_airglow_inputs(altitude, &ctx)?;
+    evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
+}
 
+fn evaluate_continuum_with_night_phase_validated(
+    continuum: &AirglowContinuum,
+    time: Time<UTC>,
+    altitude: Degrees,
+    ctx: AirglowEvaluationContext,
+    phase: AirglowNightPhase,
+) -> Result<AirglowOutputs> {
     let alt = altitude.value();
     let zenith_deg = (90.0 - alt).clamp(0.0, 90.0);
     let zenith = Degrees::new(zenith_deg);
@@ -225,7 +241,24 @@ pub(crate) fn evaluate_integrated_continuum_with_night_phase(
     phase: AirglowNightPhase,
 ) -> Result<BandPhotonRadiance> {
     validate_airglow_inputs(altitude, &ctx)?;
+    evaluate_integrated_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
+}
 
+/// Validate Airglow inputs for planning samples that may be outside night.
+pub(crate) fn validate_integrated_continuum_inputs(
+    altitude: Degrees,
+    ctx: &AirglowEvaluationContext,
+) -> Result<()> {
+    validate_airglow_inputs(altitude, ctx)
+}
+
+fn evaluate_integrated_continuum_with_night_phase_validated(
+    continuum: &AirglowContinuum,
+    time: Time<UTC>,
+    altitude: Degrees,
+    ctx: AirglowEvaluationContext,
+    phase: AirglowNightPhase,
+) -> Result<BandPhotonRadiance> {
     let zenith = Degrees::new((90.0 - altitude.value()).clamp(0.0, 90.0));
     let geometry_factor = ctx.geometry.geometry_factor(ctx.location, zenith)?.value();
     let solar_corr = continuum.solar_activity_correction(ctx.solar_radio_flux.value());
