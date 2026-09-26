@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 
 /// How a monthly F10.7 value was obtained for Airglow.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MonthlyCompleteness {
     /// Finalized monthly observed index for a completed calendar month.
     CompleteObserved,
@@ -37,6 +38,7 @@ impl MonthlyCompleteness {
 
 /// Provenance-carrying monthly F10.7 evidence selected for Airglow.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct MonthlyF107Evidence {
     /// Monthly-averaged F10.7 in sfu.
     pub value_sfu: f64,
@@ -119,7 +121,8 @@ pub fn forecast_issued_not_after(
     issued_at_utc: &str,
     requested_at: NaiveDateTime,
 ) -> Result<bool, String> {
-    let issued = parse_datetime(issued_at_utc, "forecast_issued_at_utc").map_err(|e| e.0)?;
+    let issued =
+        parse_datetime(issued_at_utc, "forecast_issued_at_utc").map_err(|e| e.to_string())?;
     Ok(issued <= requested_at)
 }
 
@@ -244,7 +247,7 @@ fn try_complete_observed(
         if !is_finalized_monthly_observation(record, evidence_as_of) {
             continue;
         }
-        if !record.covers(requested_date).map_err(|e| e.0)? {
+        if !record.covers(requested_date).map_err(|e| e.to_string())? {
             continue;
         }
         matches.push(record);
@@ -330,14 +333,14 @@ fn try_provisional_observed_plus_forecast(
         if record.kind != F107Kind::Observed || record.cadence.as_deref() != Some("daily") {
             continue;
         }
-        let day = parse_date(&record.date, "date").map_err(|e| e.0)?;
+        let day = parse_date(&record.date, "date").map_err(|e| e.to_string())?;
         if day.year() != requested_date.year() || day.month() != requested_date.month() {
             continue;
         }
         if day > requested_date {
             continue;
         }
-        record.validate().map_err(|e| e.0)?;
+        record.validate().map_err(|e| e.to_string())?;
         if by_day.insert(day, record.clone()).is_none() {
             observed_days += 1;
         }
@@ -403,7 +406,7 @@ fn try_official_monthly_prediction(
         if record.product.contains("45-day") {
             continue;
         }
-        if !record.covers(requested_date).map_err(|e| e.0)? {
+        if !record.covers(requested_date).map_err(|e| e.to_string())? {
             continue;
         }
         if !forecast_evidence_not_after(record, requested_at)? {
@@ -453,7 +456,7 @@ fn forecast_evidence_not_after(
         // Without issuance or retrieval provenance, refuse rather than leak.
         return Ok(false);
     };
-    let retrieved_dt = parse_datetime(retrieved, "retrieved_at_utc").map_err(|e| e.0)?;
+    let retrieved_dt = parse_datetime(retrieved, "retrieved_at_utc").map_err(|e| e.to_string())?;
     Ok(retrieved_dt <= requested_at)
 }
 
@@ -482,11 +485,11 @@ fn collect_time_valid_45_day_by_day(
         if !forecast_issued_not_after(issued, requested_at)? {
             continue;
         }
-        let day = parse_date(&record.date, "date").map_err(|e| e.0)?;
+        let day = parse_date(&record.date, "date").map_err(|e| e.to_string())?;
         if day.year() != year || day.month() != month {
             continue;
         }
-        record.validate().map_err(|e| e.0)?;
+        record.validate().map_err(|e| e.to_string())?;
         match by_day.get(&day) {
             None => {
                 by_day.insert(day, record.clone());

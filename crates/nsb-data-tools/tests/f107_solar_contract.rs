@@ -19,12 +19,16 @@ fn parses_daily_and_45_day_fixtures() {
     let daily = fs::read_to_string(fixtures().join("daily-solar-indices.txt")).unwrap();
     let records = parse_daily_solar_indices(&daily, "2026-08-27T00:00:00Z").unwrap();
     assert!(!records.is_empty());
-    assert!(records.iter().all(|r| r.kind == nsb::F107Kind::Observed));
+    assert!(records
+        .iter()
+        .all(|r| r.kind == nsb::solar_activity::F107Kind::Observed));
 
     let forecast = fs::read(fixtures().join("45-day-forecast.json")).unwrap();
     let forecasts = parse_45_day_forecast_json(&forecast, "2026-08-27T00:00:00Z").unwrap();
     assert!(!forecasts.is_empty());
-    assert!(forecasts.iter().all(|r| r.kind == nsb::F107Kind::Forecast));
+    assert!(forecasts
+        .iter()
+        .all(|r| r.kind == nsb::solar_activity::F107Kind::Forecast));
     assert!(forecasts.iter().all(|r| r.forecast_issued_at_utc.is_some()));
 }
 

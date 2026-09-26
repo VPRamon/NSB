@@ -13,15 +13,21 @@ pub(crate) struct AirglowOutputs {
     /// continuum calibration. `None` means the airglow model returned no
     /// physical emission for the query, so no relative uncertainty is defined.
     pub relative_uncertainty: Option<f64>,
+    /// Physical evaluation outcome (distinct from selection/fallback policy).
+    pub physical_outcome: super::selection::AirglowPhysicalOutcome,
+    /// Reason when [`physical_outcome`](Self::physical_outcome) is physical zero.
+    pub physical_zero_reason: Option<&'static str>,
 }
 
 impl AirglowOutputs {
-    pub(crate) fn zero() -> Self {
+    pub(crate) fn zero(reason: &'static str) -> Self {
         Self {
             integrated: BandPhotonRadiance::zero(),
             b_flux_s10: S10s::zero(),
             v_flux_s10: S10s::zero(),
             relative_uncertainty: None,
+            physical_outcome: super::selection::AirglowPhysicalOutcome::PhysicalZero,
+            physical_zero_reason: Some(reason),
         }
     }
 }

@@ -1,8 +1,9 @@
 use chrono::{DateTime, Utc};
 use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
 use nsb::{
-    AirglowModel, CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbComponent,
-    NsbEvaluator, NsbModelConfig, PointQuery, SiteProfileId, SolarFluxUnits, Target, DEG,
+    AirglowModel, AirglowSelection, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
+    NsbComponent, NsbEvaluator, NsbModelConfig, PointQuery, SiteProfileId, SolarFluxUnits, Target,
+    DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -47,11 +48,15 @@ fn evaluate_airglow(config: NsbModelConfig, observer: Geodetic<ECEF>) -> NsbComp
 #[test]
 fn default_and_explicit_model_selection_are_inspectable_and_numerically_identical() {
     let default = NsbModelConfig::default();
-    assert_eq!(default.airglow_model(), REFERENCE_MODEL);
-    assert_eq!(default.airglow_model, REFERENCE_MODEL);
+    assert_eq!(default.airglow_selection(), AirglowSelection::Automatic);
+    assert_eq!(default.airglow_model(), None);
 
     let explicit = default.clone().with_airglow_model(REFERENCE_MODEL);
-    assert_eq!(explicit.airglow_model(), REFERENCE_MODEL);
+    assert_eq!(
+        explicit.airglow_selection(),
+        AirglowSelection::Explicit(REFERENCE_MODEL)
+    );
+    assert_eq!(explicit.airglow_model(), Some(REFERENCE_MODEL));
 
     let location = observer(-70.4044, -24.6275, 2_635.0);
     let default_result = evaluate_airglow(default, location);
@@ -73,6 +78,10 @@ fn default_and_explicit_model_selection_are_inspectable_and_numerically_identica
         explicit_result.metadata.airglow_model,
         Some(REFERENCE_MODEL)
     );
+    let report = explicit_result.metadata.airglow_selection.as_ref().unwrap();
+    assert!(!report.used_automatic_fallback);
+    let default_report = default_result.metadata.airglow_selection.as_ref().unwrap();
+    assert!(default_report.used_automatic_fallback);
 }
 
 #[test]
@@ -89,7 +98,8 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
     let changed_site = base.clone().with_site_profile(SiteProfileId::CtaSouth);
 
     for config in [&base, &changed_geometry, &changed_f107, &changed_site] {
-        assert_eq!(config.airglow_model(), REFERENCE_MODEL);
+        assert_eq!(config.airglow_selection(), AirglowSelection::Automatic);
+        assert_eq!(config.airglow_model(), None);
     }
     assert_eq!(
         base.airglow_calibration_status(),

@@ -3,6 +3,7 @@ use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::components::airglow::AirglowGeometryMetadata;
+use nsb::solar_activity::SolarActivitySource;
 use nsb::{
     assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
     BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig, NsbResult,
@@ -300,15 +301,23 @@ fn version_json() -> VersionJson {
 }
 
 fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
-    let solar_radio_flux_sfu = match &config.solar_activity {
-        nsb::SolarActivitySource::Explicit(flux) => Some(flux.value()),
-        nsb::SolarActivitySource::Dataset(_) | nsb::SolarActivitySource::Automatic => resolved_sfu,
+    let solar_radio_flux_sfu = match config.solar_activity() {
+        SolarActivitySource::Explicit(flux) => Some(flux.value()),
+        SolarActivitySource::Dataset(_) | SolarActivitySource::Automatic => resolved_sfu,
         _ => resolved_sfu,
     };
+    let airglow_model = match config.airglow_selection() {
+        nsb::AirglowSelection::Automatic => {
+            // Temporary automatic fallback identity until #157 admits climatology.
+            "paranal-noll-skycalc-fors1"
+        }
+        nsb::AirglowSelection::Explicit(model) => model.as_str(),
+        _ => "unknown-airglow-selection",
+    };
     ModelJson {
-        preset: config.site_profile.as_str(),
+        preset: config.site_profile().as_str(),
         moonlight_model: config.moonlight_model().as_str(),
-        starlight_model: match config.starlight_product.as_ref() {
+        starlight_model: match config.starlight_product() {
             None => "not-configured-non-production-component",
             Some(StarlightProduct::BundledProductionGaiaDr3) => "starlight",
             Some(StarlightProduct::ExperimentalMap(_)) => "experimental-starlight",
@@ -316,31 +325,27 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             _ => "unknown-starlight-model",
         },
         solar_radio_flux_sfu,
-        solar_activity_source: match &config.solar_activity {
-            nsb::SolarActivitySource::Explicit(_) => "explicit",
-            nsb::SolarActivitySource::Dataset(_) => "dataset",
-            nsb::SolarActivitySource::Automatic => "automatic",
+        solar_activity_source: match config.solar_activity() {
+            SolarActivitySource::Explicit(_) => "explicit",
+            SolarActivitySource::Dataset(_) => "dataset",
+            SolarActivitySource::Automatic => "automatic",
             _ => "unknown",
         },
-        f107_dataset_id: match &config.solar_activity {
-            nsb::SolarActivitySource::Dataset(store) => Some(store.dataset_id.clone()),
-            nsb::SolarActivitySource::Automatic => {
-                // Prefer the resolved store identity when available via resolved_sfu path;
-                // Automatic uses the bundled store — surface dataset id only when known from config.
-                None
-            }
+        f107_dataset_id: match config.solar_activity() {
+            SolarActivitySource::Dataset(store) => Some(store.dataset_id.clone()),
+            SolarActivitySource::Automatic => None,
             _ => None,
         },
-        f107_snapshot_id: match &config.solar_activity {
-            nsb::SolarActivitySource::Dataset(store) => Some(store.snapshot_id.clone()),
+        f107_snapshot_id: match config.solar_activity() {
+            SolarActivitySource::Dataset(store) => Some(store.snapshot_id.clone()),
             _ => None,
         },
-        f107_checksum_sha256: match &config.solar_activity {
-            nsb::SolarActivitySource::Dataset(store) => store.checksum_sha256.clone(),
+        f107_checksum_sha256: match config.solar_activity() {
+            SolarActivitySource::Dataset(store) => store.checksum_sha256.clone(),
             _ => None,
         },
-        airglow_model: config.airglow_model().as_str(),
-        airglow_geometry: config.airglow_geometry.model_id(),
+        airglow_model,
+        airglow_geometry: config.airglow_geometry().model_id(),
         zodiacal_model: config.zodiacal_model().as_str(),
         zodiacal_extinction: config.zodiacal_extinction().as_str(),
     }
@@ -451,7 +456,7 @@ fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str 
 }
 
 fn starlight_label(config: &NsbModelConfig) -> &'static str {
-    match config.starlight_product.as_ref() {
+    match config.starlight_product() {
         Some(StarlightProduct::BundledProductionGaiaDr3) => "starlight",
         Some(StarlightProduct::ValidatedExternalMap(_)) => "validated-starlight",
         Some(StarlightProduct::ExperimentalMap(_)) => "experimental-starlight",

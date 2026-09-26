@@ -8,13 +8,13 @@
 //! settings.
 
 /// Shared atmospheric assumptions used by site-aware NSB components.
-pub mod atmosphere;
+pub(crate) mod atmosphere;
 /// Versioned evidence contract for dedicated site-calibration assets.
-pub mod calibration;
+pub(crate) mod calibration;
 
 pub use atmosphere::AtmosphericConditions;
 
-use crate::units::ScaleFactors;
+use qtty::dimensionless::Ratios;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Kilometer, Kilometers};
@@ -54,7 +54,7 @@ pub enum CalibrationStatus {
 #[non_exhaustive]
 pub struct AirglowSiteCalibration {
     /// Multiplicative scale applied to the bundled continuum template.
-    pub scale: ScaleFactors,
+    pub scale: Ratios,
     /// Continuum template used by the profile.
     pub template: &'static str,
     /// Machine-readable provenance note for the template and scale.
@@ -66,7 +66,7 @@ pub struct AirglowSiteCalibration {
 impl AirglowSiteCalibration {
     fn skycalc_neutral() -> Self {
         Self {
-            scale: ScaleFactors::new(1.0),
+            scale: Ratios::new(1.0),
             template: "NSB/data/airglow_cont.dat",
             provenance: concat!(
                 "Bundled Paranal-derived (Noll/SkyCalc/FORS1) empirical continuum ",
@@ -241,8 +241,8 @@ mod tests {
         assert!(!south.is_site_calibrated());
         assert!(!SiteProfileId::CtaNorth.is_site_calibrated());
         assert!(!SiteProfileId::CtaSouth.is_site_calibrated());
-        assert_eq!(north.airglow.scale, ScaleFactors::new(1.0));
-        assert_eq!(south.airglow.scale, ScaleFactors::new(1.0));
+        assert_eq!(north.airglow.scale, Ratios::new(1.0));
+        assert_eq!(south.airglow.scale, Ratios::new(1.0));
         assert!(north.atmosphere_provenance.contains("CTAO-North"));
         assert!(south.atmosphere_provenance.contains("CTAO-South"));
     }

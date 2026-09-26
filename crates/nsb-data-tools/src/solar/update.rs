@@ -8,7 +8,9 @@ use crate::platform::artifact_store::atomic_write;
 use crate::platform::checksum_io::sha256_bytes;
 use anyhow::{bail, Context, Result};
 use chrono::{DateTime, NaiveDate, Utc};
-use nsb::{resolve_f107, F107Kind, F107Store, ResolvedSolarActivity, SolarActivitySource};
+use nsb::solar_activity::{
+    resolve_f107, F107Kind, F107Store, ResolvedSolarActivity, SolarActivitySource,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -87,7 +89,10 @@ pub fn update_store(store_path: &Path, mode: UpdateMode, dataset_id: &str) -> Re
     let existing = if store_path.exists() {
         let bytes = fs::read(store_path)
             .with_context(|| format!("read existing store {}", store_path.display()))?;
-        Some(F107Store::from_json_bytes(&bytes).map_err(|error| anyhow::anyhow!(error.0))?)
+        Some(
+            F107Store::from_json_bytes(&bytes)
+                .map_err(|error| anyhow::anyhow!(error.to_string()))?,
+        )
     } else {
         None
     };
@@ -96,7 +101,7 @@ pub fn update_store(store_path: &Path, mode: UpdateMode, dataset_id: &str) -> Re
     let base = existing.unwrap_or_else(|| empty_store(dataset_id, &snapshot_id, &retrieved_at));
     let merged = base
         .merge_with(&incoming, snapshot_id.clone(), Some(retrieved_at.clone()))
-        .map_err(|error| anyhow::anyhow!(error.0))?;
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     activate_store(store_path, merged, "fresh", notes)
 }
 
@@ -128,7 +133,7 @@ pub fn freeze_store(params: &FreezeParams) -> Result<UpdateReport> {
             params.snapshot_id.clone(),
             Some(params.retrieved_at_utc.clone()),
         )
-        .map_err(|error| anyhow::anyhow!(error.0))?;
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
     activate_store(&params.store_path, frozen, "frozen", notes)
 }
 
@@ -140,8 +145,9 @@ fn activate_store(
 ) -> Result<UpdateReport> {
     let bytes = store
         .to_json_bytes()
-        .map_err(|error| anyhow::anyhow!(error.0))?;
-    let verified = F107Store::from_json_bytes(&bytes).map_err(|error| anyhow::anyhow!(error.0))?;
+        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
+    let verified =
+        F107Store::from_json_bytes(&bytes).map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let checksum = verified
         .checksum_sha256
         .clone()
@@ -191,7 +197,8 @@ fn validate_retrieved_at(value: &str) -> Result<()> {
 /// Import a caller-provided store file after validation.
 pub fn import_store(source: &Path, destination: &Path) -> Result<UpdateReport> {
     let bytes = fs::read(source).with_context(|| format!("read {}", source.display()))?;
-    let store = F107Store::from_json_bytes(&bytes).map_err(|error| anyhow::anyhow!(error.0))?;
+    let store =
+        F107Store::from_json_bytes(&bytes).map_err(|error| anyhow::anyhow!(error.to_string()))?;
     let checksum = store
         .checksum_sha256
         .clone()
@@ -221,7 +228,8 @@ pub fn import_store(source: &Path, destination: &Path) -> Result<UpdateReport> {
 /// Verify a store asset parses and matches an optional expected checksum.
 pub fn verify_store(path: &Path, expected_sha256: Option<&str>) -> Result<F107Store> {
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
-    let store = F107Store::from_json_bytes(&bytes).map_err(|error| anyhow::anyhow!(error.0))?;
+    let store =
+        F107Store::from_json_bytes(&bytes).map_err(|error| anyhow::anyhow!(error.to_string()))?;
     if let Some(expected) = expected_sha256 {
         let actual = store
             .checksum_sha256
@@ -352,7 +360,7 @@ pub fn status_report_at(path: &Path, now: DateTime<Utc>) -> Result<StoreStatus> 
                 forecast_45_valid_through: None,
                 monthly_forecast_horizon: None,
                 record_count: 0,
-                notes: vec![error.0],
+                notes: vec![error.to_string()],
             });
         }
     };
@@ -518,7 +526,7 @@ pub fn resolve_against_store(
 
 fn empty_store(dataset_id: &str, snapshot_id: &str, retrieved_at: &str) -> F107Store {
     F107Store {
-        schema_version: nsb::F107_STORE_SCHEMA_VERSION,
+        schema_version: nsb::solar_activity::F107_STORE_SCHEMA_VERSION,
         dataset_id: dataset_id.into(),
         snapshot_id: snapshot_id.into(),
         convention: "penticton-f107-sfu-as-reported-by-noaa-swpc".into(),
@@ -540,7 +548,7 @@ fn empty_store(dataset_id: &str, snapshot_id: &str, retrieved_at: &str) -> F107S
     }
 }
 
-fn parse_fixtures(dir: &Path, retrieved_at: &str) -> Result<Vec<nsb::F107Record>> {
+fn parse_fixtures(dir: &Path, retrieved_at: &str) -> Result<Vec<nsb::solar_activity::F107Record>> {
     let mut records = Vec::new();
     let daily = dir.join("daily-solar-indices.txt");
     if daily.exists() {
@@ -579,7 +587,7 @@ fn parse_fixtures(dir: &Path, retrieved_at: &str) -> Result<Vec<nsb::F107Record>
     Ok(records)
 }
 
-fn fetch_and_parse_online(retrieved_at: &str) -> Result<Vec<nsb::F107Record>> {
+fn fetch_and_parse_online(retrieved_at: &str) -> Result<Vec<nsb::solar_activity::F107Record>> {
     let mut records = Vec::new();
     let daily = http_get_text(DAILY_URL)?;
     records.extend(parse_daily_solar_indices(&daily, retrieved_at)?);

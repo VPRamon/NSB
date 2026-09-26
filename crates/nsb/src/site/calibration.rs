@@ -5,6 +5,8 @@
 //! deliberately does not perform that promotion: a valid asset is evidence for
 //! later scientific review, not proof that review has happened.
 
+#![allow(dead_code)]
+
 use crate::site::SiteProfileId;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};

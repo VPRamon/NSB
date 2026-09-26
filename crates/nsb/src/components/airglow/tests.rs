@@ -135,7 +135,7 @@ fn scale_changes_result() {
         .unwrap();
     let scaled = Airglow::standard_clear_sky(location)
         .unwrap()
-        .with_scale(crate::ScaleFactors::new(2.0))
+        .with_scale(crate::units::ScaleFactors::new(2.0))
         .compute(time, target)
         .unwrap();
 
@@ -176,7 +176,7 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
         .compute(time, target)
         .unwrap();
 
-    assert_eq!(profile.airglow.scale, crate::ScaleFactors::new(1.0));
+    assert_eq!(profile.airglow.scale, crate::units::ScaleFactors::new(1.0));
     assert_eq!(from_profile.integrated.value(), explicit.integrated.value());
 }
 
@@ -223,7 +223,7 @@ fn geometry_selection_changes_only_the_geometry_multiplier() {
                 atmosphere,
                 geometry: geometry.clone(),
                 solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
-                user_scale: crate::ScaleFactors::new(1.0),
+                user_scale: crate::units::ScaleFactors::new(1.0),
             },
             AirglowNightPhase::FirstThird,
         )
@@ -281,7 +281,7 @@ fn below_horizon_contract_clamps_to_horizon_for_both_geometry_models() {
                     atmosphere,
                     geometry: geometry.clone(),
                     solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
-                    user_scale: crate::ScaleFactors::new(1.0),
+                    user_scale: crate::units::ScaleFactors::new(1.0),
                 },
                 AirglowNightPhase::FirstThird,
             )
@@ -390,7 +390,7 @@ fn airglow_ctx(
         atmosphere,
         geometry: AirglowGeometryModel::default(),
         solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
-        user_scale: crate::ScaleFactors::new(1.0),
+        user_scale: crate::units::ScaleFactors::new(1.0),
     }
 }
 
@@ -431,9 +431,9 @@ fn daytime_airglow_continuum_is_zero_outside_calibration_domain() {
 }
 
 #[test]
-fn invalid_altitude_returns_zero_stable_result() {
+fn invalid_altitude_returns_out_of_range_error() {
     let continuum = load_builtin_standard().unwrap();
-    let out = super::continuum::evaluate_continuum(
+    let err = super::continuum::evaluate_continuum(
         &continuum,
         t("2023-09-04T01:48:00Z"),
         Degrees::new(f64::NAN),
@@ -442,9 +442,8 @@ fn invalid_altitude_returns_zero_stable_result() {
             AtmosphericConditions::generic_clear_sky(paranal()),
         ),
     )
-    .unwrap();
-
-    assert_eq!(out.integrated, BandPhotonRadiance::zero());
+    .expect_err("invalid altitude must not silently become zero");
+    assert!(matches!(err, crate::error::NsbError::OutOfRange(_)));
 }
 
 #[test]

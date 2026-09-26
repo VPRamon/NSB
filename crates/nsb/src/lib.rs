@@ -14,6 +14,16 @@
 //!
 //! The first-release surface is classified in
 //! [`docs/developer-guide/public-api.md`](../../docs/developer-guide/public-api.md).
+//!
+//! 1. **Core root API** — normal evaluator/planning integrations and durable
+//!    component selectors.
+//! 2. **Advanced nested API** — `components::starlight`, `components::airglow`,
+//!    `site`, and `solar_activity` for supported scientific workflows.
+//! 3. **Metadata/schema API** — intentional persisted or inspectable records
+//!    (bundled assets, F10.7 stores).
+//! 4. **Private implementation** — concrete component evaluators, spectra,
+//!    planning internals, and test/tooling helpers.
+//!
 //! The recommended application path is:
 //!
 //! 1. Build an [`NsbEvaluator`] from [`NsbModelConfig`].
@@ -21,14 +31,14 @@
 //! 3. Read [`NsbResult`] / [`ThresholdQueryResult`] and per-component
 //!    [`NsbComponentMetadata`].
 //!
-//! Point evaluation is owned by the evaluator layer. Observing-window
-//! preparation and threshold search are owned by the planning layer; thin
-//! convenience methods on [`NsbEvaluator`] remain for compatibility.
+//! # Airglow selection
 //!
-//! Root re-exports are the supported crate contract. Nested `pub mod` paths
-//! exist for advanced component construction and scientific metadata; they are
-//! not a second, larger accidental API. Implementation helpers remain
-//! `pub(crate)`.
+//! [`NsbModelConfig::generic_clear_sky`], [`NsbModelConfig::default`], and
+//! [`NsbEvaluator::new`] use [`AirglowSelection::Automatic`]. Explicit
+//! [`NsbModelConfig::with_airglow_model`] selection wins and never silently
+//! switches models. Until the global climatological model is admitted (#157),
+//! automatic policy resolves to the temporary Paranal-derived planning fallback
+//! with that fallback visible in [`NsbComponentMetadata::airglow_selection`].
 //!
 //! # Dependency types
 //!
@@ -56,11 +66,10 @@
 pub mod assets;
 /// Advanced component models used to construct or inspect individual contributors.
 pub mod components;
-/// Public error type and crate [`Result`].
-pub mod error;
+pub(crate) mod error;
 mod evaluator;
 mod planning;
-/// Site profiles, shared atmosphere, and canonical calibration evidence.
+/// Site profiles and shared atmospheric assumptions.
 pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
@@ -68,11 +77,9 @@ mod spectra;
 pub(crate) mod units;
 
 pub use components::airglow::AirglowModel;
+pub use components::airglow::AirglowSelection;
 pub use components::moonlight::MoonlightModel;
-pub use components::starlight::{
-    StarlightMap, StarlightPixel, StarlightProduct, StarlightProvenance,
-    StarlightValidationDiagnostics, ValidatedStarlightMap,
-};
+pub use components::starlight::StarlightProduct;
 pub use components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
 pub use error::{NsbError, Result};
 pub use evaluator::{
@@ -80,26 +87,9 @@ pub use evaluator::{
     NsbComponentDescriptor, NsbComponentMetadata, NsbEvaluator, NsbModelConfig, NsbResult,
     Observer, PointQuery, Target,
 };
-#[cfg(feature = "window-search-diagnostics")]
-pub use planning::WindowSearchDiagnostics;
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
-pub use site::calibration::{
-    AirglowCalibrationEvidence, AtmosphericSiteCalibration, CalibratedSiteId, SiteCalibrationAsset,
-    SiteCalibrationAssetError, SiteCalibrationReference, SiteCalibrationValidity,
-};
-pub use site::{
-    AirglowSiteCalibration, AtmosphericConditions, CalibrationStatus,
-    CalibrationStatus as SiteCalibrationStatus, SiteProfile, SiteProfileId,
-};
-pub use solar_activity::{
-    bundled_f107_store, resolve_f107, F107Kind, F107Record, F107Store, F107StoreError,
-    F107ValidationError, MonthlyCompleteness, MonthlyF107Evidence, ResolvedSolarActivity,
-    SolarActivitySource, F107_STORE_SCHEMA_VERSION,
-};
-pub use units::{
-    MagnitudesPerAirmass, ScaleFactors, SolarFluxUnit, SolarFluxUnits, SolarSpectralIrradiance,
-    SolarSpectralIrradianceUnit,
-};
+pub use site::{CalibrationStatus, CalibrationStatus as SiteCalibrationStatus, SiteProfileId};
+pub use units::{SolarFluxUnit, SolarFluxUnits};
 
 /// Angle unit used with [`Target::new`] in documented examples.
 pub use siderust::qtty::DEG;

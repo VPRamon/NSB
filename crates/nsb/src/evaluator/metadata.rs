@@ -2,7 +2,10 @@ use super::Observer;
 use crate::components::airglow::calibration::{
     airglow_continuum_asset, AIRGLOW_CONTINUUM_ASSET_PATH,
 };
-use crate::components::airglow::{AirglowModel, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG};
+use crate::components::airglow::{
+    AirglowModel, AirglowPhysicalOutcome, AirglowSelectionKind, AirglowSelectionReport,
+    ResolvedAirglowSelection, NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG,
+};
 use crate::components::moonlight::MoonlightModel;
 use crate::components::starlight::{StarlightProduct, StarlightProvenance};
 use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
@@ -94,6 +97,8 @@ pub struct NsbComponentMetadata {
     pub band_diagnostic: BandDiagnostic,
     /// Optional scientific Airglow model identity for Airglow evaluations.
     pub airglow_model: Option<AirglowModel>,
+    /// Optional Airglow selection/outcome report for Airglow evaluations.
+    pub airglow_selection: Option<AirglowSelectionReport>,
     /// Optional resolved F10.7 provenance for airglow evaluations.
     pub solar_activity: Option<crate::solar_activity::ResolvedSolarActivity>,
     /// Optional emitting-volume geometry provenance for Airglow evaluations.
@@ -132,18 +137,23 @@ pub(super) fn zodiacal_metadata(
         validated_domain: validated_domain.into(),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         airglow_model: None,
+        airglow_selection: None,
         solar_activity: None,
         airglow_geometry: None,
     }
 }
 
 pub(super) fn airglow_metadata(
-    model: AirglowModel,
+    resolved: ResolvedAirglowSelection,
     site_profile: SiteProfileId,
     observer: Observer,
     solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
     geometry: &crate::components::airglow::AirglowGeometryModel,
+    physical_outcome: AirglowPhysicalOutcome,
+    physical_zero_reason: Option<&'static str>,
 ) -> NsbComponentMetadata {
+    let model = resolved.model;
+    let selection_report = resolved.report(physical_outcome, physical_zero_reason);
     let profile = site_profile.profile(observer);
     let asset = airglow_continuum_asset();
     let baseline_identity = format!(
@@ -161,11 +171,40 @@ pub(super) fn airglow_metadata(
         Some(resolved) => resolved.provenance_fragment(),
         None => "F10.7 resolved per evaluation UTC date via SolarActivitySource (Automatic/Dataset/Explicit); solar-activity provenance only, not a site calibration".to_string(),
     };
+    let selection_fragment = match selection_report.selection_kind {
+        AirglowSelectionKind::Automatic => format!(
+            "selection automatic; resolved model {}; used_automatic_fallback {}; fallback_reason {}",
+            selection_report.resolved_model.as_str(),
+            selection_report.used_automatic_fallback,
+            selection_report
+                .fallback_reason
+                .unwrap_or("none")
+        ),
+        AirglowSelectionKind::Explicit => format!(
+            "selection explicit; requested model {}; resolved model {}; used_automatic_fallback false",
+            selection_report
+                .requested_model
+                .map(|model| model.as_str())
+                .unwrap_or("none"),
+            selection_report.resolved_model.as_str()
+        ),
+    };
+    let physical_fragment = match selection_report.physical_outcome {
+        AirglowPhysicalOutcome::Evaluated => "physical_outcome evaluated".to_string(),
+        AirglowPhysicalOutcome::PhysicalZero => format!(
+            "physical_outcome physical-zero; reason {}",
+            selection_report
+                .physical_zero_reason
+                .unwrap_or("unspecified")
+        ),
+    };
     NsbComponentMetadata {
         status: profile.calibration_status.into(),
         provenance: Cow::Owned(format!(
-            "scientific model {}; {}; scientific site profile {}; template {}; {}; {}; observer coordinates provide geometry only and do not select or promote this profile",
+            "scientific model {}; {}; {}; {}; scientific site profile {}; template {}; {}; {}; observer coordinates provide geometry only and do not select or promote this profile",
             model.as_str(),
+            selection_fragment,
+            physical_fragment,
             profile.airglow.provenance,
             profile.name,
             profile.airglow.template,
@@ -173,7 +212,7 @@ pub(super) fn airglow_metadata(
             f107_fragment
         )),
         validated_domain: Cow::Owned(format!(
-            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit generic/planning proxy at Paranal and arbitrary Earth locations unless an explicit validated scientific profile exists (not globally or automatically locally calibrated); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, selected emitting-volume LOS geometry ({}), and independent Noll-2012 effective Rayleigh/Mie airglow scattering (Noll §4.1; fitted primarily for zenith distances z≲{}°, larger angles are parametric extrapolation) using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); observer location, measured/explicit F10.7, geometry, atmosphere/extinction, and user scaling do not upgrade Airglow calibration maturity; {}",
+            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit legacy/reference planning model and temporary automatic fallback (not intrinsically the generic global scientific contract; #157 climatology deferred); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, selected emitting-volume LOS geometry ({}), and independent Noll-2012 effective Rayleigh/Mie airglow scattering (Noll §4.1; fitted primarily for zenith distances z≲{}°, larger angles are parametric extrapolation) using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); observer location, measured/explicit F10.7, geometry, atmosphere/extinction, and user scaling do not upgrade Airglow calibration maturity; {}",
             geometry.model_id(),
             NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG as i32,
             profile.atmosphere_provenance,
@@ -181,6 +220,7 @@ pub(super) fn airglow_metadata(
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         airglow_model: Some(model),
+        airglow_selection: Some(selection_report),
         solar_activity: solar.cloned(),
         airglow_geometry: Some(geometry.metadata()),
     }
@@ -215,6 +255,7 @@ pub(super) fn starlight_metadata(
             validated_domain: "not evaluable".into(),
             band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
             airglow_model: None,
+            airglow_selection: None,
             solar_activity: None,
             airglow_geometry: None,
         },
@@ -264,6 +305,7 @@ fn starlight_map_metadata(
         )),
         band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
         airglow_model: None,
+        airglow_selection: None,
         solar_activity: None,
         airglow_geometry: None,
     }
@@ -289,6 +331,7 @@ pub(super) fn moonlight_metadata(
                 )),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
                 airglow_model: None,
+                airglow_selection: None,
                 solar_activity: None,
                 airglow_geometry: None,
             }
@@ -306,6 +349,7 @@ pub(super) fn moonlight_metadata(
                         .into(),
                 band_diagnostic: BandDiagnostic::MONOCHROMATIC_S10_PROXY,
                 airglow_model: None,
+                airglow_selection: None,
                 solar_activity: None,
                 airglow_geometry: None,
             }

@@ -322,7 +322,10 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
         .metadata
         .provenance
         .contains("site_calibrated false"));
-    assert!(airglow.metadata.validated_domain.contains("planning proxy"));
+    assert!(airglow
+        .metadata
+        .validated_domain
+        .contains("temporary automatic fallback"));
 }
 
 #[test]

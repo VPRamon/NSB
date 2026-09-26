@@ -558,7 +558,7 @@ fn rejects_nan_and_non_positive() {
     }
     .validate()
     .unwrap_err();
-    assert!(err.0.contains("finite"));
+    assert!(err.to_string().contains("finite"));
 }
 
 #[test]
@@ -608,7 +608,9 @@ fn store_rejects_unsupported_schema_and_empty_identity() {
 }"#,
     )
     .unwrap_err();
-    assert!(schema.0.contains("unsupported F10.7 store schema"));
+    assert!(schema
+        .to_string()
+        .contains("unsupported F10.7 store schema"));
 
     let empty_id = F107Store::from_json_str(
         r#"{
@@ -621,7 +623,7 @@ fn store_rejects_unsupported_schema_and_empty_identity() {
 }"#,
     )
     .unwrap_err();
-    assert!(empty_id.0.contains("dataset_id"));
+    assert!(empty_id.to_string().contains("dataset_id"));
 }
 
 #[test]
@@ -660,7 +662,7 @@ fn store_rejects_conflicting_duplicate_identity() {
 }"#,
     )
     .unwrap_err();
-    assert!(err.0.contains("conflicting F10.7 records"));
+    assert!(err.to_string().contains("conflicting F10.7 records"));
 }
 
 #[test]

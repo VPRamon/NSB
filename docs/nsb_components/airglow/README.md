@@ -25,23 +25,42 @@ F10.7, atmosphere, extinction, or an explicit scale cannot upgrade maturity to
 
 Normal applications configure Airglow through `NsbModelConfig` and evaluate it
 through `NsbEvaluator`. Direct construction of the internal Airglow component or
-its continuum calibration is not part of the supported public API. The public `components::airglow` route contains the scientific `AirglowModel`
-selector plus advanced geometry types needed by supported configuration and
-diagnostics. The root API also re-exports `AirglowModel` for normal
-configuration.
+its continuum calibration is not part of the supported public API. The public
+`components::airglow` route contains the scientific `AirglowModel` /
+`AirglowSelection` contract plus advanced geometry types. The root API
+re-exports `AirglowModel` and `AirglowSelection` for normal configuration.
 
-NSB exposes `AirglowModel` as the stable scientific model-selection contract
-even though the first release supports one scientific implementation. The
-deterministic default is `AirglowModel::ParanalNollSkyCalcFors1`, named for the
-repository-documented Paranal-derived Noll/SkyCalc/FORS1 lineage. Callers may
-select it explicitly with `NsbModelConfig::with_airglow_model` and inspect the
-selection with `NsbModelConfig::airglow_model`.
+## Automatic versus explicit selection
 
-The concrete continuum/evaluator remains internal. Future scientifically
-validated models can extend the non-exhaustive enum without redesigning the
-configuration/evaluation path. Result metadata reports the scientific model
-identity separately from implementation/data provenance, geometry, site
-maturity, and the repository-wide `MODEL_VERSION`.
+`NsbModelConfig` distinguishes **selection policy** from **model identity**:
+
+| Concept | Type / API | Meaning |
+| --- | --- | --- |
+| Selection policy | `AirglowSelection::{Automatic, Explicit(model)}` | How the model was chosen |
+| Explicit convenience | `with_airglow_model(model)` | Sets `Explicit(model)` |
+| Inspection | `airglow_selection()`, `airglow_model()` | Policy and explicit request (if any) |
+| Outcome report | `NsbComponentMetadata::airglow_selection` | Resolved model, fallback, physical outcome |
+
+Required behavior:
+
+- **Explicit wins.** An explicit selection never silently switches to another
+  model. Unsupported explicit models (for example the reserved
+  `AirglowModel::GlobalClimatology`) fail with `NsbError::Unsupported`.
+- **Automatic is deterministic.** `generic_clear_sky()`, `Default`, and
+  `NsbEvaluator::new` use `AirglowSelection::Automatic`.
+- **Automatic is not “Paranal is the global scientific default.”** Until a
+  global climatological planning model is admitted (#157 deferred), automatic
+  policy resolves to a **temporary Paranal-derived planning fallback**. That
+  fallback is always machine-visible (`used_automatic_fallback`,
+  `fallback_reason`) and must not be read as a globally calibrated contract.
+- **Physical semantics stay distinct.** Physical zero (outside astronomical
+  night), unsupported/out-of-domain, invalid input/data, and deliberate
+  automatic fallback are separate outcomes in metadata / errors (#151).
+
+`AirglowModel` remains the durable scientific identity enum
+(`#[non_exhaustive]`). Future #157 climatology can extend the enum and refine
+automatic resolution without replacing the `AirglowSelection` configuration
+shape. The concrete continuum/evaluator remains internal.
 
 ## Geographic support versus scientific calibration
 
@@ -80,14 +99,12 @@ Library users inspect the selected scientific maturity through
 `NsbModelConfig` and result metadata:
 
 ```rust
-use nsb::{AirglowModel, CalibrationStatus, NsbModelConfig, SiteProfileId};
+use nsb::{AirglowSelection, CalibrationStatus, NsbModelConfig, SiteProfileId};
 
 let config = NsbModelConfig::generic_clear_sky();
-assert_eq!(
-    config.airglow_model(),
-    AirglowModel::ParanalNollSkyCalcFors1,
-);
-assert_eq!(config.site_profile, SiteProfileId::GenericClearSky);
+assert_eq!(config.airglow_selection(), AirglowSelection::Automatic);
+assert_eq!(config.airglow_model(), None); // no explicit request
+assert_eq!(config.site_profile(), SiteProfileId::GenericClearSky);
 assert_eq!(
     config.airglow_calibration_status(),
     CalibrationStatus::GenericFallback,
@@ -95,14 +112,14 @@ assert_eq!(
 assert!(!config.is_airglow_site_calibrated());
 ```
 
-`NsbModelConfig::airglow_model()` reports the selected scientific model before
-evaluation. `airglow_calibration_status()` and
-`is_airglow_site_calibrated()` independently describe site-profile maturity.
-Per-component result metadata exposes `airglow_model` machine-readably and
-derives its calibration status from the selected site profile's
-`CalibrationStatus`; geometry and solar-activity provenance are reported
-separately. Changing observer coordinates, F10.7, geometry, or site maturity does
-not silently change the declared scientific model identity.
+`airglow_selection()` reports the configuration policy before evaluation.
+`airglow_model()` returns `Some` only for explicit selections. After evaluation,
+`NsbComponentMetadata::airglow_selection` reports the resolved model, whether
+automatic fallback was used, and the physical outcome. Site maturity
+(`airglow_calibration_status()` / `is_airglow_site_calibrated()`) remains
+independent of selection policy. Changing observer coordinates, F10.7,
+geometry, or site maturity does not silently change the declared scientific
+model identity.
 
 ## Evaluation stack
 

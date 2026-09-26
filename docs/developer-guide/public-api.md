@@ -1,19 +1,20 @@
 # Public API policy (crate `nsb`)
 
-Status: Pre-release policy; the `nsb` public API is **not frozen yet**.
+Status: First-release API is **frozen** when `crates/nsb/api/API_FROZEN` and
+`crates/nsb/api/public-api.txt` are present on the reviewed tree.
 Audience: Library consumers, contributors, and release maintainers.
-Scope: Intended public surface, forward-compatibility design, and the transition to an enforced API freeze.
+Scope: Intended public surface, forward-compatibility design, and enforced
+API freeze via direct `cargo-public-api` checks (`scripts/check-public-api.sh`).
 
-## Current pre-freeze status
+## Freeze status
 
-The project is still defining and correcting the first public API. Public
-signatures may therefore change before the explicit freeze. In particular,
-correctness fixes that replace dimensionally invalid public types with the
-physical types actually represented by the data are allowed during this phase.
-
-The classifications below describe the intended support level after the freeze
-and guide review today, but they are not yet a SemVer compatibility promise.
-The freeze becomes effective only when `crates/nsb/api/API_FROZEN` is committed.
+After the pre-freeze minimization (#175), the committed snapshot
+`crates/nsb/api/public-api.txt` is the authoritative Rust-signature baseline.
+CI regenerates the API with a pinned nightly + `cargo-public-api` version and
+rejects removals/changes against the historical base SHA. Behavioral contracts
+that `cargo-public-api` cannot see (Airglow selection/outcome,
+`ComponentMask::DEFAULT`/`ALL`, Starlight map ownership) are covered by
+dedicated regression tests under `crates/nsb/tests/`.
 
 ## Recommended application path
 
@@ -34,8 +35,8 @@ Typical imports from the crate root:
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult`, `SiteWindowContext` |
-| Model configuration | `NsbModelConfig`, `AirglowModel`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileId` |
-| Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfile`, `SiteProfileId` |
+| Model configuration | `NsbModelConfig`, `AirglowModel`, `AirglowSelection`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileId` |
+| Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfileId` (full `SiteProfile` / atmosphere under `nsb::site`) |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
 | Errors | `NsbError`, `Result` |
 
@@ -49,12 +50,13 @@ fall into one of four intended classes.
 Intended for normal integrations and to become stable at the public API freeze.
 
 Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
-`Observer`, `Target`), `NsbModelConfig` and model-selection enums,
-`SiteProfile` / `SiteProfileId`, the `StarlightProduct` data-product selector,
-the Zodiacal atmospheric-propagation selector `ZodiacalExtinction`,
+`Observer`, `Target`), opaque `NsbModelConfig` with getters/builders,
+model-selection enums (`AirglowModel`, `AirglowSelection`, `MoonlightModel`,
+`ZodiacalModel`, `ZodiacalExtinction`, `StarlightProduct`), `SiteProfileId`,
 crate version constants (`NSB_VERSION`, `MODEL_VERSION`), and the
 [`DEG`](../../crates/nsb/src/lib.rs) re-export used in
-documented equatorial constructors.
+documented equatorial constructors. Site profile detail types live under
+`nsb::site`.
 
 ### Advanced API
 
@@ -68,22 +70,22 @@ validation/runtime details. `Airglow`, `AirglowContinuum`, and their
 component-only output are implementation details; applications evaluate Airglow
 through `NsbEvaluator` results.
 
-Airglow exposes `AirglowModel` as a stable scientific model-selection contract
-independently of how many implementations are currently supported. The
-first-release `NsbModelConfig::generic_clear_sky()` deterministically selects
-`AirglowModel::ParanalNollSkyCalcFors1`; callers can select the same scientific
-model explicitly with `with_airglow_model` and inspect it with `airglow_model`.
-The enum is `#[non_exhaustive]` so later validated models can be added without
-redesigning `NsbModelConfig`.
+Airglow separates **selection policy** (`AirglowSelection::{Automatic,
+Explicit}`) from **scientific model identity** (`AirglowModel`). Defaults use
+`Automatic`; until #157 admits a global climatological model, automatic policy
+resolves to a temporary Paranal-derived planning fallback with that fallback
+machine-visible in `NsbComponentMetadata::airglow_selection`. Explicit
+`with_airglow_model` / `with_airglow_selection(Explicit(...))` wins and never
+silently switches models. Both enums are `#[non_exhaustive]` so later validated
+models and climatology can extend the contract without redesigning
+`NsbModelConfig`.
 
 The concrete continuum/evaluator remains internal. Scientific model identity is
 separate from `AirglowGeometryModel` (line-of-sight/emitting-volume geometry)
 and `SiteProfileId` (site assumptions and evidence-backed maturity). Evaluated
-Airglow metadata exposes the selected `airglow_model` machine-readably while
-asset provenance/schema/checksum, geometry metadata, site maturity, and
-`MODEL_VERSION` retain their distinct meanings. NSB does not retain unsupported
-implementations solely for API compatibility; intentionally supported scientific
-reference models may coexist behind this selection contract.
+Airglow metadata exposes selection kind, requested/resolved model, fallback
+state, and physical outcome while asset provenance/schema/checksum, geometry
+metadata, site maturity, and `MODEL_VERSION` retain their distinct meanings.
 
 Moonlight follows the same runtime-selection architecture at a smaller public
 surface. `MoonlightModel` is root-exported from the Moonlight component domain,
@@ -217,8 +219,8 @@ constructors and builders rather than external struct literals.
   update (`..base`) are intentionally rejected.
 - **Inside** the `nsb` crate: struct literals remain valid for internal tests.
 
-`NsbModelConfig` fields stay readable and assignable after construction so
-existing builder-style CLI configuration continues to work.
+`NsbModelConfig` fields are private. Inspect choices through getters and mutate
+configuration only via `with_*` builders.
 
 ### Result and metadata records
 
@@ -231,13 +233,33 @@ destructuring so new diagnostics can be added later without unnecessary breaks.
 Some scientific taxonomies are intentionally closed:
 
 - `F107Kind` (serde store schema with `deny_unknown_fields`)
-- `ComponentMask` (bitflags composition contract)
+
+### `ComponentMask::DEFAULT` / `ALL` compatibility
+
+`ComponentMask` is a bitflags composition contract. After freeze:
+
+- `DEFAULT` is the **frozen first-release default composition** (zodiacal,
+  airglow, moonlight, and starlight when a production map is bundled).
+- `ALL` is an **alias of that same frozen set**, not “every component the crate
+  ever implements.”
+- Newly introduced physical components (for example Twilight, #159) are
+  **opt-in** after freeze. Adding a new bit must not silently change scientific
+  results for callers that use `DEFAULT` / `ALL` / `PointQuery::new` defaults.
+- Intentional default-composition changes require an explicit model-contract /
+  version change, release notes, and regression updates.
+
+### Starlight map ownership
+
+`StarlightProduct::{ExperimentalMap, ValidatedExternalMap}` hold
+`Arc<…>` shared ownership so evaluator construction from a caller-provided map
+does not deep-copy HEALPix pixel data. Prefer
+`with_shared_experimental_map` / `with_shared_validated_external_map` when the
+caller already owns an `Arc`.
 
 ### `NsbError`
 
 `NsbError` is `#[non_exhaustive]`. Consumers should match the variants they need
-and retain a wildcard arm. Existing variant shapes should still be designed with
-future compatibility in mind even though the API is not frozen yet.
+and retain a wildcard arm.
 
 ### Site profile inventory
 
@@ -247,19 +269,15 @@ profiles because the return type does not encode the profile count.
 
 ## Public API CI lifecycle
 
-[`crates/nsb-public-api-gate`](../../crates/nsb-public-api-gate) has two modes.
+[`scripts/check-public-api.sh`](../../scripts/check-public-api.sh) replaces the
+former `nsb-public-api-gate` crate (#176) and drives pinned `cargo-public-api`
+directly.
 
-### Pre-freeze mode (current)
+### Pre-freeze mode
 
-The marker `crates/nsb/api/API_FROZEN` does not exist.
-
-CI enforces the compatibility-only source guard, but it **does not** require
-`crates/nsb/api/public-api.txt` and it **does not** reject changed or removed
-public signatures. This is intentional: the first-release API is still being
-corrected.
-
-A stale pre-freeze snapshot is misleading, so `public-api.txt` is not committed
-as the canonical contract in this phase.
+When `crates/nsb/api/API_FROZEN` is absent, CI runs only the forbidden-public-API
+debt guard against the generated API. Snapshot equality and historical SemVer
+rejection are disabled so the first-release surface can still be corrected.
 
 ### Freeze bootstrap
 
@@ -271,7 +289,8 @@ When maintainers decide the public surface is ready:
 4. commit the marker and snapshot together.
 
 The first commit containing the marker is a bootstrap: the snapshot must match
-HEAD, but there is no historical frozen contract to compare against yet.
+HEAD, but historical `BASE..HEAD` comparison is skipped until the selected
+historical base also contains the freeze marker.
 
 ### Frozen mode
 
@@ -281,8 +300,7 @@ Once the selected historical base also contains `API_FROZEN`, CI enforces:
    the API generated from HEAD.
 2. **Historical SemVer gate** — `cargo public-api diff $BASE..HEAD` runs with
    `--deny=removed --deny=changed`.
-3. **Compat guard** — deliberately removed compatibility-only symbols remain
-   forbidden.
+3. **Forbidden-API guard** — deliberately removed public debt remains absent.
 
 Updating the snapshot cannot hide a breaking change after the freeze because the
 historical diff is evaluated against a previously frozen base revision.
@@ -293,10 +311,9 @@ historical diff is evaluated against a previously frozen base revision.
 | --- | --- |
 | GitHub Actions `pull_request` | Explicit `${{ github.event.pull_request.base.sha }}` via `--base` / `NSB_PUBLIC_API_BASE` |
 | GitHub Actions `push` | Explicit `${{ github.event.before }}` (commit before the push) |
-| Local without `--base` | Merge-base with `origin/main` when it differs from `HEAD`, otherwise `HEAD~1` |
+| Local with `--base REV` | Explicit historical revision |
 
-The gate refuses an empty `HEAD..HEAD` comparison and fails closed when an
-explicit non-null historical base required by frozen mode cannot be resolved.
+Invalid `BASE == HEAD` and empty historical comparisons fail closed.
 
 ## Generating the freeze snapshot
 
@@ -306,7 +323,7 @@ cargo install cargo-public-api --locked --version 0.50.1
 
 # Add the freeze marker when the project is actually ready to freeze the API.
 touch crates/nsb/api/API_FROZEN
-cargo run --locked -p nsb-public-api-gate -- --write
+scripts/check-public-api.sh --write
 git add crates/nsb/api/API_FROZEN crates/nsb/api/public-api.txt
 ```
 

@@ -90,7 +90,7 @@ fn target(ra: f64, dec: f64) -> Target {
 fn healpix_experimental_map_is_explicitly_labelled() {
     let map =
         StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
-    let model = Starlight::with_map(map);
+    let model = Starlight::with_shared_map(std::sync::Arc::new(map));
     let provenance = model.map().provenance();
 
     assert_eq!(
@@ -259,7 +259,7 @@ fn map_lookup_is_directional_nearest_neighbor() {
 
 #[test]
 fn model_compute_depends_on_target() {
-    let model = Starlight::with_map(fixture_map());
+    let model = Starlight::with_shared_map(std::sync::Arc::new(fixture_map()));
     let galactic_center = model.compute(target(266.4051, -28.936175)).unwrap();
     let north_pole = model.compute(target(192.85948, 27.12825)).unwrap();
 
@@ -268,11 +268,11 @@ fn model_compute_depends_on_target() {
 
 #[test]
 fn custom_scale_changes_outputs() {
-    let base = Starlight::with_map(fixture_map())
+    let base = Starlight::with_shared_map(std::sync::Arc::new(fixture_map()))
         .compute(target(266.4051, -28.936175))
         .unwrap();
-    let scaled = Starlight::with_map(fixture_map())
-        .with_scale(crate::ScaleFactors::new(2.0))
+    let scaled = Starlight::with_shared_map(std::sync::Arc::new(fixture_map()))
+        .with_scale(crate::units::ScaleFactors::new(2.0))
         .compute(target(266.4051, -28.936175))
         .unwrap();
 
@@ -283,11 +283,11 @@ fn custom_scale_changes_outputs() {
 fn custom_scale_changes_absolute_but_not_relative_uncertainty() {
     let raw = packed_uncertainty_fixture(0.1, 0.2, 0.25);
     let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
-    let base = Starlight::with_map(map.clone())
+    let base = Starlight::with_shared_map(std::sync::Arc::new(map.clone()))
         .compute(target(266.4051, -28.936175))
         .unwrap();
-    let scaled = Starlight::with_map(map)
-        .with_scale(crate::ScaleFactors::new(2.0))
+    let scaled = Starlight::with_shared_map(std::sync::Arc::new(map))
+        .with_scale(crate::units::ScaleFactors::new(2.0))
         .compute(target(266.4051, -28.936175))
         .unwrap();
 

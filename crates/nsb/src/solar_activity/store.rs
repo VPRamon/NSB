@@ -43,11 +43,17 @@ pub struct F107Store {
 /// Store parse / validation error.
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("{0}")]
-pub struct F107StoreError(pub String);
+pub struct F107StoreError(String);
+
+impl F107StoreError {
+    pub(crate) fn new(message: impl Into<String>) -> Self {
+        Self(message.into())
+    }
+}
 
 impl From<F107ValidationError> for F107StoreError {
     fn from(value: F107ValidationError) -> Self {
-        Self(value.0)
+        Self(value.to_string())
     }
 }
 
@@ -55,7 +61,7 @@ impl F107Store {
     /// Parse and validate a JSON store, attaching the content checksum.
     pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, F107StoreError> {
         let mut store: Self = serde_json::from_slice(bytes)
-            .map_err(|error| F107StoreError(format!("invalid F10.7 store JSON: {error}")))?;
+            .map_err(|error| F107StoreError::new(format!("invalid F10.7 store JSON: {error}")))?;
         store.checksum_sha256 = Some(hex_sha256(bytes));
         store.validate()?;
         Ok(store)
@@ -69,7 +75,7 @@ impl F107Store {
     /// Serialize to canonical pretty JSON bytes (stable key order via serde field order).
     pub fn to_json_bytes(&self) -> Result<Vec<u8>, F107StoreError> {
         let mut bytes = serde_json::to_vec_pretty(self)
-            .map_err(|error| F107StoreError(format!("serialize F10.7 store: {error}")))?;
+            .map_err(|error| F107StoreError::new(format!("serialize F10.7 store: {error}")))?;
         bytes.push(b'\n');
         Ok(bytes)
     }
@@ -77,23 +83,23 @@ impl F107Store {
     /// Validate schema, climatology, and every record; reject conflicting duplicates.
     pub fn validate(&self) -> Result<(), F107StoreError> {
         if self.schema_version != F107_STORE_SCHEMA_VERSION {
-            return Err(F107StoreError(format!(
+            return Err(F107StoreError::new(format!(
                 "unsupported F10.7 store schema {}",
                 self.schema_version
             )));
         }
         if self.dataset_id.trim().is_empty() {
-            return Err(F107StoreError("dataset_id must be non-empty".into()));
+            return Err(F107StoreError::new("dataset_id must be non-empty"));
         }
         if self.snapshot_id.trim().is_empty() {
-            return Err(F107StoreError("snapshot_id must be non-empty".into()));
+            return Err(F107StoreError::new("snapshot_id must be non-empty"));
         }
         if self.convention.trim().is_empty() {
-            return Err(F107StoreError("convention must be non-empty".into()));
+            return Err(F107StoreError::new("convention must be non-empty"));
         }
         if !self.climatology_sfu.is_finite() || self.climatology_sfu <= 0.0 {
-            return Err(F107StoreError(
-                "climatology_sfu must be finite and positive".into(),
+            return Err(F107StoreError::new(
+                "climatology_sfu must be finite and positive",
             ));
         }
         for record in &self.records {
@@ -110,7 +116,7 @@ impl F107Store {
             let key = RecordKey::from(record);
             if let Some(prior) = by_key.insert(key.clone(), record) {
                 if prior.value_sfu.to_bits() != record.value_sfu.to_bits() {
-                    return Err(F107StoreError(format!(
+                    return Err(F107StoreError::new(format!(
                         "conflicting F10.7 records for {} kind {} product {} with identical identity keys",
                         record.date,
                         record.kind.as_str(),

@@ -26,15 +26,26 @@ use tempoch::{Time, UTC};
 /// independent of emitting-volume geometry and site calibration/maturity.
 /// Additional scientifically supported models may be added in future releases;
 /// downstream matches should include a wildcard arm.
+///
+/// Model *selection* (automatic versus explicit) is owned by
+/// [`super::AirglowSelection`], not by this enum alone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AirglowModel {
     /// Paranal-derived empirical model with Noll/SkyCalc/FORS1 lineage.
     ///
-    /// This is the first-release reference/planning model. Its asset provenance,
-    /// applicability limits, and implementation data identity are reported in
-    /// component metadata.
+    /// Supported as an explicit legacy/reference planning model and as the
+    /// temporary automatic fallback until the global climatological model is
+    /// admitted (#157). It is not intrinsically the generic global scientific
+    /// contract.
     ParanalNollSkyCalcFors1,
+    /// Reserved selector for the future global climatological planning model.
+    ///
+    /// Explicit selection is rejected until the #157 dataset/model is admitted.
+    /// Automatic selection will prefer this model once it is scientifically
+    /// available; until then automatic policy falls back to
+    /// [`Self::ParanalNollSkyCalcFors1`] with visible fallback metadata.
+    GlobalClimatology,
 }
 
 impl AirglowModel {
@@ -42,6 +53,7 @@ impl AirglowModel {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ParanalNollSkyCalcFors1 => "paranal-noll-skycalc-fors1",
+            Self::GlobalClimatology => "global-climatology",
         }
     }
 }

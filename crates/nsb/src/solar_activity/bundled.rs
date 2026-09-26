@@ -28,7 +28,8 @@ pub fn bundled_f107_asset() -> &'static BundledAssetMetadata {
 /// would bloat compile time without changing scientific behaviour.
 pub fn bundled_f107_store() -> Result<&'static F107Store> {
     static STORE: OnceLock<std::result::Result<F107Store, String>> = OnceLock::new();
-    let loaded = STORE.get_or_init(|| F107Store::from_json_str(RAW).map_err(|error| error.0));
+    let loaded =
+        STORE.get_or_init(|| F107Store::from_json_str(RAW).map_err(|error| error.to_string()));
     match loaded {
         Ok(store) => Ok(store),
         Err(message) => Err(NsbError::DataParse {

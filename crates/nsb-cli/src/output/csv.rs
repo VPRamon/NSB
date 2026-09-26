@@ -106,7 +106,7 @@ fn write_point_to<W: std::io::Write>(
             NSB_VERSION.to_string(),
             MODEL_VERSION.to_string(),
             SIDERUST_SOURCE.to_string(),
-            config.site_profile.as_str().to_string(),
+            config.site_profile().as_str().to_string(),
             assets.clone(),
         ];
         row.extend(airglow_geometry_fields(
@@ -147,7 +147,7 @@ fn write_point_to<W: std::io::Write>(
         NSB_VERSION.to_string(),
         MODEL_VERSION.to_string(),
         SIDERUST_SOURCE.to_string(),
-        config.site_profile.as_str().to_string(),
+        config.site_profile().as_str().to_string(),
         assets,
     ];
     total_row.extend(airglow_geometry_fields(None));
@@ -193,7 +193,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
         NSB_VERSION.to_string(),
         MODEL_VERSION.to_string(),
         SIDERUST_SOURCE.to_string(),
-        output.config.site_profile.as_str().to_string(),
+        output.config.site_profile().as_str().to_string(),
         assets.clone(),
     ];
     summary_row.extend(airglow_geometry_fields(geometry));
@@ -211,7 +211,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
             NSB_VERSION.to_string(),
             MODEL_VERSION.to_string(),
             SIDERUST_SOURCE.to_string(),
-            output.config.site_profile.as_str().to_string(),
+            output.config.site_profile().as_str().to_string(),
             assets.clone(),
         ];
         row.extend(airglow_geometry_fields(geometry));
@@ -319,7 +319,7 @@ fn component_label(name: &'static str, config: &NsbModelConfig) -> &'static str 
 }
 
 fn starlight_label(config: &NsbModelConfig) -> &'static str {
-    match config.starlight_product.as_ref() {
+    match config.starlight_product() {
         Some(StarlightProduct::BundledProductionGaiaDr3) => "starlight",
         Some(StarlightProduct::ValidatedExternalMap(_)) => "validated-starlight",
         Some(StarlightProduct::ExperimentalMap(_)) => "experimental-starlight",

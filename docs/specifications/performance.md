@@ -48,7 +48,7 @@ Production independently prepares Sun/Airglow and Moon state with one
 order and final coalescing are deterministic. Each scan carries its previous
 authoritative endpoint value forward, and crossing refinement receives both
 bracket endpoint values directly; no per-window exact-evaluation map is needed.
-The `window-search-diagnostics` feature deliberately uses the same scientific
+Historical window-search diagnostics used the same scientific
 search sequentially so thread-local counters and phase timings are stable.
 Diagnostic wall time is therefore not production performance.
 
