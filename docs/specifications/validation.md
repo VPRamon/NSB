@@ -24,6 +24,7 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | Experimental starlight | synthetic contrast and HEALPix completeness | proxy radiance plus S10 diagnostics | deterministic | Implementation error only; no science claim |
 | Validated external starlight admission | caller map plus TOML sidecar | declared calibrated integrated band plus B/V diagnostics | exact integrity/header checks; plane/pole >= 1; seam jump <= 1; declared flux tolerance | Implementation error or rejected caller evidence |
 | Jones spectral fixture | historical Jones-model regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |
+| Solar spectrum | pinned TSIS-1 HSRS v2 p025nm and native LISIRD responses | W m^-2 nm^-1, 300–650 nm | exact regeneration; p025nm/native resolution gates; compact/p025nm integral and anchor gates; <=351 runtime samples | Implementation, resolution-choice, or runtime-complexity regression |
 | CTAO-N/S | explicit assumptions only | atmosphere and airglow profile | none | Data limitation |
 
 ## Threshold Window Contract

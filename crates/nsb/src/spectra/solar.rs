@@ -61,7 +61,7 @@ mod tests {
         use siderust::checksum::{sha256, to_hex};
         assert_eq!(
             to_hex(&sha256(RAW.as_bytes())),
-            "dbf6a6205c9311782f4a084c1a3ded8d9331c3616dd7e71fbaa1db9fdcc7a7df",
+            "71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02",
         );
     }
 }

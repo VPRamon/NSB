@@ -331,7 +331,10 @@ fn build(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
     let output_root = config.workspace.root.join("outputs");
     fs::create_dir_all(&output_root)?;
     let expected = pipeline.expected_outputs_for(config);
-    let sources = filtered_sources(config, partitions);
+    let sources: Vec<_> = filtered_sources(config, partitions)
+        .into_iter()
+        .filter(|source| pipeline.is_build_source(&source.name))
+        .collect();
     if sources.len() != expected.len() && !pipeline.supports_partitions() {
         bail!(
             "{} requires sources named {}",
@@ -798,9 +801,11 @@ fn update_manifest_checksum(
         }
     }
     asset["sha256"] = toml_edit::value(checksum);
-    asset["generator"] = toml_edit::value("nsb-data dataset pipeline");
-    asset["generation_command"] =
-        toml_edit::value("nsb-data dataset <dataset> publish --config <run.toml>");
+    if dataset == DatasetName::Starlight {
+        asset["generator"] = toml_edit::value("nsb-data dataset pipeline");
+        asset["generation_command"] =
+            toml_edit::value("nsb-data dataset <dataset> publish --config <run.toml>");
+    }
     Ok(())
 }
 
@@ -898,6 +903,14 @@ impl Drop for Lease {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn source_checksum_mismatch_is_rejected() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        fs::write(file.path(), b"official bytes").unwrap();
+        let error = verify_source(file.path(), &"0".repeat(64)).unwrap_err();
+        assert!(error.to_string().contains("checksum mismatch"));
+    }
 
     #[test]
     fn starlight_publish_registers_new_outputs_as_non_runtime_candidates() {

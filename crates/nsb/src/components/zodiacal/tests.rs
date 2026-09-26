@@ -278,9 +278,111 @@ fn regression_known_case_sgr_a_star_paranal() {
 
     let integrated = out.integrated.value();
     assert!(
-        integrated > 1e-4 && integrated < 1e-1,
-        "integrated zodiacal radiance {integrated:.4e} is outside expected plausible range"
+        (integrated - 0.062_772_202_918_743_08).abs() <= 1.0e-12,
+        "integrated={integrated:.17}"
     );
+    assert!(
+        (out.b_flux_s10.value() - 65.028_954_088_309_32).abs() <= 1.0e-10,
+        "b={:.17}",
+        out.b_flux_s10.value()
+    );
+    assert!(
+        (out.v_flux_s10.value() - 75.428_008_018_252_03).abs() <= 1.0e-10,
+        "v={:.17}",
+        out.v_flux_s10.value()
+    );
+}
+
+fn hsrs_from_env(variable: &str) -> crate::spectra::solar::SolarSpectrum {
+    use crate::spectra::solar::SolarSpectrum;
+    use optica::grid::OutOfRange;
+    use optica::spectrum::Interpolation;
+
+    let path = std::env::var(variable).unwrap_or_else(|_| panic!("{variable} path"));
+    let raw = std::fs::read_to_string(path).expect("HSRS CSV");
+    let mut wavelengths = Vec::new();
+    let mut irradiances = Vec::new();
+    for line in raw.lines().skip(1) {
+        let (wavelength, irradiance) = line.split_once(',').expect("two columns");
+        wavelengths.push(wavelength.parse().expect("wavelength"));
+        irradiances.push(irradiance.parse().expect("irradiance"));
+    }
+    SolarSpectrum::from_raw(
+        wavelengths,
+        irradiances,
+        Interpolation::Linear,
+        OutOfRange::ClampToEndpoints,
+        None,
+    )
+    .expect("HSRS spectrum")
+}
+
+/// Reproducible upstream resolution study used by the validation report.
+#[test]
+#[ignore = "requires NSB_TSIS_P025 and NSB_TSIS_NATIVE from the solar-spectrum update workspace"]
+fn native_hsrs_resolution_comparison() {
+    use super::geometry::ZodiacalGeometry;
+    use super::spectrum::compute_outputs;
+
+    let candidate = hsrs_from_env("NSB_TSIS_P025");
+    let native = hsrs_from_env("NSB_TSIS_NATIVE");
+    let geometry = ZodiacalGeometry {
+        beta: Radians::new(0.3),
+        delta_lambda: Radians::new(1.5),
+        zenith: Some(Degrees::new(30.0)),
+    };
+    let candidate = compute_outputs(&geometry, &candidate, ZodiacalExtinction::Noll2012Approx)
+        .expect("candidate-resolution evaluation");
+    let native = compute_outputs(&geometry, &native, ZodiacalExtinction::Noll2012Approx)
+        .expect("native-resolution evaluation");
+    eprintln!(
+        "candidate=({:.17},{:.17},{:.17}) native=({:.17},{:.17},{:.17})",
+        candidate.integrated.value(),
+        candidate.b_flux_s10.value(),
+        candidate.v_flux_s10.value(),
+        native.integrated.value(),
+        native.b_flux_s10.value(),
+        native.v_flux_s10.value()
+    );
+    // Source-selection gates (p025nm ↔ native). Measured: ~0.265% / 0.94% / 0.027%.
+    assert!(((candidate.integrated.value() / native.integrated.value()) - 1.0).abs() < 3.0e-3);
+    assert!(((candidate.b_flux_s10.value() / native.b_flux_s10.value()) - 1.0).abs() < 0.01);
+    assert!(((candidate.v_flux_s10.value() / native.v_flux_s10.value()) - 1.0).abs() < 5.0e-4);
+}
+
+/// Scientific error budget for the compact runtime representation.
+#[test]
+#[ignore = "requires NSB_TSIS_P025 from the solar-spectrum update workspace"]
+fn compact_runtime_hsrs_comparison() {
+    use super::geometry::ZodiacalGeometry;
+    use super::spectrum::compute_outputs;
+    use crate::spectra::solar;
+
+    let runtime = solar::load().expect("bundled compact runtime spectrum");
+    let selected = hsrs_from_env("NSB_TSIS_P025");
+    let geometry = ZodiacalGeometry {
+        beta: Radians::new(0.3),
+        delta_lambda: Radians::new(1.5),
+        zenith: Some(Degrees::new(30.0)),
+    };
+    let runtime = compute_outputs(&geometry, &runtime, ZodiacalExtinction::Noll2012Approx)
+        .expect("compact runtime evaluation");
+    let selected = compute_outputs(&geometry, &selected, ZodiacalExtinction::Noll2012Approx)
+        .expect("p025nm evaluation");
+    eprintln!(
+        "runtime=({:.17},{:.17},{:.17}) p025nm=({:.17},{:.17},{:.17})",
+        runtime.integrated.value(),
+        runtime.b_flux_s10.value(),
+        runtime.v_flux_s10.value(),
+        selected.integrated.value(),
+        selected.b_flux_s10.value(),
+        selected.v_flux_s10.value()
+    );
+    // 0.05% is one sixth of the HSRS's best quoted radiometric uncertainty
+    // (0.3%) and distinguishes computational reduction error from source error.
+    assert!(((runtime.integrated.value() / selected.integrated.value()) - 1.0).abs() < 5.0e-4);
+    assert!(((runtime.b_flux_s10.value() / selected.b_flux_s10.value()) - 1.0).abs() < 1.0e-12);
+    assert!(((runtime.v_flux_s10.value() / selected.v_flux_s10.value()) - 1.0).abs() < 1.0e-12);
 }
 
 fn sgr_a_star() -> Target {

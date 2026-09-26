@@ -207,26 +207,40 @@ mod tests {
         }
     }
 
+    fn hsrs_from_env(variable: &str) -> SolarSpectrum {
+        let path = std::env::var(variable).unwrap_or_else(|_| panic!("{variable} path"));
+        let raw = std::fs::read_to_string(path).expect("HSRS CSV");
+        let mut wavelengths = Vec::new();
+        let mut irradiances = Vec::new();
+        for line in raw.lines().skip(1) {
+            let (wavelength, irradiance) = line.split_once(',').expect("two columns");
+            wavelengths.push(wavelength.parse().expect("wavelength"));
+            irradiances.push(irradiance.parse().expect("irradiance"));
+        }
+        SolarSpectrum::from_raw(
+            wavelengths,
+            irradiances,
+            Interpolation::Linear,
+            OutOfRange::ClampToEndpoints,
+            None,
+        )
+        .expect("HSRS spectrum")
+    }
+
     /// Regression pins for the three historical fixture geometries.
     ///
     /// The CSV `expected_*` columns remain a schema/tolerance manifest for
     /// external references. Those historical LUT values diverge from the
-    /// current spectral implementation (~85% relative); these pins protect the
-    /// spectral model itself against silent radiance changes.
+    /// current spectral implementation (~85% relative). These pins were
+    /// intentionally refreshed for the reviewed TSIS-1 HSRS v2 replacement;
+    /// the validation report records the 1.94–2.10% scientific delta.
     #[test]
     fn historical_fixture_geometries_match_spectral_regression_pins() {
         const REL_TOL: f64 = 1.0e-9;
         let cases = [
-            (
-                85.5,
-                97.523,
-                36.0,
-                60.0,
-                384_400.0,
-                0.081_651_100_816_024_92,
-            ),
-            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.302_669_644_974_378_37),
-            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.066_186_634_791_062),
+            (85.5, 97.523, 36.0, 60.0, 384_400.0, 0.083_367_447_328_456_6),
+            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.308_541_289_220_820_8),
+            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.067_532_264_783_783_4),
         ];
         let profile = paranal_like_profile();
         for (phase, sep, z_moon, z_src, dist, expected) in cases {
@@ -245,5 +259,154 @@ mod tests {
             );
             assert!(actual > 0.0);
         }
+    }
+
+    /// Reproducible resolution study used by the solar-spectrum validation report.
+    #[test]
+    #[ignore = "requires NSB_TSIS_P025 and NSB_TSIS_NATIVE from the solar-spectrum update workspace"]
+    fn native_hsrs_resolution_comparison() {
+        let selected = hsrs_from_env("NSB_TSIS_P025");
+        let native = hsrs_from_env("NSB_TSIS_NATIVE");
+        let profile = paranal_like_profile();
+        for (phase, separation, moon_zenith, source_zenith, distance) in [
+            (85.5, 97.523, 36.0, 60.0, 384_400.0),
+            (85.5, 4.0, 36.0, 40.0, 384_400.0),
+            (85.5, 52.216, 62.0, 15.0, 384_400.0),
+        ] {
+            let case = geometry(phase, separation, moon_zenith, source_zenith, distance);
+            let output = compute_jones_2013_spectral(
+                &case,
+                &native,
+                crate::units::ScaleFactors::new(1.0),
+                profile,
+            )
+            .expect("native-resolution evaluation");
+            let candidate = compute_jones_2013_spectral(
+                &case,
+                &selected,
+                crate::units::ScaleFactors::new(1.0),
+                profile,
+            )
+            .expect("candidate-resolution evaluation");
+            eprintln!(
+                "phase={phase} separation={separation} candidate=({:.17},{:.17},{:.17}) native=({:.17},{:.17},{:.17})",
+                candidate.integrated.value(),
+                candidate.b_flux_s10.value(),
+                candidate.v_flux_s10.value(),
+                output.integrated.value(),
+                output.b_flux_s10.value(),
+                output.v_flux_s10.value()
+            );
+            // Source-selection gates (p025nm ↔ native). Measured maxima:
+            // ~0.00116% integrated, ~1.19% B, ~0.27% V.
+            assert!(
+                ((candidate.integrated.value() / output.integrated.value()) - 1.0).abs() < 2.0e-5
+            );
+            assert!(
+                ((candidate.b_flux_s10.value() / output.b_flux_s10.value()) - 1.0).abs() < 0.0125
+            );
+            assert!(
+                ((candidate.v_flux_s10.value() / output.v_flux_s10.value()) - 1.0).abs() < 3.0e-3
+            );
+        }
+    }
+
+    /// Scientific error budget for the compact runtime representation.
+    #[test]
+    #[ignore = "requires NSB_TSIS_P025 from the solar-spectrum update workspace"]
+    fn compact_runtime_hsrs_comparison() {
+        let selected = hsrs_from_env("NSB_TSIS_P025");
+        let profile = paranal_like_profile();
+        for (phase, separation, moon_zenith, source_zenith, distance) in [
+            (85.5, 97.523, 36.0, 60.0, 384_400.0),
+            (85.5, 4.0, 36.0, 40.0, 384_400.0),
+            (85.5, 52.216, 62.0, 15.0, 384_400.0),
+        ] {
+            let case = geometry(phase, separation, moon_zenith, source_zenith, distance);
+            let runtime = compute_jones_2013_spectral(
+                &case,
+                bundled_solar_spectrum(),
+                crate::units::ScaleFactors::new(1.0),
+                profile,
+            )
+            .expect("compact runtime evaluation");
+            let selected = compute_jones_2013_spectral(
+                &case,
+                &selected,
+                crate::units::ScaleFactors::new(1.0),
+                profile,
+            )
+            .expect("p025nm evaluation");
+            eprintln!(
+                "phase={phase} separation={separation} runtime=({:.17},{:.17},{:.17}) p025nm=({:.17},{:.17},{:.17})",
+                runtime.integrated.value(),
+                runtime.b_flux_s10.value(),
+                runtime.v_flux_s10.value(),
+                selected.integrated.value(),
+                selected.b_flux_s10.value(),
+                selected.v_flux_s10.value()
+            );
+            assert!(
+                ((runtime.integrated.value() / selected.integrated.value()) - 1.0).abs() < 5.0e-5
+            );
+            assert!(
+                ((runtime.b_flux_s10.value() / selected.b_flux_s10.value()) - 1.0).abs() < 1.0e-12
+            );
+            assert!(
+                ((runtime.v_flux_s10.value() / selected.v_flux_s10.value()) - 1.0).abs() < 1.0e-12
+            );
+        }
+    }
+
+    /// Release-mode timing evidence plus a deterministic complexity guard.
+    #[test]
+    #[ignore = "benchmark evidence; requires NSB_TSIS_P025"]
+    fn compact_runtime_jones_performance_evidence() {
+        use std::hint::black_box;
+        use std::time::Instant;
+
+        let selected = hsrs_from_env("NSB_TSIS_P025");
+        let runtime = bundled_solar_spectrum();
+        assert!(
+            selected.xs_raw().len() / runtime.xs_raw().len() >= 100,
+            "runtime complexity reduction must remain at least 100x"
+        );
+        let case = geometry(85.5, 52.216, 62.0, 15.0, 384_400.0);
+        let profile = paranal_like_profile();
+        let repeats = 10;
+
+        let started = Instant::now();
+        for _ in 0..repeats {
+            black_box(
+                compute_jones_2013_spectral(
+                    &case,
+                    runtime,
+                    crate::units::ScaleFactors::new(1.0),
+                    profile,
+                )
+                .unwrap(),
+            );
+        }
+        let runtime_elapsed = started.elapsed();
+
+        let started = Instant::now();
+        for _ in 0..repeats {
+            black_box(
+                compute_jones_2013_spectral(
+                    &case,
+                    &selected,
+                    crate::units::ScaleFactors::new(1.0),
+                    profile,
+                )
+                .unwrap(),
+            );
+        }
+        let selected_elapsed = started.elapsed();
+        eprintln!(
+            "Jones {repeats} evaluations: runtime={runtime_elapsed:?}, p025nm={selected_elapsed:?}, speedup={:.2}x, samples={}/{}",
+            selected_elapsed.as_secs_f64() / runtime_elapsed.as_secs_f64(),
+            runtime.xs_raw().len(),
+            selected.xs_raw().len()
+        );
     }
 }
