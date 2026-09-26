@@ -15,7 +15,7 @@ SemVer policy, and the snapshot gate are documented in
 | `nsb` | Typed scientific models, component composition, point evaluation, threshold-window search, runtime assets, and scientific metadata | Linked by applications and the CLI |
 | `nsb-cli` | User-facing parsing, site aliases, configuration templates, logging, and stable output rendering | Installed as the `nsb` executable |
 | `nsb-data-tools` | Offline acquisition, transformation, validation, reconciliation, and packaging of scientific data | Maintainer-only; never invoked by runtime evaluation |
-| `nsb-coverage-gate` | Overall and changed-production coverage gates over llvm-cov LCOV (JSON diagnostics) | CI/local quality tool; not a scientific runtime |
+| `scripts/coverage-gate.sh` | Overall and changed-production coverage gates over llvm-cov LCOV | CI/local quality tool; not a scientific runtime |
 | `scripts/check-public-api.sh` | Public API snapshot integrity and historical SemVer gates via `cargo-public-api` | CI/local quality tool; not a scientific runtime |
 
 ## `nsb` modules
@@ -113,16 +113,13 @@ The sole executable and its four dataset workflows are documented in the
 4. document resume/idempotency and exit-code semantics;
 5. update the configuration contract and maintainer guide in the same change.
 
-## `nsb-coverage-gate`
+## `scripts/coverage-gate.sh`
 
-| Module | Responsibility |
+| Concern | Responsibility |
 | --- | --- |
-| `check` | Overall workspace/`nsb` floors (fail-closed if `nsb` is missing) and changed-production diff evaluation |
-| `lcov` | Parse `cargo llvm-cov report --lcov` (`DA:line,hits`) as the line-coverage source of truth |
-| `llvm` | Optional `cargo llvm-cov --json` for function/region diagnostics |
-| `diff` | `git diff -U0` / unified-diff changed-line extraction |
-| `paths` | Production-file classification and crate ownership |
-| `policy` | Load `coverage-policy.toml`; reject non-finite percents and nonempty `exclusions.files` |
+| overall | Workspace and `nsb` line floors from LCOV (fail-closed if `nsb` is missing) |
+| diff | Changed-production executable-line coverage from `git diff -U0` + LCOV |
+| policy | Load floors and metadata from `coverage-policy.toml`; reject nonempty `exclusions.files` |
 
 See [Coverage policy](coverage.md).
 

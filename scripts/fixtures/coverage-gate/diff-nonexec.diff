@@ -1,0 +1,7 @@
+diff --git a/crates/nsb/src/lib.rs b/crates/nsb/src/lib.rs
+--- a/crates/nsb/src/lib.rs
++++ b/crates/nsb/src/lib.rs
+@@ -1,0 +2,3 @@
++//! docs
++pub mod continuum;
++#[allow(dead_code)]

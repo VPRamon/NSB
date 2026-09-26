@@ -44,20 +44,21 @@ cargo +nightly-2026-09-02 llvm-cov report --html --output-dir coverage_html
 ```
 
 Enforce the same gates CI uses, without collecting coverage again. Line floors
-and diff classification read LCOV `DA:line,hits` records. JSON is optional and
-only supplies function/region diagnostics:
+and diff classification read LCOV `DA:line,hits` records:
 
 ```bash
-cargo run --locked -p nsb-coverage-gate -- overall --lcov coverage.lcov --report coverage.json
-cargo run --locked -p nsb-coverage-gate -- diff --lcov coverage.lcov --report coverage.json --base origin/main
+scripts/coverage-gate.sh overall --lcov coverage.lcov
+scripts/coverage-gate.sh diff --lcov coverage.lcov --base origin/main
 ```
 
 The HTML report is written under `coverage_html/`. Open
 `coverage_html/html/index.html` (cargo-llvm-cov may use `coverage_html/index.html`
 depending on version).
 
-`nsb-coverage-gate` is an in-repository Rust checker. It does not contact a
-third-party hosted coverage service.
+`scripts/coverage-gate.sh` is repository CI infrastructure (Bash). It does not
+contact a third-party hosted coverage service. Function and region percentages
+remain available in the uploaded `coverage.json` artifact for diagnostics; they
+are not blocking floors.
 
 If the report contains no `crates/nsb` files or no instrumented `nsb` lines, the
 overall gate **fails** (fail-closed). Empty coverage is not treated as 100%.
@@ -69,8 +70,8 @@ overall gate **fails** (fail-closed). Empty coverage is not treated as 100%.
 | Workspace line floor | PRs and `main` | LCOV workspace line totals | Yes |
 | `nsb` line floor | PRs and `main` | LCOV files under `crates/nsb/` | Yes (fail-closed if absent) |
 | Diff production lines | Pull requests | changed executable lines (`DA` hits) in production `src/` | Yes |
-| Function/region | Always printed | JSON when `--report` is passed | No (diagnostic) |
-| `nsb-cli` / `nsb-data-tools` lines | Always printed | same LCOV/JSON reports | No |
+| Function/region | Coverage JSON artifact | `cargo llvm-cov report --json` | No (diagnostic) |
+| `nsb-cli` / `nsb-data-tools` lines | Printed by overall gate | LCOV | No |
 
 `nsb-cli` and `nsb-data-tools` are recorded but not given separate floors.
 Their production changes are still subject to the diff gate. Offline
@@ -91,20 +92,20 @@ The diff gate:
 - diffs `*.rs` from `git merge-base <base> HEAD` to `HEAD` (`<base>` is the PR
   base SHA in GitHub Actions, otherwise `origin/main`);
 - treats runtime production files under `crates/nsb/src/`, `crates/nsb-cli/src/`, and
-  `crates/nsb-data-tools/src/` as diff-coverage targets (tooling crates like
-  `nsb-coverage-gate` are excluded);
+  `crates/nsb-data-tools/src/` as diff-coverage targets (repository scripts are
+  not production coverage targets);
 - ignores integration tests (`crates/*/tests/`), unit-test modules named
   `tests.rs`, benches, and examples as coverage *targets*;
-- also ignores executable lines inside file-level inline modules guarded by
-  `#[cfg(test)]` (for example `mod tests` or `mod regression`) so test-only
-  edits cannot dilute changed-production coverage;
+- also ignores executable lines inside file-level inline items guarded by
+  `#[cfg(test)]` so test-only edits cannot dilute changed-production coverage;
 - classifies each remaining changed line from LCOV `DA:line,hits` the same way
   LLVM does: hits `> 0` covered, hits `= 0` uncovered, no `DA` record
   non-executable;
 - if a changed production file is **absent** from LCOV, inspects the changed line
-  text: declaration-only edits (module declarations, re-exports, attributes,
-  docs, type/struct/enum headers, fields) pass; any changed line that looks
-  instrumentable fails closed as missing coverage data;
+  text: obvious declaration-only edits (module declarations, re-exports,
+  attributes, docs, type/struct/enum headers, fields) pass; any changed line that
+  looks instrumentable fails closed as missing coverage data. Ambiguous
+  multi-line declaration continuations fail closed (no deep source-context scan);
 - lists uncovered changed production lines and missing files in the job log.
 
 When a pull request changes only non-production or inline `#[cfg(test)]` lines,

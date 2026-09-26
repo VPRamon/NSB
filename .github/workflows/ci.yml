@@ -82,6 +82,8 @@ jobs:
         run: cargo test --workspace --lib --bins --all-features --locked
       - name: Run all workspace targets acceptance gate
         run: cargo test --workspace --all-targets --locked
+      - name: Test coverage gate
+        run: scripts/test-coverage-gate.sh
 
   runtime_integration_tests:
     name: Runtime integration tests
@@ -325,19 +327,17 @@ jobs:
         run: |
           set -o pipefail
           status=0
-          cargo +nightly-2026-09-02 run --locked -p nsb-coverage-gate -- \
+          scripts/coverage-gate.sh \
             overall \
             --lcov coverage.lcov \
-            --report coverage.json \
             --policy coverage-policy.toml \
             --artifact-hint "$ARTIFACT_HINT" \
             | tee coverage-gate-overall.txt || status=1
           cat coverage-gate-overall.txt >> "$GITHUB_STEP_SUMMARY"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            cargo +nightly-2026-09-02 run --locked -p nsb-coverage-gate -- \
+            scripts/coverage-gate.sh \
               diff \
               --lcov coverage.lcov \
-              --report coverage.json \
               --policy coverage-policy.toml \
               --base "${{ github.event.pull_request.base.sha }}" \
               --artifact-hint "$ARTIFACT_HINT" \

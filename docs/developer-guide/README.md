@@ -13,7 +13,7 @@ NSB is a Cargo workspace with deliberately separated responsibilities:
 | `nsb` | Typed scientific runtime API, component composition, point evaluation, threshold-window search, runtime assets, and scientific metadata | CLI parsing, named operational aliases, output formatting, catalogue downloads, or release orchestration |
 | `nsb-cli` | Command-line parsing, named site aliases, timestamp and coordinate parsing, stable JSON/CSV/table presentation, and operational logging | Scientific algorithms or offline data generation |
 | `nsb-data-tools` | Offline acquisition, transformation, validation, reconciliation, and packaging of scientific data products | Runtime query behaviour or an alternative CLI model implementation |
-| `nsb-coverage-gate` | Local overall and diff coverage checks consumed by CI | Scientific models or coverage-percentage gaming |
+| `scripts/coverage-gate.sh` | Local overall and diff coverage checks consumed by CI | Scientific models or coverage-percentage gaming |
 
 Read [Architecture and modules](architecture.md) for system flow and design
 boundaries. Use the [Module reference](module-reference.md) to locate every
