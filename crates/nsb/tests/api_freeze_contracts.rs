@@ -61,7 +61,9 @@ fn nsb_crate_has_no_public_cargo_features() {
 #[test]
 fn config_is_opaque_and_builder_getter_complete() {
     let config = NsbModelConfig::generic_clear_sky()
-        .with_airglow_model(AirglowModel::ParanalNollSkyCalcFors1)
+        .with_airglow_selection(AirglowSelection::Explicit(
+            AirglowModel::ParanalNollSkyCalcFors1,
+        ))
         .with_site_profile(nsb::SiteProfileId::CtaSouth);
     assert_eq!(
         config.airglow_selection(),

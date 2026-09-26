@@ -457,6 +457,34 @@ fn assert_out_of_range(err: crate::error::NsbError) {
 }
 
 #[test]
+fn altitude_at_or_below_minus_ninety_is_out_of_range() {
+    let continuum = load_builtin_standard().unwrap();
+    let err = super::continuum::evaluate_continuum(
+        &continuum,
+        t("2023-09-04T01:48:00Z"),
+        Degrees::new(-90.0),
+        airglow_ctx(
+            paranal(),
+            AtmosphericConditions::generic_clear_sky(paranal()),
+        ),
+    )
+    .expect_err("altitude <= -90 must fail");
+    assert_out_of_range(err);
+}
+
+#[test]
+fn airglow_selection_helpers_expose_stable_identifiers() {
+    assert_eq!(AirglowSelection::Automatic.as_str(), "automatic");
+    assert_eq!(AirglowSelection::Automatic.requested_model(), None);
+    let explicit = AirglowSelection::Explicit(AirglowModel::ParanalNollSkyCalcFors1);
+    assert_eq!(explicit.as_str(), "explicit");
+    assert_eq!(
+        explicit.requested_model(),
+        Some(AirglowModel::ParanalNollSkyCalcFors1)
+    );
+}
+
+#[test]
 fn invalid_altitude_errors_at_night_and_outside_astronomical_night() {
     let continuum = load_builtin_standard().unwrap();
     let ctx = airglow_ctx(
