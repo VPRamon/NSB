@@ -12,8 +12,8 @@ use sha2::{Digest, Sha256};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{
-    unit::{Kilometer, Nanometer},
-    Degrees, Kilometers, Nanometers,
+    unit::{Kilometer, Radian},
+    Degrees, Kilometers, Nanometers, Radians,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -21,8 +21,10 @@ use thiserror::Error;
 /// Current schema accepted for persisted vertical-emission profiles.
 pub const VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION: u32 = 1;
 
-const NSB_WAVELENGTH_MIN_NM: f64 = 300.0;
-const NSB_WAVELENGTH_MAX_NM: f64 = 650.0;
+/// Inclusive lower bound of the broadband optical domain currently evaluated by NSB.
+pub(super) const NSB_WAVELENGTH_MIN: Nanometers = Nanometers::new(300.0);
+/// Inclusive upper bound of the broadband optical domain currently evaluated by NSB.
+pub(super) const NSB_WAVELENGTH_MAX: Nanometers = Nanometers::new(650.0);
 const MIN_PROFILE_SAMPLES: usize = 3;
 
 /// Validation failure for a caller-provided or persisted vertical profile.
@@ -48,6 +50,12 @@ pub enum VerticalEmissionProfileError {
 }
 
 /// Supported normalization convention for relative vertical emissivity.
+///
+/// After [`VerticalProfileNormalization::UnitVerticalIntegral`] construction,
+/// samples are scaled so the trapezoidal integral over altitude equals one.
+/// With altitude in kilometres that means the stored `f64` samples carry an
+/// implicit inverse-length factor (`km⁻¹`) even though the public API keeps
+/// them as untyped `f64` for now (#150/#146).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 #[serde(rename_all = "kebab-case")]
@@ -115,7 +123,13 @@ pub struct VerticalEmissionProfileDefinition {
     pub profile_id: String,
     /// Strictly increasing altitude grid above mean spherical sea level.
     pub altitude_km: Vec<Kilometers>,
-    /// Non-negative relative volume emissivity at each altitude.
+    /// Relative volume emissivity at each altitude.
+    ///
+    /// Before normalization these values are non-negative relative weights.
+    /// After [`VerticalProfileNormalization::UnitVerticalIntegral`] they are
+    /// scaled so ∫ j(h) dh = 1 over the altitude grid; with `h` in kilometres
+    /// the samples therefore carry an implicit `km⁻¹` factor while remaining
+    /// publicly typed as `f64` (full quantity typing deferred to #150/#146).
     pub relative_emissivity: Vec<f64>,
     /// Normalization convention.
     pub normalization: VerticalProfileNormalization,
@@ -251,6 +265,9 @@ impl VerticalEmissionProfile {
     }
 
     /// Unit-vertical-integral emissivity samples.
+    ///
+    /// Publicly untyped `f64` samples with an implicit inverse-length factor
+    /// after construction (see [`VerticalEmissionProfileDefinition::relative_emissivity`]).
     pub fn relative_emissivity(&self) -> &[f64] {
         &self.0.definition.relative_emissivity
     }
@@ -314,50 +331,55 @@ impl VerticalEmissionProfile {
                 "vertical-profile Simpson substeps must be an even integer >= 2".into(),
             ));
         }
-        let z = zenith.value();
         let domain = self.validated_zenith_domain();
-        if !z.is_finite() || z < domain.min.value() || z > domain.max.value() {
+        if !zenith.is_finite() || zenith < domain.min || zenith > domain.max {
             return Err(NsbError::Unsupported(format!(
                 "vertical profile {} supports zenith angles [{}, {}] deg, got {} deg",
                 self.profile_id(),
                 domain.min.value(),
                 domain.max.value(),
-                z
+                zenith.value()
             )));
         }
-        let observer_height_km = observer.height.to::<Kilometer>().value();
-        if !observer_height_km.is_finite() {
+        let observer_height = observer.height.to::<Kilometer>();
+        if !observer_height.is_finite() {
             return Err(NsbError::OutOfRange(
                 "observer altitude must be finite for vertical-profile geometry".into(),
             ));
         }
-        let top = self
+        let top = *self
             .altitude_km()
             .last()
-            .expect("validated profile has samples")
-            .value();
-        if observer_height_km >= top {
+            .expect("validated profile has samples");
+        if observer_height >= top {
             return Err(NsbError::Unsupported(format!(
-                "observer altitude {observer_height_km} km is at or above profile top {top} km"
+                "observer altitude {} km is at or above profile top {} km",
+                observer_height.value(),
+                top.value()
             )));
         }
         let samples = self.samples();
-        let vertical =
-            integrate_profile_los(samples, observer_height_km, 0.0, substeps_per_interval);
+        let vertical = integrate_profile_los(
+            samples,
+            observer_height,
+            Radians::new(0.0),
+            substeps_per_interval,
+        );
         if !vertical.is_finite() || vertical <= 0.0 {
             return Err(NsbError::Unsupported(format!(
-                "vertical profile {} contains no visible emission above observer altitude {observer_height_km} km; its vertical normalization is invalid",
-                self.profile_id()
+                "vertical profile {} contains no visible emission above observer altitude {} km; its vertical normalization is invalid",
+                self.profile_id(),
+                observer_height.value()
             )));
         }
-        if z.abs() <= f64::EPSILON {
+        if zenith.abs() <= Degrees::new(f64::EPSILON) {
             return Ok(ScaleFactors::new(1.0));
         }
 
         let los = integrate_profile_los(
             samples,
-            observer_height_km,
-            z.to_radians(),
+            observer_height,
+            zenith.to::<Radian>(),
             substeps_per_interval,
         );
         let factor = los / vertical;
@@ -397,18 +419,17 @@ fn validate_definition(
     }
     let mut previous = None;
     for (index, altitude) in definition.altitude_km.iter().enumerate() {
-        let value = altitude.value();
-        if !value.is_finite() || value < 0.0 {
+        if !altitude.is_finite() || *altitude < Kilometers::new(0.0) {
             return Err(VerticalEmissionProfileError::Invalid(format!(
                 "altitude_km[{index}] must be finite and non-negative"
             )));
         }
-        if previous.is_some_and(|prior| value <= prior) {
+        if previous.is_some_and(|prior| *altitude <= prior) {
             return Err(VerticalEmissionProfileError::Invalid(
                 "altitude bins must be strictly increasing (no duplicates)".into(),
             ));
         }
-        previous = Some(value);
+        previous = Some(*altitude);
     }
     for (index, emissivity) in definition.relative_emissivity.iter().enumerate() {
         if !emissivity.is_finite() || *emissivity < 0.0 {
@@ -423,28 +444,30 @@ fn validate_definition(
             "profile total emission must be finite and positive".into(),
         ));
     }
-    let wavelength_min = definition.wavelength.min.to::<Nanometer>().value();
-    let wavelength_max = definition.wavelength.max.to::<Nanometer>().value();
+    let wavelength_min = definition.wavelength.min;
+    let wavelength_max = definition.wavelength.max;
     if !wavelength_min.is_finite()
         || !wavelength_max.is_finite()
-        || wavelength_min <= 0.0
+        || wavelength_min <= Nanometers::new(0.0)
         || wavelength_max <= wavelength_min
     {
         return Err(VerticalEmissionProfileError::Invalid(
             "wavelength bounds must be finite, positive, and increasing".into(),
         ));
     }
-    if wavelength_min > NSB_WAVELENGTH_MIN_NM || wavelength_max < NSB_WAVELENGTH_MAX_NM {
+    if wavelength_min > NSB_WAVELENGTH_MIN || wavelength_max < NSB_WAVELENGTH_MAX {
         return Err(VerticalEmissionProfileError::Invalid(format!(
-            "current broadband Airglow evaluation requires applicability covering {NSB_WAVELENGTH_MIN_NM}-{NSB_WAVELENGTH_MAX_NM} nm"
+            "current broadband Airglow evaluation requires applicability covering {}-{} nm",
+            NSB_WAVELENGTH_MIN.value(),
+            NSB_WAVELENGTH_MAX.value()
         )));
     }
     let domain = definition.validated_zenith;
     if !domain.min.is_finite()
         || !domain.max.is_finite()
-        || domain.min.value() != 0.0
-        || domain.max.value() <= 0.0
-        || domain.max.value() > 90.0
+        || domain.min != Degrees::new(0.0)
+        || domain.max <= Degrees::new(0.0)
+        || domain.max > Degrees::new(90.0)
     {
         return Err(VerticalEmissionProfileError::Invalid(
             "validated zenith domain must start at 0 deg and end in (0, 90] deg".into(),
@@ -469,8 +492,9 @@ fn trapezoidal_total(definition: &VerticalEmissionProfileDefinition) -> f64 {
         .windows(2)
         .zip(definition.relative_emissivity.windows(2))
         .map(|(altitude, emissivity)| {
-            let width = altitude[1].value() - altitude[0].value();
-            width * (emissivity[0] + emissivity[1]) * 0.5
+            let width = altitude[1] - altitude[0];
+            // Width stays typed until the deferred emissivity scalar product.
+            width.value() * (emissivity[0] + emissivity[1]) * 0.5
         })
         .sum()
 }

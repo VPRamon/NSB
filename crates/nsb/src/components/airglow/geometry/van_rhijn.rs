@@ -56,12 +56,14 @@ impl VanRhijnConfig {
 
     /// Evaluate the dimensionless thin-shell line-of-sight correction.
     pub(crate) fn geometry_factor(self, zenith: Degrees) -> Result<ScaleFactors> {
-        let z = zenith.value();
-        if !z.is_finite() || !(0.0..=90.0).contains(&z) {
+        if !zenith.is_finite() || zenith < Degrees::new(0.0) || zenith > Degrees::new(90.0) {
             return Err(NsbError::OutOfRange(format!(
-                "Van Rhijn zenith angle must be in [0, 90] deg, got {z}"
+                "Van Rhijn zenith angle must be in [0, 90] deg, got {}",
+                zenith.value()
             )));
         }
+        // Siderust returns a typed scattering factor; ScaleFactors is the local
+        // dimensionless domain type and currently constructs from a scalar.
         let factor = van_rhijn_factor(zenith.to::<Radian>(), self.emission_height_km()).value();
         if !factor.is_finite() || factor <= 0.0 {
             return Err(NsbError::Unsupported(

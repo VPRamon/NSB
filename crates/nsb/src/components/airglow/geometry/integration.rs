@@ -4,9 +4,16 @@
 //! [`ValidatedProfileSamples`] from the validated profile domain and does not
 //! own persistence, schema parsing, model selection, climatology, or Airglow
 //! spectral semantics.
+//!
+//! Lengths and angles remain qtty quantities through the geometric core.
+//! Multiplication by normalized [`relative_emissivity`](super::vertical_profile::VerticalEmissionProfile::relative_emissivity)
+//! samples is the intentional scalar boundary: those samples are publicly
+//! untyped `f64` today and carry an implicit inverse-length factor after
+//! unit-vertical-integral normalization (see that accessor's docs; full typing
+//! is deferred to #150/#146).
 
 use super::vertical_profile::ValidatedProfileSamples;
-use siderust::qtty::Kilometers;
+use siderust::qtty::{Kilometers, Radians, SquareKilometers};
 
 /// Current implementation identifier for the reference spherical LOS integrator.
 pub(crate) const VERTICAL_PROFILE_INTEGRATOR_VERSION: &str = "spherical-los-simpson-v1";
@@ -31,26 +38,29 @@ pub(crate) const VERTICAL_PROFILE_REFERENCE_SUBSTEPS: usize = 64;
 /// Sample grids must come from [`super::vertical_profile::VerticalEmissionProfile::samples`];
 /// the validated view type prevents unrelated raw slices from reaching this
 /// boundary through the normal geometry module API.
+///
+/// Returns a dimensionless column integral of the normalized emissivity along
+/// the line of sight (same numerical meaning as before the typed-units audit).
 pub(super) fn integrate_profile_los(
     samples: ValidatedProfileSamples<'_>,
-    observer_height_km: f64,
-    zenith_rad: f64,
+    observer_height: Kilometers,
+    zenith: Radians,
     substeps: usize,
 ) -> f64 {
-    let altitudes_km = samples.altitudes_km();
+    let altitudes = samples.altitudes_km();
     let relative_emissivity = samples.relative_emissivity();
-    debug_assert_eq!(altitudes_km.len(), relative_emissivity.len());
-    debug_assert!(altitudes_km.len() >= 2);
+    debug_assert_eq!(altitudes.len(), relative_emissivity.len());
+    debug_assert!(altitudes.len() >= 2);
 
-    let r0 = AIRGLOW_MEAN_EARTH_RADIUS_KM.value() + observer_height_km;
-    let sin_z = zenith_rad.sin();
-    let cos_z = zenith_rad.cos().max(0.0);
+    let r0 = AIRGLOW_MEAN_EARTH_RADIUS_KM + observer_height;
+    let sin_z = zenith.sin();
+    let cos_z = zenith.cos().max(0.0);
     let mut total = 0.0;
 
-    for index in 0..altitudes_km.len() - 1 {
-        let bin_low = altitudes_km[index].value();
-        let bin_high = altitudes_km[index + 1].value();
-        let low = bin_low.max(observer_height_km);
+    for index in 0..altitudes.len() - 1 {
+        let bin_low = altitudes[index];
+        let bin_high = altitudes[index + 1];
+        let low = bin_low.max(observer_height);
         if low >= bin_high {
             continue;
         }
@@ -60,8 +70,9 @@ pub(super) fn integrate_profile_los(
         let mut weighted = 0.0;
         for step in 0..=substeps {
             let s = s_low + ds * step as f64;
-            let radius = (r0 * r0 + s * s + 2.0 * r0 * s * cos_z).sqrt();
-            let altitude = radius - AIRGLOW_MEAN_EARTH_RADIUS_KM.value();
+            let radius_sq = r0 * r0 + s * s + (r0 * s) * (2.0 * cos_z);
+            let altitude = radius_sq.sqrt() - AIRGLOW_MEAN_EARTH_RADIUS_KM;
+            // Same-unit length division yields a dimensionless scalar in qtty.
             let fraction = ((altitude - bin_low) / (bin_high - bin_low)).clamp(0.0, 1.0);
             let emissivity = relative_emissivity[index]
                 + fraction * (relative_emissivity[index + 1] - relative_emissivity[index]);
@@ -74,15 +85,24 @@ pub(super) fn integrate_profile_los(
             };
             weighted += weight * emissivity;
         }
-        total += ds * weighted / 3.0;
+        // `relative_emissivity` is publicly untyped `f64` with deferred inverse-length
+        // semantics after unit-vertical-integral normalization, so `ds * j` becomes
+        // dimensionless only at this scalar product boundary.
+        total += ds.value() * weighted / 3.0;
     }
     total
 }
 
-fn distance_to_altitude(r0: f64, altitude_km: f64, sin_z: f64, cos_z: f64) -> f64 {
-    let radius = AIRGLOW_MEAN_EARTH_RADIUS_KM.value() + altitude_km;
-    let discriminant = (radius * radius - r0 * r0 * sin_z * sin_z).max(0.0);
-    (-r0 * cos_z + discriminant.sqrt()).max(0.0)
+fn distance_to_altitude(
+    r0: Kilometers,
+    altitude: Kilometers,
+    sin_z: f64,
+    cos_z: f64,
+) -> Kilometers {
+    let radius = AIRGLOW_MEAN_EARTH_RADIUS_KM + altitude;
+    let discriminant =
+        (radius * radius - r0 * r0 * (sin_z * sin_z)).max(SquareKilometers::new(0.0));
+    ((-r0) * cos_z + discriminant.sqrt()).max(Kilometers::new(0.0))
 }
 
 #[cfg(test)]
