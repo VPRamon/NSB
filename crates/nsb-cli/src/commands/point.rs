@@ -6,7 +6,8 @@ use log::{debug, info};
 use nsb::components::airglow::{AirglowGeometryModel, VerticalEmissionProfile};
 use nsb::solar_activity::F107Store;
 use nsb::{
-    MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits, ZodiacalExtinction,
+    AirglowModel, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits,
+    ZodiacalExtinction,
 };
 use std::sync::Arc;
 use std::time::Instant;
@@ -63,6 +64,12 @@ pub(crate) fn model_config(
     let mut config = NsbModelConfig::generic_clear_sky()
         .with_site_profile(site_profile)
         .with_moonlight_model(moonlight_model);
+    config = match args.airglow_model {
+        crate::cli::AirglowModelArg::Automatic => config,
+        crate::cli::AirglowModelArg::ParanalNollSkyCalcFors1 => {
+            config.with_airglow_model(AirglowModel::ParanalNollSkyCalcFors1)
+        }
+    };
     if let Some(sfu) = args.solar_radio_flux_sfu {
         if !sfu.is_finite() || sfu <= 0.0 {
             anyhow::bail!("--solar-radio-flux-sfu must be finite and positive, got {sfu}");

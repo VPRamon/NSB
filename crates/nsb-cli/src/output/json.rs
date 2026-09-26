@@ -2,12 +2,15 @@ use super::WindowOutput;
 use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;
 use anyhow::Result;
-use nsb::components::airglow::AirglowGeometryMetadata;
+use nsb::components::airglow::{
+    AirglowEvaluationOutcome, AirglowGeometryMetadata, AirglowSelectionMetadata,
+};
 use nsb::solar_activity::SolarActivitySource;
 use nsb::{
     assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
-    BandDiagnostic, ComponentMask, NsbComponentMetadata, NsbModelConfig, NsbResult,
-    StarlightProduct, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE, SIDERUST_VERSION,
+    BandDiagnostic, ComponentMask, NsbComponentDescriptor, NsbComponentMetadata, NsbModelConfig,
+    NsbResult, StarlightProduct, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
+    SIDERUST_VERSION,
 };
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
@@ -70,10 +73,27 @@ struct ModelJson {
     f107_dataset_id: Option<String>,
     f107_snapshot_id: Option<String>,
     f107_checksum_sha256: Option<String>,
-    airglow_model: &'static str,
+    /// Selection/fallback identity from evaluator metadata when available.
+    airglow_selection: AirglowSelectionJson,
     airglow_geometry: &'static str,
     zodiacal_model: &'static str,
     zodiacal_extinction: &'static str,
+}
+
+#[derive(Serialize)]
+struct AirglowSelectionJson {
+    kind: &'static str,
+    requested_model: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    resolved_model: Option<&'static str>,
+    used_fallback: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fallback_reason: Option<&'static str>,
+    /// Present only after a time-dependent evaluation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    physical_outcome: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    physical_zero_reason: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -117,7 +137,8 @@ struct ComponentMetadataJson {
     provenance: String,
     validated_domain: String,
     band_diagnostic: BandDiagnosticJson,
-    airglow_model: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    airglow_selection: Option<AirglowSelectionJson>,
     solar_activity: Option<SolarActivityJson>,
     airglow_geometry: Option<AirglowGeometryJson>,
 }
@@ -202,7 +223,11 @@ pub fn write_point(
     let payload = PointJson {
         schema_version: "nsb-cli-point-json-v1",
         version: version_json(),
-        model: model_json(config, resolved_solar_radio_flux_sfu(result)),
+        model: model_json(
+            config,
+            resolved_solar_radio_flux_sfu(result),
+            airglow_selection_for_point(config, result),
+        ),
         time_utc: format_utc(time),
         observer: ObserverJson {
             longitude_deg: observer.lon.value(),
@@ -249,7 +274,11 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
     let payload = WindowJson {
         schema_version: "nsb-cli-window-json-v1",
         version: version_json(),
-        model: model_json(output.config, None),
+        model: model_json(
+            output.config,
+            None,
+            airglow_selection_from_descriptors(output.descriptions),
+        ),
         start_utc: format_utc(output.start),
         end_utc: format_utc(output.end),
         min_nsb_ph_cm2_ns_sr: output.min.map(|value| value.value()),
@@ -300,19 +329,15 @@ fn version_json() -> VersionJson {
     }
 }
 
-fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
+fn model_json(
+    config: &NsbModelConfig,
+    resolved_sfu: Option<f64>,
+    airglow_selection: AirglowSelectionJson,
+) -> ModelJson {
     let solar_radio_flux_sfu = match config.solar_activity() {
         SolarActivitySource::Explicit(flux) => Some(flux.value()),
         SolarActivitySource::Dataset(_) | SolarActivitySource::Automatic => resolved_sfu,
         _ => resolved_sfu,
-    };
-    let airglow_model = match config.airglow_selection() {
-        nsb::AirglowSelection::Automatic => {
-            // Temporary automatic fallback identity until #157 admits climatology.
-            "paranal-noll-skycalc-fors1"
-        }
-        nsb::AirglowSelection::Explicit(model) => model.as_str(),
-        _ => "unknown-airglow-selection",
     };
     ModelJson {
         preset: config.site_profile().as_str(),
@@ -344,11 +369,108 @@ fn model_json(config: &NsbModelConfig, resolved_sfu: Option<f64>) -> ModelJson {
             SolarActivitySource::Dataset(store) => store.checksum_sha256.clone(),
             _ => None,
         },
-        airglow_model,
+        airglow_selection,
         airglow_geometry: config.airglow_geometry().model_id(),
         zodiacal_model: config.zodiacal_model().as_str(),
         zodiacal_extinction: config.zodiacal_extinction().as_str(),
     }
+}
+
+fn airglow_selection_json(
+    selection: &AirglowSelectionMetadata,
+    evaluation: Option<&AirglowEvaluationOutcome>,
+) -> AirglowSelectionJson {
+    AirglowSelectionJson {
+        kind: selection.selection_kind.as_str(),
+        requested_model: selection.requested_model.map(|model| model.as_str()),
+        resolved_model: selection.resolved_model.map(|model| model.as_str()),
+        used_fallback: selection.used_automatic_fallback,
+        fallback_reason: selection.fallback_reason.map(|reason| reason.as_str()),
+        physical_outcome: evaluation.map(|outcome| outcome.physical_outcome.as_str()),
+        physical_zero_reason: evaluation
+            .and_then(|outcome| outcome.physical_zero_reason.map(|reason| reason.as_str())),
+    }
+}
+
+fn airglow_selection_for_point(
+    config: &NsbModelConfig,
+    result: &NsbResult,
+) -> AirglowSelectionJson {
+    result
+        .components
+        .iter()
+        .find_map(|component| {
+            component
+                .metadata
+                .airglow_selection
+                .as_ref()
+                .map(|selection| {
+                    airglow_selection_json(
+                        selection,
+                        component.metadata.airglow_evaluation.as_ref(),
+                    )
+                })
+        })
+        .unwrap_or_else(|| config_only_airglow_selection(config))
+}
+
+fn config_only_airglow_selection(config: &NsbModelConfig) -> AirglowSelectionJson {
+    match config.airglow_selection() {
+        nsb::AirglowSelection::Automatic => AirglowSelectionJson {
+            kind: "automatic",
+            requested_model: None,
+            // Do not hardcode temporary fallback identity independently of the evaluator.
+            resolved_model: None,
+            used_fallback: false,
+            fallback_reason: None,
+            physical_outcome: None,
+            physical_zero_reason: None,
+        },
+        nsb::AirglowSelection::Explicit(model) => AirglowSelectionJson {
+            kind: "explicit",
+            requested_model: Some(model.as_str()),
+            resolved_model: Some(model.as_str()),
+            used_fallback: false,
+            fallback_reason: None,
+            physical_outcome: None,
+            physical_zero_reason: None,
+        },
+        _ => AirglowSelectionJson {
+            kind: "unknown",
+            requested_model: None,
+            resolved_model: None,
+            used_fallback: false,
+            fallback_reason: None,
+            physical_outcome: None,
+            physical_zero_reason: None,
+        },
+    }
+}
+
+fn airglow_selection_from_descriptors(
+    descriptions: &[NsbComponentDescriptor],
+) -> AirglowSelectionJson {
+    descriptions
+        .iter()
+        .find_map(|description| {
+            description
+                .metadata
+                .airglow_selection
+                .as_ref()
+                .map(|selection| {
+                    debug_assert!(description.metadata.airglow_evaluation.is_none());
+                    airglow_selection_json(selection, None)
+                })
+        })
+        .unwrap_or(AirglowSelectionJson {
+            kind: "not-selected",
+            requested_model: None,
+            resolved_model: None,
+            used_fallback: false,
+            fallback_reason: None,
+            physical_outcome: None,
+            physical_zero_reason: None,
+        })
 }
 
 fn resolved_solar_radio_flux_sfu(result: &NsbResult) -> Option<f64> {
@@ -367,7 +489,9 @@ fn component_metadata_json(metadata: &NsbComponentMetadata) -> ComponentMetadata
         provenance: metadata.provenance.to_string(),
         validated_domain: metadata.validated_domain.to_string(),
         band_diagnostic: band_diagnostic_json(metadata.band_diagnostic),
-        airglow_model: metadata.airglow_model.map(|model| model.as_str()),
+        airglow_selection: metadata.airglow_selection.as_ref().map(|selection| {
+            airglow_selection_json(selection, metadata.airglow_evaluation.as_ref())
+        }),
         solar_activity: metadata
             .solar_activity
             .as_ref()

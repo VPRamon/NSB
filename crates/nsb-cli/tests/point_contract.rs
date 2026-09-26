@@ -35,9 +35,22 @@ fn default_point_json_reports_schema_versions_and_components() {
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert_eq!(value["model"]["moonlight_model"], "jones-2013-spectral");
+    assert_eq!(value["model"]["airglow_selection"]["kind"], "automatic");
     assert_eq!(
-        value["model"]["airglow_model"],
+        value["model"]["airglow_selection"]["resolved_model"],
         "paranal-noll-skycalc-fors1"
+    );
+    assert_eq!(value["model"]["airglow_selection"]["used_fallback"], true);
+    assert_eq!(
+        value["model"]["airglow_selection"]["fallback_reason"],
+        "global-planning-model-unavailable"
+    );
+    let outcome = value["model"]["airglow_selection"]["physical_outcome"]
+        .as_str()
+        .expect("point evaluation exposes physical outcome");
+    assert!(
+        outcome == "evaluated" || outcome == "physical-zero",
+        "unexpected physical outcome: {outcome}"
     );
     assert_eq!(value["model"]["airglow_geometry"], "van_rhijn");
     assert_eq!(value["model"]["zodiacal_model"], "leinert-1998");
@@ -67,8 +80,23 @@ fn default_point_json_reports_schema_versions_and_components() {
         .find(|component| component["name"] == "airglow")
         .unwrap();
     assert_eq!(
-        airglow["metadata"]["airglow_model"],
+        airglow["metadata"]["airglow_selection"]["kind"],
+        "automatic"
+    );
+    assert_eq!(
+        airglow["metadata"]["airglow_selection"]["resolved_model"],
         "paranal-noll-skycalc-fors1"
+    );
+    assert_eq!(
+        airglow["metadata"]["airglow_selection"]["used_fallback"],
+        true
+    );
+    let component_outcome = airglow["metadata"]["airglow_selection"]["physical_outcome"]
+        .as_str()
+        .expect("evaluated airglow metadata exposes physical outcome");
+    assert!(
+        component_outcome == "evaluated" || component_outcome == "physical-zero",
+        "unexpected component physical outcome: {component_outcome}"
     );
     assert_eq!(
         airglow["metadata"]["airglow_geometry"]["model"],
