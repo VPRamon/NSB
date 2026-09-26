@@ -61,7 +61,7 @@ let config = NsbModelConfig::default()
     .with_site_profile(SiteProfileId::CtaSouth)
     .with_moonlight_model(MoonlightModel::Jones2013Spectral);
 
-assert_eq!(config.site_profile, SiteProfileId::CtaSouth);
+assert_eq!(config.site_profile(), SiteProfileId::CtaSouth);
 assert_eq!(
     config.moonlight_model(),
     MoonlightModel::Jones2013Spectral,

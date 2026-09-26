@@ -14,8 +14,24 @@ use tempoch::{Time, UTC};
 bitflags::bitflags! {
     /// Components that can be composed by [`NsbEvaluator`](super::NsbEvaluator).
     ///
-    /// [`Self::ALL`] is the complete production-safe default set. It includes
-    /// starlight only when a validated production map is bundled at build time.
+    /// # Compatibility policy (frozen first-release contract)
+    ///
+    /// [`Self::DEFAULT`] is the **frozen first-release default composition**.
+    /// [`Self::ALL`] is an alias of that same frozen set — **not** “every
+    /// component ever implemented by this crate”.
+    ///
+    /// After the public API is frozen:
+    ///
+    /// - newly introduced physical components (for example Twilight) are
+    ///   **opt-in** and must not be added silently to `DEFAULT` / `ALL` within
+    ///   the same compatibility line merely because the Rust bitflag type can
+    ///   accept a new bit;
+    /// - intentional default-composition changes require an explicit model-
+    ///   contract / `MODEL_VERSION` change, release notes, and regression
+    ///   updates;
+    /// - build-dependent Starlight inclusion (when a validated production map
+    ///   is bundled) is part of this frozen default policy, not a precedent for
+    ///   arbitrary future default changes.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ComponentMask: u8 {
         /// Zodiacal-light component.
@@ -27,18 +43,19 @@ bitflags::bitflags! {
         /// Atmospherically scattered moonlight component.
         const MOON      = 0b1000;
 
-        /// Production-safe default component composition.
+        /// Frozen first-release default component composition.
         #[cfg(nsb_bundled_production_starlight)]
         const DEFAULT   = Self::ZODIACAL.bits()
                         | Self::STARLIGHT.bits()
                         | Self::AIRGLOW.bits()
                         | Self::MOON.bits();
-        /// Production-safe default component composition.
+        /// Frozen first-release default component composition.
         #[cfg(not(nsb_bundled_production_starlight))]
         const DEFAULT   = Self::ZODIACAL.bits()
                         | Self::AIRGLOW.bits()
                         | Self::MOON.bits();
-        /// Alias for the complete production-safe default composition.
+        /// Alias of [`Self::DEFAULT`] — the frozen production-default set, not
+        /// “every component implemented by the crate”.
         const ALL       = Self::DEFAULT.bits();
     }
 }
@@ -137,36 +154,33 @@ pub struct NsbResult {
 #[derive(Debug, Clone)]
 /// Immutable model choices used to construct an evaluator.
 ///
-/// Prefer [`Self::generic_clear_sky`] and the `with_*` builders. The struct is
-/// `#[non_exhaustive]` so new model choices can be added without breaking
-/// external struct literals. Public fields remain assignable for existing
-/// builder-style configuration.
+/// Prefer [`Self::generic_clear_sky`] and the `with_*` builders. Fields are
+/// private so the configuration shape can evolve without freezing struct layout.
+/// Inspect supported choices through getters.
 #[non_exhaustive]
 pub struct NsbModelConfig {
-    /// Scattered-moonlight implementation.
-    pub moonlight_model: moonlight::MoonlightModel,
-    /// Airglow scientific model/parameterization.
-    pub airglow_model: airglow::AirglowModel,
-    /// Zodiacal-light scientific source model.
-    pub zodiacal_model: zodiacal::ZodiacalModel,
-    /// Atmospheric and airglow site profile.
-    pub site_profile: SiteProfileId,
-    /// Optional explicit starlight product.
-    pub starlight_product: Option<starlight::StarlightProduct>,
-    /// How F10.7 is obtained for airglow (explicit, dataset, or automatic offline).
-    pub solar_activity: crate::solar_activity::SolarActivitySource,
-    /// Airglow emitting-volume line-of-sight geometry (separate from extinction).
-    pub airglow_geometry: airglow::AirglowGeometryModel,
-    /// Zodiacal atmospheric propagation choice.
-    pub zodiacal_extinction: zodiacal::ZodiacalExtinction,
+    moonlight_model: moonlight::MoonlightModel,
+    airglow_selection: airglow::AirglowSelection,
+    zodiacal_model: zodiacal::ZodiacalModel,
+    site_profile: SiteProfileId,
+    starlight_product: Option<starlight::StarlightProduct>,
+    solar_activity: crate::solar_activity::SolarActivitySource,
+    airglow_geometry: airglow::AirglowGeometryModel,
+    zodiacal_extinction: zodiacal::ZodiacalExtinction,
 }
 
 impl NsbModelConfig {
     /// Generic clear-sky planning configuration.
+    ///
+    /// Airglow uses [`airglow::AirglowSelection::Automatic`]. Until the global
+    /// climatological model is admitted (#157), automatic policy resolves to the
+    /// temporary Paranal-derived planning fallback with that fallback visible in
+    /// result metadata. This does **not** freeze Paranal as the intrinsic
+    /// generic global scientific contract.
     pub fn generic_clear_sky() -> Self {
         Self {
             moonlight_model: moonlight::MoonlightModel::Jones2013Spectral,
-            airglow_model: airglow::AirglowModel::ParanalNollSkyCalcFors1,
+            airglow_selection: airglow::AirglowSelection::Automatic,
             zodiacal_model: zodiacal::ZodiacalModel::Leinert1998,
             site_profile: SiteProfileId::GenericClearSky,
             starlight_product: default_starlight_product(),
@@ -197,15 +211,30 @@ impl NsbModelConfig {
         self.moonlight_model
     }
 
-    /// Select the Airglow scientific model independently of geometry and site maturity.
+    /// Select an explicit Airglow scientific model.
+    ///
+    /// Explicit selection wins over automatic policy and never silently falls
+    /// back to another model. Unsupported explicit models fail at evaluator
+    /// construction / evaluation rather than substituting a different model.
     pub fn with_airglow_model(mut self, model: airglow::AirglowModel) -> Self {
-        self.airglow_model = model;
+        self.airglow_selection = airglow::AirglowSelection::Explicit(model);
         self
     }
 
-    /// Return the selected Airglow scientific model.
-    pub const fn airglow_model(&self) -> airglow::AirglowModel {
-        self.airglow_model
+    /// Replace the full Airglow selection policy (automatic or explicit).
+    pub fn with_airglow_selection(mut self, selection: airglow::AirglowSelection) -> Self {
+        self.airglow_selection = selection;
+        self
+    }
+
+    /// Return the configured Airglow selection policy.
+    pub const fn airglow_selection(&self) -> airglow::AirglowSelection {
+        self.airglow_selection
+    }
+
+    /// Return the explicitly requested Airglow model, if selection is explicit.
+    pub const fn airglow_model(&self) -> Option<airglow::AirglowModel> {
+        self.airglow_selection.requested_model()
     }
 
     /// Select the Zodiacal-light scientific source model independently of propagation.
@@ -236,6 +265,11 @@ impl NsbModelConfig {
         self
     }
 
+    /// Return the selected site profile identifier.
+    pub const fn site_profile(&self) -> SiteProfileId {
+        self.site_profile
+    }
+
     /// Return the evidence-backed Airglow calibration maturity.
     ///
     /// Observer coordinates, geometry, and solar-activity inputs do not change
@@ -263,8 +297,17 @@ impl NsbModelConfig {
         self.starlight_product.as_ref()
     }
 
+    /// Remove any configured Starlight product.
+    ///
+    /// Crate-internal helper for tests that need an evaluator without starlight.
+    #[cfg(test)]
+    pub(crate) fn without_starlight_product(mut self) -> Self {
+        self.starlight_product = None;
+        self
+    }
+
     /// Set an explicit caller-owned F10.7 override (highest resolver precedence).
-    pub fn with_solar_radio_flux(mut self, flux: crate::SolarFluxUnits) -> Self {
+    pub fn with_solar_radio_flux(mut self, flux: crate::units::SolarFluxUnits) -> Self {
         self.solar_activity = crate::solar_activity::SolarActivitySource::Explicit(flux);
         self
     }
@@ -278,10 +321,20 @@ impl NsbModelConfig {
         self
     }
 
+    /// Return the configured solar-activity / F10.7 source.
+    pub fn solar_activity(&self) -> &crate::solar_activity::SolarActivitySource {
+        &self.solar_activity
+    }
+
     /// Select Airglow emitting-volume LOS geometry without changing extinction.
     pub fn with_airglow_geometry(mut self, geometry: airglow::AirglowGeometryModel) -> Self {
         self.airglow_geometry = geometry;
         self
+    }
+
+    /// Return the selected Airglow emitting-volume geometry model.
+    pub fn airglow_geometry(&self) -> &airglow::AirglowGeometryModel {
+        &self.airglow_geometry
     }
 }
 

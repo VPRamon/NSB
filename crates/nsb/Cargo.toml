@@ -11,8 +11,6 @@ readme = "README.md"
 keywords = ["astronomy", "atmosphere", "sky-brightness", "ctao", "nsb"]
 categories = ["science"]
 
-[features]
-window-search-diagnostics = []
 
 [lib]
 name = "nsb"

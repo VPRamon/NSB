@@ -8,7 +8,7 @@
 //! `docs/nsb_components/starlight/production-runs/performance-v1.json` remain
 //! frozen evidence for issue #90 and are not rewritten by this harness.
 
-use nsb::{StarlightMap, StarlightProvenance};
+use nsb::components::starlight::{StarlightMap, StarlightProvenance};
 use std::env;
 use std::path::PathBuf;
 use std::time::Instant;

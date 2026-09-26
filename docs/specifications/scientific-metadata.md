@@ -96,11 +96,16 @@ symmetrically if required.
 
 ## Airglow scientific model identity
 
-Airglow component metadata includes `airglow_model`, an `AirglowModel` value
-that identifies the scientific model/parameterization actually selected by the
-evaluator. The first-release identity is
-`paranal-noll-skycalc-fors1`, corresponding to the repository-documented
-Paranal-derived Noll/SkyCalc/FORS1 empirical lineage.
+Airglow component metadata includes nested `airglow_selection` with the
+resolved `AirglowModel` identity (`resolved_model`) actually selected by the
+evaluator, plus selection kind and typed fallback reason. The first-release
+identity is `paranal-noll-skycalc-fors1`, corresponding to the
+repository-documented Paranal-derived Noll/SkyCalc/FORS1 empirical lineage used
+as an explicit legacy/reference model and temporary automatic fallback.
+
+Physical outcomes live in a separate `airglow_evaluation` field present only
+after a time-dependent evaluation. Descriptors from `describe_components`
+populate selection metadata without inventing an evaluation outcome.
 
 This identity is not the geometry model, site profile/maturity, F10.7 source, or
 repository-wide `MODEL_VERSION`. Implementation/data provenance remains pinned

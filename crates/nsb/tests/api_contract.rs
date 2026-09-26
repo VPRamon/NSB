@@ -30,9 +30,8 @@ fn nsb_error_documented_variants_expose_non_empty_diagnostics() {
         ),
         (NsbError::OutOfRange("zenith".into()), "out of range"),
         (NsbError::Unsupported("model".into()), "unsupported"),
-        (NsbError::Ephemeris("moon".into()), "ephemeris"),
         (NsbError::Interpolation("grid".into()), "interpolation"),
-        (NsbError::UnknownSite("nowhere".into()), "unknown site"),
+        (NsbError::Io(std::io::Error::other("disk")), "io error"),
     ];
 
     for (err, needle) in samples {
@@ -52,9 +51,7 @@ fn nsb_error_documented_variants_expose_non_empty_diagnostics() {
             | NsbError::InvalidMap { .. }
             | NsbError::OutOfRange(_)
             | NsbError::Unsupported(_)
-            | NsbError::Ephemeris(_)
             | NsbError::Interpolation(_)
-            | NsbError::UnknownSite(_)
             | NsbError::Io(_) => "known",
             _ => "future-variant",
         };

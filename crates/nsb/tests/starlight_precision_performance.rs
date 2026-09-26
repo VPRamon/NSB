@@ -1,4 +1,7 @@
-use nsb::{StarlightMap, StarlightProvenance};
+mod common;
+
+use common::starlight_test_provenance;
+use nsb::components::starlight::StarlightMap;
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
 use siderust::coordinates::spherical;
@@ -9,7 +12,7 @@ use std::time::{Duration, Instant};
 fn fixture_map() -> StarlightMap {
     StarlightMap::from_csv_str(
         include_str!("data/starlight_fixture_map.csv"),
-        StarlightProvenance::test_fixture(),
+        starlight_test_provenance(),
     )
     .expect("starlight fixture")
 }
@@ -27,7 +30,7 @@ fn fixture_lookup_preserves_precision_and_throughput_budget() {
     assert!(!equatorial.s10_diagnostics_provided);
 
     let start = Instant::now();
-    let mut accumulated = 0.0;
+    let mut accumulated: f64 = 0.0;
     for index in 0..20_000 {
         let lon = (index as f64 * 7.5) % 360.0;
         let lat = ((index as f64 * 1.25) % 180.0) - 90.0;

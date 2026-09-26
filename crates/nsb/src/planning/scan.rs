@@ -33,8 +33,6 @@ where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
-    #[cfg(feature = "window-search-diagnostics")]
-    super::diagnostics::update(|diagnostics| diagnostics.authoritative_scan_windows += 1);
     if window.start >= window.end || step <= Days::new(0.0) {
         debug!(
             "skipping scan threshold search: non-positive window or step; start_mjd={}, end_mjd={}, step_days={}",
@@ -154,8 +152,6 @@ where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
-    #[cfg(feature = "window-search-diagnostics")]
-    super::diagnostics::update(|diagnostics| diagnostics.threshold_crossings += 1);
     let threshold_value = threshold.value();
     let mut f_lo = y_lo.value() - threshold_value;
     let mut f_hi = y_hi.value() - threshold_value;
@@ -184,10 +180,6 @@ where
             midpoint_mjd(lo, hi)
         };
         let y_candidate = f(candidate)?;
-        #[cfg(feature = "window-search-diagnostics")]
-        super::diagnostics::update(|diagnostics| {
-            diagnostics.crossing_refinement_evaluations += 1;
-        });
         refinements += 1;
         let f_candidate = y_candidate.value() - threshold_value;
         if (f_candidate > 0.0) == lo_above {

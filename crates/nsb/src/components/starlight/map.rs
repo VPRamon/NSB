@@ -190,12 +190,6 @@ impl StarlightMap {
         self.map.values()
     }
 
-    /// Galactic longitude/latitude of a stored pixel centre.
-    pub fn pixel_lon_lat_deg(&self, index: u64) -> Result<(f64, f64)> {
-        let direction = self.pixel_direction(HealpixIndex::new(index))?;
-        Ok((direction.l().value(), direction.b().value()))
-    }
-
     /// Galactic spherical direction of a stored pixel centre.
     pub fn pixel_direction(&self, index: HealpixIndex) -> Result<SphericalDirection<Galactic>> {
         self.grid()

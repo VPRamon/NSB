@@ -39,8 +39,8 @@ pub(crate) fn evaluate(
             systematic_uncertainty: None,
             total_uncertainty: None,
             metadata: zodiacal_metadata(
-                evaluator.model_config().zodiacal_model,
-                evaluator.model_config().zodiacal_extinction,
+                evaluator.model_config().zodiacal_model(),
+                evaluator.model_config().zodiacal_extinction(),
             ),
         });
     }
@@ -59,7 +59,7 @@ pub(crate) fn evaluate(
             systematic_uncertainty: out.systematic_uncertainty,
             total_uncertainty: out.total_uncertainty,
             metadata: starlight_metadata(
-                evaluator.model_config().starlight_product.as_ref(),
+                evaluator.model_config().starlight_product(),
                 evaluator.starlight().map(|model| model.map().provenance()),
             ),
         });
@@ -80,11 +80,13 @@ pub(crate) fn evaluate(
             systematic_uncertainty: None,
             total_uncertainty: None,
             metadata: airglow_metadata(
-                evaluator.model_config().airglow_model,
-                evaluator.model_config().site_profile,
+                evaluator.airglow_resolved(),
+                evaluator.model_config().site_profile(),
                 query.observer,
                 Some(&solar),
-                &evaluator.model_config().airglow_geometry,
+                evaluator.model_config().airglow_geometry(),
+                out.physical_outcome,
+                out.physical_zero_reason,
             ),
         });
     }
@@ -103,8 +105,8 @@ pub(crate) fn evaluate(
             systematic_uncertainty: None,
             total_uncertainty: None,
             metadata: moonlight_metadata(
-                evaluator.model_config().moonlight_model,
-                evaluator.model_config().site_profile,
+                evaluator.model_config().moonlight_model(),
+                evaluator.model_config().site_profile(),
                 query.observer,
             ),
         });

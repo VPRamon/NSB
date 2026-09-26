@@ -2,9 +2,11 @@
 
 use chrono::{DateTime, Utc};
 use criterion::{criterion_group, BenchmarkId, Criterion, Throughput};
+use nsb::components::starlight::StarlightMap;
+use nsb::components::starlight::StarlightProvenance;
 use nsb::{
-    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightMap, StarlightProduct,
-    StarlightProvenance, Target, ThresholdQuery, DEG,
+    ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
+    ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -47,6 +49,22 @@ healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,syste
 11,12.0,1.2,2.4,3.0
 "#;
 
+fn starlight_test_provenance() -> StarlightProvenance {
+    let mut provenance = StarlightProvenance::new(
+        "NSB test fixture starlight map",
+        "fixture",
+        "2026-06-17",
+        "synthetic unit-test fixture",
+        "test-only",
+        "test-only",
+        "integrated 300-650 nm photon radiance",
+        "HEALPix nside=1 ring 12 pixels",
+        None::<String>,
+    );
+    provenance.calibration_status = Some("experimental".to_string());
+    provenance
+}
+
 fn parse(s: &str) -> Time<UTC> {
     let dt = DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&Utc);
     Time::<UTC>::from_chrono(dt)
@@ -86,8 +104,7 @@ fn point_query(components: ComponentMask) -> PointQuery {
 }
 
 fn experimental_starlight_product() -> StarlightProduct {
-    let map =
-        StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
+    let map = StarlightMap::from_csv_str(HEALPIX_FIXTURE, starlight_test_provenance()).unwrap();
     StarlightProduct::with_experimental_map(map)
 }
 

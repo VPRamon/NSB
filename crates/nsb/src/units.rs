@@ -14,17 +14,17 @@ use qtty::radiometry::{
 use qtty::{unit, Per, Quantity};
 
 /// A generic multiplicative scale factor.
-pub type ScaleFactors = qtty::dimensionless::Ratios;
+pub(crate) type ScaleFactors = qtty::dimensionless::Ratios;
 
 /// Structural qtty unit for spectral solar irradiance, W m⁻² nm⁻¹.
 ///
 /// This is deliberately expressed as qtty unit algebra rather than as an
 /// unrelated placeholder unit, so dimensional correctness remains enforced by
 /// the compiler without requiring a bespoke NSB unit marker.
-pub type SolarSpectralIrradianceUnit = Per<Per<Watt, SquareMeter>, Nanometer>;
+pub(crate) type SolarSpectralIrradianceUnit = Per<Per<Watt, SquareMeter>, Nanometer>;
 
 /// Spectral solar irradiance in W m⁻² nm⁻¹.
-pub type SolarSpectralIrradiance = Quantity<SolarSpectralIrradianceUnit>;
+pub(crate) type SolarSpectralIrradiance = Quantity<SolarSpectralIrradianceUnit>;
 
 /// Quantity type for Planck's constant times the speed of light, in joule metre.
 pub(crate) type JouleMeters = Quantity<unit::Prod<unit::Joule, unit::Meter>>;
@@ -90,10 +90,10 @@ pub type SolarFluxUnits = Quantity<SolarFluxUnit>;
     dimension = qtty::dimensionless::Dimensionless,
     ratio = 1.0
 )]
-pub struct MagnitudePerAirmass;
+pub(crate) struct MagnitudePerAirmass;
 
 /// Atmospheric extinction coefficients in mag per airmass.
-pub type MagnitudesPerAirmass = Quantity<MagnitudePerAirmass>;
+pub(crate) type MagnitudesPerAirmass = Quantity<MagnitudePerAirmass>;
 
 /// Luminance convention used by Krisciunas & Schaefer: nanolamberts.
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]

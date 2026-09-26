@@ -81,6 +81,16 @@ pub enum MoonlightModelArg {
     Ks1991,
 }
 
+#[derive(Debug, Clone, Copy, Default, ValueEnum)]
+pub enum AirglowModelArg {
+    /// Deterministic automatic selection (temporary Paranal planning fallback).
+    #[default]
+    Automatic,
+    /// Explicit Paranal-derived legacy/reference planning model.
+    #[value(name = "paranal-noll-skycalc-fors1")]
+    ParanalNollSkyCalcFors1,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum ZodiacalExtinctionArg {
     Noll2012,
@@ -127,6 +137,10 @@ pub struct ModelArgs {
     /// Moonlight model.
     #[arg(long, value_enum, default_value_t = MoonlightModelArg::Jones2013)]
     pub moonlight_model: MoonlightModelArg,
+
+    /// Airglow scientific model selection (`automatic` or an explicit model id).
+    #[arg(long, value_enum, default_value_t = AirglowModelArg::Automatic)]
+    pub airglow_model: AirglowModelArg,
 
     /// Explicit F10.7 override in solar flux units (disables automatic resolution).
     #[arg(long)]

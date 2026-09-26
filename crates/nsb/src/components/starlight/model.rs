@@ -10,11 +10,12 @@ use crate::evaluator::Target;
 use crate::units::ScaleFactors;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
-/// Directional starlight evaluator backed by one immutable map.
+/// Directional starlight evaluator backed by one immutable shared map.
 pub(crate) struct Starlight {
-    map: StarlightMap,
+    map: Arc<StarlightMap>,
     scale: ScaleFactors,
 }
 
@@ -31,7 +32,7 @@ impl Starlight {
             BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
             BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
         )?;
-        Ok(Self::with_map(validated.map().clone()))
+        Ok(Self::with_shared_map(validated.shared_map()))
     }
 
     /// Report a missing bundled production starlight asset.
@@ -40,8 +41,8 @@ impl Starlight {
         Err(missing_bundled_production_asset())
     }
 
-    /// Build from a caller-provided validated map.
-    pub(crate) fn with_map(map: StarlightMap) -> Self {
+    /// Build from shared ownership of a caller-provided map.
+    pub(crate) fn with_shared_map(map: Arc<StarlightMap>) -> Self {
         Self {
             map,
             scale: ScaleFactors::new(1.0),

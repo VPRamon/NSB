@@ -4,8 +4,9 @@ use crate::parsing::{components, location, target, time};
 use anyhow::Result;
 use log::{debug, info};
 use nsb::components::airglow::{AirglowGeometryModel, VerticalEmissionProfile};
+use nsb::solar_activity::F107Store;
 use nsb::{
-    F107Store, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits,
+    AirglowModel, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits,
     ZodiacalExtinction,
 };
 use std::sync::Arc;
@@ -48,7 +49,7 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
         started.elapsed().as_millis()
     );
 
-    output::write_point(format, time, observer, target, &evaluator.config(), &result)
+    output::write_point(format, time, observer, target, evaluator.config(), &result)
 }
 
 pub(crate) fn model_config(
@@ -63,6 +64,12 @@ pub(crate) fn model_config(
     let mut config = NsbModelConfig::generic_clear_sky()
         .with_site_profile(site_profile)
         .with_moonlight_model(moonlight_model);
+    config = match args.airglow_model {
+        crate::cli::AirglowModelArg::Automatic => config,
+        crate::cli::AirglowModelArg::ParanalNollSkyCalcFors1 => {
+            config.with_airglow_model(AirglowModel::ParanalNollSkyCalcFors1)
+        }
+    };
     if let Some(sfu) = args.solar_radio_flux_sfu {
         if !sfu.is_finite() || sfu <= 0.0 {
             anyhow::bail!("--solar-radio-flux-sfu must be finite and positive, got {sfu}");
@@ -103,22 +110,22 @@ pub(crate) fn model_config(
     });
     match components.starlight {
         Some(components::StarlightSelection::Production) => {
-            config.starlight_product =
-                Some(match (&args.starlight_map, &args.starlight_manifest) {
-                    (Some(_), Some(_)) => validated_external_starlight(args)?,
-                    (None, None) => {
-                        debug!("using bundled production Gaia DR3 starlight model");
-                        nsb::StarlightProduct::bundled_production_gaia_dr3()
-                    }
-                    _ => anyhow::bail!(
-                        "--starlight-map and --starlight-manifest must be provided together"
-                    ),
-                });
+            let product = match (&args.starlight_map, &args.starlight_manifest) {
+                (Some(_), Some(_)) => validated_external_starlight(args)?,
+                (None, None) => {
+                    debug!("using bundled production Gaia DR3 starlight model");
+                    nsb::StarlightProduct::bundled_production_gaia_dr3()
+                }
+                _ => anyhow::bail!(
+                    "--starlight-map and --starlight-manifest must be provided together"
+                ),
+            };
+            config = config.with_starlight_product(product);
         }
         None => {
             if args.starlight_map.is_some() || args.starlight_manifest.is_some() {
                 if components.mask.contains(nsb::ComponentMask::STARLIGHT) {
-                    config.starlight_product = Some(validated_external_starlight(args)?);
+                    config = config.with_starlight_product(validated_external_starlight(args)?);
                 } else {
                     anyhow::bail!(
                         "--starlight-map/--starlight-manifest require --components starlight"
@@ -141,6 +148,7 @@ fn validated_external_starlight(args: &crate::cli::ModelArgs) -> Result<nsb::Sta
         map_path.display(),
         manifest_path.display()
     );
-    let map = nsb::ValidatedStarlightMap::from_files(map_path, manifest_path)?;
+    let map =
+        nsb::components::starlight::ValidatedStarlightMap::from_files(map_path, manifest_path)?;
     Ok(nsb::StarlightProduct::validated_external(map))
 }

@@ -32,7 +32,7 @@ pub struct StarlightValidationDiagnostics {
 #[derive(Debug, Clone)]
 /// A production external map admitted only after manifest and science validation.
 pub struct ValidatedStarlightMap {
-    map: StarlightMap,
+    map: std::sync::Arc<StarlightMap>,
     diagnostics: StarlightValidationDiagnostics,
 }
 
@@ -116,12 +116,20 @@ impl ValidatedStarlightMap {
             manifest.input_integrated_flux_sum,
             manifest.integrated_flux_conservation_tolerance,
         )?;
-        Ok(Self { map, diagnostics })
+        Ok(Self {
+            map: std::sync::Arc::new(map),
+            diagnostics,
+        })
     }
 
     /// Return the validated immutable map.
     pub fn map(&self) -> &StarlightMap {
         &self.map
+    }
+
+    /// Return shared ownership of the validated map without copying pixels.
+    pub fn shared_map(&self) -> std::sync::Arc<StarlightMap> {
+        std::sync::Arc::clone(&self.map)
     }
 
     /// Return scientific diagnostics recorded at admission time.

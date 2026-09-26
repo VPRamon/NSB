@@ -5,9 +5,10 @@ use super::extinction::{
 };
 use super::geometry::AirglowGeometryModel;
 use super::output::AirglowOutputs;
+use super::selection::{AirglowPhysicalOutcome, AirglowPhysicalZeroReason};
 use super::temporal::{night_phase, season};
 use super::units::{is_valid_solar_flux, SolarFluxUnits};
-use crate::error::Result;
+use crate::error::{NsbError, Result};
 use crate::site::AtmosphericConditions;
 use crate::units::ScaleFactors;
 use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
@@ -95,6 +96,7 @@ pub(crate) fn integrate_attenuated_continuum(
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct AirglowEvaluationContext {
     pub(crate) location: Geodetic<ECEF>,
     pub(crate) atmosphere: AtmosphericConditions,
@@ -109,12 +111,45 @@ pub(crate) fn evaluate_continuum(
     altitude: Degrees,
     ctx: AirglowEvaluationContext,
 ) -> Result<AirglowOutputs> {
+    // Invalid inputs must fail before physical-zero / domain gating (#151/#175).
+    validate_airglow_inputs(altitude, &ctx)?;
     let Some(phase) = night_phase(time, ctx.location) else {
-        return Ok(AirglowOutputs::zero());
+        return Ok(AirglowOutputs::zero(
+            AirglowPhysicalZeroReason::OutsideAstronomicalNight,
+        ));
     };
-    evaluate_continuum_with_night_phase(continuum, time, altitude, ctx, phase)
+    evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
 }
 
+pub(crate) fn validate_airglow_inputs(
+    altitude: Degrees,
+    ctx: &AirglowEvaluationContext,
+) -> Result<()> {
+    let alt = altitude.value();
+    if !alt.is_finite() {
+        return Err(NsbError::OutOfRange(
+            "airglow target altitude must be finite".into(),
+        ));
+    }
+    if alt <= -90.0 {
+        return Err(NsbError::OutOfRange(
+            "airglow target altitude must be greater than -90 degrees".into(),
+        ));
+    }
+    if !is_valid_solar_flux(ctx.solar_radio_flux) {
+        return Err(NsbError::OutOfRange(
+            "airglow solar radio flux (F10.7) must be finite and positive".into(),
+        ));
+    }
+    if !ctx.user_scale.is_finite() || ctx.user_scale < ScaleFactors::new(0.0) {
+        return Err(NsbError::OutOfRange(
+            "airglow scale must be finite and non-negative".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
 pub(crate) fn evaluate_continuum_with_night_phase(
     continuum: &AirglowContinuum,
     time: Time<UTC>,
@@ -122,16 +157,18 @@ pub(crate) fn evaluate_continuum_with_night_phase(
     ctx: AirglowEvaluationContext,
     phase: AirglowNightPhase,
 ) -> Result<AirglowOutputs> {
-    let alt = altitude.value();
-    if !alt.is_finite()
-        || alt <= -90.0
-        || !is_valid_solar_flux(ctx.solar_radio_flux)
-        || !ctx.user_scale.is_finite()
-        || ctx.user_scale < ScaleFactors::new(0.0)
-    {
-        return Ok(AirglowOutputs::zero());
-    }
+    validate_airglow_inputs(altitude, &ctx)?;
+    evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
+}
 
+fn evaluate_continuum_with_night_phase_validated(
+    continuum: &AirglowContinuum,
+    time: Time<UTC>,
+    altitude: Degrees,
+    ctx: AirglowEvaluationContext,
+    phase: AirglowNightPhase,
+) -> Result<AirglowOutputs> {
+    let alt = altitude.value();
     let zenith_deg = (90.0 - alt).clamp(0.0, 90.0);
     let zenith = Degrees::new(zenith_deg);
     let geometry_factor = ctx.geometry.geometry_factor(ctx.location, zenith)?.value();
@@ -190,6 +227,8 @@ pub(crate) fn evaluate_continuum_with_night_phase(
         b_flux_s10: s10_for_spectral_photon_radiance(b_density, B_FILTER),
         v_flux_s10: s10_for_spectral_photon_radiance(v_density, V_FILTER),
         relative_uncertainty,
+        physical_outcome: AirglowPhysicalOutcome::Evaluated,
+        physical_zero_reason: None,
     })
 }
 
@@ -201,17 +240,26 @@ pub(crate) fn evaluate_integrated_continuum_with_night_phase(
     ctx: AirglowEvaluationContext,
     phase: AirglowNightPhase,
 ) -> Result<BandPhotonRadiance> {
-    let alt = altitude.value();
-    if !alt.is_finite()
-        || alt <= -90.0
-        || !is_valid_solar_flux(ctx.solar_radio_flux)
-        || !ctx.user_scale.is_finite()
-        || ctx.user_scale < ScaleFactors::new(0.0)
-    {
-        return Ok(BandPhotonRadiance::new(0.0));
-    }
+    validate_airglow_inputs(altitude, &ctx)?;
+    evaluate_integrated_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
+}
 
-    let zenith = Degrees::new((90.0 - alt).clamp(0.0, 90.0));
+/// Validate Airglow inputs for planning samples that may be outside night.
+pub(crate) fn validate_integrated_continuum_inputs(
+    altitude: Degrees,
+    ctx: &AirglowEvaluationContext,
+) -> Result<()> {
+    validate_airglow_inputs(altitude, ctx)
+}
+
+fn evaluate_integrated_continuum_with_night_phase_validated(
+    continuum: &AirglowContinuum,
+    time: Time<UTC>,
+    altitude: Degrees,
+    ctx: AirglowEvaluationContext,
+    phase: AirglowNightPhase,
+) -> Result<BandPhotonRadiance> {
+    let zenith = Degrees::new((90.0 - altitude.value()).clamp(0.0, 90.0));
     let geometry_factor = ctx.geometry.geometry_factor(ctx.location, zenith)?.value();
     let solar_corr = continuum.solar_activity_correction(ctx.solar_radio_flux.value());
     let seasonal_corr = continuum.mean_correction(phase, season(time, ctx.location));
