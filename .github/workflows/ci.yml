@@ -347,34 +347,6 @@ jobs:
           exit "$status"
 
 
-  lockfile_probe:
-    name: Python lockfile probe
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout PR head without Git LFS payloads
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          lfs: false
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Regenerate lockfile for Python feature
-        run: cargo generate-lockfile
-      - name: Commit regenerated Cargo.lock to the PR branch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git add Cargo.lock
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "build(python): refresh Cargo.lock"
-          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
-
   python_bindings:
     name: Python wheel (${{ matrix.os }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
@@ -386,18 +358,22 @@ jobs:
             python-version: "3.10"
             manylinux: "2_28"
             container: "auto"
+            venv-python: ./.wheel-venv/bin/python
           - os: ubuntu-latest
             python-version: "3.14"
             manylinux: "2_28"
             container: "auto"
+            venv-python: ./.wheel-venv/bin/python
           - os: macos-14
             python-version: "3.10"
             manylinux: "off"
             container: "off"
+            venv-python: ./.wheel-venv/bin/python
           - os: windows-latest
             python-version: "3.10"
             manylinux: "off"
             container: "off"
+            venv-python: ./.wheel-venv/Scripts/python.exe
     steps:
       - name: Checkout without Git LFS payloads
         uses: actions/checkout@v4
@@ -415,13 +391,15 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           command: build
-          maturin-version: v1.11.5
-          args: --release --out dist
+          maturin-version: v1.15.0
+          args: --release --locked --out dist
           manylinux: ${{ matrix.manylinux }}
           container: ${{ matrix.container }}
+      - name: Create clean wheel-test environment
+        run: python -m venv .wheel-venv
       - name: Install wheel test dependencies
-        run: python -m pip install --upgrade pip pytest
+        run: ${{ matrix.venv-python }} -m pip install --upgrade pip "pytest>=8,<10"
       - name: Install built wheel
-        run: python -m pip install --no-index --find-links dist nsb-rust
+        run: ${{ matrix.venv-python }} -m pip install --no-index --find-links dist nsb-rust
       - name: Test installed wheel
-        run: python -m pytest python/tests -q
+        run: ${{ matrix.venv-python }} -m pytest python/tests -q
