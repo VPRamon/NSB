@@ -1,47 +1,37 @@
 # Python bindings
 
-NSB exposes its supported evaluator and planning API to Python through a thin
-PyO3 adapter. The Rust implementation remains the scientific source of truth:
-Siderust owns astronomy and coordinate semantics, `qtty` owns physical
-quantities, `tempoch` owns time semantics, and NSB owns night-sky-background
-model composition and planning.
+NSB exposes a deliberately small Python API for NSB evaluation and planning. The Rust crate in `crates/nsb` remains the scientific implementation and the authoritative public model contract.
 
-The Python distribution is named **`nsb-rust`** to avoid colliding with the
-unrelated `nsb` project already present on PyPI. The import name is deliberately
-kept as:
+The Python distribution is named **`nsb-rust`**; the import remains:
 
 ```python
 import nsb
 ```
 
-The project does not publish to PyPI as part of this feature. The distribution
-name is a packaging identifier, not a claim that the name has been reserved.
+## Ownership boundary
 
-## Supported versions and platforms
+NSB owns the Python API for model configuration, component selection, NSB evaluation, result/component metadata, threshold planning, and reusable planning contexts.
 
-The bindings use PyO3's CPython stable ABI with a Python 3.10 floor
-(`abi3-py310`). CI builds and installs real wheels on Linux x86_64, macOS, and
-Windows x86_64, and exercises both the minimum Python and a current Python on
-Linux. The CI matrix is the authoritative support matrix.
+Generic scientific primitives belong upstream:
 
-## Development build
+- **Siderust** owns observers, coordinate systems, directions, and astronomy semantics.
+- **qtty** owns physical quantities and units.
+- **tempoch** owns time-scale and interval semantics.
 
-Create a Python virtual environment and install maturin:
+The current `nsb.Observer`, `nsb.Direction`, and Python `datetime` bridge are temporary compatibility adapters. They exist because the reusable upstream Python packages are not yet on the Siderust/qtty/tempoch dependency stack used by NSB. They convert Python values immediately into canonical Rust Siderust/tempoch types; NSB does not implement a parallel coordinate or time policy.
 
-```bash
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install -U pip "maturin>=1.9,<2" pytest
-maturin develop --locked
-python -m pytest python/tests
+`Observer` and `Direction` intentionally follow the naming used by `siderust-py`. There is no Python `nsb.Target`: NSB's Rust `Target` is a fixed equatorial direction, while Siderust's Python ecosystem already uses `Target` for a different concept.
+
+## Package layout
+
+The public package is a small Python facade over a private native extension:
+
+```text
+python/nsb/__init__.py
+python/nsb/_nsb.*
 ```
 
-To build a wheel instead:
-
-```bash
-maturin build --release --locked --out dist
-python -m pip install --force-reinstall --find-links dist nsb-rust
-```
+Maturin builds the extension as `nsb._nsb`. Users import only `nsb`.
 
 ## Point evaluation
 
@@ -50,12 +40,8 @@ from datetime import datetime, timezone
 
 import nsb
 
-observer = nsb.Observer(
-    latitude_deg=-24.683427777777776,
-    longitude_deg=-70.31634444444444,
-    elevation_m=2184.6,
-)
-target = nsb.Target(ra_deg=266.41683, dec_deg=-29.00781)
+observer = nsb.Observer(-70.4, -24.6, 2600.0)
+direction = nsb.Direction(266.4, -29.0)
 
 config = (
     nsb.NsbModelConfig.generic_clear_sky()
@@ -65,9 +51,8 @@ evaluator = nsb.NsbEvaluator(config)
 
 query = nsb.PointQuery(
     observer,
-    datetime(2023, 9, 4, 1, 48, tzinfo=timezone.utc),
-    target,
-    components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
+    datetime(2026, 9, 27, 22, 0, tzinfo=timezone.utc),
+    direction,
 )
 result = evaluator.evaluate(query)
 
@@ -76,77 +61,68 @@ for component in result.components:
     print(component.name, component.integrated_photons_cm2_ns_sr)
 ```
 
-`Target` uses the NSB/Siderust `EquatorialMeanJ2000` convention. Right
-ascension and declination are expressed explicitly in degrees.
+Site-specific planning constructors are intentionally absent. For example, CTA South is expressed by composing the generic configuration with `SiteProfile.CTA_SOUTH` rather than through a `cta_s_planning()` alias.
 
-## Window planning
+`ComponentMask` exposes named component flags and bitwise composition. Raw bit construction is not part of the public Python API.
+
+## Planning
+
+Planning windows use ordinary timezone-aware Python datetimes at the boundary:
 
 ```python
-from datetime import datetime, timezone
-
-query = (
-    nsb.ThresholdQuery(
-        observer,
-        target,
-        datetime(2023, 9, 4, 1, 0, tzinfo=timezone.utc),
-        datetime(2023, 9, 4, 2, 0, tzinfo=timezone.utc),
-        1.0e6,
-        components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
-        sample_step_s=600.0,
-    )
-    .with_sun_altitude_ceiling_deg(None)
-    .with_target_altitude_floor_deg(None)
+query = nsb.ThresholdQuery(
+    observer,
+    direction,
+    datetime(2026, 9, 27, 20, 0, tzinfo=timezone.utc),
+    datetime(2026, 9, 28, 4, 0, tzinfo=timezone.utc),
+    0.25,
+    components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
+    sample_step_s=600.0,
 )
 
 context = evaluator.prepare_site_window_context(query)
 result = evaluator.periods_below_threshold_with_context(context, query)
 
-for period in result.periods:
-    print(period.start, period.end)
+for start, end in result.periods:
+    print(start, end)
 ```
 
-Returned period endpoints are timezone-aware UTC `datetime.datetime` values.
+Returned periods are `(start, end)` tuples of timezone-aware UTC `datetime.datetime` values. NSB does not expose a bespoke Python `UtcPeriod` type.
+
+## Time boundary
+
+Input datetimes must be timezone-aware. Explicit non-UTC offsets are normalized to UTC before conversion into `tempoch::Time<UTC>`. Naive datetimes are rejected with `nsb.OutOfRangeError`. The conversion code is isolated under `python/compat/tempoch.rs`.
 
 ## Units
 
-Python floats do not carry Rust's `qtty` type information, so every
-dimensionful Python property and argument encodes its unit in its name:
+Python scalar arguments and properties carry units in their names because Rust `qtty` quantities do not cross the Python boundary directly. Common suffixes are `_deg`, `_m`, `_s`, `_nm`, `_photons_cm2_ns_sr`, `_mag_per_arcsec2`, and `_s10`.
 
-| Python name suffix | Unit |
-| --- | --- |
-| `_deg` | degrees |
-| `_m` | metres above the WGS84 reference ellipsoid |
-| `_s` | seconds |
-| `_nm` | nanometres |
-| `_photons_cm2_ns_sr` | photons cm⁻² ns⁻¹ sr⁻¹ |
-| `_mag_per_arcsec2` | mag arcsec⁻² |
-| `_s10` | S10 |
+## Errors and concurrency
 
-Longitude is geodetic longitude, positive eastward, in `[-180, 180)`.
-Latitude and declination are in `[-90, 90]`. Right ascension is in
-`[0, 360)`.
+Rust `NsbError` categories map to subclasses of `nsb.NsbError`. Generic boundary validation uses `OutOfRangeError`; NSB does not define a separate Siderust/tempoch exception taxonomy.
 
-## Time
+Evaluator construction, point evaluation, and planning operations detach from the Python interpreter while Rust-only work runs. The binding does not reimplement scientific calculations in Python.
 
-Inputs must be timezone-aware Python `datetime.datetime` objects. Any explicit
-UTC offset is normalized to UTC before conversion through `tempoch::Time<UTC>`.
-Naive datetimes are rejected rather than being interpreted as UTC or local
-time.
+## Development
 
-## Errors
+```bash
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -U pip "maturin>=1.9,<2" pytest
+maturin develop --locked
+python -m pytest python/tests
+```
 
-All Rust `NsbError` categories have Python exception subclasses rooted at
-`nsb.NsbError`:
+To validate an installed wheel:
 
-- `DataParseError`
-- `DataMissingError`
-- `InvalidMapError`
-- `OutOfRangeError`
-- `UnsupportedError`
-- `InterpolationError`
-- `IoError`
+```bash
+maturin build --release --locked --out dist
+python -m pip install --force-reinstall --no-index --find-links dist nsb-rust
+python -m pytest python/tests
+```
 
-Invalid Python boundary values such as a non-finite coordinate or a naive
-datetime are reported as `OutOfRangeError`. CPU-heavy evaluator and planning
-operations detach from the Python interpreter while Rust executes, allowing
-other Python threads to make progress while NSB and Rayon compute.
+The binding uses PyO3's CPython stable ABI with a Python 3.10 floor (`abi3-py310`). Python support remains feature-gated, so normal Rust builds do not enable PyO3.
+
+## Upstream migration note
+
+The compatibility directory is deletion-oriented. When reusable Siderust/tempoch Python bindings match NSB's dependency stack, migration should be limited to replacing the facade exports/conversion entry points and deleting `python/compat/siderust.rs` and/or `python/compat/tempoch.rs`. NSB-owned files under `python/api/` should not need a scientific redesign.
