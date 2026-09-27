@@ -14,11 +14,16 @@ categories = ["science"]
 
 [lib]
 name = "nsb"
+crate-type = ["rlib", "cdylib"]
+
+[features]
+python = ["dep:pyo3", "qtty/pyo3"]
 
 [dependencies]
 qtty     = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch  = "0.6"
 optica   = "0.2"
+pyo3     = { version = "0.28.3", optional = true, features = ["abi3-py310", "chrono"] }
 # Temporary until ObservatoryCatalog composition APIs ship in a Siderust release.
 siderust = { version = "0.11.1", git = "https://github.com/Siderust/siderust", rev = "2af7c21096551b69a72bba6aa391523f3a4fca9a", features = ["atmosphere", "photometry"] }
 
