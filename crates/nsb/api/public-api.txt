@@ -111,7 +111,6 @@ impl nsb::components::airglow::VerticalEmissionProfile
 pub fn nsb::components::airglow::VerticalEmissionProfile::altitude_km(&self) -> &[qtty_core::units::length::Kilometers]
 pub fn nsb::components::airglow::VerticalEmissionProfile::assumptions(&self) -> &str
 pub fn nsb::components::airglow::VerticalEmissionProfile::checksum_sha256(&self) -> &str
-pub fn nsb::components::airglow::VerticalEmissionProfile::from_toml_str(input: &str) -> core::result::Result<Self, nsb::components::airglow::VerticalEmissionProfileError>
 pub fn nsb::components::airglow::VerticalEmissionProfile::license(&self) -> &str
 pub fn nsb::components::airglow::VerticalEmissionProfile::new(definition: nsb::components::airglow::VerticalEmissionProfileDefinition) -> core::result::Result<Self, nsb::components::airglow::VerticalEmissionProfileError>
 pub fn nsb::components::airglow::VerticalEmissionProfile::normalization(&self) -> nsb::components::airglow::VerticalProfileNormalization
@@ -119,9 +118,11 @@ pub fn nsb::components::airglow::VerticalEmissionProfile::profile_id(&self) -> &
 pub fn nsb::components::airglow::VerticalEmissionProfile::provenance(&self) -> &str
 pub fn nsb::components::airglow::VerticalEmissionProfile::relative_emissivity(&self) -> &[f64]
 pub fn nsb::components::airglow::VerticalEmissionProfile::schema_version(&self) -> u32
-pub fn nsb::components::airglow::VerticalEmissionProfile::to_toml_string(&self) -> core::result::Result<alloc::string::String, nsb::components::airglow::VerticalEmissionProfileError>
 pub fn nsb::components::airglow::VerticalEmissionProfile::validated_zenith_domain(&self) -> nsb::components::airglow::ValidatedZenithDomain
 pub fn nsb::components::airglow::VerticalEmissionProfile::wavelength_applicability(&self) -> &nsb::components::airglow::AirglowWavelengthApplicability
+impl nsb::components::airglow::VerticalEmissionProfile
+pub fn nsb::components::airglow::VerticalEmissionProfile::from_toml_str(input: &str) -> core::result::Result<Self, nsb::components::airglow::VerticalEmissionProfileError>
+pub fn nsb::components::airglow::VerticalEmissionProfile::to_toml_string(&self) -> core::result::Result<alloc::string::String, nsb::components::airglow::VerticalEmissionProfileError>
 #[non_exhaustive] pub struct nsb::components::airglow::VerticalEmissionProfileDefinition
 pub nsb::components::airglow::VerticalEmissionProfileDefinition::altitude_km: alloc::vec::Vec<qtty_core::units::length::Kilometers>
 pub nsb::components::airglow::VerticalEmissionProfileDefinition::assumptions: alloc::string::String
