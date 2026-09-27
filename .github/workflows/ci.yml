@@ -350,21 +350,30 @@ jobs:
   lockfile_probe:
     name: Python lockfile probe
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout without Git LFS payloads
+      - name: Checkout PR head without Git LFS payloads
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           lfs: false
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Regenerate lockfile for Python feature
         run: cargo generate-lockfile
-      - name: Upload regenerated Cargo.lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-cargo-lock
-          path: Cargo.lock
-          retention-days: 1
+      - name: Commit regenerated Cargo.lock to the PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add Cargo.lock
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "build(python): refresh Cargo.lock"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
 
   python_bindings:
     name: Python wheel (${{ matrix.os }}, Python ${{ matrix.python-version }})
