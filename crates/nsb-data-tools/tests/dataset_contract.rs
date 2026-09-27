@@ -172,7 +172,20 @@ fn no_tracked_python_or_shell_programs_exist() {
         }
     }
     let mut found = Vec::new();
-    visit(&crate_root().join("../.."), &mut found);
+    let repository_root = crate_root().join("../..");
+    for entry in fs::read_dir(&repository_root).unwrap() {
+        let path = entry.unwrap().path();
+        // The repository-level Python package is a supported NSB binding, not a
+        // data-tool implementation. Keep the data-tool contract strict everywhere else.
+        if path.file_name().and_then(|value| value.to_str()) == Some("python") {
+            continue;
+        }
+        if path.is_dir() {
+            visit(&path, &mut found);
+        } else if is_forbidden_extension(&path) || has_forbidden_shebang(&path) {
+            found.push(path);
+        }
+    }
     assert!(found.is_empty(), "non-Rust programs remain: {found:#?}");
 }
 

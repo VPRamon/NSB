@@ -19,7 +19,8 @@ test = ["pytest>=8,<10"]
 
 [tool.maturin]
 manifest-path = "crates/nsb/Cargo.toml"
-module-name = "nsb"
+python-source = "python"
+module-name = "nsb._nsb"
 bindings = "pyo3"
 features = ["python"]
 locked = true
