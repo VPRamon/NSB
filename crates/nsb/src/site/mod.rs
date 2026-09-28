@@ -152,26 +152,22 @@ impl AirglowSiteCalibration {
 
 /// Caller-supplied scientific profile that can be resolved against an observer.
 ///
-/// Construct with [`Self::generic_clear_sky`] or [`Self::planning`], or build
-/// the struct fields directly for fully custom assumptions. Observatory catalogs
-/// and named project presets live outside this crate.
+/// Construct with [`Self::generic_clear_sky`] or [`Self::planning`].
+/// Scientific inputs may be customized through explicit builders, but maturity
+/// is intentionally not caller-settable: a public profile cannot self-promote
+/// to [`CalibrationStatus::Calibrated`] without an evidence-backed admission
+/// path in the core library. Observatory catalogs and named project presets live
+/// outside this crate.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct SiteProfileSpec {
-    /// Stable profile identifier.
-    pub id: SiteProfileId,
-    /// Human-readable maturity-bearing profile name.
-    pub name: Cow<'static, str>,
-    /// Site calibration maturity.
-    pub calibration_status: CalibrationStatus,
-    /// How representative altitude is determined at resolve time.
-    pub representative_altitude: RepresentativeAltitude,
-    /// How atmospheric conditions are obtained at resolve time.
-    pub atmosphere: AtmosphereSource,
-    /// Source and limitations of atmospheric assumptions.
-    pub atmosphere_provenance: Cow<'static, str>,
-    /// Airglow calibration assumptions.
-    pub airglow: AirglowSiteCalibration,
+    id: SiteProfileId,
+    name: Cow<'static, str>,
+    calibration_status: CalibrationStatus,
+    representative_altitude: RepresentativeAltitude,
+    atmosphere: AtmosphereSource,
+    atmosphere_provenance: Cow<'static, str>,
+    airglow: AirglowSiteCalibration,
 }
 
 impl SiteProfileSpec {
@@ -218,9 +214,44 @@ impl SiteProfileSpec {
         }
     }
 
+    /// Replace the Airglow assumptions without changing scientific maturity.
+    ///
+    /// This permits caller-defined planning inputs while keeping maturity
+    /// fail-closed: this builder never promotes a profile to
+    /// [`CalibrationStatus::Calibrated`].
+    pub fn with_airglow_calibration(mut self, airglow: AirglowSiteCalibration) -> Self {
+        self.airglow = airglow;
+        self
+    }
+
     /// Evidence-backed calibration maturity for this scientific profile.
     pub const fn calibration_status(&self) -> CalibrationStatus {
         self.calibration_status
+    }
+
+    /// Human-readable profile name.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Representative-altitude policy used when resolving this profile.
+    pub const fn representative_altitude(&self) -> RepresentativeAltitude {
+        self.representative_altitude
+    }
+
+    /// Atmospheric-condition policy used when resolving this profile.
+    pub fn atmosphere(&self) -> &AtmosphereSource {
+        &self.atmosphere
+    }
+
+    /// Provenance and limitations of the atmospheric assumptions.
+    pub fn atmosphere_provenance(&self) -> &str {
+        &self.atmosphere_provenance
+    }
+
+    /// Airglow assumptions carried by this profile.
+    pub fn airglow(&self) -> &AirglowSiteCalibration {
+        &self.airglow
     }
 
     /// Return true only for a dedicated validated site calibration.
@@ -351,26 +382,28 @@ mod tests {
     }
 
     #[test]
-    fn custom_profile_propagates_provenance_and_maturity() {
+    fn custom_planning_profile_propagates_airglow_without_promoting_maturity() {
         let mut airglow = AirglowSiteCalibration::skycalc_neutral();
         airglow.assumptions = Cow::Borrowed("Custom airglow assumptions for regression.");
-        let spec = SiteProfileSpec {
-            id: SiteProfileId::new("custom-calibrated-v1"),
-            name: Cow::Borrowed("custom-calibrated-v1"),
-            calibration_status: CalibrationStatus::Calibrated,
-            representative_altitude: RepresentativeAltitude::Fixed(Kilometers::new(1.8)),
-            atmosphere: AtmosphereSource::Fixed(AtmosphericConditions::paranal_average()),
-            atmosphere_provenance: Cow::Borrowed("Custom calibrated atmosphere provenance."),
-            airglow,
-        };
+        let spec = SiteProfileSpec::planning(
+            "custom-planning-v1",
+            "custom-planning-v1",
+            Kilometers::new(1.8),
+            AtmosphericConditions::paranal_average(),
+            "Custom planning atmosphere provenance.",
+        )
+        .with_airglow_calibration(airglow);
         let resolved = spec.resolve(observer(1_800.0));
 
-        assert!(spec.is_site_calibrated());
-        assert!(resolved.is_site_calibrated());
-        assert_eq!(resolved.calibration_status, CalibrationStatus::Calibrated);
+        assert!(!spec.is_site_calibrated());
+        assert!(!resolved.is_site_calibrated());
+        assert_eq!(
+            resolved.calibration_status,
+            CalibrationStatus::PlanningPreset
+        );
         assert_eq!(
             resolved.atmosphere_provenance.as_ref(),
-            "Custom calibrated atmosphere provenance."
+            "Custom planning atmosphere provenance."
         );
         assert!(resolved
             .airglow
