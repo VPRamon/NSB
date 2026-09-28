@@ -4,14 +4,54 @@ use pyo3::prelude::*;
 
 use crate::NsbError as RustNsbError;
 
-create_exception!(nsb, NsbError, PyException, "Base exception for NSB Python bindings.");
-create_exception!(nsb, DataParseError, NsbError, "A scientific data source could not be parsed.");
-create_exception!(nsb, DataMissingError, NsbError, "Required scientific data are unavailable.");
-create_exception!(nsb, InvalidMapError, NsbError, "A starlight map failed validation.");
-create_exception!(nsb, OutOfRangeError, NsbError, "An input lies outside the supported range.");
-create_exception!(nsb, UnsupportedError, NsbError, "The selected NSB configuration is unsupported.");
-create_exception!(nsb, InterpolationError, NsbError, "A scientific interpolation failed.");
-create_exception!(nsb, IoError, NsbError, "An NSB filesystem operation failed.");
+create_exception!(
+    nsb,
+    NsbError,
+    PyException,
+    "Base exception for NSB Python bindings."
+);
+create_exception!(
+    nsb,
+    DataParseError,
+    NsbError,
+    "A scientific data source could not be parsed."
+);
+create_exception!(
+    nsb,
+    DataMissingError,
+    NsbError,
+    "Required scientific data are unavailable."
+);
+create_exception!(
+    nsb,
+    InvalidMapError,
+    NsbError,
+    "A starlight map failed validation."
+);
+create_exception!(
+    nsb,
+    OutOfRangeError,
+    NsbError,
+    "An input lies outside the supported range."
+);
+create_exception!(
+    nsb,
+    UnsupportedError,
+    NsbError,
+    "The selected NSB configuration is unsupported."
+);
+create_exception!(
+    nsb,
+    InterpolationError,
+    NsbError,
+    "A scientific interpolation failed."
+);
+create_exception!(
+    nsb,
+    IoError,
+    NsbError,
+    "An NSB filesystem operation failed."
+);
 
 pub(super) fn add_exceptions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = module.py();
