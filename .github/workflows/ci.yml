@@ -267,8 +267,9 @@ jobs:
           tool: cargo-llvm-cov@0.9.0
       - name: Clean previous coverage data
         run: cargo +nightly-2026-09-02 llvm-cov clean --workspace
-      - name: Collect coverage
-        run: cargo +nightly-2026-09-02 llvm-cov --workspace --all-features --doctests --locked --no-report
+      - name: Collect Rust implementation coverage
+        # Python adapter coverage is owned by the installed-wheel jobs below.
+        run: cargo +nightly-2026-09-02 llvm-cov --workspace --doctests --locked --no-report
       - name: Write Cobertura report
         run: cargo +nightly-2026-09-02 llvm-cov report --cobertura --output-path coverage.xml
       - name: Write JSON report
@@ -348,7 +349,7 @@ jobs:
 
 
   python_bindings:
-    name: Python wheel (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    name: Python abi3 wheel (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -359,11 +360,8 @@ jobs:
             manylinux: "2_28"
             container: "auto"
             venv-python: ./.wheel-venv/bin/python
-          - os: ubuntu-latest
-            python-version: "3.14"
-            manylinux: "2_28"
-            container: "auto"
-            venv-python: ./.wheel-venv/bin/python
+            additional-python: "3.14"
+            additional-venv-python: ./.wheel-venv-314/bin/python
           - os: macos-14
             python-version: "3.10"
             manylinux: "off"
@@ -403,3 +401,15 @@ jobs:
         run: ${{ matrix.venv-python }} -m pip install --no-index --find-links dist nsb-rust
       - name: Test installed wheel
         run: ${{ matrix.venv-python }} -m pytest python/tests -q
+      - name: Set up additional Linux Python
+        if: ${{ matrix.additional-python }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.additional-python }}
+      - name: Test the same installed wheel on additional Linux Python
+        if: ${{ matrix.additional-python }}
+        run: |
+          python -m venv .wheel-venv-314
+          ${{ matrix.additional-venv-python }} -m pip install --upgrade pip "pytest>=8,<10"
+          ${{ matrix.additional-venv-python }} -m pip install --no-index --find-links dist nsb-rust
+          ${{ matrix.additional-venv-python }} -m pytest python/tests -q

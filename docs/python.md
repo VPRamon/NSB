@@ -24,14 +24,10 @@ The current `nsb.Observer`, `nsb.Direction`, and Python `datetime` bridge are te
 
 ## Package layout
 
-The public package is a small Python facade over a private native extension:
-
-```text
-python/nsb/__init__.py
-python/nsb/_nsb.*
-```
-
-Maturin builds the extension as `nsb._nsb`. Users import only `nsb`.
+This is a pure-Rust maturin project with import name `nsb`. Maturin supplies its
+minimal generated package initializer, and the root-level `nsb.pyi` ships beside
+the extension for static typing. There is no maintained pass-through facade or
+duplicated re-export list.
 
 ## Point evaluation
 
@@ -125,4 +121,4 @@ The binding uses PyO3's CPython stable ABI with a Python 3.10 floor (`abi3-py310
 
 ## Upstream migration note
 
-The compatibility directory is deletion-oriented. When reusable Siderust/tempoch Python bindings match NSB's dependency stack, migration should be limited to replacing the facade exports/conversion entry points and deleting `python/compat/siderust.rs` and/or `python/compat/tempoch.rs`. NSB-owned files under `python/api/` should not need a scientific redesign.
+The compatibility directory is deletion-oriented. When reusable Siderust/tempoch Python bindings match NSB's dependency stack, migration should be limited to replacing conversion entry points and deleting `python/compat/siderust.rs` and/or `python/compat/tempoch.rs`. NSB-owned files under `python/api/` should not need a scientific redesign.

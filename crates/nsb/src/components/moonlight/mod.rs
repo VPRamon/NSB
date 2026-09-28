@@ -53,6 +53,16 @@ pub(crate) use jones_2013_spectral::Jones2013Spectral;
 pub(crate) use krisciunas_schaefer1991::KrisciunasSchaefer1991;
 
 /// Supported scattered-moonlight scientific models.
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(
+        eq,
+        frozen,
+        rename_all = "SCREAMING_SNAKE_CASE",
+        module = "nsb",
+        from_py_object
+    )
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MoonlightModel {

@@ -25,6 +25,22 @@ def test_naive_datetime_is_rejected_as_nsb_input_error(observer, direction):
         nsb.PointQuery(observer, datetime(2023, 9, 4, 1, 48), direction)
 
 
+@pytest.mark.parametrize("naive_endpoint", ["start", "end"])
+def test_threshold_naive_datetimes_are_rejected_as_nsb_input_errors(
+    observer, direction, naive_endpoint
+):
+    aware = datetime(2023, 9, 4, 2, 0, tzinfo=timezone.utc)
+    start = datetime(2023, 9, 4, 1, 0, tzinfo=timezone.utc)
+    end = aware
+    if naive_endpoint == "start":
+        start = start.replace(tzinfo=None)
+    else:
+        end = end.replace(tzinfo=None)
+
+    with pytest.raises(nsb.OutOfRangeError, match=f"{naive_endpoint} must be timezone-aware"):
+        nsb.ThresholdQuery(observer, direction, start, end, 1.0)
+
+
 def test_non_finite_compat_values_are_rejected():
     with pytest.raises(nsb.OutOfRangeError, match="finite"):
         nsb.Direction(float("nan"), 0.0)

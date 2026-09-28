@@ -1,97 +1,81 @@
 use pyo3::prelude::*;
 
-use crate::{AirglowSelection, NsbModelConfig};
-
-use super::selectors::{PyAirglowModel, PyMoonlightModel, PySiteProfile, PyZodiacalExtinction};
-
-#[pyclass(name = "NsbModelConfig", frozen, module = "nsb", skip_from_py_object)]
-#[derive(Clone)]
-pub(in crate::python) struct PyNsbModelConfig {
-    inner: NsbModelConfig,
-}
-
-impl PyNsbModelConfig {
-    pub(in crate::python) fn inner(&self) -> NsbModelConfig {
-        self.inner.clone()
-    }
-
-    pub(in crate::python) fn from_inner(inner: NsbModelConfig) -> Self {
-        Self { inner }
-    }
-}
+use crate::{
+    AirglowModel, AirglowSelection, MoonlightModel, NsbModelConfig, SiteProfileId,
+    ZodiacalExtinction,
+};
 
 #[pymethods]
-impl PyNsbModelConfig {
+impl NsbModelConfig {
     #[staticmethod]
-    fn generic_clear_sky() -> Self {
-        Self::from_inner(NsbModelConfig::generic_clear_sky())
+    #[pyo3(name = "generic_clear_sky")]
+    fn py_generic_clear_sky() -> Self {
+        Self::generic_clear_sky()
     }
 
-    fn with_site_profile(&self, profile: PySiteProfile) -> Self {
-        Self::from_inner(self.inner.clone().with_site_profile(profile.into()))
+    #[pyo3(name = "with_site_profile")]
+    fn py_with_site_profile(&self, profile: SiteProfileId) -> Self {
+        self.clone().with_site_profile(profile)
     }
 
-    fn with_moonlight_model(&self, model: PyMoonlightModel) -> Self {
-        Self::from_inner(self.inner.clone().with_moonlight_model(model.into()))
+    #[pyo3(name = "with_moonlight_model")]
+    fn py_with_moonlight_model(&self, model: MoonlightModel) -> Self {
+        self.clone().with_moonlight_model(model)
     }
 
-    fn with_airglow_model(&self, model: PyAirglowModel) -> Self {
-        Self::from_inner(self.inner.clone().with_airglow_model(model.into()))
+    #[pyo3(name = "with_airglow_model")]
+    fn py_with_airglow_model(&self, model: AirglowModel) -> Self {
+        self.clone().with_airglow_model(model)
     }
 
-    fn with_automatic_airglow(&self) -> Self {
-        Self::from_inner(
-            self.inner
-                .clone()
-                .with_airglow_selection(AirglowSelection::Automatic),
-        )
+    #[pyo3(name = "with_automatic_airglow")]
+    fn py_with_automatic_airglow(&self) -> Self {
+        self.clone()
+            .with_airglow_selection(AirglowSelection::Automatic)
     }
 
-    fn with_zodiacal_extinction(&self, extinction: PyZodiacalExtinction) -> Self {
-        Self::from_inner(
-            self.inner
-                .clone()
-                .with_zodiacal_extinction(extinction.into()),
-        )
+    #[pyo3(name = "with_zodiacal_extinction")]
+    fn py_with_zodiacal_extinction(&self, extinction: ZodiacalExtinction) -> Self {
+        self.clone().with_zodiacal_extinction(extinction)
     }
 
-    #[getter]
-    fn site_profile(&self) -> PySiteProfile {
-        self.inner.site_profile().into()
+    #[getter(site_profile)]
+    fn py_site_profile(&self) -> SiteProfileId {
+        self.site_profile()
     }
 
-    #[getter]
-    fn moonlight_model(&self) -> PyMoonlightModel {
-        self.inner.moonlight_model().into()
+    #[getter(moonlight_model)]
+    fn py_moonlight_model(&self) -> MoonlightModel {
+        self.moonlight_model()
     }
 
-    #[getter]
-    fn airglow_selection(&self) -> &'static str {
-        self.inner.airglow_selection().as_str()
+    #[getter(airglow_selection)]
+    fn py_airglow_selection(&self) -> &'static str {
+        self.airglow_selection().as_str()
     }
 
-    #[getter]
-    fn airglow_model(&self) -> Option<PyAirglowModel> {
-        self.inner.airglow_model().map(Into::into)
+    #[getter(airglow_model)]
+    fn py_airglow_model(&self) -> Option<AirglowModel> {
+        self.airglow_model()
     }
 
-    #[getter]
-    fn zodiacal_extinction(&self) -> PyZodiacalExtinction {
-        self.inner.zodiacal_extinction().into()
+    #[getter(zodiacal_extinction)]
+    fn py_zodiacal_extinction(&self) -> ZodiacalExtinction {
+        self.zodiacal_extinction()
     }
 
-    #[getter]
-    fn is_airglow_site_calibrated(&self) -> bool {
-        self.inner.is_airglow_site_calibrated()
+    #[getter(is_airglow_site_calibrated)]
+    fn py_is_airglow_site_calibrated(&self) -> bool {
+        self.is_airglow_site_calibrated()
     }
 
     fn __repr__(&self) -> String {
         format!(
             "NsbModelConfig(site_profile='{}', moonlight_model='{}', airglow_selection='{}', zodiacal_extinction='{}')",
-            self.inner.site_profile().as_str(),
-            self.inner.moonlight_model().as_str(),
-            self.inner.airglow_selection().as_str(),
-            self.inner.zodiacal_extinction().as_str(),
+            self.site_profile().as_str(),
+            self.moonlight_model().as_str(),
+            self.airglow_selection().as_str(),
+            self.zodiacal_extinction().as_str(),
         )
     }
 }

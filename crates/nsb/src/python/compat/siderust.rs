@@ -2,9 +2,8 @@
 //!
 //! These classes exist only because the currently reusable `siderust-py`
 //! package is pinned to an older qtty/tempoch stack than NSB. Keep this module
-//! free of NSB-specific policy: once upstream bindings are version-compatible,
-//! the public Python facade can re-export `siderust.Observer` and
-//! `siderust.Direction` and this file can be deleted.
+//! free of NSB-specific policy so it can be deleted once upstream bindings are
+//! version-compatible.
 
 use pyo3::prelude::*;
 use qtty::angular::Degrees;

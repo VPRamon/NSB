@@ -2,128 +2,49 @@ use pyo3::prelude::*;
 
 use crate::{AirglowModel, ComponentMask, MoonlightModel, SiteProfileId, ZodiacalExtinction};
 
-macro_rules! python_selector {
-    ($py:ident, $python_name:literal, $rust:ty, {$($variant:ident => $rust_variant:path),+ $(,)?}) => {
-        #[pyclass(
-            name = $python_name,
-            eq,
-            frozen,
-            rename_all = "SCREAMING_SNAKE_CASE",
-            module = "nsb",
-            from_py_object
-        )]
-        #[derive(Clone, Copy, PartialEq, Eq)]
-        pub(in crate::python) enum $py {
-            $($variant),+
-        }
-
-        impl From<$py> for $rust {
-            fn from(value: $py) -> Self {
-                match value {
-                    $($py::$variant => $rust_variant),+
-                }
-            }
-        }
-
-        impl From<$rust> for $py {
-            fn from(value: $rust) -> Self {
-                match value {
-                    $($rust_variant => $py::$variant),+
-                }
-            }
-        }
-
+macro_rules! selector_methods {
+    ($type:ty, $python_name:literal) => {
         #[pymethods]
-        impl $py {
-            fn as_str(&self) -> &'static str {
-                let value: $rust = (*self).into();
-                value.as_str()
+        impl $type {
+            #[pyo3(name = "as_str")]
+            fn py_as_str(&self) -> &'static str {
+                <$type>::as_str(*self)
             }
 
             fn __repr__(&self) -> String {
-                format!("{}('{}')", $python_name, self.as_str())
+                format!("{}('{}')", $python_name, <$type>::as_str(*self))
             }
         }
     };
 }
 
-python_selector!(
-    PySiteProfile,
-    "SiteProfile",
-    SiteProfileId,
-    {
-        GenericClearSky => SiteProfileId::GenericClearSky,
-        CtaNorth => SiteProfileId::CtaNorth,
-        CtaSouth => SiteProfileId::CtaSouth,
-    }
-);
-
-python_selector!(
-    PyMoonlightModel,
-    "MoonlightModel",
-    MoonlightModel,
-    {
-        KrisciunasSchaefer1991 => MoonlightModel::KrisciunasSchaefer1991,
-        Jones2013Spectral => MoonlightModel::Jones2013Spectral,
-    }
-);
-
-python_selector!(
-    PyAirglowModel,
-    "AirglowModel",
-    AirglowModel,
-    {
-        ParanalNollSkyCalcFors1 => AirglowModel::ParanalNollSkyCalcFors1,
-    }
-);
-
-python_selector!(
-    PyZodiacalExtinction,
-    "ZodiacalExtinction",
-    ZodiacalExtinction,
-    {
-        None => ZodiacalExtinction::None,
-        Noll2012Approx => ZodiacalExtinction::Noll2012Approx,
-    }
-);
-
-#[pyclass(name = "ComponentMask", frozen, module = "nsb", from_py_object)]
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(in crate::python) struct PyComponentMask {
-    inner: ComponentMask,
-}
-
-impl PyComponentMask {
-    pub(in crate::python) const fn inner(&self) -> ComponentMask {
-        self.inner
-    }
-
-    pub(in crate::python) const fn from_inner(inner: ComponentMask) -> Self {
-        Self { inner }
-    }
-}
+selector_methods!(SiteProfileId, "SiteProfile");
+selector_methods!(MoonlightModel, "MoonlightModel");
+selector_methods!(AirglowModel, "AirglowModel");
+selector_methods!(ZodiacalExtinction, "ZodiacalExtinction");
 
 #[pymethods]
-impl PyComponentMask {
-    #[getter]
-    fn bits(&self) -> u8 {
-        self.inner.bits()
+impl ComponentMask {
+    #[getter(bits)]
+    fn py_bits(&self) -> u8 {
+        self.bits()
     }
 
-    fn contains(&self, other: Self) -> bool {
-        self.inner.contains(other.inner)
+    #[pyo3(name = "contains")]
+    fn py_contains(&self, other: Self) -> bool {
+        self.contains(other)
     }
 
     fn __or__(&self, other: Self) -> Self {
-        Self::from_inner(self.inner | other.inner)
+        *self | other
     }
 
     fn __and__(&self, other: Self) -> Self {
-        Self::from_inner(self.inner & other.inner)
+        *self & other
     }
 
     fn __repr__(&self) -> String {
-        format!("ComponentMask(bits={:#06b})", self.inner.bits())
+        format!("ComponentMask(bits={:#06b})", self.bits())
     }
 }
 
@@ -140,7 +61,7 @@ pub(in crate::python) fn install_component_mask_constants(
         ("DEFAULT", ComponentMask::DEFAULT),
         ("ALL", ComponentMask::ALL),
     ] {
-        ty.setattr(name, Py::new(py, PyComponentMask::from_inner(value))?)?;
+        ty.setattr(name, Py::new(py, value)?)?;
     }
     Ok(())
 }

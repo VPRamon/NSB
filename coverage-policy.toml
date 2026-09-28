@@ -25,7 +25,7 @@ date = "2026-09-05"
 rust_nightly = "1.100.0-nightly (5db7f4be8 2026-09-01)"
 rust_nightly_toolchain = "nightly-2026-09-02"
 cargo_llvm_cov = "0.9.0"
-command = "cargo +nightly-2026-09-02 llvm-cov --workspace --all-features --doctests --locked --no-report"
+command = "cargo +nightly-2026-09-02 llvm-cov --workspace --doctests --locked --no-report"
 
 [measured]
 workspace_lines = 81.35
@@ -51,8 +51,9 @@ nsb_lines = 87.0
 changed_production_lines = 90.0
 base_ref = "origin/main"
 
-# No filename or region exclusions are currently approved. A nonempty
-# `files` list is rejected at load time so it cannot be silently ignored.
+# No LCOV filename or region exclusions are approved. A nonempty `files` list
+# is rejected so it cannot silently change the Rust denominator. The diff gate
+# separately classifies the PyO3 adapter as installed-wheel-tested boundary code.
 [exclusions]
 files = []
-notes = "No coverage exclusions. Do not exclude a crate or production module to manufacture a passing percentage."
+notes = "No LCOV exclusions. The feature-gated PyO3 boundary is measured by installed-wheel pytest jobs, not the normal Rust coverage build."

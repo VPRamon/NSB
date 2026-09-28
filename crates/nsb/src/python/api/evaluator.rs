@@ -2,11 +2,9 @@ use std::sync::Arc;
 
 use pyo3::prelude::*;
 
-use crate::{NsbEvaluator, NsbModelConfig, SiteWindowContext};
+use crate::{NsbEvaluator, NsbModelConfig, PointQuery, SiteWindowContext, ThresholdQuery};
 
-use super::config::PyNsbModelConfig;
 use super::errors::to_py_err;
-use super::queries::{PyPointQuery, PyThresholdQuery};
 use super::results::{PyNsbResult, PyThresholdQueryResult};
 
 #[pyclass(
@@ -16,79 +14,72 @@ use super::results::{PyNsbResult, PyThresholdQueryResult};
     skip_from_py_object
 )]
 pub(in crate::python) struct PySiteWindowContext {
-    // The context is reused across Python calls. Arc lets detached Rust work own
-    // a stable handle without cloning the prepared scientific state.
+    // Detached Rust work needs an owned handle to reusable prepared state.
     inner: Arc<SiteWindowContext>,
 }
 
-#[pyclass(name = "NsbEvaluator", frozen, module = "nsb", skip_from_py_object)]
-pub(in crate::python) struct PyNsbEvaluator {
-    inner: NsbEvaluator,
-}
-
 #[pymethods]
-impl PyNsbEvaluator {
+impl NsbEvaluator {
     #[new]
     #[pyo3(signature = (config=None))]
-    fn new(py: Python<'_>, config: Option<PyRef<'_, PyNsbModelConfig>>) -> PyResult<Self> {
-        let config = config.map_or_else(NsbModelConfig::generic_clear_sky, |value| value.inner());
-        let inner = py
-            .detach(move || NsbEvaluator::with_config(config))
-            .map_err(to_py_err)?;
-        Ok(Self { inner })
+    fn py_new(py: Python<'_>, config: Option<PyRef<'_, NsbModelConfig>>) -> PyResult<Self> {
+        let config = config.map_or_else(NsbModelConfig::generic_clear_sky, |value| value.clone());
+        py.detach(move || Self::with_config(config))
+            .map_err(to_py_err)
     }
 
-    #[getter]
-    fn config(&self) -> PyNsbModelConfig {
-        PyNsbModelConfig::from_inner(self.inner.config().clone())
+    #[getter(config)]
+    fn py_config(&self) -> NsbModelConfig {
+        self.config().clone()
     }
 
-    fn evaluate(&self, py: Python<'_>, query: PyRef<'_, PyPointQuery>) -> PyResult<PyNsbResult> {
-        let query = query.inner();
-        py.detach(|| self.inner.evaluate(&query))
+    #[pyo3(name = "evaluate")]
+    fn py_evaluate(&self, py: Python<'_>, query: PyRef<'_, PointQuery>) -> PyResult<PyNsbResult> {
+        let query = query.clone();
+        py.detach(|| self.evaluate(&query))
             .map(PyNsbResult::from)
             .map_err(to_py_err)
     }
 
-    fn prepare_site_window_context(
+    #[pyo3(name = "prepare_site_window_context")]
+    fn py_prepare_site_window_context(
         &self,
         py: Python<'_>,
-        query: PyRef<'_, PyThresholdQuery>,
+        query: PyRef<'_, ThresholdQuery>,
     ) -> PyResult<PySiteWindowContext> {
-        let query = query.inner();
+        let query = query.clone();
         let inner = py
-            .detach(|| self.inner.prepare_site_window_context(&query))
+            .detach(|| self.prepare_site_window_context(&query))
             .map_err(to_py_err)?;
         Ok(PySiteWindowContext {
             inner: Arc::new(inner),
         })
     }
 
-    fn periods_below_threshold(
+    #[pyo3(name = "periods_below_threshold")]
+    fn py_periods_below_threshold(
         &self,
         py: Python<'_>,
-        query: PyRef<'_, PyThresholdQuery>,
+        query: PyRef<'_, ThresholdQuery>,
     ) -> PyResult<PyThresholdQueryResult> {
-        let query = query.inner();
+        let query = query.clone();
         let result = py
-            .detach(|| self.inner.periods_below_threshold(&query))
+            .detach(|| self.periods_below_threshold(&query))
             .map_err(to_py_err)?;
         PyThresholdQueryResult::try_from_inner(result)
     }
 
-    fn periods_below_threshold_with_context(
+    #[pyo3(name = "periods_below_threshold_with_context")]
+    fn py_periods_below_threshold_with_context(
         &self,
         py: Python<'_>,
         context: PyRef<'_, PySiteWindowContext>,
-        query: PyRef<'_, PyThresholdQuery>,
+        query: PyRef<'_, ThresholdQuery>,
     ) -> PyResult<PyThresholdQueryResult> {
         let context = Arc::clone(&context.inner);
-        let query = query.inner();
+        let query = query.clone();
         let result = py
-            .detach(|| {
-                self.inner
-                    .periods_below_threshold_with_context(&context, &query)
-            })
+            .detach(|| self.periods_below_threshold_with_context(&context, &query))
             .map_err(to_py_err)?;
         PyThresholdQueryResult::try_from_inner(result)
     }

@@ -24,6 +24,17 @@ use siderust::qtty::{Kilometer, Kilometers};
 /// This identifies assumptions and calibration maturity, not an observatory or
 /// physical location. Additional named profiles may be added; match with a
 /// wildcard.
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(
+        name = "SiteProfile",
+        eq,
+        frozen,
+        rename_all = "SCREAMING_SNAKE_CASE",
+        module = "nsb",
+        from_py_object
+    )
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum SiteProfileId {

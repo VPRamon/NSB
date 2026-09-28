@@ -1,45 +1,46 @@
 //! Optional Python adapter for NSB.
 //!
-//! The public `nsb` Python package is a thin facade over the private `_nsb`
-//! extension. NSB-owned bindings live in `api`; temporary Siderust/tempoch
-//! interoperability lives in `compat` so it can be removed independently.
+//! NSB-owned types are exposed directly where Python preserves their Rust
+//! identity and semantics. Boundary adapters live in `api` and `compat`.
 
 mod api;
 mod compat;
 
 use pyo3::prelude::*;
 
+use crate::{
+    AirglowModel, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
+    SiteProfileId, ThresholdQuery, ZodiacalExtinction,
+};
 use api::{
-    add_exceptions, install_component_mask_constants, PyAirglowModel, PyComponentMask,
-    PyMoonlightModel, PyNsbComponent, PyNsbComponentMetadata, PyNsbEvaluator, PyNsbModelConfig,
-    PyNsbResult, PyPointQuery, PySiteProfile, PySiteWindowContext, PyThresholdQuery,
-    PyThresholdQueryResult, PyZodiacalExtinction,
+    add_exceptions, install_component_mask_constants, PyNsbComponent, PyNsbComponentMetadata,
+    PyNsbResult, PySiteWindowContext, PyThresholdQueryResult,
 };
 use compat::{PyDirection, PyObserver};
 
 #[pymodule]
-#[pyo3(name = "_nsb")]
+#[pyo3(name = "nsb")]
 fn python_module(module: &Bound<'_, PyModule>) -> PyResult<()> {
     add_exceptions(module)?;
 
     module.add_class::<PyObserver>()?;
     module.add_class::<PyDirection>()?;
-    module.add_class::<PySiteProfile>()?;
-    module.add_class::<PyMoonlightModel>()?;
-    module.add_class::<PyAirglowModel>()?;
-    module.add_class::<PyZodiacalExtinction>()?;
-    module.add_class::<PyComponentMask>()?;
+    module.add_class::<SiteProfileId>()?;
+    module.add_class::<MoonlightModel>()?;
+    module.add_class::<AirglowModel>()?;
+    module.add_class::<ZodiacalExtinction>()?;
+    module.add_class::<ComponentMask>()?;
     install_component_mask_constants(module.py(), module)?;
 
-    module.add_class::<PyNsbModelConfig>()?;
-    module.add_class::<PyPointQuery>()?;
-    module.add_class::<PyThresholdQuery>()?;
+    module.add_class::<NsbModelConfig>()?;
+    module.add_class::<PointQuery>()?;
+    module.add_class::<ThresholdQuery>()?;
     module.add_class::<PyNsbComponentMetadata>()?;
     module.add_class::<PyNsbComponent>()?;
     module.add_class::<PyNsbResult>()?;
     module.add_class::<PyThresholdQueryResult>()?;
     module.add_class::<PySiteWindowContext>()?;
-    module.add_class::<PyNsbEvaluator>()?;
+    module.add_class::<NsbEvaluator>()?;
 
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
     module.add("MODEL_VERSION", crate::MODEL_VERSION)?;

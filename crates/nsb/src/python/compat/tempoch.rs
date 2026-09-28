@@ -3,7 +3,7 @@
 //! `tempoch` remains the canonical time implementation. This module only owns
 //! conversion at the Python boundary until a reusable tempoch Python package is
 //! available. Keep all Python datetime/period adaptation here so migration is a
-//! deletion plus facade import change rather than an NSB scientific refactor.
+//! localized deletion rather than an NSB scientific refactor.
 
 use chrono::{DateTime, FixedOffset, Utc};
 use pyo3::prelude::*;

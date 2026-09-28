@@ -161,8 +161,17 @@ fn no_tracked_python_or_shell_programs_exist() {
             if path.is_dir() {
                 if !matches!(
                     path.file_name().and_then(|v| v.to_str()),
-                    // Maintainer CI orchestration under scripts/ is intentional (#176).
-                    Some(".git" | "target" | ".venv" | "__pycache__" | ".pytest_cache" | "scripts")
+                    // Maintainer CI orchestration under scripts/ and the supported
+                    // Python binding package are intentional (#176, #183).
+                    Some(
+                        ".git"
+                            | "target"
+                            | ".venv"
+                            | "__pycache__"
+                            | ".pytest_cache"
+                            | "scripts"
+                            | "python"
+                    )
                 ) {
                     visit(&path, found);
                 }
@@ -172,33 +181,7 @@ fn no_tracked_python_or_shell_programs_exist() {
         }
     }
     let mut found = Vec::new();
-    let repository_root = crate_root().join("../..");
-    for entry in fs::read_dir(&repository_root).unwrap() {
-        let path = entry.unwrap().path();
-        let name = path.file_name().and_then(|value| value.to_str());
-        // Repository metadata and maintainer CI scripts are not product
-        // implementations. The top-level Python package is the supported NSB
-        // binding, not data-tool orchestration.
-        if matches!(
-            name,
-            Some(
-                ".git"
-                    | "target"
-                    | ".venv"
-                    | "__pycache__"
-                    | ".pytest_cache"
-                    | "scripts"
-                    | "python"
-            )
-        ) {
-            continue;
-        }
-        if path.is_dir() {
-            visit(&path, &mut found);
-        } else if is_forbidden_extension(&path) || has_forbidden_shebang(&path) {
-            found.push(path);
-        }
-    }
+    visit(&crate_root().join("../.."), &mut found);
     assert!(found.is_empty(), "non-Rust programs remain: {found:#?}");
 }
 
