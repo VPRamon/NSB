@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, refactor/decouple-ctao-profiles]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
