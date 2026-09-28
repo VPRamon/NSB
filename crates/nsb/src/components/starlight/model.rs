@@ -86,7 +86,10 @@ fn missing_bundled_production_asset() -> NsbError {
 pub(super) mod test_support {
     use super::{ScaleFactors, Starlight};
 
-    pub(in crate::components::starlight) fn with_scale(mut model: Starlight, scale: ScaleFactors) -> Starlight {
+    pub(in crate::components::starlight) fn with_scale(
+        mut model: Starlight,
+        scale: ScaleFactors,
+    ) -> Starlight {
         model.scale = scale;
         model
     }
