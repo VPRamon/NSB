@@ -25,6 +25,39 @@ fn zenith(deg: f64) -> DirectPathGeometry {
 }
 
 #[test]
+fn identity_optical_depth_and_ozone_constructor_are_exercised() {
+    let zero = TransportModel::identity()
+        .optical_depth(Nanometers::new(500.0), paranal())
+        .unwrap();
+    assert_eq!(zero.total.value(), 0.0);
+    assert_eq!(zero.rayleigh.value(), 0.0);
+    assert_eq!(zero.mie.value(), 0.0);
+    assert_eq!(zero.absorption.value(), 0.0);
+
+    let with_ozone = TransportModel::direct_rayleigh_mie_ozone();
+    assert_eq!(with_ozone.as_str(), "direct-transmission");
+    let breakdown = with_ozone
+        .optical_depth(Nanometers::new(320.0), paranal())
+        .unwrap();
+    assert!(breakdown.absorption.value() > 0.0);
+    assert_eq!(
+        with_ozone.metadata().absorption,
+        MolecularAbsorption::OzoneBundledTable
+    );
+}
+
+#[test]
+fn airmass_model_as_str_covers_all_variants() {
+    assert_eq!(AirmassModel::Young1994.as_str(), "young-1994");
+    assert_eq!(
+        AirmassModel::KrisciunasSchaefer1991.as_str(),
+        "krisciunas-schaefer-1991"
+    );
+    assert_eq!(AirmassModel::PlaneParallel.as_str(), "plane-parallel");
+    assert_eq!(AirmassModel::Rozenberg1966.as_str(), "rozenberg-1966");
+}
+
+#[test]
 fn identity_is_exact_pass_through_for_energy_and_photon_spectral() {
     let transport = TransportModel::Identity;
     let energy = EnergySpectralRadiance::new(1.234_567_890_123);
