@@ -7,5 +7,5 @@
 mod siderust;
 mod tempoch;
 
-pub(super) use siderust::{PyDirection, PyObserver};
-pub(super) use tempoch::{datetime_to_time, period_to_datetimes, time_to_datetime};
+pub(in crate::python) use siderust::{PyDirection, PyObserver};
+pub(in crate::python) use tempoch::{datetime_to_time, period_to_datetimes, time_to_datetime};
