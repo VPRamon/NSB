@@ -7,9 +7,9 @@ use tempoch::Period;
 
 use crate::{PointQuery, ThresholdQuery};
 
+use super::super::compat::{datetime_to_time, time_to_datetime, PyDirection, PyObserver};
 use super::invalid_input;
 use super::selectors::PyComponentMask;
-use super::super::compat::{datetime_to_time, time_to_datetime, PyDirection, PyObserver};
 
 fn finite(name: &str, value: f64) -> PyResult<()> {
     if value.is_finite() {
@@ -102,19 +102,21 @@ impl PyThresholdQuery {
     ))]
     #[allow(clippy::too_many_arguments)]
     fn new(
-        observer: PyRef<'_, PyObserver>,
-        target: PyRef<'_, PyDirection>,
+        observer: PyObserver,
+        target: PyDirection,
         start: &Bound<'_, PyAny>,
         end: &Bound<'_, PyAny>,
         threshold_photons_cm2_ns_sr: f64,
-        components: Option<PyRef<'_, PyComponentMask>>,
+        components: Option<PyComponentMask>,
         sample_step_s: f64,
         sun_altitude_ceiling_deg: Option<f64>,
         target_altitude_floor_deg: Option<f64>,
     ) -> PyResult<Self> {
         finite("threshold_photons_cm2_ns_sr", threshold_photons_cm2_ns_sr)?;
         if threshold_photons_cm2_ns_sr < 0.0 {
-            return Err(invalid_input("threshold_photons_cm2_ns_sr must be non-negative"));
+            return Err(invalid_input(
+                "threshold_photons_cm2_ns_sr must be non-negative",
+            ));
         }
         finite("sample_step_s", sample_step_s)?;
         if sample_step_s <= 0.0 {
