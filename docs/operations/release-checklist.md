@@ -10,6 +10,9 @@ scientific calibration evidence.
 - [ ] `ComponentMask::ALL`, CLI `all`, examples, and docs agree.
 - [ ] No removed compatibility API appears under `crates/*/src`.
 - [ ] `Cargo.lock` is committed and the Siderust crates.io source identity matches the compatibility matrix.
+- [ ] `cargo package -p nsb --locked` succeeds using registry dependencies after Cargo normalizes local git/path sources.
+- [ ] `cargo package -p nsb --list` contains only files required for the published crate, and the resulting `.crate` is below the crates.io 10 MB upload limit.
+- [ ] Every runtime-embedded scientific asset has redistribution approval for crates.io distribution, including any human approval gates tracked separately from technical validation.
 - [ ] The registry verifier passes from a normal checkout and validates every tracked scientific payload checksum.
 - [ ] The manual/release scientific-validation workflow passes without external asset fetching.
 - [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
