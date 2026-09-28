@@ -59,9 +59,9 @@
 //!
 //! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
 //! photometry, and passbands. NSB owns NSB-specific component composition,
-//! observing-window planning, and generic site-profile metadata that distinguishes
-//! generic fallbacks from caller-supplied planning or calibrated assumptions.
-//! Observatory catalogs and named project presets live outside this crate.
+//! atmospheric-transport orchestration ([`transport`]), observing-window
+//! planning, and site-profile metadata that distinguishes generic fallbacks
+//! from explicit named planning presets.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -80,6 +80,8 @@ pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
 pub mod solar_activity;
 mod spectra;
+/// Atmospheric transport of spectral sky radiance (identity and direct paths).
+pub mod transport;
 pub(crate) mod units;
 
 pub use components::airglow::AirglowModel;

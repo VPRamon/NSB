@@ -13,6 +13,7 @@ site calibration are separate axes.
 | Surface | Status | Validated domain | Production claim allowed |
 |---|---|---|---|
 | Evaluator composition and units | Production software | Typed deterministic composition and component-sum identity | Yes, for software behaviour |
+| Atmospheric transport (`nsb::transport`) | Foundation / planning software | Identity exactness; Beer–Lambert direct path with Siderust Rayleigh/Mie/(optional) ozone; origin-rejection for airglow/moonlight | Planning / software only; does not imply site calibration |
 | Zodiacal component | Generic clear sky | Leinert anchors and Noll-style formula checks | Planning only |
 | Airglow component | Generic/planning | Astronomical night with a Paranal-derived continuum; arbitrary-location geometry is supported, but no location (including Paranal) is automatically site-calibrated | Planning only |
 | Jones 2013 moonlight | Generic/planning | Spectral computation and deterministic regression cases | Planning only |

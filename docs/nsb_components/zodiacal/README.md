@@ -27,6 +27,11 @@ assert_eq!(
 `ZodiacalExtinction` is an independent atmospheric-propagation choice. Changing
 propagation does not change the selected source model.
 
+The reusable `nsb::transport` layer is the long-term home for celestial
+direct transmission. Zodiacal runtime evaluation still uses
+`ZodiacalExtinction` in this release; see
+[Atmospheric transport](../../specifications/atmospheric-transport.md).
+
 ## Default scientific model
 
 `ZodiacalModel::Leinert1998` is the deterministic default. Its calculation path

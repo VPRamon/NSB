@@ -41,8 +41,11 @@ A release that claims reproducible dependency resolution must satisfy all of:
 
 NSB relies on Siderust for time scales, coordinates, ephemerides, atmosphere
 primitives, event searches, HEALPix support, Gaia/passband preparation, and
-starlight-map validation helpers. A Siderust update can change scientific
-outputs without changing NSB public API shapes.
+starlight-map validation helpers. The `nsb::transport` layer reuses Siderust
+airmass, Rayleigh/Mie optical depth, Beer–Lambert transmission, ozone
+transmittance, and phase-function primitives rather than re-implementing them.
+A Siderust update can change scientific outputs without changing NSB public API
+shapes.
 
 ## Update Procedure
 

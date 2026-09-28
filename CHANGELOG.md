@@ -5,6 +5,17 @@ once a stable public release is cut.
 
 ## Unreleased
 
+### Added
+
+- Introduced `nsb::transport`, a minimal frozen atmospheric-transport foundation
+  for wavelength-resolved radiance (#187 / #193): identity and direct
+  Beer–Lambert transmission over Siderust Rayleigh/Mie/ozone/airmass primitives;
+  mandatory `RadianceOrigin` checks on spectral apply; model-only metadata
+  without caller-invented atmosphere provenance; validated direct-path geometry.
+  Unfinished scattering scaffolding and generic monochromatic quantity scaling
+  are intentionally not part of the public API. Existing Zodiacal, Airglow,
+  Moonlight, and Starlight runtime paths are unchanged.
+
 ### Changed
 
 - Redesigned site profiles around typed compile-time identity (#185). The public
