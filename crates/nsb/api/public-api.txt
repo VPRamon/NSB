@@ -367,6 +367,139 @@ pub fn nsb::solar_activity::ResolvedSolarActivity::provenance_fragment(&self) ->
 pub const nsb::solar_activity::F107_STORE_SCHEMA_VERSION: u32
 pub fn nsb::solar_activity::bundled_f107_store() -> nsb::Result<&'static nsb::solar_activity::F107Store>
 pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, source: &nsb::solar_activity::SolarActivitySource) -> nsb::Result<nsb::solar_activity::ResolvedSolarActivity>
+pub mod nsb::transport
+#[non_exhaustive] pub enum nsb::transport::AbsorptionTreatment
+pub nsb::transport::AbsorptionTreatment::None
+pub nsb::transport::AbsorptionTreatment::OzoneBundledTable
+impl nsb::transport::AbsorptionTreatment
+pub const fn nsb::transport::AbsorptionTreatment::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::AirmassModel
+pub nsb::transport::AirmassModel::KrisciunasSchaefer1991
+pub nsb::transport::AirmassModel::PlaneParallel
+pub nsb::transport::AirmassModel::Rozenberg1966
+pub nsb::transport::AirmassModel::Young1994
+impl nsb::transport::AirmassModel
+pub const fn nsb::transport::AirmassModel::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::ApproximationState
+pub nsb::transport::ApproximationState::AcceleratedApproximation
+pub nsb::transport::ApproximationState::ClearSkySingleColumn
+pub nsb::transport::ApproximationState::ExactWithinRepresentation
+impl nsb::transport::ApproximationState
+pub const fn nsb::transport::ApproximationState::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::MolecularAbsorption
+pub nsb::transport::MolecularAbsorption::None
+pub nsb::transport::MolecularAbsorption::OzoneBundledTable
+impl nsb::transport::MolecularAbsorption
+pub const fn nsb::transport::MolecularAbsorption::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::RadianceOrigin
+pub nsb::transport::RadianceOrigin::AtmosphericEmission
+pub nsb::transport::RadianceOrigin::PreScatteredAtmosphere
+pub nsb::transport::RadianceOrigin::TopOfAtmosphere
+impl nsb::transport::RadianceOrigin
+pub const fn nsb::transport::RadianceOrigin::allows_celestial_direct_transmission(self) -> bool
+pub const fn nsb::transport::RadianceOrigin::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::ScatteringPathStatus
+pub nsb::transport::ScatteringPathStatus::NotImplemented
+impl nsb::transport::ScatteringPathStatus
+pub const fn nsb::transport::ScatteringPathStatus::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::TransportModel
+pub nsb::transport::TransportModel::Direct(nsb::transport::DirectTransmission)
+pub nsb::transport::TransportModel::Identity(nsb::transport::IdentityTransport)
+impl nsb::transport::TransportModel
+pub fn nsb::transport::TransportModel::apply_spectral(&self, incident: qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer
+pub fn nsb::transport::TransportModel::apply_spectral_for_origin(&self, origin: nsb::transport::RadianceOrigin, incident: qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer>
+pub const fn nsb::transport::TransportModel::as_str(self) -> &'static str
+pub const fn nsb::transport::TransportModel::direct_rayleigh_mie() -> Self
+pub const fn nsb::transport::TransportModel::direct_rayleigh_mie_ozone() -> Self
+pub fn nsb::transport::TransportModel::ensure_origin_compatible(&self, origin: nsb::transport::RadianceOrigin) -> nsb::Result<()>
+pub const fn nsb::transport::TransportModel::identity() -> Self
+pub fn nsb::transport::TransportModel::metadata(&self, atmosphere_profile_id: &'static str) -> nsb::transport::TransportMetadata
+pub fn nsb::transport::TransportModel::optical_depth(&self, wavelength: qtty_core::units::length::Nanometers, atmosphere: nsb::site::AtmosphericConditions) -> nsb::transport::OpticalDepthBreakdown
+pub fn nsb::transport::TransportModel::scattered_path(&self, _geometry: nsb::transport::ScatteringGeometry, _atmosphere: nsb::site::AtmosphericConditions) -> nsb::transport::ScatteredPath
+pub fn nsb::transport::TransportModel::transmission(&self, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> qtty_core::units::dimensionless::Transmittances
+impl core::default::Default for nsb::transport::TransportModel
+pub fn nsb::transport::TransportModel::default() -> Self
+#[non_exhaustive] pub enum nsb::transport::TransportPathKind
+pub nsb::transport::TransportPathKind::Direct
+pub nsb::transport::TransportPathKind::Identity
+pub nsb::transport::TransportPathKind::Scattered
+impl nsb::transport::TransportPathKind
+pub const fn nsb::transport::TransportPathKind::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::UncertaintyReporting
+pub nsb::transport::UncertaintyReporting::Absent
+impl nsb::transport::UncertaintyReporting
+pub const fn nsb::transport::UncertaintyReporting::as_str(self) -> &'static str
+#[non_exhaustive] pub struct nsb::transport::DirectPathGeometry
+pub nsb::transport::DirectPathGeometry::zenith: qtty_core::units::angular::Degrees
+impl nsb::transport::DirectPathGeometry
+pub const fn nsb::transport::DirectPathGeometry::new(zenith: qtty_core::units::angular::Degrees) -> Self
+#[non_exhaustive] pub struct nsb::transport::DirectTransmission
+pub nsb::transport::DirectTransmission::airmass: nsb::transport::AirmassModel
+pub nsb::transport::DirectTransmission::ingredients: nsb::transport::ExtinctionIngredients
+impl nsb::transport::DirectTransmission
+pub fn nsb::transport::DirectTransmission::apply_spectral(&self, incident: qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer
+pub fn nsb::transport::DirectTransmission::metadata(&self, atmosphere_profile_id: &'static str) -> nsb::transport::TransportMetadata
+pub const fn nsb::transport::DirectTransmission::new(ingredients: nsb::transport::ExtinctionIngredients, airmass: nsb::transport::AirmassModel) -> Self
+pub fn nsb::transport::DirectTransmission::optical_depth(&self, wavelength: qtty_core::units::length::Nanometers, atmosphere: nsb::site::AtmosphericConditions) -> nsb::transport::OpticalDepthBreakdown
+pub const fn nsb::transport::DirectTransmission::rayleigh_mie_ozone_young1994() -> Self
+pub const fn nsb::transport::DirectTransmission::rayleigh_mie_young1994() -> Self
+pub fn nsb::transport::DirectTransmission::transmission(&self, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> qtty_core::units::dimensionless::Transmittances
+impl core::default::Default for nsb::transport::DirectTransmission
+pub fn nsb::transport::DirectTransmission::default() -> Self
+#[non_exhaustive] pub struct nsb::transport::ExtinctionIngredientFlags
+pub nsb::transport::ExtinctionIngredientFlags::absorption: nsb::transport::AbsorptionTreatment
+pub nsb::transport::ExtinctionIngredientFlags::mie: bool
+pub nsb::transport::ExtinctionIngredientFlags::rayleigh: bool
+#[non_exhaustive] pub struct nsb::transport::ExtinctionIngredients
+pub nsb::transport::ExtinctionIngredients::absorption: nsb::transport::MolecularAbsorption
+pub nsb::transport::ExtinctionIngredients::mie: bool
+pub nsb::transport::ExtinctionIngredients::rayleigh: bool
+impl nsb::transport::ExtinctionIngredients
+pub const nsb::transport::ExtinctionIngredients::RAYLEIGH_MIE: Self
+pub const nsb::transport::ExtinctionIngredients::RAYLEIGH_MIE_OZONE: Self
+pub fn nsb::transport::ExtinctionIngredients::as_str(self) -> alloc::string::String
+pub const fn nsb::transport::ExtinctionIngredients::new(rayleigh: bool, mie: bool, absorption: nsb::transport::MolecularAbsorption) -> Self
+impl core::default::Default for nsb::transport::ExtinctionIngredients
+pub fn nsb::transport::ExtinctionIngredients::default() -> Self
+pub struct nsb::transport::IdentityTransport
+impl nsb::transport::IdentityTransport
+pub fn nsb::transport::IdentityTransport::apply_spectral(&self, incident: qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer, _wavelength: qtty_core::units::length::Nanometers, _geometry: nsb::transport::DirectPathGeometry, _atmosphere: nsb::site::AtmosphericConditions) -> qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer
+pub fn nsb::transport::IdentityTransport::metadata(&self) -> nsb::transport::TransportMetadata
+pub const fn nsb::transport::IdentityTransport::new() -> Self
+pub fn nsb::transport::IdentityTransport::transmission(&self, _wavelength: qtty_core::units::length::Nanometers, _geometry: nsb::transport::DirectPathGeometry, _atmosphere: nsb::site::AtmosphericConditions) -> qtty_core::units::dimensionless::Transmittances
+#[non_exhaustive] pub struct nsb::transport::OpticalDepthBreakdown
+pub nsb::transport::OpticalDepthBreakdown::absorption: qtty_core::units::dimensionless::OpticalDepths
+pub nsb::transport::OpticalDepthBreakdown::mie: qtty_core::units::dimensionless::OpticalDepths
+pub nsb::transport::OpticalDepthBreakdown::rayleigh: qtty_core::units::dimensionless::OpticalDepths
+pub nsb::transport::OpticalDepthBreakdown::total: qtty_core::units::dimensionless::OpticalDepths
+#[non_exhaustive] pub struct nsb::transport::ScatteredPath
+pub nsb::transport::ScatteredPath::detail: nsb::transport::SingleScatteringNotImplemented
+pub nsb::transport::ScatteredPath::status: nsb::transport::ScatteringPathStatus
+#[non_exhaustive] pub struct nsb::transport::ScatteringGeometry
+pub nsb::transport::ScatteringGeometry::observer_zenith: qtty_core::units::angular::Degrees
+pub nsb::transport::ScatteringGeometry::scattering_angle: qtty_core::units::angular::Radians
+pub nsb::transport::ScatteringGeometry::source_zenith: qtty_core::units::angular::Degrees
+impl nsb::transport::ScatteringGeometry
+pub const fn nsb::transport::ScatteringGeometry::new(source_zenith: qtty_core::units::angular::Degrees, observer_zenith: qtty_core::units::angular::Degrees, scattering_angle: qtty_core::units::angular::Radians) -> Self
+#[non_exhaustive] pub struct nsb::transport::ScatteringIngredientFlags
+pub nsb::transport::ScatteringIngredientFlags::mie_phase: bool
+pub nsb::transport::ScatteringIngredientFlags::rayleigh_phase: bool
+#[non_exhaustive] pub struct nsb::transport::SingleScatteringNotImplemented
+pub nsb::transport::SingleScatteringNotImplemented::message: &'static str
+#[non_exhaustive] pub struct nsb::transport::TransportMetadata
+pub nsb::transport::TransportMetadata::airmass_model_id: &'static str
+pub nsb::transport::TransportMetadata::approximation: nsb::transport::ApproximationState
+pub nsb::transport::TransportMetadata::atmosphere_profile_id: &'static str
+pub nsb::transport::TransportMetadata::extinction: nsb::transport::ExtinctionIngredientFlags
+pub nsb::transport::TransportMetadata::model_id: &'static str
+pub nsb::transport::TransportMetadata::path_kind: nsb::transport::TransportPathKind
+pub nsb::transport::TransportMetadata::provenance: &'static str
+pub nsb::transport::TransportMetadata::scattering: nsb::transport::ScatteringIngredientFlags
+pub nsb::transport::TransportMetadata::uncertainty: nsb::transport::UncertaintyReporting
+pub nsb::transport::TransportMetadata::validated_domain: &'static str
+pub fn nsb::transport::apply_monochromatic<U: qtty_core::unit::Unit>(transport: &nsb::transport::TransportModel, origin: nsb::transport::RadianceOrigin, incident: qtty_core::quantity::Quantity<U>, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<qtty_core::quantity::Quantity<U>>
+pub fn nsb::transport::apply_spectral_radiance(transport: &nsb::transport::TransportModel, origin: nsb::transport::RadianceOrigin, incident: qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer>
+pub fn nsb::transport::rayleigh_phase_value(scattering_angle: qtty_core::units::angular::Radians) -> qtty_core::quantity::Quantity<siderust::atmosphere::scattering::ScatteringFactor>
 #[non_exhaustive] pub enum nsb::AirglowModel
 pub nsb::AirglowModel::ParanalNollSkyCalcFors1
 impl nsb::AirglowModel

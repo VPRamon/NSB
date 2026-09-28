@@ -5,6 +5,17 @@ once a stable public release is cut.
 
 ## Unreleased
 
+### Added
+
+- Introduced `nsb::transport`, a typed atmospheric-transport foundation for
+  spectral radiance (#187): identity (exact pass-through) and direct
+  Beer–Lambert transmission composing Siderust Rayleigh/Mie/ozone and airmass
+  primitives; radiance-origin checks that keep Airglow and legacy Moonlight off
+  the celestial TOA path; scattering-path scaffolding without an incomplete
+  all-sky RT engine; authoritative unit tests including a labelled nsb2
+  cross-implementation Beer–Lambert comparison. Existing Zodiacal, Airglow,
+  Moonlight, and Starlight runtime paths are unchanged.
+
 ### Changed
 
 - Replaced the `nsb-coverage-gate` Rust crate with `scripts/coverage-gate.sh`,
