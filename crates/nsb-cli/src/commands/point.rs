@@ -37,7 +37,7 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
     let evaluator = NsbEvaluator::with_config(model_config(
         &args.model,
         selection,
-        args.model.site_profile.into(),
+        args.model.site_profile.to_spec(),
     )?)?;
 
     let result =
@@ -55,7 +55,7 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
 pub(crate) fn model_config(
     args: &crate::cli::ModelArgs,
     components: components::ParsedComponents,
-    site_profile: nsb::SiteProfileId,
+    site_profile: nsb::SiteProfileSpec,
 ) -> Result<NsbModelConfig> {
     let moonlight_model = match args.moonlight_model {
         crate::cli::MoonlightModelArg::Jones2013 => MoonlightModel::Jones2013Spectral,

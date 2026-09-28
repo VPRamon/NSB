@@ -44,7 +44,7 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let evaluator = NsbEvaluator::with_config(model_config(
         &args.model,
         selection,
-        args.model.site_profile.into(),
+        args.model.site_profile.to_spec(),
     )?)?;
 
     let (sun_altitude_ceiling, target_altitude_floor) = if args.no_pre_filter {

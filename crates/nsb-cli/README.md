@@ -56,7 +56,9 @@ default effective catalog is Siderust builtins extended by
 VERITAS, FAST, GTC, …). Pass `--observatory-catalog <path>` to `point`,
 `window`, or `sites` to **replace** that effective catalog for the command.
 NSB aliases are naming conveniences only, and `--site-profile` independently
-selects `generic-clear-sky`, `cta-north`, or `cta-south` scientific assumptions.
+selects `generic-clear-sky`, `cta-north`, or `cta-south` scientific assumptions
+from the application-layer catalog in `src/site_profiles.rs` (not from the core
+`nsb` public API).
 
 ## Production starlight
 
