@@ -103,15 +103,15 @@ mod tests {
     #[test]
     fn observatory_identity_is_independent_of_profile_resolution() {
         assert_eq!(
-            resolve("cta-north").unwrap().id.as_str(),
+            resolve("cta-north").unwrap().id().as_str(),
             "ctao-north-planning"
         );
         assert_eq!(
-            resolve("cta-south").unwrap().id.as_str(),
+            resolve("cta-south").unwrap().id().as_str(),
             "ctao-south-planning"
         );
         assert_eq!(
-            resolve("generic-clear-sky").unwrap().id.as_str(),
+            resolve("generic-clear-sky").unwrap().id().as_str(),
             "generic-clear-sky"
         );
         assert!(resolve("not-a-real-profile").is_none());
