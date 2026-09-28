@@ -61,7 +61,13 @@ impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
     }
 }
 
-#[pyclass(name = "NsbComponent", frozen, module = "nsb", get_all, skip_from_py_object)]
+#[pyclass(
+    name = "NsbComponent",
+    frozen,
+    module = "nsb",
+    get_all,
+    skip_from_py_object
+)]
 #[derive(Clone)]
 pub(super) struct PyNsbComponent {
     name: String,
@@ -83,15 +89,25 @@ impl From<NsbComponent> for PyNsbComponent {
             b_flux_s10: value.b_flux_s10.value(),
             v_flux_s10: value.v_flux_s10.value(),
             relative_uncertainty: value.relative_uncertainty,
-            statistical_uncertainty_photons_cm2_ns_sr: value.statistical_uncertainty.map(|q| q.value()),
-            systematic_uncertainty_photons_cm2_ns_sr: value.systematic_uncertainty.map(|q| q.value()),
+            statistical_uncertainty_photons_cm2_ns_sr: value
+                .statistical_uncertainty
+                .map(|q| q.value()),
+            systematic_uncertainty_photons_cm2_ns_sr: value
+                .systematic_uncertainty
+                .map(|q| q.value()),
             total_uncertainty_photons_cm2_ns_sr: value.total_uncertainty.map(|q| q.value()),
             metadata: value.metadata.into(),
         }
     }
 }
 
-#[pyclass(name = "NsbResult", frozen, module = "nsb", get_all, skip_from_py_object)]
+#[pyclass(
+    name = "NsbResult",
+    frozen,
+    module = "nsb",
+    get_all,
+    skip_from_py_object
+)]
 pub(super) struct PyNsbResult {
     integrated_photons_cm2_ns_sr: f64,
     b_mag_per_arcsec2: f64,
@@ -134,4 +150,3 @@ impl PyThresholdQueryResult {
         })
     }
 }
-
