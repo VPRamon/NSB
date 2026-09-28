@@ -40,10 +40,34 @@ manifest and build-time checks.
 | `evaluator` | Point NSB evaluation, model construction, and component composition |
 | `planning` | Observing-window preparation, astronomical filters, and threshold search |
 | `site` | Built-in atmospheric and airglow profile metadata with explicit maturity |
+| `transport` | Generic atmospheric propagation of spectral radiance (identity and direct paths) |
 
 Internal `spectra` and `units` modules support the public surface
 without becoming independent operational APIs. Threshold-search orchestration
 lives under `planning`.
+
+### Atmospheric transport
+
+```text
+sky emission
+    ↓
+atmospheric transport (`nsb::transport`)
+    ↓
+ground-level spectral radiance
+    ↓
+future instrument response (#189)
+```
+
+Siderust owns airmass, Rayleigh/Mie optical depth, Beer–Lambert transmission,
+ozone tables, and phase-function primitives. NSB's `transport` module composes
+those primitives into typed identity and direct-transmission models with
+scientific metadata. Single in-scattering is scaffolded but not yet evaluated.
+
+Component migration is intentional and incomplete: Zodiacal still uses
+`ZodiacalExtinction`, Airglow retains Noll in-atmosphere scattering, Moonlight
+retains Jones/KS91 embedded scattering, and Starlight remains a TOA map product
+unless a caller applies `transport` explicitly. See
+[Atmospheric transport](../specifications/atmospheric-transport.md).
 
 ### Component modules
 
@@ -165,7 +189,8 @@ reviewed release explicitly admits the required runtime artifact and metadata.
 - Siderust owns general astronomy, time, coordinates, events, atmosphere,
   ephemerides, passbands, and HEALPix primitives.
 - NSB owns night-sky component composition, NSB-specific empirical data,
-  observing-window planning, and maturity-bearing metadata.
+  atmospheric-transport orchestration (`transport`), observing-window planning,
+  and maturity-bearing metadata.
 - `planning` may depend on `evaluator`; `evaluator` must not depend on
   `planning`.
 - The CLI may depend on `nsb`; `nsb` must not depend on the CLI.
@@ -173,6 +198,8 @@ reviewed release explicitly admits the required runtime artifact and metadata.
   evaluation must not invoke data tools.
 - Scientific modules must not spawn binaries or shell pipelines.
 - Persisted production schemas reject unknown fields and unsupported versions.
+- Do not introduce a second generic atmosphere-primitive framework inside NSB;
+  extend Siderust when a reusable optical primitive is missing.
 
 ## Adding a feature
 

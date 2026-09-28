@@ -19,7 +19,14 @@ nanosecond per steradian.
 
 Siderust supplies time scales, coordinates, ephemerides, atmosphere primitives,
 events, and HEALPix. NSB supplies component composition, empirical NSB assets,
-planning searches, maturity metadata, and CLI presentation.
+atmospheric-transport orchestration (`nsb::transport`), planning searches,
+maturity metadata, and CLI presentation.
+
+Atmospheric propagation is conceptually separate from source emission and from
+future instrument response. The reusable transport foundation lives in
+`nsb::transport` (identity and direct Beer–Lambert paths). Existing components
+may still apply legacy, component-specific propagation until they migrate
+explicitly; see [Atmospheric transport](atmospheric-transport.md).
 
 ## Components
 

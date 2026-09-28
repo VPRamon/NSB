@@ -148,6 +148,12 @@ selects atmospheric propagation: `Noll2012Approx` is the default and
 propagation truthfully in provenance, and the CLI model audit exposes both
 machine-readable identities.
 
+The advanced `nsb::transport` module is the reusable atmospheric-transport
+foundation (identity and direct Beer–Lambert paths). Zodiacal evaluation does
+**not** yet consume it; legacy `ZodiacalExtinction` remains the runtime path
+until an explicit migration lands. See
+[Atmospheric transport](../specifications/atmospheric-transport.md).
+
 The concrete `ZodiacalLight` evaluator, `ZodiacalOutputs`, the removed
 wavelength-resolved `ZodiacalSpectrum` application surface, custom brightness
 grid/source injection, and solar-spectrum replacement are implementation or

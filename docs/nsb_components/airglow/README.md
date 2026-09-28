@@ -13,6 +13,12 @@ continuum baseline; it is not a line-by-line physical atmosphere simulation and
 the current runtime does not contain a validated dedicated Airglow site
 calibration.
 
+Airglow must not be forced through the celestial top-of-atmosphere direct path
+in `nsb::transport`: emission originates inside the atmosphere, and the
+component retains its emitting-volume geometry plus Noll effective
+Rayleigh/Mie scattering. See
+[Atmospheric transport](../../specifications/atmospheric-transport.md).
+
 **Option D (current policy):** NSB supports arbitrary-location Airglow evaluation
 through `NsbEvaluator`, but the empirical continuum is **Paranal-derived /
 Paranal-trained** (Noll/SkyCalc lineage, including FORS1 residual continuum
