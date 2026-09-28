@@ -183,7 +183,7 @@ impl StarlightProvenance {
 pub(super) mod test_support {
     use super::StarlightProvenance;
 
-    pub(super) fn fixture() -> StarlightProvenance {
+    pub(in crate::components::starlight) fn fixture() -> StarlightProvenance {
         StarlightProvenance {
             dataset_name: "NSB test fixture starlight map".to_string(),
             version: "fixture".to_string(),

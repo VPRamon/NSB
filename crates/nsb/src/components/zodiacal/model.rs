@@ -116,7 +116,7 @@ fn zero_outputs() -> ZodiacalOutputs {
 pub(super) mod test_support {
     use super::*;
 
-    pub(super) fn compute_exoatmospheric(
+    pub(in crate::components::zodiacal) fn compute_exoatmospheric(
         model: &ZodiacalLight,
         time: Time<UTC>,
         target: Target,

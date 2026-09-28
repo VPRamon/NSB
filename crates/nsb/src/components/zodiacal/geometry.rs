@@ -99,7 +99,7 @@ fn to_jd(time: Time<UTC>) -> JulianDate {
 pub(super) mod test_support {
     use super::*;
 
-    pub(super) fn compute_exoatmospheric(
+    pub(in crate::components::zodiacal) fn compute_exoatmospheric(
         time: Time<UTC>,
         target: Target,
     ) -> Result<ZodiacalGeometry> {
