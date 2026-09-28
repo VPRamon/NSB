@@ -2,6 +2,8 @@
 //!
 //! Intentionally not part of the `nsb` public API (#175).
 
+#![allow(dead_code)]
+
 use nsb::components::starlight::StarlightProvenance;
 use nsb::site::{AtmosphericConditions, SiteProfileSpec};
 use siderust::qtty::{Hectopascals, Kilometers};
