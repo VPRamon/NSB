@@ -3,6 +3,20 @@
 The first-release public API is protected by [`scripts/check-public-api.sh`](../../../scripts/check-public-api.sh)
 using pinned `cargo-public-api` directly (#176).
 
+Issue #185 temporarily removed `API_FROZEN` so observatory-named CTAO presets
+could be removed from the core contract without failing the post-freeze SemVer
+gate. Keep `public-api.txt` current; re-add `API_FROZEN` after the redesigned
+surface is reviewed.
+
+The redesigned site-profile surface is typed: `SiteProfileTag` markers supply
+compile-time identity; `SiteProfile<P>` is opaque and erases into
+`NsbModelConfig`. Public constructors (`generic_clear_sky`, `planning`) produce
+only `GenericFallback` or `PlanningPreset` maturity, so external markers cannot
+claim `CalibrationStatus::Calibrated` or promote evaluator metadata to
+`Production` without a future evidence-backed admission path. Profile resolution,
+Airglow template selection, and asset details remain internal; `planning`
+rejects nonphysical atmospheric inputs via `Result`.
+
 ## Modes
 
 ### Pre-freeze

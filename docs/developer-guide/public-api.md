@@ -8,13 +8,17 @@ API freeze via direct `cargo-public-api` checks (`scripts/check-public-api.sh`).
 
 ## Freeze status
 
-After the pre-freeze minimization (#175), the committed snapshot
-`crates/nsb/api/public-api.txt` is the authoritative Rust-signature baseline.
-CI regenerates the API with a pinned nightly + `cargo-public-api` version and
-rejects removals/changes against the historical base SHA. Behavioral contracts
-that `cargo-public-api` cannot see (Airglow selection/outcome,
-`ComponentMask::DEFAULT`/`ALL`, Starlight map ownership) are covered by
-dedicated regression tests under `crates/nsb/tests/`.
+The API was frozen after the minimization work in #175. Issue #185 temporarily
+returns the crate to pre-freeze mode while the generic site-profile surface is
+corrected: `crates/nsb/api/API_FROZEN` is intentionally absent on that branch.
+During this interval `public-api.txt` is kept current for review, but CI does
+not enforce snapshot equality or historical SemVer rejection. Re-adding the
+marker establishes the reviewed baseline again.
+
+Behavioral contracts that `cargo-public-api` cannot see (Airglow
+selection/outcome, `ComponentMask::DEFAULT`/`ALL`, Starlight map ownership,
+and site-profile maturity invariants) remain covered by dedicated regression
+tests under `crates/nsb/tests/`.
 
 ## Recommended application path
 
@@ -35,8 +39,8 @@ Typical imports from the crate root:
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult`, `SiteWindowContext` |
-| Model configuration | `NsbModelConfig`, `AirglowModel`, `AirglowSelection`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileId` |
-| Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfileId` (full `SiteProfile` / atmosphere under `nsb::site`) |
+| Model configuration | `NsbModelConfig`, `AirglowModel`, `AirglowSelection`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileTag`, `SiteProfile`, `GenericClearSky`, `CalibrationStatus` |
+| Site profiles | `SiteProfile::<GenericClearSky>::generic_clear_sky()`, `SiteProfile::<P>::planning(...)` with caller-defined `P: SiteProfileTag`; `AtmosphericConditions` under `nsb::site` |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
 | Errors | `NsbError`, `Result` |
 
@@ -52,11 +56,12 @@ Intended for normal integrations and to become stable at the public API freeze.
 Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
 `Observer`, `Target`), opaque `NsbModelConfig` with getters/builders,
 model-selection enums (`AirglowModel`, `AirglowSelection`, `MoonlightModel`,
-`ZodiacalModel`, `ZodiacalExtinction`, `StarlightProduct`), `SiteProfileId`,
-crate version constants (`NSB_VERSION`, `MODEL_VERSION`), and the
-[`DEG`](../../crates/nsb/src/lib.rs) re-export used in
-documented equatorial constructors. Site profile detail types live under
-`nsb::site`.
+`ZodiacalModel`, `ZodiacalExtinction`, `StarlightProduct`), `SiteProfileTag`,
+`SiteProfile`, `GenericClearSky`, `CalibrationStatus`, crate version constants
+(`NSB_VERSION`, `MODEL_VERSION`), and
+the [`DEG`](../../crates/nsb/src/lib.rs) re-export used in
+documented equatorial constructors. Site profile detail types also live under
+`nsb::site`. Observatory-named planning presets are not part of the core API.
 
 ### Advanced API
 
@@ -85,7 +90,8 @@ models and climatology can extend the contract without redesigning
 
 The concrete continuum/evaluator remains internal. Scientific model identity is
 separate from `AirglowGeometryModel` (line-of-sight/emitting-volume geometry)
-and `SiteProfileId` (site assumptions and evidence-backed maturity). Evaluated
+and site profiles (assumptions and evidence-backed maturity via typed
+`SiteProfile<P>`). Evaluated
 Airglow metadata exposes selection kind, requested/resolved model, typed
 fallback state, and physical outcome while asset provenance/schema/checksum,
 geometry metadata, site maturity, and `MODEL_VERSION` retain their distinct
@@ -107,7 +113,7 @@ extinction-scale tuning hook are implementation or validation details rather
 than a second public evaluation API. Applications evaluate Moonlight through
 `NsbEvaluator` and receive the shared `NsbComponent` result contract.
 
-Moonlight scientific model identity is independent from `SiteProfileId`.
+Moonlight scientific model identity is independent from site-profile selection.
 For Jones 2013, site profiles select the atmospheric assumptions used by the
 spectral model. The K&S 1991 published-reference path instead preserves its
 validated fixed `k = 0.172 mag/airmass` parameterization, so selecting a site
@@ -276,11 +282,35 @@ caller already owns an `Arc`.
 `NsbError` is `#[non_exhaustive]`. Consumers should match the variants they need
 and retain a wildcard arm.
 
-### Site profile inventory
+### Site profiles
 
-`SiteProfileId` is `#[non_exhaustive]`. Prefer
-`SiteProfileId::all() -> &'static [SiteProfileId]` when enumerating built-in
-profiles because the return type does not encode the profile count.
+Observatory location and scientific profile are separate concerns. The core crate
+exports [`SiteProfileTag`](../../crates/nsb/src/site/mod.rs),
+[`SiteProfile<P>`](../../crates/nsb/src/site/mod.rs), and
+[`GenericClearSky`](../../crates/nsb/src/site/mod.rs). Application crates define
+zero-sized marker types implementing `SiteProfileTag`; `const NAME` is
+presentation and serialization metadata only — it does not select behavior or
+maturity.
+
+Construct profiles with
+`SiteProfile::<GenericClearSky>::generic_clear_sky()` or
+`SiteProfile::<P>::planning(representative_altitude, atmosphere, provenance)`.
+The planning constructor validates finite altitude, physical atmospheric inputs
+(including pressure), and non-empty provenance, returning `Result`. Attach a
+profile through `NsbModelConfig::with_site_profile`, which type-erases internally;
+inspect metadata with `site_profile_name()` and component calibration getters.
+
+Public constructors produce only `CalibrationStatus::GenericFallback` or
+`PlanningPreset`. External markers cannot construct
+`CalibrationStatus::Calibrated` through the public API: a profile cannot promote
+its own evaluator metadata to production. A future calibrated path must connect
+to the repository's evidence/admission contract. Observatory-named presets (CTAO
+North/South, Python `SiteProfile`, and similar) live in application layers with
+local `SiteProfileTag` implementations (for example `nsb-cli`).
+
+Profile resolution, resolved atmosphere, and Airglow template selection remain
+internal. Evaluation always uses the bundled Paranal-derived continuum; profile
+metadata cannot claim a custom Airglow template.
 
 ## Public API CI lifecycle
 

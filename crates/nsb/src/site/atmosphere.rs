@@ -2,7 +2,9 @@
 //!
 //! These conditions are intentionally component-neutral. Moonlight and airglow
 //! both consume the same pressure, Rayleigh, and aerosol assumptions selected by
-//! a [`super::SiteProfile`].
+//! a resolved site profile.
+
+use crate::{NsbError, Result};
 
 use siderust::atmosphere::{
     rayleigh_optical_depth_bodhaine99, AtmosphereProfile, MieParams, DEFAULT_SCALE_HEIGHT,
@@ -69,30 +71,48 @@ impl AtmosphericConditions {
         }
     }
 
+    /// Clear-sky Mie/Rayleigh defaults with an explicit surface pressure.
+    ///
+    /// Use this when constructing caller-defined planning profiles that fix
+    /// pressure independently of the query observer altitude.
+    pub fn clear_sky_with_pressure(surface_pressure: Hectopascals) -> Result<Self> {
+        let conditions = Self {
+            surface_pressure,
+            rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
+            mie_params: MieParams::PARANAL,
+        };
+        conditions.validate()?;
+        Ok(conditions)
+    }
+
     /// Paranal-like average clear-sky conditions from Siderust's built-in profile.
     pub fn paranal_average() -> Self {
         Self::from_profile_without_altitude(AtmosphereProfile::EL_PARANAL)
     }
 
-    /// CTA-S clear-sky planning preset.
-    ///
-    /// The current NSB preset intentionally aliases the Paranal-like profile
-    /// because no dedicated CTA-S aerosol calibration has been bundled yet.
-    pub fn cta_s_clear_sky() -> Self {
-        Self::paranal_average()
-    }
-
-    /// CTA-N clear-sky planning preset.
-    ///
-    /// This uses a pressure representative of the La Palma/ORM altitude range
-    /// and the same bundled clear-sky Mie parameterization used elsewhere in
-    /// NSB. It remains a planning preset until CTA-N aerosol phase functions are
-    /// bundled and validated.
-    pub fn cta_n_clear_sky() -> Self {
-        Self {
-            surface_pressure: Hectopascals::new(770.0),
-            rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
-            mie_params: MieParams::PARANAL,
+    pub(crate) fn validate(&self) -> Result<()> {
+        validate_positive_finite(self.surface_pressure.value(), "surface pressure")?;
+        validate_positive_finite(self.rayleigh_scale_height.value(), "Rayleigh scale height")?;
+        let mie = self.mie_params;
+        if !mie.tau0.value().is_finite() || mie.tau0.value() < 0.0 {
+            return Err(NsbError::OutOfRange(
+                "Mie optical depth must be finite and nonnegative".to_owned(),
+            ));
         }
+        if !mie.alpha.is_finite() {
+            return Err(NsbError::OutOfRange(
+                "Mie wavelength exponent must be finite".to_owned(),
+            ));
+        }
+        validate_positive_finite(mie.lambda_ref.value(), "Mie reference wavelength")
     }
+}
+
+fn validate_positive_finite(value: f64, field: &str) -> Result<()> {
+    if !value.is_finite() || value <= 0.0 {
+        return Err(NsbError::OutOfRange(format!(
+            "{field} must be finite and greater than zero"
+        )));
+    }
+    Ok(())
 }

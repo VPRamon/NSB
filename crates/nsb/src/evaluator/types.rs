@@ -1,7 +1,9 @@
 use super::metadata::{BandDiagnostic, NsbComponentMetadata};
 use crate::components::zodiacal;
 use crate::components::{airglow, moonlight, starlight};
-use crate::site::{CalibrationStatus, SiteProfileId};
+use crate::site::{
+    CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileConfig, SiteProfileTag,
+};
 use qtty::photometry::SurfaceBrightness;
 use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
@@ -171,7 +173,7 @@ pub struct NsbModelConfig {
     moonlight_model: moonlight::MoonlightModel,
     airglow_selection: airglow::AirglowSelection,
     zodiacal_model: zodiacal::ZodiacalModel,
-    site_profile: SiteProfileId,
+    site_profile: SiteProfileConfig,
     starlight_product: Option<starlight::StarlightProduct>,
     solar_activity: crate::solar_activity::SolarActivitySource,
     airglow_geometry: airglow::AirglowGeometryModel,
@@ -191,22 +193,12 @@ impl NsbModelConfig {
             moonlight_model: moonlight::MoonlightModel::Jones2013Spectral,
             airglow_selection: airglow::AirglowSelection::Automatic,
             zodiacal_model: zodiacal::ZodiacalModel::Leinert1998,
-            site_profile: SiteProfileId::GenericClearSky,
+            site_profile: SiteProfile::<GenericClearSky>::generic_clear_sky().erase(),
             starlight_product: default_starlight_product(),
             solar_activity: crate::solar_activity::SolarActivitySource::Automatic,
             airglow_geometry: airglow::AirglowGeometryModel::default(),
             zodiacal_extinction: zodiacal::ZodiacalExtinction::Noll2012Approx,
         }
-    }
-
-    /// CTAO-North planning configuration.
-    pub fn cta_n_planning() -> Self {
-        Self::generic_clear_sky().with_site_profile(SiteProfileId::CtaNorth)
-    }
-
-    /// CTAO-South planning configuration.
-    pub fn cta_s_planning() -> Self {
-        Self::generic_clear_sky().with_site_profile(SiteProfileId::CtaSouth)
     }
 
     /// Select the Moonlight scientific model independently of site assumptions.
@@ -268,15 +260,26 @@ impl NsbModelConfig {
         self.zodiacal_extinction
     }
 
-    /// Replace the site profile.
-    pub fn with_site_profile(mut self, site_profile: SiteProfileId) -> Self {
-        self.site_profile = site_profile;
+    /// Replace the scientific site-profile assumptions.
+    ///
+    /// Observatory- or project-named presets (for example CTAO planning
+    /// profiles) should be constructed by the caller or an application layer
+    /// and supplied here; the core crate does not own that catalog.
+    pub fn with_site_profile<P: SiteProfileTag>(mut self, site_profile: SiteProfile<P>) -> Self {
+        self.site_profile = site_profile.erase();
         self
     }
 
-    /// Return the selected site profile identifier.
-    pub const fn site_profile(&self) -> SiteProfileId {
-        self.site_profile
+    pub(crate) fn site_profile(&self) -> &SiteProfileConfig {
+        &self.site_profile
+    }
+
+    /// Return the stable reporting name of the selected scientific profile.
+    ///
+    /// This string is metadata captured from the original profile marker. It is
+    /// never used to select scientific behavior.
+    pub fn site_profile_name(&self) -> &str {
+        self.site_profile.name()
     }
 
     /// Return the evidence-backed Airglow calibration maturity.

@@ -5,6 +5,7 @@ mod error;
 mod logging;
 mod output;
 mod parsing;
+mod site_profiles;
 
 use anyhow::{anyhow, Result};
 use clap::Parser;

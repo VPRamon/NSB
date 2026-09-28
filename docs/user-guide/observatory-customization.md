@@ -125,21 +125,36 @@ command. NSB aliases are applied only when their target name exists in the
 active catalog. Custom observatories default to `generic-clear-sky` unless
 `--site-profile` is set.
 
-Rust applications can select CTAO planning assumptions directly:
+Rust applications construct CTAO planning assumptions with application-layer
+`SiteProfileTag` markers (the CLI module
+`crates/nsb-cli/src/site_profiles.rs` is the reference implementation):
 
 ```rust,no_run
+use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
 use nsb::{NsbEvaluator, NsbModelConfig};
+use siderust::qtty::Kilometers;
 
+# struct CtaSouth;
+# impl SiteProfileTag for CtaSouth {
+#     const NAME: &'static str = "ctao-south-planning";
+# }
 # fn build() -> nsb::Result<()> {
-let south = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning())?;
-let north = NsbEvaluator::with_config(NsbModelConfig::cta_n_planning())?;
-# let _ = (south, north);
+let south = SiteProfile::<CtaSouth>::planning(
+    Kilometers::new(2.1),
+    AtmosphericConditions::paranal_average(),
+    "CTAO-South planning preset ...",
+)?;
+let evaluator = NsbEvaluator::with_config(
+    NsbModelConfig::generic_clear_sky().with_site_profile(south),
+)?;
+# let _ = evaluator;
 # Ok(())
 # }
 ```
 
-See [CTAO site-profile assumptions](../specifications/ctao-site-profiles.md) for the exact
-pressure, aerosol, and airglow limitations.
+Integrators outside `nsb-cli` follow the same pattern with their own marker
+types. See [CTAO site-profile assumptions](../specifications/ctao-site-profiles.md)
+for preset details, pressure, aerosol, and airglow limitations.
 
 ## Level 3: adjust supported runtime parameters
 
@@ -202,16 +217,18 @@ redefine an exact Siderust builtin name.
 
 To add only a short name for an existing catalog record, add an entry to
 `crates/nsb-cli/data/observatory-aliases.toml`. Aliases do not map to
-`SiteProfileId`; profile selection remains explicit.
+site-profile markers; profile selection remains explicit via `--site-profile` or
+typed `with_site_profile`.
 
 ## Level 6: add a calibrated observatory profile
 
 A calibrated profile is a scientific product. It requires changes in the
 runtime library and reproducible validation evidence.
 
-1. Add a stable `SiteProfileId` variant in `crates/nsb/src/site.rs`.
+1. Add an evidence-backed internal admission path in `crates/nsb` without
+   extending the generic public identifier into an observatory catalog.
 2. Define explicit atmospheric and airglow assumptions with provenance.
-3. Add a constructor or configuration path in `NsbModelConfig`.
+3. Connect the admitted profile to `NsbModelConfig` internally.
 4. Expose explicit profile selection where appropriate.
 5. Register every new immutable asset in `crates/nsb/data/manifest.toml` with a
    checksum, license, source, and maturity.
@@ -237,6 +254,6 @@ validation, and packaging. Start with the
   window commands do not yet execute directly from a `--config` file.
 - Arbitrary coordinates and all named/custom observatories use generic
   clear-sky assumptions unless `--site-profile` is selected explicitly.
-- The built-in CTAO profiles are planning presets, not calibrated products.
+- The CTAO planning profiles are planning presets, not calibrated products.
 - Site-specific airglow or atmospheric parameters are not currently exposed as
   arbitrary CLI flags; a validated new profile is a library and data change.

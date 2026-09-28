@@ -90,21 +90,21 @@ AirglowGeometryModel
         =
 emitting-volume line-of-sight geometry
 
-SiteProfileId
+SiteProfile<P> / SiteProfileTag
         =
 site assumptions and evidence-backed scientific maturity
 ```
 
 These concerns are independent. Arbitrary valid Earth coordinates, named
 observatories, and user-provided Siderust observatory catalogs are supported
-geometrically. They default to `SiteProfileId::GenericClearSky` unless another
-site profile is selected explicitly. In particular:
+geometrically. They default to `SiteProfile::<GenericClearSky>::generic_clear_sky()` unless
+another site profile is selected explicitly. In particular:
 
 - `--site PARANAL` does not create a calibrated Paranal Airglow result;
-- `--site CTAO-N` does not select `SiteProfileId::CtaNorth`;
-- `--site CTAO-S` does not select `SiteProfileId::CtaSouth`;
+- `--site CTAO-N` does not select CTAO-North planning assumptions;
+- `--site CTAO-S` does not select CTAO-South planning assumptions;
 - `--site-profile cta-north` and `--site-profile cta-south` deliberately select
-  planning assumptions, not calibrated products; and
+  application-layer planning assumptions, not calibrated products; and
 - selecting a custom vertical-emission profile changes Airglow geometry only; it
   is not calibration evidence and does not upgrade scientific maturity.
 
@@ -112,12 +112,12 @@ Library users inspect the selected scientific maturity through
 `NsbModelConfig` and result metadata:
 
 ```rust
-use nsb::{AirglowSelection, CalibrationStatus, NsbModelConfig, SiteProfileId};
+use nsb::{AirglowSelection, CalibrationStatus, NsbModelConfig};
 
 let config = NsbModelConfig::generic_clear_sky();
 assert_eq!(config.airglow_selection(), AirglowSelection::Automatic);
 assert_eq!(config.airglow_model(), None); // no explicit request
-assert_eq!(config.site_profile(), SiteProfileId::GenericClearSky);
+assert_eq!(config.site_profile_name(), "generic-clear-sky");
 assert_eq!(
     config.airglow_calibration_status(),
     CalibrationStatus::GenericFallback,

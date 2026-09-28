@@ -16,4 +16,4 @@ pub(in crate::python) use evaluator::PySiteWindowContext;
 pub(in crate::python) use results::{
     PyNsbComponent, PyNsbComponentMetadata, PyNsbResult, PyThresholdQueryResult,
 };
-pub(in crate::python) use selectors::install_component_mask_constants;
+pub(in crate::python) use selectors::{install_component_mask_constants, PySiteProfile};

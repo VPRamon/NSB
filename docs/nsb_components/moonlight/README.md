@@ -51,14 +51,14 @@ the component returns zero.
 The two scientific models deliberately treat atmospheric configuration
 differently.
 
-Jones uses the selected `SiteProfileId` profile's surface pressure, Rayleigh
-scale height, and Mie/aerosol parameters wavelength by wavelength. Its geometric
-altitude remains the actual query observer altitude.
+Jones uses the selected site profile's surface pressure, Rayleigh scale height,
+and Mie/aerosol parameters wavelength by wavelength. Its geometric altitude
+remains the actual query observer altitude.
 
 Krisciunas & Schaefer remains the published analytic V-band reference
 parameterization validated by the repository regression fixture. It uses the
 fixed `k = 0.172 mag/airmass` reference extinction used by that validation;
-selecting a different `SiteProfileId` does not rewrite this parameter or change
+selecting a different site profile does not rewrite this parameter or change
 the K&S numerical result. The selected profile may still be reported alongside
 the model in provenance so callers can audit the complete evaluator
 configuration without implying that the profile calibrates the K&S reference.

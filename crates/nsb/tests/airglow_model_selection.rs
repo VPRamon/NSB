@@ -1,9 +1,11 @@
 use chrono::{DateTime, Utc};
 use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
+mod common;
+
+use common::ctao_south_planning;
 use nsb::{
     AirglowModel, AirglowSelection, CalibrationStatus, ComponentCalibrationStatus, ComponentMask,
-    NsbComponent, NsbEvaluator, NsbModelConfig, PointQuery, SiteProfileId, SolarFluxUnits, Target,
-    DEG,
+    NsbComponent, NsbEvaluator, NsbModelConfig, PointQuery, SolarFluxUnits, Target, DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -101,7 +103,7 @@ fn scientific_model_identity_is_independent_of_geometry_f107_location_and_site_m
     let changed_f107 = base
         .clone()
         .with_solar_radio_flux(SolarFluxUnits::new(170.0));
-    let changed_site = base.clone().with_site_profile(SiteProfileId::CtaSouth);
+    let changed_site = base.clone().with_site_profile(ctao_south_planning());
 
     for config in [&base, &changed_geometry, &changed_f107, &changed_site] {
         assert_eq!(config.airglow_selection(), AirglowSelection::Automatic);

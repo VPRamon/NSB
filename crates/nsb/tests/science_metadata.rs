@@ -1,4 +1,7 @@
+mod common;
+
 use chrono::{DateTime, Utc};
+use common::ctao_south_planning;
 use nsb::components::airglow::{
     AirglowGeometryModel, AirglowWavelengthApplicability, ValidatedZenithDomain,
     VerticalEmissionProfile, VerticalEmissionProfileDefinition,
@@ -202,10 +205,12 @@ fn airglow_component_metadata_reflects_site_profile_maturity() {
         ComponentCalibrationStatus::GenericClearSky
     );
 
-    let cta_s = NsbEvaluator::with_config(nsb::NsbModelConfig::cta_s_planning())
-        .unwrap()
-        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
-        .unwrap();
+    let cta_s = NsbEvaluator::with_config(
+        nsb::NsbModelConfig::generic_clear_sky().with_site_profile(ctao_south_planning()),
+    )
+    .unwrap()
+    .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
+    .unwrap();
     let airglow = cta_s
         .components
         .iter()
@@ -287,10 +292,12 @@ fn airglow_site_profiles_differ_when_atmosphere_differs() {
         .find(|c| c.name == "airglow")
         .unwrap();
 
-    let cta_s = NsbEvaluator::with_config(nsb::NsbModelConfig::cta_s_planning())
-        .unwrap()
-        .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
-        .unwrap();
+    let cta_s = NsbEvaluator::with_config(
+        nsb::NsbModelConfig::generic_clear_sky().with_site_profile(ctao_south_planning()),
+    )
+    .unwrap()
+    .evaluate(&PointQuery::new(observer, time, target).with_components(ComponentMask::AIRGLOW))
+    .unwrap();
     let cta_s_airglow = cta_s
         .components
         .iter()
@@ -393,7 +400,7 @@ fn daytime_queries_return_zero_without_false_calibration_claims() {
             ComponentCalibrationStatus::GenericClearSky,
         ),
         (
-            nsb::NsbModelConfig::cta_s_planning(),
+            nsb::NsbModelConfig::generic_clear_sky().with_site_profile(ctao_south_planning()),
             ComponentCalibrationStatus::PlanningPreset,
         ),
     ] {

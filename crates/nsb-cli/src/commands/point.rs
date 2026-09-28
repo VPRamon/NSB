@@ -34,11 +34,7 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
         args.target.dec
     );
 
-    let evaluator = NsbEvaluator::with_config(model_config(
-        &args.model,
-        selection,
-        args.model.site_profile.into(),
-    )?)?;
+    let evaluator = NsbEvaluator::with_config(model_config(&args.model, selection)?)?;
 
     let result =
         evaluator.evaluate(&PointQuery::new(observer, time, target).with_components(components))?;
@@ -55,14 +51,14 @@ pub fn run(args: PointArgs, format: OutputFormat) -> Result<()> {
 pub(crate) fn model_config(
     args: &crate::cli::ModelArgs,
     components: components::ParsedComponents,
-    site_profile: nsb::SiteProfileId,
 ) -> Result<NsbModelConfig> {
     let moonlight_model = match args.moonlight_model {
         crate::cli::MoonlightModelArg::Jones2013 => MoonlightModel::Jones2013Spectral,
         crate::cli::MoonlightModelArg::Ks1991 => MoonlightModel::KrisciunasSchaefer1991,
     };
-    let mut config = NsbModelConfig::generic_clear_sky()
-        .with_site_profile(site_profile)
+    let mut config = args
+        .site_profile
+        .apply(NsbModelConfig::generic_clear_sky())
         .with_moonlight_model(moonlight_model);
     config = match args.airglow_model {
         crate::cli::AirglowModelArg::Automatic => config,

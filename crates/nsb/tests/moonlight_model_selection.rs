@@ -1,7 +1,10 @@
+mod common;
+
 use chrono::{DateTime, Utc};
+use common::{ctao_north_planning, ctao_south_planning};
 use nsb::{
-    ComponentCalibrationStatus, ComponentMask, MoonlightModel, NsbComponent, NsbEvaluator,
-    NsbModelConfig, PointQuery, SiteProfileId, Target, DEG,
+    ComponentCalibrationStatus, ComponentMask, GenericClearSky, MoonlightModel, NsbComponent,
+    NsbEvaluator, NsbModelConfig, PointQuery, SiteProfile, Target, DEG,
 };
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
@@ -135,14 +138,18 @@ fn site_profile_selection_does_not_change_scientific_model() {
         MoonlightModel::Jones2013Spectral,
         MoonlightModel::KrisciunasSchaefer1991,
     ] {
-        for site_profile in [
-            SiteProfileId::GenericClearSky,
-            SiteProfileId::CtaNorth,
-            SiteProfileId::CtaSouth,
-        ] {
-            let config = NsbModelConfig::default()
+        let configs = [
+            NsbModelConfig::default()
                 .with_moonlight_model(model)
-                .with_site_profile(site_profile);
+                .with_site_profile(SiteProfile::<GenericClearSky>::generic_clear_sky()),
+            NsbModelConfig::default()
+                .with_moonlight_model(model)
+                .with_site_profile(ctao_north_planning()),
+            NsbModelConfig::default()
+                .with_moonlight_model(model)
+                .with_site_profile(ctao_south_planning()),
+        ];
+        for config in configs {
             assert_eq!(config.moonlight_model(), model);
         }
     }
@@ -158,7 +165,7 @@ fn observer_coordinates_do_not_change_selected_scientific_model() {
         ),
     ] {
         let config = NsbModelConfig::default()
-            .with_site_profile(SiteProfileId::CtaSouth)
+            .with_site_profile(ctao_south_planning())
             .with_moonlight_model(model);
 
         for observer in [paranal(), arbitrary_observer()] {
@@ -182,33 +189,20 @@ fn observer_coordinates_do_not_change_selected_scientific_model() {
 #[test]
 fn jones_uses_selected_site_profile_atmosphere() {
     let observer = paranal();
-    let generic_profile = SiteProfileId::GenericClearSky.profile(observer);
-    let north_profile = SiteProfileId::CtaNorth.profile(observer);
-    let south_profile = SiteProfileId::CtaSouth.profile(observer);
-
-    assert_ne!(
-        generic_profile.atmosphere.surface_pressure,
-        north_profile.atmosphere.surface_pressure
-    );
-    assert_ne!(
-        generic_profile.atmosphere.surface_pressure,
-        south_profile.atmosphere.surface_pressure
-    );
-    assert!(north_profile.atmosphere.surface_pressure > south_profile.atmosphere.surface_pressure);
-
-    let evaluate = |site_profile| {
+    let evaluate = |config: NsbModelConfig| {
         evaluate_moonlight_at(
-            NsbModelConfig::default()
-                .with_moonlight_model(MoonlightModel::Jones2013Spectral)
-                .with_site_profile(site_profile),
+            config.with_moonlight_model(MoonlightModel::Jones2013Spectral),
             observer,
             profile_time(),
             profile_target(),
         )
     };
-    let generic = evaluate(SiteProfileId::GenericClearSky);
-    let north = evaluate(SiteProfileId::CtaNorth);
-    let south = evaluate(SiteProfileId::CtaSouth);
+    let generic = evaluate(
+        NsbModelConfig::default()
+            .with_site_profile(SiteProfile::<GenericClearSky>::generic_clear_sky()),
+    );
+    let north = evaluate(NsbModelConfig::default().with_site_profile(ctao_north_planning()));
+    let south = evaluate(NsbModelConfig::default().with_site_profile(ctao_south_planning()));
 
     for output in [&generic, &north, &south] {
         assert!(output.integrated.value().is_finite());
@@ -232,19 +226,20 @@ fn jones_uses_selected_site_profile_atmosphere() {
 fn ks_published_reference_is_independent_of_site_profile() {
     let observer = paranal();
 
-    let evaluate = |site_profile| {
+    let evaluate = |config: NsbModelConfig| {
         evaluate_moonlight_at(
-            NsbModelConfig::default()
-                .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991)
-                .with_site_profile(site_profile),
+            config.with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991),
             observer,
             profile_time(),
             profile_target(),
         )
     };
-    let generic = evaluate(SiteProfileId::GenericClearSky);
-    let north = evaluate(SiteProfileId::CtaNorth);
-    let south = evaluate(SiteProfileId::CtaSouth);
+    let generic = evaluate(
+        NsbModelConfig::default()
+            .with_site_profile(SiteProfile::<GenericClearSky>::generic_clear_sky()),
+    );
+    let north = evaluate(NsbModelConfig::default().with_site_profile(ctao_north_planning()));
+    let south = evaluate(NsbModelConfig::default().with_site_profile(ctao_south_planning()));
 
     for output in [&generic, &north, &south] {
         assert!(output.integrated.value().is_finite());
@@ -271,7 +266,7 @@ fn ks_published_reference_is_independent_of_site_profile() {
 fn metadata_preserves_model_identity_and_records_site_assumptions_separately() {
     let jones = evaluate_moonlight_at(
         NsbModelConfig::default()
-            .with_site_profile(SiteProfileId::CtaSouth)
+            .with_site_profile(ctao_south_planning())
             .with_moonlight_model(MoonlightModel::Jones2013Spectral),
         paranal(),
         profile_time(),
@@ -286,7 +281,7 @@ fn metadata_preserves_model_identity_and_records_site_assumptions_separately() {
 
     let ks = evaluate_moonlight_at(
         NsbModelConfig::default()
-            .with_site_profile(SiteProfileId::CtaNorth)
+            .with_site_profile(ctao_north_planning())
             .with_moonlight_model(MoonlightModel::KrisciunasSchaefer1991),
         paranal(),
         profile_time(),
