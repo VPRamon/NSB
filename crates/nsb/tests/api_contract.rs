@@ -107,6 +107,8 @@ fn core_public_api_does_not_freeze_observatory_named_profiles() {
         "SiteProfileId::calibration_status",
         "AtmosphericConditions::cta_n_clear_sky",
         "AtmosphericConditions::cta_s_clear_sky",
+        "pub nsb::site::SiteProfileSpec::calibration_status:",
+        "pub fn nsb::site::SiteProfileSpec::calibrated",
     ] {
         assert!(
             !snapshot.contains(forbidden),
