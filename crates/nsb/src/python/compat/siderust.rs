@@ -22,7 +22,7 @@ fn finite(name: &str, value: f64) -> PyResult<()> {
     }
 }
 
-#[pyclass(name = "Observer", frozen, module = "nsb", skip_from_py_object)]
+#[pyclass(name = "Observer", frozen, module = "nsb", from_py_object)]
 #[derive(Clone, Copy)]
 pub(super) struct PyObserver {
     inner: Observer,
@@ -81,7 +81,7 @@ impl PyObserver {
     }
 }
 
-#[pyclass(name = "Direction", frozen, module = "nsb", skip_from_py_object)]
+#[pyclass(name = "Direction", frozen, module = "nsb", from_py_object)]
 #[derive(Clone, Copy)]
 pub(super) struct PyDirection {
     inner: Target,

@@ -36,10 +36,10 @@ impl PyPointQuery {
     #[new]
     #[pyo3(signature = (observer, time, target, *, components=None))]
     fn new(
-        observer: PyRef<'_, PyObserver>,
+        observer: PyObserver,
         time: &Bound<'_, PyAny>,
-        target: PyRef<'_, PyDirection>,
-        components: Option<PyRef<'_, PyComponentMask>>,
+        target: PyDirection,
+        components: Option<PyComponentMask>,
     ) -> PyResult<Self> {
         let mut query = PointQuery::new(
             observer.inner(),
@@ -140,7 +140,7 @@ impl PyThresholdQuery {
         )
         .with_sample_step(Second::new(sample_step_s))
         .with_sun_altitude_ceiling(sun_altitude_ceiling_deg.map(Degrees::new))
-        .with_target_altitude_floor(target_altitude_flooor_deg.map(Degrees::new));
+        .with_target_altitude_floor(target_altitude_floor_deg.map(Degrees::new));
         if let Some(components) = components {
             query = query.with_components(components.inner());
         }

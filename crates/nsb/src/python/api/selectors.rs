@@ -10,7 +10,7 @@ macro_rules! python_selector {
             frozen,
             rename_all = "SCREAMING_SNAKE_CASE",
             module = "nsb",
-            skip_from_py_object
+            from_py_object
         )]
         #[derive(Clone, Copy, PartialEq, Eq)]
         pub(super) enum $py {
@@ -87,7 +87,7 @@ python_selector!(
     }
 );
 
-#[pyclass(name = "ComponentMask", frozen, module = "nsb", skip_from_py_object)]
+#[pyclass(name = "ComponentMask", frozen, module = "nsb", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) struct PyComponentMask {
     inner: ComponentMask,
@@ -110,15 +110,15 @@ impl PyComponentMask {
         self.inner.bits()
     }
 
-    fn contains(&self, other: PyRef<'_, Self>) -> bool {
+    fn contains(&self, other: Self) -> bool {
         self.inner.contains(other.inner)
     }
 
-    fn __or__(&self, other: PyRef<'_, Self>) -> Self {
+    fn __or__(&self, other: Self) -> Self {
         Self::from_inner(self.inner | other.inner)
     }
 
-    fn __and__(&self, other: PyRef<'_, Self>) -> Self {
+    fn __and__(&self, other: Self) -> Self {
         Self::from_inner(self.inner & other.inner)
     }
 

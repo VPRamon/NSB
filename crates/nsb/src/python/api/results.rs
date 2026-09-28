@@ -9,6 +9,7 @@ use super::super::compat::period_to_datetimes;
     name = "NsbComponentMetadata",
     frozen,
     module = "nsb",
+    get_all,
     skip_from_py_object
 )]
 #[derive(Clone)]
@@ -60,33 +61,7 @@ impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
     }
 }
 
-#[pymethods]
-impl PyNsbComponentMetadata {
-    #[getter]
-    fn status(&self) -> &str { &self.status }
-    #[getter]
-    fn provenance(&self) -> &str { &self.provenance }
-    #[getter]
-    fn validated_domain(&self) -> &str { &self.validated_domain }
-    #[getter]
-    fn airglow_selection_kind(&self) -> Option<&str> { self.airglow_selection_kind.as_deref() }
-    #[getter]
-    fn airglow_requested_model(&self) -> Option<&str> { self.airglow_requested_model.as_deref() }
-    #[getter]
-    fn airglow_resolved_model(&self) -> Option<&str> { self.airglow_resolved_model.as_deref() }
-    #[getter]
-    fn airglow_used_automatic_fallback(&self) -> Option<bool> { self.airglow_used_automatic_fallback }
-    #[getter]
-    fn airglow_fallback_reason(&self) -> Option<&str> { self.airglow_fallback_reason.as_deref() }
-    #[getter]
-    fn airglow_physical_outcome(&self) -> Option<&str> { self.airglow_physical_outcome.as_deref() }
-    #[getter]
-    fn airglow_physical_zero_reason(&self) -> Option<&str> { self.airglow_physical_zero_reason.as_deref() }
-    #[getter]
-    fn solar_activity_provenance(&self) -> Option<&str> { self.solar_activity_provenance.as_deref() }
-}
-
-#[pyclass(name = "NsbComponent", frozen, module = "nsb", skip_from_py_object)]
+#[pyclass(name = "NsbComponent", frozen, module = "nsb", get_all, skip_from_py_object)]
 #[derive(Clone)]
 pub(super) struct PyNsbComponent {
     name: String,
@@ -116,29 +91,7 @@ impl From<NsbComponent> for PyNsbComponent {
     }
 }
 
-#[pymethods]
-impl PyNsbComponent {
-    #[getter]
-    fn name(&self) -> &str { &self.name }
-    #[getter]
-    fn integrated_photons_cm2_ns_sr(&self) -> f64 { self.integrated_photons_cm2_ns_sr }
-    #[getter]
-    fn b_flux_s10(&self) -> f64 { self.b_flux_s10 }
-    #[getter]
-    fn v_flux_s10(&self) -> f64 { self.v_flux_s10 }
-    #[getter]
-    fn relative_uncertainty(&self) -> Option<f64> { self.relative_uncertainty }
-    #[getter]
-    fn statistical_uncertainty_photons_cm2_ns_sr(&self) -> Option<f64> { self.statistical_uncertainty_photons_cm2_ns_sr }
-    #[getter]
-    fn systematic_uncertainty_photons_cm2_ns_sr(&self) -> Option<f64> { self.systematic_uncertainty_photons_cm2_ns_sr }
-    #[getter]
-    fn total_uncertainty_photons_cm2_ns_sr(&self) -> Option<f64> { self.total_uncertainty_photons_cm2_ns_sr }
-    #[getter]
-    fn metadata(&self) -> PyNsbComponentMetadata { self.metadata.clone() }
-}
-
-#[pyclass(name = "NsbResult", frozen, module = "nsb", skip_from_py_object)]
+#[pyclass(name = "NsbResult", frozen, module = "nsb", get_all, skip_from_py_object)]
 pub(super) struct PyNsbResult {
     integrated_photons_cm2_ns_sr: f64,
     b_mag_per_arcsec2: f64,
@@ -157,22 +110,11 @@ impl From<NsbResult> for PyNsbResult {
     }
 }
 
-#[pymethods]
-impl PyNsbResult {
-    #[getter]
-    fn integrated_photons_cm2_ns_sr(&self) -> f64 { self.integrated_photons_cm2_ns_sr }
-    #[getter]
-    fn b_mag_per_arcsec2(&self) -> f64 { self.b_mag_per_arcsec2 }
-    #[getter]
-    fn v_mag_per_arcsec2(&self) -> f64 { self.v_mag_per_arcsec2 }
-    #[getter]
-    fn components(&self) -> Vec<PyNsbComponent> { self.components.clone() }
-}
-
 #[pyclass(
     name = "ThresholdQueryResult",
     frozen,
     module = "nsb",
+    get_all,
     skip_from_py_object
 )]
 pub(super) struct PyThresholdQueryResult {
@@ -193,10 +135,3 @@ impl PyThresholdQueryResult {
     }
 }
 
-#[pymethods]
-impl PyThresholdQueryResult {
-    #[getter]
-    fn threshold_photons_cm2_ns_sr(&self) -> f64 { self.threshold_photons_cm2_ns_sr }
-    #[getter]
-    fn periods(&self) -> Vec<(DateTime<Utc>, DateTime<Utc>)> { self.periods.clone() }
-}

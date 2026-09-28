@@ -29,16 +29,16 @@ impl PyNsbModelConfig {
         Self::from_inner(NsbModelConfig::generic_clear_sky())
     }
 
-    fn with_site_profile(&self, profile: PyRef<'_, PySiteProfile>) -> Self {
-        Self::from_inner(self.inner.clone().with_site_profile((*profile).into()))
+    fn with_site_profile(&self, profile: PySiteProfile) -> Self {
+        Self::from_inner(self.inner.clone().with_site_profile(profile.into()))
     }
 
-    fn with_moonlight_model(&self, model: PyRef<'_, PyMoonlightModel>) -> Self {
-        Self::from_inner(self.inner.clone().with_moonlight_model((*model).into()))
+    fn with_moonlight_model(&self, model: PyMoonlightModel) -> Self {
+        Self::from_inner(self.inner.clone().with_moonlight_model(model.into()))
     }
 
-    fn with_airglow_model(&self, model: PyRef<'_, PyAirglowModel>) -> Self {
-        Self::from_inner(self.inner.clone().with_airglow_model((*model).into()))
+    fn with_airglow_model(&self, model: PyAirglowModel) -> Self {
+        Self::from_inner(self.inner.clone().with_airglow_model(model.into()))
     }
 
     fn with_automatic_airglow(&self) -> Self {
@@ -49,14 +49,11 @@ impl PyNsbModelConfig {
         )
     }
 
-    fn with_zodiacal_extinction(
-        &self,
-        extinction: PyRef<'_, PyZodiacalExtinction>,
-    ) -> Self {
+    fn with_zodiacal_extinction(&self, extinction: PyZodiacalExtinction) -> Self {
         Self::from_inner(
             self.inner
                 .clone()
-                .with_zodiacal_extinction((*extinction).into()),
+                .with_zodiacal_extinction(extinction.into()),
         )
     }
 
