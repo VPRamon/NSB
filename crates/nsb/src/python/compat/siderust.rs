@@ -24,16 +24,16 @@ fn finite(name: &str, value: f64) -> PyResult<()> {
 
 #[pyclass(name = "Observer", frozen, module = "nsb", from_py_object)]
 #[derive(Clone, Copy)]
-pub(super) struct PyObserver {
+pub(in crate::python) struct PyObserver {
     inner: Observer,
 }
 
 impl PyObserver {
-    pub(super) const fn inner(&self) -> Observer {
+    pub(in crate::python) const fn inner(&self) -> Observer {
         self.inner
     }
 
-    pub(super) const fn from_inner(inner: Observer) -> Self {
+    pub(in crate::python) const fn from_inner(inner: Observer) -> Self {
         Self { inner }
     }
 }
@@ -83,16 +83,16 @@ impl PyObserver {
 
 #[pyclass(name = "Direction", frozen, module = "nsb", from_py_object)]
 #[derive(Clone, Copy)]
-pub(super) struct PyDirection {
+pub(in crate::python) struct PyDirection {
     inner: Target,
 }
 
 impl PyDirection {
-    pub(super) const fn inner(&self) -> Target {
+    pub(in crate::python) const fn inner(&self) -> Target {
         self.inner
     }
 
-    pub(super) const fn from_inner(inner: Target) -> Self {
+    pub(in crate::python) const fn from_inner(inner: Target) -> Self {
         Self { inner }
     }
 }
