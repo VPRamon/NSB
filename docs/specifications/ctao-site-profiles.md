@@ -129,6 +129,9 @@ operational inputs. In particular, none of the following can promote a profile t
 
 Those values may change the numerical result or provenance fields. Calibration
 maturity changes only through an explicit scientific profile/evidence path.
+`SiteProfileSpec` keeps maturity private: its public constructors create only
+`GenericFallback` or `PlanningPreset` profiles, and caller-facing builders
+cannot set `CalibrationStatus::Calibrated`.
 
 ## Validation contract
 
