@@ -50,13 +50,30 @@ fn component_mask_all_aliases_frozen_default_not_every_future_bit() {
 }
 
 #[test]
-fn nsb_crate_has_no_public_cargo_features() {
-    let manifest = include_str!("../Cargo.toml");
-    assert!(
-        !manifest.contains("[features]"),
+fn nsb_crate_only_exposes_the_supported_python_feature() {
+    let manifest: toml::Table = toml::from_str(include_str!("../Cargo.toml")).unwrap();
+    let features = manifest
+        .get("features")
+        .and_then(toml::Value::as_table)
+        .expect("nsb Cargo features table");
+
+    assert_eq!(
+        features.len(),
+        1,
         "first-release nsb must not expose benchmark/test-only Cargo features"
     );
-    assert!(!manifest.contains("window-search-diagnostics"));
+    let python = features
+        .get("python")
+        .and_then(toml::Value::as_array)
+        .expect("python feature");
+    assert_eq!(
+        python
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .collect::<Vec<_>>(),
+        ["dep:pyo3"]
+    );
+    assert!(!manifest.contains_key("window-search-diagnostics"));
 }
 
 #[test]

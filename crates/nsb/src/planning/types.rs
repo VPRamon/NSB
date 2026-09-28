@@ -7,6 +7,10 @@ use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 use std::sync::Arc;
 use tempoch::{Period, UTC};
 
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(frozen, module = "nsb", skip_from_py_object)
+)]
 #[derive(Debug, Clone)]
 /// Inputs for a below-threshold observing-window search.
 ///

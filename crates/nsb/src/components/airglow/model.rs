@@ -30,6 +30,16 @@ use tempoch::{Time, UTC};
 ///
 /// Model *selection* (automatic versus explicit) is owned by
 /// [`super::AirglowSelection`], not by this enum alone.
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(
+        eq,
+        frozen,
+        rename_all = "SCREAMING_SNAKE_CASE",
+        module = "nsb",
+        from_py_object
+    )
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AirglowModel {

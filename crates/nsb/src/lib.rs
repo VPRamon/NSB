@@ -73,6 +73,8 @@ pub mod components;
 pub(crate) mod error;
 mod evaluator;
 mod planning;
+#[cfg(feature = "python")]
+mod python;
 /// Site profiles and shared atmospheric assumptions.
 pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.

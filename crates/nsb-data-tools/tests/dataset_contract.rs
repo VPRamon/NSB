@@ -161,8 +161,17 @@ fn no_tracked_python_or_shell_programs_exist() {
             if path.is_dir() {
                 if !matches!(
                     path.file_name().and_then(|v| v.to_str()),
-                    // Maintainer CI orchestration under scripts/ is intentional (#176).
-                    Some(".git" | "target" | ".venv" | "__pycache__" | ".pytest_cache" | "scripts")
+                    // Maintainer CI orchestration under scripts/ and the supported
+                    // Python binding package are intentional (#176, #183).
+                    Some(
+                        ".git"
+                            | "target"
+                            | ".venv"
+                            | "__pycache__"
+                            | ".pytest_cache"
+                            | "scripts"
+                            | "python"
+                    )
                 ) {
                     visit(&path, found);
                 }

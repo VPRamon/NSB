@@ -14,6 +14,10 @@ use std::sync::Arc;
 use tempoch::{Time, UTC};
 
 /// Reusable evaluator with parsed immutable component data.
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(frozen, module = "nsb", skip_from_py_object)
+)]
 pub struct NsbEvaluator {
     identity: Arc<()>,
     zodiacal: ZodiacalLight,
