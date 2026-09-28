@@ -82,6 +82,21 @@ assert_contains "$(cat "$TMP/out")" "no executable changed production lines" "te
 assert_contains "$(cat "$TMP/out")" "result: PASS" "test-only pass"
 pass "changed test-only Rust source does not count"
 
+cat >"$TMP/python-boundary.diff" <<'EOF'
+diff --git a/crates/nsb/src/python/api.rs b/crates/nsb/src/python/api.rs
+--- a/crates/nsb/src/python/api.rs
++++ b/crates/nsb/src/python/api.rs
+@@ -1,0 +2,1 @@
++pub fn wheel_tested_adapter() {}
+EOF
+assert_exit 0 "$SCRIPT" diff \
+  --policy "$FIX/policy.toml" \
+  --lcov "$FIX/diff-covered.lcov" \
+  --diff-file "$TMP/python-boundary.diff"
+assert_contains "$(cat "$TMP/out")" "no executable changed production lines" "Python boundary message"
+assert_contains "$(cat "$TMP/out")" "result: PASS" "Python boundary pass"
+pass "installed-wheel-tested Python adapter does not count as Rust diff coverage"
+
 assert_exit 0 "$SCRIPT" diff \
   --policy "$FIX/policy.toml" \
   --lcov "$FIX/diff-nonexec.lcov" \

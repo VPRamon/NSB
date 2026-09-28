@@ -10,7 +10,7 @@
 #
 # Diff classification (intentionally simple vs the former Rust crate):
 #   - production targets: crates/{nsb,nsb-cli,nsb-data-tools}/src/**.rs
-#     excluding */tests.rs and */tests/**
+#     excluding */tests.rs, */tests/**, and the separately wheel-tested PyO3 adapter
 #   - ignore top-level #[cfg(test)] items (brace-matched modules/items)
 #   - missing LCOV for a changed production file fails closed unless every
 #     changed production line is an obvious non-instrumentable declaration
@@ -288,7 +288,7 @@ is_production_rust_file() {
   esac
   [[ "$path" == *.rs ]] || return 1
   case "$path" in
-    */tests.rs|*/tests/*) return 1 ;;
+    */tests.rs|*/tests/*|crates/nsb/src/python/*) return 1 ;;
   esac
   return 0
 }

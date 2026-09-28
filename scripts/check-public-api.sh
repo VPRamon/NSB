@@ -60,10 +60,12 @@ ensure_tool() {
 }
 
 generate() {
+  # The frozen Rust contract is the normal feature set. The optional `python`
+  # feature intentionally adds PyO3 trait machinery to existing domain types.
   cargo "+${NIGHTLY}" public-api \
     -p nsb \
     -sss \
-    --all-features \
+    --no-default-features \
     --color=never
 }
 
@@ -145,7 +147,7 @@ cargo "+${NIGHTLY}" public-api diff \
   "${BASE_SHA}..HEAD" \
   -p nsb \
   -sss \
-  --all-features \
+  --no-default-features \
   --deny=removed \
   --deny=changed \
   --color=never

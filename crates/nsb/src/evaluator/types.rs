@@ -32,6 +32,7 @@ bitflags::bitflags! {
     /// - build-dependent Starlight inclusion (when a validated production map
     ///   is bundled) is part of this frozen default policy, not a precedent for
     ///   arbitrary future default changes.
+    #[cfg_attr(feature = "python", pyo3::pyclass(frozen, module = "nsb", from_py_object))]
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct ComponentMask: u8 {
         /// Zodiacal-light component.
@@ -65,6 +66,10 @@ pub type Observer = Geodetic<ECEF>;
 /// ICRS/J2000 equatorial target direction.
 pub type Target = SphericalDirection<EquatorialMeanJ2000>;
 
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(frozen, module = "nsb", skip_from_py_object)
+)]
 #[derive(Debug, Clone)]
 /// Inputs for one point evaluation.
 ///
@@ -151,6 +156,10 @@ pub struct NsbResult {
     pub band_diagnostic: BandDiagnostic,
 }
 
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(frozen, module = "nsb", skip_from_py_object)
+)]
 #[derive(Debug, Clone)]
 /// Immutable model choices used to construct an evaluator.
 ///

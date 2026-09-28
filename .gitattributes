@@ -1,0 +1,2 @@
+# Scientific assets are checksum-addressed; checkout must preserve exact bytes on every OS.
+crates/nsb/data/** -text

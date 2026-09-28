@@ -48,6 +48,16 @@ use siderust::qtty::Nanometers;
 /// Atmospheric extinction strategy for zodiacal-light propagation.
 ///
 /// Additional site-calibrated strategies may be added; match with a wildcard.
+#[cfg_attr(
+    feature = "python",
+    pyo3::pyclass(
+        eq,
+        frozen,
+        rename_all = "SCREAMING_SNAKE_CASE",
+        module = "nsb",
+        from_py_object
+    )
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum ZodiacalExtinction {
