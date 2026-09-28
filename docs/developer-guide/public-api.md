@@ -35,8 +35,8 @@ Typical imports from the crate root:
 | --- | --- |
 | Point evaluation | `NsbEvaluator`, `PointQuery`, `ComponentMask`, `Observer`, `Target`, `DEG` |
 | Threshold / window search | `ThresholdQuery`, `ThresholdQueryResult`, `SiteWindowContext` |
-| Model configuration | `NsbModelConfig`, `AirglowModel`, `AirglowSelection`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileId` |
-| Site presets | `NsbModelConfig::cta_s_planning()`, `SiteProfileId` (full `SiteProfile` / atmosphere under `nsb::site`) |
+| Model configuration | `NsbModelConfig`, `AirglowModel`, `AirglowSelection`, `MoonlightModel`, `StarlightProduct`, `ZodiacalModel`, `ZodiacalExtinction`, `SiteProfileId`, `SiteProfileSpec` |
+| Site profiles | `SiteProfileSpec::generic_clear_sky()`, `SiteProfileSpec::planning(...)` (observatory presets live outside core; full `SiteProfile` / atmosphere under `nsb::site`) |
 | Scientific maturity | `NsbComponentMetadata`, `ComponentCalibrationStatus`, `BandDiagnostic` |
 | Errors | `NsbError`, `Result` |
 
@@ -53,10 +53,10 @@ Includes evaluator types (`NsbEvaluator`, queries, results, `ComponentMask`,
 `Observer`, `Target`), opaque `NsbModelConfig` with getters/builders,
 model-selection enums (`AirglowModel`, `AirglowSelection`, `MoonlightModel`,
 `ZodiacalModel`, `ZodiacalExtinction`, `StarlightProduct`), `SiteProfileId`,
-crate version constants (`NSB_VERSION`, `MODEL_VERSION`), and the
-[`DEG`](../../crates/nsb/src/lib.rs) re-export used in
-documented equatorial constructors. Site profile detail types live under
-`nsb::site`.
+`SiteProfileSpec`, crate version constants (`NSB_VERSION`, `MODEL_VERSION`), and
+the [`DEG`](../../crates/nsb/src/lib.rs) re-export used in
+documented equatorial constructors. Site profile detail types also live under
+`nsb::site`. Observatory-named planning presets are not part of the core API.
 
 ### Advanced API
 
@@ -266,11 +266,13 @@ caller already owns an `Arc`.
 `NsbError` is `#[non_exhaustive]`. Consumers should match the variants they need
 and retain a wildcard arm.
 
-### Site profile inventory
+### Site profiles
 
-`SiteProfileId` is `#[non_exhaustive]`. Prefer
-`SiteProfileId::all() -> &'static [SiteProfileId]` when enumerating built-in
-profiles because the return type does not encode the profile count.
+`SiteProfileId` is a string-backed identifier. The core crate does not own a
+closed observatory catalog: construct [`SiteProfileSpec`](../../crates/nsb/src/site/mod.rs)
+with `generic_clear_sky()` or `planning(...)` (or fully custom fields) and pass
+it to `NsbModelConfig::with_site_profile`. Observatory-named presets such as
+CTAO North/South live in application layers (for example `nsb-cli`).
 
 ## Public API CI lifecycle
 

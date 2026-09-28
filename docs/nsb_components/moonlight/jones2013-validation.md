@@ -35,7 +35,7 @@ optical-depth parameters. Observer altitude remains a property of the query
 observer rather than the site profile, so changing observer coordinates does not
 silently change `MoonlightModel`.
 
-`SiteProfileId::GenericClearSky` supplies the altitude-derived fallback.
+`SiteProfileSpec::generic_clear_sky()` supplies the altitude-derived fallback.
 `CtaNorth` and `CtaSouth` supply explicit planning assumptions with their
 documented maturity. The current CTA-S atmosphere remains Paranal-like until
 dedicated CTA-S aerosol calibration data are bundled.

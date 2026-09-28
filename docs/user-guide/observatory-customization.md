@@ -125,15 +125,27 @@ command. NSB aliases are applied only when their target name exists in the
 active catalog. Custom observatories default to `generic-clear-sky` unless
 `--site-profile` is set.
 
-Rust applications can select CTAO planning assumptions directly:
+Rust applications construct CTAO planning assumptions as ordinary
+`SiteProfileSpec` values (the CLI module
+`crates/nsb-cli/src/site_profiles.rs` is the reference implementation):
 
 ```rust,no_run
+use nsb::site::{AtmosphericConditions, SiteProfileSpec};
 use nsb::{NsbEvaluator, NsbModelConfig};
+use siderust::qtty::Kilometers;
 
 # fn build() -> nsb::Result<()> {
-let south = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning())?;
-let north = NsbEvaluator::with_config(NsbModelConfig::cta_n_planning())?;
-# let _ = (south, north);
+let south = SiteProfileSpec::planning(
+    "ctao-south-planning",
+    "ctao-south-planning",
+    Kilometers::new(2.1),
+    AtmosphericConditions::paranal_average(),
+    "CTAO-South planning preset ...",
+);
+let evaluator = NsbEvaluator::with_config(
+    NsbModelConfig::generic_clear_sky().with_site_profile(south),
+)?;
+# let _ = evaluator;
 # Ok(())
 # }
 ```
@@ -237,6 +249,6 @@ validation, and packaging. Start with the
   window commands do not yet execute directly from a `--config` file.
 - Arbitrary coordinates and all named/custom observatories use generic
   clear-sky assumptions unless `--site-profile` is selected explicitly.
-- The built-in CTAO profiles are planning presets, not calibrated products.
+- The CTAO planning profiles are planning presets, not calibrated products.
 - Site-specific airglow or atmospheric parameters are not currently exposed as
   arbitrary CLI flags; a validated new profile is a library and data change.

@@ -54,8 +54,8 @@ and releases, continue with the [maintainer guide](../maintainer-guide/README.md
   into the current build.
 - Production starlight is fail-closed. Missing or invalid production evidence is
   an error; there is no bundled experimental fallback.
-- Built-in CTAO profiles are explicit planning presets, not validated
-  site-calibrated products.
+- Application-layer CTAO planning profiles are explicit planning presets, not
+  validated site-calibrated products.
 - Output metadata is part of the scientific contract. Do not discard maturity,
   provenance, version, uncertainty, or asset-checksum fields in downstream
   systems.
