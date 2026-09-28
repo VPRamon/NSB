@@ -49,8 +49,15 @@ Evaluate one target:
 from datetime import datetime, timezone
 import nsb
 
-observer = nsb.Observer(-70.4, -24.6, 2600.0)
-direction = nsb.Direction(266.4, -29.0)
+ctao_south = nsb.Observer(
+    lon_deg=-70.31634444444444,
+    lat_deg=-24.683427777777776,
+    height_m=2184.6,
+)
+sgr_a_star = nsb.Direction(
+    ra_deg=266.41683,
+    dec_deg=-29.00781,
+)
 
 config = (
     nsb.NsbModelConfig.generic_clear_sky()
@@ -60,9 +67,9 @@ evaluator = nsb.NsbEvaluator(config)
 
 result = evaluator.evaluate(
     nsb.PointQuery(
-        observer,
+        ctao_south,
         datetime(2026, 9, 27, 22, 0, tzinfo=timezone.utc),
-        direction,
+        sgr_a_star,
     )
 )
 
@@ -77,13 +84,16 @@ layer. It is not a claim that CTAO South is site-calibrated.
 Search for periods below an NSB threshold:
 
 ```python
+max_nsb_photons_cm2_ns_sr = 0.25
+sample_step_s = 600.0
+
 query = nsb.ThresholdQuery(
-    observer,
-    direction,
+    ctao_south,
+    sgr_a_star,
     datetime(2026, 9, 27, 20, 0, tzinfo=timezone.utc),
     datetime(2026, 9, 28, 4, 0, tzinfo=timezone.utc),
-    0.25,
-    sample_step_s=600.0,
+    max_nsb_photons_cm2_ns_sr,
+    sample_step_s=sample_step_s,
 )
 
 context = evaluator.prepare_site_window_context(query)
@@ -99,7 +109,7 @@ development workflow.
 
 ## CLI
 
-Evaluate one target:
+Evaluate Sagittarius A* from CTAO South:
 
 ```bash
 cargo run --locked -p nsb-cli -- \
@@ -107,10 +117,11 @@ cargo run --locked -p nsb-cli -- \
   --time 2026-06-18T23:00:00Z \
   --site CTAO-S \
   --site-profile cta-south \
-  --ra 83.6331 --dec 22.0145
+  --ra 266.41683 --dec -29.00781
 ```
 
-Find periods below an NSB threshold:
+Find periods for Sagittarius A* with integrated NSB at or below
+`0.25 ph cm^-2 ns^-1 sr^-1`:
 
 ```bash
 cargo run --locked -p nsb-cli -- \
@@ -119,7 +130,7 @@ cargo run --locked -p nsb-cli -- \
   --end 2026-06-19T06:00:00Z \
   --site CTAO-S \
   --site-profile cta-south \
-  --ra 83.6331 --dec 22.0145 \
+  --ra 266.41683 --dec -29.00781 \
   --max-nsb 0.25 \
   --sun-altitude-max -18 \
   --target-altitude-min 20 \
@@ -142,10 +153,12 @@ use siderust::catalogs::observatories;
 
 # fn evaluate(time: tempoch::Time<tempoch::UTC>) -> nsb::Result<()> {
 let evaluator = NsbEvaluator::new()?;
+let sgr_a_star = Target::new(266.41683 * DEG, -29.00781 * DEG);
+
 let query = PointQuery::new(
     observatories::EL_PARANAL.geodetic(),
     time,
-    Target::new(266.41683 * DEG, -29.00781 * DEG),
+    sgr_a_star,
 )
 .with_components(ComponentMask::ALL);
 
