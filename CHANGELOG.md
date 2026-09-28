@@ -5,6 +5,8 @@ once a stable public release is cut.
 
 ## Unreleased
 
+## 0.0.0 - 2026-09-28
+
 ### Added
 
 - Introduced `nsb::transport`, a minimal frozen atmospheric-transport foundation
