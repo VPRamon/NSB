@@ -8,6 +8,11 @@ could be removed from the core contract without failing the post-freeze SemVer
 gate. Keep `public-api.txt` current; re-add `API_FROZEN` after the redesigned
 surface is reviewed.
 
+The redesigned `SiteProfileSpec` keeps its invariant-bearing fields private.
+Public constructors produce only generic or planning maturity, so callers cannot
+set `CalibrationStatus::Calibrated` and promote evaluator metadata to
+`Production` without a future evidence-backed admission path.
+
 ## Modes
 
 ### Pre-freeze
