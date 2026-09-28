@@ -13,7 +13,7 @@ use super::super::compat::period_to_datetimes;
     skip_from_py_object
 )]
 #[derive(Clone)]
-pub(super) struct PyNsbComponentMetadata {
+pub(in crate::python) struct PyNsbComponentMetadata {
     status: String,
     provenance: String,
     validated_domain: String,
@@ -69,7 +69,7 @@ impl From<NsbComponentMetadata> for PyNsbComponentMetadata {
     skip_from_py_object
 )]
 #[derive(Clone)]
-pub(super) struct PyNsbComponent {
+pub(in crate::python) struct PyNsbComponent {
     name: String,
     integrated_photons_cm2_ns_sr: f64,
     b_flux_s10: f64,
@@ -108,7 +108,7 @@ impl From<NsbComponent> for PyNsbComponent {
     get_all,
     skip_from_py_object
 )]
-pub(super) struct PyNsbResult {
+pub(in crate::python) struct PyNsbResult {
     integrated_photons_cm2_ns_sr: f64,
     b_mag_per_arcsec2: f64,
     v_mag_per_arcsec2: f64,
@@ -133,13 +133,13 @@ impl From<NsbResult> for PyNsbResult {
     get_all,
     skip_from_py_object
 )]
-pub(super) struct PyThresholdQueryResult {
+pub(in crate::python) struct PyThresholdQueryResult {
     threshold_photons_cm2_ns_sr: f64,
     periods: Vec<(DateTime<Utc>, DateTime<Utc>)>,
 }
 
 impl PyThresholdQueryResult {
-    pub(super) fn try_from_inner(value: ThresholdQueryResult) -> PyResult<Self> {
+    pub(in crate::python) fn try_from_inner(value: ThresholdQueryResult) -> PyResult<Self> {
         Ok(Self {
             threshold_photons_cm2_ns_sr: value.threshold.value(),
             periods: value
