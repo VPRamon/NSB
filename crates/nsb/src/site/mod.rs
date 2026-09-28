@@ -192,8 +192,9 @@ impl SiteProfileSpec {
 
     /// Explicit planning preset with fixed atmospheric assumptions.
     ///
-    /// Use this (or a fully custom [`SiteProfileSpec`]) for observatory- or
-    /// project-named planning profiles defined outside the core crate.
+    /// Use this for observatory- or project-named planning profiles defined
+    /// outside the core crate. Additional Airglow assumptions can be supplied
+    /// with [`Self::with_airglow_calibration`] without changing maturity.
     pub fn planning(
         id: impl Into<Cow<'static, str>>,
         name: impl Into<Cow<'static, str>>,
