@@ -3,7 +3,6 @@ use super::scan::{
     tt_mjd_to_utc_time, utc_period_to_tt_mjd,
 };
 use super::types::{ThresholdQuery, ThresholdQueryResult};
-use crate::components::airglow;
 use crate::error::Result;
 use crate::evaluator::{ComponentMask, NsbEvaluator, Observer, Target};
 use chrono::{DateTime, Duration, Utc};
