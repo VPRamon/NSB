@@ -24,6 +24,12 @@ It also inspects whether any **implicit Paranal/CTAO/whitelist site dependence**
 > shape. The intentional unbounded-night fallback is represented explicitly as
 > `AirglowNightPhase::FullNight`; malformed correction structure can no longer
 > fall through to a neutral `1.0` correction.
+>
+> Post-audit note (#185): the CTAO-specific `SiteProfileId` variants and
+> `NsbModelConfig::cta_*_planning()` helpers referenced in this historical
+> audit have been removed from the generic core API. The current runtime uses
+> caller-supplied `SiteProfileSpec` values; CTAO planning presets live in
+> `nsb-cli`. The scientific maturity conclusions in this audit are unchanged.
 
 ## Scope (default pipeline)
 Default Airglow computation is the path used by:
