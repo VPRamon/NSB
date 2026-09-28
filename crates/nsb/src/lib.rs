@@ -59,8 +59,9 @@
 //!
 //! `siderust` owns astronomy, time, coordinates, events, atmosphere, lunar
 //! photometry, and passbands. NSB owns NSB-specific component composition,
-//! observing-window planning, and site-profile metadata that distinguishes
-//! generic fallbacks from explicit named planning presets.
+//! observing-window planning, and generic site-profile metadata that distinguishes
+//! generic fallbacks from caller-supplied planning or calibrated assumptions.
+//! Observatory catalogs and named project presets live outside this crate.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -91,7 +92,7 @@ pub use evaluator::{
     Observer, PointQuery, Target,
 };
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
-pub use site::{CalibrationStatus, SiteProfileId};
+pub use site::{CalibrationStatus, SiteProfileId, SiteProfileSpec};
 pub use units::{SolarFluxUnit, SolarFluxUnits};
 
 /// Angle unit used with [`Target::new`] in documented examples.

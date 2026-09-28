@@ -165,7 +165,7 @@ impl NsbEvaluator {
         crate::solar_activity::ResolvedSolarActivity,
     )> {
         let solar = crate::solar_activity::resolve_f107(time, self.config.solar_activity())?;
-        let profile = self.config.site_profile().profile(observer);
+        let profile = self.config.site_profile().resolve(observer);
         let outputs =
             airglow::Airglow::with_shared_continuum(observer, Arc::clone(&self.airglow_continuum))
                 .with_atmosphere(profile.atmosphere)

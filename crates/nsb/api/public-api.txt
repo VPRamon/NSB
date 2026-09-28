@@ -228,47 +228,72 @@ pub nsb::components::zodiacal::ZodiacalModel::Leinert1998
 impl nsb::ZodiacalModel
 pub const fn nsb::ZodiacalModel::as_str(self) -> &'static str
 pub mod nsb::site
+#[non_exhaustive] pub enum nsb::site::AtmosphereSource
+pub nsb::site::AtmosphereSource::Fixed(nsb::site::AtmosphericConditions)
+pub nsb::site::AtmosphereSource::FromObserverAltitude
 #[non_exhaustive] pub enum nsb::site::CalibrationStatus
 pub nsb::site::CalibrationStatus::Calibrated
 pub nsb::site::CalibrationStatus::GenericFallback
 pub nsb::site::CalibrationStatus::PlanningPreset
 impl core::convert::From<nsb::site::CalibrationStatus> for nsb::ComponentCalibrationStatus
 pub fn nsb::ComponentCalibrationStatus::from(status: nsb::site::CalibrationStatus) -> Self
-#[non_exhaustive] pub enum nsb::site::SiteProfileId
-pub nsb::site::SiteProfileId::CtaNorth
-pub nsb::site::SiteProfileId::CtaSouth
-pub nsb::site::SiteProfileId::GenericClearSky
-impl nsb::site::SiteProfileId
-pub fn nsb::site::SiteProfileId::all() -> &'static [Self]
-pub const fn nsb::site::SiteProfileId::as_str(self) -> &'static str
-pub const fn nsb::site::SiteProfileId::calibration_status(self) -> nsb::site::CalibrationStatus
-pub const fn nsb::site::SiteProfileId::is_site_calibrated(self) -> bool
-pub fn nsb::site::SiteProfileId::profile(self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
+#[non_exhaustive] pub enum nsb::site::RepresentativeAltitude
+pub nsb::site::RepresentativeAltitude::Fixed(qtty_core::units::length::Kilometers)
+pub nsb::site::RepresentativeAltitude::FromObserver
 #[non_exhaustive] pub struct nsb::site::AirglowSiteCalibration
-pub nsb::site::AirglowSiteCalibration::assumptions: &'static str
-pub nsb::site::AirglowSiteCalibration::provenance: &'static str
+pub nsb::site::AirglowSiteCalibration::assumptions: alloc::borrow::Cow<'static, str>
+pub nsb::site::AirglowSiteCalibration::provenance: alloc::borrow::Cow<'static, str>
 pub nsb::site::AirglowSiteCalibration::scale: qtty_core::units::dimensionless::Ratios
-pub nsb::site::AirglowSiteCalibration::template: &'static str
+pub nsb::site::AirglowSiteCalibration::template: alloc::borrow::Cow<'static, str>
+impl nsb::site::AirglowSiteCalibration
+pub fn nsb::site::AirglowSiteCalibration::skycalc_neutral() -> Self
 #[non_exhaustive] pub struct nsb::site::AtmosphericConditions
 pub nsb::site::AtmosphericConditions::mie_params: siderust::atmosphere::mie::MieParams
 pub nsb::site::AtmosphericConditions::rayleigh_scale_height: qtty_core::units::length::Kilometers
 pub nsb::site::AtmosphericConditions::surface_pressure: qtty_core::units::pressure::Hectopascals
 impl nsb::site::AtmosphericConditions
-pub fn nsb::site::AtmosphericConditions::cta_n_clear_sky() -> Self
-pub fn nsb::site::AtmosphericConditions::cta_s_clear_sky() -> Self
+pub fn nsb::site::AtmosphericConditions::clear_sky_with_pressure(surface_pressure: qtty_core::units::pressure::Hectopascals) -> Self
 pub fn nsb::site::AtmosphericConditions::from_profile_without_altitude(profile: siderust::atmosphere::profile::AtmosphereProfile) -> Self
 pub fn nsb::site::AtmosphericConditions::generic_clear_sky(location: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> Self
 pub fn nsb::site::AtmosphericConditions::paranal_average() -> Self
 #[non_exhaustive] pub struct nsb::site::SiteProfile
 pub nsb::site::SiteProfile::airglow: nsb::site::AirglowSiteCalibration
 pub nsb::site::SiteProfile::atmosphere: nsb::site::AtmosphericConditions
-pub nsb::site::SiteProfile::atmosphere_provenance: &'static str
+pub nsb::site::SiteProfile::atmosphere_provenance: alloc::borrow::Cow<'static, str>
 pub nsb::site::SiteProfile::calibration_status: nsb::site::CalibrationStatus
 pub nsb::site::SiteProfile::id: nsb::site::SiteProfileId
-pub nsb::site::SiteProfile::name: &'static str
+pub nsb::site::SiteProfile::name: alloc::borrow::Cow<'static, str>
 pub nsb::site::SiteProfile::representative_altitude: qtty_core::units::length::Kilometers
 impl nsb::site::SiteProfile
 pub fn nsb::site::SiteProfile::is_site_calibrated(&self) -> bool
+pub struct nsb::site::SiteProfileId
+impl nsb::site::SiteProfileId
+pub const nsb::site::SiteProfileId::GENERIC_CLEAR_SKY: Self
+pub fn nsb::site::SiteProfileId::as_str(&self) -> &str
+pub fn nsb::site::SiteProfileId::new(id: impl core::convert::Into<alloc::borrow::Cow<'static, str>>) -> Self
+impl core::convert::AsRef<str> for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::as_ref(&self) -> &str
+impl core::convert::From<&'static str> for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::from(value: &'static str) -> Self
+impl core::convert::From<alloc::string::String> for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::from(value: alloc::string::String) -> Self
+impl core::fmt::Display for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub struct nsb::site::SiteProfileSpec
+pub nsb::site::SiteProfileSpec::airglow: nsb::site::AirglowSiteCalibration
+pub nsb::site::SiteProfileSpec::atmosphere: nsb::site::AtmosphereSource
+pub nsb::site::SiteProfileSpec::atmosphere_provenance: alloc::borrow::Cow<'static, str>
+pub nsb::site::SiteProfileSpec::calibration_status: nsb::site::CalibrationStatus
+pub nsb::site::SiteProfileSpec::id: nsb::site::SiteProfileId
+pub nsb::site::SiteProfileSpec::name: alloc::borrow::Cow<'static, str>
+pub nsb::site::SiteProfileSpec::representative_altitude: nsb::site::RepresentativeAltitude
+impl nsb::site::SiteProfileSpec
+pub const fn nsb::site::SiteProfileSpec::calibration_status(&self) -> nsb::site::CalibrationStatus
+pub fn nsb::site::SiteProfileSpec::generic_clear_sky() -> Self
+pub fn nsb::site::SiteProfileSpec::id(&self) -> &nsb::site::SiteProfileId
+pub const fn nsb::site::SiteProfileSpec::is_site_calibrated(&self) -> bool
+pub fn nsb::site::SiteProfileSpec::planning(id: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, name: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, representative_altitude: qtty_core::units::length::Kilometers, atmosphere: nsb::site::AtmosphericConditions, atmosphere_provenance: impl core::convert::Into<alloc::borrow::Cow<'static, str>>) -> Self
+pub fn nsb::site::SiteProfileSpec::resolve(&self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
 pub mod nsb::solar_activity
 pub enum nsb::solar_activity::F107Kind
 pub nsb::solar_activity::F107Kind::Climatology
@@ -412,16 +437,6 @@ pub nsb::NsbError::InvalidMap::message: alloc::string::String
 pub nsb::NsbError::Io(core::io::error::Error)
 pub nsb::NsbError::OutOfRange(alloc::string::String)
 pub nsb::NsbError::Unsupported(alloc::string::String)
-#[non_exhaustive] pub enum nsb::SiteProfileId
-pub nsb::SiteProfileId::CtaNorth
-pub nsb::SiteProfileId::CtaSouth
-pub nsb::SiteProfileId::GenericClearSky
-impl nsb::site::SiteProfileId
-pub fn nsb::site::SiteProfileId::all() -> &'static [Self]
-pub const fn nsb::site::SiteProfileId::as_str(self) -> &'static str
-pub const fn nsb::site::SiteProfileId::calibration_status(self) -> nsb::site::CalibrationStatus
-pub const fn nsb::site::SiteProfileId::is_site_calibrated(self) -> bool
-pub fn nsb::site::SiteProfileId::profile(self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
 #[non_exhaustive] pub enum nsb::StarlightProduct
 pub nsb::StarlightProduct::BundledProductionGaiaDr3
 pub nsb::StarlightProduct::ExperimentalMap(alloc::sync::Arc<nsb::components::starlight::StarlightMap>)
@@ -569,12 +584,10 @@ pub const fn nsb::NsbModelConfig::airglow_calibration_status(&self) -> nsb::site
 pub fn nsb::NsbModelConfig::airglow_geometry(&self) -> &nsb::components::airglow::AirglowGeometryModel
 pub const fn nsb::NsbModelConfig::airglow_model(&self) -> core::option::Option<nsb::AirglowModel>
 pub const fn nsb::NsbModelConfig::airglow_selection(&self) -> nsb::AirglowSelection
-pub fn nsb::NsbModelConfig::cta_n_planning() -> Self
-pub fn nsb::NsbModelConfig::cta_s_planning() -> Self
 pub fn nsb::NsbModelConfig::generic_clear_sky() -> Self
 pub const fn nsb::NsbModelConfig::is_airglow_site_calibrated(&self) -> bool
 pub const fn nsb::NsbModelConfig::moonlight_model(&self) -> nsb::components::moonlight::MoonlightModel
-pub const fn nsb::NsbModelConfig::site_profile(&self) -> nsb::site::SiteProfileId
+pub fn nsb::NsbModelConfig::site_profile(&self) -> &nsb::site::SiteProfileSpec
 pub fn nsb::NsbModelConfig::solar_activity(&self) -> &nsb::solar_activity::SolarActivitySource
 pub fn nsb::NsbModelConfig::starlight_product(&self) -> core::option::Option<&nsb::StarlightProduct>
 pub fn nsb::NsbModelConfig::with_airglow_geometry(self, geometry: nsb::components::airglow::AirglowGeometryModel) -> Self
@@ -582,7 +595,7 @@ pub fn nsb::NsbModelConfig::with_airglow_model(self, model: nsb::AirglowModel) -
 pub fn nsb::NsbModelConfig::with_airglow_selection(self, selection: nsb::AirglowSelection) -> Self
 pub fn nsb::NsbModelConfig::with_f107_store(self, store: alloc::sync::Arc<nsb::solar_activity::F107Store>) -> Self
 pub fn nsb::NsbModelConfig::with_moonlight_model(self, model: nsb::components::moonlight::MoonlightModel) -> Self
-pub fn nsb::NsbModelConfig::with_site_profile(self, site_profile: nsb::site::SiteProfileId) -> Self
+pub fn nsb::NsbModelConfig::with_site_profile(self, site_profile: nsb::site::SiteProfileSpec) -> Self
 pub fn nsb::NsbModelConfig::with_solar_radio_flux(self, flux: nsb::SolarFluxUnits) -> Self
 pub fn nsb::NsbModelConfig::with_starlight_product(self, starlight_product: nsb::StarlightProduct) -> Self
 pub fn nsb::NsbModelConfig::with_zodiacal_extinction(self, extinction: nsb::ZodiacalExtinction) -> Self
@@ -605,6 +618,34 @@ pub nsb::PointQuery::time: tempoch_core::model::time::Time<tempoch_core::model::
 impl nsb::PointQuery
 pub fn nsb::PointQuery::new(observer: nsb::Observer, time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, target: nsb::Target) -> Self
 pub fn nsb::PointQuery::with_components(self, components: nsb::ComponentMask) -> Self
+pub struct nsb::SiteProfileId
+impl nsb::site::SiteProfileId
+pub const nsb::site::SiteProfileId::GENERIC_CLEAR_SKY: Self
+pub fn nsb::site::SiteProfileId::as_str(&self) -> &str
+pub fn nsb::site::SiteProfileId::new(id: impl core::convert::Into<alloc::borrow::Cow<'static, str>>) -> Self
+impl core::convert::AsRef<str> for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::as_ref(&self) -> &str
+impl core::convert::From<&'static str> for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::from(value: &'static str) -> Self
+impl core::convert::From<alloc::string::String> for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::from(value: alloc::string::String) -> Self
+impl core::fmt::Display for nsb::site::SiteProfileId
+pub fn nsb::site::SiteProfileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+#[non_exhaustive] pub struct nsb::SiteProfileSpec
+pub nsb::SiteProfileSpec::airglow: nsb::site::AirglowSiteCalibration
+pub nsb::SiteProfileSpec::atmosphere: nsb::site::AtmosphereSource
+pub nsb::SiteProfileSpec::atmosphere_provenance: alloc::borrow::Cow<'static, str>
+pub nsb::SiteProfileSpec::calibration_status: nsb::site::CalibrationStatus
+pub nsb::SiteProfileSpec::id: nsb::site::SiteProfileId
+pub nsb::SiteProfileSpec::name: alloc::borrow::Cow<'static, str>
+pub nsb::SiteProfileSpec::representative_altitude: nsb::site::RepresentativeAltitude
+impl nsb::site::SiteProfileSpec
+pub const fn nsb::site::SiteProfileSpec::calibration_status(&self) -> nsb::site::CalibrationStatus
+pub fn nsb::site::SiteProfileSpec::generic_clear_sky() -> Self
+pub fn nsb::site::SiteProfileSpec::id(&self) -> &nsb::site::SiteProfileId
+pub const fn nsb::site::SiteProfileSpec::is_site_calibrated(&self) -> bool
+pub fn nsb::site::SiteProfileSpec::planning(id: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, name: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, representative_altitude: qtty_core::units::length::Kilometers, atmosphere: nsb::site::AtmosphericConditions, atmosphere_provenance: impl core::convert::Into<alloc::borrow::Cow<'static, str>>) -> Self
+pub fn nsb::site::SiteProfileSpec::resolve(&self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
 pub struct nsb::SiteWindowContext
 impl core::fmt::Debug for nsb::SiteWindowContext
 pub fn nsb::SiteWindowContext::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

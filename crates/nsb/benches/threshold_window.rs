@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use criterion::{criterion_group, BenchmarkId, Criterion, Throughput};
 use nsb::components::starlight::StarlightMap;
 use nsb::components::starlight::StarlightProvenance;
+use nsb::site::{AtmosphericConditions, SiteProfileSpec};
 use nsb::{
     ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
     ThresholdQuery, DEG,
@@ -13,6 +14,7 @@ use qtty::Second;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use siderust::qtty::{Hectopascals, Kilometers};
 use std::hint::black_box;
 use tempoch::{Period, Time, UTC};
 
@@ -94,6 +96,16 @@ fn target_sgr_a() -> Target {
     Target::new(266.41683 * DEG, -29.00781 * DEG)
 }
 
+fn ctao_south_planning_config() -> NsbModelConfig {
+    NsbModelConfig::generic_clear_sky().with_site_profile(SiteProfileSpec::planning(
+        "ctao-south-planning",
+        "ctao-south-planning",
+        Kilometers::new(2.1),
+        AtmosphericConditions::paranal_average(),
+        "CTAO-South planning preset (bench helper)",
+    ))
+}
+
 fn north_pole_target() -> Target {
     Target::new(0.0 * DEG, 89.0 * DEG)
 }
@@ -137,7 +149,7 @@ fn bench_point_components(c: &mut Criterion) {
 }
 
 fn bench_window_duration_components(c: &mut Criterion) {
-    let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning()).expect("evaluator");
+    let evaluator = NsbEvaluator::with_config(ctao_south_planning_config()).expect("evaluator");
     let durations = [("1d", 1), ("1w", 7), ("1mo", 30), ("1y", 365)];
     let components = [
         ("all", ComponentMask::ALL),
@@ -295,7 +307,7 @@ fn bench_regression_workloads(c: &mut Criterion) {
 }
 
 fn bench_site_context_and_multi_target(c: &mut Criterion) {
-    let evaluator = NsbEvaluator::with_config(NsbModelConfig::cta_s_planning()).expect("evaluator");
+    let evaluator = NsbEvaluator::with_config(ctao_south_planning_config()).expect("evaluator");
     let seed = window_case(
         "seed",
         "2026-01-01T00:00:00Z",

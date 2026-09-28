@@ -12,7 +12,7 @@ use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
 use crate::site::AtmosphericConditions;
 #[cfg(test)]
-use crate::site::SiteProfileId;
+use crate::site::SiteProfileSpec;
 use crate::units::ScaleFactors;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
@@ -84,15 +84,15 @@ impl Airglow {
 
     /// Build an Airglow model from an explicitly selected NSB site profile.
     ///
-    /// CTAO profiles currently use the bundled Paranal-derived continuum with a
+    /// Planning profiles currently use the bundled Paranal-derived continuum with a
     /// neutral site scale and [`CalibrationStatus::PlanningPreset`] maturity.
     /// Selecting a profile is distinct from selecting an observatory/location.
     #[cfg(test)]
     pub(crate) fn for_site_profile(
         location: Geodetic<ECEF>,
-        site_profile: SiteProfileId,
+        site_profile: &SiteProfileSpec,
     ) -> Result<Self> {
-        let profile = site_profile.profile(location);
+        let profile = site_profile.resolve(location);
         let continuum = Arc::new(load_builtin_standard()?);
         Ok(Self::with_shared_continuum(location, continuum)
             .with_atmosphere(profile.atmosphere)

@@ -1,9 +1,10 @@
-//! Versioned evidence contract for calibrated CTAO site profiles.
+//! Versioned evidence contract for calibrated site profiles.
 //!
-//! This module defines the machine-readable inputs required before a named CTAO
+//! This module defines the machine-readable inputs required before a named site
 //! profile can be promoted from a planning preset to a calibrated profile. It
 //! deliberately does not perform that promotion: a valid asset is evidence for
-//! later scientific review, not proof that review has happened.
+//! later scientific review, not proof that review has happened. Site identity is
+//! a stable string so observatory-specific catalogs do not need to live here.
 
 #![allow(dead_code)]
 
@@ -17,35 +18,27 @@ use thiserror::Error;
 /// Supported schema version for [`SiteCalibrationAsset`].
 pub(crate) const SITE_CALIBRATION_ASSET_SCHEMA_VERSION: u32 = 1;
 
-/// CTAO site that may receive a dedicated calibrated profile.
+/// Stable string identifier for a site that may receive a dedicated calibration.
 ///
-/// Additional calibrated sites may be added; match with a wildcard.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[non_exhaustive]
-pub enum CalibratedSiteId {
-    /// CTAO-North at the Roque de los Muchachos Observatory.
-    #[serde(rename = "ctao-north")]
-    CtaNorth,
-    /// CTAO-South in the Paranal/Atacama region.
-    #[serde(rename = "ctao-south")]
-    CtaSouth,
+/// Values are lowercase hyphenated identifiers (for example `ctao-south`). The
+/// reserved generic-clear-sky profile cannot be calibrated through this schema.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct CalibratedSiteId {
+    id: String,
 }
 
 impl CalibratedSiteId {
     /// Stable identifier used in calibration metadata.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CtaNorth => "ctao-north",
-            Self::CtaSouth => "ctao-south",
-        }
+    pub fn as_str(&self) -> &str {
+        &self.id
     }
 
-    /// Built-in planning profile associated with this calibration target.
-    pub const fn planning_profile(self) -> SiteProfileId {
-        match self {
-            Self::CtaNorth => SiteProfileId::CtaNorth,
-            Self::CtaSouth => SiteProfileId::CtaSouth,
-        }
+    /// Planning profile identifier conventionally associated with this site.
+    ///
+    /// Follows the `{site}-planning` naming used by application-layer presets.
+    pub fn planning_profile(&self) -> SiteProfileId {
+        SiteProfileId::new(format!("{}-planning", self.id))
     }
 }
 
@@ -117,7 +110,7 @@ pub struct SiteCalibrationReference {
     pub license: String,
 }
 
-/// Versioned, fail-closed evidence package for a CTAO site calibration.
+/// Versioned, fail-closed evidence package for a site calibration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SiteCalibrationAsset {
@@ -125,7 +118,7 @@ pub struct SiteCalibrationAsset {
     pub schema_version: u32,
     /// Stable lowercase identifier for this calibration release.
     pub calibration_id: String,
-    /// CTAO site described by the calibration.
+    /// Site described by the calibration.
     pub site: CalibratedSiteId,
     /// Time and wavelength domain in which the calibration may be used.
     pub validity: SiteCalibrationValidity,
@@ -174,6 +167,12 @@ impl SiteCalibrationAsset {
             )));
         }
         validate_identifier(&self.calibration_id, "calibration_id")?;
+        validate_identifier(self.site.as_str(), "site")?;
+        if self.site.as_str() == SiteProfileId::GENERIC_CLEAR_SKY.as_str() {
+            return Err(SiteCalibrationAssetError::new(
+                "site must not be the reserved generic-clear-sky profile",
+            ));
+        }
         self.validate_validity()?;
         self.validate_atmosphere()?;
         self.validate_airglow()?;
@@ -474,8 +473,11 @@ license = "Redistribution terms recorded with the reference asset"
 
         assert_eq!(first, second);
         assert_eq!(first.schema_version, SITE_CALIBRATION_ASSET_SCHEMA_VERSION);
-        assert_eq!(first.site, CalibratedSiteId::CtaSouth);
-        assert_eq!(first.site.planning_profile(), SiteProfileId::CtaSouth);
+        assert_eq!(first.site.as_str(), "ctao-south");
+        assert_eq!(
+            first.site.planning_profile().as_str(),
+            "ctao-south-planning"
+        );
         assert_eq!(first.references.len(), 1);
     }
 
@@ -486,9 +488,11 @@ license = "Redistribution terms recorded with the reference asset"
         let second = SiteCalibrationAsset::from_toml_str(&input).unwrap();
 
         assert_eq!(first, second);
-        assert_eq!(first.site, CalibratedSiteId::CtaNorth);
         assert_eq!(first.site.as_str(), "ctao-north");
-        assert_eq!(first.site.planning_profile(), SiteProfileId::CtaNorth);
+        assert_eq!(
+            first.site.planning_profile().as_str(),
+            "ctao-north-planning"
+        );
     }
 
     #[test]

@@ -9,10 +9,10 @@
 //! wavelength-resolved implementation. [`MoonlightModel::KrisciunasSchaefer1991`]
 //! remains a deliberately supported published analytic V-band reference model.
 //! Site/atmospheric assumptions are selected independently with
-//! [`crate::SiteProfileId`].
+//! [`crate::SiteProfileSpec`].
 
 use crate::error::Result;
-use crate::site::{AtmosphericConditions, SiteProfileId};
+use crate::site::{AtmosphericConditions, SiteProfileSpec};
 use crate::spectra::solar;
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
@@ -40,6 +40,8 @@ use siderust::event::horizontal::star_horizontal;
 use siderust::event::horizontal::star_horizontal_with_policy;
 #[cfg(test)]
 use siderust::event::lunar::meeus_ch47::moon_position_meeus_ch47;
+#[cfg(test)]
+use siderust::qtty::Hectopascals;
 use siderust::qtty::{AstronomicalUnit, IlluminationFractions, Kilometer, Kilometers, Nanometers};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
 use std::sync::OnceLock;
@@ -73,8 +75,11 @@ impl MoonlightModel {
 }
 
 impl Jones2013Spectral {
-    pub(crate) fn for_site_profile(location: Geodetic<ECEF>, site_profile: SiteProfileId) -> Self {
-        let profile = site_profile.profile(location);
+    pub(crate) fn for_site_profile(
+        location: Geodetic<ECEF>,
+        site_profile: &SiteProfileSpec,
+    ) -> Self {
+        let profile = site_profile.resolve(location);
         Self::new(location, profile.atmosphere)
     }
 }
@@ -299,11 +304,31 @@ mod tests {
         )
     }
 
+    fn ctao_north_planning() -> SiteProfileSpec {
+        SiteProfileSpec::planning(
+            "ctao-north-planning",
+            "ctao-north-planning",
+            Kilometers::new(2.2),
+            AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)),
+            "CTAO-North planning preset (test helper)",
+        )
+    }
+
+    fn ctao_south_planning() -> SiteProfileSpec {
+        SiteProfileSpec::planning(
+            "ctao-south-planning",
+            "ctao-south-planning",
+            Kilometers::new(2.1),
+            AtmosphericConditions::paranal_average(),
+            "CTAO-South planning preset (test helper)",
+        )
+    }
+
     #[test]
     fn cta_n_moonlight_profile_changes_atmospheric_conditions() {
         let location = cta_n();
         let generic = AtmosphericConditions::generic_clear_sky(location);
-        let profile = SiteProfileId::CtaNorth.profile(location);
+        let profile = ctao_north_planning().resolve(location);
 
         assert_ne!(
             generic.surface_pressure,
@@ -332,15 +357,16 @@ mod tests {
         let paranal = Jones2013Spectral::new(location, AtmosphericConditions::paranal_average())
             .compute(time, target)
             .unwrap();
-        let cta_s = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaSouth)
+        let cta_s = Jones2013Spectral::for_site_profile(location, &ctao_south_planning())
             .compute(time, target)
             .unwrap();
-        let cta_n = Jones2013Spectral::for_site_profile(location, SiteProfileId::CtaNorth)
+        let cta_n = Jones2013Spectral::for_site_profile(location, &ctao_north_planning())
             .compute(time, target)
             .unwrap();
-        let generic = Jones2013Spectral::for_site_profile(location, SiteProfileId::GenericClearSky)
-            .compute(time, target)
-            .unwrap();
+        let generic =
+            Jones2013Spectral::for_site_profile(location, &SiteProfileSpec::generic_clear_sky())
+                .compute(time, target)
+                .unwrap();
 
         for output in [&paranal, &cta_s, &cta_n, &generic] {
             assert!(output.integrated.value().is_finite());

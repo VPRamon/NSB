@@ -62,8 +62,16 @@ impl AtmosphericConditions {
     pub fn generic_clear_sky(location: Geodetic<ECEF>) -> Self {
         let altitude_m = location.height.value().max(0.0);
         let pressure = 1013.25 * (-altitude_m / 8_400.0).exp();
+        Self::clear_sky_with_pressure(Hectopascals::new(pressure))
+    }
+
+    /// Clear-sky Mie/Rayleigh defaults with an explicit surface pressure.
+    ///
+    /// Use this when constructing caller-defined planning profiles that fix
+    /// pressure independently of the query observer altitude.
+    pub fn clear_sky_with_pressure(surface_pressure: Hectopascals) -> Self {
         Self {
-            surface_pressure: Hectopascals::new(pressure),
+            surface_pressure,
             rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
             mie_params: MieParams::PARANAL,
         }
@@ -72,27 +80,5 @@ impl AtmosphericConditions {
     /// Paranal-like average clear-sky conditions from Siderust's built-in profile.
     pub fn paranal_average() -> Self {
         Self::from_profile_without_altitude(AtmosphereProfile::EL_PARANAL)
-    }
-
-    /// CTA-S clear-sky planning preset.
-    ///
-    /// The current NSB preset intentionally aliases the Paranal-like profile
-    /// because no dedicated CTA-S aerosol calibration has been bundled yet.
-    pub fn cta_s_clear_sky() -> Self {
-        Self::paranal_average()
-    }
-
-    /// CTA-N clear-sky planning preset.
-    ///
-    /// This uses a pressure representative of the La Palma/ORM altitude range
-    /// and the same bundled clear-sky Mie parameterization used elsewhere in
-    /// NSB. It remains a planning preset until CTA-N aerosol phase functions are
-    /// bundled and validated.
-    pub fn cta_n_clear_sky() -> Self {
-        Self {
-            surface_pressure: Hectopascals::new(770.0),
-            rayleigh_scale_height: DEFAULT_SCALE_HEIGHT,
-            mie_params: MieParams::PARANAL,
-        }
     }
 }

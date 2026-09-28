@@ -3,6 +3,11 @@
 The first-release public API is protected by [`scripts/check-public-api.sh`](../../../scripts/check-public-api.sh)
 using pinned `cargo-public-api` directly (#176).
 
+Issue #185 temporarily removed `API_FROZEN` so observatory-named CTAO presets
+could be removed from the core contract without failing the post-freeze SemVer
+gate. Keep `public-api.txt` current; re-add `API_FROZEN` after the redesigned
+surface is reviewed.
+
 ## Modes
 
 ### Pre-freeze
