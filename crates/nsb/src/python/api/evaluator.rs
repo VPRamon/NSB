@@ -15,14 +15,14 @@ use super::results::{PyNsbResult, PyThresholdQueryResult};
     module = "nsb",
     skip_from_py_object
 )]
-pub(super) struct PySiteWindowContext {
+pub(in crate::python) struct PySiteWindowContext {
     // The context is reused across Python calls. Arc lets detached Rust work own
     // a stable handle without cloning the prepared scientific state.
     inner: Arc<SiteWindowContext>,
 }
 
 #[pyclass(name = "NsbEvaluator", frozen, module = "nsb", skip_from_py_object)]
-pub(super) struct PyNsbEvaluator {
+pub(in crate::python) struct PyNsbEvaluator {
     inner: NsbEvaluator,
 }
 
