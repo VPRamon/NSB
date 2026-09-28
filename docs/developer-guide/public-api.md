@@ -8,13 +8,17 @@ API freeze via direct `cargo-public-api` checks (`scripts/check-public-api.sh`).
 
 ## Freeze status
 
-After the pre-freeze minimization (#175), the committed snapshot
-`crates/nsb/api/public-api.txt` is the authoritative Rust-signature baseline.
-CI regenerates the API with a pinned nightly + `cargo-public-api` version and
-rejects removals/changes against the historical base SHA. Behavioral contracts
-that `cargo-public-api` cannot see (Airglow selection/outcome,
-`ComponentMask::DEFAULT`/`ALL`, Starlight map ownership) are covered by
-dedicated regression tests under `crates/nsb/tests/`.
+The API was frozen after the minimization work in #175. Issue #185 temporarily
+returns the crate to pre-freeze mode while the generic site-profile surface is
+corrected: `crates/nsb/api/API_FROZEN` is intentionally absent on that branch.
+During this interval `public-api.txt` is kept current for review, but CI does
+not enforce snapshot equality or historical SemVer rejection. Re-adding the
+marker establishes the reviewed baseline again.
+
+Behavioral contracts that `cargo-public-api` cannot see (Airglow
+selection/outcome, `ComponentMask::DEFAULT`/`ALL`, Starlight map ownership,
+and site-profile maturity invariants) remain covered by dedicated regression
+tests under `crates/nsb/tests/`.
 
 ## Recommended application path
 
@@ -270,9 +274,17 @@ and retain a wildcard arm.
 
 `SiteProfileId` is a string-backed identifier. The core crate does not own a
 closed observatory catalog: construct [`SiteProfileSpec`](../../crates/nsb/src/site/mod.rs)
-with `generic_clear_sky()` or `planning(...)` (or fully custom fields) and pass
-it to `NsbModelConfig::with_site_profile`. Observatory-named presets such as
-CTAO North/South live in application layers (for example `nsb-cli`).
+with `generic_clear_sky()` or `planning(...)` and pass it to
+`NsbModelConfig::with_site_profile`. Planning profiles may replace their
+Airglow assumptions with `with_airglow_calibration(...)` without changing
+maturity.
+
+`SiteProfileSpec` keeps its fields private. In particular,
+`CalibrationStatus::Calibrated` is not caller-settable through the public
+profile API: a profile cannot promote its own evaluator metadata to production.
+A future calibrated-profile path must be connected to the repository's
+evidence/admission contract. Observatory-named planning presets such as CTAO
+North/South live in application layers (for example `nsb-cli`).
 
 ## Public API CI lifecycle
 
