@@ -14,7 +14,7 @@ use qtty::Second;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
-use siderust::qtty::{Hectopascals, Kilometers};
+use siderust::qtty::Kilometers;
 use std::hint::black_box;
 use tempoch::{Period, Time, UTC};
 
