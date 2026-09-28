@@ -21,12 +21,12 @@ fn finite(name: &str, value: f64) -> PyResult<()> {
 
 #[pyclass(name = "PointQuery", frozen, module = "nsb", skip_from_py_object)]
 #[derive(Clone)]
-pub(super) struct PyPointQuery {
+pub(in crate::python) struct PyPointQuery {
     inner: PointQuery,
 }
 
 impl PyPointQuery {
-    pub(super) fn inner(&self) -> PointQuery {
+    pub(in crate::python) fn inner(&self) -> PointQuery {
         self.inner.clone()
     }
 }
@@ -75,12 +75,12 @@ impl PyPointQuery {
 
 #[pyclass(name = "ThresholdQuery", frozen, module = "nsb", skip_from_py_object)]
 #[derive(Clone)]
-pub(super) struct PyThresholdQuery {
+pub(in crate::python) struct PyThresholdQuery {
     inner: ThresholdQuery,
 }
 
 impl PyThresholdQuery {
-    pub(super) fn inner(&self) -> ThresholdQuery {
+    pub(in crate::python) fn inner(&self) -> ThresholdQuery {
         self.inner.clone()
     }
 }
