@@ -6,16 +6,16 @@ use super::selectors::{PyAirglowModel, PyMoonlightModel, PySiteProfile, PyZodiac
 
 #[pyclass(name = "NsbModelConfig", frozen, module = "nsb", skip_from_py_object)]
 #[derive(Clone)]
-pub(super) struct PyNsbModelConfig {
+pub(in crate::python) struct PyNsbModelConfig {
     inner: NsbModelConfig,
 }
 
 impl PyNsbModelConfig {
-    pub(super) fn inner(&self) -> NsbModelConfig {
+    pub(in crate::python) fn inner(&self) -> NsbModelConfig {
         self.inner.clone()
     }
 
-    pub(super) fn from_inner(inner: NsbModelConfig) -> Self {
+    pub(in crate::python) fn from_inner(inner: NsbModelConfig) -> Self {
         Self { inner }
     }
 }
