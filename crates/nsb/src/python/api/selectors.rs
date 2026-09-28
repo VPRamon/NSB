@@ -1,14 +1,17 @@
 use pyo3::prelude::*;
 
-use crate::site::{AtmosphericConditions, SiteProfileSpec};
-use crate::{AirglowModel, ComponentMask, MoonlightModel, ZodiacalExtinction};
+use crate::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
+use crate::{
+    AirglowModel, ComponentMask, GenericClearSky, MoonlightModel, NsbModelConfig,
+    ZodiacalExtinction,
+};
 use siderust::qtty::{Hectopascals, Kilometers};
 
 /// Python-layer selector for the application presets exposed by the binding.
 ///
-/// CTAO variants intentionally live here rather than in the generic Rust
-/// `SiteProfileId` contract. Each value resolves to an ordinary
-/// `SiteProfileSpec`.
+/// CTAO variants intentionally live at this dynamic binding boundary rather
+/// than in the generic Rust public API. Each value constructs a typed profile
+/// before the configuration erases its type internally.
 #[pyclass(
     name = "SiteProfile",
     eq,
@@ -33,45 +36,66 @@ impl PySiteProfile {
         }
     }
 
-    pub(crate) fn to_spec(self) -> SiteProfileSpec {
+    pub(crate) fn apply(self, config: NsbModelConfig) -> NsbModelConfig {
         match self {
-            Self::GenericClearSky => SiteProfileSpec::generic_clear_sky(),
-            Self::CtaNorth => SiteProfileSpec::planning(
-                "ctao-north-planning",
-                "ctao-north-planning",
-                Kilometers::new(2.2),
-                AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)),
-                concat!(
-                    "CTAO-North planning preset: representative ORM/La Palma ",
-                    "altitude, fixed planning pressure, Siderust default ",
-                    "Rayleigh scale height, and bundled Paranal-like clear-sky ",
-                    "Mie parameterization. This is not yet a validated CTA-N ",
-                    "aerosol calibration and does not identify the observer as ORM."
-                ),
-            ),
-            Self::CtaSouth => SiteProfileSpec::planning(
-                "ctao-south-planning",
-                "ctao-south-planning",
-                Kilometers::new(2.1),
-                AtmosphericConditions::paranal_average(),
-                concat!(
-                    "CTAO-South planning preset: Paranal-like atmosphere from ",
-                    "Siderust AtmosphereProfile::EL_PARANAL used as a planning ",
-                    "assumption. This is not yet a dedicated CTA-S aerosol ",
-                    "calibration and does not identify the observer as Paranal."
-                ),
-            ),
+            Self::GenericClearSky => {
+                config.with_site_profile(SiteProfile::<GenericClearSky>::generic_clear_sky())
+            }
+            Self::CtaNorth => config.with_site_profile(ctao_north_planning()),
+            Self::CtaSouth => config.with_site_profile(ctao_south_planning()),
         }
     }
 
-    pub(crate) fn from_spec(spec: &SiteProfileSpec) -> Option<Self> {
-        match spec.id().as_str() {
+    pub(crate) fn from_name(name: &str) -> Option<Self> {
+        match name {
             "generic-clear-sky" => Some(Self::GenericClearSky),
             "ctao-north-planning" => Some(Self::CtaNorth),
             "ctao-south-planning" => Some(Self::CtaSouth),
             _ => None,
         }
     }
+}
+
+struct PythonCtaNorth;
+
+impl SiteProfileTag for PythonCtaNorth {
+    const NAME: &'static str = "ctao-north-planning";
+}
+
+struct PythonCtaSouth;
+
+impl SiteProfileTag for PythonCtaSouth {
+    const NAME: &'static str = "ctao-south-planning";
+}
+
+fn ctao_north_planning() -> SiteProfile<PythonCtaNorth> {
+    SiteProfile::<PythonCtaNorth>::planning(
+        Kilometers::new(2.2),
+        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0))
+            .expect("CTAO-North pressure is physical"),
+        concat!(
+            "CTAO-North planning preset: representative ORM/La Palma ",
+            "altitude, fixed planning pressure, Siderust default Rayleigh scale height, ",
+            "and bundled Paranal-like clear-sky Mie parameterization. This is not ",
+            "yet a validated CTA-N aerosol calibration and does not identify the ",
+            "observer as ORM."
+        ),
+    )
+    .expect("Python CTAO-North profile is valid")
+}
+
+fn ctao_south_planning() -> SiteProfile<PythonCtaSouth> {
+    SiteProfile::<PythonCtaSouth>::planning(
+        Kilometers::new(2.1),
+        AtmosphericConditions::paranal_average(),
+        concat!(
+            "CTAO-South planning preset: Paranal-like atmosphere from Siderust ",
+            "AtmosphereProfile::EL_PARANAL used as a planning assumption. This is ",
+            "not yet a dedicated CTA-S aerosol calibration and does not identify ",
+            "the observer as Paranal."
+        ),
+    )
+    .expect("Python CTAO-South profile is valid")
 }
 
 macro_rules! selector_methods {
@@ -146,11 +170,17 @@ mod tests {
     #[test]
     fn python_ctao_selectors_resolve_to_planning_specs() {
         for selector in [PySiteProfile::CtaNorth, PySiteProfile::CtaSouth] {
-            let spec = selector.to_spec();
-            assert_eq!(spec.id().as_str(), selector.as_str());
-            assert_eq!(spec.calibration_status(), CalibrationStatus::PlanningPreset);
-            assert!(!spec.is_site_calibrated());
-            assert_eq!(PySiteProfile::from_spec(&spec), Some(selector));
+            let config = selector.apply(NsbModelConfig::generic_clear_sky());
+            assert_eq!(config.site_profile_name(), selector.as_str());
+            assert_eq!(
+                config.airglow_calibration_status(),
+                CalibrationStatus::PlanningPreset
+            );
+            assert!(!config.is_airglow_site_calibrated());
+            assert_eq!(
+                PySiteProfile::from_name(config.site_profile_name()),
+                Some(selector)
+            );
         }
     }
 }

@@ -8,7 +8,6 @@
 
 #![allow(dead_code)]
 
-use crate::site::SiteProfileId;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -37,8 +36,8 @@ impl CalibratedSiteId {
     /// Planning profile identifier conventionally associated with this site.
     ///
     /// Follows the `{site}-planning` naming used by application-layer presets.
-    pub fn planning_profile(&self) -> SiteProfileId {
-        SiteProfileId::new(format!("{}-planning", self.id))
+    pub fn planning_profile_name(&self) -> String {
+        format!("{}-planning", self.id)
     }
 }
 
@@ -168,7 +167,7 @@ impl SiteCalibrationAsset {
         }
         validate_identifier(&self.calibration_id, "calibration_id")?;
         validate_identifier(self.site.as_str(), "site")?;
-        if self.site.as_str() == SiteProfileId::GENERIC_CLEAR_SKY.as_str() {
+        if self.site.as_str() == "generic-clear-sky" {
             return Err(SiteCalibrationAssetError::new(
                 "site must not be the reserved generic-clear-sky profile",
             ));
@@ -474,10 +473,7 @@ license = "Redistribution terms recorded with the reference asset"
         assert_eq!(first, second);
         assert_eq!(first.schema_version, SITE_CALIBRATION_ASSET_SCHEMA_VERSION);
         assert_eq!(first.site.as_str(), "ctao-south");
-        assert_eq!(
-            first.site.planning_profile().as_str(),
-            "ctao-south-planning"
-        );
+        assert_eq!(first.site.planning_profile_name(), "ctao-south-planning");
         assert_eq!(first.references.len(), 1);
     }
 
@@ -489,10 +485,7 @@ license = "Redistribution terms recorded with the reference asset"
 
         assert_eq!(first, second);
         assert_eq!(first.site.as_str(), "ctao-north");
-        assert_eq!(
-            first.site.planning_profile().as_str(),
-            "ctao-north-planning"
-        );
+        assert_eq!(first.site.planning_profile_name(), "ctao-north-planning");
     }
 
     #[test]

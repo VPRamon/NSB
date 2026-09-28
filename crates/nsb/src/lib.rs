@@ -94,7 +94,7 @@ pub use evaluator::{
     Observer, PointQuery, Target,
 };
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
-pub use site::{CalibrationStatus, SiteProfileId, SiteProfileSpec};
+pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};
 pub use units::{SolarFluxUnit, SolarFluxUnits};
 
 /// Angle unit used with [`Target::new`] in documented examples.

@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use criterion::{criterion_group, BenchmarkId, Criterion, Throughput};
 use nsb::components::starlight::StarlightMap;
 use nsb::components::starlight::StarlightProvenance;
-use nsb::site::{AtmosphericConditions, SiteProfileSpec};
+use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
 use nsb::{
     ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
     ThresholdQuery, DEG,
@@ -97,13 +97,18 @@ fn target_sgr_a() -> Target {
 }
 
 fn ctao_south_planning_config() -> NsbModelConfig {
-    NsbModelConfig::generic_clear_sky().with_site_profile(SiteProfileSpec::planning(
-        "ctao-south-planning",
-        "ctao-south-planning",
-        Kilometers::new(2.1),
-        AtmosphericConditions::paranal_average(),
-        "CTAO-South planning preset (bench helper)",
-    ))
+    struct CtaSouth;
+    impl SiteProfileTag for CtaSouth {
+        const NAME: &'static str = "ctao-south-planning";
+    }
+    NsbModelConfig::generic_clear_sky().with_site_profile(
+        SiteProfile::<CtaSouth>::planning(
+            Kilometers::new(2.1),
+            AtmosphericConditions::paranal_average(),
+            "CTAO-South planning preset (bench helper)",
+        )
+        .unwrap(),
+    )
 }
 
 fn north_pole_target() -> Target {

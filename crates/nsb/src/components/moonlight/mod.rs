@@ -9,10 +9,10 @@
 //! wavelength-resolved implementation. [`MoonlightModel::KrisciunasSchaefer1991`]
 //! remains a deliberately supported published analytic V-band reference model.
 //! Site/atmospheric assumptions are selected independently with
-//! [`crate::SiteProfileSpec`].
+//! [`crate::SiteProfile`].
 
 use crate::error::Result;
-use crate::site::{AtmosphericConditions, SiteProfileSpec};
+use crate::site::{AtmosphericConditions, SiteProfileConfig};
 use crate::spectra::solar;
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
@@ -87,7 +87,7 @@ impl MoonlightModel {
 impl Jones2013Spectral {
     pub(crate) fn for_site_profile(
         location: Geodetic<ECEF>,
-        site_profile: &SiteProfileSpec,
+        site_profile: &SiteProfileConfig,
     ) -> Self {
         let profile = site_profile.resolve(location);
         Self::new(location, profile.atmosphere)
@@ -314,24 +314,34 @@ mod tests {
         )
     }
 
-    fn ctao_north_planning() -> SiteProfileSpec {
-        SiteProfileSpec::planning(
-            "ctao-north-planning",
-            "ctao-north-planning",
-            Kilometers::new(2.2),
-            AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)),
-            "CTAO-North planning preset (test helper)",
-        )
+    struct CtaNorth;
+    impl crate::site::SiteProfileTag for CtaNorth {
+        const NAME: &'static str = "ctao-north-planning";
     }
 
-    fn ctao_south_planning() -> SiteProfileSpec {
-        SiteProfileSpec::planning(
-            "ctao-south-planning",
-            "ctao-south-planning",
+    struct CtaSouth;
+    impl crate::site::SiteProfileTag for CtaSouth {
+        const NAME: &'static str = "ctao-south-planning";
+    }
+
+    fn ctao_north_planning() -> SiteProfileConfig {
+        crate::site::SiteProfile::<CtaNorth>::planning(
+            Kilometers::new(2.2),
+            AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)).unwrap(),
+            "CTAO-North planning preset (test helper)",
+        )
+        .unwrap()
+        .erase()
+    }
+
+    fn ctao_south_planning() -> SiteProfileConfig {
+        crate::site::SiteProfile::<CtaSouth>::planning(
             Kilometers::new(2.1),
             AtmosphericConditions::paranal_average(),
             "CTAO-South planning preset (test helper)",
         )
+        .unwrap()
+        .erase()
     }
 
     #[test]
@@ -373,10 +383,12 @@ mod tests {
         let cta_n = Jones2013Spectral::for_site_profile(location, &ctao_north_planning())
             .compute(time, target)
             .unwrap();
-        let generic =
-            Jones2013Spectral::for_site_profile(location, &SiteProfileSpec::generic_clear_sky())
-                .compute(time, target)
-                .unwrap();
+        let generic = Jones2013Spectral::for_site_profile(
+            location,
+            &crate::site::SiteProfile::<crate::GenericClearSky>::generic_clear_sky().erase(),
+        )
+        .compute(time, target)
+        .unwrap();
 
         for output in [&paranal, &cta_s, &cta_n, &generic] {
             assert!(output.integrated.value().is_finite());

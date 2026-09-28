@@ -6,7 +6,8 @@
 //! means extending this module (or loading equivalent data), not changing
 //! `crates/nsb`.
 
-use nsb::site::{AtmosphericConditions, SiteProfileSpec};
+use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
+use nsb::{GenericClearSky, NsbModelConfig};
 use siderust::qtty::{Hectopascals, Kilometers};
 
 /// CLI / data-layer name for the generic clear-sky profile.
@@ -16,17 +17,30 @@ pub const CTA_NORTH: &str = "cta-north";
 /// CLI name for the CTAO-South planning profile.
 pub const CTA_SOUTH: &str = "cta-south";
 
+/// Type-level identity for the CTAO-North application planning preset.
+pub struct CtaNorth;
+
+impl SiteProfileTag for CtaNorth {
+    const NAME: &'static str = "ctao-north-planning";
+}
+
+/// Type-level identity for the CTAO-South application planning preset.
+pub struct CtaSouth;
+
+impl SiteProfileTag for CtaSouth {
+    const NAME: &'static str = "ctao-south-planning";
+}
+
 /// CTAO-North planning assumptions (not an observatory identity).
 ///
 /// Preserves the historical core-library planning pressure (770 hPa),
 /// representative 2.2 km altitude, Paranal-like clear-sky Mie parameters, and
 /// `PlanningPreset` maturity.
-pub fn ctao_north_planning() -> SiteProfileSpec {
-    SiteProfileSpec::planning(
-        "ctao-north-planning",
-        "ctao-north-planning",
+pub fn ctao_north_planning() -> SiteProfile<CtaNorth> {
+    SiteProfile::<CtaNorth>::planning(
         Kilometers::new(2.2),
-        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)),
+        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0))
+            .expect("CTAO-North pressure is physical"),
         concat!(
             "CTAO-North planning preset: representative ORM/La Palma ",
             "altitude, fixed planning pressure, Siderust default ",
@@ -35,16 +49,15 @@ pub fn ctao_north_planning() -> SiteProfileSpec {
             "aerosol calibration and does not identify the observer as ORM."
         ),
     )
+    .expect("built-in CTAO-North profile is valid")
 }
 
 /// CTAO-South planning assumptions (not an observatory identity).
 ///
 /// Preserves the historical Paranal-like `EL_PARANAL` atmospheric alias,
 /// representative 2.1 km altitude, and `PlanningPreset` maturity.
-pub fn ctao_south_planning() -> SiteProfileSpec {
-    SiteProfileSpec::planning(
-        "ctao-south-planning",
-        "ctao-south-planning",
+pub fn ctao_south_planning() -> SiteProfile<CtaSouth> {
+    SiteProfile::<CtaSouth>::planning(
         Kilometers::new(2.1),
         AtmosphericConditions::paranal_average(),
         concat!(
@@ -54,14 +67,21 @@ pub fn ctao_south_planning() -> SiteProfileSpec {
             "calibration and does not identify the observer as Paranal."
         ),
     )
+    .expect("built-in CTAO-South profile is valid")
 }
 
-/// Resolve a CLI `--site-profile` value to a scientific profile specification.
-pub fn resolve(name: &str) -> Option<SiteProfileSpec> {
+/// Apply a runtime CLI token by constructing the corresponding typed profile.
+pub fn apply(config: NsbModelConfig, name: &str) -> Option<NsbModelConfig> {
     match name {
-        GENERIC_CLEAR_SKY | "generic" => Some(SiteProfileSpec::generic_clear_sky()),
-        CTA_NORTH | "ctao-north" | "ctao-north-planning" => Some(ctao_north_planning()),
-        CTA_SOUTH | "ctao-south" | "ctao-south-planning" => Some(ctao_south_planning()),
+        GENERIC_CLEAR_SKY | "generic" => {
+            Some(config.with_site_profile(SiteProfile::<GenericClearSky>::generic_clear_sky()))
+        }
+        CTA_NORTH | "ctao-north" | "ctao-north-planning" => {
+            Some(config.with_site_profile(ctao_north_planning()))
+        }
+        CTA_SOUTH | "ctao-south" | "ctao-south-planning" => {
+            Some(config.with_site_profile(ctao_south_planning()))
+        }
         _ => None,
     }
 }
@@ -70,50 +90,48 @@ pub fn resolve(name: &str) -> Option<SiteProfileSpec> {
 mod tests {
     use super::*;
     use nsb::site::CalibrationStatus;
-    use siderust::coordinates::centers::Geodetic;
-    use siderust::coordinates::frames::ECEF;
-    use siderust::qtty::{Degrees, Meters};
-
-    fn observer(height_m: f64) -> Geodetic<ECEF> {
-        Geodetic::new_raw(
-            Degrees::new(-17.89),
-            Degrees::new(28.76),
-            Meters::new(height_m),
-        )
-    }
 
     #[test]
     fn ctao_presets_preserve_planning_assumptions() {
-        let north = ctao_north_planning().resolve(observer(2_200.0));
-        let south = ctao_south_planning().resolve(observer(2_100.0));
+        let north = ctao_north_planning();
+        let south = ctao_south_planning();
 
-        assert_eq!(north.id.as_str(), "ctao-north-planning");
-        assert_eq!(south.id.as_str(), "ctao-south-planning");
-        assert_eq!(north.calibration_status, CalibrationStatus::PlanningPreset);
-        assert_eq!(south.calibration_status, CalibrationStatus::PlanningPreset);
-        assert_eq!(north.atmosphere.surface_pressure.value(), 770.0);
+        assert_eq!(north.name(), "ctao-north-planning");
+        assert_eq!(south.name(), "ctao-south-planning");
         assert_eq!(
-            south.atmosphere.surface_pressure,
-            AtmosphericConditions::paranal_average().surface_pressure
+            north.calibration_status(),
+            CalibrationStatus::PlanningPreset
         );
-        assert!(north.atmosphere_provenance.contains("CTAO-North"));
-        assert!(south.atmosphere_provenance.contains("CTAO-South"));
+        assert_eq!(
+            south.calibration_status(),
+            CalibrationStatus::PlanningPreset
+        );
+        assert!(north
+            .atmosphere_provenance()
+            .contains("fixed planning pressure"));
+        assert!(south.atmosphere_provenance().contains("EL_PARANAL"));
     }
 
     #[test]
     fn observatory_identity_is_independent_of_profile_resolution() {
         assert_eq!(
-            resolve("cta-north").unwrap().id().as_str(),
+            apply(NsbModelConfig::generic_clear_sky(), "cta-north")
+                .unwrap()
+                .site_profile_name(),
             "ctao-north-planning"
         );
         assert_eq!(
-            resolve("cta-south").unwrap().id().as_str(),
+            apply(NsbModelConfig::generic_clear_sky(), "cta-south")
+                .unwrap()
+                .site_profile_name(),
             "ctao-south-planning"
         );
         assert_eq!(
-            resolve("generic-clear-sky").unwrap().id().as_str(),
+            apply(NsbModelConfig::generic_clear_sky(), "generic-clear-sky")
+                .unwrap()
+                .site_profile_name(),
             "generic-clear-sky"
         );
-        assert!(resolve("not-a-real-profile").is_none());
+        assert!(apply(NsbModelConfig::generic_clear_sky(), "not-a-real-profile").is_none());
     }
 }

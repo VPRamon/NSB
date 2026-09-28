@@ -5,16 +5,26 @@
 #![allow(dead_code)]
 
 use nsb::components::starlight::StarlightProvenance;
-use nsb::site::{AtmosphericConditions, SiteProfileSpec};
+use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
 use siderust::qtty::{Hectopascals, Kilometers};
 
 /// CTAO-North planning assumptions (application-layer preset mirrored for tests).
-pub fn ctao_north_planning() -> SiteProfileSpec {
-    SiteProfileSpec::planning(
-        "ctao-north-planning",
-        "ctao-north-planning",
+pub struct CtaNorth;
+
+impl SiteProfileTag for CtaNorth {
+    const NAME: &'static str = "ctao-north-planning";
+}
+
+pub struct CtaSouth;
+
+impl SiteProfileTag for CtaSouth {
+    const NAME: &'static str = "ctao-south-planning";
+}
+
+pub fn ctao_north_planning() -> SiteProfile<CtaNorth> {
+    SiteProfile::<CtaNorth>::planning(
         Kilometers::new(2.2),
-        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)),
+        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)).unwrap(),
         concat!(
             "CTAO-North planning preset: representative ORM/La Palma ",
             "altitude, fixed planning pressure, Siderust default ",
@@ -23,13 +33,12 @@ pub fn ctao_north_planning() -> SiteProfileSpec {
             "aerosol calibration and does not identify the observer as ORM."
         ),
     )
+    .unwrap()
 }
 
 /// CTAO-South planning assumptions (application-layer preset mirrored for tests).
-pub fn ctao_south_planning() -> SiteProfileSpec {
-    SiteProfileSpec::planning(
-        "ctao-south-planning",
-        "ctao-south-planning",
+pub fn ctao_south_planning() -> SiteProfile<CtaSouth> {
+    SiteProfile::<CtaSouth>::planning(
         Kilometers::new(2.1),
         AtmosphericConditions::paranal_average(),
         concat!(
@@ -39,6 +48,7 @@ pub fn ctao_south_planning() -> SiteProfileSpec {
             "calibration and does not identify the observer as Paranal."
         ),
     )
+    .unwrap()
 }
 
 /// Deterministic provenance for synthetic HEALPix fixtures.

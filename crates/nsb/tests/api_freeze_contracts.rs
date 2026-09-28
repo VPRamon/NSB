@@ -91,7 +91,7 @@ fn config_is_opaque_and_builder_getter_complete() {
         config.airglow_model(),
         Some(AirglowModel::ParanalNollSkyCalcFors1)
     );
-    assert_eq!(config.site_profile().id().as_str(), "ctao-south-planning");
+    assert_eq!(config.site_profile_name(), "ctao-south-planning");
     assert_eq!(
         config.moonlight_model(),
         nsb::MoonlightModel::Jones2013Spectral

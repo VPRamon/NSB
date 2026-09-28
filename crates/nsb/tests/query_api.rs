@@ -7,7 +7,7 @@ use nsb::components::starlight::StarlightMap;
 use nsb::solar_activity::{bundled_f107_store, SolarActivitySource};
 use nsb::{
     CalibrationStatus, ComponentCalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator,
-    NsbModelConfig, PointQuery, SiteProfileId, StarlightProduct, Target, ThresholdQuery, DEG,
+    NsbModelConfig, PointQuery, StarlightProduct, Target, ThresholdQuery, DEG,
 };
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use qtty::Second;
@@ -73,14 +73,8 @@ fn default_evaluator_config_matches_generic_clear_sky() {
     let explicit = NsbModelConfig::generic_clear_sky();
     assert_eq!(default.moonlight_model(), explicit.moonlight_model());
     assert_eq!(default.moonlight_model(), MoonlightModel::Jones2013Spectral);
-    assert_eq!(
-        default.site_profile().id(),
-        &SiteProfileId::GENERIC_CLEAR_SKY
-    );
-    assert_eq!(
-        explicit.site_profile().id(),
-        &SiteProfileId::GENERIC_CLEAR_SKY
-    );
+    assert_eq!(default.site_profile_name(), "generic-clear-sky");
+    assert_eq!(explicit.site_profile_name(), "generic-clear-sky");
     assert_eq!(
         default.starlight_product().is_some(),
         StarlightProduct::bundled_production_available()
@@ -89,10 +83,7 @@ fn default_evaluator_config_matches_generic_clear_sky() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let config = evaluator.config();
     assert_eq!(config.moonlight_model(), default.moonlight_model());
-    assert_eq!(
-        config.site_profile().id(),
-        &SiteProfileId::GENERIC_CLEAR_SKY
-    );
+    assert_eq!(config.site_profile_name(), "generic-clear-sky");
     assert_eq!(
         config.starlight_product().is_some(),
         StarlightProduct::bundled_production_available()
@@ -104,14 +95,14 @@ fn caller_supplied_ctao_planning_profiles_resolve_with_planning_preset_maturity(
     let north = NsbModelConfig::generic_clear_sky().with_site_profile(ctao_north_planning());
     let south = NsbModelConfig::generic_clear_sky().with_site_profile(ctao_south_planning());
 
-    assert_eq!(north.site_profile().id().as_str(), "ctao-north-planning");
-    assert_eq!(south.site_profile().id().as_str(), "ctao-south-planning");
+    assert_eq!(north.site_profile_name(), "ctao-north-planning");
+    assert_eq!(south.site_profile_name(), "ctao-south-planning");
     assert_eq!(
-        ctao_north_planning().resolve(paranal()).calibration_status,
+        ctao_north_planning().calibration_status(),
         CalibrationStatus::PlanningPreset
     );
     assert_eq!(
-        ctao_south_planning().resolve(paranal()).calibration_status,
+        ctao_south_planning().calibration_status(),
         CalibrationStatus::PlanningPreset
     );
 }

@@ -3,7 +3,9 @@ use super::domain::{AirglowNightPhase, AirglowSeason};
 use super::extinction::{effective_airglow_airmass, noll_scattering_factors};
 use super::units::DEFAULT_SOLAR_RADIO_FLUX;
 use super::*;
-use crate::site::{AtmosphericConditions, SiteProfileSpec};
+use crate::site::{
+    AtmosphericConditions, GenericClearSky, SiteProfile, SiteProfileConfig, SiteProfileTag,
+};
 use crate::units::SolarFluxUnits;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
@@ -50,24 +52,34 @@ fn cta_n() -> Geodetic<ECEF> {
     )
 }
 
-fn ctao_north_planning() -> SiteProfileSpec {
-    SiteProfileSpec::planning(
-        "ctao-north-planning",
-        "ctao-north-planning",
-        Kilometers::new(2.2),
-        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)),
-        "CTAO-North planning preset (test helper)",
-    )
+struct CtaNorth;
+impl SiteProfileTag for CtaNorth {
+    const NAME: &'static str = "ctao-north-planning";
 }
 
-fn ctao_south_planning() -> SiteProfileSpec {
-    SiteProfileSpec::planning(
-        "ctao-south-planning",
-        "ctao-south-planning",
+struct CtaSouth;
+impl SiteProfileTag for CtaSouth {
+    const NAME: &'static str = "ctao-south-planning";
+}
+
+fn ctao_north_planning() -> SiteProfileConfig {
+    SiteProfile::<CtaNorth>::planning(
+        Kilometers::new(2.2),
+        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)).unwrap(),
+        "CTAO-North planning preset (test helper)",
+    )
+    .unwrap()
+    .erase()
+}
+
+fn ctao_south_planning() -> SiteProfileConfig {
+    SiteProfile::<CtaSouth>::planning(
         Kilometers::new(2.1),
         AtmosphericConditions::paranal_average(),
         "CTAO-South planning preset (test helper)",
     )
+    .unwrap()
+    .erase()
 }
 
 fn high_arctic(latitude_deg: f64) -> Geodetic<ECEF> {
@@ -689,13 +701,16 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
 #[test]
 fn integrated_only_matches_full_path_across_profiles_seasons_phases_and_fluxes() {
     let continuum = load_builtin_standard().unwrap();
-    for (location, profile_spec) in [
-        (cta_s(), SiteProfileSpec::generic_clear_sky()),
+    for (location, profile_config) in [
+        (
+            cta_s(),
+            SiteProfile::<GenericClearSky>::generic_clear_sky().erase(),
+        ),
         (cta_s(), ctao_south_planning()),
         (cta_n(), ctao_north_planning()),
     ] {
-        let profile_id = profile_spec.id().as_str();
-        let profile = profile_spec.resolve(location);
+        let profile_id = profile_config.name();
+        let profile = profile_config.resolve(location);
         for time in [t("2023-01-15T05:00:00Z"), t("2023-07-15T05:00:00Z")] {
             for phase in [
                 AirglowNightPhase::FirstThird,

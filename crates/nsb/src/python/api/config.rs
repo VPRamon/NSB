@@ -14,7 +14,7 @@ impl NsbModelConfig {
 
     #[pyo3(name = "with_site_profile")]
     fn py_with_site_profile(&self, profile: PySiteProfile) -> Self {
-        self.clone().with_site_profile(profile.to_spec())
+        profile.apply(self.clone())
     }
 
     #[pyo3(name = "with_moonlight_model")]
@@ -40,10 +40,10 @@ impl NsbModelConfig {
 
     #[getter(site_profile)]
     fn py_site_profile(&self) -> PyResult<PySiteProfile> {
-        PySiteProfile::from_spec(self.site_profile()).ok_or_else(|| {
+        PySiteProfile::from_name(self.site_profile_name()).ok_or_else(|| {
             PyValueError::new_err(format!(
                 "site profile '{}' has no Python application-layer selector",
-                self.site_profile().id().as_str()
+                self.site_profile_name()
             ))
         })
     }
@@ -76,7 +76,7 @@ impl NsbModelConfig {
     fn __repr__(&self) -> String {
         format!(
             "NsbModelConfig(site_profile='{}', moonlight_model='{}', airglow_selection='{}', zodiacal_extinction='{}')",
-            self.site_profile().id().as_str(),
+            self.site_profile_name(),
             self.moonlight_model().as_str(),
             self.airglow_selection().as_str(),
             self.zodiacal_extinction().as_str(),

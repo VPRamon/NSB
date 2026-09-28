@@ -3,8 +3,8 @@
 //! Evaluation behaviour lives in `query_api.rs` and `end_to_end_validation.rs`.
 //! This suite only pins contracts that those suites do not own.
 
-use nsb::site::{AtmosphericConditions, CalibrationStatus, SiteProfileSpec};
-use nsb::{NsbError, NsbModelConfig, SiteProfileId};
+use nsb::site::{AtmosphericConditions, CalibrationStatus, SiteProfile, SiteProfileTag};
+use nsb::{GenericClearSky, NsbError, NsbModelConfig};
 use siderust::qtty::{Hectopascals, Kilometers};
 
 #[test]
@@ -61,34 +61,52 @@ fn nsb_error_documented_variants_expose_non_empty_diagnostics() {
 }
 
 #[test]
-fn caller_defined_site_profiles_need_no_core_enum_changes() {
-    let custom = SiteProfileSpec::planning(
-        "my-observatory-v1",
-        "My Observatory planning",
+fn external_marker_defines_planning_profile_without_modifying_core() {
+    struct MyObservatory;
+    impl SiteProfileTag for MyObservatory {
+        const NAME: &'static str = "my-observatory-v1";
+    }
+
+    let custom = SiteProfile::<MyObservatory>::planning(
         Kilometers::new(1.5),
-        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(850.0)),
+        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(850.0)).unwrap(),
         "integration-test caller-defined profile",
-    );
-    assert_eq!(custom.id().as_str(), "my-observatory-v1");
+    )
+    .unwrap();
+    assert_eq!(custom.name(), "my-observatory-v1");
     assert_eq!(
         custom.calibration_status(),
         CalibrationStatus::PlanningPreset
     );
 
-    let config = NsbModelConfig::generic_clear_sky().with_site_profile(custom.clone());
-    assert_eq!(config.site_profile().id().as_str(), "my-observatory-v1");
+    let config = NsbModelConfig::generic_clear_sky().with_site_profile(custom);
+    assert_eq!(config.site_profile_name(), "my-observatory-v1");
     assert_eq!(
-        config.site_profile().calibration_status(),
+        config.airglow_calibration_status(),
         CalibrationStatus::PlanningPreset
     );
+    assert!(!config.is_airglow_site_calibrated());
 }
 
 #[test]
-fn site_profile_id_supports_arbitrary_strings_without_core_inventory() {
-    let id = SiteProfileId::new("future-telescope-planning-2028");
-    assert_eq!(id.as_str(), "future-telescope-planning-2028");
+fn planning_profiles_reject_nonphysical_pressure() {
+    for pressure in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        assert!(
+            AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(pressure)).is_err()
+        );
+    }
+}
+
+#[test]
+fn generic_clear_sky_has_dedicated_typed_identity() {
+    let profile = SiteProfile::<GenericClearSky>::generic_clear_sky();
+    assert_eq!(profile.name(), GenericClearSky::NAME);
     assert_eq!(
-        SiteProfileId::GENERIC_CLEAR_SKY.as_str(),
+        profile.calibration_status(),
+        CalibrationStatus::GenericFallback
+    );
+    assert_eq!(
+        NsbModelConfig::generic_clear_sky().site_profile_name(),
         "generic-clear-sky"
     );
 }
@@ -97,30 +115,47 @@ fn site_profile_id_supports_arbitrary_strings_without_core_inventory() {
 fn core_public_api_does_not_freeze_observatory_named_profiles() {
     let snapshot = include_str!("../api/public-api.txt");
     for forbidden in [
-        "SiteProfileId::CtaNorth",
-        "SiteProfileId::CtaSouth",
-        "SiteProfileId::GenericClearSky",
-        "SiteProfileId::all",
+        "SiteProfileId",
+        "SiteProfileSpec",
+        "CtaNorth",
+        "CtaSouth",
+        "cta_n_",
+        "cta_s_",
         "NsbModelConfig::cta_n_planning",
         "NsbModelConfig::cta_s_planning",
-        "SiteProfileId::profile",
-        "SiteProfileId::calibration_status",
         "AtmosphericConditions::cta_n_clear_sky",
         "AtmosphericConditions::cta_s_clear_sky",
-        "pub nsb::site::SiteProfileSpec::calibration_status:",
-        "pub fn nsb::site::SiteProfileSpec::calibrated",
+        "RepresentativeAltitude",
+        "AtmosphereSource",
+        "AirglowSiteCalibration",
+        "ResolvedSiteProfile",
+        "ErasedSiteProfile",
+        "with_airglow_calibration",
     ] {
         assert!(
             !snapshot.contains(forbidden),
-            "public API snapshot must not expose frozen observatory preset {forbidden}"
+            "public API snapshot must not expose forbidden site-profile symbol {forbidden}"
         );
     }
     assert!(
-        snapshot.contains("SiteProfileSpec"),
-        "public API must expose SiteProfileSpec for caller-defined profiles"
+        !snapshot.lines().any(|line| {
+            (line.contains("site::SiteProfile") || line.contains("site::Atmospheric"))
+                && line.contains("Cow<")
+        }),
+        "site-profile public API must not expose Cow<'static, str> storage"
     );
     assert!(
-        snapshot.contains("SiteProfileId::GENERIC_CLEAR_SKY"),
-        "public API must retain the generic clear-sky identifier constant"
+        snapshot.contains("SiteProfileTag"),
+        "public API must expose SiteProfileTag for external markers"
+    );
+    assert!(
+        snapshot.contains("GenericClearSky"),
+        "public API must expose GenericClearSky"
+    );
+    assert!(
+        snapshot.contains("SiteProfile::generic_clear_sky")
+            || snapshot.contains("SiteProfile<nsb::site::GenericClearSky>::generic_clear_sky")
+            || snapshot.contains("generic_clear_sky"),
+        "public API must retain generic clear-sky construction"
     );
 }

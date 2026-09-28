@@ -340,7 +340,7 @@ fn model_json(
         _ => resolved_sfu,
     };
     ModelJson {
-        preset: config.site_profile().id().as_str().to_string(),
+        preset: config.site_profile_name().to_string(),
         moonlight_model: config.moonlight_model().as_str(),
         starlight_model: match config.starlight_product() {
             None => "not-configured-non-production-component",

@@ -8,14 +8,17 @@ Non-goals: This document does not claim site calibration for CTAO-N or CTAO-S.
 The generic `nsb` library does not own CTAO presets in its public API.
 
 NSB distinguishes generic clear-sky fallbacks from named scientific profiles
-through `SiteProfileId`, `SiteProfileSpec`, `SiteProfile`, and
-`CalibrationStatus`. Observatory- or project-named planning presets such as
-CTAO North/South are constructed at the application layer (for example
-`nsb-cli`) and supplied to `NsbModelConfig::with_site_profile`.
+through typed `SiteProfile<P>` values, `SiteProfileTag` markers, and
+`CalibrationStatus`. Compile-time marker types carry identity; `NAME` strings are
+metadata only. Profile resolution is an internal concern. Observatory- or
+project-named planning presets such as CTAO North/South define local marker types
+at the application layer (for example `nsb-cli`) and supply typed profiles to
+`NsbModelConfig::with_site_profile`, which erases the marker internally.
 
-A `SiteProfileId` is not an observatory identifier. Siderust observatory/catalog
-selection answers **where the observer is**; a `SiteProfileSpec` answers
-**which NSB scientific assumptions and evidence-backed maturity are used**.
+A site-profile marker is not an observatory identifier. Siderust
+observatory/catalog selection answers **where the observer is**; a
+`SiteProfile<P>` answers **which NSB scientific assumptions and evidence-backed
+maturity are used**.
 Selecting `--site CTAO-N`, `--site CTAO-S`, `--site PARANAL`, ORM, or arbitrary
 coordinates does not select a scientific profile. The CLI defaults to
 `generic-clear-sky` unless `--site-profile` is supplied explicitly.
@@ -30,9 +33,9 @@ completed.
 
 | Profile | Layer | Status | Atmosphere | Airglow |
 | --- | --- | --- | --- | --- |
-| `SiteProfileSpec::generic_clear_sky()` / id `generic-clear-sky` | core `nsb` | `GenericFallback` | Pressure derived from observer altitude; default Rayleigh scale height; bundled clear-sky Mie parameters. | Bundled Paranal-derived `NSB/data/airglow_cont.dat` continuum with neutral scale; generic/planning proxy even at Paranal. |
-| CLI `--site-profile cta-north` / id `ctao-north-planning` | `nsb-cli` | `PlanningPreset` | Representative La Palma/ORM-like planning altitude/pressure assumptions, default Rayleigh scale height, Paranal-like bundled Mie parameters. These are scientific assumptions, not CTAO-N/ORM location aliases. | Bundled Paranal-derived continuum with neutral scale; no CTA-N-specific continuum calibration is bundled yet. |
-| CLI `--site-profile cta-south` / id `ctao-south-planning` | `nsb-cli` | `PlanningPreset` | Paranal-like `AtmosphereProfile::EL_PARANAL` planning assumptions. This does not identify the observer as Paranal. | Bundled Paranal-derived continuum with neutral scale; no CTA-S-specific continuum calibration is bundled yet. |
+| `SiteProfile::<GenericClearSky>::generic_clear_sky()` / `NAME` `generic-clear-sky` | core `nsb` | `GenericFallback` | Pressure derived from observer altitude; default Rayleigh scale height; bundled clear-sky Mie parameters. | Bundled Paranal-derived `NSB/data/airglow_cont.dat` continuum with neutral scale; generic/planning proxy even at Paranal. |
+| CLI `--site-profile cta-north` / marker `CtaNorth`, `NAME` `ctao-north-planning` | `nsb-cli` | `PlanningPreset` | Representative La Palma/ORM-like planning altitude/pressure assumptions, default Rayleigh scale height, Paranal-like bundled Mie parameters. These are scientific assumptions, not CTAO-N/ORM location aliases. | Bundled Paranal-derived continuum with neutral scale; no CTA-N-specific continuum calibration is bundled yet. |
+| CLI `--site-profile cta-south` / marker `CtaSouth`, `NAME` `ctao-south-planning` | `nsb-cli` | `PlanningPreset` | Paranal-like `AtmosphereProfile::EL_PARANAL` planning assumptions. This does not identify the observer as Paranal. | Bundled Paranal-derived continuum with neutral scale; no CTA-S-specific continuum calibration is bundled yet. |
 
 Paranal provenance records the empirical lineage of the bundled continuum. It is
 not evidence that the generic model is automatically calibrated at Paranal or
@@ -40,21 +43,24 @@ that CTAO-S inherits a Paranal calibration.
 
 ## API usage
 
-Core library: supply a caller-defined or application-layer planning profile:
+Application layer (`nsb-cli`): CTAO presets are marker types in
+`crates/nsb-cli/src/site_profiles.rs`:
 
 ```rust
-use nsb::site::{AtmosphericConditions, SiteProfileSpec};
+use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
 use nsb::{CalibrationStatus, NsbEvaluator, NsbModelConfig};
-use siderust::qtty::{Hectopascals, Kilometers};
+use siderust::qtty::Kilometers;
 
-let ctao_south = SiteProfileSpec::planning(
-    "ctao-south-planning",
-    "ctao-south-planning",
+// Defined in nsb-cli, not in crates/nsb:
+// struct CtaSouth; impl SiteProfileTag for CtaSouth { const NAME = "ctao-south-planning"; }
+
+let ctao_south = SiteProfile::<CtaSouth>::planning(
     Kilometers::new(2.1),
     AtmosphericConditions::paranal_average(),
     "CTAO-South planning preset: Paranal-like atmosphere ...",
-);
+)?;
 let config = NsbModelConfig::generic_clear_sky().with_site_profile(ctao_south);
+assert_eq!(config.site_profile_name(), "ctao-south-planning");
 assert_eq!(
     config.airglow_calibration_status(),
     CalibrationStatus::PlanningPreset,
@@ -63,16 +69,24 @@ assert!(!config.is_airglow_site_calibrated());
 let evaluator = NsbEvaluator::with_config(config)?;
 ```
 
-Arbitrary future sites need no changes to `crates/nsb`:
+External integrators define their own markers without changing `crates/nsb`:
 
 ```rust
-let magic = SiteProfileSpec::planning(
-    "magic-la-palma-planning",
-    "magic-la-palma-planning",
+use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
+use nsb::NsbModelConfig;
+use siderust::qtty::{Hectopascals, Kilometers};
+
+struct MagicLaPalma;
+
+impl SiteProfileTag for MagicLaPalma {
+    const NAME: &'static str = "magic-la-palma-planning";
+}
+
+let magic = SiteProfile::<MagicLaPalma>::planning(
     Kilometers::new(2.2),
-    AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)),
+    AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0))?,
     "Caller-defined MAGIC planning atmosphere.",
-);
+)?;
 let config = NsbModelConfig::generic_clear_sky().with_site_profile(magic);
 ```
 
@@ -85,7 +99,7 @@ let config = NsbModelConfig::default()
     .with_site_profile(ctao_south)
     .with_moonlight_model(MoonlightModel::Jones2013Spectral);
 
-assert_eq!(config.site_profile().id().as_str(), "ctao-south-planning");
+assert_eq!(config.site_profile_name(), "ctao-south-planning");
 assert_eq!(
     config.moonlight_model(),
     MoonlightModel::Jones2013Spectral,
@@ -116,7 +130,7 @@ CTAO-S Airglow model. In `nsb-cli`, CTAO presets are defined in
 
 ## Maturity invariants
 
-The Airglow maturity selected by a `SiteProfileSpec` is not upgraded by
+The Airglow maturity selected by a site profile is not upgraded by
 operational inputs. In particular, none of the following can promote a profile to
 `Calibrated`:
 
@@ -125,13 +139,15 @@ operational inputs. In particular, none of the following can promote a profile t
 - automatic, dataset-backed, or explicit F10.7;
 - atmospheric pressure/Rayleigh/Mie assumptions or extinction/scattering
   configuration; or
-- an explicit user continuum scale.
+- caller-provided atmospheric planning assumptions.
 
 Those values may change the numerical result or provenance fields. Calibration
 maturity changes only through an explicit scientific profile/evidence path.
-`SiteProfileSpec` keeps maturity private: its public constructors create only
-`GenericFallback` or `PlanningPreset` profiles, and caller-facing builders
-cannot set `CalibrationStatus::Calibrated`.
+Typed public constructors create only `GenericFallback` or `PlanningPreset`
+profiles; external `SiteProfileTag` implementations cannot construct
+`Calibrated` through the public API. Airglow template identity and scaling are
+internal because evaluation always uses the bundled continuum; profile `NAME`
+metadata therefore cannot claim a custom or unevaluated Airglow asset.
 
 ## Validation contract
 

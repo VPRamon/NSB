@@ -7,11 +7,22 @@ once a stable public release is cut.
 
 ### Changed
 
-- Decoupled CTAO-specific site profiles from the generic `nsb` public API (#185).
-  `SiteProfileId` is now a string-backed identifier; callers supply scientific
-  assumptions via `SiteProfileSpec`. CTAO North/South planning presets moved to
-  `nsb-cli` (`site_profiles`). The first-release API freeze marker was removed
-  so this intentional breaking redesign can land; re-freeze after review.
+- Redesigned site profiles around typed compile-time identity (#185). The public
+  API exports `SiteProfileTag`, opaque `SiteProfile<P>`, and `GenericClearSky`.
+  External crates and application layers define zero-sized marker types; `NAME`
+  is presentation/serialization metadata only. `SiteProfile::<GenericClearSky>::generic_clear_sky()`
+  and `SiteProfile::<P>::planning(representative_altitude, atmosphere, provenance)`
+  are the supported constructors; both fail closed on nonphysical atmospheric
+  inputs. `NsbModelConfig::with_site_profile` accepts a typed profile and
+  erases it internally; `site_profile_name()` exposes metadata only. Removed
+  from the public surface: `SiteProfileId`, `SiteProfileSpec`,
+  `RepresentativeAltitude`, `AtmosphereSource`, public `AirglowSiteCalibration`,
+  `with_airglow_calibration`, and public profile `resolve()`. CTAO North/South
+  markers and CLI presets live in `nsb-cli` / Python bindings, not `crates/nsb`.
+  Airglow always uses the bundled Paranal-derived continuum template; callers
+  cannot claim a custom template through profile metadata. The first-release
+  API freeze marker was removed so this breaking redesign can land; re-freeze
+  after review.
 - Replaced the `nsb-coverage-gate` Rust crate with `scripts/coverage-gate.sh`,
   keeping the same blocking overall and PR diff line-coverage floors from
   `coverage-policy.toml` without a workspace package or extra compile step.

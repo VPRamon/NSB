@@ -12,7 +12,7 @@ use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
 use crate::site::AtmosphericConditions;
 #[cfg(test)]
-use crate::site::SiteProfileSpec;
+use crate::site::SiteProfileConfig;
 use crate::units::ScaleFactors;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
@@ -100,7 +100,7 @@ impl Airglow {
     #[cfg(test)]
     pub(crate) fn for_site_profile(
         location: Geodetic<ECEF>,
-        site_profile: &SiteProfileSpec,
+        site_profile: &SiteProfileConfig,
     ) -> Result<Self> {
         let profile = site_profile.resolve(location);
         let continuum = Arc::new(load_builtin_standard()?);

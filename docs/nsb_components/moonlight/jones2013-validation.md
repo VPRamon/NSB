@@ -23,21 +23,21 @@ The validation target is the optical planning band used by NSB:
 - target above horizon;
 - positive Moon-target separation;
 - topocentric Moon distance greater than zero;
-- clear-sky atmospheric conditions supplied by the selected `SiteProfileSpec`.
+- clear-sky atmospheric conditions supplied by the selected site profile.
 
 Outside that domain the implementation returns zero for non-observable geometry or propagates component errors through the evaluator.
 
 ## Atmospheric conditions
 
 The Jones implementation uses the atmospheric properties carried by the selected
-`SiteProfileSpec`: surface pressure, Rayleigh scale height, and Mie/aerosol
-optical-depth parameters. Observer altitude remains a property of the query
-observer rather than the site profile, so changing observer coordinates does not
-silently change `MoonlightModel`.
+site profile: surface pressure, Rayleigh scale height, and Mie/aerosol optical-
+depth parameters. Observer altitude remains a property of the query observer
+rather than the site profile, so changing observer coordinates does not silently
+change `MoonlightModel`.
 
-`SiteProfileSpec::generic_clear_sky()` supplies the altitude-derived fallback.
-Application layers may supply explicit planning assumptions with
-`SiteProfileSpec::planning(...)`; for example, `nsb-cli` defines CTAO North
+`SiteProfile::<GenericClearSky>::generic_clear_sky()` supplies the altitude-
+derived fallback. Application layers define `SiteProfileTag` markers and call
+`SiteProfile::<P>::planning(...)`; for example, `nsb-cli` defines CTAO North
 and South planning profiles outside the core crate. The current CLI CTAO-S
 planning atmosphere remains Paranal-like until dedicated CTA-S aerosol
 calibration data are bundled.

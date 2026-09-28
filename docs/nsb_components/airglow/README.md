@@ -84,14 +84,14 @@ AirglowGeometryModel
         =
 emitting-volume line-of-sight geometry
 
-SiteProfileSpec / SiteProfileId
+SiteProfile<P> / SiteProfileTag
         =
 site assumptions and evidence-backed scientific maturity
 ```
 
 These concerns are independent. Arbitrary valid Earth coordinates, named
 observatories, and user-provided Siderust observatory catalogs are supported
-geometrically. They default to `SiteProfileSpec::generic_clear_sky()` unless
+geometrically. They default to `SiteProfile::<GenericClearSky>::generic_clear_sky()` unless
 another site profile is selected explicitly. In particular:
 
 - `--site PARANAL` does not create a calibrated Paranal Airglow result;
@@ -106,12 +106,12 @@ Library users inspect the selected scientific maturity through
 `NsbModelConfig` and result metadata:
 
 ```rust
-use nsb::{AirglowSelection, CalibrationStatus, NsbModelConfig, SiteProfileId};
+use nsb::{AirglowSelection, CalibrationStatus, NsbModelConfig};
 
 let config = NsbModelConfig::generic_clear_sky();
 assert_eq!(config.airglow_selection(), AirglowSelection::Automatic);
 assert_eq!(config.airglow_model(), None); // no explicit request
-assert_eq!(config.site_profile().id(), &SiteProfileId::GENERIC_CLEAR_SKY);
+assert_eq!(config.site_profile_name(), "generic-clear-sky");
 assert_eq!(
     config.airglow_calibration_status(),
     CalibrationStatus::GenericFallback,

@@ -5,8 +5,8 @@ use common::{ctao_north_planning, ctao_south_planning};
 use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
 use nsb::solar_activity::bundled_f107_store;
 use nsb::{
-    CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, NsbModelConfig,
-    PointQuery, SiteProfileSpec, SolarFluxUnits, Target, DEG,
+    CalibrationStatus, ComponentCalibrationStatus, ComponentMask, GenericClearSky, NsbEvaluator,
+    NsbModelConfig, PointQuery, SiteProfile, SolarFluxUnits, Target, DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -57,7 +57,7 @@ fn descriptor_status(
 #[test]
 fn site_profile_maturity_is_the_source_of_truth_for_component_metadata_status() {
     assert_eq!(
-        SiteProfileSpec::generic_clear_sky().calibration_status(),
+        SiteProfile::<GenericClearSky>::generic_clear_sky().calibration_status(),
         CalibrationStatus::GenericFallback
     );
     assert_eq!(
