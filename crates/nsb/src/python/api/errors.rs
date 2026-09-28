@@ -53,7 +53,7 @@ create_exception!(
     "An NSB filesystem operation failed."
 );
 
-pub(super) fn add_exceptions(module: &Bound<'_, PyModule>) -> PyResult<()> {
+pub(in crate::python) fn add_exceptions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     let py = module.py();
     module.add("NsbError", py.get_type::<NsbError>())?;
     module.add("DataParseError", py.get_type::<DataParseError>())?;
@@ -66,7 +66,7 @@ pub(super) fn add_exceptions(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-pub(super) fn to_py_err(error: RustNsbError) -> PyErr {
+pub(in crate::python) fn to_py_err(error: RustNsbError) -> PyErr {
     let message = error.to_string();
     match error {
         RustNsbError::DataParse { .. } => DataParseError::new_err(message),
@@ -79,6 +79,6 @@ pub(super) fn to_py_err(error: RustNsbError) -> PyErr {
     }
 }
 
-pub(super) fn invalid_input(message: impl Into<String>) -> PyErr {
+pub(in crate::python) fn invalid_input(message: impl Into<String>) -> PyErr {
     OutOfRangeError::new_err(message.into())
 }
