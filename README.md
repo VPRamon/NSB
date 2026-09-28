@@ -29,10 +29,6 @@ NSB is available through Python, Rust, and a command-line interface.
 | Scientific audit metadata | Provenance, maturity, validated domain, model identity, uncertainty where available |
 | Offline evaluation | No runtime catalog downloads or data-generation tools |
 
-A planning workflow can use NSB to answer two questions: what background is
-expected for a target at a given time, and when that target satisfies a requested
-background threshold.
-
 ## Python quickstart
 
 The Python distribution is named `nsb-rust`; the import name is `nsb`.
@@ -266,19 +262,6 @@ See [Stable CLI schemas](docs/specifications/cli-schemas.md) and the
 | Architecture | [Architecture and modules](docs/developer-guide/architecture.md) |
 | Scientific data | [Dataset workflow](docs/maintainer-guide/datasets.md) |
 | Full index | [Documentation hub](docs/README.md) |
-
-## Repository layout
-
-| Crate | Purpose |
-| --- | --- |
-| [`nsb`](crates/nsb) | Scientific runtime, point evaluation, planning, runtime assets, and Python bindings |
-| [`nsb-cli`](crates/nsb-cli) | Operational CLI, observatory selection, output, and logging |
-| [`nsb-data-tools`](crates/nsb-data-tools) | Offline generation, validation, and packaging of scientific data products |
-
-Siderust owns general astronomy primitives such as time, coordinates,
-ephemerides, events, atmosphere, passbands, HEALPix, and observatory catalogs.
-NSB owns night-sky component composition, NSB-specific empirical data,
-observing-window planning, and maturity-bearing metadata.
 
 ## License
 
