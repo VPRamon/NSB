@@ -75,7 +75,7 @@ pub(crate) fn prepare_site_context(
         let profile = evaluator
             .model_config()
             .site_profile()
-            .profile(query.observer);
+            .resolve(query.observer);
         airglow::Airglow::with_shared_continuum(
             query.observer,
             Arc::clone(evaluator.airglow_continuum()),

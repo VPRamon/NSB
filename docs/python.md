@@ -57,7 +57,14 @@ for component in result.components:
     print(component.name, component.integrated_photons_cm2_ns_sr)
 ```
 
-Site-specific planning constructors are intentionally absent. For example, CTA South is expressed by composing the generic configuration with `SiteProfile.CTA_SOUTH` rather than through a `cta_s_planning()` alias.
+`SiteProfile` is a Python application-layer selector enum (`GENERIC_CLEAR_SKY`,
+`CTA_NORTH`, `CTA_SOUTH`). Each variant constructs a typed Rust
+`SiteProfile<P>` with a binding-local `SiteProfileTag` marker before
+`NsbModelConfig::with_site_profile` erases the type. CTAO North/South are
+convenience presets only; the generic Rust public API exports
+`SiteProfileTag`, `SiteProfile<P>`, and `GenericClearSky` — not CTAO markers.
+Inspect the attached profile after configuration via `config.site_profile()`;
+`NsbModelConfig.site_profile_name()` mirrors the marker's `NAME` metadata.
 
 `ComponentMask` exposes named component flags and bitwise composition. Raw bit construction is not part of the public Python API.
 

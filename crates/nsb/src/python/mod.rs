@@ -10,11 +10,11 @@ use pyo3::prelude::*;
 
 use crate::{
     AirglowModel, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
-    SiteProfileId, ThresholdQuery, ZodiacalExtinction,
+    ThresholdQuery, ZodiacalExtinction,
 };
 use api::{
     add_exceptions, install_component_mask_constants, PyNsbComponent, PyNsbComponentMetadata,
-    PyNsbResult, PySiteWindowContext, PyThresholdQueryResult,
+    PyNsbResult, PySiteProfile, PySiteWindowContext, PyThresholdQueryResult,
 };
 use compat::{PyDirection, PyObserver};
 
@@ -25,7 +25,7 @@ fn python_module(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
     module.add_class::<PyObserver>()?;
     module.add_class::<PyDirection>()?;
-    module.add_class::<SiteProfileId>()?;
+    module.add_class::<PySiteProfile>()?;
     module.add_class::<MoonlightModel>()?;
     module.add_class::<AirglowModel>()?;
     module.add_class::<ZodiacalExtinction>()?;

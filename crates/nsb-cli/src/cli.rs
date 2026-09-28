@@ -104,13 +104,19 @@ pub enum SiteProfileArg {
     CtaSouth,
 }
 
-impl From<SiteProfileArg> for nsb::SiteProfileId {
-    fn from(value: SiteProfileArg) -> Self {
-        match value {
-            SiteProfileArg::GenericClearSky => Self::GenericClearSky,
-            SiteProfileArg::CtaNorth => Self::CtaNorth,
-            SiteProfileArg::CtaSouth => Self::CtaSouth,
-        }
+impl SiteProfileArg {
+    /// Apply this runtime selector by constructing its typed scientific profile.
+    ///
+    /// CTAO presets live in the CLI application layer; the core `nsb` crate does
+    /// not own observatory/project catalogs.
+    pub fn apply(self, config: nsb::NsbModelConfig) -> nsb::NsbModelConfig {
+        let name = match self {
+            Self::GenericClearSky => crate::site_profiles::GENERIC_CLEAR_SKY,
+            Self::CtaNorth => crate::site_profiles::CTA_NORTH,
+            Self::CtaSouth => crate::site_profiles::CTA_SOUTH,
+        };
+        crate::site_profiles::apply(config, name)
+            .expect("CLI SiteProfileArg variants map to known application-layer profiles")
     }
 }
 

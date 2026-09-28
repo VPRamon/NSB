@@ -1,9 +1,12 @@
+mod common;
+
 use chrono::{DateTime, NaiveDateTime, Utc};
+use common::{ctao_north_planning, ctao_south_planning};
 use nsb::components::airglow::{AirglowGeometryModel, VanRhijnConfig};
 use nsb::solar_activity::bundled_f107_store;
 use nsb::{
-    CalibrationStatus, ComponentCalibrationStatus, ComponentMask, NsbEvaluator, NsbModelConfig,
-    PointQuery, SiteProfileId, SolarFluxUnits, Target, DEG,
+    CalibrationStatus, ComponentCalibrationStatus, ComponentMask, GenericClearSky, NsbEvaluator,
+    NsbModelConfig, PointQuery, SiteProfile, SolarFluxUnits, Target, DEG,
 };
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -54,15 +57,15 @@ fn descriptor_status(
 #[test]
 fn site_profile_maturity_is_the_source_of_truth_for_component_metadata_status() {
     assert_eq!(
-        SiteProfileId::GenericClearSky.calibration_status(),
+        SiteProfile::<GenericClearSky>::generic_clear_sky().calibration_status(),
         CalibrationStatus::GenericFallback
     );
     assert_eq!(
-        SiteProfileId::CtaNorth.calibration_status(),
+        ctao_north_planning().calibration_status(),
         CalibrationStatus::PlanningPreset
     );
     assert_eq!(
-        SiteProfileId::CtaSouth.calibration_status(),
+        ctao_south_planning().calibration_status(),
         CalibrationStatus::PlanningPreset
     );
 
@@ -127,8 +130,8 @@ fn model_config_maturity_is_invariant_under_f107_geometry_and_observer_changes()
 #[test]
 fn explicit_planning_config_and_result_metadata_agree_without_calibration_promotion() {
     for config in [
-        NsbModelConfig::cta_n_planning(),
-        NsbModelConfig::cta_s_planning(),
+        NsbModelConfig::generic_clear_sky().with_site_profile(ctao_north_planning()),
+        NsbModelConfig::generic_clear_sky().with_site_profile(ctao_south_planning()),
     ] {
         assert_eq!(
             config.airglow_calibration_status(),

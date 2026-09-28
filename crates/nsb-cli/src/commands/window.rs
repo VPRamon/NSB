@@ -41,11 +41,7 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         !args.no_pre_filter
     );
 
-    let evaluator = NsbEvaluator::with_config(model_config(
-        &args.model,
-        selection,
-        args.model.site_profile.into(),
-    )?)?;
+    let evaluator = NsbEvaluator::with_config(model_config(&args.model, selection)?)?;
 
     let (sun_altitude_ceiling, target_altitude_floor) = if args.no_pre_filter {
         info!("threshold pre-filters disabled");

@@ -64,7 +64,7 @@ struct AssetJson {
 
 #[derive(Serialize)]
 struct ModelJson {
-    preset: &'static str,
+    preset: String,
     moonlight_model: &'static str,
     starlight_model: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -340,7 +340,7 @@ fn model_json(
         _ => resolved_sfu,
     };
     ModelJson {
-        preset: config.site_profile().as_str(),
+        preset: config.site_profile_name().to_string(),
         moonlight_model: config.moonlight_model().as_str(),
         starlight_model: match config.starlight_product() {
             None => "not-configured-non-production-component",

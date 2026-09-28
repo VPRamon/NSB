@@ -10,7 +10,7 @@ use crate::components::airglow::{
 use crate::components::moonlight::MoonlightModel;
 use crate::components::starlight::{StarlightProduct, StarlightProvenance};
 use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
-use crate::site::{CalibrationStatus, SiteProfileId};
+use crate::site::{CalibrationStatus, SiteProfileConfig};
 use crate::NSB_S10_ZP;
 use qtty::photometry::SurfaceBrightness;
 use siderust::qtty::Nanometers;
@@ -114,7 +114,7 @@ pub struct NsbComponentMetadata {
 }
 
 pub(super) fn component_status_for_site_profile(
-    site_profile: SiteProfileId,
+    site_profile: &SiteProfileConfig,
 ) -> ComponentCalibrationStatus {
     site_profile.calibration_status().into()
 }
@@ -154,7 +154,7 @@ pub(super) fn zodiacal_metadata(
 /// Selection-only Airglow metadata for pre-evaluation descriptors.
 pub(super) fn airglow_selection_metadata(
     resolved: ResolvedAirglowSelection,
-    site_profile: SiteProfileId,
+    site_profile: &SiteProfileConfig,
     observer: Observer,
     geometry: &crate::components::airglow::AirglowGeometryModel,
 ) -> NsbComponentMetadata {
@@ -163,7 +163,7 @@ pub(super) fn airglow_selection_metadata(
 
 pub(super) fn airglow_metadata(
     resolved: ResolvedAirglowSelection,
-    site_profile: SiteProfileId,
+    site_profile: &SiteProfileConfig,
     observer: Observer,
     solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
     geometry: &crate::components::airglow::AirglowGeometryModel,
@@ -185,7 +185,7 @@ pub(super) fn airglow_metadata(
 
 fn airglow_metadata_inner(
     resolved: ResolvedAirglowSelection,
-    site_profile: SiteProfileId,
+    site_profile: &SiteProfileConfig,
     observer: Observer,
     solar: Option<&crate::solar_activity::ResolvedSolarActivity>,
     geometry: &crate::components::airglow::AirglowGeometryModel,
@@ -193,7 +193,7 @@ fn airglow_metadata_inner(
 ) -> NsbComponentMetadata {
     let model = resolved.model;
     let selection = resolved.selection_metadata();
-    let profile = site_profile.profile(observer);
+    let profile = site_profile.resolve(observer);
     let asset = airglow_continuum_asset();
     let baseline_identity = format!(
         "baseline asset {} schema {} sha256 {}; calibration_status {}; generator {}; validation_report {}; source {}; license {}; baseline_source Cerro Paranal / Noll / SkyCalc-derived; site_calibrated false",
@@ -260,7 +260,7 @@ fn airglow_metadata_inner(
             physical_fragment,
             profile.airglow.provenance,
             profile.name,
-            profile.airglow.template,
+            AIRGLOW_CONTINUUM_ASSET_PATH,
             baseline_identity,
             f107_fragment
         )),
@@ -366,12 +366,12 @@ fn starlight_map_metadata(
 
 pub(super) fn moonlight_metadata(
     model: MoonlightModel,
-    site_profile: SiteProfileId,
+    site_profile: &SiteProfileConfig,
     observer: Observer,
 ) -> NsbComponentMetadata {
     match model {
         MoonlightModel::Jones2013Spectral => {
-            let profile = site_profile.profile(observer);
+            let profile = site_profile.resolve(observer);
             NsbComponentMetadata {
                 status: component_status_for_site_profile(site_profile),
                 provenance: Cow::Owned(format!(
@@ -390,7 +390,7 @@ pub(super) fn moonlight_metadata(
             }
         }
         MoonlightModel::KrisciunasSchaefer1991 => {
-            let profile = site_profile.profile(observer);
+            let profile = site_profile.resolve(observer);
             NsbComponentMetadata {
                 status: ComponentCalibrationStatus::PublishedReference,
                 provenance: Cow::Owned(format!(

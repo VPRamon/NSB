@@ -3,8 +3,9 @@ use super::domain::{AirglowNightPhase, AirglowSeason};
 use super::extinction::{effective_airglow_airmass, noll_scattering_factors};
 use super::units::DEFAULT_SOLAR_RADIO_FLUX;
 use super::*;
-use crate::site::AtmosphericConditions;
-use crate::site::SiteProfileId;
+use crate::site::{
+    AtmosphericConditions, GenericClearSky, SiteProfile, SiteProfileConfig, SiteProfileTag,
+};
 use crate::units::SolarFluxUnits;
 use chrono::{DateTime, Utc};
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
@@ -12,7 +13,7 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
-use siderust::qtty::{Degrees, Kilometers, Meters, Nanometer, Nanometers};
+use siderust::qtty::{Degrees, Hectopascals, Kilometers, Meters, Nanometer, Nanometers};
 use siderust::time::{ModifiedJulianDate, TT};
 use tempoch::{Time, UTC};
 
@@ -49,6 +50,36 @@ fn cta_n() -> Geodetic<ECEF> {
         Degrees::new(28.762164),
         Meters::new(2240.2),
     )
+}
+
+struct CtaNorth;
+impl SiteProfileTag for CtaNorth {
+    const NAME: &'static str = "ctao-north-planning";
+}
+
+struct CtaSouth;
+impl SiteProfileTag for CtaSouth {
+    const NAME: &'static str = "ctao-south-planning";
+}
+
+fn ctao_north_planning() -> SiteProfileConfig {
+    SiteProfile::<CtaNorth>::planning(
+        Kilometers::new(2.2),
+        AtmosphericConditions::clear_sky_with_pressure(Hectopascals::new(770.0)).unwrap(),
+        "CTAO-North planning preset (test helper)",
+    )
+    .unwrap()
+    .erase()
+}
+
+fn ctao_south_planning() -> SiteProfileConfig {
+    SiteProfile::<CtaSouth>::planning(
+        Kilometers::new(2.1),
+        AtmosphericConditions::paranal_average(),
+        "CTAO-South planning preset (test helper)",
+    )
+    .unwrap()
+    .erase()
 }
 
 fn high_arctic(latitude_deg: f64) -> Geodetic<ECEF> {
@@ -164,9 +195,9 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
     let location = cta_n();
     let time = t("2023-09-04T02:00:00Z");
     let target = target(266.41683, -29.00781);
-    let profile = SiteProfileId::CtaNorth.profile(location);
+    let profile = ctao_north_planning().resolve(location);
 
-    let from_profile = Airglow::for_site_profile(location, SiteProfileId::CtaNorth)
+    let from_profile = Airglow::for_site_profile(location, &ctao_north_planning())
         .unwrap()
         .compute(time, target)
         .unwrap();
@@ -183,11 +214,11 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
 #[test]
 fn cta_site_profile_airglow_results_are_site_sensitive() {
     let target = target(266.41683, -29.00781);
-    let north = Airglow::for_site_profile(cta_n(), SiteProfileId::CtaNorth)
+    let north = Airglow::for_site_profile(cta_n(), &ctao_north_planning())
         .unwrap()
         .compute(t("2023-09-04T02:00:00Z"), target)
         .unwrap();
-    let south = Airglow::for_site_profile(cta_s(), SiteProfileId::CtaSouth)
+    let south = Airglow::for_site_profile(cta_s(), &ctao_south_planning())
         .unwrap()
         .compute(t("2023-09-04T04:00:00Z"), target)
         .unwrap();
@@ -570,14 +601,14 @@ fn site_profile_atmosphere_changes_airglow_at_fixed_geometry() {
     let low_pressure = Airglow::with_continuum(location, continuum.clone())
         .with_atmosphere(AtmosphericConditions {
             surface_pressure: siderust::qtty::Hectopascals::new(600.0),
-            ..AtmosphericConditions::cta_s_clear_sky()
+            ..AtmosphericConditions::paranal_average()
         })
         .compute(time, target)
         .unwrap();
     let high_pressure = Airglow::with_continuum(location, continuum)
         .with_atmosphere(AtmosphericConditions {
             surface_pressure: siderust::qtty::Hectopascals::new(900.0),
-            ..AtmosphericConditions::cta_s_clear_sky()
+            ..AtmosphericConditions::paranal_average()
         })
         .compute(time, target)
         .unwrap();
@@ -625,7 +656,7 @@ fn regression_noll_geometry_reference_values() {
 #[test]
 fn spectral_extinction_differs_from_unextincted_baseline_integral() {
     let continuum = load_builtin_standard().unwrap();
-    let atmosphere = AtmosphericConditions::cta_s_clear_sky();
+    let atmosphere = AtmosphericConditions::paranal_average();
     let zenith = Degrees::new(60.0);
     let spectral = super::continuum::integrate_attenuated_continuum(&continuum, zenith, atmosphere);
     let baseline = continuum
@@ -643,7 +674,7 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
     let location = paranal();
     let time = t("2023-09-04T01:48:00Z");
     let query_target = target(266.41683, -29.00781);
-    let model = Airglow::for_site_profile(location, SiteProfileId::CtaSouth)
+    let model = Airglow::for_site_profile(location, &ctao_south_planning())
         .unwrap()
         .compute(time, query_target)
         .unwrap();
@@ -656,7 +687,7 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
         model.integrated.value()
     );
 
-    let low = Airglow::for_site_profile(location, SiteProfileId::CtaSouth)
+    let low = Airglow::for_site_profile(location, &ctao_south_planning())
         .unwrap()
         .compute(time, target(80.0, -20.0))
         .unwrap();
@@ -670,12 +701,16 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
 #[test]
 fn integrated_only_matches_full_path_across_profiles_seasons_phases_and_fluxes() {
     let continuum = load_builtin_standard().unwrap();
-    for (location, profile_id) in [
-        (cta_s(), SiteProfileId::GenericClearSky),
-        (cta_s(), SiteProfileId::CtaSouth),
-        (cta_n(), SiteProfileId::CtaNorth),
+    for (location, profile_config) in [
+        (
+            cta_s(),
+            SiteProfile::<GenericClearSky>::generic_clear_sky().erase(),
+        ),
+        (cta_s(), ctao_south_planning()),
+        (cta_n(), ctao_north_planning()),
     ] {
-        let profile = profile_id.profile(location);
+        let profile_id = profile_config.name();
+        let profile = profile_config.resolve(location);
         for time in [t("2023-01-15T05:00:00Z"), t("2023-07-15T05:00:00Z")] {
             for phase in [
                 AirglowNightPhase::FirstThird,
@@ -711,7 +746,7 @@ fn integrated_only_matches_full_path_across_profiles_seasons_phases_and_fluxes()
                             .unwrap();
                         assert!(
                             (full.value() - integrated.value()).abs() <= 1.0e-12,
-                            "integrated mismatch: profile={profile_id:?}, time={time:?}, phase={phase:?}, altitude={altitude}, flux={flux}, full={full:?}, integrated={integrated:?}"
+                            "integrated mismatch: profile={profile_id}, time={time:?}, phase={phase:?}, altitude={altitude}, flux={flux}, full={full:?}, integrated={integrated:?}"
                         );
                     }
                 }

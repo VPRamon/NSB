@@ -3,6 +3,7 @@
 mod common;
 
 use chrono::{DateTime, Utc};
+use common::ctao_south_planning;
 use common::starlight_test_provenance;
 use nsb::components::airglow::{
     AirglowFallbackReason, AirglowModel, AirglowPhysicalOutcome, AirglowPhysicalZeroReason,
@@ -81,7 +82,7 @@ fn config_is_opaque_and_builder_getter_complete() {
         .with_airglow_selection(AirglowSelection::Explicit(
             AirglowModel::ParanalNollSkyCalcFors1,
         ))
-        .with_site_profile(nsb::SiteProfileId::CtaSouth);
+        .with_site_profile(ctao_south_planning());
     assert_eq!(
         config.airglow_selection(),
         AirglowSelection::Explicit(AirglowModel::ParanalNollSkyCalcFors1)
@@ -90,7 +91,7 @@ fn config_is_opaque_and_builder_getter_complete() {
         config.airglow_model(),
         Some(AirglowModel::ParanalNollSkyCalcFors1)
     );
-    assert_eq!(config.site_profile(), nsb::SiteProfileId::CtaSouth);
+    assert_eq!(config.site_profile_name(), "ctao-south-planning");
     assert_eq!(
         config.moonlight_model(),
         nsb::MoonlightModel::Jones2013Spectral
