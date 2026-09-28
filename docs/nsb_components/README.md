@@ -12,6 +12,16 @@ reported contributors:
 total NSB = zodiacal light + integrated starlight + airglow + scattered moonlight
 ```
 
+Conceptually each celestial contributor follows:
+
+```text
+source emission → atmospheric transport → ground-level radiance
+```
+
+The reusable transport foundation is `nsb::transport`. Component guides below
+document which contributors still use legacy component-specific propagation.
+See [Atmospheric transport](../specifications/atmospheric-transport.md).
+
 All integrated results use the NSB optical planning band, 300–650 nm, and are
 reported as photon radiance in photons cm⁻² ns⁻¹ sr⁻¹. Component diagnostics may
 also expose wavelength-resolved radiance or B/V reference values; those B/V

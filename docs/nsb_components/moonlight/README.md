@@ -11,6 +11,12 @@ Earth's atmosphere into the target line of sight. It depends strongly on lunar
 phase, Moon-target separation, the Moon and target zenith distances, lunar
 distance, wavelength, and atmospheric aerosol properties.
 
+Jones/KS91 already embed atmospheric scattering in the observable. Do **not**
+feed Moonlight radiance through `nsb::transport::TransportModel::Direct` or a
+future scattered path without an explicit migration that removes the legacy
+scattering terms; that would double-count atmosphere. See
+[Atmospheric transport](../../specifications/atmospheric-transport.md).
+
 ## How NSB calculates it
 
 For both available models, NSB derives the observing geometry internally from

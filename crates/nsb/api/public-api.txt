@@ -362,6 +362,79 @@ pub fn nsb::solar_activity::ResolvedSolarActivity::provenance_fragment(&self) ->
 pub const nsb::solar_activity::F107_STORE_SCHEMA_VERSION: u32
 pub fn nsb::solar_activity::bundled_f107_store() -> nsb::Result<&'static nsb::solar_activity::F107Store>
 pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, source: &nsb::solar_activity::SolarActivitySource) -> nsb::Result<nsb::solar_activity::ResolvedSolarActivity>
+pub mod nsb::transport
+#[non_exhaustive] pub enum nsb::transport::AirmassModel
+pub nsb::transport::AirmassModel::KrisciunasSchaefer1991
+pub nsb::transport::AirmassModel::PlaneParallel
+pub nsb::transport::AirmassModel::Rozenberg1966
+pub nsb::transport::AirmassModel::Young1994
+impl nsb::transport::AirmassModel
+pub const fn nsb::transport::AirmassModel::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::MolecularAbsorption
+pub nsb::transport::MolecularAbsorption::None
+pub nsb::transport::MolecularAbsorption::OzoneBundledTable
+impl nsb::transport::MolecularAbsorption
+pub const fn nsb::transport::MolecularAbsorption::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::RadianceOrigin
+pub nsb::transport::RadianceOrigin::AtmosphericEmission
+pub nsb::transport::RadianceOrigin::PreScatteredAtmosphere
+pub nsb::transport::RadianceOrigin::TopOfAtmosphere
+impl nsb::transport::RadianceOrigin
+pub const fn nsb::transport::RadianceOrigin::as_str(self) -> &'static str
+#[non_exhaustive] pub enum nsb::transport::TransportModel
+pub nsb::transport::TransportModel::Direct(nsb::transport::DirectTransmission)
+pub nsb::transport::TransportModel::Identity
+impl nsb::transport::TransportModel
+pub fn nsb::transport::TransportModel::apply_energy_spectral(&self, origin: nsb::transport::RadianceOrigin, incident: qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<qtty_core::units::radiometry::WattsPerSquareMeterSteradianNanometer>
+pub fn nsb::transport::TransportModel::apply_photon_spectral(&self, origin: nsb::transport::RadianceOrigin, incident: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
+pub const fn nsb::transport::TransportModel::as_str(&self) -> &'static str
+pub const fn nsb::transport::TransportModel::direct_rayleigh_mie() -> Self
+pub const fn nsb::transport::TransportModel::direct_rayleigh_mie_ozone() -> Self
+pub const fn nsb::transport::TransportModel::identity() -> Self
+pub fn nsb::transport::TransportModel::metadata(&self) -> nsb::transport::TransportModelMetadata
+pub fn nsb::transport::TransportModel::optical_depth(&self, wavelength: qtty_core::units::length::Nanometers, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<nsb::transport::OpticalDepthBreakdown>
+pub fn nsb::transport::TransportModel::transmission(&self, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<qtty_core::units::dimensionless::Transmittances>
+pub struct nsb::transport::DirectPathGeometry
+impl nsb::transport::DirectPathGeometry
+pub fn nsb::transport::DirectPathGeometry::new(zenith: qtty_core::units::angular::Degrees) -> nsb::Result<Self>
+pub const fn nsb::transport::DirectPathGeometry::zenith(self) -> qtty_core::units::angular::Degrees
+#[non_exhaustive] pub struct nsb::transport::DirectTransmission
+impl nsb::transport::DirectTransmission
+pub const fn nsb::transport::DirectTransmission::airmass(&self) -> nsb::transport::AirmassModel
+pub const fn nsb::transport::DirectTransmission::ingredients(&self) -> nsb::transport::ExtinctionIngredients
+pub fn nsb::transport::DirectTransmission::metadata(&self) -> nsb::transport::TransportModelMetadata
+pub const fn nsb::transport::DirectTransmission::new(ingredients: nsb::transport::ExtinctionIngredients, airmass: nsb::transport::AirmassModel) -> Self
+pub fn nsb::transport::DirectTransmission::optical_depth(&self, wavelength: qtty_core::units::length::Nanometers, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<nsb::transport::OpticalDepthBreakdown>
+pub const fn nsb::transport::DirectTransmission::rayleigh_mie_ozone_young1994() -> Self
+pub const fn nsb::transport::DirectTransmission::rayleigh_mie_young1994() -> Self
+pub fn nsb::transport::DirectTransmission::transmission(&self, wavelength: qtty_core::units::length::Nanometers, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<qtty_core::units::dimensionless::Transmittances>
+impl core::default::Default for nsb::transport::DirectTransmission
+pub fn nsb::transport::DirectTransmission::default() -> Self
+#[non_exhaustive] pub struct nsb::transport::ExtinctionIngredients
+pub nsb::transport::ExtinctionIngredients::absorption: nsb::transport::MolecularAbsorption
+pub nsb::transport::ExtinctionIngredients::mie: bool
+pub nsb::transport::ExtinctionIngredients::rayleigh: bool
+impl nsb::transport::ExtinctionIngredients
+pub const nsb::transport::ExtinctionIngredients::RAYLEIGH_MIE: Self
+pub const nsb::transport::ExtinctionIngredients::RAYLEIGH_MIE_OZONE: Self
+pub const fn nsb::transport::ExtinctionIngredients::new(rayleigh: bool, mie: bool, absorption: nsb::transport::MolecularAbsorption) -> Self
+impl core::default::Default for nsb::transport::ExtinctionIngredients
+pub fn nsb::transport::ExtinctionIngredients::default() -> Self
+#[non_exhaustive] pub struct nsb::transport::OpticalDepthBreakdown
+pub nsb::transport::OpticalDepthBreakdown::absorption: qtty_core::units::dimensionless::OpticalDepths
+pub nsb::transport::OpticalDepthBreakdown::mie: qtty_core::units::dimensionless::OpticalDepths
+pub nsb::transport::OpticalDepthBreakdown::rayleigh: qtty_core::units::dimensionless::OpticalDepths
+pub nsb::transport::OpticalDepthBreakdown::total: qtty_core::units::dimensionless::OpticalDepths
+#[non_exhaustive] pub struct nsb::transport::TransportModelMetadata
+pub nsb::transport::TransportModelMetadata::absorption: nsb::transport::MolecularAbsorption
+pub nsb::transport::TransportModelMetadata::airmass_model_id: &'static str
+pub nsb::transport::TransportModelMetadata::approximation: &'static str
+pub nsb::transport::TransportModelMetadata::mie: bool
+pub nsb::transport::TransportModelMetadata::model_id: &'static str
+pub nsb::transport::TransportModelMetadata::provenance: &'static str
+pub nsb::transport::TransportModelMetadata::rayleigh: bool
+pub nsb::transport::TransportModelMetadata::uncertainty: &'static str
+pub nsb::transport::TransportModelMetadata::validated_domain: &'static str
 #[non_exhaustive] pub enum nsb::AirglowModel
 pub nsb::AirglowModel::ParanalNollSkyCalcFors1
 impl nsb::AirglowModel
