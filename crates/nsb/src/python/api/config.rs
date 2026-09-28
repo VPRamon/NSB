@@ -2,9 +2,7 @@ use pyo3::prelude::*;
 
 use crate::{AirglowSelection, NsbModelConfig};
 
-use super::selectors::{
-    PyAirglowModel, PyMoonlightModel, PySiteProfile, PyZodiacalExtinction,
-};
+use super::selectors::{PyAirglowModel, PyMoonlightModel, PySiteProfile, PyZodiacalExtinction};
 
 #[pyclass(name = "NsbModelConfig", frozen, module = "nsb", skip_from_py_object)]
 #[derive(Clone)]
