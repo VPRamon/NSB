@@ -29,10 +29,15 @@ identity, geometry, F10.7, atmospheric/extinction assumptions, and user scaling
 may change the numerical result or provenance but cannot promote scientific
 maturity.
 
-`CalibrationStatus::Calibrated` is never returned for the current built-in
-Airglow/CTAO profiles because no dedicated admitted site validation is connected
-to a runtime profile. This is intentional fail-closed behaviour; issue #38
-remains the scientific promotion gate.
+Public `SiteProfileSpec` construction is fail-closed with respect to maturity:
+`generic_clear_sky()` produces `GenericFallback`, `planning(...)` produces
+`PlanningPreset`, and caller-facing builders do not expose a path to
+`CalibrationStatus::Calibrated`. A profile therefore cannot promote its own
+component metadata to `Production` merely by supplying atmospheric or Airglow
+parameters.
+
+A future `Calibrated` runtime profile must be connected to dedicated admitted
+site-validation evidence. Issue #38 remains the scientific promotion gate.
 
 `ValidatedExternalMap` is explicit and remains outside `ComponentMask::ALL`.
 Failure of any admission check is an error; it never falls back to an
