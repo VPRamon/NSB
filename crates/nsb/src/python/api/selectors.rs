@@ -13,7 +13,7 @@ macro_rules! python_selector {
             from_py_object
         )]
         #[derive(Clone, Copy, PartialEq, Eq)]
-        pub(super) enum $py {
+        pub(in crate::python) enum $py {
             $($variant),+
         }
 
@@ -89,16 +89,16 @@ python_selector!(
 
 #[pyclass(name = "ComponentMask", frozen, module = "nsb", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub(super) struct PyComponentMask {
+pub(in crate::python) struct PyComponentMask {
     inner: ComponentMask,
 }
 
 impl PyComponentMask {
-    pub(super) const fn inner(&self) -> ComponentMask {
+    pub(in crate::python) const fn inner(&self) -> ComponentMask {
         self.inner
     }
 
-    pub(super) const fn from_inner(inner: ComponentMask) -> Self {
+    pub(in crate::python) const fn from_inner(inner: ComponentMask) -> Self {
         Self { inner }
     }
 }
@@ -127,7 +127,7 @@ impl PyComponentMask {
     }
 }
 
-pub(super) fn install_component_mask_constants(
+pub(in crate::python) fn install_component_mask_constants(
     py: Python<'_>,
     module: &Bound<'_, PyModule>,
 ) -> PyResult<()> {
