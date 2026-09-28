@@ -9,7 +9,12 @@ use super::errors::to_py_err;
 use super::queries::{PyPointQuery, PyThresholdQuery};
 use super::results::{PyNsbResult, PyThresholdQueryResult};
 
-#[pyclass(name = "SiteWindowContext", frozen, module = "nsb", skip_from_py_object)]
+#[pyclass(
+    name = "SiteWindowContext",
+    frozen,
+    module = "nsb",
+    skip_from_py_object
+)]
 pub(super) struct PySiteWindowContext {
     // The context is reused across Python calls. Arc lets detached Rust work own
     // a stable handle without cloning the prepared scientific state.
