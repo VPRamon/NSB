@@ -124,7 +124,6 @@ fn bilinear(v00: S10, v01: S10, v10: S10, v11: S10, tx: f64, ty: f64) -> S10 {
     r0 + (r1 - r0) * ty
 }
 
-
 #[test]
 fn leinert_grid2d_matches_historical_reference() {
     let dl_degs = [0.5_f64, 1.0, 5.0, 10.0, 27.3, 90.0, 124.5, 175.0, 179.9];

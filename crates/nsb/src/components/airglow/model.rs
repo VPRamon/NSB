@@ -199,8 +199,8 @@ impl Airglow {
 
 #[cfg(test)]
 pub(crate) mod test_support {
-    use super::*;
     use super::super::calibration::load_builtin_standard;
+    use super::*;
     use crate::site::SiteProfileConfig;
 
     pub(crate) fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Airglow> {

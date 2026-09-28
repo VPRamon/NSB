@@ -357,8 +357,7 @@ fn target_visibility_matches_precise_altitude_scan_across_regimes() {
         .with_sun_altitude_ceiling(None)
         .with_target_altitude_floor(Some(Degrees::new(floor)));
         let tt_window = utc_period_to_tt_mjd(query.window);
-        let prepared =
-            prepare_threshold(&evaluator, &query, tt_window).unwrap();
+        let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
         let direction = direction::ICRS::new(target.ra(), target.dec());
         let exact_altitude = |time: ModifiedJulianDate| -> Result<Degrees> {
             Ok(direction.altitude_at(&observer, time).to::<Degree>())
@@ -442,8 +441,7 @@ fn grazing_target_excursion_between_four_hour_samples_is_not_pruned() {
         "the adversarial excursion should be much shorter than four hours"
     );
 
-    let prepared =
-        prepare_threshold(&evaluator, &query, tt_window).unwrap();
+    let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
     assert_eq!(prepared.candidate_windows, precise);
 }
 
@@ -514,12 +512,8 @@ fn threshold_airglow_context_matches_exact_point_airglow() {
         ComponentMask::AIRGLOW,
     );
     let time = parse("2023-09-04T04:00:00Z");
-    let prepared = prepare_threshold(
-        &evaluator,
-        &query,
-        utc_period_to_tt_mjd(query.window),
-    )
-    .unwrap();
+    let prepared =
+        prepare_threshold(&evaluator, &query, utc_period_to_tt_mjd(query.window)).unwrap();
 
     let context =
         crate::planning::threshold::evaluate_integrated(&evaluator, &prepared, tt_time(time))
@@ -545,12 +539,8 @@ fn threshold_airglow_context_matches_continuous_high_latitude_night() {
         ComponentMask::AIRGLOW,
     );
     let time = parse("2023-12-21T12:00:00Z");
-    let prepared = prepare_threshold(
-        &evaluator,
-        &query,
-        utc_period_to_tt_mjd(query.window),
-    )
-    .unwrap();
+    let prepared =
+        prepare_threshold(&evaluator, &query, utc_period_to_tt_mjd(query.window)).unwrap();
 
     let context =
         crate::planning::threshold::evaluate_integrated(&evaluator, &prepared, tt_time(time))
@@ -575,12 +565,8 @@ fn threshold_moon_context_skips_only_moon_down_samples() {
         168,
         ComponentMask::MOON,
     );
-    let prepared = prepare_threshold(
-        &evaluator,
-        &query,
-        utc_period_to_tt_mjd(query.window),
-    )
-    .unwrap();
+    let prepared =
+        prepare_threshold(&evaluator, &query, utc_period_to_tt_mjd(query.window)).unwrap();
     let moon_periods = prepared
         .moon_visible_periods
         .as_ref()

@@ -253,7 +253,8 @@ mod tests {
                 - horizontal_parallax * moon_geocentric.alt().cos(),
         );
         let source_altitude = source.alt().to::<Radian>();
-        let delta_azimuth = (source.az().to::<Radian>() - moon_geocentric.az().to::<Radian>()).value();
+        let delta_azimuth =
+            (source.az().to::<Radian>() - moon_geocentric.az().to::<Radian>()).value();
         let separation = Degrees::new(
             (source_altitude.sin() * moon_altitude.sin()
                 + source_altitude.cos() * moon_altitude.cos() * delta_azimuth.cos())
@@ -261,7 +262,7 @@ mod tests {
             .acos()
             .to_degrees(),
         );
-    
+
         let days = jd.raw().value() - 2_451_545.0;
         let mean_longitude = (280.466_46 + 0.985_647_36 * days).to_radians();
         let mean_anomaly = (357.529_11 + 0.985_600_28 * days).to_radians();
@@ -269,7 +270,8 @@ mod tests {
             + 1.914_602_f64.to_radians() * mean_anomaly.sin()
             + 0.019_993_f64.to_radians() * (2.0 * mean_anomaly).sin()
             + 0.000_289_f64.to_radians() * (3.0 * mean_anomaly).sin();
-        let delta_longitude = (moon.ecl_lon.value() - sun_longitude).rem_euclid(std::f64::consts::TAU);
+        let delta_longitude =
+            (moon.ecl_lon.value() - sun_longitude).rem_euclid(std::f64::consts::TAU);
         let elongation = (moon.ecl_lat.cos() * delta_longitude.cos())
             .clamp(-1.0, 1.0)
             .acos();

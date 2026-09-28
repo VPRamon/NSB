@@ -307,16 +307,16 @@ pub(crate) mod test_support {
         if dl_deg < 30.0 && beta_deg < 15.0 {
             return Some(CORNER_LL_LT_30_B_LT_15);
         }
-    
+
         let b0 = (beta_deg / 5.0).floor() as usize;
         let b1 = (b0 + 1).min(18);
         let bt = (beta_deg - 5.0 * b0 as f64) / 5.0;
-    
+
         let l0_idx = ((180.0 - dl_deg.ceil()) / 5.0).floor() as isize;
         let l0 = l0_idx.clamp(0, 35) as usize;
         let l1 = (l0 + 1).min(36);
         let lt = (180.0 - dl_deg - 5.0 * l0 as f64) / 5.0;
-    
+
         Some(optica::grid::algo::bilinear_unit(
             LEINERT_S10[l0][b0],
             LEINERT_S10[l0][b1],
@@ -327,4 +327,3 @@ pub(crate) mod test_support {
         ))
     }
 }
-

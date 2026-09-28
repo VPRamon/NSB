@@ -99,7 +99,10 @@ fn to_jd(time: Time<UTC>) -> JulianDate {
 pub(super) mod test_support {
     use super::*;
 
-    pub(super) fn compute_exoatmospheric(time: Time<UTC>, target: Target) -> Result<ZodiacalGeometry> {
+    pub(super) fn compute_exoatmospheric(
+        time: Time<UTC>,
+        target: Target,
+    ) -> Result<ZodiacalGeometry> {
         let jd = to_jd(time);
         let (beta, delta_lambda) = ecliptic_geometry(target, jd)?;
         Ok(ZodiacalGeometry {
@@ -123,7 +126,8 @@ mod tests {
             + 1.914_602_f64.to_radians() * mean_anomaly.sin()
             + 0.019_993_f64.to_radians() * (2.0 * mean_anomaly).sin()
             + 0.000_289_f64.to_radians() * (3.0 * mean_anomaly).sin();
-        let ecliptic_precession = (1.397 * centuries + 0.000_31 * centuries * centuries).to_radians();
+        let ecliptic_precession =
+            (1.397 * centuries + 0.000_31 * centuries * centuries).to_radians();
         Radians::new((longitude_of_date - ecliptic_precession).rem_euclid(std::f64::consts::TAU))
     }
     use chrono::{TimeZone, Utc};

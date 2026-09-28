@@ -197,15 +197,17 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
     let target = target(266.41683, -29.00781);
     let profile = ctao_north_planning().resolve(location);
 
-    let from_profile = super::model::test_support::for_site_profile(location, &ctao_north_planning())
-        .unwrap()
-        .compute(time, target)
-        .unwrap();
-    let explicit = super::model::test_support::with_continuum(location, load_builtin_standard().unwrap())
-        .with_atmosphere(profile.atmosphere)
-        .with_scale(profile.airglow.scale)
-        .compute(time, target)
-        .unwrap();
+    let from_profile =
+        super::model::test_support::for_site_profile(location, &ctao_north_planning())
+            .unwrap()
+            .compute(time, target)
+            .unwrap();
+    let explicit =
+        super::model::test_support::with_continuum(location, load_builtin_standard().unwrap())
+            .with_atmosphere(profile.atmosphere)
+            .with_scale(profile.airglow.scale)
+            .compute(time, target)
+            .unwrap();
 
     assert_eq!(profile.airglow.scale, crate::units::ScaleFactors::new(1.0));
     assert_eq!(from_profile.integrated.value(), explicit.integrated.value());
@@ -286,7 +288,10 @@ fn vertical_profile_runs_through_normal_airglow_api_at_arbitrary_location() {
         .with_geometry(AirglowGeometryModel::VerticalProfile(
             synthetic_vertical_profile(),
         ));
-    assert_eq!(super::model::test_support::geometry(&model).model_id(), "vertical_profile");
+    assert_eq!(
+        super::model::test_support::geometry(&model).model_id(),
+        "vertical_profile"
+    );
     let out = model
         .compute(t("2023-06-21T22:00:00Z"), target(200.0, -45.0))
         .unwrap();
@@ -726,15 +731,16 @@ fn integrated_only_matches_full_path_across_profiles_seasons_phases_and_fluxes()
                             solar_radio_flux: SolarFluxUnits::new(flux),
                             user_scale: profile.airglow.scale,
                         };
-                        let full = super::continuum::test_support::evaluate_continuum_with_night_phase(
-                            &continuum,
-                            time,
-                            Degrees::new(altitude),
-                            context(),
-                            phase,
-                        )
-                        .unwrap()
-                        .integrated;
+                        let full =
+                            super::continuum::test_support::evaluate_continuum_with_night_phase(
+                                &continuum,
+                                time,
+                                Degrees::new(altitude),
+                                context(),
+                                phase,
+                            )
+                            .unwrap()
+                            .integrated;
                         let integrated =
                             super::continuum::evaluate_integrated_continuum_with_night_phase(
                                 &continuum,

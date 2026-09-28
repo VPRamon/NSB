@@ -150,7 +150,7 @@ mod tests {
         0.0021520 * (1.0455996 - 341.29061 * inv_l2 - 0.90230850 * l2)
             / (1.0 + 0.0027059889 * inv_l2 - 85.968563 * l2)
     }
-    
+
     /// Wavelength-dependent Noll effective airglow scattering transmission.
     pub(crate) fn spectral_airglow_scattering_transmission(
         wavelength: Nanometers,

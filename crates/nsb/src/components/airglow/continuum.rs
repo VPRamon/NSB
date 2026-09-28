@@ -149,7 +149,6 @@ pub(crate) fn validate_airglow_inputs(
     Ok(())
 }
 
-
 fn evaluate_continuum_with_night_phase_validated(
     continuum: &AirglowContinuum,
     time: Time<UTC>,
