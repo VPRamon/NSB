@@ -280,20 +280,19 @@ pub fn nsb::site::SiteProfileId::from(value: alloc::string::String) -> Self
 impl core::fmt::Display for nsb::site::SiteProfileId
 pub fn nsb::site::SiteProfileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 #[non_exhaustive] pub struct nsb::site::SiteProfileSpec
-pub nsb::site::SiteProfileSpec::airglow: nsb::site::AirglowSiteCalibration
-pub nsb::site::SiteProfileSpec::atmosphere: nsb::site::AtmosphereSource
-pub nsb::site::SiteProfileSpec::atmosphere_provenance: alloc::borrow::Cow<'static, str>
-pub nsb::site::SiteProfileSpec::calibration_status: nsb::site::CalibrationStatus
-pub nsb::site::SiteProfileSpec::id: nsb::site::SiteProfileId
-pub nsb::site::SiteProfileSpec::name: alloc::borrow::Cow<'static, str>
-pub nsb::site::SiteProfileSpec::representative_altitude: nsb::site::RepresentativeAltitude
 impl nsb::site::SiteProfileSpec
+pub fn nsb::site::SiteProfileSpec::airglow(&self) -> &nsb::site::AirglowSiteCalibration
+pub fn nsb::site::SiteProfileSpec::atmosphere(&self) -> &nsb::site::AtmosphereSource
+pub fn nsb::site::SiteProfileSpec::atmosphere_provenance(&self) -> &str
 pub const fn nsb::site::SiteProfileSpec::calibration_status(&self) -> nsb::site::CalibrationStatus
 pub fn nsb::site::SiteProfileSpec::generic_clear_sky() -> Self
 pub fn nsb::site::SiteProfileSpec::id(&self) -> &nsb::site::SiteProfileId
 pub const fn nsb::site::SiteProfileSpec::is_site_calibrated(&self) -> bool
+pub fn nsb::site::SiteProfileSpec::name(&self) -> &str
 pub fn nsb::site::SiteProfileSpec::planning(id: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, name: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, representative_altitude: qtty_core::units::length::Kilometers, atmosphere: nsb::site::AtmosphericConditions, atmosphere_provenance: impl core::convert::Into<alloc::borrow::Cow<'static, str>>) -> Self
+pub const fn nsb::site::SiteProfileSpec::representative_altitude(&self) -> nsb::site::RepresentativeAltitude
 pub fn nsb::site::SiteProfileSpec::resolve(&self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
+pub fn nsb::site::SiteProfileSpec::with_airglow_calibration(self, airglow: nsb::site::AirglowSiteCalibration) -> Self
 pub mod nsb::solar_activity
 pub enum nsb::solar_activity::F107Kind
 pub nsb::solar_activity::F107Kind::Climatology
@@ -632,20 +631,19 @@ pub fn nsb::site::SiteProfileId::from(value: alloc::string::String) -> Self
 impl core::fmt::Display for nsb::site::SiteProfileId
 pub fn nsb::site::SiteProfileId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 #[non_exhaustive] pub struct nsb::SiteProfileSpec
-pub nsb::SiteProfileSpec::airglow: nsb::site::AirglowSiteCalibration
-pub nsb::SiteProfileSpec::atmosphere: nsb::site::AtmosphereSource
-pub nsb::SiteProfileSpec::atmosphere_provenance: alloc::borrow::Cow<'static, str>
-pub nsb::SiteProfileSpec::calibration_status: nsb::site::CalibrationStatus
-pub nsb::SiteProfileSpec::id: nsb::site::SiteProfileId
-pub nsb::SiteProfileSpec::name: alloc::borrow::Cow<'static, str>
-pub nsb::SiteProfileSpec::representative_altitude: nsb::site::RepresentativeAltitude
 impl nsb::site::SiteProfileSpec
+pub fn nsb::site::SiteProfileSpec::airglow(&self) -> &nsb::site::AirglowSiteCalibration
+pub fn nsb::site::SiteProfileSpec::atmosphere(&self) -> &nsb::site::AtmosphereSource
+pub fn nsb::site::SiteProfileSpec::atmosphere_provenance(&self) -> &str
 pub const fn nsb::site::SiteProfileSpec::calibration_status(&self) -> nsb::site::CalibrationStatus
 pub fn nsb::site::SiteProfileSpec::generic_clear_sky() -> Self
 pub fn nsb::site::SiteProfileSpec::id(&self) -> &nsb::site::SiteProfileId
 pub const fn nsb::site::SiteProfileSpec::is_site_calibrated(&self) -> bool
+pub fn nsb::site::SiteProfileSpec::name(&self) -> &str
 pub fn nsb::site::SiteProfileSpec::planning(id: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, name: impl core::convert::Into<alloc::borrow::Cow<'static, str>>, representative_altitude: qtty_core::units::length::Kilometers, atmosphere: nsb::site::AtmosphericConditions, atmosphere_provenance: impl core::convert::Into<alloc::borrow::Cow<'static, str>>) -> Self
+pub const fn nsb::site::SiteProfileSpec::representative_altitude(&self) -> nsb::site::RepresentativeAltitude
 pub fn nsb::site::SiteProfileSpec::resolve(&self, observer: siderust::coordinates::centers::Geodetic<affn::frames::astro::ECEF>) -> nsb::site::SiteProfile
+pub fn nsb::site::SiteProfileSpec::with_airglow_calibration(self, airglow: nsb::site::AirglowSiteCalibration) -> Self
 pub struct nsb::SiteWindowContext
 impl core::fmt::Debug for nsb::SiteWindowContext
 pub fn nsb::SiteWindowContext::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
