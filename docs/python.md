@@ -36,11 +36,13 @@ from datetime import datetime, timezone
 
 import nsb
 
+# CTAO South WGS84 coordinates from the bundled observatory catalog.
 ctao_south = nsb.Observer(
     lon_deg=-70.31634444444444,
     lat_deg=-24.683427777777776,
     height_m=2184.6,
 )
+# Sagittarius A* in ICRS coordinates.
 sgr_a_star = nsb.Direction(
     ra_deg=266.41683,
     dec_deg=-29.00781,
