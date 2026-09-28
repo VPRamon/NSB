@@ -36,8 +36,17 @@ from datetime import datetime, timezone
 
 import nsb
 
-observer = nsb.Observer(-70.4, -24.6, 2600.0)
-direction = nsb.Direction(266.4, -29.0)
+# CTAO South WGS84 coordinates from the bundled observatory catalog.
+ctao_south = nsb.Observer(
+    lon_deg=-70.31634444444444,
+    lat_deg=-24.683427777777776,
+    height_m=2184.6,
+)
+# Sagittarius A* in ICRS coordinates.
+sgr_a_star = nsb.Direction(
+    ra_deg=266.41683,
+    dec_deg=-29.00781,
+)
 
 config = (
     nsb.NsbModelConfig.generic_clear_sky()
@@ -46,9 +55,9 @@ config = (
 evaluator = nsb.NsbEvaluator(config)
 
 query = nsb.PointQuery(
-    observer,
+    ctao_south,
     datetime(2026, 9, 27, 22, 0, tzinfo=timezone.utc),
-    direction,
+    sgr_a_star,
 )
 result = evaluator.evaluate(query)
 
@@ -73,14 +82,17 @@ Inspect the attached profile after configuration via `config.site_profile()`;
 Planning windows use ordinary timezone-aware Python datetimes at the boundary:
 
 ```python
+max_nsb_photons_cm2_ns_sr = 0.25
+sample_step_s = 600.0
+
 query = nsb.ThresholdQuery(
-    observer,
-    direction,
+    ctao_south,
+    sgr_a_star,
     datetime(2026, 9, 27, 20, 0, tzinfo=timezone.utc),
     datetime(2026, 9, 28, 4, 0, tzinfo=timezone.utc),
-    0.25,
+    max_nsb_photons_cm2_ns_sr,
     components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
-    sample_step_s=600.0,
+    sample_step_s=sample_step_s,
 )
 
 context = evaluator.prepare_site_window_context(query)
