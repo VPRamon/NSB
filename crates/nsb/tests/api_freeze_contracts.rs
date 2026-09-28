@@ -66,7 +66,10 @@ fn nsb_crate_only_exposes_the_supported_python_feature() {
         .and_then(toml::Value::as_array)
         .expect("python feature");
     assert_eq!(
-        python.iter().filter_map(toml::Value::as_str).collect::<Vec<_>>(),
+        python
+            .iter()
+            .filter_map(toml::Value::as_str)
+            .collect::<Vec<_>>(),
         ["dep:pyo3"]
     );
     assert!(!manifest.contains_key("window-search-diagnostics"));
