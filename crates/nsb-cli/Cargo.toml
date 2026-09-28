@@ -13,7 +13,7 @@ path = "src/main.rs"
 doc = false
 
 [dependencies]
-nsb = { version = "=0.1.0", path = "../nsb" }
+nsb = { version = "=0.0.0", path = "../nsb" }
 
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }

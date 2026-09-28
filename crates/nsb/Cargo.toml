@@ -1,13 +1,16 @@
 [package]
 name = "nsb"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2021"
 rust-version = "1.89"
 authors = ["VPRamon <vallespuigramon@gmail.com>"]
-description = "Night Sky Background model."
+description = "Night-sky background evaluation and observation planning for ground-based astronomy."
 license = "AGPL-3.0-only"
 repository = "https://github.com/VPRamon/NSB"
+documentation = "https://docs.rs/nsb"
 readme = "README.md"
+publish = ["crates-io"]
+exclude = ["data/starlight_nside128.csv", "data/merge_report.json"]
 keywords = ["astronomy", "atmosphere", "sky-brightness", "ctao", "nsb"]
 categories = ["science"]
 

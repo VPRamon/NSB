@@ -22,7 +22,7 @@ use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery};
 use plotters::prelude::*;
 use qtty::angular::Degrees;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use siderust::catalogs::observatories::ObservatoryCatalog;
+use siderust::catalogs::observatories::ROQUE_DE_LOS_MUCHACHOS;
 use siderust::coordinates::frames::EquatorialMeanJ2000;
 use siderust::coordinates::spherical::direction::Horizontal as HorizontalDirection;
 use siderust::coordinates::transform::SphericalDirectionAstroExt;
@@ -82,13 +82,7 @@ fn run() -> AppResult<()> {
         return Ok(());
     };
 
-    let catalog = ObservatoryCatalog::builtin();
-    let observatory = catalog.get(ORM_NAME).ok_or_else(|| {
-        invalid_input(format!(
-            "Siderust builtin observatory catalog does not contain `{ORM_NAME}`"
-        ))
-    })?;
-    let observer = observatory.geodetic();
+    let observer = ROQUE_DE_LOS_MUCHACHOS.geodetic();
     let time = Time::<UTC>::from_chrono(args.time);
     let jd_tt: JulianDate = time.to::<TT>().to::<JD>();
 
