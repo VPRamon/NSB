@@ -50,19 +50,6 @@ pub(super) struct ZodiacalGeometry {
     pub zenith: Option<Degrees>,
 }
 
-/// Compute zodiacal geometry from a UTC time and an equatorial target
-/// direction, without an observer location (exoatmospheric).
-#[cfg(test)]
-pub(super) fn compute_exoatmospheric(time: Time<UTC>, target: Target) -> Result<ZodiacalGeometry> {
-    let jd = to_jd(time);
-    let (beta, delta_lambda) = ecliptic_geometry(target, jd)?;
-    Ok(ZodiacalGeometry {
-        beta,
-        delta_lambda,
-        zenith: None,
-    })
-}
-
 /// Compute zodiacal geometry from a UTC time, observer location, and
 /// equatorial target direction. Also computes zenith distance for the target.
 pub(super) fn compute_observed(
@@ -80,20 +67,6 @@ pub(super) fn compute_observed(
         delta_lambda,
         zenith: Some(zenith),
     })
-}
-
-#[cfg(test)]
-fn approximate_solar_longitude_j2000(jd: JulianDate) -> Radians {
-    let days = jd.raw().value() - 2_451_545.0;
-    let centuries = days / 36_525.0;
-    let mean_longitude = (280.466_46 + 0.985_647_36 * days).to_radians();
-    let mean_anomaly = (357.529_11 + 0.985_600_28 * days).to_radians();
-    let longitude_of_date = mean_longitude
-        + 1.914_602_f64.to_radians() * mean_anomaly.sin()
-        + 0.019_993_f64.to_radians() * (2.0 * mean_anomaly).sin()
-        + 0.000_289_f64.to_radians() * (3.0 * mean_anomaly).sin();
-    let ecliptic_precession = (1.397 * centuries + 0.000_31 * centuries * centuries).to_radians();
-    Radians::new((longitude_of_date - ecliptic_precession).rem_euclid(std::f64::consts::TAU))
 }
 
 fn ecliptic_geometry(target: Target, jd: JulianDate) -> Result<(Radians, Radians)> {
@@ -123,8 +96,40 @@ fn to_jd(time: Time<UTC>) -> JulianDate {
 }
 
 #[cfg(test)]
+pub(super) mod test_support {
+    use super::*;
+
+    pub(in crate::components::zodiacal) fn compute_exoatmospheric(
+        time: Time<UTC>,
+        target: Target,
+    ) -> Result<ZodiacalGeometry> {
+        let jd = to_jd(time);
+        let (beta, delta_lambda) = ecliptic_geometry(target, jd)?;
+        Ok(ZodiacalGeometry {
+            beta,
+            delta_lambda,
+            zenith: None,
+        })
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    fn approximate_solar_longitude_j2000(jd: JulianDate) -> Radians {
+        let days = jd.raw().value() - 2_451_545.0;
+        let centuries = days / 36_525.0;
+        let mean_longitude = (280.466_46 + 0.985_647_36 * days).to_radians();
+        let mean_anomaly = (357.529_11 + 0.985_600_28 * days).to_radians();
+        let longitude_of_date = mean_longitude
+            + 1.914_602_f64.to_radians() * mean_anomaly.sin()
+            + 0.019_993_f64.to_radians() * (2.0 * mean_anomaly).sin()
+            + 0.000_289_f64.to_radians() * (3.0 * mean_anomaly).sin();
+        let ecliptic_precession =
+            (1.397 * centuries + 0.000_31 * centuries * centuries).to_radians();
+        Radians::new((longitude_of_date - ecliptic_precession).rem_euclid(std::f64::consts::TAU))
+    }
     use chrono::{TimeZone, Utc};
 
     #[test]

@@ -123,7 +123,7 @@ fn tt_mjd_to_utc(time: ModifiedJulianDate) -> Time<UTC> {
 }
 
 fn night_phase_time(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Time<UTC> {
-    let night = super::temporal::astronomical_night_for_test(seed, location)
+    let night = super::temporal::test_support::astronomical_night(seed, location)
         .expect("complete astronomical night");
     let start = night.start.raw().value();
     let end = night.end.raw().value();
@@ -131,7 +131,7 @@ fn night_phase_time(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Ti
 }
 
 fn phase_at(seed: Time<UTC>, location: Geodetic<ECEF>, phase: f64) -> Option<AirglowNightPhase> {
-    super::temporal::night_phase_for_test(night_phase_time(seed, location, phase), location)
+    super::temporal::test_support::night_phase(night_phase_time(seed, location, phase), location)
 }
 
 #[test]
@@ -140,12 +140,12 @@ fn solar_radio_flux_is_typed_and_changes_result() {
     let time = t("2023-09-04T01:48:00Z");
     let target = target(266.41683, -29.00781);
 
-    let low = Airglow::standard_clear_sky(location)
+    let low = super::model::test_support::standard_clear_sky(location)
         .unwrap()
         .with_solar_radio_flux(SolarFluxUnits::new(50.0))
         .compute(time, target)
         .unwrap();
-    let high = Airglow::standard_clear_sky(location)
+    let high = super::model::test_support::standard_clear_sky(location)
         .unwrap()
         .with_solar_radio_flux(SolarFluxUnits::new(250.0))
         .compute(time, target)
@@ -160,11 +160,11 @@ fn scale_changes_result() {
     let time = t("2023-09-04T01:48:00Z");
     let target = target(266.41683, -29.00781);
 
-    let base = Airglow::standard_clear_sky(location)
+    let base = super::model::test_support::standard_clear_sky(location)
         .unwrap()
         .compute(time, target)
         .unwrap();
-    let scaled = Airglow::standard_clear_sky(location)
+    let scaled = super::model::test_support::standard_clear_sky(location)
         .unwrap()
         .with_scale(crate::units::ScaleFactors::new(2.0))
         .compute(time, target)
@@ -197,15 +197,17 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
     let target = target(266.41683, -29.00781);
     let profile = ctao_north_planning().resolve(location);
 
-    let from_profile = Airglow::for_site_profile(location, &ctao_north_planning())
-        .unwrap()
-        .compute(time, target)
-        .unwrap();
-    let explicit = Airglow::with_continuum(location, load_builtin_standard().unwrap())
-        .with_atmosphere(profile.atmosphere)
-        .with_scale(profile.airglow.scale)
-        .compute(time, target)
-        .unwrap();
+    let from_profile =
+        super::model::test_support::for_site_profile(location, &ctao_north_planning())
+            .unwrap()
+            .compute(time, target)
+            .unwrap();
+    let explicit =
+        super::model::test_support::with_continuum(location, load_builtin_standard().unwrap())
+            .with_atmosphere(profile.atmosphere)
+            .with_scale(profile.airglow.scale)
+            .compute(time, target)
+            .unwrap();
 
     assert_eq!(profile.airglow.scale, crate::units::ScaleFactors::new(1.0));
     assert_eq!(from_profile.integrated.value(), explicit.integrated.value());
@@ -214,11 +216,11 @@ fn site_profile_airglow_constructor_matches_profile_scale() {
 #[test]
 fn cta_site_profile_airglow_results_are_site_sensitive() {
     let target = target(266.41683, -29.00781);
-    let north = Airglow::for_site_profile(cta_n(), &ctao_north_planning())
+    let north = super::model::test_support::for_site_profile(cta_n(), &ctao_north_planning())
         .unwrap()
         .compute(t("2023-09-04T02:00:00Z"), target)
         .unwrap();
-    let south = Airglow::for_site_profile(cta_s(), &ctao_south_planning())
+    let south = super::model::test_support::for_site_profile(cta_s(), &ctao_south_planning())
         .unwrap()
         .compute(t("2023-09-04T04:00:00Z"), target)
         .unwrap();
@@ -245,7 +247,7 @@ fn geometry_selection_changes_only_the_geometry_multiplier() {
     let vertical_factor = vertical.geometry_factor(location, zenith).unwrap().value();
 
     let evaluate = |geometry: AirglowGeometryModel| {
-        super::continuum::evaluate_continuum_with_night_phase(
+        super::continuum::test_support::evaluate_continuum_with_night_phase(
             &continuum,
             t("2023-09-04T01:48:00Z"),
             altitude,
@@ -281,12 +283,15 @@ fn geometry_selection_changes_only_the_geometry_multiplier() {
 #[test]
 fn vertical_profile_runs_through_normal_airglow_api_at_arbitrary_location() {
     let location = Geodetic::new_raw(Degrees::new(18.4), Degrees::new(-33.9), Meters::new(120.0));
-    let model = Airglow::standard_clear_sky(location)
+    let model = super::model::test_support::standard_clear_sky(location)
         .unwrap()
         .with_geometry(AirglowGeometryModel::VerticalProfile(
             synthetic_vertical_profile(),
         ));
-    assert_eq!(model.geometry().model_id(), "vertical_profile");
+    assert_eq!(
+        super::model::test_support::geometry(&model).model_id(),
+        "vertical_profile"
+    );
     let out = model
         .compute(t("2023-06-21T22:00:00Z"), target(200.0, -45.0))
         .unwrap();
@@ -303,7 +308,7 @@ fn below_horizon_contract_clamps_to_horizon_for_both_geometry_models() {
         AirglowGeometryModel::VerticalProfile(synthetic_vertical_profile()),
     ] {
         let evaluate = |altitude| {
-            super::continuum::evaluate_continuum_with_night_phase(
+            super::continuum::test_support::evaluate_continuum_with_night_phase(
                 &continuum,
                 t("2023-09-04T04:00:00Z"),
                 Degrees::new(altitude),
@@ -369,7 +374,7 @@ fn night_phases_follow_cta_n_astronomical_night_phase() {
 fn twilight_edges_are_outside_airglow_calibration_domain() {
     let location = cta_s();
     let seed = t("2023-09-04T04:00:00Z");
-    let night = super::temporal::astronomical_night_for_test(seed, location)
+    let night = super::temporal::test_support::astronomical_night(seed, location)
         .expect("complete astronomical night");
     let one_minute_days = 1.0 / 1440.0;
 
@@ -387,19 +392,19 @@ fn twilight_edges_are_outside_airglow_calibration_domain() {
     ));
 
     assert_eq!(
-        super::temporal::night_phase_for_test(before_dusk, location),
+        super::temporal::test_support::night_phase(before_dusk, location),
         None
     );
     assert_eq!(
-        super::temporal::night_phase_for_test(after_dusk, location),
+        super::temporal::test_support::night_phase(after_dusk, location),
         Some(AirglowNightPhase::FirstThird)
     );
     assert_eq!(
-        super::temporal::night_phase_for_test(before_dawn, location),
+        super::temporal::test_support::night_phase(before_dawn, location),
         Some(AirglowNightPhase::LastThird)
     );
     assert_eq!(
-        super::temporal::night_phase_for_test(after_dawn, location),
+        super::temporal::test_support::night_phase(after_dawn, location),
         None
     );
 }
@@ -407,7 +412,7 @@ fn twilight_edges_are_outside_airglow_calibration_domain() {
 #[test]
 fn polar_summer_without_astronomical_night_has_no_phase() {
     assert_eq!(
-        super::temporal::night_phase_for_test(t("2023-06-21T12:00:00Z"), high_arctic(78.0)),
+        super::temporal::test_support::night_phase(t("2023-06-21T12:00:00Z"), high_arctic(78.0)),
         None
     );
 }
@@ -444,7 +449,7 @@ fn polar_winter_astronomical_night_preserves_airglow() {
     let location = high_arctic(89.0);
     let time = t("2023-12-21T12:00:00Z");
 
-    assert!(super::temporal::night_phase_for_test(time, location).is_some());
+    assert!(super::temporal::test_support::night_phase(time, location).is_some());
 
     let continuum = load_builtin_standard().unwrap();
     let out = super::continuum::evaluate_continuum(
@@ -581,7 +586,7 @@ fn high_zenith_target_differs_from_zenith_due_to_geometry_and_scattering() {
     let time = t("2023-09-04T01:48:00Z");
     let zenith_target = target(266.41683, -29.00781);
     let low_altitude_target = target(80.0, -20.0);
-    let model = Airglow::standard_clear_sky(location).unwrap();
+    let model = super::model::test_support::standard_clear_sky(location).unwrap();
     let zenith = model.compute(time, zenith_target).unwrap();
     let low = model.compute(time, low_altitude_target).unwrap();
     assert_ne!(
@@ -598,14 +603,14 @@ fn site_profile_atmosphere_changes_airglow_at_fixed_geometry() {
     let target = target(266.41683, -29.00781);
     let continuum = load_builtin_standard().unwrap();
 
-    let low_pressure = Airglow::with_continuum(location, continuum.clone())
+    let low_pressure = super::model::test_support::with_continuum(location, continuum.clone())
         .with_atmosphere(AtmosphericConditions {
             surface_pressure: siderust::qtty::Hectopascals::new(600.0),
             ..AtmosphericConditions::paranal_average()
         })
         .compute(time, target)
         .unwrap();
-    let high_pressure = Airglow::with_continuum(location, continuum)
+    let high_pressure = super::model::test_support::with_continuum(location, continuum)
         .with_atmosphere(AtmosphericConditions {
             surface_pressure: siderust::qtty::Hectopascals::new(900.0),
             ..AtmosphericConditions::paranal_average()
@@ -674,7 +679,7 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
     let location = paranal();
     let time = t("2023-09-04T01:48:00Z");
     let query_target = target(266.41683, -29.00781);
-    let model = Airglow::for_site_profile(location, &ctao_south_planning())
+    let model = super::model::test_support::for_site_profile(location, &ctao_south_planning())
         .unwrap()
         .compute(time, query_target)
         .unwrap();
@@ -687,7 +692,7 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
         model.integrated.value()
     );
 
-    let low = Airglow::for_site_profile(location, &ctao_south_planning())
+    let low = super::model::test_support::for_site_profile(location, &ctao_south_planning())
         .unwrap()
         .compute(time, target(80.0, -20.0))
         .unwrap();
@@ -726,15 +731,16 @@ fn integrated_only_matches_full_path_across_profiles_seasons_phases_and_fluxes()
                             solar_radio_flux: SolarFluxUnits::new(flux),
                             user_scale: profile.airglow.scale,
                         };
-                        let full = super::continuum::evaluate_continuum_with_night_phase(
-                            &continuum,
-                            time,
-                            Degrees::new(altitude),
-                            context(),
-                            phase,
-                        )
-                        .unwrap()
-                        .integrated;
+                        let full =
+                            super::continuum::test_support::evaluate_continuum_with_night_phase(
+                                &continuum,
+                                time,
+                                Degrees::new(altitude),
+                                context(),
+                                phase,
+                            )
+                            .unwrap()
+                            .integrated;
                         let integrated =
                             super::continuum::evaluate_integrated_continuum_with_night_phase(
                                 &continuum,

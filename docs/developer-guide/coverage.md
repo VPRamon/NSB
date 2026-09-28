@@ -96,8 +96,8 @@ The diff gate:
   not production coverage targets);
 - ignores integration tests (`crates/*/tests/`), unit-test modules named
   `tests.rs`, benches, and examples as coverage *targets*;
-- also ignores executable lines inside file-level inline items guarded by
-  `#[cfg(test)]` so test-only edits cannot dilute changed-production coverage;
+- ignores executable lines inside dedicated test modules included by a
+  `#[cfg(test)]` module boundary, so unit-test edits cannot dilute changed-production coverage;
 - classifies each remaining changed line from LCOV `DA:line,hits` the same way
   LLVM does: hits `> 0` covered, hits `= 0` uncovered, no `DA` record
   non-executable;
@@ -108,9 +108,10 @@ The diff gate:
   multi-line declaration continuations fail closed (no deep source-context scan);
 - lists uncovered changed production lines and missing files in the job log.
 
-When a pull request changes only non-production or inline `#[cfg(test)]` lines,
-the diff gate reports zero executable production lines and passes. That is the
-intended contract: there is no production coverage regression to enforce.
+When a pull request changes only non-production code or dedicated unit-test modules,
+the diff gate reports zero executable production lines and passes. Production `src/`
+code may not use `#[cfg(test)]` for implementation hooks; the separate boundary check
+rejects those before coverage classification.
 
 The exact changed-production floor is `diff.changed_production_lines` in the
 policy file.

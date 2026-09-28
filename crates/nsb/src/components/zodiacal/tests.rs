@@ -1,15 +1,128 @@
 //! Tests for the zodiacal-light module.
 
 use super::extinction::ZodiacalExtinction;
-use super::leinert::{reference_lookup_s10_for_test, Leinert1998Grid};
-use super::model::{ZodiacalBrightnessGrid, ZodiacalBrightnessModel, ZodiacalLight};
+use super::leinert::{test_support::reference_lookup_s10, Leinert1998Grid};
+use super::model::ZodiacalLight;
+use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use qtty::angular::{Degrees, Radians};
-use qtty::radiometry::S10s;
+use qtty::radiometry::{S10s, S10s as S10};
 use siderust::catalogs::observatories;
 use siderust::qtty::Nanometers;
 use siderust::qtty::DEG;
 use tempoch::{Time, UTC};
+
+#[derive(Debug, Clone)]
+struct ZodiacalBrightnessGrid {
+    beta_axis: Vec<Degrees>,
+    delta_lambda_axis: Vec<Degrees>,
+    s10_values: Vec<Vec<S10>>,
+}
+
+impl ZodiacalBrightnessGrid {
+    fn new(
+        beta_axis: Vec<Degrees>,
+        delta_lambda_axis: Vec<Degrees>,
+        s10_values: Vec<Vec<S10>>,
+    ) -> Result<Self> {
+        if beta_axis.len() < 2 || delta_lambda_axis.len() < 2 {
+            return Err(NsbError::OutOfRange(
+                "custom ZodiacalBrightnessGrid axes must have at least 2 points each".to_string(),
+            ));
+        }
+        if !is_strictly_increasing(&beta_axis) {
+            return Err(NsbError::OutOfRange(
+                "beta_axis must be strictly increasing".to_string(),
+            ));
+        }
+        if !is_strictly_increasing(&delta_lambda_axis) {
+            return Err(NsbError::OutOfRange(
+                "delta_lambda_axis must be strictly increasing".to_string(),
+            ));
+        }
+        if *beta_axis.first().unwrap() < Degrees::new(0.0)
+            || *beta_axis.last().unwrap() > Degrees::new(90.0)
+        {
+            return Err(NsbError::OutOfRange(
+                "beta_axis values must be in [0, 90] degrees".to_string(),
+            ));
+        }
+        if *delta_lambda_axis.first().unwrap() < Degrees::new(0.0)
+            || *delta_lambda_axis.last().unwrap() > Degrees::new(180.0)
+        {
+            return Err(NsbError::OutOfRange(
+                "delta_lambda_axis values must be in [0, 180] degrees".to_string(),
+            ));
+        }
+        if s10_values.len() != beta_axis.len() {
+            return Err(NsbError::OutOfRange(format!(
+                "s10_values row count {} != beta_axis length {}",
+                s10_values.len(),
+                beta_axis.len()
+            )));
+        }
+        for (i, row) in s10_values.iter().enumerate() {
+            if row.len() != delta_lambda_axis.len() {
+                return Err(NsbError::OutOfRange(format!(
+                    "s10_values row {} has length {} != delta_lambda_axis length {}",
+                    i,
+                    row.len(),
+                    delta_lambda_axis.len()
+                )));
+            }
+            for &value in row {
+                if !value.is_finite() || value < S10::new(0.0) {
+                    return Err(NsbError::OutOfRange(format!(
+                        "s10_values[{i}] contains non-finite or negative value: {}",
+                        value.value()
+                    )));
+                }
+            }
+        }
+        Ok(Self {
+            beta_axis,
+            delta_lambda_axis,
+            s10_values,
+        })
+    }
+
+    fn lookup_s10(&self, beta: Degrees, delta_lambda: Degrees) -> Result<S10> {
+        let beta = beta.abs().min(Degrees::new(90.0));
+        let delta_lambda = delta_lambda.abs().min(Degrees::new(180.0));
+        let (ib0, ib1, tb) = bracket(&self.beta_axis, beta);
+        let (il0, il1, tl) = bracket(&self.delta_lambda_axis, delta_lambda);
+        Ok(bilinear(
+            self.s10_values[ib0][il0],
+            self.s10_values[ib0][il1],
+            self.s10_values[ib1][il0],
+            self.s10_values[ib1][il1],
+            tb,
+            tl,
+        ))
+    }
+}
+
+fn is_strictly_increasing(values: &[Degrees]) -> bool {
+    values.windows(2).all(|window| window[1] > window[0])
+}
+
+fn bracket(axis: &[Degrees], value: Degrees) -> (usize, usize, f64) {
+    let pos = axis.partition_point(|&x| x <= value);
+    let i1 = pos.min(axis.len() - 1);
+    let i0 = if i1 == 0 { 0 } else { i1 - 1 };
+    let t = if axis[i1] > axis[i0] {
+        (value - axis[i0]).value() / (axis[i1] - axis[i0]).value()
+    } else {
+        0.0
+    };
+    (i0, i1, t.clamp(0.0, 1.0))
+}
+
+fn bilinear(v00: S10, v01: S10, v10: S10, v11: S10, tx: f64, ty: f64) -> S10 {
+    let r0 = v00 + (v10 - v00) * tx;
+    let r1 = v01 + (v11 - v01) * tx;
+    r0 + (r1 - r0) * ty
+}
 
 #[test]
 fn leinert_grid2d_matches_historical_reference() {
@@ -21,7 +134,7 @@ fn leinert_grid2d_matches_historical_reference() {
             let dl_rad = dl.to_radians();
             let beta_rad = beta.to_radians();
 
-            let reference = match reference_lookup_s10_for_test(beta_rad, dl_rad) {
+            let reference = match reference_lookup_s10(beta_rad, dl_rad) {
                 Some(v) => v,
                 None => continue,
             };
@@ -84,8 +197,9 @@ fn leinert_lookup_rejects_non_finite_inputs() {
 #[test]
 fn noll2012_extinction_matches_numeric_reference_value() {
     let transmission = ZodiacalExtinction::Noll2012Approx
-        .transmission(
-            crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0),
+        .transmission_for_spectral_radiance(
+            crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0)
+                .to::<qtty::unit::WattPerSquareMeterSteradianNanometer>(),
             Nanometers::new(500.0),
             Degrees::new(0.0),
         )
@@ -97,8 +211,9 @@ fn noll2012_extinction_matches_numeric_reference_value() {
     );
     assert_eq!(
         ZodiacalExtinction::None
-            .transmission(
-                crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0),
+            .transmission_for_spectral_radiance(
+                crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0)
+                    .to::<qtty::unit::WattPerSquareMeterSteradianNanometer>(),
                 Nanometers::new(500.0),
                 Degrees::new(60.0),
             )
@@ -109,7 +224,7 @@ fn noll2012_extinction_matches_numeric_reference_value() {
 
 #[test]
 fn geometry_folds_delta_lambda_to_0_pi() {
-    use super::geometry::compute_exoatmospheric;
+    use super::geometry::test_support::compute_exoatmospheric;
     let time = parse_utc("2023-09-04T01:48:00Z");
     let target = sgr_a_star();
 
@@ -120,7 +235,7 @@ fn geometry_folds_delta_lambda_to_0_pi() {
 
 #[test]
 fn geometry_known_case_is_stable() {
-    use super::geometry::compute_exoatmospheric;
+    use super::geometry::test_support::compute_exoatmospheric;
     let time = parse_utc("2023-09-04T01:48:00Z");
     let target = sgr_a_star();
 
@@ -139,8 +254,7 @@ fn exoatmospheric_does_not_need_location() {
     let time = parse_utc("2023-09-04T01:48:00Z");
     let target = sgr_a_star();
 
-    let out = model
-        .compute_exoatmospheric(time, target)
+    let out = super::model::test_support::compute_exoatmospheric(&model, time, target)
         .expect("exoatmospheric compute");
 
     assert!(out.integrated.value() > 0.0);
@@ -240,16 +354,24 @@ fn custom_brightness_grid_evaluates_finite_positive_radiance() {
     )
     .expect("custom grid");
 
-    let model = ZodiacalLight::with_brightness_model(ZodiacalBrightnessModel::CustomGrid(grid))
-        .expect("model with custom grid");
-
     let time = parse_utc("2023-09-04T01:48:00Z");
     let observer = observatories::EL_PARANAL.geodetic();
     let target = sgr_a_star();
-
-    let custom = model
-        .compute(time, observer, target)
-        .expect("custom grid compute");
+    let geom = super::geometry::compute_observed(time, observer, target).expect("geometry");
+    let s10_500 = grid
+        .lookup_s10(
+            geom.beta.abs().to::<qtty::angular::Degree>(),
+            geom.delta_lambda.to::<qtty::angular::Degree>(),
+        )
+        .expect("custom brightness");
+    let solar = crate::spectra::solar::load().expect("solar spectrum");
+    let custom = super::spectrum::compute_outputs_with_s10(
+        &geom,
+        &solar,
+        ZodiacalExtinction::Noll2012Approx,
+        s10_500,
+    )
+    .expect("custom grid compute");
     let leinert = ZodiacalLight::leinert1998()
         .expect("leinert")
         .compute(time, observer, target)
@@ -258,13 +380,8 @@ fn custom_brightness_grid_evaluates_finite_positive_radiance() {
     assert!(custom.integrated.value() > 0.0);
     assert!(custom.b_flux_s10.value() > 0.0);
     assert!(custom.v_flux_s10.value() > 0.0);
-    assert_ne!(
-        custom.integrated.value(),
-        leinert.integrated.value(),
-        "custom brightness grid must change the observable radiance"
-    );
+    assert_ne!(custom.integrated.value(), leinert.integrated.value());
 }
-
 #[test]
 fn regression_known_case_sgr_a_star_paranal() {
     let model = ZodiacalLight::leinert1998().expect("model");

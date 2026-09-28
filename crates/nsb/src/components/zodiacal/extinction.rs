@@ -36,8 +36,6 @@
 //! Noll et al. (2012), *A&A* 543, A92.
 
 use crate::units::WattPerSquareMeterSteradianMicrometer;
-#[cfg(test)]
-use crate::units::WattsPerSquareMeterSteradianMicrometer;
 use qtty::angular::{Degrees, Radian};
 use qtty::dimensionless::Transmittances;
 use qtty::radiometry::WattsPerSquareMeterSteradianNanometer;
@@ -82,26 +80,6 @@ impl ZodiacalExtinction {
             Self::None => "none",
             Self::Noll2012Approx => "noll-2012-approximation",
         }
-    }
-
-    /// Compute the transmission `T(λ, zenith) ∈ (0, 1]` for a photon at
-    /// wavelength `lambda_nm` observed at zenith distance `zenith`.
-    ///
-    /// `zl_value_w_m2_sr_um` is the zodiacal spectral radiance at `lambda_nm`
-    /// in W m⁻² sr⁻¹ µm⁻¹, which is used as a proxy input to the Noll
-    /// parametric extinction model.
-    ///
-    /// Returns `1.0` for [`ZodiacalExtinction::None`].
-    #[cfg(test)]
-    pub(crate) fn transmission(
-        &self,
-        spectral_radiance: WattsPerSquareMeterSteradianMicrometer,
-        wavelength: Nanometers,
-        zenith: Degrees,
-    ) -> Transmittances {
-        let spectral_radiance =
-            spectral_radiance.to::<unit::WattPerSquareMeterSteradianNanometer>();
-        self.transmission_for_spectral_radiance(spectral_radiance, wavelength, zenith)
     }
 
     pub(crate) fn transmission_for_spectral_radiance(

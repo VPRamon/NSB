@@ -169,13 +169,3 @@ pub(crate) fn prepare_target_threshold(
     };
     Ok(prepared)
 }
-
-#[cfg(test)]
-pub(crate) fn prepare_threshold(
-    evaluator: &NsbEvaluator,
-    query: &ThresholdQuery,
-    tt_window: TimePeriod<ModifiedJulianDate>,
-) -> Result<PreparedThresholdQuery> {
-    let context = prepare_site_context(evaluator, query, tt_window)?;
-    prepare_target_threshold(evaluator, &context, query)
-}

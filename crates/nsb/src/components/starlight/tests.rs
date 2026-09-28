@@ -1,3 +1,4 @@
+use super::provenance::test_support::fixture as fixture_provenance;
 use super::*;
 use crate::evaluator::Target;
 use crate::DEG;
@@ -44,7 +45,7 @@ healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,syste
 "#;
 
 fn fixture_map() -> StarlightMap {
-    StarlightMap::from_csv_str(FIXTURE, StarlightProvenance::test_fixture()).unwrap()
+    StarlightMap::from_csv_str(FIXTURE, fixture_provenance()).unwrap()
 }
 
 fn galactic_direction(lon_deg: f64, lat_deg: f64) -> CartesianDirection<Galactic> {
@@ -88,8 +89,7 @@ fn target(ra: f64, dec: f64) -> Target {
 
 #[test]
 fn healpix_experimental_map_is_explicitly_labelled() {
-    let map =
-        StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
+    let map = StarlightMap::from_csv_str(HEALPIX_FIXTURE, fixture_provenance()).unwrap();
     let model = Starlight::with_shared_map(std::sync::Arc::new(map));
     let provenance = model.map().provenance();
 
@@ -158,8 +158,7 @@ fn bundled_production_model_is_the_canonical_admitted_csv_map() {
 
 #[test]
 fn healpix_csv_fixture_loads_from_test_data_only() {
-    let map =
-        StarlightMap::from_csv_str(HEALPIX_FIXTURE, StarlightProvenance::test_fixture()).unwrap();
+    let map = StarlightMap::from_csv_str(HEALPIX_FIXTURE, fixture_provenance()).unwrap();
 
     assert_eq!(map.pixels().len(), 12);
     assert_eq!(
@@ -181,7 +180,7 @@ fn healpix_csv_fixture_loads_from_test_data_only() {
 #[test]
 fn packed_uncertainties_parse_and_survive_lookup() {
     let raw = packed_uncertainty_fixture(0.1, 0.2, 0.25);
-    let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
+    let map = StarlightMap::from_csv_str(&raw, fixture_provenance()).unwrap();
     let output = map.lookup(
         map.pixel_direction(HealpixIndex::new(7))
             .unwrap()
@@ -217,7 +216,7 @@ fn packed_candidate_header_loads_without_invented_s10() {
             tot = integrated * 0.25
         ));
     }
-    let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
+    let map = StarlightMap::from_csv_str(&raw, fixture_provenance()).unwrap();
     let occupied = map.lookup(
         map.pixel_direction(HealpixIndex::new(0))
             .unwrap()
@@ -234,14 +233,12 @@ fn packed_candidate_header_loads_without_invented_s10() {
 #[test]
 fn packed_rejects_negative_or_inconsistent_uncertainties() {
     let negative = packed_uncertainty_fixture(-0.1, 0.2, 0.25);
-    let error =
-        StarlightMap::from_csv_str(&negative, StarlightProvenance::test_fixture()).unwrap_err();
+    let error = StarlightMap::from_csv_str(&negative, fixture_provenance()).unwrap_err();
     assert!(error.to_string().contains("uncertainty triplet"));
 
     let total_below_component = packed_uncertainty_fixture(0.1, 0.3, 0.2);
     let error =
-        StarlightMap::from_csv_str(&total_below_component, StarlightProvenance::test_fixture())
-            .unwrap_err();
+        StarlightMap::from_csv_str(&total_below_component, fixture_provenance()).unwrap_err();
     assert!(error.to_string().contains("total >= statistical"));
 }
 
@@ -271,10 +268,12 @@ fn custom_scale_changes_outputs() {
     let base = Starlight::with_shared_map(std::sync::Arc::new(fixture_map()))
         .compute(target(266.4051, -28.936175))
         .unwrap();
-    let scaled = Starlight::with_shared_map(std::sync::Arc::new(fixture_map()))
-        .with_scale(crate::units::ScaleFactors::new(2.0))
-        .compute(target(266.4051, -28.936175))
-        .unwrap();
+    let scaled = super::model::test_support::with_scale(
+        Starlight::with_shared_map(std::sync::Arc::new(fixture_map())),
+        crate::units::ScaleFactors::new(2.0),
+    )
+    .compute(target(266.4051, -28.936175))
+    .unwrap();
 
     assert!((scaled.integrated.value() / base.integrated.value() - 2.0).abs() < 1.0e-12);
 }
@@ -282,14 +281,16 @@ fn custom_scale_changes_outputs() {
 #[test]
 fn custom_scale_changes_absolute_but_not_relative_uncertainty() {
     let raw = packed_uncertainty_fixture(0.1, 0.2, 0.25);
-    let map = StarlightMap::from_csv_str(&raw, StarlightProvenance::test_fixture()).unwrap();
+    let map = StarlightMap::from_csv_str(&raw, fixture_provenance()).unwrap();
     let base = Starlight::with_shared_map(std::sync::Arc::new(map.clone()))
         .compute(target(266.4051, -28.936175))
         .unwrap();
-    let scaled = Starlight::with_shared_map(std::sync::Arc::new(map))
-        .with_scale(crate::units::ScaleFactors::new(2.0))
-        .compute(target(266.4051, -28.936175))
-        .unwrap();
+    let scaled = super::model::test_support::with_scale(
+        Starlight::with_shared_map(std::sync::Arc::new(map)),
+        crate::units::ScaleFactors::new(2.0),
+    )
+    .compute(target(266.4051, -28.936175))
+    .unwrap();
 
     assert_eq!(
         scaled.statistical_uncertainty.unwrap().value(),
@@ -316,15 +317,14 @@ fn incomplete_healpix_maps_are_rejected() {
             BandPhotonRadiance::new(0.2),
             BandPhotonRadiance::new(0.25),
         );
-    let err = StarlightMap::from_healpix(grid, vec![pixel], StarlightProvenance::test_fixture())
-        .unwrap_err();
+    let err = StarlightMap::from_healpix(grid, vec![pixel], fixture_provenance()).unwrap_err();
     assert!(matches!(err, crate::NsbError::InvalidMap { .. }));
 }
 
 #[test]
 fn unsupported_csv_header_is_rejected() {
     let raw = "pixel,value\n0,1.0\n";
-    let error = StarlightMap::from_csv_str(raw, StarlightProvenance::test_fixture()).unwrap_err();
+    let error = StarlightMap::from_csv_str(raw, fixture_provenance()).unwrap_err();
     assert!(error
         .to_string()
         .contains("unsupported starlight map header"));
@@ -344,7 +344,6 @@ fn mixed_uncertainty_schema_is_rejected() {
     let mut pixels = vec![with_uncertainty; 12];
     pixels[5] = StarlightPixel::new(BandPhotonRadiance::new(1.0), S10s::new(0.0), S10s::new(0.0))
         .without_s10_diagnostics();
-    let err =
-        StarlightMap::from_healpix(grid, pixels, StarlightProvenance::test_fixture()).unwrap_err();
+    let err = StarlightMap::from_healpix(grid, pixels, fixture_provenance()).unwrap_err();
     assert!(err.to_string().contains("same uncertainty schema"));
 }

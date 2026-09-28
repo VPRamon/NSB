@@ -229,7 +229,9 @@ mod tests {
     #[test]
     fn describe_components_rejects_starlight_without_configured_product() {
         let evaluator = NsbEvaluator::with_config(
-            NsbModelConfig::generic_clear_sky().without_starlight_product(),
+            crate::evaluator::types::test_support::without_starlight_product(
+                NsbModelConfig::generic_clear_sky(),
+            ),
         )
         .unwrap();
 
@@ -246,7 +248,9 @@ mod tests {
         use tempoch::{Time, UTC};
 
         let evaluator = NsbEvaluator::with_config(
-            NsbModelConfig::generic_clear_sky().without_starlight_product(),
+            crate::evaluator::types::test_support::without_starlight_product(
+                NsbModelConfig::generic_clear_sky(),
+            ),
         )
         .unwrap();
         let time = Time::<UTC>::from_chrono(

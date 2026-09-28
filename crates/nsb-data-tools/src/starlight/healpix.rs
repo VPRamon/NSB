@@ -340,14 +340,18 @@ pub fn reference_nest2ring(nside: u32, ipnest: u64) -> u64 {
 }
 
 #[cfg(test)]
-pub(crate) fn fixture_icrs_from_source_id(source_id: u64) -> IcrsSkyPosition {
-    let equatorial_nested =
-        gaia_source_id_equatorial_nested_pixel(source_id, GAIA_MAX_NSIDE).unwrap() as u64;
-    let direction = nested_pixel_center::<ICRS>(GAIA_MAX_NSIDE, equatorial_nested).unwrap();
-    let spherical = direction.to_spherical();
-    IcrsSkyPosition {
-        ra_deg: spherical.azimuth.value(),
-        dec_deg: spherical.polar.value(),
+pub(crate) mod test_support {
+    use super::*;
+
+    pub(crate) fn fixture_icrs_from_source_id(source_id: u64) -> IcrsSkyPosition {
+        let equatorial_nested =
+            gaia_source_id_equatorial_nested_pixel(source_id, GAIA_MAX_NSIDE).unwrap() as u64;
+        let direction = nested_pixel_center::<ICRS>(GAIA_MAX_NSIDE, equatorial_nested).unwrap();
+        let spherical = direction.to_spherical();
+        IcrsSkyPosition {
+            ra_deg: spherical.azimuth.value(),
+            dec_deg: spherical.polar.value(),
+        }
     }
 }
 

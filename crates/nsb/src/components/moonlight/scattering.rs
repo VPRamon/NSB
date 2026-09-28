@@ -10,16 +10,8 @@ use siderust::qtty::{Degrees, Micrometers, Nanometer, Nanometers};
 const MIE_RAW: &str = include_str!("../../../data/mie_m15s1.dat");
 const SSCAT_RAW: &str = include_str!("../../../data/sscatcor_m15s1.dat");
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ScatterGridKind {
-    MiePhase,
-    MultipleScatteringCorrection,
-}
-
 #[derive(Clone, Debug)]
 pub struct ScatterGrid {
-    #[cfg(test)]
-    kind: ScatterGridKind,
     angle_deg: Vec<f64>,
     wavelength_nm: Vec<f64>,
     data: Vec<f64>,
@@ -31,25 +23,11 @@ impl ScatterGrid {
     }
 
     pub fn mie_phase() -> Result<Self> {
-        parse_grid(MIE_RAW, "mie_m15s1.dat", ScatterGridKind::MiePhase)
+        parse_grid(MIE_RAW, "mie_m15s1.dat")
     }
 
     pub fn multiple_scattering_correction() -> Result<Self> {
-        parse_grid(
-            SSCAT_RAW,
-            "sscatcor_m15s1.dat",
-            ScatterGridKind::MultipleScatteringCorrection,
-        )
-    }
-
-    #[cfg(test)]
-    pub fn kind(&self) -> ScatterGridKind {
-        self.kind
-    }
-
-    #[cfg(test)]
-    pub fn dimensions(&self) -> (usize, usize) {
-        (self.angle_deg.len(), self.wavelength_nm.len())
+        parse_grid(SSCAT_RAW, "sscatcor_m15s1.dat")
     }
 
     pub fn lookup(&self, angle: Degrees, wavelength: Nanometers) -> f64 {
@@ -94,7 +72,7 @@ fn bracket_clamped(axis: &[f64], value: f64) -> (usize, usize, f64) {
     (lower, upper, t.clamp(0.0, 1.0))
 }
 
-fn parse_grid(raw: &str, file: &'static str, _kind: ScatterGridKind) -> Result<ScatterGrid> {
+fn parse_grid(raw: &str, file: &'static str) -> Result<ScatterGrid> {
     let mut lines = raw.lines().filter_map(|line| {
         let t = line.trim();
         if t.is_empty() || t.starts_with('#') {
@@ -162,8 +140,6 @@ fn parse_grid(raw: &str, file: &'static str, _kind: ScatterGridKind) -> Result<S
     }
 
     Ok(ScatterGrid {
-        #[cfg(test)]
-        kind: _kind,
         angle_deg,
         wavelength_nm,
         data,
@@ -215,8 +191,7 @@ mod tests {
     #[test]
     fn moonlight_mie_phase_grid_loads_known_value() {
         let grid = ScatterGrid::mie_phase().unwrap();
-        assert_eq!(grid.kind(), ScatterGridKind::MiePhase);
-        assert_eq!(grid.dimensions(), (181, 40));
+        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (181, 40));
         let v = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
         assert!((v - 57.433_337).abs() < 1.0e-6);
     }
@@ -224,8 +199,7 @@ mod tests {
     #[test]
     fn moonlight_scattering_correction_grid_loads_known_value() {
         let grid = ScatterGrid::multiple_scattering_correction().unwrap();
-        assert_eq!(grid.kind(), ScatterGridKind::MultipleScatteringCorrection);
-        assert_eq!(grid.dimensions(), (16, 40));
+        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (16, 40));
         let v = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
         assert!((v - 1.936).abs() < 1.0e-12);
     }
