@@ -24,7 +24,7 @@ in [Coverage policy](coverage.md) (`baseline_kind = release-post-audit`).
 
 | Category | Typical location | Protects |
 | --- | --- | --- |
-| Unit behaviour | `crates/nsb/src/**` `#[cfg(test)]`, `**/tests.rs` | Local scientific or parsing behaviour |
+| Unit behaviour | `crates/*/src/**` test modules (`#[cfg(test)] mod tests`, `tests.rs`) | Local scientific or parsing behaviour |
 | Invariant / property | evaluator, planning/window search, component composition | Sums, ordering, monotonicity, fail-closed rules |
 | Numerical / physical boundary | component unit tests | Zenith edges, domain cut-offs, FP clamps |
 | Error / rejection | `query_api`, component constructors, CLI error suite | Invalid input, missing assets, inverted ranges |
@@ -49,6 +49,20 @@ in [Coverage policy](coverage.md) (`baseline_kind = release-post-audit`).
 
 Prefer one strong test at the correct layer over the same assertion copied into
 unit, integration, and CLI suites.
+
+### Production/test module boundary
+
+Inside production `crates/*/src/**` trees, `#[cfg(test)]` is a module-boundary attribute only.
+It may include inline or sibling test modules (for example `mod tests`, a `tests.rs` via
+`#[path]`, or a narrowly scoped `test_support` module), but it must not change production
+imports, fields, methods, functions, constructors, branches, statics, thread-locals, or type
+variants. Unit-test child modules can access private implementation details, so prefer Rust
+module privacy over adding test-only accessors to production types.
+
+Independent reference algorithms and synthetic fixtures that exist only to validate the real
+implementation belong in those test modules. If a helper is a genuine implementation concept,
+keep it as normal private production code and exercise the same helper from production and tests.
+CI enforces this rule with `scripts/check-cfg-test-boundaries.py`.
 
 ## When to add which kind of test
 

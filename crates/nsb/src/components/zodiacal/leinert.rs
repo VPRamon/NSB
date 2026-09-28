@@ -285,46 +285,46 @@ fn grid() -> &'static LeinertGrid {
     })
 }
 
-/// Historical hand-rolled bilinear lookup retained only for unit comparisons.
-///
-/// Returns `None` for inputs outside the valid range (β ∉ [0°, 90°) or
-/// |λ−λ_sun| ∉ [0°, 180°]). The corner-region clamps mirror the three
-/// constant regions used by the production grid.
 #[cfg(test)]
-pub(crate) fn reference_lookup_s10_for_test(beta_rad: f64, delta_lambda_rad: f64) -> Option<f64> {
-    let beta_deg = beta_rad.to_degrees().abs();
-    let dl_deg = delta_lambda_rad.to_degrees().abs().min(180.0);
-    if !(0.0..90.0).contains(&beta_deg) {
-        return None;
-    }
-    if !(0.0..=180.0).contains(&dl_deg) {
-        return None;
-    }
-    if dl_deg < 20.0 && beta_deg < 25.0 {
-        return Some(CORNER_LL_LT_20_B_LT_25);
-    }
-    if dl_deg < 25.0 && beta_deg < 20.0 {
-        return Some(CORNER_LL_LT_25_B_LT_20);
-    }
-    if dl_deg < 30.0 && beta_deg < 15.0 {
-        return Some(CORNER_LL_LT_30_B_LT_15);
-    }
+pub(crate) mod test_support {
+    use super::*;
 
-    let b0 = (beta_deg / 5.0).floor() as usize;
-    let b1 = (b0 + 1).min(18);
-    let bt = (beta_deg - 5.0 * b0 as f64) / 5.0;
-
-    let l0_idx = ((180.0 - dl_deg.ceil()) / 5.0).floor() as isize;
-    let l0 = l0_idx.clamp(0, 35) as usize;
-    let l1 = (l0 + 1).min(36);
-    let lt = (180.0 - dl_deg - 5.0 * l0 as f64) / 5.0;
-
-    Some(optica::grid::algo::bilinear_unit(
-        LEINERT_S10[l0][b0],
-        LEINERT_S10[l0][b1],
-        LEINERT_S10[l1][b0],
-        LEINERT_S10[l1][b1],
-        bt,
-        lt,
-    ))
+    pub(crate) fn reference_lookup_s10(beta_rad: f64, delta_lambda_rad: f64) -> Option<f64> {
+        let beta_deg = beta_rad.to_degrees().abs();
+        let dl_deg = delta_lambda_rad.to_degrees().abs().min(180.0);
+        if !(0.0..90.0).contains(&beta_deg) {
+            return None;
+        }
+        if !(0.0..=180.0).contains(&dl_deg) {
+            return None;
+        }
+        if dl_deg < 20.0 && beta_deg < 25.0 {
+            return Some(CORNER_LL_LT_20_B_LT_25);
+        }
+        if dl_deg < 25.0 && beta_deg < 20.0 {
+            return Some(CORNER_LL_LT_25_B_LT_20);
+        }
+        if dl_deg < 30.0 && beta_deg < 15.0 {
+            return Some(CORNER_LL_LT_30_B_LT_15);
+        }
+    
+        let b0 = (beta_deg / 5.0).floor() as usize;
+        let b1 = (b0 + 1).min(18);
+        let bt = (beta_deg - 5.0 * b0 as f64) / 5.0;
+    
+        let l0_idx = ((180.0 - dl_deg.ceil()) / 5.0).floor() as isize;
+        let l0 = l0_idx.clamp(0, 35) as usize;
+        let l1 = (l0 + 1).min(36);
+        let lt = (180.0 - dl_deg - 5.0 * l0 as f64) / 5.0;
+    
+        Some(optica::grid::algo::bilinear_unit(
+            LEINERT_S10[l0][b0],
+            LEINERT_S10[l0][b1],
+            LEINERT_S10[l1][b0],
+            LEINERT_S10[l1][b1],
+            bt,
+            lt,
+        ))
+    }
 }
+

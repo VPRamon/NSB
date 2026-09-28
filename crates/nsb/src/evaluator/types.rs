@@ -309,15 +309,6 @@ impl NsbModelConfig {
         self.starlight_product.as_ref()
     }
 
-    /// Remove any configured Starlight product.
-    ///
-    /// Crate-internal helper for tests that need an evaluator without starlight.
-    #[cfg(test)]
-    pub(crate) fn without_starlight_product(mut self) -> Self {
-        self.starlight_product = None;
-        self
-    }
-
     /// Set an explicit caller-owned F10.7 override (highest resolver precedence).
     pub fn with_solar_radio_flux(mut self, flux: crate::units::SolarFluxUnits) -> Self {
         self.solar_activity = crate::solar_activity::SolarActivitySource::Explicit(flux);
@@ -371,4 +362,14 @@ pub(crate) struct PreparedPointQuery {
     pub(crate) observer: Observer,
     pub(crate) target: Target,
     pub(crate) components: ComponentMask,
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::NsbModelConfig;
+
+    pub(crate) fn without_starlight_product(mut config: NsbModelConfig) -> NsbModelConfig {
+        config.starlight_product = None;
+        config
+    }
 }

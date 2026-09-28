@@ -22,8 +22,6 @@ use qtty::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian, WattsPerSquareMeterSteradianNanometer,
 };
 use scattering::ScatterGrid;
-#[cfg(test)]
-use siderust::astro::apparent::CorrectionPolicy;
 use siderust::atmosphere::{
     airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,
     AtmosphereProfile, KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass,
@@ -36,12 +34,6 @@ use siderust::coordinates::transform::TransformFrame;
 use siderust::ephemeris::{Ephemeris, Vsop87Ephemeris};
 use siderust::event::horizontal;
 use siderust::event::horizontal::star_horizontal;
-#[cfg(test)]
-use siderust::event::horizontal::star_horizontal_with_policy;
-#[cfg(test)]
-use siderust::event::lunar::meeus_ch47::moon_position_meeus_ch47;
-#[cfg(test)]
-use siderust::qtty::Hectopascals;
 use siderust::qtty::{AstronomicalUnit, IlluminationFractions, Kilometer, Kilometers, Nanometers};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
 use std::sync::OnceLock;
@@ -142,72 +134,6 @@ fn lunar_geometry(
     lunar_geometry_from_position(jd, location, target, moon_geo_ecliptic)
 }
 
-/// Test-only reduced lunar geometry retained to quantify approximation error.
-#[cfg(test)]
-fn approximate_lunar_geometry(
-    time: Time<UTC>,
-    location: Geodetic<ECEF>,
-    target: SphericalDirection<EquatorialMeanJ2000>,
-) -> MoonlightGeometry {
-    let jd = time.to::<TT>().to::<JD>();
-    let moon = moon_position_meeus_ch47(jd);
-    let source = star_horizontal(target.ra(), target.dec(), &location, jd);
-    let moon_geocentric = star_horizontal_with_policy(
-        moon.ra.to::<Degree>(),
-        moon.dec.to::<Degree>(),
-        &location,
-        jd,
-        CorrectionPolicy::GEOMETRIC,
-    );
-    let horizontal_parallax = (6_378.137 / moon.dist.value()).clamp(-1.0, 1.0).asin();
-    let moon_altitude = Radians::new(
-        moon_geocentric.alt().to::<Radian>().value()
-            - horizontal_parallax * moon_geocentric.alt().cos(),
-    );
-    let source_altitude = source.alt().to::<Radian>();
-    let delta_azimuth = (source.az().to::<Radian>() - moon_geocentric.az().to::<Radian>()).value();
-    let separation = Degrees::new(
-        (source_altitude.sin() * moon_altitude.sin()
-            + source_altitude.cos() * moon_altitude.cos() * delta_azimuth.cos())
-        .clamp(-1.0, 1.0)
-        .acos()
-        .to_degrees(),
-    );
-
-    let days = jd.raw().value() - 2_451_545.0;
-    let mean_longitude = (280.466_46 + 0.985_647_36 * days).to_radians();
-    let mean_anomaly = (357.529_11 + 0.985_600_28 * days).to_radians();
-    let sun_longitude = mean_longitude
-        + 1.914_602_f64.to_radians() * mean_anomaly.sin()
-        + 0.019_993_f64.to_radians() * (2.0 * mean_anomaly).sin()
-        + 0.000_289_f64.to_radians() * (3.0 * mean_anomaly).sin();
-    let delta_longitude = (moon.ecl_lon.value() - sun_longitude).rem_euclid(std::f64::consts::TAU);
-    let elongation = (moon.ecl_lat.cos() * delta_longitude.cos())
-        .clamp(-1.0, 1.0)
-        .acos();
-    let moon_distance_au = moon.dist.value() / 149_597_870.7;
-    let sun_moon_distance = (1.0 + moon_distance_au * moon_distance_au
-        - 2.0 * moon_distance_au * elongation.cos())
-    .sqrt();
-    let phase_angle =
-        ((sun_moon_distance * sun_moon_distance + moon_distance_au * moon_distance_au - 1.0)
-            / (2.0 * sun_moon_distance * moon_distance_au))
-            .clamp(-1.0, 1.0)
-            .acos();
-    MoonlightGeometry {
-        separation,
-        moon_zenith: Degrees::new(90.0 - moon_altitude.to::<Degree>().value()),
-        phase: MoonPhaseGeometry {
-            phase_angle: Radians::new(phase_angle),
-            illuminated_fraction: IlluminationFractions::new(0.5 * (1.0 + phase_angle.cos())),
-            elongation: Radians::new(delta_longitude),
-            waxing: delta_longitude < std::f64::consts::PI,
-        },
-        source_zenith: Degrees::new(90.0) - source.alt(),
-        moon_distance: moon.dist,
-    }
-}
-
 fn lunar_geometry_from_position(
     jd: siderust::time::JulianDate,
     location: Geodetic<ECEF>,
@@ -301,6 +227,74 @@ fn zero_outputs() -> MoonOutputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use siderust::astro::apparent::CorrectionPolicy;
+    use siderust::event::horizontal::star_horizontal_with_policy;
+    use siderust::event::lunar::meeus_ch47::moon_position_meeus_ch47;
+    use siderust::qtty::Hectopascals;
+
+    fn approximate_lunar_geometry(
+        time: Time<UTC>,
+        location: Geodetic<ECEF>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+    ) -> MoonlightGeometry {
+        let jd = time.to::<TT>().to::<JD>();
+        let moon = moon_position_meeus_ch47(jd);
+        let source = star_horizontal(target.ra(), target.dec(), &location, jd);
+        let moon_geocentric = star_horizontal_with_policy(
+            moon.ra.to::<Degree>(),
+            moon.dec.to::<Degree>(),
+            &location,
+            jd,
+            CorrectionPolicy::GEOMETRIC,
+        );
+        let horizontal_parallax = (6_378.137 / moon.dist.value()).clamp(-1.0, 1.0).asin();
+        let moon_altitude = Radians::new(
+            moon_geocentric.alt().to::<Radian>().value()
+                - horizontal_parallax * moon_geocentric.alt().cos(),
+        );
+        let source_altitude = source.alt().to::<Radian>();
+        let delta_azimuth = (source.az().to::<Radian>() - moon_geocentric.az().to::<Radian>()).value();
+        let separation = Degrees::new(
+            (source_altitude.sin() * moon_altitude.sin()
+                + source_altitude.cos() * moon_altitude.cos() * delta_azimuth.cos())
+            .clamp(-1.0, 1.0)
+            .acos()
+            .to_degrees(),
+        );
+    
+        let days = jd.raw().value() - 2_451_545.0;
+        let mean_longitude = (280.466_46 + 0.985_647_36 * days).to_radians();
+        let mean_anomaly = (357.529_11 + 0.985_600_28 * days).to_radians();
+        let sun_longitude = mean_longitude
+            + 1.914_602_f64.to_radians() * mean_anomaly.sin()
+            + 0.019_993_f64.to_radians() * (2.0 * mean_anomaly).sin()
+            + 0.000_289_f64.to_radians() * (3.0 * mean_anomaly).sin();
+        let delta_longitude = (moon.ecl_lon.value() - sun_longitude).rem_euclid(std::f64::consts::TAU);
+        let elongation = (moon.ecl_lat.cos() * delta_longitude.cos())
+            .clamp(-1.0, 1.0)
+            .acos();
+        let moon_distance_au = moon.dist.value() / 149_597_870.7;
+        let sun_moon_distance = (1.0 + moon_distance_au * moon_distance_au
+            - 2.0 * moon_distance_au * elongation.cos())
+        .sqrt();
+        let phase_angle =
+            ((sun_moon_distance * sun_moon_distance + moon_distance_au * moon_distance_au - 1.0)
+                / (2.0 * sun_moon_distance * moon_distance_au))
+                .clamp(-1.0, 1.0)
+                .acos();
+        MoonlightGeometry {
+            separation,
+            moon_zenith: Degrees::new(90.0 - moon_altitude.to::<Degree>().value()),
+            phase: MoonPhaseGeometry {
+                phase_angle: Radians::new(phase_angle),
+                illuminated_fraction: IlluminationFractions::new(0.5 * (1.0 + phase_angle.cos())),
+                elongation: Radians::new(delta_longitude),
+                waxing: delta_longitude < std::f64::consts::PI,
+            },
+            source_zenith: Degrees::new(90.0) - source.alt(),
+            moon_distance: moon.dist,
+        }
+    }
     use chrono::{Duration, TimeZone, Utc};
     use siderust::bodies::Moon;
     use siderust::event::lunar::phase::moon_phase_geocentric;

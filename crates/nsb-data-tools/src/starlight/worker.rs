@@ -733,7 +733,7 @@ mod tests {
     fn production_partition_accumulates_source_in_galactic_pixel_not_legacy_source_id_pixel(
     ) -> Result<()> {
         use crate::starlight::healpix::{
-            fixture_icrs_from_source_id, galactic_nested_pixel_from_icrs_position,
+            test_support::fixture_icrs_from_source_id, galactic_nested_pixel_from_icrs_position,
             legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,
         };
 

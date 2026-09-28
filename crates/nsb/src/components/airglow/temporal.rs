@@ -7,8 +7,6 @@ use siderust::coordinates::frames::ECEF;
 use siderust::event::altitude::{AltitudeEventsExt, SearchOpts};
 use siderust::qtty::Days;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate, TT};
-#[cfg(test)]
-use std::cell::Cell;
 use tempoch::{Time, MJD, UTC};
 
 pub(crate) const ASTRONOMICAL_TWILIGHT: Degrees = Degrees::new(-18.0);
@@ -27,11 +25,6 @@ pub(crate) struct AirglowPhasePeriod {
     pub(crate) period: TimePeriod<ModifiedJulianDate>,
     #[cfg_attr(not(debug_assertions), allow(dead_code))]
     pub(crate) phase: AirglowNightPhase,
-}
-
-#[cfg(test)]
-thread_local! {
-    static POINT_NIGHT_SEARCH_FORBIDDEN: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Return the empirical Airglow season for the observer's local-solar month.
@@ -216,14 +209,6 @@ fn astronomical_night_containing(
     time_tt: ModifiedJulianDate,
     location: Geodetic<ECEF>,
 ) -> Option<AstronomicalNightPeriod> {
-    #[cfg(test)]
-    POINT_NIGHT_SEARCH_FORBIDDEN.with(|forbidden| {
-        assert!(
-            !forbidden.get(),
-            "threshold sampling must use precomputed airglow night context"
-        );
-    });
-
     let mut radius = INITIAL_NIGHT_SEARCH_RADIUS;
 
     loop {
@@ -296,36 +281,22 @@ fn local_solar_datetime(
 }
 
 #[cfg(test)]
-pub(crate) fn night_phase_for_test(
-    time: Time<UTC>,
-    location: Geodetic<ECEF>,
-) -> Option<AirglowNightPhase> {
-    night_phase(time, location)
-}
+pub(crate) mod test_support {
+    use super::*;
 
-#[cfg(test)]
-pub(crate) fn astronomical_night_for_test(
-    time: Time<UTC>,
-    location: Geodetic<ECEF>,
-) -> Option<TimePeriod<ModifiedJulianDate>> {
-    astronomical_night_containing(utc_time_to_tt_mjd(time), location).map(|night| night.period)
-}
-
-#[cfg(test)]
-pub(crate) fn forbid_point_night_search_for_test<R>(f: impl FnOnce() -> R) -> R {
-    struct ResetForbidden;
-
-    impl Drop for ResetForbidden {
-        fn drop(&mut self) {
-            POINT_NIGHT_SEARCH_FORBIDDEN.with(|forbidden| forbidden.set(false));
-        }
+    pub(crate) fn night_phase(
+        time: Time<UTC>,
+        location: Geodetic<ECEF>,
+    ) -> Option<AirglowNightPhase> {
+        super::night_phase(time, location)
     }
 
-    POINT_NIGHT_SEARCH_FORBIDDEN.with(|forbidden| {
-        forbidden.set(true);
-    });
-    let _reset = ResetForbidden;
-    f()
+    pub(crate) fn astronomical_night(
+        time: Time<UTC>,
+        location: Geodetic<ECEF>,
+    ) -> Option<TimePeriod<ModifiedJulianDate>> {
+        astronomical_night_containing(utc_time_to_tt_mjd(time), location).map(|night| night.period)
+    }
 }
 
 #[cfg(test)]

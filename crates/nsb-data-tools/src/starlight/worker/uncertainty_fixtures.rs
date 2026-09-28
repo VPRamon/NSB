@@ -9,7 +9,7 @@
 
 use super::*;
 use crate::platform::checksum_io;
-use crate::starlight::healpix::fixture_icrs_from_source_id;
+use crate::starlight::healpix::test_support::fixture_icrs_from_source_id;
 use crate::starlight::map::accumulator::{
     galactic_accumulation_pixel, PartitionShard, UvCorrectionShardMetadata,
 };

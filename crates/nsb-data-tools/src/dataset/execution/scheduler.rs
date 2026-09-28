@@ -87,13 +87,6 @@ impl Default for SlurmScheduler<SystemProcessRunner> {
     }
 }
 
-impl<R> SlurmScheduler<R> {
-    #[cfg(test)]
-    pub fn with_runner(runner: R) -> Self {
-        Self { runner }
-    }
-}
-
 impl<R: ProcessRunner> Scheduler for SlurmScheduler<R> {
     fn submit_array(&self, request: &ArrayRequest) -> Result<JobSubmission> {
         if request.indices.is_empty() {
@@ -273,7 +266,7 @@ mod tests {
                 stderr: String::new(),
             }]),
         };
-        let scheduler = SlurmScheduler::with_runner(runner);
+        let scheduler = SlurmScheduler { runner };
         let submission = scheduler
             .submit_array(&ArrayRequest {
                 job_name: "nsb-starlight-build".to_string(),
@@ -302,7 +295,7 @@ mod tests {
                 stderr: String::new(),
             }]),
         };
-        let scheduler = SlurmScheduler::with_runner(runner);
+        let scheduler = SlurmScheduler { runner };
         assert_eq!(scheduler.state("4812").unwrap(), SchedulerState::Failed);
     }
 }

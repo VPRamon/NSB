@@ -122,26 +122,6 @@ pub(crate) fn noll_airglow_scattering_geometry(zenith: Degrees) -> NollAirglowSc
     }
 }
 
-/// Independent Bodhaine sea-level kernel used only for regression tests.
-#[cfg(test)]
-pub(crate) fn bodhaine_rayleigh_tau_sea_level(wavelength_um: f64) -> f64 {
-    let l2 = wavelength_um * wavelength_um;
-    let inv_l2 = 1.0 / l2;
-    0.0021520 * (1.0455996 - 341.29061 * inv_l2 - 0.90230850 * l2)
-        / (1.0 + 0.0027059889 * inv_l2 - 85.968563 * l2)
-}
-
-/// Wavelength-dependent Noll effective airglow scattering transmission.
-#[cfg(test)]
-pub(crate) fn spectral_airglow_scattering_transmission(
-    wavelength: Nanometers,
-    zenith: Degrees,
-    atmosphere: AtmosphericConditions,
-) -> Transmittances {
-    let geometry = noll_airglow_scattering_geometry(zenith);
-    spectral_airglow_scattering_transmission_with_geometry(wavelength, atmosphere, &geometry)
-}
-
 pub(crate) fn spectral_airglow_scattering_transmission_with_geometry(
     wavelength: Nanometers,
     atmosphere: AtmosphericConditions,
@@ -162,6 +142,24 @@ pub(crate) fn spectral_airglow_scattering_transmission_with_geometry(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Independent Bodhaine sea-level kernel used only for regression tests.
+    pub(crate) fn bodhaine_rayleigh_tau_sea_level(wavelength_um: f64) -> f64 {
+        let l2 = wavelength_um * wavelength_um;
+        let inv_l2 = 1.0 / l2;
+        0.0021520 * (1.0455996 - 341.29061 * inv_l2 - 0.90230850 * l2)
+            / (1.0 + 0.0027059889 * inv_l2 - 85.968563 * l2)
+    }
+    
+    /// Wavelength-dependent Noll effective airglow scattering transmission.
+    pub(crate) fn spectral_airglow_scattering_transmission(
+        wavelength: Nanometers,
+        zenith: Degrees,
+        atmosphere: AtmosphericConditions,
+    ) -> Transmittances {
+        let geometry = noll_airglow_scattering_geometry(zenith);
+        spectral_airglow_scattering_transmission_with_geometry(wavelength, atmosphere, &geometry)
+    }
     use siderust::atmosphere::profile::AtmosphereProfile;
     use siderust::atmosphere::{mie_optical_depth, rayleigh_optical_depth_bodhaine99};
     use siderust::qtty::{Hectopascals, Kilometers};

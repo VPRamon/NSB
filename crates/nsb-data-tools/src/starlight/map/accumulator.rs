@@ -717,7 +717,7 @@ pub fn galactic_accumulation_pixel(position: IcrsSkyPosition, target_nside: u32)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::starlight::healpix::fixture_icrs_from_source_id;
+    use crate::starlight::healpix::test_support::fixture_icrs_from_source_id;
 
     #[test]
     fn galactic_pixel_differs_from_equatorial_bit_shift() -> Result<()> {

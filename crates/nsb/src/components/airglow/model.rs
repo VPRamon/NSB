@@ -1,5 +1,3 @@
-#[cfg(test)]
-use super::calibration::load_builtin_standard;
 use super::calibration::AirglowContinuum;
 use super::continuum::{
     evaluate_continuum, evaluate_integrated_continuum_with_night_phase,
@@ -11,8 +9,6 @@ use super::output::AirglowOutputs;
 use super::units::{SolarFluxUnits, DEFAULT_SOLAR_RADIO_FLUX};
 use crate::error::Result;
 use crate::site::AtmosphericConditions;
-#[cfg(test)]
-use crate::site::SiteProfileConfig;
 use crate::units::ScaleFactors;
 use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
@@ -79,36 +75,6 @@ pub(crate) struct Airglow {
 }
 
 impl Airglow {
-    /// Build the generic clear-sky Airglow planning proxy for component tests.
-    ///
-    /// The supplied location controls geometry and altitude-derived generic
-    /// atmospheric conditions. It does not make the bundled Paranal-derived
-    /// continuum calibrated for that location, including when `location` is
-    /// Paranal itself.
-    #[cfg(test)]
-    pub(crate) fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Self> {
-        let continuum = Arc::new(load_builtin_standard()?);
-        Ok(Self::with_shared_continuum(location, continuum)
-            .with_atmosphere(AtmosphericConditions::generic_clear_sky(location)))
-    }
-
-    /// Build an Airglow model from an explicitly selected NSB site profile.
-    ///
-    /// Planning profiles currently use the bundled Paranal-derived continuum with a
-    /// neutral site scale and [`CalibrationStatus::PlanningPreset`] maturity.
-    /// Selecting a profile is distinct from selecting an observatory/location.
-    #[cfg(test)]
-    pub(crate) fn for_site_profile(
-        location: Geodetic<ECEF>,
-        site_profile: &SiteProfileConfig,
-    ) -> Result<Self> {
-        let profile = site_profile.resolve(location);
-        let continuum = Arc::new(load_builtin_standard()?);
-        Ok(Self::with_shared_continuum(location, continuum)
-            .with_atmosphere(profile.atmosphere)
-            .with_scale(profile.airglow.scale))
-    }
-
     pub(crate) fn with_shared_continuum(
         location: Geodetic<ECEF>,
         continuum: Arc<AirglowContinuum>,
@@ -124,11 +90,6 @@ impl Airglow {
             solar_radio_flux: DEFAULT_SOLAR_RADIO_FLUX,
             scale: ScaleFactors::new(1.0),
         }
-    }
-
-    #[cfg(test)]
-    pub(crate) fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Self {
-        Self::with_shared_continuum(location, Arc::new(continuum))
     }
 
     /// Select atmospheric pressure/Rayleigh/Mie assumptions for Noll scattering.
@@ -148,12 +109,6 @@ impl Airglow {
     pub fn with_geometry(mut self, geometry: AirglowGeometryModel) -> Self {
         self.geometry = geometry;
         self
-    }
-
-    /// Return the selected emitting-volume geometry model.
-    #[cfg(test)]
-    pub(crate) fn geometry(&self) -> &AirglowGeometryModel {
-        &self.geometry
     }
 
     /// Set the F10.7 solar-radio-flux input.
@@ -239,5 +194,37 @@ impl Airglow {
                 user_scale: self.scale,
             },
         )
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+    use super::super::calibration::load_builtin_standard;
+    use crate::site::SiteProfileConfig;
+
+    pub(crate) fn standard_clear_sky(location: Geodetic<ECEF>) -> Result<Airglow> {
+        let continuum = Arc::new(load_builtin_standard()?);
+        Ok(Airglow::with_shared_continuum(location, continuum)
+            .with_atmosphere(AtmosphericConditions::generic_clear_sky(location)))
+    }
+
+    pub(crate) fn for_site_profile(
+        location: Geodetic<ECEF>,
+        site_profile: &SiteProfileConfig,
+    ) -> Result<Airglow> {
+        let profile = site_profile.resolve(location);
+        let continuum = Arc::new(load_builtin_standard()?);
+        Ok(Airglow::with_shared_continuum(location, continuum)
+            .with_atmosphere(profile.atmosphere)
+            .with_scale(profile.airglow.scale))
+    }
+
+    pub(crate) fn with_continuum(location: Geodetic<ECEF>, continuum: AirglowContinuum) -> Airglow {
+        Airglow::with_shared_continuum(location, Arc::new(continuum))
+    }
+
+    pub(crate) fn geometry(model: &Airglow) -> &AirglowGeometryModel {
+        &model.geometry
     }
 }

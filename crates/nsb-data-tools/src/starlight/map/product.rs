@@ -1803,7 +1803,7 @@ fn galactic_plane_coverage(path: &Path, nside: u32) -> Result<f64> {
 mod tests {
     use super::super::accumulator::{galactic_accumulation_pixel, PartitionShard};
     use super::*;
-    use crate::starlight::healpix::fixture_icrs_from_source_id;
+    use crate::starlight::healpix::test_support::fixture_icrs_from_source_id;
     use tempfile::TempDir;
 
     fn fixture_pos(source_id: u64) -> crate::starlight::healpix::IcrsSkyPosition {

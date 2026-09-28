@@ -49,13 +49,6 @@ impl Starlight {
         }
     }
 
-    /// Apply a non-negative multiplicative radiance scale in internal regression tests.
-    #[cfg(test)]
-    pub(crate) fn with_scale(mut self, scale: ScaleFactors) -> Self {
-        self.scale = scale;
-        self
-    }
-
     /// Transform a target to Galactic coordinates and evaluate the map.
     pub(crate) fn compute(&self, target: Target) -> Result<StarlightOutputs> {
         if !self.scale.is_finite() || self.scale < ScaleFactors::new(0.0) {
@@ -86,5 +79,15 @@ fn missing_bundled_production_asset() -> NsbError {
             "as runtime_embedded production assets"
         )
         .to_string(),
+    }
+}
+
+#[cfg(test)]
+pub(super) mod test_support {
+    use super::{ScaleFactors, Starlight};
+
+    pub(super) fn with_scale(mut model: Starlight, scale: ScaleFactors) -> Starlight {
+        model.scale = scale;
+        model
     }
 }

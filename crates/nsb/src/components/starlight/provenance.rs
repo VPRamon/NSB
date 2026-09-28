@@ -177,11 +177,14 @@ impl StarlightProvenance {
                 .or(fallback.independent_comparison),
         }
     }
+}
 
-    /// Provenance for deterministic test-only maps.
-    #[cfg(test)]
-    pub(crate) fn test_fixture() -> Self {
-        Self {
+#[cfg(test)]
+pub(super) mod test_support {
+    use super::StarlightProvenance;
+
+    pub(super) fn fixture() -> StarlightProvenance {
+        StarlightProvenance {
             dataset_name: "NSB test fixture starlight map".to_string(),
             version: "fixture".to_string(),
             generation_date: "2026-06-17".to_string(),

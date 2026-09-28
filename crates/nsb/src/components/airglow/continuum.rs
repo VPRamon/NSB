@@ -149,17 +149,6 @@ pub(crate) fn validate_airglow_inputs(
     Ok(())
 }
 
-#[cfg(test)]
-pub(crate) fn evaluate_continuum_with_night_phase(
-    continuum: &AirglowContinuum,
-    time: Time<UTC>,
-    altitude: Degrees,
-    ctx: AirglowEvaluationContext,
-    phase: AirglowNightPhase,
-) -> Result<AirglowOutputs> {
-    validate_airglow_inputs(altitude, &ctx)?;
-    evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
-}
 
 fn evaluate_continuum_with_night_phase_validated(
     continuum: &AirglowContinuum,
@@ -312,4 +301,20 @@ fn integrate_attenuated_continuum_scalar(
         y0 = y1;
     }
     Nanometers::new(integral)
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use super::*;
+
+    pub(crate) fn evaluate_continuum_with_night_phase(
+        continuum: &AirglowContinuum,
+        time: Time<UTC>,
+        altitude: Degrees,
+        ctx: AirglowEvaluationContext,
+        phase: AirglowNightPhase,
+    ) -> Result<AirglowOutputs> {
+        validate_airglow_inputs(altitude, &ctx)?;
+        evaluate_continuum_with_night_phase_validated(continuum, time, altitude, ctx, phase)
+    }
 }

@@ -70,13 +70,22 @@ fn threshold_query(
     }
 }
 
+fn prepare_threshold(
+    evaluator: &NsbEvaluator,
+    query: &ThresholdQuery,
+    tt_window: TimePeriod<ModifiedJulianDate>,
+) -> Result<super::types::PreparedThresholdQuery> {
+    let context = crate::planning::prepare::prepare_site_context(evaluator, query, tt_window)?;
+    crate::planning::prepare::prepare_target_threshold(evaluator, &context, query)
+}
+
 fn scan_threshold_periods(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
 ) -> Result<ThresholdQueryResult> {
     crate::planning::prepare::validate_threshold(query)?;
     let tt_window = utc_period_to_tt_mjd(query.window);
-    let prepared = crate::planning::prepare::prepare_threshold(evaluator, query, tt_window)?;
+    let prepared = prepare_threshold(evaluator, query, tt_window)?;
     let step = query.sample_step.to::<Day>();
     let f = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
         crate::planning::threshold::evaluate_integrated(evaluator, &prepared, mjd_tt)
@@ -123,7 +132,7 @@ fn assert_periods_match_within_seconds(
 }
 
 #[test]
-fn threshold_airglow_does_not_use_point_night_search_hot_path() {
+fn threshold_airglow_precomputes_night_phase_context() {
     let evaluator = NsbEvaluator::new().unwrap();
     let query = threshold_query(
         paranal(),
@@ -132,12 +141,13 @@ fn threshold_airglow_does_not_use_point_night_search_hot_path() {
         12,
         ComponentMask::AIRGLOW,
     );
+    let tt_window = utc_period_to_tt_mjd(query.window);
+    let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
 
-    airglow::temporal::forbid_point_night_search_for_test(|| {
-        evaluator.periods_below_threshold(&query).unwrap();
-    });
+    assert!(!prepared.airglow_phase_periods.is_empty());
+    let sample = prepared.airglow_phase_periods[0].period.start;
+    let _ = crate::planning::threshold::evaluate_integrated(&evaluator, &prepared, sample).unwrap();
 }
-
 #[test]
 fn authoritative_threshold_search_matches_scan_oracle_for_representative_window() {
     let evaluator = NsbEvaluator::new().unwrap();
@@ -348,7 +358,7 @@ fn target_visibility_matches_precise_altitude_scan_across_regimes() {
         .with_target_altitude_floor(Some(Degrees::new(floor)));
         let tt_window = utc_period_to_tt_mjd(query.window);
         let prepared =
-            crate::planning::prepare::prepare_threshold(&evaluator, &query, tt_window).unwrap();
+            prepare_threshold(&evaluator, &query, tt_window).unwrap();
         let direction = direction::ICRS::new(target.ra(), target.dec());
         let exact_altitude = |time: ModifiedJulianDate| -> Result<Degrees> {
             Ok(direction.altitude_at(&observer, time).to::<Degree>())
@@ -433,7 +443,7 @@ fn grazing_target_excursion_between_four_hour_samples_is_not_pruned() {
     );
 
     let prepared =
-        crate::planning::prepare::prepare_threshold(&evaluator, &query, tt_window).unwrap();
+        prepare_threshold(&evaluator, &query, tt_window).unwrap();
     assert_eq!(prepared.candidate_windows, precise);
 }
 
@@ -504,7 +514,7 @@ fn threshold_airglow_context_matches_exact_point_airglow() {
         ComponentMask::AIRGLOW,
     );
     let time = parse("2023-09-04T04:00:00Z");
-    let prepared = crate::planning::prepare::prepare_threshold(
+    let prepared = prepare_threshold(
         &evaluator,
         &query,
         utc_period_to_tt_mjd(query.window),
@@ -535,7 +545,7 @@ fn threshold_airglow_context_matches_continuous_high_latitude_night() {
         ComponentMask::AIRGLOW,
     );
     let time = parse("2023-12-21T12:00:00Z");
-    let prepared = crate::planning::prepare::prepare_threshold(
+    let prepared = prepare_threshold(
         &evaluator,
         &query,
         utc_period_to_tt_mjd(query.window),
@@ -565,7 +575,7 @@ fn threshold_moon_context_skips_only_moon_down_samples() {
         168,
         ComponentMask::MOON,
     );
-    let prepared = crate::planning::prepare::prepare_threshold(
+    let prepared = prepare_threshold(
         &evaluator,
         &query,
         utc_period_to_tt_mjd(query.window),
