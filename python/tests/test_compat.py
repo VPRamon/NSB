@@ -15,7 +15,9 @@ def test_observer_and_direction_bridge(observer, direction):
 def test_aware_non_utc_datetime_is_normalized(observer, direction):
     local = datetime(2023, 9, 4, 3, 48, tzinfo=timezone(timedelta(hours=2)))
     query = nsb.PointQuery(observer, local, direction)
-    assert query.time == datetime(2023, 9, 4, 1, 48, tzinfo=timezone.utc)
+    expected = datetime(2023, 9, 4, 1, 48, tzinfo=timezone.utc)
+    # tempoch's chrono round-trip contract is accurate to <50 microseconds.
+    assert abs(query.time - expected) < timedelta(microseconds=50)
 
 
 def test_naive_datetime_is_rejected_as_nsb_input_error(observer, direction):

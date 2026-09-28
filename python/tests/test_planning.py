@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import sys
 import threading
 
@@ -26,13 +26,12 @@ def test_threshold_search_filters_and_context_reuse(observer, direction, evaluat
     reused = evaluator.periods_below_threshold_with_context(context, query)
 
     assert direct.periods == reused.periods
-    assert direct.periods == [
-        (
-            datetime(2023, 9, 4, 1, 0, tzinfo=timezone.utc),
-            datetime(2023, 9, 4, 2, 0, tzinfo=timezone.utc),
-        )
-    ]
-    assert direct.periods[0][0].tzinfo is timezone.utc
+    assert len(direct.periods) == 1
+    start, end = direct.periods[0]
+    tolerance = timedelta(microseconds=50)
+    assert abs(start - datetime(2023, 9, 4, 1, 0, tzinfo=timezone.utc)) < tolerance
+    assert abs(end - datetime(2023, 9, 4, 2, 0, tzinfo=timezone.utc)) < tolerance
+    assert start.tzinfo is timezone.utc
 
 
 def test_rust_heavy_planning_detaches_from_python(observer, direction, evaluator):

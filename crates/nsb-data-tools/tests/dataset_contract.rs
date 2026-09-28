@@ -175,9 +175,22 @@ fn no_tracked_python_or_shell_programs_exist() {
     let repository_root = crate_root().join("../..");
     for entry in fs::read_dir(&repository_root).unwrap() {
         let path = entry.unwrap().path();
-        // The repository-level Python package is a supported NSB binding, not a
-        // data-tool implementation. Keep the data-tool contract strict everywhere else.
-        if path.file_name().and_then(|value| value.to_str()) == Some("python") {
+        let name = path.file_name().and_then(|value| value.to_str());
+        // Repository metadata and maintainer CI scripts are not product
+        // implementations. The top-level Python package is the supported NSB
+        // binding, not data-tool orchestration.
+        if matches!(
+            name,
+            Some(
+                ".git"
+                    | "target"
+                    | ".venv"
+                    | "__pycache__"
+                    | ".pytest_cache"
+                    | "scripts"
+                    | "python"
+            )
+        ) {
             continue;
         }
         if path.is_dir() {

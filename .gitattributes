@@ -1,0 +1,2 @@
+# Scientific data files are checksum-addressed and must retain exact repository bytes.
+crates/nsb/data/*.dat -text
