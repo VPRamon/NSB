@@ -1,40 +1,35 @@
-//! Direct Beer–Lambert transmission of celestial spectral radiance.
+//! Direct Beer–Lambert transmission configuration.
 //!
 //! ```text
 //! I(λ) = I₀(λ) · exp(−τ(λ) · X(z))
 //! ```
 //!
-//! Optical depth `τ` is composed from selectable Rayleigh, Mie, and molecular
-//! absorption ingredients using Siderust primitives and NSB site
-//! [`crate::site::AtmosphericConditions`]. Airmass `X(z)` uses a selectable
-//! Siderust airmass formula.
+//! Radiance application is only available through [`super::TransportModel`] so
+//! [`super::RadianceOrigin`] checks cannot be bypassed.
 
+use super::extinction::{optical_depth_breakdown, ExtinctionIngredients, OpticalDepthBreakdown};
+use super::geometry::DirectPathGeometry;
+use super::metadata::TransportModelMetadata;
+use super::model::AirmassModel;
+use crate::error::{NsbError, Result};
+use crate::site::AtmosphericConditions;
 use qtty::angular::Radian;
 use qtty::dimensionless::Transmittances;
-use qtty::radiometry::WattsPerSquareMeterSteradianNanometer;
 use siderust::atmosphere::{
     airmass, transmission as beer_lambert_transmission, KrisciunasSchaefer1991, PlaneParallel,
     Rozenberg1966, Young1994,
 };
 use siderust::qtty::Nanometers;
 
-use super::extinction::{optical_depth_breakdown, ExtinctionIngredients, OpticalDepthBreakdown};
-use super::geometry::DirectPathGeometry;
-use super::metadata::{
-    AbsorptionTreatment, ApproximationState, ExtinctionIngredientFlags, ScatteringIngredientFlags,
-    TransportMetadata, TransportPathKind, UncertaintyReporting,
-};
-use super::model::AirmassModel;
-use crate::site::AtmosphericConditions;
-
-/// Direct-transmission atmospheric path for top-of-atmosphere sources.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Direct-transmission configuration for top-of-atmosphere sources.
+///
+/// Not `Copy`: future aerosol tables or LUT handles must be able to land here
+/// without a frozen `Copy` guarantee.
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct DirectTransmission {
-    /// Extinction ingredients included in `τ(λ)`.
-    pub ingredients: ExtinctionIngredients,
-    /// Airmass formula used for the slant path.
-    pub airmass: AirmassModel,
+    ingredients: ExtinctionIngredients,
+    airmass: AirmassModel,
 }
 
 impl DirectTransmission {
@@ -62,77 +57,68 @@ impl DirectTransmission {
         }
     }
 
+    /// Extinction ingredients.
+    pub const fn ingredients(&self) -> ExtinctionIngredients {
+        self.ingredients
+    }
+
+    /// Airmass model.
+    pub const fn airmass(&self) -> AirmassModel {
+        self.airmass
+    }
+
+    /// Model-only metadata for this configuration.
+    pub fn metadata(&self) -> TransportModelMetadata {
+        TransportModelMetadata::direct(self.ingredients, self.airmass)
+    }
+
     /// Vertical optical-depth breakdown at `wavelength`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NsbError::OutOfRange`] when `wavelength` is non-finite or not
+    /// strictly positive.
     pub fn optical_depth(
         &self,
         wavelength: Nanometers,
         atmosphere: AtmosphericConditions,
-    ) -> OpticalDepthBreakdown {
-        optical_depth_breakdown(wavelength, atmosphere, self.ingredients)
+    ) -> Result<OpticalDepthBreakdown> {
+        validate_wavelength(wavelength)?;
+        Ok(optical_depth_breakdown(
+            wavelength,
+            atmosphere,
+            self.ingredients,
+        ))
     }
 
     /// Slant-path transmission `T = exp(−τ X)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NsbError::OutOfRange`] for invalid wavelength. Geometry must
+    /// already be validated via [`DirectPathGeometry::new`].
     pub fn transmission(
         &self,
         wavelength: Nanometers,
         geometry: DirectPathGeometry,
         atmosphere: AtmosphericConditions,
-    ) -> Transmittances {
-        let tau = self.optical_depth(wavelength, atmosphere).total;
+    ) -> Result<Transmittances> {
+        let tau = self.optical_depth(wavelength, atmosphere)?.total;
         let path = self.airmass_value(geometry);
-        beer_lambert_transmission(tau, path)
+        Ok(beer_lambert_transmission(tau, path))
     }
 
-    /// Apply direct transmission to spectral radiance.
-    pub fn apply_spectral(
+    pub(crate) fn scale_factor(
         &self,
-        incident: WattsPerSquareMeterSteradianNanometer,
         wavelength: Nanometers,
         geometry: DirectPathGeometry,
         atmosphere: AtmosphericConditions,
-    ) -> WattsPerSquareMeterSteradianNanometer {
-        let t = self.transmission(wavelength, geometry, atmosphere);
-        WattsPerSquareMeterSteradianNanometer::new(incident.value() * t.value())
-    }
-
-    /// Scientific metadata for this direct path.
-    pub fn metadata(&self, atmosphere_profile_id: &'static str) -> TransportMetadata {
-        TransportMetadata {
-            model_id: "direct-transmission",
-            path_kind: TransportPathKind::Direct,
-            atmosphere_profile_id,
-            extinction: ExtinctionIngredientFlags {
-                rayleigh: self.ingredients.rayleigh,
-                mie: self.ingredients.mie,
-                absorption: match self.ingredients.absorption {
-                    super::extinction::MolecularAbsorption::None => AbsorptionTreatment::None,
-                    super::extinction::MolecularAbsorption::OzoneBundledTable => {
-                        AbsorptionTreatment::OzoneBundledTable
-                    }
-                },
-            },
-            scattering: ScatteringIngredientFlags {
-                rayleigh_phase: false,
-                mie_phase: false,
-            },
-            airmass_model_id: self.airmass.as_str(),
-            approximation: ApproximationState::ClearSkySingleColumn,
-            validated_domain: concat!(
-                "clear-sky celestial direct path; zenith distances supported by the ",
-                "selected Siderust airmass formula; not a site-calibrated extinction law"
-            ),
-            provenance: concat!(
-                "NSB direct atmospheric transport composing Siderust Bodhaine Rayleigh, ",
-                "Patat Mie, optional Siderust ozone transmittance table, and Siderust ",
-                "Beer–Lambert transmission; NSB local-pressure Rayleigh helper avoids ",
-                "double-counting site-profile surface pressure with altitude"
-            ),
-            uncertainty: UncertaintyReporting::Absent,
-        }
+    ) -> Result<f64> {
+        Ok(self.transmission(wavelength, geometry, atmosphere)?.value())
     }
 
     fn airmass_value(&self, geometry: DirectPathGeometry) -> siderust::qtty::Airmasses {
-        let zenith = geometry.zenith.to::<Radian>();
+        let zenith = geometry.zenith().to::<Radian>();
         match self.airmass {
             AirmassModel::Young1994 => airmass::<Young1994>(zenith),
             AirmassModel::KrisciunasSchaefer1991 => airmass::<KrisciunasSchaefer1991>(zenith),
@@ -146,4 +132,14 @@ impl Default for DirectTransmission {
     fn default() -> Self {
         Self::rayleigh_mie_young1994()
     }
+}
+
+pub(crate) fn validate_wavelength(wavelength: Nanometers) -> Result<()> {
+    let value = wavelength.value();
+    if !value.is_finite() || value <= 0.0 {
+        return Err(NsbError::OutOfRange(format!(
+            "transport wavelength must be finite and > 0 nm, got {value}"
+        )));
+    }
+    Ok(())
 }

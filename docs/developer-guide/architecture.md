@@ -61,13 +61,13 @@ future instrument response (#189)
 Siderust owns airmass, Rayleigh/Mie optical depth, Beer–Lambert transmission,
 ozone tables, and phase-function primitives. NSB's `transport` module composes
 those primitives into typed identity and direct-transmission models with
-scientific metadata. Single in-scattering is scaffolded but not yet evaluated.
+model-only scientific metadata. Single in-scattering remains an architectural
+goal and is **not** part of the frozen public API.
 
 Component migration is intentional and incomplete: Zodiacal still uses
 `ZodiacalExtinction`, Airglow retains Noll in-atmosphere scattering, Moonlight
-retains Jones/KS91 embedded scattering, and Starlight remains a TOA map product
-unless a caller applies `transport` explicitly. See
-[Atmospheric transport](../specifications/atmospheric-transport.md).
+retains Jones/KS91 embedded scattering, and Starlight remains a TOA map product.
+See [Atmospheric transport](../specifications/atmospheric-transport.md).
 
 ### Component modules
 

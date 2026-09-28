@@ -7,13 +7,13 @@ once a stable public release is cut.
 
 ### Added
 
-- Introduced `nsb::transport`, a typed atmospheric-transport foundation for
-  spectral radiance (#187): identity (exact pass-through) and direct
-  Beer–Lambert transmission composing Siderust Rayleigh/Mie/ozone and airmass
-  primitives; radiance-origin checks that keep Airglow and legacy Moonlight off
-  the celestial TOA path; scattering-path scaffolding without an incomplete
-  all-sky RT engine; authoritative unit tests including a labelled nsb2
-  cross-implementation Beer–Lambert comparison. Existing Zodiacal, Airglow,
+- Introduced `nsb::transport`, a minimal frozen atmospheric-transport foundation
+  for wavelength-resolved radiance (#187 / #193): identity and direct
+  Beer–Lambert transmission over Siderust Rayleigh/Mie/ozone/airmass primitives;
+  mandatory `RadianceOrigin` checks on spectral apply; model-only metadata
+  without caller-invented atmosphere provenance; validated direct-path geometry.
+  Unfinished scattering scaffolding and generic monochromatic quantity scaling
+  are intentionally not part of the public API. Existing Zodiacal, Airglow,
   Moonlight, and Starlight runtime paths are unchanged.
 
 ### Changed

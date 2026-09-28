@@ -1,135 +1,78 @@
-//! Scientific metadata describing an atmospheric transport configuration.
+//! Model-only transport metadata.
 //!
-//! Transport sophistication must never silently upgrade component maturity or
-//! site [`crate::CalibrationStatus`].
+//! Atmosphere/profile identity is intentionally absent: it belongs with the
+//! evaluation context that owns the actual [`crate::site::AtmosphericConditions`],
+//! not an independent caller-supplied string.
 
-/// Which transport path was evaluated.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use super::extinction::{ExtinctionIngredients, MolecularAbsorption};
+use super::model::AirmassModel;
+
+/// Immutable description of a transport **model configuration**.
+///
+/// This does not record which atmosphere was evaluated. Evaluation provenance
+/// must come from the site/evaluator context that supplied
+/// [`crate::site::AtmosphericConditions`].
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum TransportPathKind {
-    /// Exact pass-through; atmosphere ignored.
-    Identity,
-    /// Direct Beer–Lambert extinction only.
-    Direct,
-    /// Future single in-scattering contribution.
-    Scattered,
-}
-
-impl TransportPathKind {
-    /// Stable machine-readable identifier.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Identity => "identity",
-            Self::Direct => "direct",
-            Self::Scattered => "scattered",
-        }
-    }
-}
-
-/// Molecular absorption treatment recorded in metadata.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum AbsorptionTreatment {
-    /// No molecular absorption term.
-    None,
-    /// Bundled Siderust ozone transmittance table.
-    OzoneBundledTable,
-}
-
-impl AbsorptionTreatment {
-    /// Stable machine-readable identifier.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::OzoneBundledTable => "ozone-bundled-table",
-        }
-    }
-}
-
-/// Extinction ingredients present in a transport evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct ExtinctionIngredientFlags {
-    /// Rayleigh scattering optical depth included.
+pub struct TransportModelMetadata {
+    /// Transport model identity (`identity`, `direct-transmission`).
+    pub model_id: &'static str,
+    /// Whether Rayleigh extinction is configured (direct path only).
     pub rayleigh: bool,
-    /// Mie / aerosol optical depth included.
+    /// Whether Mie extinction is configured (direct path only).
     pub mie: bool,
     /// Molecular absorption treatment.
-    pub absorption: AbsorptionTreatment,
-}
-
-/// Scattering ingredients present in a transport evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct ScatteringIngredientFlags {
-    /// Rayleigh phase function used (scattered path).
-    pub rayleigh_phase: bool,
-    /// Mie / aerosol phase function used (scattered path).
-    pub mie_phase: bool,
-}
-
-/// Approximation / extrapolation state for the transport evaluation.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ApproximationState {
-    /// Numerically exact within the typed representation (identity).
-    ExactWithinRepresentation,
-    /// Clear-sky single-column Beer–Lambert; no multiple scattering.
-    ClearSkySingleColumn,
-    /// Reserved for future approximate LUT / HEALPix solvers.
-    AcceleratedApproximation,
-}
-
-impl ApproximationState {
-    /// Stable machine-readable identifier.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::ExactWithinRepresentation => "exact-within-representation",
-            Self::ClearSkySingleColumn => "clear-sky-single-column",
-            Self::AcceleratedApproximation => "accelerated-approximation",
-        }
-    }
-}
-
-/// Uncertainty reporting policy for transport.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum UncertaintyReporting {
-    /// No quantitative transport uncertainty is claimed.
-    Absent,
-}
-
-impl UncertaintyReporting {
-    /// Stable machine-readable identifier.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Absent => "absent",
-        }
-    }
-}
-
-/// Inspectable scientific description of a transport configuration.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct TransportMetadata {
-    /// Transport model identity (`identity`, `direct-transmission`, …).
-    pub model_id: &'static str,
-    /// Direct / identity / scattered path kind.
-    pub path_kind: TransportPathKind,
-    /// Caller-supplied atmosphere/profile identity string.
-    pub atmosphere_profile_id: &'static str,
-    /// Extinction ingredients.
-    pub extinction: ExtinctionIngredientFlags,
-    /// Scattering ingredients.
-    pub scattering: ScatteringIngredientFlags,
-    /// Airmass model identity (or `none` for identity transport).
+    pub absorption: MolecularAbsorption,
+    /// Airmass model identity, or `none` for identity transport.
     pub airmass_model_id: &'static str,
-    /// Approximation / extrapolation state.
-    pub approximation: ApproximationState,
-    /// Human-readable validated domain statement.
+    /// Approximation class identity.
+    pub approximation: &'static str,
+    /// Human-readable validated-domain statement.
     pub validated_domain: &'static str,
-    /// Provenance statement.
+    /// Implementation provenance.
     pub provenance: &'static str,
-    /// Uncertainty reporting policy.
-    pub uncertainty: UncertaintyReporting,
+    /// Uncertainty reporting policy identity (`absent` when none is claimed).
+    pub uncertainty: &'static str,
+}
+
+impl TransportModelMetadata {
+    pub(crate) fn identity() -> Self {
+        Self {
+            model_id: "identity",
+            rayleigh: false,
+            mie: false,
+            absorption: MolecularAbsorption::None,
+            airmass_model_id: "none",
+            approximation: "exact-within-representation",
+            validated_domain: "any finite typed spectral radiance; atmosphere ignored",
+            provenance: concat!(
+                "NSB identity atmospheric transport; no extinction or scattering; ",
+                "output equals input within the quantity representation"
+            ),
+            uncertainty: "absent",
+        }
+    }
+
+    pub(crate) fn direct(ingredients: ExtinctionIngredients, airmass: AirmassModel) -> Self {
+        Self {
+            model_id: "direct-transmission",
+            rayleigh: ingredients.rayleigh,
+            mie: ingredients.mie,
+            absorption: ingredients.absorption,
+            airmass_model_id: airmass.as_str(),
+            approximation: "clear-sky-single-column",
+            validated_domain: concat!(
+                "clear-sky celestial direct path; zenith in [0, 90] degrees; ",
+                "individual airmass formulas may be weakly validated near the horizon; ",
+                "not a site-calibrated extinction law"
+            ),
+            provenance: concat!(
+                "NSB direct atmospheric transport composing Siderust Bodhaine Rayleigh, ",
+                "Patat Mie, optional Siderust ozone transmittance table, and Siderust ",
+                "Beer–Lambert transmission; NSB local-pressure Rayleigh helper avoids ",
+                "double-counting site-profile surface pressure with altitude"
+            ),
+            uncertainty: "absent",
+        }
+    }
 }

@@ -1,7 +1,4 @@
 //! Extinction ingredient selection and optical-depth composition.
-//!
-//! Optical-depth kernels come from Siderust. This module only selects which
-//! terms participate and sums them for Beer–Lambert transmission.
 
 use crate::site::atmosphere::rayleigh_optical_depth_local_pressure;
 use crate::site::AtmosphericConditions;
@@ -15,11 +12,8 @@ pub enum MolecularAbsorption {
     /// No molecular absorption term.
     #[default]
     None,
-
-    /// Bundled Siderust ozone transmittance table converted to vertical
-    /// optical depth `τ_O₃(λ) = −ln T_table(λ)`, then slanted with airmass.
+    /// Bundled Siderust ozone table as vertical `τ_O₃(λ) = −ln T_table(λ)`.
     ///
-    /// The table encodes a fixed ozone column (see Siderust ozone provenance).
     /// Selecting this term does **not** imply site-calibrated ozone.
     OzoneBundledTable,
 }
@@ -69,26 +63,6 @@ impl ExtinctionIngredients {
             absorption,
         }
     }
-
-    /// Stable machine-readable summary.
-    pub fn as_str(self) -> String {
-        let mut parts = Vec::new();
-        if self.rayleigh {
-            parts.push("rayleigh");
-        }
-        if self.mie {
-            parts.push("mie");
-        }
-        match self.absorption {
-            MolecularAbsorption::None => {}
-            MolecularAbsorption::OzoneBundledTable => parts.push("ozone"),
-        }
-        if parts.is_empty() {
-            "none".to_owned()
-        } else {
-            parts.join("+")
-        }
-    }
 }
 
 impl Default for ExtinctionIngredients {
@@ -112,10 +86,6 @@ pub struct OpticalDepthBreakdown {
 }
 
 /// Compose vertical optical depth from selected ingredients and site conditions.
-///
-/// Uses the local-pressure Rayleigh helper so site-profile surface pressure is
-/// not double-reduced by observer altitude (see
-/// [`crate::site::AtmosphericConditions`] docs).
 pub(crate) fn optical_depth_breakdown(
     wavelength: Nanometers,
     atmosphere: AtmosphericConditions,
@@ -146,8 +116,7 @@ pub(crate) fn optical_depth_breakdown(
 
 fn ozone_vertical_optical_depth(wavelength: Nanometers) -> OpticalDepths {
     let transmittance = ozone::transmittance_at(wavelength).value();
-    if !(transmittance.is_finite()) || transmittance <= 0.0 {
-        // Fail closed to total absorption for a non-physical table sample.
+    if !transmittance.is_finite() || transmittance <= 0.0 {
         return OpticalDepths::new(f64::INFINITY);
     }
     if transmittance >= 1.0 {
@@ -201,5 +170,14 @@ mod tests {
         );
         assert!(with.absorption.value() > 0.0);
         assert!(with.total.value() > without.total.value());
+    }
+
+    #[test]
+    fn molecular_absorption_as_str_is_stable() {
+        assert_eq!(MolecularAbsorption::None.as_str(), "none");
+        assert_eq!(
+            MolecularAbsorption::OzoneBundledTable.as_str(),
+            "ozone-bundled-table"
+        );
     }
 }

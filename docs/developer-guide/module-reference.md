@@ -32,7 +32,7 @@ SemVer policy, and the snapshot gate are documented in
 | `site` | Public | Generic and named planning profiles, atmospheric assumptions, airglow scaling, calibration status, and canonical site-calibration evidence |
 | `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
 | `spectra` | Crate-private | Shared physical spectra consumed by multiple components; currently owns the bundled solar spectral irradiance loader and typed `SolarSpectrum` |
-| `transport` | Public (advanced) | Atmospheric transport of spectral radiance: identity and direct Beer–Lambert paths, radiance-origin checks, and scattering scaffolding |
+| `transport` | Public (advanced) | Wavelength-resolved atmospheric transport: identity and direct Beer–Lambert paths with mandatory radiance-origin checks |
 | `units` | Crate-private with selected re-exports | NSB-specific typed quantities and scale-factor aliases |
 
 ### Component modules

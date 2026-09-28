@@ -1,62 +1,66 @@
-//! Line-of-sight geometry for direct and scattered transport paths.
+//! Validated direct-path geometry.
 
-use qtty::angular::{Degrees, Radians};
+use crate::error::{NsbError, Result};
+use qtty::angular::Degrees;
+
+/// Maximum zenith distance accepted by the transport geometry contract (degrees).
+///
+/// Individual [`super::AirmassModel`] formulas may become singular or weakly
+/// validated near the horizon; callers should treat results near 90° cautiously.
+pub(crate) const MAX_ZENITH_DEG: f64 = 90.0;
 
 /// Geometry for a celestial direct-transmission path.
 ///
-/// For the first foundation release the observer line of sight is the only
-/// geometric input: Beer–Lambert extinction depends on airmass at the source
-/// zenith distance. Source/observer direction pairs for in-scattering live in
-/// [`ScatteringGeometry`].
+/// Construct only through [`DirectPathGeometry::new`], which rejects non-finite
+/// and out-of-range zenith distances. Values are never silently clamped.
 #[derive(Debug, Clone, Copy, PartialEq)]
-#[non_exhaustive]
 pub struct DirectPathGeometry {
-    /// Zenith distance of the source / line of sight (degrees).
-    pub zenith: Degrees,
+    zenith: Degrees,
 }
 
 impl DirectPathGeometry {
-    /// Construct a direct-path geometry from zenith distance.
-    pub const fn new(zenith: Degrees) -> Self {
-        Self { zenith }
+    /// Validated zenith distance in degrees, inclusive range `[0, 90]`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`NsbError::OutOfRange`] when `zenith` is non-finite or outside
+    /// `[0, 90]` degrees.
+    pub fn new(zenith: Degrees) -> Result<Self> {
+        let value = zenith.value();
+        if !value.is_finite() {
+            return Err(NsbError::OutOfRange(format!(
+                "direct-path zenith must be finite, got {value}"
+            )));
+        }
+        if !(0.0..=MAX_ZENITH_DEG).contains(&value) {
+            return Err(NsbError::OutOfRange(format!(
+                "direct-path zenith must be in [0, {MAX_ZENITH_DEG}] degrees, got {value}"
+            )));
+        }
+        Ok(Self { zenith })
+    }
+
+    /// Zenith distance in degrees.
+    pub const fn zenith(self) -> Degrees {
+        self.zenith
     }
 }
 
-/// Geometry for a future single in-scattering path.
-///
-/// ```text
-/// radiance from source direction
-///     ↓
-/// atmospheric scattering
-///     ↓
-/// radiance observed along the line of sight
-/// ```
-///
-/// This type is part of the public extension contract. Evaluating a scattered
-/// path still returns [`super::ScatteringPathStatus::NotImplemented`] until a
-/// validated single-scattering solver lands.
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[non_exhaustive]
-pub struct ScatteringGeometry {
-    /// Zenith distance of the illuminating source (degrees).
-    pub source_zenith: Degrees,
-    /// Zenith distance of the observer line of sight (degrees).
-    pub observer_zenith: Degrees,
-    /// Scattering angle between source and observer directions (radians).
-    pub scattering_angle: Radians,
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-impl ScatteringGeometry {
-    /// Construct a scattering geometry from typed angles.
-    pub const fn new(
-        source_zenith: Degrees,
-        observer_zenith: Degrees,
-        scattering_angle: Radians,
-    ) -> Self {
-        Self {
-            source_zenith,
-            observer_zenith,
-            scattering_angle,
-        }
+    #[test]
+    fn accepts_horizon_and_zenith() {
+        assert!(DirectPathGeometry::new(Degrees::new(0.0)).is_ok());
+        assert!(DirectPathGeometry::new(Degrees::new(90.0)).is_ok());
+    }
+
+    #[test]
+    fn rejects_nan_negative_and_above_horizon() {
+        assert!(DirectPathGeometry::new(Degrees::new(f64::NAN)).is_err());
+        assert!(DirectPathGeometry::new(Degrees::new(-0.1)).is_err());
+        assert!(DirectPathGeometry::new(Degrees::new(90.1)).is_err());
+        assert!(DirectPathGeometry::new(Degrees::new(f64::INFINITY)).is_err());
     }
 }

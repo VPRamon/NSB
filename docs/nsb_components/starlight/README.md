@@ -25,8 +25,8 @@ The map is the scientific input to the calculation. Runtime evaluation is local
 and deterministic: it never downloads Gaia, Tycho, or any other catalogue.
 Atmospheric propagation is **not** applied inside the Starlight component: the
 admitted HEALPix product is treated as top-of-atmosphere sky radiance.
-Callers that need ground-level attenuation may apply `nsb::transport` to a
-radiance copy without mutating the map admission/provenance contract; see
+Band-integrated map values must not be treated as monochromatic radiance for
+transport; wavelength-resolved transport belongs with spectral products. See
 [Atmospheric transport](../../specifications/atmospheric-transport.md).
 
 ## How the map is generated and admitted
