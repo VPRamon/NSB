@@ -2,13 +2,13 @@ use super::output::StarlightOutputs;
 use super::provenance::StarlightProvenance;
 use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
-use crate::units::PixelIntegratedPhotonFlux;
-use csv::{ReaderBuilder, StringRecord};
 use crate::units::angular::Degrees;
 use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
 };
 use crate::units::solid_angle::Steradians;
+use crate::units::PixelIntegratedPhotonFlux;
+use csv::{ReaderBuilder, StringRecord};
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
 use siderust::coordinates::spherical::Direction as SphericalDirection;

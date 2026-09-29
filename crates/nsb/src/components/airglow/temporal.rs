@@ -1,6 +1,6 @@
 use super::domain::{AirglowNightPhase, AirglowSeason};
-use chrono::Datelike;
 use crate::units::angular::Degrees;
+use chrono::Datelike;
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -302,8 +302,8 @@ pub(crate) mod test_support {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::{TimeZone, Utc};
     use crate::units::angular::Degrees;
+    use chrono::{TimeZone, Utc};
     use siderust::coordinates::centers::Geodetic;
     use siderust::coordinates::frames::ECEF;
     use siderust::qtty::Meters;

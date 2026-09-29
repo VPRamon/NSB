@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
-use nsb::{ComponentMask, NsbEvaluator, Target, ThresholdQuery, DEG};
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use nsb::{ComponentMask, NsbEvaluator, Target, ThresholdQuery, DEG};
 use siderust::catalogs::observatories;
 use tempoch::{Period, Time, UTC};
 

@@ -18,10 +18,10 @@
 //! an observer looking upward with North at the top and East at the left.
 
 use chrono::{DateTime, SecondsFormat, Utc};
-use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery};
-use plotters::prelude::*;
 use nsb::units::angular::Degrees;
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery};
+use plotters::prelude::*;
 use siderust::catalogs::observatories::ObservatoryCatalog;
 use siderust::coordinates::frames::EquatorialMeanJ2000;
 use siderust::coordinates::spherical::direction::Horizontal as HorizontalDirection;

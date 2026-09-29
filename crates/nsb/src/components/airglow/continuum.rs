@@ -10,10 +10,6 @@ use super::temporal::{night_phase, season};
 use super::units::{is_valid_solar_flux, SolarFluxUnits};
 use crate::error::{NsbError, Result};
 use crate::site::AtmosphericConditions;
-use crate::units::ScaleFactors;
-use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
-use optica::grid::OutOfRange;
-use optica::spectrum::{Interpolation, SampledSpectrum};
 use crate::units::angular::Degrees;
 use crate::units::dimensionless::Ratios;
 use crate::units::length::{Nanometer, Nanometers};
@@ -24,6 +20,10 @@ use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
 };
 use crate::units::unit::Ratio;
+use crate::units::ScaleFactors;
+use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
+use optica::grid::OutOfRange;
+use optica::spectrum::{Interpolation, SampledSpectrum};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Time, UTC};

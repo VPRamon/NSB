@@ -6,9 +6,9 @@ use super::*;
 use crate::site::{
     AtmosphericConditions, GenericClearSky, SiteProfile, SiteProfileConfig, SiteProfileTag,
 };
+use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use crate::units::SolarFluxUnits;
 use chrono::{DateTime, Utc};
-use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
