@@ -3,7 +3,7 @@
 use super::types::Asset;
 use std::fmt::Write as _;
 
-/// Emit the generated Rust module consumed by `src/assets.rs` and Starlight.
+/// Emit the generated Rust module consumed by `src/data/bundled.rs` and Starlight.
 ///
 /// `verified_embedded` must contain only assets that passed existence + SHA-256
 /// verification (`runtime_embedded = true`). Candidate/external registry entries

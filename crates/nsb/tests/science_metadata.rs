@@ -347,7 +347,7 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
 
 #[test]
 fn airglow_runtime_provenance_tracks_bundled_asset_metadata() {
-    use nsb::assets::bundled_asset;
+    use nsb::data::bundled::bundled_asset;
 
     let asset = bundled_asset("airglow_cont.dat").expect("airglow continuum must be registered");
     let evaluator = NsbEvaluator::new().unwrap();

@@ -9,11 +9,11 @@
 //! Provenance:
 //! Scientific metadata for the bundled continuum is owned by
 //! `crates/nsb/data/manifest.toml` and surfaced through build-generated
-//! [`crate::assets::BundledAssetMetadata`]. Integrity of the embedded bytes is
+//! [`crate::data::bundled::BundledAssetMetadata`]. Integrity of the embedded bytes is
 //! guaranteed by the build script (existence + SHA-256) before compilation.
 
 use super::domain::{AirglowNightPhase, AirglowSeason};
-use crate::assets::{bundled_asset, BundledAssetMetadata};
+use crate::data::bundled::{bundled_asset, BundledAssetMetadata};
 use crate::error::{NsbError, Result};
 use crate::units::ScaleFactors;
 use optica::data::Provenance;

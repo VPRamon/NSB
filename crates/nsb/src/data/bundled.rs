@@ -1,4 +1,4 @@
-//! Build-time verified scientific asset metadata.
+//! Runtime access to build-verified bundled scientific data metadata.
 //!
 //! `crates/nsb/data/manifest.toml` remains the canonical declarative registry.
 //! The build script parses and validates it, then embeds the resulting metadata

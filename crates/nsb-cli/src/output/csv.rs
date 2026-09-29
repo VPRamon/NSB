@@ -4,7 +4,7 @@ use crate::parsing::time::format_utc;
 use anyhow::Result;
 use nsb::components::airglow::AirglowGeometryMetadata;
 use nsb::{
-    assets::bundled_assets, ComponentMask, NsbModelConfig, NsbResult, StarlightProduct,
+    data::bundled::bundled_assets, ComponentMask, NsbModelConfig, NsbResult, StarlightProduct,
     MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
 };
 use tempoch::{Period, UTC};

@@ -1,20 +1,21 @@
 pub mod nsb
 pub use nsb::DEG
-pub mod nsb::assets
-#[non_exhaustive] pub struct nsb::assets::BundledAssetMetadata
-pub nsb::assets::BundledAssetMetadata::calibration_status: &'static str
-pub nsb::assets::BundledAssetMetadata::generation_command: &'static str
-pub nsb::assets::BundledAssetMetadata::generator: &'static str
-pub nsb::assets::BundledAssetMetadata::license: &'static str
-pub nsb::assets::BundledAssetMetadata::path: &'static str
-pub nsb::assets::BundledAssetMetadata::schema: &'static str
-pub nsb::assets::BundledAssetMetadata::sha256: &'static str
-pub nsb::assets::BundledAssetMetadata::source: &'static str
-pub nsb::assets::BundledAssetMetadata::validation_report: &'static str
-pub const nsb::assets::ASSET_MANIFEST_SCHEMA_VERSION: u32
-pub static nsb::assets::BUNDLED_ASSETS: &[nsb::assets::BundledAssetMetadata]
-pub fn nsb::assets::bundled_asset(path: &str) -> core::option::Option<&'static nsb::assets::BundledAssetMetadata>
-pub fn nsb::assets::bundled_assets() -> impl core::iter::traits::iterator::Iterator<Item = &'static nsb::assets::BundledAssetMetadata>
+pub mod nsb::data
+pub mod nsb::data::bundled
+#[non_exhaustive] pub struct nsb::data::bundled::BundledAssetMetadata
+pub nsb::data::bundled::BundledAssetMetadata::calibration_status: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::generation_command: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::generator: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::license: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::path: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::schema: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::sha256: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::source: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::validation_report: &'static str
+pub const nsb::data::bundled::ASSET_MANIFEST_SCHEMA_VERSION: u32
+pub static nsb::data::bundled::BUNDLED_ASSETS: &[nsb::data::bundled::BundledAssetMetadata]
+pub fn nsb::data::bundled::bundled_asset(path: &str) -> core::option::Option<&'static nsb::data::bundled::BundledAssetMetadata>
+pub fn nsb::data::bundled::bundled_assets() -> impl core::iter::traits::iterator::Iterator<Item = &'static nsb::data::bundled::BundledAssetMetadata>
 pub mod nsb::components
 pub mod nsb::components::airglow
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowFallbackReason

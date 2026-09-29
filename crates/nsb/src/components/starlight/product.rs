@@ -1,5 +1,5 @@
 use super::{StarlightMap, ValidatedStarlightMap};
-use crate::assets::BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE;
+use crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_AVAILABLE;
 use std::sync::Arc;
 
 /// Explicit integrated-starlight data-product selection.

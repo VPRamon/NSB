@@ -4,7 +4,9 @@ use super::photometry::scale_outputs;
 #[cfg(nsb_bundled_production_starlight)]
 use super::validated::ValidatedStarlightMap;
 #[cfg(nsb_bundled_production_starlight)]
-use crate::assets::{BUNDLED_PRODUCTION_STARLIGHT_MANIFEST, BUNDLED_PRODUCTION_STARLIGHT_MAP};
+use crate::data::bundled::{
+    BUNDLED_PRODUCTION_STARLIGHT_MANIFEST, BUNDLED_PRODUCTION_STARLIGHT_MAP,
+};
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
 use crate::units::ScaleFactors;
