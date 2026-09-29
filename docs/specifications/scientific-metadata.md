@@ -66,6 +66,13 @@ approximations, and target geometry near model boundaries.
 
 ## Asset provenance
 
+The #200 admission rule separates observatory-independent core scientific data
+from explicit external site calibration. Provenance may name source
+observatories; a portable runtime product must have reproducible fabrication
+and validated applicability beyond site identity. The current Airglow asset
+does not meet this rule. See the
+[scientific decision and admission requirements](../nsb_components/airglow/validation/generic-model-decision-200.md).
+
 `crates/nsb/data/manifest.toml` is authoritative for file schema, SHA-256,
 source, license, generator, generation command, validation report, calibration
 status, and runtime inclusion. Runtime JSON exposes checksums for every embedded
@@ -98,10 +105,13 @@ symmetrically if required.
 
 Airglow component metadata includes nested `airglow_selection` with the
 resolved `AirglowModel` identity (`resolved_model`) actually selected by the
-evaluator, plus selection kind and typed fallback reason. The first-release
+evaluator, plus selection kind and typed fallback reason. The existing
 identity is `paranal-noll-skycalc-fors1`, corresponding to the
 repository-documented Paranal-derived Noll/SkyCalc/FORS1 empirical lineage used
 as an explicit legacy/reference model and temporary automatic fallback.
+This describes current code, not the accepted #200 architecture: that identity
+and fallback must be removed after scientific replacement admission. No
+replacement or calibration schema has been admitted in the Phase 1 review.
 
 Physical outcomes live in a separate `airglow_evaluation` field present only
 after a time-dependent evaluation. Descriptors from `describe_components`
@@ -110,8 +120,8 @@ populate selection metadata without inventing an evaluation outcome.
 This identity is not the geometry model, site profile/maturity, F10.7 source, or
 repository-wide `MODEL_VERSION`. Implementation/data provenance remains pinned
 separately by the Airglow asset schema/checksum and provenance fields. This
-separation allows later supported scientific models to coexist without changing
-the configuration or result-metadata shape.
+separation does not obligate NSB to retain the Paranal model or the current
+configuration/result shape during its pre-1.0 replacement.
 
 ## Airglow F10.7 solar activity
 

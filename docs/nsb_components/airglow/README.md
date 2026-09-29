@@ -1,5 +1,12 @@
 # Airglow
 
+**#200 migration status:** This runtime is still Paranal-trained. Retaining it
+as a generic/reference/fallback model is not the accepted target architecture.
+The [scientific decision record](validation/generic-model-decision-200.md)
+admits no replacement yet and stops implementation at Phase 1. #200 supersedes
+#157 and Option D; it requires removing this runtime after generic-model
+admission, with optional external calibration kept separate.
+
 Status: Current runtime-model guide.
 Audience: Users and developers interpreting airglow outputs.
 Scope: Empirical continuum, calculation inputs, geometry, calibration route, and limitations.
@@ -8,8 +15,8 @@ Scope: Empirical continuum, calculation inputs, geometry, calibration route, and
 
 Airglow is natural optical emission from Earth's upper atmosphere. Its intensity
 varies with season, progression through the night, solar activity, viewing
-geometry, wavelength, and local conditions. NSB uses a generic empirical
-continuum baseline; it is not a line-by-line physical atmosphere simulation and
+geometry, wavelength, and local conditions. NSB currently uses a Paranal-trained
+empirical continuum baseline; it is not a line-by-line physical atmosphere simulation and
 the current runtime does not contain a validated dedicated Airglow site
 calibration.
 
@@ -19,8 +26,8 @@ component retains its emitting-volume geometry plus Noll effective
 Rayleigh/Mie scattering. See
 [Atmospheric transport](../../specifications/atmospheric-transport.md).
 
-**Option D (current policy):** NSB supports arbitrary-location Airglow evaluation
-through `NsbEvaluator`, but the empirical continuum is **Paranal-derived /
+**Existing Option D runtime (policy superseded by #200):** NSB supports
+arbitrary-location Airglow evaluation through `NsbEvaluator`, but the empirical continuum is **Paranal-derived /
 Paranal-trained** (Noll/SkyCalc lineage, including FORS1 residual continuum
 heritage). Without explicit admitted site-calibration evidence it is an **explicit
 generic/planning proxy**, including when the observer is physically at Paranal.
@@ -48,17 +55,16 @@ re-exports `AirglowModel` and `AirglowSelection` for normal configuration.
 | Selection metadata | `NsbComponentMetadata::airglow_selection` | Kind, requested/resolved model, typed fallback |
 | Evaluation outcome | `NsbComponentMetadata::airglow_evaluation` | Physical outcome after a query (absent from descriptors) |
 
-Required behavior:
+Existing behavior, pending #200 migration:
 
 - **Explicit wins.** An explicit selection never silently switches to another
-  model. The first-release `AirglowModel` enum contains only admitted models
-  (`ParanalNollSkyCalcFors1`). Future climatology (#157) adds a new
-  `#[non_exhaustive]` variant when scientifically ready — no speculative public
-  placeholder is frozen.
+  model. The current `AirglowModel` enum contains only
+  `ParanalNollSkyCalcFors1`, which #200 requires removing. It is not an admitted
+  generic replacement or an approved first-release compatibility obligation.
 - **Automatic is deterministic.** `generic_clear_sky()`, `Default`, and
   `NsbEvaluator::new` use `AirglowSelection::Automatic`.
 - **Automatic is not “Paranal is the global scientific default.”** Until a
-  global climatological planning model is admitted (#157 deferred), automatic
+  generic model is admitted under #200, the unchanged automatic
   policy resolves to a **temporary Paranal-derived planning fallback**. That
   fallback is machine-visible via `used_automatic_fallback` and typed
   `AirglowFallbackReason::GlobalPlanningModelUnavailable`
@@ -70,10 +76,10 @@ Required behavior:
 - **Descriptors do not invent outcomes.** `describe_components()` populates
   selection metadata only; `airglow_evaluation` remains `None`.
 
-`AirglowModel` remains the durable scientific identity enum
-(`#[non_exhaustive]`). Future #157 climatology can extend the enum and refine
-automatic resolution without replacing the `AirglowSelection` configuration
-shape. The concrete continuum/evaluator remains internal.
+`AirglowModel` currently carries scientific identity (`#[non_exhaustive]`).
+#200 will review the minimal replacement API after scientific admission;
+the existing selection shape is not a requirement to retain a Paranal variant.
+The concrete continuum/evaluator remains internal.
 
 ## Geographic support versus scientific calibration
 

@@ -1,5 +1,10 @@
 # Airglow component completion audit
 
+Historical scope: this completion record does not establish completion of
+#200 or portability of the continuum. The
+[current scientific decision](generic-model-decision-200.md) identifies the
+unresolved generic-model admission prerequisite.
+
 Status: Machine-actionable completion evidence (originated as issue #112
 acceptance audit). Not the canonical Airglow runtime guide — see
 [../README.md](../README.md).

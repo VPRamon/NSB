@@ -6,6 +6,13 @@ Scope: Repository architecture, module ownership, development workflow, and desi
 
 ## Repository architecture
 
+Core scientific models and reproducibly generated data must be
+observatory-independent; site-specific empirical refinements belong to explicit
+external calibration products. Source observations may name observatories,
+but portability requires evidence beyond changing coordinates. Airglow’s
+current exception and deferred admission are recorded in the
+[#200 scientific decision](../nsb_components/airglow/validation/generic-model-decision-200.md).
+
 NSB is a Cargo workspace with deliberately separated responsibilities:
 
 | Crate | Responsibility | Must not own |

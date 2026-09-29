@@ -78,15 +78,18 @@ through `NsbEvaluator` results.
 Airglow separates **selection policy** (`AirglowSelection::{Automatic,
 Explicit}`) from **scientific model identity** (`AirglowModel`) and from
 **evaluation outcome** (`AirglowEvaluationOutcome`). Defaults use `Automatic`;
-until #157 admits a global climatological model, automatic policy resolves to a
+the unchanged automatic policy currently resolves to a
 temporary Paranal-derived planning fallback with typed
 `AirglowFallbackReason::GlobalPlanningModelUnavailable` in
 `NsbComponentMetadata::airglow_selection`. Explicit `with_airglow_model` /
 `with_airglow_selection(Explicit(...))` wins and never silently switches models.
 `describe_components()` reports selection metadata only and must not invent
 `airglow_evaluation`. Both enums are `#[non_exhaustive]` so later validated
-models and climatology can extend the contract without redesigning
-`NsbModelConfig`.
+models can extend the contract. However, #200 supersedes #157 and requires
+removal of the Paranal model and fallback, not their preservation alongside a
+new variant. Its [Phase 1 decision](../nsb_components/airglow/validation/generic-model-decision-200.md)
+has not admitted a replacement; public API design remains deferred to that
+scientific decision. No calibration abstraction is frozen by the survey.
 
 The concrete continuum/evaluator remains internal. Scientific model identity is
 separate from `AirglowGeometryModel` (line-of-sight/emitting-volume geometry)

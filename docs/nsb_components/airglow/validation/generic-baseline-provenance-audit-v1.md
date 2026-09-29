@@ -1,5 +1,10 @@
 # Airglow generic baseline provenance audit
 
+Historical policy: #200 supersedes this record’s Option D retention decision.
+Its provenance evidence remains useful; keeping a shared Paranal template is
+not the accepted architecture. See the
+[current admission decision](generic-model-decision-200.md).
+
 Status: Scientific provenance and Option D planning-proxy decision record
 (originated as issue #108 audit). Not the canonical Airglow runtime guide — see
 [../README.md](../README.md).
