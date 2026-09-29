@@ -9,7 +9,7 @@ use super::types::{
 };
 use crate::error::Result;
 use crate::evaluator::{ComponentMask, NsbEvaluator};
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use rayon::prelude::*;
 use siderust::qtty::Day;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};

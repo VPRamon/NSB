@@ -19,7 +19,7 @@
 //! # Reference
 //! Leinert et al. (1998), *A&AS* 127, 1-99, §10.
 
-use qtty::angular::Radians;
+use crate::units::angular::Radians;
 
 /// Wavelength-dependent reddening factor `f(λ, ε)` where `ε` is the
 /// elongation angle (angular distance from the Sun).

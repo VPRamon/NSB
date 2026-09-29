@@ -7,8 +7,8 @@ use super::types::{ComponentMask, NsbComponent, NsbResult, PreparedPointQuery};
 use super::NsbEvaluator;
 use crate::error::Result;
 use crate::NSB_S10_ZP;
-use qtty::photometry::s10_to_surface_brightness;
-use qtty::radiometry::{
+use crate::units::photometry::s10_to_surface_brightness;
+use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 use tempoch::{Time, UTC};

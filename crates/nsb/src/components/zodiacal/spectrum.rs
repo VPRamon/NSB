@@ -23,9 +23,9 @@ use super::leinert::{Leinert1998Grid, LEINERT_S10_TO_W_M2_SR_UM};
 use super::output::ZodiacalOutputs;
 use super::reddening::reddening_factor;
 
-use qtty::angular::Degrees;
-use qtty::length::{Nanometer, Nanometers};
-use qtty::radiometry::{
+use crate::units::angular::Degrees;
+use crate::units::length::{Nanometer, Nanometers};
+use crate::units::radiometry::{
     spectral_radiance_to_photon_radiance_ns_nm,
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
@@ -204,7 +204,7 @@ fn interp_linear_or_nearest(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use qtty::radiometry::PhotonPerSquareCentimeterNanosecondSteradianNanometer;
+    use crate::units::radiometry::PhotonPerSquareCentimeterNanosecondSteradianNanometer;
 
     #[test]
     fn typed_zodiacal_spectrum_integrates_to_band_photon_radiance() {
@@ -220,7 +220,7 @@ mod tests {
         let integrated = integrate_photon_spectrum(&spectrum);
         assert!((integrated.value() - 350.0).abs() < 1.0e-12);
         let midpoint = spectrum.interp_at(Nanometers::new(475.0));
-        let _: qtty::Quantity<PhotonPerSquareCentimeterNanosecondSteradianNanometer> = midpoint;
+        let _: crate::units::Quantity<PhotonPerSquareCentimeterNanosecondSteradianNanometer> = midpoint;
     }
 
     #[test]

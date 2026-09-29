@@ -12,7 +12,7 @@ use crate::components::starlight::{StarlightProduct, StarlightProvenance};
 use crate::components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
 use crate::site::{CalibrationStatus, SiteProfileConfig};
 use crate::NSB_S10_ZP;
-use qtty::photometry::SurfaceBrightness;
+use crate::units::photometry::SurfaceBrightness;
 use siderust::qtty::Nanometers;
 use std::borrow::Cow;
 
