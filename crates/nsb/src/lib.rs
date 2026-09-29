@@ -66,11 +66,10 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-/// Build-time verified scientific-asset metadata (checksums, provenance, maturity).
-pub mod assets;
 /// Advanced component models used to construct or inspect individual contributors.
 pub mod components;
-mod data;
+/// Runtime scientific data and build-verified bundled metadata.
+pub mod data;
 pub(crate) mod error;
 mod evaluator;
 mod planning;
