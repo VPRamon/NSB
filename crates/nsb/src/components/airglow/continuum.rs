@@ -14,16 +14,16 @@ use crate::units::ScaleFactors;
 use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
 use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
-use qtty::angular::Degrees;
-use qtty::dimensionless::Ratios;
-use qtty::length::{Nanometer, Nanometers};
-use qtty::radiometry::{
+use crate::units::angular::Degrees;
+use crate::units::dimensionless::Ratios;
+use crate::units::length::{Nanometer, Nanometers};
+use crate::units::radiometry::{
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadiance,
 };
-use qtty::unit::Ratio;
+use crate::units::unit::Ratio;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Time, UTC};

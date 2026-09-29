@@ -57,8 +57,8 @@
 
 use crate::site::atmosphere::rayleigh_optical_depth_local_pressure;
 use crate::site::AtmosphericConditions;
-use qtty::angular::{Degrees, Radian};
-use qtty::dimensionless::Transmittances;
+use crate::units::angular::{Degrees, Radian};
+use crate::units::dimensionless::Transmittances;
 use siderust::atmosphere::mie_optical_depth;
 use siderust::qtty::Nanometers;
 

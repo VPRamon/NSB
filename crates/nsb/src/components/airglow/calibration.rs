@@ -19,8 +19,8 @@ use crate::units::ScaleFactors;
 use optica::data::Provenance;
 use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
-use qtty::length::{Kilometers, Micrometers, Nanometer};
-use qtty::unit::Ratio;
+use crate::units::length::{Kilometers, Micrometers, Nanometer};
+use crate::units::unit::Ratio;
 
 const RAW: &str = include_str!("../../../data/airglow_cont.dat");
 const AIRGLOW_CONTINUUM_FILE: &str = "airglow_cont.dat";
