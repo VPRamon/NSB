@@ -22,6 +22,4 @@ pub(crate) use conventions::{
     SkyCalcSpectralPhotonRadiance, SolarSpectralIrradiance, SolarSpectralIrradianceUnit,
     WattPerSquareMeterSteradianMicrometer,
 };
-#[cfg(test)]
-pub(crate) use conventions::WattsPerSquareMeterSteradianMicrometer;
 pub use conventions::{SolarFluxUnit, SolarFluxUnits};
