@@ -1,3 +1,4 @@
 //! Runtime ownership for NSB scientific data.
 
-pub(crate) mod bundled;
+/// Build-verified bundled scientific data metadata and registry.
+pub mod bundled;
