@@ -20,8 +20,8 @@
 use chrono::{DateTime, SecondsFormat, Utc};
 use nsb::{ComponentMask, NsbEvaluator, Observer, PointQuery};
 use plotters::prelude::*;
-use qtty::angular::Degrees;
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use nsb::units::angular::Degrees;
+use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::catalogs::observatories::ObservatoryCatalog;
 use siderust::coordinates::frames::EquatorialMeanJ2000;
 use siderust::coordinates::spherical::direction::Horizontal as HorizontalDirection;

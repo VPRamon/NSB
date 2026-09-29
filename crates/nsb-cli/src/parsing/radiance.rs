@@ -1,5 +1,5 @@
 use crate::error::CliError;
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 
 pub fn parse_max_nsb(value: f64) -> Result<BandPhotonRadiance, CliError> {
     if value.is_finite() && value >= 0.0 {

@@ -6,7 +6,7 @@ use crate::cli::OutputFormat;
 use crate::parsing::location::ObservatoryOutput;
 use anyhow::Result;
 use nsb::{ComponentMask, NsbComponentDescriptor, NsbModelConfig, NsbResult, Target};
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Period, Time, UTC};
