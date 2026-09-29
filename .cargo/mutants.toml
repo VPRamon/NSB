@@ -28,7 +28,6 @@ exclude_globs = [
   "crates/nsb/src/components/moonlight/scattering.rs",
   "crates/nsb/src/components/zodiacal/leinert.rs",
   "crates/nsb/src/components/starlight/map.rs",
-  "crates/nsb/src/assets.rs",
   "crates/nsb/src/data/bundled.rs",
   "crates/nsb/build.rs",
 ]
