@@ -118,9 +118,9 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
         );
         assert!(model.map().pixels().len() > 12);
 
-        let map_meta = crate::assets::bundled_asset("starlight_nside128.release.csv")
+        let map_meta = crate::data::bundled::bundled_asset("starlight_nside128.release.csv")
             .expect("production map metadata");
-        let sidecar_meta = crate::assets::bundled_asset("starlight_nside128.manifest.toml")
+        let sidecar_meta = crate::data::bundled::bundled_asset("starlight_nside128.manifest.toml")
             .expect("production sidecar metadata");
         assert_eq!(map_meta.schema, "nsb-healpix-starlight-v2");
         assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v1");
@@ -140,8 +140,8 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
 #[test]
 fn bundled_production_model_is_the_canonical_admitted_csv_map() {
     let canonical = ValidatedStarlightMap::from_bytes_and_manifest(
-        crate::assets::BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
-        crate::assets::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
+        crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
+        crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
     )
     .unwrap();
     let bundled = Starlight::bundled_production_model().unwrap();
