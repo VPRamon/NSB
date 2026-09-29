@@ -212,8 +212,10 @@ fn noll2012_extinction_matches_numeric_reference_value() {
     assert_eq!(
         ZodiacalExtinction::None
             .transmission_for_spectral_radiance(
-                crate::units::Quantity::<crate::units::WattPerSquareMeterSteradianMicrometer>::new(1.0)
-                    .to::<crate::units::unit::WattPerSquareMeterSteradianNanometer>(),
+                crate::units::Quantity::<crate::units::WattPerSquareMeterSteradianMicrometer>::new(
+                    1.0
+                )
+                .to::<crate::units::unit::WattPerSquareMeterSteradianNanometer>(),
                 Nanometers::new(500.0),
                 Degrees::new(60.0),
             )
