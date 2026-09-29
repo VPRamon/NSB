@@ -70,6 +70,7 @@
 pub mod assets;
 /// Advanced component models used to construct or inspect individual contributors.
 pub mod components;
+mod data;
 pub(crate) mod error;
 mod evaluator;
 mod planning;
