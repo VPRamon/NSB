@@ -15,8 +15,8 @@ use nsb::{
     ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
     ThresholdQuery, DEG,
 };
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use qtty::Second;
+use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use nsb::units::Second;
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;

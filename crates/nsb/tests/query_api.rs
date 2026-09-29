@@ -9,8 +9,8 @@ use nsb::{
     CalibrationStatus, ComponentCalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator,
     NsbModelConfig, PointQuery, StarlightProduct, Target, ThresholdQuery, DEG,
 };
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use qtty::Second;
+use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use nsb::units::Second;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
