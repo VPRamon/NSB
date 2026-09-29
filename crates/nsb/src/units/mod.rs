@@ -15,13 +15,11 @@ mod calibration;
 mod conventions;
 
 pub(crate) use calibration::{
-    s10_for_spectral_photon_radiance, JouleMeters, HC, S10_TO_W_M2_SR_NM, S10_TO_W_M2_SR_UM,
+    s10_for_spectral_photon_radiance, S10_TO_W_M2_SR_NM, S10_TO_W_M2_SR_UM,
 };
 pub(crate) use conventions::{
-    MagnitudePerAirmass, MagnitudesPerAirmass, Nanolambert, Nanolamberts,
-    PixelIntegratedPhotonFlux, ScaleFactors,
-    SkyCalcPhotonPerSquareMeterSecondSquareArcsecondMicrometer, SkyCalcSpectralPhotonRadiance,
-    SolarSpectralIrradiance, SolarSpectralIrradianceUnit,
+    MagnitudesPerAirmass, Nanolamberts, PixelIntegratedPhotonFlux, ScaleFactors,
+    SkyCalcSpectralPhotonRadiance, SolarSpectralIrradiance, SolarSpectralIrradianceUnit,
     WattPerSquareMeterSteradianMicrometer, WattsPerSquareMeterSteradianMicrometer,
 };
 pub use conventions::{SolarFluxUnit, SolarFluxUnits};

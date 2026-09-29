@@ -1,5 +1,7 @@
 use super::selection::{AirglowPhysicalOutcome, AirglowPhysicalZeroReason};
-use crate::units::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use crate::units::radiometry::{
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
+};
 
 #[derive(Debug, Clone)]
 /// Integrated airglow radiance and diagnostic B/V values.

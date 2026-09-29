@@ -5,7 +5,9 @@ use crate::error::{NsbError, Result};
 use crate::units::PixelIntegratedPhotonFlux;
 use csv::{ReaderBuilder, StringRecord};
 use crate::units::angular::Degrees;
-use crate::units::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use crate::units::radiometry::{
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
+};
 use crate::units::solid_angle::Steradians;
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;

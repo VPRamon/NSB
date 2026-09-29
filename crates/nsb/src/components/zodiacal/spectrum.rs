@@ -220,7 +220,8 @@ mod tests {
         let integrated = integrate_photon_spectrum(&spectrum);
         assert!((integrated.value() - 350.0).abs() < 1.0e-12);
         let midpoint = spectrum.interp_at(Nanometers::new(475.0));
-        let _: crate::units::Quantity<PhotonPerSquareCentimeterNanosecondSteradianNanometer> = midpoint;
+        let _: crate::units::Quantity<PhotonPerSquareCentimeterNanosecondSteradianNanometer> =
+            midpoint;
     }
 
     #[test]

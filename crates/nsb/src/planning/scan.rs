@@ -268,7 +268,9 @@ pub(crate) fn tt_mjd_period_to_utc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+    use crate::units::radiometry::{
+        PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance,
+    };
 
     fn test_window() -> TimePeriod<ModifiedJulianDate> {
         TimePeriod::new(
