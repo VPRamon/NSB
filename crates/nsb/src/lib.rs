@@ -47,7 +47,7 @@
 //!
 //! NSB uses Siderust, `qtty`, and `tempoch` types at the supported boundary
 //! (`Observer`, `Target`, `Time<UTC>`, radiances, angles). The [`units`]
- //! module is the canonical NSB-facing entry point for `qtty`: it re-exports
+//! module is the canonical NSB-facing entry point for `qtty`: it re-exports
 //! the upstream crate and the quantity modules used by NSB. [`DEG`] remains
 //! re-exported at the crate root for the documented getting-started path.
 //!
