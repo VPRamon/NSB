@@ -33,7 +33,7 @@ SemVer policy, and the snapshot gate are documented in
 | `solar_activity` | Public | Offline F10.7 store loading and date-aware resolution |
 | `spectra` | Crate-private | Shared physical spectra consumed by multiple components; currently owns the bundled solar spectral irradiance loader and typed `SolarSpectrum` |
 | `transport` | Public (advanced) | Wavelength-resolved atmospheric transport: identity and direct Beer–Lambert paths with mandatory radiance-origin checks |
-| `units` | Crate-private with selected re-exports | NSB-specific typed quantities and scale-factor aliases |
+| `units` | Public | Canonical qtty facade plus NSB-specific typed quantities, calibration conventions, and scale-factor aliases |
 
 ### Component modules
 
