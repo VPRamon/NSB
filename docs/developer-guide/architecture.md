@@ -34,8 +34,7 @@ manifest and build-time checks.
 
 | Module | Responsibility |
 | --- | --- |
-| `assets` | Stable public façade for bundled scientific asset metadata |
-| `data::bundled` | Runtime ownership of the build-verified bundled-data registry and embedded scientific data selection |
+| `data::bundled` | Public runtime ownership of the build-verified bundled-data registry and embedded scientific data selection |
 | `components` | Physical and empirical contributors to the night-sky background |
 | `error` | Typed library errors and the crate result alias |
 | `evaluator` | Point NSB evaluation, model construction, and component composition |
