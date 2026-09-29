@@ -20,6 +20,6 @@ pub(crate) use calibration::{
 pub(crate) use conventions::{
     MagnitudesPerAirmass, Nanolamberts, PixelIntegratedPhotonFlux, ScaleFactors,
     SkyCalcSpectralPhotonRadiance, SolarSpectralIrradiance, SolarSpectralIrradianceUnit,
-    WattPerSquareMeterSteradianMicrometer, WattsPerSquareMeterSteradianMicrometer,
+    WattPerSquareMeterSteradianMicrometer,
 };
 pub use conventions::{SolarFluxUnit, SolarFluxUnits};
