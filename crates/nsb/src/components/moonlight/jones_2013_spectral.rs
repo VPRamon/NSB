@@ -4,8 +4,8 @@ use crate::units::s10_for_spectral_photon_radiance;
 use crate::units::ScaleFactors;
 use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
-use qtty::length::Nanometer;
-use qtty::radiometry::{
+use crate::units::length::Nanometer;
+use crate::units::radiometry::{
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
 };

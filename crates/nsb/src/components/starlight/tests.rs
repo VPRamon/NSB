@@ -2,7 +2,7 @@ use super::provenance::test_support::fixture as fixture_provenance;
 use super::*;
 use crate::evaluator::Target;
 use crate::DEG;
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use crate::units::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
 use siderust::coordinates::cartesian::Direction as CartesianDirection;
 use siderust::coordinates::frames::Galactic;
 use siderust::coordinates::spherical;
