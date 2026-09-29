@@ -84,8 +84,10 @@ fn scattering_function(rho: Degrees) -> f64 {
 
 /// Convert moonlight brightness `B` (nanolamberts) into V-band surface
 /// brightness (mag/arcsec²) via the inverse of K&S eq. 1.
-fn v_mag_per_arcsec2_from_nl(b_nl: Nanolamberts) -> qtty::photometry::SurfaceBrightness {
-    qtty::photometry::SurfaceBrightness::new((20.7233 - (b_nl.value() / 34.08).ln()) / 0.92104)
+fn v_mag_per_arcsec2_from_nl(b_nl: Nanolamberts) -> crate::units::photometry::SurfaceBrightness {
+    crate::units::photometry::SurfaceBrightness::new(
+        (20.7233 - (b_nl.value() / 34.08).ln()) / 0.92104,
+    )
 }
 
 /// Scattered-moon surface brightness at the source location, in nanolamberts
@@ -110,9 +112,9 @@ fn scattered_brightness_nanolamberts(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use qtty::angular::Radians;
-    use qtty::photometry::s10_to_surface_brightness;
-    use qtty::radiometry::S10s;
+    use crate::units::angular::Radians;
+    use crate::units::photometry::s10_to_surface_brightness;
+    use crate::units::radiometry::S10s;
     use siderust::qtty::IlluminationFractions;
 
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {

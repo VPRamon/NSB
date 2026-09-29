@@ -1,9 +1,9 @@
 use crate::error::Result;
 use crate::evaluator::Target;
 use crate::spectra::solar;
+use crate::units::length::Nanometer;
 use crate::units::SolarSpectralIrradianceUnit;
 use optica::spectrum::SampledSpectrum;
-use qtty::length::Nanometer;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Time, UTC};
@@ -97,12 +97,12 @@ impl ZodiacalLight {
 
 fn is_below_horizon(geom: &geometry::ZodiacalGeometry) -> bool {
     geom.zenith
-        .map(|zenith| (qtty::angular::Degrees::new(90.0) - zenith).value() <= 0.0)
+        .map(|zenith| (crate::units::angular::Degrees::new(90.0) - zenith).value() <= 0.0)
         .unwrap_or(false)
 }
 
 fn zero_outputs() -> ZodiacalOutputs {
-    use qtty::radiometry::{
+    use crate::units::radiometry::{
         PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
     };
     ZodiacalOutputs {

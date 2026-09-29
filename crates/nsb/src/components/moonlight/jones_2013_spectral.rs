@@ -1,14 +1,14 @@
 use super::*;
 use crate::spectra::solar::SolarSpectrum;
+use crate::units::length::Nanometer;
+use crate::units::radiometry::{
+    PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
+    PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
+};
 use crate::units::s10_for_spectral_photon_radiance;
 use crate::units::ScaleFactors;
 use optica::grid::OutOfRange;
 use optica::spectrum::{Interpolation, SampledSpectrum};
-use qtty::length::Nanometer;
-use qtty::radiometry::{
-    PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
-    PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
-};
 
 /// Wavelength-resolved Jones et al. (2013) scattered-moonlight evaluator.
 pub(crate) struct Jones2013Spectral {

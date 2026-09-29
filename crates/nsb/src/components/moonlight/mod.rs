@@ -14,13 +14,13 @@
 use crate::error::Result;
 use crate::site::{AtmosphericConditions, SiteProfileConfig};
 use crate::spectra::solar;
-use crate::units::MagnitudesPerAirmass;
-use crate::NSB_S10_ZP;
-use qtty::angular::{Degree, Degrees, Radian, Radians};
-use qtty::radiometry::{
+use crate::units::angular::{Degree, Degrees, Radian, Radians};
+use crate::units::radiometry::{
     self, spectral_radiance_to_photon_radiance_ns_nm,
     PhotonsPerSquareCentimeterNanosecondSteradian, WattsPerSquareMeterSteradianNanometer,
 };
+use crate::units::MagnitudesPerAirmass;
+use crate::NSB_S10_ZP;
 use scattering::ScatterGrid;
 use siderust::atmosphere::{
     airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,

@@ -5,8 +5,8 @@ use super::leinert::{test_support::reference_lookup_s10, Leinert1998Grid};
 use super::model::ZodiacalLight;
 use crate::error::{NsbError, Result};
 use crate::evaluator::Target;
-use qtty::angular::{Degrees, Radians};
-use qtty::radiometry::{S10s, S10s as S10};
+use crate::units::angular::{Degrees, Radians};
+use crate::units::radiometry::{S10s, S10s as S10};
 use siderust::catalogs::observatories;
 use siderust::qtty::Nanometers;
 use siderust::qtty::DEG;
@@ -198,8 +198,8 @@ fn leinert_lookup_rejects_non_finite_inputs() {
 fn noll2012_extinction_matches_numeric_reference_value() {
     let transmission = ZodiacalExtinction::Noll2012Approx
         .transmission_for_spectral_radiance(
-            crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0)
-                .to::<qtty::unit::WattPerSquareMeterSteradianNanometer>(),
+            crate::units::Quantity::<crate::units::WattPerSquareMeterSteradianMicrometer>::new(1.0)
+                .to::<crate::units::unit::WattPerSquareMeterSteradianNanometer>(),
             Nanometers::new(500.0),
             Degrees::new(0.0),
         )
@@ -212,8 +212,10 @@ fn noll2012_extinction_matches_numeric_reference_value() {
     assert_eq!(
         ZodiacalExtinction::None
             .transmission_for_spectral_radiance(
-                crate::units::WattsPerSquareMeterSteradianMicrometer::new(1.0)
-                    .to::<qtty::unit::WattPerSquareMeterSteradianNanometer>(),
+                crate::units::Quantity::<crate::units::WattPerSquareMeterSteradianMicrometer>::new(
+                    1.0
+                )
+                .to::<crate::units::unit::WattPerSquareMeterSteradianNanometer>(),
                 Nanometers::new(500.0),
                 Degrees::new(60.0),
             )
@@ -360,8 +362,8 @@ fn custom_brightness_grid_evaluates_finite_positive_radiance() {
     let geom = super::geometry::compute_observed(time, observer, target).expect("geometry");
     let s10_500 = grid
         .lookup_s10(
-            geom.beta.abs().to::<qtty::angular::Degree>(),
-            geom.delta_lambda.to::<qtty::angular::Degree>(),
+            geom.beta.abs().to::<crate::units::angular::Degree>(),
+            geom.delta_lambda.to::<crate::units::angular::Degree>(),
         )
         .expect("custom brightness");
     let solar = crate::spectra::solar::load().expect("solar spectrum");

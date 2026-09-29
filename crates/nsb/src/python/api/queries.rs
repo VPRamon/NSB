@@ -1,8 +1,8 @@
+use crate::units::angular::Degrees;
+use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use crate::units::Second;
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
-use qtty::angular::Degrees;
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use qtty::Second;
 use tempoch::Period;
 
 use crate::{ComponentMask, PointQuery, ThresholdQuery};

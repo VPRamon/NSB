@@ -1,8 +1,8 @@
 use crate::components::airglow;
 use crate::evaluator::{ComponentMask, Observer, Target};
-use qtty::angular::Degrees;
-use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use qtty::Second;
+use crate::units::angular::Degrees;
+use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+use crate::units::Second;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 use std::sync::Arc;
 use tempoch::{Period, UTC};

@@ -5,8 +5,8 @@ use nsb::transport::{
     AirmassModel, DirectPathGeometry, DirectTransmission, ExtinctionIngredients,
     MolecularAbsorption, RadianceOrigin, TransportModel,
 };
-use qtty::angular::{Degrees, Radian};
-use qtty::radiometry::{
+use nsb::units::angular::{Degrees, Radian};
+use nsb::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as PhotonSpectralRadiance,
     WattsPerSquareMeterSteradianNanometer as EnergySpectralRadiance,
 };
@@ -466,7 +466,7 @@ fn cross_implementation_validation_nsb2_beer_lambert_plane_parallel() {
 
     let t_nsb = beer_lambert(
         OpticalDepths::new(tau),
-        airmass::<PlaneParallel>(qtty::angular::Radians::new(zenith_rad)),
+        airmass::<PlaneParallel>(nsb::units::angular::Radians::new(zenith_rad)),
     )
     .value();
     assert!(

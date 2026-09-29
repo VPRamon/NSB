@@ -14,8 +14,8 @@ pub(crate) mod calibration;
 
 pub use atmosphere::AtmosphericConditions;
 
+use crate::units::dimensionless::Ratios;
 use crate::{NsbError, Result};
-use qtty::dimensionless::Ratios;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::Kilometers;

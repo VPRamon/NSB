@@ -1,6 +1,6 @@
 use crate::error::Result;
+use crate::units::{Quantity, Unit};
 use log::{debug, trace};
-use qtty::{Quantity, Unit};
 use siderust::qtty::Days;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate, TT};
 use tempoch::{Period, Time, MJD, UTC};
@@ -268,7 +268,7 @@ pub(crate) fn tt_mjd_period_to_utc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use qtty::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
+    use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 
     fn test_window() -> TimePeriod<ModifiedJulianDate> {
         TimePeriod::new(

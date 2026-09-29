@@ -46,10 +46,10 @@
 //! # Dependency types
 //!
 //! NSB uses Siderust, `qtty`, and `tempoch` types at the supported boundary
-//! (`Observer`, `Target`, `Time<UTC>`, radiances, angles). [`DEG`] is re-exported
-//! because equatorial constructors are part of the documented getting-started
-//! path. Callers may depend on those crates for construction; NSB does not wrap
-//! them solely to hide the dependency.
+//! (`Observer`, `Target`, `Time<UTC>`, radiances, angles). The [`units`]
+//! module is the canonical NSB-facing entry point for `qtty`: it re-exports
+//! the upstream crate and the quantity modules used by NSB. [`DEG`] remains
+//! re-exported at the crate root for the documented getting-started path.
 //!
 //! # Architecture
 //!
@@ -82,7 +82,8 @@ pub mod solar_activity;
 mod spectra;
 /// Atmospheric transport of spectral sky radiance (identity and direct paths).
 pub mod transport;
-pub(crate) mod units;
+/// Physical quantities, NSB-specific conventions, and the `qtty` facade.
+pub mod units;
 
 pub use components::airglow::AirglowModel;
 pub use components::airglow::AirglowSelection;
@@ -97,13 +98,13 @@ pub use evaluator::{
 };
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};
+use units::photometry::SurfaceBrightness;
 pub use units::{SolarFluxUnit, SolarFluxUnits};
 
 /// Angle unit used with [`Target::new`] in documented examples.
 pub use siderust::qtty::DEG;
 
-pub(crate) const NSB_S10_ZP: qtty::photometry::SurfaceBrightness =
-    qtty::photometry::SurfaceBrightness::new(27.78);
+pub(crate) const NSB_S10_ZP: SurfaceBrightness = SurfaceBrightness::new(27.78);
 
 /// Version of the NSB library crate.
 pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");

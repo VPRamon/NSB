@@ -5,9 +5,9 @@
 //! free of NSB-specific policy so it can be deleted once upstream bindings are
 //! version-compatible.
 
+use crate::units::angular::Degrees;
+use crate::units::length::Meters;
 use pyo3::prelude::*;
-use qtty::angular::Degrees;
-use qtty::length::Meters;
 
 use crate::{Observer, Target};
 

@@ -1,4 +1,6 @@
-use qtty::radiometry::{PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s};
+use crate::units::radiometry::{
+    PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Integrated starlight radiance and diagnostic B/V values.

@@ -25,7 +25,7 @@
 //! path), the zenith field is absent from the returned [`ZodiacalGeometry`].
 
 use crate::evaluator::Target;
-use qtty::angular::{Degrees, Radians};
+use crate::units::angular::{Degrees, Radians};
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EclipticMeanJ2000, ECEF};

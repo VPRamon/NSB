@@ -35,11 +35,11 @@
 //! # Reference
 //! Noll et al. (2012), *A&A* 543, A92.
 
+use crate::units::angular::{Degrees, Radian};
+use crate::units::dimensionless::Transmittances;
+use crate::units::radiometry::WattsPerSquareMeterSteradianNanometer;
+use crate::units::unit;
 use crate::units::WattPerSquareMeterSteradianMicrometer;
-use qtty::angular::{Degrees, Radian};
-use qtty::dimensionless::Transmittances;
-use qtty::radiometry::WattsPerSquareMeterSteradianNanometer;
-use qtty::unit;
 use siderust::atmosphere::{airmass, Young1994};
 use siderust::qtty::Nanometers;
 

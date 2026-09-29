@@ -212,12 +212,15 @@ issue before depending on a newly discovered path.
 
 NSB deliberately exposes types from **Siderust**, **qtty**, **Optica**, and
 **tempoch** at public boundaries when those types are the correct domain model.
-NSB should not wrap or erase physical units merely to hide dependencies.
+NSB should not wrap or erase physical units merely to hide dependencies. For
+physical quantities, `nsb::units` is the canonical facade: internal NSB code and
+downstream workspace crates should prefer it over importing `qtty` directly.
 
 Re-export policy:
 
 | Dependency symbol | Policy |
 | --- | --- |
+| `qtty` | Re-exported as `nsb::units::qtty`; common qtty quantity modules are also available directly under `nsb::units` |
 | `siderust::qtty::DEG` | Re-exported as `nsb::DEG` for documented constructors |
 | `Geodetic<ECEF>`, `SphericalDirection<EquatorialMeanJ2000>` | Type aliases `Observer`, `Target` |
 | `Time<UTC>`, `Period<UTC>`, radiance and spectral quantity units | May appear in public signatures |

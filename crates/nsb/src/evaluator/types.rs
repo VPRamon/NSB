@@ -4,8 +4,8 @@ use crate::components::{airglow, moonlight, starlight};
 use crate::site::{
     CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileConfig, SiteProfileTag,
 };
-use qtty::photometry::SurfaceBrightness;
-use qtty::radiometry::{
+use crate::units::photometry::SurfaceBrightness;
+use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 use siderust::coordinates::centers::Geodetic;

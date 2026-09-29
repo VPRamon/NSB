@@ -1,6 +1,6 @@
 //! Internal scalar output for Zodiacal-light evaluation.
 
-use qtty::radiometry::{
+use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
 
