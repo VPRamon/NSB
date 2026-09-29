@@ -4,9 +4,9 @@ use crate::output;
 use crate::parsing::{components, location, radiance, target, time};
 use anyhow::Result;
 use log::{debug, info};
-use nsb::{NsbEvaluator, ThresholdQuery};
 use nsb::units::angular::Degrees;
 use nsb::units::Second;
+use nsb::{NsbEvaluator, ThresholdQuery};
 use std::time::Instant;
 use tempoch::{Period, UTC};
 
