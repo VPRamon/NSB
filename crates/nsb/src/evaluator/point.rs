@@ -6,11 +6,11 @@ use super::metadata::{
 use super::types::{ComponentMask, NsbComponent, NsbResult, PreparedPointQuery};
 use super::NsbEvaluator;
 use crate::error::Result;
-use crate::NSB_S10_ZP;
 use crate::units::photometry::s10_to_surface_brightness;
 use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s as S10,
 };
+use crate::NSB_S10_ZP;
 use tempoch::{Time, UTC};
 
 pub(crate) fn evaluate(

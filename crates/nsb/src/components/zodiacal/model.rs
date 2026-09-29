@@ -1,9 +1,9 @@
 use crate::error::Result;
 use crate::evaluator::Target;
 use crate::spectra::solar;
+use crate::units::length::Nanometer;
 use crate::units::SolarSpectralIrradianceUnit;
 use optica::spectrum::SampledSpectrum;
-use crate::units::length::Nanometer;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use tempoch::{Time, UTC};

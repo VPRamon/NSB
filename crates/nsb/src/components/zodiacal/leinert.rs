@@ -43,10 +43,10 @@
 use std::sync::OnceLock;
 
 use crate::error::{NsbError, Result};
-use optica::data::Provenance;
-use optica::grid::{ConstantRegion, Grid2D};
 use crate::units::angular::{Degree, Degrees, Radians};
 use crate::units::radiometry::{S10s as S10, S10 as S10Unit};
+use optica::data::Provenance;
+use optica::grid::{ConstantRegion, Grid2D};
 
 // ─── Raw table ────────────────────────────────────────────────────────────────
 

@@ -5,9 +5,9 @@ use super::scan::{
 use super::types::{ThresholdQuery, ThresholdQueryResult};
 use crate::error::Result;
 use crate::evaluator::{ComponentMask, NsbEvaluator, Observer, Target};
-use chrono::{DateTime, Duration, Utc};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use crate::units::Second;
+use chrono::{DateTime, Duration, Utc};
 use siderust::bodies::Moon as MoonBody;
 use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
