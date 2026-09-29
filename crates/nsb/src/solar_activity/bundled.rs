@@ -1,7 +1,7 @@
 //! Bundled offline F10.7 store (runtime-embedded, build-time checksum-verified).
 
 use super::store::F107Store;
-use crate::assets::{bundled_asset, BundledAssetMetadata};
+use crate::data::bundled::{bundled_asset, BundledAssetMetadata};
 use crate::error::{NsbError, Result};
 use std::sync::OnceLock;
 
