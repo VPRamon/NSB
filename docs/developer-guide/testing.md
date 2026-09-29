@@ -142,7 +142,7 @@ of the default pass when wall-clock would make the audit impractical.
 | --- | --- |
 | `**/tests.rs` and solar-activity test modules | Test code is not a production mutant target |
 | `spectra/`, moonlight `scattering.rs`, zodiacal `leinert.rs`, starlight `map.rs` | Large static grids / loaders where mutants are dominated by table noise |
-| `data/bundled.rs`, `assets.rs`, `build.rs` | Bundled-data registry, public compatibility facade, and build glue; checksum contracts live elsewhere |
+| `data/bundled.rs`, `build.rs` | Bundled-data registry and build glue; checksum contracts live elsewhere |
 | CLI / data-tools crates in the default pass | First pass targets silent scientific/runtime logic changes in `nsb` |
 
 Do not broaden exclusions merely to improve a mutation score. For every
