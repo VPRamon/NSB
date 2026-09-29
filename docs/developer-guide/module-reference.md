@@ -24,7 +24,8 @@ SemVer policy, and the snapshot gate are documented in
 
 | Module | Visibility | Responsibility |
 | --- | --- | --- |
-| `assets` | Public | Build-verified bundled asset metadata only (checksums, provenance, maturity); no runtime TOML parsing of `manifest.toml` |
+| `assets` | Public façade | Stable public access to build-verified bundled asset metadata; implementation is owned by internal `data::bundled` |
+| `data::bundled` | Crate-private | Runtime bundled-data registry generated from the validated manifest; no runtime TOML parsing |
 | `components` | Public | Night-sky contributors and their typed inputs, outputs, metadata, and validation boundaries |
 | `error` | Public | `NsbError` and the crate-wide `Result` alias |
 | `evaluator` | Crate-private with selected root re-exports | Evaluator construction, point queries, component selection, and result metadata |
