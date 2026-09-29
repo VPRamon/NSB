@@ -98,8 +98,8 @@ pub use evaluator::{
 };
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};
-pub use units::{SolarFluxUnit, SolarFluxUnits};
 use units::photometry::SurfaceBrightness;
+pub use units::{SolarFluxUnit, SolarFluxUnits};
 
 /// Angle unit used with [`Target::new`] in documented examples.
 pub use siderust::qtty::DEG;
