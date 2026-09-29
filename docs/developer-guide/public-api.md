@@ -181,7 +181,7 @@ through their deliberate component or `solar_activity` routes.
 Read-mostly records describing maturity, calibration, asset identity, and
 diagnostics. Fields may grow; structs are `#[non_exhaustive]` where noted.
 
-Includes the `assets` module, `NsbComponentMetadata`, site-calibration asset
+Includes `data::bundled`, `NsbComponentMetadata`, site-calibration asset
 types, starlight provenance/validation records, solar-activity resolution
 metadata, `BandDiagnostic`, and persisted schema-version constants such as
 `components::airglow::VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION` and
