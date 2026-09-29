@@ -7,7 +7,7 @@ use nsb::components::airglow::{
 };
 use nsb::solar_activity::SolarActivitySource;
 use nsb::{
-    assets::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
+    data::bundled::{bundled_assets, ASSET_MANIFEST_SCHEMA_VERSION},
     BandDiagnostic, ComponentMask, NsbComponentDescriptor, NsbComponentMetadata, NsbModelConfig,
     NsbResult, StarlightProduct, Target, MODEL_VERSION, NSB_VERSION, SIDERUST_SOURCE,
     SIDERUST_VERSION,
