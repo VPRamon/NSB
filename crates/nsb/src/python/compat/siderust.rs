@@ -6,8 +6,8 @@
 //! version-compatible.
 
 use pyo3::prelude::*;
-use qtty::angular::Degrees;
-use qtty::length::Meters;
+use crate::units::angular::Degrees;
+use crate::units::length::Meters;
 
 use crate::{Observer, Target};
 

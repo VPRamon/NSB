@@ -7,8 +7,8 @@ use super::metadata::TransportModelMetadata;
 use super::origin::RadianceOrigin;
 use crate::error::{NsbError, Result};
 use crate::site::AtmosphericConditions;
-use qtty::dimensionless::Transmittances;
-use qtty::radiometry::{
+use crate::units::dimensionless::Transmittances;
+use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradianNanometer as PhotonSpectralRadiance,
     WattsPerSquareMeterSteradianNanometer as EnergySpectralRadiance,
 };

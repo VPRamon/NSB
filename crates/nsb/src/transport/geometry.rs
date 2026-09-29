@@ -1,7 +1,7 @@
 //! Validated direct-path geometry.
 
 use crate::error::{NsbError, Result};
-use qtty::angular::Degrees;
+use crate::units::angular::Degrees;
 
 /// Maximum zenith distance accepted by the transport geometry contract (degrees).
 ///

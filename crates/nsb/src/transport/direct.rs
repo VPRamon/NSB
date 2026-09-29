@@ -13,8 +13,8 @@ use super::metadata::TransportModelMetadata;
 use super::model::AirmassModel;
 use crate::error::{NsbError, Result};
 use crate::site::AtmosphericConditions;
-use qtty::angular::Radian;
-use qtty::dimensionless::Transmittances;
+use crate::units::angular::Radian;
+use crate::units::dimensionless::Transmittances;
 use siderust::atmosphere::{
     airmass, transmission as beer_lambert_transmission, KrisciunasSchaefer1991, PlaneParallel,
     Rozenberg1966, Young1994,
