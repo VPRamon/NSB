@@ -99,12 +99,12 @@ pub use evaluator::{
 pub use planning::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 pub use site::{CalibrationStatus, GenericClearSky, SiteProfile, SiteProfileTag};
 pub use units::{SolarFluxUnit, SolarFluxUnits};
+use units::photometry::SurfaceBrightness;
 
 /// Angle unit used with [`Target::new`] in documented examples.
 pub use siderust::qtty::DEG;
 
-pub(crate) const NSB_S10_ZP: crate::units::photometry::SurfaceBrightness =
-    crate::units::photometry::SurfaceBrightness::new(27.78);
+pub(crate) const NSB_S10_ZP: SurfaceBrightness = SurfaceBrightness::new(27.78);
 
 /// Version of the NSB library crate.
 pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
