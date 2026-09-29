@@ -1339,7 +1339,6 @@ dependencies = [
  "log",
  "nsb",
  "predicates",
- "qtty",
  "serde",
  "serde_json",
  "siderust",

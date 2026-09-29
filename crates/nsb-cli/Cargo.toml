@@ -25,7 +25,6 @@ serde_json = "1"
 thiserror = "2.0"
 toml = "1.1.2"
 
-qtty = { version = "0.8", features = ["radiometry", "astro", "photometry"] }
 tempoch = "0.6"
 # Temporary until ObservatoryCatalog composition APIs ship in a Siderust release.
 siderust = { version = "0.11.1", git = "https://github.com/Siderust/siderust", rev = "2af7c21096551b69a72bba6aa391523f3a4fca9a", features = ["atmosphere", "photometry"] }
