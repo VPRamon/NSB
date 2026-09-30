@@ -9,8 +9,7 @@ use nsb::{SIDERUST_SOURCE, SIDERUST_VERSION};
 use std::fs;
 use std::path::PathBuf;
 
-const CRATES_IO_REGISTRY_SOURCE: &str =
-    "registry+https://github.com/rust-lang/crates.io-index";
+const CRATES_IO_REGISTRY_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
 const SIDERUST_0_12_0_CHECKSUM: &str =
     "9401ba8b70cfe3abd8b8a70e8ad1d2fbd8508dc487c46f4fe9a3db8e7314a938";
 
@@ -84,12 +83,9 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         .expect("data-tools Cargo.toml");
     let lockfile = fs::read_to_string(root.join("Cargo.lock")).expect("Cargo.lock");
 
-    let nsb_version =
-        declared_siderust_version(&nsb_manifest).expect("nsb siderust version");
-    let cli_version =
-        declared_siderust_version(&cli_manifest).expect("cli siderust version");
-    let tools_version =
-        declared_siderust_version(&tools_manifest).expect("tools siderust version");
+    let nsb_version = declared_siderust_version(&nsb_manifest).expect("nsb siderust version");
+    let cli_version = declared_siderust_version(&cli_manifest).expect("cli siderust version");
+    let tools_version = declared_siderust_version(&tools_manifest).expect("tools siderust version");
     let (locked_version, locked_source, locked_checksum) =
         locked_siderust_package(&lockfile).expect("locked siderust package");
 
