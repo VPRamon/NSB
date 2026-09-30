@@ -49,11 +49,24 @@ crate_version() {
 already_on_crates_io() {
   local name="$1"
   local version="$2"
+  local url="https://crates.io/api/v1/crates/$name/$version"
+  local status
 
-  if cargo search "$name" --limit 1 2>/dev/null | grep -q "^$name = \"$version\""; then
-    return 0
+  if ! status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    --user-agent 'nsb-release-workflow (https://github.com/VPRamon/NSB)' \
+    "$url")"; then
+    echo "error: failed to query crates.io for $name $version" >&2
+    return 2
   fi
-  return 1
+
+  case "$status" in
+    200) return 0 ;;
+    404) return 1 ;;
+    *)
+      echo "error: crates.io returned HTTP $status for $name $version" >&2
+      return 2
+      ;;
+  esac
 }
 
 name="$(crate_name "$MANIFEST")"
@@ -70,6 +83,11 @@ fi
 if already_on_crates_io "$name" "$version"; then
   echo "skip $name $version: already on crates.io"
   exit 0
+else
+  status=$?
+  if [[ "$status" -ne 1 ]]; then
+    exit "$status"
+  fi
 fi
 
 echo "publish $name $version from $MANIFEST"
