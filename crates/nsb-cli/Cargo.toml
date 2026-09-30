@@ -25,9 +25,9 @@ serde_json = "1"
 thiserror = "2.0"
 toml = "1.1.2"
 
-tempoch = "0.6"
-# Temporary until ObservatoryCatalog composition APIs ship in a Siderust release.
-siderust = { version = "0.11.1", git = "https://github.com/Siderust/siderust", rev = "2af7c21096551b69a72bba6aa391523f3a4fca9a", features = ["atmosphere", "photometry"] }
+tempoch = "0.7"
+# Pre-release integration pin: replace with the crates.io 0.12 release after PR #97 lands.
+siderust = { version = "0.12.0", git = "https://github.com/Siderust/siderust", branch = "96-specialize-icrs-altitude-events", features = ["atmosphere", "photometry"] }
 
 [dev-dependencies]
 assert_cmd = "2"
