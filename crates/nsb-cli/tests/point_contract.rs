@@ -31,7 +31,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     assert_eq!(value["version"]["siderust_version"], "0.12.0");
     assert_eq!(
         value["version"]["siderust_source"],
-        "git:https://github.com/Siderust/siderust?branch=96-specialize-icrs-altitude-events"
+        "crates.io:siderust:0.12.0"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert_eq!(value["model"]["moonlight_model"], "jones-2013-spectral");

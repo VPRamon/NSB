@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Pre-release compatibility canary for Siderust 0.12 and PR #97.
+Status: Siderust 0.12 compatibility baseline for the NSB 0.1 release.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
@@ -10,27 +10,20 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.12.0 | Git branch `96-specialize-icrs-altitude-events` | `git:https://github.com/Siderust/siderust?branch=96-specialize-icrs-altitude-events` | 1.89 | Pre-release PR #97 canary |
+| 0.1.x | 0.12.0 | crates.io | `crates.io:siderust:0.12.0` | 1.89 | Released baseline |
 
-All three workspace crates currently declare Siderust from the same temporary
-Git branch while PR #97 and the 0.12 release are validated:
+All three workspace crates declare the published Siderust 0.12 package:
 
 ```toml
-siderust = { version = "0.12.0", git = "https://github.com/Siderust/siderust", branch = "96-specialize-icrs-altitude-events", features = ["atmosphere", "photometry"] }
+siderust = { version = "0.12.0", features = ["atmosphere", "photometry"] }
 ```
 
-`Cargo.lock` resolves the moving branch to a concrete commit hash, preserving
-reproducible canary builds. Release documentation and CLI metadata identify the
-branch rather than pretending this is a registry release or immutable manifest
-revision.
+`Cargo.lock` resolves the registry package to its published checksum.
 
 Public library exports `nsb::SIDERUST_VERSION` and `nsb::SIDERUST_SOURCE` must
 match this matrix. A workspace contract test fails if the declared dependency,
 lockfile package, or published provenance constants disagree.
 
-After Siderust 0.12 is published, replace the temporary Git dependency with
-`siderust = "0.12"` (preserving required features), refresh the lockfile, and
-restore the public source identity to the crates.io package.
 
 ## Release Requirement
 
