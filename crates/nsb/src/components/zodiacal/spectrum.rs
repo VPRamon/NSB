@@ -13,9 +13,9 @@
 use crate::error::{NsbError, Result};
 use crate::spectra::solar::SolarSpectrum;
 use crate::units::{s10_for_spectral_photon_radiance, SolarSpectralIrradiance, S10_TO_W_M2_SR_NM};
-use optica::data::Provenance;
-use optica::grid::OutOfRange;
-use optica::spectrum::{Interpolation, SampledSpectrum};
+use siderust::optica::data::Provenance;
+use siderust::optica::grid::OutOfRange;
+use siderust::optica::spectrum::{Interpolation, SampledSpectrum};
 
 use super::extinction::ZodiacalExtinction;
 use super::geometry::ZodiacalGeometry;
