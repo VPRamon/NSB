@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Current dependency record for the release branch.
+Status: Siderust 0.12 compatibility baseline for the NSB 0.1 release.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
@@ -10,22 +10,20 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.11.1 | crates.io registry | `crates.io:siderust:0.11.1` | 1.89 | Locked registry dependency |
+| 0.1.x | 0.12.0 | crates.io | `crates.io:siderust:0.12.0` | 1.89 | Released baseline |
 
-All three workspace crates currently declare Siderust from the same crates.io
-package release:
+All three workspace crates declare the published Siderust 0.12 package:
 
 ```toml
-siderust = { version = "0.11.1", features = ["atmosphere", "photometry"] }
+siderust = { version = "0.12.0", features = ["atmosphere", "photometry"] }
 ```
 
-`Cargo.lock` records the resolved crates.io package version and checksum.
-Release documentation and CLI metadata must use the source identity above and
-must not invent a Git revision for this dependency.
+`Cargo.lock` resolves the registry package to its published checksum.
 
 Public library exports `nsb::SIDERUST_VERSION` and `nsb::SIDERUST_SOURCE` must
 match this matrix. A workspace contract test fails if the declared dependency,
 lockfile package, or published provenance constants disagree.
+
 
 ## Release Requirement
 

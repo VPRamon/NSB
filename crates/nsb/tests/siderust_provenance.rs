@@ -9,6 +9,10 @@ use nsb::{SIDERUST_SOURCE, SIDERUST_VERSION};
 use std::fs;
 use std::path::PathBuf;
 
+const CRATES_IO_REGISTRY_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
+const SIDERUST_0_12_0_CHECKSUM: &str =
+    "9401ba8b70cfe3abd8b8a70e8ad1d2fbd8508dc487c46f4fe9a3db8e7314a938";
+
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
@@ -16,53 +20,56 @@ fn workspace_root() -> PathBuf {
         .expect("workspace root")
 }
 
-fn declared_siderust_field(manifest: &str, field: &str) -> Option<String> {
-    let marker = format!("{field} = \"");
+fn declared_siderust_version(manifest: &str) -> Option<String> {
     for line in manifest.lines() {
         let trimmed = line.trim();
-        if !trimmed.starts_with("siderust = {") {
+        if !trimmed.starts_with("siderust") {
             continue;
         }
-        let after = trimmed.split(&marker).nth(1)?;
-        let value = after.split('"').next()?.to_string();
-        if !value.is_empty() {
-            return Some(value);
+
+        let declaration = trimmed.split_once('=')?.1.trim();
+
+        if let Some(version) = declaration
+            .strip_prefix('"')
+            .and_then(|value| value.split('"').next())
+        {
+            if !version.is_empty() {
+                return Some(version.to_string());
+            }
+        }
+
+        let marker = "version = \"";
+        let after = declaration.split(marker).nth(1)?;
+        let version = after.split('"').next()?;
+        if !version.is_empty() {
+            return Some(version.to_string());
         }
     }
     None
 }
 
-fn locked_siderust_version(lockfile: &str) -> Option<String> {
-    let mut lines = lockfile.lines().peekable();
-    while let Some(line) = lines.next() {
-        if line.trim() != "name = \"siderust\"" {
-            continue;
-        }
-        let version_line = lines.next()?.trim();
-        let version = version_line
-            .strip_prefix("version = \"")?
-            .strip_suffix('"')?
-            .to_string();
-        return Some(version);
-    }
-    None
-}
-
-fn locked_siderust_source(lockfile: &str) -> Option<String> {
-    let mut lines = lockfile.lines().peekable();
-    while let Some(line) = lines.next() {
-        if line.trim() != "name = \"siderust\"" {
-            continue;
-        }
-        lines.next()?;
-        return lines
-            .next()?
-            .trim()
-            .strip_prefix("source = \"")?
+fn package_field(package: &str, field: &str) -> Option<String> {
+    let prefix = format!("{field} = \"");
+    package.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix(&prefix)?
             .strip_suffix('"')
-            .map(str::to_owned);
-    }
-    None
+            .map(str::to_owned)
+    })
+}
+
+fn locked_siderust_package(lockfile: &str) -> Option<(String, String, String)> {
+    let package = lockfile.split("[[package]]").find(|package| {
+        package
+            .lines()
+            .any(|line| line.trim() == "name = \"siderust\"")
+    })?;
+
+    Some((
+        package_field(package, "version")?,
+        package_field(package, "source")?,
+        package_field(package, "checksum")?,
+    ))
 }
 
 #[test]
@@ -76,18 +83,11 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         .expect("data-tools Cargo.toml");
     let lockfile = fs::read_to_string(root.join("Cargo.lock")).expect("Cargo.lock");
 
-    let nsb_version =
-        declared_siderust_field(&nsb_manifest, "version").expect("nsb siderust version");
-    let cli_version =
-        declared_siderust_field(&cli_manifest, "version").expect("cli siderust version");
-    let tools_version =
-        declared_siderust_field(&tools_manifest, "version").expect("tools siderust version");
-    let nsb_rev = declared_siderust_field(&nsb_manifest, "rev").expect("nsb siderust revision");
-    let cli_rev = declared_siderust_field(&cli_manifest, "rev").expect("cli siderust revision");
-    let tools_rev =
-        declared_siderust_field(&tools_manifest, "rev").expect("tools siderust revision");
-    let locked_version = locked_siderust_version(&lockfile).expect("locked siderust package");
-    let locked_source = locked_siderust_source(&lockfile).expect("locked siderust source");
+    let nsb_version = declared_siderust_version(&nsb_manifest).expect("nsb siderust version");
+    let cli_version = declared_siderust_version(&cli_manifest).expect("cli siderust version");
+    let tools_version = declared_siderust_version(&tools_manifest).expect("tools siderust version");
+    let (locked_version, locked_source, locked_checksum) =
+        locked_siderust_package(&lockfile).expect("locked siderust package");
 
     assert_eq!(
         nsb_version, cli_version,
@@ -105,23 +105,17 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         SIDERUST_VERSION, nsb_version,
         "nsb::SIDERUST_VERSION must match the declared Siderust version"
     );
-
     assert_eq!(
-        nsb_rev, cli_rev,
-        "workspace crates must pin the same Siderust revision"
+        locked_source, CRATES_IO_REGISTRY_SOURCE,
+        "Cargo.lock must resolve Siderust from crates.io"
     );
     assert_eq!(
-        nsb_rev, tools_rev,
-        "workspace crates must pin the same Siderust revision"
-    );
-    assert_eq!(
-        locked_source,
-        format!("git+https://github.com/Siderust/siderust?rev={nsb_rev}#{nsb_rev}"),
-        "Cargo.lock must pin the declared Siderust git revision"
+        locked_checksum, SIDERUST_0_12_0_CHECKSUM,
+        "Cargo.lock must contain the published Siderust 0.12.0 checksum"
     );
     assert_eq!(
         SIDERUST_SOURCE,
-        format!("git:https://github.com/Siderust/siderust?rev={nsb_rev}"),
-        "nsb::SIDERUST_SOURCE must identify the pinned git revision"
+        format!("crates.io:siderust:{nsb_version}"),
+        "nsb::SIDERUST_SOURCE must identify the crates.io package"
     );
 }

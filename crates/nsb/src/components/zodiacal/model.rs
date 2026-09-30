@@ -3,9 +3,9 @@ use crate::evaluator::Target;
 use crate::spectra::solar;
 use crate::units::length::Nanometer;
 use crate::units::SolarSpectralIrradianceUnit;
-use optica::spectrum::SampledSpectrum;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use siderust::optica::spectrum::SampledSpectrum;
 use tempoch::{Time, UTC};
 
 use super::extinction::ZodiacalExtinction;

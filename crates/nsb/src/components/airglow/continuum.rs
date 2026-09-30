@@ -22,10 +22,10 @@ use crate::units::radiometry::{
 use crate::units::unit::Ratio;
 use crate::units::ScaleFactors;
 use crate::units::{s10_for_spectral_photon_radiance, SkyCalcSpectralPhotonRadiance};
-use optica::grid::OutOfRange;
-use optica::spectrum::{Interpolation, SampledSpectrum};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use siderust::optica::grid::OutOfRange;
+use siderust::optica::spectrum::{Interpolation, SampledSpectrum};
 use tempoch::{Time, UTC};
 
 const WL_LOW: Nanometers = Nanometers::new(300.0);

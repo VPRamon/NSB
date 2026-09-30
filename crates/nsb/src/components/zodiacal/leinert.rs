@@ -45,8 +45,8 @@ use std::sync::OnceLock;
 use crate::error::{NsbError, Result};
 use crate::units::angular::{Degree, Degrees, Radians};
 use crate::units::radiometry::{S10s as S10, S10 as S10Unit};
-use optica::data::Provenance;
-use optica::grid::{ConstantRegion, Grid2D};
+use siderust::optica::data::Provenance;
+use siderust::optica::grid::{ConstantRegion, Grid2D};
 
 // ─── Raw table ────────────────────────────────────────────────────────────────
 
@@ -317,7 +317,7 @@ pub(crate) mod test_support {
         let l1 = (l0 + 1).min(36);
         let lt = (180.0 - dl_deg - 5.0 * l0 as f64) / 5.0;
 
-        Some(optica::grid::algo::bilinear_unit(
+        Some(siderust::optica::grid::algo::bilinear_unit(
             LEINERT_S10[l0][b0],
             LEINERT_S10[l0][b1],
             LEINERT_S10[l1][b0],

@@ -18,9 +18,9 @@ use crate::error::{NsbError, Result};
 use crate::units::length::{Kilometers, Micrometers, Nanometer};
 use crate::units::unit::Ratio;
 use crate::units::ScaleFactors;
-use optica::data::Provenance;
-use optica::grid::OutOfRange;
-use optica::spectrum::{Interpolation, SampledSpectrum};
+use siderust::optica::data::Provenance;
+use siderust::optica::grid::OutOfRange;
+use siderust::optica::spectrum::{Interpolation, SampledSpectrum};
 
 const RAW: &str = include_str!("../../../data/airglow_cont.dat");
 const AIRGLOW_CONTINUUM_FILE: &str = "airglow_cont.dat";
