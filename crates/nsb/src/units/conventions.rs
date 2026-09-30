@@ -1,10 +1,10 @@
-use qtty::area::SquareMeter;
-use qtty::length::Nanometer;
-use qtty::power::Watt;
-use qtty::{unit, Per, Quantity};
+use siderust::qtty::area::SquareMeter;
+use siderust::qtty::length::Nanometer;
+use siderust::qtty::power::Watt;
+use siderust::qtty::{unit, Per, Quantity};
 
 /// A generic multiplicative scale factor.
-pub(crate) type ScaleFactors = qtty::dimensionless::Ratios;
+pub(crate) type ScaleFactors = siderust::qtty::dimensionless::Ratios;
 
 /// Structural qtty unit for spectral solar irradiance, W m⁻² nm⁻¹.
 ///
@@ -18,11 +18,11 @@ pub(crate) type SolarSpectralIrradiance = Quantity<SolarSpectralIrradianceUnit>;
 
 /// SkyCalc spectral photon radiance unit:
 /// photons s⁻¹ m⁻² arcsec⁻² µm⁻¹.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, siderust::qtty::Unit)]
 #[unit(
     crate = qtty,
     symbol = "ph·s⁻¹·m⁻²·arcsec⁻²·µm⁻¹",
-    dimension = qtty::radiometry::SpectralPhotonRadiance,
+    dimension = siderust::qtty::radiometry::SpectralPhotonRadiance,
     ratio = 4.254_517_029_022_576e16
 )]
 pub(crate) struct SkyCalcPhotonPerSquareMeterSecondSquareArcsecondMicrometer;
@@ -32,11 +32,11 @@ pub(crate) type SkyCalcSpectralPhotonRadiance =
     Quantity<SkyCalcPhotonPerSquareMeterSecondSquareArcsecondMicrometer>;
 
 /// Spectral radiance unit: W m⁻² sr⁻¹ µm⁻¹.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, siderust::qtty::Unit)]
 #[unit(
     crate = qtty,
     symbol = "W·m⁻²·sr⁻¹·µm⁻¹",
-    dimension = qtty::radiometry::SpectralRadiance,
+    dimension = siderust::qtty::radiometry::SpectralRadiance,
     ratio = 1.0e6
 )]
 pub(crate) struct WattPerSquareMeterSteradianMicrometer;
@@ -51,11 +51,11 @@ pub(crate) type WattsPerSquareMeterSteradianMicrometer =
 /// `qtty` currently has no spectral-flux-density dimension, so this is kept as
 /// a dimensionless convention unit until the upstream dimensional catalogue can
 /// represent W m⁻² Hz⁻¹.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, siderust::qtty::Unit)]
 #[unit(
     crate = qtty,
     symbol = "SFU",
-    dimension = qtty::dimensionless::Dimensionless,
+    dimension = siderust::qtty::dimensionless::Dimensionless,
     ratio = 1.0
 )]
 pub struct SolarFluxUnit;
@@ -67,11 +67,11 @@ pub type SolarFluxUnits = Quantity<SolarFluxUnit>;
 ///
 /// This is a dimensionless atmospheric convention. The name preserves the
 /// domain meaning while allowing qtty-style construction and comparison.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, siderust::qtty::Unit)]
 #[unit(
     crate = qtty,
     symbol = "mag·airmass⁻¹",
-    dimension = qtty::dimensionless::Dimensionless,
+    dimension = siderust::qtty::dimensionless::Dimensionless,
     ratio = 1.0
 )]
 pub(crate) struct MagnitudePerAirmass;
@@ -80,11 +80,11 @@ pub(crate) struct MagnitudePerAirmass;
 pub(crate) type MagnitudesPerAirmass = Quantity<MagnitudePerAirmass>;
 
 /// Luminance convention used by Krisciunas & Schaefer: nanolamberts.
-#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, qtty::Unit)]
+#[derive(Clone, Copy, Debug, PartialEq, PartialOrd, siderust::qtty::Unit)]
 #[unit(
     crate = qtty,
     symbol = "nL",
-    dimension = qtty::dimensionless::Dimensionless,
+    dimension = siderust::qtty::dimensionless::Dimensionless,
     ratio = 1.0
 )]
 pub(crate) struct Nanolambert;
