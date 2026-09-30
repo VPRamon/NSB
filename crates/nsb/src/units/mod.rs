@@ -5,10 +5,10 @@
 //! available as [`qtty`] for callers that need units outside NSB's common
 //! surface.
 
-pub use ::qtty;
-pub use ::qtty::{angular, area, dimensionless, energy, length};
-pub use ::qtty::{photometry, power, radiometry, solid_angle, unit};
-pub use ::qtty::{Per, Quantity, Second, Unit};
+pub use siderust::qtty;
+pub use siderust::qtty::{angular, area, dimensionless, energy, length};
+pub use siderust::qtty::{photometry, power, radiometry, solid_angle, unit};
+pub use siderust::qtty::{Per, Quantity, Second, Unit};
 
 mod calibration;
 mod conventions;
