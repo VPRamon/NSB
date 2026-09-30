@@ -7,8 +7,8 @@ use crate::units::radiometry::{
 };
 use crate::units::s10_for_spectral_photon_radiance;
 use crate::units::ScaleFactors;
-use optica::grid::OutOfRange;
-use optica::spectrum::{Interpolation, SampledSpectrum};
+use siderust::optica::grid::OutOfRange;
+use siderust::optica::spectrum::{Interpolation, SampledSpectrum};
 
 /// Wavelength-resolved Jones et al. (2013) scattered-moonlight evaluator.
 pub(crate) struct Jones2013Spectral {

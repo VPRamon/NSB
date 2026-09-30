@@ -306,9 +306,9 @@ fn b_and_v_diagnostics_follow_spectrally_resolved_solar_shape() {
     use super::geometry::ZodiacalGeometry;
     use super::spectrum::compute_outputs;
     use crate::spectra::solar::SolarSpectrum;
-    use optica::data::Provenance;
-    use optica::grid::OutOfRange;
-    use optica::spectrum::Interpolation;
+    use siderust::optica::data::Provenance;
+    use siderust::optica::grid::OutOfRange;
+    use siderust::optica::spectrum::Interpolation;
 
     // Non-flat spectrum: B (~440 nm) is bright, V (~550 nm) is faint so the
     // band diagnostics cannot collapse to one nearest-sample value.
@@ -414,8 +414,8 @@ fn regression_known_case_sgr_a_star_paranal() {
 
 fn hsrs_from_env(variable: &str) -> crate::spectra::solar::SolarSpectrum {
     use crate::spectra::solar::SolarSpectrum;
-    use optica::grid::OutOfRange;
-    use optica::spectrum::Interpolation;
+    use siderust::optica::grid::OutOfRange;
+    use siderust::optica::spectrum::Interpolation;
 
     let path = std::env::var(variable).unwrap_or_else(|_| panic!("{variable} path"));
     let raw = std::fs::read_to_string(path).expect("HSRS CSV");

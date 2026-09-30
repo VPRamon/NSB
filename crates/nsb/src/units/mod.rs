@@ -2,8 +2,8 @@
 //!
 //! Code inside NSB should import physical quantities through this module rather
 //! than depending on `qtty` paths directly. The upstream crate remains
-//! available as [`qtty`] for callers that need units outside NSB's common
-//! surface.
+//! available as [`qtty`](crate::units::qtty) for callers that need units
+//! outside NSB's common surface.
 
 pub use siderust::qtty;
 pub use siderust::qtty::{angular, area, dimensionless, energy, length};

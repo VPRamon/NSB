@@ -82,10 +82,10 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         declared_siderust_field(&cli_manifest, "version").expect("cli siderust version");
     let tools_version =
         declared_siderust_field(&tools_manifest, "version").expect("tools siderust version");
-    let nsb_rev = declared_siderust_field(&nsb_manifest, "rev").expect("nsb siderust revision");
-    let cli_rev = declared_siderust_field(&cli_manifest, "rev").expect("cli siderust revision");
-    let tools_rev =
-        declared_siderust_field(&tools_manifest, "rev").expect("tools siderust revision");
+    let nsb_branch = declared_siderust_field(&nsb_manifest, "branch").expect("nsb siderust branch");
+    let cli_branch = declared_siderust_field(&cli_manifest, "branch").expect("cli siderust branch");
+    let tools_branch =
+        declared_siderust_field(&tools_manifest, "branch").expect("tools siderust branch");
     let locked_version = locked_siderust_version(&lockfile).expect("locked siderust package");
     let locked_source = locked_siderust_source(&lockfile).expect("locked siderust source");
 
@@ -107,21 +107,32 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
     );
 
     assert_eq!(
-        nsb_rev, cli_rev,
-        "workspace crates must pin the same Siderust revision"
+        nsb_branch, cli_branch,
+        "workspace crates must track the same Siderust branch"
     );
     assert_eq!(
-        nsb_rev, tools_rev,
-        "workspace crates must pin the same Siderust revision"
+        nsb_branch, tools_branch,
+        "workspace crates must track the same Siderust branch"
     );
+
+    let locked_prefix = format!("git+https://github.com/Siderust/siderust?branch={nsb_branch}#");
+    let locked_commit = locked_source
+        .strip_prefix(&locked_prefix)
+        .expect("Cargo.lock must resolve the declared Siderust branch");
     assert_eq!(
-        locked_source,
-        format!("git+https://github.com/Siderust/siderust?rev={nsb_rev}#{nsb_rev}"),
-        "Cargo.lock must pin the declared Siderust git revision"
+        locked_commit.len(),
+        40,
+        "Cargo.lock must pin a full Siderust Git commit hash"
+    );
+    assert!(
+        locked_commit
+            .chars()
+            .all(|character| character.is_ascii_hexdigit()),
+        "Cargo.lock Siderust commit must be hexadecimal"
     );
     assert_eq!(
         SIDERUST_SOURCE,
-        format!("git:https://github.com/Siderust/siderust?rev={nsb_rev}"),
-        "nsb::SIDERUST_SOURCE must identify the pinned git revision"
+        format!("git:https://github.com/Siderust/siderust?branch={nsb_branch}"),
+        "nsb::SIDERUST_SOURCE must identify the tracked Git branch"
     );
 }

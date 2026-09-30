@@ -18,6 +18,10 @@ once a stable public release is cut.
 
 ### Changed
 
+- Validated NSB against the pre-release Siderust 0.12 / PR #97 branch, aligned
+  direct `tempoch` dependencies on 0.7, and consumed `qtty` and `optica` API
+  types through Siderust's public re-exports. This temporary branch dependency
+  must become the crates.io `siderust = "0.12"` release after publication.
 - Redesigned site profiles around typed compile-time identity (#185). The public
   API exports `SiteProfileTag`, opaque `SiteProfile<P>`, and `GenericClearSky`.
   External crates and application layers define zero-sized marker types; `NAME`

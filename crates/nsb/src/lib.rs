@@ -111,7 +111,7 @@ pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Versioned model-composition contract used in operational metadata.
 pub const MODEL_VERSION: &str = "nsb-model-2026.1";
 /// Siderust package version represented by the locked dependency.
-pub const SIDERUST_VERSION: &str = "0.11.1";
+pub const SIDERUST_VERSION: &str = "0.12.0";
 /// Truthful package-source identity for the Siderust dependency.
 pub const SIDERUST_SOURCE: &str =
-    "git:https://github.com/Siderust/siderust?rev=2af7c21096551b69a72bba6aa391523f3a4fca9a";
+    "git:https://github.com/Siderust/siderust?branch=96-specialize-icrs-altitude-events";

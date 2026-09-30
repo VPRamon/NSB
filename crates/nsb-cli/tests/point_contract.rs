@@ -28,10 +28,10 @@ fn default_point_json_reports_schema_versions_and_components() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
     assert_eq!(value["version"]["model_version"], "nsb-model-2026.1");
-    assert_eq!(value["version"]["siderust_version"], "0.11.1");
+    assert_eq!(value["version"]["siderust_version"], "0.12.0");
     assert_eq!(
         value["version"]["siderust_source"],
-        "git:https://github.com/Siderust/siderust?rev=2af7c21096551b69a72bba6aa391523f3a4fca9a"
+        "git:https://github.com/Siderust/siderust?branch=96-specialize-icrs-altitude-events"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert_eq!(value["model"]["moonlight_model"], "jones-2013-spectral");

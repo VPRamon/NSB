@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Current dependency record for the release branch.
+Status: Pre-release compatibility canary for Siderust 0.12 and PR #97.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
@@ -10,22 +10,27 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.11.1 | crates.io registry | `crates.io:siderust:0.11.1` | 1.89 | Locked registry dependency |
+| 0.1.x | 0.12.0 | Git branch `96-specialize-icrs-altitude-events` | `git:https://github.com/Siderust/siderust?branch=96-specialize-icrs-altitude-events` | 1.89 | Pre-release PR #97 canary |
 
-All three workspace crates currently declare Siderust from the same crates.io
-package release:
+All three workspace crates currently declare Siderust from the same temporary
+Git branch while PR #97 and the 0.12 release are validated:
 
 ```toml
-siderust = { version = "0.11.1", features = ["atmosphere", "photometry"] }
+siderust = { version = "0.12.0", git = "https://github.com/Siderust/siderust", branch = "96-specialize-icrs-altitude-events", features = ["atmosphere", "photometry"] }
 ```
 
-`Cargo.lock` records the resolved crates.io package version and checksum.
-Release documentation and CLI metadata must use the source identity above and
-must not invent a Git revision for this dependency.
+`Cargo.lock` resolves the moving branch to a concrete commit hash, preserving
+reproducible canary builds. Release documentation and CLI metadata identify the
+branch rather than pretending this is a registry release or immutable manifest
+revision.
 
 Public library exports `nsb::SIDERUST_VERSION` and `nsb::SIDERUST_SOURCE` must
 match this matrix. A workspace contract test fails if the declared dependency,
 lockfile package, or published provenance constants disagree.
+
+After Siderust 0.12 is published, replace the temporary Git dependency with
+`siderust = "0.12"` (preserving required features), refresh the lockfile, and
+restore the public source identity to the crates.io package.
 
 ## Release Requirement
 
