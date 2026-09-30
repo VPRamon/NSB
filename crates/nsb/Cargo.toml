@@ -10,6 +10,7 @@ repository = "https://github.com/VPRamon/NSB"
 readme = "README.md"
 keywords = ["astronomy", "atmosphere", "sky-brightness", "ctao", "nsb"]
 categories = ["science"]
+exclude = ["data/starlight_nside128.csv"]
 
 [lib]
 name = "nsb"
