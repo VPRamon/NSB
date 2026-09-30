@@ -20,9 +20,9 @@
 use crate::error::{NsbError, Result};
 use crate::units::length::Nanometer;
 use crate::units::SolarSpectralIrradianceUnit;
-use optica::data::Provenance;
-use optica::grid::OutOfRange;
-use optica::spectrum::{loaders::ascii::two_column, Interpolation, SampledSpectrum};
+use siderust::optica::data::Provenance;
+use siderust::optica::grid::OutOfRange;
+use siderust::optica::spectrum::{loaders::ascii::two_column, Interpolation, SampledSpectrum};
 
 const RAW: &str = include_str!("../../data/solar_spectrum.dat");
 
