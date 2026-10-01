@@ -262,4 +262,53 @@ mod tests {
         };
         assert!(science_policy_matches_registry(&policy));
     }
+
+    #[test]
+    fn known_spectral_policy_with_wrong_uv_flag_fails() {
+        let mut policy = valid_v1_corrected_policy();
+        policy.spectral_coverage.ultraviolet_correction_applied = false;
+        assert!(!science_policy_matches_registry(&policy));
+    }
+
+    #[test]
+    fn applied_population_policy_with_stub_id_fails() {
+        let mut policy = valid_v1_corrected_policy();
+        policy.population_correction.applied = true;
+        policy.population_correction.policy_id = CURRENT_POPULATION_POLICY_ID.to_string();
+        policy.population_correction.maximum_weight = 2.0;
+        policy.population_correction.limitation = "applied".to_string();
+        assert!(!science_policy_matches_registry(&policy));
+    }
+
+    #[test]
+    fn applied_population_policy_with_empty_id_fails() {
+        let mut policy = valid_v1_corrected_policy();
+        policy.population_correction.applied = true;
+        policy.population_correction.policy_id = String::new();
+        policy.population_correction.maximum_weight = 2.0;
+        policy.population_correction.limitation = "applied".to_string();
+        assert!(!science_policy_matches_registry(&policy));
+    }
+
+    #[test]
+    fn measured_only_spectral_claiming_uv_fields_fails() {
+        let mut policy = valid_v1_corrected_policy();
+        policy.spectral_coverage = SpectralCoverageReport {
+            policy_id: CURRENT_SPECTRAL_POLICY_ID.to_string(),
+            target_band_nm: [300, 650],
+            directly_integrated_band_nm: [336, 650],
+            corrected_band_nm: Some([300, 336]),
+            combined_band_nm: None,
+            ultraviolet_correction_applied: false,
+            correction_model_id: None,
+            correction_artifact_sha256: None,
+            calibration_status: None,
+            model_response: None,
+            measured_conditional_residual_statistical_correlation: None,
+            systematic_correlation: None,
+            systematic_correlation_scope: None,
+            limitation: "measured only".to_string(),
+        };
+        assert!(!science_policy_matches_registry(&policy));
+    }
 }

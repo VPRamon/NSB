@@ -578,6 +578,21 @@ pub(crate) fn validate_report(path: &Path) -> Result<()> {
     validate_report_fields(&report, &map_path, &pixels)
 }
 
+/// Reconstruct the selected-band canonical map SHA-256 that finalization would
+/// emit for `merged`, using the same headers and pixel serialization as
+/// [`emit_maps`]. Used by diagnostic exporters that must fail closed against a
+/// frozen merge report rather than trusting caller-supplied parent checksums.
+pub(crate) fn reconstruct_selected_band_canonical_map_sha256(
+    merged: &PartitionShard,
+) -> Result<String> {
+    merged.validate()?;
+    let spectral = science_policy_report(merged, None).spectral_coverage;
+    let dir = tempfile::tempdir().context("create temp dir for canonical map reconstruction")?;
+    let path = dir.path().join(canonical_map_name(merged.nside));
+    write_map(&path, merged.nside, map_pixels(merged), &spectral)?;
+    checksum_io::sha256_file(&path)
+}
+
 fn validate_report_fields(
     report: &MergeReport,
     map_path: &Path,
