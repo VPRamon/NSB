@@ -227,6 +227,8 @@ enum StarlightDiagnoseCommand {
     Suite(StarlightDiagnoseSuiteArgs),
     /// Export a sparse candidate-v5 CSV from merged workspace shards.
     ExportMap(StarlightDiagnoseExportMapArgs),
+    /// Issue #182 Experiment C: flux-weighted exclusion accounting.
+    FluxAttribution(StarlightDiagnoseFluxAttributionArgs),
 }
 
 #[derive(Debug, Args)]
@@ -268,6 +270,28 @@ struct StarlightDiagnoseExportMapArgs {
     workspace: PathBuf,
     #[arg(long)]
     output: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseFluxAttributionArgs {
+    #[arg(long)]
+    config: PathBuf,
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    repo_root: PathBuf,
+    #[arg(long)]
+    commit: String,
+    /// Output JSON report path.
+    #[arg(long)]
+    output: PathBuf,
+    /// Optional partition-id list file. Defaults to the pinned 48-partition smoke set.
+    #[arg(long)]
+    partitions: Option<PathBuf>,
+    #[arg(long)]
+    photometric_artifact_path: Option<PathBuf>,
+    #[arg(long)]
+    photometric_artifact_sha256: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -698,6 +722,53 @@ fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
                 "candidate map written to {} (sha256={sha256})",
                 args.output.display()
             );
+            Ok(())
+        }
+        StarlightDiagnoseCommand::FluxAttribution(args) => {
+            let photometric_override = match (
+                args.photometric_artifact_path,
+                args.photometric_artifact_sha256,
+            ) {
+                (Some(path), Some(sha256)) => {
+                    Some(crate::starlight::diagnostics::PhotometricArtifactOverride {
+                        path,
+                        sha256,
+                    })
+                }
+                (None, None) => None,
+                _ => anyhow::bail!(
+                    "flux-attribution requires both --photometric-artifact-path and --photometric-artifact-sha256 when overriding"
+                ),
+            };
+            let partitions = match args.partitions.as_ref() {
+                Some(path) => Some(crate::starlight::diagnostics::load_partition_list(path)?),
+                None => None,
+            };
+            let report = crate::starlight::diagnostics::run_flux_attribution(
+                &args.repo_root,
+                &args.config,
+                &args.workspace,
+                &args.commit,
+                partitions.as_deref(),
+                &args.output,
+                photometric_override,
+            )?;
+            println!(
+                "flux attribution written to {} (observed={}, admitted={}, excluded={})",
+                args.output.display(),
+                report.observed_sources,
+                report.admitted_sources,
+                report.excluded_sources
+            );
+            if let Some(invalid_uv) = report.by_exclusion_reason.get("invalid_uv_predictors") {
+                println!(
+                    "invalid_uv_predictors: count={} weighted_336_650={:.6e} lost_over_admitted={:.4} lost_over_est_nsb2={:.4}",
+                    invalid_uv.source_count,
+                    invalid_uv.sum_selection_weighted_flux_336_650_ph_m2_s,
+                    report.totals.invalid_uv_lost_flux_over_admitted_combined,
+                    report.totals.invalid_uv_lost_flux_over_estimated_nsb2_total
+                );
+            }
             Ok(())
         }
     }

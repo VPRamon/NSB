@@ -4,9 +4,13 @@
 //! candidate map using the same Galactic nested semantics as production.
 
 pub mod baseline;
+pub mod flux_attribution;
 pub mod processor;
 
 pub use baseline::{write_baseline_report, BaselineReport, SMOKE_PARTITIONS_PATH};
+pub use flux_attribution::{
+    load_partition_list, run_flux_attribution, FluxAttributionReport, FluxAttributionRow,
+};
 pub use processor::{
     run_diagnostic_suite, DiagnosticSuiteReport, PhotometricArtifactOverride, TRACE_PARENTS_SMOKE,
 };
