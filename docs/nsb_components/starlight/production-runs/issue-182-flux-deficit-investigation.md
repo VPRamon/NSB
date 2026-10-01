@@ -29,8 +29,8 @@ Candidate band diagnostics (frozen merge report):
 | ID | Hypothesis | Status | Contribution to −24.4% |
 |---|---|---|---|
 | H2 | Whole-source exclusion on `invalid_uv_predictors` discards large measured flux | **Partially explanatory as a mechanism; radiometrically minor on pilot sample** | Pilot 2 partitions: **~0.08% of estimated nsb2 total** (see Experiment C) |
-| H1 | Missing XHIP/Hipparcos bright-star supplement | **Partially explanatory for local bright pixels only; negligible for global integral** | XHIP-only bound: **~0.008% of estimated nsb2 total** (88 sources; see Experiment B) |
-| Model / population residuals | XP vs Pickles, selection weighting, Gaia bright-catalogue treatment, faint population | **Leading remaining explanation for the global −24.4%** | Brightness-stratified ratios already ~0.77–0.91 outside the extreme tail |
+| H1 | Missing XHIP/Hipparcos bright-star supplement | **Partially explanatory** | **~7.4% of nsb2 flux**; removes ~6 pp of bias (−24.4%→−18.3%); correlation 0.22→0.87 |
+| Model / population residuals | XP vs Pickles, selection weighting, Gaia bright-catalogue treatment, faint population | **Dominant residual after removing XHIP** | Remaining integrated bias **−18.3%** vs nsb2 without XHIP |
 
 ## Experiment C — flux by exclusion reason (pilot)
 
@@ -104,35 +104,48 @@ Implementation on this branch:
 The frozen #182 candidate map is **unchanged** until a deliberate production
 rebuild. Do not claim the published candidate already includes this fix.
 
-## Experiment B — XHIP / no-XHIP (partial)
+## Experiment B — XHIP / no-XHIP (completed locally)
 
 **Hypothesis under test:** the 88-star XHIP supplement explains a material
 fraction of the −24.4% integrated deficit and/or the top-0.1% residuals.
 
-### Cheap XHIP-only bound (completed)
+### Component-separated nsb2 reference (pinned `bc9320db`)
 
-Using pinned `nsb2@bc9320db` `from_gaia_suppl_catalog()` with the same
-300–650 nm bandpass construction as `nsb-validation`:
+Generated with `nsb-validation` `nsb2-generate --write-components`
+(~10 min). Reference SHA-256 (full):
+`f21518839a03eea89ed9ee6fca4cd34600eac11fa45b154de045087c9e2cd69e`.
 
-| Quantity | Value |
-|---|---:|
-| XHIP sources | 88 |
-| XHIP integrated flux | 8.820×10¹¹ ph m⁻² s⁻¹ |
-| Fraction of #182 NSB candidate | 0.011% |
-| Fraction of estimated nsb2 total (NSB/0.756) | **0.0083%** |
+| Component | Sources | Fraction of nsb2 full integrated flux |
+|---|---:|---:|
+| `gaia_dr3_bright` | 36,908,056 | **81.3%** |
+| `gaia_dr3_faint_map` | 12,582,912 | **11.3%** |
+| `xhip_gaia_supplement` | 88 | **7.4%** |
+| full (all three) | — | 100% |
+| without XHIP | — | 92.6% |
 
-Artifact: `nsb-validation` `work/expB/xhip-only-bound.json` (local; not committed).
+### NSB candidate vs nsb2 full / no-XHIP
 
-**Conclusion:** XHIP cannot explain the global −24.4% deficit. It may still
-matter for a handful of the brightest pixels; full component-separated maps
-(Gaia bright / Gaia faint / XHIP) remain useful for Experiment D pixel
-inspection and are being generated via `nsb2-generate --write-components`.
+Reproduces the #182 baseline against the regenerated full map, then isolates XHIP:
 
-The brightness-stratified #182 table already shows NSB/nsb2 ≈ 0.77–0.91 on
-≥99.9% of the sky by pixel count. The global −24.4% therefore requires that
-**bright pixels dominate the integrated flux** and/or that the Gaia
-bright-catalogue and spectral-model paths differ systematically from NSB —
-not merely the 88-star XHIP add-on.
+| Reference | Integrated relative bias | Correlation | Top 0.1% flux ratio | Top 0.1% share of missing flux |
+|---|---:|---:|---:|---:|
+| nsb2 **full** | **−24.41%** | **0.223** | 0.125 | **37.8%** |
+| nsb2 **without XHIP** | **−18.34%** | **0.865** | 0.478 | 12.5% |
+
+Median / p68 / p90 / p95 relative errors are essentially unchanged by removing
+XHIP (~5.5% / 12.9% / 36% / 50%), confirming XHIP is a **bright-tail /
+correlation** effect more than a typical-pixel effect.
+
+**Conclusion:** H1 is **partially explanatory**. XHIP accounts for roughly
+one-quarter of the integrated deficit magnitude (about 6 percentage points)
+and almost all of the catastrophic correlation collapse. A **−18.3%**
+smooth deficit remains against Gaia-only nsb2 and must be attributed
+elsewhere (measured-band model / population differences). An NSB XHIP-like
+bright-star supplement is scientifically motivated for the extreme tail, but
+must still clear provenance/licensing review before adoption.
+
+Local artifacts (not committed): `nsb-validation/work/expB/`,
+`nsb-validation/results/expB-{full,no-xhip}/`.
 
 ## Experiment A / B / D tooling
 
