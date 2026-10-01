@@ -9,17 +9,33 @@
 //! external, checksum-pinned artifact.
 
 mod artifact;
+mod builder;
+mod catalogue;
 mod crossmatch;
 mod photometry;
 mod policy;
 
 pub use artifact::{
-    load_bright_star_artifact, BrightStarArtifact, BrightStarPixel, BrightStarSourceRecord,
-    BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION, BRIGHT_STAR_MODEL_ID,
+    load_bright_star_artifact, BrightStarArtifact, BrightStarInputProvenance, BrightStarInputRole,
+    BrightStarPixel, BrightStarSourceRecord, CorrelatedUncertainty,
+    BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION, BRIGHT_STAR_MODEL_ID, BRIGHT_STAR_PRODUCT_BAND_ID,
 };
-pub use crossmatch::{classify_match, CrossmatchDecision, MatchCandidate};
+pub use builder::{
+    build_experimental_artifact, BrightStarBuildDiagnostics, BrightStarSourceDiagnostic,
+    ProperMotionDiagnostic, SpectralEstimate,
+};
+pub use catalogue::{
+    ingest_gaia_quality_extract, ingest_hip_gaia_crossmatch, ingest_hipparcos2, ingest_tycho2,
+    HipGaiaIdentityMatch, Hipparcos2Record, PinnedCatalogueInput, Tycho2Photometry,
+};
+pub use crossmatch::{
+    classify_match, positional_match_candidates, propagate_hipparcos_to_j2016, CrossmatchDecision,
+    GaiaMatchRow, HipparcosAstrometry, MatchCandidate, PropagatedPosition,
+};
 pub use photometry::{
-    integrate_template_photon_flux, magnitude_to_f_lambda_si, BandZeroPoint, SpectralTemplate,
+    integrate_template_photon_flux, integrate_template_through_response,
+    magnitude_to_band_photon_flux, magnitude_to_f_lambda_si, reconstruct_template_band_flux,
+    BandZeroPoint, PhotometricBandCalibration, PhotometricBandResponse, SpectralTemplate,
 };
 pub use policy::{
     BrightStarPopulationPolicy, BrightStarPrecedencePolicy, SupplementClass,

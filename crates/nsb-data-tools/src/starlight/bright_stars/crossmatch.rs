@@ -1,21 +1,54 @@
-//! Deterministic Gaia crossmatch classification for bright-star supplements.
+//! Proper-motion-aware, deterministic Gaia crossmatch and classification.
 
 use super::policy::{BrightStarPrecedencePolicy, SupplementClass};
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
-/// One positional / identifier match candidate against Gaia DR3.
+const MAS_PER_DEGREE: f64 = 3_600_000.0;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct HipparcosAstrometry {
+    pub hip: u32,
+    pub ra_deg_j1991_25: f64,
+    pub dec_deg_j1991_25: f64,
+    /// Hipparcos convention: mu_alpha_star = d(alpha)/dt cos(delta), mas/yr.
+    pub pm_ra_cosdec_mas_per_year: f64,
+    pub pm_dec_mas_per_year: f64,
+    pub position_uncertainty_mas: f64,
+    pub proper_motion_uncertainty_mas_per_year: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PropagatedPosition {
+    pub ra_deg_j2016: f64,
+    pub dec_deg_j2016: f64,
+    pub angular_displacement_arcsec: f64,
+    pub positional_uncertainty_arcsec: f64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GaiaMatchRow {
+    pub gaia_source_id: u64,
+    pub ra_deg_j2016: f64,
+    pub dec_deg_j2016: f64,
+    pub gaia_g_mag: Option<f64>,
+    pub gaia_xp_usable: bool,
+    pub gaia_photometric_usable: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MatchCandidate {
     pub gaia_source_id: u64,
-    /// Angular separation after proper-motion propagation (arcsec).
     pub separation_arcsec: f64,
     pub gaia_g_mag: Option<f64>,
     pub gaia_xp_usable: bool,
     pub gaia_photometric_usable: bool,
 }
 
-/// Result of applying the v1 precedence policy to zero-or-more matches.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CrossmatchDecision {
@@ -24,128 +57,248 @@ pub struct CrossmatchDecision {
     pub reason: String,
 }
 
-/// Classify a supplement source given its Gaia match set.
-///
-/// Fail-closed on ambiguity: two or more candidates inside the match radius
-/// without a unique identifier prefer → `AmbiguousManualReview`.
+/// Propagate J1991.25 Hipparcos astrometry to J2016.0 using the tangent-plane
+/// two-dimensional proper motion. Perspective effects are deliberately not
+/// hidden here; callers may compare against a 3D propagation diagnostic.
+pub fn propagate_hipparcos_to_j2016(source: &HipparcosAstrometry) -> Result<PropagatedPosition> {
+    let values = [
+        source.ra_deg_j1991_25,
+        source.dec_deg_j1991_25,
+        source.pm_ra_cosdec_mas_per_year,
+        source.pm_dec_mas_per_year,
+        source.position_uncertainty_mas,
+        source.proper_motion_uncertainty_mas_per_year,
+    ];
+    if values.iter().any(|value| !value.is_finite())
+        || !(0.0..360.0).contains(&source.ra_deg_j1991_25)
+        || !(-90.0..=90.0).contains(&source.dec_deg_j1991_25)
+        || source.position_uncertainty_mas < 0.0
+        || source.proper_motion_uncertainty_mas_per_year < 0.0
+    {
+        bail!("invalid Hipparcos astrometry for HIP {}", source.hip);
+    }
+    const YEARS: f64 = 24.75;
+    let dec_rad = source.dec_deg_j1991_25.to_radians();
+    let cos_dec = dec_rad.cos();
+    if cos_dec.abs() < 1.0e-12 {
+        bail!("two-dimensional propagation is singular at the celestial pole");
+    }
+    let delta_ra_deg = source.pm_ra_cosdec_mas_per_year * YEARS / (MAS_PER_DEGREE * cos_dec);
+    let delta_dec_deg = source.pm_dec_mas_per_year * YEARS / MAS_PER_DEGREE;
+    let ra = (source.ra_deg_j1991_25 + delta_ra_deg).rem_euclid(360.0);
+    let dec = source.dec_deg_j1991_25 + delta_dec_deg;
+    if !(-90.0..=90.0).contains(&dec) {
+        bail!("propagated declination is outside physical bounds");
+    }
+    let displacement = YEARS
+        * source
+            .pm_ra_cosdec_mas_per_year
+            .hypot(source.pm_dec_mas_per_year)
+        / 1000.0;
+    let uncertainty = source
+        .position_uncertainty_mas
+        .hypot(YEARS * source.proper_motion_uncertainty_mas_per_year)
+        / 1000.0;
+    Ok(PropagatedPosition {
+        ra_deg_j2016: ra,
+        dec_deg_j2016: dec,
+        angular_displacement_arcsec: displacement,
+        positional_uncertainty_arcsec: uncertainty,
+    })
+}
+
+/// Construct positional candidates after propagation. Official identity rows
+/// should be supplied alone by the caller and therefore take precedence.
+pub fn positional_match_candidates(
+    position: &PropagatedPosition,
+    gaia_rows: &[GaiaMatchRow],
+    match_radius_arcsec: f64,
+) -> Result<Vec<MatchCandidate>> {
+    validate_radius(match_radius_arcsec)?;
+    if !position.ra_deg_j2016.is_finite() || !position.dec_deg_j2016.is_finite() {
+        bail!("propagated position is not finite");
+    }
+    let mut out = Vec::new();
+    for row in gaia_rows {
+        if !row.ra_deg_j2016.is_finite()
+            || !row.dec_deg_j2016.is_finite()
+            || !(0.0..360.0).contains(&row.ra_deg_j2016)
+            || !(-90.0..=90.0).contains(&row.dec_deg_j2016)
+            || row.gaia_g_mag.is_some_and(|g| !g.is_finite())
+        {
+            bail!("invalid Gaia crossmatch row {}", row.gaia_source_id);
+        }
+        let separation = angular_separation_arcsec(
+            position.ra_deg_j2016,
+            position.dec_deg_j2016,
+            row.ra_deg_j2016,
+            row.dec_deg_j2016,
+        );
+        if separation <= match_radius_arcsec {
+            out.push(MatchCandidate {
+                gaia_source_id: row.gaia_source_id,
+                separation_arcsec: separation,
+                gaia_g_mag: row.gaia_g_mag,
+                gaia_xp_usable: row.gaia_xp_usable,
+                gaia_photometric_usable: row.gaia_photometric_usable,
+            });
+        }
+    }
+    out.sort_by(|a, b| {
+        a.separation_arcsec
+            .total_cmp(&b.separation_arcsec)
+            .then(a.gaia_source_id.cmp(&b.gaia_source_id))
+    });
+    Ok(out)
+}
+
 pub fn classify_match(
     policy: &BrightStarPrecedencePolicy,
     matches: &[MatchCandidate],
     match_radius_arcsec: f64,
-) -> CrossmatchDecision {
-    let within: Vec<&MatchCandidate> = matches
-        .iter()
-        .filter(|m| m.separation_arcsec.is_finite() && m.separation_arcsec <= match_radius_arcsec)
-        .collect();
-
-    if within.is_empty() {
-        if policy.replace_when_missing_from_gaia {
-            return CrossmatchDecision {
-                class: SupplementClass::SupplementOnly,
-                gaia_source_id: None,
-                reason: "no_gaia_match_within_radius".to_string(),
-            };
+) -> Result<CrossmatchDecision> {
+    policy.validate()?;
+    validate_radius(match_radius_arcsec)?;
+    for candidate in matches {
+        if !candidate.separation_arcsec.is_finite()
+            || candidate.separation_arcsec < 0.0
+            || candidate.gaia_g_mag.is_some_and(|g| !g.is_finite())
+        {
+            bail!("invalid Gaia match candidate {}", candidate.gaia_source_id);
         }
-        return CrossmatchDecision {
-            class: SupplementClass::AmbiguousManualReview,
-            gaia_source_id: None,
-            reason: "no_gaia_match_and_replace_disabled".to_string(),
-        };
     }
-
+    let mut within: Vec<&MatchCandidate> = matches
+        .iter()
+        .filter(|m| m.separation_arcsec <= match_radius_arcsec)
+        .collect();
+    within.sort_by(|a, b| {
+        a.separation_arcsec
+            .total_cmp(&b.separation_arcsec)
+            .then(a.gaia_source_id.cmp(&b.gaia_source_id))
+    });
+    if within.is_empty() {
+        return Ok(CrossmatchDecision {
+            class: SupplementClass::SupplementOnly,
+            gaia_source_id: None,
+            reason: "no_gaia_match_after_j2016_propagation".into(),
+        });
+    }
     if within.len() > 1 {
-        return CrossmatchDecision {
+        return Ok(CrossmatchDecision {
             class: SupplementClass::AmbiguousManualReview,
             gaia_source_id: None,
-            reason: "multiple_gaia_matches".to_string(),
-        };
+            reason: "multiple_gaia_matches".into(),
+        });
     }
-
-    let m = within[0];
-    let gaia_usable = m.gaia_xp_usable || m.gaia_photometric_usable;
-    let bright = m
-        .gaia_g_mag
-        .is_some_and(|g| g.is_finite() && g <= policy.replace_when_gaia_g_brighter_than);
-
-    if policy.prefer_valid_gaia_xp && gaia_usable && !bright {
-        return CrossmatchDecision {
+    let candidate = within[0];
+    if candidate.gaia_xp_usable || candidate.gaia_photometric_usable {
+        return Ok(CrossmatchDecision {
             class: SupplementClass::MatchedAndRejectedAsDuplicate,
-            gaia_source_id: Some(m.gaia_source_id),
-            reason: "gaia_reliable_retain_primary".to_string(),
-        };
+            gaia_source_id: Some(candidate.gaia_source_id),
+            reason: "gaia_reliable_retain_primary".into(),
+        });
     }
-
-    if policy.prefer_valid_gaia_xp && gaia_usable && bright {
-        // Bright but usable Gaia: still prefer Gaia unless XP/photometry failed.
-        return CrossmatchDecision {
-            class: SupplementClass::MatchedAndRejectedAsDuplicate,
-            gaia_source_id: Some(m.gaia_source_id),
-            reason: "gaia_bright_but_usable_retain_primary".to_string(),
-        };
-    }
-
-    // Matched Gaia that fails quality / has no usable spectrum or photometry.
-    CrossmatchDecision {
+    Ok(CrossmatchDecision {
         class: SupplementClass::MatchedAndReplacesPrimary,
-        gaia_source_id: Some(m.gaia_source_id),
-        reason: if bright {
-            "gaia_bright_and_unusable_replace".to_string()
-        } else {
-            "gaia_unusable_replace".to_string()
-        },
+        gaia_source_id: Some(candidate.gaia_source_id),
+        reason: "gaia_unusable_replace".into(),
+    })
+}
+
+fn validate_radius(radius: f64) -> Result<()> {
+    if !radius.is_finite() || radius <= 0.0 {
+        bail!("match_radius_arcsec must be finite and positive");
     }
+    Ok(())
+}
+
+fn angular_separation_arcsec(ra1: f64, dec1: f64, ra2: f64, dec2: f64) -> f64 {
+    let (ra1, dec1, ra2, dec2) = (
+        ra1.to_radians(),
+        dec1.to_radians(),
+        ra2.to_radians(),
+        dec2.to_radians(),
+    );
+    let cosine =
+        (dec1.sin() * dec2.sin() + dec1.cos() * dec2.cos() * (ra1 - ra2).cos()).clamp(-1.0, 1.0);
+    cosine.acos().to_degrees() * 3600.0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::starlight::bright_stars::policy::BrightStarPrecedencePolicy;
 
-    fn cand(id: u64, sep: f64, g: Option<f64>, xp: bool, phot: bool) -> MatchCandidate {
+    fn candidate(id: u64, separation: f64, usable: bool) -> MatchCandidate {
         MatchCandidate {
             gaia_source_id: id,
-            separation_arcsec: sep,
-            gaia_g_mag: g,
-            gaia_xp_usable: xp,
-            gaia_photometric_usable: phot,
+            separation_arcsec: separation,
+            gaia_g_mag: Some(3.0),
+            gaia_xp_usable: usable,
+            gaia_photometric_usable: false,
         }
     }
 
     #[test]
-    fn no_match_is_supplement_only() {
-        let d = classify_match(&BrightStarPrecedencePolicy::v1(), &[], 1.0);
-        assert_eq!(d.class, SupplementClass::SupplementOnly);
+    fn propagation_handles_high_proper_motion() {
+        let p = propagate_hipparcos_to_j2016(&HipparcosAstrometry {
+            hip: 1,
+            ra_deg_j1991_25: 10.0,
+            dec_deg_j1991_25: 20.0,
+            pm_ra_cosdec_mas_per_year: 10_000.0,
+            pm_dec_mas_per_year: 0.0,
+            position_uncertainty_mas: 1.0,
+            proper_motion_uncertainty_mas_per_year: 1.0,
+        })
+        .unwrap();
+        assert!((p.angular_displacement_arcsec - 247.5).abs() < 1e-12);
+        assert!(p.ra_deg_j2016 > 10.0);
     }
 
     #[test]
-    fn ambiguous_multiple_matches() {
-        let matches = vec![
-            cand(1, 0.1, Some(5.0), true, true),
-            cand(2, 0.2, Some(5.0), true, true),
-        ];
-        let d = classify_match(&BrightStarPrecedencePolicy::v1(), &matches, 1.0);
-        assert_eq!(d.class, SupplementClass::AmbiguousManualReview);
+    fn invalid_geometry_fails_closed() {
+        let policy = BrightStarPrecedencePolicy::v1();
+        assert!(classify_match(&policy, &[], f64::NAN).is_err());
+        assert!(classify_match(&policy, &[candidate(1, f64::NAN, false)], 1.0).is_err());
+        assert!(classify_match(&policy, &[candidate(1, -1.0, false)], 1.0).is_err());
     }
 
     #[test]
-    fn reliable_gaia_rejected_as_duplicate() {
-        let matches = vec![cand(42, 0.05, Some(6.0), true, false)];
-        let d = classify_match(&BrightStarPrecedencePolicy::v1(), &matches, 1.0);
-        assert_eq!(d.class, SupplementClass::MatchedAndRejectedAsDuplicate);
-        assert_eq!(d.gaia_source_id, Some(42));
+    fn classification_is_order_independent() {
+        let policy = BrightStarPrecedencePolicy::v1();
+        let a = classify_match(
+            &policy,
+            &[candidate(2, 0.2, true), candidate(1, 0.1, true)],
+            1.0,
+        )
+        .unwrap();
+        let b = classify_match(
+            &policy,
+            &[candidate(1, 0.1, true), candidate(2, 0.2, true)],
+            1.0,
+        )
+        .unwrap();
+        assert_eq!(a, b);
+        assert_eq!(a.class, SupplementClass::AmbiguousManualReview);
     }
 
     #[test]
-    fn unusable_bright_gaia_is_replaced() {
-        let matches = vec![cand(7, 0.1, Some(2.5), false, false)];
-        let d = classify_match(&BrightStarPrecedencePolicy::v1(), &matches, 1.0);
-        assert_eq!(d.class, SupplementClass::MatchedAndReplacesPrimary);
-    }
-
-    #[test]
-    fn outside_radius_counts_as_no_match() {
-        let matches = vec![cand(1, 5.0, Some(2.0), false, false)];
-        let d = classify_match(&BrightStarPrecedencePolicy::v1(), &matches, 1.0);
-        assert_eq!(d.class, SupplementClass::SupplementOnly);
+    fn no_match_supplement_reliable_gaia_rejected_unusable_replaced() {
+        let policy = BrightStarPrecedencePolicy::v1();
+        assert_eq!(
+            classify_match(&policy, &[], 1.0).unwrap().class,
+            SupplementClass::SupplementOnly
+        );
+        assert_eq!(
+            classify_match(&policy, &[candidate(1, 0.1, true)], 1.0)
+                .unwrap()
+                .class,
+            SupplementClass::MatchedAndRejectedAsDuplicate
+        );
+        assert_eq!(
+            classify_match(&policy, &[candidate(1, 0.1, false)], 1.0)
+                .unwrap()
+                .class,
+            SupplementClass::MatchedAndReplacesPrimary
+        );
     }
 }
