@@ -177,6 +177,29 @@ That bound is **superseded and wrong as a fraction of the validation total**:
 Local artifacts (not committed): `nsb-validation/work/expB/`,
 `nsb-validation/results/expB-{full,no-xhip}/`.
 
+## Experiment A — true 336–650 nm (completed)
+
+Exported measured-band map from frozen combined-product shards
+(`export-measured336650`):
+
+| Field | Value |
+|---|---|
+| SHA-256 | `878a2e7cc3be1e83e5648194edde107bb50cb09fa484a21a1a95d6f49678a988` |
+| Total measured flux | 8.682×10¹² ph m⁻² s⁻¹ |
+| Parent combined SHA-256 | `76191c8b…` (distinct) |
+| Manifest | `issue-182-measured-336-650-export-manifest.json` |
+
+Comparison vs nsb2 336–650 (pinned `bc9320db`):
+
+| Reference | Bias | Corr | Corr excl. top 1% | Top 0.1% flux ratio |
+|---|---:|---:|---:|---:|
+| nsb2 **full** 336–650 | **−22.87%** | 0.228 | 0.942 | 0.128 |
+| nsb2 **without XHIP** 336–650 | **−17.03%** | 0.868 | 0.942 | 0.501 |
+
+Combined 300–650 (Experiment B) was −24.41% / −18.34%. The measured-only
+band is only ~1.5 pp less deficit than combined, so the radiometric gap is
+**primarily measured-band / Gaia-population**, not the UV 300–336 correction.
+
 ## Experiment A / B / D tooling
 
 Independent validation harness changes live in `VPRamon/nsb-validation` branch
@@ -185,6 +208,7 @@ Independent validation harness changes live in `VPRamon/nsb-validation` branch
 - no-XHIP + per-component nsb2 reference generation
 - configurable 336–650 nm bandpass
 - brightness-tail / missing-flux metrics in compare reports
+- component-identity and quantity-from-source-metadata contracts
 
 NSB side: `nsb-data dataset starlight diagnose export-measured336650` derives a
 true 336–650 map from frozen combined-product shards (distinct checksum +
@@ -193,13 +217,10 @@ relabel a 300–650 candidate by caller string.
 
 ## Next measurements (priority)
 
-1. Re-run Experiment C on smoke-48 (and full catalogue if needed) with
-   production-identical routing + deterministic StableSum accumulation.
-2. Export NSB 336–650 from frozen shards; pin in nsb-validation; run Experiment A.
-3. Enforce no-XHIP component identity + flux-conservation tests; re-verify Experiment B.
-4. Brightness-tail / region diagnostics (Experiment D) on corrected artifacts.
-5. Quantify the remaining ~18% Gaia-only deficit by component (bright catalogue,
+1. Finish smoke-48 Experiment C (routing-fixed) for catalogue-scale H2 bound.
+2. Attribute the ~17–18% Gaia-only measured-band residual (bright catalogue vs
    faint map, XP vs Pickles, selection weighting, admission) without tuning to nsb2.
+3. Bright-star supplement policy assessment (need ≠ copy XHIP).
 
 ## Classification glossary (for the eventual #182 close-out)
 
