@@ -7,6 +7,7 @@ use self::gaia_source::{load_gaia_sources, GaiaSourceEntry};
 use self::processing::{
     measured_xp_flux_and_uncertainty, population_branch_reason, scientific_exclusion_reason,
 };
+use super::bright_stars::{load_bright_star_artifact, BrightStarArtifact};
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
@@ -20,7 +21,7 @@ use super::xp::GaiaXpContinuousCalibrator;
 use crate::dataset::Artifact;
 use crate::platform::artifact_store;
 use anyhow::{bail, Context, Result};
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 // Lifecycle inputs and optional calibrators are resolved independently; grouping
@@ -36,6 +37,7 @@ pub(crate) fn build_partitions(
     ultraviolet_config: Option<&UvCorrectionConfig>,
     photometric_config: Option<&ArtifactPinConfig>,
     selection_config: Option<&ArtifactPinConfig>,
+    bright_star_config: Option<&ArtifactPinConfig>,
 ) -> Result<Vec<Artifact>> {
     if partitions.is_empty() {
         return Ok(Vec::new());
@@ -64,6 +66,22 @@ pub(crate) fn build_partitions(
             Ok(correction)
         })
         .transpose()?;
+    let bright_star_artifact = bright_star_config
+        .map(|config| load_bright_star_artifact(&config.artifact_path, &config.sha256))
+        .transpose()?;
+    if let Some(artifact) = &bright_star_artifact {
+        if product_band != StarlightProductBand::Measured336To650 {
+            bail!("measured-336-650 bright-star artifact cannot be used with combined-300-650");
+        }
+        if artifact.nside != canonical_nside {
+            bail!("bright-star artifact nside does not match canonical Starlight nside");
+        }
+    }
+    let suppressed_gaia_source_ids = bright_star_artifact
+        .as_ref()
+        .map(BrightStarArtifact::suppressed_gaia_source_ids)
+        .transpose()?
+        .unwrap_or_default();
     if product_band == StarlightProductBand::Combined300To650 && ultraviolet_correction.is_none() {
         bail!("300–650 nm Starlight product requires a validated UV correction artifact");
     }
@@ -75,6 +93,7 @@ pub(crate) fn build_partitions(
             let ultraviolet_correction = ultraviolet_correction.as_ref();
             let photometric_correction = photometric_correction.as_ref();
             let selection_correction = selection_correction.as_ref();
+            let suppressed_gaia_source_ids = &suppressed_gaia_source_ids;
             let shared_workspace = shared_workspace.as_path();
             handles.push(scope.spawn(move || -> Result<Vec<Artifact>> {
                 chunk
@@ -92,6 +111,7 @@ pub(crate) fn build_partitions(
                             ultraviolet_correction,
                             photometric_correction,
                             selection_correction,
+                            suppressed_gaia_source_ids,
                         )
                     })
                     .collect()
@@ -127,6 +147,7 @@ fn build_partition(
     ultraviolet_correction: Option<&UvCorrection>,
     photometric_correction: Option<&PhotometricCorrection>,
     selection_correction: Option<&SelectionCorrection>,
+    suppressed_gaia_source_ids: &BTreeSet<u64>,
 ) -> Result<Artifact> {
     let gaia_path = acquisition::verified_object_for_partition(
         shared_workspace,
@@ -189,6 +210,14 @@ fn build_partition(
             // position; skip spatial exclusion rather than invent coordinates.
             continue;
         };
+        if suppressed_gaia_source_ids.contains(&source_id) {
+            exclude_gaia_source(
+                &mut shard,
+                gaia_source,
+                "bright_star_replaced_by_supplement",
+            )?;
+            continue;
+        }
         if let Some(reason) = scientific_exclusion_reason(gaia_source) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
             continue;
@@ -227,7 +256,14 @@ fn build_partition(
         .collect();
     remaining.sort_by_key(|(source_id, _)| *source_id);
     for (source_id, gaia_source) in remaining {
-        let _source_id = *source_id;
+        if suppressed_gaia_source_ids.contains(source_id) {
+            exclude_gaia_source(
+                &mut shard,
+                gaia_source,
+                "bright_star_replaced_by_supplement",
+            )?;
+            continue;
+        }
         if let Some(reason) = scientific_exclusion_reason(gaia_source) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
             continue;
@@ -284,6 +320,31 @@ fn build_partition(
         path: shard_path,
         sha256,
     })
+}
+
+/// Construct the supplement contribution as one synthetic measured-band shard.
+/// Gaia replacements have already been excluded by the worker path above.
+pub(crate) fn bright_star_supplement_shard(
+    artifact: &BrightStarArtifact,
+    canonical_nside: u32,
+) -> Result<PartitionShard> {
+    artifact.validate()?;
+    if artifact.nside != canonical_nside {
+        bail!("bright-star artifact nside does not match canonical Starlight nside");
+    }
+    let mut shard = PartitionShard::new("bright-star-supplement", canonical_nside)?;
+    shard.bright_star_replacement_gaia_ids = artifact.suppressed_gaia_source_ids()?;
+    for source in &artifact.sources {
+        if matches!(
+            source.class,
+            super::bright_stars::SupplementClass::SupplementOnly
+                | super::bright_stars::SupplementClass::MatchedAndReplacesPrimary
+        ) {
+            shard.admit_bright_star_source(source)?;
+        }
+    }
+    shard.validate()?;
+    Ok(shard)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -512,6 +573,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )?;
         assert_eq!(artifacts.len(), 1);
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
@@ -631,6 +693,7 @@ mod tests {
             1,
             256,
             StarlightProductBand::Measured336To650,
+            None,
             None,
             None,
             None,
@@ -830,6 +893,7 @@ mod tests {
             1,
             CANONICAL_NSIDE,
             StarlightProductBand::Measured336To650,
+            None,
             None,
             None,
             None,

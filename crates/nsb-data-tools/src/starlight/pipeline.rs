@@ -81,6 +81,7 @@ impl DatasetPipeline for StarlightPipeline {
             starlight.ultraviolet_correction.as_ref(),
             starlight.photometric_inference.as_ref(),
             starlight.selection_function.as_ref(),
+            starlight.bright_star_supplement.as_ref(),
         )?;
         super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
         Ok(Some(artifacts))
@@ -107,6 +108,25 @@ impl DatasetPipeline for StarlightPipeline {
                 })
             })
             .transpose()?;
+        let mut expected = expected;
+        if let Some(pin) = &starlight.bright_star_supplement {
+            if starlight.product_band != super::config::StarlightProductBand::Measured336To650 {
+                bail!("measured-336-650 bright-star artifact cannot be used with combined-300-650");
+            }
+            let artifact =
+                super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
+            let shard = super::worker::bright_star_supplement_shard(
+                &artifact,
+                starlight.map.canonical_nside,
+            )?;
+            let shard_path = config
+                .workspace
+                .root
+                .join("outputs/shards/bright-star-supplement.json");
+            shard.write(&shard_path)?;
+            expected.push("bright-star-supplement".to_string());
+            expected.sort();
+        }
         Ok(Some(super::map::product::emit_maps(
             &config.workspace.root,
             &expected,
@@ -174,6 +194,10 @@ impl DatasetPipeline for StarlightPipeline {
                 starlight.photometric_inference.as_ref(),
             ),
             ("selection function", starlight.selection_function.as_ref()),
+            (
+                "bright-star supplement",
+                starlight.bright_star_supplement.as_ref(),
+            ),
         ] {
             if let Some(pin) = pin {
                 if pin.sha256.len() != 64
@@ -192,6 +216,15 @@ impl DatasetPipeline for StarlightPipeline {
             bail!(
                 "300–650 nm Starlight product requires a validated UV correction artifact, and measured-only products must not configure one"
             );
+        }
+        if let Some(pin) = &starlight.bright_star_supplement {
+            let artifact =
+                super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
+            if starlight.product_band != super::config::StarlightProductBand::Measured336To650
+                || artifact.product_band != super::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID
+            {
+                bail!("bright-star supplement spectral coverage is incompatible with configured Starlight product band");
+            }
         }
         for product in &starlight.gaia_products {
             if product.id.trim().is_empty()

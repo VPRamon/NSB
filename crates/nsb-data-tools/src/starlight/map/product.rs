@@ -52,6 +52,8 @@ pub struct MergeReport {
     pub excluded_sources: u64,
     pub exclusion_reasons: BTreeMap<String, u64>,
     pub ultraviolet_applicability: BTreeMap<crate::starlight::uv::ApplicabilityStatus, u64>,
+    #[serde(default)]
+    pub bright_star_replacement: Option<BrightStarReplacementReport>,
     pub science_policy: SciencePolicyReport,
     pub band_diagnostics: BandDiagnosticsReport,
     pub canonical_map: CanonicalMapReport,
@@ -60,6 +62,16 @@ pub struct MergeReport {
     ///
     /// See [`UncertaintyScaleDiagnostics`] for the exact combination rules.
     pub uncertainty_scale: UncertaintyScaleDiagnostics,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrightStarReplacementReport {
+    pub replacement_gaia_source_ids: Vec<u64>,
+    pub replacement_gaia_id_count: u64,
+    pub actually_suppressed_count: u64,
+    pub base_admitted_replacement_intersection_count: u64,
+    pub invariant_passed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -312,6 +324,7 @@ pub(crate) fn emit_maps(
     }
 
     let merged = merge_shards(shards.clone())?;
+    validate_bright_star_replacement_invariant(&merged)?;
     if merged.nside != canonical_nside {
         bail!("merged Starlight shard resolution does not match configuration");
     }
@@ -352,6 +365,24 @@ pub(crate) fn emit_maps(
         excluded_sources,
         exclusion_reasons: merged.exclusion_reasons.clone(),
         ultraviolet_applicability: merged.ultraviolet_applicability.clone(),
+        bright_star_replacement: (!merged.bright_star_replacement_gaia_ids.is_empty()).then(|| {
+            let ids = merged
+                .bright_star_replacement_gaia_ids
+                .iter()
+                .copied()
+                .collect::<Vec<_>>();
+            BrightStarReplacementReport {
+                replacement_gaia_id_count: ids.len() as u64,
+                actually_suppressed_count: merged
+                    .exclusion_reasons
+                    .get("bright_star_replaced_by_supplement")
+                    .copied()
+                    .unwrap_or_default(),
+                base_admitted_replacement_intersection_count: 0,
+                invariant_passed: true,
+                replacement_gaia_source_ids: ids,
+            }
+        }),
         science_policy,
         band_diagnostics: band_diagnostics(&merged)?,
         canonical_map: CanonicalMapReport {
@@ -635,6 +666,27 @@ fn validate_report_fields(
         .context("canonical source accounting overflow")?;
     if report.observed_sources != observed {
         bail!("global observed-source total does not match canonical map");
+    }
+    if let Some(replacement) = &report.bright_star_replacement {
+        let unique = replacement
+            .replacement_gaia_source_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        if replacement.replacement_gaia_source_ids.len() != unique.len()
+            || replacement.replacement_gaia_id_count != unique.len() as u64
+            || replacement.actually_suppressed_count != replacement.replacement_gaia_id_count
+            || replacement.base_admitted_replacement_intersection_count != 0
+            || !replacement.invariant_passed
+            || report
+                .exclusion_reasons
+                .get("bright_star_replaced_by_supplement")
+                .copied()
+                .unwrap_or_default()
+                != replacement.actually_suppressed_count
+        {
+            bail!("merge report bright-star replacement proof is invalid");
+        }
     }
     let diagnostics = &report.band_diagnostics;
     let diagnostic_values = [
@@ -1021,10 +1073,14 @@ fn global_selected_uncertainty(merged: &PartitionShard) -> Result<(f64, f64)> {
     let mut statistical_variance = 0.0;
     let mut systematic_independent_variance = 0.0;
     let mut systematic_correlated = 0.0;
+    let mut systematic_groups: BTreeMap<String, f64> = BTreeMap::new();
     for pixel in merged.pixels.values() {
         statistical_variance += pixel.statistical_variance.value();
         systematic_independent_variance += pixel.systematic_variance.value();
         systematic_correlated += pixel.systematic_correlated_uncertainty.value();
+        for (group, sum) in &pixel.systematic_correlated_groups {
+            *systematic_groups.entry(group.clone()).or_default() += sum.value();
+        }
     }
     let values = [
         statistical_variance,
@@ -1037,10 +1093,28 @@ fn global_selected_uncertainty(merged: &PartitionShard) -> Result<(f64, f64)> {
     {
         bail!("Starlight global uncertainty totals are non-finite or negative");
     }
+    let grouped_variance: f64 = systematic_groups.values().map(|value| value.powi(2)).sum();
     let systematic = systematic_independent_variance
         .sqrt()
-        .hypot(systematic_correlated);
+        .hypot(systematic_correlated)
+        .hypot(grouped_variance.sqrt());
     Ok((statistical_variance.sqrt(), systematic))
+}
+
+fn validate_bright_star_replacement_invariant(merged: &PartitionShard) -> Result<()> {
+    let replacement_count = u64::try_from(merged.bright_star_replacement_gaia_ids.len())
+        .context("bright-star replacement count exceeds u64")?;
+    let suppressed_count = merged
+        .exclusion_reasons
+        .get("bright_star_replaced_by_supplement")
+        .copied()
+        .unwrap_or_default();
+    if replacement_count != suppressed_count {
+        bail!(
+            "bright-star replacement invariant failed: {replacement_count} replacement Gaia ids but {suppressed_count} base Gaia sources suppressed"
+        );
+    }
+    Ok(())
 }
 
 /// Compute [`UncertaintyScaleDiagnostics`] from the emitted per-pixel map and
@@ -1510,6 +1584,7 @@ fn complete_deterministic_merge_report(
                     || left.systematic_variance != right.systematic_variance
                     || left.systematic_correlated_uncertainty
                         != right.systematic_correlated_uncertainty
+                    || left.systematic_correlated_groups != right.systematic_correlated_groups
                     || left.statistical_variance_300_336 != right.statistical_variance_300_336
                     || left.statistical_variance_336_650 != right.statistical_variance_336_650
                     || left.statistical_variance_300_650 != right.statistical_variance_300_650
@@ -1559,6 +1634,13 @@ fn complete_deterministic_merge_report(
                 format!("exclusion reason {reason:?} differs"),
             );
         }
+    }
+    if canonical.bright_star_replacement_gaia_ids != independent.bright_star_replacement_gaia_ids {
+        exclusion_reason_mismatches += 1;
+        record_first_mismatch(
+            &mut first_mismatch,
+            "bright-star replacement identity set differs".to_string(),
+        );
     }
 
     let canonical_sha256 = checksum_io::sha256_bytes(&canonical_merge_bytes(canonical)?);
@@ -1641,6 +1723,13 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         ] {
             sum.append_canonical_bytes(&mut bytes)?;
         }
+        let group_count = u64::try_from(accumulator.systematic_correlated_groups.len())
+            .context("systematic group count exceeds u64")?;
+        bytes.extend_from_slice(&group_count.to_be_bytes());
+        for (group, sum) in &accumulator.systematic_correlated_groups {
+            append_string(&mut bytes, group)?;
+            sum.append_canonical_bytes(&mut bytes)?;
+        }
         bytes.extend_from_slice(&accumulator.observed_sources.to_be_bytes());
         bytes.extend_from_slice(&accumulator.admitted_sources.to_be_bytes());
         bytes.extend_from_slice(&accumulator.excluded_sources.to_be_bytes());
@@ -1662,6 +1751,12 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
             crate::starlight::uv::ApplicabilityStatus::OutOfDomain => 2,
         });
         bytes.extend_from_slice(&count.to_be_bytes());
+    }
+    let replacement_count = u64::try_from(shard.bright_star_replacement_gaia_ids.len())
+        .context("replacement id count exceeds u64")?;
+    bytes.extend_from_slice(&replacement_count.to_be_bytes());
+    for source_id in &shard.bright_star_replacement_gaia_ids {
+        bytes.extend_from_slice(&source_id.to_be_bytes());
     }
     Ok(bytes)
 }
@@ -1783,6 +1878,39 @@ mod tests {
             )
             .unwrap();
         shard
+    }
+
+    #[test]
+    fn bright_star_replacement_requires_exactly_one_gaia_suppression() {
+        let mut shard = PartitionShard::new("fixture", 1).unwrap();
+        shard.bright_star_replacement_gaia_ids.insert(42);
+        shard
+            .exclude(
+                fixture_icrs_from_source_id(42),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+        validate_bright_star_replacement_invariant(&shard).unwrap();
+
+        shard.bright_star_replacement_gaia_ids.insert(43);
+        assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+    }
+
+    #[test]
+    fn gaia_only_population_needs_no_suppression() {
+        let mut shard = PartitionShard::new("fixture", 1).unwrap();
+        shard
+            .admit(fixture_icrs_from_source_id(1), 1.0, 0.0, 0.0)
+            .unwrap();
+        validate_bright_star_replacement_invariant(&shard).unwrap();
+        assert_eq!(
+            shard
+                .pixels
+                .values()
+                .map(|p| p.admitted_sources)
+                .sum::<u64>(),
+            1
+        );
     }
 
     fn emit_fixture(temp: &TempDir, nside: u32) -> MergeReport {
