@@ -1,0 +1,27 @@
+{
+  "admitted_sources": 1518801696,
+  "excluded_sources": 292908075,
+  "experiment": "A_measured_336_650_export",
+  "issue": "182",
+  "notes": [
+    "Derived from frozen combined-product partition shards; flux column is flux_336_650_ph_m2_s.",
+    "Systematic uncertainty is recorded as 0.0 on this diagnostic export; statistical uncertainty uses measured-band variance.",
+    "Checksum and quantity metadata are distinct from the parent 300-650 combined map."
+  ],
+  "nside": 128,
+  "occupied_pixels": 196608,
+  "output_path": "/mnt/beegfs/valles/nsb-data/starlight-diagnostics-182/measured-336-650/starlight_nside128_336_650.csv",
+  "output_sha256": "878a2e7cc3be1e83e5648194edde107bb50cb09fa484a21a1a95d6f49678a988",
+  "parent_combined_map_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
+  "partition_count": 3386,
+  "partition_ids_omitted": true,
+  "physical_quantity": "photon_radiance_336_650_nm",
+  "product_band": "336-650-measured",
+  "schema_version": 1,
+  "shard_count": 3386,
+  "source_commit": "53670d7b3be25cf99be7d13a9f2079d2145a0eb7",
+  "total_flux_336_650_ph_m2_s": 8681550549260.129,
+  "wavelength_max_nm": 650,
+  "wavelength_min_nm": 336,
+  "workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric"
+}
