@@ -157,6 +157,8 @@ branch to regenerate the full reference and compare artifacts.
    fix (pilot radiometric impact ≪ 1%). Rebuild only if a larger measured-band
    or bright-catalogue defect is confirmed.
 
+## Classification glossary (for the eventual #182 close-out)
+
 | Class | Meaning |
 |---|---|
 | Confirmed defect | Implementation bug or unjustified policy with measurable wrongness |
