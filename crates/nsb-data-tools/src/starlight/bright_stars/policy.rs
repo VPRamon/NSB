@@ -1,5 +1,6 @@
 //! Versioned bright-star supplement policies.
 
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
 /// Population boundary policy id (design-v1).
@@ -64,6 +65,19 @@ impl BrightStarPopulationPolicy {
         }
         false
     }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.policy_id != POPULATION_POLICY_ID_V1
+            || !self.hp_max.is_finite()
+            || !self.vt_max.is_finite()
+            || !self.gaia_g_max_with_quality_failure.is_finite()
+            || self.catalogue_epoch != "J1991.25"
+            || self.target_epoch != "J2016.0"
+        {
+            bail!("unknown or invalid bright-star population policy");
+        }
+        Ok(())
+    }
 }
 
 /// When to replace Gaia with supplement flux.
@@ -87,6 +101,17 @@ impl BrightStarPrecedencePolicy {
             replace_when_missing_from_gaia: true,
             replace_when_gaia_g_brighter_than: 3.0,
         }
+    }
+
+    pub fn validate(&self) -> Result<()> {
+        if self.policy_id != PRECEDENCE_POLICY_ID_V1
+            || !self.prefer_valid_gaia_xp
+            || !self.replace_when_missing_from_gaia
+            || !self.replace_when_gaia_g_brighter_than.is_finite()
+        {
+            bail!("unknown or invalid bright-star precedence policy");
+        }
+        Ok(())
     }
 }
 

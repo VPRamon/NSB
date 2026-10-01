@@ -129,9 +129,11 @@ Policy id: `bright-stars-gaia-precedence-v1`.
 
 ## 7. Spectral reconstruction
 
-Goal: photon flux in **336–650 nm** (and 300–650 only if a defensible UV
-extension exists; v1 may leave 300–336 unset / zero with explicit
-limitation).
+The v1 artifact is strictly **Measured336To650**. It contains no 300–336 nm
+field and cannot be loaded into a `Combined300To650` build. Missing UV
+coverage is unavailable, never encoded as zero flux. A future artifact with a
+defensible UV model requires a new schema/model id and explicit model,
+applicability, provenance, and uncertainty fields.
 
 Route priority:
 
@@ -163,9 +165,11 @@ Separate components (no single arbitrary %):
 | Catalogue calibration / ZP | Catalogue-wide correlated systematic (declared fraction or empirical) |
 | Band integration | Negligible vs above if wavelength grid is fine; document |
 
-Correlation: per-source photometric independent; catalogue ZP fully
-correlated across supplement sources. Do **not** mark all bright-star
-errors globally correlated unless justified.
+Correlation: per-source photometric/template-mismatch terms are accumulated
+in quadrature. Catalogue zero-point terms add linearly only inside their
+explicit `correlation_group_id`; different groups (for example Hipparcos,
+Tycho, and a template-library calibration) combine in quadrature. Do **not**
+mark all bright-star errors globally correlated unless justified.
 
 ## 9. Artifact and pipeline
 

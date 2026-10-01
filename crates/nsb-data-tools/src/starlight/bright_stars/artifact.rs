@@ -1,20 +1,50 @@
-//! Checksum-pinned bright-star supplement artifact (external opt-in).
+//! Fail-closed, checksum-pinned bright-star supplement artifact.
 
 use super::policy::{BrightStarPopulationPolicy, BrightStarPrecedencePolicy, SupplementClass};
 use crate::platform::checksum_io;
 use crate::starlight::healpix::galactic_nested_pixel_from_icrs_position;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-/// Artifact schema version.
 pub const BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION: u32 = 1;
-/// Stable model id for runtime provenance.
 pub const BRIGHT_STAR_MODEL_ID: &str = "starlight-bright-stars-v1";
+pub const BRIGHT_STAR_PRODUCT_BAND_ID: &str = "measured-336-650";
 
-/// One admitted or classified supplement source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BrightStarInputRole {
+    Hipparcos2,
+    Tycho2,
+    HipGaiaCrossmatch,
+    GaiaDr3QualityExtract,
+    SpectralTypeCatalogue,
+    SpectralTemplateLibrary,
+    PhotometricResponseCurve,
+    PhotometricZeroPoint,
+    BuildConfig,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrightStarInputProvenance {
+    pub role: BrightStarInputRole,
+    pub source_id: String,
+    pub release: String,
+    pub sha256: String,
+    pub retrieval_url: String,
+    pub license_or_terms_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorrelatedUncertainty {
+    pub correlation_group_id: String,
+    pub uncertainty_ph_m2_s: f64,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrightStarSourceRecord {
@@ -26,33 +56,34 @@ pub struct BrightStarSourceRecord {
     pub dec_deg_j2016: f64,
     pub flux_336_650_ph_m2_s: f64,
     pub statistical_uncertainty_ph_m2_s: f64,
-    pub systematic_uncertainty_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_ph_m2_s: f64,
+    pub systematic_catalogue_correlated: Vec<CorrelatedUncertainty>,
     pub spectral_route: String,
     pub classification_reason: String,
 }
 
-/// Sparse HEALPix pixel contribution from the supplement.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrightStarPixel {
     pub pixel: u64,
     pub flux_ph_m2_s: f64,
     pub statistical_uncertainty_ph_m2_s: f64,
-    pub systematic_uncertainty_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_ph_m2_s: f64,
+    pub systematic_catalogue_correlated: BTreeMap<String, f64>,
     pub admitted_sources: u64,
 }
 
-/// Versioned bright-star supplement artifact.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrightStarArtifact {
     pub schema_version: u32,
     pub model_id: String,
+    pub product_band: String,
     pub nside: u32,
     pub ordering: String,
     pub population_policy: BrightStarPopulationPolicy,
     pub precedence_policy: BrightStarPrecedencePolicy,
-    pub input_checksums: BTreeMap<String, String>,
+    pub inputs: Vec<BrightStarInputProvenance>,
     pub build_commit: String,
     pub sources: Vec<BrightStarSourceRecord>,
     pub pixels: Vec<BrightStarPixel>,
@@ -62,7 +93,6 @@ pub struct BrightStarArtifact {
     pub notes: Vec<String>,
 }
 
-/// Population accounting for provenance.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrightStarCounts {
@@ -74,138 +104,131 @@ pub struct BrightStarCounts {
     pub final_admitted: u64,
 }
 
+#[derive(Default)]
+struct PixelBuild {
+    flux: f64,
+    stat_var: f64,
+    independent_sys_var: f64,
+    correlated: BTreeMap<String, f64>,
+    sources: u64,
+}
+
 impl BrightStarArtifact {
-    /// Build a deterministic artifact from classified source records.
     pub fn from_sources(
         nside: u32,
         build_commit: &str,
-        input_checksums: BTreeMap<String, String>,
-        sources: Vec<BrightStarSourceRecord>,
+        inputs: Vec<BrightStarInputProvenance>,
+        mut sources: Vec<BrightStarSourceRecord>,
         population_policy: BrightStarPopulationPolicy,
         precedence_policy: BrightStarPrecedencePolicy,
     ) -> Result<Self> {
-        if nside == 0 || !nside.is_power_of_two() {
-            bail!("nside must be a positive power of two");
-        }
-        let mut counts = BrightStarCounts {
-            input_stars: sources.len() as u64,
-            supplement_only: 0,
-            matched_and_replaces_primary: 0,
-            matched_and_rejected_as_duplicate: 0,
-            ambiguous: 0,
-            final_admitted: 0,
-        };
-        let mut pixel_acc: BTreeMap<u64, (f64, f64, f64, u64)> = BTreeMap::new();
-        // Stable source order for determinism.
-        let mut sources = sources;
         sources.sort_by(|a, b| a.source_id.cmp(&b.source_id));
-
-        for source in &sources {
-            match source.class {
-                SupplementClass::SupplementOnly => counts.supplement_only += 1,
-                SupplementClass::MatchedAndReplacesPrimary => {
-                    counts.matched_and_replaces_primary += 1
-                }
-                SupplementClass::MatchedAndRejectedAsDuplicate => {
-                    counts.matched_and_rejected_as_duplicate += 1
-                }
-                SupplementClass::AmbiguousManualReview => counts.ambiguous += 1,
-            }
-            let admit = matches!(
-                source.class,
-                SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
-            );
-            if !admit {
-                continue;
-            }
-            if !(source.flux_336_650_ph_m2_s.is_finite() && source.flux_336_650_ph_m2_s > 0.0) {
-                bail!(
-                    "admitted bright-star source {} requires positive finite flux",
-                    source.source_id
-                );
-            }
-            let pixel = galactic_nested_pixel_from_icrs_position(
-                source.ra_deg_j2016,
-                source.dec_deg_j2016,
-                nside,
-            )?;
-            let entry = pixel_acc
-                .entry(u64::from(pixel))
-                .or_insert((0.0, 0.0, 0.0, 0));
-            entry.0 += source.flux_336_650_ph_m2_s;
-            entry.1 += source.statistical_uncertainty_ph_m2_s.powi(2);
-            entry.2 += source.systematic_uncertainty_ph_m2_s; // correlated catalogue ZP style
-            entry.3 += 1;
-            counts.final_admitted += 1;
-        }
-
-        let pixels = pixel_acc
-            .into_iter()
-            .map(
-                |(pixel, (flux, stat_var, sys_corr, admitted_sources))| BrightStarPixel {
-                    pixel,
-                    flux_ph_m2_s: flux,
-                    statistical_uncertainty_ph_m2_s: stat_var.sqrt(),
-                    systematic_uncertainty_ph_m2_s: sys_corr,
-                    admitted_sources,
-                },
-            )
-            .collect();
-
-        Ok(Self {
+        let artifact = Self {
             schema_version: BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION,
-            model_id: BRIGHT_STAR_MODEL_ID.to_string(),
+            model_id: BRIGHT_STAR_MODEL_ID.into(),
+            product_band: BRIGHT_STAR_PRODUCT_BAND_ID.into(),
             nside,
-            ordering: "nested".to_string(),
+            ordering: "nested".into(),
             population_policy,
             precedence_policy,
-            input_checksums,
-            build_commit: build_commit.to_string(),
+            inputs,
+            build_commit: build_commit.into(),
+            counts: recompute_counts(&sources),
+            pixels: rebuild_pixels(nside, &sources)?,
             sources,
-            pixels,
-            counts,
             scientifically_validated: false,
             redistribution_embedded: false,
             notes: vec![
                 "External opt-in supplement; catalogue bytes are not embedded in NSB.".into(),
-                "scientifically_validated remains false until independent validation + human gates."
-                    .into(),
+                "Measured 336-650 nm only; use with 300-650 nm products is forbidden.".into(),
             ],
-        })
+        };
+        artifact.validate()?;
+        Ok(artifact)
     }
 
-    /// Fail-closed load: schema, model id, and SHA-256 pin must match.
-    pub fn validate_identity(&self, expected_sha256: &str, path: &Path) -> Result<()> {
+    pub fn validate(&self) -> Result<()> {
         if self.schema_version != BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION {
-            bail!(
-                "bright-star artifact schema_version {} != {}",
-                self.schema_version,
-                BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION
-            );
+            bail!("unknown bright-star schema_version {}", self.schema_version);
         }
         if self.model_id != BRIGHT_STAR_MODEL_ID {
-            bail!(
-                "bright-star model_id {} != {}",
-                self.model_id,
-                BRIGHT_STAR_MODEL_ID
-            );
+            bail!("unknown bright-star model_id {}", self.model_id);
         }
-        if self.scientifically_validated {
-            bail!("bright-star artifact must not claim scientifically_validated yet");
+        if self.product_band != BRIGHT_STAR_PRODUCT_BAND_ID {
+            bail!("unsupported bright-star product_band {}", self.product_band);
         }
-        if self.redistribution_embedded {
-            bail!("bright-star artifact must not claim repository embedding without #103 approval");
+        if self.ordering != "nested" {
+            bail!("bright-star ordering must be nested");
         }
+        crate::starlight::config::validate_canonical_nside(self.nside)?;
+        self.population_policy.validate()?;
+        self.precedence_policy.validate()?;
+        if self.build_commit.trim().is_empty() {
+            bail!("bright-star build_commit must not be empty");
+        }
+        if self.scientifically_validated || self.redistribution_embedded {
+            bail!("experimental bright-star artifact cannot claim approval or embedding");
+        }
+        validate_inputs(&self.inputs)?;
+        let mut source_ids = BTreeSet::new();
+        let mut replacement_ids = BTreeSet::new();
+        for source in &self.sources {
+            if source.source_id.trim().is_empty() || !source_ids.insert(source.source_id.as_str()) {
+                bail!(
+                    "bright-star source_id must be non-empty and unique: {}",
+                    source.source_id
+                );
+            }
+            validate_source(source)?;
+            if source.class == SupplementClass::MatchedAndReplacesPrimary {
+                let gaia_id = source
+                    .gaia_source_id
+                    .expect("replacement identity validated");
+                if !replacement_ids.insert(gaia_id) {
+                    bail!("two supplement records replace Gaia source_id {gaia_id}");
+                }
+            }
+        }
+        if self
+            .sources
+            .windows(2)
+            .any(|pair| pair[0].source_id >= pair[1].source_id)
+        {
+            bail!("bright-star sources must be sorted by unique source_id");
+        }
+        if self.counts != recompute_counts(&self.sources) {
+            bail!("bright-star serialized counts do not match source records");
+        }
+        if self.pixels != rebuild_pixels(self.nside, &self.sources)? {
+            bail!("bright-star serialized pixels do not match source reconstruction");
+        }
+        validate_conservation(&self.sources, &self.pixels)?;
+        Ok(())
+    }
+
+    pub fn suppressed_gaia_source_ids(&self) -> Result<BTreeSet<u64>> {
+        self.validate()?;
+        Ok(self
+            .sources
+            .iter()
+            .filter(|source| source.class == SupplementClass::MatchedAndReplacesPrimary)
+            .filter_map(|source| source.gaia_source_id)
+            .collect())
+    }
+
+    pub fn to_json_pretty(&self) -> Result<Vec<u8>> {
+        self.validate()?;
+        Ok(serde_json::to_vec_pretty(self)?)
+    }
+
+    fn validate_identity(&self, expected_sha256: &str, path: &Path) -> Result<()> {
+        self.validate()?;
+        validate_sha256(expected_sha256, "expected bright-star sha256")?;
         let actual =
             checksum_io::sha256_file(path).with_context(|| format!("hash {}", path.display()))?;
-        if !expected_sha256.chars().all(|c| c.is_ascii_hexdigit()) || expected_sha256.len() != 64 {
-            bail!("expected bright-star sha256 must be 64 hex chars");
-        }
         if actual != expected_sha256 {
             bail!(
-                "bright-star artifact sha256 mismatch: {} != {} ({})",
-                actual,
-                expected_sha256,
+                "bright-star artifact sha256 mismatch: {actual} != {expected_sha256} ({})",
                 path.display()
             );
         }
@@ -213,7 +236,201 @@ impl BrightStarArtifact {
     }
 }
 
-/// Load and verify a checksum-pinned bright-star artifact.
+fn validate_inputs(inputs: &[BrightStarInputProvenance]) -> Result<()> {
+    let mut identities = BTreeSet::new();
+    for input in inputs {
+        if input.source_id.trim().is_empty() || input.release.trim().is_empty() {
+            bail!("bright-star input source_id and release must not be empty");
+        }
+        validate_sha256(&input.sha256, "bright-star input sha256")?;
+        if !input.retrieval_url.starts_with("https://")
+            || !input.license_or_terms_url.starts_with("https://")
+        {
+            bail!("bright-star input retrieval and terms URLs must use HTTPS");
+        }
+        if !identities.insert((input.role, input.source_id.as_str())) {
+            bail!("duplicate bright-star provenance role/source entry");
+        }
+    }
+    Ok(())
+}
+
+fn validate_source(source: &BrightStarSourceRecord) -> Result<()> {
+    if source.origin_catalogue.trim().is_empty()
+        || source.spectral_route.trim().is_empty()
+        || source.classification_reason.trim().is_empty()
+    {
+        bail!("bright-star source identity, route, and reason must not be empty");
+    }
+    if !source.ra_deg_j2016.is_finite()
+        || !(0.0..360.0).contains(&source.ra_deg_j2016)
+        || !source.dec_deg_j2016.is_finite()
+        || !(-90.0..=90.0).contains(&source.dec_deg_j2016)
+    {
+        bail!(
+            "bright-star source {} has invalid J2016 coordinates",
+            source.source_id
+        );
+    }
+    let admitted = matches!(
+        source.class,
+        SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
+    );
+    match source.class {
+        SupplementClass::SupplementOnly if source.gaia_source_id.is_some() => bail!(
+            "supplement-only source {} must not have gaia_source_id",
+            source.source_id
+        ),
+        SupplementClass::MatchedAndReplacesPrimary
+        | SupplementClass::MatchedAndRejectedAsDuplicate
+            if source.gaia_source_id.is_none() =>
+        {
+            bail!(
+                "matched source {} requires gaia_source_id",
+                source.source_id
+            )
+        }
+        SupplementClass::AmbiguousManualReview if source.gaia_source_id.is_some() => bail!(
+            "ambiguous source {} must not select a Gaia identity",
+            source.source_id
+        ),
+        _ => {}
+    }
+    let numeric = [
+        source.flux_336_650_ph_m2_s,
+        source.statistical_uncertainty_ph_m2_s,
+        source.systematic_independent_uncertainty_ph_m2_s,
+    ];
+    if numeric
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+        || (admitted && source.flux_336_650_ph_m2_s <= 0.0)
+    {
+        bail!(
+            "bright-star source {} has invalid flux or uncertainty",
+            source.source_id
+        );
+    }
+    let mut groups = BTreeSet::new();
+    for term in &source.systematic_catalogue_correlated {
+        if term.correlation_group_id.trim().is_empty()
+            || !groups.insert(term.correlation_group_id.as_str())
+            || !term.uncertainty_ph_m2_s.is_finite()
+            || term.uncertainty_ph_m2_s < 0.0
+        {
+            bail!(
+                "bright-star source {} has invalid correlated uncertainty",
+                source.source_id
+            );
+        }
+    }
+    Ok(())
+}
+
+fn recompute_counts(sources: &[BrightStarSourceRecord]) -> BrightStarCounts {
+    let mut counts = BrightStarCounts {
+        input_stars: sources.len() as u64,
+        supplement_only: 0,
+        matched_and_replaces_primary: 0,
+        matched_and_rejected_as_duplicate: 0,
+        ambiguous: 0,
+        final_admitted: 0,
+    };
+    for source in sources {
+        match source.class {
+            SupplementClass::SupplementOnly => counts.supplement_only += 1,
+            SupplementClass::MatchedAndReplacesPrimary => counts.matched_and_replaces_primary += 1,
+            SupplementClass::MatchedAndRejectedAsDuplicate => {
+                counts.matched_and_rejected_as_duplicate += 1
+            }
+            SupplementClass::AmbiguousManualReview => counts.ambiguous += 1,
+        }
+        if matches!(
+            source.class,
+            SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
+        ) {
+            counts.final_admitted += 1;
+        }
+    }
+    counts
+}
+
+fn rebuild_pixels(nside: u32, sources: &[BrightStarSourceRecord]) -> Result<Vec<BrightStarPixel>> {
+    crate::starlight::config::validate_canonical_nside(nside)?;
+    let mut pixels: BTreeMap<u64, PixelBuild> = BTreeMap::new();
+    for source in sources {
+        validate_source(source)?;
+        if !matches!(
+            source.class,
+            SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
+        ) {
+            continue;
+        }
+        let pixel = u64::from(galactic_nested_pixel_from_icrs_position(
+            source.ra_deg_j2016,
+            source.dec_deg_j2016,
+            nside,
+        )?);
+        let entry = pixels.entry(pixel).or_default();
+        entry.flux += source.flux_336_650_ph_m2_s;
+        entry.stat_var += source.statistical_uncertainty_ph_m2_s.powi(2);
+        entry.independent_sys_var += source.systematic_independent_uncertainty_ph_m2_s.powi(2);
+        for term in &source.systematic_catalogue_correlated {
+            *entry
+                .correlated
+                .entry(term.correlation_group_id.clone())
+                .or_default() += term.uncertainty_ph_m2_s;
+        }
+        entry.sources += 1;
+    }
+    Ok(pixels
+        .into_iter()
+        .map(|(pixel, p)| BrightStarPixel {
+            pixel,
+            flux_ph_m2_s: p.flux,
+            statistical_uncertainty_ph_m2_s: p.stat_var.sqrt(),
+            systematic_independent_uncertainty_ph_m2_s: p.independent_sys_var.sqrt(),
+            systematic_catalogue_correlated: p.correlated,
+            admitted_sources: p.sources,
+        })
+        .collect())
+}
+
+fn validate_conservation(
+    sources: &[BrightStarSourceRecord],
+    pixels: &[BrightStarPixel],
+) -> Result<()> {
+    let admitted = |s: &&BrightStarSourceRecord| {
+        matches!(
+            s.class,
+            SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
+        )
+    };
+    let source_flux: f64 = sources
+        .iter()
+        .filter(admitted)
+        .map(|s| s.flux_336_650_ph_m2_s)
+        .sum();
+    let source_count = sources.iter().filter(admitted).count() as u64;
+    let pixel_flux: f64 = pixels.iter().map(|p| p.flux_ph_m2_s).sum();
+    let pixel_count: u64 = pixels.iter().map(|p| p.admitted_sources).sum();
+    if source_flux.to_bits() != pixel_flux.to_bits() || source_count != pixel_count {
+        bail!("bright-star source/pixel flux or count conservation failed");
+    }
+    Ok(())
+}
+
+fn validate_sha256(value: &str, label: &str) -> Result<()> {
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        bail!("{label} must be 64 lowercase hexadecimal characters");
+    }
+    Ok(())
+}
+
 pub fn load_bright_star_artifact(path: &Path, expected_sha256: &str) -> Result<BrightStarArtifact> {
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
     let artifact: BrightStarArtifact = serde_json::from_slice(&bytes)
@@ -225,122 +442,152 @@ pub fn load_bright_star_artifact(path: &Path, expected_sha256: &str) -> Result<B
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::starlight::bright_stars::policy::{
-        BrightStarPopulationPolicy, BrightStarPrecedencePolicy, SupplementClass,
-    };
-    use std::io::Write;
     use tempfile::NamedTempFile;
 
-    fn sample_source(id: &str, class: SupplementClass, flux: f64) -> BrightStarSourceRecord {
+    fn source(
+        id: &str,
+        class: SupplementClass,
+        gaia: Option<u64>,
+        flux: f64,
+    ) -> BrightStarSourceRecord {
         BrightStarSourceRecord {
             source_id: id.into(),
-            origin_catalogue: "fixture-hip2".into(),
+            origin_catalogue: "hip2".into(),
             class,
-            gaia_source_id: None,
+            gaia_source_id: gaia,
             ra_deg_j2016: 10.0,
             dec_deg_j2016: 20.0,
             flux_336_650_ph_m2_s: flux,
             statistical_uncertainty_ph_m2_s: flux * 0.01,
-            systematic_uncertainty_ph_m2_s: flux * 0.05,
-            spectral_route: "fixture-template".into(),
-            classification_reason: "test".into(),
+            systematic_independent_uncertainty_ph_m2_s: flux * 0.02,
+            systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: flux * 0.03,
+            }],
+            spectral_route: "fixture".into(),
+            classification_reason: "fixture".into(),
         }
     }
-
-    #[test]
-    fn artifact_bins_admitted_sources_only() {
-        let sources = vec![
-            sample_source("b", SupplementClass::SupplementOnly, 10.0),
-            sample_source("a", SupplementClass::MatchedAndRejectedAsDuplicate, 99.0),
-            sample_source("c", SupplementClass::MatchedAndReplacesPrimary, 5.0),
-            sample_source("d", SupplementClass::AmbiguousManualReview, 7.0),
-        ];
-        let art = BrightStarArtifact::from_sources(
+    fn artifact(sources: Vec<BrightStarSourceRecord>) -> Result<BrightStarArtifact> {
+        BrightStarArtifact::from_sources(
             1,
             "deadbeef",
-            BTreeMap::new(),
+            Vec::new(),
             sources,
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
         )
+    }
+
+    #[test]
+    fn admitted_accounting_and_uncertainty_groups() {
+        let art = artifact(vec![
+            source("a", SupplementClass::SupplementOnly, None, 10.0),
+            source(
+                "b",
+                SupplementClass::MatchedAndReplacesPrimary,
+                Some(7),
+                5.0,
+            ),
+            source(
+                "c",
+                SupplementClass::MatchedAndRejectedAsDuplicate,
+                Some(8),
+                99.0,
+            ),
+            source("d", SupplementClass::AmbiguousManualReview, None, 7.0),
+        ])
         .unwrap();
         assert_eq!(art.counts.final_admitted, 2);
-        assert_eq!(art.counts.matched_and_rejected_as_duplicate, 1);
-        assert_eq!(art.pixels.len(), 1);
-        assert!((art.pixels[0].flux_ph_m2_s - 15.0).abs() < 1e-12);
-        // Deterministic source ordering by id.
-        assert_eq!(art.sources[0].source_id, "a");
+        assert_eq!(art.pixels[0].flux_ph_m2_s, 15.0);
+        assert!(
+            (art.pixels[0].systematic_catalogue_correlated["hip2-zero-point"] - 0.45).abs() < 1e-12
+        );
+        assert_eq!(
+            art.suppressed_gaia_source_ids().unwrap(),
+            BTreeSet::from([7])
+        );
     }
 
     #[test]
-    fn load_rejects_wrong_checksum() {
-        let art = BrightStarArtifact::from_sources(
-            1,
-            "c",
-            BTreeMap::new(),
-            vec![sample_source("s", SupplementClass::SupplementOnly, 1.0)],
-            BrightStarPopulationPolicy::v1(),
-            BrightStarPrecedencePolicy::v1(),
-        )
-        .unwrap();
-        let mut tmp = NamedTempFile::new().unwrap();
-        serde_json::to_writer_pretty(&mut tmp, &art).unwrap();
-        tmp.flush().unwrap();
-        let err = load_bright_star_artifact(tmp.path(), &"0".repeat(64)).unwrap_err();
-        assert!(err.to_string().contains("sha256 mismatch"));
+    fn duplicate_id_invariants_fail() {
+        assert!(artifact(vec![
+            source("a", SupplementClass::SupplementOnly, None, 1.0),
+            source("a", SupplementClass::SupplementOnly, None, 2.0)
+        ])
+        .is_err());
+        assert!(artifact(vec![
+            source(
+                "a",
+                SupplementClass::MatchedAndReplacesPrimary,
+                Some(9),
+                1.0
+            ),
+            source(
+                "b",
+                SupplementClass::MatchedAndReplacesPrimary,
+                Some(9),
+                2.0
+            )
+        ])
+        .is_err());
     }
 
     #[test]
-    fn load_accepts_matching_checksum() {
-        let art = BrightStarArtifact::from_sources(
-            1,
-            "c",
-            BTreeMap::new(),
-            vec![sample_source("s", SupplementClass::SupplementOnly, 1.0)],
-            BrightStarPopulationPolicy::v1(),
-            BrightStarPrecedencePolicy::v1(),
-        )
+    fn classification_and_numeric_invariants_fail() {
+        assert!(artifact(vec![source(
+            "a",
+            SupplementClass::SupplementOnly,
+            Some(1),
+            1.0
+        )])
+        .is_err());
+        assert!(artifact(vec![source(
+            "a",
+            SupplementClass::MatchedAndReplacesPrimary,
+            None,
+            1.0
+        )])
+        .is_err());
+        assert!(artifact(vec![source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            f64::NAN
+        )])
+        .is_err());
+    }
+
+    #[test]
+    fn tampered_counts_and_pixels_fail() {
+        let mut art = artifact(vec![source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0,
+        )])
         .unwrap();
+        art.counts.final_admitted = 0;
+        assert!(art.validate().is_err());
+        art.counts.final_admitted = 1;
+        art.pixels[0].flux_ph_m2_s = 2.0;
+        assert!(art.validate().is_err());
+    }
+
+    #[test]
+    fn checksum_and_post_deserialization_validation() {
+        let art = artifact(vec![source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0,
+        )])
+        .unwrap();
+        let bytes = art.to_json_pretty().unwrap();
         let mut tmp = NamedTempFile::new().unwrap();
-        let bytes = serde_json::to_vec_pretty(&art).unwrap();
-        tmp.write_all(&bytes).unwrap();
-        tmp.flush().unwrap();
+        std::io::Write::write_all(&mut tmp, &bytes).unwrap();
         let sha = checksum_io::sha256_bytes(&bytes);
-        let loaded = load_bright_star_artifact(tmp.path(), &sha).unwrap();
-        assert_eq!(loaded.model_id, BRIGHT_STAR_MODEL_ID);
-        assert!(!loaded.scientifically_validated);
-    }
-
-    #[test]
-    fn ordering_changes_are_byte_identical() {
-        let s1 = vec![
-            sample_source("z", SupplementClass::SupplementOnly, 3.0),
-            sample_source("a", SupplementClass::SupplementOnly, 2.0),
-        ];
-        let s2 = vec![
-            sample_source("a", SupplementClass::SupplementOnly, 2.0),
-            sample_source("z", SupplementClass::SupplementOnly, 3.0),
-        ];
-        let a1 = BrightStarArtifact::from_sources(
-            1,
-            "c",
-            BTreeMap::new(),
-            s1,
-            BrightStarPopulationPolicy::v1(),
-            BrightStarPrecedencePolicy::v1(),
-        )
-        .unwrap();
-        let a2 = BrightStarArtifact::from_sources(
-            1,
-            "c",
-            BTreeMap::new(),
-            s2,
-            BrightStarPopulationPolicy::v1(),
-            BrightStarPrecedencePolicy::v1(),
-        )
-        .unwrap();
-        let b1 = serde_json::to_vec(&a1).unwrap();
-        let b2 = serde_json::to_vec(&a2).unwrap();
-        assert_eq!(b1, b2);
+        assert_eq!(load_bright_star_artifact(tmp.path(), &sha).unwrap(), art);
+        assert!(load_bright_star_artifact(tmp.path(), &"0".repeat(64)).is_err());
     }
 }

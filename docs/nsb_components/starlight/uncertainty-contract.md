@@ -193,6 +193,17 @@ sigma_fully_correlated   = sum(sigma_i)             # linear, fully correlated t
 sigma_total              = hypot(sigma_statistical, sigma_systematic)
 ```
 
+## Bright-star supplement correlation groups
+
+The experimental `starlight-bright-stars-v1` artifact separates
+`statistical_uncertainty_ph_m2_s`,
+`systematic_independent_uncertainty_ph_m2_s`, and named
+`systematic_catalogue_correlated` terms. Independent terms add in quadrature.
+Terms sharing the same non-empty `correlation_group_id` add linearly across
+sources and pixels; totals from distinct groups combine in quadrature. This
+prevents Hipparcos, Tycho, response-curve, and template-library calibration
+systems from being treated as correlated without evidence.
+
 The published canonical map's `total_uncertainty_ph_m2_s` column is exactly
 `hypot(statistical_uncertainty_ph_m2_s, systematic_uncertainty_ph_m2_s)`,
 where `systematic_uncertainty_ph_m2_s` is itself
