@@ -321,7 +321,17 @@ fn admit_weighted_source(
     }
     let correction = ultraviolet_correction.ok_or("uv_correction_missing")?;
     let Some(predictors) = &gaia_source.predictors else {
-        return Err("invalid_uv_predictors");
+        // Issue #182: do not discard valid measured 336–650 nm flux solely
+        // because UV predictors (bp_rp / phot_g_mean_mag) are unavailable.
+        let mut combined = correction
+            .retain_measured_when_uv_unavailable(weighted_flux, weighted_statistical)
+            .map_err(|_| "uv_unavailable_retention_failed")?;
+        combined.systematic_uncertainty_300_650_ph_m2_s = combined
+            .systematic_uncertainty_300_650_ph_m2_s
+            .hypot(systematic);
+        return shard
+            .admit_corrected(gaia_source.icrs, &combined)
+            .map_err(|_| "admission_failed");
     };
     let evaluation = match correction.evaluate(UvEvaluationInput {
         predictors,

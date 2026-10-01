@@ -166,12 +166,16 @@ canonical reconciliation input `outputs/shards/<partition>.json` before
 merging. Compute nodes and the validating login node must therefore share the
 same workspace.
 
-The versioned admission policy `gaia-dr3-full-population-v1` accounts for every
+The versioned admission policy `gaia-dr3-full-population-v2` accounts for every
 GaiaSource row exactly once:
 
 - XP continuous rows joined to GaiaSource follow the measured or UV-corrected
   path (`no_gaia_source_match`, `calibration_failed`, `invalid_flux`,
   `invalid_uncertainty`, and UV reject reasons when configured);
+- when the combined 300–650 nm product is configured and UV predictors
+  (`bp_rp`, `phot_g_mean_mag`) are unavailable, selection-weighted measured
+  336–650 nm flux is retained with `ApplicabilityStatus::Unavailable` rather
+  than discarding the entire source (issue #182);
 - non-XP rows are routed through the pinned photometric-inference artifact
   (`photometric_g_bp_rp`, `photometric_partial`, `photometric_g_only`) or
   excluded (`no_xp_spectrum` when no artifact is configured,

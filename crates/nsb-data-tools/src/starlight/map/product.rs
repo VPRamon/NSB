@@ -23,12 +23,12 @@ const MAP_FLUX_QUANTITY: &str = "integrated_per_pixel";
 const MAP_FLUX_UNIT: &str = "ph_m-2_s-1";
 const MAP_DERIVATION: &str = "canonical_gaia_source_accumulation";
 const MAP_SOURCE_COUNT_SEMANTICS: &str = "exact_source_membership";
-const ADMISSION_POLICY_ID: &str = "gaia-dr3-full-population-v1";
+const ADMISSION_POLICY_ID: &str = "gaia-dr3-full-population-v2";
 const POPULATION_POLICY_ID: &str = "selection-function-identity-stub-v1";
 const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
-const CORRECTED_SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-uv-corrected-300-650-v1";
+const CORRECTED_SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-uv-corrected-300-650-v2";
 
-const ADMISSION_RULES: [&str; 8] = [
+const ADMISSION_RULES: [&str; 9] = [
     "require_gaia_source_match",
     "exclude_calibration_failed",
     "exclude_non_positive_or_non_finite_flux",
@@ -37,6 +37,7 @@ const ADMISSION_RULES: [&str; 8] = [
     "exclude_scientific_exclusion_nonstellar",
     "route_non_xp_via_photometric_inference",
     "exclude_no_xp_spectrum_without_photometric_artifact",
+    "retain_measured_336_650_when_uv_predictors_unavailable",
 ];
 
 /// Optional selection-function identity passed from finalize into the merge report.
@@ -1152,7 +1153,7 @@ fn science_policy_report(
             systematic_correlation_scope: ultraviolet
                 .map(|metadata| CorrelationScope::from(metadata.systematic_correlation)),
             limitation: if corrected {
-                "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately.".to_string()
+                "The 300-336 nm contribution is model-corrected when UV predictors are available. Sources lacking UV predictors retain selection-weighted measured 336-650 nm flux only; their combined 300-650 contribution is a measured-band lower bound with a conservative missing-UV systematic (issue #182), not an invented UV point estimate.".to_string()
             } else {
                 "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied.".to_string()
             },
@@ -1705,6 +1706,7 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
             crate::starlight::uv::ApplicabilityStatus::InDomain => 0,
             crate::starlight::uv::ApplicabilityStatus::Boundary => 1,
             crate::starlight::uv::ApplicabilityStatus::OutOfDomain => 2,
+            crate::starlight::uv::ApplicabilityStatus::Unavailable => 3,
         });
         bytes.extend_from_slice(&count.to_be_bytes());
     }

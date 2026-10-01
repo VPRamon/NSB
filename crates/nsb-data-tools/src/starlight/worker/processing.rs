@@ -175,35 +175,46 @@ pub(crate) fn evaluate_source_for_diagnostic(
             outcome.exclusion_reason = Some("uv_correction_missing".to_string());
             return outcome;
         };
-        let Some(predictors) = &gaia_source.predictors else {
-            outcome.exclusion_reason = Some("invalid_uv_predictors".to_string());
-            return outcome;
-        };
-        let evaluation = match correction.evaluate(UvEvaluationInput {
-            predictors,
-            measured_band: Some(MeasuredBandInput {
-                flux_336_650_ph_m2_s: raw_flux_336_650,
-                statistical_uncertainty_336_650_ph_m2_s: 0.0,
-            }),
-        }) {
-            Ok(evaluation) => evaluation,
-            Err(_) => {
-                outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
+        if let Some(predictors) = &gaia_source.predictors {
+            let evaluation = match correction.evaluate(UvEvaluationInput {
+                predictors,
+                measured_band: Some(MeasuredBandInput {
+                    flux_336_650_ph_m2_s: raw_flux_336_650,
+                    statistical_uncertainty_336_650_ph_m2_s: 0.0,
+                }),
+            }) {
+                Ok(evaluation) => evaluation,
+                Err(_) => {
+                    outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
+                    return outcome;
+                }
+            };
+            if evaluation.decision == EvaluationDecision::Rejected {
+                outcome.exclusion_reason = Some("uv_out_of_domain".to_string());
                 return outcome;
             }
-        };
-        if evaluation.decision == EvaluationDecision::Rejected {
-            outcome.exclusion_reason = Some("uv_out_of_domain".to_string());
-            return outcome;
-        }
-        match correction.combine_with_measured(raw_flux_336_650, 0.0, &evaluation) {
-            Ok(combined) => {
-                outcome.uv_flux_300_336_ph_m2_s = combined.flux_300_336_ph_m2_s;
-                flux_300_650 = combined.flux_300_650_ph_m2_s;
+            match correction.combine_with_measured(raw_flux_336_650, 0.0, &evaluation) {
+                Ok(combined) => {
+                    outcome.uv_flux_300_336_ph_m2_s = combined.flux_300_336_ph_m2_s;
+                    flux_300_650 = combined.flux_300_650_ph_m2_s;
+                }
+                Err(_) => {
+                    outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
+                    return outcome;
+                }
             }
-            Err(_) => {
-                outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
-                return outcome;
+        } else {
+            // Match production (#182): retain measured 336–650 when UV predictors
+            // are unavailable rather than discarding the entire source.
+            match correction.retain_measured_when_uv_unavailable(raw_flux_336_650, 0.0) {
+                Ok(combined) => {
+                    outcome.uv_flux_300_336_ph_m2_s = combined.flux_300_336_ph_m2_s;
+                    flux_300_650 = combined.flux_300_650_ph_m2_s;
+                }
+                Err(_) => {
+                    outcome.exclusion_reason = Some("uv_unavailable_retention_failed".to_string());
+                    return outcome;
+                }
             }
         }
     }
@@ -212,31 +223,10 @@ pub(crate) fn evaluate_source_for_diagnostic(
     let mut weight = 1.0;
     if stage >= AblationStage::D {
         if let Some(selection) = selection_correction {
-            let Some(g_mag) = gaia_source.phot_g_mean_mag else {
-                outcome.exclusion_reason = Some("selection_missing_g_magnitude".to_string());
-                return outcome;
-            };
-            let healpix = match healpix::icrs_equatorial_nested_pixel(
-                gaia_source.icrs.ra_deg,
-                gaia_source.icrs.dec_deg,
-                selection.artifact().healpix_nside,
-            ) {
-                Ok(pixel) => pixel,
-                Err(_) => {
-                    outcome.exclusion_reason = Some("selection_healpix_failed".to_string());
-                    return outcome;
-                }
-            };
-            outcome.selection_healpix = Some(healpix);
-            match selection.evaluate(healpix, g_mag, gaia_source.bp_rp) {
-                Ok(evaluation) => {
-                    weight = evaluation.weight;
-                    outcome.selection_weight = evaluation.weight;
-                    outcome.selection_completeness = evaluation.completeness;
-                    outcome.selection_capped = evaluation.capped;
-                }
-                Err(_) => {
-                    outcome.exclusion_reason = Some("selection_evaluation_failed".to_string());
+            match apply_selection_weight(selection, gaia_source, &mut outcome) {
+                Ok(value) => weight = value,
+                Err(reason) => {
+                    outcome.exclusion_reason = Some(reason.to_string());
                     return outcome;
                 }
             }
@@ -248,6 +238,30 @@ pub(crate) fn evaluate_source_for_diagnostic(
     outcome.exclusion_reason = None;
     let _ = branch;
     outcome
+}
+
+fn apply_selection_weight(
+    selection: &SelectionCorrection,
+    gaia_source: &GaiaSourceEntry,
+    outcome: &mut SourceOutcome,
+) -> Result<f64, &'static str> {
+    let Some(g_mag) = gaia_source.phot_g_mean_mag else {
+        return Err("selection_missing_g_magnitude");
+    };
+    let healpix = healpix::icrs_equatorial_nested_pixel(
+        gaia_source.icrs.ra_deg,
+        gaia_source.icrs.dec_deg,
+        selection.artifact().healpix_nside,
+    )
+    .map_err(|_| "selection_healpix_failed")?;
+    outcome.selection_healpix = Some(healpix);
+    let evaluation = selection
+        .evaluate(healpix, g_mag, gaia_source.bp_rp)
+        .map_err(|_| "selection_evaluation_failed")?;
+    outcome.selection_weight = evaluation.weight;
+    outcome.selection_completeness = evaluation.completeness;
+    outcome.selection_capped = evaluation.capped;
+    Ok(evaluation.weight)
 }
 
 impl PartialOrd for AblationStage {

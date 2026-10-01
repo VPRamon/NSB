@@ -237,8 +237,9 @@ pub fn run_flux_attribution(
         by_exclusion_reason: by_reason,
         totals,
         interpretation: vec![
-            "selection-weighted 336-650 flux for invalid_uv_predictors is the measured Gaia contribution currently discarded solely because UV predictors are unavailable".to_string(),
+            "selection-weighted 336-650 flux for invalid_uv_predictors is the measured Gaia contribution discarded by the pre-#182 whole-source exclusion policy".to_string(),
             "counterfactual_retain_invalid_uv_measured_only adds that discarded measured flux without inventing a 300-336 nm correction".to_string(),
+            "production admission after #182 retains measured 336-650 for these sources with ApplicabilityStatus::Unavailable; this diagnostic still applies the legacy exclusion for quantification".to_string(),
             "invalid_uv_lost_flux_over_estimated_nsb2_total uses the #182 baseline ratio NSB/nsb2≈0.756 applied to this sample's admitted combined flux".to_string(),
             "UV predictors for the production artifact are bp_rp and phot_g_mean_mag; predictor_failure_detail separates missing colour vs magnitude".to_string(),
         ],
@@ -357,6 +358,9 @@ fn evaluate_source_for_flux_attribution(
         return outcome;
     };
     let Some(predictors) = &gaia_source.predictors else {
+        // Experiment C intentionally reproduces the pre-#182 exclusion so the
+        // discarded measured 336–650 nm flux can be quantified. Production
+        // admission now retains that flux via retain_measured_when_uv_unavailable.
         outcome.exclusion_reason = Some("invalid_uv_predictors".to_string());
         outcome.predictor_failure_detail = Some(classify_predictor_failure(gaia_source));
         return outcome;
