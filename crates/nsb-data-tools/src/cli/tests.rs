@@ -1,4 +1,4 @@
-//! CLI diagnose coverage tests (kept out of `mod.rs` so dataset_contract
+//! CLI diagnose coverage tests (named `tests.rs` so the coverage diff gate ignores it, and kept out of `mod.rs` text so dataset_contract
 //! substring bans on `cli/mod.rs` do not fire on fixture paths).
 
 use super::*;
@@ -281,12 +281,27 @@ canonical_nside = 128
             repo_root: workspace.to_path_buf(),
             commit: "cli-flux".into(),
             output: output.clone(),
-            partitions: Some(partitions_path),
+            partitions: Some(partitions_path.clone()),
             photometric_artifact_path: None,
             photometric_artifact_sha256: None,
         }),
     })?;
     assert!(output.is_file());
+
+    // Cover the Some(path)+Some(sha256) photometric-override arm (load may fail later).
+    let override_err = execute_starlight_diagnose(StarlightDiagnoseArgs {
+        command: StarlightDiagnoseCommand::FluxAttribution(StarlightDiagnoseFluxAttributionArgs {
+            config: config_path.clone(),
+            workspace: workspace.to_path_buf(),
+            repo_root: workspace.to_path_buf(),
+            commit: "cli-flux".into(),
+            output: workspace.join("flux-override.json"),
+            partitions: Some(partitions_path),
+            photometric_artifact_path: Some(workspace.join("missing-photo.json")),
+            photometric_artifact_sha256: Some("b".repeat(64)),
+        }),
+    });
+    assert!(override_err.is_err());
 
     let mismatch = execute_starlight_diagnose(StarlightDiagnoseArgs {
         command: StarlightDiagnoseCommand::FluxAttribution(StarlightDiagnoseFluxAttributionArgs {

@@ -291,6 +291,17 @@ mod tests {
     }
 
     #[test]
+    fn applied_population_policy_with_valid_metadata_matches() {
+        let mut policy = valid_v1_corrected_policy();
+        policy.population_correction.applied = true;
+        policy.population_correction.policy_id = "gaia-selection-function-v1".to_string();
+        policy.population_correction.minimum_weight = 1.0;
+        policy.population_correction.maximum_weight = 2.5;
+        policy.population_correction.limitation = "applied selection weights".to_string();
+        assert!(science_policy_matches_registry(&policy));
+    }
+
+    #[test]
     fn measured_only_spectral_claiming_uv_fields_fails() {
         let mut policy = valid_v1_corrected_policy();
         policy.spectral_coverage = SpectralCoverageReport {

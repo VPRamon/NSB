@@ -984,4 +984,4 @@ fn promote(args: PromoteArgs) -> Result<()> {
 }
 
 #[cfg(test)]
-mod diagnose_coverage_tests;
+mod tests;
