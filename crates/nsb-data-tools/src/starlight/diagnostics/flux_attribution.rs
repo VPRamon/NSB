@@ -45,7 +45,10 @@ impl FluxAttributionRow {
         self.sum_weighted_flux_300_650_ph_m2_s += other.sum_weighted_flux_300_650_ph_m2_s;
         self.sum_uv_flux_300_336_ph_m2_s += other.sum_uv_flux_300_336_ph_m2_s;
         for (key, count) in &other.predictor_failure_detail {
-            *self.predictor_failure_detail.entry(key.clone()).or_default() += count;
+            *self
+                .predictor_failure_detail
+                .entry(key.clone())
+                .or_default() += count;
         }
     }
 }
@@ -416,7 +419,10 @@ fn classify_predictor_failure(gaia_source: &GaiaSourceEntry) -> String {
         .phot_g_mean_mag
         .filter(|value| value.is_finite())
         .is_none();
-    let missing_bp_rp = gaia_source.bp_rp.filter(|value| value.is_finite()).is_none();
+    let missing_bp_rp = gaia_source
+        .bp_rp
+        .filter(|value| value.is_finite())
+        .is_none();
     match (missing_g, missing_bp_rp) {
         (true, true) => "missing_phot_g_mean_mag_and_bp_rp".to_string(),
         (true, false) => "missing_phot_g_mean_mag".to_string(),

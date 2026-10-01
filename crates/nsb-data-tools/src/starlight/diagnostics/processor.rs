@@ -560,7 +560,9 @@ pub(crate) fn load_photometric(
     .transpose()
 }
 
-pub(crate) fn load_selection(pin: Option<&ArtifactPinConfig>) -> Result<Option<SelectionCorrection>> {
+pub(crate) fn load_selection(
+    pin: Option<&ArtifactPinConfig>,
+) -> Result<Option<SelectionCorrection>> {
     pin.map(|config| {
         let correction = SelectionCorrection::load(&config.artifact_path, &config.sha256)?;
         correction.require_production_status()?;
