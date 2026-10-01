@@ -9,6 +9,7 @@ use super::baseline::load_smoke_partitions;
 use super::processor::{load_photometric, load_selection, load_uv, PhotometricArtifactOverride};
 use crate::dataset::RunConfig;
 use crate::starlight::healpix::{self, galactic_nested_pixel_from_icrs_position};
+use crate::starlight::map::accumulator::StableSum;
 use crate::starlight::photometric::{PhotometricCorrection, PhotometricFeatures, RouteDecision};
 use crate::starlight::selection::SelectionCorrection;
 use crate::starlight::sources::acquisition;
@@ -20,7 +21,7 @@ use crate::starlight::worker::processing::{population_branch_reason, scientific_
 use crate::starlight::xp::{integrate_photon_flux, GaiaXpContinuousCalibrator, XpProduct};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// One row of flux-weighted exclusion / admission accounting.
@@ -36,7 +37,48 @@ pub struct FluxAttributionRow {
     pub predictor_failure_detail: BTreeMap<String, u64>,
 }
 
+#[derive(Default)]
+struct FluxAttributionAccumulator {
+    source_count: u64,
+    raw_336_650: StableSum,
+    weighted_336_650: StableSum,
+    weighted_300_650: StableSum,
+    uv_300_336: StableSum,
+    predictor_failure_detail: BTreeMap<String, u64>,
+}
+
+impl FluxAttributionAccumulator {
+    fn absorb_outcome(&mut self, outcome: &AttributionOutcome) -> Result<()> {
+        self.source_count += 1;
+        self.raw_336_650.add(outcome.raw_flux_336_650_ph_m2_s)?;
+        self.weighted_336_650
+            .add(outcome.selection_weighted_flux_336_650_ph_m2_s)?;
+        self.weighted_300_650
+            .add(outcome.weighted_flux_300_650_ph_m2_s)?;
+        self.uv_300_336.add(outcome.uv_flux_300_336_ph_m2_s)?;
+        if let Some(detail) = &outcome.predictor_failure_detail {
+            *self
+                .predictor_failure_detail
+                .entry(detail.clone())
+                .or_default() += 1;
+        }
+        Ok(())
+    }
+
+    fn into_row(self) -> FluxAttributionRow {
+        FluxAttributionRow {
+            source_count: self.source_count,
+            sum_raw_flux_336_650_ph_m2_s: self.raw_336_650.value(),
+            sum_selection_weighted_flux_336_650_ph_m2_s: self.weighted_336_650.value(),
+            sum_weighted_flux_300_650_ph_m2_s: self.weighted_300_650.value(),
+            sum_uv_flux_300_336_ph_m2_s: self.uv_300_336.value(),
+            predictor_failure_detail: self.predictor_failure_detail,
+        }
+    }
+}
+
 impl FluxAttributionRow {
+    #[cfg(test)]
     fn absorb(&mut self, other: &Self) {
         self.source_count += other.source_count;
         self.sum_raw_flux_336_650_ph_m2_s += other.sum_raw_flux_336_650_ph_m2_s;
@@ -144,8 +186,11 @@ pub fn run_flux_attribution(
         .unwrap_or_default();
 
     let mut observed = 0_u64;
-    let mut admitted = FluxAttributionRow::default();
-    let mut by_reason: BTreeMap<String, FluxAttributionRow> = BTreeMap::new();
+    let mut admitted_acc = FluxAttributionAccumulator::default();
+    let mut by_reason_acc: BTreeMap<String, FluxAttributionAccumulator> = BTreeMap::new();
+
+    let mut selected_partitions = selected_partitions;
+    selected_partitions.sort();
 
     for partition in &selected_partitions {
         let gaia_path = acquisition::verified_object_for_partition(
@@ -161,27 +206,84 @@ pub fn run_flux_attribution(
             partition,
         )?;
         let gaia_sources = load_gaia_sources(&gaia_path, &predictor_names)?;
-        let mut xp_by_source = BTreeMap::new();
+        // Mirror production worker routing: XP stream first (file order), mark
+        // processed including calibration failures, then remaining Gaia sources
+        // in sorted source_id order for photometric fallback.
+        let mut processed = HashSet::new();
         let mut stream = crate::starlight::xp::stream_bulk_ecsv_gz(&xp_path)?;
         while let Some(record) = stream.next_record()? {
-            let source_id = record.source_id.parse::<u64>()?;
-            if let Ok(product) = calibrator.calibrate(&record) {
-                xp_by_source.insert(source_id, product);
+            let source_id = record.source_id.parse::<u64>().with_context(|| {
+                format!(
+                    "invalid XP source_id {} in partition {partition}",
+                    record.source_id
+                )
+            })?;
+            processed.insert(source_id);
+            let Some(gaia_source) = gaia_sources.get(&source_id) else {
+                // XP row without a matching GaiaSource row has no authoritative
+                // ICRS position; skip rather than invent coordinates (production).
+                continue;
+            };
+            observed += 1;
+            // Match production ordering: scientific exclusion before calibration.
+            if let Some(reason) = scientific_exclusion_reason(gaia_source) {
+                let outcome = AttributionOutcome {
+                    admitted: false,
+                    exclusion_reason: Some(reason.to_string()),
+                    predictor_failure_detail: None,
+                    raw_flux_336_650_ph_m2_s: 0.0,
+                    selection_weighted_flux_336_650_ph_m2_s: 0.0,
+                    weighted_flux_300_650_ph_m2_s: 0.0,
+                    uv_flux_300_336_ph_m2_s: 0.0,
+                };
+                record_outcome(&mut admitted_acc, &mut by_reason_acc, &outcome)?;
+                continue;
             }
+            let outcome = match calibrator.calibrate(&record) {
+                Ok(product) => evaluate_source_for_flux_attribution(
+                    gaia_source,
+                    XpRoute::Calibrated(&product),
+                    nside,
+                    ultraviolet.as_ref(),
+                    photometric.as_ref(),
+                    selection.as_ref(),
+                ),
+                Err(_) => evaluate_source_for_flux_attribution(
+                    gaia_source,
+                    XpRoute::CalibrationFailed,
+                    nside,
+                    ultraviolet.as_ref(),
+                    photometric.as_ref(),
+                    selection.as_ref(),
+                ),
+            };
+            record_outcome(&mut admitted_acc, &mut by_reason_acc, &outcome)?;
         }
-        for (source_id, gaia_source) in &gaia_sources {
+
+        let mut remaining: Vec<_> = gaia_sources
+            .iter()
+            .filter(|(source_id, _)| !processed.contains(source_id))
+            .collect();
+        remaining.sort_by_key(|(source_id, _)| *source_id);
+        for (_source_id, gaia_source) in remaining {
+            observed += 1;
             let outcome = evaluate_source_for_flux_attribution(
                 gaia_source,
-                xp_by_source.get(source_id),
+                XpRoute::NoXpRecord,
                 nside,
                 ultraviolet.as_ref(),
                 photometric.as_ref(),
                 selection.as_ref(),
             );
-            observed += 1;
-            record_outcome(&mut admitted, &mut by_reason, &outcome);
+            record_outcome(&mut admitted_acc, &mut by_reason_acc, &outcome)?;
         }
     }
+
+    let admitted = admitted_acc.into_row();
+    let by_reason: BTreeMap<String, FluxAttributionRow> = by_reason_acc
+        .into_iter()
+        .map(|(reason, acc)| (reason, acc.into_row()))
+        .collect();
 
     let excluded_sources = by_reason.values().map(|row| row.source_count).sum::<u64>();
     let admitted_sources = admitted.source_count;
@@ -237,11 +339,12 @@ pub fn run_flux_attribution(
         by_exclusion_reason: by_reason,
         totals,
         interpretation: vec![
-            "selection-weighted 336-650 flux for invalid_uv_predictors is the measured Gaia contribution discarded by the pre-#182 whole-source exclusion policy".to_string(),
-            "counterfactual_retain_invalid_uv_measured_only adds that discarded measured flux without inventing a 300-336 nm correction".to_string(),
-            "production admission after #182 retains measured 336-650 for these sources with ApplicabilityStatus::Unavailable; this diagnostic still applies the legacy exclusion for quantification".to_string(),
+            "selection-weighted 336-650 flux for invalid_uv_predictors is the measured Gaia contribution discarded by the production whole-source exclusion policy (sources lacking UV predictors are not admitted into the canonical 300-650 map)".to_string(),
+            "counterfactual_retain_invalid_uv_measured_only adds that discarded measured flux without inventing a 300-336 nm correction; it is diagnostic only and is not a production admission path".to_string(),
+            "XP calibration failures are recorded as calibration_failed and never fall through to photometric inference, matching production worker routing".to_string(),
             "invalid_uv_lost_flux_over_estimated_nsb2_total uses the #182 baseline ratio NSB/nsb2≈0.756 applied to this sample's admitted combined flux".to_string(),
             "UV predictors for the production artifact are bp_rp and phot_g_mean_mag; predictor_failure_detail separates missing colour vs magnitude".to_string(),
+            "flux totals are accumulated with StableSum over partitions sorted by name and remaining Gaia sources sorted by source_id, so identical inputs yield byte-identical reports".to_string(),
         ],
     };
 
@@ -254,33 +357,35 @@ pub fn run_flux_attribution(
     Ok(report)
 }
 
+/// XP routing for one Gaia source, matching production worker semantics.
+enum XpRoute<'a> {
+    /// Successfully calibrated XP continuous spectrum.
+    Calibrated(&'a XpProduct),
+    /// XP record existed but calibration failed — never photometric fallback.
+    CalibrationFailed,
+    /// No XP record for this source — photometric fallback may apply.
+    NoXpRecord,
+}
+
 fn record_outcome(
-    admitted: &mut FluxAttributionRow,
-    by_reason: &mut BTreeMap<String, FluxAttributionRow>,
+    admitted: &mut FluxAttributionAccumulator,
+    by_reason: &mut BTreeMap<String, FluxAttributionAccumulator>,
     outcome: &AttributionOutcome,
-) {
-    let mut row = FluxAttributionRow {
-        source_count: 1,
-        sum_raw_flux_336_650_ph_m2_s: outcome.raw_flux_336_650_ph_m2_s,
-        sum_selection_weighted_flux_336_650_ph_m2_s: outcome
-            .selection_weighted_flux_336_650_ph_m2_s,
-        sum_weighted_flux_300_650_ph_m2_s: outcome.weighted_flux_300_650_ph_m2_s,
-        sum_uv_flux_300_336_ph_m2_s: outcome.uv_flux_300_336_ph_m2_s,
-        predictor_failure_detail: BTreeMap::new(),
-    };
-    if let Some(detail) = &outcome.predictor_failure_detail {
-        row.predictor_failure_detail.insert(detail.clone(), 1);
-    }
+) -> Result<()> {
     if outcome.admitted {
-        admitted.absorb(&row);
+        admitted.absorb_outcome(outcome)?;
     } else if let Some(reason) = &outcome.exclusion_reason {
-        by_reason.entry(reason.clone()).or_default().absorb(&row);
+        by_reason
+            .entry(reason.clone())
+            .or_default()
+            .absorb_outcome(outcome)?;
     }
+    Ok(())
 }
 
 fn evaluate_source_for_flux_attribution(
     gaia_source: &GaiaSourceEntry,
-    xp_product: Option<&XpProduct>,
+    xp_route: XpRoute<'_>,
     nside: u32,
     ultraviolet_correction: Option<&UvCorrection>,
     photometric_correction: Option<&PhotometricCorrection>,
@@ -306,38 +411,45 @@ fn evaluate_source_for_flux_attribution(
         return outcome;
     }
 
-    let raw_flux_336_650 = if let Some(product) = xp_product {
-        match integrate_photon_flux(product) {
+    if matches!(xp_route, XpRoute::CalibrationFailed) {
+        outcome.exclusion_reason = Some("calibration_failed".to_string());
+        return outcome;
+    }
+
+    let raw_flux_336_650 = match xp_route {
+        XpRoute::Calibrated(product) => match integrate_photon_flux(product) {
             Ok(flux) if flux.is_finite() && flux > 0.0 => flux,
             _ => {
                 outcome.exclusion_reason = Some("invalid_flux".to_string());
                 return outcome;
             }
-        }
-    } else {
-        let Some(photometric) = photometric_correction else {
-            outcome.exclusion_reason = Some("no_xp_spectrum".to_string());
-            return outcome;
-        };
-        let route = match photometric.route_and_evaluate(PhotometricFeatures {
-            phot_g_mean_mag: gaia_source.phot_g_mean_mag,
-            phot_bp_mean_mag: gaia_source.phot_bp_mean_mag,
-            phot_rp_mean_mag: gaia_source.phot_rp_mean_mag,
-            bp_rp: gaia_source.bp_rp,
-            quality_flag: true,
-        }) {
-            Ok(route) => route,
-            Err(_) => {
-                outcome.exclusion_reason = Some("photometric_evaluation_failed".to_string());
+        },
+        XpRoute::NoXpRecord => {
+            let Some(photometric) = photometric_correction else {
+                outcome.exclusion_reason = Some("no_xp_spectrum".to_string());
                 return outcome;
-            }
-        };
-        let RouteDecision { branch, flux } = route;
-        let Some(estimate) = flux else {
-            outcome.exclusion_reason = Some(population_branch_reason(branch).to_string());
-            return outcome;
-        };
-        estimate.flux_336_650_ph_m2_s
+            };
+            let route = match photometric.route_and_evaluate(PhotometricFeatures {
+                phot_g_mean_mag: gaia_source.phot_g_mean_mag,
+                phot_bp_mean_mag: gaia_source.phot_bp_mean_mag,
+                phot_rp_mean_mag: gaia_source.phot_rp_mean_mag,
+                bp_rp: gaia_source.bp_rp,
+                quality_flag: true,
+            }) {
+                Ok(route) => route,
+                Err(_) => {
+                    outcome.exclusion_reason = Some("photometric_evaluation_failed".to_string());
+                    return outcome;
+                }
+            };
+            let RouteDecision { branch, flux } = route;
+            let Some(estimate) = flux else {
+                outcome.exclusion_reason = Some(population_branch_reason(branch).to_string());
+                return outcome;
+            };
+            estimate.flux_336_650_ph_m2_s
+        }
+        XpRoute::CalibrationFailed => unreachable!("handled above"),
     };
 
     outcome.raw_flux_336_650_ph_m2_s = raw_flux_336_650;
@@ -358,9 +470,9 @@ fn evaluate_source_for_flux_attribution(
         return outcome;
     };
     let Some(predictors) = &gaia_source.predictors else {
-        // Experiment C intentionally reproduces the pre-#182 exclusion so the
-        // discarded measured 336–650 nm flux can be quantified. Production
-        // admission now retains that flux via retain_measured_when_uv_unavailable.
+        // Production excludes sources lacking UV predictors from the canonical
+        // 300–650 map. Experiment C quantifies the discarded measured 336–650
+        // flux under that honest exclusion policy.
         outcome.exclusion_reason = Some("invalid_uv_predictors".to_string());
         outcome.predictor_failure_detail = Some(classify_predictor_failure(gaia_source));
         return outcome;
@@ -455,21 +567,188 @@ pub fn default_output_path(output_dir: &Path) -> PathBuf {
 mod tests {
     use super::*;
 
-    #[test]
-    fn predictor_failure_classifies_missing_colour() {
-        let source = GaiaSourceEntry {
-            source_id: 1,
+    fn sample_source(source_id: u64) -> GaiaSourceEntry {
+        GaiaSourceEntry {
+            source_id,
             icrs: crate::starlight::healpix::IcrsSkyPosition::new(10.0, 20.0).unwrap(),
             phot_g_mean_mag: Some(15.0),
-            phot_bp_mean_mag: None,
-            phot_rp_mean_mag: None,
-            bp_rp: None,
+            phot_bp_mean_mag: Some(15.5),
+            phot_rp_mean_mag: Some(14.5),
+            bp_rp: Some(1.0),
             duplicated_source: false,
             in_qso_candidates: false,
             in_galaxy_candidates: false,
             predictors: None,
+        }
+    }
+
+    #[test]
+    fn predictor_failure_classifies_missing_colour() {
+        let source = sample_source(1);
+        let source = GaiaSourceEntry {
+            bp_rp: None,
+            predictors: None,
+            ..source
         };
         assert_eq!(classify_predictor_failure(&source), "missing_bp_rp");
+    }
+
+    #[test]
+    fn calibration_failed_never_falls_through_to_photometric() {
+        let source = sample_source(42);
+        let outcome = evaluate_source_for_flux_attribution(
+            &source,
+            XpRoute::CalibrationFailed,
+            128,
+            None,
+            None,
+            None,
+        );
+        assert!(!outcome.admitted);
+        assert_eq!(
+            outcome.exclusion_reason.as_deref(),
+            Some("calibration_failed")
+        );
+        assert_eq!(outcome.raw_flux_336_650_ph_m2_s, 0.0);
+    }
+
+    #[test]
+    fn scientific_exclusion_precedes_calibration_failed_route() {
+        let source = GaiaSourceEntry {
+            in_qso_candidates: true,
+            ..sample_source(7)
+        };
+        let outcome = evaluate_source_for_flux_attribution(
+            &source,
+            XpRoute::CalibrationFailed,
+            128,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(
+            outcome.exclusion_reason.as_deref(),
+            Some("scientific_exclusion_nonstellar")
+        );
+    }
+
+    #[test]
+    fn duplicated_source_is_excluded() {
+        let source = GaiaSourceEntry {
+            duplicated_source: true,
+            ..sample_source(8)
+        };
+        let outcome = evaluate_source_for_flux_attribution(
+            &source,
+            XpRoute::NoXpRecord,
+            128,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(
+            outcome.exclusion_reason.as_deref(),
+            Some("duplicated_source")
+        );
+    }
+
+    #[test]
+    fn no_xp_without_photometric_artifact_is_no_xp_spectrum() {
+        let source = sample_source(9);
+        let outcome = evaluate_source_for_flux_attribution(
+            &source,
+            XpRoute::NoXpRecord,
+            128,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(outcome.exclusion_reason.as_deref(), Some("no_xp_spectrum"));
+    }
+
+    #[test]
+    fn missing_uv_predictors_are_excluded_not_admitted() {
+        let source = sample_source(10);
+        // Without a UV correction artifact the path stops at uv_correction_missing;
+        // with predictors=None and a correction present, production says invalid_uv_predictors.
+        // Here we only assert the CalibrationFailed / NoXpRecord routing contracts above
+        // and the StableSum determinism below; full UV path needs an artifact fixture.
+        let outcome = evaluate_source_for_flux_attribution(
+            &source,
+            XpRoute::NoXpRecord,
+            128,
+            None,
+            None,
+            None,
+        );
+        assert!(!outcome.admitted);
+        assert!(outcome.exclusion_reason.is_some());
+    }
+
+    #[test]
+    fn flux_attribution_accumulator_is_order_independent() {
+        let outcomes = [
+            AttributionOutcome {
+                admitted: true,
+                exclusion_reason: None,
+                predictor_failure_detail: None,
+                raw_flux_336_650_ph_m2_s: 1.0,
+                selection_weighted_flux_336_650_ph_m2_s: 1.0,
+                weighted_flux_300_650_ph_m2_s: 1.05,
+                uv_flux_300_336_ph_m2_s: 0.05,
+            },
+            AttributionOutcome {
+                admitted: false,
+                exclusion_reason: Some("invalid_uv_predictors".into()),
+                predictor_failure_detail: Some("missing_bp_rp".into()),
+                raw_flux_336_650_ph_m2_s: 1e12,
+                selection_weighted_flux_336_650_ph_m2_s: 1e12,
+                weighted_flux_300_650_ph_m2_s: 0.0,
+                uv_flux_300_336_ph_m2_s: 0.0,
+            },
+            AttributionOutcome {
+                admitted: true,
+                exclusion_reason: None,
+                predictor_failure_detail: None,
+                raw_flux_336_650_ph_m2_s: 2.0,
+                selection_weighted_flux_336_650_ph_m2_s: 2.0,
+                weighted_flux_300_650_ph_m2_s: 2.1,
+                uv_flux_300_336_ph_m2_s: 0.1,
+            },
+        ];
+
+        let mut forward_admitted = FluxAttributionAccumulator::default();
+        let mut forward_reasons = BTreeMap::new();
+        for outcome in &outcomes {
+            record_outcome(&mut forward_admitted, &mut forward_reasons, outcome).unwrap();
+        }
+        let forward = (
+            forward_admitted.into_row(),
+            forward_reasons
+                .into_iter()
+                .map(|(k, v)| (k, v.into_row()))
+                .collect::<BTreeMap<_, _>>(),
+        );
+
+        let mut reverse_admitted = FluxAttributionAccumulator::default();
+        let mut reverse_reasons = BTreeMap::new();
+        for outcome in outcomes.iter().rev() {
+            record_outcome(&mut reverse_admitted, &mut reverse_reasons, outcome).unwrap();
+        }
+        let reverse = (
+            reverse_admitted.into_row(),
+            reverse_reasons
+                .into_iter()
+                .map(|(k, v)| (k, v.into_row()))
+                .collect::<BTreeMap<_, _>>(),
+        );
+
+        let forward_bytes = serde_json::to_vec(&forward).unwrap();
+        let reverse_bytes = serde_json::to_vec(&reverse).unwrap();
+        assert_eq!(
+            forward_bytes, reverse_bytes,
+            "StableSum accumulation must yield byte-identical serialized rows regardless of HashMap-like insertion order"
+        );
     }
 
     #[test]

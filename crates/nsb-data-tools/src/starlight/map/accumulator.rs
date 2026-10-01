@@ -29,7 +29,8 @@ pub struct StableSum {
 }
 
 impl StableSum {
-    fn add(&mut self, value: f64) -> Result<()> {
+    /// Accumulate one finite non-negative value. Order-independent.
+    pub(crate) fn add(&mut self, value: f64) -> Result<()> {
         if !value.is_finite() || (value.is_sign_negative() && value != 0.0) {
             bail!("cannot accumulate a non-finite or negative value");
         }
