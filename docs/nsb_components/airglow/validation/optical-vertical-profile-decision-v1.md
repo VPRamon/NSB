@@ -1,5 +1,10 @@
 # Optical 300-650 nm airglow vertical-profile decision record
 
+Scope update (#200): the retained 90 km default below describes the previous
+runtime decision, not an admitted universal source height. Generic-model
+admission and component-specific layers must follow the
+[current scientific decision](generic-model-decision-200.md).
+
 Status: Scientific evidence and implementation decision record (originated as
 issue #110 audit). Not the canonical Airglow runtime guide — see
 [../README.md](../README.md).

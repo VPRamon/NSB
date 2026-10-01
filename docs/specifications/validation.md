@@ -11,6 +11,12 @@ site-calibrated CTAO product.
 NSB distinguishes implementation identities, published references, external
 observations, and sanity envelopes. A broad envelope is not external validation.
 
+Airglow #200 remains at the scientific admission stage. The
+[candidate survey and validation plan](../nsb_components/airglow/validation/generic-model-decision-200.md)
+report no new model, independent observational residuals, or calibration.
+Existing formula and regression checks below do not demonstrate geographic
+portability and must not become old-number compatibility requirements.
+
 | Area | Evidence | Units/band | Tolerance | Deviation class |
 |---|---|---|---|---|
 | Component sum | `end_to_end_validation.rs` | ph cm⁻² ns⁻¹ sr⁻¹, 300–650 nm | `1e-12 * max(total,1)` | Implementation error |

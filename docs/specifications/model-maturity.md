@@ -10,6 +10,12 @@ Non-goals: This document does not provide the validation evidence itself; see
 Software release readiness, geographic support, data provenance, and scientific
 site calibration are separate axes.
 
+For Airglow, the current “Generic/planning” runtime label does not establish a
+scientifically generic data product. #200 rejects retaining the Paranal-trained
+baseline as a reference/fallback solution. The
+[Phase 1 survey](../nsb_components/airglow/validation/generic-model-decision-200.md)
+admitted no replacement; the table below describes existing software only.
+
 | Surface | Status | Validated domain | Production claim allowed |
 |---|---|---|---|
 | Evaluator composition and units | Production software | Typed deterministic composition and component-sum identity | Yes, for software behaviour |
