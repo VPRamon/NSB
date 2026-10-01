@@ -81,28 +81,39 @@ flux fraction scaled with the higher source fraction relative to this pilot,
 the implied deficit would remain far below 24% unless those partitions are
 dramatically brighter than the pilot (not suggested by the faint mean).
 
-## Policy change (scientifically justified; not a deficit tuner)
+## Policy change — superseded proposal vs retained honest contract
 
-Even though H2 is radiometrically minor, whole-source exclusion of sources with
-valid measured 336–650 nm flux solely because `bp_rp` is missing is an
-**unjustified admission policy**.
+### Intermediate proposal (superseded; do not treat as production policy)
 
-Implementation on this branch:
+An earlier commit on this branch (`35bce6b`) proposed retaining measured
+336–650 nm flux when UV predictors are unavailable, labelling the UV component
+`ApplicabilityStatus::Unavailable` / `EvaluationDecision::MeasuredOnly`, adding
+an arbitrary **5%** missing-UV systematic, and bumping policy IDs to `…-v2`.
 
-- When UV predictors are unavailable, production now **retains**
-  selection-weighted measured 336–650 nm flux.
-- UV component is marked `ApplicabilityStatus::Unavailable` /
-  `EvaluationDecision::MeasuredOnly` (0.0 recorded as *not estimated*, not as a
-  calibrated UV prediction).
-- A 5% measured-flux systematic covers missing UV without inventing a point
-  estimate (~global UV/measured ≈ 2.8% for in-domain admissions).
-- Policy IDs bumped: `gaia-dr3-full-population-v2`,
-  `gaia-xp-continuous-uv-corrected-300-650-v2`.
-- Flux-attribution diagnostics intentionally still apply the **legacy**
-  exclusion so Experiment C can quantify the historical loss.
+That proposal is **withdrawn** for scientific-contract reasons:
 
-The frozen #182 candidate map is **unchanged** until a deliberate production
-rebuild. Do not claim the published candidate already includes this fix.
+- The canonical product is labelled **300–650 combined**. Publishing a
+  measured-only lower bound under that label misrepresents spectral coverage.
+- A global ~3% UV/measured ratio does **not** justify a 5% Gaussian-like
+  systematic for the `bp_rp`-missing population, nor the
+  `FullyCorrelatedBetweenSources` correlation inheritance that would add
+  linearly across huge source counts.
+- Investigation tooling must not be shipped as an unvalidated production policy
+  merely because it moves NSB toward nsb2.
+
+### Retained production contract (Option A)
+
+- Sources lacking UV predictors remain **excluded** from the canonical
+  combined 300–650 map (`invalid_uv_predictors`).
+- Their measured 336–650 contribution is quantified by Experiment C
+  diagnostics / sidecars, not admitted as incomplete full-band flux.
+- Admission / spectral policy IDs remain **`gaia-dr3-full-population-v1`** /
+  **`gaia-xp-continuous-uv-corrected-300-650-v1`**.
+- A versioned policy registry validates historical merge reports by declared
+  policy ID rather than requiring equality with whatever is currently emitted.
+
+The frozen #182 candidate map is unchanged. Do not claim the published
+candidate includes a UV-missing retention fix.
 
 ## Experiment B — XHIP / no-XHIP (completed locally)
 
@@ -144,6 +155,25 @@ elsewhere (measured-band model / population differences). An NSB XHIP-like
 bright-star supplement is scientifically motivated for the extreme tail, but
 must still clear provenance/licensing review before adoption.
 
+### Reconciling the earlier ~0.008% “XHIP-only” bound (superseded)
+
+An early diagnostic compared an XHIP-only radiance integral against the
+candidate merge-report `band_diagnostics` totals that were mis-read at
+~10¹⁵ ph m⁻² s⁻¹ scale, yielding an apparent XHIP fraction ~0.008%.
+
+That bound is **superseded and wrong as a fraction of the validation total**:
+
+- The frozen merge report on the #182 workspace records combined flux
+  ≈ **8.96×10¹²** ph m⁻² s⁻¹ (same scale as the nsb-validation loader /
+  `M2_S_TO_CM2_NS_RATE_FACTOR` path), not ~8×10¹⁵.
+- Component-separated nsb2 generation integrates each component with the same
+  radiance × pixel-solid-angle convention used for the full reference, giving
+  XHIP ≈ **7.4%** of nsb2 full.
+- The cheap bound therefore mixed an inconsistent denominator (and possibly
+  point-source vs map-integrated semantics) with the validator’s quantity.
+  Prefer the component-map conservation check once flux-conservation tests land
+  in `nsb-validation`.
+
 Local artifacts (not committed): `nsb-validation/work/expB/`,
 `nsb-validation/results/expB-{full,no-xhip}/`.
 
@@ -156,19 +186,20 @@ Independent validation harness changes live in `VPRamon/nsb-validation` branch
 - configurable 336–650 nm bandpass
 - brightness-tail / missing-flux metrics in compare reports
 
-A `workflow_dispatch` of `Full Starlight cross-validation` was started on that
-branch to regenerate the full reference and compare artifacts.
+NSB side: `nsb-data dataset starlight diagnose export-measured336650` derives a
+true 336–650 map from frozen combined-product shards (distinct checksum +
+`physical_quantity=photon_radiance_336_650_nm` metadata) so Experiment A cannot
+relabel a 300–650 candidate by caller string.
 
 ## Next measurements (priority)
 
-1. Finish smoke-48 / full-sky Experiment C to close H2 radiometrically at catalogue scale.
-2. Finish component-separated nsb2 maps (Gaia bright / faint / XHIP) and
-   brightness-tail missing-flux allocation (Experiments B+D).
-3. Export NSB 336–650 nm from existing shards and compare to nsb2 336–650
-   (Experiment A) to separate UV policy from measured-band model differences.
-4. Full Gaia DR3 rebuild is **not** justified solely by the UV-retention policy
-   fix (pilot radiometric impact ≪ 1%). Rebuild only if a larger measured-band
-   or bright-catalogue defect is confirmed.
+1. Re-run Experiment C on smoke-48 (and full catalogue if needed) with
+   production-identical routing + deterministic StableSum accumulation.
+2. Export NSB 336–650 from frozen shards; pin in nsb-validation; run Experiment A.
+3. Enforce no-XHIP component identity + flux-conservation tests; re-verify Experiment B.
+4. Brightness-tail / region diagnostics (Experiment D) on corrected artifacts.
+5. Quantify the remaining ~18% Gaia-only deficit by component (bright catalogue,
+   faint map, XP vs Pickles, selection weighting, admission) without tuning to nsb2.
 
 ## Classification glossary (for the eventual #182 close-out)
 
