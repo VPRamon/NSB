@@ -29,8 +29,8 @@ Candidate band diagnostics (frozen merge report):
 | ID | Hypothesis | Status | Contribution to −24.4% |
 |---|---|---|---|
 | H2 | Whole-source exclusion on `invalid_uv_predictors` discards large measured flux | **Partially explanatory as a mechanism; radiometrically minor on pilot sample** | Pilot 2 partitions: **~0.08% of estimated nsb2 total** (see Experiment C) |
-| H1 | Missing XHIP/Hipparcos bright-star supplement | **Open — tooling ready; generation pending** | Expected to dominate extreme bright tail; full-sky fraction TBD |
-| Model residuals | XP vs Pickles, selection weighting, faint population | **Expected residual after defects fixed** | Not yet separated |
+| H1 | Missing XHIP/Hipparcos bright-star supplement | **Partially explanatory for local bright pixels only; negligible for global integral** | XHIP-only bound: **~0.008% of estimated nsb2 total** (88 sources; see Experiment B) |
+| Model / population residuals | XP vs Pickles, selection weighting, Gaia bright-catalogue treatment, faint population | **Leading remaining explanation for the global −24.4%** | Brightness-stratified ratios already ~0.77–0.91 outside the extreme tail |
 
 ## Experiment C — flux by exclusion reason (pilot)
 
@@ -104,6 +104,36 @@ Implementation on this branch:
 The frozen #182 candidate map is **unchanged** until a deliberate production
 rebuild. Do not claim the published candidate already includes this fix.
 
+## Experiment B — XHIP / no-XHIP (partial)
+
+**Hypothesis under test:** the 88-star XHIP supplement explains a material
+fraction of the −24.4% integrated deficit and/or the top-0.1% residuals.
+
+### Cheap XHIP-only bound (completed)
+
+Using pinned `nsb2@bc9320db` `from_gaia_suppl_catalog()` with the same
+300–650 nm bandpass construction as `nsb-validation`:
+
+| Quantity | Value |
+|---|---:|
+| XHIP sources | 88 |
+| XHIP integrated flux | 8.820×10¹¹ ph m⁻² s⁻¹ |
+| Fraction of #182 NSB candidate | 0.011% |
+| Fraction of estimated nsb2 total (NSB/0.756) | **0.0083%** |
+
+Artifact: `nsb-validation` `work/expB/xhip-only-bound.json` (local; not committed).
+
+**Conclusion:** XHIP cannot explain the global −24.4% deficit. It may still
+matter for a handful of the brightest pixels; full component-separated maps
+(Gaia bright / Gaia faint / XHIP) remain useful for Experiment D pixel
+inspection and are being generated via `nsb2-generate --write-components`.
+
+The brightness-stratified #182 table already shows NSB/nsb2 ≈ 0.77–0.91 on
+≥99.9% of the sky by pixel count. The global −24.4% therefore requires that
+**bright pixels dominate the integrated flux** and/or that the Gaia
+bright-catalogue and spectral-model paths differ systematically from NSB —
+not merely the 88-star XHIP add-on.
+
 ## Experiment A / B / D tooling
 
 Independent validation harness changes live in `VPRamon/nsb-validation` branch
@@ -113,21 +143,19 @@ Independent validation harness changes live in `VPRamon/nsb-validation` branch
 - configurable 336–650 nm bandpass
 - brightness-tail / missing-flux metrics in compare reports
 
-Full nsb2 map generation requires the pinned `nsb2` optional dependency and its
-Gaia/XHIP inputs (GitHub Actions `full-validation` workflow is the established
-path).
+A `workflow_dispatch` of `Full Starlight cross-validation` was started on that
+branch to regenerate the full reference and compare artifacts.
 
 ## Next measurements (priority)
 
-1. Finish smoke-48 / full-sky Experiment C to close H2 radiometrically.
-2. Generate nsb2 full vs no-XHIP (+ components) and quantify XHIP integrated
-   flux and bright-tail residual change (H1 / Experiments B+D).
-3. Build or export an NSB 336–650 nm map (admitted measured band from shards,
-   then counterfactual with UV-unavailable retention) for Experiment A.
-4. Only then decide whether a full Gaia DR3 rebuild is warranted for the
-   published candidate (policy fix alone implies a small radiometric delta).
-
-## Classification glossary (for the eventual #182 close-out)
+1. Finish smoke-48 / full-sky Experiment C to close H2 radiometrically at catalogue scale.
+2. Finish component-separated nsb2 maps (Gaia bright / faint / XHIP) and
+   brightness-tail missing-flux allocation (Experiments B+D).
+3. Export NSB 336–650 nm from existing shards and compare to nsb2 336–650
+   (Experiment A) to separate UV policy from measured-band model differences.
+4. Full Gaia DR3 rebuild is **not** justified solely by the UV-retention policy
+   fix (pilot radiometric impact ≪ 1%). Rebuild only if a larger measured-band
+   or bright-catalogue defect is confirmed.
 
 | Class | Meaning |
 |---|---|
