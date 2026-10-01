@@ -164,6 +164,219 @@ pub fn analyse_workspace_shards(workspace: &Path) -> Result<HealpixAnomalyReport
     analyse_candidate_map(&merged_candidate_map(&merged)?)
 }
 
+/// Merge reconciled production shards and export the measured 336–650 nm
+/// component as a sparse candidate-v5 CSV.
+///
+/// The published combined 300–650 map stores only the selected-band flux column.
+/// Per-pixel measured-band accumulators remain in the frozen partition shards;
+/// this export derives a distinct 336–650 artifact from those shards so
+/// Experiment A cannot silently relabel a 300–650 map.
+pub fn export_measured_336_650_from_shards(
+    workspace: &Path,
+    output: &Path,
+    provenance_output: Option<&Path>,
+    parent_combined_map_sha256: Option<&str>,
+    source_commit: Option<&str>,
+) -> Result<MeasuredBandExportReport> {
+    let shards = load_production_shards(workspace)?;
+    let partition_ids: Vec<String> = shards
+        .iter()
+        .map(|shard| shard.partition_id.clone())
+        .collect();
+    let shard_count = shards.len();
+    let merged = merge_shards(shards)?;
+    let nside = merged.nside;
+
+    let mut pixels = BTreeMap::new();
+    let mut total_flux = 0.0_f64;
+    let mut admitted = 0_u64;
+    let mut excluded = 0_u64;
+    for (pixel, accumulator) in &merged.pixels {
+        let flux = accumulator.flux_336_650_ph_m2_s.value();
+        let statistical = accumulator.statistical_variance_336_650.value().sqrt();
+        // Measured-band systematic on the combined product path is filed into the
+        // selected-band buckets; for the derived 336–650 diagnostic map we report
+        // statistical uncertainty from the measured sub-band variance and leave
+        // systematic at 0 (explicitly documented in provenance).
+        let systematic = 0.0_f64;
+        total_flux += flux;
+        admitted = admitted
+            .checked_add(accumulator.admitted_sources)
+            .context("admitted overflow")?;
+        excluded = excluded
+            .checked_add(accumulator.excluded_sources)
+            .context("excluded overflow")?;
+        pixels.insert(
+            *pixel,
+            CandidatePixel {
+                flux_ph_m2_s: flux,
+                statistical_uncertainty_ph_m2_s: statistical,
+                systematic_uncertainty_ph_m2_s: systematic,
+                total_uncertainty_ph_m2_s: statistical.hypot(systematic),
+                admitted_sources: accumulator.admitted_sources,
+                excluded_sources: accumulator.excluded_sources,
+            },
+        );
+    }
+
+    let mut text = format!(
+        "# schema={}\n\
+         # map_type=healpix\n\
+         # coordinate_frame=galactic\n\
+         # ordering=nested\n\
+         # representation=sparse\n\
+         # omitted_pixel_semantics=zero_flux_and_source_counts\n\
+         # nside={nside}\n\
+         # flux_quantity=integrated_per_pixel\n\
+         # flux_unit=ph_m-2_s-1\n\
+         # derivation=measured_336_650_from_combined_production_shards\n\
+         # source_count_semantics=exact_source_membership\n\
+         # product_band=336-650-measured\n\
+         # corrected_component=not-applied\n\
+         # measured_component=336-650-measured\n\
+         # combined_component=not-produced\n\
+         # wavelength_min_nm=336\n\
+         # wavelength_max_nm=650\n\
+         # physical_quantity=photon_radiance_336_650_nm\n\
+         # uv_correction_model_id=none\n\
+         # uv_correction_sha256=none\n\
+         # uv_calibration_status=none\n\
+         # uv_model_response=none\n\
+         # uv_measured_conditional_residual_statistical_correlation=none\n\
+         # uv_systematic_correlation=none\n\
+         pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n",
+        candidate_map::EXPECTED_MAP_SCHEMA,
+    );
+    for (pixel, value) in &pixels {
+        text.push_str(&format!(
+            "{pixel},{:.17e},{:.17e},{:.17e},{:.17e},{},{}\n",
+            value.flux_ph_m2_s,
+            value.statistical_uncertainty_ph_m2_s,
+            value.systematic_uncertainty_ph_m2_s,
+            value.total_uncertainty_ph_m2_s,
+            value.admitted_sources,
+            value.excluded_sources
+        ));
+    }
+    if let Some(parent) = output.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    artifact_store::atomic_write(output, text.as_bytes())
+        .with_context(|| format!("write measured 336-650 map {}", output.display()))?;
+    let sha256 = checksum_io::sha256_file(output)?;
+
+    let report = MeasuredBandExportReport {
+        schema_version: 1,
+        experiment: "A_measured_336_650_export".to_string(),
+        issue: "182".to_string(),
+        workspace: workspace.display().to_string(),
+        output_path: output.display().to_string(),
+        output_sha256: sha256.clone(),
+        nside,
+        shard_count,
+        partition_ids,
+        occupied_pixels: pixels.len(),
+        total_flux_336_650_ph_m2_s: total_flux,
+        admitted_sources: admitted,
+        excluded_sources: excluded,
+        product_band: "336-650-measured".to_string(),
+        physical_quantity: "photon_radiance_336_650_nm".to_string(),
+        wavelength_min_nm: 336,
+        wavelength_max_nm: 650,
+        parent_combined_map_sha256: parent_combined_map_sha256.map(str::to_string),
+        source_commit: source_commit.map(str::to_string),
+        notes: vec![
+            "Derived from frozen combined-product partition shards; flux column is flux_336_650_ph_m2_s.".to_string(),
+            "Systematic uncertainty is recorded as 0.0 on this diagnostic export; statistical uncertainty uses measured-band variance.".to_string(),
+            "Checksum and quantity metadata are distinct from the parent 300-650 combined map.".to_string(),
+        ],
+    };
+
+    if let Some(path) = provenance_output {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let payload = serde_json::to_vec_pretty(&report)?;
+        std::fs::write(path, payload)
+            .with_context(|| format!("write provenance {}", path.display()))?;
+    }
+    Ok(report)
+}
+
+/// Provenance for a derived measured 336–650 nm map.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MeasuredBandExportReport {
+    pub schema_version: u32,
+    pub experiment: String,
+    pub issue: String,
+    pub workspace: String,
+    pub output_path: String,
+    pub output_sha256: String,
+    pub nside: u32,
+    pub shard_count: usize,
+    pub partition_ids: Vec<String>,
+    pub occupied_pixels: usize,
+    pub total_flux_336_650_ph_m2_s: f64,
+    pub admitted_sources: u64,
+    pub excluded_sources: u64,
+    pub product_band: String,
+    pub physical_quantity: String,
+    pub wavelength_min_nm: u16,
+    pub wavelength_max_nm: u16,
+    pub parent_combined_map_sha256: Option<String>,
+    pub source_commit: Option<String>,
+    pub notes: Vec<String>,
+}
+
+fn load_production_shards(workspace: &Path) -> Result<Vec<PartitionShard>> {
+    let shard_root = workspace.join("outputs/shards");
+    if shard_root.is_dir() {
+        let mut paths: Vec<_> = std::fs::read_dir(&shard_root)?
+            .collect::<std::io::Result<Vec<_>>>()?
+            .into_iter()
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
+            .collect();
+        paths.sort();
+        anyhow::ensure!(
+            !paths.is_empty(),
+            "no shards under {}",
+            shard_root.display()
+        );
+        let mut shards = Vec::with_capacity(paths.len());
+        for path in paths {
+            let bytes = std::fs::read(&path)?;
+            shards.push(
+                serde_json::from_slice::<PartitionShard>(&bytes)
+                    .with_context(|| format!("parse shard {}", path.display()))?,
+            );
+        }
+        return Ok(shards);
+    }
+
+    let workers = workspace.join("workers");
+    anyhow::ensure!(
+        workers.is_dir(),
+        "workspace has neither outputs/shards nor workers/: {}",
+        workspace.display()
+    );
+    let mut shards = Vec::new();
+    let mut entries: Vec<_> = std::fs::read_dir(&workers)?.collect::<std::io::Result<Vec<_>>>()?;
+    entries.sort_by_key(|entry| entry.file_name());
+    for entry in entries {
+        let shard_path = entry.path().join("shard.json");
+        if shard_path.is_file() {
+            let bytes = std::fs::read(&shard_path)?;
+            shards.push(
+                serde_json::from_slice::<PartitionShard>(&bytes)
+                    .with_context(|| format!("parse shard {}", shard_path.display()))?,
+            );
+        }
+    }
+    anyhow::ensure!(!shards.is_empty(), "no shards under {}", workers.display());
+    Ok(shards)
+}
+
 /// Merge every `workers/*/shard.json` under `workspace` and write a sparse
 /// candidate-v5 CSV suitable for diagnostic heatmaps.
 pub fn export_workspace_candidate_map(workspace: &Path, output: &Path) -> Result<String> {

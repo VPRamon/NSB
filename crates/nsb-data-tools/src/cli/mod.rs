@@ -227,6 +227,8 @@ enum StarlightDiagnoseCommand {
     Suite(StarlightDiagnoseSuiteArgs),
     /// Export a sparse candidate-v5 CSV from merged workspace shards.
     ExportMap(StarlightDiagnoseExportMapArgs),
+    /// Derive a measured 336–650 nm map from frozen combined-product shards (#182 Experiment A).
+    ExportMeasured336650(StarlightDiagnoseExportMeasuredArgs),
     /// Issue #182 Experiment C: flux-weighted exclusion accounting.
     FluxAttribution(StarlightDiagnoseFluxAttributionArgs),
 }
@@ -270,6 +272,23 @@ struct StarlightDiagnoseExportMapArgs {
     workspace: PathBuf,
     #[arg(long)]
     output: PathBuf,
+}
+
+#[derive(Debug, Args)]
+struct StarlightDiagnoseExportMeasuredArgs {
+    #[arg(long)]
+    workspace: PathBuf,
+    #[arg(long)]
+    output: PathBuf,
+    /// Optional machine-readable provenance JSON sidecar.
+    #[arg(long)]
+    provenance: Option<PathBuf>,
+    /// SHA-256 of the parent combined 300–650 candidate map.
+    #[arg(long)]
+    parent_combined_sha256: Option<String>,
+    /// Source commit that produced the frozen shards.
+    #[arg(long)]
+    source_commit: Option<String>,
 }
 
 #[derive(Debug, Args)]
@@ -721,6 +740,23 @@ fn execute_starlight_diagnose(args: StarlightDiagnoseArgs) -> Result<()> {
             println!(
                 "candidate map written to {} (sha256={sha256})",
                 args.output.display()
+            );
+            Ok(())
+        }
+        StarlightDiagnoseCommand::ExportMeasured336650(args) => {
+            let report = crate::starlight::diagnostics::export_measured_336_650_from_shards(
+                &args.workspace,
+                &args.output,
+                args.provenance.as_deref(),
+                args.parent_combined_sha256.as_deref(),
+                args.source_commit.as_deref(),
+            )?;
+            println!(
+                "measured 336-650 map written to {} (sha256={}, total_flux={:.6e}, shards={})",
+                args.output.display(),
+                report.output_sha256,
+                report.total_flux_336_650_ph_m2_s,
+                report.shard_count
             );
             Ok(())
         }
