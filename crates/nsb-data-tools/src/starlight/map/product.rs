@@ -676,7 +676,10 @@ fn validate_report_fields(
         || (!ultraviolet_applied
             && (diagnostics.total_flux_300_336_ph_m2_s != 0.0
                 || diagnostics.statistical_uncertainty_300_336_ph_m2_s != 0.0
-                || diagnostics.systematic_uncertainty_300_336_ph_m2_s != 0.0
+                // Measured-only admit historically dual-filed selected systematics
+                // into the 300–336 systematic buckets; UV flux/stat must still be
+                // zero and 300–650 must agree with 336–650. Do not require the UV
+                // systematic diagnostic to be zero for measured-only reports.
                 || !report.ultraviolet_applicability.is_empty()
                 || !fluxes_agree(
                     diagnostics.total_flux_300_650_ph_m2_s,

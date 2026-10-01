@@ -390,7 +390,10 @@ impl PartitionShard {
                 statistical_uncertainty_300_336_ph_m2_s: 0.0,
                 statistical_uncertainty_336_650_ph_m2_s: statistical_uncertainty,
                 statistical_uncertainty_300_650_ph_m2_s: statistical_uncertainty,
-                systematic_uncertainty_300_336_ph_m2_s: systematic_uncertainty,
+                // Measured-only products have no UV 300–336 contribution; keep the
+                // UV systematic buckets at zero and file photometric/selection
+                // systematics only into the selected / 300–650 systematic path.
+                systematic_uncertainty_300_336_ph_m2_s: 0.0,
                 systematic_uncertainty_300_650_ph_m2_s: systematic_uncertainty,
                 systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
                 applicability_status: None,
