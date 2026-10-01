@@ -57,9 +57,9 @@ into the early bound, not a change in the frozen candidate itself.
 
 | ID | Hypothesis | Status | Contribution to −24.4% |
 |---|---|---|---|
-| H2 | Whole-source exclusion on `invalid_uv_predictors` discards large measured flux | **Partially explanatory as a mechanism; radiometrically minor** | Best estimate (smoke-48): **~0.491% of estimated nsb2 total**; pilot-2 was **~0.083%** (see Experiment C) |
+| H2 | Whole-source exclusion on `invalid_uv_predictors` discards large measured flux | **Partially explanatory as a mechanism; radiometrically minor** | True Measured336To650 ΔF ≈ **0.54%** of est. nsb2; smoke-48 ≈ **0.491%**; pilot-2 was **~0.083%** |
 | H1 | Missing XHIP/Hipparcos bright-star supplement | **Partially explanatory** | **~7.4% of nsb2 flux**; removes ~6 pp of bias (−24.4%→−18.3%); correlation 0.22→0.87 |
-| Model / population residuals | XP vs Pickles, selection weighting, Gaia bright-catalogue treatment, faint population | **Dominant residual after removing XHIP** | Remaining integrated bias **−18.3%** vs nsb2 without XHIP |
+| Model / population residuals | XP vs Pickles, selection weighting, Gaia bright-catalogue treatment, faint population | **Dominant residual after removing XHIP** | True Exp A no-XHIP residual **−16.4%**; vs Gaia-bright alone **−4.4%** |
 
 ## Experiment C — flux by exclusion reason
 
@@ -230,45 +230,57 @@ That bound is **superseded and wrong as a fraction of the validation total**:
 Local artifacts (not committed): `nsb-validation/work/expB/`,
 `nsb-validation/results/expB-{full,no-xhip}/`.
 
-## Experiment A — combined-candidate measured-subcomponent diagnostic
+## Experiment A — true Measured336To650 production candidate
 
-**Reclassification:** the shard export used for Experiment A is a
-**`combined-candidate-measured-subcomponent` diagnostic**, not a true NSB
-`Measured336To650` production candidate. Source admission still inherits the
-combined-product UV-predictor gate (`invalid_uv_predictors` sources never
-entered those shards). Do **not** call this export a “true 336–650 NSB
-artifact.”
-
-Exported measured-band column from frozen combined-product shards
-(`export-measured336650`):
+**True production candidate** (Ladon workspace
+`starlight-production-336-650-issue182`, generating NSB commit `3236950`,
+config SHA-256 `1b3c3649…`):
 
 | Field | Value |
 |---|---|
-| Class | `combined-candidate-measured-subcomponent` (provisional) |
+| Class | **true `Measured336To650` production candidate** |
+| Canonical SHA-256 | `32d4f6d2557ead304ea07c09372c63b084d8f0d14ad751984d48915e7f8b9d47` |
+| Total measured flux | **8.745736972625×10¹²** ph m⁻² s⁻¹ |
+| Admitted / excluded | **1,781,834,843** / 29,874,928 |
+| UV applied | **false** (`gaia-xp-continuous-336-650-v1`) |
+| `invalid_uv_predictors` exclusions | **0** (reason absent) |
+| Provenance | `issue-182-true-measured-336-650-provenance.json` |
+
+### Population / flux difference vs combined-candidate subcomponent
+
+| Quantity | Combined-subcomponent (old Exp A) | True Measured336To650 | Δ |
+|---|---:|---:|---:|
+| Admitted sources | 1,518,801,696 | 1,781,834,843 | **+263,033,147** |
+| Measured 336–650 flux | 8.68155054926×10¹² | 8.745736972625×10¹² | **+6.419×10¹⁰ (+0.74%)** |
+| ΔF / est. nsb2 total (~1.186×10¹³) | — | — | **≈ 0.54%** |
+
+This empirical UV-gate ΔF is **broadly consistent** with Experiment C smoke-48
+(~0.491% of estimated nsb2 total); both remain radiometrically minor vs ~24%.
+
+### Corrected Experiment A metrics vs nsb2 336–650 (`bc9320db`)
+
+| Reference | Bias | Corr | Corr excl. top 1% | Top 0.1% flux ratio | Median abs rel |
+|---|---:|---:|---:|---:|---:|
+| nsb2 **full** | **−22.30%** | 0.228 | 0.941 | 0.128 | 0.0495 |
+| nsb2 **without XHIP** | **−16.42%** | 0.867 | 0.941 | 0.502 | 0.0494 |
+| nsb2 **Gaia bright only** | **−4.35%** | 0.843 | — | — | — |
+
+p68 / p90 / p95 (full): 0.124 / 0.352 / 0.491. Brightness-bin missing-flux
+share (full): 0–50% −8.9%; 50–90% −14.3%; 90–99% −18.2%; 99–99.9% −18.5%;
+top 0.1% −87.2%.
+
+### Superseded provisional subcomponent export (diagnostic only)
+
+The earlier shard export remains available as a **diagnostic cross-check** only:
+
+| Field | Value |
+|---|---|
+| Class | `combined-candidate-measured-subcomponent` |
 | SHA-256 | `878a2e7cc3be1e83e5648194edde107bb50cb09fa484a21a1a95d6f49678a988` |
-| Total measured flux | 8.682×10¹² ph m⁻² s⁻¹ |
-| Parent combined SHA-256 | `76191c8b…` (distinct) |
+| Provisional full / no-XHIP bias | −22.87% / −17.03% |
 | Manifest | `issue-182-measured-336-650-export-manifest.json` |
 
-Comparison vs nsb2 336–650 (pinned `bc9320db`) — **provisional** under the
-combined-candidate admission population:
-
-| Reference | Bias | Corr | Corr excl. top 1% | Top 0.1% flux ratio |
-|---|---:|---:|---:|---:|
-| nsb2 **full** 336–650 | **−22.87%** | 0.228 | 0.942 | 0.128 |
-| nsb2 **without XHIP** 336–650 | **−17.03%** | 0.868 | 0.942 | 0.501 |
-
-Combined 300–650 (Experiment B) was −24.41% / −18.34%. Under this diagnostic
-pin the measured-only column is only ~1.5 pp less deficit than combined, which
-*suggests* the radiometric gap is primarily measured-band / Gaia-population
-rather than the UV 300–336 correction — but that UV/admission split must be
-**re-interpreted** once a true `Measured336To650` production candidate is
-pinned.
-
-A true `Measured336To650` production rebuild is in progress on Ladon
-(workspace `starlight-production-336-650-issue182`; config
-`crates/nsb-data-tools/config/starlight-production-336-650-issue182.ladon.toml`).
-Until that lands and is compared, #182 remains open.
+Do **not** cite those provisional biases as the measured-band product result.
 
 ## Experiment A / B / D tooling
 
@@ -281,23 +293,29 @@ Independent validation harness changes live in `VPRamon/nsb-validation` branch
 - component-identity and quantity-from-source-metadata contracts
 - undefined relative metrics serialize as JSON `null` (not NaN)
 
-NSB side: `nsb-data dataset starlight diagnose export-measured336650` derives a
-measured-band **subcomponent** map from frozen combined-product shards
-(distinct checksum + `physical_quantity=photon_radiance_336_650_nm` metadata)
-so Experiment A cannot relabel a 300–650 candidate by caller string. That
-export is **not** a substitute for a dedicated `Measured336To650` production
-build.
+NSB side: `export-measured336650` remains a fail-closed **combined-candidate
+measured-subcomponent** diagnostic. Experiment A pins now use the true
+`Measured336To650` production candidate above.
+
+## Updated #182 accounting (after true Exp A)
+
+| Term | Contribution |
+|---|---:|
+| Original full-band discrepancy (NSB vs nsb2 full, 300–650) | **−24.4%** |
+| XHIP / bright-star supplement | **~−6.1 pp** (Exp B: −24.4% → −18.3%); XHIP ≈ **7.4%** of nsb2 |
+| UV/admission (true Measured336To650 vs combined population) | **≈ 0.5–0.7 pp** of integrated flux (~0.54% of est. nsb2; smoke-48 ≈ 0.49%) |
+| Measured-band Gaia-only residual (true Exp A no-XHIP) | **≈ −16.4%** |
+| vs nsb2 Gaia-bright alone | **≈ −4.4%** |
+| Still unresolved (XP vs Pickles, selection, faint population, bright-catalogue treatment beyond XHIP) | Dominant residual after XHIP + UV gate |
+
+`scientifically_validated` remains **false**. Issue #182 remains **open**.
 
 ## Next measurements (priority)
 
-1. Finish / pin the true `Measured336To650` production candidate on Ladon and
-   rerun Experiment A against it (replace/reclassify the provisional
-   subcomponent pin).
-2. Attribute the ~17–18% Gaia-only measured-band residual (bright catalogue vs
-   faint map, XP vs Pickles, selection weighting, admission) without tuning to
-   nsb2.
-3. Bright-star supplement policy assessment (need ≠ copy XHIP).
-4. Optional: full-sky Experiment C attribution to tighten the ~0.491% smoke-48
+1. Attribute the ~16% Gaia-only measured-band residual (bright catalogue vs
+   faint map, XP vs Pickles, selection weighting) without tuning to nsb2.
+2. Bright-star supplement policy assessment (need ≠ copy XHIP).
+3. Optional: full-sky Experiment C attribution to tighten the ~0.491% smoke-48
    estimate (not expected to change the “H2 is minor” conclusion).
 
 ## Classification glossary (for the eventual #182 close-out)
