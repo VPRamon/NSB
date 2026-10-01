@@ -26,10 +26,12 @@ pub use builder::{
 };
 pub use catalogue::{
     ingest_gaia_quality_extract, ingest_hip_gaia_crossmatch, ingest_hipparcos2, ingest_tycho2,
-    HipGaiaIdentityMatch, Hipparcos2Record, PinnedCatalogueInput, Tycho2Photometry,
+    ingest_xhip, HipGaiaIdentityMatch, Hipparcos2Record, PinnedCatalogueInput, Tycho2Photometry,
+    XhipRecord,
 };
 pub use crossmatch::{
-    classify_match, positional_match_candidates, propagate_hipparcos_to_j2016, CrossmatchDecision,
+    classify_match, positional_match_candidates, propagate_hipparcos_3d_to_j2016,
+    propagate_hipparcos_to_j2016, propagation_2d_3d_difference_arcsec, CrossmatchDecision,
     GaiaMatchRow, HipparcosAstrometry, MatchCandidate, PropagatedPosition,
 };
 pub use photometry::{

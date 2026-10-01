@@ -3,10 +3,10 @@
 use super::artifact::{
     BrightStarArtifact, BrightStarInputProvenance, BrightStarSourceRecord, CorrelatedUncertainty,
 };
-use super::catalogue::{HipGaiaIdentityMatch, Hipparcos2Record, Tycho2Photometry};
+use super::catalogue::{HipGaiaIdentityMatch, Hipparcos2Record, Tycho2Photometry, XhipRecord};
 use super::crossmatch::{
-    classify_match, positional_match_candidates, propagate_hipparcos_to_j2016, GaiaMatchRow,
-    MatchCandidate,
+    classify_match, positional_match_candidates, propagate_hipparcos_to_j2016,
+    propagation_2d_3d_difference_arcsec, GaiaMatchRow, MatchCandidate,
 };
 use super::policy::{BrightStarPopulationPolicy, BrightStarPrecedencePolicy, SupplementClass};
 use anyhow::{bail, Result};
@@ -43,6 +43,9 @@ pub struct BrightStarBuildDiagnostics {
     pub displacement_over_10_arcsec: u64,
     pub nside_pixel_scale_arcsec: f64,
     pub largest_proper_motion_sources: Vec<ProperMotionDiagnostic>,
+    pub perspective_3d_sample_count: u64,
+    pub max_2d_3d_difference_arcsec: f64,
+    pub median_2d_3d_difference_arcsec: f64,
     pub sources: Vec<BrightStarSourceDiagnostic>,
 }
 
@@ -84,6 +87,7 @@ pub fn build_experimental_artifact(
     inputs: Vec<BrightStarInputProvenance>,
     hipparcos: &[Hipparcos2Record],
     tycho_by_hip: &BTreeMap<u32, Tycho2Photometry>,
+    xhip_by_hip: &BTreeMap<u32, XhipRecord>,
     identity_matches: &BTreeMap<u32, Vec<HipGaiaIdentityMatch>>,
     gaia_quality: &BTreeMap<u64, GaiaMatchRow>,
     positional_search_rows: &[GaiaMatchRow],
@@ -96,6 +100,7 @@ pub fn build_experimental_artifact(
     let mut sources = Vec::new();
     let mut diagnostics = Vec::new();
     let mut displacements = Vec::new();
+    let mut perspective_differences = Vec::new();
     let mut spectral_failed = 0_u64;
     let mut matched_gaia = 0_u64;
 
@@ -108,6 +113,16 @@ pub fn build_experimental_artifact(
         }
         let propagated = propagate_hipparcos_to_j2016(&hip.astrometry)?;
         displacements.push((hip.astrometry.hip, propagated.angular_displacement_arcsec));
+        if let Some(radial_velocity) = xhip_by_hip
+            .get(&hip.astrometry.hip)
+            .and_then(|row| row.radial_velocity_km_s)
+            .filter(|_| hip.astrometry.parallax_mas > 0.0)
+        {
+            perspective_differences.push(propagation_2d_3d_difference_arcsec(
+                &hip.astrometry,
+                radial_velocity,
+            )?);
+        }
         let radius = (5.0 * propagated.positional_uncertainty_arcsec).max(1.0);
         let official = identity_matches.get(&hip.astrometry.hip);
         let candidates = if let Some(official) = official {
@@ -141,6 +156,13 @@ pub fn build_experimental_artifact(
             decision.class = SupplementClass::AmbiguousManualReview;
             decision.gaia_source_id = None;
             decision.reason = "official_crossmatch_not_unique".into();
+        }
+        if official.is_some_and(|rows| {
+            rows.len() == 1 && !gaia_quality.contains_key(&rows[0].gaia_source_id)
+        }) {
+            decision.class = SupplementClass::AmbiguousManualReview;
+            decision.gaia_source_id = None;
+            decision.reason = "official_match_missing_gaia_quality".into();
         }
         if hip.components > 1 {
             decision.class = SupplementClass::AmbiguousManualReview;
@@ -272,6 +294,19 @@ pub fn build_experimental_artifact(
             .to_degrees()
             * 3600.0,
         largest_proper_motion_sources: largest,
+        perspective_3d_sample_count: perspective_differences.len() as u64,
+        max_2d_3d_difference_arcsec: perspective_differences
+            .iter()
+            .copied()
+            .reduce(f64::max)
+            .unwrap_or(0.0),
+        median_2d_3d_difference_arcsec: {
+            perspective_differences.sort_by(f64::total_cmp);
+            perspective_differences
+                .get(perspective_differences.len().saturating_sub(1) / 2)
+                .copied()
+                .unwrap_or(0.0)
+        },
         sources: diagnostics,
     };
     Ok((artifact, summary))

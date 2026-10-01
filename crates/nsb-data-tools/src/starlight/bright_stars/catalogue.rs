@@ -31,6 +31,17 @@ pub struct Hipparcos2Record {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct XhipRecord {
+    pub hip: u32,
+    pub spectral_type: Option<String>,
+    pub temperature_code: Option<u16>,
+    pub luminosity_class_code: Option<u8>,
+    pub radial_velocity_km_s: Option<f64>,
+    pub radial_velocity_uncertainty_km_s: Option<f64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Tycho2Photometry {
     pub tycho_id: String,
     pub hip: u32,
@@ -68,6 +79,7 @@ pub fn ingest_hipparcos2(input: &PinnedCatalogueInput) -> Result<Vec<Hipparcos2R
         let dec_rad = field(&line, 29, 42, "DErad")?.parse::<f64>()?;
         let pm_ra = field(&line, 51, 59, "pmRA")?.parse::<f64>()?;
         let pm_dec = field(&line, 60, 68, "pmDE")?.parse::<f64>()?;
+        let parallax = field(&line, 43, 50, "Plx")?.parse::<f64>()?;
         let e_ra = field(&line, 69, 75, "e_RArad")?.parse::<f64>()?;
         let e_dec = field(&line, 76, 82, "e_DErad")?.parse::<f64>()?;
         let e_pm_ra = field(&line, 90, 96, "e_pmRA")?.parse::<f64>()?;
@@ -80,6 +92,7 @@ pub fn ingest_hipparcos2(input: &PinnedCatalogueInput) -> Result<Vec<Hipparcos2R
             dec_deg_j1991_25: dec_rad.to_degrees(),
             pm_ra_cosdec_mas_per_year: pm_ra,
             pm_dec_mas_per_year: pm_dec,
+            parallax_mas: parallax,
             position_uncertainty_mas: e_ra.hypot(e_dec),
             proper_motion_uncertainty_mas_per_year: e_pm_ra.hypot(e_pm_dec),
         };
@@ -103,6 +116,48 @@ pub fn ingest_hipparcos2(input: &PinnedCatalogueInput) -> Result<Vec<Hipparcos2R
         bail!("Hipparcos-2 contains duplicate HIP identifiers");
     }
     Ok(records)
+}
+
+/// Ingest XHIP V/137D as optional build-only spectral/RV evidence. XHIP bytes
+/// are never embedded in the supplement artifact.
+pub fn ingest_xhip(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, XhipRecord>> {
+    verify_input(input, BrightStarInputRole::SpectralTypeCatalogue)?;
+    let reader = open_text(&input.path)?;
+    let mut out = BTreeMap::new();
+    for (index, line) in reader.lines().enumerate() {
+        let line = line.with_context(|| format!("read XHIP line {}", index + 1))?;
+        if line.len() < 283 {
+            bail!(
+                "XHIP line {} is shorter than the V/137D contract",
+                index + 1
+            );
+        }
+        let hip = field(&line, 0, 6, "HIP")?.parse::<u32>()?;
+        let radial_velocity_km_s = optional_f64(&line, 269, 276)?;
+        let radial_velocity_uncertainty_km_s = optional_f64(&line, 277, 283)?;
+        if radial_velocity_km_s.is_some_and(|value| !value.is_finite())
+            || radial_velocity_uncertainty_km_s
+                .is_some_and(|value| !value.is_finite() || value < 0.0)
+        {
+            bail!("XHIP HIP {hip} has invalid radial velocity");
+        }
+        let record = XhipRecord {
+            hip,
+            spectral_type: optional_field(&line, 236, 262)?.map(ToOwned::to_owned),
+            temperature_code: optional_field(&line, 263, 266)?
+                .map(str::parse)
+                .transpose()?,
+            luminosity_class_code: optional_field(&line, 267, 268)?
+                .map(str::parse)
+                .transpose()?,
+            radial_velocity_km_s,
+            radial_velocity_uncertainty_km_s,
+        };
+        if out.insert(hip, record).is_some() {
+            bail!("XHIP contains duplicate HIP identifier {hip}");
+        }
+    }
+    Ok(out)
 }
 
 pub fn ingest_tycho2(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, Tycho2Photometry>> {

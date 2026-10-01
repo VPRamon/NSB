@@ -50,3 +50,12 @@ segments = [
   "18:5e951a1a51df7956f205b83cbfa5501d357c843640a253c1e6d3917bebe7d928",
   "19:f59605a38116f517a31a7dbdee3469c077658f2f40b8afe5da2aeb832eaee3dd",
 ]
+
+[[inputs]]
+role = "spectral_type_catalogue"
+source_id = "CDS-V-137D-main.dat.gz"
+release = "XHIP-main-catalogue"
+url = "https://cdsarc.cds.unistra.fr/ftp/V/137D/main.dat.gz"
+sha256 = "8b6a7efb5b3ebf985de2072ace9f2d47849f369c345e2de9a1e3fe822594771b"
+terms_url = "https://cds.unistra.fr/vizier-org/licences_vizier.html"
+citation = "Anderson and Francis 2012, XHIP"

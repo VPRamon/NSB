@@ -15,6 +15,7 @@ pub struct HipparcosAstrometry {
     /// Hipparcos convention: mu_alpha_star = d(alpha)/dt cos(delta), mas/yr.
     pub pm_ra_cosdec_mas_per_year: f64,
     pub pm_dec_mas_per_year: f64,
+    pub parallax_mas: f64,
     pub position_uncertainty_mas: f64,
     pub proper_motion_uncertainty_mas_per_year: f64,
 }
@@ -26,6 +27,78 @@ pub struct PropagatedPosition {
     pub dec_deg_j2016: f64,
     pub angular_displacement_arcsec: f64,
     pub positional_uncertainty_arcsec: f64,
+}
+
+/// Propagate the full space-motion vector when a positive parallax and radial
+/// velocity are available. This quantifies the perspective term relative to
+/// the two-dimensional matching model.
+pub fn propagate_hipparcos_3d_to_j2016(
+    source: &HipparcosAstrometry,
+    radial_velocity_km_s: f64,
+) -> Result<PropagatedPosition> {
+    let two_dimensional = propagate_hipparcos_to_j2016(source)?;
+    if !source.parallax_mas.is_finite()
+        || source.parallax_mas <= 0.0
+        || !radial_velocity_km_s.is_finite()
+    {
+        bail!("3D propagation requires positive parallax and finite radial velocity");
+    }
+    const YEARS: f64 = 24.75;
+    const MAS_TO_RAD: f64 = std::f64::consts::PI / (180.0 * 3_600_000.0);
+    const KM_S_TO_PC_YR: f64 = 1.022_712_165_053_707_7e-6;
+    let ra = source.ra_deg_j1991_25.to_radians();
+    let dec = source.dec_deg_j1991_25.to_radians();
+    let (sin_ra, cos_ra) = ra.sin_cos();
+    let (sin_dec, cos_dec) = dec.sin_cos();
+    let radial = [cos_dec * cos_ra, cos_dec * sin_ra, sin_dec];
+    let alpha = [-sin_ra, cos_ra, 0.0];
+    let delta = [-sin_dec * cos_ra, -sin_dec * sin_ra, cos_dec];
+    let distance_pc = 1_000.0 / source.parallax_mas;
+    let mu_alpha = source.pm_ra_cosdec_mas_per_year * MAS_TO_RAD;
+    let mu_delta = source.pm_dec_mas_per_year * MAS_TO_RAD;
+    let rv = radial_velocity_km_s * KM_S_TO_PC_YR;
+    let mut position = [0.0; 3];
+    for axis in 0..3 {
+        let velocity =
+            rv * radial[axis] + distance_pc * (mu_alpha * alpha[axis] + mu_delta * delta[axis]);
+        position[axis] = distance_pc * radial[axis] + YEARS * velocity;
+    }
+    let norm = position
+        .iter()
+        .map(|value| value * value)
+        .sum::<f64>()
+        .sqrt();
+    if !norm.is_finite() || norm <= 0.0 {
+        bail!("3D propagation produced an invalid position");
+    }
+    let unit = position.map(|value| value / norm);
+    let ra_deg = unit[1].atan2(unit[0]).to_degrees().rem_euclid(360.0);
+    let dec_deg = unit[2].asin().to_degrees();
+    Ok(PropagatedPosition {
+        ra_deg_j2016: ra_deg,
+        dec_deg_j2016: dec_deg,
+        angular_displacement_arcsec: angular_separation_arcsec(
+            source.ra_deg_j1991_25,
+            source.dec_deg_j1991_25,
+            ra_deg,
+            dec_deg,
+        ),
+        positional_uncertainty_arcsec: two_dimensional.positional_uncertainty_arcsec,
+    })
+}
+
+pub fn propagation_2d_3d_difference_arcsec(
+    source: &HipparcosAstrometry,
+    radial_velocity_km_s: f64,
+) -> Result<f64> {
+    let two = propagate_hipparcos_to_j2016(source)?;
+    let three = propagate_hipparcos_3d_to_j2016(source, radial_velocity_km_s)?;
+    Ok(angular_separation_arcsec(
+        two.ra_deg_j2016,
+        two.dec_deg_j2016,
+        three.ra_deg_j2016,
+        three.dec_deg_j2016,
+    ))
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -66,6 +139,7 @@ pub fn propagate_hipparcos_to_j2016(source: &HipparcosAstrometry) -> Result<Prop
         source.dec_deg_j1991_25,
         source.pm_ra_cosdec_mas_per_year,
         source.pm_dec_mas_per_year,
+        source.parallax_mas,
         source.position_uncertainty_mas,
         source.proper_motion_uncertainty_mas_per_year,
     ];
@@ -246,12 +320,35 @@ mod tests {
             dec_deg_j1991_25: 20.0,
             pm_ra_cosdec_mas_per_year: 10_000.0,
             pm_dec_mas_per_year: 0.0,
+            parallax_mas: 100.0,
             position_uncertainty_mas: 1.0,
             proper_motion_uncertainty_mas_per_year: 1.0,
         })
         .unwrap();
         assert!((p.angular_displacement_arcsec - 247.5).abs() < 1e-12);
         assert!(p.ra_deg_j2016 > 10.0);
+    }
+
+    #[test]
+    fn three_dimensional_propagation_exposes_perspective_term() {
+        let source = HipparcosAstrometry {
+            hip: 1,
+            ra_deg_j1991_25: 10.0,
+            dec_deg_j1991_25: 20.0,
+            pm_ra_cosdec_mas_per_year: 10_000.0,
+            pm_dec_mas_per_year: 2_000.0,
+            parallax_mas: 500.0,
+            position_uncertainty_mas: 1.0,
+            proper_motion_uncertainty_mas_per_year: 1.0,
+        };
+        let difference = propagation_2d_3d_difference_arcsec(&source, 100.0).unwrap();
+        assert!(difference.is_finite() && difference > 0.0);
+        assert_eq!(
+            propagation_2d_3d_difference_arcsec(&source, f64::NAN)
+                .unwrap_err()
+                .to_string(),
+            "3D propagation requires positive parallax and finite radial velocity"
+        );
     }
 
     #[test]

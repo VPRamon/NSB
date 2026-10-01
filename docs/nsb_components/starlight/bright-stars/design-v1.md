@@ -77,6 +77,13 @@ variables without mean-flux policy) are excluded or deferred to
 ## 4. Epoch and proper motion
 
 - Catalogue epoch: Hipparcos **J1991.25**.
+- The build propagates the two-dimensional Hipparcos proper motion to
+  **J2016.0** for matching. When XHIP supplies a finite radial velocity and
+  HIP2 supplies a positive parallax, it also performs Cartesian constant-space-
+  velocity propagation and records the 2D-versus-3D angular difference. The
+  2D approximation is accepted only if the emitted diagnostic demonstrates
+  that the omitted perspective term is negligible relative to the declared
+  match radius; it is not assumed negligible by construction.
 - Target epoch for HEALPix binning / Gaia crossmatch: **Gaia DR3**
   (J2016.0).
 - Propagate \(\alpha,\delta\) with HIP2 proper motions to J2016.0.
