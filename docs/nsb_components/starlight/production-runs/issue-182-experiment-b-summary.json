@@ -117,5 +117,41 @@
     "integrated_relative_bias": -0.1615656706265277,
     "correlation": 0.9354719907218946,
     "pixel_count": 194642
+  },
+  "reproducibility": {
+    "nsb2_commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+    "nside": 128,
+    "ordering": "ring",
+    "band_nm": [
+      300.0,
+      650.0
+    ],
+    "unit_map": "ph_cm-2_ns-1_sr-1",
+    "unit_integrated_flux": "ph_cm-2_ns-1",
+    "no_xhip_runs_agree": true,
+    "data_inputs": {
+      "astropy_cache_dir": "/home/valles/.cache/astropy",
+      "gaia_bright_cache": "/home/valles/.cache/astropy/download/url/f437e95e55d3207accdfbcaace98b758/contents",
+      "gaia_bright_url": "https://zenodo.org/records/15396676/files/gaiadr3.npy",
+      "gaia_faint_cache": "/home/valles/.cache/astropy/download/url/f85665708ec434b8f9ad1dbb12c320b3/contents",
+      "gaia_faint_url": "https://zenodo.org/records/15396676/files/gaia_mag15plus.npy",
+      "notes": [
+        "Gaia products are NOT package-bundled; fetched via astropy.utils.data.download_file(..., cache=True).",
+        "XHIP supplement IS package-bundled under nsb2/data/anderson2012_xhip_suppl.dat.",
+        "No pre-existing local or Ladon Gaia cache was found; Zenodo downloads seeded the local Astropy cache."
+      ],
+      "svo_bandpasses": "downloaded via Bandpass.from_SVO into Astropy cache on first use",
+      "xhip_bundled": "/home/valles/workspace/nsb-validation/.venv/lib/python3.11/site-packages/nsb2/data/anderson2012_xhip_suppl.dat"
+    },
+    "artifact_sha256": {
+      "component_gaia_dr3_bright": "ad39d417dc3cb109eb902c17e8fb9299a1b3571a18fa0e57aa713ae25413a021",
+      "component_gaia_dr3_faint_map": "fc5d1d21c84aea6eba8296c44ade6bdff2a056a307876e75be6916895a672793",
+      "component_xhip_gaia_supplement": "afa8e38622492307cd6a64eaa5bef3f603331034393414f8f5c93efe0f71bf96",
+      "full_metadata": "e2ff6c6eeb1a66f0832f5f533803f79311bd12632edd8015fca38889360e824a",
+      "full_primary": "f21518839a03eea89ed9ee6fca4cd34600eac11fa45b154de045087c9e2cd69e",
+      "no_xhip_from_components": "a686728ab9e9b1821d6a20436ad438bb6dcf3c962a129182183f27261f224ece",
+      "no_xhip_metadata": "9b05fcb98cc0b106271d8c01ea6707c29cb83ccf6afe3e5f59a690fd827cf891",
+      "no_xhip_primary": "a686728ab9e9b1821d6a20436ad438bb6dcf3c962a129182183f27261f224ece"
+    }
   }
 }
