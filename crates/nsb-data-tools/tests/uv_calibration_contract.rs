@@ -273,25 +273,6 @@ fn rejection_policy_never_extrapolates_and_preserves_diagnostics() {
 }
 
 #[test]
-fn retain_measured_when_uv_unavailable_keeps_measured_band_as_lower_bound() {
-    let correction = correction();
-    let retained = correction
-        .retain_measured_when_uv_unavailable(100.0, 4.0)
-        .unwrap();
-    assert_eq!(retained.flux_336_650_ph_m2_s, 100.0);
-    assert_eq!(retained.flux_300_650_ph_m2_s, 100.0);
-    assert_eq!(retained.flux_300_336_ph_m2_s, 0.0);
-    assert_eq!(
-        retained.applicability_status,
-        ApplicabilityStatus::Unavailable
-    );
-    assert_eq!(retained.decision, EvaluationDecision::MeasuredOnly);
-    assert_eq!(retained.statistical_uncertainty_300_650_ph_m2_s, 4.0);
-    assert_eq!(retained.systematic_uncertainty_300_650_ph_m2_s, 5.0);
-    assert_eq!(retained.systematic_uncertainty_300_336_ph_m2_s, 5.0);
-}
-
-#[test]
 fn band_components_and_uncertainties_are_separate_and_explicitly_combined() {
     let correction = correction();
     let evaluation = correction

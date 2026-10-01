@@ -175,46 +175,35 @@ pub(crate) fn evaluate_source_for_diagnostic(
             outcome.exclusion_reason = Some("uv_correction_missing".to_string());
             return outcome;
         };
-        if let Some(predictors) = &gaia_source.predictors {
-            let evaluation = match correction.evaluate(UvEvaluationInput {
-                predictors,
-                measured_band: Some(MeasuredBandInput {
-                    flux_336_650_ph_m2_s: raw_flux_336_650,
-                    statistical_uncertainty_336_650_ph_m2_s: 0.0,
-                }),
-            }) {
-                Ok(evaluation) => evaluation,
-                Err(_) => {
-                    outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
-                    return outcome;
-                }
-            };
-            if evaluation.decision == EvaluationDecision::Rejected {
-                outcome.exclusion_reason = Some("uv_out_of_domain".to_string());
+        let Some(predictors) = &gaia_source.predictors else {
+            outcome.exclusion_reason = Some("invalid_uv_predictors".to_string());
+            return outcome;
+        };
+        let evaluation = match correction.evaluate(UvEvaluationInput {
+            predictors,
+            measured_band: Some(MeasuredBandInput {
+                flux_336_650_ph_m2_s: raw_flux_336_650,
+                statistical_uncertainty_336_650_ph_m2_s: 0.0,
+            }),
+        }) {
+            Ok(evaluation) => evaluation,
+            Err(_) => {
+                outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
                 return outcome;
             }
-            match correction.combine_with_measured(raw_flux_336_650, 0.0, &evaluation) {
-                Ok(combined) => {
-                    outcome.uv_flux_300_336_ph_m2_s = combined.flux_300_336_ph_m2_s;
-                    flux_300_650 = combined.flux_300_650_ph_m2_s;
-                }
-                Err(_) => {
-                    outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
-                    return outcome;
-                }
+        };
+        if evaluation.decision == EvaluationDecision::Rejected {
+            outcome.exclusion_reason = Some("uv_out_of_domain".to_string());
+            return outcome;
+        }
+        match correction.combine_with_measured(raw_flux_336_650, 0.0, &evaluation) {
+            Ok(combined) => {
+                outcome.uv_flux_300_336_ph_m2_s = combined.flux_300_336_ph_m2_s;
+                flux_300_650 = combined.flux_300_650_ph_m2_s;
             }
-        } else {
-            // Match production (#182): retain measured 336–650 when UV predictors
-            // are unavailable rather than discarding the entire source.
-            match correction.retain_measured_when_uv_unavailable(raw_flux_336_650, 0.0) {
-                Ok(combined) => {
-                    outcome.uv_flux_300_336_ph_m2_s = combined.flux_300_336_ph_m2_s;
-                    flux_300_650 = combined.flux_300_650_ph_m2_s;
-                }
-                Err(_) => {
-                    outcome.exclusion_reason = Some("uv_unavailable_retention_failed".to_string());
-                    return outcome;
-                }
+            Err(_) => {
+                outcome.exclusion_reason = Some("uv_evaluation_failed".to_string());
+                return outcome;
             }
         }
     }

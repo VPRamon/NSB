@@ -252,9 +252,6 @@ pub enum ApplicabilityStatus {
     InDomain,
     Boundary,
     OutOfDomain,
-    /// UV predictors were unavailable; measured 336–650 nm flux was retained
-    /// without inventing a 300–336 nm correction (issue #182).
-    Unavailable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -263,8 +260,6 @@ pub enum EvaluationDecision {
     Applied,
     Rejected,
     Clamped,
-    /// Measured band retained; UV correction not evaluated.
-    MeasuredOnly,
 }
 
 /// Measured XP value required by response families that are relative to it.
@@ -932,45 +927,6 @@ impl UvCorrection {
         })
     }
 
-    /// Retain measured 336–650 nm flux when UV predictors are unavailable.
-    ///
-    /// The 300–336 nm component is **not estimated** (recorded as 0.0 with
-    /// [`ApplicabilityStatus::Unavailable`]). The combined 300–650 quantity for
-    /// such sources is therefore a measured-band lower bound, not a completed
-    /// UV-corrected spectrum. A conservative systematic term covers the missing
-    /// UV contribution without inventing a point estimate. Callers fold any
-    /// photometric/selection systematic in afterward, matching
-    /// [`Self::combine_with_measured`].
-    pub fn retain_measured_when_uv_unavailable(
-        &self,
-        flux_336_650_ph_m2_s: f64,
-        statistical_uncertainty_336_650_ph_m2_s: f64,
-    ) -> Result<CombinedBandFlux> {
-        validate_measured_band(MeasuredBandInput {
-            flux_336_650_ph_m2_s,
-            statistical_uncertainty_336_650_ph_m2_s,
-        })?;
-        // Conservative envelope above the ~3% global UV/measured ratio observed
-        // for in-domain admitted sources in the #182 production candidate.
-        const MISSING_UV_SYSTEMATIC_FRACTION: f64 = 0.05;
-        let missing_uv_systematic = flux_336_650_ph_m2_s * MISSING_UV_SYSTEMATIC_FRACTION;
-        Ok(CombinedBandFlux {
-            flux_300_336_ph_m2_s: 0.0,
-            flux_336_650_ph_m2_s,
-            flux_300_650_ph_m2_s: flux_336_650_ph_m2_s,
-            statistical_uncertainty_300_336_ph_m2_s: 0.0,
-            statistical_uncertainty_336_650_ph_m2_s,
-            statistical_uncertainty_300_650_ph_m2_s: statistical_uncertainty_336_650_ph_m2_s,
-            systematic_uncertainty_300_336_ph_m2_s: missing_uv_systematic,
-            systematic_uncertainty_300_650_ph_m2_s: missing_uv_systematic,
-            applicability_status: ApplicabilityStatus::Unavailable,
-            decision: EvaluationDecision::MeasuredOnly,
-            model_id: self.artifact.model_id.clone(),
-            artifact_sha256: self.artifact_sha256.clone(),
-            systematic_correlation: self.artifact.uncertainty_model.systematic_correlation,
-        })
-    }
-
     fn rejected_evaluation(
         &self,
         measured_band: Option<MeasuredBandInput>,
@@ -1561,7 +1517,6 @@ fn evaluate_holdout(
             ApplicabilityStatus::InDomain => "in-domain",
             ApplicabilityStatus::Boundary => "boundary",
             ApplicabilityStatus::OutOfDomain => "out-of-domain",
-            ApplicabilityStatus::Unavailable => "unavailable",
         };
         let strata = [
             required_field(&record, indexes[4], "colour")?,

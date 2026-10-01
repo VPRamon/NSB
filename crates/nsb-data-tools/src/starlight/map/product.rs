@@ -1,6 +1,13 @@
 //! Deterministic canonical-map emission and production validation.
 
 use super::accumulator::{merge_shards, PartitionShard};
+use super::policy_registry::{
+    science_policy_matches_registry, ADMISSION_RULES_V1 as ADMISSION_RULES,
+    CURRENT_ADMISSION_POLICY_ID as ADMISSION_POLICY_ID,
+    CURRENT_CORRECTED_SPECTRAL_POLICY_ID as CORRECTED_SPECTRAL_POLICY_ID,
+    CURRENT_POPULATION_POLICY_ID as POPULATION_POLICY_ID,
+    CURRENT_SPECTRAL_POLICY_ID as SPECTRAL_POLICY_ID,
+};
 use crate::dataset::{Artifact, ValidationGate};
 use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::config::StarlightProductBand;
@@ -23,22 +30,8 @@ const MAP_FLUX_QUANTITY: &str = "integrated_per_pixel";
 const MAP_FLUX_UNIT: &str = "ph_m-2_s-1";
 const MAP_DERIVATION: &str = "canonical_gaia_source_accumulation";
 const MAP_SOURCE_COUNT_SEMANTICS: &str = "exact_source_membership";
-const ADMISSION_POLICY_ID: &str = "gaia-dr3-full-population-v2";
-const POPULATION_POLICY_ID: &str = "selection-function-identity-stub-v1";
-const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
-const CORRECTED_SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-uv-corrected-300-650-v2";
-
-const ADMISSION_RULES: [&str; 9] = [
-    "require_gaia_source_match",
-    "exclude_calibration_failed",
-    "exclude_non_positive_or_non_finite_flux",
-    "exclude_invalid_statistical_uncertainty",
-    "exclude_duplicated_source",
-    "exclude_scientific_exclusion_nonstellar",
-    "route_non_xp_via_photometric_inference",
-    "exclude_no_xp_spectrum_without_photometric_artifact",
-    "retain_measured_336_650_when_uv_predictors_unavailable",
-];
+// Admission / spectral policy IDs and rules come from policy_registry
+// (CURRENT_* constants) so historical versions remain independently verifiable.
 
 /// Optional selection-function identity passed from finalize into the merge report.
 #[derive(Debug, Clone)]
@@ -1153,7 +1146,7 @@ fn science_policy_report(
             systematic_correlation_scope: ultraviolet
                 .map(|metadata| CorrelationScope::from(metadata.systematic_correlation)),
             limitation: if corrected {
-                "The 300-336 nm contribution is model-corrected when UV predictors are available. Sources lacking UV predictors retain selection-weighted measured 336-650 nm flux only; their combined 300-650 contribution is a measured-band lower bound with a conservative missing-UV systematic (issue #182), not an invented UV point estimate.".to_string()
+                "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately. Sources lacking UV predictors are excluded from the combined 300-650 map rather than published as incomplete lower bounds labelled as full-band flux.".to_string()
             } else {
                 "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied.".to_string()
             },
@@ -1215,64 +1208,7 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
 }
 
 fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
-    let spectral = &policy.spectral_coverage;
-    let spectral_valid = if spectral.ultraviolet_correction_applied {
-        spectral.policy_id == CORRECTED_SPECTRAL_POLICY_ID
-            && spectral.corrected_band_nm == Some([300, 336])
-            && spectral.combined_band_nm == Some([300, 650])
-            && spectral
-                .correction_model_id
-                .as_deref()
-                .is_some_and(|value| !value.trim().is_empty())
-            && spectral
-                .correction_artifact_sha256
-                .as_deref()
-                .is_some_and(is_sha256)
-            && spectral.calibration_status
-                == Some(crate::starlight::uv::CalibrationStatus::Validated)
-            && spectral.model_response.is_some()
-            && spectral
-                .measured_conditional_residual_statistical_correlation
-                .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
-            && spectral.systematic_correlation.is_some()
-            && spectral.systematic_correlation_scope
-                == spectral.systematic_correlation.map(CorrelationScope::from)
-    } else {
-        spectral.policy_id == SPECTRAL_POLICY_ID
-            && spectral.corrected_band_nm.is_none()
-            && spectral.combined_band_nm.is_none()
-            && spectral.correction_model_id.is_none()
-            && spectral.correction_artifact_sha256.is_none()
-            && spectral.calibration_status.is_none()
-            && spectral.model_response.is_none()
-            && spectral
-                .measured_conditional_residual_statistical_correlation
-                .is_none()
-            && spectral.systematic_correlation.is_none()
-            && spectral.systematic_correlation_scope.is_none()
-    };
-    let population = &policy.population_correction;
-    let population_valid = if population.applied {
-        !population.policy_id.trim().is_empty()
-            && population.policy_id != POPULATION_POLICY_ID
-            && population.minimum_weight == 1.0
-            && population.maximum_weight.is_finite()
-            && population.maximum_weight >= 1.0
-            && !population.limitation.trim().is_empty()
-    } else {
-        population.policy_id == POPULATION_POLICY_ID
-            && population.minimum_weight == 1.0
-            && population.maximum_weight == 1.0
-            && !population.residual_faint_tail_estimated
-            && !population.limitation.trim().is_empty()
-    };
-    policy.schema_version == 2
-        && policy.admission_policy_id == ADMISSION_POLICY_ID
-        && policy.admission_rules == ADMISSION_RULES
-        && population_valid
-        && spectral.target_band_nm == [300, 650]
-        && spectral.directly_integrated_band_nm == [336, 650]
-        && spectral_valid
+    science_policy_matches_registry(policy)
 }
 
 fn write_map(
@@ -1706,7 +1642,6 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
             crate::starlight::uv::ApplicabilityStatus::InDomain => 0,
             crate::starlight::uv::ApplicabilityStatus::Boundary => 1,
             crate::starlight::uv::ApplicabilityStatus::OutOfDomain => 2,
-            crate::starlight::uv::ApplicabilityStatus::Unavailable => 3,
         });
         bytes.extend_from_slice(&count.to_be_bytes());
     }
