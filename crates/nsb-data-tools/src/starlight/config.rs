@@ -29,6 +29,13 @@ pub struct StarlightConfig {
     /// Optional checksum-pinned Gaia selection-function artifact.
     #[serde(default)]
     pub selection_function: Option<ArtifactPinConfig>,
+    /// Optional checksum-pinned very-bright-star supplement (external opt-in).
+    ///
+    /// Absent by default. When set, runtime/provenance must record the model id,
+    /// artifact SHA-256, and policy ids. Catalogue bytes are never embedded in
+    /// the NSB repository (#103 redistribution gate).
+    #[serde(default)]
+    pub bright_star_supplement: Option<ArtifactPinConfig>,
 }
 
 /// Network policy for resumable official-source acquisition.

@@ -3,8 +3,10 @@
 Status: **in progress**. This note records reproducible evidence gathered on
 branch `fix/starlight-flux-deficit-182`. It is cross-implementation analysis,
 not an independent astrophysical validation, and must not be promoted to
-`scientifically_validated = true`. Do **not** claim #182 is solved while a true
-`Measured336To650` production comparison remains outstanding.
+`scientifically_validated = true`. A true `Measured336To650` production
+comparison (Experiment A) is **completed**; #182 remains open because the
+~16% Gaia-only residual and the missing very-bright population are not yet
+resolved by a production-approved supplement.
 
 Pinned #182 baseline (from `VPRamon/nsb-validation`):
 
@@ -232,7 +234,16 @@ Local artifacts (not committed): `nsb-validation/work/expB/`,
 
 ## Experiment A — true Measured336To650 production candidate
 
-**True production candidate** (Ladon workspace
+### Candidate lineage (do not conflate)
+
+| Stage | Class | Status |
+|---|---|---|
+| Frozen combined `#182` map | `Combined300To650` (`76191c8b…`) | **Baseline** for original −24.4% |
+| Shard `flux_336_650` export | `combined-candidate-measured-subcomponent` | **Diagnostic / provisional** (inherits UV gate) |
+| Ladon Measured336To650 rebuild @ `3236950` | true `Measured336To650` | **Radiometric map** SHA `32d4f6d2…`; UV systematic bucket dual-filed (superseded bookkeeping) |
+| Re-finalize @ HEAD (`…-refinalize` workspace) | true `Measured336To650` | **In progress** — expect identical selected flux map; `systematic_uncertainty_300_336 = 0` |
+
+**True production candidate** (initial Ladon workspace
 `starlight-production-336-650-issue182`, generating NSB commit `3236950`,
 config SHA-256 `1b3c3649…`):
 
@@ -245,6 +256,7 @@ config SHA-256 `1b3c3649…`):
 | UV applied | **false** (`gaia-xp-continuous-336-650-v1`) |
 | `invalid_uv_predictors` exclusions | **0** (reason absent) |
 | Provenance | `issue-182-true-measured-336-650-provenance.json` |
+| Bookkeeping caveat | `total_flux_300_336 = 0` but `systematic_uncertainty_300_336 ≠ 0` on this generating commit (dual-filing). Corrected in `236091c`; re-finalize must verify flux-map equality and zero UV systematic buckets. |
 
 ### Population / flux difference vs combined-candidate subcomponent
 
@@ -312,10 +324,14 @@ measured-subcomponent** diagnostic. Experiment A pins now use the true
 
 ## Next measurements (priority)
 
-1. Attribute the ~16% Gaia-only measured-band residual (bright catalogue vs
-   faint map, XP vs Pickles, selection weighting) without tuning to nsb2.
-2. Bright-star supplement policy assessment (need ≠ copy XHIP).
-3. Optional: full-sky Experiment C attribution to tighten the ~0.491% smoke-48
+1. Re-finalize true Measured336To650 with corrected UV systematic bookkeeping;
+   confirm canonical flux SHA equality vs `32d4f6d2…`.
+2. Implement NSB-native very-bright supplement per
+   [`../bright-stars/design-v1.md`](../bright-stars/design-v1.md) (external
+   opt-in; do not copy XHIP; do not embed NC catalogue bytes).
+3. Attribute the ~16% Gaia-only measured-band residual (selection weighting,
+   XP vs photometric route, faint population) without tuning to nsb2.
+4. Optional: full-sky Experiment C attribution to tighten the ~0.491% smoke-48
    estimate (not expected to change the “H2 is minor” conclusion).
 
 ## Classification glossary (for the eventual #182 close-out)

@@ -10,7 +10,7 @@ use crate::starlight::selection::SelectionCorrection;
 use crate::starlight::uv::{
     EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput,
 };
-use crate::starlight::xp::{integrate_photon_flux, XpProduct};
+use crate::starlight::xp::{integrate_photon_flux, integrate_photon_flux_uncertainty, XpProduct};
 use serde::{Deserialize, Serialize};
 
 /// Cumulative ablation stages for issue #116 causal experiments.
@@ -85,6 +85,25 @@ pub(crate) fn population_branch_reason(branch: PopulationBranch) -> &'static str
     }
 }
 
+/// Production XP measured-band gate shared by the worker and flux-attribution.
+///
+/// Order matches `worker.rs`: integrate flux, require finite positive flux,
+/// then integrate uncertainty and require finite non-negative uncertainty.
+/// Callers must treat calibration failure separately (never photometric fallback).
+pub(crate) fn measured_xp_flux_and_uncertainty(
+    product: &XpProduct,
+) -> Result<(f64, f64), &'static str> {
+    let flux = match integrate_photon_flux(product) {
+        Ok(flux) if flux.is_finite() && flux > 0.0 => flux,
+        _ => return Err("invalid_flux"),
+    };
+    let uncertainty = match integrate_photon_flux_uncertainty(product) {
+        Ok(uncertainty) if uncertainty.is_finite() && uncertainty >= 0.0 => uncertainty,
+        _ => return Err("invalid_uncertainty"),
+    };
+    Ok((flux, uncertainty))
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn evaluate_source_for_diagnostic(
     gaia_source: &GaiaSourceEntry,
@@ -129,10 +148,10 @@ pub(crate) fn evaluate_source_for_diagnostic(
 
     let (raw_flux_336_650, branch) = if let Some(product) = xp_product {
         outcome.population_branch = Some("xp_continuous".to_string());
-        match integrate_photon_flux(product) {
-            Ok(flux) if flux.is_finite() && flux > 0.0 => (flux, PopulationBranch::XpContinuous),
-            _ => {
-                outcome.exclusion_reason = Some("invalid_flux".to_string());
+        match measured_xp_flux_and_uncertainty(product) {
+            Ok((flux, _uncertainty)) => (flux, PopulationBranch::XpContinuous),
+            Err(reason) => {
+                outcome.exclusion_reason = Some(reason.to_string());
                 return outcome;
             }
         }
@@ -299,7 +318,7 @@ mod tests {
             source_id: "1".to_string(),
             wavelengths_nm: vec![336.0, 650.0],
             flux_w_m2_nm: vec![flux, flux],
-            flux_error_w_m2_nm: None,
+            flux_error_w_m2_nm: Some(vec![flux * 0.01, flux * 0.01]),
         }
     }
 

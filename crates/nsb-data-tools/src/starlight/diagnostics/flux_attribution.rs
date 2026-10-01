@@ -17,10 +17,10 @@ use crate::starlight::uv::{
     EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput,
 };
 use crate::starlight::worker::gaia_source::{load_gaia_sources, GaiaSourceEntry};
-use crate::starlight::worker::processing::{population_branch_reason, scientific_exclusion_reason};
-use crate::starlight::xp::{
-    integrate_photon_flux, integrate_photon_flux_uncertainty, GaiaXpContinuousCalibrator, XpProduct,
+use crate::starlight::worker::processing::{
+    measured_xp_flux_and_uncertainty, population_branch_reason, scientific_exclusion_reason,
 };
+use crate::starlight::xp::{GaiaXpContinuousCalibrator, XpProduct};
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -357,20 +357,11 @@ enum XpRoute {
 
 /// Match production worker.rs: flux gate, then uncertainty gate, before admission.
 fn measured_flux_route(product: &XpProduct) -> Result<XpRoute, &'static str> {
-    match integrate_photon_flux(product) {
-        Ok(flux) if flux.is_finite() && flux > 0.0 => {
-            match integrate_photon_flux_uncertainty(product) {
-                Ok(uncertainty) if uncertainty.is_finite() && uncertainty >= 0.0 => {
-                    Ok(XpRoute::CalibratedMeasured {
-                        flux_336_650_ph_m2_s: flux,
-                        statistical_uncertainty_336_650_ph_m2_s: uncertainty,
-                    })
-                }
-                _ => Err("invalid_uncertainty"),
-            }
-        }
-        _ => Err("invalid_flux"),
-    }
+    let (flux, uncertainty) = measured_xp_flux_and_uncertainty(product)?;
+    Ok(XpRoute::CalibratedMeasured {
+        flux_336_650_ph_m2_s: flux,
+        statistical_uncertainty_336_650_ph_m2_s: uncertainty,
+    })
 }
 
 fn outcome_for_calibrated_xp(

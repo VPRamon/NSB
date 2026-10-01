@@ -299,6 +299,7 @@ lease_timeout_seconds = 60
             ultraviolet_correction: None,
             photometric_inference: None,
             selection_function: None,
+            bright_star_supplement: None,
         }
     }
 

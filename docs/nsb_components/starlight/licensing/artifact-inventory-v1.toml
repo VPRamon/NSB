@@ -340,3 +340,73 @@ notes = """
 Path: docs/nsb_components/starlight/production-runs/combined-300-650-validation.json.
 Records the UV-v2 candidate/report checksums. Human scientific review is #103.
 """
+
+
+# --- Very-bright-star supplement inputs (external / never embedded) --------
+
+[[artifacts]]
+id = "hipparcos-2-catalogue"
+category = "upstream-catalogue-bulk"
+source = "ESA Hipparcos-2 (van Leeuwen 2007) via ESA archives / CDS"
+release = "Hipparcos-2"
+license = "ESA CC BY-NC 3.0 IGO (Credit: ESA)"
+license_url = "https://www.cosmos.esa.int/web/esdc/terms-and-conditions"
+distribution_class = "download_only"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+Preferred primary catalogue for the optional Starlight bright-star supplement
+(docs/nsb_components/starlight/bright-stars/design-v1.md). NSB must not embed
+catalogue bytes in the git tree until human redistribution review (#103).
+External opt-in / user-generated derived artifacts only.
+"""
+
+[[artifacts]]
+id = "tycho-2-catalogue"
+category = "upstream-catalogue-bulk"
+source = "ESA Tycho-2 Catalogue"
+release = "Tycho-2"
+license = "ESA CC BY-NC 3.0 IGO (Credit: ESA)"
+license_url = "https://www.cosmos.esa.int/web/esdc/terms-and-conditions"
+distribution_class = "download_only"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+Supporting B_T/V_T photometry for the bright-star supplement. Same
+non-embedding policy as Hipparcos-2.
+"""
+
+[[artifacts]]
+id = "xhip-vizier-v137d"
+category = "upstream-catalogue-compilation"
+source = "Anderson & Francis 2012 Extended Hipparcos Compilation (CDS VizieR V/137D)"
+release = "V/137D"
+license = "CDS/VizieR scientific-use terms; commercial use depends on origin components"
+license_url = "https://cds.unistra.fr/vizier-org/licences_vizier.html"
+distribution_class = "download_only"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+Convenient SpT/RV compilation used by nsb2. NSB does not choose XHIP solely
+because nsb2 uses it; may be a build input under external-asset mode with
+citation. Do not embed bytes without #103 approval.
+"""
+
+[[artifacts]]
+id = "starlight-bright-stars-v1-derived"
+category = "generated-derived-output"
+source = "NSB bright-star supplement build (starlight-bright-stars-v1)"
+release = "schema_version = 1 / experimental"
+license = "Derived product inherits upstream NC constraints until #103 decides otherwise; NSB source AGPL-3.0-only for code"
+distribution_class = "generated_derived_output"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+Optional checksum-pinned external artifact loaded via
+starlight.bright_star_supplement. scientifically_validated remains false.
+Not shipped in the repository by default.
+"""

@@ -1,5 +1,6 @@
 //! Production Starlight dataset pipeline.
 
+pub mod bright_stars;
 pub mod conditions;
 pub mod config;
 pub mod diagnostics;

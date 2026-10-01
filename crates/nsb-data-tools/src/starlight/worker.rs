@@ -4,7 +4,9 @@ pub(crate) mod gaia_source;
 pub(crate) mod processing;
 
 use self::gaia_source::{load_gaia_sources, GaiaSourceEntry};
-use self::processing::{population_branch_reason, scientific_exclusion_reason};
+use self::processing::{
+    measured_xp_flux_and_uncertainty, population_branch_reason, scientific_exclusion_reason,
+};
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
@@ -14,9 +16,7 @@ use super::photometric::{PhotometricCorrection, PhotometricFeatures, RouteDecisi
 use super::selection::SelectionCorrection;
 use super::sources::acquisition;
 use super::uv::{EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput};
-use super::xp::{
-    integrate_photon_flux, integrate_photon_flux_uncertainty, GaiaXpContinuousCalibrator,
-};
+use super::xp::GaiaXpContinuousCalibrator;
 use crate::dataset::Artifact;
 use crate::platform::artifact_store;
 use anyhow::{bail, Context, Result};
@@ -200,17 +200,10 @@ fn build_partition(
                 continue;
             }
         };
-        let flux = match integrate_photon_flux(&product) {
-            Ok(flux) if flux.is_finite() && flux > 0.0 => flux,
-            _ => {
-                exclude_gaia_source(&mut shard, gaia_source, "invalid_flux")?;
-                continue;
-            }
-        };
-        let statistical_uncertainty = match integrate_photon_flux_uncertainty(&product) {
-            Ok(uncertainty) if uncertainty.is_finite() && uncertainty >= 0.0 => uncertainty,
-            _ => {
-                exclude_gaia_source(&mut shard, gaia_source, "invalid_uncertainty")?;
+        let (flux, statistical_uncertainty) = match measured_xp_flux_and_uncertainty(&product) {
+            Ok(values) => values,
+            Err(reason) => {
+                exclude_gaia_source(&mut shard, gaia_source, reason)?;
                 continue;
             }
         };
