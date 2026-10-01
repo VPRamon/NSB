@@ -215,9 +215,20 @@ true 336–650 map from frozen combined-product shards (distinct checksum +
 `physical_quantity=photon_radiance_336_650_nm` metadata) so Experiment A cannot
 relabel a 300–650 candidate by caller string.
 
+## Experiment C — smoke-48 (routing-fixed)
+
+- Commit: `b96038e` diagnostic binary; report SHA-256 `04ef4be9eff905584a3d6180b2ca59d0cdaf76c28d075ba7baaecc09499c8675`
+- Artifact: `issue-182-experiment-c-smoke48.json` (Ladon `.../smoke48-fixed/`)
+- Partitions: **48**; observed **25,624,960**; admitted **21,581,555**; excluded **4,043,405**
+- `invalid_uv_predictors`: **3,565,954** sources (100% `missing_bp_rp`)
+- Lost weighted 336–650 / admitted combined: **0.650%**
+- Lost / estimated nsb2 total: **0.491%**
+
+Confirms the pilot: H2 remains radiometrically minor at smoke-48 scale (≪ 24%).
+
 ## Next measurements (priority)
 
-1. Finish smoke-48 Experiment C (routing-fixed) for catalogue-scale H2 bound.
+1. Attribute the ~17–18% Gaia-only measured-band residual (bright catalogue vs
 2. Attribute the ~17–18% Gaia-only measured-band residual (bright catalogue vs
    faint map, XP vs Pickles, selection weighting, admission) without tuning to nsb2.
 3. Bright-star supplement policy assessment (need ≠ copy XHIP).
