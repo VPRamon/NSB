@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import math
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -52,39 +53,15 @@ def xhip_codes(hip2_path, xhip_path):
     return codes
 
 
-def target_temperature(code):
-    # Conservative SpT-to-Teff mapping assembled from the cited MK calibration
-    # ranges. CK04 is not used below 3500 K; late-M codes therefore fail closed.
+def target_temperature(code, mapping):
     anchors = {
-        10: 45_000,
-        16: 38_000,
-        19: 32_000,
-        20: 30_000,
-        21: 25_000,
-        22: 22_000,
-        23: 19_000,
-        24: 17_000,
-        25: 15_000,
-        26: 14_000,
-        27: 13_000,
-        28: 12_000,
-        29: 10_500,
-        30: 9_700,
-        35: 8_100,
-        39: 7_400,
-        40: 7_300,
-        45: 6_500,
-        49: 6_000,
-        50: 5_900,
-        55: 5_600,
-        59: 5_200,
-        60: 5_100,
-        65: 4_400,
-        69: 3_900,
-        70: 3_800,
-        72: 3_500,
+        int(key): float(value)
+        for key, value in mapping["temperature_anchors_kelvin"].items()
     }
-    if code > 72 or code < 10:
+    if (
+        code > mapping["supported_temperature_code_max"]
+        or code < mapping["supported_temperature_code_min"]
+    ):
         return None
     lower = max(key for key in anchors if key <= code)
     upper = min(key for key in anchors if key >= code)
@@ -94,8 +71,9 @@ def target_temperature(code):
     return anchors[lower] + fraction * (anchors[upper] - anchors[lower])
 
 
-def target_logg(luminosity_code):
-    return {1: 1.0, 2: 2.0, 3: 3.0, 4: 4.0, 5: 4.5}[luminosity_code]
+def target_logg(luminosity_code, mapping):
+    value = mapping["luminosity_class_logg"].get(str(luminosity_code))
+    return None if value is None else float(value)
 
 
 def response_and_calibration(response_xml, vega_fits):
@@ -203,21 +181,45 @@ def main():
         parser.add_argument(f"--{name.replace('_', '-')}", type=Path, required=True)
         parser.add_argument(f"--{name.replace('_', '-')}-sha256", required=True)
     parser.add_argument("--ck04-root", type=Path, required=True)
+    parser.add_argument("--spectral-mapping", type=Path, required=True)
+    parser.add_argument("--spectral-mapping-sha256", required=True)
+    parser.add_argument("--uncertainty-calibration", type=Path, required=True)
+    parser.add_argument("--uncertainty-calibration-sha256", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--software-commit", required=True)
     args = parser.parse_args()
+    if not re.fullmatch(r"[0-9a-f]{7,40}", args.software_commit):
+        raise ValueError("software commit must be 7-40 lowercase hexadecimal characters")
     for name in ("hip2", "xhip", "ck04_tar", "hp_response", "vega"):
         require_sha(getattr(args, name), getattr(args, f"{name}_sha256"))
-    response, calibration = response_and_calibration(args.hp_response, args.vega)
+    require_sha(args.spectral_mapping, args.spectral_mapping_sha256)
+    require_sha(args.uncertainty_calibration, args.uncertainty_calibration_sha256)
+    mapping = json.loads(args.spectral_mapping.read_text())
+    uncertainty_calibration = json.loads(args.uncertainty_calibration.read_text())
+    if mapping.get("status") != "experimental-provisional":
+        raise ValueError("unsupported spectral mapping status")
+    if uncertainty_calibration.get("status") != "provisional-uncalibrated":
+        raise ValueError("unsupported uncertainty calibration status")
+    response, hp_calibration = response_and_calibration(args.hp_response, args.vega)
     available = available_ck04(args.ck04_root)
     templates = {}
     assignments = []
+    unsupported = []
     for temperature_code, luminosity_code in sorted(xhip_codes(args.hip2, args.xhip)):
-        target = target_temperature(temperature_code)
-        if target is None:
+        target = target_temperature(temperature_code, mapping)
+        logg = target_logg(luminosity_code, mapping)
+        if target is None or logg is None:
+            unsupported.append(
+                {
+                    "temperature_code": temperature_code,
+                    "luminosity_class_code": luminosity_code,
+                    "reason": "unsupported_spectral_mapping",
+                }
+            )
             continue
         selected_temperature = min(available, key=lambda value: abs(value - target))
         template_id, template = read_template(
-            available[selected_temperature], target_logg(luminosity_code)
+            available[selected_temperature], logg
         )
         templates[template_id] = template
         assignments.append(
@@ -229,18 +231,31 @@ def main():
         )
     model = {
         "model_id": "xhip-sptype-ck04-v2-hp-bessell2000-v1",
+        "builder_software_commit": args.software_commit,
         "assignments": assignments,
         "templates": [templates[key] for key in sorted(templates)],
         "hp_response": response,
-        "hp_calibration": calibration,
-        "template_mismatch_fraction": 0.10,
-        "spectral_type_mapping_fraction": 0.05,
-        "hp_zero_point_fraction": 0.01,
+        "hp_calibration": hp_calibration,
+        **uncertainty_calibration["uncertainty_parameters"],
+        "uncertainty_calibration_status": uncertainty_calibration["status"],
+        "uncertainty_calibration_sha256": args.uncertainty_calibration_sha256,
+        "spectral_mapping_status": mapping["status"],
+        "spectral_mapping_sha256": args.spectral_mapping_sha256,
+        "unsupported_assignments": unsupported,
         "template_library_citation": "Castelli & Kurucz 2004; MAST REFERENCE-ATLASES DOI 10.17909/t9-khb7-4049",
-        "spectral_type_mapping_citation": "Experimental MK temperature/luminosity mapping; model applicability is encoded fail-closed",
+        "spectral_type_mapping_citation": "; ".join(mapping["citations"]),
     }
     args.output.write_text(json.dumps(model, indent=2, sort_keys=True) + "\n")
-    print(json.dumps({"output": str(args.output), "sha256": sha256(args.output)}, sort_keys=True))
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "sha256": sha256(args.output),
+                "unsupported_spectral_classifications": len(unsupported),
+            },
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

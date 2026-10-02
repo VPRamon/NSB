@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrightStarBuildRunConfig {
     pub schema_version: u32,
     pub nside: u32,
-    pub build_commit: String,
     pub config_source_id: String,
     pub config_release: String,
     pub config_retrieval_url: String,
@@ -56,6 +56,7 @@ pub struct BrightStarBuildRunManifest {
 pub fn run_experimental_build(
     config_path: &Path,
     expected_config_sha256: &str,
+    expected_build_commit: &str,
     output_directory: &Path,
 ) -> Result<BrightStarBuildRunManifest> {
     let actual_config_sha = checksum_io::sha256_file(config_path)?;
@@ -64,25 +65,31 @@ pub fn run_experimental_build(
     }
     let config: BrightStarBuildRunConfig = toml::from_str(&fs::read_to_string(config_path)?)?;
     if config.schema_version != 1
-        || config.build_commit.trim().is_empty()
         || config.config_source_id.trim().is_empty()
         || config.config_release.trim().is_empty()
     {
         bail!("invalid bright-star build run config identity");
     }
+    let actual_build_commit = repository_head_commit()?;
+    verify_build_commit(expected_build_commit, &actual_build_commit)?;
     let hipparcos = ingest_hipparcos2(&config.hipparcos2)?;
     let mut tycho_by_hip: BTreeMap<u32, Tycho2Photometry> = BTreeMap::new();
     let mut ambiguous_tycho_hips = BTreeSet::new();
     for input in &config.tycho2 {
-        for (hip, photometry) in ingest_tycho2(input)? {
+        let ingested = ingest_tycho2(input)?;
+        for hip in ingested.ambiguous_hip_ids {
+            tycho_by_hip.remove(&hip);
+            ambiguous_tycho_hips.insert(hip);
+        }
+        for (hip, photometry) in ingested.by_hip {
             if ambiguous_tycho_hips.contains(&hip) {
                 continue;
             }
-            if tycho_by_hip.contains_key(&hip) {
+            if let std::collections::btree_map::Entry::Occupied(entry) = tycho_by_hip.entry(hip) {
                 // The same conservative rule applies across fixed-width
                 // segments: an overlapping HIP is an unresolved component
                 // association, so do not use its Tycho colour.
-                tycho_by_hip.remove(&hip);
+                entry.remove();
                 ambiguous_tycho_hips.insert(hip);
             } else {
                 tycho_by_hip.insert(hip, photometry);
@@ -97,6 +104,16 @@ pub fn run_experimental_build(
         &config.spectral_model_path,
         &config.spectral_model_sha256,
     )?;
+    let unsupported_spectral_codes = spectral_model
+        .unsupported_assignments
+        .iter()
+        .map(|assignment| {
+            (
+                assignment.temperature_code,
+                assignment.luminosity_class_code,
+            )
+        })
+        .collect::<BTreeSet<_>>();
     let spectra = reconstruct_spectral_estimates(&hipparcos, &xhip, &spectral_model)?;
 
     let mut inputs = vec![
@@ -123,15 +140,17 @@ pub fn run_experimental_build(
     inputs.sort_by(|a, b| a.role.cmp(&b.role).then(a.source_id.cmp(&b.source_id)));
     let (artifact, diagnostics) = build_experimental_artifact(
         config.nside,
-        &config.build_commit,
+        &actual_build_commit,
         inputs.clone(),
         &hipparcos,
         &tycho_by_hip,
+        ambiguous_tycho_hips.len() as u64,
         &xhip,
         &identities,
         &gaia_quality,
         &positional.into_values().collect::<Vec<_>>(),
         &spectra,
+        &unsupported_spectral_codes,
         BrightStarPopulationPolicy::v1(),
         BrightStarPrecedencePolicy::v1(),
     )?;
@@ -146,7 +165,7 @@ pub fn run_experimental_build(
     let manifest = BrightStarBuildRunManifest {
         schema_version: 1,
         model_id: artifact.model_id,
-        build_commit: config.build_commit,
+        build_commit: actual_build_commit,
         build_config_sha256: actual_config_sha,
         artifact_path,
         artifact_sha256,
@@ -161,10 +180,76 @@ pub fn run_experimental_build(
     Ok(manifest)
 }
 
+fn valid_commit_identity(value: &str) -> bool {
+    (7..=40).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn verify_build_commit(expected: &str, actual: &str) -> Result<()> {
+    if !valid_commit_identity(expected) || !valid_commit_identity(actual) {
+        bail!("bright-star build commits must be 7-40 lowercase hexadecimal characters");
+    }
+    if actual != expected {
+        bail!("bright-star build commit mismatch: actual {actual} != expected {expected}");
+    }
+    Ok(())
+}
+
+fn repository_head_commit() -> Result<String> {
+    let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let status = Command::new("git")
+        .args(["status", "--porcelain", "--untracked-files=no"])
+        .current_dir(&repository)
+        .output()
+        .context("inspect NSB build worktree")?;
+    if !status.status.success() || !status.stdout.is_empty() {
+        bail!("bright-star builds require a clean tracked NSB worktree");
+    }
+    let output = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(repository)
+        .output()
+        .context("resolve NSB build commit")?;
+    if !output.status.success() {
+        bail!("could not resolve NSB build commit");
+    }
+    let commit = String::from_utf8(output.stdout)
+        .context("NSB build commit is not UTF-8")?
+        .trim()
+        .to_owned();
+    if !valid_commit_identity(&commit) {
+        bail!("resolved NSB build commit is malformed");
+    }
+    Ok(commit)
+}
+
 fn verify_opaque_input(input: &PinnedCatalogueInput) -> Result<()> {
     let actual = checksum_io::sha256_file(&input.path)?;
     if actual != input.provenance.sha256 {
         bail!("checksum mismatch for input {}", input.path.display());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{valid_commit_identity, verify_build_commit};
+
+    #[test]
+    fn software_identity_is_strict() {
+        assert!(valid_commit_identity("33fe904"));
+        assert!(valid_commit_identity(
+            "33fe9047f5f57eae6717131b5d35edd65976d5b8"
+        ));
+        assert!(!valid_commit_identity(""));
+        assert!(!valid_commit_identity("123456"));
+        assert!(!valid_commit_identity("33FE904"));
+        assert!(!valid_commit_identity("not-a-commit"));
+        assert!(verify_build_commit("33fe904", "33fe904").is_ok());
+        assert!(verify_build_commit("33fe904", "f43f951").is_err());
+        assert!(verify_build_commit("", "33fe904").is_err());
+        assert!(verify_build_commit("33fe904", "").is_err());
+    }
 }

@@ -211,6 +211,9 @@ fn build_partition(
             continue;
         };
         if suppressed_gaia_source_ids.contains(&source_id) {
+            if !shard.bright_star_suppressed_gaia_ids.insert(source_id) {
+                bail!("Gaia source_id {source_id} was suppressed more than once in one shard");
+            }
             exclude_gaia_source(
                 &mut shard,
                 gaia_source,
@@ -247,6 +250,10 @@ fn build_partition(
             selection_correction,
         ) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
+        } else if suppressed_gaia_source_ids.contains(&source_id) {
+            shard
+                .bright_star_base_admitted_replacement_gaia_ids
+                .insert(source_id);
         }
     }
 
@@ -257,6 +264,9 @@ fn build_partition(
     remaining.sort_by_key(|(source_id, _)| *source_id);
     for (source_id, gaia_source) in remaining {
         if suppressed_gaia_source_ids.contains(source_id) {
+            if !shard.bright_star_suppressed_gaia_ids.insert(*source_id) {
+                bail!("Gaia source_id {source_id} was suppressed more than once in one shard");
+            }
             exclude_gaia_source(
                 &mut shard,
                 gaia_source,
@@ -301,6 +311,10 @@ fn build_partition(
             selection_correction,
         ) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
+        } else if suppressed_gaia_source_ids.contains(source_id) {
+            shard
+                .bright_star_base_admitted_replacement_gaia_ids
+                .insert(*source_id);
         }
     }
 

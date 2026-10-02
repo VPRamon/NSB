@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "model_id": "mk-sptype-to-ck04-v1",
+  "status": "experimental-provisional",
+  "temperature_code_convention": "XHIP V/137D main.dat SpT temperature code",
+  "interpolation": "piecewise-linear in effective temperature between adjacent code anchors",
+  "supported_temperature_code_min": 10,
+  "supported_temperature_code_max": 72,
+  "temperature_anchors_kelvin": {
+    "10": 45000, "16": 38000, "19": 32000, "20": 30000,
+    "21": 25000, "22": 22000, "23": 19000, "24": 17000,
+    "25": 15000, "26": 14000, "27": 13000, "28": 12000,
+    "29": 10500, "30": 9700, "35": 8100, "39": 7400,
+    "40": 7300, "45": 6500, "49": 6000, "50": 5900,
+    "55": 5600, "59": 5200, "60": 5100, "65": 4400,
+    "69": 3900, "70": 3800, "72": 3500
+  },
+  "luminosity_class_logg": {
+    "1": 1.0, "2": 2.0, "3": 3.0, "4": 4.0, "5": 4.5
+  },
+  "unsupported_luminosity_classes": [0, 6, 7, 8, 9],
+  "citations": [
+    "Anderson & Francis 2012, XHIP V/137D catalogue documentation",
+    "Pecaut & Mamajek 2013, ApJS 208, 9 (temperature-scale context)",
+    "Castelli & Kurucz 2004 CK04 model grid"
+  ],
+  "limitations": [
+    "Anchors have not yet been empirically calibrated as a unified XHIP-code scale.",
+    "Unsupported or missing luminosity classes produce no assignment.",
+    "This mapping cannot support production-candidate status until calibration evidence is supplied."
+  ]
+}

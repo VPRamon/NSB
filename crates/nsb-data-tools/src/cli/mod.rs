@@ -232,6 +232,9 @@ struct StarlightBrightStarsBuildArgs {
     config: PathBuf,
     #[arg(long)]
     config_sha256: String,
+    /// Expected Git commit; checked against the clean repository HEAD.
+    #[arg(long)]
+    expected_build_commit: String,
     #[arg(long)]
     output_directory: PathBuf,
 }
@@ -691,6 +694,7 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
                     let manifest = crate::starlight::bright_stars::run_experimental_build(
                         &args.config,
                         &args.config_sha256,
+                        &args.expected_build_commit,
                         &args.output_directory,
                     )?;
                     println!("{}", serde_json::to_string_pretty(&manifest)?);

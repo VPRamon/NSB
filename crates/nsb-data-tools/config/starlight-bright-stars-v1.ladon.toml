@@ -1,12 +1,11 @@
 schema_version = 1
 nside = 128
-build_commit = "f43f951"
 config_source_id = "starlight-bright-stars-v1.ladon.toml"
 config_release = "experimental-v1"
 config_retrieval_url = "https://github.com/VPRamon/NSB/blob/fix/starlight-flux-deficit-182/crates/nsb-data-tools/config/starlight-bright-stars-v1.ladon.toml"
 config_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
-spectral_model_path = "/mnt/beegfs/valles/nsb-data/bright-stars/starlight-bright-stars-spectral-model-v1.json"
-spectral_model_sha256 = "289b81fea3963a1f4f30138577b2c57ec41a79facf17e54a749e195910e93625"
+spectral_model_path = "/mnt/beegfs/valles/nsb-data/bright-stars/starlight-bright-stars-spectral-model-v1-77e9550.json"
+spectral_model_sha256 = "af76bf3af3cc800cb55697aaeecee12a1587b7a6b6275132e981cfc0563d457b"
 
 [hipparcos2]
 path = "/mnt/beegfs/valles/nsb-data/bright-stars/upstream/hip2.dat.gz"
@@ -62,7 +61,7 @@ license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
 role = "build_config"
 source_id = "starlight-bright-stars-spectral-model-v1.json"
 release = "experimental-v1"
-sha256 = "289b81fea3963a1f4f30138577b2c57ec41a79facf17e54a749e195910e93625"
+sha256 = "af76bf3af3cc800cb55697aaeecee12a1587b7a6b6275132e981cfc0563d457b"
 retrieval_url = "https://github.com/VPRamon/NSB/issues/205"
 license_or_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
 
@@ -97,24 +96,44 @@ retrieval_url = "https://ssb.stsci.edu/cdbs/current_calspec/alpha_lyr_stis_012.f
 license_or_terms_url = "https://archive.stsci.edu/hlsp/reference-atlases"
 
 [[additional_checksum_pinned_inputs]]
-path = "/mnt/beegfs/valles/nsb-data/bright-stars/upstream/gaia-dr3-hip-le-4-quality.adql"
+path = "docs/nsb_components/starlight/bright-stars/queries/gaia-dr3-hip-le-4-quality.adql"
 [additional_checksum_pinned_inputs.provenance]
 role = "build_config"
 source_id = "gaia-dr3-hip-le-4-quality.adql"
 release = "query-2026-10-02"
 sha256 = "4827e98199b56fe46d02f1eb452e94bed4e3209ca15fd09806688ac3350e51d4"
-retrieval_url = "https://github.com/VPRamon/NSB/issues/205"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/queries/gaia-dr3-hip-le-4-quality.adql"
 license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
 
 [[additional_checksum_pinned_inputs]]
-path = "/mnt/beegfs/valles/nsb-data/bright-stars/upstream/gaia-dr3-hip-le-4-positional-fallback.adql"
+path = "docs/nsb_components/starlight/bright-stars/queries/gaia-dr3-hip-le-4-positional-fallback.adql"
 [additional_checksum_pinned_inputs.provenance]
 role = "build_config"
 source_id = "gaia-dr3-hip-le-4-positional-fallback.adql"
 release = "query-2026-10-02"
 sha256 = "6a51b122fd0a6ff9ccb075aa22a5c01d4fe059b81b44dda67aa314b3ba5cad87"
-retrieval_url = "https://github.com/VPRamon/NSB/issues/205"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/queries/gaia-dr3-hip-le-4-positional-fallback.adql"
 license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+
+[[additional_checksum_pinned_inputs]]
+path = "docs/nsb_components/starlight/bright-stars/models/mk-sptype-to-ck04-v1.json"
+[additional_checksum_pinned_inputs.provenance]
+role = "build_config"
+source_id = "mk-sptype-to-ck04-v1.json"
+release = "experimental-provisional-v1"
+sha256 = "c56d9543a99cb4feca3c8d64a4568a5b65bc7f216056850ddc8d2a6c57de8173"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/models/mk-sptype-to-ck04-v1.json"
+license_or_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
+
+[[additional_checksum_pinned_inputs]]
+path = "docs/nsb_components/starlight/bright-stars/models/bright-star-spectral-calibration-v1.json"
+[additional_checksum_pinned_inputs.provenance]
+role = "build_config"
+source_id = "bright-star-spectral-calibration-v1.json"
+release = "provisional-uncalibrated-v1"
+sha256 = "cdcb2cbb1a77ae30c7ba2f267ea77be9155f181b3837679d5ccb701ddeb9936f"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/models/bright-star-spectral-calibration-v1.json"
+license_or_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
 
 [[tycho2]]
 path = "/mnt/beegfs/valles/nsb-data/bright-stars/upstream/tyc2.dat.00.gz"

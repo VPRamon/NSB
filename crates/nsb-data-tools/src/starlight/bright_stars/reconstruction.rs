@@ -25,8 +25,17 @@ pub struct TemplateAssignment {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct UnsupportedSpectralAssignment {
+    pub temperature_code: u16,
+    pub luminosity_class_code: u8,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SpectralReconstructionModel {
     pub model_id: String,
+    pub builder_software_commit: String,
     pub assignments: Vec<TemplateAssignment>,
     pub templates: Vec<SpectralTemplate>,
     pub hp_response: PhotometricBandResponse,
@@ -34,6 +43,11 @@ pub struct SpectralReconstructionModel {
     pub template_mismatch_fraction: f64,
     pub spectral_type_mapping_fraction: f64,
     pub hp_zero_point_fraction: f64,
+    pub uncertainty_calibration_status: String,
+    pub uncertainty_calibration_sha256: String,
+    pub spectral_mapping_status: String,
+    pub spectral_mapping_sha256: String,
+    pub unsupported_assignments: Vec<UnsupportedSpectralAssignment>,
     pub template_library_citation: String,
     pub spectral_type_mapping_citation: String,
 }
@@ -42,9 +56,14 @@ impl SpectralReconstructionModel {
     pub fn validate(&self) -> Result<()> {
         if self.model_id != SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
             || self.hp_response.band_id != "Hipparcos/Hipparcos.Hp_bes"
+            || !valid_commit_identity(&self.builder_software_commit)
             || self.hp_calibration.band_id != self.hp_response.band_id
             || self.template_library_citation.trim().is_empty()
             || self.spectral_type_mapping_citation.trim().is_empty()
+            || self.uncertainty_calibration_status != "provisional-uncalibrated"
+            || self.spectral_mapping_status != "experimental-provisional"
+            || !is_sha256(&self.uncertainty_calibration_sha256)
+            || !is_sha256(&self.spectral_mapping_sha256)
         {
             bail!("unknown or incomplete bright-star spectral reconstruction model");
         }
@@ -90,8 +109,37 @@ impl SpectralReconstructionModel {
                 bail!("template assignment references an unknown template");
             }
         }
+        let mut unsupported = BTreeSet::new();
+        for assignment in &self.unsupported_assignments {
+            if assignment.reason != "unsupported_spectral_mapping"
+                || !unsupported.insert((
+                    assignment.temperature_code,
+                    assignment.luminosity_class_code,
+                ))
+                || keys.contains(&(
+                    assignment.temperature_code,
+                    assignment.luminosity_class_code,
+                ))
+            {
+                bail!("invalid unsupported spectral assignment contract");
+            }
+        }
         Ok(())
     }
+}
+
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn valid_commit_identity(value: &str) -> bool {
+    (7..=40).contains(&value.len())
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 pub fn load_spectral_reconstruction_model(
@@ -199,6 +247,7 @@ mod tests {
     fn reconstruction_propagates_photometric_and_correlated_uncertainty() {
         let model = SpectralReconstructionModel {
             model_id: SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into(),
+            builder_software_commit: "deadbeef".into(),
             assignments: vec![TemplateAssignment {
                 temperature_code: 50,
                 luminosity_class_code: 5,
@@ -224,6 +273,15 @@ mod tests {
             template_mismatch_fraction: 0.1,
             spectral_type_mapping_fraction: 0.2,
             hp_zero_point_fraction: 0.01,
+            uncertainty_calibration_status: "provisional-uncalibrated".into(),
+            uncertainty_calibration_sha256: "b".repeat(64),
+            spectral_mapping_status: "experimental-provisional".into(),
+            spectral_mapping_sha256: "c".repeat(64),
+            unsupported_assignments: vec![UnsupportedSpectralAssignment {
+                temperature_code: 50,
+                luminosity_class_code: 6,
+                reason: "unsupported_spectral_mapping".into(),
+            }],
             template_library_citation: "Castelli and Kurucz 2004".into(),
             spectral_type_mapping_citation: "fixture mapping".into(),
         };
@@ -254,7 +312,7 @@ mod tests {
                 radial_velocity_uncertainty_km_s: Some(1.0),
             },
         )]);
-        let estimate = reconstruct_spectral_estimates(&[hip], &xhip, &model)
+        let estimate = reconstruct_spectral_estimates(std::slice::from_ref(&hip), &xhip, &model)
             .unwrap()
             .remove(&1)
             .unwrap();
@@ -271,5 +329,38 @@ mod tests {
                 < 1e-15
         );
         assert_eq!(estimate.systematic_catalogue_correlated.len(), 1);
+
+        let unsupported = BTreeMap::from([(
+            1,
+            XhipRecord {
+                hip: 1,
+                spectral_type: Some("G0VI".into()),
+                temperature_code: Some(50),
+                luminosity_class_code: Some(6),
+                radial_velocity_km_s: None,
+                radial_velocity_uncertainty_km_s: None,
+            },
+        )]);
+        assert!(
+            reconstruct_spectral_estimates(std::slice::from_ref(&hip), &unsupported, &model)
+                .unwrap()
+                .is_empty()
+        );
+        let missing = BTreeMap::from([(
+            1,
+            XhipRecord {
+                hip: 1,
+                spectral_type: None,
+                temperature_code: Some(50),
+                luminosity_class_code: None,
+                radial_velocity_km_s: None,
+                radial_velocity_uncertainty_km_s: None,
+            },
+        )]);
+        assert!(
+            reconstruct_spectral_estimates(std::slice::from_ref(&hip), &missing, &model)
+                .unwrap()
+                .is_empty()
+        );
     }
 }
