@@ -10,6 +10,7 @@ import gzip
 import hashlib
 import json
 import math
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -185,7 +186,10 @@ def main():
     parser.add_argument("--uncertainty-calibration", type=Path, required=True)
     parser.add_argument("--uncertainty-calibration-sha256", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--software-commit", required=True)
     args = parser.parse_args()
+    if not re.fullmatch(r"[0-9a-f]{7,40}", args.software_commit):
+        raise ValueError("software commit must be 7-40 lowercase hexadecimal characters")
     for name in ("hip2", "xhip", "ck04_tar", "hp_response", "vega"):
         require_sha(getattr(args, name), getattr(args, f"{name}_sha256"))
     require_sha(args.spectral_mapping, args.spectral_mapping_sha256)
@@ -227,6 +231,7 @@ def main():
         )
     model = {
         "model_id": "xhip-sptype-ck04-v2-hp-bessell2000-v1",
+        "builder_software_commit": args.software_commit,
         "assignments": assignments,
         "templates": [templates[key] for key in sorted(templates)],
         "hp_response": response,

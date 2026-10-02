@@ -35,6 +35,7 @@ pub struct UnsupportedSpectralAssignment {
 #[serde(deny_unknown_fields)]
 pub struct SpectralReconstructionModel {
     pub model_id: String,
+    pub builder_software_commit: String,
     pub assignments: Vec<TemplateAssignment>,
     pub templates: Vec<SpectralTemplate>,
     pub hp_response: PhotometricBandResponse,
@@ -55,6 +56,7 @@ impl SpectralReconstructionModel {
     pub fn validate(&self) -> Result<()> {
         if self.model_id != SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
             || self.hp_response.band_id != "Hipparcos/Hipparcos.Hp_bes"
+            || !valid_commit_identity(&self.builder_software_commit)
             || self.hp_calibration.band_id != self.hp_response.band_id
             || self.template_library_citation.trim().is_empty()
             || self.spectral_type_mapping_citation.trim().is_empty()
@@ -128,6 +130,13 @@ impl SpectralReconstructionModel {
 
 fn is_sha256(value: &str) -> bool {
     value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+fn valid_commit_identity(value: &str) -> bool {
+    (7..=40).contains(&value.len())
         && value
             .bytes()
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
@@ -238,6 +247,7 @@ mod tests {
     fn reconstruction_propagates_photometric_and_correlated_uncertainty() {
         let model = SpectralReconstructionModel {
             model_id: SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into(),
+            builder_software_commit: "deadbeef".into(),
             assignments: vec![TemplateAssignment {
                 temperature_code: 50,
                 luminosity_class_code: 5,
