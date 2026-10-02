@@ -320,3 +320,30 @@ canonical_nside = 128
         .contains("both --photometric-artifact-path and --photometric-artifact-sha256"));
     Ok(())
 }
+
+#[test]
+fn bright_stars_build_cli_arm_is_fail_closed_on_commit_mismatch() -> anyhow::Result<()> {
+    let temporary = TempDir::new()?;
+    let config = temporary.path().join("bright.toml");
+    fs::write(&config, "schema_version = 1\n")?;
+    let config_sha256 = checksum_io::sha256_file(&config)?;
+    let err = execute_starlight(StarlightActionArgs {
+        operation: StarlightAction::BrightStars(StarlightBrightStarsArgs {
+            command: StarlightBrightStarsCommand::Build(StarlightBrightStarsBuildArgs {
+                config,
+                config_sha256,
+                expected_build_commit: "0000000000000000000000000000000000000000".into(),
+                output_directory: temporary.path().join("out"),
+            }),
+        }),
+    });
+    assert!(err.is_err());
+    let message = format!("{:#}", err.unwrap_err());
+    assert!(
+        message.contains("build commit mismatch")
+            || message.contains("clean tracked NSB worktree")
+            || message.contains("checksum mismatch")
+            || message.contains("invalid bright-star")
+    );
+    Ok(())
+}

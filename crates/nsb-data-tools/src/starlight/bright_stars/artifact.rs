@@ -746,6 +746,12 @@ mod tests {
         bad = provenance.clone();
         bad.model_id = "other".into();
         assert!(bad.validate().is_err());
+        bad = provenance.clone();
+        bad.population_policy_id = "other".into();
+        assert!(bad.validate().is_err());
+        bad = provenance.clone();
+        bad.precedence_policy_id = "other".into();
+        assert!(bad.validate().is_err());
         bad = provenance;
         bad.artifact_sha256 = "0".repeat(63);
         assert!(bad.validate().is_err());

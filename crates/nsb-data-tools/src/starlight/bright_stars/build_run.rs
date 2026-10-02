@@ -435,6 +435,20 @@ license_or_terms_url = "https://example.invalid/terms"
             tycho.push(b'\n');
             tycho
         });
+        let (tycho2_path, tycho2_sha) = write_bytes(root, "tycho2.dat", &{
+            // Same HIP in a second segment marks the colour association ambiguous.
+            let mut tycho = vec![b' '; 151];
+            put(&mut tycho, 0, 4, "4");
+            put(&mut tycho, 5, 10, "5");
+            put(&mut tycho, 11, 12, "6");
+            put(&mut tycho, 110, 116, "3.20");
+            put(&mut tycho, 117, 122, "0.02");
+            put(&mut tycho, 123, 129, "2.80");
+            put(&mut tycho, 130, 135, "0.03");
+            put(&mut tycho, 142, 148, "42");
+            tycho.push(b'\n');
+            tycho
+        });
 
         let config = format!(
             r#"
@@ -480,6 +494,11 @@ path = "{tycho_path}"
 [tycho2.provenance]
 {tycho_prov}
 
+[[tycho2]]
+path = "{tycho2_path}"
+[tycho2.provenance]
+{tycho2_prov}
+
 [[additional_checksum_pinned_inputs]]
 path = "{extra_path}"
 [additional_checksum_pinned_inputs.provenance]
@@ -497,6 +516,7 @@ path = "{extra_path}"
             ),
             model_prov = provenance_toml("build_config", "fixture-spectral-model", &model_sha),
             tycho_prov = provenance_toml("tycho2", "fixture-tycho", &tycho_sha),
+            tycho2_prov = provenance_toml("tycho2", "fixture-tycho-b", &tycho2_sha),
             extra_prov =
                 provenance_toml("spectral_template_library", "fixture-templates", &extra_sha),
         );
