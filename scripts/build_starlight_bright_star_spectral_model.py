@@ -169,8 +169,19 @@ def read_template(path, requested_logg):
     with fits.open(path) as hdus:
         names = list(hdus[1].columns.names)
         gravity_names = [name for name in names if name.startswith("g")]
-        gravity_name = min(gravity_names, key=lambda name: abs(int(name[1:]) / 10 - requested_logg))
         wavelength_a = np.asarray(hdus[1].data["WAVELENGTH"], dtype=float)
+        optical = (wavelength_a >= 3360) & (wavelength_a <= 6500)
+        valid_gravity_names = [
+            name
+            for name in gravity_names
+            if np.any(np.asarray(hdus[1].data[name], dtype=float)[optical] > 0)
+        ]
+        if not valid_gravity_names:
+            raise ValueError(f"CK04 spectrum has no positive optical gravity column: {path}")
+        gravity_name = min(
+            valid_gravity_names,
+            key=lambda name: abs(int(name[1:]) / 10 - requested_logg),
+        )
         flux_si = np.asarray(hdus[1].data[gravity_name], dtype=float) * 1.0e7
     mask = (wavelength_a >= 3000) & (wavelength_a <= 9000)
     wavelength_m = wavelength_a[mask] * 1.0e-10
