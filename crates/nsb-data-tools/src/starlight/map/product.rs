@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 7;
+const REPORT_SCHEMA_VERSION: u32 = 8;
 const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
 const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v5";
 const MAP_ORDERING: &str = "nested";
@@ -48,6 +48,7 @@ pub struct MergeReport {
     pub shard_count: usize,
     pub partition_ids: Vec<String>,
     pub observed_sources: u64,
+    pub source_record_accounting: SourceRecordAccounting,
     pub admitted_sources: u64,
     pub excluded_sources: u64,
     pub exclusion_reasons: BTreeMap<String, u64>,
@@ -66,8 +67,23 @@ pub struct MergeReport {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct SourceRecordAccounting {
+    pub semantics: String,
+    pub primary_input_records: u64,
+    pub supplement_input_records: u64,
+    pub replacement_records: u64,
+    pub admitted_primary_records: u64,
+    pub admitted_supplement_records: u64,
+    pub unique_replacement_gaia_ids: u64,
+    pub unique_physical_sources: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BrightStarReplacementReport {
     pub replacement_gaia_source_ids: Vec<u64>,
+    pub actually_suppressed_gaia_source_ids: Vec<u64>,
+    pub base_admitted_replacement_gaia_source_ids: Vec<u64>,
     pub replacement_gaia_id_count: u64,
     pub actually_suppressed_count: u64,
     pub base_admitted_replacement_intersection_count: u64,
@@ -345,6 +361,35 @@ pub(crate) fn emit_maps(
     let (map_flux, map_admitted, map_excluded) = map_totals(&emitted_pixels)?;
     let map_sha256 = checksum_io::sha256_file(&map_path)?;
     let (observed_sources, admitted_sources, excluded_sources) = population_totals(&merged)?;
+    let mut source_record_accounting = SourceRecordAccounting {
+        semantics: "processing_records; replacement stars have one excluded primary record and one supplement record".into(),
+        primary_input_records: 0,
+        supplement_input_records: 0,
+        replacement_records: merged.bright_star_replacement_gaia_ids.len() as u64,
+        admitted_primary_records: 0,
+        admitted_supplement_records: 0,
+        unique_replacement_gaia_ids: merged.bright_star_replacement_gaia_ids.len() as u64,
+        unique_physical_sources: 0,
+    };
+    for shard in &shards {
+        let (observed, admitted, _) = population_totals(shard)?;
+        if shard.partition_id == "bright-star-supplement" {
+            source_record_accounting.supplement_input_records = observed;
+            source_record_accounting.admitted_supplement_records = admitted;
+        } else {
+            source_record_accounting.primary_input_records = source_record_accounting
+                .primary_input_records
+                .checked_add(observed)
+                .context("primary input record count overflow")?;
+            source_record_accounting.admitted_primary_records = source_record_accounting
+                .admitted_primary_records
+                .checked_add(admitted)
+                .context("admitted primary record count overflow")?;
+        }
+    }
+    source_record_accounting.unique_physical_sources = observed_sources
+        .checked_sub(source_record_accounting.replacement_records)
+        .context("replacement records exceed observed record count")?;
     if admitted_sources != map_admitted || excluded_sources != map_excluded {
         bail!("canonical map totals do not match merged shard population totals");
     }
@@ -361,6 +406,7 @@ pub(crate) fn emit_maps(
         shard_count: shards.len(),
         partition_ids,
         observed_sources,
+        source_record_accounting,
         admitted_sources,
         excluded_sources,
         exclusion_reasons: merged.exclusion_reasons.clone(),
@@ -373,14 +419,22 @@ pub(crate) fn emit_maps(
                 .collect::<Vec<_>>();
             BrightStarReplacementReport {
                 replacement_gaia_id_count: ids.len() as u64,
-                actually_suppressed_count: merged
-                    .exclusion_reasons
-                    .get("bright_star_replaced_by_supplement")
-                    .copied()
-                    .unwrap_or_default(),
-                base_admitted_replacement_intersection_count: 0,
+                actually_suppressed_count: merged.bright_star_suppressed_gaia_ids.len() as u64,
+                base_admitted_replacement_intersection_count: merged
+                    .bright_star_base_admitted_replacement_gaia_ids
+                    .len() as u64,
                 invariant_passed: true,
                 replacement_gaia_source_ids: ids,
+                actually_suppressed_gaia_source_ids: merged
+                    .bright_star_suppressed_gaia_ids
+                    .iter()
+                    .copied()
+                    .collect(),
+                base_admitted_replacement_gaia_source_ids: merged
+                    .bright_star_base_admitted_replacement_gaia_ids
+                    .iter()
+                    .copied()
+                    .collect(),
             }
         }),
         science_policy,
@@ -667,13 +721,49 @@ fn validate_report_fields(
     if report.observed_sources != observed {
         bail!("global observed-source total does not match canonical map");
     }
+    let accounting = &report.source_record_accounting;
+    let accounted_inputs = accounting
+        .primary_input_records
+        .checked_add(accounting.supplement_input_records)
+        .context("source input record accounting overflow")?;
+    let accounted_admitted = accounting
+        .admitted_primary_records
+        .checked_add(accounting.admitted_supplement_records)
+        .context("admitted source record accounting overflow")?;
+    if accounting.semantics
+        != "processing_records; replacement stars have one excluded primary record and one supplement record"
+        || accounted_inputs != observed
+        || accounted_admitted != admitted
+        || accounting.replacement_records != accounting.unique_replacement_gaia_ids
+        || accounting.unique_physical_sources
+            != observed
+                .checked_sub(accounting.replacement_records)
+                .context("invalid replacement record accounting")?
+    {
+        bail!("merge report source-record accounting is invalid");
+    }
     if let Some(replacement) = &report.bright_star_replacement {
         let unique = replacement
             .replacement_gaia_source_ids
             .iter()
             .copied()
             .collect::<BTreeSet<_>>();
+        let suppressed = replacement
+            .actually_suppressed_gaia_source_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let admitted_intersection = replacement
+            .base_admitted_replacement_gaia_source_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
         if replacement.replacement_gaia_source_ids.len() != unique.len()
+            || replacement.actually_suppressed_gaia_source_ids.len() != suppressed.len()
+            || replacement.base_admitted_replacement_gaia_source_ids.len()
+                != admitted_intersection.len()
+            || unique != suppressed
+            || !admitted_intersection.is_empty()
             || replacement.replacement_gaia_id_count != unique.len() as u64
             || replacement.actually_suppressed_count != replacement.replacement_gaia_id_count
             || replacement.base_admitted_replacement_intersection_count != 0
@@ -1109,10 +1199,16 @@ fn validate_bright_star_replacement_invariant(merged: &PartitionShard) -> Result
         .get("bright_star_replaced_by_supplement")
         .copied()
         .unwrap_or_default();
-    if replacement_count != suppressed_count {
+    if merged.bright_star_replacement_gaia_ids != merged.bright_star_suppressed_gaia_ids {
         bail!(
-            "bright-star replacement invariant failed: {replacement_count} replacement Gaia ids but {suppressed_count} base Gaia sources suppressed"
+            "bright-star replacement identity invariant failed: declared and actually suppressed Gaia ID sets differ ({replacement_count} declared, {suppressed_count} exclusions)"
         );
+    }
+    if !merged
+        .bright_star_base_admitted_replacement_gaia_ids
+        .is_empty()
+    {
+        bail!("bright-star replacement Gaia ID remained admitted in the base population");
     }
     Ok(())
 }
@@ -1635,7 +1731,11 @@ fn complete_deterministic_merge_report(
             );
         }
     }
-    if canonical.bright_star_replacement_gaia_ids != independent.bright_star_replacement_gaia_ids {
+    if canonical.bright_star_replacement_gaia_ids != independent.bright_star_replacement_gaia_ids
+        || canonical.bright_star_suppressed_gaia_ids != independent.bright_star_suppressed_gaia_ids
+        || canonical.bright_star_base_admitted_replacement_gaia_ids
+            != independent.bright_star_base_admitted_replacement_gaia_ids
+    {
         exclusion_reason_mismatches += 1;
         record_first_mismatch(
             &mut first_mismatch,
@@ -1752,11 +1852,20 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         });
         bytes.extend_from_slice(&count.to_be_bytes());
     }
-    let replacement_count = u64::try_from(shard.bright_star_replacement_gaia_ids.len())
-        .context("replacement id count exceeds u64")?;
-    bytes.extend_from_slice(&replacement_count.to_be_bytes());
-    for source_id in &shard.bright_star_replacement_gaia_ids {
-        bytes.extend_from_slice(&source_id.to_be_bytes());
+    for (label, ids) in [
+        ("replacement", &shard.bright_star_replacement_gaia_ids),
+        ("suppressed", &shard.bright_star_suppressed_gaia_ids),
+        (
+            "base-admitted-replacement",
+            &shard.bright_star_base_admitted_replacement_gaia_ids,
+        ),
+    ] {
+        let count =
+            u64::try_from(ids.len()).with_context(|| format!("{label} id count exceeds u64"))?;
+        bytes.extend_from_slice(&count.to_be_bytes());
+        for source_id in ids {
+            bytes.extend_from_slice(&source_id.to_be_bytes());
+        }
     }
     Ok(bytes)
 }
@@ -1884,6 +1993,7 @@ mod tests {
     fn bright_star_replacement_requires_exactly_one_gaia_suppression() {
         let mut shard = PartitionShard::new("fixture", 1).unwrap();
         shard.bright_star_replacement_gaia_ids.insert(42);
+        shard.bright_star_suppressed_gaia_ids.insert(42);
         shard
             .exclude(
                 fixture_icrs_from_source_id(42),
@@ -1894,6 +2004,37 @@ mod tests {
 
         shard.bright_star_replacement_gaia_ids.insert(43);
         assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+
+        shard.bright_star_replacement_gaia_ids = BTreeSet::from([42]);
+        shard.bright_star_suppressed_gaia_ids = BTreeSet::from([43]);
+        assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+
+        shard.bright_star_suppressed_gaia_ids = BTreeSet::from([42]);
+        shard
+            .bright_star_base_admitted_replacement_gaia_ids
+            .insert(42);
+        assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+    }
+
+    #[test]
+    fn duplicate_suppression_across_shards_fails() {
+        let mut first = PartitionShard::new("first", 1).unwrap();
+        first.bright_star_suppressed_gaia_ids.insert(42);
+        first
+            .exclude(
+                fixture_icrs_from_source_id(42),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+        let mut second = PartitionShard::new("second", 1).unwrap();
+        second.bright_star_suppressed_gaia_ids.insert(42);
+        second
+            .exclude(
+                fixture_icrs_from_source_id(42),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+        assert!(super::super::accumulator::merge_shards([first, second]).is_err());
     }
 
     #[test]

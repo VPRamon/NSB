@@ -51,6 +51,12 @@ pub struct Tycho2Photometry {
     pub vt_mag_uncertainty: Option<f64>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Tycho2Ingestion {
+    pub by_hip: BTreeMap<u32, Tycho2Photometry>,
+    pub ambiguous_hip_ids: std::collections::BTreeSet<u32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HipGaiaIdentityMatch {
@@ -160,7 +166,7 @@ pub fn ingest_xhip(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, XhipRec
     Ok(out)
 }
 
-pub fn ingest_tycho2(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, Tycho2Photometry>> {
+pub fn ingest_tycho2(input: &PinnedCatalogueInput) -> Result<Tycho2Ingestion> {
     verify_input(input, BrightStarInputRole::Tycho2)?;
     let reader = open_text(&input.path)?;
     let mut by_hip = BTreeMap::new();
@@ -190,6 +196,16 @@ pub fn ingest_tycho2(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, Tycho
             vt_mag: optional_f64(&line, 123, 129)?,
             vt_mag_uncertainty: optional_f64(&line, 130, 135)?,
         };
+        for (label, magnitude, uncertainty) in [
+            ("BT", value.bt_mag, value.bt_mag_uncertainty),
+            ("VT", value.vt_mag, value.vt_mag_uncertainty),
+        ] {
+            if magnitude.is_some_and(|number| !number.is_finite())
+                || uncertainty.is_some_and(|number| !number.is_finite() || number < 0.0)
+            {
+                bail!("Tycho-2 HIP {hip} has invalid {label} photometry");
+            }
+        }
         // Tycho-2 contains separate component rows for some Hipparcos
         // systems. The v1 builder uses Hp as the authoritative population
         // photometry; dropping an ambiguous Tycho association is conservative
@@ -197,14 +213,20 @@ pub fn ingest_tycho2(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, Tycho
         if ambiguous_hips.contains(&hip) {
             continue;
         }
-        if by_hip.contains_key(&hip) {
-            by_hip.remove(&hip);
-            ambiguous_hips.insert(hip);
-        } else {
-            by_hip.insert(hip, value);
+        match by_hip.entry(hip) {
+            std::collections::btree_map::Entry::Occupied(entry) => {
+                entry.remove();
+                ambiguous_hips.insert(hip);
+            }
+            std::collections::btree_map::Entry::Vacant(entry) => {
+                entry.insert(value);
+            }
         }
     }
-    Ok(by_hip)
+    Ok(Tycho2Ingestion {
+        by_hip,
+        ambiguous_hip_ids: ambiguous_hips,
+    })
 }
 
 pub fn ingest_hip_gaia_crossmatch(
@@ -304,6 +326,14 @@ pub fn ingest_gaia_quality_extract(
             gaia_xp_usable: parse_bool(&row[xp])?,
             gaia_photometric_usable: parse_bool(&row[phot])?,
         };
+        if !item.ra_deg_j2016.is_finite()
+            || !item.dec_deg_j2016.is_finite()
+            || !(0.0..360.0).contains(&item.ra_deg_j2016)
+            || !(-90.0..=90.0).contains(&item.dec_deg_j2016)
+            || item.gaia_g_mag.is_some_and(|value| !value.is_finite())
+        {
+            bail!("Gaia quality extract contains invalid geometry or photometry for {id}");
+        }
         if out.insert(id, item).is_some() {
             bail!("Gaia quality extract contains duplicate source_id {id}");
         }
@@ -362,6 +392,132 @@ mod tests {
     use super::*;
     use std::io::Write;
     use tempfile::NamedTempFile;
+
+    fn put(record: &mut [u8], start: usize, end: usize, value: &str) {
+        assert!(value.len() <= end - start);
+        let offset = end - value.len();
+        assert!(offset >= start);
+        record[offset..end].copy_from_slice(value.as_bytes());
+    }
+
+    fn pinned(role: BrightStarInputRole, contents: &[u8]) -> (NamedTempFile, PinnedCatalogueInput) {
+        let mut file = NamedTempFile::new().unwrap();
+        file.write_all(contents).unwrap();
+        file.flush().unwrap();
+        let input = PinnedCatalogueInput {
+            path: file.path().to_path_buf(),
+            provenance: BrightStarInputProvenance {
+                role,
+                source_id: "fixture".into(),
+                release: "fixture-v1".into(),
+                sha256: checksum_io::sha256_file(file.path()).unwrap(),
+                retrieval_url: "https://example.invalid/fixture".into(),
+                license_or_terms_url: "https://example.invalid/terms".into(),
+            },
+        };
+        (file, input)
+    }
+
+    fn hipparcos_line(hip: u32) -> Vec<u8> {
+        let mut line = vec![b' '; 164];
+        put(&mut line, 0, 6, &hip.to_string());
+        put(&mut line, 7, 10, "5");
+        put(&mut line, 13, 14, "1");
+        put(&mut line, 15, 28, "0.100000000");
+        put(&mut line, 29, 42, "-0.200000000");
+        put(&mut line, 43, 50, "10.0");
+        put(&mut line, 51, 59, "12.5");
+        put(&mut line, 60, 68, "-8.5");
+        put(&mut line, 69, 75, "0.2");
+        put(&mut line, 76, 82, "0.3");
+        put(&mut line, 90, 96, "0.4");
+        put(&mut line, 97, 103, "0.5");
+        put(&mut line, 129, 136, "3.25");
+        put(&mut line, 137, 143, "0.01");
+        line.push(b'\n');
+        line
+    }
+
+    #[test]
+    fn hipparcos_fixed_width_positions_and_duplicates_are_enforced() {
+        let line = hipparcos_line(42);
+        let (_file, input) = pinned(BrightStarInputRole::Hipparcos2, &line);
+        let row = ingest_hipparcos2(&input).unwrap().remove(0);
+        assert_eq!(row.astrometry.hip, 42);
+        assert!((row.astrometry.ra_deg_j1991_25 - 0.1_f64.to_degrees()).abs() < 1e-12);
+        assert_eq!(row.hp_mag, 3.25);
+        assert_eq!(row.hp_mag_uncertainty, 0.01);
+
+        let duplicate = [line.as_slice(), line.as_slice()].concat();
+        let (_file, input) = pinned(BrightStarInputRole::Hipparcos2, &duplicate);
+        assert!(ingest_hipparcos2(&input).is_err());
+    }
+
+    #[test]
+    fn xhip_and_tycho_fixed_width_fields_are_explicit() {
+        let mut xhip = vec![b' '; 283];
+        put(&mut xhip, 0, 6, "42");
+        put(&mut xhip, 236, 262, "G2V");
+        put(&mut xhip, 263, 266, "52");
+        put(&mut xhip, 267, 268, "6");
+        put(&mut xhip, 269, 276, "21.5");
+        put(&mut xhip, 277, 283, "0.5");
+        xhip.push(b'\n');
+        let (_file, input) = pinned(BrightStarInputRole::SpectralTypeCatalogue, &xhip);
+        let row = ingest_xhip(&input).unwrap().remove(&42).unwrap();
+        assert_eq!(row.spectral_type.as_deref(), Some("G2V"));
+        assert_eq!(row.temperature_code, Some(52));
+        assert_eq!(row.luminosity_class_code, Some(6));
+
+        let mut tycho = vec![b' '; 151];
+        put(&mut tycho, 0, 4, "1");
+        put(&mut tycho, 5, 10, "2");
+        put(&mut tycho, 11, 12, "3");
+        put(&mut tycho, 110, 116, "3.10");
+        put(&mut tycho, 117, 122, "0.02");
+        put(&mut tycho, 123, 129, "2.90");
+        put(&mut tycho, 130, 135, "0.03");
+        put(&mut tycho, 142, 148, "42");
+        tycho.push(b'\n');
+        let duplicate = [tycho.as_slice(), tycho.as_slice()].concat();
+        let (_file, input) = pinned(BrightStarInputRole::Tycho2, &duplicate);
+        let result = ingest_tycho2(&input).unwrap();
+        assert!(result.by_hip.is_empty());
+        assert_eq!(
+            result.ambiguous_hip_ids,
+            std::collections::BTreeSet::from([42])
+        );
+    }
+
+    #[test]
+    fn gaia_csv_parsers_reject_invalid_and_duplicate_rows() {
+        let crossmatch = b"source_id,original_ext_source_id,angular_distance,number_of_neighbours\n7,42,0.25,1\n";
+        let (_file, input) = pinned(BrightStarInputRole::HipGaiaCrossmatch, crossmatch);
+        assert_eq!(
+            ingest_hip_gaia_crossmatch(&input).unwrap()[&42][0].gaia_source_id,
+            7
+        );
+
+        let gaia = b"source_id,ra,dec,phot_g_mean_mag,has_xp_continuous,photometric_usable\n7,12.0,-30.0,2.5,true,false\n";
+        let (_file, input) = pinned(BrightStarInputRole::GaiaDr3QualityExtract, gaia);
+        assert_eq!(
+            ingest_gaia_quality_extract(&input).unwrap()[&7].gaia_g_mag,
+            Some(2.5)
+        );
+
+        let invalid = b"source_id,ra,dec,phot_g_mean_mag,has_xp_continuous,photometric_usable\n7,NaN,-30.0,2.5,true,false\n";
+        let (_file, input) = pinned(BrightStarInputRole::GaiaDr3QualityExtract, invalid);
+        assert!(ingest_gaia_quality_extract(&input).is_err());
+
+        let duplicate = [
+            gaia.as_slice(),
+            &gaia[b"source_id,ra,dec,phot_g_mean_mag,has_xp_continuous,photometric_usable\n"
+                .len()..],
+        ]
+        .concat();
+        let (_file, input) = pinned(BrightStarInputRole::GaiaDr3QualityExtract, &duplicate);
+        assert!(ingest_gaia_quality_extract(&input).is_err());
+    }
 
     #[test]
     fn checksum_mismatch_fails_before_parsing() {

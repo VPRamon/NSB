@@ -204,6 +204,15 @@ sources and pixels; totals from distinct groups combine in quadrature. This
 prevents Hipparcos, Tycho, response-curve, and template-library calibration
 systems from being treated as correlated without evidence.
 
+The v1 CK04/Hp spectral reconstruction currently pins
+`bright-star-spectral-calibration-v1.json` with status
+`provisional-uncalibrated`. Its template-mismatch, spectral-mapping, and Hp
+zero-point fractions are explicit experimental bounds, not empirical
+calibration results. The model loader requires that status and its checksum;
+the resulting supplement must remain experimental and cannot be described as
+a production candidate until a reproducible XP/CALSPEC residual study replaces
+that artifact.
+
 The published canonical map's `total_uncertainty_ph_m2_s` column is exactly
 `hypot(statistical_uncertainty_ph_m2_s, systematic_uncertainty_ph_m2_s)`,
 where `systematic_uncertainty_ph_m2_s` is itself
@@ -211,8 +220,10 @@ where `systematic_uncertainty_ph_m2_s` is itself
 
 ## Schema versions touched by this contract
 
-- `crate::starlight::map::product::REPORT_SCHEMA_VERSION` is `7` (bumped
-  from `6`): additive `SpectralCoverageReport.systematic_correlation_scope`
+- `crate::starlight::map::product::REPORT_SCHEMA_VERSION` is `8` (`7` added
+  `SpectralCoverageReport.systematic_correlation_scope`; `8` adds explicit
+  primary/supplement processing-record accounting and replacement identity
+  semantics): additive `SpectralCoverageReport.systematic_correlation_scope`
   and `MergeReport.uncertainty_scale` fields.
 - `crate::starlight::map::accumulator::SHARD_SCHEMA_VERSION` and the
   canonical map's `nsb-healpix-starlight-candidate-v5` schema are unchanged

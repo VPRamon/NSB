@@ -3,6 +3,7 @@
 use super::policy::{BrightStarPopulationPolicy, BrightStarPrecedencePolicy, SupplementClass};
 use crate::platform::checksum_io;
 use crate::starlight::healpix::galactic_nested_pixel_from_icrs_position;
+use crate::starlight::map::accumulator::StableSum;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -106,10 +107,10 @@ pub struct BrightStarCounts {
 
 #[derive(Default)]
 struct PixelBuild {
-    flux: f64,
-    stat_var: f64,
-    independent_sys_var: f64,
-    correlated: BTreeMap<String, f64>,
+    flux: StableSum,
+    stat_var: StableSum,
+    independent_sys_var: StableSum,
+    correlated: BTreeMap<String, StableSum>,
     sources: u64,
 }
 
@@ -202,7 +203,7 @@ impl BrightStarArtifact {
         if self.pixels != rebuild_pixels(self.nside, &self.sources)? {
             bail!("bright-star serialized pixels do not match source reconstruction");
         }
-        validate_conservation(&self.sources, &self.pixels)?;
+        validate_conservation(self.nside, &self.sources, &self.pixels)?;
         Ok(())
     }
 
@@ -372,14 +373,19 @@ fn rebuild_pixels(nside: u32, sources: &[BrightStarSourceRecord]) -> Result<Vec<
             nside,
         )?);
         let entry = pixels.entry(pixel).or_default();
-        entry.flux += source.flux_336_650_ph_m2_s;
-        entry.stat_var += source.statistical_uncertainty_ph_m2_s.powi(2);
-        entry.independent_sys_var += source.systematic_independent_uncertainty_ph_m2_s.powi(2);
+        entry.flux.add(source.flux_336_650_ph_m2_s)?;
+        entry
+            .stat_var
+            .add(source.statistical_uncertainty_ph_m2_s.powi(2))?;
+        entry
+            .independent_sys_var
+            .add(source.systematic_independent_uncertainty_ph_m2_s.powi(2))?;
         for term in &source.systematic_catalogue_correlated {
-            *entry
+            entry
                 .correlated
                 .entry(term.correlation_group_id.clone())
-                .or_default() += term.uncertainty_ph_m2_s;
+                .or_default()
+                .add(term.uncertainty_ph_m2_s)?;
         }
         entry.sources += 1;
     }
@@ -387,16 +393,21 @@ fn rebuild_pixels(nside: u32, sources: &[BrightStarSourceRecord]) -> Result<Vec<
         .into_iter()
         .map(|(pixel, p)| BrightStarPixel {
             pixel,
-            flux_ph_m2_s: p.flux,
-            statistical_uncertainty_ph_m2_s: p.stat_var.sqrt(),
-            systematic_independent_uncertainty_ph_m2_s: p.independent_sys_var.sqrt(),
-            systematic_catalogue_correlated: p.correlated,
+            flux_ph_m2_s: p.flux.value(),
+            statistical_uncertainty_ph_m2_s: p.stat_var.value().sqrt(),
+            systematic_independent_uncertainty_ph_m2_s: p.independent_sys_var.value().sqrt(),
+            systematic_catalogue_correlated: p
+                .correlated
+                .into_iter()
+                .map(|(group, sum)| (group, sum.value()))
+                .collect(),
             admitted_sources: p.sources,
         })
         .collect())
 }
 
 fn validate_conservation(
+    nside: u32,
     sources: &[BrightStarSourceRecord],
     pixels: &[BrightStarPixel],
 ) -> Result<()> {
@@ -406,15 +417,29 @@ fn validate_conservation(
             SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
         )
     };
-    let source_flux: f64 = sources
-        .iter()
-        .filter(admitted)
-        .map(|s| s.flux_336_650_ph_m2_s)
-        .sum();
+    let mut source_flux = StableSum::default();
+    for source in sources.iter().filter(admitted) {
+        source_flux.add(source.flux_336_650_ph_m2_s)?;
+    }
     let source_count = sources.iter().filter(admitted).count() as u64;
-    let pixel_flux: f64 = pixels.iter().map(|p| p.flux_ph_m2_s).sum();
+    let mut by_pixel: BTreeMap<u64, StableSum> = BTreeMap::new();
+    for source in sources.iter().filter(admitted) {
+        let pixel = u64::from(galactic_nested_pixel_from_icrs_position(
+            source.ra_deg_j2016,
+            source.dec_deg_j2016,
+            nside,
+        )?);
+        by_pixel
+            .entry(pixel)
+            .or_default()
+            .add(source.flux_336_650_ph_m2_s)?;
+    }
+    let mut pixel_flux = StableSum::default();
+    for sum in by_pixel.values() {
+        pixel_flux.merge(sum)?;
+    }
     let pixel_count: u64 = pixels.iter().map(|p| p.admitted_sources).sum();
-    if source_flux.to_bits() != pixel_flux.to_bits() || source_count != pixel_count {
+    if source_flux != pixel_flux || source_count != pixel_count {
         bail!("bright-star source/pixel flux or count conservation failed");
     }
     Ok(())
@@ -589,5 +614,28 @@ mod tests {
         let sha = checksum_io::sha256_bytes(&bytes);
         assert_eq!(load_bright_star_artifact(tmp.path(), &sha).unwrap(), art);
         assert!(load_bright_star_artifact(tmp.path(), &"0".repeat(64)).is_err());
+    }
+
+    #[test]
+    fn exact_accumulation_is_order_independent_and_serialization_is_stable() {
+        let sources = vec![
+            source("large", SupplementClass::SupplementOnly, None, 1.0e16),
+            source("small-a", SupplementClass::SupplementOnly, None, 1.0),
+            source("small-b", SupplementClass::SupplementOnly, None, 1.0),
+        ];
+        let mut reversed = sources.clone();
+        reversed.reverse();
+        let first = artifact(sources).unwrap();
+        let second = artifact(reversed).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.pixels[0].flux_ph_m2_s, 1.000_000_000_000_000_2e16);
+        assert_eq!(
+            first.to_json_pretty().unwrap(),
+            second.to_json_pretty().unwrap()
+        );
+        assert_eq!(
+            first.to_json_pretty().unwrap(),
+            first.to_json_pretty().unwrap()
+        );
     }
 }

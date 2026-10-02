@@ -91,6 +91,9 @@ pub struct BrightStarPrecedencePolicy {
     pub replace_when_missing_from_gaia: bool,
     /// Replace when Gaia G is brighter than this and XP/photometry fails.
     pub replace_when_gaia_g_brighter_than: f64,
+    /// Maximum 2D-vs-3D propagation difference as a fraction of the
+    /// effective source matching radius. Above this, identity fails closed.
+    pub perspective_motion_max_fraction_of_match_radius: f64,
 }
 
 impl BrightStarPrecedencePolicy {
@@ -100,6 +103,7 @@ impl BrightStarPrecedencePolicy {
             prefer_valid_gaia_xp: true,
             replace_when_missing_from_gaia: true,
             replace_when_gaia_g_brighter_than: 3.0,
+            perspective_motion_max_fraction_of_match_radius: 0.1,
         }
     }
 
@@ -108,6 +112,10 @@ impl BrightStarPrecedencePolicy {
             || !self.prefer_valid_gaia_xp
             || !self.replace_when_missing_from_gaia
             || !self.replace_when_gaia_g_brighter_than.is_finite()
+            || !self
+                .perspective_motion_max_fraction_of_match_radius
+                .is_finite()
+            || !(0.0..1.0).contains(&self.perspective_motion_max_fraction_of_match_radius)
         {
             bail!("unknown or invalid bright-star precedence policy");
         }

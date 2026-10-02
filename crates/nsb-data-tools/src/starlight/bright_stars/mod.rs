@@ -29,8 +29,8 @@ pub use builder::{
 };
 pub use catalogue::{
     ingest_gaia_quality_extract, ingest_hip_gaia_crossmatch, ingest_hipparcos2, ingest_tycho2,
-    ingest_xhip, HipGaiaIdentityMatch, Hipparcos2Record, PinnedCatalogueInput, Tycho2Photometry,
-    XhipRecord,
+    ingest_xhip, HipGaiaIdentityMatch, Hipparcos2Record, PinnedCatalogueInput, Tycho2Ingestion,
+    Tycho2Photometry, XhipRecord,
 };
 pub use crossmatch::{
     classify_match, positional_match_candidates, propagate_hipparcos_3d_to_j2016,

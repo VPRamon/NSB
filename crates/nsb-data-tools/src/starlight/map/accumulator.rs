@@ -53,7 +53,7 @@ impl StableSum {
         Ok(())
     }
 
-    fn merge(&mut self, other: &Self) -> Result<()> {
+    pub(crate) fn merge(&mut self, other: &Self) -> Result<()> {
         other.validate()?;
         for (index, value) in &other.limbs {
             self.add_limb(usize::from(*index), *value)?;
@@ -343,6 +343,12 @@ pub struct PartitionShard {
     /// Replacement identities declared by the synthetic bright-star shard.
     #[serde(default)]
     pub bright_star_replacement_gaia_ids: std::collections::BTreeSet<u64>,
+    /// Exact Gaia identities actually excluded by primary-source workers.
+    #[serde(default)]
+    pub bright_star_suppressed_gaia_ids: std::collections::BTreeSet<u64>,
+    /// Replacement identities that nevertheless reached Gaia admission.
+    #[serde(default)]
+    pub bright_star_base_admitted_replacement_gaia_ids: std::collections::BTreeSet<u64>,
 }
 
 impl PartitionShard {
@@ -399,6 +405,8 @@ impl PartitionShard {
             exclusion_reasons: BTreeMap::new(),
             ultraviolet_applicability: BTreeMap::new(),
             bright_star_replacement_gaia_ids: std::collections::BTreeSet::new(),
+            bright_star_suppressed_gaia_ids: std::collections::BTreeSet::new(),
+            bright_star_base_admitted_replacement_gaia_ids: std::collections::BTreeSet::new(),
         })
     }
 
@@ -673,6 +681,14 @@ impl PartitionShard {
         if excluded != reason_total {
             bail!("per-pixel exclusions do not match exclusion reason totals");
         }
+        let suppressed_count = self
+            .exclusion_reasons
+            .get("bright_star_replaced_by_supplement")
+            .copied()
+            .unwrap_or_default();
+        if suppressed_count != self.bright_star_suppressed_gaia_ids.len() as u64 {
+            bail!("bright-star suppressed Gaia identities do not match exclusion accounting");
+        }
         let uv_total = self
             .ultraviolet_applicability
             .values()
@@ -759,6 +775,17 @@ pub fn merge_shards(shards: impl IntoIterator<Item = PartitionShard>) -> Result<
                 bail!("duplicate bright-star replacement Gaia source id across shards");
             }
         }
+        for gaia_source_id in shard.bright_star_suppressed_gaia_ids {
+            if !merged
+                .bright_star_suppressed_gaia_ids
+                .insert(gaia_source_id)
+            {
+                bail!("duplicate suppressed Gaia source id across shards");
+            }
+        }
+        merged
+            .bright_star_base_admitted_replacement_gaia_ids
+            .extend(shard.bright_star_base_admitted_replacement_gaia_ids);
     }
     merged.validate()?;
     Ok(merged)
