@@ -1,6 +1,6 @@
 schema_version = 1
 nside = 128
-build_commit = "ed3adfa"
+build_commit = "f43f951"
 config_source_id = "starlight-bright-stars-v1.ladon.toml"
 config_release = "experimental-v1"
 config_retrieval_url = "https://github.com/VPRamon/NSB/blob/fix/starlight-flux-deficit-182/crates/nsb-data-tools/config/starlight-bright-stars-v1.ladon.toml"
