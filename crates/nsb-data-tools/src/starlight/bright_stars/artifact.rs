@@ -756,4 +756,53 @@ mod tests {
         bad.artifact_sha256 = "0".repeat(63);
         assert!(bad.validate().is_err());
     }
+
+    #[test]
+    fn artifact_header_invariants_fail_closed() {
+        let mut art = artifact(vec![source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0,
+        )])
+        .unwrap();
+        art.schema_version = 99;
+        assert!(art.validate().is_err());
+        art.schema_version = BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION;
+        art.model_id = "other".into();
+        assert!(art.validate().is_err());
+        art.model_id = BRIGHT_STAR_MODEL_ID.into();
+        art.product_band = "other".into();
+        assert!(art.validate().is_err());
+        art.product_band = BRIGHT_STAR_PRODUCT_BAND_ID.into();
+        art.ordering = "ring".into();
+        assert!(art.validate().is_err());
+        art.ordering = "nested".into();
+        art.scientifically_validated = true;
+        assert!(art.validate().is_err());
+        art.scientifically_validated = false;
+        art.redistribution_embedded = true;
+        assert!(art.validate().is_err());
+        art.redistribution_embedded = false;
+
+        let bad_input = BrightStarInputProvenance {
+            role: BrightStarInputRole::Hipparcos2,
+            source_id: " ".into(),
+            release: "r".into(),
+            sha256: "a".repeat(64),
+            retrieval_url: "https://example.invalid/a".into(),
+            license_or_terms_url: "https://example.invalid/b".into(),
+        };
+        art.inputs = vec![bad_input.clone()];
+        assert!(art.validate().is_err());
+        let mut https = bad_input.clone();
+        https.source_id = "ok".into();
+        https.retrieval_url = "http://example.invalid/a".into();
+        art.inputs = vec![https];
+        assert!(art.validate().is_err());
+        let mut dup = bad_input;
+        dup.source_id = "ok".into();
+        art.inputs = vec![dup.clone(), dup];
+        assert!(art.validate().is_err());
+    }
 }
