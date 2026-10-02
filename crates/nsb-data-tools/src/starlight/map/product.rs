@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 8;
+const REPORT_SCHEMA_VERSION: u32 = 9;
 const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
 const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v5";
 const MAP_ORDERING: &str = "nested";
@@ -55,6 +55,10 @@ pub struct MergeReport {
     pub ultraviolet_applicability: BTreeMap<crate::starlight::uv::ApplicabilityStatus, u64>,
     #[serde(default)]
     pub bright_star_replacement: Option<BrightStarReplacementReport>,
+    /// Checksum-verified bright-star supplement identity when the map includes it.
+    #[serde(default)]
+    pub bright_star_supplement:
+        Option<crate::starlight::bright_stars::BrightStarSupplementProvenance>,
     pub science_policy: SciencePolicyReport,
     pub band_diagnostics: BandDiagnosticsReport,
     pub canonical_map: CanonicalMapReport,
@@ -437,6 +441,7 @@ pub(crate) fn emit_maps(
                     .collect(),
             }
         }),
+        bright_star_supplement: merged.bright_star_supplement_provenance.clone(),
         science_policy,
         band_diagnostics: band_diagnostics(&merged)?,
         canonical_map: CanonicalMapReport {
@@ -776,6 +781,30 @@ fn validate_report_fields(
                 != replacement.actually_suppressed_count
         {
             bail!("merge report bright-star replacement proof is invalid");
+        }
+    }
+    let has_bright_star_contribution = report.source_record_accounting.supplement_input_records > 0
+        || report.source_record_accounting.admitted_supplement_records > 0
+        || report.bright_star_replacement.is_some();
+    match (
+        report.bright_star_supplement.as_ref(),
+        has_bright_star_contribution,
+    ) {
+        (None, false) => {}
+        (Some(provenance), true) => {
+            provenance
+                .validate()
+                .context("merge report bright-star supplement provenance is invalid")?;
+        }
+        (None, true) => {
+            bail!(
+                "merge report declares bright-star contribution without checksum-verified supplement provenance"
+            );
+        }
+        (Some(_), false) => {
+            bail!(
+                "merge report includes bright-star supplement provenance without any supplement contribution"
+            );
         }
     }
     let diagnostics = &report.band_diagnostics;
@@ -1735,6 +1764,8 @@ fn complete_deterministic_merge_report(
         || canonical.bright_star_suppressed_gaia_ids != independent.bright_star_suppressed_gaia_ids
         || canonical.bright_star_base_admitted_replacement_gaia_ids
             != independent.bright_star_base_admitted_replacement_gaia_ids
+        || canonical.bright_star_supplement_provenance
+            != independent.bright_star_supplement_provenance
     {
         exclusion_reason_mismatches += 1;
         record_first_mismatch(
@@ -1771,7 +1802,7 @@ fn complete_deterministic_merge_report(
 fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
     shard.validate()?;
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v2\0");
+    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v3\0");
     bytes.extend_from_slice(&shard.nside.to_be_bytes());
     bytes.push(match shard.product_band {
         crate::starlight::config::StarlightProductBand::Measured336To650 => 0,
@@ -1866,6 +1897,16 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         for source_id in ids {
             bytes.extend_from_slice(&source_id.to_be_bytes());
         }
+    }
+    if let Some(provenance) = &shard.bright_star_supplement_provenance {
+        bytes.push(1);
+        append_string(&mut bytes, &provenance.artifact_sha256)?;
+        append_string(&mut bytes, &provenance.model_id)?;
+        append_string(&mut bytes, &provenance.population_policy_id)?;
+        append_string(&mut bytes, &provenance.precedence_policy_id)?;
+        append_string(&mut bytes, &provenance.build_commit)?;
+    } else {
+        bytes.push(0);
     }
     Ok(bytes)
 }
@@ -1994,6 +2035,7 @@ mod tests {
         let mut shard = PartitionShard::new("fixture", 1).unwrap();
         shard.bright_star_replacement_gaia_ids.insert(42);
         shard.bright_star_suppressed_gaia_ids.insert(42);
+        shard.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('a'));
         shard
             .exclude(
                 fixture_icrs_from_source_id(42),
@@ -2001,6 +2043,7 @@ mod tests {
             )
             .unwrap();
         validate_bright_star_replacement_invariant(&shard).unwrap();
+        shard.validate().unwrap();
 
         shard.bright_star_replacement_gaia_ids.insert(43);
         assert!(validate_bright_star_replacement_invariant(&shard).is_err());
@@ -2014,6 +2057,135 @@ mod tests {
             .bright_star_base_admitted_replacement_gaia_ids
             .insert(42);
         assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+    }
+
+    fn fixture_bright_star_provenance(
+        hex_fill: char,
+    ) -> crate::starlight::bright_stars::BrightStarSupplementProvenance {
+        assert!(
+            hex_fill.is_ascii_hexdigit() && !hex_fill.is_ascii_uppercase(),
+            "fixture SHA fill must be lowercase hex"
+        );
+        crate::starlight::bright_stars::BrightStarSupplementProvenance {
+            artifact_sha256: hex_fill.to_string().repeat(64),
+            model_id: crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID.into(),
+            population_policy_id: crate::starlight::bright_stars::POPULATION_POLICY_ID_V1.into(),
+            precedence_policy_id: crate::starlight::bright_stars::PRECEDENCE_POLICY_ID_V1.into(),
+            build_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+        }
+    }
+
+    #[test]
+    fn bright_star_supplement_provenance_survives_merge_and_report_validation() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut primary = PartitionShard::new("primary", 1).unwrap();
+        primary
+            .admit(fixture_icrs_from_source_id(1), 2.0, 0.1, 0.1)
+            .unwrap();
+        primary.bright_star_suppressed_gaia_ids.insert(99);
+        primary
+            .exclude(
+                fixture_icrs_from_source_id(99),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+
+        let mut supplement = PartitionShard::new("bright-star-supplement", 1).unwrap();
+        let provenance = fixture_bright_star_provenance('c');
+        supplement.bright_star_supplement_provenance = Some(provenance.clone());
+        supplement.bright_star_replacement_gaia_ids.insert(99);
+        supplement
+            .admit(fixture_icrs_from_source_id(2), 5.0, 0.2, 0.2)
+            .unwrap();
+        primary
+            .write(&temp.path().join("outputs/shards/primary.json"))
+            .unwrap();
+        supplement
+            .write(
+                &temp
+                    .path()
+                    .join("outputs/shards/bright-star-supplement.json"),
+            )
+            .unwrap();
+
+        emit_maps(
+            temp.path(),
+            &["bright-star-supplement".to_string(), "primary".to_string()],
+            1,
+            StarlightProductBand::Measured336To650,
+            None,
+            None,
+        )
+        .unwrap();
+        let report: MergeReport = serde_json::from_slice(
+            &fs::read(temp.path().join("outputs/merge_report.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report.schema_version, 9);
+        assert_eq!(report.bright_star_supplement.as_ref(), Some(&provenance));
+        assert_eq!(
+            report
+                .bright_star_replacement
+                .as_ref()
+                .map(|r| r.replacement_gaia_source_ids.as_slice()),
+            Some([99].as_slice())
+        );
+        validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+
+        let mut stripped = report.clone();
+        stripped.bright_star_supplement = None;
+        rewrite_report(&temp, &stripped);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn incompatible_bright_star_provenance_cannot_merge() {
+        let mut left = PartitionShard::new("left", 1).unwrap();
+        left.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('a'));
+        left.bright_star_replacement_gaia_ids.insert(1);
+        left.admit(fixture_icrs_from_source_id(1), 1.0, 0.0, 0.0)
+            .unwrap();
+        let mut right = PartitionShard::new("right", 1).unwrap();
+        right.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('b'));
+        right.bright_star_replacement_gaia_ids.insert(2);
+        right
+            .admit(fixture_icrs_from_source_id(2), 1.0, 0.0, 0.0)
+            .unwrap();
+        assert!(super::super::accumulator::merge_shards([left, right]).is_err());
+    }
+
+    #[test]
+    fn replacement_identities_without_provenance_fail_closed() {
+        let mut shard = PartitionShard::new("fixture", 1).unwrap();
+        shard.bright_star_replacement_gaia_ids.insert(42);
+        assert!(shard.validate().is_err());
+    }
+
+    #[test]
+    fn gaia_only_merge_report_omits_bright_star_provenance() {
+        let temp = tempfile::tempdir().unwrap();
+        let report = emit_fixture(&temp, 1);
+        assert!(report.bright_star_supplement.is_none());
+        assert!(report.bright_star_replacement.is_none());
+        validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+    }
+
+    #[test]
+    fn deterministic_merge_bytes_include_bright_star_provenance() {
+        let mut without = PartitionShard::new("fixture", 1).unwrap();
+        without
+            .admit(fixture_icrs_from_source_id(1), 1.0, 0.0, 0.0)
+            .unwrap();
+        let mut with = without.clone();
+        with.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('d'));
+        with.bright_star_replacement_gaia_ids.insert(7);
+        let left = canonical_merge_bytes(&without).unwrap();
+        let right = canonical_merge_bytes(&with).unwrap();
+        assert_ne!(left, right);
+        assert_eq!(
+            canonical_merge_bytes(&with).unwrap(),
+            canonical_merge_bytes(&with).unwrap()
+        );
     }
 
     #[test]

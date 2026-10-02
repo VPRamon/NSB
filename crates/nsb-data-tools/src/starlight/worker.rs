@@ -340,6 +340,7 @@ fn build_partition(
 /// Gaia replacements have already been excluded by the worker path above.
 pub(crate) fn bright_star_supplement_shard(
     artifact: &BrightStarArtifact,
+    verified_artifact_sha256: &str,
     canonical_nside: u32,
 ) -> Result<PartitionShard> {
     artifact.validate()?;
@@ -347,6 +348,8 @@ pub(crate) fn bright_star_supplement_shard(
         bail!("bright-star artifact nside does not match canonical Starlight nside");
     }
     let mut shard = PartitionShard::new("bright-star-supplement", canonical_nside)?;
+    shard.bright_star_supplement_provenance =
+        Some(artifact.supplement_provenance(verified_artifact_sha256)?);
     shard.bright_star_replacement_gaia_ids = artifact.suppressed_gaia_source_ids()?;
     for source in &artifact.sources {
         if matches!(
@@ -941,6 +944,92 @@ mod tests {
             0,
             "legacy source_id-derived pixel {legacy_pixel} must remain empty"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn bright_star_supplement_shard_carries_verified_provenance() -> Result<()> {
+        use crate::starlight::bright_stars::{
+            BrightStarArtifact, BrightStarPopulationPolicy, BrightStarPrecedencePolicy,
+            BrightStarSourceRecord, CorrelatedUncertainty, SupplementClass, BRIGHT_STAR_MODEL_ID,
+            POPULATION_POLICY_ID_V1, PRECEDENCE_POLICY_ID_V1,
+        };
+
+        let commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let sources = vec![
+            BrightStarSourceRecord {
+                source_id: "hip-1".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_336_650_ph_m2_s: 4.0,
+                statistical_uncertainty_ph_m2_s: 0.1,
+                systematic_independent_uncertainty_ph_m2_s: 0.2,
+                systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                    correlation_group_id: "hip2-zero-point".into(),
+                    uncertainty_ph_m2_s: 0.05,
+                }],
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            },
+            BrightStarSourceRecord {
+                source_id: "hip-2".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::MatchedAndReplacesPrimary,
+                gaia_source_id: Some(42),
+                ra_deg_j2016: 11.0,
+                dec_deg_j2016: 21.0,
+                flux_336_650_ph_m2_s: 6.0,
+                statistical_uncertainty_ph_m2_s: 0.1,
+                systematic_independent_uncertainty_ph_m2_s: 0.2,
+                systematic_catalogue_correlated: Vec::new(),
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            },
+            BrightStarSourceRecord {
+                source_id: "hip-3".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::MatchedAndRejectedAsDuplicate,
+                gaia_source_id: Some(99),
+                ra_deg_j2016: 12.0,
+                dec_deg_j2016: 22.0,
+                flux_336_650_ph_m2_s: 100.0,
+                statistical_uncertainty_ph_m2_s: 1.0,
+                systematic_independent_uncertainty_ph_m2_s: 1.0,
+                systematic_catalogue_correlated: Vec::new(),
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            },
+        ];
+        let artifact = BrightStarArtifact::from_sources(
+            1,
+            commit,
+            Vec::new(),
+            sources,
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+        )?;
+        let sha = "e".repeat(64);
+        let shard = bright_star_supplement_shard(&artifact, &sha, 1)?;
+        let provenance = shard.bright_star_supplement_provenance.as_ref().unwrap();
+        assert_eq!(provenance.artifact_sha256, sha);
+        assert_eq!(provenance.model_id, BRIGHT_STAR_MODEL_ID);
+        assert_eq!(provenance.population_policy_id, POPULATION_POLICY_ID_V1);
+        assert_eq!(provenance.precedence_policy_id, PRECEDENCE_POLICY_ID_V1);
+        assert_eq!(provenance.build_commit, commit);
+        assert_eq!(shard.bright_star_replacement_gaia_ids, BTreeSet::from([42]));
+        assert_eq!(
+            shard
+                .pixels
+                .values()
+                .map(|pixel| pixel.admitted_sources)
+                .sum::<u64>(),
+            2
+        );
+        assert!(bright_star_supplement_shard(&artifact, &sha, 2).is_err());
+        assert!(bright_star_supplement_shard(&artifact, "short", 1).is_err());
         Ok(())
     }
 }

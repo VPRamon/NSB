@@ -349,6 +349,10 @@ pub struct PartitionShard {
     /// Replacement identities that nevertheless reached Gaia admission.
     #[serde(default)]
     pub bright_star_base_admitted_replacement_gaia_ids: std::collections::BTreeSet<u64>,
+    /// Checksum-verified bright-star supplement identity, when present.
+    #[serde(default)]
+    pub bright_star_supplement_provenance:
+        Option<crate::starlight::bright_stars::BrightStarSupplementProvenance>,
 }
 
 impl PartitionShard {
@@ -407,6 +411,7 @@ impl PartitionShard {
             bright_star_replacement_gaia_ids: std::collections::BTreeSet::new(),
             bright_star_suppressed_gaia_ids: std::collections::BTreeSet::new(),
             bright_star_base_admitted_replacement_gaia_ids: std::collections::BTreeSet::new(),
+            bright_star_supplement_provenance: None,
         })
     }
 
@@ -689,6 +694,14 @@ impl PartitionShard {
         if suppressed_count != self.bright_star_suppressed_gaia_ids.len() as u64 {
             bail!("bright-star suppressed Gaia identities do not match exclusion accounting");
         }
+        if let Some(provenance) = &self.bright_star_supplement_provenance {
+            provenance.validate()?;
+        }
+        if !self.bright_star_replacement_gaia_ids.is_empty()
+            && self.bright_star_supplement_provenance.is_none()
+        {
+            bail!("bright-star replacement identities require checksum-verified supplement provenance");
+        }
         let uv_total = self
             .ultraviolet_applicability
             .values()
@@ -786,6 +799,19 @@ pub fn merge_shards(shards: impl IntoIterator<Item = PartitionShard>) -> Result<
         merged
             .bright_star_base_admitted_replacement_gaia_ids
             .extend(shard.bright_star_base_admitted_replacement_gaia_ids);
+        match (
+            merged.bright_star_supplement_provenance.as_ref(),
+            shard.bright_star_supplement_provenance,
+        ) {
+            (_, None) => {}
+            (None, Some(provenance)) => {
+                merged.bright_star_supplement_provenance = Some(provenance);
+            }
+            (Some(existing), Some(provenance)) if existing == &provenance => {}
+            (Some(_), Some(_)) => {
+                bail!("cannot merge Starlight shards with incompatible bright-star supplement provenance");
+            }
+        }
     }
     merged.validate()?;
     Ok(merged)

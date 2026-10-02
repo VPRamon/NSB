@@ -117,6 +117,7 @@ impl DatasetPipeline for StarlightPipeline {
                 super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
             let shard = super::worker::bright_star_supplement_shard(
                 &artifact,
+                &pin.sha256,
                 starlight.map.canonical_nside,
             )?;
             let shard_path = config
@@ -432,6 +433,46 @@ lease_timeout_seconds = 60
         assert!(err
             .to_string()
             .contains("exactly the gaia-source and xp-continuous products"));
+    }
+
+    #[test]
+    fn validate_config_rejects_invalid_bright_star_supplement_pin() {
+        let mut starlight = measured_config();
+        starlight.bright_star_supplement = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("missing-bright-stars.json"),
+            sha256: "not-a-sha".into(),
+        });
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("invalid bright-star sha");
+        assert!(err
+            .to_string()
+            .contains("bright-star supplement SHA-256 must be 64 lowercase hexadecimal"));
+    }
+
+    #[test]
+    fn validate_config_rejects_bright_star_supplement_with_combined_band() {
+        let mut starlight = measured_config();
+        starlight.product_band = StarlightProductBand::Combined300To650;
+        starlight.ultraviolet_correction = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("uv.toml"),
+            sha256: "d".repeat(64),
+        });
+        starlight.bright_star_supplement = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("bright.json"),
+            sha256: "e".repeat(64),
+        });
+        // Combined-band UV SHA is accepted structurally, but loading the missing
+        // bright-star artifact must still fail closed before any silent merge.
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("bright-star artifact must load");
+        assert!(
+            err.to_string().contains("bright-star")
+                || err.to_string().contains("No such file")
+                || err.to_string().contains("failed to read")
+                || err.to_string().contains("read ")
+        );
     }
 
     #[test]

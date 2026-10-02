@@ -136,10 +136,7 @@ fn is_sha256(value: &str) -> bool {
 }
 
 fn valid_commit_identity(value: &str) -> bool {
-    (7..=40).contains(&value.len())
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    super::artifact::is_full_git_sha(value)
 }
 
 pub fn load_spectral_reconstruction_model(
@@ -247,7 +244,7 @@ mod tests {
     fn reconstruction_propagates_photometric_and_correlated_uncertainty() {
         let model = SpectralReconstructionModel {
             model_id: SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into(),
-            builder_software_commit: "deadbeef".into(),
+            builder_software_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
             assignments: vec![TemplateAssignment {
                 temperature_code: 50,
                 luminosity_class_code: 5,

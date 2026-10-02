@@ -136,5 +136,24 @@ mod tests {
         assert!(!p.admits_hp_or_vt(None, Some(4.5)));
         // Hp present and faint wins over bright Vt (Hp is authoritative).
         assert!(!p.admits_hp_or_vt(Some(5.0), Some(2.0)));
+        p.validate().unwrap();
+        BrightStarPrecedencePolicy::v1().validate().unwrap();
+    }
+
+    #[test]
+    fn policy_validation_rejects_unknown_ids_and_non_finite_thresholds() {
+        let mut population = BrightStarPopulationPolicy::v1();
+        population.policy_id = "other".into();
+        assert!(population.validate().is_err());
+        population = BrightStarPopulationPolicy::v1();
+        population.hp_max = f64::NAN;
+        assert!(population.validate().is_err());
+
+        let mut precedence = BrightStarPrecedencePolicy::v1();
+        precedence.prefer_valid_gaia_xp = false;
+        assert!(precedence.validate().is_err());
+        precedence = BrightStarPrecedencePolicy::v1();
+        precedence.perspective_motion_max_fraction_of_match_radius = 1.0;
+        assert!(precedence.validate().is_err());
     }
 }

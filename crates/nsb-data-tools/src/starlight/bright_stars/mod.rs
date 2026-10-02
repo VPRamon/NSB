@@ -17,36 +17,65 @@ mod photometry;
 mod policy;
 mod reconstruction;
 
-pub use artifact::{
-    load_bright_star_artifact, BrightStarArtifact, BrightStarInputProvenance, BrightStarInputRole,
-    BrightStarPixel, BrightStarSourceRecord, CorrelatedUncertainty,
-    BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION, BRIGHT_STAR_MODEL_ID, BRIGHT_STAR_PRODUCT_BAND_ID,
-};
-pub use build_run::{run_experimental_build, BrightStarBuildRunConfig, BrightStarBuildRunManifest};
-pub use builder::{
-    build_experimental_artifact, BrightStarBuildDiagnostics, BrightStarSourceDiagnostic,
-    ProperMotionDiagnostic, SpectralEstimate,
-};
-pub use catalogue::{
-    ingest_gaia_quality_extract, ingest_hip_gaia_crossmatch, ingest_hipparcos2, ingest_tycho2,
-    ingest_xhip, HipGaiaIdentityMatch, Hipparcos2Record, PinnedCatalogueInput, Tycho2Ingestion,
-    Tycho2Photometry, XhipRecord,
-};
-pub use crossmatch::{
-    classify_match, positional_match_candidates, propagate_hipparcos_3d_to_j2016,
-    propagate_hipparcos_to_j2016, propagation_2d_3d_difference_arcsec, CrossmatchDecision,
-    GaiaMatchRow, HipparcosAstrometry, MatchCandidate, PropagatedPosition,
-};
-pub use photometry::{
-    integrate_template_photon_flux, integrate_template_through_response,
-    magnitude_to_band_photon_flux, magnitude_to_f_lambda_si, reconstruct_template_band_flux,
-    BandZeroPoint, PhotometricBandCalibration, PhotometricBandResponse, SpectralTemplate,
-};
-pub use policy::{
-    BrightStarPopulationPolicy, BrightStarPrecedencePolicy, SupplementClass,
-    POPULATION_POLICY_ID_V1, PRECEDENCE_POLICY_ID_V1,
-};
-pub use reconstruction::{
-    load_spectral_reconstruction_model, reconstruct_spectral_estimates,
-    SpectralReconstructionModel, TemplateAssignment, SPECTRAL_RECONSTRUCTION_MODEL_ID_V1,
-};
+// Single-line `pub use` statements keep declaration-only module files
+// recognisable to the coverage-gate non-instrumentable classifier when LCOV
+// omits pure re-export crates (multi-line brace continuations fail closed).
+pub use artifact::load_bright_star_artifact;
+pub use artifact::BrightStarArtifact;
+pub use artifact::BrightStarInputProvenance;
+pub use artifact::BrightStarInputRole;
+pub use artifact::BrightStarPixel;
+pub use artifact::BrightStarSourceRecord;
+pub use artifact::BrightStarSupplementProvenance;
+pub use artifact::CorrelatedUncertainty;
+pub use artifact::BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION;
+pub use artifact::BRIGHT_STAR_MODEL_ID;
+pub use artifact::BRIGHT_STAR_PRODUCT_BAND_ID;
+pub use build_run::run_experimental_build;
+pub use build_run::BrightStarBuildRunConfig;
+pub use build_run::BrightStarBuildRunManifest;
+pub use builder::build_experimental_artifact;
+pub use builder::BrightStarBuildDiagnostics;
+pub use builder::BrightStarSourceDiagnostic;
+pub use builder::ProperMotionDiagnostic;
+pub use builder::SpectralEstimate;
+pub use catalogue::ingest_gaia_quality_extract;
+pub use catalogue::ingest_hip_gaia_crossmatch;
+pub use catalogue::ingest_hipparcos2;
+pub use catalogue::ingest_tycho2;
+pub use catalogue::ingest_xhip;
+pub use catalogue::HipGaiaIdentityMatch;
+pub use catalogue::Hipparcos2Record;
+pub use catalogue::PinnedCatalogueInput;
+pub use catalogue::Tycho2Ingestion;
+pub use catalogue::Tycho2Photometry;
+pub use catalogue::XhipRecord;
+pub use crossmatch::classify_match;
+pub use crossmatch::positional_match_candidates;
+pub use crossmatch::propagate_hipparcos_3d_to_j2016;
+pub use crossmatch::propagate_hipparcos_to_j2016;
+pub use crossmatch::propagation_2d_3d_difference_arcsec;
+pub use crossmatch::CrossmatchDecision;
+pub use crossmatch::GaiaMatchRow;
+pub use crossmatch::HipparcosAstrometry;
+pub use crossmatch::MatchCandidate;
+pub use crossmatch::PropagatedPosition;
+pub use photometry::integrate_template_photon_flux;
+pub use photometry::integrate_template_through_response;
+pub use photometry::magnitude_to_band_photon_flux;
+pub use photometry::magnitude_to_f_lambda_si;
+pub use photometry::reconstruct_template_band_flux;
+pub use photometry::BandZeroPoint;
+pub use photometry::PhotometricBandCalibration;
+pub use photometry::PhotometricBandResponse;
+pub use photometry::SpectralTemplate;
+pub use policy::BrightStarPopulationPolicy;
+pub use policy::BrightStarPrecedencePolicy;
+pub use policy::SupplementClass;
+pub use policy::POPULATION_POLICY_ID_V1;
+pub use policy::PRECEDENCE_POLICY_ID_V1;
+pub use reconstruction::load_spectral_reconstruction_model;
+pub use reconstruction::reconstruct_spectral_estimates;
+pub use reconstruction::SpectralReconstructionModel;
+pub use reconstruction::TemplateAssignment;
+pub use reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1;

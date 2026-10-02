@@ -74,6 +74,42 @@ pub struct BrightStarPixel {
     pub admitted_sources: u64,
 }
 
+/// Runtime / merge-report identity for a checksum-verified bright-star supplement.
+///
+/// Originates from the verified [`BrightStarArtifact`] pin and must survive
+/// synthetic-shard construction and deterministic merge so a published map can
+/// be interpreted independently of external run manifests.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrightStarSupplementProvenance {
+    pub artifact_sha256: String,
+    pub model_id: String,
+    pub population_policy_id: String,
+    pub precedence_policy_id: String,
+    pub build_commit: String,
+}
+
+impl BrightStarSupplementProvenance {
+    pub fn validate(&self) -> Result<()> {
+        validate_sha256(&self.artifact_sha256, "bright-star artifact_sha256")?;
+        if self.model_id != BRIGHT_STAR_MODEL_ID {
+            bail!("bright-star supplement provenance model_id must be {BRIGHT_STAR_MODEL_ID}");
+        }
+        if self.population_policy_id != super::policy::POPULATION_POLICY_ID_V1 {
+            bail!("bright-star supplement provenance population_policy_id is unknown");
+        }
+        if self.precedence_policy_id != super::policy::PRECEDENCE_POLICY_ID_V1 {
+            bail!("bright-star supplement provenance precedence_policy_id is unknown");
+        }
+        if !is_full_git_sha(&self.build_commit) {
+            bail!(
+                "bright-star supplement provenance build_commit must be a full 40-character lowercase Git SHA"
+            );
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BrightStarArtifact {
@@ -164,8 +200,8 @@ impl BrightStarArtifact {
         crate::starlight::config::validate_canonical_nside(self.nside)?;
         self.population_policy.validate()?;
         self.precedence_policy.validate()?;
-        if self.build_commit.trim().is_empty() {
-            bail!("bright-star build_commit must not be empty");
+        if !is_full_git_sha(&self.build_commit) {
+            bail!("bright-star build_commit must be a full 40-character lowercase Git SHA");
         }
         if self.scientifically_validated || self.redistribution_embedded {
             bail!("experimental bright-star artifact cannot claim approval or embedding");
@@ -217,6 +253,27 @@ impl BrightStarArtifact {
             .collect())
     }
 
+    /// Build runtime provenance from this artifact and its verified SHA-256 pin.
+    pub fn supplement_provenance(
+        &self,
+        verified_artifact_sha256: &str,
+    ) -> Result<BrightStarSupplementProvenance> {
+        self.validate()?;
+        validate_sha256(
+            verified_artifact_sha256,
+            "verified bright-star artifact sha256",
+        )?;
+        let provenance = BrightStarSupplementProvenance {
+            artifact_sha256: verified_artifact_sha256.to_owned(),
+            model_id: self.model_id.clone(),
+            population_policy_id: self.population_policy.policy_id.clone(),
+            precedence_policy_id: self.precedence_policy.policy_id.clone(),
+            build_commit: self.build_commit.clone(),
+        };
+        provenance.validate()?;
+        Ok(provenance)
+    }
+
     pub fn to_json_pretty(&self) -> Result<Vec<u8>> {
         self.validate()?;
         Ok(serde_json::to_vec_pretty(self)?)
@@ -235,6 +292,14 @@ impl BrightStarArtifact {
         }
         Ok(())
     }
+}
+
+/// Full 40-character lowercase Git object name used for reproducible provenance.
+pub(crate) fn is_full_git_sha(value: &str) -> bool {
+    value.len() == 40
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn validate_inputs(inputs: &[BrightStarInputProvenance]) -> Result<()> {
@@ -493,10 +558,14 @@ mod tests {
             classification_reason: "fixture".into(),
         }
     }
+    fn fixture_commit() -> String {
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into()
+    }
+
     fn artifact(sources: Vec<BrightStarSourceRecord>) -> Result<BrightStarArtifact> {
         BrightStarArtifact::from_sources(
             1,
-            "deadbeef",
+            &fixture_commit(),
             Vec::new(),
             sources,
             BrightStarPopulationPolicy::v1(),
@@ -637,5 +706,48 @@ mod tests {
             first.to_json_pretty().unwrap(),
             first.to_json_pretty().unwrap()
         );
+    }
+
+    #[test]
+    fn supplement_provenance_requires_verified_sha_and_full_build_commit() {
+        let art = artifact(vec![source(
+            "a",
+            SupplementClass::MatchedAndReplacesPrimary,
+            Some(11),
+            3.0,
+        )])
+        .unwrap();
+        let sha = "b".repeat(64);
+        let provenance = art.supplement_provenance(&sha).unwrap();
+        assert_eq!(provenance.artifact_sha256, sha);
+        assert_eq!(provenance.model_id, BRIGHT_STAR_MODEL_ID);
+        assert_eq!(
+            provenance.population_policy_id,
+            BrightStarPopulationPolicy::v1().policy_id
+        );
+        assert_eq!(
+            provenance.precedence_policy_id,
+            BrightStarPrecedencePolicy::v1().policy_id
+        );
+        assert_eq!(provenance.build_commit, fixture_commit());
+        provenance.validate().unwrap();
+
+        assert!(art.supplement_provenance("abcd").is_err());
+        assert!(art.supplement_provenance(&"B".repeat(64)).is_err());
+
+        let mut short_commit = art.clone();
+        short_commit.build_commit = "ceba696".into();
+        assert!(short_commit.validate().is_err());
+        assert!(short_commit.supplement_provenance(&sha).is_err());
+
+        let mut bad = provenance.clone();
+        bad.build_commit = "ceba696".into();
+        assert!(bad.validate().is_err());
+        bad = provenance.clone();
+        bad.model_id = "other".into();
+        assert!(bad.validate().is_err());
+        bad = provenance;
+        bad.artifact_sha256 = "0".repeat(63);
+        assert!(bad.validate().is_err());
     }
 }

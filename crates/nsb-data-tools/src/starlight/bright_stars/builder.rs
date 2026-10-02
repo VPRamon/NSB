@@ -459,7 +459,7 @@ mod tests {
     ) -> (BrightStarArtifact, BrightStarBuildDiagnostics) {
         build_experimental_artifact(
             1,
-            "deadbeef",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             Vec::new(),
             &[hip()],
             &BTreeMap::new(),
@@ -522,5 +522,48 @@ mod tests {
         assert!(!perspective_motion_supported(0.1, 1.0, &policy));
         assert!(perspective_motion_supported(0.19, 2.0, &policy));
         assert!(!perspective_motion_supported(f64::NAN, 1.0, &policy));
+    }
+
+    #[test]
+    fn official_crossmatch_ambiguity_and_missing_quality_fail_closed() {
+        let multi = BTreeMap::from([(
+            42,
+            vec![
+                HipGaiaIdentityMatch {
+                    hip: 42,
+                    gaia_source_id: 7,
+                    angular_distance_arcsec: 0.1,
+                    number_of_neighbours: 2,
+                },
+                HipGaiaIdentityMatch {
+                    hip: 42,
+                    gaia_source_id: 8,
+                    angular_distance_arcsec: 0.2,
+                    number_of_neighbours: 2,
+                },
+            ],
+        )]);
+        let (artifact, diagnostics) = build(multi, BTreeMap::new());
+        assert_eq!(artifact.counts.ambiguous, 1);
+        assert_eq!(
+            diagnostics.sources[0].reason,
+            "official_crossmatch_not_unique"
+        );
+
+        let identities = BTreeMap::from([(
+            42,
+            vec![HipGaiaIdentityMatch {
+                hip: 42,
+                gaia_source_id: 7,
+                angular_distance_arcsec: 0.1,
+                number_of_neighbours: 1,
+            }],
+        )]);
+        let (artifact, diagnostics) = build(identities, BTreeMap::new());
+        assert_eq!(artifact.counts.ambiguous, 1);
+        assert_eq!(
+            diagnostics.sources[0].reason,
+            "official_match_missing_gaia_quality"
+        );
     }
 }
