@@ -1905,6 +1905,14 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         append_string(&mut bytes, &provenance.population_policy_id)?;
         append_string(&mut bytes, &provenance.precedence_policy_id)?;
         append_string(&mut bytes, &provenance.build_commit)?;
+        append_string(&mut bytes, &provenance.product_band)?;
+        match &provenance.spectral_reconstruction_model_id {
+            Some(model_id) => {
+                bytes.push(1);
+                append_string(&mut bytes, model_id)?;
+            }
+            None => bytes.push(0),
+        }
     } else {
         bytes.push(0);
     }
@@ -2072,6 +2080,8 @@ mod tests {
             population_policy_id: crate::starlight::bright_stars::POPULATION_POLICY_ID_V1.into(),
             precedence_policy_id: crate::starlight::bright_stars::PRECEDENCE_POLICY_ID_V1.into(),
             build_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+            product_band: crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID.into(),
+            spectral_reconstruction_model_id: None,
         }
     }
 

@@ -11,8 +11,65 @@ use std::fs;
 use std::path::Path;
 
 pub const BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION: u32 = 1;
+pub const BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION_COMBINED: u32 = 2;
 pub const BRIGHT_STAR_MODEL_ID: &str = "starlight-bright-stars-v1";
+pub const BRIGHT_STAR_MODEL_ID_COMBINED: &str = "starlight-bright-stars-combined-v1";
 pub const BRIGHT_STAR_PRODUCT_BAND_ID: &str = "measured-336-650";
+pub const BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID: &str = "combined-300-650";
+
+/// Declared spectral coverage of a bright-star supplement artifact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BrightStarArtifactProductBand {
+    Measured336To650,
+    Combined300To650,
+}
+
+impl BrightStarArtifactProductBand {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Measured336To650 => BRIGHT_STAR_PRODUCT_BAND_ID,
+            Self::Combined300To650 => BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID,
+        }
+    }
+
+    pub fn parse(value: &str) -> Result<Self> {
+        match value {
+            BRIGHT_STAR_PRODUCT_BAND_ID => Ok(Self::Measured336To650),
+            BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID => Ok(Self::Combined300To650),
+            other => bail!("unsupported bright-star product_band {other}"),
+        }
+    }
+
+    pub fn schema_version(self) -> u32 {
+        match self {
+            Self::Measured336To650 => BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION,
+            Self::Combined300To650 => BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION_COMBINED,
+        }
+    }
+
+    pub fn model_id(self) -> &'static str {
+        match self {
+            Self::Measured336To650 => BRIGHT_STAR_MODEL_ID,
+            Self::Combined300To650 => BRIGHT_STAR_MODEL_ID_COMBINED,
+        }
+    }
+}
+
+/// Explicit 300--336 / 300--650 components for combined-band artifacts.
+///
+/// `flux_300_650` is always the sum of the stored 300--336 and 336--650 terms.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrightStarBandComponents {
+    pub flux_300_336_ph_m2_s: f64,
+    pub flux_300_650_ph_m2_s: f64,
+    pub statistical_uncertainty_300_336_ph_m2_s: f64,
+    pub statistical_uncertainty_300_650_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_300_336_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_300_650_ph_m2_s: f64,
+    pub systematic_catalogue_correlated_300_336: Vec<CorrelatedUncertainty>,
+    pub systematic_catalogue_correlated_300_650: Vec<CorrelatedUncertainty>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -59,6 +116,9 @@ pub struct BrightStarSourceRecord {
     pub statistical_uncertainty_ph_m2_s: f64,
     pub systematic_independent_uncertainty_ph_m2_s: f64,
     pub systematic_catalogue_correlated: Vec<CorrelatedUncertainty>,
+    /// Required for combined-300-650 artifacts; forbidden on measured-only v1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub band_components: Option<BrightStarBandComponents>,
     pub spectral_route: String,
     pub classification_reason: String,
 }
@@ -87,13 +147,28 @@ pub struct BrightStarSupplementProvenance {
     pub population_policy_id: String,
     pub precedence_policy_id: String,
     pub build_commit: String,
+    /// Spectral coverage declared by the verified artifact.
+    #[serde(default = "default_measured_product_band")]
+    pub product_band: String,
+    /// Spectral reconstruction model identity for combined-band supplements.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spectral_reconstruction_model_id: Option<String>,
+}
+
+fn default_measured_product_band() -> String {
+    BRIGHT_STAR_PRODUCT_BAND_ID.to_owned()
 }
 
 impl BrightStarSupplementProvenance {
     pub fn validate(&self) -> Result<()> {
         validate_sha256(&self.artifact_sha256, "bright-star artifact_sha256")?;
-        if self.model_id != BRIGHT_STAR_MODEL_ID {
-            bail!("bright-star supplement provenance model_id must be {BRIGHT_STAR_MODEL_ID}");
+        let product_band = BrightStarArtifactProductBand::parse(&self.product_band)?;
+        if self.model_id != product_band.model_id() {
+            bail!(
+                "bright-star supplement provenance model_id/product_band mismatch: {} / {}",
+                self.model_id,
+                self.product_band
+            );
         }
         if self.population_policy_id != super::policy::POPULATION_POLICY_ID_V1 {
             bail!("bright-star supplement provenance population_policy_id is unknown");
@@ -105,6 +180,32 @@ impl BrightStarSupplementProvenance {
             bail!(
                 "bright-star supplement provenance build_commit must be a full 40-character lowercase Git SHA"
             );
+        }
+        match product_band {
+            BrightStarArtifactProductBand::Measured336To650 => {
+                if self.spectral_reconstruction_model_id.is_some() {
+                    // Measured-only provenance may omit the reconstruction id;
+                    // an unexpected value is accepted only when it matches the
+                    // known reconstruction model used to build the measured flux.
+                    let Some(model_id) = &self.spectral_reconstruction_model_id else {
+                        unreachable!()
+                    };
+                    if model_id != super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1 {
+                        bail!("bright-star measured provenance has unknown spectral reconstruction model");
+                    }
+                }
+            }
+            BrightStarArtifactProductBand::Combined300To650 => {
+                match &self.spectral_reconstruction_model_id {
+                    Some(model_id)
+                        if model_id
+                            == super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1 => {}
+                    _ => bail!(
+                        "combined bright-star provenance requires spectral reconstruction model {}",
+                        super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
+                    ),
+                }
+            }
         }
         Ok(())
     }
@@ -155,15 +256,46 @@ impl BrightStarArtifact {
         nside: u32,
         build_commit: &str,
         inputs: Vec<BrightStarInputProvenance>,
-        mut sources: Vec<BrightStarSourceRecord>,
+        sources: Vec<BrightStarSourceRecord>,
         population_policy: BrightStarPopulationPolicy,
         precedence_policy: BrightStarPrecedencePolicy,
     ) -> Result<Self> {
+        Self::from_sources_for_band(
+            nside,
+            build_commit,
+            inputs,
+            sources,
+            population_policy,
+            precedence_policy,
+            BrightStarArtifactProductBand::Measured336To650,
+        )
+    }
+
+    pub fn from_sources_for_band(
+        nside: u32,
+        build_commit: &str,
+        inputs: Vec<BrightStarInputProvenance>,
+        mut sources: Vec<BrightStarSourceRecord>,
+        population_policy: BrightStarPopulationPolicy,
+        precedence_policy: BrightStarPrecedencePolicy,
+        product_band: BrightStarArtifactProductBand,
+    ) -> Result<Self> {
         sources.sort_by(|a, b| a.source_id.cmp(&b.source_id));
+        let notes = match product_band {
+            BrightStarArtifactProductBand::Measured336To650 => vec![
+                "External opt-in supplement; catalogue bytes are not embedded in NSB.".into(),
+                "Measured 336-650 nm only; use with 300-650 nm products is forbidden.".into(),
+            ],
+            BrightStarArtifactProductBand::Combined300To650 => vec![
+                "External opt-in supplement; catalogue bytes are not embedded in NSB.".into(),
+                "Combined 300-650 nm from one Hp-scaled CK04 SED; 300-336 is not an independent UV model.".into(),
+                "Compatible only with Combined300To650 Starlight products.".into(),
+            ],
+        };
         let artifact = Self {
-            schema_version: BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION,
-            model_id: BRIGHT_STAR_MODEL_ID.into(),
-            product_band: BRIGHT_STAR_PRODUCT_BAND_ID.into(),
+            schema_version: product_band.schema_version(),
+            model_id: product_band.model_id().into(),
+            product_band: product_band.as_str().into(),
             nside,
             ordering: "nested".into(),
             population_policy,
@@ -171,28 +303,35 @@ impl BrightStarArtifact {
             inputs,
             build_commit: build_commit.into(),
             counts: recompute_counts(&sources),
-            pixels: rebuild_pixels(nside, &sources)?,
+            pixels: rebuild_pixels(nside, product_band, &sources)?,
             sources,
             scientifically_validated: false,
             redistribution_embedded: false,
-            notes: vec![
-                "External opt-in supplement; catalogue bytes are not embedded in NSB.".into(),
-                "Measured 336-650 nm only; use with 300-650 nm products is forbidden.".into(),
-            ],
+            notes,
         };
         artifact.validate()?;
         Ok(artifact)
     }
 
+    pub fn product_band_kind(&self) -> Result<BrightStarArtifactProductBand> {
+        BrightStarArtifactProductBand::parse(&self.product_band)
+    }
+
     pub fn validate(&self) -> Result<()> {
-        if self.schema_version != BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION {
-            bail!("unknown bright-star schema_version {}", self.schema_version);
+        let product_band = self.product_band_kind()?;
+        if self.schema_version != product_band.schema_version() {
+            bail!(
+                "bright-star schema_version {} does not match product_band {}",
+                self.schema_version,
+                self.product_band
+            );
         }
-        if self.model_id != BRIGHT_STAR_MODEL_ID {
-            bail!("unknown bright-star model_id {}", self.model_id);
-        }
-        if self.product_band != BRIGHT_STAR_PRODUCT_BAND_ID {
-            bail!("unsupported bright-star product_band {}", self.product_band);
+        if self.model_id != product_band.model_id() {
+            bail!(
+                "bright-star model_id {} does not match product_band {}",
+                self.model_id,
+                self.product_band
+            );
         }
         if self.ordering != "nested" {
             bail!("bright-star ordering must be nested");
@@ -216,7 +355,7 @@ impl BrightStarArtifact {
                     source.source_id
                 );
             }
-            validate_source(source)?;
+            validate_source(product_band, source)?;
             if source.class == SupplementClass::MatchedAndReplacesPrimary {
                 let gaia_id = source
                     .gaia_source_id
@@ -236,10 +375,10 @@ impl BrightStarArtifact {
         if self.counts != recompute_counts(&self.sources) {
             bail!("bright-star serialized counts do not match source records");
         }
-        if self.pixels != rebuild_pixels(self.nside, &self.sources)? {
+        if self.pixels != rebuild_pixels(self.nside, product_band, &self.sources)? {
             bail!("bright-star serialized pixels do not match source reconstruction");
         }
-        validate_conservation(self.nside, &self.sources, &self.pixels)?;
+        validate_conservation(self.nside, product_band, &self.sources, &self.pixels)?;
         Ok(())
     }
 
@@ -269,6 +408,13 @@ impl BrightStarArtifact {
             population_policy_id: self.population_policy.policy_id.clone(),
             precedence_policy_id: self.precedence_policy.policy_id.clone(),
             build_commit: self.build_commit.clone(),
+            product_band: self.product_band.clone(),
+            spectral_reconstruction_model_id: match self.product_band_kind()? {
+                BrightStarArtifactProductBand::Measured336To650 => None,
+                BrightStarArtifactProductBand::Combined300To650 => {
+                    Some(super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.to_owned())
+                }
+            },
         };
         provenance.validate()?;
         Ok(provenance)
@@ -321,7 +467,10 @@ fn validate_inputs(inputs: &[BrightStarInputProvenance]) -> Result<()> {
     Ok(())
 }
 
-fn validate_source(source: &BrightStarSourceRecord) -> Result<()> {
+fn validate_source(
+    product_band: BrightStarArtifactProductBand,
+    source: &BrightStarSourceRecord,
+) -> Result<()> {
     if source.origin_catalogue.trim().is_empty()
         || source.spectral_route.trim().is_empty()
         || source.classification_reason.trim().is_empty()
@@ -377,19 +526,101 @@ fn validate_source(source: &BrightStarSourceRecord) -> Result<()> {
             source.source_id
         );
     }
-    let mut groups = BTreeSet::new();
-    for term in &source.systematic_catalogue_correlated {
+    validate_correlated_groups(
+        &source.systematic_catalogue_correlated,
+        &source.source_id,
+        "measured",
+    )?;
+    match (product_band, source.band_components.as_ref()) {
+        (BrightStarArtifactProductBand::Measured336To650, None) => {}
+        (BrightStarArtifactProductBand::Measured336To650, Some(_)) => bail!(
+            "measured-only bright-star source {} must not carry combined band_components",
+            source.source_id
+        ),
+        (BrightStarArtifactProductBand::Combined300To650, None) => bail!(
+            "combined bright-star source {} requires band_components",
+            source.source_id
+        ),
+        (BrightStarArtifactProductBand::Combined300To650, Some(components)) => {
+            validate_band_components(source, components, admitted)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_correlated_groups(
+    groups: &[CorrelatedUncertainty],
+    source_id: &str,
+    label: &str,
+) -> Result<()> {
+    let mut seen = BTreeSet::new();
+    for term in groups {
         if term.correlation_group_id.trim().is_empty()
-            || !groups.insert(term.correlation_group_id.as_str())
+            || !seen.insert(term.correlation_group_id.as_str())
             || !term.uncertainty_ph_m2_s.is_finite()
             || term.uncertainty_ph_m2_s < 0.0
         {
-            bail!(
-                "bright-star source {} has invalid correlated uncertainty",
-                source.source_id
-            );
+            bail!("bright-star source {source_id} has invalid {label} correlated uncertainty");
         }
     }
+    Ok(())
+}
+
+fn validate_band_components(
+    source: &BrightStarSourceRecord,
+    components: &BrightStarBandComponents,
+    admitted: bool,
+) -> Result<()> {
+    let numeric = [
+        components.flux_300_336_ph_m2_s,
+        components.flux_300_650_ph_m2_s,
+        components.statistical_uncertainty_300_336_ph_m2_s,
+        components.statistical_uncertainty_300_650_ph_m2_s,
+        components.systematic_independent_uncertainty_300_336_ph_m2_s,
+        components.systematic_independent_uncertainty_300_650_ph_m2_s,
+    ];
+    if numeric
+        .iter()
+        .any(|value| !value.is_finite() || *value < 0.0)
+        || (admitted && components.flux_300_336_ph_m2_s <= 0.0)
+    {
+        bail!(
+            "bright-star source {} has invalid combined-band flux or uncertainty",
+            source.source_id
+        );
+    }
+    let expected_total = components.flux_300_336_ph_m2_s + source.flux_336_650_ph_m2_s;
+    let scale = expected_total.abs().max(1.0);
+    if (components.flux_300_650_ph_m2_s - expected_total).abs() > 1e-9 * scale {
+        bail!(
+            "bright-star source {} violates flux_300_650 = flux_300_336 + flux_336_650",
+            source.source_id
+        );
+    }
+    let expected_stat =
+        components.statistical_uncertainty_300_336_ph_m2_s + source.statistical_uncertainty_ph_m2_s;
+    let expected_sys = components.systematic_independent_uncertainty_300_336_ph_m2_s
+        + source.systematic_independent_uncertainty_ph_m2_s;
+    if (components.statistical_uncertainty_300_650_ph_m2_s - expected_stat).abs()
+        > 1e-9 * expected_stat.max(1.0)
+        || (components.systematic_independent_uncertainty_300_650_ph_m2_s - expected_sys).abs()
+            > 1e-9 * expected_sys.max(1.0)
+    {
+        bail!(
+            "bright-star source {} violates fully-correlated band uncertainty conservation",
+            source.source_id
+        );
+    }
+    validate_correlated_groups(
+        &components.systematic_catalogue_correlated_300_336,
+        &source.source_id,
+        "300-336",
+    )?;
+    validate_correlated_groups(
+        &components.systematic_catalogue_correlated_300_650,
+        &source.source_id,
+        "300-650",
+    )?;
     Ok(())
 }
 
@@ -421,31 +652,51 @@ fn recompute_counts(sources: &[BrightStarSourceRecord]) -> BrightStarCounts {
     counts
 }
 
-fn rebuild_pixels(nside: u32, sources: &[BrightStarSourceRecord]) -> Result<Vec<BrightStarPixel>> {
+fn rebuild_pixels(
+    nside: u32,
+    product_band: BrightStarArtifactProductBand,
+    sources: &[BrightStarSourceRecord],
+) -> Result<Vec<BrightStarPixel>> {
     crate::starlight::config::validate_canonical_nside(nside)?;
     let mut pixels: BTreeMap<u64, PixelBuild> = BTreeMap::new();
     for source in sources {
-        validate_source(source)?;
+        validate_source(product_band, source)?;
         if !matches!(
             source.class,
             SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
         ) {
             continue;
         }
+        let (flux, stat, sys, groups) = match product_band {
+            BrightStarArtifactProductBand::Measured336To650 => (
+                source.flux_336_650_ph_m2_s,
+                source.statistical_uncertainty_ph_m2_s,
+                source.systematic_independent_uncertainty_ph_m2_s,
+                &source.systematic_catalogue_correlated,
+            ),
+            BrightStarArtifactProductBand::Combined300To650 => {
+                let components = source
+                    .band_components
+                    .as_ref()
+                    .context("combined source missing band_components")?;
+                (
+                    components.flux_300_650_ph_m2_s,
+                    components.statistical_uncertainty_300_650_ph_m2_s,
+                    components.systematic_independent_uncertainty_300_650_ph_m2_s,
+                    &components.systematic_catalogue_correlated_300_650,
+                )
+            }
+        };
         let pixel = u64::from(galactic_nested_pixel_from_icrs_position(
             source.ra_deg_j2016,
             source.dec_deg_j2016,
             nside,
         )?);
         let entry = pixels.entry(pixel).or_default();
-        entry.flux.add(source.flux_336_650_ph_m2_s)?;
-        entry
-            .stat_var
-            .add(source.statistical_uncertainty_ph_m2_s.powi(2))?;
-        entry
-            .independent_sys_var
-            .add(source.systematic_independent_uncertainty_ph_m2_s.powi(2))?;
-        for term in &source.systematic_catalogue_correlated {
+        entry.flux.add(flux)?;
+        entry.stat_var.add(stat.powi(2))?;
+        entry.independent_sys_var.add(sys.powi(2))?;
+        for term in groups {
             entry
                 .correlated
                 .entry(term.correlation_group_id.clone())
@@ -473,6 +724,7 @@ fn rebuild_pixels(nside: u32, sources: &[BrightStarSourceRecord]) -> Result<Vec<
 
 fn validate_conservation(
     nside: u32,
+    product_band: BrightStarArtifactProductBand,
     sources: &[BrightStarSourceRecord],
     pixels: &[BrightStarPixel],
 ) -> Result<()> {
@@ -482,9 +734,21 @@ fn validate_conservation(
             SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
         )
     };
+    let selected_flux = |source: &BrightStarSourceRecord| -> Result<f64> {
+        Ok(match product_band {
+            BrightStarArtifactProductBand::Measured336To650 => source.flux_336_650_ph_m2_s,
+            BrightStarArtifactProductBand::Combined300To650 => {
+                source
+                    .band_components
+                    .as_ref()
+                    .context("combined source missing band_components")?
+                    .flux_300_650_ph_m2_s
+            }
+        })
+    };
     let mut source_flux = StableSum::default();
     for source in sources.iter().filter(admitted) {
-        source_flux.add(source.flux_336_650_ph_m2_s)?;
+        source_flux.add(selected_flux(source)?)?;
     }
     let source_count = sources.iter().filter(admitted).count() as u64;
     let mut by_pixel: BTreeMap<u64, StableSum> = BTreeMap::new();
@@ -497,7 +761,7 @@ fn validate_conservation(
         by_pixel
             .entry(pixel)
             .or_default()
-            .add(source.flux_336_650_ph_m2_s)?;
+            .add(selected_flux(source)?)?;
     }
     let mut pixel_flux = StableSum::default();
     for sum in by_pixel.values() {
@@ -554,6 +818,7 @@ mod tests {
                 correlation_group_id: "hip2-zero-point".into(),
                 uncertainty_ph_m2_s: flux * 0.03,
             }],
+            band_components: None,
             spectral_route: "fixture".into(),
             classification_reason: "fixture".into(),
         }
@@ -804,5 +1069,132 @@ mod tests {
         dup.source_id = "ok".into();
         art.inputs = vec![dup.clone(), dup];
         assert!(art.validate().is_err());
+    }
+
+    fn combined_source(
+        id: &str,
+        class: SupplementClass,
+        gaia: Option<u64>,
+        flux_336: f64,
+        flux_300: f64,
+    ) -> BrightStarSourceRecord {
+        let mut record = source(id, class, gaia, flux_336);
+        let relative = 0.01;
+        record.band_components = Some(BrightStarBandComponents {
+            flux_300_336_ph_m2_s: flux_300,
+            flux_300_650_ph_m2_s: flux_300 + flux_336,
+            statistical_uncertainty_300_336_ph_m2_s: flux_300 * relative,
+            statistical_uncertainty_300_650_ph_m2_s: (flux_300 + flux_336) * relative,
+            systematic_independent_uncertainty_300_336_ph_m2_s: flux_300 * 0.02,
+            systematic_independent_uncertainty_300_650_ph_m2_s: (flux_300 + flux_336) * 0.02,
+            systematic_catalogue_correlated_300_336: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: flux_300 * 0.03,
+            }],
+            systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: (flux_300 + flux_336) * 0.03,
+            }],
+        });
+        // Measured-field statistical/sys must match the relative used above so
+        // fully-correlated band conservation holds.
+        record.statistical_uncertainty_ph_m2_s = flux_336 * relative;
+        record.systematic_independent_uncertainty_ph_m2_s = flux_336 * 0.02;
+        record.systematic_catalogue_correlated = vec![CorrelatedUncertainty {
+            correlation_group_id: "hip2-zero-point".into(),
+            uncertainty_ph_m2_s: flux_336 * 0.03,
+        }];
+        record
+    }
+
+    #[test]
+    fn combined_artifact_conserves_band_flux_and_uncertainty() {
+        let art = BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![
+                combined_source("a", SupplementClass::SupplementOnly, None, 10.0, 2.0),
+                combined_source(
+                    "b",
+                    SupplementClass::MatchedAndReplacesPrimary,
+                    Some(7),
+                    5.0,
+                    1.0,
+                ),
+            ],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .unwrap();
+        assert_eq!(
+            art.schema_version,
+            BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION_COMBINED
+        );
+        assert_eq!(art.model_id, BRIGHT_STAR_MODEL_ID_COMBINED);
+        assert_eq!(art.product_band, BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID);
+        assert_eq!(art.pixels[0].flux_ph_m2_s, 18.0);
+        let provenance = art.supplement_provenance(&"c".repeat(64)).unwrap();
+        assert_eq!(
+            provenance.spectral_reconstruction_model_id.as_deref(),
+            Some(super::super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1)
+        );
+    }
+
+    #[test]
+    fn measured_artifact_rejects_combined_band_components() {
+        let mut sources = vec![source("a", SupplementClass::SupplementOnly, None, 1.0)];
+        sources[0].band_components = Some(BrightStarBandComponents {
+            flux_300_336_ph_m2_s: 0.1,
+            flux_300_650_ph_m2_s: 1.1,
+            statistical_uncertainty_300_336_ph_m2_s: 0.0,
+            statistical_uncertainty_300_650_ph_m2_s: 0.01,
+            systematic_independent_uncertainty_300_336_ph_m2_s: 0.0,
+            systematic_independent_uncertainty_300_650_ph_m2_s: 0.02,
+            systematic_catalogue_correlated_300_336: Vec::new(),
+            systematic_catalogue_correlated_300_650: Vec::new(),
+        });
+        assert!(BrightStarArtifact::from_sources(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            sources,
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn combined_artifact_rejects_missing_or_drifting_band_components() {
+        let missing = source("a", SupplementClass::SupplementOnly, None, 1.0);
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![missing],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
+
+        let mut drifted = combined_source("a", SupplementClass::SupplementOnly, None, 1.0, 0.2);
+        drifted
+            .band_components
+            .as_mut()
+            .unwrap()
+            .flux_300_650_ph_m2_s = 9.0;
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![drifted],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
     }
 }

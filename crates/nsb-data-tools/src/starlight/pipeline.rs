@@ -1,6 +1,6 @@
 use super::sources::{acquisition, inventory};
 use crate::dataset::{Artifact, DatasetName, DatasetPipeline, RunConfig, ValidationGate};
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::Path;
 
@@ -110,15 +110,57 @@ impl DatasetPipeline for StarlightPipeline {
             .transpose()?;
         let mut expected = expected;
         if let Some(pin) = &starlight.bright_star_supplement {
-            if starlight.product_band != super::config::StarlightProductBand::Measured336To650 {
-                bail!("measured-336-650 bright-star artifact cannot be used with combined-300-650");
-            }
             let artifact =
                 super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
+            let artifact_band = artifact.product_band_kind()?;
+            let compatible = matches!(
+                (starlight.product_band, artifact_band),
+                (
+                    super::config::StarlightProductBand::Measured336To650,
+                    super::bright_stars::BrightStarArtifactProductBand::Measured336To650,
+                ) | (
+                    super::config::StarlightProductBand::Combined300To650,
+                    super::bright_stars::BrightStarArtifactProductBand::Combined300To650,
+                )
+            );
+            if !compatible {
+                bail!(
+                    "bright-star artifact product_band {} is incompatible with configured Starlight product band",
+                    artifact.product_band
+                );
+            }
+            let ultraviolet_metadata = match starlight.product_band {
+                super::config::StarlightProductBand::Measured336To650 => None,
+                super::config::StarlightProductBand::Combined300To650 => {
+                    let uv_pin = starlight.ultraviolet_correction.as_ref().context(
+                        "combined bright-star finalize requires ultraviolet_correction pin",
+                    )?;
+                    let correction =
+                        super::uv::UvCorrection::load(&uv_pin.artifact_path, &uv_pin.sha256)?;
+                    correction.require_production_status()?;
+                    Some(super::map::accumulator::UvCorrectionShardMetadata {
+                        model_id: correction.artifact().model_id.clone(),
+                        artifact_sha256: correction.artifact_sha256().to_string(),
+                        calibration_status: correction.artifact().calibration_status,
+                        response: correction.artifact().response.clone(),
+                        measured_conditional_residual_statistical_correlation_bits: correction
+                            .artifact()
+                            .uncertainty_model
+                            .measured_conditional_residual_statistical_correlation
+                            .to_bits(),
+                        systematic_correlation: correction
+                            .artifact()
+                            .uncertainty_model
+                            .systematic_correlation,
+                    })
+                }
+            };
             let shard = super::worker::bright_star_supplement_shard(
                 &artifact,
                 &pin.sha256,
                 starlight.map.canonical_nside,
+                starlight.product_band,
+                ultraviolet_metadata,
             )?;
             let shard_path = config
                 .workspace
@@ -221,9 +263,18 @@ impl DatasetPipeline for StarlightPipeline {
         if let Some(pin) = &starlight.bright_star_supplement {
             let artifact =
                 super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
-            if starlight.product_band != super::config::StarlightProductBand::Measured336To650
-                || artifact.product_band != super::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID
-            {
+            let artifact_band = artifact.product_band_kind()?;
+            let compatible = matches!(
+                (starlight.product_band, artifact_band),
+                (
+                    super::config::StarlightProductBand::Measured336To650,
+                    super::bright_stars::BrightStarArtifactProductBand::Measured336To650,
+                ) | (
+                    super::config::StarlightProductBand::Combined300To650,
+                    super::bright_stars::BrightStarArtifactProductBand::Combined300To650,
+                )
+            );
+            if !compatible {
                 bail!("bright-star supplement spectral coverage is incompatible with configured Starlight product band");
             }
         }

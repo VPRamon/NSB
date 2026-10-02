@@ -1,7 +1,8 @@
 //! Deterministic assembly of classified, measured-band bright-star artifacts.
 
 use super::artifact::{
-    BrightStarArtifact, BrightStarInputProvenance, BrightStarSourceRecord, CorrelatedUncertainty,
+    BrightStarArtifact, BrightStarArtifactProductBand, BrightStarBandComponents,
+    BrightStarInputProvenance, BrightStarSourceRecord, CorrelatedUncertainty,
 };
 use super::catalogue::{HipGaiaIdentityMatch, Hipparcos2Record, Tycho2Photometry, XhipRecord};
 use super::crossmatch::{
@@ -17,10 +18,22 @@ use std::collections::{BTreeMap, BTreeSet};
 #[serde(deny_unknown_fields)]
 pub struct SpectralEstimate {
     pub hip: u32,
+    pub flux_300_336_ph_m2_s: f64,
     pub flux_336_650_ph_m2_s: f64,
+    /// Always `flux_300_336 + flux_336_650`; never recomputed independently.
+    pub flux_300_650_ph_m2_s: f64,
+    /// Measured-band (336--650) statistical uncertainty.
     pub statistical_uncertainty_ph_m2_s: f64,
+    pub statistical_uncertainty_300_336_ph_m2_s: f64,
+    pub statistical_uncertainty_300_650_ph_m2_s: f64,
+    /// Measured-band (336--650) independent systematic uncertainty.
     pub systematic_independent_uncertainty_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_300_336_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_300_650_ph_m2_s: f64,
+    /// Measured-band (336--650) named catalogue correlation groups.
     pub systematic_catalogue_correlated: Vec<CorrelatedUncertainty>,
+    pub systematic_catalogue_correlated_300_336: Vec<CorrelatedUncertainty>,
+    pub systematic_catalogue_correlated_300_650: Vec<CorrelatedUncertainty>,
     pub route: String,
 }
 
@@ -119,6 +132,7 @@ pub fn build_experimental_artifact(
     unsupported_spectral_codes: &BTreeSet<(u16, u8)>,
     population_policy: BrightStarPopulationPolicy,
     precedence_policy: BrightStarPrecedencePolicy,
+    product_band: BrightStarArtifactProductBand,
 ) -> Result<(BrightStarArtifact, BrightStarBuildDiagnostics)> {
     population_policy.validate()?;
     precedence_policy.validate()?;
@@ -243,8 +257,8 @@ pub fn build_experimental_artifact(
                 "spectral_reconstruction_failed".into()
             };
         }
-        let (flux, stat, sys, groups, route) = estimate.map_or(
-            (0.0, 0.0, 0.0, Vec::new(), "unavailable".to_string()),
+        let (flux, stat, sys, groups, route, band_components) = estimate.map_or(
+            (0.0, 0.0, 0.0, Vec::new(), "unavailable".to_string(), None),
             |estimate| {
                 (
                     estimate.flux_336_650_ph_m2_s,
@@ -252,6 +266,24 @@ pub fn build_experimental_artifact(
                     estimate.systematic_independent_uncertainty_ph_m2_s,
                     estimate.systematic_catalogue_correlated.clone(),
                     estimate.route.clone(),
+                    Some(BrightStarBandComponents {
+                        flux_300_336_ph_m2_s: estimate.flux_300_336_ph_m2_s,
+                        flux_300_650_ph_m2_s: estimate.flux_300_650_ph_m2_s,
+                        statistical_uncertainty_300_336_ph_m2_s: estimate
+                            .statistical_uncertainty_300_336_ph_m2_s,
+                        statistical_uncertainty_300_650_ph_m2_s: estimate
+                            .statistical_uncertainty_300_650_ph_m2_s,
+                        systematic_independent_uncertainty_300_336_ph_m2_s: estimate
+                            .systematic_independent_uncertainty_300_336_ph_m2_s,
+                        systematic_independent_uncertainty_300_650_ph_m2_s: estimate
+                            .systematic_independent_uncertainty_300_650_ph_m2_s,
+                        systematic_catalogue_correlated_300_336: estimate
+                            .systematic_catalogue_correlated_300_336
+                            .clone(),
+                        systematic_catalogue_correlated_300_650: estimate
+                            .systematic_catalogue_correlated_300_650
+                            .clone(),
+                    }),
                 )
             },
         );
@@ -265,7 +297,25 @@ pub fn build_experimental_artifact(
         {
             bail!("invalid spectral estimate for HIP {}", hip.astrometry.hip);
         }
+        if let Some(components) = &band_components {
+            if !components.flux_300_336_ph_m2_s.is_finite()
+                || components.flux_300_336_ph_m2_s < 0.0
+                || (needs_supplement_spectrum && components.flux_300_336_ph_m2_s <= 0.0)
+                || (components.flux_300_650_ph_m2_s - (components.flux_300_336_ph_m2_s + flux))
+                    .abs()
+                    > 1e-9 * components.flux_300_650_ph_m2_s.max(1.0)
+            {
+                bail!(
+                    "invalid combined-band spectral estimate for HIP {}",
+                    hip.astrometry.hip
+                );
+            }
+        }
         let source_id = format!("HIP {}", hip.astrometry.hip);
+        let retained_components = match product_band {
+            BrightStarArtifactProductBand::Measured336To650 => None,
+            BrightStarArtifactProductBand::Combined300To650 => band_components.clone(),
+        };
         sources.push(BrightStarSourceRecord {
             source_id: source_id.clone(),
             origin_catalogue: "Hipparcos-2 I/311".into(),
@@ -277,6 +327,7 @@ pub fn build_experimental_artifact(
             statistical_uncertainty_ph_m2_s: stat,
             systematic_independent_uncertainty_ph_m2_s: sys,
             systematic_catalogue_correlated: groups,
+            band_components: retained_components,
             spectral_route: route.clone(),
             classification_reason: decision.reason.clone(),
         });
@@ -311,7 +362,9 @@ pub fn build_experimental_artifact(
                 .and_then(|value| value.route.rsplit(':').next().map(str::to_owned)),
             spectral_route: route,
             flux_336_650_ph_m2_s: flux,
-            flux_300_336_ph_m2_s: None,
+            flux_300_336_ph_m2_s: band_components
+                .as_ref()
+                .map(|components| components.flux_300_336_ph_m2_s),
             statistical_uncertainty_ph_m2_s: stat,
             systematic_independent_uncertainty_ph_m2_s: sys,
             systematic_catalogue_correlated: estimate
@@ -325,13 +378,14 @@ pub fn build_experimental_artifact(
         });
     }
 
-    let artifact = BrightStarArtifact::from_sources(
+    let artifact = BrightStarArtifact::from_sources_for_band(
         nside,
         build_commit,
         inputs,
         sources,
         population_policy,
         precedence_policy,
+        product_band,
     )?;
     displacements.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
     let median = if displacements.is_empty() {
@@ -472,6 +526,7 @@ mod tests {
             &BTreeSet::new(),
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Measured336To650,
         )
         .unwrap()
     }

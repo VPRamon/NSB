@@ -87,7 +87,9 @@ impl SpectralReconstructionModel {
                 bail!("duplicate spectral template id {}", template.template_id);
             }
             // Exercises the strict template and response contracts, including
-            // full Hp and 336--650 nm coverage.
+            // full Hp coverage and both Starlight bands (300--336 and 336--650).
+            // Combined-band artifacts reuse the same scaled SED for the UV term;
+            // templates that omit 300--336 nm fail closed rather than inventing UV.
             reconstruct_template_band_flux(
                 template,
                 &self.hp_response,
@@ -95,6 +97,14 @@ impl SpectralReconstructionModel {
                 0.0,
                 336.0e-9,
                 650.0e-9,
+            )?;
+            reconstruct_template_band_flux(
+                template,
+                &self.hp_response,
+                &self.hp_calibration,
+                0.0,
+                300.0e-9,
+                336.0e-9,
             )?;
         }
         let mut keys = BTreeSet::new();
@@ -152,9 +162,12 @@ pub fn load_spectral_reconstruction_model(
     Ok(model)
 }
 
-/// Reconstruct measured 336--650 nm fluxes. Missing/unsupported spectral
-/// evidence is returned as an absent estimate and is therefore excluded by
-/// the artifact builder rather than fabricated.
+/// Reconstruct photon fluxes from the same Hp-scaled spectral template.
+///
+/// The 300--336 nm and 336--650 nm integrals share one continuum normalisation
+/// to Hipparcos Hp. The UV term is therefore the short-wavelength portion of
+/// that SED, not a second ad-hoc UV model. Missing/unsupported spectral
+/// evidence yields an absent estimate and is excluded by the artifact builder.
 pub fn reconstruct_spectral_estimates(
     hipparcos: &[Hipparcos2Record],
     xhip_by_hip: &BTreeMap<u32, XhipRecord>,
@@ -195,7 +208,7 @@ pub fn reconstruct_spectral_estimates(
         let template = templates
             .get(template_id)
             .with_context(|| format!("missing assigned template {template_id}"))?;
-        let flux = reconstruct_template_band_flux(
+        let flux_336_650 = reconstruct_template_band_flux(
             template,
             &model.hp_response,
             &model.hp_calibration,
@@ -203,19 +216,50 @@ pub fn reconstruct_spectral_estimates(
             336.0e-9,
             650.0e-9,
         )?;
-        let statistical = flux * 0.4 * std::f64::consts::LN_10 * hip.hp_mag_uncertainty;
-        let systematic_independent = flux
-            * model
-                .template_mismatch_fraction
-                .hypot(model.spectral_type_mapping_fraction);
+        let flux_300_336 = reconstruct_template_band_flux(
+            template,
+            &model.hp_response,
+            &model.hp_calibration,
+            hip.hp_mag,
+            300.0e-9,
+            336.0e-9,
+        )?;
+        // Relative Hp / template / SpT errors are shared by both band integrals
+        // of the same scaled SED, so absolute uncertainties scale with flux and
+        // combine linearly across bands (perfect correlation), never as an
+        // independent sum in quadrature.
+        let relative_statistical = 0.4 * std::f64::consts::LN_10 * hip.hp_mag_uncertainty;
+        let relative_independent = model
+            .template_mismatch_fraction
+            .hypot(model.spectral_type_mapping_fraction);
+        let statistical_336 = flux_336_650 * relative_statistical;
+        let statistical_300 = flux_300_336 * relative_statistical;
+        let independent_336 = flux_336_650 * relative_independent;
+        let independent_300 = flux_300_336 * relative_independent;
+        let catalogue_336 = flux_336_650 * model.hp_zero_point_fraction;
+        let catalogue_300 = flux_300_336 * model.hp_zero_point_fraction;
         let estimate = SpectralEstimate {
             hip: hip.astrometry.hip,
-            flux_336_650_ph_m2_s: flux,
-            statistical_uncertainty_ph_m2_s: statistical,
-            systematic_independent_uncertainty_ph_m2_s: systematic_independent,
+            flux_300_336_ph_m2_s: flux_300_336,
+            flux_336_650_ph_m2_s: flux_336_650,
+            flux_300_650_ph_m2_s: flux_300_336 + flux_336_650,
+            statistical_uncertainty_ph_m2_s: statistical_336,
+            statistical_uncertainty_300_336_ph_m2_s: statistical_300,
+            statistical_uncertainty_300_650_ph_m2_s: statistical_300 + statistical_336,
+            systematic_independent_uncertainty_ph_m2_s: independent_336,
+            systematic_independent_uncertainty_300_336_ph_m2_s: independent_300,
+            systematic_independent_uncertainty_300_650_ph_m2_s: independent_300 + independent_336,
             systematic_catalogue_correlated: vec![CorrelatedUncertainty {
                 correlation_group_id: "hipparcos-hp-zero-point-bessell2000".into(),
-                uncertainty_ph_m2_s: flux * model.hp_zero_point_fraction,
+                uncertainty_ph_m2_s: catalogue_336,
+            }],
+            systematic_catalogue_correlated_300_336: vec![CorrelatedUncertainty {
+                correlation_group_id: "hipparcos-hp-zero-point-bessell2000".into(),
+                uncertainty_ph_m2_s: catalogue_300,
+            }],
+            systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
+                correlation_group_id: "hipparcos-hp-zero-point-bessell2000".into(),
+                uncertainty_ph_m2_s: catalogue_300 + catalogue_336,
             }],
             route: format!("{}:{template_id}", model.model_id),
         };
