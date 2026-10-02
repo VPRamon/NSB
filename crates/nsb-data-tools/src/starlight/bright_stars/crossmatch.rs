@@ -272,6 +272,20 @@ pub fn classify_match(
             reason: "gaia_reliable_retain_primary".into(),
         });
     }
+    let Some(g_mag) = candidate.gaia_g_mag else {
+        return Ok(CrossmatchDecision {
+            class: SupplementClass::AmbiguousManualReview,
+            gaia_source_id: None,
+            reason: "gaia_quality_failure_missing_g_magnitude".into(),
+        });
+    };
+    if g_mag > policy.replace_when_gaia_g_brighter_than {
+        return Ok(CrossmatchDecision {
+            class: SupplementClass::AmbiguousManualReview,
+            gaia_source_id: None,
+            reason: "gaia_quality_failure_outside_bright_replacement_domain".into(),
+        });
+    }
     Ok(CrossmatchDecision {
         class: SupplementClass::MatchedAndReplacesPrimary,
         gaia_source_id: Some(candidate.gaia_source_id),
@@ -306,7 +320,7 @@ mod tests {
         MatchCandidate {
             gaia_source_id: id,
             separation_arcsec: separation,
-            gaia_g_mag: Some(3.0),
+            gaia_g_mag: Some(2.0),
             gaia_xp_usable: usable,
             gaia_photometric_usable: false,
         }

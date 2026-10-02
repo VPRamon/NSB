@@ -211,6 +211,29 @@ enum StarlightAction {
     Promote(PromoteArgs),
     /// Issue #116 diagnostic baseline and ablation suite.
     Diagnose(StarlightDiagnoseArgs),
+    /// Build the external, measured-band bright-star experiment.
+    BrightStars(StarlightBrightStarsArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightBrightStarsArgs {
+    #[command(subcommand)]
+    command: StarlightBrightStarsCommand,
+}
+
+#[derive(Debug, Subcommand)]
+enum StarlightBrightStarsCommand {
+    Build(StarlightBrightStarsBuildArgs),
+}
+
+#[derive(Debug, Args)]
+struct StarlightBrightStarsBuildArgs {
+    #[arg(long)]
+    config: PathBuf,
+    #[arg(long)]
+    config_sha256: String,
+    #[arg(long)]
+    output_directory: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -662,6 +685,19 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
         StarlightAction::Pack(args) => return pack_starlight(args),
         StarlightAction::Promote(args) => return promote(args),
         StarlightAction::Diagnose(args) => return execute_starlight_diagnose(args),
+        StarlightAction::BrightStars(args) => {
+            return match args.command {
+                StarlightBrightStarsCommand::Build(args) => {
+                    let manifest = crate::starlight::bright_stars::run_experimental_build(
+                        &args.config,
+                        &args.config_sha256,
+                        &args.output_directory,
+                    )?;
+                    println!("{}", serde_json::to_string_pretty(&manifest)?);
+                    Ok(())
+                }
+            };
+        }
     };
     dataset::execute(
         &common.config,

@@ -9,17 +9,20 @@
 //! external, checksum-pinned artifact.
 
 mod artifact;
+mod build_run;
 mod builder;
 mod catalogue;
 mod crossmatch;
 mod photometry;
 mod policy;
+mod reconstruction;
 
 pub use artifact::{
     load_bright_star_artifact, BrightStarArtifact, BrightStarInputProvenance, BrightStarInputRole,
     BrightStarPixel, BrightStarSourceRecord, CorrelatedUncertainty,
     BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION, BRIGHT_STAR_MODEL_ID, BRIGHT_STAR_PRODUCT_BAND_ID,
 };
+pub use build_run::{run_experimental_build, BrightStarBuildRunConfig, BrightStarBuildRunManifest};
 pub use builder::{
     build_experimental_artifact, BrightStarBuildDiagnostics, BrightStarSourceDiagnostic,
     ProperMotionDiagnostic, SpectralEstimate,
@@ -42,4 +45,8 @@ pub use photometry::{
 pub use policy::{
     BrightStarPopulationPolicy, BrightStarPrecedencePolicy, SupplementClass,
     POPULATION_POLICY_ID_V1, PRECEDENCE_POLICY_ID_V1,
+};
+pub use reconstruction::{
+    load_spectral_reconstruction_model, reconstruct_spectral_estimates,
+    SpectralReconstructionModel, TemplateAssignment, SPECTRAL_RECONSTRUCTION_MODEL_ID_V1,
 };

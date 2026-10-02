@@ -164,6 +164,7 @@ pub fn ingest_tycho2(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, Tycho
     verify_input(input, BrightStarInputRole::Tycho2)?;
     let reader = open_text(&input.path)?;
     let mut by_hip = BTreeMap::new();
+    let mut ambiguous_hips = std::collections::BTreeSet::new();
     for (index, line) in reader.lines().enumerate() {
         let line = line.with_context(|| format!("read Tycho-2 line {}", index + 1))?;
         if line.len() < 151 {
@@ -189,8 +190,18 @@ pub fn ingest_tycho2(input: &PinnedCatalogueInput) -> Result<BTreeMap<u32, Tycho
             vt_mag: optional_f64(&line, 123, 129)?,
             vt_mag_uncertainty: optional_f64(&line, 130, 135)?,
         };
-        if by_hip.insert(hip, value).is_some() {
-            bail!("Tycho-2 has multiple entries for HIP {hip}; component policy is required");
+        // Tycho-2 contains separate component rows for some Hipparcos
+        // systems. The v1 builder uses Hp as the authoritative population
+        // photometry; dropping an ambiguous Tycho association is conservative
+        // and avoids silently assigning a component colour to the system.
+        if ambiguous_hips.contains(&hip) {
+            continue;
+        }
+        if by_hip.contains_key(&hip) {
+            by_hip.remove(&hip);
+            ambiguous_hips.insert(hip);
+        } else {
+            by_hip.insert(hip, value);
         }
     }
     Ok(by_hip)
