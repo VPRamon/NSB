@@ -1,6 +1,13 @@
 //! Deterministic canonical-map emission and production validation.
 
 use super::accumulator::{merge_shards, PartitionShard};
+use super::policy_registry::{
+    science_policy_matches_registry, ADMISSION_RULES_V1 as ADMISSION_RULES,
+    CURRENT_ADMISSION_POLICY_ID as ADMISSION_POLICY_ID,
+    CURRENT_CORRECTED_SPECTRAL_POLICY_ID as CORRECTED_SPECTRAL_POLICY_ID,
+    CURRENT_POPULATION_POLICY_ID as POPULATION_POLICY_ID,
+    CURRENT_SPECTRAL_POLICY_ID as SPECTRAL_POLICY_ID,
+};
 use crate::dataset::{Artifact, ValidationGate};
 use crate::platform::{artifact_store, checksum_io};
 use crate::starlight::config::StarlightProductBand;
@@ -13,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 7;
+const REPORT_SCHEMA_VERSION: u32 = 9;
 const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
 const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v5";
 const MAP_ORDERING: &str = "nested";
@@ -23,21 +30,8 @@ const MAP_FLUX_QUANTITY: &str = "integrated_per_pixel";
 const MAP_FLUX_UNIT: &str = "ph_m-2_s-1";
 const MAP_DERIVATION: &str = "canonical_gaia_source_accumulation";
 const MAP_SOURCE_COUNT_SEMANTICS: &str = "exact_source_membership";
-const ADMISSION_POLICY_ID: &str = "gaia-dr3-full-population-v1";
-const POPULATION_POLICY_ID: &str = "selection-function-identity-stub-v1";
-const SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-336-650-v1";
-const CORRECTED_SPECTRAL_POLICY_ID: &str = "gaia-xp-continuous-uv-corrected-300-650-v1";
-
-const ADMISSION_RULES: [&str; 8] = [
-    "require_gaia_source_match",
-    "exclude_calibration_failed",
-    "exclude_non_positive_or_non_finite_flux",
-    "exclude_invalid_statistical_uncertainty",
-    "exclude_duplicated_source",
-    "exclude_scientific_exclusion_nonstellar",
-    "route_non_xp_via_photometric_inference",
-    "exclude_no_xp_spectrum_without_photometric_artifact",
-];
+// Admission / spectral policy IDs and rules come from policy_registry
+// (CURRENT_* constants) so historical versions remain independently verifiable.
 
 /// Optional selection-function identity passed from finalize into the merge report.
 #[derive(Debug, Clone)]
@@ -54,10 +48,17 @@ pub struct MergeReport {
     pub shard_count: usize,
     pub partition_ids: Vec<String>,
     pub observed_sources: u64,
+    pub source_record_accounting: SourceRecordAccounting,
     pub admitted_sources: u64,
     pub excluded_sources: u64,
     pub exclusion_reasons: BTreeMap<String, u64>,
     pub ultraviolet_applicability: BTreeMap<crate::starlight::uv::ApplicabilityStatus, u64>,
+    #[serde(default)]
+    pub bright_star_replacement: Option<BrightStarReplacementReport>,
+    /// Checksum-verified bright-star supplement identity when the map includes it.
+    #[serde(default)]
+    pub bright_star_supplement:
+        Option<crate::starlight::bright_stars::BrightStarSupplementProvenance>,
     pub science_policy: SciencePolicyReport,
     pub band_diagnostics: BandDiagnosticsReport,
     pub canonical_map: CanonicalMapReport,
@@ -66,6 +67,31 @@ pub struct MergeReport {
     ///
     /// See [`UncertaintyScaleDiagnostics`] for the exact combination rules.
     pub uncertainty_scale: UncertaintyScaleDiagnostics,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceRecordAccounting {
+    pub semantics: String,
+    pub primary_input_records: u64,
+    pub supplement_input_records: u64,
+    pub replacement_records: u64,
+    pub admitted_primary_records: u64,
+    pub admitted_supplement_records: u64,
+    pub unique_replacement_gaia_ids: u64,
+    pub unique_physical_sources: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BrightStarReplacementReport {
+    pub replacement_gaia_source_ids: Vec<u64>,
+    pub actually_suppressed_gaia_source_ids: Vec<u64>,
+    pub base_admitted_replacement_gaia_source_ids: Vec<u64>,
+    pub replacement_gaia_id_count: u64,
+    pub actually_suppressed_count: u64,
+    pub base_admitted_replacement_intersection_count: u64,
+    pub invariant_passed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -318,6 +344,7 @@ pub(crate) fn emit_maps(
     }
 
     let merged = merge_shards(shards.clone())?;
+    validate_bright_star_replacement_invariant(&merged)?;
     if merged.nside != canonical_nside {
         bail!("merged Starlight shard resolution does not match configuration");
     }
@@ -338,6 +365,35 @@ pub(crate) fn emit_maps(
     let (map_flux, map_admitted, map_excluded) = map_totals(&emitted_pixels)?;
     let map_sha256 = checksum_io::sha256_file(&map_path)?;
     let (observed_sources, admitted_sources, excluded_sources) = population_totals(&merged)?;
+    let mut source_record_accounting = SourceRecordAccounting {
+        semantics: "processing_records; replacement stars have one excluded primary record and one supplement record".into(),
+        primary_input_records: 0,
+        supplement_input_records: 0,
+        replacement_records: merged.bright_star_replacement_gaia_ids.len() as u64,
+        admitted_primary_records: 0,
+        admitted_supplement_records: 0,
+        unique_replacement_gaia_ids: merged.bright_star_replacement_gaia_ids.len() as u64,
+        unique_physical_sources: 0,
+    };
+    for shard in &shards {
+        let (observed, admitted, _) = population_totals(shard)?;
+        if shard.partition_id == "bright-star-supplement" {
+            source_record_accounting.supplement_input_records = observed;
+            source_record_accounting.admitted_supplement_records = admitted;
+        } else {
+            source_record_accounting.primary_input_records = source_record_accounting
+                .primary_input_records
+                .checked_add(observed)
+                .context("primary input record count overflow")?;
+            source_record_accounting.admitted_primary_records = source_record_accounting
+                .admitted_primary_records
+                .checked_add(admitted)
+                .context("admitted primary record count overflow")?;
+        }
+    }
+    source_record_accounting.unique_physical_sources = observed_sources
+        .checked_sub(source_record_accounting.replacement_records)
+        .context("replacement records exceed observed record count")?;
     if admitted_sources != map_admitted || excluded_sources != map_excluded {
         bail!("canonical map totals do not match merged shard population totals");
     }
@@ -354,10 +410,38 @@ pub(crate) fn emit_maps(
         shard_count: shards.len(),
         partition_ids,
         observed_sources,
+        source_record_accounting,
         admitted_sources,
         excluded_sources,
         exclusion_reasons: merged.exclusion_reasons.clone(),
         ultraviolet_applicability: merged.ultraviolet_applicability.clone(),
+        bright_star_replacement: (!merged.bright_star_replacement_gaia_ids.is_empty()).then(|| {
+            let ids = merged
+                .bright_star_replacement_gaia_ids
+                .iter()
+                .copied()
+                .collect::<Vec<_>>();
+            BrightStarReplacementReport {
+                replacement_gaia_id_count: ids.len() as u64,
+                actually_suppressed_count: merged.bright_star_suppressed_gaia_ids.len() as u64,
+                base_admitted_replacement_intersection_count: merged
+                    .bright_star_base_admitted_replacement_gaia_ids
+                    .len() as u64,
+                invariant_passed: true,
+                replacement_gaia_source_ids: ids,
+                actually_suppressed_gaia_source_ids: merged
+                    .bright_star_suppressed_gaia_ids
+                    .iter()
+                    .copied()
+                    .collect(),
+                base_admitted_replacement_gaia_source_ids: merged
+                    .bright_star_base_admitted_replacement_gaia_ids
+                    .iter()
+                    .copied()
+                    .collect(),
+            }
+        }),
+        bright_star_supplement: merged.bright_star_supplement_provenance.clone(),
         science_policy,
         band_diagnostics: band_diagnostics(&merged)?,
         canonical_map: CanonicalMapReport {
@@ -584,6 +668,21 @@ pub(crate) fn validate_report(path: &Path) -> Result<()> {
     validate_report_fields(&report, &map_path, &pixels)
 }
 
+/// Reconstruct the selected-band canonical map SHA-256 that finalization would
+/// emit for `merged`, using the same headers and pixel serialization as
+/// [`emit_maps`]. Used by diagnostic exporters that must fail closed against a
+/// frozen merge report rather than trusting caller-supplied parent checksums.
+pub(crate) fn reconstruct_selected_band_canonical_map_sha256(
+    merged: &PartitionShard,
+) -> Result<String> {
+    merged.validate()?;
+    let spectral = science_policy_report(merged, None).spectral_coverage;
+    let dir = tempfile::tempdir().context("create temp dir for canonical map reconstruction")?;
+    let path = dir.path().join(canonical_map_name(merged.nside));
+    write_map(&path, merged.nside, map_pixels(merged), &spectral)?;
+    checksum_io::sha256_file(&path)
+}
+
 fn validate_report_fields(
     report: &MergeReport,
     map_path: &Path,
@@ -627,6 +726,87 @@ fn validate_report_fields(
     if report.observed_sources != observed {
         bail!("global observed-source total does not match canonical map");
     }
+    let accounting = &report.source_record_accounting;
+    let accounted_inputs = accounting
+        .primary_input_records
+        .checked_add(accounting.supplement_input_records)
+        .context("source input record accounting overflow")?;
+    let accounted_admitted = accounting
+        .admitted_primary_records
+        .checked_add(accounting.admitted_supplement_records)
+        .context("admitted source record accounting overflow")?;
+    if accounting.semantics
+        != "processing_records; replacement stars have one excluded primary record and one supplement record"
+        || accounted_inputs != observed
+        || accounted_admitted != admitted
+        || accounting.replacement_records != accounting.unique_replacement_gaia_ids
+        || accounting.unique_physical_sources
+            != observed
+                .checked_sub(accounting.replacement_records)
+                .context("invalid replacement record accounting")?
+    {
+        bail!("merge report source-record accounting is invalid");
+    }
+    if let Some(replacement) = &report.bright_star_replacement {
+        let unique = replacement
+            .replacement_gaia_source_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let suppressed = replacement
+            .actually_suppressed_gaia_source_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        let admitted_intersection = replacement
+            .base_admitted_replacement_gaia_source_ids
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>();
+        if replacement.replacement_gaia_source_ids.len() != unique.len()
+            || replacement.actually_suppressed_gaia_source_ids.len() != suppressed.len()
+            || replacement.base_admitted_replacement_gaia_source_ids.len()
+                != admitted_intersection.len()
+            || unique != suppressed
+            || !admitted_intersection.is_empty()
+            || replacement.replacement_gaia_id_count != unique.len() as u64
+            || replacement.actually_suppressed_count != replacement.replacement_gaia_id_count
+            || replacement.base_admitted_replacement_intersection_count != 0
+            || !replacement.invariant_passed
+            || report
+                .exclusion_reasons
+                .get("bright_star_replaced_by_supplement")
+                .copied()
+                .unwrap_or_default()
+                != replacement.actually_suppressed_count
+        {
+            bail!("merge report bright-star replacement proof is invalid");
+        }
+    }
+    let has_bright_star_contribution = report.source_record_accounting.supplement_input_records > 0
+        || report.source_record_accounting.admitted_supplement_records > 0
+        || report.bright_star_replacement.is_some();
+    match (
+        report.bright_star_supplement.as_ref(),
+        has_bright_star_contribution,
+    ) {
+        (None, false) => {}
+        (Some(provenance), true) => {
+            provenance
+                .validate()
+                .context("merge report bright-star supplement provenance is invalid")?;
+        }
+        (None, true) => {
+            bail!(
+                "merge report declares bright-star contribution without checksum-verified supplement provenance"
+            );
+        }
+        (Some(_), false) => {
+            bail!(
+                "merge report includes bright-star supplement provenance without any supplement contribution"
+            );
+        }
+    }
     let diagnostics = &report.band_diagnostics;
     let diagnostic_values = [
         diagnostics.total_flux_300_336_ph_m2_s,
@@ -667,7 +847,10 @@ fn validate_report_fields(
         || (!ultraviolet_applied
             && (diagnostics.total_flux_300_336_ph_m2_s != 0.0
                 || diagnostics.statistical_uncertainty_300_336_ph_m2_s != 0.0
-                || diagnostics.systematic_uncertainty_300_336_ph_m2_s != 0.0
+                // Measured-only admit historically dual-filed selected systematics
+                // into the 300–336 systematic buckets; UV flux/stat must still be
+                // zero and 300–650 must agree with 336–650. Do not require the UV
+                // systematic diagnostic to be zero for measured-only reports.
                 || !report.ultraviolet_applicability.is_empty()
                 || !fluxes_agree(
                     diagnostics.total_flux_300_650_ph_m2_s,
@@ -1009,10 +1192,14 @@ fn global_selected_uncertainty(merged: &PartitionShard) -> Result<(f64, f64)> {
     let mut statistical_variance = 0.0;
     let mut systematic_independent_variance = 0.0;
     let mut systematic_correlated = 0.0;
+    let mut systematic_groups: BTreeMap<String, f64> = BTreeMap::new();
     for pixel in merged.pixels.values() {
         statistical_variance += pixel.statistical_variance.value();
         systematic_independent_variance += pixel.systematic_variance.value();
         systematic_correlated += pixel.systematic_correlated_uncertainty.value();
+        for (group, sum) in &pixel.systematic_correlated_groups {
+            *systematic_groups.entry(group.clone()).or_default() += sum.value();
+        }
     }
     let values = [
         statistical_variance,
@@ -1025,10 +1212,34 @@ fn global_selected_uncertainty(merged: &PartitionShard) -> Result<(f64, f64)> {
     {
         bail!("Starlight global uncertainty totals are non-finite or negative");
     }
+    let grouped_variance: f64 = systematic_groups.values().map(|value| value.powi(2)).sum();
     let systematic = systematic_independent_variance
         .sqrt()
-        .hypot(systematic_correlated);
+        .hypot(systematic_correlated)
+        .hypot(grouped_variance.sqrt());
     Ok((statistical_variance.sqrt(), systematic))
+}
+
+fn validate_bright_star_replacement_invariant(merged: &PartitionShard) -> Result<()> {
+    let replacement_count = u64::try_from(merged.bright_star_replacement_gaia_ids.len())
+        .context("bright-star replacement count exceeds u64")?;
+    let suppressed_count = merged
+        .exclusion_reasons
+        .get("bright_star_replaced_by_supplement")
+        .copied()
+        .unwrap_or_default();
+    if merged.bright_star_replacement_gaia_ids != merged.bright_star_suppressed_gaia_ids {
+        bail!(
+            "bright-star replacement identity invariant failed: declared and actually suppressed Gaia ID sets differ ({replacement_count} declared, {suppressed_count} exclusions)"
+        );
+    }
+    if !merged
+        .bright_star_base_admitted_replacement_gaia_ids
+        .is_empty()
+    {
+        bail!("bright-star replacement Gaia ID remained admitted in the base population");
+    }
+    Ok(())
 }
 
 /// Compute [`UncertaintyScaleDiagnostics`] from the emitted per-pixel map and
@@ -1152,7 +1363,7 @@ fn science_policy_report(
             systematic_correlation_scope: ultraviolet
                 .map(|metadata| CorrelationScope::from(metadata.systematic_correlation)),
             limitation: if corrected {
-                "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately.".to_string()
+                "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately. Sources lacking UV predictors are excluded from the combined 300-650 map rather than published as incomplete lower bounds labelled as full-band flux.".to_string()
             } else {
                 "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied.".to_string()
             },
@@ -1214,64 +1425,7 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
 }
 
 fn science_policy_is_declared(policy: &SciencePolicyReport) -> bool {
-    let spectral = &policy.spectral_coverage;
-    let spectral_valid = if spectral.ultraviolet_correction_applied {
-        spectral.policy_id == CORRECTED_SPECTRAL_POLICY_ID
-            && spectral.corrected_band_nm == Some([300, 336])
-            && spectral.combined_band_nm == Some([300, 650])
-            && spectral
-                .correction_model_id
-                .as_deref()
-                .is_some_and(|value| !value.trim().is_empty())
-            && spectral
-                .correction_artifact_sha256
-                .as_deref()
-                .is_some_and(is_sha256)
-            && spectral.calibration_status
-                == Some(crate::starlight::uv::CalibrationStatus::Validated)
-            && spectral.model_response.is_some()
-            && spectral
-                .measured_conditional_residual_statistical_correlation
-                .is_some_and(|value| value.is_finite() && (-1.0..=1.0).contains(&value))
-            && spectral.systematic_correlation.is_some()
-            && spectral.systematic_correlation_scope
-                == spectral.systematic_correlation.map(CorrelationScope::from)
-    } else {
-        spectral.policy_id == SPECTRAL_POLICY_ID
-            && spectral.corrected_band_nm.is_none()
-            && spectral.combined_band_nm.is_none()
-            && spectral.correction_model_id.is_none()
-            && spectral.correction_artifact_sha256.is_none()
-            && spectral.calibration_status.is_none()
-            && spectral.model_response.is_none()
-            && spectral
-                .measured_conditional_residual_statistical_correlation
-                .is_none()
-            && spectral.systematic_correlation.is_none()
-            && spectral.systematic_correlation_scope.is_none()
-    };
-    let population = &policy.population_correction;
-    let population_valid = if population.applied {
-        !population.policy_id.trim().is_empty()
-            && population.policy_id != POPULATION_POLICY_ID
-            && population.minimum_weight == 1.0
-            && population.maximum_weight.is_finite()
-            && population.maximum_weight >= 1.0
-            && !population.limitation.trim().is_empty()
-    } else {
-        population.policy_id == POPULATION_POLICY_ID
-            && population.minimum_weight == 1.0
-            && population.maximum_weight == 1.0
-            && !population.residual_faint_tail_estimated
-            && !population.limitation.trim().is_empty()
-    };
-    policy.schema_version == 2
-        && policy.admission_policy_id == ADMISSION_POLICY_ID
-        && policy.admission_rules == ADMISSION_RULES
-        && population_valid
-        && spectral.target_band_nm == [300, 650]
-        && spectral.directly_integrated_band_nm == [336, 650]
-        && spectral_valid
+    science_policy_matches_registry(policy)
 }
 
 fn write_map(
@@ -1555,6 +1709,7 @@ fn complete_deterministic_merge_report(
                     || left.systematic_variance != right.systematic_variance
                     || left.systematic_correlated_uncertainty
                         != right.systematic_correlated_uncertainty
+                    || left.systematic_correlated_groups != right.systematic_correlated_groups
                     || left.statistical_variance_300_336 != right.statistical_variance_300_336
                     || left.statistical_variance_336_650 != right.statistical_variance_336_650
                     || left.statistical_variance_300_650 != right.statistical_variance_300_650
@@ -1605,6 +1760,19 @@ fn complete_deterministic_merge_report(
             );
         }
     }
+    if canonical.bright_star_replacement_gaia_ids != independent.bright_star_replacement_gaia_ids
+        || canonical.bright_star_suppressed_gaia_ids != independent.bright_star_suppressed_gaia_ids
+        || canonical.bright_star_base_admitted_replacement_gaia_ids
+            != independent.bright_star_base_admitted_replacement_gaia_ids
+        || canonical.bright_star_supplement_provenance
+            != independent.bright_star_supplement_provenance
+    {
+        exclusion_reason_mismatches += 1;
+        record_first_mismatch(
+            &mut first_mismatch,
+            "bright-star replacement identity set differs".to_string(),
+        );
+    }
 
     let canonical_sha256 = checksum_io::sha256_bytes(&canonical_merge_bytes(canonical)?);
     let independent_partial_merge_sha256 =
@@ -1634,7 +1802,7 @@ fn complete_deterministic_merge_report(
 fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
     shard.validate()?;
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v2\0");
+    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v3\0");
     bytes.extend_from_slice(&shard.nside.to_be_bytes());
     bytes.push(match shard.product_band {
         crate::starlight::config::StarlightProductBand::Measured336To650 => 0,
@@ -1686,6 +1854,13 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         ] {
             sum.append_canonical_bytes(&mut bytes)?;
         }
+        let group_count = u64::try_from(accumulator.systematic_correlated_groups.len())
+            .context("systematic group count exceeds u64")?;
+        bytes.extend_from_slice(&group_count.to_be_bytes());
+        for (group, sum) in &accumulator.systematic_correlated_groups {
+            append_string(&mut bytes, group)?;
+            sum.append_canonical_bytes(&mut bytes)?;
+        }
         bytes.extend_from_slice(&accumulator.observed_sources.to_be_bytes());
         bytes.extend_from_slice(&accumulator.admitted_sources.to_be_bytes());
         bytes.extend_from_slice(&accumulator.excluded_sources.to_be_bytes());
@@ -1707,6 +1882,31 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
             crate::starlight::uv::ApplicabilityStatus::OutOfDomain => 2,
         });
         bytes.extend_from_slice(&count.to_be_bytes());
+    }
+    for (label, ids) in [
+        ("replacement", &shard.bright_star_replacement_gaia_ids),
+        ("suppressed", &shard.bright_star_suppressed_gaia_ids),
+        (
+            "base-admitted-replacement",
+            &shard.bright_star_base_admitted_replacement_gaia_ids,
+        ),
+    ] {
+        let count =
+            u64::try_from(ids.len()).with_context(|| format!("{label} id count exceeds u64"))?;
+        bytes.extend_from_slice(&count.to_be_bytes());
+        for source_id in ids {
+            bytes.extend_from_slice(&source_id.to_be_bytes());
+        }
+    }
+    if let Some(provenance) = &shard.bright_star_supplement_provenance {
+        bytes.push(1);
+        append_string(&mut bytes, &provenance.artifact_sha256)?;
+        append_string(&mut bytes, &provenance.model_id)?;
+        append_string(&mut bytes, &provenance.population_policy_id)?;
+        append_string(&mut bytes, &provenance.precedence_policy_id)?;
+        append_string(&mut bytes, &provenance.build_commit)?;
+    } else {
+        bytes.push(0);
     }
     Ok(bytes)
 }
@@ -1828,6 +2028,202 @@ mod tests {
             )
             .unwrap();
         shard
+    }
+
+    #[test]
+    fn bright_star_replacement_requires_exactly_one_gaia_suppression() {
+        let mut shard = PartitionShard::new("fixture", 1).unwrap();
+        shard.bright_star_replacement_gaia_ids.insert(42);
+        shard.bright_star_suppressed_gaia_ids.insert(42);
+        shard.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('a'));
+        shard
+            .exclude(
+                fixture_icrs_from_source_id(42),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+        validate_bright_star_replacement_invariant(&shard).unwrap();
+        shard.validate().unwrap();
+
+        shard.bright_star_replacement_gaia_ids.insert(43);
+        assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+
+        shard.bright_star_replacement_gaia_ids = BTreeSet::from([42]);
+        shard.bright_star_suppressed_gaia_ids = BTreeSet::from([43]);
+        assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+
+        shard.bright_star_suppressed_gaia_ids = BTreeSet::from([42]);
+        shard
+            .bright_star_base_admitted_replacement_gaia_ids
+            .insert(42);
+        assert!(validate_bright_star_replacement_invariant(&shard).is_err());
+    }
+
+    fn fixture_bright_star_provenance(
+        hex_fill: char,
+    ) -> crate::starlight::bright_stars::BrightStarSupplementProvenance {
+        assert!(
+            hex_fill.is_ascii_hexdigit() && !hex_fill.is_ascii_uppercase(),
+            "fixture SHA fill must be lowercase hex"
+        );
+        crate::starlight::bright_stars::BrightStarSupplementProvenance {
+            artifact_sha256: hex_fill.to_string().repeat(64),
+            model_id: crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID.into(),
+            population_policy_id: crate::starlight::bright_stars::POPULATION_POLICY_ID_V1.into(),
+            precedence_policy_id: crate::starlight::bright_stars::PRECEDENCE_POLICY_ID_V1.into(),
+            build_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+        }
+    }
+
+    #[test]
+    fn bright_star_supplement_provenance_survives_merge_and_report_validation() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut primary = PartitionShard::new("primary", 1).unwrap();
+        primary
+            .admit(fixture_icrs_from_source_id(1), 2.0, 0.1, 0.1)
+            .unwrap();
+        primary.bright_star_suppressed_gaia_ids.insert(99);
+        primary
+            .exclude(
+                fixture_icrs_from_source_id(99),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+
+        let mut supplement = PartitionShard::new("bright-star-supplement", 1).unwrap();
+        let provenance = fixture_bright_star_provenance('c');
+        supplement.bright_star_supplement_provenance = Some(provenance.clone());
+        supplement.bright_star_replacement_gaia_ids.insert(99);
+        supplement
+            .admit(fixture_icrs_from_source_id(2), 5.0, 0.2, 0.2)
+            .unwrap();
+        primary
+            .write(&temp.path().join("outputs/shards/primary.json"))
+            .unwrap();
+        supplement
+            .write(
+                &temp
+                    .path()
+                    .join("outputs/shards/bright-star-supplement.json"),
+            )
+            .unwrap();
+
+        emit_maps(
+            temp.path(),
+            &["bright-star-supplement".to_string(), "primary".to_string()],
+            1,
+            StarlightProductBand::Measured336To650,
+            None,
+            None,
+        )
+        .unwrap();
+        let report: MergeReport = serde_json::from_slice(
+            &fs::read(temp.path().join("outputs/merge_report.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report.schema_version, 9);
+        assert_eq!(report.bright_star_supplement.as_ref(), Some(&provenance));
+        assert_eq!(
+            report
+                .bright_star_replacement
+                .as_ref()
+                .map(|r| r.replacement_gaia_source_ids.as_slice()),
+            Some([99].as_slice())
+        );
+        validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+
+        let mut stripped = report.clone();
+        stripped.bright_star_supplement = None;
+        rewrite_report(&temp, &stripped);
+        assert!(validate_report(&temp.path().join("outputs/merge_report.json")).is_err());
+    }
+
+    #[test]
+    fn incompatible_bright_star_provenance_cannot_merge() {
+        let mut left = PartitionShard::new("left", 1).unwrap();
+        left.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('a'));
+        left.bright_star_replacement_gaia_ids.insert(1);
+        left.admit(fixture_icrs_from_source_id(1), 1.0, 0.0, 0.0)
+            .unwrap();
+        let mut right = PartitionShard::new("right", 1).unwrap();
+        right.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('b'));
+        right.bright_star_replacement_gaia_ids.insert(2);
+        right
+            .admit(fixture_icrs_from_source_id(2), 1.0, 0.0, 0.0)
+            .unwrap();
+        assert!(super::super::accumulator::merge_shards([left, right]).is_err());
+    }
+
+    #[test]
+    fn replacement_identities_without_provenance_fail_closed() {
+        let mut shard = PartitionShard::new("fixture", 1).unwrap();
+        shard.bright_star_replacement_gaia_ids.insert(42);
+        assert!(shard.validate().is_err());
+    }
+
+    #[test]
+    fn gaia_only_merge_report_omits_bright_star_provenance() {
+        let temp = tempfile::tempdir().unwrap();
+        let report = emit_fixture(&temp, 1);
+        assert!(report.bright_star_supplement.is_none());
+        assert!(report.bright_star_replacement.is_none());
+        validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+    }
+
+    #[test]
+    fn deterministic_merge_bytes_include_bright_star_provenance() {
+        let mut without = PartitionShard::new("fixture", 1).unwrap();
+        without
+            .admit(fixture_icrs_from_source_id(1), 1.0, 0.0, 0.0)
+            .unwrap();
+        let mut with = without.clone();
+        with.bright_star_supplement_provenance = Some(fixture_bright_star_provenance('d'));
+        with.bright_star_replacement_gaia_ids.insert(7);
+        let left = canonical_merge_bytes(&without).unwrap();
+        let right = canonical_merge_bytes(&with).unwrap();
+        assert_ne!(left, right);
+        assert_eq!(
+            canonical_merge_bytes(&with).unwrap(),
+            canonical_merge_bytes(&with).unwrap()
+        );
+    }
+
+    #[test]
+    fn duplicate_suppression_across_shards_fails() {
+        let mut first = PartitionShard::new("first", 1).unwrap();
+        first.bright_star_suppressed_gaia_ids.insert(42);
+        first
+            .exclude(
+                fixture_icrs_from_source_id(42),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+        let mut second = PartitionShard::new("second", 1).unwrap();
+        second.bright_star_suppressed_gaia_ids.insert(42);
+        second
+            .exclude(
+                fixture_icrs_from_source_id(42),
+                "bright_star_replaced_by_supplement",
+            )
+            .unwrap();
+        assert!(super::super::accumulator::merge_shards([first, second]).is_err());
+    }
+
+    #[test]
+    fn gaia_only_population_needs_no_suppression() {
+        let mut shard = PartitionShard::new("fixture", 1).unwrap();
+        shard
+            .admit(fixture_icrs_from_source_id(1), 1.0, 0.0, 0.0)
+            .unwrap();
+        validate_bright_star_replacement_invariant(&shard).unwrap();
+        assert_eq!(
+            shard
+                .pixels
+                .values()
+                .map(|p| p.admitted_sources)
+                .sum::<u64>(),
+            1
+        );
     }
 
     fn emit_fixture(temp: &TempDir, nside: u32) -> MergeReport {

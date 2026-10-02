@@ -1,0 +1,49 @@
+schema_version = 1
+scope = "experimental-starlight-bright-star-supplement"
+production_review_bundle = false
+human_gate = "VPRamon/NSB#103"
+scientifically_validated = false
+
+[[artifacts]]
+id = "hipparcos-2-catalogue"
+source = "Hipparcos new reduction (van Leeuwen 2007)"
+release = "Hipparcos-2"
+authoritative_terms_url = "https://www.cosmos.esa.int/web/esdc/terms-and-conditions"
+redistribution_status = "human_review_required"
+raw_bytes_may_be_distributed = false
+derived_output_may_be_distributed = false
+attribution = "Credit ESA and cite van Leeuwen (2007); final interpretation remains #103-owned"
+distributed = false
+
+[[artifacts]]
+id = "tycho-2-catalogue"
+source = "Tycho-2 Catalogue"
+release = "Tycho-2"
+authoritative_terms_url = "https://www.cosmos.esa.int/web/esdc/terms-and-conditions"
+redistribution_status = "human_review_required"
+raw_bytes_may_be_distributed = false
+derived_output_may_be_distributed = false
+attribution = "Credit ESA and cite Hog et al. (2000); final interpretation remains #103-owned"
+distributed = false
+
+[[artifacts]]
+id = "xhip-vizier-v137d"
+source = "Extended Hipparcos Compilation"
+release = "V/137D"
+authoritative_terms_url = "https://cds.unistra.fr/vizier-org/licences_vizier.html"
+redistribution_status = "uncertain_external_build_input_only"
+raw_bytes_may_be_distributed = false
+derived_output_may_be_distributed = false
+attribution = "Cite Anderson and Francis (2012), CDS/VizieR, and origin catalogues"
+distributed = false
+
+[[artifacts]]
+id = "starlight-bright-stars-v1-derived"
+source = "NSB experimental bright-star build"
+release = "schema_version=1"
+authoritative_terms_url = "https://github.com/VPRamon/NSB/issues/103"
+redistribution_status = "external_user_generated_only_pending_human_review"
+raw_bytes_may_be_distributed = false
+derived_output_may_be_distributed = false
+attribution = "Carry every upstream citation and attribution from the build manifest"
+distributed = false

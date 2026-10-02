@@ -81,6 +81,7 @@ impl DatasetPipeline for StarlightPipeline {
             starlight.ultraviolet_correction.as_ref(),
             starlight.photometric_inference.as_ref(),
             starlight.selection_function.as_ref(),
+            starlight.bright_star_supplement.as_ref(),
         )?;
         super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
         Ok(Some(artifacts))
@@ -107,6 +108,26 @@ impl DatasetPipeline for StarlightPipeline {
                 })
             })
             .transpose()?;
+        let mut expected = expected;
+        if let Some(pin) = &starlight.bright_star_supplement {
+            if starlight.product_band != super::config::StarlightProductBand::Measured336To650 {
+                bail!("measured-336-650 bright-star artifact cannot be used with combined-300-650");
+            }
+            let artifact =
+                super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
+            let shard = super::worker::bright_star_supplement_shard(
+                &artifact,
+                &pin.sha256,
+                starlight.map.canonical_nside,
+            )?;
+            let shard_path = config
+                .workspace
+                .root
+                .join("outputs/shards/bright-star-supplement.json");
+            shard.write(&shard_path)?;
+            expected.push("bright-star-supplement".to_string());
+            expected.sort();
+        }
         Ok(Some(super::map::product::emit_maps(
             &config.workspace.root,
             &expected,
@@ -174,6 +195,10 @@ impl DatasetPipeline for StarlightPipeline {
                 starlight.photometric_inference.as_ref(),
             ),
             ("selection function", starlight.selection_function.as_ref()),
+            (
+                "bright-star supplement",
+                starlight.bright_star_supplement.as_ref(),
+            ),
         ] {
             if let Some(pin) = pin {
                 if pin.sha256.len() != 64
@@ -192,6 +217,15 @@ impl DatasetPipeline for StarlightPipeline {
             bail!(
                 "300–650 nm Starlight product requires a validated UV correction artifact, and measured-only products must not configure one"
             );
+        }
+        if let Some(pin) = &starlight.bright_star_supplement {
+            let artifact =
+                super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
+            if starlight.product_band != super::config::StarlightProductBand::Measured336To650
+                || artifact.product_band != super::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID
+            {
+                bail!("bright-star supplement spectral coverage is incompatible with configured Starlight product band");
+            }
         }
         for product in &starlight.gaia_products {
             if product.id.trim().is_empty()
@@ -299,6 +333,7 @@ lease_timeout_seconds = 60
             ultraviolet_correction: None,
             photometric_inference: None,
             selection_function: None,
+            bright_star_supplement: None,
         }
     }
 
@@ -398,6 +433,46 @@ lease_timeout_seconds = 60
         assert!(err
             .to_string()
             .contains("exactly the gaia-source and xp-continuous products"));
+    }
+
+    #[test]
+    fn validate_config_rejects_invalid_bright_star_supplement_pin() {
+        let mut starlight = measured_config();
+        starlight.bright_star_supplement = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("missing-bright-stars.json"),
+            sha256: "not-a-sha".into(),
+        });
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("invalid bright-star sha");
+        assert!(err
+            .to_string()
+            .contains("bright-star supplement SHA-256 must be 64 lowercase hexadecimal"));
+    }
+
+    #[test]
+    fn validate_config_rejects_bright_star_supplement_with_combined_band() {
+        let mut starlight = measured_config();
+        starlight.product_band = StarlightProductBand::Combined300To650;
+        starlight.ultraviolet_correction = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("uv.toml"),
+            sha256: "d".repeat(64),
+        });
+        starlight.bright_star_supplement = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("bright.json"),
+            sha256: "e".repeat(64),
+        });
+        // Combined-band UV SHA is accepted structurally, but loading the missing
+        // bright-star artifact must still fail closed before any silent merge.
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("bright-star artifact must load");
+        assert!(
+            err.to_string().contains("bright-star")
+                || err.to_string().contains("No such file")
+                || err.to_string().contains("failed to read")
+                || err.to_string().contains("read ")
+        );
     }
 
     #[test]

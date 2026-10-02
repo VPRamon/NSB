@@ -4,7 +4,10 @@ pub(crate) mod gaia_source;
 pub(crate) mod processing;
 
 use self::gaia_source::{load_gaia_sources, GaiaSourceEntry};
-use self::processing::{population_branch_reason, scientific_exclusion_reason};
+use self::processing::{
+    measured_xp_flux_and_uncertainty, population_branch_reason, scientific_exclusion_reason,
+};
+use super::bright_stars::{load_bright_star_artifact, BrightStarArtifact};
 use super::config::{
     ArtifactPinConfig, GaiaProductConfig, StarlightProductBand, UvCorrectionConfig,
 };
@@ -14,13 +17,11 @@ use super::photometric::{PhotometricCorrection, PhotometricFeatures, RouteDecisi
 use super::selection::SelectionCorrection;
 use super::sources::acquisition;
 use super::uv::{EvaluationDecision, MeasuredBandInput, UvCorrection, UvEvaluationInput};
-use super::xp::{
-    integrate_photon_flux, integrate_photon_flux_uncertainty, GaiaXpContinuousCalibrator,
-};
+use super::xp::GaiaXpContinuousCalibrator;
 use crate::dataset::Artifact;
 use crate::platform::artifact_store;
 use anyhow::{bail, Context, Result};
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 // Lifecycle inputs and optional calibrators are resolved independently; grouping
@@ -36,6 +37,7 @@ pub(crate) fn build_partitions(
     ultraviolet_config: Option<&UvCorrectionConfig>,
     photometric_config: Option<&ArtifactPinConfig>,
     selection_config: Option<&ArtifactPinConfig>,
+    bright_star_config: Option<&ArtifactPinConfig>,
 ) -> Result<Vec<Artifact>> {
     if partitions.is_empty() {
         return Ok(Vec::new());
@@ -64,6 +66,22 @@ pub(crate) fn build_partitions(
             Ok(correction)
         })
         .transpose()?;
+    let bright_star_artifact = bright_star_config
+        .map(|config| load_bright_star_artifact(&config.artifact_path, &config.sha256))
+        .transpose()?;
+    if let Some(artifact) = &bright_star_artifact {
+        if product_band != StarlightProductBand::Measured336To650 {
+            bail!("measured-336-650 bright-star artifact cannot be used with combined-300-650");
+        }
+        if artifact.nside != canonical_nside {
+            bail!("bright-star artifact nside does not match canonical Starlight nside");
+        }
+    }
+    let suppressed_gaia_source_ids = bright_star_artifact
+        .as_ref()
+        .map(BrightStarArtifact::suppressed_gaia_source_ids)
+        .transpose()?
+        .unwrap_or_default();
     if product_band == StarlightProductBand::Combined300To650 && ultraviolet_correction.is_none() {
         bail!("300–650 nm Starlight product requires a validated UV correction artifact");
     }
@@ -75,6 +93,7 @@ pub(crate) fn build_partitions(
             let ultraviolet_correction = ultraviolet_correction.as_ref();
             let photometric_correction = photometric_correction.as_ref();
             let selection_correction = selection_correction.as_ref();
+            let suppressed_gaia_source_ids = &suppressed_gaia_source_ids;
             let shared_workspace = shared_workspace.as_path();
             handles.push(scope.spawn(move || -> Result<Vec<Artifact>> {
                 chunk
@@ -92,6 +111,7 @@ pub(crate) fn build_partitions(
                             ultraviolet_correction,
                             photometric_correction,
                             selection_correction,
+                            suppressed_gaia_source_ids,
                         )
                     })
                     .collect()
@@ -127,6 +147,7 @@ fn build_partition(
     ultraviolet_correction: Option<&UvCorrection>,
     photometric_correction: Option<&PhotometricCorrection>,
     selection_correction: Option<&SelectionCorrection>,
+    suppressed_gaia_source_ids: &BTreeSet<u64>,
 ) -> Result<Artifact> {
     let gaia_path = acquisition::verified_object_for_partition(
         shared_workspace,
@@ -189,6 +210,17 @@ fn build_partition(
             // position; skip spatial exclusion rather than invent coordinates.
             continue;
         };
+        if suppressed_gaia_source_ids.contains(&source_id) {
+            if !shard.bright_star_suppressed_gaia_ids.insert(source_id) {
+                bail!("Gaia source_id {source_id} was suppressed more than once in one shard");
+            }
+            exclude_gaia_source(
+                &mut shard,
+                gaia_source,
+                "bright_star_replaced_by_supplement",
+            )?;
+            continue;
+        }
         if let Some(reason) = scientific_exclusion_reason(gaia_source) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
             continue;
@@ -200,17 +232,10 @@ fn build_partition(
                 continue;
             }
         };
-        let flux = match integrate_photon_flux(&product) {
-            Ok(flux) if flux.is_finite() && flux > 0.0 => flux,
-            _ => {
-                exclude_gaia_source(&mut shard, gaia_source, "invalid_flux")?;
-                continue;
-            }
-        };
-        let statistical_uncertainty = match integrate_photon_flux_uncertainty(&product) {
-            Ok(uncertainty) if uncertainty.is_finite() && uncertainty >= 0.0 => uncertainty,
-            _ => {
-                exclude_gaia_source(&mut shard, gaia_source, "invalid_uncertainty")?;
+        let (flux, statistical_uncertainty) = match measured_xp_flux_and_uncertainty(&product) {
+            Ok(values) => values,
+            Err(reason) => {
+                exclude_gaia_source(&mut shard, gaia_source, reason)?;
                 continue;
             }
         };
@@ -225,6 +250,10 @@ fn build_partition(
             selection_correction,
         ) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
+        } else if suppressed_gaia_source_ids.contains(&source_id) {
+            shard
+                .bright_star_base_admitted_replacement_gaia_ids
+                .insert(source_id);
         }
     }
 
@@ -234,7 +263,17 @@ fn build_partition(
         .collect();
     remaining.sort_by_key(|(source_id, _)| *source_id);
     for (source_id, gaia_source) in remaining {
-        let _source_id = *source_id;
+        if suppressed_gaia_source_ids.contains(source_id) {
+            if !shard.bright_star_suppressed_gaia_ids.insert(*source_id) {
+                bail!("Gaia source_id {source_id} was suppressed more than once in one shard");
+            }
+            exclude_gaia_source(
+                &mut shard,
+                gaia_source,
+                "bright_star_replaced_by_supplement",
+            )?;
+            continue;
+        }
         if let Some(reason) = scientific_exclusion_reason(gaia_source) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
             continue;
@@ -272,6 +311,10 @@ fn build_partition(
             selection_correction,
         ) {
             exclude_gaia_source(&mut shard, gaia_source, reason)?;
+        } else if suppressed_gaia_source_ids.contains(source_id) {
+            shard
+                .bright_star_base_admitted_replacement_gaia_ids
+                .insert(*source_id);
         }
     }
 
@@ -291,6 +334,34 @@ fn build_partition(
         path: shard_path,
         sha256,
     })
+}
+
+/// Construct the supplement contribution as one synthetic measured-band shard.
+/// Gaia replacements have already been excluded by the worker path above.
+pub(crate) fn bright_star_supplement_shard(
+    artifact: &BrightStarArtifact,
+    verified_artifact_sha256: &str,
+    canonical_nside: u32,
+) -> Result<PartitionShard> {
+    artifact.validate()?;
+    if artifact.nside != canonical_nside {
+        bail!("bright-star artifact nside does not match canonical Starlight nside");
+    }
+    let mut shard = PartitionShard::new("bright-star-supplement", canonical_nside)?;
+    shard.bright_star_supplement_provenance =
+        Some(artifact.supplement_provenance(verified_artifact_sha256)?);
+    shard.bright_star_replacement_gaia_ids = artifact.suppressed_gaia_source_ids()?;
+    for source in &artifact.sources {
+        if matches!(
+            source.class,
+            super::bright_stars::SupplementClass::SupplementOnly
+                | super::bright_stars::SupplementClass::MatchedAndReplacesPrimary
+        ) {
+            shard.admit_bright_star_source(source)?;
+        }
+    }
+    shard.validate()?;
+    Ok(shard)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -321,6 +392,10 @@ fn admit_weighted_source(
     }
     let correction = ultraviolet_correction.ok_or("uv_correction_missing")?;
     let Some(predictors) = &gaia_source.predictors else {
+        // Combined 300–650 requires a scientifically estimated 300–336 nm
+        // contribution. Missing UV predictors exclude the source from the
+        // canonical combined map; Experiment C quantifies the measured
+        // 336–650 nm flux that is thereby omitted (#182).
         return Err("invalid_uv_predictors");
     };
     let evaluation = match correction.evaluate(UvEvaluationInput {
@@ -515,6 +590,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )?;
         assert_eq!(artifacts.len(), 1);
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
@@ -634,6 +710,7 @@ mod tests {
             1,
             256,
             StarlightProductBand::Measured336To650,
+            None,
             None,
             None,
             None,
@@ -836,6 +913,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )?;
         assert_eq!(artifacts.len(), 1);
         let shard: PartitionShard = serde_json::from_slice(&fs::read(&artifacts[0].path)?)?;
@@ -866,6 +944,92 @@ mod tests {
             0,
             "legacy source_id-derived pixel {legacy_pixel} must remain empty"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn bright_star_supplement_shard_carries_verified_provenance() -> Result<()> {
+        use crate::starlight::bright_stars::{
+            BrightStarArtifact, BrightStarPopulationPolicy, BrightStarPrecedencePolicy,
+            BrightStarSourceRecord, CorrelatedUncertainty, SupplementClass, BRIGHT_STAR_MODEL_ID,
+            POPULATION_POLICY_ID_V1, PRECEDENCE_POLICY_ID_V1,
+        };
+
+        let commit = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let sources = vec![
+            BrightStarSourceRecord {
+                source_id: "hip-1".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_336_650_ph_m2_s: 4.0,
+                statistical_uncertainty_ph_m2_s: 0.1,
+                systematic_independent_uncertainty_ph_m2_s: 0.2,
+                systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                    correlation_group_id: "hip2-zero-point".into(),
+                    uncertainty_ph_m2_s: 0.05,
+                }],
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            },
+            BrightStarSourceRecord {
+                source_id: "hip-2".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::MatchedAndReplacesPrimary,
+                gaia_source_id: Some(42),
+                ra_deg_j2016: 11.0,
+                dec_deg_j2016: 21.0,
+                flux_336_650_ph_m2_s: 6.0,
+                statistical_uncertainty_ph_m2_s: 0.1,
+                systematic_independent_uncertainty_ph_m2_s: 0.2,
+                systematic_catalogue_correlated: Vec::new(),
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            },
+            BrightStarSourceRecord {
+                source_id: "hip-3".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::MatchedAndRejectedAsDuplicate,
+                gaia_source_id: Some(99),
+                ra_deg_j2016: 12.0,
+                dec_deg_j2016: 22.0,
+                flux_336_650_ph_m2_s: 100.0,
+                statistical_uncertainty_ph_m2_s: 1.0,
+                systematic_independent_uncertainty_ph_m2_s: 1.0,
+                systematic_catalogue_correlated: Vec::new(),
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            },
+        ];
+        let artifact = BrightStarArtifact::from_sources(
+            1,
+            commit,
+            Vec::new(),
+            sources,
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+        )?;
+        let sha = "e".repeat(64);
+        let shard = bright_star_supplement_shard(&artifact, &sha, 1)?;
+        let provenance = shard.bright_star_supplement_provenance.as_ref().unwrap();
+        assert_eq!(provenance.artifact_sha256, sha);
+        assert_eq!(provenance.model_id, BRIGHT_STAR_MODEL_ID);
+        assert_eq!(provenance.population_policy_id, POPULATION_POLICY_ID_V1);
+        assert_eq!(provenance.precedence_policy_id, PRECEDENCE_POLICY_ID_V1);
+        assert_eq!(provenance.build_commit, commit);
+        assert_eq!(shard.bright_star_replacement_gaia_ids, BTreeSet::from([42]));
+        assert_eq!(
+            shard
+                .pixels
+                .values()
+                .map(|pixel| pixel.admitted_sources)
+                .sum::<u64>(),
+            2
+        );
+        assert!(bright_star_supplement_shard(&artifact, &sha, 2).is_err());
+        assert!(bright_star_supplement_shard(&artifact, "short", 1).is_err());
         Ok(())
     }
 }

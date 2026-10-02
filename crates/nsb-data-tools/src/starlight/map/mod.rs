@@ -1,6 +1,7 @@
 //! Sparse deterministic HEALPix shard accumulation and reconciliation.
 
 pub mod accumulator;
+pub(crate) mod policy_registry;
 pub mod product;
 
 #[cfg(test)]

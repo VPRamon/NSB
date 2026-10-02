@@ -29,7 +29,8 @@ pub struct StableSum {
 }
 
 impl StableSum {
-    fn add(&mut self, value: f64) -> Result<()> {
+    /// Accumulate one finite non-negative value. Order-independent.
+    pub(crate) fn add(&mut self, value: f64) -> Result<()> {
         if !value.is_finite() || (value.is_sign_negative() && value != 0.0) {
             bail!("cannot accumulate a non-finite or negative value");
         }
@@ -52,7 +53,7 @@ impl StableSum {
         Ok(())
     }
 
-    fn merge(&mut self, other: &Self) -> Result<()> {
+    pub(crate) fn merge(&mut self, other: &Self) -> Result<()> {
         other.validate()?;
         for (index, value) in &other.limbs {
             self.add_limb(usize::from(*index), *value)?;
@@ -214,6 +215,10 @@ pub struct PixelAccumulator {
     pub systematic_variance: StableSum,
     /// Fully correlated selected-product systematic uncertainty.
     pub systematic_correlated_uncertainty: StableSum,
+    /// Named catalogue/system correlation groups. Values add linearly within
+    /// a group and distinct groups combine in quadrature.
+    #[serde(default)]
+    pub systematic_correlated_groups: BTreeMap<String, StableSum>,
     pub flux_300_336_ph_m2_s: StableSum,
     pub flux_336_650_ph_m2_s: StableSum,
     pub flux_300_650_ph_m2_s: StableSum,
@@ -235,6 +240,12 @@ impl PixelAccumulator {
         self.systematic_variance.merge(&other.systematic_variance)?;
         self.systematic_correlated_uncertainty
             .merge(&other.systematic_correlated_uncertainty)?;
+        for (group, value) in &other.systematic_correlated_groups {
+            self.systematic_correlated_groups
+                .entry(group.clone())
+                .or_default()
+                .merge(value)?;
+        }
         self.flux_300_336_ph_m2_s
             .merge(&other.flux_300_336_ph_m2_s)?;
         self.flux_336_650_ph_m2_s
@@ -280,13 +291,28 @@ impl PixelAccumulator {
             .and_then(|_| self.statistical_variance_300_650.validate())
             .and_then(|_| self.systematic_variance_300_336_independent.validate())
             .and_then(|_| self.systematic_uncertainty_300_336_correlated.validate())
+            .and_then(|_| {
+                for (group, value) in &self.systematic_correlated_groups {
+                    if group.trim().is_empty() {
+                        bail!("systematic correlation group id must not be empty");
+                    }
+                    value.validate()?;
+                }
+                Ok(())
+            })
     }
 
     pub(crate) fn selected_systematic_uncertainty(&self) -> f64 {
+        let grouped_variance: f64 = self
+            .systematic_correlated_groups
+            .values()
+            .map(|sum| sum.value().powi(2))
+            .sum();
         self.systematic_variance
             .value()
             .sqrt()
             .hypot(self.systematic_correlated_uncertainty.value())
+            .hypot(grouped_variance.sqrt())
     }
 }
 
@@ -314,6 +340,19 @@ pub struct PartitionShard {
     pub pixels: BTreeMap<u32, PixelAccumulator>,
     pub exclusion_reasons: BTreeMap<String, u64>,
     pub ultraviolet_applicability: BTreeMap<ApplicabilityStatus, u64>,
+    /// Replacement identities declared by the synthetic bright-star shard.
+    #[serde(default)]
+    pub bright_star_replacement_gaia_ids: std::collections::BTreeSet<u64>,
+    /// Exact Gaia identities actually excluded by primary-source workers.
+    #[serde(default)]
+    pub bright_star_suppressed_gaia_ids: std::collections::BTreeSet<u64>,
+    /// Replacement identities that nevertheless reached Gaia admission.
+    #[serde(default)]
+    pub bright_star_base_admitted_replacement_gaia_ids: std::collections::BTreeSet<u64>,
+    /// Checksum-verified bright-star supplement identity, when present.
+    #[serde(default)]
+    pub bright_star_supplement_provenance:
+        Option<crate::starlight::bright_stars::BrightStarSupplementProvenance>,
 }
 
 impl PartitionShard {
@@ -369,6 +408,10 @@ impl PartitionShard {
             pixels: BTreeMap::new(),
             exclusion_reasons: BTreeMap::new(),
             ultraviolet_applicability: BTreeMap::new(),
+            bright_star_replacement_gaia_ids: std::collections::BTreeSet::new(),
+            bright_star_suppressed_gaia_ids: std::collections::BTreeSet::new(),
+            bright_star_base_admitted_replacement_gaia_ids: std::collections::BTreeSet::new(),
+            bright_star_supplement_provenance: None,
         })
     }
 
@@ -389,12 +432,50 @@ impl PartitionShard {
                 statistical_uncertainty_300_336_ph_m2_s: 0.0,
                 statistical_uncertainty_336_650_ph_m2_s: statistical_uncertainty,
                 statistical_uncertainty_300_650_ph_m2_s: statistical_uncertainty,
-                systematic_uncertainty_300_336_ph_m2_s: systematic_uncertainty,
+                // Measured-only products have no UV 300–336 contribution; keep the
+                // UV systematic buckets at zero and file photometric/selection
+                // systematics only into the selected / 300–650 systematic path.
+                systematic_uncertainty_300_336_ph_m2_s: 0.0,
                 systematic_uncertainty_300_650_ph_m2_s: systematic_uncertainty,
                 systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
                 applicability_status: None,
             },
         )
+    }
+
+    /// Admit one measured-band bright-star source while preserving named
+    /// catalogue correlation groups.
+    pub fn admit_bright_star_source(
+        &mut self,
+        source: &crate::starlight::bright_stars::BrightStarSourceRecord,
+    ) -> Result<()> {
+        if self.product_band != StarlightProductBand::Measured336To650 {
+            bail!("measured-only bright-star supplement cannot enter a combined 300-650 shard");
+        }
+        let position = IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?;
+        self.admit(
+            position,
+            source.flux_336_650_ph_m2_s,
+            source.statistical_uncertainty_ph_m2_s,
+            source.systematic_independent_uncertainty_ph_m2_s,
+        )?;
+        let pixel = galactic_nested_pixel_from_icrs_position(
+            source.ra_deg_j2016,
+            source.dec_deg_j2016,
+            self.nside,
+        )?;
+        let accumulator = self
+            .pixels
+            .get_mut(&pixel)
+            .context("admitted bright-star pixel missing")?;
+        for term in &source.systematic_catalogue_correlated {
+            accumulator
+                .systematic_correlated_groups
+                .entry(term.correlation_group_id.clone())
+                .or_default()
+                .add(term.uncertainty_ph_m2_s)?;
+        }
+        Ok(())
     }
 
     /// Accumulate an explicitly separated corrected source.
@@ -605,6 +686,22 @@ impl PartitionShard {
         if excluded != reason_total {
             bail!("per-pixel exclusions do not match exclusion reason totals");
         }
+        let suppressed_count = self
+            .exclusion_reasons
+            .get("bright_star_replaced_by_supplement")
+            .copied()
+            .unwrap_or_default();
+        if suppressed_count != self.bright_star_suppressed_gaia_ids.len() as u64 {
+            bail!("bright-star suppressed Gaia identities do not match exclusion accounting");
+        }
+        if let Some(provenance) = &self.bright_star_supplement_provenance {
+            provenance.validate()?;
+        }
+        if !self.bright_star_replacement_gaia_ids.is_empty()
+            && self.bright_star_supplement_provenance.is_none()
+        {
+            bail!("bright-star replacement identities require checksum-verified supplement provenance");
+        }
         let uv_total = self
             .ultraviolet_applicability
             .values()
@@ -682,6 +779,38 @@ pub fn merge_shards(shards: impl IntoIterator<Item = PartitionShard>) -> Result<
             *merged_count = merged_count
                 .checked_add(count)
                 .context("merged UV applicability count overflow")?;
+        }
+        for gaia_source_id in shard.bright_star_replacement_gaia_ids {
+            if !merged
+                .bright_star_replacement_gaia_ids
+                .insert(gaia_source_id)
+            {
+                bail!("duplicate bright-star replacement Gaia source id across shards");
+            }
+        }
+        for gaia_source_id in shard.bright_star_suppressed_gaia_ids {
+            if !merged
+                .bright_star_suppressed_gaia_ids
+                .insert(gaia_source_id)
+            {
+                bail!("duplicate suppressed Gaia source id across shards");
+            }
+        }
+        merged
+            .bright_star_base_admitted_replacement_gaia_ids
+            .extend(shard.bright_star_base_admitted_replacement_gaia_ids);
+        match (
+            merged.bright_star_supplement_provenance.as_ref(),
+            shard.bright_star_supplement_provenance,
+        ) {
+            (_, None) => {}
+            (None, Some(provenance)) => {
+                merged.bright_star_supplement_provenance = Some(provenance);
+            }
+            (Some(existing), Some(provenance)) if existing == &provenance => {}
+            (Some(_), Some(_)) => {
+                bail!("cannot merge Starlight shards with incompatible bright-star supplement provenance");
+            }
         }
     }
     merged.validate()?;

@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "issue": "182",
+  "experiment": "C_exclusion_flux_attribution",
+  "commit": "b96038e",
+  "workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric",
+  "config_path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric/config.toml",
+  "partitions": [
+    "000000-003111",
+    "042767-043485",
+    "060161-060361",
+    "161703-163359",
+    "207630-207656",
+    "221397-221705",
+    "229744-229773",
+    "232829-232893",
+    "245830-245886",
+    "274603-277912",
+    "346274-346449",
+    "380498-380760",
+    "458058-458769",
+    "459641-459651",
+    "460583-460593",
+    "461835-461844",
+    "463353-463371",
+    "465209-465224",
+    "466830-466850",
+    "468191-468203",
+    "470760-470873",
+    "473993-474137",
+    "480077-480386",
+    "484790-484820",
+    "488426-488465",
+    "491480-491562",
+    "512147-512207",
+    "526200-527232",
+    "567099-570398",
+    "597435-597472",
+    "606444-606469",
+    "610680-610874",
+    "629319-629486",
+    "642710-643213",
+    "661759-661836",
+    "664490-664526",
+    "666378-666393",
+    "668221-668244",
+    "670863-670917",
+    "674361-674374",
+    "676303-676332",
+    "677864-677882",
+    "679973-680038",
+    "684301-684335",
+    "686934-687105",
+    "691303-691436",
+    "718778-720122",
+    "763561-763702"
+  ],
+  "partition_count": 48,
+  "observed_sources": 25624960,
+  "admitted_sources": 21581555,
+  "excluded_sources": 4043405,
+  "admitted": {
+    "source_count": 21581555,
+    "sum_raw_flux_336_650_ph_m2_s": 146522444023.16193,
+    "sum_selection_weighted_flux_336_650_ph_m2_s": 147056036288.80255,
+    "sum_weighted_flux_300_650_ph_m2_s": 151740413652.83228,
+    "sum_uv_flux_300_336_ph_m2_s": 4684377364.029746
+  },
+  "by_exclusion_reason": {
+    "duplicated_source": {
+      "source_count": 216366,
+      "sum_raw_flux_336_650_ph_m2_s": 0.0,
+      "sum_selection_weighted_flux_336_650_ph_m2_s": 0.0,
+      "sum_weighted_flux_300_650_ph_m2_s": 0.0,
+      "sum_uv_flux_300_336_ph_m2_s": 0.0
+    },
+    "invalid_flux": {
+      "source_count": 880,
+      "sum_raw_flux_336_650_ph_m2_s": 0.0,
+      "sum_selection_weighted_flux_336_650_ph_m2_s": 0.0,
+      "sum_weighted_flux_300_650_ph_m2_s": 0.0,
+      "sum_uv_flux_300_336_ph_m2_s": 0.0
+    },
+    "invalid_uv_predictors": {
+      "source_count": 3565954,
+      "sum_raw_flux_336_650_ph_m2_s": 820807588.1086702,
+      "sum_selection_weighted_flux_336_650_ph_m2_s": 985707377.1037408,
+      "sum_weighted_flux_300_650_ph_m2_s": 0.0,
+      "sum_uv_flux_300_336_ph_m2_s": 0.0,
+      "predictor_failure_detail": {
+        "missing_bp_rp": 3565954
+      }
+    },
+    "no_usable_photometry": {
+      "source_count": 68991,
+      "sum_raw_flux_336_650_ph_m2_s": 0.0,
+      "sum_selection_weighted_flux_336_650_ph_m2_s": 0.0,
+      "sum_weighted_flux_300_650_ph_m2_s": 0.0,
+      "sum_uv_flux_300_336_ph_m2_s": 0.0
+    },
+    "scientific_exclusion_nonstellar": {
+      "source_count": 191214,
+      "sum_raw_flux_336_650_ph_m2_s": 0.0,
+      "sum_selection_weighted_flux_336_650_ph_m2_s": 0.0,
+      "sum_weighted_flux_300_650_ph_m2_s": 0.0,
+      "sum_uv_flux_300_336_ph_m2_s": 0.0
+    }
+  },
+  "totals": {
+    "admitted_weighted_flux_300_650_ph_m2_s": 151740413652.83228,
+    "admitted_weighted_flux_336_650_ph_m2_s": 147056036288.80255,
+    "admitted_uv_flux_300_336_ph_m2_s": 4684377364.029746,
+    "excluded_with_measured_336_650_source_count": 3565954,
+    "excluded_selection_weighted_flux_336_650_ph_m2_s": 985707377.1037408,
+    "invalid_uv_predictors_selection_weighted_flux_336_650_ph_m2_s": 985707377.1037408,
+    "counterfactual_retain_invalid_uv_measured_only_flux_ph_m2_s": 152726121029.936,
+    "invalid_uv_lost_flux_over_admitted_combined": 0.006496010873932017,
+    "invalid_uv_lost_flux_over_estimated_nsb2_total": 0.004910984220692605
+  },
+  "interpretation": [
+    "selection-weighted 336-650 flux for invalid_uv_predictors is the measured Gaia contribution discarded by the production whole-source exclusion policy (sources lacking UV predictors are not admitted into the canonical 300-650 map)",
+    "counterfactual_retain_invalid_uv_measured_only adds that discarded measured flux without inventing a 300-336 nm correction; it is diagnostic only and is not a production admission path",
+    "XP calibration failures are recorded as calibration_failed and never fall through to photometric inference, matching production worker routing",
+    "invalid_uv_lost_flux_over_estimated_nsb2_total uses the #182 baseline ratio NSB/nsb2≈0.756 applied to this sample's admitted combined flux",
+    "UV predictors for the production artifact are bp_rp and phot_g_mean_mag; predictor_failure_detail separates missing colour vs magnitude",
+    "flux totals are accumulated with StableSum over partitions sorted by name and remaining Gaia sources sorted by source_id, so identical inputs yield byte-identical reports"
+  ]
+}

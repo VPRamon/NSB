@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "calibration_id": "bright-star-spectral-calibration-v1",
+  "status": "provisional-uncalibrated",
+  "software_commit": null,
+  "input_sha256": {},
+  "sample_definition": "No empirical XP/CALSPEC validation population has yet been frozen.",
+  "number_of_stars": 0,
+  "spectral_type_coverage": null,
+  "magnitude_range": null,
+  "colour_range": null,
+  "residual_metrics": null,
+  "outlier_policy": null,
+  "uncertainty_parameters": {
+    "template_mismatch_fraction": 0.10,
+    "spectral_type_mapping_fraction": 0.05,
+    "hp_zero_point_fraction": 0.01
+  },
+  "parameter_status": "provisional engineering bounds; not empirically calibrated",
+  "applicability": "experimental measured-336-650 bright-star cross-comparison only",
+  "limitations": [
+    "Values must not be described as calibrated uncertainties.",
+    "The supplement must remain experimental and scientifically_validated=false.",
+    "Production-candidate promotion is forbidden until this artifact is replaced by empirical calibration evidence."
+  ]
+}
