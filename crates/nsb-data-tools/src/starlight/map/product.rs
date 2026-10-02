@@ -2196,6 +2196,19 @@ mod tests {
             canonical_merge_bytes(&with).unwrap(),
             canonical_merge_bytes(&with).unwrap()
         );
+
+        let mut combined = with.clone();
+        let mut provenance = fixture_bright_star_provenance('d');
+        provenance.model_id = crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID_COMBINED.into();
+        provenance.product_band =
+            crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID.into();
+        provenance.spectral_reconstruction_model_id =
+            Some(crate::starlight::bright_stars::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into());
+        combined.bright_star_supplement_provenance = Some(provenance);
+        assert_ne!(
+            canonical_merge_bytes(&with).unwrap(),
+            canonical_merge_bytes(&combined).unwrap()
+        );
     }
 
     #[test]

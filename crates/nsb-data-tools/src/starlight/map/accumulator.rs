@@ -328,6 +328,26 @@ pub struct UvCorrectionShardMetadata {
     pub systematic_correlation: SystematicCorrelation,
 }
 
+impl UvCorrectionShardMetadata {
+    pub fn from_correction(correction: &crate::starlight::uv::UvCorrection) -> Self {
+        Self {
+            model_id: correction.artifact().model_id.clone(),
+            artifact_sha256: correction.artifact_sha256().to_string(),
+            calibration_status: correction.artifact().calibration_status,
+            response: correction.artifact().response.clone(),
+            measured_conditional_residual_statistical_correlation_bits: correction
+                .artifact()
+                .uncertainty_model
+                .measured_conditional_residual_statistical_correlation
+                .to_bits(),
+            systematic_correlation: correction
+                .artifact()
+                .uncertainty_model
+                .systematic_correlation,
+        }
+    }
+}
+
 /// Sparse result emitted by one immutable source partition.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1012,6 +1032,105 @@ mod tests {
         json["schema_version"] = serde_json::json!(2);
         let old: PartitionShard = serde_json::from_value(json)?;
         assert!(old.validate().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn bright_star_admission_rejects_product_band_mismatches() -> Result<()> {
+        use crate::starlight::bright_stars::{
+            BrightStarArtifactProductBand, BrightStarBandComponents, BrightStarSourceRecord,
+            CorrelatedUncertainty, SupplementClass,
+        };
+        use crate::starlight::uv::{CalibrationStatus, ModelResponse, SystematicCorrelation};
+
+        let source = |components: Option<BrightStarBandComponents>| BrightStarSourceRecord {
+            source_id: "hip-1".into(),
+            origin_catalogue: "hip2".into(),
+            class: SupplementClass::SupplementOnly,
+            gaia_source_id: None,
+            ra_deg_j2016: 10.0,
+            dec_deg_j2016: 20.0,
+            flux_336_650_ph_m2_s: 4.0,
+            statistical_uncertainty_ph_m2_s: 0.1,
+            systematic_independent_uncertainty_ph_m2_s: 0.2,
+            systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.05,
+            }],
+            band_components: components,
+            spectral_route: "fixture".into(),
+            classification_reason: "fixture".into(),
+        };
+        let components = BrightStarBandComponents {
+            flux_300_336_ph_m2_s: 1.0,
+            flux_300_650_ph_m2_s: 5.0,
+            statistical_uncertainty_300_336_ph_m2_s: 0.025,
+            statistical_uncertainty_300_650_ph_m2_s: 0.125,
+            systematic_independent_uncertainty_300_336_ph_m2_s: 0.05,
+            systematic_independent_uncertainty_300_650_ph_m2_s: 0.25,
+            systematic_catalogue_correlated_300_336: Vec::new(),
+            systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.0625,
+            }],
+        };
+
+        let mut measured = PartitionShard::new("measured", 1)?;
+        assert!(measured
+            .admit_bright_star_source(
+                &source(Some(components.clone())),
+                BrightStarArtifactProductBand::Measured336To650,
+            )
+            .is_err());
+        assert!(measured
+            .admit_bright_star_source(
+                &source(None),
+                BrightStarArtifactProductBand::Combined300To650,
+            )
+            .is_err());
+        measured.admit_bright_star_source(
+            &source(None),
+            BrightStarArtifactProductBand::Measured336To650,
+        )?;
+        assert_eq!(
+            measured
+                .pixels
+                .values()
+                .map(|pixel| pixel.admitted_sources)
+                .sum::<u64>(),
+            1
+        );
+
+        let metadata = UvCorrectionShardMetadata {
+            model_id: "fixture".into(),
+            artifact_sha256: "a".repeat(64),
+            calibration_status: CalibrationStatus::Validated,
+            response: ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
+        };
+        let mut combined = PartitionShard::new_with_policy(
+            "combined",
+            1,
+            StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )?;
+        assert!(combined
+            .admit_bright_star_source(
+                &source(None),
+                BrightStarArtifactProductBand::Combined300To650
+            )
+            .is_err());
+        assert!(combined
+            .admit_bright_star_source(
+                &source(None),
+                BrightStarArtifactProductBand::Measured336To650,
+            )
+            .is_err());
+        combined.admit_bright_star_source(
+            &source(Some(components)),
+            BrightStarArtifactProductBand::Combined300To650,
+        )?;
         Ok(())
     }
 }

@@ -109,64 +109,7 @@ impl DatasetPipeline for StarlightPipeline {
             })
             .transpose()?;
         let mut expected = expected;
-        if let Some(pin) = &starlight.bright_star_supplement {
-            let artifact =
-                super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
-            let artifact_band = artifact.product_band_kind()?;
-            let compatible = matches!(
-                (starlight.product_band, artifact_band),
-                (
-                    super::config::StarlightProductBand::Measured336To650,
-                    super::bright_stars::BrightStarArtifactProductBand::Measured336To650,
-                ) | (
-                    super::config::StarlightProductBand::Combined300To650,
-                    super::bright_stars::BrightStarArtifactProductBand::Combined300To650,
-                )
-            );
-            if !compatible {
-                bail!(
-                    "bright-star artifact product_band {} is incompatible with configured Starlight product band",
-                    artifact.product_band
-                );
-            }
-            let ultraviolet_metadata = match starlight.product_band {
-                super::config::StarlightProductBand::Measured336To650 => None,
-                super::config::StarlightProductBand::Combined300To650 => {
-                    let uv_pin = starlight.ultraviolet_correction.as_ref().context(
-                        "combined bright-star finalize requires ultraviolet_correction pin",
-                    )?;
-                    let correction =
-                        super::uv::UvCorrection::load(&uv_pin.artifact_path, &uv_pin.sha256)?;
-                    correction.require_production_status()?;
-                    Some(super::map::accumulator::UvCorrectionShardMetadata {
-                        model_id: correction.artifact().model_id.clone(),
-                        artifact_sha256: correction.artifact_sha256().to_string(),
-                        calibration_status: correction.artifact().calibration_status,
-                        response: correction.artifact().response.clone(),
-                        measured_conditional_residual_statistical_correlation_bits: correction
-                            .artifact()
-                            .uncertainty_model
-                            .measured_conditional_residual_statistical_correlation
-                            .to_bits(),
-                        systematic_correlation: correction
-                            .artifact()
-                            .uncertainty_model
-                            .systematic_correlation,
-                    })
-                }
-            };
-            let shard = super::worker::bright_star_supplement_shard(
-                &artifact,
-                &pin.sha256,
-                starlight.map.canonical_nside,
-                starlight.product_band,
-                ultraviolet_metadata,
-            )?;
-            let shard_path = config
-                .workspace
-                .root
-                .join("outputs/shards/bright-star-supplement.json");
-            shard.write(&shard_path)?;
+        if prepare_bright_star_supplement_for_finalize(starlight, &config.workspace.root)? {
             expected.push("bright-star-supplement".to_string());
             expected.sort();
         }
@@ -263,20 +206,7 @@ impl DatasetPipeline for StarlightPipeline {
         if let Some(pin) = &starlight.bright_star_supplement {
             let artifact =
                 super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
-            let artifact_band = artifact.product_band_kind()?;
-            let compatible = matches!(
-                (starlight.product_band, artifact_band),
-                (
-                    super::config::StarlightProductBand::Measured336To650,
-                    super::bright_stars::BrightStarArtifactProductBand::Measured336To650,
-                ) | (
-                    super::config::StarlightProductBand::Combined300To650,
-                    super::bright_stars::BrightStarArtifactProductBand::Combined300To650,
-                )
-            );
-            if !compatible {
-                bail!("bright-star supplement spectral coverage is incompatible with configured Starlight product band");
-            }
+            ensure_bright_star_product_compatible(starlight.product_band, &artifact)?;
         }
         for product in &starlight.gaia_products {
             if product.id.trim().is_empty()
@@ -327,6 +257,68 @@ fn production_output_names(canonical_nside: u32) -> Vec<String> {
         format!("starlight_nside{canonical_nside}.csv"),
         "merge_report.json".to_string(),
     ]
+}
+
+pub(crate) fn prepare_bright_star_supplement_for_finalize(
+    starlight: &super::config::StarlightConfig,
+    workspace_root: &Path,
+) -> Result<bool> {
+    let Some(pin) = &starlight.bright_star_supplement else {
+        return Ok(false);
+    };
+    let artifact = super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
+    ensure_bright_star_product_compatible(starlight.product_band, &artifact)?;
+    let ultraviolet_metadata = match starlight.product_band {
+        super::config::StarlightProductBand::Measured336To650 => None,
+        super::config::StarlightProductBand::Combined300To650 => {
+            let uv_pin = starlight
+                .ultraviolet_correction
+                .as_ref()
+                .context("combined bright-star finalize requires ultraviolet_correction pin")?;
+            let correction = super::uv::UvCorrection::load(&uv_pin.artifact_path, &uv_pin.sha256)?;
+            correction.require_production_status()?;
+            Some(uv_correction_shard_metadata(&correction))
+        }
+    };
+    let shard = super::worker::bright_star_supplement_shard(
+        &artifact,
+        &pin.sha256,
+        starlight.map.canonical_nside,
+        starlight.product_band,
+        ultraviolet_metadata,
+    )?;
+    let shard_path = workspace_root.join("outputs/shards/bright-star-supplement.json");
+    shard.write(&shard_path)?;
+    Ok(true)
+}
+
+pub(crate) fn ensure_bright_star_product_compatible(
+    product_band: super::config::StarlightProductBand,
+    artifact: &super::bright_stars::BrightStarArtifact,
+) -> Result<()> {
+    let artifact_band = artifact.product_band_kind()?;
+    let compatible = matches!(
+        (product_band, artifact_band),
+        (
+            super::config::StarlightProductBand::Measured336To650,
+            super::bright_stars::BrightStarArtifactProductBand::Measured336To650,
+        ) | (
+            super::config::StarlightProductBand::Combined300To650,
+            super::bright_stars::BrightStarArtifactProductBand::Combined300To650,
+        )
+    );
+    if !compatible {
+        bail!(
+            "bright-star supplement spectral coverage is incompatible with configured Starlight product band"
+        );
+    }
+    Ok(())
+}
+
+pub(crate) fn uv_correction_shard_metadata(
+    correction: &super::uv::UvCorrection,
+) -> super::map::accumulator::UvCorrectionShardMetadata {
+    super::map::accumulator::UvCorrectionShardMetadata::from_correction(correction)
 }
 
 #[cfg(test)]
@@ -544,5 +536,323 @@ lease_timeout_seconds = 60
         assert!(err
             .to_string()
             .contains("requires at least one Gaia product inventory"));
+    }
+
+    #[test]
+    fn bright_star_product_compatibility_matrix() {
+        use crate::starlight::bright_stars::{
+            BrightStarArtifact, BrightStarArtifactProductBand, BrightStarBandComponents,
+            BrightStarPopulationPolicy, BrightStarPrecedencePolicy, BrightStarSourceRecord,
+            CorrelatedUncertainty, SupplementClass,
+        };
+
+        let measured = BrightStarArtifact::from_sources(
+            1,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            Vec::new(),
+            vec![BrightStarSourceRecord {
+                source_id: "hip-1".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_336_650_ph_m2_s: 1.0,
+                statistical_uncertainty_ph_m2_s: 0.01,
+                systematic_independent_uncertainty_ph_m2_s: 0.02,
+                systematic_catalogue_correlated: Vec::new(),
+                band_components: None,
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            }],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+        )
+        .unwrap();
+        assert!(ensure_bright_star_product_compatible(
+            StarlightProductBand::Measured336To650,
+            &measured
+        )
+        .is_ok());
+        assert!(ensure_bright_star_product_compatible(
+            StarlightProductBand::Combined300To650,
+            &measured
+        )
+        .is_err());
+
+        let combined = BrightStarArtifact::from_sources_for_band(
+            1,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            Vec::new(),
+            vec![BrightStarSourceRecord {
+                source_id: "hip-1".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_336_650_ph_m2_s: 4.0,
+                statistical_uncertainty_ph_m2_s: 0.04,
+                systematic_independent_uncertainty_ph_m2_s: 0.08,
+                systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                    correlation_group_id: "hip2-zero-point".into(),
+                    uncertainty_ph_m2_s: 0.12,
+                }],
+                band_components: Some(BrightStarBandComponents {
+                    flux_300_336_ph_m2_s: 1.0,
+                    flux_300_650_ph_m2_s: 5.0,
+                    statistical_uncertainty_300_336_ph_m2_s: 0.01,
+                    statistical_uncertainty_300_650_ph_m2_s: 0.05,
+                    systematic_independent_uncertainty_300_336_ph_m2_s: 0.02,
+                    systematic_independent_uncertainty_300_650_ph_m2_s: 0.10,
+                    systematic_catalogue_correlated_300_336: vec![CorrelatedUncertainty {
+                        correlation_group_id: "hip2-zero-point".into(),
+                        uncertainty_ph_m2_s: 0.03,
+                    }],
+                    systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
+                        correlation_group_id: "hip2-zero-point".into(),
+                        uncertainty_ph_m2_s: 0.15,
+                    }],
+                }),
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            }],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .unwrap();
+        assert!(ensure_bright_star_product_compatible(
+            StarlightProductBand::Combined300To650,
+            &combined
+        )
+        .is_ok());
+        assert!(ensure_bright_star_product_compatible(
+            StarlightProductBand::Measured336To650,
+            &combined
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn validate_config_rejects_measured_artifact_under_combined_product() {
+        use crate::platform::checksum_io;
+        use crate::starlight::bright_stars::{
+            BrightStarArtifact, BrightStarPopulationPolicy, BrightStarPrecedencePolicy,
+            BrightStarSourceRecord, SupplementClass,
+        };
+        use std::fs;
+
+        let temp = tempfile::tempdir().unwrap();
+        let artifact = BrightStarArtifact::from_sources(
+            1,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            Vec::new(),
+            vec![BrightStarSourceRecord {
+                source_id: "hip-1".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_336_650_ph_m2_s: 1.0,
+                statistical_uncertainty_ph_m2_s: 0.01,
+                systematic_independent_uncertainty_ph_m2_s: 0.02,
+                systematic_catalogue_correlated: Vec::new(),
+                band_components: None,
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            }],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+        )
+        .unwrap();
+        let path = temp.path().join("measured.json");
+        fs::write(&path, artifact.to_json_pretty().unwrap()).unwrap();
+        let sha = checksum_io::sha256_file(&path).unwrap();
+
+        let mut starlight = measured_config();
+        starlight.product_band = StarlightProductBand::Combined300To650;
+        starlight.ultraviolet_correction = Some(ArtifactPinConfig {
+            artifact_path: PathBuf::from("uv.json"),
+            sha256: "d".repeat(64),
+        });
+        starlight.bright_star_supplement = Some(ArtifactPinConfig {
+            artifact_path: path,
+            sha256: sha,
+        });
+        let err = PIPELINE
+            .validate_config(&base_config(Some(starlight)))
+            .expect_err("measured artifact under combined product");
+        assert!(err
+            .to_string()
+            .contains("incompatible with configured Starlight product band"));
+    }
+
+    #[test]
+    fn uv_correction_shard_metadata_round_trips_fixture_fields() {
+        use crate::starlight::uv::{
+            CalibrationStatus, ModelResponse, SystematicCorrelation, UvCorrection,
+        };
+
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/uv_synthetic_non_production/artifact.json");
+        let bytes = std::fs::read(&fixture).unwrap();
+        let sha = crate::platform::checksum_io::sha256_bytes(&bytes);
+        // Load bypasses production status; metadata extraction must still work.
+        let correction = UvCorrection::load(&fixture, &sha).unwrap();
+        let metadata = uv_correction_shard_metadata(&correction);
+        assert_eq!(metadata.model_id, correction.artifact().model_id);
+        assert_eq!(metadata.artifact_sha256, sha);
+        assert_eq!(
+            metadata.calibration_status,
+            correction.artifact().calibration_status
+        );
+        assert_eq!(&metadata.response, &correction.artifact().response);
+        assert_eq!(
+            metadata.systematic_correlation,
+            correction
+                .artifact()
+                .uncertainty_model
+                .systematic_correlation
+        );
+        let _ = (
+            CalibrationStatus::Validated,
+            ModelResponse::AbsoluteUvPhotonFlux,
+            SystematicCorrelation::IndependentBetweenSources,
+        );
+    }
+
+    #[test]
+    fn prepare_bright_star_supplement_writes_measured_and_combined_shards() {
+        use crate::platform::checksum_io;
+        use crate::starlight::bright_stars::{
+            BrightStarArtifact, BrightStarArtifactProductBand, BrightStarBandComponents,
+            BrightStarPopulationPolicy, BrightStarPrecedencePolicy, BrightStarSourceRecord,
+            CorrelatedUncertainty, SupplementClass,
+        };
+        use std::fs;
+
+        let temp = tempfile::tempdir().unwrap();
+        let measured = BrightStarArtifact::from_sources(
+            1,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            Vec::new(),
+            vec![BrightStarSourceRecord {
+                source_id: "hip-1".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_336_650_ph_m2_s: 1.0,
+                statistical_uncertainty_ph_m2_s: 0.01,
+                systematic_independent_uncertainty_ph_m2_s: 0.02,
+                systematic_catalogue_correlated: Vec::new(),
+                band_components: None,
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            }],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+        )
+        .unwrap();
+        let measured_path = temp.path().join("measured.json");
+        fs::write(&measured_path, measured.to_json_pretty().unwrap()).unwrap();
+        let measured_sha = checksum_io::sha256_file(&measured_path).unwrap();
+
+        let mut measured_cfg = measured_config();
+        measured_cfg.map.canonical_nside = 1;
+        measured_cfg.bright_star_supplement = Some(ArtifactPinConfig {
+            artifact_path: measured_path,
+            sha256: measured_sha,
+        });
+        assert!(prepare_bright_star_supplement_for_finalize(&measured_cfg, temp.path()).unwrap());
+        assert!(temp
+            .path()
+            .join("outputs/shards/bright-star-supplement.json")
+            .is_file());
+
+        let combined = BrightStarArtifact::from_sources_for_band(
+            1,
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            Vec::new(),
+            vec![BrightStarSourceRecord {
+                source_id: "hip-1".into(),
+                origin_catalogue: "hip2".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_336_650_ph_m2_s: 4.0,
+                statistical_uncertainty_ph_m2_s: 0.04,
+                systematic_independent_uncertainty_ph_m2_s: 0.08,
+                systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                    correlation_group_id: "hip2-zero-point".into(),
+                    uncertainty_ph_m2_s: 0.12,
+                }],
+                band_components: Some(BrightStarBandComponents {
+                    flux_300_336_ph_m2_s: 1.0,
+                    flux_300_650_ph_m2_s: 5.0,
+                    statistical_uncertainty_300_336_ph_m2_s: 0.01,
+                    statistical_uncertainty_300_650_ph_m2_s: 0.05,
+                    systematic_independent_uncertainty_300_336_ph_m2_s: 0.02,
+                    systematic_independent_uncertainty_300_650_ph_m2_s: 0.10,
+                    systematic_catalogue_correlated_300_336: vec![CorrelatedUncertainty {
+                        correlation_group_id: "hip2-zero-point".into(),
+                        uncertainty_ph_m2_s: 0.03,
+                    }],
+                    systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
+                        correlation_group_id: "hip2-zero-point".into(),
+                        uncertainty_ph_m2_s: 0.15,
+                    }],
+                }),
+                spectral_route: "fixture".into(),
+                classification_reason: "fixture".into(),
+            }],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .unwrap();
+        let combined_path = temp.path().join("combined.json");
+        fs::write(&combined_path, combined.to_json_pretty().unwrap()).unwrap();
+        let combined_sha = checksum_io::sha256_file(&combined_path).unwrap();
+
+        let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/uv_synthetic_non_production/artifact.json");
+        let mut uv_json: serde_json::Value =
+            serde_json::from_slice(&fs::read(&fixture).unwrap()).unwrap();
+        uv_json["calibration_status"] = serde_json::json!("validated");
+        let uv_path = temp.path().join("uv-validated.json");
+        fs::write(&uv_path, serde_json::to_vec_pretty(&uv_json).unwrap()).unwrap();
+        let uv_sha = checksum_io::sha256_file(&uv_path).unwrap();
+
+        let mut combined_cfg = measured_config();
+        combined_cfg.map.canonical_nside = 1;
+        combined_cfg.product_band = StarlightProductBand::Combined300To650;
+        combined_cfg.ultraviolet_correction = Some(ArtifactPinConfig {
+            artifact_path: uv_path,
+            sha256: uv_sha,
+        });
+        combined_cfg.bright_star_supplement = Some(ArtifactPinConfig {
+            artifact_path: combined_path,
+            sha256: combined_sha,
+        });
+        let combined_root = temp.path().join("combined-run");
+        assert!(
+            prepare_bright_star_supplement_for_finalize(&combined_cfg, &combined_root).unwrap()
+        );
+        assert!(combined_root
+            .join("outputs/shards/bright-star-supplement.json")
+            .is_file());
+
+        combined_cfg.ultraviolet_correction = None;
+        assert!(
+            prepare_bright_star_supplement_for_finalize(&combined_cfg, &combined_root).is_err()
+        );
+        assert!(
+            !prepare_bright_star_supplement_for_finalize(&measured_config(), temp.path()).unwrap()
+        );
     }
 }

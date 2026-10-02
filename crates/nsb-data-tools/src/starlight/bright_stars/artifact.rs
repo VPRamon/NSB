@@ -183,13 +183,7 @@ impl BrightStarSupplementProvenance {
         }
         match product_band {
             BrightStarArtifactProductBand::Measured336To650 => {
-                if self.spectral_reconstruction_model_id.is_some() {
-                    // Measured-only provenance may omit the reconstruction id;
-                    // an unexpected value is accepted only when it matches the
-                    // known reconstruction model used to build the measured flux.
-                    let Some(model_id) = &self.spectral_reconstruction_model_id else {
-                        unreachable!()
-                    };
+                if let Some(model_id) = &self.spectral_reconstruction_model_id {
                     if model_id != super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1 {
                         bail!("bright-star measured provenance has unknown spectral reconstruction model");
                     }
@@ -1191,6 +1185,109 @@ mod tests {
             &fixture_commit(),
             Vec::new(),
             vec![drifted],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn provenance_defaults_and_spectral_model_contracts() {
+        let measured = artifact(vec![source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0,
+        )])
+        .unwrap();
+        let sha = "c".repeat(64);
+        let mut provenance = measured.supplement_provenance(&sha).unwrap();
+        let legacy = serde_json::json!({
+            "artifact_sha256": sha,
+            "model_id": BRIGHT_STAR_MODEL_ID,
+            "population_policy_id": BrightStarPopulationPolicy::v1().policy_id,
+            "precedence_policy_id": BrightStarPrecedencePolicy::v1().policy_id,
+            "build_commit": fixture_commit(),
+        });
+        let decoded: BrightStarSupplementProvenance = serde_json::from_value(legacy).unwrap();
+        assert_eq!(decoded.product_band, BRIGHT_STAR_PRODUCT_BAND_ID);
+        assert!(decoded.validate().is_ok());
+
+        provenance.spectral_reconstruction_model_id =
+            Some(super::super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into());
+        assert!(provenance.validate().is_ok());
+        provenance.spectral_reconstruction_model_id = Some("unknown-model".into());
+        assert!(provenance.validate().is_err());
+
+        let combined = BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![combined_source(
+                "a",
+                SupplementClass::SupplementOnly,
+                None,
+                1.0,
+                0.2,
+            )],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .unwrap();
+        let mut combined_prov = combined.supplement_provenance(&sha).unwrap();
+        assert!(combined_prov.validate().is_ok());
+        combined_prov.spectral_reconstruction_model_id = None;
+        assert!(combined_prov.validate().is_err());
+    }
+
+    #[test]
+    fn combined_source_rejects_invalid_uv_flux_and_uncertainty_drift() {
+        let zero_uv = combined_source("a", SupplementClass::SupplementOnly, None, 1.0, 0.0);
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![zero_uv],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
+
+        let mut bad_stat = combined_source("a", SupplementClass::SupplementOnly, None, 1.0, 0.2);
+        bad_stat
+            .band_components
+            .as_mut()
+            .unwrap()
+            .statistical_uncertainty_300_650_ph_m2_s = 9.0;
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![bad_stat],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
+
+        let mut bad_group = combined_source("a", SupplementClass::SupplementOnly, None, 1.0, 0.2);
+        bad_group
+            .band_components
+            .as_mut()
+            .unwrap()
+            .systematic_catalogue_correlated_300_336
+            .push(CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.01,
+            });
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![bad_group],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
             BrightStarArtifactProductBand::Combined300To650,

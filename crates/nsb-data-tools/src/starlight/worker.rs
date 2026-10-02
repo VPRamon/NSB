@@ -70,23 +70,7 @@ pub(crate) fn build_partitions(
         .map(|config| load_bright_star_artifact(&config.artifact_path, &config.sha256))
         .transpose()?;
     if let Some(artifact) = &bright_star_artifact {
-        let artifact_band = artifact.product_band_kind()?;
-        match (product_band, artifact_band) {
-            (
-                StarlightProductBand::Measured336To650,
-                crate::starlight::bright_stars::BrightStarArtifactProductBand::Measured336To650,
-            )
-            | (
-                StarlightProductBand::Combined300To650,
-                crate::starlight::bright_stars::BrightStarArtifactProductBand::Combined300To650,
-            ) => {}
-            (StarlightProductBand::Combined300To650, _) => {
-                bail!("measured-only bright-star artifact cannot be used with combined-300-650");
-            }
-            (StarlightProductBand::Measured336To650, _) => {
-                bail!("combined bright-star artifact cannot be used with measured-336-650");
-            }
-        }
+        super::pipeline::ensure_bright_star_product_compatible(product_band, artifact)?;
         if artifact.nside != canonical_nside {
             bail!("bright-star artifact nside does not match canonical Starlight nside");
         }
@@ -186,21 +170,8 @@ fn build_partition(
         })
         .unwrap_or_default();
     let gaia_sources = load_gaia_sources(&gaia_path, &predictor_names)?;
-    let ultraviolet_metadata = ultraviolet_correction.map(|correction| UvCorrectionShardMetadata {
-        model_id: correction.artifact().model_id.clone(),
-        artifact_sha256: correction.artifact_sha256().to_string(),
-        calibration_status: correction.artifact().calibration_status,
-        response: correction.artifact().response.clone(),
-        measured_conditional_residual_statistical_correlation_bits: correction
-            .artifact()
-            .uncertainty_model
-            .measured_conditional_residual_statistical_correlation
-            .to_bits(),
-        systematic_correlation: correction
-            .artifact()
-            .uncertainty_model
-            .systematic_correlation,
-    });
+    let ultraviolet_metadata =
+        ultraviolet_correction.map(UvCorrectionShardMetadata::from_correction);
     let mut shard = PartitionShard::new_with_policy(
         partition_id,
         canonical_nside,
