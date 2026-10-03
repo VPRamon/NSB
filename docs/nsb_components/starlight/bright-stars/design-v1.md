@@ -159,6 +159,15 @@ flux_300_650 = flux_300_336 + flux_336_650
 Relative Hp / template / SpT uncertainties are shared by both band integrals,
 so absolute band uncertainties combine linearly (perfect correlation).
 
+Schema 2 is fail-closed on spectral provenance. It carries
+`spectral_reconstruction_model_id = xhip-sptype-ck04-v2-hp-bessell2000-v1`,
+requires checksum-pinned provenance for the spectral-type catalogue, CK04
+template library, Hp response curve, photometric zero point, and spectral-model
+build artifact, and requires every admitted source's `spectral_route` to be
+namespaced by that same model id. A combined artifact missing any of those
+identities is invalid even if its numeric band components are internally
+self-consistent.
+
 Route priority:
 
 1. If a matched Gaia source has **valid XP** and passes the quality gate →
