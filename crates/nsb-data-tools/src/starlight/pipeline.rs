@@ -325,6 +325,7 @@ pub(crate) fn uv_correction_shard_metadata(
 mod tests {
     use super::*;
     use crate::dataset::RunConfig;
+    use crate::starlight::bright_stars::{BrightStarInputProvenance, BrightStarInputRole};
     use crate::starlight::config::{
         AcquisitionConfig, ArtifactPinConfig, GaiaProductConfig, OfficialChecksumAlgorithm,
         StarlightConfig, StarlightMapConfig, StarlightProductBand,
@@ -365,6 +366,33 @@ lease_timeout_seconds = 60
         .expect("minimal starlight run config");
         config.starlight = starlight;
         config
+    }
+
+    fn combined_inputs() -> Vec<BrightStarInputProvenance> {
+        let input = |role, source_id: &str| BrightStarInputProvenance {
+            role,
+            source_id: source_id.into(),
+            release: "fixture-v1".into(),
+            sha256: "a".repeat(64),
+            retrieval_url: "https://example.invalid/source".into(),
+            license_or_terms_url: "https://example.invalid/terms".into(),
+        };
+        vec![
+            input(BrightStarInputRole::SpectralTypeCatalogue, "xhip-fixture"),
+            input(BrightStarInputRole::SpectralTemplateLibrary, "ck04-fixture"),
+            input(
+                BrightStarInputRole::PhotometricResponseCurve,
+                "hp-response-fixture",
+            ),
+            input(
+                BrightStarInputRole::PhotometricZeroPoint,
+                "hp-zero-point-fixture",
+            ),
+            input(
+                BrightStarInputRole::BuildConfig,
+                "starlight-bright-stars-spectral-model-v1.json",
+            ),
+        ]
     }
 
     fn measured_config() -> StarlightConfig {
@@ -583,7 +611,7 @@ lease_timeout_seconds = 60
         let combined = BrightStarArtifact::from_sources_for_band(
             1,
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            Vec::new(),
+            combined_inputs(),
             vec![BrightStarSourceRecord {
                 source_id: "hip-1".into(),
                 origin_catalogue: "hip2".into(),
@@ -614,7 +642,10 @@ lease_timeout_seconds = 60
                         uncertainty_ph_m2_s: 0.15,
                     }],
                 }),
-                spectral_route: "fixture".into(),
+                spectral_route: format!(
+                    "{}:fixture",
+                    crate::starlight::bright_stars::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
+                ),
                 classification_reason: "fixture".into(),
             }],
             BrightStarPopulationPolicy::v1(),
@@ -776,7 +807,7 @@ lease_timeout_seconds = 60
         let combined = BrightStarArtifact::from_sources_for_band(
             1,
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            Vec::new(),
+            combined_inputs(),
             vec![BrightStarSourceRecord {
                 source_id: "hip-1".into(),
                 origin_catalogue: "hip2".into(),
@@ -807,7 +838,10 @@ lease_timeout_seconds = 60
                         uncertainty_ph_m2_s: 0.15,
                     }],
                 }),
-                spectral_route: "fixture".into(),
+                spectral_route: format!(
+                    "{}:fixture",
+                    crate::starlight::bright_stars::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
+                ),
                 classification_reason: "fixture".into(),
             }],
             BrightStarPopulationPolicy::v1(),
