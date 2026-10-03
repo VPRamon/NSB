@@ -1220,7 +1220,12 @@ mod tests {
         )
         .is_err());
 
-        let excluded = source("excluded", SupplementClass::AmbiguousManualReview, None, 0.0);
+        let excluded = source(
+            "excluded",
+            SupplementClass::AmbiguousManualReview,
+            None,
+            0.0,
+        );
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
