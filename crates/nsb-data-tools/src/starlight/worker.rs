@@ -510,6 +510,7 @@ mod uncertainty_fixtures;
 mod tests {
     use super::*;
     use crate::platform::checksum_io;
+    use crate::starlight::bright_stars::{BrightStarInputProvenance, BrightStarInputRole};
     use crate::starlight::config::OfficialChecksumAlgorithm;
     use crate::starlight::sources::acquisition::AcquisitionReceipt;
     use crate::starlight::sources::inventory::{SourceInventory, SourceInventoryEntry};
@@ -518,6 +519,33 @@ mod tests {
     use serde_json::Value;
     use std::fs;
     use std::io::Write;
+
+    fn combined_inputs() -> Vec<BrightStarInputProvenance> {
+        let input = |role, source_id: &str| BrightStarInputProvenance {
+            role,
+            source_id: source_id.into(),
+            release: "fixture-v1".into(),
+            sha256: "a".repeat(64),
+            retrieval_url: "https://example.invalid/source".into(),
+            license_or_terms_url: "https://example.invalid/terms".into(),
+        };
+        vec![
+            input(BrightStarInputRole::SpectralTypeCatalogue, "xhip-fixture"),
+            input(BrightStarInputRole::SpectralTemplateLibrary, "ck04-fixture"),
+            input(
+                BrightStarInputRole::PhotometricResponseCurve,
+                "hp-response-fixture",
+            ),
+            input(
+                BrightStarInputRole::PhotometricZeroPoint,
+                "hp-zero-point-fixture",
+            ),
+            input(
+                BrightStarInputRole::BuildConfig,
+                "starlight-bright-stars-spectral-model-v1.json",
+            ),
+        ]
+    }
 
     #[test]
     fn paired_partition_builds_a_strict_shard_and_maps() -> Result<()> {
@@ -1124,13 +1152,16 @@ mod tests {
                     uncertainty_ph_m2_s: 0.0625,
                 }],
             }),
-            spectral_route: "fixture".into(),
+            spectral_route: format!(
+                "{}:fixture",
+                crate::starlight::bright_stars::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
+            ),
             classification_reason: "fixture".into(),
         };
         let artifact = BrightStarArtifact::from_sources_for_band(
             1,
             commit,
-            Vec::new(),
+            combined_inputs(),
             vec![source],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
