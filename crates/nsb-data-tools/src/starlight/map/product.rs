@@ -1880,6 +1880,7 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
             crate::starlight::uv::ApplicabilityStatus::InDomain => 0,
             crate::starlight::uv::ApplicabilityStatus::Boundary => 1,
             crate::starlight::uv::ApplicabilityStatus::OutOfDomain => 2,
+            crate::starlight::uv::ApplicabilityStatus::NotApplicable => 3,
         });
         bytes.extend_from_slice(&count.to_be_bytes());
     }
