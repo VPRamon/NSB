@@ -1190,10 +1190,7 @@ mod tests {
         };
         vec![
             input(BrightStarInputRole::SpectralTypeCatalogue, "xhip-fixture"),
-            input(
-                BrightStarInputRole::SpectralTemplateLibrary,
-                "ck04-fixture",
-            ),
+            input(BrightStarInputRole::SpectralTemplateLibrary, "ck04-fixture"),
             input(
                 BrightStarInputRole::PhotometricResponseCurve,
                 "hp-response-fixture",
@@ -1309,9 +1306,8 @@ mod tests {
         .is_err());
 
         let mut missing_template_library = combined_inputs();
-        missing_template_library.retain(|input| {
-            input.role != BrightStarInputRole::SpectralTemplateLibrary
-        });
+        missing_template_library
+            .retain(|input| input.role != BrightStarInputRole::SpectralTemplateLibrary);
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
