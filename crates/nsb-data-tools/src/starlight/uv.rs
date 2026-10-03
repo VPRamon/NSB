@@ -252,6 +252,9 @@ pub enum ApplicabilityStatus {
     InDomain,
     Boundary,
     OutOfDomain,
+    /// The configured UV correction was not evaluated for this source because
+    /// its 300--336 nm flux comes from an independent spectral reconstruction.
+    NotApplicable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
