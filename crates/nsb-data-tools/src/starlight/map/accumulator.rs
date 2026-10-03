@@ -219,6 +219,12 @@ pub struct PixelAccumulator {
     /// a group and distinct groups combine in quadrature.
     #[serde(default)]
     pub systematic_correlated_groups: BTreeMap<String, StableSum>,
+    /// Named correlation groups restricted to the 300--336 nm sub-band.
+    ///
+    /// These must stay separate from the selected-product groups so band
+    /// diagnostics do not drop or double-count bright-star catalogue terms.
+    #[serde(default)]
+    pub systematic_correlated_groups_300_336: BTreeMap<String, StableSum>,
     pub flux_300_336_ph_m2_s: StableSum,
     pub flux_336_650_ph_m2_s: StableSum,
     pub flux_300_650_ph_m2_s: StableSum,
@@ -242,6 +248,12 @@ impl PixelAccumulator {
             .merge(&other.systematic_correlated_uncertainty)?;
         for (group, value) in &other.systematic_correlated_groups {
             self.systematic_correlated_groups
+                .entry(group.clone())
+                .or_default()
+                .merge(value)?;
+        }
+        for (group, value) in &other.systematic_correlated_groups_300_336 {
+            self.systematic_correlated_groups_300_336
                 .entry(group.clone())
                 .or_default()
                 .merge(value)?;
@@ -292,11 +304,16 @@ impl PixelAccumulator {
             .and_then(|_| self.systematic_variance_300_336_independent.validate())
             .and_then(|_| self.systematic_uncertainty_300_336_correlated.validate())
             .and_then(|_| {
-                for (group, value) in &self.systematic_correlated_groups {
-                    if group.trim().is_empty() {
-                        bail!("systematic correlation group id must not be empty");
+                for groups in [
+                    &self.systematic_correlated_groups,
+                    &self.systematic_correlated_groups_300_336,
+                ] {
+                    for (group, value) in groups {
+                        if group.trim().is_empty() {
+                            bail!("systematic correlation group id must not be empty");
+                        }
+                        value.validate()?;
                     }
-                    value.validate()?;
                 }
                 Ok(())
             })
@@ -550,6 +567,13 @@ impl PartitionShard {
                     .pixels
                     .get_mut(&pixel)
                     .context("admitted bright-star pixel missing")?;
+                for term in &components.systematic_catalogue_correlated_300_336 {
+                    accumulator
+                        .systematic_correlated_groups_300_336
+                        .entry(term.correlation_group_id.clone())
+                        .or_default()
+                        .add(term.uncertainty_ph_m2_s)?;
+                }
                 for term in &components.systematic_catalogue_correlated_300_650 {
                     accumulator
                         .systematic_correlated_groups
@@ -1068,7 +1092,10 @@ mod tests {
             statistical_uncertainty_300_650_ph_m2_s: 0.125,
             systematic_independent_uncertainty_300_336_ph_m2_s: 0.05,
             systematic_independent_uncertainty_300_650_ph_m2_s: 0.25,
-            systematic_catalogue_correlated_300_336: Vec::new(),
+            systematic_catalogue_correlated_300_336: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.0125,
+            }],
             systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
                 correlation_group_id: "hip2-zero-point".into(),
                 uncertainty_ph_m2_s: 0.0625,
@@ -1140,6 +1167,15 @@ mod tests {
         assert!(!combined
             .ultraviolet_applicability
             .contains_key(&crate::starlight::uv::ApplicabilityStatus::InDomain));
+        let pixel = combined.pixels.values().next().expect("combined pixel");
+        assert_eq!(
+            pixel.systematic_correlated_groups_300_336["hip2-zero-point"].value(),
+            0.0125
+        );
+        assert_eq!(
+            pixel.systematic_correlated_groups["hip2-zero-point"].value(),
+            0.0625
+        );
         Ok(())
     }
 }
