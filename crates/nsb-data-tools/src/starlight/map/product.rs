@@ -1401,8 +1401,7 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
         statistical_uv_variance += pixel.statistical_variance_300_336.value();
         statistical_measured_variance += pixel.statistical_variance_336_650.value();
         statistical_combined_variance += pixel.statistical_variance_300_650.value();
-        systematic_independent_variance_uv +=
-            pixel.systematic_variance_300_336_independent.value();
+        systematic_independent_variance_uv += pixel.systematic_variance_300_336_independent.value();
         systematic_correlated_uv += pixel.systematic_uncertainty_300_336_correlated.value();
         for (group, sum) in &pixel.systematic_correlated_groups_300_336 {
             *systematic_groups_uv.entry(group.clone()).or_default() += sum.value();
@@ -1433,12 +1432,11 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
         .sqrt()
         .hypot(systematic_correlated_uv)
         .hypot(grouped_uv_variance.sqrt());
-    let systematic_combined =
-        if merged.product_band == StarlightProductBand::Combined300To650 {
-            global_selected_uncertainty(merged)?.1
-        } else {
-            systematic_uv
-        };
+    let systematic_combined = if merged.product_band == StarlightProductBand::Combined300To650 {
+        global_selected_uncertainty(merged)?.1
+    } else {
+        systematic_uv
+    };
     let has_combined_bright_star = merged
         .bright_star_supplement_provenance
         .as_ref()
@@ -2200,14 +2198,10 @@ mod tests {
             classification_reason: "fixture".into(),
         };
         shard
-            .admit_bright_star_source(
-                &source,
-                BrightStarArtifactProductBand::Combined300To650,
-            )
+            .admit_bright_star_source(&source, BrightStarArtifactProductBand::Combined300To650)
             .unwrap();
         let mut provenance = fixture_bright_star_provenance('e');
-        provenance.model_id =
-            crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID_COMBINED.into();
+        provenance.model_id = crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID_COMBINED.into();
         provenance.product_band =
             crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID.into();
         provenance.spectral_reconstruction_model_id =
@@ -2218,12 +2212,9 @@ mod tests {
         let diagnostics = band_diagnostics(&shard).unwrap();
         let expected_uv = 0.05_f64.hypot(0.0125);
         let expected_combined = 0.25_f64.hypot(0.0625);
+        assert!((diagnostics.systematic_uncertainty_300_336_ph_m2_s - expected_uv).abs() < 1e-15);
         assert!(
-            (diagnostics.systematic_uncertainty_300_336_ph_m2_s - expected_uv).abs() < 1e-15
-        );
-        assert!(
-            (diagnostics.systematic_uncertainty_300_650_ph_m2_s - expected_combined).abs()
-                < 1e-15
+            (diagnostics.systematic_uncertainty_300_650_ph_m2_s - expected_combined).abs() < 1e-15
         );
         assert!(diagnostics
             .corrected_300_336_label
