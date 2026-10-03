@@ -1313,6 +1313,14 @@ fn science_policy_report(
 ) -> SciencePolicyReport {
     let ultraviolet = merged.ultraviolet_correction.as_ref();
     let corrected = ultraviolet.is_some();
+    let bright_star_uv_reconstruction = merged
+        .bright_star_supplement_provenance
+        .as_ref()
+        .filter(|provenance| {
+            provenance.product_band
+                == crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID
+        })
+        .and_then(|provenance| provenance.spectral_reconstruction_model_id.as_deref());
     let population_correction = match selection {
         Some(selection) => PopulationCorrectionReport {
             policy_id: selection.model_id.clone(),
@@ -1363,7 +1371,12 @@ fn science_policy_report(
             systematic_correlation_scope: ultraviolet
                 .map(|metadata| CorrelationScope::from(metadata.systematic_correlation)),
             limitation: if corrected {
-                "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately. Sources lacking UV predictors are excluded from the combined 300-650 map rather than published as incomplete lower bounds labelled as full-band flux.".to_string()
+                match bright_star_uv_reconstruction {
+                    Some(model_id) => format!(
+                        "Gaia-source 300-336 nm contributions use the pinned UV correction artifact, while admitted bright-star supplement sources use the independent pinned spectral reconstruction {model_id} and are reported with UV applicability not-applicable. The 336-650 nm Gaia XP integral remains unchanged and is retained separately. Gaia sources lacking UV predictors are excluded from the combined 300-650 map rather than published as incomplete lower bounds labelled as full-band flux."
+                    ),
+                    None => "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately. Sources lacking UV predictors are excluded from the combined 300-650 map rather than published as incomplete lower bounds labelled as full-band flux.".to_string(),
+                }
             } else {
                 "The frozen GaiaXPy design begins at 336 nm; no independently calibrated 300-336 nm correction is applied.".to_string()
             },
@@ -1378,8 +1391,9 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
     let mut statistical_uv_variance = 0.0;
     let mut statistical_measured_variance = 0.0;
     let mut statistical_combined_variance = 0.0;
-    let mut systematic_independent_variance = 0.0;
-    let mut systematic_correlated = 0.0;
+    let mut systematic_independent_variance_uv = 0.0;
+    let mut systematic_correlated_uv = 0.0;
+    let mut systematic_groups_uv: BTreeMap<String, f64> = BTreeMap::new();
     for pixel in merged.pixels.values() {
         flux_uv += pixel.flux_300_336_ph_m2_s.value();
         flux_measured += pixel.flux_336_650_ph_m2_s.value();
@@ -1387,9 +1401,17 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
         statistical_uv_variance += pixel.statistical_variance_300_336.value();
         statistical_measured_variance += pixel.statistical_variance_336_650.value();
         statistical_combined_variance += pixel.statistical_variance_300_650.value();
-        systematic_independent_variance += pixel.systematic_variance_300_336_independent.value();
-        systematic_correlated += pixel.systematic_uncertainty_300_336_correlated.value();
+        systematic_independent_variance_uv +=
+            pixel.systematic_variance_300_336_independent.value();
+        systematic_correlated_uv += pixel.systematic_uncertainty_300_336_correlated.value();
+        for (group, sum) in &pixel.systematic_correlated_groups_300_336 {
+            *systematic_groups_uv.entry(group.clone()).or_default() += sum.value();
+        }
     }
+    let grouped_uv_variance: f64 = systematic_groups_uv
+        .values()
+        .map(|value| value.powi(2))
+        .sum();
     let values = [
         flux_uv,
         flux_measured,
@@ -1397,8 +1419,9 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
         statistical_uv_variance,
         statistical_measured_variance,
         statistical_combined_variance,
-        systematic_independent_variance,
-        systematic_correlated,
+        systematic_independent_variance_uv,
+        systematic_correlated_uv,
+        grouped_uv_variance,
     ];
     if values
         .iter()
@@ -1406,11 +1429,29 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
     {
         bail!("Starlight band diagnostics contain invalid totals");
     }
-    let systematic = systematic_independent_variance
+    let systematic_uv = systematic_independent_variance_uv
         .sqrt()
-        .hypot(systematic_correlated);
+        .hypot(systematic_correlated_uv)
+        .hypot(grouped_uv_variance.sqrt());
+    let systematic_combined =
+        if merged.product_band == StarlightProductBand::Combined300To650 {
+            global_selected_uncertainty(merged)?.1
+        } else {
+            systematic_uv
+        };
+    let has_combined_bright_star = merged
+        .bright_star_supplement_provenance
+        .as_ref()
+        .is_some_and(|provenance| {
+            provenance.product_band
+                == crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID
+        });
     Ok(BandDiagnosticsReport {
-        corrected_300_336_label: "300–336 nm corrected".to_string(),
+        corrected_300_336_label: if has_combined_bright_star {
+            "300–336 nm Gaia-corrected + bright-star spectral reconstruction".to_string()
+        } else {
+            "300–336 nm corrected".to_string()
+        },
         measured_336_650_label: "336–650 nm measured".to_string(),
         combined_300_650_label: "300–650 nm combined".to_string(),
         total_flux_300_336_ph_m2_s: flux_uv,
@@ -1419,8 +1460,8 @@ fn band_diagnostics(merged: &PartitionShard) -> Result<BandDiagnosticsReport> {
         statistical_uncertainty_300_336_ph_m2_s: statistical_uv_variance.sqrt(),
         statistical_uncertainty_336_650_ph_m2_s: statistical_measured_variance.sqrt(),
         statistical_uncertainty_300_650_ph_m2_s: statistical_combined_variance.sqrt(),
-        systematic_uncertainty_300_336_ph_m2_s: systematic,
-        systematic_uncertainty_300_650_ph_m2_s: systematic,
+        systematic_uncertainty_300_336_ph_m2_s: systematic_uv,
+        systematic_uncertainty_300_650_ph_m2_s: systematic_combined,
     })
 }
 
@@ -1710,6 +1751,8 @@ fn complete_deterministic_merge_report(
                     || left.systematic_correlated_uncertainty
                         != right.systematic_correlated_uncertainty
                     || left.systematic_correlated_groups != right.systematic_correlated_groups
+                    || left.systematic_correlated_groups_300_336
+                        != right.systematic_correlated_groups_300_336
                     || left.statistical_variance_300_336 != right.statistical_variance_300_336
                     || left.statistical_variance_336_650 != right.statistical_variance_336_650
                     || left.statistical_variance_300_650 != right.statistical_variance_300_650
@@ -1860,6 +1903,17 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         for (group, sum) in &accumulator.systematic_correlated_groups {
             append_string(&mut bytes, group)?;
             sum.append_canonical_bytes(&mut bytes)?;
+        }
+        if !accumulator.systematic_correlated_groups_300_336.is_empty() {
+            bytes.extend_from_slice(b"uv-correlated-groups\0");
+            let uv_group_count =
+                u64::try_from(accumulator.systematic_correlated_groups_300_336.len())
+                    .context("UV systematic group count exceeds u64")?;
+            bytes.extend_from_slice(&uv_group_count.to_be_bytes());
+            for (group, sum) in &accumulator.systematic_correlated_groups_300_336 {
+                append_string(&mut bytes, group)?;
+                sum.append_canonical_bytes(&mut bytes)?;
+            }
         }
         bytes.extend_from_slice(&accumulator.observed_sources.to_be_bytes());
         bytes.extend_from_slice(&accumulator.admitted_sources.to_be_bytes());
@@ -2084,6 +2138,106 @@ mod tests {
             product_band: crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID.into(),
             spectral_reconstruction_model_id: None,
         }
+    }
+
+    #[test]
+    fn combined_bright_star_diagnostics_keep_band_correlations_and_model_semantics() {
+        use crate::starlight::bright_stars::{
+            BrightStarArtifactProductBand, BrightStarBandComponents, BrightStarSourceRecord,
+            CorrelatedUncertainty, SupplementClass,
+        };
+        use crate::starlight::uv::{CalibrationStatus, ModelResponse, SystematicCorrelation};
+
+        let metadata = crate::starlight::map::accumulator::UvCorrectionShardMetadata {
+            model_id: "fixture-uv".into(),
+            artifact_sha256: "f".repeat(64),
+            calibration_status: CalibrationStatus::Validated,
+            response: ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
+        };
+        let mut shard = PartitionShard::new_with_policy(
+            "combined-bright-star",
+            1,
+            StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )
+        .unwrap();
+        let source = BrightStarSourceRecord {
+            source_id: "HIP 1".into(),
+            origin_catalogue: "hip2".into(),
+            class: SupplementClass::SupplementOnly,
+            gaia_source_id: None,
+            ra_deg_j2016: 10.0,
+            dec_deg_j2016: 20.0,
+            flux_336_650_ph_m2_s: 4.0,
+            statistical_uncertainty_ph_m2_s: 0.1,
+            systematic_independent_uncertainty_ph_m2_s: 0.2,
+            systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.05,
+            }],
+            band_components: Some(BrightStarBandComponents {
+                flux_300_336_ph_m2_s: 1.0,
+                flux_300_650_ph_m2_s: 5.0,
+                statistical_uncertainty_300_336_ph_m2_s: 0.025,
+                statistical_uncertainty_300_650_ph_m2_s: 0.125,
+                systematic_independent_uncertainty_300_336_ph_m2_s: 0.05,
+                systematic_independent_uncertainty_300_650_ph_m2_s: 0.25,
+                systematic_catalogue_correlated_300_336: vec![CorrelatedUncertainty {
+                    correlation_group_id: "hip2-zero-point".into(),
+                    uncertainty_ph_m2_s: 0.0125,
+                }],
+                systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
+                    correlation_group_id: "hip2-zero-point".into(),
+                    uncertainty_ph_m2_s: 0.0625,
+                }],
+            }),
+            spectral_route: format!(
+                "{}:fixture",
+                crate::starlight::bright_stars::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
+            ),
+            classification_reason: "fixture".into(),
+        };
+        shard
+            .admit_bright_star_source(
+                &source,
+                BrightStarArtifactProductBand::Combined300To650,
+            )
+            .unwrap();
+        let mut provenance = fixture_bright_star_provenance('e');
+        provenance.model_id =
+            crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID_COMBINED.into();
+        provenance.product_band =
+            crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID.into();
+        provenance.spectral_reconstruction_model_id =
+            Some(crate::starlight::bright_stars::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.into());
+        shard.bright_star_supplement_provenance = Some(provenance);
+        shard.validate().unwrap();
+
+        let diagnostics = band_diagnostics(&shard).unwrap();
+        let expected_uv = 0.05_f64.hypot(0.0125);
+        let expected_combined = 0.25_f64.hypot(0.0625);
+        assert!(
+            (diagnostics.systematic_uncertainty_300_336_ph_m2_s - expected_uv).abs() < 1e-15
+        );
+        assert!(
+            (diagnostics.systematic_uncertainty_300_650_ph_m2_s - expected_combined).abs()
+                < 1e-15
+        );
+        assert!(diagnostics
+            .corrected_300_336_label
+            .contains("bright-star spectral reconstruction"));
+
+        let policy = science_policy_report(&shard, None);
+        assert!(policy
+            .spectral_coverage
+            .limitation
+            .contains(crate::starlight::bright_stars::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1));
+        assert!(policy
+            .spectral_coverage
+            .limitation
+            .contains("not-applicable"));
     }
 
     #[test]
