@@ -1520,6 +1520,9 @@ fn evaluate_holdout(
             ApplicabilityStatus::InDomain => "in-domain",
             ApplicabilityStatus::Boundary => "boundary",
             ApplicabilityStatus::OutOfDomain => "out-of-domain",
+            ApplicabilityStatus::NotApplicable => {
+                bail!("UV correction evaluation unexpectedly returned not-applicable status")
+            }
         };
         let strata = [
             required_field(&record, indexes[4], "colour")?,
