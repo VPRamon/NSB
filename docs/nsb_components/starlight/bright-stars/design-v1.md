@@ -136,11 +136,37 @@ Policy id: `bright-stars-gaia-precedence-v1`.
 
 ## 7. Spectral reconstruction
 
-The v1 artifact is strictly **Measured336To650**. It contains no 300–336 nm
-field and cannot be loaded into a `Combined300To650` build. Missing UV
-coverage is unavailable, never encoded as zero flux. A future artifact with a
-defensible UV model requires a new schema/model id and explicit model,
-applicability, provenance, and uncertainty fields.
+### Measured-only v1 (`starlight-bright-stars-v1`)
+
+The measured-only artifact is strictly **Measured336To650**. It contains no
+300–336 nm field and cannot be loaded into a `Combined300To650` build. Missing
+UV coverage is unavailable, never encoded as zero flux.
+
+### Combined production v1 (`starlight-bright-stars-combined-v1`, #207)
+
+The combined artifact uses the **same** Hp-scaled CK04 continuum already used
+for 336–650 nm reconstruction and also integrates 300–336 nm from that SED.
+The UV term is therefore the short-wavelength portion of one reconstructed
+spectrum, not a second ad-hoc UV completion chosen to erase residuals against
+nsb2. Templates that do not fully cover `[300, 650]` nm fail closed.
+
+Invariant for every admitted source:
+
+```text
+flux_300_650 = flux_300_336 + flux_336_650
+```
+
+Relative Hp / template / SpT uncertainties are shared by both band integrals,
+so absolute band uncertainties combine linearly (perfect correlation).
+
+Schema 2 is fail-closed on spectral provenance. It carries
+`spectral_reconstruction_model_id = xhip-sptype-ck04-v2-hp-bessell2000-v1`,
+requires checksum-pinned provenance for the spectral-type catalogue, CK04
+template library, Hp response curve, photometric zero point, and spectral-model
+build artifact, and requires every admitted source's `spectral_route` to be
+namespaced by that same model id. A combined artifact missing any of those
+identities is invalid even if its numeric band components are internally
+self-consistent.
 
 Route priority:
 

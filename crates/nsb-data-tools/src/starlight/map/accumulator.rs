@@ -219,6 +219,12 @@ pub struct PixelAccumulator {
     /// a group and distinct groups combine in quadrature.
     #[serde(default)]
     pub systematic_correlated_groups: BTreeMap<String, StableSum>,
+    /// Named correlation groups restricted to the 300--336 nm sub-band.
+    ///
+    /// These must stay separate from the selected-product groups so band
+    /// diagnostics do not drop or double-count bright-star catalogue terms.
+    #[serde(default)]
+    pub systematic_correlated_groups_300_336: BTreeMap<String, StableSum>,
     pub flux_300_336_ph_m2_s: StableSum,
     pub flux_336_650_ph_m2_s: StableSum,
     pub flux_300_650_ph_m2_s: StableSum,
@@ -242,6 +248,12 @@ impl PixelAccumulator {
             .merge(&other.systematic_correlated_uncertainty)?;
         for (group, value) in &other.systematic_correlated_groups {
             self.systematic_correlated_groups
+                .entry(group.clone())
+                .or_default()
+                .merge(value)?;
+        }
+        for (group, value) in &other.systematic_correlated_groups_300_336 {
+            self.systematic_correlated_groups_300_336
                 .entry(group.clone())
                 .or_default()
                 .merge(value)?;
@@ -292,11 +304,16 @@ impl PixelAccumulator {
             .and_then(|_| self.systematic_variance_300_336_independent.validate())
             .and_then(|_| self.systematic_uncertainty_300_336_correlated.validate())
             .and_then(|_| {
-                for (group, value) in &self.systematic_correlated_groups {
-                    if group.trim().is_empty() {
-                        bail!("systematic correlation group id must not be empty");
+                for groups in [
+                    &self.systematic_correlated_groups,
+                    &self.systematic_correlated_groups_300_336,
+                ] {
+                    for (group, value) in groups {
+                        if group.trim().is_empty() {
+                            bail!("systematic correlation group id must not be empty");
+                        }
+                        value.validate()?;
                     }
-                    value.validate()?;
                 }
                 Ok(())
             })
@@ -326,6 +343,26 @@ pub struct UvCorrectionShardMetadata {
     pub response: ModelResponse,
     pub measured_conditional_residual_statistical_correlation_bits: u64,
     pub systematic_correlation: SystematicCorrelation,
+}
+
+impl UvCorrectionShardMetadata {
+    pub fn from_correction(correction: &crate::starlight::uv::UvCorrection) -> Self {
+        Self {
+            model_id: correction.artifact().model_id.clone(),
+            artifact_sha256: correction.artifact_sha256().to_string(),
+            calibration_status: correction.artifact().calibration_status,
+            response: correction.artifact().response.clone(),
+            measured_conditional_residual_statistical_correlation_bits: correction
+                .artifact()
+                .uncertainty_model
+                .measured_conditional_residual_statistical_correlation
+                .to_bits(),
+            systematic_correlation: correction
+                .artifact()
+                .uncertainty_model
+                .systematic_correlation,
+        }
+    }
 }
 
 /// Sparse result emitted by one immutable source partition.
@@ -443,39 +480,122 @@ impl PartitionShard {
         )
     }
 
-    /// Admit one measured-band bright-star source while preserving named
-    /// catalogue correlation groups.
+    /// Admit one bright-star source with explicit artifact/product compatibility.
+    ///
+    /// Measured-only artifacts may only enter Measured336To650 shards.
+    /// Combined artifacts may only enter Combined300To650 shards and use the
+    /// stored band components (`flux_300_650 = flux_300_336 + flux_336_650`).
     pub fn admit_bright_star_source(
         &mut self,
         source: &crate::starlight::bright_stars::BrightStarSourceRecord,
+        artifact_product_band: crate::starlight::bright_stars::BrightStarArtifactProductBand,
     ) -> Result<()> {
-        if self.product_band != StarlightProductBand::Measured336To650 {
-            bail!("measured-only bright-star supplement cannot enter a combined 300-650 shard");
+        use crate::starlight::bright_stars::BrightStarArtifactProductBand;
+        use crate::starlight::uv::SystematicCorrelation;
+        match (self.product_band, artifact_product_band) {
+            (
+                StarlightProductBand::Measured336To650,
+                BrightStarArtifactProductBand::Measured336To650,
+            ) => {
+                if source.band_components.is_some() {
+                    bail!("measured bright-star admission rejects combined band_components");
+                }
+                let position = IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?;
+                self.admit(
+                    position,
+                    source.flux_336_650_ph_m2_s,
+                    source.statistical_uncertainty_ph_m2_s,
+                    source.systematic_independent_uncertainty_ph_m2_s,
+                )?;
+                let pixel = galactic_nested_pixel_from_icrs_position(
+                    source.ra_deg_j2016,
+                    source.dec_deg_j2016,
+                    self.nside,
+                )?;
+                let accumulator = self
+                    .pixels
+                    .get_mut(&pixel)
+                    .context("admitted bright-star pixel missing")?;
+                for term in &source.systematic_catalogue_correlated {
+                    accumulator
+                        .systematic_correlated_groups
+                        .entry(term.correlation_group_id.clone())
+                        .or_default()
+                        .add(term.uncertainty_ph_m2_s)?;
+                }
+                Ok(())
+            }
+            (
+                StarlightProductBand::Combined300To650,
+                BrightStarArtifactProductBand::Combined300To650,
+            ) => {
+                let components = source
+                    .band_components
+                    .as_ref()
+                    .context("combined bright-star admission requires explicit band_components")?;
+                let position = IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?;
+                self.admit_components(
+                    position,
+                    SourceFluxComponents {
+                        flux_300_336_ph_m2_s: components.flux_300_336_ph_m2_s,
+                        flux_336_650_ph_m2_s: source.flux_336_650_ph_m2_s,
+                        flux_300_650_ph_m2_s: components.flux_300_650_ph_m2_s,
+                        statistical_uncertainty_300_336_ph_m2_s: components
+                            .statistical_uncertainty_300_336_ph_m2_s,
+                        statistical_uncertainty_336_650_ph_m2_s: source
+                            .statistical_uncertainty_ph_m2_s,
+                        statistical_uncertainty_300_650_ph_m2_s: components
+                            .statistical_uncertainty_300_650_ph_m2_s,
+                        systematic_uncertainty_300_336_ph_m2_s: components
+                            .systematic_independent_uncertainty_300_336_ph_m2_s,
+                        systematic_uncertainty_300_650_ph_m2_s: components
+                            .systematic_independent_uncertainty_300_650_ph_m2_s,
+                        systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
+                        // The UV contribution comes from the bright-star CK04
+                        // SED, not from evaluating the Gaia UV correction.
+                        applicability_status: Some(
+                            crate::starlight::uv::ApplicabilityStatus::NotApplicable,
+                        ),
+                    },
+                )?;
+                let pixel = galactic_nested_pixel_from_icrs_position(
+                    source.ra_deg_j2016,
+                    source.dec_deg_j2016,
+                    self.nside,
+                )?;
+                let accumulator = self
+                    .pixels
+                    .get_mut(&pixel)
+                    .context("admitted bright-star pixel missing")?;
+                for term in &components.systematic_catalogue_correlated_300_336 {
+                    accumulator
+                        .systematic_correlated_groups_300_336
+                        .entry(term.correlation_group_id.clone())
+                        .or_default()
+                        .add(term.uncertainty_ph_m2_s)?;
+                }
+                for term in &components.systematic_catalogue_correlated_300_650 {
+                    accumulator
+                        .systematic_correlated_groups
+                        .entry(term.correlation_group_id.clone())
+                        .or_default()
+                        .add(term.uncertainty_ph_m2_s)?;
+                }
+                Ok(())
+            }
+            (
+                StarlightProductBand::Combined300To650,
+                BrightStarArtifactProductBand::Measured336To650,
+            ) => {
+                bail!("measured-only bright-star supplement cannot enter a combined 300-650 shard")
+            }
+            (
+                StarlightProductBand::Measured336To650,
+                BrightStarArtifactProductBand::Combined300To650,
+            ) => {
+                bail!("combined bright-star supplement cannot enter a measured-only shard")
+            }
         }
-        let position = IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?;
-        self.admit(
-            position,
-            source.flux_336_650_ph_m2_s,
-            source.statistical_uncertainty_ph_m2_s,
-            source.systematic_independent_uncertainty_ph_m2_s,
-        )?;
-        let pixel = galactic_nested_pixel_from_icrs_position(
-            source.ra_deg_j2016,
-            source.dec_deg_j2016,
-            self.nside,
-        )?;
-        let accumulator = self
-            .pixels
-            .get_mut(&pixel)
-            .context("admitted bright-star pixel missing")?;
-        for term in &source.systematic_catalogue_correlated {
-            accumulator
-                .systematic_correlated_groups
-                .entry(term.correlation_group_id.clone())
-                .or_default()
-                .add(term.uncertainty_ph_m2_s)?;
-        }
-        Ok(())
     }
 
     /// Accumulate an explicitly separated corrected source.
@@ -936,6 +1056,126 @@ mod tests {
         json["schema_version"] = serde_json::json!(2);
         let old: PartitionShard = serde_json::from_value(json)?;
         assert!(old.validate().is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn bright_star_admission_rejects_product_band_mismatches() -> Result<()> {
+        use crate::starlight::bright_stars::{
+            BrightStarArtifactProductBand, BrightStarBandComponents, BrightStarSourceRecord,
+            CorrelatedUncertainty, SupplementClass,
+        };
+        use crate::starlight::uv::{CalibrationStatus, ModelResponse, SystematicCorrelation};
+
+        let source = |components: Option<BrightStarBandComponents>| BrightStarSourceRecord {
+            source_id: "hip-1".into(),
+            origin_catalogue: "hip2".into(),
+            class: SupplementClass::SupplementOnly,
+            gaia_source_id: None,
+            ra_deg_j2016: 10.0,
+            dec_deg_j2016: 20.0,
+            flux_336_650_ph_m2_s: 4.0,
+            statistical_uncertainty_ph_m2_s: 0.1,
+            systematic_independent_uncertainty_ph_m2_s: 0.2,
+            systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.05,
+            }],
+            band_components: components,
+            spectral_route: "fixture".into(),
+            classification_reason: "fixture".into(),
+        };
+        let components = BrightStarBandComponents {
+            flux_300_336_ph_m2_s: 1.0,
+            flux_300_650_ph_m2_s: 5.0,
+            statistical_uncertainty_300_336_ph_m2_s: 0.025,
+            statistical_uncertainty_300_650_ph_m2_s: 0.125,
+            systematic_independent_uncertainty_300_336_ph_m2_s: 0.05,
+            systematic_independent_uncertainty_300_650_ph_m2_s: 0.25,
+            systematic_catalogue_correlated_300_336: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.0125,
+            }],
+            systematic_catalogue_correlated_300_650: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: 0.0625,
+            }],
+        };
+
+        let mut measured = PartitionShard::new("measured", 1)?;
+        assert!(measured
+            .admit_bright_star_source(
+                &source(Some(components.clone())),
+                BrightStarArtifactProductBand::Measured336To650,
+            )
+            .is_err());
+        assert!(measured
+            .admit_bright_star_source(
+                &source(None),
+                BrightStarArtifactProductBand::Combined300To650,
+            )
+            .is_err());
+        measured.admit_bright_star_source(
+            &source(None),
+            BrightStarArtifactProductBand::Measured336To650,
+        )?;
+        assert_eq!(
+            measured
+                .pixels
+                .values()
+                .map(|pixel| pixel.admitted_sources)
+                .sum::<u64>(),
+            1
+        );
+
+        let metadata = UvCorrectionShardMetadata {
+            model_id: "fixture".into(),
+            artifact_sha256: "a".repeat(64),
+            calibration_status: CalibrationStatus::Validated,
+            response: ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
+        };
+        let mut combined = PartitionShard::new_with_policy(
+            "combined",
+            1,
+            StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )?;
+        assert!(combined
+            .admit_bright_star_source(
+                &source(None),
+                BrightStarArtifactProductBand::Combined300To650
+            )
+            .is_err());
+        assert!(combined
+            .admit_bright_star_source(
+                &source(None),
+                BrightStarArtifactProductBand::Measured336To650,
+            )
+            .is_err());
+        combined.admit_bright_star_source(
+            &source(Some(components)),
+            BrightStarArtifactProductBand::Combined300To650,
+        )?;
+        assert_eq!(
+            combined
+                .ultraviolet_applicability
+                .get(&crate::starlight::uv::ApplicabilityStatus::NotApplicable),
+            Some(&1)
+        );
+        assert!(!combined
+            .ultraviolet_applicability
+            .contains_key(&crate::starlight::uv::ApplicabilityStatus::InDomain));
+        let pixel = combined.pixels.values().next().expect("combined pixel");
+        assert_eq!(
+            pixel.systematic_correlated_groups_300_336["hip2-zero-point"].value(),
+            0.0125
+        );
+        assert_eq!(
+            pixel.systematic_correlated_groups["hip2-zero-point"].value(),
+            0.0625
+        );
         Ok(())
     }
 }

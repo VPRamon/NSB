@@ -252,6 +252,9 @@ pub enum ApplicabilityStatus {
     InDomain,
     Boundary,
     OutOfDomain,
+    /// The configured UV correction was not evaluated for this source because
+    /// its 300--336 nm flux comes from an independent spectral reconstruction.
+    NotApplicable,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1517,6 +1520,9 @@ fn evaluate_holdout(
             ApplicabilityStatus::InDomain => "in-domain",
             ApplicabilityStatus::Boundary => "boundary",
             ApplicabilityStatus::OutOfDomain => "out-of-domain",
+            ApplicabilityStatus::NotApplicable => {
+                bail!("UV correction evaluation unexpectedly returned not-applicable status")
+            }
         };
         let strata = [
             required_field(&record, indexes[4], "colour")?,

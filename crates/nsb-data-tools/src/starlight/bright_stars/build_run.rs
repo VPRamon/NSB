@@ -34,8 +34,15 @@ pub struct BrightStarBuildRunConfig {
     pub spectral_model_path: PathBuf,
     pub spectral_model_sha256: String,
     pub spectral_model_provenance: BrightStarInputProvenance,
+    /// Artifact spectral coverage: `measured-336-650` or `combined-300-650`.
+    #[serde(default = "default_bright_star_product_band")]
+    pub product_band: String,
     #[serde(default)]
     pub additional_checksum_pinned_inputs: Vec<PinnedCatalogueInput>,
+}
+
+fn default_bright_star_product_band() -> String {
+    super::artifact::BRIGHT_STAR_PRODUCT_BAND_ID.to_owned()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -159,6 +166,7 @@ pub(crate) fn run_experimental_build_at_commit(
         inputs.push(input.provenance.clone());
     }
     inputs.sort_by(|a, b| a.role.cmp(&b.role).then(a.source_id.cmp(&b.source_id)));
+    let product_band = super::artifact::BrightStarArtifactProductBand::parse(&config.product_band)?;
     let (artifact, diagnostics) = build_experimental_artifact(
         config.nside,
         build_commit,
@@ -174,18 +182,27 @@ pub(crate) fn run_experimental_build_at_commit(
         &unsupported_spectral_codes,
         BrightStarPopulationPolicy::v1(),
         BrightStarPrecedencePolicy::v1(),
+        product_band,
     )?;
 
     fs::create_dir_all(output_directory)?;
-    let artifact_path = output_directory.join("starlight-bright-stars-v1.json");
-    let diagnostics_path = output_directory.join("starlight-bright-stars-v1-diagnostics.json");
+    let artifact_stem = match product_band {
+        super::artifact::BrightStarArtifactProductBand::Measured336To650 => {
+            "starlight-bright-stars-v1"
+        }
+        super::artifact::BrightStarArtifactProductBand::Combined300To650 => {
+            "starlight-bright-stars-combined-v1"
+        }
+    };
+    let artifact_path = output_directory.join(format!("{artifact_stem}.json"));
+    let diagnostics_path = output_directory.join(format!("{artifact_stem}-diagnostics.json"));
     fs::write(&artifact_path, artifact.to_json_pretty()?)?;
     fs::write(&diagnostics_path, serde_json::to_vec_pretty(&diagnostics)?)?;
     let artifact_sha256 = checksum_io::sha256_file(&artifact_path)?;
     let diagnostics_sha256 = checksum_io::sha256_file(&diagnostics_path)?;
     let manifest = BrightStarBuildRunManifest {
         schema_version: 1,
-        model_id: artifact.model_id,
+        model_id: artifact.model_id.clone(),
         build_commit: build_commit.to_owned(),
         build_config_sha256: actual_config_sha,
         artifact_path,
@@ -195,9 +212,8 @@ pub(crate) fn run_experimental_build_at_commit(
         inputs,
         diagnostics,
     };
-    let manifest_path = output_directory.join("starlight-bright-stars-v1-build-manifest.json");
-    fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)
-        .with_context(|| format!("write {}", manifest_path.display()))?;
+    let manifest_path = output_directory.join(format!("{artifact_stem}-build-manifest.json"));
+    fs::write(&manifest_path, serde_json::to_vec_pretty(&manifest)?)?;
     Ok(manifest)
 }
 
