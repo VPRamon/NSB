@@ -531,10 +531,11 @@ fn validate_source(
             "measured-only bright-star source {} must not carry combined band_components",
             source.source_id
         ),
-        (BrightStarArtifactProductBand::Combined300To650, None) => bail!(
-            "combined bright-star source {} requires band_components",
+        (BrightStarArtifactProductBand::Combined300To650, None) if admitted => bail!(
+            "admitted combined bright-star source {} requires band_components",
             source.source_id
         ),
+        (BrightStarArtifactProductBand::Combined300To650, None) => {}
         (BrightStarArtifactProductBand::Combined300To650, Some(components)) => {
             validate_band_components(source, components, admitted)?;
         }
@@ -615,6 +616,51 @@ fn validate_band_components(
         &source.source_id,
         "300-650",
     )?;
+    validate_correlated_band_conservation(source, components)?;
+    Ok(())
+}
+
+fn validate_correlated_band_conservation(
+    source: &BrightStarSourceRecord,
+    components: &BrightStarBandComponents,
+) -> Result<()> {
+    let mut group_ids = BTreeSet::new();
+    group_ids.extend(
+        source
+            .systematic_catalogue_correlated
+            .iter()
+            .map(|term| term.correlation_group_id.as_str()),
+    );
+    group_ids.extend(
+        components
+            .systematic_catalogue_correlated_300_336
+            .iter()
+            .map(|term| term.correlation_group_id.as_str()),
+    );
+    group_ids.extend(
+        components
+            .systematic_catalogue_correlated_300_650
+            .iter()
+            .map(|term| term.correlation_group_id.as_str()),
+    );
+    for group_id in group_ids {
+        let uncertainty = |groups: &[CorrelatedUncertainty]| {
+            groups
+                .iter()
+                .find(|term| term.correlation_group_id == group_id)
+                .map_or(0.0, |term| term.uncertainty_ph_m2_s)
+        };
+        let expected = uncertainty(&source.systematic_catalogue_correlated)
+            + uncertainty(&components.systematic_catalogue_correlated_300_336);
+        let total = uncertainty(&components.systematic_catalogue_correlated_300_650);
+        if (total - expected).abs() > 1e-9 * expected.abs().max(1.0) {
+            bail!(
+                "bright-star source {} violates correlated uncertainty conservation for group {}",
+                source.source_id,
+                group_id
+            );
+        }
+    }
     Ok(())
 }
 
@@ -1174,6 +1220,18 @@ mod tests {
         )
         .is_err());
 
+        let excluded = source("excluded", SupplementClass::AmbiguousManualReview, None, 0.0);
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![excluded],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_ok());
+
         let mut drifted = combined_source("a", SupplementClass::SupplementOnly, None, 1.0, 0.2);
         drifted
             .band_components
@@ -1288,6 +1346,25 @@ mod tests {
             &fixture_commit(),
             Vec::new(),
             vec![bad_group],
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
+
+        let mut bad_correlated_total =
+            combined_source("a", SupplementClass::SupplementOnly, None, 1.0, 0.2);
+        bad_correlated_total
+            .band_components
+            .as_mut()
+            .unwrap()
+            .systematic_catalogue_correlated_300_650[0]
+            .uncertainty_ph_m2_s = 9.0;
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            vec![bad_correlated_total],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
             BrightStarArtifactProductBand::Combined300To650,
