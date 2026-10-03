@@ -534,10 +534,10 @@ impl PartitionShard {
                         systematic_uncertainty_300_650_ph_m2_s: components
                             .systematic_independent_uncertainty_300_650_ph_m2_s,
                         systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
-                        // Records that a UV contribution is present from the
-                        // bright-star template SED, not from the Gaia UV model.
+                        // The UV contribution comes from the bright-star CK04
+                        // SED, not from evaluating the Gaia UV correction.
                         applicability_status: Some(
-                            crate::starlight::uv::ApplicabilityStatus::InDomain,
+                            crate::starlight::uv::ApplicabilityStatus::NotApplicable,
                         ),
                     },
                 )?;
@@ -1131,6 +1131,15 @@ mod tests {
             &source(Some(components)),
             BrightStarArtifactProductBand::Combined300To650,
         )?;
+        assert_eq!(
+            combined
+                .ultraviolet_applicability
+                .get(&crate::starlight::uv::ApplicabilityStatus::NotApplicable),
+            Some(&1)
+        );
+        assert!(!combined
+            .ultraviolet_applicability
+            .contains_key(&crate::starlight::uv::ApplicabilityStatus::InDomain));
         Ok(())
     }
 }
