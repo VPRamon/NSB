@@ -211,6 +211,12 @@ pub struct BrightStarArtifact {
     pub schema_version: u32,
     pub model_id: String,
     pub product_band: String,
+    /// Spectral reconstruction identity used to produce combined-band source components.
+    ///
+    /// Schema-1 measured artifacts default to no explicit identity for backwards
+    /// compatibility. Schema-2 combined artifacts must carry the pinned v1 model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spectral_reconstruction_model_id: Option<String>,
     pub nside: u32,
     pub ordering: String,
     pub population_policy: BrightStarPopulationPolicy,
@@ -290,6 +296,12 @@ impl BrightStarArtifact {
             schema_version: product_band.schema_version(),
             model_id: product_band.model_id().into(),
             product_band: product_band.as_str().into(),
+            spectral_reconstruction_model_id: match product_band {
+                BrightStarArtifactProductBand::Measured336To650 => None,
+                BrightStarArtifactProductBand::Combined300To650 => {
+                    Some(super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.to_owned())
+                }
+            },
             nside,
             ordering: "nested".into(),
             population_policy,
@@ -327,6 +339,26 @@ impl BrightStarArtifact {
                 self.product_band
             );
         }
+        match product_band {
+            BrightStarArtifactProductBand::Measured336To650 => {
+                if let Some(model_id) = &self.spectral_reconstruction_model_id {
+                    if model_id != super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1 {
+                        bail!("bright-star measured artifact has unknown spectral reconstruction model");
+                    }
+                }
+            }
+            BrightStarArtifactProductBand::Combined300To650 => {
+                match &self.spectral_reconstruction_model_id {
+                    Some(model_id)
+                        if model_id
+                            == super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1 => {}
+                    _ => bail!(
+                        "combined bright-star artifact requires spectral reconstruction model {}",
+                        super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
+                    ),
+                }
+            }
+        }
         if self.ordering != "nested" {
             bail!("bright-star ordering must be nested");
         }
@@ -339,7 +371,7 @@ impl BrightStarArtifact {
         if self.scientifically_validated || self.redistribution_embedded {
             bail!("experimental bright-star artifact cannot claim approval or embedding");
         }
-        validate_inputs(&self.inputs)?;
+        validate_inputs(product_band, &self.inputs)?;
         let mut source_ids = BTreeSet::new();
         let mut replacement_ids = BTreeSet::new();
         for source in &self.sources {
@@ -350,6 +382,26 @@ impl BrightStarArtifact {
                 );
             }
             validate_source(product_band, source)?;
+            if product_band == BrightStarArtifactProductBand::Combined300To650
+                && matches!(
+                    source.class,
+                    SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
+                )
+            {
+                let model_id = self
+                    .spectral_reconstruction_model_id
+                    .as_deref()
+                    .context("combined artifact missing spectral reconstruction model")?;
+                let expected_prefix = format!("{model_id}:");
+                if !source.spectral_route.starts_with(&expected_prefix)
+                    || source.spectral_route.len() == expected_prefix.len()
+                {
+                    bail!(
+                        "admitted combined bright-star source {} spectral_route does not match artifact spectral reconstruction model",
+                        source.source_id
+                    );
+                }
+            }
             if source.class == SupplementClass::MatchedAndReplacesPrimary {
                 let gaia_id = source
                     .gaia_source_id
@@ -403,12 +455,7 @@ impl BrightStarArtifact {
             precedence_policy_id: self.precedence_policy.policy_id.clone(),
             build_commit: self.build_commit.clone(),
             product_band: self.product_band.clone(),
-            spectral_reconstruction_model_id: match self.product_band_kind()? {
-                BrightStarArtifactProductBand::Measured336To650 => None,
-                BrightStarArtifactProductBand::Combined300To650 => {
-                    Some(super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1.to_owned())
-                }
-            },
+            spectral_reconstruction_model_id: self.spectral_reconstruction_model_id.clone(),
         };
         provenance.validate()?;
         Ok(provenance)
@@ -442,7 +489,10 @@ pub(crate) fn is_full_git_sha(value: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-fn validate_inputs(inputs: &[BrightStarInputProvenance]) -> Result<()> {
+fn validate_inputs(
+    product_band: BrightStarArtifactProductBand,
+    inputs: &[BrightStarInputProvenance],
+) -> Result<()> {
     let mut identities = BTreeSet::new();
     for input in inputs {
         if input.source_id.trim().is_empty() || input.release.trim().is_empty() {
@@ -456,6 +506,24 @@ fn validate_inputs(inputs: &[BrightStarInputProvenance]) -> Result<()> {
         }
         if !identities.insert((input.role, input.source_id.as_str())) {
             bail!("duplicate bright-star provenance role/source entry");
+        }
+    }
+    if product_band == BrightStarArtifactProductBand::Combined300To650 {
+        for role in [
+            BrightStarInputRole::SpectralTypeCatalogue,
+            BrightStarInputRole::SpectralTemplateLibrary,
+            BrightStarInputRole::PhotometricResponseCurve,
+            BrightStarInputRole::PhotometricZeroPoint,
+        ] {
+            if !inputs.iter().any(|input| input.role == role) {
+                bail!("combined bright-star artifact is missing required spectral provenance role {role:?}");
+            }
+        }
+        if !inputs.iter().any(|input| {
+            input.role == BrightStarInputRole::BuildConfig
+                && input.source_id == "starlight-bright-stars-spectral-model-v1.json"
+        }) {
+            bail!("combined bright-star artifact is missing checksum-pinned spectral reconstruction model provenance");
         }
     }
     Ok(())
@@ -1111,6 +1179,36 @@ mod tests {
         assert!(art.validate().is_err());
     }
 
+    fn combined_inputs() -> Vec<BrightStarInputProvenance> {
+        let input = |role, source_id: &str| BrightStarInputProvenance {
+            role,
+            source_id: source_id.into(),
+            release: "fixture-v1".into(),
+            sha256: "a".repeat(64),
+            retrieval_url: "https://example.invalid/source".into(),
+            license_or_terms_url: "https://example.invalid/terms".into(),
+        };
+        vec![
+            input(BrightStarInputRole::SpectralTypeCatalogue, "xhip-fixture"),
+            input(
+                BrightStarInputRole::SpectralTemplateLibrary,
+                "ck04-fixture",
+            ),
+            input(
+                BrightStarInputRole::PhotometricResponseCurve,
+                "hp-response-fixture",
+            ),
+            input(
+                BrightStarInputRole::PhotometricZeroPoint,
+                "hp-zero-point-fixture",
+            ),
+            input(
+                BrightStarInputRole::BuildConfig,
+                "starlight-bright-stars-spectral-model-v1.json",
+            ),
+        ]
+    }
+
     fn combined_source(
         id: &str,
         class: SupplementClass,
@@ -1144,6 +1242,10 @@ mod tests {
             correlation_group_id: "hip2-zero-point".into(),
             uncertainty_ph_m2_s: flux_336 * 0.03,
         }];
+        record.spectral_route = format!(
+            "{}:fixture",
+            super::super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
+        );
         record
     }
 
@@ -1152,7 +1254,7 @@ mod tests {
         let art = BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![
                 combined_source("a", SupplementClass::SupplementOnly, None, 10.0, 2.0),
                 combined_source(
@@ -1174,12 +1276,65 @@ mod tests {
         );
         assert_eq!(art.model_id, BRIGHT_STAR_MODEL_ID_COMBINED);
         assert_eq!(art.product_band, BRIGHT_STAR_PRODUCT_BAND_COMBINED_ID);
+        assert_eq!(
+            art.spectral_reconstruction_model_id.as_deref(),
+            Some(super::super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1)
+        );
         assert_eq!(art.pixels[0].flux_ph_m2_s, 18.0);
         let provenance = art.supplement_provenance(&"c".repeat(64)).unwrap();
         assert_eq!(
             provenance.spectral_reconstruction_model_id.as_deref(),
             Some(super::super::reconstruction::SPECTRAL_RECONSTRUCTION_MODEL_ID_V1)
         );
+    }
+
+    #[test]
+    fn combined_artifact_requires_complete_spectral_provenance_and_matching_route() {
+        let sources = vec![combined_source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0,
+            0.2,
+        )];
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            sources.clone(),
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
+
+        let mut missing_template_library = combined_inputs();
+        missing_template_library.retain(|input| {
+            input.role != BrightStarInputRole::SpectralTemplateLibrary
+        });
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            missing_template_library,
+            sources.clone(),
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
+
+        let mut bad_route = sources;
+        bad_route[0].spectral_route = "other-model:fixture".into();
+        assert!(BrightStarArtifact::from_sources_for_band(
+            1,
+            &fixture_commit(),
+            combined_inputs(),
+            bad_route,
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BrightStarArtifactProductBand::Combined300To650,
+        )
+        .is_err());
     }
 
     #[test]
@@ -1198,7 +1353,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             sources,
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
@@ -1212,7 +1367,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![missing],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
@@ -1229,7 +1384,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![excluded],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
@@ -1246,7 +1401,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![drifted],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
@@ -1286,7 +1441,7 @@ mod tests {
         let combined = BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![combined_source(
                 "a",
                 SupplementClass::SupplementOnly,
@@ -1301,6 +1456,9 @@ mod tests {
         .unwrap();
         let mut combined_prov = combined.supplement_provenance(&sha).unwrap();
         assert!(combined_prov.validate().is_ok());
+        let mut missing_model = combined.clone();
+        missing_model.spectral_reconstruction_model_id = None;
+        assert!(missing_model.validate().is_err());
         combined_prov.spectral_reconstruction_model_id = None;
         assert!(combined_prov.validate().is_err());
     }
@@ -1311,7 +1469,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![zero_uv],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
@@ -1328,7 +1486,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![bad_stat],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
@@ -1349,7 +1507,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![bad_group],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
@@ -1368,7 +1526,7 @@ mod tests {
         assert!(BrightStarArtifact::from_sources_for_band(
             1,
             &fixture_commit(),
-            Vec::new(),
+            combined_inputs(),
             vec![bad_correlated_total],
             BrightStarPopulationPolicy::v1(),
             BrightStarPrecedencePolicy::v1(),
