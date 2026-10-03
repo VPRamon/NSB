@@ -139,7 +139,7 @@ and commutative, and rounding happens only when a value is read).
 | `systematic_correlated_uncertainty` | Fully correlated selected-band systematic stddev total. | ph m⁻² s⁻¹ | stddev (summed directly, not as variance) | Exact sum of `selected_systematic`, only for sources tagged `FullyCorrelatedBetweenSources` | direct value |
 | `selected_systematic_uncertainty()` | Pixel's total systematic uncertainty, combining both channels above. | ph m⁻² s⁻¹ | stddev | n/a (derived) | `sqrt(systematic_variance).hypot(systematic_correlated_uncertainty)` — the independent-quadrature total and the linear-sum total are themselves combined in quadrature with each other, since they represent two structurally different, uncorrelated-with-each-other error sources |
 | `flux_300_336_ph_m2_s`, `flux_336_650_ph_m2_s`, `flux_300_650_ph_m2_s` and their `statistical_variance_*` counterparts | Same rules as above, tracked separately per sub-band for `band_diagnostics` regardless of which band is "selected" for the map. | ph m⁻² s⁻¹ / (ph m⁻² s⁻¹)² | value / variance | Exact sum, quadrature for statistical | `sqrt(...)` for variances |
-| `systematic_variance_300_336_independent`, `systematic_uncertainty_300_336_correlated` | 300-336 nm-only systematic channels, same split as the selected-band systematic. | (ph m⁻² s⁻¹)² / ph m⁻² s⁻¹ | variance / stddev | Same split rule as `systematic_variance`/`systematic_correlated_uncertainty`, restricted to the 300-336 nm sub-band | `sqrt(independent).hypot(correlated)` in `band_diagnostics` |
+| `systematic_variance_300_336_independent`, `systematic_uncertainty_300_336_correlated`, `systematic_correlated_groups_300_336` | 300-336 nm-only systematic channels, including named catalogue/system correlation groups retained separately from selected-product groups. | (ph m⁻² s⁻¹)² / ph m⁻² s⁻¹ | variance / stddev | Independent terms add in quadrature; the unnamed fully-correlated channel adds linearly; each named group adds linearly within that group and distinct groups combine in quadrature. | `hypot(sqrt(independent), correlated, sqrt(sum(group_total²)))` in `band_diagnostics` |
 
 `PixelAccumulator::merge` (used to combine per-worker shards for the *same*
 pixel) adds every field above directly — including
@@ -153,7 +153,7 @@ Values published once per candidate, over every occupied pixel.
 
 | Field | Meaning | Unit | Accumulation rule |
 | --- | --- | --- | --- |
-| `BandDiagnosticsReport.systematic_uncertainty_300_336_ph_m2_s` / `..._300_650_ph_m2_s` | Global systematic uncertainty for the 300-336 nm and combined 300-650 nm sub-bands. | ph m⁻² s⁻¹ | `sqrt(sum_over_pixels(systematic_variance_300_336_independent)).hypot(sum_over_pixels(systematic_uncertainty_300_336_correlated))` — independent variance sums **across pixels** (quadrature), correlated uncertainty sums **across pixels** (linear), the two pixel-summed totals are then combined with `hypot`. This is the "two pixels sharing a global systematic add linearly" rule (fixture 8). |
+| `BandDiagnosticsReport.systematic_uncertainty_300_336_ph_m2_s` / `..._300_650_ph_m2_s` | Global systematic uncertainty for the 300-336 nm and combined 300-650 nm sub-bands. | ph m⁻² s⁻¹ | The 300-336 value combines the independent UV variance, unnamed fully-correlated UV channel, and the per-`correlation_group_id` UV totals. For a combined product, the 300-650 value is derived from the selected-product accumulator via `global_selected_uncertainty`, so it includes independent, unnamed correlated, and named catalogue groups for the full band rather than reusing the UV-only total. |
 | `UncertaintyScaleDiagnostics.global_relative_statistical_uncertainty` / `..._systematic_uncertainty` / `..._total_uncertainty` | Global selected-band statistical/systematic/total uncertainty (computed by the same cross-pixel rule as `band_diagnostics`, but for the selected product band, via `global_selected_uncertainty`), divided by the canonical map's total flux. | dimensionless (fraction of total flux) | See above for the numerator; `total = hypot(statistical, systematic)`. Not independently re-derivable from the published CSV alone (only `validate_report` finiteness/non-negativity/consistency checks apply), since the CSV does not separate independent from correlated systematic contributions. |
 | `UncertaintyScaleDiagnostics.pixel_relative_uncertainty_p50/p68/p95/p99` | Nearest-rank percentiles of `hypot(pixel_statistical, pixel_systematic) / pixel_flux` over every occupied pixel with `>= 1` admitted source. | dimensionless | Computed directly from the published CSV; `validate_report` recomputes and requires an exact match. |
 | `UncertaintyScaleDiagnostics.fraction_pixels_relative_uncertainty_gt_1/gt_10/gt_100` | Fraction of evaluated pixels whose relative total uncertainty exceeds `1`, `10`, `100` respectively. | dimensionless, `[0, 1]` | Same population and recomputation guarantee as the percentiles above. |
@@ -200,9 +200,14 @@ The experimental `starlight-bright-stars-v1` artifact separates
 `systematic_independent_uncertainty_ph_m2_s`, and named
 `systematic_catalogue_correlated` terms. Independent terms add in quadrature.
 Terms sharing the same non-empty `correlation_group_id` add linearly across
-sources and pixels; totals from distinct groups combine in quadrature. This
-prevents Hipparcos, Tycho, response-curve, and template-library calibration
-systems from being treated as correlated without evidence.
+sources and pixels; totals from distinct groups combine in quadrature. Combined
+bright-star artifacts retain the 300-336 named groups separately from the
+selected 300-650 named groups. This is required because the same Hp zero-point
+term has a different absolute magnitude in each band; dropping the UV-specific
+group would understate the 300-336 diagnostic, while reusing the UV total for
+300-650 would omit measured-band contributions. This prevents Hipparcos, Tycho,
+response-curve, and template-library calibration systems from being treated as
+correlated without evidence.
 
 The v1 CK04/Hp spectral reconstruction currently pins
 `bright-star-spectral-calibration-v1.json` with status
