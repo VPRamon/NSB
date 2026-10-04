@@ -52,6 +52,46 @@ def test_wrong_siderust_object_types_are_rejected(
         nsb.PointQuery(observer_value, point_time, direction_value)
 
 
+def make_query(kind, observer, direction, point_time):
+    if kind == "point":
+        return nsb.PointQuery(observer, point_time, direction)
+    return nsb.ThresholdQuery(
+        observer,
+        direction,
+        point_time,
+        point_time + timedelta(hours=1),
+        1.0,
+    )
+
+
+@pytest.mark.parametrize("query_kind", ["point", "threshold"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize("field", ["lon_deg", "lat_deg", "height_m"])
+def test_non_finite_canonical_observer_is_rejected(
+    query_kind, value, field, direction, point_time
+):
+    parts = {"lon_deg": 0.0, "lat_deg": 0.0, "height_m": 0.0}
+    parts[field] = value
+    observer = siderust.Observer(**parts)
+
+    with pytest.raises(nsb.OutOfRangeError, match=rf"observer\.{field} must be finite"):
+        make_query(query_kind, observer, direction, point_time)
+
+
+@pytest.mark.parametrize("query_kind", ["point", "threshold"])
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+@pytest.mark.parametrize("field", ["ra_deg", "dec_deg"])
+def test_non_finite_canonical_direction_is_rejected(
+    query_kind, value, field, observer, point_time
+):
+    parts = {"ra_deg": 0.0, "dec_deg": 0.0}
+    parts[field] = value
+    direction = siderust.Direction(**parts)
+
+    with pytest.raises(nsb.OutOfRangeError, match=rf"target\.{field} must be finite"):
+        make_query(query_kind, observer, direction, point_time)
+
+
 def test_aware_non_utc_datetime_is_normalized(observer, direction):
     local = datetime(2023, 9, 4, 3, 48, tzinfo=timezone(timedelta(hours=2)))
     query = nsb.PointQuery(observer, local, direction)

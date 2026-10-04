@@ -26,6 +26,12 @@ transformed through Siderust's frame-bias rotation to NSB's
 `EquatorialMeanJ2000` target type; getters apply the inverse transform before
 constructing the canonical Python object.
 
+Siderust owns coordinate validity. As a temporary compatibility safeguard for
+`siderust-py` 0.2, the NSB query boundary rejects non-finite observer and
+direction components before scientific evaluation. This guard can be removed
+once the canonical Siderust constructors enforce the same invariant upstream;
+NSB does not otherwise duplicate Siderust's coordinate-range policy.
+
 ## Package layout
 
 This is a pure-Rust maturin project with import name `nsb`. Maturin supplies its

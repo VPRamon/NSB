@@ -34,6 +34,24 @@ fn finite(name: &str, value: f64) -> PyResult<()> {
     }
 }
 
+// siderust-py 0.2.0 does not yet reject non-finite coordinate parts. Keep this
+// safeguard at the NSB query boundary until validity is enforced upstream; it
+// must not grow into a parallel coordinate-range policy.
+fn observer_from_canonical(value: &Bound<'_, PyAny>) -> PyResult<crate::Observer> {
+    let observer = observer_from_python(value)?;
+    finite("observer.lon_deg", observer.lon.value())?;
+    finite("observer.lat_deg", observer.lat.value())?;
+    finite("observer.height_m", observer.height.value())?;
+    Ok(observer)
+}
+
+fn target_from_canonical(value: &Bound<'_, PyAny>) -> PyResult<crate::Target> {
+    let icrs = direction_from_python(value)?;
+    finite("target.ra_deg", icrs.azimuth.value())?;
+    finite("target.dec_deg", icrs.polar.value())?;
+    Ok(target_from_icrs(icrs))
+}
+
 #[pymethods]
 impl PointQuery {
     #[new]
@@ -44,9 +62,9 @@ impl PointQuery {
         target: &Bound<'_, PyAny>,
         components: Option<ComponentMask>,
     ) -> PyResult<Self> {
-        let target = target_from_icrs(direction_from_python(target)?);
+        let target = target_from_canonical(target)?;
         let mut query = Self::new(
-            observer_from_python(observer)?,
+            observer_from_canonical(observer)?,
             datetime_to_time(time, "time")?,
             target,
         );
@@ -127,9 +145,9 @@ impl ThresholdQuery {
         let window = Period::try_new(start, end)
             .map_err(|error| invalid_input(format!("invalid UTC search window: {error}")))?;
 
-        let target = target_from_icrs(direction_from_python(target)?);
+        let target = target_from_canonical(target)?;
         let mut query = Self::new(
-            observer_from_python(observer)?,
+            observer_from_canonical(observer)?,
             target,
             window,
             BandPhotonRadiance::new(threshold_photons_cm2_ns_sr),

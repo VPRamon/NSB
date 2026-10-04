@@ -386,7 +386,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Fetch canonical siderust Python package
-        run: python scripts/prepare-siderust-python.py
+        run: python scripts/prepare-siderust-python.py "${{ runner.temp }}/siderust-py"
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Cargo
@@ -405,7 +405,7 @@ jobs:
         run: ${{ matrix.venv-python }} -m pip install --upgrade pip "maturin>=1.9.4,<2" "pytest>=8,<10"
       - name: Build and install canonical siderust dependency
         run: |
-          ${{ matrix.venv-python }} -m maturin build --release --locked --out siderust-dist --manifest-path .siderust-py/Cargo.toml --interpreter ${{ matrix.venv-python }}
+          ${{ matrix.venv-python }} -m maturin build --release --locked --out siderust-dist --manifest-path "${{ runner.temp }}/siderust-py/Cargo.toml" --interpreter ${{ matrix.venv-python }}
           ${{ matrix.venv-python }} -m pip install --no-index --find-links siderust-dist "siderust>=0.2,<0.3"
       - name: Install built wheel
         run: ${{ matrix.venv-python }} -m pip install --no-index --find-links dist nsb-rust
@@ -421,7 +421,7 @@ jobs:
         run: |
           python -m venv .wheel-venv-314
           ${{ matrix.additional-venv-python }} -m pip install --upgrade pip "maturin>=1.9.4,<2" "pytest>=8,<10"
-          ${{ matrix.additional-venv-python }} -m maturin build --release --locked --out siderust-dist-314 --manifest-path .siderust-py/Cargo.toml --interpreter ${{ matrix.additional-venv-python }}
+          ${{ matrix.additional-venv-python }} -m maturin build --release --locked --out siderust-dist-314 --manifest-path "${{ runner.temp }}/siderust-py/Cargo.toml" --interpreter ${{ matrix.additional-venv-python }}
           ${{ matrix.additional-venv-python }} -m pip install --no-index --find-links siderust-dist-314 "siderust>=0.2,<0.3"
           ${{ matrix.additional-venv-python }} -m pip install --no-index --find-links dist nsb-rust
           ${{ matrix.additional-venv-python }} -m pytest python/tests -q

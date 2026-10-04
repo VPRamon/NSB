@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import io
 from pathlib import Path
@@ -13,13 +14,23 @@ import urllib.request
 VERSION = "0.2.0"
 SHA256 = "a1439bd0885d0ad58b1a33f1db58f4462d34dd2da734ba725d27eda54c181036"
 URL = f"https://static.crates.io/crates/siderust-py/siderust-py-{VERSION}.crate"
-DESTINATION = Path(".siderust-py")
 ARCHIVE_ROOT = f"siderust-py-{VERSION}"
 
 
+def arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "destination",
+        type=Path,
+        help="new directory in which to extract the published source package",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    if DESTINATION.exists():
-        raise SystemExit(f"refusing to overwrite {DESTINATION}")
+    destination = arguments().destination
+    if destination.exists():
+        raise SystemExit(f"refusing to overwrite {destination}")
 
     with urllib.request.urlopen(URL) as response:
         archive = response.read()
@@ -35,7 +46,7 @@ def main() -> None:
             relative = Path(*parts[1:])
             if not relative.parts:
                 continue
-            target = DESTINATION / relative
+            target = destination / relative
             if member.isdir():
                 target.mkdir(parents=True, exist_ok=True)
             elif member.isfile():
