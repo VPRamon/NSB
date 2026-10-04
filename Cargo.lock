@@ -1334,7 +1334,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "siderust",
+ "siderust-py",
  "tempoch",
+ "tempoch-py",
  "thiserror",
  "toml",
 ]
@@ -2126,6 +2128,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "siderust-py"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2a7192b2175f04fad6da87bba45a318ce61072142b3dc3ed9fcd426063d2ddc"
+dependencies = [
+ "affn",
+ "pyo3",
+ "siderust",
+]
+
+[[package]]
 name = "simd-adler32"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2257,6 +2270,17 @@ dependencies = [
  "chrono",
  "serde",
  "siderust-archive",
+]
+
+[[package]]
+name = "tempoch-py"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "102e9500a196d141472b3cc1799e1e739de100aabd38356eda74e01a05f80611"
+dependencies = [
+ "chrono",
+ "pyo3",
+ "tempoch",
 ]
 
 [[package]]

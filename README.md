@@ -39,12 +39,19 @@ NSB is available through Python, Rust, and a command-line interface.
 The Python distribution is named `nsb-rust`; the import name is `nsb`.
 Python 3.10 or newer is supported.
 
+Install the released package and its canonical Siderust dependency with:
+
+```bash
+python -m pip install nsb-rust
+```
+
 From a repository checkout:
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2"
+python -m pip install "siderust>=0.2.2,<0.3"
 maturin develop --locked
 ```
 
@@ -53,15 +60,16 @@ Evaluate one target:
 ```python
 from datetime import datetime, timezone
 import nsb
+import siderust
 
 # CTAO South WGS84 coordinates from the bundled observatory catalog.
-ctao_south = nsb.Observer(
+ctao_south = siderust.Observer(
     lon_deg=-70.31634444444444,
     lat_deg=-24.683427777777776,
     height_m=2184.6,
 )
 # Sagittarius A* in ICRS coordinates.
-sgr_a_star = nsb.Direction(
+sgr_a_star = siderust.Direction(
     ra_deg=266.41683,
     dec_deg=-29.00781,
 )

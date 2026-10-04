@@ -1,8 +1,8 @@
 //! NSB-owned Python API.
 //!
 //! Keep this module limited to concepts whose scientific and compatibility
-//! contract belongs to NSB. Generic astronomy and time interop lives in
-//! `python::compat` and is deliberately replaceable.
+//! contract belongs to NSB. Generic astronomy and time interoperability is
+//! delegated to `siderust-py` and `tempoch-py`.
 
 mod config;
 mod errors;

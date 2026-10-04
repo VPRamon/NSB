@@ -1,10 +1,10 @@
 //! Optional Python adapter for NSB.
 //!
 //! NSB-owned types are exposed directly where Python preserves their Rust
-//! identity and semantics. Boundary adapters live in `api` and `compat`.
+//! identity and semantics. Generic astronomy and datetime interoperability is
+//! delegated to the canonical Siderust and tempoch Python bridges.
 
 mod api;
-mod compat;
 
 use pyo3::prelude::*;
 
@@ -16,15 +16,13 @@ use api::{
     add_exceptions, install_component_mask_constants, PyNsbComponent, PyNsbComponentMetadata,
     PyNsbResult, PySiteProfile, PySiteWindowContext, PyThresholdQueryResult,
 };
-use compat::{PyDirection, PyObserver};
 
 #[pymodule]
 #[pyo3(name = "nsb")]
 fn python_module(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    siderust_py::interop::ensure_bridge_protocol(module.py())?;
     add_exceptions(module)?;
 
-    module.add_class::<PyObserver>()?;
-    module.add_class::<PyDirection>()?;
     module.add_class::<PySiteProfile>()?;
     module.add_class::<MoonlightModel>()?;
     module.add_class::<AirglowModel>()?;

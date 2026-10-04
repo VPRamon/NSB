@@ -23,7 +23,7 @@ fn workspace_root() -> PathBuf {
 fn declared_siderust_version(manifest: &str) -> Option<String> {
     for line in manifest.lines() {
         let trimmed = line.trim();
-        if !trimmed.starts_with("siderust") {
+        if trimmed.split_once('=').map(|(name, _)| name.trim()) != Some("siderust") {
             continue;
         }
 

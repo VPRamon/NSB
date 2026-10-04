@@ -2,17 +2,18 @@ from datetime import datetime, timezone
 
 import nsb
 import pytest
+import siderust
 
 
 @pytest.fixture
 def observer():
     # Matches the CTAO-S geometry fixture used by Rust end-to-end tests.
-    return nsb.Observer(-70.31634444444444, -24.683427777777776, 2184.6)
+    return siderust.Observer(-70.31634444444444, -24.683427777777776, 2184.6)
 
 
 @pytest.fixture
 def direction():
-    return nsb.Direction(266.41683, -29.00781)
+    return siderust.Direction(266.41683, -29.00781)
 
 
 @pytest.fixture

@@ -17,13 +17,15 @@ name = "nsb"
 crate-type = ["rlib", "cdylib"]
 
 [features]
-python = ["dep:pyo3"]
+python = ["dep:pyo3", "dep:siderust-py", "dep:tempoch-py"]
 
 [dependencies]
 # qtty and optica are consumed through Siderust's public re-exports so NSB
 # cannot accidentally compile against a different instance of those API types.
 tempoch  = "0.7"
-pyo3     = { version = "0.29.2", optional = true, features = ["abi3-py310", "chrono"] }
+pyo3     = { version = "0.29.2", optional = true, features = ["abi3-py310"] }
+siderust-py = { version = "0.2.2", optional = true }
+tempoch-py  = { version = "0.2.1", optional = true }
 siderust = { version = "0.12.0", features = ["atmosphere", "photometry"] }
 
 thiserror = "2.0"
