@@ -12,7 +12,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Astronomy",
 ]
-dependencies = []
+dependencies = ["siderust>=0.2,<0.3"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10"]

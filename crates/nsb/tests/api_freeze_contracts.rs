@@ -71,7 +71,7 @@ fn nsb_crate_only_exposes_the_supported_python_feature() {
             .iter()
             .filter_map(toml::Value::as_str)
             .collect::<Vec<_>>(),
-        ["dep:pyo3"]
+        ["dep:pyo3", "dep:siderust-py", "dep:tempoch-py"]
     );
     assert!(!manifest.contains_key("window-search-diagnostics"));
 }

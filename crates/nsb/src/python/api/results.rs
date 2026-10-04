@@ -1,9 +1,8 @@
-use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use tempoch::{Period, UTC};
+use tempoch_py::interop::period_to_datetimes;
 
 use crate::{NsbComponent, NsbComponentMetadata, NsbResult, ThresholdQueryResult};
-
-use super::super::compat::period_to_datetimes;
 
 #[pyclass(
     name = "NsbComponentMetadata",
@@ -130,23 +129,37 @@ impl From<NsbResult> for PyNsbResult {
     name = "ThresholdQueryResult",
     frozen,
     module = "nsb",
-    get_all,
     skip_from_py_object
 )]
 pub(in crate::python) struct PyThresholdQueryResult {
     threshold_photons_cm2_ns_sr: f64,
-    periods: Vec<(DateTime<Utc>, DateTime<Utc>)>,
+    periods: Vec<Period<UTC>>,
 }
 
 impl PyThresholdQueryResult {
-    pub(in crate::python) fn try_from_inner(value: ThresholdQueryResult) -> PyResult<Self> {
-        Ok(Self {
+    pub(in crate::python) fn from_inner(value: ThresholdQueryResult) -> Self {
+        Self {
             threshold_photons_cm2_ns_sr: value.threshold.value(),
-            periods: value
-                .periods
-                .into_iter()
-                .map(period_to_datetimes)
-                .collect::<PyResult<_>>()?,
-        })
+            periods: value.periods,
+        }
+    }
+}
+
+#[pymethods]
+impl PyThresholdQueryResult {
+    #[getter]
+    fn threshold_photons_cm2_ns_sr(&self) -> f64 {
+        self.threshold_photons_cm2_ns_sr
+    }
+
+    #[getter]
+    fn periods(&self, py: Python<'_>) -> PyResult<Vec<(Py<PyAny>, Py<PyAny>)>> {
+        self.periods
+            .iter()
+            .map(|period| {
+                let (start, end) = period_to_datetimes(py, *period)?;
+                Ok((start.unbind(), end.unbind()))
+            })
+            .collect()
     }
 }

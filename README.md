@@ -45,6 +45,8 @@ From a repository checkout:
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2"
+# Until siderust 0.2 wheels are on PyPI, build its v0.2.0 checkout first.
+maturin develop --release --manifest-path ../siderust-py/Cargo.toml
 maturin develop --locked
 ```
 
@@ -53,15 +55,16 @@ Evaluate one target:
 ```python
 from datetime import datetime, timezone
 import nsb
+import siderust
 
 # CTAO South WGS84 coordinates from the bundled observatory catalog.
-ctao_south = nsb.Observer(
+ctao_south = siderust.Observer(
     lon_deg=-70.31634444444444,
     lat_deg=-24.683427777777776,
     height_m=2184.6,
 )
 # Sagittarius A* in ICRS coordinates.
-sgr_a_star = nsb.Direction(
+sgr_a_star = siderust.Direction(
     ra_deg=266.41683,
     dec_deg=-29.00781,
 )

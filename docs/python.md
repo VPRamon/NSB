@@ -16,11 +16,15 @@ Generic scientific primitives belong upstream:
 
 - **Siderust** owns observers, coordinate systems, directions, and astronomy semantics.
 - **qtty** owns physical quantities and units.
-- **tempoch** owns time-scale and interval semantics.
+- **tempoch / tempoch-py** own time-scale, interval, and Python datetime conversion semantics.
 
-The current `nsb.Observer`, `nsb.Direction`, and Python `datetime` bridge are temporary compatibility adapters. They exist because the reusable upstream Python packages are not yet on the Siderust/qtty/tempoch dependency stack used by NSB. They convert Python values immediately into canonical Rust Siderust/tempoch types; NSB does not implement a parallel coordinate or time policy.
-
-`Observer` and `Direction` intentionally follow the naming used by `siderust-py`. There is no Python `nsb.Target`: NSB's Rust `Target` is a fixed equatorial direction, while Siderust's Python ecosystem already uses `Target` for a different concept.
+Python observers and directions are the canonical `siderust.Observer` and
+`siderust.Direction` classes. NSB consumes `siderust-py`'s versioned
+cross-extension bridge and does not register duplicate `nsb.Observer` or
+`nsb.Direction` classes. At the Rust boundary, the bridge's ICRS direction is
+transformed through Siderust's frame-bias rotation to NSB's
+`EquatorialMeanJ2000` target type; getters apply the inverse transform before
+constructing the canonical Python object.
 
 ## Package layout
 
@@ -35,15 +39,16 @@ duplicated re-export list.
 from datetime import datetime, timezone
 
 import nsb
+import siderust
 
 # CTAO South WGS84 coordinates from the bundled observatory catalog.
-ctao_south = nsb.Observer(
+ctao_south = siderust.Observer(
     lon_deg=-70.31634444444444,
     lat_deg=-24.683427777777776,
     height_m=2184.6,
 )
 # Sagittarius A* in ICRS coordinates.
-sgr_a_star = nsb.Direction(
+sgr_a_star = siderust.Direction(
     ra_deg=266.41683,
     dec_deg=-29.00781,
 )
@@ -106,7 +111,12 @@ Returned periods are `(start, end)` tuples of timezone-aware UTC `datetime.datet
 
 ## Time boundary
 
-Input datetimes must be timezone-aware. Explicit non-UTC offsets are normalized to UTC before conversion into `tempoch::Time<UTC>`. Naive datetimes are rejected with `nsb.OutOfRangeError`. The conversion code is isolated under `python/compat/tempoch.rs`.
+Input datetimes must be timezone-aware. `tempoch-py` validates Python datetime
+objects, normalizes explicit non-UTC offsets, and performs the canonical
+conversion to `tempoch::Time<UTC>`. NSB only translates conversion failures to
+its documented `nsb.OutOfRangeError` with argument context. Returned instants
+and period endpoints are created through the same upstream bridge as aware UTC
+`datetime.datetime` values.
 
 ## Units
 
@@ -124,6 +134,7 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
+maturin develop --release --manifest-path ../siderust-py/Cargo.toml
 maturin develop --locked
 python -m pytest python/tests
 ```
@@ -132,12 +143,18 @@ To validate an installed wheel:
 
 ```bash
 maturin build --release --locked --out dist
+# Install the canonical siderust wheel first when testing with --no-index.
+python -m pip install --no-index --find-links siderust-dist siderust
 python -m pip install --force-reinstall --no-index --find-links dist nsb-rust
 python -m pytest python/tests
 ```
 
-The binding uses PyO3's CPython stable ABI with a Python 3.10 floor (`abi3-py310`). Python support remains feature-gated, so normal Rust builds do not enable PyO3.
+The NSB binding uses PyO3's CPython stable ABI with a Python 3.10 floor
+(`abi3-py310`). Python support and the `siderust-py` / `tempoch-py` Rust bridge
+dependencies remain feature-gated, so normal Rust builds do not enable PyO3.
 
-## Upstream migration note
-
-The compatibility directory is deletion-oriented. When reusable Siderust/tempoch Python bindings match NSB's dependency stack, migration should be limited to replacing conversion entry points and deleting `python/compat/siderust.rs` and/or `python/compat/tempoch.rs`. NSB-owned files under `python/api/` should not need a scientific redesign.
+The `nsb-rust` distribution declares `siderust>=0.2,<0.3` as a runtime
+dependency. Until canonical `siderust` wheels are available from PyPI, wheel CI
+builds that dependency from the checksum-pinned crates.io 0.2.0 source package
+and its published lockfile before testing the freshly built NSB wheel with
+`--no-index`.

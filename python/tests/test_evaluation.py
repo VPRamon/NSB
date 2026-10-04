@@ -18,6 +18,16 @@ def test_point_fixture_matches_rust_public_contract(observer, direction, evaluat
         rel=1e-12,
     )
 
+    # These values include the ICRS -> EquatorialMeanJ2000 frame-bias transform.
+    # Numerically reinterpreting ICRS as J2000 instead would produce
+    # 0.06274545597123787 and 0.14839908015622694, respectively.
+    assert result.components[0].integrated_photons_cm2_ns_sr == pytest.approx(
+        0.06274545747149778, abs=1.0e-12
+    )
+    assert result.components[1].integrated_photons_cm2_ns_sr == pytest.approx(
+        0.1483990786146788, abs=1.0e-12
+    )
+
 
 def test_config_component_selection_and_automatic_airglow(observer, direction, point_time):
     config = (
