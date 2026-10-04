@@ -16,7 +16,7 @@ def test_distribution_declares_compatible_siderust_runtime_dependency():
 
     assert len(siderust_requirements) == 1
     requirement = siderust_requirements[0].replace(" ", "")
-    assert ">=0.2.1" in requirement
+    assert ">=0.2.2" in requirement
     assert "<0.3" in requirement
     assert metadata.version("siderust") == siderust.__version__
 
@@ -68,44 +68,25 @@ def test_wrong_siderust_object_types_are_rejected(
         nsb.PointQuery(observer_value, point_time, direction_value)
 
 
-def make_query(kind, observer, direction, point_time):
-    if kind == "point":
-        return nsb.PointQuery(observer, point_time, direction)
-    return nsb.ThresholdQuery(
-        observer,
-        direction,
-        point_time,
-        point_time + timedelta(hours=1),
-        1.0,
-    )
 
-
-@pytest.mark.parametrize("query_kind", ["point", "threshold"])
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 @pytest.mark.parametrize("field", ["lon_deg", "lat_deg", "height_m"])
-def test_non_finite_canonical_observer_is_rejected(
-    query_kind, value, field, direction, point_time
-):
+def test_siderust_rejects_non_finite_observer_parts(value, field):
     parts = {"lon_deg": 0.0, "lat_deg": 0.0, "height_m": 0.0}
     parts[field] = value
-    observer = siderust.Observer(**parts)
 
-    with pytest.raises(nsb.OutOfRangeError, match=rf"observer\.{field} must be finite"):
-        make_query(query_kind, observer, direction, point_time)
+    with pytest.raises(ValueError, match=rf"{field} must be finite"):
+        siderust.Observer(**parts)
 
 
-@pytest.mark.parametrize("query_kind", ["point", "threshold"])
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 @pytest.mark.parametrize("field", ["ra_deg", "dec_deg"])
-def test_non_finite_canonical_direction_is_rejected(
-    query_kind, value, field, observer, point_time
-):
+def test_siderust_rejects_non_finite_direction_parts(value, field):
     parts = {"ra_deg": 0.0, "dec_deg": 0.0}
     parts[field] = value
-    direction = siderust.Direction(**parts)
 
-    with pytest.raises(nsb.OutOfRangeError, match=rf"target\.{field} must be finite"):
-        make_query(query_kind, observer, direction, point_time)
+    with pytest.raises(ValueError, match=rf"{field} must be finite"):
+        siderust.Direction(**parts)
 
 
 def test_aware_non_utc_datetime_is_normalized(observer, direction):
