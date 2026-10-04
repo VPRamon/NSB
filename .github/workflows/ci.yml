@@ -400,7 +400,8 @@ jobs:
       - name: Create clean wheel-test environment
         run: python -m venv .wheel-venv
       - name: Install wheel test dependencies from PyPI
-        run: ${{ matrix.venv-python }} -m pip install --upgrade pip "pytest>=8,<10" "siderust>=0.2.1,<0.3" --only-binary=:all:
+        run: |
+          ${{ matrix.venv-python }} -m pip install --upgrade pip "pytest>=8,<10" "siderust>=0.2.1,<0.3" --only-binary=:all:
       - name: Install built wheel
         run: ${{ matrix.venv-python }} -m pip install --no-index --find-links dist nsb-rust
       - name: Test installed wheel
