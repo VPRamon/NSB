@@ -1,8 +1,22 @@
 from datetime import datetime, timedelta, timezone
+from importlib import metadata
 
 import nsb
 import pytest
 import siderust
+
+
+def test_distribution_declares_compatible_siderust_runtime_dependency():
+    requirements = metadata.requires("nsb-rust") or []
+    siderust_requirements = [
+        requirement for requirement in requirements if requirement.split(";", 1)[0].strip().startswith("siderust")
+    ]
+
+    assert len(siderust_requirements) == 1
+    requirement = siderust_requirements[0].replace(" ", "")
+    assert ">=0.2.1" in requirement
+    assert "<0.3" in requirement
+    assert metadata.version("siderust") == siderust.__version__
 
 
 def test_point_query_uses_canonical_siderust_types(observer, direction, point_time):
