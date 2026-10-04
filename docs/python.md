@@ -149,8 +149,7 @@ To validate an installed wheel:
 
 ```bash
 maturin build --release --locked --out dist
-python -m pip install "siderust>=0.2.1,<0.3" --only-binary=:all:
-python -m pip install --force-reinstall --no-deps --no-index --find-links dist nsb-rust
+python -m pip install --force-reinstall --only-binary=:all: dist/nsb_rust-*.whl
 python -m pytest python/tests
 ```
 
