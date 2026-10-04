@@ -2129,9 +2129,9 @@ dependencies = [
 
 [[package]]
 name = "siderust-py"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1439bd0885d0ad58b1a33f1db58f4462d34dd2da734ba725d27eda54c181036"
+checksum = "0c66b61e10c7279645c9b84a3e20013be4360e4e7cad32b333593926138db5f4"
 dependencies = [
  "affn",
  "pyo3",
@@ -2274,9 +2274,9 @@ dependencies = [
 
 [[package]]
 name = "tempoch-py"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "505ed45c28dfa5db2b9565cd82ed5e7d6d0fe851e579c2c841518674036224ca"
+checksum = "102e9500a196d141472b3cc1799e1e739de100aabd38356eda74e01a05f80611"
 dependencies = [
  "chrono",
  "pyo3",

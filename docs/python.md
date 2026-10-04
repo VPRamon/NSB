@@ -27,7 +27,7 @@ transformed through Siderust's frame-bias rotation to NSB's
 constructing the canonical Python object.
 
 Siderust owns coordinate validity. As a temporary compatibility safeguard for
-`siderust-py` 0.2, the NSB query boundary rejects non-finite observer and
+`siderust-py` 0.2.1, the NSB query boundary rejects non-finite observer and
 direction components before scientific evaluation. This guard can be removed
 once the canonical Siderust constructors enforce the same invariant upstream;
 NSB does not otherwise duplicate Siderust's coordinate-range policy.
@@ -140,7 +140,7 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
-maturin develop --release --manifest-path ../siderust-py/Cargo.toml
+python -m pip install "siderust>=0.2.1,<0.3"
 maturin develop --locked
 python -m pytest python/tests
 ```
@@ -149,9 +149,8 @@ To validate an installed wheel:
 
 ```bash
 maturin build --release --locked --out dist
-# Install the canonical siderust wheel first when testing with --no-index.
-python -m pip install --no-index --find-links siderust-dist siderust
-python -m pip install --force-reinstall --no-index --find-links dist nsb-rust
+python -m pip install "siderust>=0.2.1,<0.3" --only-binary=:all:
+python -m pip install --force-reinstall --no-deps --no-index --find-links dist nsb-rust
 python -m pytest python/tests
 ```
 
@@ -159,8 +158,10 @@ The NSB binding uses PyO3's CPython stable ABI with a Python 3.10 floor
 (`abi3-py310`). Python support and the `siderust-py` / `tempoch-py` Rust bridge
 dependencies remain feature-gated, so normal Rust builds do not enable PyO3.
 
-The `nsb-rust` distribution declares `siderust>=0.2,<0.3` as a runtime
-dependency. Until canonical `siderust` wheels are available from PyPI, wheel CI
-builds that dependency from the checksum-pinned crates.io 0.2.0 source package
-and its published lockfile before testing the freshly built NSB wheel with
-`--no-index`.
+The `nsb-rust` distribution declares `siderust>=0.2.1,<0.3` as its only runtime
+dependency. Wheel CI installs the released canonical Siderust wheel from PyPI,
+then installs the freshly built NSB wheel with `--no-index` so an existing
+`nsb-rust` release cannot be selected accidentally. The Python `tempoch`
+distribution is not required: NSB exposes ordinary `datetime.datetime` values,
+while the Rust-side `tempoch-py` interop crate performs the conversions inside
+the NSB extension.

@@ -39,14 +39,19 @@ NSB is available through Python, Rust, and a command-line interface.
 The Python distribution is named `nsb-rust`; the import name is `nsb`.
 Python 3.10 or newer is supported.
 
+Install the released package and its canonical Siderust dependency with:
+
+```bash
+python -m pip install nsb-rust
+```
+
 From a repository checkout:
 
 ```bash
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2"
-# Until siderust 0.2 wheels are on PyPI, build its v0.2.0 checkout first.
-maturin develop --release --manifest-path ../siderust-py/Cargo.toml
+python -m pip install "siderust>=0.2.1,<0.3"
 maturin develop --locked
 ```
 

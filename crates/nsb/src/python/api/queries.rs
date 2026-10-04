@@ -34,7 +34,7 @@ fn finite(name: &str, value: f64) -> PyResult<()> {
     }
 }
 
-// siderust-py 0.2.0 does not yet reject non-finite coordinate parts. Keep this
+// siderust-py 0.2.1 does not yet reject non-finite coordinate parts. Keep this
 // safeguard at the NSB query boundary until validity is enforced upstream; it
 // must not grow into a parallel coordinate-range policy.
 fn observer_from_canonical(value: &Bound<'_, PyAny>) -> PyResult<crate::Observer> {
