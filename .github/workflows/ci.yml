@@ -401,10 +401,10 @@ jobs:
       - name: Create clean wheel-test environment
         run: python -m venv .wheel-venv
       - name: Install wheel test dependencies from PyPI
+        run: ${{ matrix.venv-python }} -m pip install --upgrade pip "pytest>=8,<10"
+      - name: Install exact built wheel and resolve runtime dependencies from PyPI
         run: |
-          ${{ matrix.venv-python }} -m pip install --upgrade pip "pytest>=8,<10" "siderust>=0.2.1,<0.3" --only-binary=:all:
-      - name: Install built wheel
-        run: ${{ matrix.venv-python }} -m pip install --no-index --find-links dist nsb-rust
+          ${{ matrix.venv-python }} -c "import pathlib, subprocess, sys; wheels = list(pathlib.Path('dist').glob('*.whl')); assert len(wheels) == 1, wheels; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--only-binary=:all:', str(wheels[0])])"
       - name: Test installed wheel
         run: ${{ matrix.venv-python }} -m pytest python/tests -q
       - name: Set up additional Linux Python
@@ -416,6 +416,6 @@ jobs:
         if: ${{ matrix.additional-python }}
         run: |
           python -m venv .wheel-venv-314
-          ${{ matrix.additional-venv-python }} -m pip install --upgrade pip "pytest>=8,<10" "siderust>=0.2.1,<0.3" --only-binary=:all:
-          ${{ matrix.additional-venv-python }} -m pip install --no-index --find-links dist nsb-rust
+          ${{ matrix.additional-venv-python }} -m pip install --upgrade pip "pytest>=8,<10"
+          ${{ matrix.additional-venv-python }} -c "import pathlib, subprocess, sys; wheels = list(pathlib.Path('dist').glob('*.whl')); assert len(wheels) == 1, wheels; subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--only-binary=:all:', str(wheels[0])])"
           ${{ matrix.additional-venv-python }} -m pytest python/tests -q
