@@ -9,7 +9,9 @@ import siderust
 def test_distribution_declares_compatible_siderust_runtime_dependency():
     requirements = metadata.requires("nsb-rust") or []
     siderust_requirements = [
-        requirement for requirement in requirements if requirement.split(";", 1)[0].strip().startswith("siderust")
+        requirement
+        for requirement in requirements
+        if requirement.split(";", 1)[0].strip().startswith("siderust")
     ]
 
     assert len(siderust_requirements) == 1
