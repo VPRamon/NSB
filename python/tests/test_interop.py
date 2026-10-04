@@ -68,7 +68,6 @@ def test_wrong_siderust_object_types_are_rejected(
         nsb.PointQuery(observer_value, point_time, direction_value)
 
 
-
 @pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
 @pytest.mark.parametrize("field", ["lon_deg", "lat_deg", "height_m"])
 def test_siderust_rejects_non_finite_observer_parts(value, field):
