@@ -34,7 +34,6 @@ fn finite(name: &str, value: f64) -> PyResult<()> {
     }
 }
 
-
 #[pymethods]
 impl PointQuery {
     #[new]
