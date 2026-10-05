@@ -70,8 +70,13 @@ pub(crate) fn build_partitions(
         .map(|config| load_bright_star_artifact(&config.artifact_path, &config.sha256))
         .transpose()?;
     if let Some(artifact) = &bright_star_artifact {
-        if product_band != StarlightProductBand::Measured336To650 {
-            bail!("measured-336-650 bright-star artifact cannot be used with combined-300-650");
+        if !super::bright_stars::artifact_compatible_with_product_band(
+            &artifact.product_band,
+            product_band,
+        ) {
+            bail!(
+                "bright-star supplement spectral coverage is incompatible with configured Starlight product band"
+            );
         }
         if artifact.nside != canonical_nside {
             bail!("bright-star artifact nside does not match canonical Starlight nside");
@@ -336,18 +341,61 @@ fn build_partition(
     })
 }
 
-/// Construct the supplement contribution as one synthetic measured-band shard.
+/// Construct the supplement contribution as one synthetic shard.
 /// Gaia replacements have already been excluded by the worker path above.
+///
+/// For Combined300To650 the synthetic shard carries the production UV artifact
+/// metadata so it can merge with Gaia partitions. Bright-star 300--336 nm flux
+/// itself comes from the checksum-pinned CK04 Hp-scaled template route recorded
+/// in the supplement artifact, not from the Gaia UV predictor model.
 pub(crate) fn bright_star_supplement_shard(
     artifact: &BrightStarArtifact,
     verified_artifact_sha256: &str,
     canonical_nside: u32,
+    product_band: StarlightProductBand,
+    ultraviolet_correction: Option<&UvCorrection>,
 ) -> Result<PartitionShard> {
     artifact.validate()?;
     if artifact.nside != canonical_nside {
         bail!("bright-star artifact nside does not match canonical Starlight nside");
     }
-    let mut shard = PartitionShard::new("bright-star-supplement", canonical_nside)?;
+    if !super::bright_stars::artifact_compatible_with_product_band(
+        &artifact.product_band,
+        product_band,
+    ) {
+        bail!(
+            "bright-star supplement spectral coverage is incompatible with configured Starlight product band"
+        );
+    }
+    let ultraviolet_metadata = match product_band {
+        StarlightProductBand::Measured336To650 => None,
+        StarlightProductBand::Combined300To650 => {
+            let correction = ultraviolet_correction.context(
+                "combined bright-star supplement shard requires the production UV correction artifact",
+            )?;
+            Some(UvCorrectionShardMetadata {
+                model_id: correction.artifact().model_id.clone(),
+                artifact_sha256: correction.artifact_sha256().to_string(),
+                calibration_status: correction.artifact().calibration_status,
+                response: correction.artifact().response.clone(),
+                measured_conditional_residual_statistical_correlation_bits: correction
+                    .artifact()
+                    .uncertainty_model
+                    .measured_conditional_residual_statistical_correlation
+                    .to_bits(),
+                systematic_correlation: correction
+                    .artifact()
+                    .uncertainty_model
+                    .systematic_correlation,
+            })
+        }
+    };
+    let mut shard = PartitionShard::new_with_policy(
+        "bright-star-supplement",
+        canonical_nside,
+        product_band,
+        ultraviolet_metadata,
+    )?;
     shard.bright_star_supplement_provenance =
         Some(artifact.supplement_provenance(verified_artifact_sha256)?);
     shard.bright_star_replacement_gaia_ids = artifact.suppressed_gaia_source_ids()?;
@@ -964,14 +1012,18 @@ mod tests {
                 gaia_source_id: None,
                 ra_deg_j2016: 10.0,
                 dec_deg_j2016: 20.0,
+                flux_300_336_ph_m2_s: None,
                 flux_336_650_ph_m2_s: 4.0,
+                statistical_uncertainty_300_336_ph_m2_s: None,
                 statistical_uncertainty_ph_m2_s: 0.1,
+                systematic_independent_uncertainty_300_336_ph_m2_s: None,
                 systematic_independent_uncertainty_ph_m2_s: 0.2,
                 systematic_catalogue_correlated: vec![CorrelatedUncertainty {
                     correlation_group_id: "hip2-zero-point".into(),
                     uncertainty_ph_m2_s: 0.05,
                 }],
                 spectral_route: "fixture".into(),
+                uv_completion_model_id: None,
                 classification_reason: "fixture".into(),
             },
             BrightStarSourceRecord {
@@ -981,11 +1033,15 @@ mod tests {
                 gaia_source_id: Some(42),
                 ra_deg_j2016: 11.0,
                 dec_deg_j2016: 21.0,
+                flux_300_336_ph_m2_s: None,
                 flux_336_650_ph_m2_s: 6.0,
+                statistical_uncertainty_300_336_ph_m2_s: None,
                 statistical_uncertainty_ph_m2_s: 0.1,
+                systematic_independent_uncertainty_300_336_ph_m2_s: None,
                 systematic_independent_uncertainty_ph_m2_s: 0.2,
                 systematic_catalogue_correlated: Vec::new(),
                 spectral_route: "fixture".into(),
+                uv_completion_model_id: None,
                 classification_reason: "fixture".into(),
             },
             BrightStarSourceRecord {
@@ -995,11 +1051,15 @@ mod tests {
                 gaia_source_id: Some(99),
                 ra_deg_j2016: 12.0,
                 dec_deg_j2016: 22.0,
+                flux_300_336_ph_m2_s: None,
                 flux_336_650_ph_m2_s: 100.0,
+                statistical_uncertainty_300_336_ph_m2_s: None,
                 statistical_uncertainty_ph_m2_s: 1.0,
+                systematic_independent_uncertainty_300_336_ph_m2_s: None,
                 systematic_independent_uncertainty_ph_m2_s: 1.0,
                 systematic_catalogue_correlated: Vec::new(),
                 spectral_route: "fixture".into(),
+                uv_completion_model_id: None,
                 classification_reason: "fixture".into(),
             },
         ];
@@ -1012,7 +1072,13 @@ mod tests {
             BrightStarPrecedencePolicy::v1(),
         )?;
         let sha = "e".repeat(64);
-        let shard = bright_star_supplement_shard(&artifact, &sha, 1)?;
+        let shard = bright_star_supplement_shard(
+            &artifact,
+            &sha,
+            1,
+            StarlightProductBand::Measured336To650,
+            None,
+        )?;
         let provenance = shard.bright_star_supplement_provenance.as_ref().unwrap();
         assert_eq!(provenance.artifact_sha256, sha);
         assert_eq!(provenance.model_id, BRIGHT_STAR_MODEL_ID);
@@ -1028,8 +1094,22 @@ mod tests {
                 .sum::<u64>(),
             2
         );
-        assert!(bright_star_supplement_shard(&artifact, &sha, 2).is_err());
-        assert!(bright_star_supplement_shard(&artifact, "short", 1).is_err());
+        assert!(bright_star_supplement_shard(
+            &artifact,
+            &sha,
+            2,
+            StarlightProductBand::Measured336To650,
+            None
+        )
+        .is_err());
+        assert!(bright_star_supplement_shard(
+            &artifact,
+            "short",
+            1,
+            StarlightProductBand::Measured336To650,
+            None
+        )
+        .is_err());
         Ok(())
     }
 }

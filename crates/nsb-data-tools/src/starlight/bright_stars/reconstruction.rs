@@ -87,7 +87,8 @@ impl SpectralReconstructionModel {
                 bail!("duplicate spectral template id {}", template.template_id);
             }
             // Exercises the strict template and response contracts, including
-            // full Hp and 336--650 nm coverage.
+            // full Hp coverage plus both the measured 336--650 nm band and the
+            // justified 300--336 nm UV completion used by Combined300To650.
             reconstruct_template_band_flux(
                 template,
                 &self.hp_response,
@@ -95,6 +96,14 @@ impl SpectralReconstructionModel {
                 0.0,
                 336.0e-9,
                 650.0e-9,
+            )?;
+            reconstruct_template_band_flux(
+                template,
+                &self.hp_response,
+                &self.hp_calibration,
+                0.0,
+                300.0e-9,
+                336.0e-9,
             )?;
         }
         let mut keys = BTreeSet::new();
@@ -152,9 +161,15 @@ pub fn load_spectral_reconstruction_model(
     Ok(model)
 }
 
-/// Reconstruct measured 336--650 nm fluxes. Missing/unsupported spectral
-/// evidence is returned as an absent estimate and is therefore excluded by
-/// the artifact builder rather than fabricated.
+/// Reconstruct measured 336--650 nm and justified 300--336 nm fluxes from the
+/// same Hp-scaled CK04 template. Missing/unsupported spectral evidence is
+/// returned as an absent estimate and is therefore excluded by the artifact
+/// builder rather than fabricated.
+///
+/// The 300--336 nm term is the template integral over that interval after the
+/// template is absolutely scaled to the Hipparcos Hp magnitude through the
+/// pinned Bessell (2000) response and CALSPEC Vega zero point. It is never a
+/// relabelled copy of the 336--650 nm flux.
 pub fn reconstruct_spectral_estimates(
     hipparcos: &[Hipparcos2Record],
     xhip_by_hip: &BTreeMap<u32, XhipRecord>,
@@ -195,7 +210,7 @@ pub fn reconstruct_spectral_estimates(
         let template = templates
             .get(template_id)
             .with_context(|| format!("missing assigned template {template_id}"))?;
-        let flux = reconstruct_template_band_flux(
+        let flux_336_650 = reconstruct_template_band_flux(
             template,
             &model.hp_response,
             &model.hp_calibration,
@@ -203,21 +218,37 @@ pub fn reconstruct_spectral_estimates(
             336.0e-9,
             650.0e-9,
         )?;
-        let statistical = flux * 0.4 * std::f64::consts::LN_10 * hip.hp_mag_uncertainty;
-        let systematic_independent = flux
-            * model
-                .template_mismatch_fraction
-                .hypot(model.spectral_type_mapping_fraction);
+        let flux_300_336 = reconstruct_template_band_flux(
+            template,
+            &model.hp_response,
+            &model.hp_calibration,
+            hip.hp_mag,
+            300.0e-9,
+            336.0e-9,
+        )?;
+        let mag_fraction = 0.4 * std::f64::consts::LN_10 * hip.hp_mag_uncertainty;
+        let independent_fraction = model
+            .template_mismatch_fraction
+            .hypot(model.spectral_type_mapping_fraction);
+        let flux_300_650 = flux_300_336 + flux_336_650;
         let estimate = SpectralEstimate {
             hip: hip.astrometry.hip,
-            flux_336_650_ph_m2_s: flux,
-            statistical_uncertainty_ph_m2_s: statistical,
-            systematic_independent_uncertainty_ph_m2_s: systematic_independent,
+            flux_300_336_ph_m2_s: flux_300_336,
+            flux_336_650_ph_m2_s: flux_336_650,
+            statistical_uncertainty_300_336_ph_m2_s: flux_300_336 * mag_fraction,
+            statistical_uncertainty_336_650_ph_m2_s: flux_336_650 * mag_fraction,
+            systematic_independent_uncertainty_300_336_ph_m2_s: flux_300_336
+                * independent_fraction,
+            systematic_independent_uncertainty_336_650_ph_m2_s: flux_336_650
+                * independent_fraction,
+            // Hp zero-point is a shared absolute scale; one correlated term on
+            // the full 300--650 integral preserves linear addition in-group.
             systematic_catalogue_correlated: vec![CorrelatedUncertainty {
                 correlation_group_id: "hipparcos-hp-zero-point-bessell2000".into(),
-                uncertainty_ph_m2_s: flux * model.hp_zero_point_fraction,
+                uncertainty_ph_m2_s: flux_300_650 * model.hp_zero_point_fraction,
             }],
             route: format!("{}:{template_id}", model.model_id),
+            uv_completion_model_id: UV_COMPLETION_MODEL_ID_V1.into(),
         };
         if estimates.insert(hip.astrometry.hip, estimate).is_some() {
             bail!("duplicate Hipparcos input for spectral reconstruction");
@@ -225,6 +256,9 @@ pub fn reconstruct_spectral_estimates(
     }
     Ok(estimates)
 }
+
+/// Versioned identifier for the CK04-template 300--336 nm completion route.
+pub const UV_COMPLETION_MODEL_ID_V1: &str = "ck04-hp-scaled-uv-300-336-v1";
 
 #[cfg(test)]
 mod tests {
@@ -314,16 +348,23 @@ mod tests {
             .remove(&1)
             .unwrap();
         assert!(
-            (estimate.statistical_uncertainty_ph_m2_s / estimate.flux_336_650_ph_m2_s
+            (estimate.statistical_uncertainty_336_650_ph_m2_s / estimate.flux_336_650_ph_m2_s
                 - 0.4 * std::f64::consts::LN_10 * 0.01)
                 .abs()
                 < 1e-15
         );
         assert!(
-            (estimate.systematic_independent_uncertainty_ph_m2_s / estimate.flux_336_650_ph_m2_s
+            (estimate.systematic_independent_uncertainty_336_650_ph_m2_s
+                / estimate.flux_336_650_ph_m2_s
                 - 0.1_f64.hypot(0.2))
             .abs()
                 < 1e-15
+        );
+        assert!(estimate.flux_300_336_ph_m2_s > 0.0);
+        assert!(estimate.flux_300_336_ph_m2_s != estimate.flux_336_650_ph_m2_s);
+        assert_eq!(
+            estimate.uv_completion_model_id,
+            UV_COMPLETION_MODEL_ID_V1
         );
         assert_eq!(estimate.systematic_catalogue_correlated.len(), 1);
 

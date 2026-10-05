@@ -17,11 +17,34 @@ use std::collections::{BTreeMap, BTreeSet};
 #[serde(deny_unknown_fields)]
 pub struct SpectralEstimate {
     pub hip: u32,
+    /// Justified 300--336 nm contribution from the Hp-scaled CK04 template.
+    pub flux_300_336_ph_m2_s: f64,
     pub flux_336_650_ph_m2_s: f64,
-    pub statistical_uncertainty_ph_m2_s: f64,
-    pub systematic_independent_uncertainty_ph_m2_s: f64,
+    pub statistical_uncertainty_300_336_ph_m2_s: f64,
+    pub statistical_uncertainty_336_650_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_300_336_ph_m2_s: f64,
+    pub systematic_independent_uncertainty_336_650_ph_m2_s: f64,
     pub systematic_catalogue_correlated: Vec<CorrelatedUncertainty>,
     pub route: String,
+    /// Versioned identifier for the 300--336 nm completion route.
+    pub uv_completion_model_id: String,
+}
+
+impl SpectralEstimate {
+    pub fn flux_300_650_ph_m2_s(&self) -> f64 {
+        self.flux_300_336_ph_m2_s + self.flux_336_650_ph_m2_s
+    }
+
+    pub fn statistical_uncertainty_300_650_ph_m2_s(&self) -> f64 {
+        self.statistical_uncertainty_300_336_ph_m2_s
+            .hypot(self.statistical_uncertainty_336_650_ph_m2_s)
+    }
+
+    pub fn systematic_independent_uncertainty_300_650_ph_m2_s(&self) -> f64 {
+        self.systematic_independent_uncertainty_300_336_ph_m2_s.hypot(
+            self.systematic_independent_uncertainty_336_650_ph_m2_s,
+        )
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -119,6 +142,43 @@ pub fn build_experimental_artifact(
     unsupported_spectral_codes: &BTreeSet<(u16, u8)>,
     population_policy: BrightStarPopulationPolicy,
     precedence_policy: BrightStarPrecedencePolicy,
+) -> Result<(BrightStarArtifact, BrightStarBuildDiagnostics)> {
+    build_experimental_artifact_for_product_band(
+        nside,
+        build_commit,
+        inputs,
+        hipparcos,
+        tycho_by_hip,
+        tycho_ambiguous_component_associations,
+        xhip_by_hip,
+        identity_matches,
+        gaia_quality,
+        positional_search_rows,
+        spectra,
+        unsupported_spectral_codes,
+        population_policy,
+        precedence_policy,
+        super::artifact::BRIGHT_STAR_PRODUCT_BAND_ID,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_experimental_artifact_for_product_band(
+    nside: u32,
+    build_commit: &str,
+    inputs: Vec<BrightStarInputProvenance>,
+    hipparcos: &[Hipparcos2Record],
+    tycho_by_hip: &BTreeMap<u32, Tycho2Photometry>,
+    tycho_ambiguous_component_associations: u64,
+    xhip_by_hip: &BTreeMap<u32, XhipRecord>,
+    identity_matches: &BTreeMap<u32, Vec<HipGaiaIdentityMatch>>,
+    gaia_quality: &BTreeMap<u64, GaiaMatchRow>,
+    positional_search_rows: &[GaiaMatchRow],
+    spectra: &BTreeMap<u32, SpectralEstimate>,
+    unsupported_spectral_codes: &BTreeSet<(u16, u8)>,
+    population_policy: BrightStarPopulationPolicy,
+    precedence_policy: BrightStarPrecedencePolicy,
+    product_band: &str,
 ) -> Result<(BrightStarArtifact, BrightStarBuildDiagnostics)> {
     population_policy.validate()?;
     precedence_policy.validate()?;
@@ -243,25 +303,39 @@ pub fn build_experimental_artifact(
                 "spectral_reconstruction_failed".into()
             };
         }
-        let (flux, stat, sys, groups, route) = estimate.map_or(
-            (0.0, 0.0, 0.0, Vec::new(), "unavailable".to_string()),
-            |estimate| {
+        let (flux_uv, flux, stat_uv, stat, sys_uv, sys, groups, route, uv_model) =
+            estimate.map_or(
                 (
-                    estimate.flux_336_650_ph_m2_s,
-                    estimate.statistical_uncertainty_ph_m2_s,
-                    estimate.systematic_independent_uncertainty_ph_m2_s,
-                    estimate.systematic_catalogue_correlated.clone(),
-                    estimate.route.clone(),
-                )
-            },
-        );
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    Vec::new(),
+                    "unavailable".to_string(),
+                    String::new(),
+                ),
+                |estimate| {
+                    (
+                        estimate.flux_300_336_ph_m2_s,
+                        estimate.flux_336_650_ph_m2_s,
+                        estimate.statistical_uncertainty_300_336_ph_m2_s,
+                        estimate.statistical_uncertainty_336_650_ph_m2_s,
+                        estimate.systematic_independent_uncertainty_300_336_ph_m2_s,
+                        estimate.systematic_independent_uncertainty_336_650_ph_m2_s,
+                        estimate.systematic_catalogue_correlated.clone(),
+                        estimate.route.clone(),
+                        estimate.uv_completion_model_id.clone(),
+                    )
+                },
+            );
         if estimate.is_some()
-            && (!flux.is_finite()
+            && (![flux_uv, flux, stat_uv, stat, sys_uv, sys]
+                .iter()
+                .all(|value| value.is_finite() && *value >= 0.0)
                 || flux <= 0.0
-                || !stat.is_finite()
-                || stat < 0.0
-                || !sys.is_finite()
-                || sys < 0.0)
+                || flux_uv <= 0.0)
         {
             bail!("invalid spectral estimate for HIP {}", hip.astrometry.hip);
         }
@@ -273,11 +347,16 @@ pub fn build_experimental_artifact(
             gaia_source_id: decision.gaia_source_id,
             ra_deg_j2016: propagated.ra_deg_j2016,
             dec_deg_j2016: propagated.dec_deg_j2016,
+            flux_300_336_ph_m2_s: Some(flux_uv).filter(|_| flux_uv > 0.0),
             flux_336_650_ph_m2_s: flux,
+            statistical_uncertainty_300_336_ph_m2_s: Some(stat_uv).filter(|_| flux_uv > 0.0),
             statistical_uncertainty_ph_m2_s: stat,
+            systematic_independent_uncertainty_300_336_ph_m2_s: Some(sys_uv)
+                .filter(|_| flux_uv > 0.0),
             systematic_independent_uncertainty_ph_m2_s: sys,
             systematic_catalogue_correlated: groups,
             spectral_route: route.clone(),
+            uv_completion_model_id: Some(uv_model).filter(|value| !value.is_empty()),
             classification_reason: decision.reason.clone(),
         });
         let tycho = tycho_by_hip.get(&hip.astrometry.hip);
@@ -311,7 +390,7 @@ pub fn build_experimental_artifact(
                 .and_then(|value| value.route.rsplit(':').next().map(str::to_owned)),
             spectral_route: route,
             flux_336_650_ph_m2_s: flux,
-            flux_300_336_ph_m2_s: None,
+            flux_300_336_ph_m2_s: Some(flux_uv).filter(|_| flux_uv > 0.0),
             statistical_uncertainty_ph_m2_s: stat,
             systematic_independent_uncertainty_ph_m2_s: sys,
             systematic_catalogue_correlated: estimate
@@ -325,13 +404,14 @@ pub fn build_experimental_artifact(
         });
     }
 
-    let artifact = BrightStarArtifact::from_sources(
+    let artifact = BrightStarArtifact::from_sources_with_product_band(
         nside,
         build_commit,
         inputs,
         sources,
         population_policy,
         precedence_policy,
+        product_band,
     )?;
     displacements.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
     let median = if displacements.is_empty() {

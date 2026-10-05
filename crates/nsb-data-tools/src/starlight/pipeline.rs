@@ -110,15 +110,29 @@ impl DatasetPipeline for StarlightPipeline {
             .transpose()?;
         let mut expected = expected;
         if let Some(pin) = &starlight.bright_star_supplement {
-            if starlight.product_band != super::config::StarlightProductBand::Measured336To650 {
-                bail!("measured-336-650 bright-star artifact cannot be used with combined-300-650");
-            }
             let artifact =
                 super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
+            if !super::bright_stars::artifact_compatible_with_product_band(
+                &artifact.product_band,
+                starlight.product_band,
+            ) {
+                bail!(
+                    "bright-star supplement spectral coverage is incompatible with configured Starlight product band"
+                );
+            }
+            let ultraviolet = starlight
+                .ultraviolet_correction
+                .as_ref()
+                .map(|pin| {
+                    super::uv::UvCorrection::load(&pin.artifact_path, &pin.sha256)
+                })
+                .transpose()?;
             let shard = super::worker::bright_star_supplement_shard(
                 &artifact,
                 &pin.sha256,
                 starlight.map.canonical_nside,
+                starlight.product_band,
+                ultraviolet.as_ref(),
             )?;
             let shard_path = config
                 .workspace
@@ -221,9 +235,10 @@ impl DatasetPipeline for StarlightPipeline {
         if let Some(pin) = &starlight.bright_star_supplement {
             let artifact =
                 super::bright_stars::load_bright_star_artifact(&pin.artifact_path, &pin.sha256)?;
-            if starlight.product_band != super::config::StarlightProductBand::Measured336To650
-                || artifact.product_band != super::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID
-            {
+            if !super::bright_stars::artifact_compatible_with_product_band(
+                &artifact.product_band,
+                starlight.product_band,
+            ) {
                 bail!("bright-star supplement spectral coverage is incompatible with configured Starlight product band");
             }
         }

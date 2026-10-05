@@ -443,22 +443,66 @@ impl PartitionShard {
         )
     }
 
-    /// Admit one measured-band bright-star source while preserving named
-    /// catalogue correlation groups.
+    /// Admit one bright-star source while preserving named catalogue
+    /// correlation groups. Measured-only supplements may enter measured shards;
+    /// Combined300To650 supplements may enter combined shards with an explicit
+    /// justified 300--336 nm term. Cross-band mixing fails closed.
     pub fn admit_bright_star_source(
         &mut self,
         source: &crate::starlight::bright_stars::BrightStarSourceRecord,
     ) -> Result<()> {
-        if self.product_band != StarlightProductBand::Measured336To650 {
-            bail!("measured-only bright-star supplement cannot enter a combined 300-650 shard");
+        use crate::starlight::config::StarlightProductBand;
+        use crate::starlight::uv::{ApplicabilityStatus, SystematicCorrelation};
+
+        match self.product_band {
+            StarlightProductBand::Measured336To650 => {
+                if source.flux_300_336_ph_m2_s.is_some() {
+                    bail!("combined bright-star supplement cannot enter a measured-only shard");
+                }
+                let position = IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?;
+                self.admit(
+                    position,
+                    source.flux_336_650_ph_m2_s,
+                    source.statistical_uncertainty_ph_m2_s,
+                    source.systematic_independent_uncertainty_ph_m2_s,
+                )?;
+            }
+            StarlightProductBand::Combined300To650 => {
+                if source.flux_300_336_ph_m2_s.is_none() {
+                    bail!("measured-only bright-star supplement cannot enter a combined 300-650 shard");
+                }
+                let uv = source
+                    .flux_300_336_ph_m2_s
+                    .context("combined bright-star source missing 300-336 nm flux")?;
+                let uv_stat = source.statistical_uncertainty_300_336_ph_m2_s.context(
+                    "combined bright-star source missing 300-336 nm statistical uncertainty",
+                )?;
+                let uv_sys = source
+                    .systematic_independent_uncertainty_300_336_ph_m2_s
+                    .context(
+                        "combined bright-star source missing 300-336 nm independent systematic",
+                    )?;
+                let measured = source.flux_336_650_ph_m2_s;
+                let measured_stat = source.statistical_uncertainty_ph_m2_s;
+                let measured_sys = source.systematic_independent_uncertainty_ph_m2_s;
+                let position = IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?;
+                self.admit_components(
+                    position,
+                    SourceFluxComponents {
+                        flux_300_336_ph_m2_s: uv,
+                        flux_336_650_ph_m2_s: measured,
+                        flux_300_650_ph_m2_s: uv + measured,
+                        statistical_uncertainty_300_336_ph_m2_s: uv_stat,
+                        statistical_uncertainty_336_650_ph_m2_s: measured_stat,
+                        statistical_uncertainty_300_650_ph_m2_s: uv_stat.hypot(measured_stat),
+                        systematic_uncertainty_300_336_ph_m2_s: uv_sys,
+                        systematic_uncertainty_300_650_ph_m2_s: uv_sys.hypot(measured_sys),
+                        systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
+                        applicability_status: Some(ApplicabilityStatus::InDomain),
+                    },
+                )?;
+            }
         }
-        let position = IcrsSkyPosition::new(source.ra_deg_j2016, source.dec_deg_j2016)?;
-        self.admit(
-            position,
-            source.flux_336_650_ph_m2_s,
-            source.statistical_uncertainty_ph_m2_s,
-            source.systematic_independent_uncertainty_ph_m2_s,
-        )?;
         let pixel = galactic_nested_pixel_from_icrs_position(
             source.ra_deg_j2016,
             source.dec_deg_j2016,
