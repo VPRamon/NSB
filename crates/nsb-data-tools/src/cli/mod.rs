@@ -416,9 +416,6 @@ struct PromoteArgs {
     /// Path to the `nsb-starlight-release-candidate-v1` manifest.
     #[arg(long)]
     release_candidate: PathBuf,
-    /// Path to the recorded scientific review decision JSON.
-    #[arg(long)]
-    scientific_decision: PathBuf,
     /// Path to the recorded redistribution review decision JSON.
     #[arg(long)]
     redistribution_decision: PathBuf,
@@ -988,7 +985,6 @@ fn pack_starlight(args: PackArgs) -> Result<()> {
 fn promote(args: PromoteArgs) -> Result<()> {
     let inputs = crate::starlight::promotion::PromotionInputs {
         release_candidate: args.release_candidate,
-        scientific_decision: args.scientific_decision,
         redistribution_decision: args.redistribution_decision,
         repository_root: args.repository_root,
         output: args.output,

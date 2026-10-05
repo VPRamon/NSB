@@ -344,16 +344,15 @@ fn build_partition(
 /// Construct the supplement contribution as one synthetic shard.
 /// Gaia replacements have already been excluded by the worker path above.
 ///
-/// For Combined300To650 the synthetic shard carries the production UV artifact
-/// metadata so it can merge with Gaia partitions. Bright-star 300--336 nm flux
-/// itself comes from the checksum-pinned CK04 Hp-scaled template route recorded
-/// in the supplement artifact, not from the Gaia UV predictor model.
+/// For Combined300To650 the synthetic shard carries only its true CK04 route.
+/// The merge contract permits heterogeneous reconstruction routes for the same
+/// final physical band while retaining the Gaia route on Gaia shards.
 pub(crate) fn bright_star_supplement_shard(
     artifact: &BrightStarArtifact,
     verified_artifact_sha256: &str,
     canonical_nside: u32,
     product_band: StarlightProductBand,
-    ultraviolet_correction: Option<&UvCorrection>,
+    _ultraviolet_correction: Option<&UvCorrection>,
 ) -> Result<PartitionShard> {
     artifact.validate()?;
     if artifact.nside != canonical_nside {
@@ -367,37 +366,24 @@ pub(crate) fn bright_star_supplement_shard(
             "bright-star supplement spectral coverage is incompatible with configured Starlight product band"
         );
     }
-    let ultraviolet_metadata = match product_band {
-        StarlightProductBand::Measured336To650 => None,
-        StarlightProductBand::Combined300To650 => {
-            let correction = ultraviolet_correction.context(
-                "combined bright-star supplement shard requires the production UV correction artifact",
+    let provenance = artifact.supplement_provenance(verified_artifact_sha256)?;
+    let mut shard = match product_band {
+        StarlightProductBand::Measured336To650 => {
+            let mut shard = PartitionShard::new_with_policy(
+                "bright-star-supplement",
+                canonical_nside,
+                product_band,
+                None,
             )?;
-            Some(UvCorrectionShardMetadata {
-                model_id: correction.artifact().model_id.clone(),
-                artifact_sha256: correction.artifact_sha256().to_string(),
-                calibration_status: correction.artifact().calibration_status,
-                response: correction.artifact().response.clone(),
-                measured_conditional_residual_statistical_correlation_bits: correction
-                    .artifact()
-                    .uncertainty_model
-                    .measured_conditional_residual_statistical_correlation
-                    .to_bits(),
-                systematic_correlation: correction
-                    .artifact()
-                    .uncertainty_model
-                    .systematic_correlation,
-            })
+            shard.bright_star_supplement_provenance = Some(provenance);
+            shard
         }
+        StarlightProductBand::Combined300To650 => PartitionShard::new_bright_star_combined(
+            "bright-star-supplement",
+            canonical_nside,
+            provenance,
+        )?,
     };
-    let mut shard = PartitionShard::new_with_policy(
-        "bright-star-supplement",
-        canonical_nside,
-        product_band,
-        ultraviolet_metadata,
-    )?;
-    shard.bright_star_supplement_provenance =
-        Some(artifact.supplement_provenance(verified_artifact_sha256)?);
     shard.bright_star_replacement_gaia_ids = artifact.suppressed_gaia_source_ids()?;
     for source in &artifact.sources {
         if matches!(

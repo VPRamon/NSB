@@ -10,7 +10,7 @@ pub const EXPECTED_MANIFEST_SCHEMA_VERSION: u32 = 1;
 /// Production Starlight map schema selected by the build script.
 pub const STARLIGHT_MAP_SCHEMA: &str = "nsb-healpix-starlight-v2";
 /// Production Starlight runtime-sidecar schema selected by the build script.
-pub const STARLIGHT_MANIFEST_SCHEMA: &str = "nsb-starlight-runtime-manifest-v1";
+pub const STARLIGHT_MANIFEST_SCHEMA: &str = "nsb-starlight-runtime-manifest-v2";
 
 /// Component-owned assets that must be present as `runtime_embedded` with a fixed schema.
 pub const REQUIRED_RUNTIME_ASSETS: &[(&str, &str)] = &[

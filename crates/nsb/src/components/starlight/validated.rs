@@ -1,5 +1,5 @@
 use super::map::parse_header_metadata;
-use super::{StarlightMap, StarlightProvenance};
+use super::{StarlightBrightStarSupplementProvenance, StarlightMap, StarlightProvenance};
 use crate::error::{NsbError, Result};
 use chrono::DateTime;
 use serde::Deserialize;
@@ -7,7 +7,7 @@ use siderust::checksum::{sha256, to_hex};
 use std::collections::BTreeMap;
 use std::path::Path;
 
-const MANIFEST_SCHEMA_VERSION: u32 = 1;
+const MANIFEST_SCHEMA_VERSION: u32 = 2;
 const GAIA_DR3_SOURCE_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";
 const GAIA_DR3_XP_CONTINUOUS_MANIFEST_SHA256: &str =
@@ -67,6 +67,24 @@ struct ExternalManifest {
     source_candidate: Option<SourceCandidateSection>,
     #[serde(default)]
     upstream_inputs: Vec<UpstreamInput>,
+    #[serde(default)]
+    bright_star_supplement: Option<BrightStarSupplementManifest>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrightStarSupplementManifest {
+    artifact_sha256: String,
+    model_id: String,
+    product_band: String,
+    uv_completion_model_id: String,
+    population_policy_id: String,
+    precedence_policy_id: String,
+    build_commit: String,
+    spectral_route: String,
+    redistribution_scope: String,
+    input_catalogues: Vec<String>,
+    license_provenance: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -224,6 +242,73 @@ impl ExternalManifest {
             ));
         }
         self.validate_distinct_provenance()?;
+        self.validate_bright_star_provenance()?;
+        Ok(())
+    }
+
+    fn validate_bright_star_provenance(&self) -> Result<()> {
+        let Some(supplement) = &self.bright_star_supplement else {
+            return Ok(());
+        };
+        for (name, value) in [
+            ("model_id", &supplement.model_id),
+            ("product_band", &supplement.product_band),
+            ("uv_completion_model_id", &supplement.uv_completion_model_id),
+            ("population_policy_id", &supplement.population_policy_id),
+            ("precedence_policy_id", &supplement.precedence_policy_id),
+            ("spectral_route", &supplement.spectral_route),
+            ("redistribution_scope", &supplement.redistribution_scope),
+        ] {
+            if value.trim().is_empty() {
+                return Err(invalid(format!(
+                    "bright-star supplement field {name} must not be empty"
+                )));
+            }
+        }
+        validate_sha256(
+            "bright_star_supplement.artifact_sha256",
+            &supplement.artifact_sha256,
+        )?;
+        if supplement.build_commit.len() != 40
+            || !supplement
+                .build_commit
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+            || supplement.input_catalogues.is_empty()
+            || supplement.license_provenance.is_empty()
+        {
+            return Err(invalid("bright-star supplement provenance is incomplete"));
+        }
+        let header_pairs = [
+            ("bright_star_artifact_sha256", &supplement.artifact_sha256),
+            ("bright_star_model_id", &supplement.model_id),
+            ("bright_star_product_band", &supplement.product_band),
+            (
+                "bright_star_uv_completion_model_id",
+                &supplement.uv_completion_model_id,
+            ),
+            (
+                "bright_star_population_policy_id",
+                &supplement.population_policy_id,
+            ),
+            (
+                "bright_star_precedence_policy_id",
+                &supplement.precedence_policy_id,
+            ),
+            ("bright_star_build_commit", &supplement.build_commit),
+            ("bright_star_spectral_route", &supplement.spectral_route),
+            (
+                "bright_star_redistribution_scope",
+                &supplement.redistribution_scope,
+            ),
+        ];
+        for (key, value) in header_pairs {
+            if self.header.get(key) != Some(value) {
+                return Err(invalid(format!(
+                    "runtime header {key} does not match bright-star supplement provenance"
+                )));
+            }
+        }
         Ok(())
     }
 
@@ -397,6 +482,21 @@ impl ExternalManifest {
             validation_report: Some(self.validation_report.clone()),
             calibration_status: Some("production".to_string()),
             independent_comparison: Some(self.independent_comparison.clone()),
+            bright_star_supplement: self.bright_star_supplement.as_ref().map(|supplement| {
+                StarlightBrightStarSupplementProvenance {
+                    artifact_sha256: supplement.artifact_sha256.clone(),
+                    model_id: supplement.model_id.clone(),
+                    product_band: supplement.product_band.clone(),
+                    uv_completion_model_id: supplement.uv_completion_model_id.clone(),
+                    population_policy_id: supplement.population_policy_id.clone(),
+                    precedence_policy_id: supplement.precedence_policy_id.clone(),
+                    build_commit: supplement.build_commit.clone(),
+                    spectral_route: supplement.spectral_route.clone(),
+                    redistribution_scope: supplement.redistribution_scope.clone(),
+                    input_catalogues: supplement.input_catalogues.clone(),
+                    license_provenance: supplement.license_provenance.clone(),
+                }
+            }),
         }
     }
 }
@@ -504,7 +604,7 @@ mod tests {
         }
         let checksum = format!("sha256:{}", to_hex(&sha256(raw.as_bytes())));
         let manifest = format!(
-            r#"schema_version = 1
+            r#"schema_version = 2
 calibration_status = "production"
 dataset_name = "synthetic validated admission fixture"
 version = "fixture-v1"

@@ -320,7 +320,10 @@ pub(crate) fn emit_maps(
             .ultraviolet_correction
             .as_ref()
             .map(|metadata| metadata.artifact_sha256.as_str());
-        if shard_uv_sha256 != expected_uv_artifact_sha256 {
+        let distinct_bright_star_route = shard.partition_id == "bright-star-supplement"
+            && shard.bright_star_supplement_provenance.is_some()
+            && shard_uv_sha256.is_none();
+        if !distinct_bright_star_route && shard_uv_sha256 != expected_uv_artifact_sha256 {
             bail!(
                 "Starlight shard {} uses UV artifact {:?}, expected current configured artifact {:?}",
                 shard.partition_id,
@@ -360,6 +363,7 @@ pub(crate) fn emit_maps(
         canonical_nside,
         map_pixels(&merged),
         &science_policy.spectral_coverage,
+        merged.bright_star_supplement_provenance.as_ref(),
     )?;
     let emitted_pixels = read_map(&map_path, canonical_nside)?;
     let (map_flux, map_admitted, map_excluded) = map_totals(&emitted_pixels)?;
@@ -679,7 +683,13 @@ pub(crate) fn reconstruct_selected_band_canonical_map_sha256(
     let spectral = science_policy_report(merged, None).spectral_coverage;
     let dir = tempfile::tempdir().context("create temp dir for canonical map reconstruction")?;
     let path = dir.path().join(canonical_map_name(merged.nside));
-    write_map(&path, merged.nside, map_pixels(merged), &spectral)?;
+    write_map(
+        &path,
+        merged.nside,
+        map_pixels(merged),
+        &spectral,
+        merged.bright_star_supplement_provenance.as_ref(),
+    )?;
     checksum_io::sha256_file(&path)
 }
 
@@ -700,7 +710,11 @@ fn validate_report_fields(
     {
         bail!("canonical map report contains an incompatible contract");
     }
-    validate_map_spectral_headers(map_path, &report.science_policy.spectral_coverage)?;
+    validate_map_spectral_headers(
+        map_path,
+        &report.science_policy.spectral_coverage,
+        report.bright_star_supplement.as_ref(),
+    )?;
     let actual_sha256 = checksum_io::sha256_file(map_path)?;
     if report.canonical_map.sha256 != actual_sha256 {
         bail!("canonical map checksum does not match merge report");
@@ -992,6 +1006,15 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         "uv_model_response",
         "uv_measured_conditional_residual_statistical_correlation",
         "uv_systematic_correlation",
+        "bright_star_artifact_sha256",
+        "bright_star_model_id",
+        "bright_star_product_band",
+        "bright_star_uv_completion_model_id",
+        "bright_star_population_policy_id",
+        "bright_star_precedence_policy_id",
+        "bright_star_build_commit",
+        "bright_star_spectral_route",
+        "bright_star_redistribution_scope",
     ];
     if base_headers != expected_headers
         || observed_headers.len() != expected_headers.len() + spectral_keys.len()
@@ -1072,6 +1095,66 @@ fn read_map(path: &Path, expected_nside: u32) -> Result<BTreeMap<u32, MapPixel>>
         );
     if !measured_contract && !corrected_contract {
         bail!("{} has inconsistent spectral metadata", path.display());
+    }
+    let bright_keys = [
+        "bright_star_artifact_sha256",
+        "bright_star_model_id",
+        "bright_star_product_band",
+        "bright_star_uv_completion_model_id",
+        "bright_star_population_policy_id",
+        "bright_star_precedence_policy_id",
+        "bright_star_build_commit",
+        "bright_star_spectral_route",
+        "bright_star_redistribution_scope",
+    ];
+    let no_bright_stars = bright_keys
+        .iter()
+        .all(|key| observed_headers.get(*key).map(String::as_str) == Some("none"));
+    let combined_bright_stars = observed_headers
+        .get("bright_star_artifact_sha256")
+        .is_some_and(|value| is_sha256(value))
+        && observed_headers
+            .get("bright_star_model_id")
+            .map(String::as_str)
+            == Some(crate::starlight::bright_stars::BRIGHT_STAR_COMBINED_MODEL_ID)
+        && observed_headers
+            .get("bright_star_product_band")
+            .map(String::as_str)
+            == Some(crate::starlight::bright_stars::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID)
+        && observed_headers
+            .get("bright_star_uv_completion_model_id")
+            .map(String::as_str)
+            == Some(crate::starlight::bright_stars::UV_COMPLETION_MODEL_ID_V1)
+        && bright_keys[4..].iter().all(|key| {
+            observed_headers
+                .get(*key)
+                .is_some_and(|value| !value.trim().is_empty() && value != "none")
+        });
+    let measured_bright_stars = observed_headers
+        .get("bright_star_artifact_sha256")
+        .is_some_and(|value| is_sha256(value))
+        && observed_headers
+            .get("bright_star_model_id")
+            .map(String::as_str)
+            == Some(crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID)
+        && observed_headers
+            .get("bright_star_product_band")
+            .map(String::as_str)
+            == Some(crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID)
+        && observed_headers
+            .get("bright_star_uv_completion_model_id")
+            .map(String::as_str)
+            == Some("none")
+        && bright_keys[4..].iter().all(|key| {
+            observed_headers
+                .get(*key)
+                .is_some_and(|value| !value.trim().is_empty() && value != "none")
+        });
+    if !no_bright_stars && !combined_bright_stars && !measured_bright_stars {
+        bail!(
+            "{} has inconsistent bright-star spectral metadata",
+            path.display()
+        );
     }
 
     let mut data_lines = text
@@ -1433,6 +1516,7 @@ fn write_map(
     nside: u32,
     pixels: BTreeMap<u32, MapPixel>,
     spectral: &SpectralCoverageReport,
+    bright_star: Option<&crate::starlight::bright_stars::BrightStarSupplementProvenance>,
 ) -> Result<()> {
     let (
         product_band,
@@ -1496,6 +1580,37 @@ fn write_map(
             "none".to_string(),
         )
     };
+    let (
+        bright_artifact,
+        bright_model,
+        bright_band,
+        bright_uv_model,
+        bright_population,
+        bright_precedence,
+        bright_commit,
+        bright_route,
+        bright_redistribution,
+    ) = bright_star.map_or(
+        (
+            "none", "none", "none", "none", "none", "none", "none", "none", "none",
+        ),
+        |provenance| {
+            (
+                provenance.artifact_sha256.as_str(),
+                provenance.model_id.as_str(),
+                provenance.product_band.as_str(),
+                provenance
+                    .uv_completion_model_id
+                    .as_deref()
+                    .unwrap_or("none"),
+                provenance.population_policy_id.as_str(),
+                provenance.precedence_policy_id.as_str(),
+                provenance.build_commit.as_str(),
+                provenance.spectral_route.as_str(),
+                provenance.redistribution_scope.as_str(),
+            )
+        },
+    );
     let mut text = format!(
         "# schema={MAP_SCHEMA}\n\
          # map_type=healpix\n\
@@ -1519,6 +1634,15 @@ fn write_map(
          # uv_model_response={model_response}\n\
          # uv_measured_conditional_residual_statistical_correlation={statistical_correlation}\n\
          # uv_systematic_correlation={systematic_correlation}\n\
+         # bright_star_artifact_sha256={bright_artifact}\n\
+         # bright_star_model_id={bright_model}\n\
+         # bright_star_product_band={bright_band}\n\
+         # bright_star_uv_completion_model_id={bright_uv_model}\n\
+         # bright_star_population_policy_id={bright_population}\n\
+         # bright_star_precedence_policy_id={bright_precedence}\n\
+         # bright_star_build_commit={bright_commit}\n\
+         # bright_star_spectral_route={bright_route}\n\
+         # bright_star_redistribution_scope={bright_redistribution}\n\
          pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n"
     );
     for (pixel, value) in pixels {
@@ -1547,7 +1671,11 @@ fn response_label(response: &crate::starlight::uv::ModelResponse) -> &'static st
     }
 }
 
-fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport) -> Result<()> {
+fn validate_map_spectral_headers(
+    path: &Path,
+    spectral: &SpectralCoverageReport,
+    bright_star: Option<&crate::starlight::bright_stars::BrightStarSupplementProvenance>,
+) -> Result<()> {
     let text = fs::read_to_string(path)?;
     let expected = if spectral.ultraviolet_correction_applied {
         vec![
@@ -1621,6 +1749,58 @@ fn validate_map_spectral_headers(path: &Path, spectral: &SpectralCoverageReport)
         .any(|header| !text.lines().any(|line| line == header))
     {
         bail!("canonical map spectral metadata does not match merge report");
+    }
+    let bright_expected = bright_star.map_or_else(
+        || {
+            vec![
+                "# bright_star_artifact_sha256=none".to_string(),
+                "# bright_star_model_id=none".to_string(),
+                "# bright_star_product_band=none".to_string(),
+                "# bright_star_uv_completion_model_id=none".to_string(),
+                "# bright_star_population_policy_id=none".to_string(),
+                "# bright_star_precedence_policy_id=none".to_string(),
+                "# bright_star_build_commit=none".to_string(),
+                "# bright_star_spectral_route=none".to_string(),
+                "# bright_star_redistribution_scope=none".to_string(),
+            ]
+        },
+        |provenance| {
+            vec![
+                format!(
+                    "# bright_star_artifact_sha256={}",
+                    provenance.artifact_sha256
+                ),
+                format!("# bright_star_model_id={}", provenance.model_id),
+                format!("# bright_star_product_band={}", provenance.product_band),
+                format!(
+                    "# bright_star_uv_completion_model_id={}",
+                    provenance
+                        .uv_completion_model_id
+                        .as_deref()
+                        .unwrap_or("none")
+                ),
+                format!(
+                    "# bright_star_population_policy_id={}",
+                    provenance.population_policy_id
+                ),
+                format!(
+                    "# bright_star_precedence_policy_id={}",
+                    provenance.precedence_policy_id
+                ),
+                format!("# bright_star_build_commit={}", provenance.build_commit),
+                format!("# bright_star_spectral_route={}", provenance.spectral_route),
+                format!(
+                    "# bright_star_redistribution_scope={}",
+                    provenance.redistribution_scope
+                ),
+            ]
+        },
+    );
+    if bright_expected
+        .iter()
+        .any(|header| !text.lines().any(|line| line == header))
+    {
+        bail!("canonical map bright-star metadata does not match merge report");
     }
     Ok(())
 }
@@ -1902,13 +2082,51 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
         bytes.push(1);
         append_string(&mut bytes, &provenance.artifact_sha256)?;
         append_string(&mut bytes, &provenance.model_id)?;
+        append_string(&mut bytes, &provenance.product_band)?;
+        append_string(
+            &mut bytes,
+            provenance
+                .uv_completion_model_id
+                .as_deref()
+                .unwrap_or("none"),
+        )?;
         append_string(&mut bytes, &provenance.population_policy_id)?;
         append_string(&mut bytes, &provenance.precedence_policy_id)?;
         append_string(&mut bytes, &provenance.build_commit)?;
+        append_string(&mut bytes, &provenance.spectral_route)?;
+        append_string(&mut bytes, &provenance.redistribution_scope)?;
+        let input_count = u64::try_from(provenance.inputs.len())
+            .context("bright-star provenance input count exceeds u64")?;
+        bytes.extend_from_slice(&input_count.to_be_bytes());
+        for input in &provenance.inputs {
+            append_string(&mut bytes, bright_star_input_role_label(input.role))?;
+            append_string(&mut bytes, &input.source_id)?;
+            append_string(&mut bytes, &input.release)?;
+            append_string(&mut bytes, &input.sha256)?;
+            append_string(&mut bytes, &input.retrieval_url)?;
+            append_string(&mut bytes, &input.license_or_terms_url)?;
+        }
     } else {
         bytes.push(0);
     }
     Ok(bytes)
+}
+
+fn bright_star_input_role_label(
+    role: crate::starlight::bright_stars::BrightStarInputRole,
+) -> &'static str {
+    use crate::starlight::bright_stars::BrightStarInputRole;
+    match role {
+        BrightStarInputRole::Hipparcos2 => "hipparcos2",
+        BrightStarInputRole::Tycho2 => "tycho2",
+        BrightStarInputRole::HipGaiaCrossmatch => "hip_gaia_crossmatch",
+        BrightStarInputRole::GaiaDr3QualityExtract => "gaia_dr3_quality_extract",
+        BrightStarInputRole::SpectralTypeCatalogue => "spectral_type_catalogue",
+        BrightStarInputRole::SpectralTemplateLibrary => "spectral_template_library",
+        BrightStarInputRole::PhotometricResponseCurve => "photometric_response_curve",
+        BrightStarInputRole::PhotometricZeroPoint => "photometric_zero_point",
+        BrightStarInputRole::BuildConfig => "build_config",
+    }
 }
 
 fn append_string(bytes: &mut Vec<u8>, value: &str) -> Result<()> {
@@ -2069,9 +2287,15 @@ mod tests {
         crate::starlight::bright_stars::BrightStarSupplementProvenance {
             artifact_sha256: hex_fill.to_string().repeat(64),
             model_id: crate::starlight::bright_stars::BRIGHT_STAR_MODEL_ID.into(),
+            product_band: crate::starlight::bright_stars::BRIGHT_STAR_PRODUCT_BAND_ID.into(),
+            uv_completion_model_id: None,
             population_policy_id: crate::starlight::bright_stars::POPULATION_POLICY_ID_V1.into(),
             precedence_policy_id: crate::starlight::bright_stars::PRECEDENCE_POLICY_ID_V1.into(),
             build_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".into(),
+            spectral_route: "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm".into(),
+            redistribution_scope: "derived map only; source catalogue bytes are not embedded"
+                .into(),
+            inputs: Vec::new(),
         }
     }
 

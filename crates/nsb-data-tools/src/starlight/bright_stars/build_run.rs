@@ -131,6 +131,7 @@ pub(crate) fn run_experimental_build_at_commit(
     let spectral_model = load_spectral_reconstruction_model(
         &config.spectral_model_path,
         &config.spectral_model_sha256,
+        &config.product_band,
     )?;
     let unsupported_spectral_codes = spectral_model
         .unsupported_assignments
@@ -142,7 +143,8 @@ pub(crate) fn run_experimental_build_at_commit(
             )
         })
         .collect::<BTreeSet<_>>();
-    let spectra = reconstruct_spectral_estimates(&hipparcos, &xhip, &spectral_model)?;
+    let spectra =
+        reconstruct_spectral_estimates(&hipparcos, &xhip, &spectral_model, &config.product_band)?;
 
     let mut inputs = vec![
         config.hipparcos2.provenance.clone(),

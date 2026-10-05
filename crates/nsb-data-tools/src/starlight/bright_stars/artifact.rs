@@ -116,7 +116,10 @@ impl BrightStarSourceRecord {
         let uv = self
             .statistical_uncertainty_300_336_ph_m2_s
             .context("combined bright-star source missing 300-336 nm statistical uncertainty")?;
-        Ok(uv.hypot(self.statistical_uncertainty_ph_m2_s))
+        // The UV and measured terms share the same source-level Hp scale
+        // uncertainty. Add them linearly across bands; different sources are
+        // still combined in quadrature by the pixel accumulator.
+        Ok(uv + self.statistical_uncertainty_ph_m2_s)
     }
 
     pub fn selected_independent_systematic_ph_m2_s(&self, combined: bool) -> Result<f64> {
@@ -128,7 +131,9 @@ impl BrightStarSourceRecord {
             .context(
                 "combined bright-star source missing 300-336 nm independent systematic uncertainty",
             )?;
-        Ok(uv.hypot(self.systematic_independent_uncertainty_ph_m2_s))
+        // "independent" describes independence between sources, not between
+        // the two bands reconstructed from one shared template scale.
+        Ok(uv + self.systematic_independent_uncertainty_ph_m2_s)
     }
 }
 
@@ -153,9 +158,14 @@ pub struct BrightStarPixel {
 pub struct BrightStarSupplementProvenance {
     pub artifact_sha256: String,
     pub model_id: String,
+    pub product_band: String,
+    pub uv_completion_model_id: Option<String>,
     pub population_policy_id: String,
     pub precedence_policy_id: String,
     pub build_commit: String,
+    pub spectral_route: String,
+    pub redistribution_scope: String,
+    pub inputs: Vec<BrightStarInputProvenance>,
 }
 
 impl BrightStarSupplementProvenance {
@@ -165,6 +175,16 @@ impl BrightStarSupplementProvenance {
             bail!(
                 "bright-star supplement provenance model_id must be {BRIGHT_STAR_MODEL_ID} or {BRIGHT_STAR_COMBINED_MODEL_ID}"
             );
+        }
+        let combined = self.model_id == BRIGHT_STAR_COMBINED_MODEL_ID;
+        if (combined && self.product_band != BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID)
+            || (!combined && self.product_band != BRIGHT_STAR_PRODUCT_BAND_ID)
+            || (combined
+                && self.uv_completion_model_id.as_deref()
+                    != Some(super::reconstruction::UV_COMPLETION_MODEL_ID_V1))
+            || (!combined && self.uv_completion_model_id.is_some())
+        {
+            bail!("bright-star supplement provenance has incompatible product/model identity");
         }
         if self.population_policy_id != super::policy::POPULATION_POLICY_ID_V1 {
             bail!("bright-star supplement provenance population_policy_id is unknown");
@@ -177,6 +197,18 @@ impl BrightStarSupplementProvenance {
                 "bright-star supplement provenance build_commit must be a full 40-character lowercase Git SHA"
             );
         }
+        let expected_route = if combined {
+            "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion"
+        } else {
+            "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm"
+        };
+        if self.spectral_route != expected_route
+            || self.redistribution_scope
+                != "derived map only; source catalogue bytes are not embedded"
+        {
+            bail!("bright-star supplement spectral or redistribution provenance is unknown");
+        }
+        validate_inputs(&self.inputs)?;
         Ok(())
     }
 }
@@ -433,9 +465,20 @@ impl BrightStarArtifact {
         let provenance = BrightStarSupplementProvenance {
             artifact_sha256: verified_artifact_sha256.to_owned(),
             model_id: self.model_id.clone(),
+            product_band: self.product_band.clone(),
+            uv_completion_model_id: is_combined_product_band(&self.product_band)
+                .then(|| super::reconstruction::UV_COMPLETION_MODEL_ID_V1.to_owned()),
             population_policy_id: self.population_policy.policy_id.clone(),
             precedence_policy_id: self.precedence_policy.policy_id.clone(),
             build_commit: self.build_commit.clone(),
+            spectral_route: if is_combined_product_band(&self.product_band) {
+                "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion".into()
+            } else {
+                "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm".into()
+            },
+            redistribution_scope: "derived map only; source catalogue bytes are not embedded"
+                .into(),
+            inputs: self.inputs.clone(),
         };
         provenance.validate()?;
         Ok(provenance)
@@ -444,20 +487,6 @@ impl BrightStarArtifact {
     pub fn to_json_pretty(&self) -> Result<Vec<u8>> {
         self.validate()?;
         Ok(serde_json::to_vec_pretty(self)?)
-    }
-
-    fn validate_identity(&self, expected_sha256: &str, path: &Path) -> Result<()> {
-        self.validate()?;
-        validate_sha256(expected_sha256, "expected bright-star sha256")?;
-        let actual =
-            checksum_io::sha256_file(path).with_context(|| format!("hash {}", path.display()))?;
-        if actual != expected_sha256 {
-            bail!(
-                "bright-star artifact sha256 mismatch: {actual} != {expected_sha256} ({})",
-                path.display()
-            );
-        }
-        Ok(())
     }
 }
 
@@ -792,14 +821,24 @@ fn validate_sha256(value: &str, label: &str) -> Result<()> {
 
 pub fn load_bright_star_artifact(path: &Path, expected_sha256: &str) -> Result<BrightStarArtifact> {
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
-    let mut artifact: BrightStarArtifact = serde_json::from_slice(&bytes)
+    validate_sha256(expected_sha256, "expected bright-star sha256")?;
+    let actual = checksum_io::sha256_bytes(&bytes);
+    if actual != expected_sha256 {
+        bail!(
+            "bright-star artifact sha256 mismatch: {actual} != {expected_sha256} ({})",
+            path.display()
+        );
+    }
+    let artifact: BrightStarArtifact = serde_json::from_slice(&bytes)
         .with_context(|| format!("parse bright-star artifact {}", path.display()))?;
+    // Validate the serialized pixels before any optional in-memory
+    // canonicalization. A matching byte checksum is an identity check, not a
+    // substitute for source/pixel scientific consistency.
+    artifact.validate()?;
     let combined = is_combined_product_band(&artifact.product_band);
-    // Pixels are derived from per-source band fields; refresh after JSON so runtime
-    // merge uses the canonical reconstruction rather than ambiguous decimal round-trips.
-    artifact.pixels = rebuild_pixels(artifact.nside, &artifact.sources, combined)?;
-    artifact.validate_identity(expected_sha256, path)?;
-    Ok(artifact)
+    let mut canonical = artifact;
+    canonical.pixels = rebuild_pixels(canonical.nside, &canonical.sources, combined)?;
+    Ok(canonical)
 }
 
 #[cfg(test)]
@@ -1007,6 +1046,55 @@ mod tests {
         assert_eq!(loaded.sources, art.sources);
         assert_eq!(loaded.pixels.len(), art.pixels.len());
         assert!(pixels_match(&loaded.pixels, &art.pixels).unwrap());
+    }
+
+    #[test]
+    fn checksum_pinned_corrupt_serialized_pixels_are_rejected() {
+        let art = combined_artifact(vec![combined_source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0e11,
+            5.0e11,
+        )])
+        .unwrap();
+        let mut json = serde_json::to_value(art).unwrap();
+        json["pixels"][0]["flux_ph_m2_s"] = serde_json::json!(1.0);
+        let bytes = serde_json::to_vec_pretty(&json).unwrap();
+        let mut tmp = NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut tmp, &bytes).unwrap();
+        let sha = checksum_io::sha256_bytes(&bytes);
+        let error = load_bright_star_artifact(tmp.path(), &sha).unwrap_err();
+        assert!(
+            error.to_string().contains("pixel") && error.to_string().contains("mismatch"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn combined_band_preserves_shared_scale_covariance() {
+        let source = combined_source("a", SupplementClass::SupplementOnly, None, 100.0, 400.0);
+        assert_eq!(
+            source
+                .selected_statistical_uncertainty_ph_m2_s(true)
+                .unwrap(),
+            5.0
+        );
+        assert_eq!(
+            source
+                .selected_independent_systematic_ph_m2_s(true)
+                .unwrap(),
+            10.0
+        );
+        assert!(5.0 > 1.0_f64.hypot(4.0));
+        assert!(10.0 > 2.0_f64.hypot(8.0));
+
+        let art = combined_artifact(vec![source]).unwrap();
+        assert_eq!(art.pixels[0].statistical_uncertainty_ph_m2_s, 5.0);
+        assert_eq!(
+            art.pixels[0].systematic_independent_uncertainty_ph_m2_s,
+            10.0
+        );
     }
 
     #[test]

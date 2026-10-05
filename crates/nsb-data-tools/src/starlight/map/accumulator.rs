@@ -415,6 +415,30 @@ impl PartitionShard {
         })
     }
 
+    /// Create the synthetic combined-band bright-star shard. Its UV component
+    /// is CK04-derived and must not impersonate the Gaia UV correction route.
+    pub(crate) fn new_bright_star_combined(
+        partition_id: impl Into<String>,
+        nside: u32,
+        provenance: crate::starlight::bright_stars::BrightStarSupplementProvenance,
+    ) -> Result<Self> {
+        provenance.validate()?;
+        if provenance.product_band
+            != crate::starlight::bright_stars::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID
+        {
+            bail!("combined bright-star shard requires combined supplement provenance");
+        }
+        let mut shard = Self::new_with_policy(
+            partition_id,
+            nside,
+            StarlightProductBand::Measured336To650,
+            None,
+        )?;
+        shard.product_band = StarlightProductBand::Combined300To650;
+        shard.bright_star_supplement_provenance = Some(provenance);
+        Ok(shard)
+    }
+
     /// Accumulate one admitted Gaia source at its ICRS sky position.
     pub fn admit(
         &mut self,
@@ -452,7 +476,7 @@ impl PartitionShard {
         source: &crate::starlight::bright_stars::BrightStarSourceRecord,
     ) -> Result<()> {
         use crate::starlight::config::StarlightProductBand;
-        use crate::starlight::uv::{ApplicabilityStatus, SystematicCorrelation};
+        use crate::starlight::uv::SystematicCorrelation;
 
         match self.product_band {
             StarlightProductBand::Measured336To650 => {
@@ -494,11 +518,13 @@ impl PartitionShard {
                         flux_300_650_ph_m2_s: uv + measured,
                         statistical_uncertainty_300_336_ph_m2_s: uv_stat,
                         statistical_uncertainty_336_650_ph_m2_s: measured_stat,
-                        statistical_uncertainty_300_650_ph_m2_s: uv_stat.hypot(measured_stat),
+                        statistical_uncertainty_300_650_ph_m2_s: uv_stat + measured_stat,
                         systematic_uncertainty_300_336_ph_m2_s: uv_sys,
-                        systematic_uncertainty_300_650_ph_m2_s: uv_sys.hypot(measured_sys),
+                        systematic_uncertainty_300_650_ph_m2_s: uv_sys + measured_sys,
                         systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
-                        applicability_status: Some(ApplicabilityStatus::InDomain),
+                        // Gaia UV applicability does not describe the distinct
+                        // Hp-scaled CK04 bright-star completion route.
+                        applicability_status: None,
                     },
                 )?;
             }
@@ -698,10 +724,16 @@ impl PartitionShard {
         if self.schema_version != SHARD_SCHEMA_VERSION {
             bail!("unsupported Starlight shard schema {}", self.schema_version);
         }
-        if (self.product_band == StarlightProductBand::Combined300To650)
-            != self.ultraviolet_correction.is_some()
+        if self.product_band == StarlightProductBand::Measured336To650
+            && self.ultraviolet_correction.is_some()
         {
-            bail!("Starlight shard product band and UV metadata disagree");
+            bail!("measured Starlight shard must not carry Gaia UV metadata");
+        }
+        if self.product_band == StarlightProductBand::Combined300To650
+            && self.ultraviolet_correction.is_none()
+            && self.bright_star_supplement_provenance.is_none()
+        {
+            bail!("combined Starlight shard requires a declared UV reconstruction route");
         }
         healpix::gaia_nested_nside(self.nside)?;
         let grid = healpix::gaia_nested_grid(self.nside)?;
@@ -758,7 +790,10 @@ impl PartitionShard {
                 total.checked_add(pixel.admitted_sources)
             })
             .context("admitted source total overflow")?;
-        if (self.ultraviolet_correction.is_some() && uv_total != admitted)
+        let has_supplement = self.bright_star_supplement_provenance.is_some();
+        if (self.ultraviolet_correction.is_some()
+            && ((!has_supplement && uv_total != admitted)
+                || (has_supplement && uv_total > admitted)))
             || (self.ultraviolet_correction.is_none() && uv_total != 0)
         {
             bail!("UV applicability diagnostics do not match admitted sources");
@@ -793,7 +828,9 @@ pub fn merge_shards(shards: impl IntoIterator<Item = PartitionShard>) -> Result<
     }
     let nside = shards[0].nside;
     let product_band = shards[0].product_band;
-    let ultraviolet_correction = shards[0].ultraviolet_correction.clone();
+    let ultraviolet_correction = shards
+        .iter()
+        .find_map(|shard| shard.ultraviolet_correction.clone());
     let mut merged = PartitionShard::new_with_policy(
         "merged",
         nside,
@@ -804,10 +841,19 @@ pub fn merge_shards(shards: impl IntoIterator<Item = PartitionShard>) -> Result<
         if shard.nside != nside {
             bail!("cannot merge Starlight shards with different nside values");
         }
-        if shard.product_band != product_band
-            || shard.ultraviolet_correction != ultraviolet_correction
+        if shard.product_band != product_band {
+            bail!("cannot merge Starlight shards with different product bands");
+        }
+        if let Some(route) = &shard.ultraviolet_correction {
+            if Some(route) != ultraviolet_correction.as_ref() {
+                bail!(
+                    "cannot merge Starlight shards with incompatible Gaia UV correction identities"
+                );
+            }
+        } else if product_band == StarlightProductBand::Combined300To650
+            && shard.bright_star_supplement_provenance.is_none()
         {
-            bail!("cannot merge Starlight shards with different spectral policies");
+            bail!("combined shard without Gaia UV metadata requires bright-star route provenance");
         }
         for (pixel, source) in shard.pixels {
             merged.pixels.entry(pixel).or_default().merge(&source)?;
@@ -980,6 +1026,76 @@ mod tests {
         json["schema_version"] = serde_json::json!(2);
         let old: PartitionShard = serde_json::from_value(json)?;
         assert!(old.validate().is_err());
+        Ok(())
+    }
+
+    fn fixture_uv_metadata(fill: char) -> UvCorrectionShardMetadata {
+        UvCorrectionShardMetadata {
+            model_id: "gaia-uv-fixture".into(),
+            artifact_sha256: fill.to_string().repeat(64),
+            calibration_status: CalibrationStatus::Validated,
+            response: ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation: SystematicCorrelation::IndependentBetweenSources,
+        }
+    }
+
+    fn fixture_combined_bright_star_provenance(
+    ) -> crate::starlight::bright_stars::BrightStarSupplementProvenance {
+        crate::starlight::bright_stars::BrightStarSupplementProvenance {
+            artifact_sha256: "b".repeat(64),
+            model_id: crate::starlight::bright_stars::BRIGHT_STAR_COMBINED_MODEL_ID.into(),
+            product_band:
+                crate::starlight::bright_stars::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID.into(),
+            uv_completion_model_id: Some(
+                crate::starlight::bright_stars::UV_COMPLETION_MODEL_ID_V1.into(),
+            ),
+            population_policy_id: crate::starlight::bright_stars::POPULATION_POLICY_ID_V1.into(),
+            precedence_policy_id: crate::starlight::bright_stars::PRECEDENCE_POLICY_ID_V1.into(),
+            build_commit: "a".repeat(40),
+            spectral_route: "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion".into(),
+            redistribution_scope:
+                "derived map only; source catalogue bytes are not embedded".into(),
+            inputs: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn mixed_gaia_and_bright_star_uv_routes_merge_without_losing_identity() -> Result<()> {
+        let gaia = PartitionShard::new_with_policy(
+            "gaia",
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(fixture_uv_metadata('a')),
+        )?;
+        let bright = PartitionShard::new_bright_star_combined(
+            "bright-star-supplement",
+            128,
+            fixture_combined_bright_star_provenance(),
+        )?;
+        let merged = merge_shards([gaia, bright])?;
+        assert_eq!(
+            merged.ultraviolet_correction,
+            Some(fixture_uv_metadata('a'))
+        );
+        assert_eq!(
+            merged
+                .bright_star_supplement_provenance
+                .as_ref()
+                .unwrap()
+                .uv_completion_model_id
+                .as_deref(),
+            Some(crate::starlight::bright_stars::UV_COMPLETION_MODEL_ID_V1)
+        );
+
+        let incompatible = PartitionShard::new_with_policy(
+            "other-gaia",
+            128,
+            StarlightProductBand::Combined300To650,
+            Some(fixture_uv_metadata('c')),
+        )?;
+        assert!(merge_shards([merged.clone(), incompatible]).is_err());
+        assert!(merge_shards([merged, PartitionShard::new("measured", 128)?]).is_err());
         Ok(())
     }
 }

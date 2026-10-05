@@ -36,13 +36,18 @@ impl SpectralEstimate {
     }
 
     pub fn statistical_uncertainty_300_650_ph_m2_s(&self) -> f64 {
-        self.statistical_uncertainty_300_336_ph_m2_s
-            .hypot(self.statistical_uncertainty_336_650_ph_m2_s)
+        // Both band terms originate from the same uncertain Hp scale factor,
+        // so their positive cross-band covariance is preserved by adding the
+        // absolute sigmas before sources are combined in quadrature.
+        self.statistical_uncertainty_300_336_ph_m2_s + self.statistical_uncertainty_336_650_ph_m2_s
     }
 
     pub fn systematic_independent_uncertainty_300_650_ph_m2_s(&self) -> f64 {
+        // Template mismatch and spectral mapping are independent uncertainty
+        // sources, already combined in quadrature into a common multiplicative
+        // fraction. Each source-level fraction is shared across its two bands.
         self.systematic_independent_uncertainty_300_336_ph_m2_s
-            .hypot(self.systematic_independent_uncertainty_336_650_ph_m2_s)
+            + self.systematic_independent_uncertainty_336_650_ph_m2_s
     }
 }
 
@@ -328,12 +333,13 @@ pub fn build_experimental_artifact_for_product_band(
                 )
             },
         );
+        let combined = product_band == super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID;
         if estimate.is_some()
             && (![flux_uv, flux, stat_uv, stat, sys_uv, sys]
                 .iter()
                 .all(|value| value.is_finite() && *value >= 0.0)
                 || flux <= 0.0
-                || flux_uv <= 0.0)
+                || (combined && flux_uv <= 0.0))
         {
             bail!("invalid spectral estimate for HIP {}", hip.astrometry.hip);
         }
@@ -345,16 +351,15 @@ pub fn build_experimental_artifact_for_product_band(
             gaia_source_id: decision.gaia_source_id,
             ra_deg_j2016: propagated.ra_deg_j2016,
             dec_deg_j2016: propagated.dec_deg_j2016,
-            flux_300_336_ph_m2_s: Some(flux_uv).filter(|_| flux_uv > 0.0),
+            flux_300_336_ph_m2_s: (flux_uv > 0.0).then_some(flux_uv),
             flux_336_650_ph_m2_s: flux,
-            statistical_uncertainty_300_336_ph_m2_s: Some(stat_uv).filter(|_| flux_uv > 0.0),
+            statistical_uncertainty_300_336_ph_m2_s: (flux_uv > 0.0).then_some(stat_uv),
             statistical_uncertainty_ph_m2_s: stat,
-            systematic_independent_uncertainty_300_336_ph_m2_s: Some(sys_uv)
-                .filter(|_| flux_uv > 0.0),
+            systematic_independent_uncertainty_300_336_ph_m2_s: (flux_uv > 0.0).then_some(sys_uv),
             systematic_independent_uncertainty_ph_m2_s: sys,
             systematic_catalogue_correlated: groups,
             spectral_route: route.clone(),
-            uv_completion_model_id: Some(uv_model).filter(|value| !value.is_empty()),
+            uv_completion_model_id: (!uv_model.is_empty()).then_some(uv_model),
             classification_reason: decision.reason.clone(),
         });
         let tycho = tycho_by_hip.get(&hip.astrometry.hip);
@@ -388,7 +393,7 @@ pub fn build_experimental_artifact_for_product_band(
                 .and_then(|value| value.route.rsplit(':').next().map(str::to_owned)),
             spectral_route: route,
             flux_336_650_ph_m2_s: flux,
-            flux_300_336_ph_m2_s: Some(flux_uv).filter(|_| flux_uv > 0.0),
+            flux_300_336_ph_m2_s: (flux_uv > 0.0).then_some(flux_uv),
             statistical_uncertainty_ph_m2_s: stat,
             systematic_independent_uncertainty_ph_m2_s: sys,
             systematic_catalogue_correlated: estimate
@@ -644,4 +649,26 @@ mod tests {
             "official_match_missing_gaia_quality"
         );
     }
+}
+#[test]
+fn shared_band_terms_add_linearly_but_independent_sources_use_quadrature() {
+    let estimate = SpectralEstimate {
+        hip: 1,
+        flux_300_336_ph_m2_s: 2.0,
+        flux_336_650_ph_m2_s: 8.0,
+        statistical_uncertainty_300_336_ph_m2_s: 0.2,
+        statistical_uncertainty_336_650_ph_m2_s: 0.8,
+        systematic_independent_uncertainty_300_336_ph_m2_s: 0.4,
+        systematic_independent_uncertainty_336_650_ph_m2_s: 1.6,
+        systematic_catalogue_correlated: Vec::new(),
+        route: "fixture".into(),
+        uv_completion_model_id:
+            crate::starlight::bright_stars::reconstruction::UV_COMPLETION_MODEL_ID_V1.into(),
+    };
+    assert_eq!(estimate.statistical_uncertainty_300_650_ph_m2_s(), 1.0);
+    assert_eq!(
+        estimate.systematic_independent_uncertainty_300_650_ph_m2_s(),
+        2.0
+    );
+    assert_eq!(1.0_f64.hypot(1.0), 2.0_f64.sqrt());
 }
