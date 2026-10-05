@@ -402,7 +402,8 @@ impl BrightStarArtifact {
         if self.counts != recompute_counts(&self.sources) {
             bail!("bright-star serialized counts do not match source records");
         }
-        if self.pixels != rebuild_pixels(self.nside, &self.sources, combined)? {
+        let rebuilt = rebuild_pixels(self.nside, &self.sources, combined)?;
+        if !pixels_match(&self.pixels, &rebuilt)? {
             bail!("bright-star serialized pixels do not match source reconstruction");
         }
         validate_conservation(self.nside, &self.sources, &self.pixels, combined)?;
@@ -619,6 +620,65 @@ fn recompute_counts(sources: &[BrightStarSourceRecord]) -> BrightStarCounts {
     counts
 }
 
+/// Compare serialized pixels with a source-derived rebuild.
+///
+/// Flux and uncertainty fields allow a tiny tolerance so JSON deserialization
+/// round-trips remain valid when decimal text does not uniquely identify an `f64`.
+fn pixels_match(stored: &[BrightStarPixel], rebuilt: &[BrightStarPixel]) -> Result<bool> {
+    let mut stored_by_pixel: BTreeMap<u64, &BrightStarPixel> =
+        stored.iter().map(|pixel| (pixel.pixel, pixel)).collect();
+    if stored_by_pixel.len() != stored.len() || stored.len() != rebuilt.len() {
+        return Ok(false);
+    }
+    for pixel in rebuilt {
+        let Some(stored_pixel) = stored_by_pixel.remove(&pixel.pixel) else {
+            return Ok(false);
+        };
+        if stored_pixel.admitted_sources != pixel.admitted_sources {
+            return Ok(false);
+        }
+        if stored_pixel.systematic_catalogue_correlated != pixel.systematic_catalogue_correlated {
+            return Ok(false);
+        }
+        for (left, right, label) in [
+            (
+                stored_pixel.flux_ph_m2_s,
+                pixel.flux_ph_m2_s,
+                "flux_ph_m2_s",
+            ),
+            (
+                stored_pixel.statistical_uncertainty_ph_m2_s,
+                pixel.statistical_uncertainty_ph_m2_s,
+                "statistical_uncertainty_ph_m2_s",
+            ),
+            (
+                stored_pixel.systematic_independent_uncertainty_ph_m2_s,
+                pixel.systematic_independent_uncertainty_ph_m2_s,
+                "systematic_independent_uncertainty_ph_m2_s",
+            ),
+        ] {
+            if !pixel_scalar_matches(left, right) {
+                bail!(
+                    "bright-star pixel {} {label} mismatch: stored {left} rebuilt {right}",
+                    pixel.pixel,
+                );
+            }
+        }
+    }
+    Ok(stored_by_pixel.is_empty())
+}
+
+fn pixel_scalar_matches(left: f64, right: f64) -> bool {
+    if left.to_bits() == right.to_bits() {
+        return true;
+    }
+    if !left.is_finite() || !right.is_finite() {
+        return false;
+    }
+    let scale = left.abs().max(right.abs()).max(1.0);
+    (left - right).abs() <= scale * 1e-12
+}
+
 fn rebuild_pixels(
     nside: u32,
     sources: &[BrightStarSourceRecord],
@@ -730,8 +790,12 @@ fn validate_sha256(value: &str, label: &str) -> Result<()> {
 
 pub fn load_bright_star_artifact(path: &Path, expected_sha256: &str) -> Result<BrightStarArtifact> {
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
-    let artifact: BrightStarArtifact = serde_json::from_slice(&bytes)
+    let mut artifact: BrightStarArtifact = serde_json::from_slice(&bytes)
         .with_context(|| format!("parse bright-star artifact {}", path.display()))?;
+    let combined = is_combined_product_band(&artifact.product_band);
+    // Pixels are derived from per-source band fields; refresh after JSON so runtime
+    // merge uses the canonical reconstruction rather than ambiguous decimal round-trips.
+    artifact.pixels = rebuild_pixels(artifact.nside, &artifact.sources, combined)?;
     artifact.validate_identity(expected_sha256, path)?;
     Ok(artifact)
 }
@@ -877,6 +941,81 @@ mod tests {
         art.counts.final_admitted = 1;
         art.pixels[0].flux_ph_m2_s = 2.0;
         assert!(art.validate().is_err());
+    }
+
+    fn combined_source(
+        id: &str,
+        class: SupplementClass,
+        gaia: Option<u64>,
+        flux_uv: f64,
+        flux: f64,
+    ) -> BrightStarSourceRecord {
+        BrightStarSourceRecord {
+            source_id: id.into(),
+            origin_catalogue: "hip2".into(),
+            class,
+            gaia_source_id: gaia,
+            ra_deg_j2016: 10.0,
+            dec_deg_j2016: 20.0,
+            flux_300_336_ph_m2_s: Some(flux_uv),
+            flux_336_650_ph_m2_s: flux,
+            statistical_uncertainty_300_336_ph_m2_s: Some(flux_uv * 0.01),
+            statistical_uncertainty_ph_m2_s: flux * 0.01,
+            systematic_independent_uncertainty_300_336_ph_m2_s: Some(flux_uv * 0.02),
+            systematic_independent_uncertainty_ph_m2_s: flux * 0.02,
+            systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: flux * 0.03,
+            }],
+            spectral_route: "fixture".into(),
+            uv_completion_model_id: Some(
+                crate::starlight::bright_stars::reconstruction::UV_COMPLETION_MODEL_ID_V1.into(),
+            ),
+            classification_reason: "fixture".into(),
+        }
+    }
+
+    fn combined_artifact(sources: Vec<BrightStarSourceRecord>) -> Result<BrightStarArtifact> {
+        BrightStarArtifact::from_sources_with_product_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            sources,
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID,
+        )
+    }
+
+    #[test]
+    fn combined_artifact_json_roundtrip_loads_after_decimal_float_roundtrip() {
+        let art = combined_artifact(vec![combined_source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0e11,
+            5.0e11,
+        )])
+        .unwrap();
+        let bytes = art.to_json_pretty().unwrap();
+        let mut tmp = NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut tmp, &bytes).unwrap();
+        let sha = checksum_io::sha256_bytes(&bytes);
+        let loaded = load_bright_star_artifact(tmp.path(), &sha).unwrap();
+        assert_eq!(loaded.sources, art.sources);
+        assert_eq!(loaded.pixels.len(), art.pixels.len());
+        assert!(pixels_match(&loaded.pixels, &art.pixels).unwrap());
+    }
+
+    #[test]
+    fn combined_production_artifact_loads_if_present() {
+        let path = Path::new("/tmp/combined-bright-stars.json");
+        if !path.exists() {
+            return;
+        }
+        let bytes = fs::read(path).unwrap();
+        let sha = checksum_io::sha256_bytes(&bytes);
+        load_bright_star_artifact(path, &sha).expect("production combined artifact must load");
     }
 
     #[test]
