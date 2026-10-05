@@ -140,6 +140,25 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
 
 #[cfg(nsb_bundled_production_starlight)]
 #[test]
+fn bundled_production_starlight_pins_issue_207_candidate_lineage() {
+    const ISSUE_207_CANDIDATE_SHA256: &str =
+        "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf";
+    let sidecar = crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST;
+    assert!(
+        sidecar.contains(ISSUE_207_CANDIDATE_SHA256),
+        "bundled production sidecar must pin the issue #207 Combined300To650 candidate"
+    );
+    let map = crate::data::bundled::bundled_asset("starlight_nside128.release.csv")
+        .expect("production map metadata");
+    let sidecar_meta = crate::data::bundled::bundled_asset("starlight_nside128.manifest.toml")
+        .expect("production sidecar metadata");
+    assert_eq!(map.sha256.len(), 64);
+    assert_eq!(sidecar_meta.sha256.len(), 64);
+    assert_ne!(map.sha256, ISSUE_207_CANDIDATE_SHA256);
+}
+
+#[cfg(nsb_bundled_production_starlight)]
+#[test]
 fn bundled_production_model_is_the_canonical_admitted_csv_map() {
     let canonical = ValidatedStarlightMap::from_bytes_and_manifest(
         crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),

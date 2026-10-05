@@ -237,10 +237,8 @@ pub fn reconstruct_spectral_estimates(
             flux_336_650_ph_m2_s: flux_336_650,
             statistical_uncertainty_300_336_ph_m2_s: flux_300_336 * mag_fraction,
             statistical_uncertainty_336_650_ph_m2_s: flux_336_650 * mag_fraction,
-            systematic_independent_uncertainty_300_336_ph_m2_s: flux_300_336
-                * independent_fraction,
-            systematic_independent_uncertainty_336_650_ph_m2_s: flux_336_650
-                * independent_fraction,
+            systematic_independent_uncertainty_300_336_ph_m2_s: flux_300_336 * independent_fraction,
+            systematic_independent_uncertainty_336_650_ph_m2_s: flux_336_650 * independent_fraction,
             // Hp zero-point is a shared absolute scale; one correlated term on
             // the full 300--650 integral preserves linear addition in-group.
             systematic_catalogue_correlated: vec![CorrelatedUncertainty {
@@ -362,10 +360,7 @@ mod tests {
         );
         assert!(estimate.flux_300_336_ph_m2_s > 0.0);
         assert!(estimate.flux_300_336_ph_m2_s != estimate.flux_336_650_ph_m2_s);
-        assert_eq!(
-            estimate.uv_completion_model_id,
-            UV_COMPLETION_MODEL_ID_V1
-        );
+        assert_eq!(estimate.uv_completion_model_id, UV_COMPLETION_MODEL_ID_V1);
         assert_eq!(estimate.systematic_catalogue_correlated.len(), 1);
 
         let unsupported = BTreeMap::from([(

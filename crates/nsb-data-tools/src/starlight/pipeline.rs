@@ -123,9 +123,7 @@ impl DatasetPipeline for StarlightPipeline {
             let ultraviolet = starlight
                 .ultraviolet_correction
                 .as_ref()
-                .map(|pin| {
-                    super::uv::UvCorrection::load(&pin.artifact_path, &pin.sha256)
-                })
+                .map(|pin| super::uv::UvCorrection::load(&pin.artifact_path, &pin.sha256))
                 .transpose()?;
             let shard = super::worker::bright_star_supplement_shard(
                 &artifact,

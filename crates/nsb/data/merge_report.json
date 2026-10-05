@@ -1,6 +1,6 @@
 {
-  "schema_version": 7,
-  "shard_count": 3386,
+  "schema_version": 9,
+  "shard_count": 3387,
   "partition_ids": [
     "000000-003111",
     "003112-005263",
@@ -3387,10 +3387,21 @@
     "784480-784992",
     "784993-785417",
     "785418-786096",
-    "786097-786431"
+    "786097-786431",
+    "bright-star-supplement"
   ],
-  "observed_sources": 1811709771,
-  "admitted_sources": 1518801696,
+  "observed_sources": 1811709826,
+  "source_record_accounting": {
+    "semantics": "processing_records; replacement stars have one excluded primary record and one supplement record",
+    "primary_input_records": 1811709771,
+    "supplement_input_records": 55,
+    "replacement_records": 0,
+    "admitted_primary_records": 1518801696,
+    "admitted_supplement_records": 55,
+    "unique_replacement_gaia_ids": 0,
+    "unique_physical_sources": 1811709826
+  },
+  "admitted_sources": 1518801751,
   "excluded_sources": 292908075,
   "exclusion_reasons": {
     "duplicated_source": 14011462,
@@ -3401,9 +3412,17 @@
     "selection_missing_g_magnitude": 90
   },
   "ultraviolet_applicability": {
-    "in-domain": 1516760636,
+    "in-domain": 1516760691,
     "boundary": 10,
     "out-of-domain": 2041050
+  },
+  "bright_star_replacement": null,
+  "bright_star_supplement": {
+    "artifact_sha256": "c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921",
+    "model_id": "starlight-bright-stars-combined-v1",
+    "population_policy_id": "bright-stars-population-v1",
+    "precedence_policy_id": "bright-stars-gaia-precedence-v1",
+    "build_commit": "9352888dba1e67a58e7ec5c5b6f35761566caea1"
   },
   "science_policy": {
     "schema_version": 2,
@@ -3458,21 +3477,21 @@
       "measured_conditional_residual_statistical_correlation": 0.0,
       "systematic_correlation": "fully-correlated-between-sources",
       "systematic_correlation_scope": "global-correlated",
-      "limitation": "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately."
+      "limitation": "The 300-336 nm contribution is model-corrected; the 336-650 nm Gaia XP integral remains unchanged and is retained separately. Sources lacking UV predictors are excluded from the combined 300-650 map rather than published as incomplete lower bounds labelled as full-band flux."
     }
   },
   "band_diagnostics": {
     "corrected_300_336_label": "300–336 nm corrected",
     "measured_336_650_label": "336–650 nm measured",
     "combined_300_650_label": "300–650 nm combined",
-    "total_flux_300_336_ph_m2_s": 281220866672.33905,
-    "total_flux_336_650_ph_m2_s": 8681550549260.129,
-    "total_flux_300_650_ph_m2_s": 8962771415932.666,
-    "statistical_uncertainty_300_336_ph_m2_s": 1077614714.3380764,
-    "statistical_uncertainty_336_650_ph_m2_s": 303483130.61549336,
-    "statistical_uncertainty_300_650_ph_m2_s": 1123296565.2453284,
-    "systematic_uncertainty_300_336_ph_m2_s": 178622652450.08832,
-    "systematic_uncertainty_300_650_ph_m2_s": 178622652450.08832
+    "total_flux_300_336_ph_m2_s": 335681464383.4071,
+    "total_flux_336_650_ph_m2_s": 9260282765422.482,
+    "total_flux_300_650_ph_m2_s": 9595964229805.844,
+    "statistical_uncertainty_300_336_ph_m2_s": 1078448612.4411888,
+    "statistical_uncertainty_336_650_ph_m2_s": 1153096549.7269773,
+    "statistical_uncertainty_300_650_ph_m2_s": 1581493835.8974128,
+    "systematic_uncertainty_300_336_ph_m2_s": 178627384797.15433,
+    "systematic_uncertainty_300_650_ph_m2_s": 178627384797.15433
   },
   "canonical_map": {
     "path": "starlight_nside128.csv",
@@ -3486,15 +3505,15 @@
     "omitted_pixel_semantics": "zero_flux_and_source_counts",
     "pixel_domain_size": 196608,
     "occupied_pixels": 196608,
-    "total_flux_ph_m2_s": 8962771415932.516,
-    "admitted_sources": 1518801696,
+    "total_flux_ph_m2_s": 9595964229805.85,
+    "admitted_sources": 1518801751,
     "excluded_sources": 292908075,
-    "sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+    "sha256": "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf"
   },
   "deterministic_merge": {
     "algorithm": "complete-partition-shard-v1",
-    "canonical_sha256": "f47590838802b29588e3931eed7f8f4e7bda3fdaa15c114b7816187104640737",
-    "independent_partial_merge_sha256": "f47590838802b29588e3931eed7f8f4e7bda3fdaa15c114b7816187104640737",
+    "canonical_sha256": "b00f91a6e290feef2a524dd2c01dea7866ee6f740f86aaaab6ab083d95270b39",
+    "independent_partial_merge_sha256": "b00f91a6e290feef2a524dd2c01dea7866ee6f740f86aaaab6ab083d95270b39",
     "compared_pixels": 196608,
     "pixel_key_mismatches": 0,
     "flux_mismatches": 0,
@@ -3505,14 +3524,14 @@
     "stable": true
   },
   "uncertainty_scale": {
-    "global_relative_statistical_uncertainty": 0.00012532915469076002,
-    "global_relative_systematic_uncertainty": 0.05975536461869365,
-    "global_relative_total_uncertainty": 0.059755496049401516,
+    "global_relative_statistical_uncertainty": 0.00016480822541888637,
+    "global_relative_systematic_uncertainty": 0.05583672226561449,
+    "global_relative_total_uncertainty": 0.05583696548988434,
     "evaluated_pixels": 196608,
-    "pixel_relative_uncertainty_p50": 0.033256076013260166,
-    "pixel_relative_uncertainty_p68": 0.04346258730299445,
-    "pixel_relative_uncertainty_p95": 0.17115924798228593,
-    "pixel_relative_uncertainty_p99": 0.232433429421981,
+    "pixel_relative_uncertainty_p50": 0.03325987072113538,
+    "pixel_relative_uncertainty_p68": 0.043482340968242814,
+    "pixel_relative_uncertainty_p95": 0.1711563738430391,
+    "pixel_relative_uncertainty_p99": 0.2324307096865246,
     "fraction_pixels_relative_uncertainty_gt_1": 0.0,
     "fraction_pixels_relative_uncertainty_gt_10": 0.0,
     "fraction_pixels_relative_uncertainty_gt_100": 0.0

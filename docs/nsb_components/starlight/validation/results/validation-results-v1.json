@@ -6,8 +6,8 @@
   "references_sha256": "2842212da4064492129da07f20abc7b783d1d07dd8730a1c5032ce152fadcb5c",
   "regions_sha256": "03d673170877485a58fa6e81e4959a051b9df3a48635c8e449d71e55bf5a97dc",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
-  "candidate_map_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
-  "candidate_map_pinned_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
+  "candidate_map_sha256": "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf",
+  "candidate_map_pinned_sha256": "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf",
   "band_nm": [
     300,
     650
@@ -35,7 +35,7 @@
     {
       "reference_id": "leinert-1998-diffuse-night-sky-brightness",
       "status": "not-admissible",
-      "detail": "Leinert et al. 1998 describe a two-dimensional Gaussian fitted to Elsässer & Haug (1960) isophotes and quote five S10 anchors. The published paper does not give the Gaussian amplitudes and widths needed to reconstruct that surface. Matching those anchors with an invented interpolation is not the registered model, so this reference is acquired for provenance only and is not an admissible comparison grid."
+      "detail": "Leinert et al. 1998 describe a two-dimensional Gaussian fitted to Els\u00e4sser & Haug (1960) isophotes and quote five S10 anchors. The published paper does not give the Gaussian amplitudes and widths needed to reconstruct that surface. Matching those anchors with an invented interpolation is not the registered model, so this reference is acquired for provenance only and is not an admissible comparison grid."
     },
     {
       "reference_id": "masana-2021-gambons-gaia-hipparcos-starlight",

@@ -161,9 +161,7 @@ pub struct BrightStarSupplementProvenance {
 impl BrightStarSupplementProvenance {
     pub fn validate(&self) -> Result<()> {
         validate_sha256(&self.artifact_sha256, "bright-star artifact_sha256")?;
-        if self.model_id != BRIGHT_STAR_MODEL_ID
-            && self.model_id != BRIGHT_STAR_COMBINED_MODEL_ID
-        {
+        if self.model_id != BRIGHT_STAR_MODEL_ID && self.model_id != BRIGHT_STAR_COMBINED_MODEL_ID {
             bail!(
                 "bright-star supplement provenance model_id must be {BRIGHT_STAR_MODEL_ID} or {BRIGHT_STAR_COMBINED_MODEL_ID}"
             );
@@ -281,7 +279,9 @@ impl BrightStarArtifact {
                     source.class,
                     SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
                 ) {
-                    let Some(uv) = source.flux_300_336_ph_m2_s.filter(|v| v.is_finite() && *v > 0.0)
+                    let Some(uv) = source
+                        .flux_300_336_ph_m2_s
+                        .filter(|v| v.is_finite() && *v > 0.0)
                     else {
                         bail!(
                             "combined bright-star admitted source {} lacks justified 300-336 nm flux",
@@ -545,7 +545,9 @@ fn validate_source(source: &BrightStarSourceRecord, combined: bool) -> Result<()
         );
     }
     if combined && admitted {
-        let uv = source.flux_300_336_ph_m2_s.filter(|v| v.is_finite() && *v > 0.0);
+        let uv = source
+            .flux_300_336_ph_m2_s
+            .filter(|v| v.is_finite() && *v > 0.0);
         let uv_stat = source
             .statistical_uncertainty_300_336_ph_m2_s
             .filter(|v| v.is_finite() && *v >= 0.0);

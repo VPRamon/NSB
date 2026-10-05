@@ -20,9 +20,9 @@ mod reconstruction;
 // Single-line `pub use` statements keep declaration-only module files
 // recognisable to the coverage-gate non-instrumentable classifier when LCOV
 // omits pure re-export crates (multi-line brace continuations fail closed).
-pub use artifact::load_bright_star_artifact;
 pub use artifact::artifact_compatible_with_product_band;
 pub use artifact::is_combined_product_band;
+pub use artifact::load_bright_star_artifact;
 pub use artifact::BrightStarArtifact;
 pub use artifact::BrightStarInputProvenance;
 pub use artifact::BrightStarInputRole;

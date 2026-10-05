@@ -22,14 +22,14 @@ bytes = 7129
 [[artifacts]]
 name = "candidate-map"
 path = "crates/nsb/data/starlight_nside128.csv"
-sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
-bytes = 20240461
+sha256 = "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf"
+bytes = 20240479
 
 [[artifacts]]
 name = "validation-results-v1.json"
 path = "docs/nsb_components/starlight/validation/results/validation-results-v1.json"
-sha256 = "f2abbfac86d8f45550ea89e1c270890864cb86eddd1a57a73648413c5429bc77"
-bytes = 2689
+sha256 = "70d54b5374be50149ac15c4b692e781ae2684be671c9b1a46f0b67e486cd3e86"
+bytes = 2694
 
 [[artifacts]]
 name = "validation-report-v1.md"

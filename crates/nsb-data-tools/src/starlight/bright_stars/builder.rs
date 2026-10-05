@@ -41,9 +41,8 @@ impl SpectralEstimate {
     }
 
     pub fn systematic_independent_uncertainty_300_650_ph_m2_s(&self) -> f64 {
-        self.systematic_independent_uncertainty_300_336_ph_m2_s.hypot(
-            self.systematic_independent_uncertainty_336_650_ph_m2_s,
-        )
+        self.systematic_independent_uncertainty_300_336_ph_m2_s
+            .hypot(self.systematic_independent_uncertainty_336_650_ph_m2_s)
     }
 }
 
@@ -303,33 +302,32 @@ pub fn build_experimental_artifact_for_product_band(
                 "spectral_reconstruction_failed".into()
             };
         }
-        let (flux_uv, flux, stat_uv, stat, sys_uv, sys, groups, route, uv_model) =
-            estimate.map_or(
+        let (flux_uv, flux, stat_uv, stat, sys_uv, sys, groups, route, uv_model) = estimate.map_or(
+            (
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                Vec::new(),
+                "unavailable".to_string(),
+                String::new(),
+            ),
+            |estimate| {
                 (
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    Vec::new(),
-                    "unavailable".to_string(),
-                    String::new(),
-                ),
-                |estimate| {
-                    (
-                        estimate.flux_300_336_ph_m2_s,
-                        estimate.flux_336_650_ph_m2_s,
-                        estimate.statistical_uncertainty_300_336_ph_m2_s,
-                        estimate.statistical_uncertainty_336_650_ph_m2_s,
-                        estimate.systematic_independent_uncertainty_300_336_ph_m2_s,
-                        estimate.systematic_independent_uncertainty_336_650_ph_m2_s,
-                        estimate.systematic_catalogue_correlated.clone(),
-                        estimate.route.clone(),
-                        estimate.uv_completion_model_id.clone(),
-                    )
-                },
-            );
+                    estimate.flux_300_336_ph_m2_s,
+                    estimate.flux_336_650_ph_m2_s,
+                    estimate.statistical_uncertainty_300_336_ph_m2_s,
+                    estimate.statistical_uncertainty_336_650_ph_m2_s,
+                    estimate.systematic_independent_uncertainty_300_336_ph_m2_s,
+                    estimate.systematic_independent_uncertainty_336_650_ph_m2_s,
+                    estimate.systematic_catalogue_correlated.clone(),
+                    estimate.route.clone(),
+                    estimate.uv_completion_model_id.clone(),
+                )
+            },
+        );
         if estimate.is_some()
             && (![flux_uv, flux, stat_uv, stat, sys_uv, sys]
                 .iter()

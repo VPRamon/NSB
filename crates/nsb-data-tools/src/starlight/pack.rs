@@ -17,7 +17,7 @@ use std::path::PathBuf;
 pub const PACKER_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
 /// Frozen UV-v2 candidate SHA-256.
 pub const CANONICAL_CANDIDATE_SHA256: &str =
-    "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a";
+    "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf";
 
 /// SHA-256 of the minimal HEALPix anomaly regression fixture used to verify
 /// issue #116 diagnostic detection without retaining the historical 20 MB map.
@@ -34,7 +34,7 @@ pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH: &str =
 /// The pre-siderust handwritten nest2ring digest was
 /// `c87db972717959962ab590ce71eb90506cbfd73ccb108a3d3851a3e9ecff8f90`.
 pub const CANONICAL_RUNTIME_MAP_SHA256: &str =
-    "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b";
+    "a4fd820ef6e7770a220931b02113a3f416b5aecf416100a123ccb325464402fa";
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";

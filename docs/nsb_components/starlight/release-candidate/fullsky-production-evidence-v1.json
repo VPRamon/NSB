@@ -4,10 +4,10 @@
   "workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric",
   "partitions_built": 3386,
   "photometric_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
-  "candidate_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
-  "merge_report_sha256": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9",
-  "runtime_map_sha256": "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b",
-  "runtime_sidecar_sha256": "735be03e50bfe1f47254c46d0fc1c124912e285cac5e283dd8a06449c1ca2144",
+  "candidate_sha256": "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf",
+  "merge_report_sha256": "015545ac8214509a5c1ec86d6c8393e05a0d811a1fec346a0cbd405c52840469",
+  "runtime_map_sha256": "a4fd820ef6e7770a220931b02113a3f416b5aecf416100a123ccb325464402fa",
+  "runtime_sidecar_sha256": "0e8647d31d223d00d44449867bcc607a846cbaa4bff8ddf5ab28cbb6cf44c0e9",
   "anomalous_nside2_parents": [],
   "boundary_cross_internal_ratio": 1.1508,
   "global_median_flux_per_admitted": 10723.45,
@@ -16,5 +16,10 @@
   "total_flux_ph_m2_s": 151740015029.4,
   "validation_passed": true,
   "legacy_six_patch_parents_absent": true,
-  "photometric_seven_patch_parents_absent": true
+  "photometric_seven_patch_parents_absent": true,
+  "bright_star_supplement_artifact_sha256": "c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921",
+  "production_workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-issue207-bright-stars",
+  "partitions_completed": 3386,
+  "partitions_failed": 0,
+  "issue": 207
 }

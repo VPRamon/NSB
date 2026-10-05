@@ -67,7 +67,7 @@ runtime_embedded = true
 [[assets]]
 path = "merge_report.json"
 schema = "nsb-starlight-merge-report-v5"
-sha256 = "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9"
+sha256 = "015545ac8214509a5c1ec86d6c8393e05a0d811a1fec346a0cbd405c52840469"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
@@ -79,7 +79,7 @@ runtime_embedded = false
 [[assets]]
 path = "starlight_nside128.csv"
 schema = "nsb-healpix-starlight-candidate-v5"
-sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+sha256 = "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
@@ -116,7 +116,7 @@ runtime_embedded = true
 [[assets]]
 path = "starlight_nside128.release.csv"
 schema = "nsb-healpix-starlight-v2"
-sha256 = "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b"
+sha256 = "a4fd820ef6e7770a220931b02113a3f416b5aecf416100a123ccb325464402fa"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"
@@ -131,7 +131,7 @@ runtime_embedded = true
 [[assets]]
 path = "starlight_nside128.manifest.toml"
 schema = "nsb-starlight-runtime-manifest-v1"
-sha256 = "735be03e50bfe1f47254c46d0fc1c124912e285cac5e283dd8a06449c1ca2144"
+sha256 = "0e8647d31d223d00d44449867bcc607a846cbaa4bff8ddf5ab28cbb6cf44c0e9"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"

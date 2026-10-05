@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "issue": 207,
+  "product_band": "combined-300-650",
+  "nsb_source_commit": "73e5acce4314f580e79dde9f9b56c2ed7846f9a8",
+  "production_config_path": "crates/nsb-data-tools/config/starlight-production-300-650-issue207.ladon.toml",
+  "production_config_sha256": "cd7762a8d3ccfe38c16a7e0791e1b97de181af6358f7efc3acc88604b0ecf809",
+  "production_workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-issue207-bright-stars",
+  "reused_gaia_cache_from": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-fix116-photometric",
+  "expected_partitions": 3386,
+  "partitions_completed": 3386,
+  "partitions_failed": 0,
+  "bright_star_supplement": {
+    "artifact_path": "/mnt/beegfs/valles/nsb-data/bright-stars/runs/issue207-combined-r2/starlight-bright-stars-combined-v1.json",
+    "artifact_sha256": "c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921",
+    "model_id": "starlight-bright-stars-combined-v1",
+    "uv_completion_model_id": "ck04-hp-scaled-uv-300-336-v1",
+    "admitted_supplement_only": 55,
+    "admitted_replacements": 0,
+    "integrated_combined_flux_ph_m2_s": 633205500447.4194,
+    "integrated_uv_flux_ph_m2_s": 54450000000.0
+  },
+  "candidate_map_sha256": "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf",
+  "merge_report_sha256": "015545ac8214509a5c1ec86d6c8393e05a0d811a1fec346a0cbd405c52840469",
+  "validation_report_sha256": "3f764eccd1f95d00934beca66e5266e6c257a19931b23f6e903187c21206e44b",
+  "runtime_map_sha256": "a4fd820ef6e7770a220931b02113a3f416b5aecf416100a123ccb325464402fa",
+  "runtime_sidecar_sha256": "0e8647d31d223d00d44449867bcc607a846cbaa4bff8ddf5ab28cbb6cf44c0e9",
+  "previous_production_candidate_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
+  "integrated_flux_300_650_ph_m2_s": 9595964229805.844,
+  "previous_integrated_flux_300_650_ph_m2_s": 8962771415932.666,
+  "bright_star_map_delta_ph_m2_s": 633192813873.178,
+  "nsb2_cross_implementation": {
+    "reference": "nsb-validation results/expB-full/nsb2-map.csv",
+    "integrated_relative_bias_vs_nsb2_full": -0.19075025789403227,
+    "previous_integrated_relative_bias_vs_nsb2_full": -0.24414886475198158,
+    "pixel_correlation_vs_nsb2_full": 0.9400633233044153,
+    "previous_pixel_correlation_vs_nsb2_full": 0.22250962132571306,
+    "top_0_1_percent_integrated_flux_ratio_vs_nsb2": 0.8364819210262849,
+    "previous_top_0_1_percent_integrated_flux_ratio_vs_nsb2": 0.2146925176444001,
+    "scientifically_validated": false
+  },
+  "human_approval_gate": "#103 scientific and redistribution decisions remain pending"
+}
