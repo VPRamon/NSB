@@ -20,6 +20,15 @@
 # uv_model_response=natural-log-uv-to-measured-flux-ratio-336-650
 # uv_measured_conditional_residual_statistical_correlation=0
 # uv_systematic_correlation=fully-correlated-between-sources
+# bright_star_artifact_sha256=c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921
+# bright_star_model_id=starlight-bright-stars-combined-v1
+# bright_star_product_band=combined-300-650
+# bright_star_uv_completion_model_id=ck04-hp-scaled-uv-300-336-v1
+# bright_star_population_policy_id=bright-stars-population-v1
+# bright_star_precedence_policy_id=bright-stars-gaia-precedence-v1
+# bright_star_build_commit=9352888dba1e67a58e7ec5c5b6f35761566caea1
+# bright_star_spectral_route=Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion
+# bright_star_redistribution_scope=derived map only; source catalogue bytes are not embedded
 pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources
 0,4.04783911933079436e7,1.28347605612915286e5,4.59633786935567483e6,4.59812950199748389e6,36789,5408
 1,6.33413905705760941e7,2.62849101933479193e5,6.07920046525020525e6,6.08488027384972852e6,49030,10139

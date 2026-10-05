@@ -66,7 +66,7 @@ runtime_embedded = true
 
 [[assets]]
 path = "merge_report.json"
-schema = "nsb-starlight-merge-report-v5"
+schema = "nsb-starlight-merge-report-v9"
 sha256 = "015545ac8214509a5c1ec86d6c8393e05a0d811a1fec346a0cbd405c52840469"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
@@ -79,8 +79,8 @@ runtime_embedded = false
 [[assets]]
 path = "starlight_nside128.csv"
 schema = "nsb-healpix-starlight-candidate-v5"
-sha256 = "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+sha256 = "e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
 generation_command = "nsb-data dataset <dataset> publish --config <run.toml>"
@@ -116,11 +116,11 @@ runtime_embedded = true
 [[assets]]
 path = "starlight_nside128.release.csv"
 schema = "nsb-healpix-starlight-v2"
-sha256 = "a4fd820ef6e7770a220931b02113a3f416b5aecf416100a123ccb325464402fa"
+sha256 = "8b5a217ffa9b0d3e9a9ce332df464d4535482f98202ca8c91fd8351077c11bf5"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset starlight promote"
 generation_command = "nsb-data dataset starlight promote --apply"
@@ -130,12 +130,12 @@ runtime_embedded = true
 
 [[assets]]
 path = "starlight_nside128.manifest.toml"
-schema = "nsb-starlight-runtime-manifest-v1"
-sha256 = "0e8647d31d223d00d44449867bcc607a846cbaa4bff8ddf5ab28cbb6cf44c0e9"
+schema = "nsb-starlight-runtime-manifest-v2"
+sha256 = "ade88e0023d7134e274aa7fee63f564364d6830eecc4c7906428887b8234809d"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset starlight promote"
 generation_command = "nsb-data dataset starlight promote --apply"

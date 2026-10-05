@@ -125,7 +125,7 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
         let sidecar_meta = crate::data::bundled::bundled_asset("starlight_nside128.manifest.toml")
             .expect("production sidecar metadata");
         assert_eq!(map_meta.schema, "nsb-healpix-starlight-v2");
-        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v1");
+        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v2");
         assert_eq!(map_meta.calibration_status, "production");
         assert_eq!(sidecar_meta.calibration_status, "production");
         assert!(!map_meta.sha256.is_empty());
@@ -142,7 +142,7 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
 #[test]
 fn bundled_production_starlight_pins_issue_207_candidate_lineage() {
     const ISSUE_207_CANDIDATE_SHA256: &str =
-        "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf";
+        "e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737";
     let sidecar = crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST;
     assert!(
         sidecar.contains(ISSUE_207_CANDIDATE_SHA256),
@@ -155,6 +155,21 @@ fn bundled_production_starlight_pins_issue_207_candidate_lineage() {
     assert_eq!(map.sha256.len(), 64);
     assert_eq!(sidecar_meta.sha256.len(), 64);
     assert_ne!(map.sha256, ISSUE_207_CANDIDATE_SHA256);
+
+    let model = Starlight::bundled_production_model().unwrap();
+    let supplement = model
+        .map()
+        .provenance()
+        .bright_star_supplement
+        .as_ref()
+        .expect("runtime provenance must expose the bright-star supplement");
+    assert_eq!(
+        supplement.uv_completion_model_id,
+        "ck04-hp-scaled-uv-300-336-v1"
+    );
+    assert!(supplement.spectral_route.contains("Hp-scaled CK04"));
+    assert!(!supplement.input_catalogues.is_empty());
+    assert!(!supplement.license_provenance.is_empty());
 }
 
 #[cfg(nsb_bundled_production_starlight)]

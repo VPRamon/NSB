@@ -1,7 +1,7 @@
 # schema=nsb-healpix-starlight-v2
 # packer_id=candidate-v5-to-healpix-v2-packed-v1
 # unit_conversion_id=pixel-flux-ph-m2-s-to-band-radiance-ph-cm2-ns-sr-v1+nested-to-ring-v1
-# source_candidate_sha256=sha256:555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf
+# source_candidate_sha256=sha256:e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737
 # map_type=healpix
 # coordinate_frame=galactic
 # nside=128
@@ -14,19 +14,28 @@
 # generated_by=nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-packed-v1)
 # generation_command=nsb-data dataset starlight promote --apply
 # generation_date_utc=2026-08-24T00:00:00Z
-# independent_comparison=no_admissible_independent_reference; human review #103
+# independent_comparison=nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae vs nsb2@bc9320db03fbff69997ce366c6e76a37339c5d00; cross-implementation evidence, not astrophysical ground truth
 # magnitude_limit=Gaia DR3 catalogue as admitted by the frozen merge report
 # map_resolution=HEALPix nside=128 ordering=ring
 # photometry_model=gaia_dr3_xp_photon_radiance_300_650nm_packed_v1
 # smoothing=none
-# source_catalogue=Gaia DR3 GaiaSource and XP continuous
+# source_catalogue=Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement
 # source_catalogue_checksum=sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369
 # source_catalogue_license=CC BY-NC 3.0 IGO
 # source_catalogue_release=Gaia DR3
 # source_selection=Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights
 # validation_report=docs/nsb_components/starlight/production-runs/combined-300-650-validation.json
-# version=uv-v2-packed-from-555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf
+# version=uv-v2-packed-from-e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737
 # xp_continuous_checksum_manifest_sha256=sha256:f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd
+# bright_star_artifact_sha256=c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921
+# bright_star_model_id=starlight-bright-stars-combined-v1
+# bright_star_product_band=combined-300-650
+# bright_star_uv_completion_model_id=ck04-hp-scaled-uv-300-336-v1
+# bright_star_population_policy_id=bright-stars-population-v1
+# bright_star_precedence_policy_id=bright-stars-gaia-precedence-v1
+# bright_star_build_commit=9352888dba1e67a58e7ec5c5b6f35761566caea1
+# bright_star_spectral_route=Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion
+# bright_star_redistribution_scope=derived map only; source catalogue bytes are not embedded
 healpix_index,integrated_ph_cm2_ns_sr,statistical_uncertainty_ph_cm2_ns_sr,systematic_uncertainty_ph_cm2_ns_sr,total_uncertainty_ph_cm2_ns_sr
 0,8.4162751705681906e-3,3.9771438805901970e-5,2.4284140503570196e-4,2.4607664526404258e-4
 1,4.7863679458324182e-1,1.0087387762753749e-2,9.5302586001923019e-3,1.3877363613550431e-2

@@ -613,6 +613,7 @@ mod tests {
             ordering: "nested".into(),
             gaia_release: "Gaia DR3".into(),
             model_versions: BTreeMap::new(),
+            bright_star_supplement: None,
         };
         let headers = crate::starlight::promotion::runtime_admission_headers(&candidate_section);
         let outcome = pack_candidate_map(&PackInputs {
