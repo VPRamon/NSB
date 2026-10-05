@@ -831,12 +831,22 @@ pub fn merge_shards(shards: impl IntoIterator<Item = PartitionShard>) -> Result<
     let ultraviolet_correction = shards
         .iter()
         .find_map(|shard| shard.ultraviolet_correction.clone());
-    let mut merged = PartitionShard::new_with_policy(
-        "merged",
-        nside,
-        product_band,
-        ultraviolet_correction.clone(),
-    )?;
+    let mut merged = if product_band == StarlightProductBand::Combined300To650
+        && ultraviolet_correction.is_none()
+    {
+        let provenance = shards
+            .iter()
+            .find_map(|shard| shard.bright_star_supplement_provenance.clone())
+            .context("combined shards without Gaia UV metadata require bright-star provenance")?;
+        PartitionShard::new_bright_star_combined("merged", nside, provenance)?
+    } else {
+        PartitionShard::new_with_policy(
+            "merged",
+            nside,
+            product_band,
+            ultraviolet_correction.clone(),
+        )?
+    };
     for shard in shards {
         if shard.nside != nside {
             bail!("cannot merge Starlight shards with different nside values");

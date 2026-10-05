@@ -33,8 +33,8 @@ sha256 = "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711"
 
 
 [starlight.bright_star_supplement]
-artifact_path = "/mnt/beegfs/valles/nsb-data/bright-stars/runs/issue207-combined-r2/starlight-bright-stars-combined-v1.json"
-sha256 = "c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921"
+artifact_path = "/mnt/beegfs/valles/nsb-data/bright-stars/runs/issue207-combined-r3/starlight-bright-stars-v1.json"
+sha256 = "dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017"
 
 [starlight.acquisition]
 connect_timeout_seconds = 30

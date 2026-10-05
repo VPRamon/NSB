@@ -850,6 +850,15 @@ fn validate_report_fields(
         .science_policy
         .spectral_coverage
         .ultraviolet_correction_applied;
+    let expected_ultraviolet_count =
+        if ultraviolet_applied && report.bright_star_supplement.is_some() {
+            report
+                .admitted_sources
+                .checked_sub(report.source_record_accounting.admitted_supplement_records)
+                .context("supplement admissions exceed total admitted sources")?
+        } else {
+            report.admitted_sources
+        };
     if diagnostics.corrected_300_336_label != "300–336 nm corrected"
         || diagnostics.measured_336_650_label != "336–650 nm measured"
         || diagnostics.combined_300_650_label != "300–650 nm combined"
@@ -857,7 +866,7 @@ fn validate_report_fields(
             .iter()
             .any(|value| !value.is_finite() || *value < 0.0)
         || !fluxes_agree(selected_diagnostic, total_flux)
-        || (ultraviolet_applied && ultraviolet_count != report.admitted_sources)
+        || (ultraviolet_applied && ultraviolet_count != expected_ultraviolet_count)
         || (!ultraviolet_applied
             && (diagnostics.total_flux_300_336_ph_m2_s != 0.0
                 || diagnostics.statistical_uncertainty_300_336_ph_m2_s != 0.0
@@ -2299,6 +2308,26 @@ mod tests {
         }
     }
 
+    fn fixture_combined_bright_star_provenance(
+    ) -> crate::starlight::bright_stars::BrightStarSupplementProvenance {
+        crate::starlight::bright_stars::BrightStarSupplementProvenance {
+            artifact_sha256: "b".repeat(64),
+            model_id: crate::starlight::bright_stars::BRIGHT_STAR_COMBINED_MODEL_ID.into(),
+            product_band:
+                crate::starlight::bright_stars::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID.into(),
+            uv_completion_model_id: Some(
+                crate::starlight::bright_stars::UV_COMPLETION_MODEL_ID_V1.into(),
+            ),
+            population_policy_id: crate::starlight::bright_stars::POPULATION_POLICY_ID_V1.into(),
+            precedence_policy_id: crate::starlight::bright_stars::PRECEDENCE_POLICY_ID_V1.into(),
+            build_commit: "b".repeat(40),
+            spectral_route: "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion".into(),
+            redistribution_scope:
+                "derived map only; source catalogue bytes are not embedded".into(),
+            inputs: Vec::new(),
+        }
+    }
+
     #[test]
     fn bright_star_supplement_provenance_survives_merge_and_report_validation() {
         let temp = tempfile::tempdir().unwrap();
@@ -2859,6 +2888,105 @@ mod tests {
         assert!(map.contains("# uv_model_response=absolute-uv-photon-flux"));
         assert!(map.contains("# uv_measured_conditional_residual_statistical_correlation=0.25"));
         assert!(map.contains("# uv_systematic_correlation=fully-correlated-between-sources"));
+        validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+    }
+
+    #[test]
+    fn corrected_merge_counts_gaia_uv_applicability_separately_from_bright_star_uv() {
+        use crate::starlight::bright_stars::{
+            BrightStarSourceRecord, SupplementClass, UV_COMPLETION_MODEL_ID_V1,
+        };
+
+        let temp = TempDir::new().unwrap();
+        let metadata = crate::starlight::map::accumulator::UvCorrectionShardMetadata {
+            model_id: "SYNTHETIC-NON-PRODUCTION-MAP-TEST".to_string(),
+            artifact_sha256: "a".repeat(64),
+            calibration_status: crate::starlight::uv::CalibrationStatus::Validated,
+            response: crate::starlight::uv::ModelResponse::AbsoluteUvPhotonFlux,
+            measured_conditional_residual_statistical_correlation_bits: 0.0_f64.to_bits(),
+            systematic_correlation:
+                crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources,
+        };
+        let mut gaia = PartitionShard::new_with_policy(
+            "gaia",
+            1,
+            StarlightProductBand::Combined300To650,
+            Some(metadata),
+        )
+        .unwrap();
+        let gaia_flux = crate::starlight::uv::CombinedBandFlux {
+            flux_300_336_ph_m2_s: 1.0,
+            flux_336_650_ph_m2_s: 9.0,
+            flux_300_650_ph_m2_s: 10.0,
+            statistical_uncertainty_300_336_ph_m2_s: 0.1,
+            statistical_uncertainty_336_650_ph_m2_s: 0.2,
+            statistical_uncertainty_300_650_ph_m2_s: 0.3,
+            systematic_uncertainty_300_336_ph_m2_s: 0.1,
+            systematic_uncertainty_300_650_ph_m2_s: 0.1,
+            applicability_status: crate::starlight::uv::ApplicabilityStatus::InDomain,
+            decision: crate::starlight::uv::EvaluationDecision::Applied,
+            model_id: "SYNTHETIC-NON-PRODUCTION-MAP-TEST".to_string(),
+            artifact_sha256: "a".repeat(64),
+            systematic_correlation:
+                crate::starlight::uv::SystematicCorrelation::IndependentBetweenSources,
+        };
+        gaia.admit_corrected(fixture_pos(0), &gaia_flux).unwrap();
+
+        let mut bright = PartitionShard::new_bright_star_combined(
+            "bright-star-supplement",
+            1,
+            fixture_combined_bright_star_provenance(),
+        )
+        .unwrap();
+        bright
+            .admit_bright_star_source(&BrightStarSourceRecord {
+                source_id: "HIP fixture".into(),
+                origin_catalogue: "synthetic".into(),
+                class: SupplementClass::SupplementOnly,
+                gaia_source_id: None,
+                ra_deg_j2016: 10.0,
+                dec_deg_j2016: 20.0,
+                flux_300_336_ph_m2_s: Some(2.0),
+                flux_336_650_ph_m2_s: 18.0,
+                statistical_uncertainty_300_336_ph_m2_s: Some(0.2),
+                statistical_uncertainty_ph_m2_s: 0.3,
+                systematic_independent_uncertainty_300_336_ph_m2_s: Some(0.4),
+                systematic_independent_uncertainty_ph_m2_s: 0.5,
+                systematic_catalogue_correlated: Vec::new(),
+                spectral_route: "synthetic CK04".into(),
+                uv_completion_model_id: Some(UV_COMPLETION_MODEL_ID_V1.into()),
+                classification_reason: "fixture".into(),
+            })
+            .unwrap();
+        gaia.write(&temp.path().join("outputs/shards/gaia.json"))
+            .unwrap();
+        bright
+            .write(
+                &temp
+                    .path()
+                    .join("outputs/shards/bright-star-supplement.json"),
+            )
+            .unwrap();
+
+        emit_maps(
+            temp.path(),
+            &["bright-star-supplement".to_string(), "gaia".to_string()],
+            1,
+            StarlightProductBand::Combined300To650,
+            Some(&"a".repeat(64)),
+            None,
+        )
+        .unwrap();
+        let report: MergeReport = serde_json::from_slice(
+            &fs::read(temp.path().join("outputs/merge_report.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(report.admitted_sources, 2);
+        assert_eq!(
+            report.source_record_accounting.admitted_supplement_records,
+            1
+        );
+        assert_eq!(report.ultraviolet_applicability.values().sum::<u64>(), 1);
         validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
     }
 
