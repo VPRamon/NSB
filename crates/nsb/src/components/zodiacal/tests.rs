@@ -397,7 +397,7 @@ fn regression_known_case_sgr_a_star_paranal() {
 
     let integrated = out.integrated.value();
     assert!(
-        (integrated - 0.073_305_486_560_447_71).abs() <= 1.0e-12,
+        (integrated - 0.073_305_486_560_447_7).abs() <= 1.0e-12,
         "integrated={integrated:.17}"
     );
     assert!(
@@ -413,6 +413,43 @@ fn regression_known_case_sgr_a_star_paranal() {
     assert!(((integrated / 0.062_772_202_918_743_08) - 1.0).abs() < 0.18);
     assert!(((out.b_flux_s10.value() / 65.028_954_088_309_32) - 1.0).abs() < 0.12);
     assert!(((out.v_flux_s10.value() / 75.428_008_018_252_03) - 1.0).abs() < 0.18);
+}
+
+#[test]
+fn analytic_solar_reference_validation_geometry_stays_within_tsis_impact_bounds() {
+    use super::geometry::ZodiacalGeometry;
+    use super::spectrum::compute_outputs;
+
+    // Offline baseline from the former TSIS-derived runtime
+    // solar_spectrum.dat SHA-256
+    // 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02.
+    // The old bytes are intentionally not required by this test.
+    const TSIS_BASELINE: (f64, f64, f64) = (
+        0.056_968_993_257_1,
+        58.708_789_926_3,
+        68.565_285_636_9,
+    );
+    let solar = crate::spectra::solar::load().expect("bundled analytic solar spectrum");
+    let geometry = ZodiacalGeometry {
+        beta: Radians::new(0.3),
+        delta_lambda: Radians::new(1.5),
+        zenith: Some(Degrees::new(30.0)),
+    };
+    let output = compute_outputs(&geometry, &solar, ZodiacalExtinction::Noll2012Approx)
+        .expect("validation geometry");
+
+    assert!(
+        ((output.integrated.value() / TSIS_BASELINE.0) - 1.0).abs() < 0.18,
+        "integrated impact exceeded 18%"
+    );
+    assert!(
+        ((output.b_flux_s10.value() / TSIS_BASELINE.1) - 1.0).abs() < 0.12,
+        "B diagnostic impact exceeded 12%"
+    );
+    assert!(
+        ((output.v_flux_s10.value() / TSIS_BASELINE.2) - 1.0).abs() < 0.18,
+        "V diagnostic impact exceeded 18%"
+    );
 }
 
 fn sgr_a_star() -> Target {
