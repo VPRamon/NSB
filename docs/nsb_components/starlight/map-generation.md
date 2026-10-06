@@ -50,25 +50,25 @@ a surface-radiance field.
 ## Galactic heatmap
 
 A generated candidate can be inspected as a Galactic Mollweide heatmap with
-the maintainer script:
+the Rust example under `crates/nsb/examples`:
 
 ```bash
-python -m pip install numpy matplotlib healpy
-python3 scripts/plot_starlight_heatmap.py \
-  crates/nsb/data/starlight_nside128.csv \
+cargo run --release --locked -p nsb --example starlight_heatmap -- \
+  --map crates/nsb/data/starlight_nside128.csv \
   --output starlight_heatmap.png
 ```
 
-The renderer validates the Starlight candidate contract used by the plot
-(`nside`, NESTED ordering, integrated-per-pixel quantity and flux unit),
-expands the sparse pixel rows over the full HEALPix domain, and treats omitted
-pixels as physical zero flux. The default logarithmic normalization exposes
-both the Galactic plane and the fainter high-latitude structure. The title
-includes the candidate SHA-256 prefix so screenshots remain tied to exact map
-bytes. Use `--norm linear` when a linear color scale is required.
+The example validates the Starlight candidate contract used by the plot
+(`nside`, Galactic frame, NESTED ordering, sparse zero-flux omission semantics,
+integrated-per-pixel quantity and flux unit), then uses Siderust HEALPix
+geometry and Plotters to render the map. The default logarithmic normalization
+exposes both the Galactic plane and fainter high-latitude structure; use
+`--norm linear` for a linear colour scale.
 
-The visualization packages are optional maintainer dependencies and are not
-runtime dependencies of the `nsb-rust` Python distribution.
+The title includes the candidate SHA-256 prefix so screenshots remain tied to
+exact map bytes. Plotting support is already a development-only dependency of
+the `nsb` crate and does not add a runtime dependency to the library or Python
+package.
 
 Resolution selection, when needed, is a separate scientific study comparing
 independent source-level runs. Only the selected candidate is published.
