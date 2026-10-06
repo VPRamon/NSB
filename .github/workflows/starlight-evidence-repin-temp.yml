@@ -1,3 +1,4 @@
+# Temporary helper used only while freezing PR #211 evidence; remove after final freeze.
 name: Temporary Starlight evidence repin
 
 on:
