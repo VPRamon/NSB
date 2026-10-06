@@ -22,7 +22,7 @@
 # gaia_source_checksum_manifest_sha256=sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369
 # generated_by=nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-packed-v1)
 # generation_command=nsb-data dataset starlight promote --apply
-# generation_date_utc=2026-08-24T00:00:00Z
+# generation_date_utc=2026-10-06T07:02:23Z
 # independent_comparison=nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae vs nsb2@bc9320db03fbff69997ce366c6e76a37339c5d00; cross-implementation evidence, not astrophysical ground truth
 # magnitude_limit=Gaia DR3 catalogue as admitted by the frozen merge report
 # map_resolution=HEALPix nside=128 ordering=ring

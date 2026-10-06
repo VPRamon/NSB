@@ -2427,7 +2427,9 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         let assert_tamper_fails = |tampered: ReleaseCandidateManifest| {
             let error = verified_runtime_candidate(&root, &tampered).unwrap_err();
             assert!(
-                error.to_string().contains("bright-star provenance disagrees"),
+                error
+                    .to_string()
+                    .contains("bright-star provenance disagrees"),
                 "unexpected error: {error:#}"
             );
         };
