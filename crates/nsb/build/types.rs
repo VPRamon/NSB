@@ -78,19 +78,25 @@ impl Asset {
             && self.path.ends_with(".manifest.toml")
     }
 
-    /// Return whether this entry looks like a Starlight release map registration.
+    /// Return whether this entry makes an active Starlight production-map claim.
     ///
-    /// Release-shaped entries must either form a valid production pair or fail
-    /// the build; they must not silently become “Starlight unavailable”.
+    /// Release-shaped bytes may be checksum-registered as staged candidates with
+    /// `runtime_embedded = false`; those do not activate bundled production.
+    /// Any entry that claims production or runtime embedding still fails closed
+    /// unless it forms a valid production pair.
     pub fn is_starlight_release_map_claim(&self) -> bool {
-        self.path.ends_with(".release.csv") || self.schema == STARLIGHT_MAP_SCHEMA
+        (self.path.ends_with(".release.csv") || self.schema == STARLIGHT_MAP_SCHEMA)
+            && (self.runtime_embedded
+                || self.calibration_status.eq_ignore_ascii_case("production"))
     }
 
-    /// Return whether this entry looks like a Starlight release sidecar registration.
+    /// Return whether this entry makes an active Starlight production-sidecar claim.
     pub fn is_starlight_release_manifest_claim(&self) -> bool {
-        self.schema == STARLIGHT_MANIFEST_SCHEMA
+        (self.schema == STARLIGHT_MANIFEST_SCHEMA
             || (self.path.ends_with(".manifest.toml")
-                && starlight_release_stem(&self.path).is_some())
+                && starlight_release_stem(&self.path).is_some()))
+            && (self.runtime_embedded
+                || self.calibration_status.eq_ignore_ascii_case("production"))
     }
 
     /// Stem shared by `*.release.csv` / `*.manifest.toml` release pair paths.
