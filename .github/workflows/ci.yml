@@ -182,6 +182,24 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Build release workspace
         run: cargo build --workspace --release --all-features --locked
+      - name: Verify publishable nsb crate excludes unapproved Starlight assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo package -p nsb --locked
+          crate="$(find target/package -maxdepth 1 -name 'nsb-*.crate' -print -quit)"
+          test -n "$crate"
+          contents="$(tar -tzf "$crate")"
+          for asset in \
+            starlight_nside128.csv \
+            starlight_nside128.release.csv \
+            starlight_nside128.manifest.toml \
+            merge_report.json; do
+            if grep -Fq "/data/$asset" <<<"$contents"; then
+              echo "::error::unapproved Starlight asset is present in publishable crate: $asset" >&2
+              exit 1
+            fi
+          done
 
   dependency_policy:
     name: Dependency policy
