@@ -1,6 +1,6 @@
 use super::domain::{AirglowNightPhase, AirglowSeason};
 use crate::units::angular::Degrees;
-use chrono::Datelike;
+use chrono::{Datelike, Timelike};
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -32,6 +32,7 @@ pub(crate) struct AirglowPhasePeriod {
 /// `FullYear` preserves the existing aggregate fallback when the UTC instant
 /// cannot be represented by `chrono`; normal month mappings always select one
 /// of the six named double-month seasons.
+#[allow(dead_code)]
 pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason {
     let Some(dt) = local_solar_datetime(time, location) else {
         return AirglowSeason::FullYear;
@@ -47,12 +48,32 @@ pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason
     }
 }
 
+/// PALACE month and one-hour local-mean-solar-time bin.
+///
+/// PALACE bins 1..=12 cover 18:00..06:00. Astronomical-night samples outside
+/// that interval (possible away from Paranal) use the nearest endpoint bin and
+/// are therefore explicit temporal extrapolations of the Paranal climatology.
+pub(crate) fn palace_climatology_coordinates(
+    time: Time<UTC>,
+    location: Geodetic<ECEF>,
+) -> Option<(u32, usize)> {
+    let dt = local_solar_datetime(time, location)?;
+    let hour = dt.hour();
+    let bin = match hour {
+        18..=23 => (hour - 17) as usize,
+        0..=5 => (hour + 7) as usize,
+        6..=11 => 12,
+        12..=17 => 1,
+        _ => unreachable!("chrono hour is always 0..=23"),
+    };
+    Some((dt.month(), bin))
+}
+
 /// Site-aware Airglow night phase based on astronomical-night thirds.
 ///
-/// The SkyCalc-derived Airglow calibration table defines three equal periods
-/// over the full astronomical-night interval (`alt_sun < -18°`). We compute the
-/// complete astronomical night containing `time`, normalize the instant to that
-/// interval, and return the corresponding semantic phase.
+/// Divide the full astronomical-night interval (`alt_sun < -18°`) into thirds
+/// for stable threshold-window partitioning. PALACE evaluation itself uses local
+/// mean solar hour bins rather than these thirds.
 ///
 /// The search expands adaptively so high-latitude winter nights are not
 /// mistaken for missing Airglow merely because the first local window is clipped.

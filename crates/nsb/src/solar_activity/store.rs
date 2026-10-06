@@ -130,8 +130,8 @@ impl F107Store {
 
     /// Observed records whose validity covers `requested`.
     ///
-    /// Callers that drive the Noll/SkyCalc Airglow correction should further
-    /// filter to monthly cadence; raw daily observations are not the fitted quantity.
+    /// Airglow callers should use the resolver's monthly planning cadence; raw
+    /// daily observations are not passed directly to PALACE.
     pub fn observed_covering(
         &self,
         requested: NaiveDate,

@@ -3,8 +3,7 @@
 Status: Runtime + data-tools contract for issue #109.
 Audience: Users and developers who need date-aware F10.7 for Airglow.
 Scope: Quantity convention, store schema, precedence, online update,
-offline resolution, provenance, reproducibility, and relationship to the
-#108 Paranal planning-proxy Airglow baseline.
+offline resolution, provenance, reproducibility, and its use by PALACE v1.
 
 ## Goal
 
@@ -22,16 +21,16 @@ nsb-data-tools (network acquisition)
 
 ## Quantity and units
 
-- **Quantity**: monthly-averaged Penticton/DRAO 10.7 cm solar radio flux, matching
-  Noll et al. 2012 / ESO SkyCalc `msolflux` (“Monthly Averaged Solar Flux”).
+- **Quantity**: monthly-averaged Penticton/DRAO 10.7 cm solar radio flux. This
+  resolver was originally designed for the Noll/SkyCalc `msolflux` quantity.
 - **Unit**: solar flux unit (**sfu**), \(1\,\mathrm{sfu}=10^{-22}\,\mathrm{W\,m^{-2}\,Hz^{-1}}\).
 - **Convention id**: `penticton-f107-sfu-as-reported-by-noaa-swpc`.
 
-Noll et al. obtained **monthly** S10.7 averages for each spectrum because the
-atmosphere responds with a delay of weeks; diurnal F10.7 is a different
-scientific variable from the one used to fit the Airglow solar-activity slope.
-NSB therefore resolves a **monthly-mean** quantity for Airglow and never feeds a
-raw daily observation or daily forecast value into that correction.
+PALACE was fitted using **centred 27-day** F10.7 averages. NSB currently feeds it
+the resolver's established **monthly-mean planning approximation** and never a
+raw daily observation or daily forecast value. Metadata and the PALACE
+validation report disclose this cadence mismatch; a dedicated centred 27-day
+resolver remains future work.
 
 NSB consumes F10.7 **as republished by NOAA/NWS SWPC** machine-readable
 products. Product identity is retained on every record so users can audit which
@@ -45,27 +44,28 @@ used here do not always label that distinction in the payload. NSB therefore:
 1. does **not** invent a conversion between observed and adjusted series;
 2. records provider + product + source locator for each value;
 3. treats SWPC-reported sfu values as the operational index class expected by the
-   Noll/SkyCalc-derived Airglow solar-activity correction.
+   PALACE solar-activity correction without inventing a conversion.
 
 If a future audited product clearly distinguishes adjusted-to-1-AU values and
 Airglow’s historical fit is shown to require one variant, a follow-up can add an
 explicit conversion or product filter. Until then, inventing a correction would
 be less honest than preserving product provenance.
 
-## Relationship to #108 (Paranal planning proxy)
+## Relationship to the PALACE runtime product
 
-Issue #108 established that the bundled Airglow continuum is a Paranal /
-Noll / SkyCalc / FORS1-derived **generic/planning proxy**, not a globally
-calibrated site model. That contract is unchanged:
+The bundled PALACE v1 continuum is trained on Cerro Paranal observations and is
+a **generic/planning proxy**, not a globally calibrated site model:
 
 - arbitrary-location evaluation remains supported as an explicit proxy;
 - generic vs site-calibrated remain distinguishable;
 - **a measured F10.7 value does not make Airglow site-calibrated**.
 
-F10.7 resolution only replaces the previous single neutralizing default for
-automatic evaluations. Continuum geometry (#110) and site calibration (#38) remain
-separate follow-ups. Effective Rayleigh/Mie airglow scattering is implemented in
-#114; molecular ASM absorption is not.
+PALACE component scaling is referenced to 100 sfu. Automatic evaluation uses
+this resolver; when no time-valid evidence exists it uses the bundled legacy
+planning climatology (≈129.207 sfu), which is deliberately **not** described as
+neutral for PALACE. Site calibration (#38) remains separate follow-up work.
+Effective Rayleigh/Mie airglow scattering is implemented in #114; molecular ASM
+absorption is not.
 
 ## Precedence (tested)
 
@@ -86,8 +86,8 @@ separate follow-ups. Effective Rayleigh/Mie airglow scattering is implemented in
    - if `forecast_issued_at` is present: `issued_at <= requested_time`
    - else if `retrieved_at` is present: `retrieved_at <= requested_time`
      (retrieval is **not** treated as issuance)
-6. Documented climatological fallback (`climatology_sfu` = Noll/SkyCalc
-   neutralizing reference ≈ 129.207 sfu / `DEFAULT_SOLAR_RADIO_FLUX`)
+6. Documented legacy planning climatology (`climatology_sfu` ≈ 129.207 sfu;
+   not neutral for PALACE, whose scaling reference is 100 sfu)
 **Incomplete months never become `msolflux`.** A 2-day / 10-day subset of a
 month must not be stamped valid for the whole month. Fall back to the official
 monthly prediction (or climatology) instead.

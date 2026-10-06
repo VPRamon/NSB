@@ -87,8 +87,8 @@ pub enum AirglowModelArg {
     #[default]
     Automatic,
     /// Explicit Paranal-derived legacy/reference planning model.
-    #[value(name = "paranal-noll-skycalc-fors1")]
-    ParanalNollSkyCalcFors1,
+    #[value(name = "paranal-palace-v1")]
+    ParanalPalaceV1,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]

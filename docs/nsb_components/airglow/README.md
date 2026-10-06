@@ -8,8 +8,8 @@ Scope: Empirical continuum, calculation inputs, geometry, calibration route, and
 
 Airglow is natural optical emission from Earth's upper atmosphere. Its intensity
 varies with season, progression through the night, solar activity, viewing
-geometry, wavelength, and local conditions. NSB uses a generic empirical
-continuum baseline; it is not a line-by-line physical atmosphere simulation and
+geometry, wavelength, and local conditions. NSB uses the PALACE v1.0 Paranal
+unresolved-continuum model; it is not PALACE's line-by-line emission model and
 the current runtime does not contain a validated dedicated Airglow site
 calibration.
 
@@ -19,11 +19,10 @@ component retains its emitting-volume geometry plus Noll effective
 Rayleigh/Mie scattering. See
 [Atmospheric transport](../../specifications/atmospheric-transport.md).
 
-**Option D (current policy):** NSB supports arbitrary-location Airglow evaluation
-through `NsbEvaluator`, but the empirical continuum is **Paranal-derived /
-Paranal-trained** (Noll/SkyCalc lineage, including FORS1 residual continuum
-heritage). Without explicit admitted site-calibration evidence it is an **explicit
-generic/planning proxy**, including when the observer is physically at Paranal.
+**Current policy:** NSB supports arbitrary-location Airglow evaluation through
+`NsbEvaluator`, but PALACE is **Paranal-derived / Paranal-trained**. Without
+explicit admitted site-calibration evidence it is a **generic/planning proxy**,
+including when the observer is physically at Paranal.
 A geographically generic API is not a globally calibrated dataset, and source
 provenance is not calibration evidence for the source location. Geometry,
 F10.7, atmosphere, extinction, or an explicit scale cannot upgrade maturity to
@@ -52,7 +51,7 @@ Required behavior:
 
 - **Explicit wins.** An explicit selection never silently switches to another
   model. The first-release `AirglowModel` enum contains only admitted models
-  (`ParanalNollSkyCalcFors1`). Future climatology (#157) adds a new
+  (`ParanalPalaceV1`). Future climatology (#157) adds a new
   `#[non_exhaustive]` variant when scientifically ready — no speculative public
   placeholder is frozen.
 - **Automatic is deterministic.** `generic_clear_sky()`, `Default`, and
@@ -138,9 +137,8 @@ model identity.
 
 ```text
 selected AirglowModel
-  -> model-specific continuum baseline
-  x seasonal/time-of-night correction
-  x F10.7 solar-activity correction
+  -> three PALACE continuum templates (HO2, FeO-like, unresolved O2)
+  x component/month/local-time/F10.7 climatology
   x selected emitting-volume line-of-sight geometry
   x user/site scale
   -> Noll-2012 Rayleigh/Mie effective transmission (once, spectrally)
@@ -151,15 +149,17 @@ The complete wavelength-dependent continuum expression before spectral
 integration is
 
 ```text
-global_scale × solar_corr × seasonal_corr × G(z) × Noll_scatter(λ) × user_scale
+Σ [template_c(λ) × PALACE_scale_c(month, local_time, F10.7)]
+  × G(z) × Noll_scatter(λ) × user_scale
 ```
 
 In code this is split so Noll scattering is applied exactly once:
 
-- `scalar_scale` holds `global_scale × solar_corr × seasonal_corr × G(z) × user_scale`
-  (scalar corrections and emitting-volume LOS geometry);
-- `integrate_attenuated_continuum` applies `Noll_scatter(λ)` as wavelength-
-  dependent Rayleigh/Mie transmission, then integrates over 300–650 nm.
+- the PALACE stage preserves separate month/time/solar laws for all three
+  continuum components and sums their physical R/nm spectra;
+- `integrate_attenuated_continuum` applies geometry, user scale, and
+  wavelength-dependent `Noll_scatter(λ)`, converts Rayleighs to photon
+  radiance, and integrates over 300–650 nm.
 
 There is not a second atmospheric-scattering multiplication after
 `Noll_scatter(λ)`. Emitting-volume geometry (`G(z)` / Van Rhijn / vertical
@@ -172,28 +172,27 @@ The Noll effective extinction factors were fitted primarily for zenith distances
 that use as extrapolation with weaker upstream validation. Molecular absorption
 from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced.
 
-## Continuum provenance and UV-end limits
+## Continuum provenance and scope
 
-The bundled continuum (`crates/nsb/data/airglow_cont.dat`) inherits Paranal
-training assumptions (seasonal and time-of-night matrices; solar slope/constant;
-effective emitting-shell height 90 km). Upstream FORS1 windows are roughly
-0.365–0.89 µm and are weaker below ~0.44 µm; asset headers note extra uncertainty
-below ~0.4 µm and above ~0.9 µm. NSB's 300–650 nm band therefore inherits
-elevated uncertainty toward ~300–365/400 nm. NSB does not invent an extra UV
-envelope beyond the continuum's reported relative uncertainty.
+The bundled `crates/nsb/data/airglow_palace_v1.dat` is deterministically derived
+from PALACE v1.0 `palace_cont.fits` and `palace_var.fits`, released as model data
+under CC BY 4.0. It covers the full NSB 300–650 nm band and retains all 12 months,
+12 one-hour local-mean-solar-time bins, component-specific F10.7 slopes, residual
+variability, and source layer heights. The GPL PALACE program and PALACE line
+list are neither inputs to the derived bytes nor redistributed.
 
-Exact upstream import file/release and some licence details remain unresolved
-where the asset registry records them; treat those as release limitations, not
-as calibrated global science. There is no Paranal/CTAO location whitelist:
-location is a caller input while the continuum remains Paranal-derived. The
-Paranal lineage explains where the empirical baseline came from; it does not
-constitute a dedicated, admitted Paranal site-calibration contract.
+PALACE is based mainly on ten years of X-shooter observations at Cerro Paranal.
+Its provenance is resolved, but its geographic applicability remains Paranal;
+licensing clarity is not global calibration. See the
+[generation and validation report](validation/palace-v1-runtime-product.md).
 
 ## Geometry models
 
 `AirglowGeometryModel::VanRhijn(VanRhijnConfig)` is the default. It preserves the
-previous NSB calculation exactly: a fast, geometrically thin spherical shell at
-an effective height of 90 km for the standard continuum. The height is explicit
+fast, geometrically thin spherical-shell calculation at a representative 88 km
+height for the PALACE continuum. PALACE's component heights (81/88/94 km) remain
+recorded in the asset; the scalar geometry approximation is explicit in metadata.
+The height is explicit
 in advanced configuration and scientific metadata. The approximation does not
 represent a layer's finite thickness, multiple emitting layers, or wavelength-
 dependent emission altitude.
@@ -231,7 +230,8 @@ necessarily vary together. Line-specific public products (ICON/MIGHTI, WINDII)
 and Paranal X-shooter continuum climatology inform this limitation; infrared
 limb products such as SABER are not optical ground truth for this band.
 
-NSB therefore keeps the 90 km Van Rhijn default, accepts validated
+NSB therefore uses PALACE's middle continuum-layer height of 88 km as the
+scalar Van Rhijn default, accepts validated
 checksum-pinned caller profiles with provenance/licence/applicability, and makes
 no claim that selecting advanced geometry improves accuracy by itself.
 Measurement-led CTAO profiles belong to issue #38. Durable source evidence,
@@ -298,12 +298,14 @@ persisted profiles must pin and reproduce it.
 
 ## F10.7 and calibration
 
-The automatic path resolves monthly-averaged F10.7 from the bundled offline
-store for the evaluation UTC date. Callers can set an explicit value with
+PALACE was fitted using centred 27-day F10.7 averages and its training data span
+67–166 sfu. The current automatic path resolves NSB's documented monthly
+planning F10.7 quantity from the bundled offline store for the evaluation UTC
+date. This cadence mismatch is a stated approximation. Callers can set a value with
 `NsbModelConfig::with_solar_radio_flux` or `--solar-radio-flux-sfu`. See the
 [F10.7 resolver](f107-resolver.md).
 
-The generic and CTAO planning profiles use a SkyCalc-derived continuum baseline
+The generic and CTAO planning profiles use the PALACE-derived continuum baseline
 with explicit uncalibrated provenance. Automatic F10.7, an explicit value, or a
 pinned dataset changes solar-activity provenance only. Likewise, selecting an
 atmosphere/extinction model, Airglow geometry, observer coordinates, or user

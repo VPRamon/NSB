@@ -125,15 +125,31 @@ impl DatasetPipeline for AirglowPipeline {
     }
 
     fn expected_outputs(&self) -> &'static [&'static str] {
-        &["airglow_cont.dat"]
+        &[super::airglow_palace::OUTPUT_NAME]
     }
 
-    fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
-        require_expected(self, source_name)
+    fn output_name<'a>(&self, _source_name: &'a str) -> Result<&'a str> {
+        bail!("PALACE owns its complete build")
     }
 
-    fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
-        require_minimum_rows(name, path, 2)
+    fn validate_config(&self, config: &RunConfig) -> Result<()> {
+        super::airglow_palace::validate_config(config)
+    }
+
+    fn build(&self, config: &RunConfig, _partitions: &[String]) -> Result<Option<Vec<Artifact>>> {
+        Ok(Some(super::airglow_palace::build(config)?))
+    }
+
+    fn validate_artifact(&self, _name: &str, path: &Path) -> Result<()> {
+        super::airglow_palace::validate_artifact(path)
+    }
+
+    fn validation_gates(
+        &self,
+        _config: &RunConfig,
+        artifacts: &[Artifact],
+    ) -> Result<Vec<ValidationGate>> {
+        super::airglow_palace::validation_gates(artifacts)
     }
 }
 

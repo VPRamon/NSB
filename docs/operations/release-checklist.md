@@ -16,6 +16,7 @@ scientific calibration evidence.
 - [ ] The manual/release scientific-validation workflow passes without external asset fetching.
 - [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
 - [ ] Every `runtime_embedded = true` asset has explicit redistribution terms; release automation fails closed for missing, unresolved, pending, or unrecorded terms.
+- [ ] The packaged Airglow runtime contains `airglow_palace_v1.dat` with the manifest checksum and excludes historical `airglow_cont.dat`; PALACE attribution and CC BY 4.0 data terms remain in `THIRD_PARTY_NOTICES.md`.
 - [ ] Bundled Gaia DR3 starlight, if shipped, has only the derived release CSV/TOML committed under `crates/nsb/data`, both registered as runtime-embedded production assets, plus validation evidence under `docs/nsb_components/starlight/validation/` and the release-candidate review bundle.
 - [ ] Runtime starlight header checks agree with the release CSV manifest, and `pack_starlight_asset --production` self-loads the emitted CSV/TOML pair through `ValidatedStarlightMap`.
 - [ ] Gaia production extraction diagnostics show zero rejected selected sources, zero XP chunk failures, and at least one accepted XP source.

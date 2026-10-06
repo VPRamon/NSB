@@ -39,22 +39,19 @@ use tempoch::{Time, UTC};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum AirglowModel {
-    /// Paranal-derived empirical model with Noll/SkyCalc/FORS1 lineage.
+    /// PALACE v1.0 Paranal unresolved-continuum planning model.
     ///
-    /// Supported as an explicit legacy/reference planning model and as the
-    /// temporary automatic fallback until the global climatological model is
-    /// admitted (#157). It is not intrinsically the generic global scientific
-    /// contract. Future climatology will add a new `#[non_exhaustive]` variant
-    /// once scientifically implemented and validated — not a speculative
-    /// public placeholder.
-    ParanalNollSkyCalcFors1,
+    /// This preserves PALACE's continuum templates and climatology, but excludes
+    /// its emission-line model. It is the temporary automatic fallback, not a
+    /// globally calibrated climatology or a CTAO site calibration.
+    ParanalPalaceV1,
 }
 
 impl AirglowModel {
     /// Stable machine-readable scientific model identifier.
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::ParanalNollSkyCalcFors1 => "paranal-noll-skycalc-fors1",
+            Self::ParanalPalaceV1 => "paranal-palace-v1",
         }
     }
 }
@@ -80,7 +77,7 @@ impl Airglow {
         continuum: Arc<AirglowContinuum>,
     ) -> Self {
         let geometry = AirglowGeometryModel::VanRhijn(VanRhijnConfig::from_continuum_height(
-            continuum.emission_height_km(),
+            continuum.representative_emission_height_km(),
         ));
         Self {
             location,

@@ -184,10 +184,10 @@ impl NsbModelConfig {
     /// Generic clear-sky planning configuration.
     ///
     /// Airglow uses [`airglow::AirglowSelection::Automatic`]. Until the global
-    /// climatological model is admitted (#157), automatic policy resolves to the
-    /// temporary Paranal-derived planning fallback with that fallback visible in
-    /// result metadata. This does **not** freeze Paranal as the intrinsic
-    /// generic global scientific contract.
+    /// global climatological model is admitted (#157), automatic policy resolves
+    /// to the temporary PALACE v1 Paranal planning fallback with that fallback
+    /// visible in result metadata. This does **not** make the Paranal-trained
+    /// product an intrinsic generic global scientific contract.
     pub fn generic_clear_sky() -> Self {
         Self {
             moonlight_model: moonlight::MoonlightModel::Jones2013Spectral,

@@ -196,7 +196,7 @@ fn airglow_metadata_inner(
     let profile = site_profile.resolve(observer);
     let asset = airglow_continuum_asset();
     let baseline_identity = format!(
-        "baseline asset {} schema {} sha256 {}; calibration_status {}; generator {}; validation_report {}; source {}; license {}; baseline_source Cerro Paranal / Noll / SkyCalc-derived; site_calibrated false",
+        "baseline asset {} schema {} sha256 {}; calibration_status {}; generator {}; validation_report {}; source {}; license {}; baseline_source PALACE v1.0 Paranal continuum; site_calibrated false",
         AIRGLOW_CONTINUUM_ASSET_PATH,
         asset.schema,
         asset.sha256,
@@ -265,7 +265,7 @@ fn airglow_metadata_inner(
             f107_fragment
         )),
         validated_domain: Cow::Owned(format!(
-            "Paranal-derived FORS1/Noll/SkyCalc empirical continuum reused as an explicit legacy/reference planning model and temporary automatic fallback (not intrinsically the generic global scientific contract; #157 climatology deferred); astronomical-night domain; integrated 300–650 nm with weaker evidence at the UV end (~300–365/400 nm); applies seasonal, time-of-night, solar-activity, selected emitting-volume LOS geometry ({}), and independent Noll-2012 effective Rayleigh/Mie airglow scattering (Noll §4.1; fitted primarily for zenith distances z≲{}°, larger angles are parametric extrapolation) using site-profile atmospheric pressure/Rayleigh/Mie assumptions ({}); molecular atmospheric absorption from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced, so full upstream numerical parity is not claimed; multiplied by site-profile airglow.scale (site scaling only, not calibrated continuum); observer location, measured/explicit F10.7, geometry, atmosphere/extinction, and user scaling do not upgrade Airglow calibration maturity; {}",
+            "PALACE v1.0 Paranal unresolved-continuum planning model (HO2, FeO-like, and unresolved O2 templates; PALACE emission lines excluded), used as the temporary automatic fallback and not as a global climatology; astronomical-night domain; integrated 300–650 nm; preserves 12 calendar months, 12 one-hour Paranal local-mean-solar-time bins, bin/component-specific linear F10.7 response about 100 sfu, and PALACE residual variability; PALACE evidence covers centred 27-day F10.7 averages of 67–166 sfu, while the current NSB resolver supplies its documented monthly planning quantity; selected emitting-volume LOS geometry ({}) uses the 88 km representative layer although the asset records component heights 81/88/94 km; independent Noll-2012 effective Rayleigh/Mie airglow scattering (fitted primarily for zenith distances z≲{}°) uses site-profile atmospheric assumptions ({}); PALACE molecular atmospheric absorption and its full propagation are not reproduced; multiplied by site-profile airglow.scale, which is not calibration; observer location and operational inputs do not upgrade maturity; {}",
             geometry.model_id(),
             NOLL_AIRGLOW_SCATTERING_FIT_MAX_ZENITH_DEG as i32,
             profile.atmosphere_provenance,

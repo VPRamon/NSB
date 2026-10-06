@@ -301,6 +301,9 @@ fn selected_partitions(
 fn update_sources(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
     let root = config.workspace.root.join("sources");
     fs::create_dir_all(&root)?;
+    let http = reqwest::blocking::Client::builder()
+        .user_agent(concat!("nsb-data-tools/", env!("CARGO_PKG_VERSION")))
+        .build()?;
     let mut artifacts = Vec::new();
     for source in filtered_sources(config, partitions) {
         let destination = root.join(&source.name);
@@ -309,7 +312,9 @@ fn update_sources(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artif
             copy_atomic(path, &destination)?;
         } else {
             let url = source.url.as_deref().context("source URL is missing")?;
-            let response = reqwest::blocking::get(url)
+            let response = http
+                .get(url)
+                .send()
                 .with_context(|| format!("failed to download {url}"))?
                 .error_for_status()
                 .with_context(|| format!("source request failed for {url}"))?;

@@ -59,7 +59,7 @@ mod tests {
         paths.dedup();
         assert_eq!(paths.len(), before);
         assert!(bundled_assets().count() >= 5);
-        assert!(bundled_asset("airglow_cont.dat").is_some());
+        assert!(bundled_asset("airglow_palace_v1.dat").is_some());
         assert!(bundled_asset("f107_store.json").is_some());
         // Candidates are registered in manifest.toml but not build-verified here.
         assert!(bundled_asset("starlight_nside128.csv").is_none());

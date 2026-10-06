@@ -35,6 +35,10 @@ First public NSB release.
 - Added the Rust-only `nsb-data` maintainer executable and reproducible
   scientific-asset lifecycle for acquisition, transformation, validation,
   reconciliation, checksums, provenance, and packaging.
+- Replaced the provenance-unresolved historical Airglow continuum snapshot with
+  a compact, deterministic PALACE v1.0 CC-BY-4.0 continuum product preserving
+  separate HO2, FeO-like, and unresolved O2 spectra plus month, local-time,
+  solar-activity, and residual-variability semantics (#214).
 - Added the frozen nside-128 combined 300–650 nm Starlight candidate with the
   covariance-corrected bright-star supplement, deterministic runtime staging,
   checksum-pinned technical and external cross-implementation validation, and

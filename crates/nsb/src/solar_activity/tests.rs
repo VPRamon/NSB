@@ -3,7 +3,6 @@
 use super::monthly::{days_in_month, is_finalized_monthly_observation};
 use super::resolve::utc_calendar_date;
 use super::*;
-use crate::components::airglow::units::DEFAULT_SOLAR_RADIO_FLUX;
 use crate::units::SolarFluxUnits;
 use chrono::{DateTime, NaiveDate, Utc};
 use tempoch::{Time, UTC};
@@ -25,7 +24,7 @@ fn sample_store() -> F107Store {
   "convention": "penticton-f107-sfu-as-reported-by-noaa-swpc",
   "convention_notes": "test",
   "climatology_sfu": 129.20671119074768,
-  "climatology_notes": "Noll/SkyCalc neutralizing reference",
+  "climatology_notes": "Legacy monthly planning climatology; not neutral for PALACE",
   "retrieved_at_utc": "2026-08-01T00:00:00Z",
   "records": [
     {
@@ -503,7 +502,7 @@ fn beyond_horizon_uses_climatology() {
     let store = std::sync::Arc::new(sample_store());
     let source = SolarActivitySource::Dataset(store);
     let resolved = resolve_f107(t("2035-01-01T00:00:00Z"), &source).unwrap();
-    assert!((resolved.value.value() - DEFAULT_SOLAR_RADIO_FLUX.value()).abs() < 1e-9);
+    assert!((resolved.value.value() - 129.206_711_190_747_68).abs() < 1e-9);
     assert_eq!(resolved.record.kind, F107Kind::Climatology);
 }
 
@@ -589,7 +588,7 @@ fn bundled_store_loads_and_resolves_offline() {
     let store = bundled_f107_store().unwrap();
     assert_eq!(store.schema_version, 1);
     assert!(store.checksum_sha256.is_some());
-    assert!((store.climatology_sfu - DEFAULT_SOLAR_RADIO_FLUX.value()).abs() < 1e-6);
+    assert!((store.climatology_sfu - 129.206_711_190_747_68).abs() < 1e-6);
     let source = SolarActivitySource::Automatic;
     let far = resolve_f107(t("2040-01-01T00:00:00Z"), &source).unwrap();
     assert_eq!(far.record.kind, F107Kind::Climatology);

@@ -4,6 +4,14 @@ Status: Scientific provenance and Option D planning-proxy decision record
 (originated as issue #108 audit). Not the canonical Airglow runtime guide — see
 [../README.md](../README.md).
 
+> Superseded runtime note (#214): every reference below to the historical
+> `airglow_cont.dat` bytes, `skycalc-airglow-continuum-v1` schema, fixed `4 × 7`
+> correction tables, or 90 km default describes the pre-#214 implementation.
+> Those bytes are no longer shipped or used at runtime. The current PALACE v1
+> product, mapping, checksum, and comparison are documented in
+> [palace-v1-runtime-product.md](palace-v1-runtime-product.md). This file is
+> retained only as historical audit/comparison evidence.
+
 ## Summary
 This audit documents the complete **default Airglow computation pipeline** and the provenance/classification of every scientific/default assumption that the current implementation uses.
 
