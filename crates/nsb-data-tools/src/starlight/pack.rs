@@ -34,7 +34,7 @@ pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH: &str =
 /// The pre-siderust handwritten nest2ring digest was
 /// `c87db972717959962ab590ce71eb90506cbfd73ccb108a3d3851a3e9ecff8f90`.
 pub const CANONICAL_RUNTIME_MAP_SHA256: &str =
-    "d42e7d9c2583b089e6d12f20b2e2ad8693b1f41ec42b2d766b0d7462a2d0d485";
+    "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b";
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";

@@ -2349,7 +2349,10 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         let second = stage(second_map.clone(), second_sidecar.clone());
         assert_eq!(first.runtime_map_sha256, second.runtime_map_sha256);
         assert_eq!(first.runtime_sidecar_sha256, second.runtime_sidecar_sha256);
-        assert_eq!(fs::read(&first_map).unwrap(), fs::read(&second_map).unwrap());
+        assert_eq!(
+            fs::read(&first_map).unwrap(),
+            fs::read(&second_map).unwrap()
+        );
         assert_eq!(
             fs::read(&first_sidecar).unwrap(),
             fs::read(&second_sidecar).unwrap()

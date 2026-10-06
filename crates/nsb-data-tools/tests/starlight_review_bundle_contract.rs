@@ -11,7 +11,7 @@ use toml::Value as TomlValue;
 const REVIEW_BUNDLE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const REVIEW_BUNDLE_SHA256: &str =
-    "83254b765655917a10bf26b471502304304cbd6f7bf17797f2fff73be64b0dab";
+    "26e55da492e578372aa800159accf83468b10c6238195ee9a9736278acbd5e85";
 const REDISTRIBUTION_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json";
 const RELEASE_CANDIDATE_PATH: &str =
@@ -20,9 +20,9 @@ const MERGE_REPORT_PATH: &str = "crates/nsb/data/merge_report.json";
 const RUNTIME_ASSETS_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
 const CANDIDATE_SHA256: &str = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
-const RUNTIME_MAP_SHA256: &str = "d42e7d9c2583b089e6d12f20b2e2ad8693b1f41ec42b2d766b0d7462a2d0d485";
+const RUNTIME_MAP_SHA256: &str = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b";
 const RUNTIME_SIDECAR_SHA256: &str =
-    "f91e8c7442dca03332f9b07236c262b7b997ed4d1ab19dbf98ca8a2bb06627ce";
+    "b8d362b166ef15fedf6fc0b6875710d859cb11facc1507d43f119310053b17cd";
 
 fn sha256_file(path: &Path) -> String {
     let bytes = fs::read(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
@@ -156,7 +156,10 @@ fn release_candidate_and_runtime_assets_agree_semantically() {
         candidate["generation_date_utc"].as_str(),
         Some("2026-10-06T07:02:23Z")
     );
-    assert_eq!(review["merge_report_path"].as_str(), Some(MERGE_REPORT_PATH));
+    assert_eq!(
+        review["merge_report_path"].as_str(),
+        Some(MERGE_REPORT_PATH)
+    );
     let merge_report_sha256 = sha256_file(&root.join(MERGE_REPORT_PATH));
     assert_eq!(
         review["merge_report_sha256"].as_str(),
