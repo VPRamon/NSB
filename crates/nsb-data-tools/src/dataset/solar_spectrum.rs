@@ -324,9 +324,8 @@ fn generate_samples(model: &AnalyticModel) -> Result<Vec<Sample>> {
         let wavelength_fifth = wavelength_fourth * wavelength_m;
         let exponent = model.planck_constant_j_s * model.speed_of_light_m_s
             / (wavelength_m * model.boltzmann_constant_j_k * model.effective_temperature_k);
-        let spectral_radiance_per_m =
-            2.0 * model.planck_constant_j_s * speed_of_light_squared
-                / (wavelength_fifth * reproducible_exp_m1(exponent));
+        let spectral_radiance_per_m = 2.0 * model.planck_constant_j_s * speed_of_light_squared
+            / (wavelength_fifth * reproducible_exp_m1(exponent));
         let irradiance = spectral_radiance_per_m * solid_angle_scale * 1.0e-9;
         samples.push(Sample {
             wavelength_nm,
@@ -529,10 +528,8 @@ mod tests {
         assert_eq!(samples.len(), RUNTIME_SAMPLE_COUNT);
         assert!(relative_difference(trapezoid_integral(&samples), 547.535_433_337_638) < 1e-12);
         assert!(
-            relative_difference(
-                exact_value_at(&samples, 500.0).unwrap(),
-                1.782_718_332_319
-            ) < 1e-14
+            relative_difference(exact_value_at(&samples, 500.0).unwrap(), 1.782_718_332_319)
+                < 1e-14
         );
         assert!(
             relative_difference(
@@ -555,7 +552,11 @@ mod tests {
     fn canonical_numeric_method_matches_reference_nodes() {
         let samples = generate_samples(&model()).unwrap();
         assert_eq!(
-            format!("{:.prec$e}", samples[0].irradiance_w_m2_nm, prec = OUTPUT_DECIMALS),
+            format!(
+                "{:.prec$e}",
+                samples[0].irradiance_w_m2_nm,
+                prec = OUTPUT_DECIMALS
+            ),
             "8.204315015917e-1"
         );
         assert_eq!(
