@@ -366,7 +366,9 @@ fn mvp_release_excludes_unapproved_starlight_assets_from_the_nsb_crate() {
         "data/merge_report.json",
     ] {
         assert!(
-            excluded.iter().any(|value| value.as_str() == Some(required)),
+            excluded
+                .iter()
+                .any(|value| value.as_str() == Some(required)),
             "MVP package must exclude unapproved Starlight artifact {required}"
         );
     }
