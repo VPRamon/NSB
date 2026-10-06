@@ -183,6 +183,19 @@ jobs:
       - name: Build release workspace
         run: cargo build --workspace --release --all-features --locked
 
+  dependency_policy:
+    name: Dependency policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Check advisories, licenses, bans, and sources
+        uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
   api_policy:
     name: Public API policy
     runs-on: ubuntu-latest
