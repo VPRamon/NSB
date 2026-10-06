@@ -102,13 +102,7 @@ fn run() -> AppResult<()> {
     let checksum = sha256(&args.map)?;
     let range = flux_range(&data, args.normalization)?;
 
-    render_heatmap(
-        &args.output,
-        &data,
-        range,
-        args.normalization,
-        &checksum,
-    )?;
+    render_heatmap(&args.output, &data, range, args.normalization, &checksum)?;
 
     println!(
         "wrote {} (nside={}, occupied={}/{}, flux {:.6e}..{:.6e}, sha256={})",
@@ -149,11 +143,9 @@ where
     }
 
     if !map.is_file() {
-        return Err(invalid_input(format!(
-            "candidate map does not exist: {}",
-            map.display()
-        ))
-        .into());
+        return Err(
+            invalid_input(format!("candidate map does not exist: {}", map.display())).into(),
+        );
     }
     if output.as_os_str().is_empty() {
         return Err(invalid_input("--output path must not be empty").into());
@@ -357,7 +349,10 @@ fn render_heatmap(
     normalization: Normalization,
     checksum: &str,
 ) -> AppResult<()> {
-    if let Some(parent) = output.parent().filter(|parent| !parent.as_os_str().is_empty()) {
+    if let Some(parent) = output
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         fs::create_dir_all(parent)?;
     }
 
@@ -375,27 +370,24 @@ fn render_heatmap(
     ))?;
 
     let boundary = mollweide_boundary();
-    root.draw(&Polygon::new(
-        boundary.clone(),
-        viridis(0.0).filled(),
-    ))?;
+    root.draw(&Polygon::new(boundary.clone(), viridis(0.0).filled()))?;
 
     let nside = Nside::new(data.nside)?;
     let nested_grid = HealpixGrid::new(nside, HealpixOrdering::Nested)?;
     let ring_grid = HealpixGrid::new(nside, HealpixOrdering::Ring)?;
     debug_assert_eq!(nested_grid.npix(), ring_grid.npix());
 
-    let pixel_size_deg =
-        (4.0 * std::f64::consts::PI / nested_grid.npix() as f64)
-            .sqrt()
-            .to_degrees();
+    let pixel_size_deg = (4.0 * std::f64::consts::PI / nested_grid.npix() as f64)
+        .sqrt()
+        .to_degrees();
     let marker_radius = ((SKY_WIDTH / 360.0) * pixel_size_deg * 0.75)
         .ceil()
         .clamp(1.0, 8.0) as i32;
 
     for &(pixel, flux) in &data.pixels {
         let ring_index = nested_to_ring(data.nside, pixel);
-        let direction = ring_grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(ring_index))?;
+        let direction =
+            ring_grid.pixel_center_spherical::<Galactic>(HealpixIndex::new(ring_index))?;
         let longitude_deg = direction.l().value();
         let latitude_deg = direction.b().value();
         let point = sky_to_pixel(longitude_deg, latitude_deg);
@@ -506,8 +498,7 @@ fn normalize_flux(value: f64, range: FluxRange, normalization: Normalization) ->
             if value <= 0.0 || range.max <= range.min {
                 return 0.0;
             }
-            ((value.ln() - range.min.ln()) / (range.max.ln() - range.min.ln()))
-                .clamp(0.0, 1.0)
+            ((value.ln() - range.min.ln()) / (range.max.ln() - range.min.ln())).clamp(0.0, 1.0)
         }
     }
 }
