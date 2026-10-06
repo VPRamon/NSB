@@ -16,6 +16,15 @@ partitions. Downloads enter the content-addressed cache only after checksum
 verification. Local and Slurm workers use the same Rust implementation and
 write isolated, strictly validated partition shards.
 
+The combined candidate finalized in #211 also integrates a checksum-pinned
+bright-star supplement built offline from externally supplied
+Hipparcos-2/Tycho-2/XHIP inputs and pinned CK04 templates. Those catalogue
+bytes remain external and are not shipped in the repository or release
+packages. Their exact source identities/checksums and the supplement merge
+accounting are retained in the candidate manifest and merge report; the
+supplement is part of the one Starlight data product, not a second runtime
+component.
+
 ## One canonical map
 
 Each Starlight dataset version has exactly one `canonical_nside`:

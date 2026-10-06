@@ -1,19 +1,24 @@
 # Public API policy (crate `nsb`)
 
-Status: First-release API is **frozen** when `crates/nsb/api/API_FROZEN` and
-`crates/nsb/api/public-api.txt` are present on the reviewed tree.
+Status: First-release API is **frozen** for the `0.1.0` release baseline and
+protected by `crates/nsb/api/API_FROZEN` plus
+`crates/nsb/api/public-api.txt` on the reviewed tree.
 Audience: Library consumers, contributors, and release maintainers.
 Scope: Intended public surface, forward-compatibility design, and enforced
 API freeze via direct `cargo-public-api` checks (`scripts/check-public-api.sh`).
 
 ## Freeze status
 
-The API was frozen after the minimization work in #175. Issue #185 temporarily
-returns the crate to pre-freeze mode while the generic site-profile surface is
-corrected: `crates/nsb/api/API_FROZEN` is intentionally absent on that branch.
-During this interval `public-api.txt` is kept current for review, but CI does
-not enforce snapshot equality or historical SemVer rejection. Re-adding the
-marker establishes the reviewed baseline again.
+The API was initially frozen after the minimization work in #175. Issue #185
+then temporarily returned the crate to pre-freeze mode so the generic typed
+site-profile surface could replace the observatory-specific contract. That
+redesign is complete and #185 is closed.
+
+The `0.1.0` release baseline therefore restores `crates/nsb/api/API_FROZEN` and
+uses the committed `public-api.txt` as the reviewed snapshot. The commit that
+introduces the marker over a historical base without it uses the documented
+freeze-bootstrap semantics below; after that baseline, snapshot equality and
+historical removed/changed API checks are blocking.
 
 Behavioral contracts that `cargo-public-api` cannot see (Airglow
 selection/outcome, `ComponentMask::DEFAULT`/`ALL`, Starlight map ownership,

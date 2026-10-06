@@ -1,7 +1,9 @@
 # Starlight science requirements
 
-Status: normative production contract; no currently bundled Starlight asset
-satisfies this contract.
+Status: normative production contract. The current frozen combined candidate
+has machine-verifiable scientific/technical release evidence, but no
+runtime-embedded production Starlight asset is admitted while redistribution
+approval #103 is pending.
 
 Audience: scientific reviewers, release maintainers, and authors of generation
 tools.
@@ -228,9 +230,11 @@ map. A software agent may prepare evidence but may not claim a human or legal
 approval.
 
 Only after all gates pass may the registry use
-`calibration_status = "production"` and `runtime_embedded = true`. Until then,
-the 300--650 nm UV-v2 candidate remains unapproved, and Starlight remains
-outside `ComponentMask::ALL`.
+`calibration_status = "production"` and `runtime_embedded = true`. Until an
+authorized #103 redistribution decision and the follow-up production activation
+land, the combined 300--650 nm candidate remains `candidate`, stays out of the
+published packages, and Starlight remains outside `ComponentMask::ALL`. This
+redistribution gate does not block the `0.1.0` MVP release.
 
 ## Primary references
 

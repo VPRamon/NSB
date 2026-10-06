@@ -5,8 +5,8 @@ Audience: Maintainers, scientific reviewers, and users auditing bundled data.
 
 ## Active Gaia DR3 candidate
 
-The current dataset version publishes exactly one Gaia-derived candidate map
-(UV-v2, Ladon production run):
+The current dataset version records exactly one combined Gaia DR3 plus
+bright-star-supplement candidate map (UV-v2 Ladon lineage, finalized by #211):
 
 | Artifact | Role | SHA-256 |
 | --- | --- | --- |
@@ -17,8 +17,8 @@ Schema `nsb-healpix-starlight-candidate-v5`, nside 128 NESTED sparse, UV model
 `calspec-linear-log-ratio-v2`. Photometric-inference and selection-function
 artifacts are pinned in `starlight-production-300-650.ladon.toml` and remain
 off-git. The candidate stays `calibration_status = "candidate"` and
-`runtime_embedded = false` until issue #103 signs and the promotion workflow
-registers the packed runtime map.
+`runtime_embedded = false` until an authorized #103 redistribution decision and
+a follow-up production-activation change register the packed runtime map.
 
 Full-sky production diagnostics frozen for #103 review live in
 `docs/nsb_components/starlight/release-candidate/fullsky-production-evidence-v1.json`.

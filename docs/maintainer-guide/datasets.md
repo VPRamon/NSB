@@ -182,11 +182,18 @@ GaiaSource row exactly once:
   term.
 
 The measured-only default in `starlight-production.toml` remains
-`product_band = "measured-336-650"`. The combined 300–650 nm Ladon run is
-pinned in `starlight-production-300-650.ladon.toml` with absolute BeeGFS paths
-for the UV, photometric, and selection-function artifacts. Map schema
-`nsb-healpix-starlight-candidate-v5` emits
-`total_uncertainty_ph_m2_s = hypot(statistical, systematic)`.
+`product_band = "measured-336-650"`. It is useful for exercising the generic
+lifecycle but it is **not** the configuration that produced the frozen combined
+release candidate.
+
+The combined 300–650 nm Ladon run is pinned in
+`starlight-production-300-650.ladon.toml` with absolute BeeGFS paths for the UV,
+photometric, selection-function, and bright-star inputs used by the frozen
+candidate. Map schema `nsb-healpix-starlight-candidate-v5` emits
+`total_uncertainty_ph_m2_s = hypot(statistical, systematic)`. Reproducing the
+frozen candidate requires the exact pinned external artifact identities; a
+replacement path or changed digest defines a new candidate and needs fresh
+evidence.
 
 The versioned UV artifact, partition, holdout, evaluation, and runtime
 configuration contracts are documented in
@@ -228,17 +235,21 @@ and emits:
 The release gates verify artifact checksum round trips, finite flux, at least
 70% occupied canonical pixels in the Galactic plane (`|b| < 20°`), exact
 observed/admitted/excluded population accounting, and a pixel checksum stable
-across an independent partial merge. The policy gate also verifies that the
-identity selection stub and missing 300–336 nm correction remain explicit.
+across an independent partial merge. For the measured-only default
+configuration, the policy gate also verifies that the identity selection stub
+and missing 300–336 nm correction remain explicit; the frozen combined config
+instead requires the pinned production UV/selection artifacts.
 Validation rejects any missing or extra output, so derived resolution maps
 cannot enter publication. A future nside change requires a clean source-level
 run and a separate resolution-selection review.
 Publish accepts only unchanged artifacts from a passing validation report,
 copies them into `crates/nsb/data`, and updates or creates checksum registry
 entries. Newly created Starlight entries are deliberately
-`calibration_status = "candidate"` and `runtime_embedded = false`; human,
-independent-reference, and redistribution gates are still required for
-production admission:
+`calibration_status = "candidate"` and `runtime_embedded = false`; each new
+candidate still requires its declared scientific-validation and redistribution
+admission gates before production activation. For the frozen #211 candidate,
+the scientific/technical bundle is already pinned and #103 is the remaining
+human redistribution gate:
 
 ```bash
 nsb-data dataset starlight publish \

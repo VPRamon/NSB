@@ -1,14 +1,15 @@
 # User guide
 
 Status: Current user-facing entry point.
-Audience: Astronomers, observatory planners, CLI users, and Rust library users.
+Audience: Astronomers, observatory planners, Python users, CLI users, and Rust library users.
 Scope: What NSB does, which interface to use, and how to interpret results.
 Non-goals: Scientific validation evidence and release procedures are documented separately.
 
 ## What NSB is
 
-NSB is a Rust library and command-line application for modelling the ground-based
-night-sky background and finding observing periods that satisfy an NSB limit.
+NSB is a Rust library with Python bindings and a command-line application for
+modelling the ground-based night-sky background and finding observing periods
+that satisfy an NSB limit.
 It evaluates a configurable sum of physical and empirical components for a
 specific observer, UTC time, and sky direction.
 
@@ -32,17 +33,19 @@ site-calibrated. Always inspect component maturity and provenance in the output.
 
 | Interface | Use it when | Main entry point |
 | --- | --- | --- |
+| `nsb-rust` Python package | You need the NSB evaluator/planner from Python while using canonical Siderust coordinate types. | [Python bindings](../python.md) |
 | `nsb-cli` | You need interactive evaluation, scripts, tables, JSON, or CSV. | [Getting started](getting-started.md) |
 | `nsb` Rust crate | You are integrating NSB into a Rust application or scheduler. | [Getting started: Rust API](getting-started.md#rust-library) |
 | `nsb-data-tools` | You maintain scientific assets or build new starlight products. | [Maintainer guide](../maintainer-guide/README.md) |
 
 ## Recommended reading path
 
-1. [Getting started](getting-started.md)
-2. [Runtime components](components.md)
-3. [Observatory configuration and customisation](observatory-customization.md)
-4. [Scientific metadata](../specifications/scientific-metadata.md)
-5. [Model maturity](../specifications/model-maturity.md)
+1. Choose the interface above; Python users should start with [Python bindings](../python.md).
+2. [Getting started](getting-started.md) for CLI/Rust workflows
+3. [Runtime components](components.md)
+4. [Observatory configuration and customisation](observatory-customization.md)
+5. [Scientific metadata](../specifications/scientific-metadata.md)
+6. [Model maturity](../specifications/model-maturity.md)
 
 For implementation details, continue with the
 [developer guide](../developer-guide/README.md). For data generation, validation,

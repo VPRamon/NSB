@@ -31,12 +31,16 @@ transport; wavelength-resolved transport belongs with spectral products. See
 
 ## How the map is generated and admitted
 
-The current production candidate path begins with official Gaia DR3 XP sampled
-bulk data. Offline tools reconstruct the fixed photon-radiance contract,
-prepare canonical sources, bin their flux into a Galactic HEALPix map, and
-produce diagnostics. Candidate maps are then validated for coverage, finite and
-non-negative values, longitude wrapping, plane/pole behaviour, and, when source
-totals are available, flux conservation.
+The current frozen candidate starts with official Gaia DR3 source/XP inputs and
+adds the checksum-pinned bright-star supplement finalized in #211. That
+supplement is built offline from externally supplied Hipparcos-2/Tycho-2/XHIP
+inputs and pinned CK04 spectral templates; raw catalogue bytes are not committed
+or shipped. The candidate manifest and merge report retain the exact input
+provenance and checksums. Offline tools reconstruct the fixed photon-radiance
+contract, merge the admitted source populations, bin their flux into a Galactic
+HEALPix map, and produce diagnostics. Candidate maps are then validated for
+coverage, finite and non-negative values, longitude wrapping, plane/pole
+behaviour, and flux/accounting consistency.
 
 Production use additionally requires provenance, an exact checksum and header
 contract, calibrated non-proxy photometry, a validation report, and independent
@@ -62,27 +66,30 @@ types remain available as the advanced product construction/inspection API.
 
 ## Scientific boundaries
 
-The Gaia DR3 XP pipeline produces candidates; promotion remains a separate
-scientific and release decision. Missing-flux treatment, independent
-validation, and redistribution-policy gates must be satisfied before a map is
-represented as production quality.
+Scientific/technical readiness and redistribution approval are separate gates.
+The frozen combined 300–650 nm candidate is tied to checksum-pinned technical
+and external cross-implementation validation in the release-candidate bundle.
+That evidence does not grant permission to redistribute the candidate as
+bundled production data.
 
 ## Release-candidate status
 
-Technical packing and post-approval promotion automation are implemented
-under issue #102 (closed). The frozen UV-v2 candidate remains scientifically
-unapproved. Human scientific and redistribution review is issue #103, the
-only remaining Starlight production blocker.
+PR #211 froze the current nside-128 combined 300–650 nm candidate, including the
+covariance-corrected bright-star supplement. The release-candidate bundle makes
+its scientific/technical readiness machine-verifiable; a separate human
+scientific signature is not required.
 
-`nsb-data dataset starlight promote` packs a runtime-loadable RING HEALPix
-map from the immutable candidate-v5 bytes. `gates.promotion_eligible` is
-report-only; eligibility is the conjunction of frozen CI gates, the packed
-runtime checksums, and the two signed #103 decisions. The final-promotion
-workflow applies production registry entries and opens the promotion PR
-after those decisions exist. Pipeline `validation_status = technical_pass`
-is not independent scientific validation
-(`no_admissible_independent_reference`; see
-[independent-reference-audit-v1.md](validation/independent-reference-audit-v1.md)).
+Issue #103 tracks the remaining human redistribution/licensing decision. It
+explicitly does **not** block the `0.1.0` MVP: while the decision is pending,
+the candidate and staged runtime bytes remain `calibration_status = "candidate"`,
+`runtime_embedded = false`, excluded from crates.io/PyPI packages, and outside
+`ComponentMask::ALL`.
+
+`nsb-data dataset starlight stage-runtime` deterministically prepares the
+runtime map/sidecar for review without granting redistribution.
+`nsb-data dataset starlight promote` fails closed unless the frozen evidence and
+an authorized redistribution decision agree. Production activation still
+requires a follow-up change that registers the approved runtime asset.
 
 ## Related documentation
 

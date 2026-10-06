@@ -103,19 +103,22 @@ These checks establish a fail-closed evidence contract; they do not make an
 unreviewed caller claim true. Scientific users remain responsible for reviewing
 the referenced catalogue license, calibration, and comparison report.
 
-## Gaia DR3 bundled starlight candidate
+## Combined bundled Starlight candidate
 
-The exact Gaia DR3 nside128 UV-v2 release candidate is frozen and checksum-pinned
-under `docs/nsb_components/starlight/release-candidate/`. Machine-actionable
-technical work for issue #102 is complete: packing, technical validation, and
-post-approval promotion automation exist. Pipeline
-`validation_status = technical_pass` is technical evidence only;
-`scientifically_validated` remains false and independent-reference limitations
-(`no_admissible_independent_reference`) are frozen for human review. Production
-admission still requires the qualified human scientific decision and authorized
-redistribution decision recorded in issue #103, followed by the prepared
-promotion workflow. The candidate must not be described as scientifically
-validated or production-approved until those #103 decisions exist.
+The exact nside128 combined 300–650 nm candidate finalized in #211 is frozen and
+checksum-pinned under `docs/nsb_components/starlight/release-candidate/`. Its
+bundle pins the candidate, provenance, technical validation, external
+cross-implementation validation, staged runtime identities, and green CI
+reference. Scientific readiness is therefore machine-verifiable from that
+evidence; there is no separate human scientific-signature gate.
+
+Production admission is still blocked on a different axis: issue #103 records
+the required authorized human redistribution/licensing decision. While that
+decision is pending, the candidate remains `calibration_status = "candidate"`
+and `runtime_embedded = false`, is excluded from publishable crates.io/PyPI
+artifacts, and must not be described as redistribution-approved or bundled
+production data. This pending decision explicitly does not block the `0.1.0`
+MVP release.
 
 ## Missing external campaigns
 

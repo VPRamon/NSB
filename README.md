@@ -20,6 +20,34 @@ interpret the calculation.
 
 NSB is available through Python, Rust, and a command-line interface.
 
+## Installation
+
+Python users install the `nsb-rust` distribution (the import name is `nsb`):
+
+```bash
+python -m pip install nsb-rust
+```
+
+Rust applications use the published library crate:
+
+```bash
+cargo add nsb@0.1.0
+```
+
+The public Rust API intentionally uses Siderust and tempoch domain types at
+some boundaries. Applications that construct those types directly may also
+depend on the corresponding upstream crates.
+
+The `nsb-cli` crate is workspace-only in `0.1.0` (`publish = false`). Install
+the `nsb` executable from a repository checkout with:
+
+```bash
+cargo install --path crates/nsb-cli --locked
+```
+
+`nsb-data-tools` is maintainer tooling and is not part of the public runtime
+distribution.
+
 ## What NSB does
 
 | Capability | Support |

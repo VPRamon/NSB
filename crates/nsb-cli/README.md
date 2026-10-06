@@ -3,6 +3,18 @@
 Operational command-line interface for the `nsb` runtime library. The installed
 binary is named `nsb`.
 
+## Installation
+
+`nsb-cli` is a workspace application and is not published as a standalone
+crates.io package in `0.1.0`. From a repository checkout:
+
+```bash
+cargo install --path crates/nsb-cli --locked
+```
+
+For development without installation, use
+`cargo run --locked -p nsb-cli -- <args>`.
+
 This crate owns:
 
 - `point`, `window`, `sites`, and `config` commands;

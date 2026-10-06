@@ -1,16 +1,22 @@
 # Starlight ultraviolet calibration contract
 
-The Starlight UV interface is an ingestion, evaluation, and validation
-contract for a future independently calibrated 300–336 nm correction. It is
-not a trained calibration. The repository contains no production UV artifact,
-reference spectra, or production coefficients. Consequently,
-`crates/nsb-data-tools/config/starlight-production.toml` requests only the
-directly measured Gaia XP 336–650 nm product.
+The Starlight UV interface is the ingestion, evaluation, and validation
+contract for the independently calibrated 300–336 nm correction used by
+combined candidates. The repository intentionally does not embed the large
+training/reference data or the production model artifact itself.
 
-Training and production use remain blocked until an immutable independently
-flux-calibrated reference dataset, approved model specification, trained
-artifact, holdout evidence, licence review, and scientific review are supplied.
-The tooling deliberately does not invent a training algorithm.
+The generic checked-in `crates/nsb-data-tools/config/starlight-production.toml`
+therefore remains a measured-only 336–650 nm configuration. The frozen combined
+candidate finalized in #211 was instead produced with
+`starlight-production-300-650.ladon.toml`, which pins the external UV artifact,
+photometric model, selection-function artifact, and their evidence/checksums on
+the production filesystem. The resulting model identity and digest are carried
+into the merge report and release-candidate evidence.
+
+Training remains an offline maintainer operation over immutable,
+flux-calibrated reference data with disjoint holdout evidence. The runtime and
+candidate pipeline only validate and consume a pinned artifact; they do not
+invent or retrain a calibration.
 
 ## Contracts
 

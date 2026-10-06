@@ -6,9 +6,9 @@ Scope: Navigation, project purpose, module boundaries, and authoritative referen
 
 ## What NSB is
 
-NSB is a typed Rust library and command-line application for modelling the
-ground-based night-sky background and finding observing periods that satisfy an
-NSB threshold. It evaluates a configurable sum of zodiacal light, integrated
+NSB is a typed Rust library, Python extension, and command-line application for
+modelling the ground-based night-sky background and finding observing periods
+that satisfy an NSB threshold. It evaluates a configurable sum of zodiacal light, integrated
 starlight, airglow, and atmospherically scattered moonlight for a specified
 observer, UTC time, and target direction.
 
@@ -24,11 +24,16 @@ Runtime evaluation never downloads catalogues or executes data-generation tools.
 Scientific assets are prepared offline, validated, checksum-pinned, and admitted
 through explicit runtime-manifest contracts.
 
+The Python distribution is named `nsb-rust` and imports as `nsb`. It wraps
+the same Rust evaluator and uses canonical `siderust.Observer` and
+`siderust.Direction` objects rather than maintaining parallel astronomy types.
+
 ## Choose your documentation path
 
 ### Users
 
 - [User guide](user-guide/README.md)
+- [Python bindings](python.md)
 - [Getting started](user-guide/getting-started.md)
 - [Runtime components](user-guide/components.md)
 - [NSB component guides](nsb_components/README.md)
@@ -81,7 +86,7 @@ science requirements
 | Document | Purpose |
 | --- | --- |
 | [Starlight science requirements](nsb_components/starlight/science-requirements.md) | Required scientific properties and production gates |
-| [Starlight generation](nsb_components/starlight/map-generation.md) | Current Gaia/Tycho candidate-generation workflow |
+| [Starlight generation](nsb_components/starlight/map-generation.md) | Current Gaia DR3 plus bright-star-supplement candidate-generation workflow |
 | [Starlight validation](nsb_components/starlight/map-validation.md) | Validation inputs, reports, gates, and failure modes |
 | [External starlight manifest](nsb_components/starlight/external-manifest.md) | Fail-closed sidecar contract for external production maps |
 | [Gaia DR3 ADQL](queries/gaia_dr3_starlight_extract.adql) | Recorded source-selection query |
@@ -95,7 +100,7 @@ fallback.
 
 - User workflows live under `docs/user-guide/`.
 - Architecture and extension guidance live under `docs/developer-guide/`.
-- Data, release, and operational procedures live under `docs/maintainer-guide/`.
+- Data-generation and maintainer procedures live under `docs/maintainer-guide/`.
 - Current cross-component contracts live under `docs/specifications/`.
 - Component-specific science, generation, and validation live under
   `docs/nsb_components/`.
