@@ -109,7 +109,6 @@ impl AirglowContinuum {
         // height is explicit here; all three source heights remain in the schema.
         self.components[1].emission_height_km
     }
-
 }
 
 impl std::str::FromStr for AirglowContinuum {
