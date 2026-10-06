@@ -424,11 +424,8 @@ fn analytic_solar_reference_validation_geometry_stays_within_tsis_impact_bounds(
     // solar_spectrum.dat SHA-256
     // 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02.
     // The old bytes are intentionally not required by this test.
-    const TSIS_BASELINE: (f64, f64, f64) = (
-        0.056_968_993_257_1,
-        58.708_789_926_3,
-        68.565_285_636_9,
-    );
+    const TSIS_BASELINE: (f64, f64, f64) =
+        (0.056_968_993_257_1, 58.708_789_926_3, 68.565_285_636_9);
     let solar = crate::spectra::solar::load().expect("bundled analytic solar spectrum");
     let geometry = ZodiacalGeometry {
         beta: Radians::new(0.3),
