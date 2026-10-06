@@ -127,13 +127,7 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
         .find(|a| a.name == OUTPUT)
         .context("missing Mie artifact")?;
     let grid = parse_grid(&fs::read_to_string(&artifact.path)?)?;
-    let model = read_model(
-        &config
-            .workspace
-            .root
-            .join("sources")
-            .join(MODEL_SOURCE),
-    )?;
+    let model = read_model(&config.workspace.root.join("sources").join(MODEL_SOURCE))?;
 
     let mut worst_norm = 0.0_f64;
     let mut min_g = f64::INFINITY;
@@ -184,8 +178,8 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
 
 fn angular_interpolation_error(model: &Model, grid: &Grid) -> Result<f64> {
     const PROBES: [f64; 14] = [
-        0.00625, 0.01875, 0.0625, 0.1875, 0.5125, 1.025, 2.0625, 5.125, 9.875,
-        10.5, 90.5, 169.5, 170.0625, 179.9375,
+        0.00625, 0.01875, 0.0625, 0.1875, 0.5125, 1.025, 2.0625, 5.125, 9.875, 10.5, 90.5, 169.5,
+        170.0625, 179.9375,
     ];
     let mut worst = 0.0_f64;
     let candidate_rows = [0, grid.values.len() / 2, grid.values.len() - 1];
@@ -300,9 +294,7 @@ fn angle_grid(model: &Model) -> Result<Vec<f64>> {
         }
         let span = segment.end_deg - segment.start_deg;
         let interval_count = (span / segment.step_deg).round();
-        if interval_count < 1.0
-            || (span - interval_count * segment.step_deg).abs() > 1.0e-10
-        {
+        if interval_count < 1.0 || (span - interval_count * segment.step_deg).abs() > 1.0e-10 {
             bail!("angular grid segment span must be divisible by its step");
         }
         let interval_count = interval_count as usize;
@@ -478,8 +470,7 @@ fn integrate_mode(
         };
         let x = 2.0 * PI * radius / wavelength_um;
         let sample = mie_phase(x, refractive, mus)?;
-        let weight =
-            simpson * h / 3.0 * number_per_ln_r * PI * radius * radius * sample.qsca;
+        let weight = simpson * h / 3.0 * number_per_ln_r * PI * radius * radius * sample.qsca;
         *total_weight += weight;
         *asymmetry_weight += weight * sample.asymmetry;
         for (sum, value) in total.iter_mut().zip(sample.phase) {
@@ -500,12 +491,7 @@ struct MieSample {
 /// whose continuous solid-angle integral is 4 pi.
 
 fn mie_phase(x: f64, m: Complex64, mus: &[f64]) -> Result<MieSample> {
-    if !x.is_finite()
-        || x <= 0.0
-        || !m.re.is_finite()
-        || !m.im.is_finite()
-        || m.norm_sqr() == 0.0
-    {
+    if !x.is_finite() || x <= 0.0 || !m.re.is_finite() || !m.im.is_finite() || m.norm_sqr() == 0.0 {
         bail!("invalid Mie size parameter or refractive index");
     }
     let nstop = (x + 4.0 * x.cbrt() + 2.0).ceil() as usize;
@@ -627,7 +613,10 @@ fn parse_grid(raw: &str) -> Result<Grid> {
         bail!("grid contains invalid axes or phase values");
     }
     Ok(Grid {
-        wavelengths: wavelengths.into_iter().map(|value| value * 1000.0).collect(),
+        wavelengths: wavelengths
+            .into_iter()
+            .map(|value| value * 1000.0)
+            .collect(),
         angles,
         values,
     })
@@ -753,8 +742,7 @@ abundance = 1.0
 
     fn production_model() -> Model {
         read_model(
-            &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("config/moonlight-aerosol-nsb-v1.toml"),
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("config/moonlight-aerosol-nsb-v1.toml"),
         )
         .unwrap()
     }
@@ -962,7 +950,9 @@ abundance = 1.0
         fs::write(&artifact_path, generate(&tiny_model()).unwrap()).unwrap();
         let artifact = artifact(OUTPUT, &artifact_path).unwrap();
         let gates = validation_gates(&run_config(workspace), &[artifact]).unwrap();
-        assert!(gates.iter().any(|gate| gate.name == "mie-4pi-normalization"));
+        assert!(gates
+            .iter()
+            .any(|gate| gate.name == "mie-4pi-normalization"));
         assert!(gates
             .iter()
             .any(|gate| gate.name == "mie-asymmetry-consistency"));
