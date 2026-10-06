@@ -657,7 +657,14 @@ fn sha256(path: &Path) -> AppResult<String> {
         }
         digest.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", digest.finalize()))
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let bytes = digest.finalize();
+    let mut hex = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        hex.push(char::from(HEX[usize::from(byte >> 4)]));
+        hex.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    Ok(hex)
 }
 
 fn invalid_input(message: impl Into<String>) -> io::Error {
