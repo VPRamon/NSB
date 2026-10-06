@@ -198,10 +198,10 @@ impl DatasetPipeline for MoonlightPipeline {
 
     fn validation_gates(
         &self,
-        _config: &RunConfig,
+        config: &RunConfig,
         artifacts: &[Artifact],
     ) -> Result<Vec<ValidationGate>> {
-        super::moonlight_mie::validation_gates(artifacts)
+        super::moonlight_mie::validation_gates(config, artifacts)
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
