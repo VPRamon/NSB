@@ -15,8 +15,7 @@ const LICENSE: &str = "AGPL-3.0-only";
 const TERMS_URL: &str = "https://github.com/VPRamon/NSB/blob/main/LICENSE";
 const TEMPERATURE_SOURCE: &str = "IAU 2015 Resolution B3 nominal solar effective temperature";
 const RADIUS_SOURCE: &str = "IAU 2015 Resolution B3 nominal solar radius";
-const SI_CONSTANTS_SOURCE: &str =
-    "SI Brochure, 9th edition: exact h, c, k and astronomical unit";
+const SI_CONSTANTS_SOURCE: &str = "SI Brochure, 9th edition: exact h, c, k and astronomical unit";
 const UNITS: &str = "W m^-2 nm^-1";
 const REFERENCE_DISTANCE: &str = "1 AU";
 const BAND_MIN_NM: f64 = 300.0;
