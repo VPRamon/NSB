@@ -157,9 +157,10 @@ fn release_candidate_and_runtime_assets_agree_semantically() {
         Some("2026-10-06T07:02:23Z")
     );
     assert_eq!(review["merge_report_path"].as_str(), Some(MERGE_REPORT_PATH));
+    let merge_report_sha256 = sha256_file(&root.join(MERGE_REPORT_PATH));
     assert_eq!(
         review["merge_report_sha256"].as_str(),
-        Some(sha256_file(&root.join(MERGE_REPORT_PATH)).as_str())
+        Some(merge_report_sha256.as_str())
     );
 
     assert_eq!(
