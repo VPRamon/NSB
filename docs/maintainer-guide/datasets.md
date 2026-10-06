@@ -187,7 +187,7 @@ lifecycle but it is **not** the configuration that produced the frozen combined
 release candidate.
 
 The combined 300–650 nm Ladon run is pinned in
-`starlight-production-300-650.ladon.toml` with absolute BeeGFS paths for the UV,
+`starlight-production-300-650-issue207.ladon.toml` with absolute BeeGFS paths for the UV,
 photometric, selection-function, and bright-star inputs used by the frozen
 candidate. Map schema `nsb-healpix-starlight-candidate-v5` emits
 `total_uncertainty_ph_m2_s = hypot(statistical, systematic)`. Reproducing the
