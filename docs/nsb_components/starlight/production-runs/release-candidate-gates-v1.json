@@ -4,10 +4,10 @@
   "status": "gates_passed_ci_issue207",
   "passed": true,
   "blocking_issue": null,
-  "commit_sha": "b4b21c9c7564106fb755b3a24c5e9993e8ea431c",
-  "workflow_run_id": 37429016585,
-  "workflow_run_url": "https://github.com/VPRamon/NSB/actions/runs/37429016585",
-  "workflow_head_sha": "b4b21c9c7564106fb755b3a24c5e9993e8ea431c",
+  "commit_sha": "4c2f84fc86c577ad421bc9dab4c8e137eb8fce4b",
+  "workflow_run_id": 37435549261,
+  "workflow_run_url": "https://github.com/VPRamon/NSB/actions/runs/37435549261",
+  "workflow_head_sha": "4c2f84fc86c577ad421bc9dab4c8e137eb8fce4b",
   "workflow_conclusion": "success",
   "workflow_event": "pull_request",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
@@ -17,7 +17,7 @@
   "config_path": "crates/nsb-data-tools/config/starlight-production-300-650-issue207.ladon.toml",
   "config_sha256": "f0b7f2c9d9f00ae8e3769cb106543cf826b410abb12dc627024119249c0db9bf",
   "manifest_path": "crates/nsb/data/manifest.toml",
-  "manifest_sha256": "9c9a0b4b3201c7d2e979371011891be2df9ce414f79aa64439ab25c35b6e1511",
+  "manifest_sha256": "5cf8c358bf5dc84b9adaaccc30b30be390c55d6ee56e9a039f58bbdd4ddb41da",
   "photometric_inference_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
   "selection_function_artifact_sha256": "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711",
   "uv_correction_artifact": "calspec-linear-log-ratio-v2",
@@ -99,7 +99,7 @@
       "command": "cargo deny check",
       "status": "passed",
       "ci_job": "Dependency policy",
-      "detail": "Executed on GitHub Actions via EmbarkStudios/cargo-deny-action@v2 in workflow run 37429016585"
+      "detail": "Executed on GitHub Actions via EmbarkStudios/cargo-deny-action@v2 in workflow run 37435549261"
     },
     {
       "name": "msrv",
@@ -118,7 +118,7 @@
       "command": "cargo llvm-cov plus scripts/coverage-gate.sh overall and diff",
       "status": "passed",
       "ci_job": "Test and coverage",
-      "detail": "workspace 86.36%; nsb 92.28%; changed production lines 90.20% (1040/1153; floor 90.00%)"
+      "detail": "workspace 86.37%; nsb 92.26%; changed production lines 90.62% (1101/1215; floor 90.00%)"
     },
     {
       "name": "public_api",
@@ -146,5 +146,5 @@
   "promotion_workflow": ".github/workflows/starlight-final-promotion.yml",
   "evidence_class": "candidate_generation_ci",
   "evidence_pr": 211,
-  "notes": "Frozen after the fully green pull-request CI run for the covariance-corrected issue #207 lineage. This report binds the tested code/data commit; a following evidence-only commit repins its checksum without changing scientific or runtime bytes."
+  "notes": "Frozen after the fully green pull-request CI run for the issue #207 release-boundary changes. Runtime bytes remain checksum-staged as non-embedded candidates while redistribution is pending; this report binds the tested code/data commit, and a following evidence-only commit repins its checksum without changing scientific or runtime bytes."
 }
