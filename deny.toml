@@ -14,6 +14,9 @@ ignore = ["RUSTSEC-2024-0436", "RUSTSEC-2026-0192"]
 version = 2
 confidence-threshold = 0.8
 allow = [
+    # siderust-py and tempoch-py still publish the deprecated SPDX spelling.
+    # It denotes the same AGPL v3 family as this AGPL-3.0-only workspace.
+    "AGPL-3.0",
     "AGPL-3.0-only",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",

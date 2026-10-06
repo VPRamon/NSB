@@ -16,28 +16,37 @@ use validate::{
 };
 
 #[test]
-fn repository_production_starlight_pair_is_selected_and_checksum_verified() {
+fn repository_staged_starlight_pair_is_registered_but_not_selected_for_production() {
     let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nsb/data/manifest.toml");
     let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nsb/data");
     let raw = fs::read_to_string(&manifest_path).expect("read repository manifest");
     let manifest: Manifest = parse_manifest(&raw).expect("parse repository manifest");
 
     validate_manifest_structure(&manifest).expect("structure");
-    validate_runtime_embedded_files(&data_dir, &manifest).expect("checksums");
+    validate_runtime_embedded_files(&data_dir, &manifest).expect("embedded checksums");
 
-    let pair = select_production_starlight(&manifest)
-        .expect("policy")
-        .expect("repository currently registers a production Starlight pair");
-
-    assert!(pair.0.is_valid_production_starlight_map());
-    assert!(pair.1.is_valid_production_starlight_manifest());
-    assert_eq!(
-        pair.0.starlight_release_stem(),
-        pair.1.starlight_release_stem()
+    assert!(
+        select_production_starlight(&manifest)
+            .expect("policy")
+            .is_none(),
+        "pending redistribution must not activate bundled production Starlight"
     );
 
-    let map_bytes = fs::read(data_dir.join(&pair.0.path)).expect("read map");
-    let sidecar_bytes = fs::read(data_dir.join(&pair.1.path)).expect("read sidecar");
-    assert_eq!(hex_sha256(&map_bytes), pair.0.sha256);
-    assert_eq!(hex_sha256(&sidecar_bytes), pair.1.sha256);
+    let map = manifest
+        .assets
+        .iter()
+        .find(|asset| asset.path == "starlight_nside128.release.csv")
+        .expect("staged runtime map registration");
+    let sidecar = manifest
+        .assets
+        .iter()
+        .find(|asset| asset.path == "starlight_nside128.manifest.toml")
+        .expect("staged runtime sidecar registration");
+
+    for asset in [map, sidecar] {
+        assert_eq!(asset.calibration_status, "candidate");
+        assert!(!asset.runtime_embedded);
+        let bytes = fs::read(data_dir.join(&asset.path)).expect("read staged asset");
+        assert_eq!(hex_sha256(&bytes), asset.sha256);
+    }
 }

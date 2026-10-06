@@ -2,8 +2,8 @@
 
 Status: **design / experimental**. This document defines the scientific
 policy for an optional NSB-native very-bright-star population supplement.
-It does **not** grant redistribution approval (#103) and does **not**
-promote `scientifically_validated`.
+It does **not** grant redistribution approval (#103). Scientific production
+readiness is established separately by checksum-pinned validation evidence.
 
 Cross-implementation evidence (#182 Experiments A/B) shows that nsb2’s
 88-star XHIP component is ≈ **7.4%** of full nsb2 stellar flux and removes
@@ -20,7 +20,7 @@ sources.
 The supplement is:
 
 - independently versioned (`starlight-bright-stars-v1`);
-- optional / opt-in until human scientific and redistribution gates clear;
+- optional / opt-in until technical validation passes and redistribution is authorized;
 - provenance-visible in runtime and merge reports;
 - never a silent modifier of the Gaia base map.
 
@@ -136,17 +136,36 @@ Policy id: `bright-stars-gaia-precedence-v1`.
 
 ## 7. Spectral reconstruction
 
-The v1 artifact is strictly **Measured336To650**. It contains no 300–336 nm
-field and cannot be loaded into a `Combined300To650` build. Missing UV
-coverage is unavailable, never encoded as zero flux. A future artifact with a
-defensible UV model requires a new schema/model id and explicit model,
-applicability, provenance, and uncertainty fields.
+Two versioned artifact products exist:
+
+| Product band | Model id | Schema | Use |
+|---|---|---|---|
+| `measured-336-650` | `starlight-bright-stars-v1` | 1 | Diagnostics / measured-only maps |
+| `combined-300-650` | `starlight-bright-stars-combined-v1` | 2 | Production Combined300To650 (#207) |
+
+The measured-only artifact contains no 300–336 nm field and **cannot** be
+loaded into a `Combined300To650` build (fail closed). Missing UV coverage is
+unavailable, never encoded as zero flux and never relabelled from 336–650 nm.
+
+The combined artifact obtains the 300–336 nm term from the **same** Hp-scaled
+CK04 template used for 336–650 nm:
+
+1. Scale the pinned Castelli–Kurucz template to the Hipparcos Hp magnitude
+   through the Bessell (2000) Hp response and CALSPEC Vega zero point.
+2. Integrate the scaled template over 336–650 nm (measured contribution).
+3. Integrate the **same** scaled template over 300–336 nm (UV completion).
+4. Record `uv_completion_model_id = ck04-hp-scaled-uv-300-336-v1` with
+   independent statistical/systematic terms on each sub-band and a single
+   Hipparcos Hp zero-point correlated term on the full 300–650 integral.
+
+Admitted combined sources without a justified positive 300–336 nm term fail
+closed. Template coverage of both intervals is validated at model load.
 
 Route priority:
 
 1. If a matched Gaia source has **valid XP** and passes the quality gate →
    **prefer existing NSB XP machinery** (do not invent a parallel spectrum).
-2. Else: spectral-type template integration with documented library.
+2. Else: spectral-type template integration with documented library (above).
 3. Else: colour–temperature approximation from \(B_T-V_T\) / Hp with
    larger systematic.
 
@@ -228,11 +247,12 @@ No silent load of a local unmarked file.
 | `experimental` | **Current target** after implementation |
 | `validated-for-cross-comparison` | Before/after metrics + source audits recorded |
 | `production-candidate` | Policy + uncertainty + provenance complete; still opt-in |
-| `production-approved` | Human scientific approval only |
+| `production-approved` | Checksum-pinned technical and external scientific validation passes |
 | Redistribution | Separate human gate (#103); external asset until cleared |
 
-`scientifically_validated` for Starlight remains **false** until independent
-observational validation — nsb2 agreement alone is insufficient.
+The `nsb2` comparison is cross-implementation evidence rather than independent
+observational ground truth; its limitations must remain explicit in the
+production validation record.
 
 ## 12. Relationship to #182
 

@@ -54,6 +54,21 @@ pub struct SpectralReconstructionModel {
 
 impl SpectralReconstructionModel {
     pub fn validate(&self) -> Result<()> {
+        self.validate_for_product_band(super::artifact::BRIGHT_STAR_PRODUCT_BAND_ID)
+    }
+
+    /// Validate the spectral coverage required by the requested output product.
+    ///
+    /// The historical measured-only model is intentionally valid without a
+    /// sample at or below 300 nm. Combined products additionally require the
+    /// complete 300--336 nm CK04 interval and therefore fail closed when it is
+    /// unavailable.
+    pub fn validate_for_product_band(&self, product_band: &str) -> Result<()> {
+        let combined = match product_band {
+            super::artifact::BRIGHT_STAR_PRODUCT_BAND_ID => false,
+            super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID => true,
+            _ => bail!("unsupported bright-star product band {product_band}"),
+        };
         if self.model_id != SPECTRAL_RECONSTRUCTION_MODEL_ID_V1
             || self.hp_response.band_id != "Hipparcos/Hipparcos.Hp_bes"
             || !valid_commit_identity(&self.builder_software_commit)
@@ -86,8 +101,7 @@ impl SpectralReconstructionModel {
             {
                 bail!("duplicate spectral template id {}", template.template_id);
             }
-            // Exercises the strict template and response contracts, including
-            // full Hp and 336--650 nm coverage.
+            // Every product needs the Hp response and measured interval.
             reconstruct_template_band_flux(
                 template,
                 &self.hp_response,
@@ -96,6 +110,16 @@ impl SpectralReconstructionModel {
                 336.0e-9,
                 650.0e-9,
             )?;
+            if combined {
+                reconstruct_template_band_flux(
+                    template,
+                    &self.hp_response,
+                    &self.hp_calibration,
+                    0.0,
+                    300.0e-9,
+                    336.0e-9,
+                )?;
+            }
         }
         let mut keys = BTreeSet::new();
         for assignment in &self.assignments {
@@ -142,25 +166,34 @@ fn valid_commit_identity(value: &str) -> bool {
 pub fn load_spectral_reconstruction_model(
     path: &Path,
     expected_sha256: &str,
+    product_band: &str,
 ) -> Result<SpectralReconstructionModel> {
     let actual = crate::platform::checksum_io::sha256_file(path)?;
     if actual != expected_sha256 {
         bail!("spectral reconstruction model checksum mismatch");
     }
     let model: SpectralReconstructionModel = serde_json::from_slice(&fs::read(path)?)?;
-    model.validate()?;
+    model.validate_for_product_band(product_band)?;
     Ok(model)
 }
 
-/// Reconstruct measured 336--650 nm fluxes. Missing/unsupported spectral
-/// evidence is returned as an absent estimate and is therefore excluded by
-/// the artifact builder rather than fabricated.
+/// Reconstruct measured 336--650 nm and justified 300--336 nm fluxes from the
+/// same Hp-scaled CK04 template. Missing/unsupported spectral evidence is
+/// returned as an absent estimate and is therefore excluded by the artifact
+/// builder rather than fabricated.
+///
+/// The 300--336 nm term is the template integral over that interval after the
+/// template is absolutely scaled to the Hipparcos Hp magnitude through the
+/// pinned Bessell (2000) response and CALSPEC Vega zero point. It is never a
+/// relabelled copy of the 336--650 nm flux.
 pub fn reconstruct_spectral_estimates(
     hipparcos: &[Hipparcos2Record],
     xhip_by_hip: &BTreeMap<u32, XhipRecord>,
     model: &SpectralReconstructionModel,
+    product_band: &str,
 ) -> Result<BTreeMap<u32, SpectralEstimate>> {
-    model.validate()?;
+    model.validate_for_product_band(product_band)?;
+    let combined = product_band == super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID;
     let templates: BTreeMap<_, _> = model
         .templates
         .iter()
@@ -195,7 +228,7 @@ pub fn reconstruct_spectral_estimates(
         let template = templates
             .get(template_id)
             .with_context(|| format!("missing assigned template {template_id}"))?;
-        let flux = reconstruct_template_band_flux(
+        let flux_336_650 = reconstruct_template_band_flux(
             template,
             &model.hp_response,
             &model.hp_calibration,
@@ -203,21 +236,47 @@ pub fn reconstruct_spectral_estimates(
             336.0e-9,
             650.0e-9,
         )?;
-        let statistical = flux * 0.4 * std::f64::consts::LN_10 * hip.hp_mag_uncertainty;
-        let systematic_independent = flux
-            * model
-                .template_mismatch_fraction
-                .hypot(model.spectral_type_mapping_fraction);
+        let flux_300_336 = if combined {
+            reconstruct_template_band_flux(
+                template,
+                &model.hp_response,
+                &model.hp_calibration,
+                hip.hp_mag,
+                300.0e-9,
+                336.0e-9,
+            )?
+        } else {
+            0.0
+        };
+        let mag_fraction = 0.4 * std::f64::consts::LN_10 * hip.hp_mag_uncertainty;
+        let independent_fraction = model
+            .template_mismatch_fraction
+            .hypot(model.spectral_type_mapping_fraction);
+        let selected_flux = if combined {
+            flux_300_336 + flux_336_650
+        } else {
+            flux_336_650
+        };
         let estimate = SpectralEstimate {
             hip: hip.astrometry.hip,
-            flux_336_650_ph_m2_s: flux,
-            statistical_uncertainty_ph_m2_s: statistical,
-            systematic_independent_uncertainty_ph_m2_s: systematic_independent,
+            flux_300_336_ph_m2_s: flux_300_336,
+            flux_336_650_ph_m2_s: flux_336_650,
+            statistical_uncertainty_300_336_ph_m2_s: flux_300_336 * mag_fraction,
+            statistical_uncertainty_336_650_ph_m2_s: flux_336_650 * mag_fraction,
+            systematic_independent_uncertainty_300_336_ph_m2_s: flux_300_336 * independent_fraction,
+            systematic_independent_uncertainty_336_650_ph_m2_s: flux_336_650 * independent_fraction,
+            // Hp zero-point is a shared absolute scale; one correlated term on
+            // the full 300--650 integral preserves linear addition in-group.
             systematic_catalogue_correlated: vec![CorrelatedUncertainty {
                 correlation_group_id: "hipparcos-hp-zero-point-bessell2000".into(),
-                uncertainty_ph_m2_s: flux * model.hp_zero_point_fraction,
+                uncertainty_ph_m2_s: selected_flux * model.hp_zero_point_fraction,
             }],
             route: format!("{}:{template_id}", model.model_id),
+            uv_completion_model_id: if combined {
+                UV_COMPLETION_MODEL_ID_V1.into()
+            } else {
+                String::new()
+            },
         };
         if estimates.insert(hip.astrometry.hip, estimate).is_some() {
             bail!("duplicate Hipparcos input for spectral reconstruction");
@@ -225,6 +284,9 @@ pub fn reconstruct_spectral_estimates(
     }
     Ok(estimates)
 }
+
+/// Versioned identifier for the CK04-template 300--336 nm completion route.
+pub const UV_COMPLETION_MODEL_ID_V1: &str = "ck04-hp-scaled-uv-300-336-v1";
 
 #[cfg(test)]
 mod tests {
@@ -309,23 +371,67 @@ mod tests {
                 radial_velocity_uncertainty_km_s: Some(1.0),
             },
         )]);
-        let estimate = reconstruct_spectral_estimates(std::slice::from_ref(&hip), &xhip, &model)
-            .unwrap()
-            .remove(&1)
-            .unwrap();
+        let estimate = reconstruct_spectral_estimates(
+            std::slice::from_ref(&hip),
+            &xhip,
+            &model,
+            super::super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID,
+        )
+        .unwrap()
+        .remove(&1)
+        .unwrap();
         assert!(
-            (estimate.statistical_uncertainty_ph_m2_s / estimate.flux_336_650_ph_m2_s
+            (estimate.statistical_uncertainty_336_650_ph_m2_s / estimate.flux_336_650_ph_m2_s
                 - 0.4 * std::f64::consts::LN_10 * 0.01)
                 .abs()
                 < 1e-15
         );
         assert!(
-            (estimate.systematic_independent_uncertainty_ph_m2_s / estimate.flux_336_650_ph_m2_s
+            (estimate.systematic_independent_uncertainty_336_650_ph_m2_s
+                / estimate.flux_336_650_ph_m2_s
                 - 0.1_f64.hypot(0.2))
             .abs()
                 < 1e-15
         );
+        assert!(estimate.flux_300_336_ph_m2_s > 0.0);
+        assert!(estimate.flux_300_336_ph_m2_s != estimate.flux_336_650_ph_m2_s);
+        assert_eq!(estimate.uv_completion_model_id, UV_COMPLETION_MODEL_ID_V1);
         assert_eq!(estimate.systematic_catalogue_correlated.len(), 1);
+        let expected_combined_zero_point =
+            estimate.flux_300_650_ph_m2_s() * model.hp_zero_point_fraction;
+        assert_eq!(
+            estimate.systematic_catalogue_correlated[0].uncertainty_ph_m2_s,
+            expected_combined_zero_point
+        );
+
+        let measured = reconstruct_spectral_estimates(
+            std::slice::from_ref(&hip),
+            &xhip,
+            &model,
+            super::super::artifact::BRIGHT_STAR_PRODUCT_BAND_ID,
+        )
+        .unwrap()
+        .remove(&1)
+        .unwrap();
+        assert_eq!(measured.flux_300_336_ph_m2_s, 0.0);
+        assert!(measured.uv_completion_model_id.is_empty());
+        assert_eq!(
+            measured.systematic_catalogue_correlated[0].uncertainty_ph_m2_s,
+            measured.flux_336_650_ph_m2_s * model.hp_zero_point_fraction
+        );
+        assert!(
+            measured.systematic_catalogue_correlated[0].uncertainty_ph_m2_s
+                < expected_combined_zero_point
+        );
+
+        let mut old_measured_only_model = model.clone();
+        old_measured_only_model.templates[0].wavelengths_m[0] = 301.0e-9;
+        old_measured_only_model
+            .validate_for_product_band(super::super::artifact::BRIGHT_STAR_PRODUCT_BAND_ID)
+            .unwrap();
+        assert!(old_measured_only_model
+            .validate_for_product_band(super::super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID)
+            .is_err());
 
         let unsupported = BTreeMap::from([(
             1,
@@ -338,11 +444,14 @@ mod tests {
                 radial_velocity_uncertainty_km_s: None,
             },
         )]);
-        assert!(
-            reconstruct_spectral_estimates(std::slice::from_ref(&hip), &unsupported, &model)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(reconstruct_spectral_estimates(
+            std::slice::from_ref(&hip),
+            &unsupported,
+            &model,
+            super::super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID,
+        )
+        .unwrap()
+        .is_empty());
         let missing = BTreeMap::from([(
             1,
             XhipRecord {
@@ -354,10 +463,13 @@ mod tests {
                 radial_velocity_uncertainty_km_s: None,
             },
         )]);
-        assert!(
-            reconstruct_spectral_estimates(std::slice::from_ref(&hip), &missing, &model)
-                .unwrap()
-                .is_empty()
-        );
+        assert!(reconstruct_spectral_estimates(
+            std::slice::from_ref(&hip),
+            &missing,
+            &model,
+            super::super::artifact::BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID,
+        )
+        .unwrap()
+        .is_empty());
     }
 }

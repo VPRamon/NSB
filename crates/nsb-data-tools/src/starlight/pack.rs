@@ -17,7 +17,7 @@ use std::path::PathBuf;
 pub const PACKER_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
 /// Frozen UV-v2 candidate SHA-256.
 pub const CANONICAL_CANDIDATE_SHA256: &str =
-    "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a";
+    "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
 
 /// SHA-256 of the minimal HEALPix anomaly regression fixture used to verify
 /// issue #116 diagnostic detection without retaining the historical 20 MB map.
@@ -34,7 +34,7 @@ pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH: &str =
 /// The pre-siderust handwritten nest2ring digest was
 /// `c87db972717959962ab590ce71eb90506cbfd73ccb108a3d3851a3e9ecff8f90`.
 pub const CANONICAL_RUNTIME_MAP_SHA256: &str =
-    "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b";
+    "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b";
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";
@@ -602,18 +602,12 @@ mod tests {
         let csv = dir.path().join("starlight_nside128.release.csv");
         let sidecar = dir.path().join("starlight_nside128.pack.toml");
         let production_sidecar = dir.path().join("starlight_nside128.manifest.toml");
-        let candidate_section = crate::starlight::promotion::CandidateSection {
-            status: crate::starlight::promotion::CandidateStatus::Pinned,
-            candidate_sha256: CANONICAL_CANDIDATE_SHA256.to_string(),
-            map_path: "crates/nsb/data/starlight_nside128.csv".into(),
-            map_schema: "nsb-healpix-starlight-candidate-v5".into(),
-            band: "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)".into(),
-            units: "ph_m-2_s-1".into(),
-            nside: 128,
-            ordering: "nested".into(),
-            gaia_release: "Gaia DR3".into(),
-            model_versions: BTreeMap::new(),
-        };
+        let release = crate::starlight::promotion::ReleaseCandidateManifest::load(
+            &root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
+        )
+        .unwrap();
+        let candidate_section = release.candidate;
+        assert!(candidate_section.bright_star_supplement.is_some());
         let headers = crate::starlight::promotion::runtime_admission_headers(&candidate_section);
         let outcome = pack_candidate_map(&PackInputs {
             candidate_map: candidate.clone(),
@@ -658,8 +652,26 @@ mod tests {
             );
         assert!(!looked.s10_diagnostics_provided);
         assert!(looked.statistical_uncertainty.is_some());
-        nsb::components::starlight::ValidatedStarlightMap::from_files(&csv, &production_sidecar)
-            .unwrap();
+        let validated = nsb::components::starlight::ValidatedStarlightMap::from_files(
+            &csv,
+            &production_sidecar,
+        )
+        .unwrap();
+        let bright_star = validated
+            .map()
+            .provenance()
+            .bright_star_supplement
+            .as_ref()
+            .expect("runtime map must expose canonical bright-star provenance");
+        assert_eq!(bright_star.inputs.len(), 34);
+        assert!(bright_star
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "CALSPEC-alpha_lyr_stis_012"));
+        assert!(bright_star
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "SVO-Hipparcos-Hp-Bessell2000"));
 
         let csv2 = dir.path().join("second.release.csv");
         let sidecar2 = dir.path().join("second.pack.toml");

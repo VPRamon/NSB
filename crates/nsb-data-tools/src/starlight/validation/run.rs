@@ -1,7 +1,6 @@
 //! Orchestration for `nsb-data dataset starlight validation run`.
 //!
-//! This never sets `scientifically_validated = true` and never fabricates a
-//! metric: when no acquired-and-transformed reference data is available for
+//! This never fabricates a metric: when no acquired-and-transformed reference data is available for
 //! a region, that region is simply absent from `reference_results`, and the
 //! overall run is reported with `technical_gates_passed = false`.
 
@@ -176,7 +175,7 @@ pub fn run(inputs: &RunInputs) -> Result<ValidationResults> {
                 .all(|status| status.status == "not-admissible");
         if all_acquired_not_admissible {
             technical_gate_failures.push(
-                "no_admissible_independent_reference: every acquired literature target is not admissible as a starlight-only TOA 300-650 nm comparison grid; this is human-review evidence for #103, not a software defect"
+                "no_admissible_independent_reference: every acquired literature target is not admissible as a starlight-only TOA 300-650 nm comparison grid; use the checksum-pinned cross-implementation validation route"
                     .to_string(),
             );
         } else {
@@ -219,12 +218,10 @@ pub fn run(inputs: &RunInputs) -> Result<ValidationResults> {
         reference_results,
         technical_gates_passed,
         technical_gate_failures,
-        scientific_review_status: "pending".to_string(),
-        scientifically_validated: false,
+        scientific_gate: "external_validation_required".to_string(),
         independent_reference_status,
-        notes: "Independent-validation technical audit for issue #102. Scientific approval is recorded only in issue #103 and is never inferred from this report.".to_string(),
+        notes: "Independent-validation technical audit for issue #102. Scientific production readiness is established separately by checksum-pinned external cross-validation.".to_string(),
     };
-    results.assert_never_scientifically_validated();
 
     write_outputs(&inputs.output, &results, inputs)?;
     Ok(results)
@@ -492,8 +489,7 @@ acquisition_notes = "requires manual literature request"
         let inputs = base_inputs(temp.path(), "pending-acquisition");
         let results = run(&inputs).unwrap();
         assert!(!results.technical_gates_passed);
-        assert!(!results.scientifically_validated);
-        assert_eq!(results.scientific_review_status, "pending");
+        assert_eq!(results.scientific_gate, "external_validation_required");
         assert!(results.reference_results.is_empty());
         assert!(results
             .technical_gate_failures
@@ -548,8 +544,7 @@ acquisition_notes = "requires manual literature request"
         // realistic (non-zero-residual) candidate; this fixture only checks
         // that metrics are computed at all once a transform exists, not that
         // this particular synthetic case clears every preregistered gate.
-        assert!(!results.scientifically_validated);
-        assert_eq!(results.scientific_review_status, "pending");
+        assert_eq!(results.scientific_gate, "external_validation_required");
     }
 
     #[test]

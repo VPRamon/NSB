@@ -161,7 +161,9 @@ def read_template(path, requested_logg):
             key=lambda name: abs(int(name[1:]) / 10 - requested_logg),
         )
         flux_si = np.asarray(hdus[1].data[gravity_name], dtype=float) * 1.0e7
-    mask = (wavelength_a >= 3000) & (wavelength_a <= 9000)
+    # Include the 2990 Å sample so the 300 nm Combined300To650 UV edge lies
+    # inside the template grid (CK04 synphot3 samples 2990 then 3010 Å).
+    mask = (wavelength_a >= 2990) & (wavelength_a <= 9000)
     wavelength_m = wavelength_a[mask] * 1.0e-10
     flux_si = flux_si[mask]
     if len(wavelength_m) < 2 or not np.all(np.diff(wavelength_m) > 0) or np.any(flux_si < 0):

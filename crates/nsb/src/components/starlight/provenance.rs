@@ -2,6 +2,54 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+/// Runtime-visible provenance for one checksum-pinned bright-star build input.
+pub struct StarlightBrightStarInputProvenance {
+    /// Stable role of the input in the supplement build.
+    pub role: String,
+    /// Stable source identity within that role.
+    pub source_id: String,
+    /// Release, retrieval epoch, or version identifier.
+    pub release: String,
+    /// SHA-256 of the exact input bytes or frozen query/config text.
+    pub sha256: String,
+    /// Retrieval or canonical source URL.
+    pub retrieval_url: String,
+    /// Licensing or terms URL governing this input.
+    pub license_or_terms_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+/// Runtime-visible provenance for an external very-bright-star supplement.
+pub struct StarlightBrightStarSupplementProvenance {
+    /// SHA-256 of the verified supplement artifact.
+    pub artifact_sha256: String,
+    /// Versioned supplement model identifier.
+    pub model_id: String,
+    /// Physical output-band contract.
+    pub product_band: String,
+    /// Versioned 300--336 nm completion model.
+    pub uv_completion_model_id: String,
+    /// Bright-star population-selection policy.
+    pub population_policy_id: String,
+    /// Gaia replacement and precedence policy.
+    pub precedence_policy_id: String,
+    /// Source commit that built the supplement artifact.
+    pub build_commit: String,
+    /// Human-readable measured and UV spectral lineage.
+    pub spectral_route: String,
+    /// Exact scope of redistributed derived data.
+    pub redistribution_scope: String,
+    /// Complete structured, checksum-pinned build-input provenance.
+    pub inputs: Vec<StarlightBrightStarInputProvenance>,
+    /// Backward-compatible textual identities derived from the structured inputs.
+    pub input_catalogues: Vec<String>,
+    /// Backward-compatible terms summaries derived from the structured inputs.
+    pub license_provenance: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 /// Provenance carried by every starlight map.
 pub struct StarlightProvenance {
     /// Human-readable dataset name.
@@ -42,6 +90,8 @@ pub struct StarlightProvenance {
     pub calibration_status: Option<String>,
     /// Independent comparison used to support calibration status.
     pub independent_comparison: Option<String>,
+    /// External bright-star lineage, when included in the map.
+    pub bright_star_supplement: Option<StarlightBrightStarSupplementProvenance>,
 }
 
 impl StarlightProvenance {
@@ -78,6 +128,7 @@ impl StarlightProvenance {
             validation_report: None,
             calibration_status: None,
             independent_comparison: None,
+            bright_star_supplement: None,
         }
     }
 
@@ -175,6 +226,9 @@ impl StarlightProvenance {
                 .get("independent_comparison")
                 .cloned()
                 .or(fallback.independent_comparison),
+            // Structured supplement provenance is supplied by the validated
+            // sidecar; flat CSV headers are checked against it before parsing.
+            bright_star_supplement: fallback.bright_star_supplement,
         }
     }
 }
@@ -204,6 +258,7 @@ pub(super) mod test_support {
             validation_report: Some("test-only".to_string()),
             calibration_status: Some("experimental".to_string()),
             independent_comparison: None,
+            bright_star_supplement: None,
         }
     }
 }

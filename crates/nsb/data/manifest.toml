@@ -66,8 +66,8 @@ runtime_embedded = true
 
 [[assets]]
 path = "merge_report.json"
-schema = "nsb-starlight-merge-report-v5"
-sha256 = "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9"
+schema = "nsb-starlight-merge-report-v9"
+sha256 = "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
 source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
@@ -79,8 +79,8 @@ runtime_embedded = false
 [[assets]]
 path = "starlight_nside128.csv"
 schema = "nsb-healpix-starlight-candidate-v5"
-sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
 generator = "nsb-data dataset pipeline"
 generation_command = "nsb-data dataset <dataset> publish --config <run.toml>"
@@ -116,29 +116,29 @@ runtime_embedded = true
 [[assets]]
 path = "starlight_nside128.release.csv"
 schema = "nsb-healpix-starlight-v2"
-sha256 = "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b"
+sha256 = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
-license = "Gaia data licence: CC BY-NC 3.0 IGO"
-generator = "nsb-data dataset starlight promote"
-generation_command = "nsb-data dataset starlight promote --apply"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
+license = "Staged derived runtime asset; redistribution decision pending under issue #103. Detailed upstream licence provenance is carried by the schema-v2 sidecar."
+generator = "nsb-data dataset starlight stage-runtime"
+generation_command = "nsb-data dataset starlight stage-runtime --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
-calibration_status = "production"
-runtime_embedded = true
+calibration_status = "candidate"
+runtime_embedded = false
 
 [[assets]]
 path = "starlight_nside128.manifest.toml"
-schema = "nsb-starlight-runtime-manifest-v1"
-sha256 = "735be03e50bfe1f47254c46d0fc1c124912e285cac5e283dd8a06449c1ca2144"
+schema = "nsb-starlight-runtime-manifest-v2"
+sha256 = "b8d362b166ef15fedf6fc0b6875710d859cb11facc1507d43f119310053b17cd"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"
-source = "Gaia DR3 GaiaSource and XP continuous bulk distributions"
-license = "Gaia data licence: CC BY-NC 3.0 IGO"
-generator = "nsb-data dataset starlight promote"
-generation_command = "nsb-data dataset starlight promote --apply"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
+license = "Staged derived runtime provenance; redistribution decision pending under issue #103. Full bright-star source/release/checksum/retrieval/terms provenance is recorded in [[bright_star_supplement.inputs]]."
+generator = "nsb-data dataset starlight stage-runtime"
+generation_command = "nsb-data dataset starlight stage-runtime --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
-calibration_status = "production"
-runtime_embedded = true
+calibration_status = "candidate"
+runtime_embedded = false

@@ -1,7 +1,7 @@
 //! Reproducible orchestration for the external bright-star experiment.
 
 use super::artifact::{BrightStarInputProvenance, BrightStarInputRole};
-use super::builder::{build_experimental_artifact, BrightStarBuildDiagnostics};
+use super::builder::BrightStarBuildDiagnostics;
 use super::catalogue::{
     ingest_gaia_quality_extract, ingest_hip_gaia_crossmatch, ingest_hipparcos2, ingest_tycho2,
     ingest_xhip, PinnedCatalogueInput, Tycho2Photometry,
@@ -25,6 +25,9 @@ pub struct BrightStarBuildRunConfig {
     pub config_release: String,
     pub config_retrieval_url: String,
     pub config_terms_url: String,
+    /// Target product band for the emitted artifact. Defaults to measured-336-650.
+    #[serde(default = "default_bright_star_product_band")]
+    pub product_band: String,
     pub hipparcos2: PinnedCatalogueInput,
     pub tycho2: Vec<PinnedCatalogueInput>,
     pub xhip: PinnedCatalogueInput,
@@ -36,6 +39,10 @@ pub struct BrightStarBuildRunConfig {
     pub spectral_model_provenance: BrightStarInputProvenance,
     #[serde(default)]
     pub additional_checksum_pinned_inputs: Vec<PinnedCatalogueInput>,
+}
+
+fn default_bright_star_product_band() -> String {
+    super::artifact::BRIGHT_STAR_PRODUCT_BAND_ID.to_string()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -124,6 +131,7 @@ pub(crate) fn run_experimental_build_at_commit(
     let spectral_model = load_spectral_reconstruction_model(
         &config.spectral_model_path,
         &config.spectral_model_sha256,
+        &config.product_band,
     )?;
     let unsupported_spectral_codes = spectral_model
         .unsupported_assignments
@@ -135,7 +143,8 @@ pub(crate) fn run_experimental_build_at_commit(
             )
         })
         .collect::<BTreeSet<_>>();
-    let spectra = reconstruct_spectral_estimates(&hipparcos, &xhip, &spectral_model)?;
+    let spectra =
+        reconstruct_spectral_estimates(&hipparcos, &xhip, &spectral_model, &config.product_band)?;
 
     let mut inputs = vec![
         config.hipparcos2.provenance.clone(),
@@ -159,7 +168,7 @@ pub(crate) fn run_experimental_build_at_commit(
         inputs.push(input.provenance.clone());
     }
     inputs.sort_by(|a, b| a.role.cmp(&b.role).then(a.source_id.cmp(&b.source_id)));
-    let (artifact, diagnostics) = build_experimental_artifact(
+    let (artifact, diagnostics) = super::builder::build_experimental_artifact_for_product_band(
         config.nside,
         build_commit,
         inputs.clone(),
@@ -174,6 +183,7 @@ pub(crate) fn run_experimental_build_at_commit(
         &unsupported_spectral_codes,
         BrightStarPopulationPolicy::v1(),
         BrightStarPrecedencePolicy::v1(),
+        &config.product_band,
     )?;
 
     fs::create_dir_all(output_directory)?;

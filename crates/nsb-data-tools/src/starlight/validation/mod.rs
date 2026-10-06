@@ -5,10 +5,9 @@
 //! pixel-center geometry so that a bug shared between the production writer
 //! and its validator cannot hide from either.
 //!
-//! Nothing in this module may ever set `scientifically_validated = true`.
-//! Human scientific approval of a specific checksum is recorded only in
-//! issue #103; this pipeline only produces technical evidence and a pending
-//! review template for that decision.
+//! This literature-audit route produces technical evidence. Scientific
+//! production readiness is established by the separately checksum-pinned
+//! external cross-validation artifact.
 
 pub mod acquire;
 pub mod candidate_map;

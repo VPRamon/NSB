@@ -30,6 +30,48 @@ fn assert_close(actual: f64, expected: f64, label: &str) {
     );
 }
 
+#[test]
+fn canonical_candidate_contains_covariance_corrected_bright_star_uncertainties() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let candidate = candidate_map::load(
+        &root.join("crates/nsb/data/starlight_nside128.csv"),
+        NSIDE,
+        Some(CANONICAL_CANDIDATE_SHA256),
+    )
+    .expect("load covariance-corrected candidate");
+    let bright_pixel = candidate.pixels.get(&19_406).expect("bright-star pixel");
+    assert_close(
+        bright_pixel.statistical_uncertainty_ph_m2_s,
+        7.950_509_995_238_292e6,
+        "covariance-corrected bright-star statistical uncertainty",
+    );
+    assert_close(
+        bright_pixel.systematic_uncertainty_ph_m2_s,
+        4.610_381_114_598_005e8,
+        "covariance-corrected bright-star systematic uncertainty",
+    );
+
+    let report: serde_json::Value = serde_json::from_slice(
+        &fs::read(root.join("crates/nsb/data/merge_report.json")).expect("read merge report"),
+    )
+    .expect("parse merge report");
+    assert_eq!(
+        report["bright_star_supplement"]["artifact_sha256"].as_str(),
+        Some("dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017")
+    );
+    assert_eq!(
+        report["source_record_accounting"]["admitted_supplement_records"].as_u64(),
+        Some(55)
+    );
+    assert_close(
+        report["band_diagnostics"]["statistical_uncertainty_300_650_ph_m2_s"]
+            .as_f64()
+            .expect("combined statistical uncertainty"),
+        1_609_259_233.708_266_7,
+        "combined covariance-corrected statistical uncertainty",
+    );
+}
+
 /// Independent integer NESTED -> RING reference path.
 ///
 /// This follows the standard HEALPix face/x/y conversion used by the

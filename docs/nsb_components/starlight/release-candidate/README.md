@@ -1,151 +1,85 @@
 # Starlight release-candidate bundle and promotion mechanism (#102)
 
-Status: Current fail-closed bundle for the frozen UV-v2 candidate.
-Audience: Maintainers running `nsb-data dataset starlight promote`,
-GitHub Actions `starlight-final-promotion.yml`, and human reviewers on
-issue #103.
-Scope: Checksum-pinned candidate, packed runtime contract, and post-approval
-automation. Human scientific and redistribution approval stay on #103.
-Non-goals: This directory does not approve, regenerate, or rewrite the
-candidate map. Promotion after valid #103 decisions is automated by
-`.github/workflows/starlight-final-promotion.yml`.
+Status: Current fail-closed bundle for the frozen combined 300–650 nm candidate.
+
+Scientific production readiness is machine-verifiable: the exact candidate,
+technical validation, external cross-implementation validation, provenance,
+and green CI are checksum-pinned. A separate manual scientific signature is
+not required. Redistribution/licensing remains a distinct human/legal gate in
+issue #103 and is not approved by this bundle.
 
 ## Files
 
 | File | Role |
 |---|---|
-| `release-candidate-v1.toml` | Frozen candidate identity (checksum, schema, band, units, resolution, Gaia release, model versions) plus the fail-closed gate table (`gates.validation_status`, `gates.scientific_review_status`, `gates.redistribution_review_status`, `gates.promotion_eligible`). Cryptographically pinned inside `review-bundle-v1.toml`. |
-| `scientific-review-decision-v1.json` | The ONLY authoritative human scientific decision owned by #103. Currently `"decision": "pending"`. |
-| `redistribution-review-decision-v1.json` | The ONLY authoritative human redistribution decision owned by #103. Promotion and licensing checks consume this same file; currently `"decision": "pending"`. |
-| `runtime-assets-v1.toml` | Frozen identity record for deterministic packed runtime map + runtime sidecar checksums reviewed in #103. Must agree semantically with `release-candidate-v1.toml`. |
-| `review-bundle-v1.toml` | Immutable human-review evidence list. Both decision templates pin this file's exact SHA-256. |
+| `release-candidate-v1.toml` | Frozen candidate identity, deterministic RFC3339 generation timestamp, checksum pin for the canonical merge report, complete bright-star provenance copied from that report, technical status, external-validation pin, and runtime identities. |
+| `redistribution-review-decision-v1.json` | The sole authoritative human redistribution decision. It remains `pending`. |
+| `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v2 provenance sidecar identities. |
+| `review-bundle-v1.toml` | Immutable release evidence pinned by the redistribution decision. |
 
-## The `nsb-starlight-release-candidate-v1` schema
+The release-candidate gate table contains `validation_status`,
+`redistribution_review_status`, and the report-only `promotion_eligible` field.
+Scientific readiness is derived from the checksum-pinned external validation;
+there is no `scientific_review_status` or scientific decision template.
 
-```toml
-schema_version = 1
-schema = "nsb-starlight-release-candidate-v1"
+## Deterministic runtime staging
 
-[candidate]
-status = "pinned" # or "awaiting_regeneration"
-candidate_sha256 = "<64-hex sha256 of the exact candidate map bytes>"
-map_path = "<repository-relative path to the candidate map>"
-map_schema = "<map schema id, e.g. nsb-healpix-starlight-candidate-v5>"
-band = "<passband definition>"
-units = "<flux unit>"
-nside = 128
-ordering = "nested" # or "ring"
-gaia_release = "<Gaia data release>"
+Runtime assets can be generated and reviewed without granting redistribution:
 
-[candidate.model_versions]
-# free-form key/value pairs identifying every model/artifact version that
-# produced the candidate (UV correction, photometry model, etc.)
-
-[gates]
-validation_status = "technical_pass" # or "pending_regeneration"
-scientific_review_status = "pending" # | "approved" | "approved_with_conditions" | "rejected"
-redistribution_review_status = "pending" # | "approved" | "approved_with_conditions" | "rejected"
-promotion_eligible = false
-
-[review_artifacts]
-inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
-inventory_sha256 = "<sha256 of that inventory file>"
-gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
-gates_report_sha256 = "<sha256 of that gates report>"
-licensing_decision_path = "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"
-runtime_map_path = "crates/nsb/data/starlight_nside128.release.csv"
-runtime_map_sha256 = "<sha256 of deterministic packed runtime map bytes>"
-runtime_sidecar_path = "crates/nsb/data/starlight_nside128.manifest.toml"
-runtime_sidecar_sha256 = "<sha256 of deterministic runtime sidecar bytes>"
-
-notes = "<free text; must document any invalidation or regeneration dependency>"
+```bash
+nsb-data dataset starlight stage-runtime \
+  --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+  --repository-root . \
+  --output-csv crates/nsb/data/starlight_nside128.release.csv \
+  --output-sidecar crates/nsb/data/starlight_nside128.manifest.toml
 ```
 
-`deny_unknown_fields` applies to every table (see
-`crates/nsb-data-tools/src/starlight/promotion.rs`). `gates.promotion_eligible`
-is report-only. Eligibility is derived from frozen CI gates, packed runtime
-verification, and the two signed human decisions owned by issue #103.
+This command verifies the pinned candidate bytes and checksum-pinned merge
+report, requires the release-candidate bright-star structure to match the
+canonical merge-report provenance exactly, validates the frozen RFC3339
+generation timestamp, packs NESTED candidate pixels into the RING runtime
+format, and writes the complete 34-input bright-star provenance into the
+schema-v2 sidecar. Gaia and Hipparcos/XHIP/CK04 UV routes remain distinct. It
+does not inspect or change the redistribution decision and does not mutate the
+asset registry. Repeated staging from the same frozen evidence is byte-identical.
 
-## The `dataset starlight promote` command
+## Final promotion
 
 ```bash
 nsb-data dataset starlight promote \
   --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
-  --scientific-decision docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json \
   --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
   --repository-root . \
   --output target/starlight-promotion/production-manifest-draft.toml
 ```
 
-The command:
+Promotion fails closed unless all of the following agree:
 
-1. Parses and structurally validates the release-candidate manifest and both
-   decision files (schema versions, required non-placeholder fields).
-2. Recomputes the SHA-256 of the map file at `candidate.map_path` (resolved
-   under `--repository-root`) and requires it to match `candidate_sha256`
-   byte-for-byte.
-3. Cross-checks the repository's `crates/nsb/data/manifest.toml` registry
-   entry for that path against the release candidate's pinned schema and
-   checksum, to catch registry/candidate drift or tampering.
-4. Requires `candidate.status == "pinned"` and
-   `gates.validation_status == "technical_pass"`; otherwise it fails closed.
-   It also checksum-verifies the frozen `release-candidate-gates-v1.json`
-   (`passed = true`, `commit_sha` set, required jobs including `cargo deny`
-   executed). It packs a runtime RING HEALPix map from the candidate-v5
-   file without rewriting candidate bytes, and runs
-   `RedistributionReview::require_approved` on the pinned inventory +
-   licensing decision. Human `pending` decisions fail closed.
-5. Requires both decisions to be `approved` (or `approved_with_conditions`
-   with at least one recorded condition), each with a non-placeholder
-   reviewer name, reviewer role, RFC 3339 review timestamp, and a
-   `candidate_sha256` pin that matches the release candidate exactly.
-6. Verifies the generated packed runtime map and generated runtime sidecar
-   checksums against `review_artifacts.runtime_map_sha256` and
-   `review_artifacts.runtime_sidecar_sha256` unconditionally.
-7. TOML `scientific_review_status` / `redistribution_review_status` /
-   `promotion_eligible` fields are not a second kill switch; signed
-   decision files are authoritative.
-8. Only if every check above passes does it render a **draft** production
-   `manifest.toml` fragment (new packed `nsb-healpix-starlight-v2` map entry
-   plus runtime sidecar, both `calibration_status = "production"` and
-   `runtime_embedded = true`) to `--output` (or stdout). Pass `--apply` to
-   write packed assets and registry entries. Candidate map bytes are never
-   rewritten. `.github/workflows/starlight-final-promotion.yml` opens the
-   promotion PR after those steps and a re-run of the required gate matrix.
+1. The pinned candidate bytes, checksum-pinned merge report, deterministic
+   generation timestamp, exact canonical bright-star provenance, and repository
+   registry entry.
+2. The technical validation and a real frozen green GitHub Actions run.
+3. The checksum-pinned external validation using the registered validator and
+   `nsb2` reference commits.
+4. The deterministic runtime map and schema-v2 sidecar checksums.
+5. The immutable review bundle and an authorized redistribution decision with
+   reviewer identity, timestamp, candidate pin, inventory pin, and structured
+   machine-verifiable conditions.
 
-Any failure — pending or rejected decision, wrong or tampered checksum,
-missing reviewer identity, or mismatched candidate pin — exits non-zero
-with a specific message and writes nothing. See
-`crates/nsb-data-tools/src/starlight/promotion.rs` for the fail-closed test
-matrix, exercised only against clearly synthetic fixtures.
+`promotion_eligible` and the TOML redistribution status are report snapshots;
+the signed redistribution decision is authoritative. Passing scientific and
+technical gates never implies redistribution approval.
 
-## Runtime gate (already enforced on `main`)
+## Runtime gate
 
-`crates/nsb::StarlightModel::BundledProductionGaiaDr3` and
-`ComponentMask::ALL` already implement the fail-closed production gate:
-
-- `Starlight::bundled_production_model()` only succeeds when
-  `crates/nsb/build.rs` finds a registered `nsb-healpix-starlight-v2` +
-  `nsb-starlight-runtime-manifest-v1` production pair in
-  `crates/nsb/data/manifest.toml` (see
-  `crates/nsb/src/components/starlight/model.rs`); otherwise it returns
-  `NsbError::DataMissing` with no silent experimental fallback.
-- `ComponentMask::ALL` (and its `DEFAULT` alias) includes `STARLIGHT` only
-  under `cfg(nsb_bundled_production_starlight)`, which is not set while no
-  production pair is registered.
-- `crates/nsb-cli`'s `--components starlight` production selection always
-  calls `StarlightModel::bundled_production_gaia_dr3()` explicitly; missing
-  production evidence is an error.
-
-The final-promotion workflow, after valid #103 signatures, registers that
-production pair. The runtime gate then opens with no further runtime code
-changes.
+`StarlightModel::BundledProductionGaiaDr3` and `ComponentMask::ALL` remain
+fail-closed. The build only enables bundled production Starlight when a
+registered `nsb-healpix-starlight-v2` map and
+`nsb-starlight-runtime-manifest-v2` sidecar pass checksum and provenance
+validation. Malformed or incomplete v2 provenance is rejected.
 
 ## Related issues
 
-- #103 — final human scientific and redistribution approval (owns both
-  decision files)
-- #102 — technical packing, eligibility derivation, and promotion
-  automation (this bundle)
-- #94 — historical uncertainty-scale invalidation of the #93 candidate;
-  the UV-v2 candidate is already pinned
+- #207 — final combined-band candidate and bright-star supplement.
+- #103 — the remaining human/legal redistribution decision.
+- #102 — technical packing, validation, and promotion automation.

@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "validation_id": "issue-207-nsb2-cross-implementation-v1",
+  "status": "passed",
+  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+  "scientific_scope": "Cross-implementation validation of Galactic direct stellar photon radiance over 300-650 nm. This is validation evidence, not astrophysical ground truth; both implementations share Gaia ancestry.",
+  "validator": {
+    "repository": "VPRamon/nsb-validation",
+    "commit": "193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae",
+    "config": "configs/starlight-nsb2-issue207.toml",
+    "metrics_sha256": "2bc1f53f29cde58bdae1a3001b491123fcc9495d70602fbc873e5dbde1b49c4a",
+    "run_manifest_sha256": "230621a0d9693745d55beadecc9904d5b0153cec55240589ed60966c959ca071",
+    "nsb_commit": "a2cdf44d8d0a235092ecdfe24919b429fcb6ec29"
+  },
+  "reference": {
+    "implementation": "GerritRo/nsb2",
+    "commit": "bc9320db03fbff69997ce366c6e76a37339c5d00",
+    "reference_map_sha256": "f21518839a03eea89ed9ee6fca4cd34600eac11fa45b154de045087c9e2cd69e",
+    "reference_component_sha256": {
+      "gaia_dr3_bright": "ad39d417dc3cb109eb902c17e8fb9299a1b3571a18fa0e57aa713ae25413a021",
+      "gaia_dr3_faint_map": "fc5d1d21c84aea6eba8296c44ade6bdff2a056a307876e75be6916895a672793",
+      "xhip_gaia_supplement": "afa8e38622492307cd6a64eaa5bef3f603331034393414f8f5c93efe0f71bf96"
+    },
+    "limitations": [
+      "nsb2 uses Pickles-template photometric inference while NSB preferentially uses Gaia XP and a separate UV correction.",
+      "The reference is not an independent observational truth surface.",
+      "Residual smooth normalization differences must not be removed by tuning NSB to nsb2."
+    ]
+  },
+  "acceptance_criteria": {
+    "absolute_integrated_relative_bias_max": 0.25,
+    "global_pixel_correlation_min": 0.9,
+    "correlation_excluding_brightest_1_percent_min": 0.9,
+    "reference_selected_top_0_1_percent_flux_ratio_min": 0.5,
+    "rationale": "Issue #182 established an understood approximately 18 percent Gaia-only normalization difference and identified the missing very-bright-star route as the correlation/tail defect. These bounds reject recurrence of either defect without requiring pixel-perfect agreement between different spectral models."
+  },
+  "results": {
+    "integrated_relative_bias": -0.19075025789403222,
+    "global_pixel_correlation": 0.9400633233044149,
+    "correlation_excluding_brightest_1_percent": 0.9357802573487137,
+    "reference_selected_top_0_1_percent_flux_ratio": 0.630346426354146,
+    "candidate_selected_top_0_1_percent_flux_ratio": 0.8365104735342083,
+    "median_absolute_relative_error": 0.054759034995909686,
+    "brightness_bin_flux_ratios": {
+      "0-50%": 0.9109385474870102,
+      "50-90%": 0.8486047292608757,
+      "90-99%": 0.7853766554400263,
+      "99-99.9%": 0.7683830949130599,
+      "top_0.1%": 0.630346426354146
+    },
+    "galactic_region_integrated_relative_bias": {
+      "galactic_plane": -0.19716146341164498,
+      "crowded_inner_plane": -0.1111981046856988,
+      "galactic_centre_20deg": -0.15286942405781723,
+      "high_galactic_latitude": -0.1907187415863828,
+      "north_galactic_pole": -0.3028342598679985,
+      "south_galactic_pole": -0.1887975135493366,
+      "longitude_seam": -0.16171962527700356
+    }
+  },
+  "old_vs_new": {
+    "old_candidate_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
+    "old_integrated_relative_bias": -0.24414886475198158,
+    "new_integrated_relative_bias": -0.19075025789403222,
+    "old_global_pixel_correlation": 0.22250962132571306,
+    "new_global_pixel_correlation": 0.9400633233044149,
+    "old_reference_selected_top_0_1_percent_flux_ratio": 0.12500413441582464,
+    "new_reference_selected_top_0_1_percent_flux_ratio": 0.630346426354146,
+    "interpretation": "The explicit bright-star supplement removes the spatial-correlation collapse and most extreme-tail defect. The remaining smooth approximately 19 percent deficit is consistent with the already isolated XP/Pickles, population, and faint-map model differences."
+  },
+  "passed": true
+}

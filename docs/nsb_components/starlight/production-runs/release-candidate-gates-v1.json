@@ -1,20 +1,23 @@
 {
   "schema_version": 1,
   "dataset": "starlight",
-  "status": "gates_passed",
+  "status": "gates_passed_ci_issue207",
   "passed": true,
   "blocking_issue": null,
-  "commit_sha": "4cfb7f539d53150ea9d251767e803c91e746c623",
-  "workflow_run_id": 32726699659,
-  "workflow_run_url": "https://github.com/VPRamon/NSB/actions/runs/32726699659",
+  "commit_sha": "4c2f84fc86c577ad421bc9dab4c8e137eb8fce4b",
+  "workflow_run_id": 37435549261,
+  "workflow_run_url": "https://github.com/VPRamon/NSB/actions/runs/37435549261",
+  "workflow_head_sha": "4c2f84fc86c577ad421bc9dab4c8e137eb8fce4b",
+  "workflow_conclusion": "success",
+  "workflow_event": "pull_request",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
-  "candidate_sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
+  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
   "merge_report_path": "crates/nsb/data/merge_report.json",
-  "merge_report_sha256": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9",
-  "config_path": "crates/nsb-data-tools/config/starlight-production-300-650.ladon.toml",
-  "config_sha256": "b0c4e9c3f60f1e6bb2ea63b1c888523095618e789d40dc231e63bab7b6f564c3",
+  "merge_report_sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
+  "config_path": "crates/nsb-data-tools/config/starlight-production-300-650-issue207.ladon.toml",
+  "config_sha256": "f0b7f2c9d9f00ae8e3769cb106543cf826b410abb12dc627024119249c0db9bf",
   "manifest_path": "crates/nsb/data/manifest.toml",
-  "manifest_sha256": "c3cd9b4aabe1862bfae35d0e93a1878b75cd8afbc9036127838abc55db710bbe",
+  "manifest_sha256": "5cf8c358bf5dc84b9adaaccc30b30be390c55d6ee56e9a039f58bbdd4ddb41da",
   "photometric_inference_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
   "selection_function_artifact_sha256": "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711",
   "uv_correction_artifact": "calspec-linear-log-ratio-v2",
@@ -96,7 +99,7 @@
       "command": "cargo deny check",
       "status": "passed",
       "ci_job": "Dependency policy",
-      "detail": "Executed on GitHub Actions via EmbarkStudios/cargo-deny-action@v2 in workflow run 32726699659"
+      "detail": "Executed on GitHub Actions via EmbarkStudios/cargo-deny-action@v2 in workflow run 37435549261"
     },
     {
       "name": "msrv",
@@ -108,7 +111,26 @@
       "name": "dataset_starlight_validate",
       "command": "nsb-data dataset starlight validate (Ladon workspace starlight-production-300-650)",
       "status": "passed",
-      "detail": "includes uncertainty-scale-plausible; pixel_relative_p50=0.243; fraction_gt_1=0"
+      "detail": "checksum-pinned report 97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399; source accounting and flux conservation passed"
+    },
+    {
+      "name": "coverage",
+      "command": "cargo llvm-cov plus scripts/coverage-gate.sh overall and diff",
+      "status": "passed",
+      "ci_job": "Test and coverage",
+      "detail": "workspace 86.37%; nsb 92.26%; changed production lines 90.62% (1101/1215; floor 90.00%)"
+    },
+    {
+      "name": "public_api",
+      "command": "scripts/check-public-api.sh",
+      "status": "passed",
+      "ci_job": "Public API policy"
+    },
+    {
+      "name": "python_wheels",
+      "command": "build and test abi3 wheels",
+      "status": "passed",
+      "ci_job": "Python abi3 wheel (ubuntu-latest, macos-14, windows-latest)"
     }
   ],
   "starlight_suites": [
@@ -123,6 +145,6 @@
   "documentation_audit_reference": "docs/nsb_components/starlight/production-runs/documentation-wording-audit-v1.md",
   "promotion_workflow": ".github/workflows/starlight-final-promotion.yml",
   "evidence_class": "candidate_generation_ci",
-  "evidence_pr": 101,
-  "notes": "Candidate-generation evidence updated by PR #117 (#116): full 3386-partition Ladon rebuild with XP-anchored photometric artifact (02a6e5c9\u2026), corrected HEALPix topology, and ICRS\u2192Galactic accumulation. Human #103 review remains pending."
+  "evidence_pr": 211,
+  "notes": "Frozen after the fully green pull-request CI run for the issue #207 release-boundary changes. Runtime bytes remain checksum-staged as non-embedded candidates while redistribution is pending; this report binds the tested code/data commit, and a following evidence-only commit repins its checksum without changing scientific or runtime bytes."
 }

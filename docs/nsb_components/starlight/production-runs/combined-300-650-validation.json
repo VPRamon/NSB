@@ -6,7 +6,7 @@
     {
       "name": "checksum:merge_report.json",
       "passed": true,
-      "detail": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9"
+      "detail": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
     },
     {
       "name": "format:merge_report.json",
@@ -16,7 +16,7 @@
     {
       "name": "checksum:starlight_nside128.csv",
       "passed": true,
-      "detail": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+      "detail": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
     },
     {
       "name": "format:starlight_nside128.csv",
@@ -26,7 +26,7 @@
     {
       "name": "canonical-map-integrity",
       "passed": true,
-      "detail": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+      "detail": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
     },
     {
       "name": "canonical-map-cardinality",
@@ -36,7 +36,7 @@
     {
       "name": "canonical-map-flux",
       "passed": true,
-      "detail": "8.00897595172122700e15 ph_m-2_s-1"
+      "detail": "9.59596422980584961e12 ph_m-2_s-1"
     },
     {
       "name": "pixel-coverage-galactic-plane",
@@ -46,7 +46,7 @@
     {
       "name": "population-accounting",
       "passed": true,
-      "detail": "1520028984 admitted + 291680787 excluded = 1811709771 observed"
+      "detail": "1518801751 admitted + 292908075 excluded = 1811709826 observed"
     },
     {
       "name": "declared-science-policy",
@@ -56,7 +56,7 @@
     {
       "name": "deterministic-independent-partial-merge",
       "passed": true,
-      "detail": "algorithm=complete-partition-shard-v1 pixels=196608 canonical=784fd84dc08eeedf6384a19c9492f728e7159d5eb7102c234924a4abbd45aedc partial=784fd84dc08eeedf6384a19c9492f728e7159d5eb7102c234924a4abbd45aedc key_mismatches=0 flux_mismatches=0 uncertainty_mismatches=0 source_counter_mismatches=0 exclusion_reason_mismatches=0"
+      "detail": "algorithm=complete-partition-shard-v1 pixels=196608 canonical=ec7749cc677eb42bec85d95e25fe8a42396dd18f86ee836848870511a46475d1 partial=ec7749cc677eb42bec85d95e25fe8a42396dd18f86ee836848870511a46475d1 key_mismatches=0 flux_mismatches=0 uncertainty_mismatches=0 source_counter_mismatches=0 exclusion_reason_mismatches=0"
     },
     {
       "name": "uncertainty-budget-total-column",
@@ -66,12 +66,12 @@
     {
       "name": "uncertainty-interval-coverage-declared",
       "passed": true,
-      "detail": "statistical_300_650=3.19181661632657568e12; systematic_300_650=1.58984238896005438e14; map_total_column=true"
+      "detail": "statistical_300_650=1.60925923370826674e9; systematic_300_650=1.78627384797154327e11; map_total_column=true"
     },
     {
       "name": "uncertainty-scale-plausible",
       "passed": true,
-      "detail": "global_relative_total=0.269837; pixel_relative_p50=0.243131; fraction_gt_1=0.000000; fraction_gt_10=0.000000"
+      "detail": "global_relative_total=0.055840; pixel_relative_p50=0.033260; fraction_gt_1=0.000000; fraction_gt_10=0.000000"
     },
     {
       "name": "complete-artifact-set",
@@ -82,15 +82,15 @@
   "artifacts": [
     {
       "name": "merge_report.json",
-      "path": "crates/nsb/data/merge_report.json",
-      "sha256": "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9",
-      "bytes": 76231
+      "path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-issue207-bright-stars/outputs/merge_report.json",
+      "sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
+      "bytes": 91638
     },
     {
       "name": "starlight_nside128.csv",
-      "path": "crates/nsb/data/starlight_nside128.csv",
-      "sha256": "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a",
-      "bytes": 20394836
+      "path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-issue207-bright-stars/outputs/starlight_nside128.csv",
+      "sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+      "bytes": 20241161
     }
   ]
 }

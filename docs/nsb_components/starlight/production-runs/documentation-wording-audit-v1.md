@@ -1,8 +1,9 @@
 # Starlight documentation wording audit (v1)
 
 Status: One-time audit for issue #90, retained as historical evidence.
-The current remaining production blocker is issue #103 (human scientific and
-redistribution approval). Issue #47 is not the current final Starlight gate.
+The current remaining non-scientific release blocker is issue #103
+(redistribution/licensing approval). Scientific readiness is established by
+the checksum-pinned external validation; issue #47 is not the final gate.
 
 Scope: `docs/nsb_components/starlight/**/*.md` and Starlight source under
 `crates/nsb-data-tools/src/starlight/**/*.rs` and

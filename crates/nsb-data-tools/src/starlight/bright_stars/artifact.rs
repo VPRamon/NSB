@@ -11,8 +11,32 @@ use std::fs;
 use std::path::Path;
 
 pub const BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION: u32 = 1;
+pub const BRIGHT_STAR_COMBINED_ARTIFACT_SCHEMA_VERSION: u32 = 2;
 pub const BRIGHT_STAR_MODEL_ID: &str = "starlight-bright-stars-v1";
+pub const BRIGHT_STAR_COMBINED_MODEL_ID: &str = "starlight-bright-stars-combined-v1";
 pub const BRIGHT_STAR_PRODUCT_BAND_ID: &str = "measured-336-650";
+pub const BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID: &str = "combined-300-650";
+
+/// Return true when a bright-star artifact product band may enter the given
+/// Starlight production product.
+pub fn artifact_compatible_with_product_band(
+    artifact_product_band: &str,
+    product_band: crate::starlight::config::StarlightProductBand,
+) -> bool {
+    use crate::starlight::config::StarlightProductBand;
+    match product_band {
+        StarlightProductBand::Measured336To650 => {
+            artifact_product_band == BRIGHT_STAR_PRODUCT_BAND_ID
+        }
+        StarlightProductBand::Combined300To650 => {
+            artifact_product_band == BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID
+        }
+    }
+}
+
+pub fn is_combined_product_band(product_band: &str) -> bool {
+    product_band == BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -55,12 +79,62 @@ pub struct BrightStarSourceRecord {
     pub gaia_source_id: Option<u64>,
     pub ra_deg_j2016: f64,
     pub dec_deg_j2016: f64,
+    /// Justified 300--336 nm contribution. Required and strictly positive for
+    /// admitted sources in a Combined300To650 artifact; absent for measured-only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flux_300_336_ph_m2_s: Option<f64>,
     pub flux_336_650_ph_m2_s: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub statistical_uncertainty_300_336_ph_m2_s: Option<f64>,
     pub statistical_uncertainty_ph_m2_s: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub systematic_independent_uncertainty_300_336_ph_m2_s: Option<f64>,
     pub systematic_independent_uncertainty_ph_m2_s: f64,
     pub systematic_catalogue_correlated: Vec<CorrelatedUncertainty>,
     pub spectral_route: String,
+    /// CK04 Hp-scaled UV completion model id when a 300--336 nm term is present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uv_completion_model_id: Option<String>,
     pub classification_reason: String,
+}
+
+impl BrightStarSourceRecord {
+    pub fn selected_flux_ph_m2_s(&self, combined: bool) -> Result<f64> {
+        if !combined {
+            return Ok(self.flux_336_650_ph_m2_s);
+        }
+        let uv = self
+            .flux_300_336_ph_m2_s
+            .context("combined bright-star source missing 300-336 nm flux")?;
+        Ok(uv + self.flux_336_650_ph_m2_s)
+    }
+
+    pub fn selected_statistical_uncertainty_ph_m2_s(&self, combined: bool) -> Result<f64> {
+        if !combined {
+            return Ok(self.statistical_uncertainty_ph_m2_s);
+        }
+        let uv = self
+            .statistical_uncertainty_300_336_ph_m2_s
+            .context("combined bright-star source missing 300-336 nm statistical uncertainty")?;
+        // The UV and measured terms share the same source-level Hp scale
+        // uncertainty. Add them linearly across bands; different sources are
+        // still combined in quadrature by the pixel accumulator.
+        Ok(uv + self.statistical_uncertainty_ph_m2_s)
+    }
+
+    pub fn selected_independent_systematic_ph_m2_s(&self, combined: bool) -> Result<f64> {
+        if !combined {
+            return Ok(self.systematic_independent_uncertainty_ph_m2_s);
+        }
+        let uv = self
+            .systematic_independent_uncertainty_300_336_ph_m2_s
+            .context(
+                "combined bright-star source missing 300-336 nm independent systematic uncertainty",
+            )?;
+        // "independent" describes independence between sources, not between
+        // the two bands reconstructed from one shared template scale.
+        Ok(uv + self.systematic_independent_uncertainty_ph_m2_s)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -84,16 +158,33 @@ pub struct BrightStarPixel {
 pub struct BrightStarSupplementProvenance {
     pub artifact_sha256: String,
     pub model_id: String,
+    pub product_band: String,
+    pub uv_completion_model_id: Option<String>,
     pub population_policy_id: String,
     pub precedence_policy_id: String,
     pub build_commit: String,
+    pub spectral_route: String,
+    pub redistribution_scope: String,
+    pub inputs: Vec<BrightStarInputProvenance>,
 }
 
 impl BrightStarSupplementProvenance {
     pub fn validate(&self) -> Result<()> {
         validate_sha256(&self.artifact_sha256, "bright-star artifact_sha256")?;
-        if self.model_id != BRIGHT_STAR_MODEL_ID {
-            bail!("bright-star supplement provenance model_id must be {BRIGHT_STAR_MODEL_ID}");
+        if self.model_id != BRIGHT_STAR_MODEL_ID && self.model_id != BRIGHT_STAR_COMBINED_MODEL_ID {
+            bail!(
+                "bright-star supplement provenance model_id must be {BRIGHT_STAR_MODEL_ID} or {BRIGHT_STAR_COMBINED_MODEL_ID}"
+            );
+        }
+        let combined = self.model_id == BRIGHT_STAR_COMBINED_MODEL_ID;
+        if (combined && self.product_band != BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID)
+            || (!combined && self.product_band != BRIGHT_STAR_PRODUCT_BAND_ID)
+            || (combined
+                && self.uv_completion_model_id.as_deref()
+                    != Some(super::reconstruction::UV_COMPLETION_MODEL_ID_V1))
+            || (!combined && self.uv_completion_model_id.is_some())
+        {
+            bail!("bright-star supplement provenance has incompatible product/model identity");
         }
         if self.population_policy_id != super::policy::POPULATION_POLICY_ID_V1 {
             bail!("bright-star supplement provenance population_policy_id is unknown");
@@ -106,6 +197,18 @@ impl BrightStarSupplementProvenance {
                 "bright-star supplement provenance build_commit must be a full 40-character lowercase Git SHA"
             );
         }
+        let expected_route = if combined {
+            "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion"
+        } else {
+            "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm"
+        };
+        if self.spectral_route != expected_route
+            || self.redistribution_scope
+                != "derived map only; source catalogue bytes are not embedded"
+        {
+            bail!("bright-star supplement spectral or redistribution provenance is unknown");
+        }
+        validate_inputs(&self.inputs)?;
         Ok(())
     }
 }
@@ -155,15 +258,103 @@ impl BrightStarArtifact {
         nside: u32,
         build_commit: &str,
         inputs: Vec<BrightStarInputProvenance>,
-        mut sources: Vec<BrightStarSourceRecord>,
+        sources: Vec<BrightStarSourceRecord>,
         population_policy: BrightStarPopulationPolicy,
         precedence_policy: BrightStarPrecedencePolicy,
     ) -> Result<Self> {
+        Self::from_sources_with_product_band(
+            nside,
+            build_commit,
+            inputs,
+            sources,
+            population_policy,
+            precedence_policy,
+            BRIGHT_STAR_PRODUCT_BAND_ID,
+        )
+    }
+
+    /// Build a bright-star artifact for either measured-only or combined coverage.
+    pub fn from_sources_with_product_band(
+        nside: u32,
+        build_commit: &str,
+        inputs: Vec<BrightStarInputProvenance>,
+        mut sources: Vec<BrightStarSourceRecord>,
+        population_policy: BrightStarPopulationPolicy,
+        precedence_policy: BrightStarPrecedencePolicy,
+        product_band: &str,
+    ) -> Result<Self> {
         sources.sort_by(|a, b| a.source_id.cmp(&b.source_id));
+        let combined = is_combined_product_band(product_band);
+        let (schema_version, model_id, notes) = if combined {
+            (
+                BRIGHT_STAR_COMBINED_ARTIFACT_SCHEMA_VERSION,
+                BRIGHT_STAR_COMBINED_MODEL_ID,
+                vec![
+                    "External opt-in supplement; catalogue bytes are not embedded in NSB.".into(),
+                    "Combined 300-650 nm: measured 336-650 from Hp-scaled CK04 plus justified 300-336 from the same template scale (ck04-hp-scaled-uv-300-336-v1).".into(),
+                    "300-336 nm is never a relabelled copy of 336-650 nm flux.".into(),
+                ],
+            )
+        } else {
+            (
+                BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION,
+                BRIGHT_STAR_MODEL_ID,
+                vec![
+                    "External opt-in supplement; catalogue bytes are not embedded in NSB.".into(),
+                    "Measured 336-650 nm only; use with 300-650 nm products is forbidden.".into(),
+                ],
+            )
+        };
+        if combined {
+            for source in &mut sources {
+                if matches!(
+                    source.class,
+                    SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
+                ) {
+                    let Some(uv) = source
+                        .flux_300_336_ph_m2_s
+                        .filter(|v| v.is_finite() && *v > 0.0)
+                    else {
+                        bail!(
+                            "combined bright-star admitted source {} lacks justified 300-336 nm flux",
+                            source.source_id
+                        );
+                    };
+                    if source.statistical_uncertainty_300_336_ph_m2_s.is_none()
+                        || source
+                            .systematic_independent_uncertainty_300_336_ph_m2_s
+                            .is_none()
+                        || source.uv_completion_model_id.as_deref()
+                            != Some(super::reconstruction::UV_COMPLETION_MODEL_ID_V1)
+                    {
+                        bail!(
+                            "combined bright-star admitted source {} lacks complete UV provenance",
+                            source.source_id
+                        );
+                    }
+                    let _ = uv;
+                } else {
+                    // Non-admitted rows may omit UV; clear any partial UV payload.
+                    source.flux_300_336_ph_m2_s = None;
+                    source.statistical_uncertainty_300_336_ph_m2_s = None;
+                    source.systematic_independent_uncertainty_300_336_ph_m2_s = None;
+                    source.uv_completion_model_id = None;
+                }
+            }
+        } else {
+            for source in &mut sources {
+                // Measured-only artifacts must not carry UV fields that could be
+                // silently reinterpreted as 300-650 nm coverage.
+                source.flux_300_336_ph_m2_s = None;
+                source.statistical_uncertainty_300_336_ph_m2_s = None;
+                source.systematic_independent_uncertainty_300_336_ph_m2_s = None;
+                source.uv_completion_model_id = None;
+            }
+        }
         let artifact = Self {
-            schema_version: BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION,
-            model_id: BRIGHT_STAR_MODEL_ID.into(),
-            product_band: BRIGHT_STAR_PRODUCT_BAND_ID.into(),
+            schema_version,
+            model_id: model_id.into(),
+            product_band: product_band.into(),
             nside,
             ordering: "nested".into(),
             population_policy,
@@ -171,28 +362,35 @@ impl BrightStarArtifact {
             inputs,
             build_commit: build_commit.into(),
             counts: recompute_counts(&sources),
-            pixels: rebuild_pixels(nside, &sources)?,
+            pixels: rebuild_pixels(nside, &sources, combined)?,
             sources,
             scientifically_validated: false,
             redistribution_embedded: false,
-            notes: vec![
-                "External opt-in supplement; catalogue bytes are not embedded in NSB.".into(),
-                "Measured 336-650 nm only; use with 300-650 nm products is forbidden.".into(),
-            ],
+            notes,
         };
         artifact.validate()?;
         Ok(artifact)
     }
 
     pub fn validate(&self) -> Result<()> {
-        if self.schema_version != BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION {
-            bail!("unknown bright-star schema_version {}", self.schema_version);
-        }
-        if self.model_id != BRIGHT_STAR_MODEL_ID {
-            bail!("unknown bright-star model_id {}", self.model_id);
-        }
-        if self.product_band != BRIGHT_STAR_PRODUCT_BAND_ID {
-            bail!("unsupported bright-star product_band {}", self.product_band);
+        let combined = is_combined_product_band(&self.product_band);
+        if combined {
+            if self.schema_version != BRIGHT_STAR_COMBINED_ARTIFACT_SCHEMA_VERSION {
+                bail!("unknown bright-star schema_version {}", self.schema_version);
+            }
+            if self.model_id != BRIGHT_STAR_COMBINED_MODEL_ID {
+                bail!("unknown bright-star model_id {}", self.model_id);
+            }
+        } else {
+            if self.schema_version != BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION {
+                bail!("unknown bright-star schema_version {}", self.schema_version);
+            }
+            if self.model_id != BRIGHT_STAR_MODEL_ID {
+                bail!("unknown bright-star model_id {}", self.model_id);
+            }
+            if self.product_band != BRIGHT_STAR_PRODUCT_BAND_ID {
+                bail!("unsupported bright-star product_band {}", self.product_band);
+            }
         }
         if self.ordering != "nested" {
             bail!("bright-star ordering must be nested");
@@ -216,7 +414,7 @@ impl BrightStarArtifact {
                     source.source_id
                 );
             }
-            validate_source(source)?;
+            validate_source(source, combined)?;
             if source.class == SupplementClass::MatchedAndReplacesPrimary {
                 let gaia_id = source
                     .gaia_source_id
@@ -236,10 +434,11 @@ impl BrightStarArtifact {
         if self.counts != recompute_counts(&self.sources) {
             bail!("bright-star serialized counts do not match source records");
         }
-        if self.pixels != rebuild_pixels(self.nside, &self.sources)? {
+        let rebuilt = rebuild_pixels(self.nside, &self.sources, combined)?;
+        if !pixels_match(&self.pixels, &rebuilt)? {
             bail!("bright-star serialized pixels do not match source reconstruction");
         }
-        validate_conservation(self.nside, &self.sources, &self.pixels)?;
+        validate_conservation(self.nside, &self.sources, &self.pixels, combined)?;
         Ok(())
     }
 
@@ -266,9 +465,20 @@ impl BrightStarArtifact {
         let provenance = BrightStarSupplementProvenance {
             artifact_sha256: verified_artifact_sha256.to_owned(),
             model_id: self.model_id.clone(),
+            product_band: self.product_band.clone(),
+            uv_completion_model_id: is_combined_product_band(&self.product_band)
+                .then(|| super::reconstruction::UV_COMPLETION_MODEL_ID_V1.to_owned()),
             population_policy_id: self.population_policy.policy_id.clone(),
             precedence_policy_id: self.precedence_policy.policy_id.clone(),
             build_commit: self.build_commit.clone(),
+            spectral_route: if is_combined_product_band(&self.product_band) {
+                "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion".into()
+            } else {
+                "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm".into()
+            },
+            redistribution_scope: "derived map only; source catalogue bytes are not embedded"
+                .into(),
+            inputs: self.inputs.clone(),
         };
         provenance.validate()?;
         Ok(provenance)
@@ -277,20 +487,6 @@ impl BrightStarArtifact {
     pub fn to_json_pretty(&self) -> Result<Vec<u8>> {
         self.validate()?;
         Ok(serde_json::to_vec_pretty(self)?)
-    }
-
-    fn validate_identity(&self, expected_sha256: &str, path: &Path) -> Result<()> {
-        self.validate()?;
-        validate_sha256(expected_sha256, "expected bright-star sha256")?;
-        let actual =
-            checksum_io::sha256_file(path).with_context(|| format!("hash {}", path.display()))?;
-        if actual != expected_sha256 {
-            bail!(
-                "bright-star artifact sha256 mismatch: {actual} != {expected_sha256} ({})",
-                path.display()
-            );
-        }
-        Ok(())
     }
 }
 
@@ -321,7 +517,7 @@ fn validate_inputs(inputs: &[BrightStarInputProvenance]) -> Result<()> {
     Ok(())
 }
 
-fn validate_source(source: &BrightStarSourceRecord) -> Result<()> {
+fn validate_source(source: &BrightStarSourceRecord, combined: bool) -> Result<()> {
     if source.origin_catalogue.trim().is_empty()
         || source.spectral_route.trim().is_empty()
         || source.classification_reason.trim().is_empty()
@@ -377,6 +573,40 @@ fn validate_source(source: &BrightStarSourceRecord) -> Result<()> {
             source.source_id
         );
     }
+    if combined && admitted {
+        let uv = source
+            .flux_300_336_ph_m2_s
+            .filter(|v| v.is_finite() && *v > 0.0);
+        let uv_stat = source
+            .statistical_uncertainty_300_336_ph_m2_s
+            .filter(|v| v.is_finite() && *v >= 0.0);
+        let uv_sys = source
+            .systematic_independent_uncertainty_300_336_ph_m2_s
+            .filter(|v| v.is_finite() && *v >= 0.0);
+        if uv.is_none()
+            || uv_stat.is_none()
+            || uv_sys.is_none()
+            || source.uv_completion_model_id.as_deref()
+                != Some(super::reconstruction::UV_COMPLETION_MODEL_ID_V1)
+        {
+            bail!(
+                "combined bright-star admitted source {} requires justified 300-336 nm flux and provenance",
+                source.source_id
+            );
+        }
+    } else if !combined
+        && (source.flux_300_336_ph_m2_s.is_some()
+            || source.statistical_uncertainty_300_336_ph_m2_s.is_some()
+            || source
+                .systematic_independent_uncertainty_300_336_ph_m2_s
+                .is_some()
+            || source.uv_completion_model_id.is_some())
+    {
+        bail!(
+            "measured-only bright-star source {} must not carry 300-336 nm fields",
+            source.source_id
+        );
+    }
     let mut groups = BTreeSet::new();
     for term in &source.systematic_catalogue_correlated {
         if term.correlation_group_id.trim().is_empty()
@@ -421,11 +651,74 @@ fn recompute_counts(sources: &[BrightStarSourceRecord]) -> BrightStarCounts {
     counts
 }
 
-fn rebuild_pixels(nside: u32, sources: &[BrightStarSourceRecord]) -> Result<Vec<BrightStarPixel>> {
+/// Compare serialized pixels with a source-derived rebuild.
+///
+/// Flux and uncertainty fields allow a tiny tolerance so JSON deserialization
+/// round-trips remain valid when decimal text does not uniquely identify an `f64`.
+fn pixels_match(stored: &[BrightStarPixel], rebuilt: &[BrightStarPixel]) -> Result<bool> {
+    let mut stored_by_pixel: BTreeMap<u64, &BrightStarPixel> =
+        stored.iter().map(|pixel| (pixel.pixel, pixel)).collect();
+    if stored_by_pixel.len() != stored.len() || stored.len() != rebuilt.len() {
+        return Ok(false);
+    }
+    for pixel in rebuilt {
+        let Some(stored_pixel) = stored_by_pixel.remove(&pixel.pixel) else {
+            return Ok(false);
+        };
+        if stored_pixel.admitted_sources != pixel.admitted_sources {
+            return Ok(false);
+        }
+        if stored_pixel.systematic_catalogue_correlated != pixel.systematic_catalogue_correlated {
+            return Ok(false);
+        }
+        for (left, right, label) in [
+            (
+                stored_pixel.flux_ph_m2_s,
+                pixel.flux_ph_m2_s,
+                "flux_ph_m2_s",
+            ),
+            (
+                stored_pixel.statistical_uncertainty_ph_m2_s,
+                pixel.statistical_uncertainty_ph_m2_s,
+                "statistical_uncertainty_ph_m2_s",
+            ),
+            (
+                stored_pixel.systematic_independent_uncertainty_ph_m2_s,
+                pixel.systematic_independent_uncertainty_ph_m2_s,
+                "systematic_independent_uncertainty_ph_m2_s",
+            ),
+        ] {
+            if !pixel_scalar_matches(left, right) {
+                bail!(
+                    "bright-star pixel {} {label} mismatch: stored {left} rebuilt {right}",
+                    pixel.pixel,
+                );
+            }
+        }
+    }
+    Ok(stored_by_pixel.is_empty())
+}
+
+fn pixel_scalar_matches(left: f64, right: f64) -> bool {
+    if left.to_bits() == right.to_bits() {
+        return true;
+    }
+    if !left.is_finite() || !right.is_finite() {
+        return false;
+    }
+    let scale = left.abs().max(right.abs()).max(1.0);
+    (left - right).abs() <= scale * 1e-12
+}
+
+fn rebuild_pixels(
+    nside: u32,
+    sources: &[BrightStarSourceRecord],
+    combined: bool,
+) -> Result<Vec<BrightStarPixel>> {
     crate::starlight::config::validate_canonical_nside(nside)?;
     let mut pixels: BTreeMap<u64, PixelBuild> = BTreeMap::new();
     for source in sources {
-        validate_source(source)?;
+        validate_source(source, combined)?;
         if !matches!(
             source.class,
             SupplementClass::SupplementOnly | SupplementClass::MatchedAndReplacesPrimary
@@ -438,13 +731,17 @@ fn rebuild_pixels(nside: u32, sources: &[BrightStarSourceRecord]) -> Result<Vec<
             nside,
         )?);
         let entry = pixels.entry(pixel).or_default();
-        entry.flux.add(source.flux_336_650_ph_m2_s)?;
-        entry
-            .stat_var
-            .add(source.statistical_uncertainty_ph_m2_s.powi(2))?;
-        entry
-            .independent_sys_var
-            .add(source.systematic_independent_uncertainty_ph_m2_s.powi(2))?;
+        entry.flux.add(source.selected_flux_ph_m2_s(combined)?)?;
+        entry.stat_var.add(
+            source
+                .selected_statistical_uncertainty_ph_m2_s(combined)?
+                .powi(2),
+        )?;
+        entry.independent_sys_var.add(
+            source
+                .selected_independent_systematic_ph_m2_s(combined)?
+                .powi(2),
+        )?;
         for term in &source.systematic_catalogue_correlated {
             entry
                 .correlated
@@ -475,6 +772,7 @@ fn validate_conservation(
     nside: u32,
     sources: &[BrightStarSourceRecord],
     pixels: &[BrightStarPixel],
+    combined: bool,
 ) -> Result<()> {
     let admitted = |s: &&BrightStarSourceRecord| {
         matches!(
@@ -484,7 +782,7 @@ fn validate_conservation(
     };
     let mut source_flux = StableSum::default();
     for source in sources.iter().filter(admitted) {
-        source_flux.add(source.flux_336_650_ph_m2_s)?;
+        source_flux.add(source.selected_flux_ph_m2_s(combined)?)?;
     }
     let source_count = sources.iter().filter(admitted).count() as u64;
     let mut by_pixel: BTreeMap<u64, StableSum> = BTreeMap::new();
@@ -497,7 +795,7 @@ fn validate_conservation(
         by_pixel
             .entry(pixel)
             .or_default()
-            .add(source.flux_336_650_ph_m2_s)?;
+            .add(source.selected_flux_ph_m2_s(combined)?)?;
     }
     let mut pixel_flux = StableSum::default();
     for sum in by_pixel.values() {
@@ -523,10 +821,24 @@ fn validate_sha256(value: &str, label: &str) -> Result<()> {
 
 pub fn load_bright_star_artifact(path: &Path, expected_sha256: &str) -> Result<BrightStarArtifact> {
     let bytes = fs::read(path).with_context(|| format!("read {}", path.display()))?;
+    validate_sha256(expected_sha256, "expected bright-star sha256")?;
+    let actual = checksum_io::sha256_bytes(&bytes);
+    if actual != expected_sha256 {
+        bail!(
+            "bright-star artifact sha256 mismatch: {actual} != {expected_sha256} ({})",
+            path.display()
+        );
+    }
     let artifact: BrightStarArtifact = serde_json::from_slice(&bytes)
         .with_context(|| format!("parse bright-star artifact {}", path.display()))?;
-    artifact.validate_identity(expected_sha256, path)?;
-    Ok(artifact)
+    // Validate the serialized pixels before any optional in-memory
+    // canonicalization. A matching byte checksum is an identity check, not a
+    // substitute for source/pixel scientific consistency.
+    artifact.validate()?;
+    let combined = is_combined_product_band(&artifact.product_band);
+    let mut canonical = artifact;
+    canonical.pixels = rebuild_pixels(canonical.nside, &canonical.sources, combined)?;
+    Ok(canonical)
 }
 
 #[cfg(test)]
@@ -547,14 +859,18 @@ mod tests {
             gaia_source_id: gaia,
             ra_deg_j2016: 10.0,
             dec_deg_j2016: 20.0,
+            flux_300_336_ph_m2_s: None,
             flux_336_650_ph_m2_s: flux,
+            statistical_uncertainty_300_336_ph_m2_s: None,
             statistical_uncertainty_ph_m2_s: flux * 0.01,
+            systematic_independent_uncertainty_300_336_ph_m2_s: None,
             systematic_independent_uncertainty_ph_m2_s: flux * 0.02,
             systematic_catalogue_correlated: vec![CorrelatedUncertainty {
                 correlation_group_id: "hip2-zero-point".into(),
                 uncertainty_ph_m2_s: flux * 0.03,
             }],
             spectral_route: "fixture".into(),
+            uv_completion_model_id: None,
             classification_reason: "fixture".into(),
         }
     }
@@ -666,6 +982,130 @@ mod tests {
         art.counts.final_admitted = 1;
         art.pixels[0].flux_ph_m2_s = 2.0;
         assert!(art.validate().is_err());
+    }
+
+    fn combined_source(
+        id: &str,
+        class: SupplementClass,
+        gaia: Option<u64>,
+        flux_uv: f64,
+        flux: f64,
+    ) -> BrightStarSourceRecord {
+        BrightStarSourceRecord {
+            source_id: id.into(),
+            origin_catalogue: "hip2".into(),
+            class,
+            gaia_source_id: gaia,
+            ra_deg_j2016: 10.0,
+            dec_deg_j2016: 20.0,
+            flux_300_336_ph_m2_s: Some(flux_uv),
+            flux_336_650_ph_m2_s: flux,
+            statistical_uncertainty_300_336_ph_m2_s: Some(flux_uv * 0.01),
+            statistical_uncertainty_ph_m2_s: flux * 0.01,
+            systematic_independent_uncertainty_300_336_ph_m2_s: Some(flux_uv * 0.02),
+            systematic_independent_uncertainty_ph_m2_s: flux * 0.02,
+            systematic_catalogue_correlated: vec![CorrelatedUncertainty {
+                correlation_group_id: "hip2-zero-point".into(),
+                uncertainty_ph_m2_s: flux * 0.03,
+            }],
+            spectral_route: "fixture".into(),
+            uv_completion_model_id: Some(
+                crate::starlight::bright_stars::reconstruction::UV_COMPLETION_MODEL_ID_V1.into(),
+            ),
+            classification_reason: "fixture".into(),
+        }
+    }
+
+    fn combined_artifact(sources: Vec<BrightStarSourceRecord>) -> Result<BrightStarArtifact> {
+        BrightStarArtifact::from_sources_with_product_band(
+            1,
+            &fixture_commit(),
+            Vec::new(),
+            sources,
+            BrightStarPopulationPolicy::v1(),
+            BrightStarPrecedencePolicy::v1(),
+            BRIGHT_STAR_COMBINED_PRODUCT_BAND_ID,
+        )
+    }
+
+    #[test]
+    fn combined_artifact_json_roundtrip_loads_after_decimal_float_roundtrip() {
+        let art = combined_artifact(vec![combined_source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0e11,
+            5.0e11,
+        )])
+        .unwrap();
+        let bytes = art.to_json_pretty().unwrap();
+        let mut tmp = NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut tmp, &bytes).unwrap();
+        let sha = checksum_io::sha256_bytes(&bytes);
+        let loaded = load_bright_star_artifact(tmp.path(), &sha).unwrap();
+        assert_eq!(loaded.sources, art.sources);
+        assert_eq!(loaded.pixels.len(), art.pixels.len());
+        assert!(pixels_match(&loaded.pixels, &art.pixels).unwrap());
+    }
+
+    #[test]
+    fn checksum_pinned_corrupt_serialized_pixels_are_rejected() {
+        let art = combined_artifact(vec![combined_source(
+            "a",
+            SupplementClass::SupplementOnly,
+            None,
+            1.0e11,
+            5.0e11,
+        )])
+        .unwrap();
+        let mut json = serde_json::to_value(art).unwrap();
+        json["pixels"][0]["flux_ph_m2_s"] = serde_json::json!(1.0);
+        let bytes = serde_json::to_vec_pretty(&json).unwrap();
+        let mut tmp = NamedTempFile::new().unwrap();
+        std::io::Write::write_all(&mut tmp, &bytes).unwrap();
+        let sha = checksum_io::sha256_bytes(&bytes);
+        let error = load_bright_star_artifact(tmp.path(), &sha).unwrap_err();
+        assert!(
+            error.to_string().contains("pixel") && error.to_string().contains("mismatch"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn combined_band_preserves_shared_scale_covariance() {
+        let source = combined_source("a", SupplementClass::SupplementOnly, None, 100.0, 400.0);
+        assert_eq!(
+            source
+                .selected_statistical_uncertainty_ph_m2_s(true)
+                .unwrap(),
+            5.0
+        );
+        assert_eq!(
+            source
+                .selected_independent_systematic_ph_m2_s(true)
+                .unwrap(),
+            10.0
+        );
+        assert!(5.0 > 1.0_f64.hypot(4.0));
+        assert!(10.0 > 2.0_f64.hypot(8.0));
+
+        let art = combined_artifact(vec![source]).unwrap();
+        assert_eq!(art.pixels[0].statistical_uncertainty_ph_m2_s, 5.0);
+        assert_eq!(
+            art.pixels[0].systematic_independent_uncertainty_ph_m2_s,
+            10.0
+        );
+    }
+
+    #[test]
+    fn combined_production_artifact_loads_if_present() {
+        let path = Path::new("/tmp/combined-bright-stars.json");
+        if !path.exists() {
+            return;
+        }
+        let bytes = fs::read(path).unwrap();
+        let sha = checksum_io::sha256_bytes(&bytes);
+        load_bright_star_artifact(path, &sha).expect("production combined artifact must load");
     }
 
     #[test]
