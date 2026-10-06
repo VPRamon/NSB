@@ -193,6 +193,9 @@ jobs:
           git add \
             crates/nsb-data-tools/src/starlight/pack.rs \
             crates/nsb-data-tools/src/starlight/promotion.rs \
+            crates/nsb/src/components/starlight/mod.rs \
+            crates/nsb/src/components/starlight/provenance.rs \
+            crates/nsb/src/components/starlight/validated.rs \
             crates/nsb-data-tools/tests/starlight_review_bundle_contract.rs \
             crates/nsb/data/manifest.toml \
             docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
