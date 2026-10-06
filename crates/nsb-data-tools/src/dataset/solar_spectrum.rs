@@ -20,7 +20,6 @@ const BAND_MAX_NM: f64 = 650.0;
 const RUNTIME_STEP_NM: f64 = 1.0;
 const RUNTIME_SAMPLE_COUNT: usize = 351;
 const REQUIRED_ANCHORS_NM: [f64; 3] = [445.0, 500.0, 551.0];
-const LN_2: f64 = 0.693_147_180_559_945_3;
 const EXP_SERIES_TERMS: u32 = 24;
 const OUTPUT_DECIMALS: usize = 12;
 
@@ -343,8 +342,8 @@ fn generate_samples(model: &AnalyticModel) -> Result<Vec<Sample>> {
 /// arithmetic with a fixed operation order is used; no platform libm
 /// transcendental is involved.
 fn reproducible_exp_m1(value: f64) -> f64 {
-    let binary_shift = (value / LN_2 + 0.5) as u32;
-    let reduced = value - f64::from(binary_shift) * LN_2;
+    let binary_shift = (value / std::f64::consts::LN_2 + 0.5) as u32;
+    let reduced = value - f64::from(binary_shift) * std::f64::consts::LN_2;
     let mut term = 1.0;
     let mut sum = 1.0;
     for order in 1..=EXP_SERIES_TERMS {
