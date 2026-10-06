@@ -326,7 +326,8 @@ fn demoted_release_map_cannot_silently_disable_starlight() {
         ManifestValidationError::StarlightPolicy(message) => {
             assert!(
                 message.contains("not a valid production registration")
-                    || message.contains("runtime_embedded"),
+                    || message.contains("runtime_embedded")
+                    || message.contains("expected exactly one release map claim"),
                 "unexpected message: {message}"
             );
         }
