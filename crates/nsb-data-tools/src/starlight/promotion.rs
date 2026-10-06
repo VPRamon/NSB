@@ -17,7 +17,7 @@ use crate::starlight::pack::{
 };
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -689,7 +689,16 @@ fn verify_frozen_gates_report(
         "release_build",
         "cargo_deny",
         "msrv",
+        "coverage",
+        "public_api",
+        "python_wheels",
     ];
+    let mut seen_gate_names = BTreeSet::new();
+    for command in &report.recorded_commands {
+        if !seen_gate_names.insert(command.name.as_str()) {
+            bail!("frozen gates report contains duplicate gate {}", command.name);
+        }
+    }
     for required in REQUIRED_GATES {
         let command = report
             .recorded_commands
@@ -1223,6 +1232,24 @@ fn apply_production_registry(
         .with_context(|| format!("write asset registry {}", manifest_path.display()))
 }
 
+fn registry_source(candidate: &CandidateSection) -> String {
+    if candidate.bright_star_supplement.is_some() {
+        "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement".into()
+    } else {
+        "Gaia DR3 GaiaSource and XP continuous bulk distributions".into()
+    }
+}
+
+fn registry_license(candidate: &CandidateSection) -> String {
+    match &candidate.bright_star_supplement {
+        Some(supplement) => format!(
+            "Gaia data licence: CC BY-NC 3.0 IGO; bright-star supplement provenance: {}",
+            supplement.license_provenance.join("; ")
+        ),
+        None => "Gaia data licence: CC BY-NC 3.0 IGO".into(),
+    }
+}
+
 fn registry_asset_table(
     path: &str,
     schema: &str,
@@ -1237,8 +1264,8 @@ fn registry_asset_table(
     table["gaia_release"] = toml_edit::value(candidate.gaia_release.as_str());
     table["band"] = toml_edit::value(candidate.band.as_str());
     table["units"] = toml_edit::value("ph_cm2_ns_sr");
-    table["source"] = toml_edit::value("Gaia DR3 GaiaSource and XP continuous bulk distributions");
-    table["license"] = toml_edit::value("Gaia data licence: CC BY-NC 3.0 IGO");
+    table["source"] = toml_edit::value(registry_source(candidate));
+    table["license"] = toml_edit::value(registry_license(candidate));
     table["generator"] = toml_edit::value("nsb-data dataset starlight promote");
     table["generation_command"] = toml_edit::value("nsb-data dataset starlight promote --apply");
     table["validation_report"] = toml_edit::value(
@@ -1276,6 +1303,8 @@ fn render_production_manifest_draft(
     writeln!(out, "gaia_release = {:?}", candidate.gaia_release).unwrap();
     writeln!(out, "band = {:?}", candidate.band).unwrap();
     writeln!(out, "units = \"ph_cm2_ns_sr\"").unwrap();
+    writeln!(out, "source = {:?}", registry_source(candidate)).unwrap();
+    writeln!(out, "license = {:?}", registry_license(candidate)).unwrap();
     writeln!(out, "calibration_status = \"production\"").unwrap();
     writeln!(out, "runtime_embedded = true").unwrap();
     out.push('\n');
@@ -1352,6 +1381,9 @@ mod tests {
             "release_build",
             "cargo_deny",
             "msrv",
+            "coverage",
+            "public_api",
+            "python_wheels",
         ]
         .into_iter()
         .map(|name| format!(r#"{{"name":"{name}","status":"passed"}}"#))
@@ -2170,6 +2202,52 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             manifest_before,
             "repository manifest.toml must never be mutated"
         );
+    }
+
+    #[test]
+    fn production_registry_metadata_preserves_bright_star_provenance() {
+        let candidate = CandidateSection {
+            status: CandidateStatus::Pinned,
+            candidate_sha256: "a".repeat(64),
+            map_path: "crates/nsb/data/starlight_nside128.csv".into(),
+            map_schema: "nsb-healpix-starlight-candidate-v5".into(),
+            band: "synthetic combined band".into(),
+            units: "ph_m-2_s-1".into(),
+            nside: 1,
+            ordering: "nested".into(),
+            gaia_release: "Gaia DR3".into(),
+            model_versions: BTreeMap::new(),
+            bright_star_supplement: Some(BrightStarRuntimeProvenance {
+                artifact_sha256: "b".repeat(64),
+                model_id: "starlight-bright-stars-combined-v1".into(),
+                product_band: "combined-300-650".into(),
+                uv_completion_model_id: "ck04-hp-scaled-uv-300-336-v1".into(),
+                population_policy_id: "bright-stars-population-v1".into(),
+                precedence_policy_id: "bright-stars-gaia-precedence-v1".into(),
+                build_commit: "c".repeat(40),
+                spectral_route: "Hipparcos/XHIP CK04".into(),
+                redistribution_scope: "derived map only".into(),
+                input_catalogues: vec!["Hipparcos/XHIP".into()],
+                license_provenance: vec![
+                    "CK04: CC BY 4.0".into(),
+                    "XHIP: scientific-use terms".into(),
+                ],
+            }),
+        };
+        let table = registry_asset_table(
+            "starlight_nside128.release.csv",
+            PRODUCTION_MAP_SCHEMA,
+            &"d".repeat(64),
+            &candidate,
+            true,
+        );
+        assert!(table["source"]
+            .as_str()
+            .unwrap()
+            .contains("Hipparcos/XHIP/CK04"));
+        let license = table["license"].as_str().unwrap();
+        assert!(license.contains("CK04: CC BY 4.0"));
+        assert!(license.contains("XHIP: scientific-use terms"));
     }
 
     #[test]
