@@ -204,6 +204,18 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
     .unwrap();
 
     command(&config, "update").assert_success();
+    let copied_source = temporary.path().join("work/sources/solar-planck-v1.toml");
+    let original_source = fs::read_to_string(&copied_source).unwrap();
+    fs::write(
+        &copied_source,
+        format!("{original_source}\n# tampered after verified update\n"),
+    )
+    .unwrap();
+    command(&config, "build").assert_success();
+    command(&config, "validate").assert_failure();
+
+    fs::remove_dir_all(temporary.path().join("work")).unwrap();
+    command(&config, "update").assert_success();
     command(&config, "build").assert_success();
     let output_path = temporary.path().join("work/outputs/solar_spectrum.dat");
     let first_build = fs::read(&output_path).unwrap();
@@ -225,6 +237,15 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
         fs::read(repository.join("crates/nsb/data/solar_spectrum.dat")).unwrap(),
         first_build
     );
+    let published_manifest =
+        fs::read_to_string(repository.join("crates/nsb/data/manifest.toml")).unwrap();
+    assert!(published_manifest.contains(&format!(
+        "input_sha256 = \"{source_checksum}\""
+    )));
+    assert!(published_manifest.contains(&format!(
+        "generator = \"nsb-data-tools {} dataset solar-spectrum build\"",
+        env!("CARGO_PKG_VERSION")
+    )));
 
     fs::write(
         temporary.path().join("work/outputs/solar_spectrum.dat"),
