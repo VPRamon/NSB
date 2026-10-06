@@ -137,7 +137,7 @@ fn read_header(bytes: &[u8], start: usize) -> Result<(Vec<String>, usize)> {
         let end = card.starts_with("END     ");
         cards.push(card);
         if end {
-            let padded = (offset + 2879) / 2880 * 2880;
+            let padded = offset.div_ceil(2880) * 2880;
             return Ok((cards, padded));
         }
     }
