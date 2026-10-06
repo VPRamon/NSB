@@ -112,3 +112,33 @@ generation_command = "nsb-data solar f107 freeze --fixture-dir crates/nsb-data-t
 validation_report = "docs/nsb_components/airglow/f107-resolver.md#bundled-asset-validation"
 calibration_status = "planning-proxy"
 runtime_embedded = true
+
+[[assets]]
+path = "starlight_nside128.release.csv"
+schema = "nsb-healpix-starlight-v2"
+sha256 = "d42e7d9c2583b089e6d12f20b2e2ad8693b1f41ec42b2d766b0d7462a2d0d485"
+gaia_release = "Gaia DR3"
+band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
+units = "ph_cm2_ns_sr"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
+license = "Staged derived runtime asset; redistribution decision pending under issue #103. Detailed upstream licence provenance is carried by the schema-v2 sidecar."
+generator = "nsb-data dataset starlight stage-runtime"
+generation_command = "nsb-data dataset starlight stage-runtime --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
+validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+calibration_status = "candidate"
+runtime_embedded = false
+
+[[assets]]
+path = "starlight_nside128.manifest.toml"
+schema = "nsb-starlight-runtime-manifest-v2"
+sha256 = "f91e8c7442dca03332f9b07236c262b7b997ed4d1ab19dbf98ca8a2bb06627ce"
+gaia_release = "Gaia DR3"
+band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
+units = "ph_cm2_ns_sr"
+source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
+license = "Staged derived runtime provenance; redistribution decision pending under issue #103. Full Gaia/Hipparcos/XHIP/CK04 terms are recorded in [bright_star_supplement].license_provenance."
+generator = "nsb-data dataset starlight stage-runtime"
+generation_command = "nsb-data dataset starlight stage-runtime --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
+validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+calibration_status = "candidate"
+runtime_embedded = false
