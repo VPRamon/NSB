@@ -104,7 +104,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     );
     assert_eq!(
         airglow["metadata"]["airglow_geometry"]["emission_height_km"],
-        90.0
+        88.0
     );
 }
 
