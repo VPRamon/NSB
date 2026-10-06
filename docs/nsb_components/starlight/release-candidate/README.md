@@ -6,9 +6,7 @@ Scientific production readiness is machine-verifiable: the exact candidate,
 technical validation, external cross-implementation validation, provenance,
 and green CI are checksum-pinned. A separate manual scientific signature is
 not required. Redistribution/licensing remains a distinct human/legal gate in
-issue #103 and is not approved by this bundle. Issue #103 explicitly does not
-block the `0.1.0` MVP because candidate and staged runtime bytes remain
-non-embedded and excluded from published packages while the decision is pending.
+issue #103 and is not approved by this bundle.
 
 ## Files
 
@@ -74,7 +72,7 @@ technical gates never implies redistribution approval.
 
 ## Runtime gate
 
-`StarlightProduct::BundledProductionGaiaDr3` and `ComponentMask::ALL` remain
+`StarlightModel::BundledProductionGaiaDr3` and `ComponentMask::ALL` remain
 fail-closed. The build only enables bundled production Starlight when a
 registered `nsb-healpix-starlight-v2` map and
 `nsb-starlight-runtime-manifest-v2` sidecar pass checksum and provenance
