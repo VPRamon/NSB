@@ -17,7 +17,7 @@ sha256 = "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
 [[artifacts]]
 id = "release_candidate_gates"
 path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
-sha256 = "dd7364d0d0d7acfd98a0d308614ab93ce8210dbeea0f52f7db8bf6a7e63a28e7"
+sha256 = "66d37d3124d8e5447a97e6799f3542b51c588e2c06c1b4a9f3044ccc1d1e1976"
 
 [[artifacts]]
 id = "redistribution_inventory"
@@ -37,7 +37,7 @@ sha256 = "958060a33331bcf22283ddd409c38edb960990ad063d6f89bf9a6f0ddfcdc8d1"
 [[artifacts]]
 id = "release_candidate_manifest"
 path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
-sha256 = "6aa0ca21973a8acb6dd197e84149d220aa0f7b8b953bcad4870110b3d54b29dd"
+sha256 = "148a054209738335162bd4730d0b55f8380e4fa53dac686558368fd46eddba62"
 
 [[artifacts]]
 id = "redistribution_decision_contract_doc"
