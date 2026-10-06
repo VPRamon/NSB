@@ -208,6 +208,10 @@ mod tests {
     }
 
     /// Regression pins and TSIS-runtime impact bounds for representative geometries.
+    ///
+    /// The TSIS tuples are offline numeric baselines from the former bundled
+    /// runtime SHA-256 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02;
+    /// no TSIS-derived bytes are loaded by this test or shipped in the package.
     #[test]
     fn analytic_solar_reference_matches_regression_and_tsis_impact_bounds() {
         const REL_TOL: f64 = 1.0e-9;
