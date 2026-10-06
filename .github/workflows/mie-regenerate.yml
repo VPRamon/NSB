@@ -1,0 +1,45 @@
+name: Regenerate moonlight Mie artifact
+
+on:
+  push:
+    branches:
+      - 216-datamoonlight-generate-an-nsb-owned-mie-phase-grid-from-published-aerosol-parameters
+    paths:
+      - crates/nsb-data-tools/src/dataset/moonlight_mie.rs
+      - crates/nsb-data-tools/src/dataset/pipeline.rs
+      - crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml
+      - crates/nsb-data-tools/config/moonlight-scattering.toml
+      - .github/workflows/mie-regenerate.yml
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Regenerate and validate moonlight scattering
+        run: |
+          set -euo pipefail
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml
+      - name: Commit regenerated artifact
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/nsb/data/moonlight_mie_nsb_v1.dat crates/nsb/data/manifest.toml
+          if git diff --cached --quiet; then
+            echo "Artifact already current."
+          else
+            git commit -m "chore(data): regenerate moonlight Mie grid"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
