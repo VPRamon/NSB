@@ -652,9 +652,11 @@ mod tests {
             );
         assert!(!looked.s10_diagnostics_provided);
         assert!(looked.statistical_uncertainty.is_some());
-        let validated =
-            nsb::components::starlight::ValidatedStarlightMap::from_files(&csv, &production_sidecar)
-                .unwrap();
+        let validated = nsb::components::starlight::ValidatedStarlightMap::from_files(
+            &csv,
+            &production_sidecar,
+        )
+        .unwrap();
         let bright_star = validated
             .map()
             .provenance()

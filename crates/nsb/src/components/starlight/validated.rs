@@ -553,9 +553,7 @@ impl ExternalManifest {
                     license_provenance: supplement
                         .inputs
                         .iter()
-                        .map(|input| {
-                            format!("{}: {}", input.source_id, input.license_or_terms_url)
-                        })
+                        .map(|input| format!("{}: {}", input.source_id, input.license_or_terms_url))
                         .collect(),
                 }
             }),

@@ -18,8 +18,8 @@ pub use map::{StarlightMap, StarlightPixel};
 pub(crate) use model::Starlight;
 pub(crate) use output::StarlightOutputs;
 pub use product::StarlightProduct;
-pub use provenance::{StarlightBrightStarInputProvenance, StarlightBrightStarSupplementProvenance};
 pub use provenance::StarlightProvenance;
+pub use provenance::{StarlightBrightStarInputProvenance, StarlightBrightStarSupplementProvenance};
 pub use validated::{StarlightValidationDiagnostics, ValidatedStarlightMap};
 
 #[cfg(test)]
