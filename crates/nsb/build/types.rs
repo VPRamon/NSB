@@ -86,8 +86,7 @@ impl Asset {
     /// unless it forms a valid production pair.
     pub fn is_starlight_release_map_claim(&self) -> bool {
         (self.path.ends_with(".release.csv") || self.schema == STARLIGHT_MAP_SCHEMA)
-            && (self.runtime_embedded
-                || self.calibration_status.eq_ignore_ascii_case("production"))
+            && (self.runtime_embedded || self.calibration_status.eq_ignore_ascii_case("production"))
     }
 
     /// Return whether this entry makes an active Starlight production-sidecar claim.
@@ -95,8 +94,7 @@ impl Asset {
         (self.schema == STARLIGHT_MANIFEST_SCHEMA
             || (self.path.ends_with(".manifest.toml")
                 && starlight_release_stem(&self.path).is_some()))
-            && (self.runtime_embedded
-                || self.calibration_status.eq_ignore_ascii_case("production"))
+            && (self.runtime_embedded || self.calibration_status.eq_ignore_ascii_case("production"))
     }
 
     /// Stem shared by `*.release.csv` / `*.manifest.toml` release pair paths.
