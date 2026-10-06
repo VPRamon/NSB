@@ -1,4 +1,4 @@
-name: Publish to crates.io
+name: Release
 
 on:
   push:
@@ -8,12 +8,231 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  MATURIN_VERSION: v1.15.0
+
 jobs:
-  publish:
-    name: cargo publish
-    runs-on: ubuntu-latest
+  validate:
+    name: Validate release
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify tag, package metadata, and redistribution gates
+        shell: python
+        run: |
+          import os
+          import re
+          import tomllib
+          from pathlib import Path
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+              raise SystemExit(f"release tag must be vMAJOR.MINOR.PATCH, got {tag!r}")
+
+          cargo = tomllib.loads(Path("crates/nsb/Cargo.toml").read_text())
+          pyproject = tomllib.loads(Path("pyproject.toml").read_text())
+          manifest = tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text())
+
+          crate = cargo["package"]
+          version = crate["version"]
+          if crate["name"] != "nsb":
+              raise SystemExit(f"expected crates.io package 'nsb', got {crate['name']!r}")
+          if pyproject["project"]["name"] != "nsb-rust":
+              raise SystemExit(
+                  f"expected PyPI project 'nsb-rust', got {pyproject['project']['name']!r}"
+              )
+          if tag != f"v{version}":
+              raise SystemExit(
+                  f"tag {tag!r} does not match crates/nsb/Cargo.toml version v{version}"
+              )
+
+          blocked = []
+          for asset in manifest.get("assets", []):
+              if not asset.get("runtime_embedded", False):
+                  continue
+              license_text = str(asset.get("license", "")).strip()
+              normalized = license_text.casefold()
+              if (
+                  not license_text
+                  or "unresolved" in normalized
+                  or "not recorded" in normalized
+                  or "pending" in normalized
+              ):
+                  blocked.append((asset.get("path", "<unknown>"), license_text))
+
+          if blocked:
+              details = "\n".join(
+                  f"  - {path}: {license_text or '<missing license>'}"
+                  for path, license_text in blocked
+              )
+              raise SystemExit(
+                  "release blocked: runtime-embedded assets lack resolved "
+                  f"redistribution terms:\n{details}"
+              )
+
+      - name: Verify crates.io package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf target/package
+          cargo package -p nsb --locked
+          cargo package -p nsb --list >> "$GITHUB_STEP_SUMMARY"
+          crate="$(find target/package -maxdepth 1 -type f -name 'nsb-*.crate' -print -quit)"
+          test -n "$crate"
+          size="$(stat -c '%s' "$crate")"
+          max_size=$((10 * 1024 * 1024))
+          printf 'Package: %s\nSize: %s bytes\nLimit: %s bytes\n' "$crate" "$size" "$max_size"
+          if (( size > max_size )); then
+            echo "package exceeds the crates.io 10 MiB upload limit" >&2
+            exit 1
+          fi
+
+  linux-wheels:
+    name: Linux wheel (${{ matrix.arch }})
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+            target: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Build PyPI-compatible abi3 wheel
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          command: build
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          target: ${{ matrix.target }}
+          manylinux: "2_28"
+          args: >-
+            --release
+            --locked
+            --compatibility pypi
+            --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.arch }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  macos-wheels:
+    name: macOS wheel (${{ matrix.arch }})
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15-intel
+            arch: x86_64
+          - runner: macos-15
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Build PyPI-compatible abi3 wheel
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          command: build
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          args: >-
+            --release
+            --locked
+            --compatibility pypi
+            --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.arch }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  windows-wheels:
+    name: Windows wheel (x86_64)
+    needs: validate
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Build PyPI-compatible abi3 wheel
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          command: build
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          args: >-
+            --release
+            --locked
+            --compatibility pypi
+            --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-windows-x86_64
+          path: dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: Python source distribution
+    needs: validate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1.51.0
+        with:
+          command: sdist
+          maturin-version: ${{ env.MATURIN_VERSION }}
+          args: --out dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish-crates-io:
+    name: Publish to crates.io
+    needs:
+      - validate
+      - linux-wheels
+      - macos-wheels
+      - windows-wheels
+      - sdist
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -21,3 +240,29 @@ jobs:
         run: bash scripts/publish-changed.sh
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs:
+      - publish-crates-io
+      - linux-wheels
+      - macos-wheels
+      - windows-wheels
+      - sdist
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Show release artifacts
+        run: ls -lah dist
+
+      - name: Publish nsb-rust
+        uses: pypa/gh-action-pypi-publish@v1.14.2
