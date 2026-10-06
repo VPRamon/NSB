@@ -1,21 +1,5 @@
 pub mod nsb
 pub use nsb::DEG
-pub mod nsb::data
-pub mod nsb::data::bundled
-#[non_exhaustive] pub struct nsb::data::bundled::BundledAssetMetadata
-pub nsb::data::bundled::BundledAssetMetadata::calibration_status: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::generation_command: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::generator: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::license: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::path: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::schema: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::sha256: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::source: &'static str
-pub nsb::data::bundled::BundledAssetMetadata::validation_report: &'static str
-pub const nsb::data::bundled::ASSET_MANIFEST_SCHEMA_VERSION: u32
-pub static nsb::data::bundled::BUNDLED_ASSETS: &[nsb::data::bundled::BundledAssetMetadata]
-pub fn nsb::data::bundled::bundled_asset(path: &str) -> core::option::Option<&'static nsb::data::bundled::BundledAssetMetadata>
-pub fn nsb::data::bundled::bundled_assets() -> impl core::iter::traits::iterator::Iterator<Item = &'static nsb::data::bundled::BundledAssetMetadata>
 pub mod nsb::components
 pub mod nsb::components::airglow
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowFallbackReason
@@ -160,6 +144,26 @@ pub fn nsb::StarlightProduct::validated_external(map: nsb::components::starlight
 pub fn nsb::StarlightProduct::with_experimental_map(map: nsb::components::starlight::StarlightMap) -> Self
 pub fn nsb::StarlightProduct::with_shared_experimental_map(map: alloc::sync::Arc<nsb::components::starlight::StarlightMap>) -> Self
 pub fn nsb::StarlightProduct::with_shared_validated_external_map(map: alloc::sync::Arc<nsb::components::starlight::ValidatedStarlightMap>) -> Self
+#[non_exhaustive] pub struct nsb::components::starlight::StarlightBrightStarInputProvenance
+pub nsb::components::starlight::StarlightBrightStarInputProvenance::license_or_terms_url: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarInputProvenance::release: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarInputProvenance::retrieval_url: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarInputProvenance::role: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarInputProvenance::sha256: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarInputProvenance::source_id: alloc::string::String
+#[non_exhaustive] pub struct nsb::components::starlight::StarlightBrightStarSupplementProvenance
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::artifact_sha256: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::build_commit: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::input_catalogues: alloc::vec::Vec<alloc::string::String>
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::inputs: alloc::vec::Vec<nsb::components::starlight::StarlightBrightStarInputProvenance>
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::license_provenance: alloc::vec::Vec<alloc::string::String>
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::model_id: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::population_policy_id: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::precedence_policy_id: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::product_band: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::redistribution_scope: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::spectral_route: alloc::string::String
+pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::uv_completion_model_id: alloc::string::String
 pub struct nsb::components::starlight::StarlightMap
 impl nsb::components::starlight::StarlightMap
 pub fn nsb::components::starlight::StarlightMap::from_csv_path(path: impl core::convert::AsRef<std::path::Path>, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
@@ -185,6 +189,7 @@ pub fn nsb::components::starlight::StarlightPixel::with_uncertainties(self, stat
 pub fn nsb::components::starlight::StarlightPixel::without_s10_diagnostics(self) -> Self
 #[non_exhaustive] pub struct nsb::components::starlight::StarlightProvenance
 pub nsb::components::starlight::StarlightProvenance::band_definition: alloc::string::String
+pub nsb::components::starlight::StarlightProvenance::bright_star_supplement: core::option::Option<nsb::components::starlight::StarlightBrightStarSupplementProvenance>
 pub nsb::components::starlight::StarlightProvenance::calibration_status: core::option::Option<alloc::string::String>
 pub nsb::components::starlight::StarlightProvenance::checksum: core::option::Option<alloc::string::String>
 pub nsb::components::starlight::StarlightProvenance::dataset_name: alloc::string::String
@@ -228,6 +233,22 @@ pub const fn nsb::ZodiacalExtinction::as_str(self) -> &'static str
 pub nsb::components::zodiacal::ZodiacalModel::Leinert1998
 impl nsb::ZodiacalModel
 pub const fn nsb::ZodiacalModel::as_str(self) -> &'static str
+pub mod nsb::data
+pub mod nsb::data::bundled
+#[non_exhaustive] pub struct nsb::data::bundled::BundledAssetMetadata
+pub nsb::data::bundled::BundledAssetMetadata::calibration_status: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::generation_command: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::generator: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::license: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::path: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::schema: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::sha256: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::source: &'static str
+pub nsb::data::bundled::BundledAssetMetadata::validation_report: &'static str
+pub const nsb::data::bundled::ASSET_MANIFEST_SCHEMA_VERSION: u32
+pub static nsb::data::bundled::BUNDLED_ASSETS: &[nsb::data::bundled::BundledAssetMetadata]
+pub fn nsb::data::bundled::bundled_asset(path: &str) -> core::option::Option<&'static nsb::data::bundled::BundledAssetMetadata>
+pub fn nsb::data::bundled::bundled_assets() -> impl core::iter::traits::iterator::Iterator<Item = &'static nsb::data::bundled::BundledAssetMetadata>
 pub mod nsb::site
 #[non_exhaustive] pub enum nsb::site::CalibrationStatus
 pub nsb::site::CalibrationStatus::Calibrated
@@ -436,6 +457,29 @@ pub nsb::transport::TransportModelMetadata::provenance: &'static str
 pub nsb::transport::TransportModelMetadata::rayleigh: bool
 pub nsb::transport::TransportModelMetadata::uncertainty: &'static str
 pub nsb::transport::TransportModelMetadata::validated_domain: &'static str
+pub mod nsb::units
+pub use nsb::units::Per
+pub use nsb::units::Quantity
+pub use nsb::units::Second
+pub use nsb::units::Unit
+pub use nsb::units::Unit
+pub use nsb::units::angular
+pub use nsb::units::area
+pub use nsb::units::dimensionless
+pub use nsb::units::energy
+pub use nsb::units::length
+pub use nsb::units::photometry
+pub use nsb::units::power
+pub use nsb::units::qtty
+pub use nsb::units::radiometry
+pub use nsb::units::solid_angle
+pub use nsb::units::unit
+pub struct nsb::units::SolarFluxUnit
+impl qtty_core::unit::Unit for nsb::SolarFluxUnit
+pub type nsb::SolarFluxUnit::Dim = qtty_core::dimension::Dim<typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0, typenum::int::Z0>
+pub const nsb::SolarFluxUnit::RATIO: f64
+pub const nsb::SolarFluxUnit::SYMBOL: &'static str
+pub type nsb::units::SolarFluxUnits = qtty_core::quantity::Quantity<nsb::SolarFluxUnit>
 #[non_exhaustive] pub enum nsb::AirglowModel
 pub nsb::AirglowModel::ParanalNollSkyCalcFors1
 impl nsb::AirglowModel

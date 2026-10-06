@@ -1,3 +1,19 @@
+SUPERSEDED POLICY — NOT A CURRENT REDISTRIBUTION AUTHORIZATION
+
+This file is retained as historical evidence for the earlier Gaia-only
+336–650 nm derived-product review. It is not the authoritative policy for the
+current combined 300–650 nm candidate and must not be used to authorize
+crates.io, PyPI, GitHub-release, or other redistribution.
+
+Current authority is the artifact inventory plus the canonical decision record:
+  docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml
+  docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json
+
+The current decision is pending under issue #103. Any historical
+`derived_product_redistribution_allowed` value below does not override that
+decision.
+
+--- LEGACY RECORD BELOW ---
 NSB Gaia DR3 starlight derived-product policy
 
 Approval record

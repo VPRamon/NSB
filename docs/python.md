@@ -1,5 +1,10 @@
 # Python bindings
 
+Status: Current Python public interface for the first `0.1.x` release.
+Audience: Python users, integrators, and binding maintainers.
+Scope: Installation, canonical upstream types, evaluation/planning, units,
+errors, and local development.
+
 NSB exposes a deliberately small Python API for NSB evaluation and planning. The Rust crate in `crates/nsb` remains the scientific implementation and the authoritative public model contract.
 
 The Python distribution is named **`nsb-rust`**; the import remains:
@@ -7,6 +12,19 @@ The Python distribution is named **`nsb-rust`**; the import remains:
 ```python
 import nsb
 ```
+
+Python 3.10 or newer is supported.
+
+## Installation
+
+```bash
+python -m pip install nsb-rust
+```
+
+The distribution declares `siderust>=0.2.2,<0.3` as its runtime dependency,
+so pip installs the canonical Python Siderust package automatically. The Rust
+crate version used internally is a separate version line; see
+[Siderust compatibility](specifications/siderust-compatibility.md).
 
 ## Ownership boundary
 
@@ -81,8 +99,10 @@ for component in result.components:
 `NsbModelConfig::with_site_profile` erases the type. CTAO North/South are
 convenience presets only; the generic Rust public API exports
 `SiteProfileTag`, `SiteProfile<P>`, and `GenericClearSky` — not CTAO markers.
-Inspect the attached profile after configuration via `config.site_profile()`;
-`NsbModelConfig.site_profile_name()` mirrors the marker's `NAME` metadata.
+Inspect the selected Python profile via the `config.site_profile` property and
+`config.site_profile.as_str()`. The Rust-only
+`NsbModelConfig::site_profile_name()` metadata getter is not separately
+exposed by the Python binding.
 
 `ComponentMask` exposes named component flags and bitwise composition. Raw bit construction is not part of the public Python API.
 

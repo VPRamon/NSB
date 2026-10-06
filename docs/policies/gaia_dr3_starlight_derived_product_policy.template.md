@@ -1,16 +1,15 @@
 # Gaia DR3 starlight derived-product policy template
 
-Status: Template only; not approved for production use.
-Audience: NSB maintainers preparing a Gaia DR3 XP-derived starlight release artifact.
-Scope: Redistribution, attribution, provenance, and production-approval evidence for the derived runtime starlight CSV/TOML pair.
+Status: **Superseded legacy template.** It documents the earlier Gaia-only
+336–650 nm policy shape and is retained for audit context only.
+Audience: Maintainers reviewing historical redistribution evidence.
+Scope: Legacy Gaia-only redistribution fields; not the current production gate.
 
-This file is intentionally **not** the production policy file consumed by the release pipeline. The production command must receive a separately reviewed file, expected by the documented maintainer workflow as:
-
-```text
-docs/policies/gaia_dr3_starlight_derived_product_policy.txt
-```
-
-Do not copy this template to that path until every section below has been completed and reviewed.
+Do not instantiate this template for the combined 300–650 nm candidate. The
+current release process uses the authoritative artifact inventory and canonical
+redistribution decision under `docs/nsb_components/starlight/`, with the human
+decision tracked by issue #103. The legacy `.txt` policy is likewise retained
+only as a superseded record.
 
 ## Approval record
 

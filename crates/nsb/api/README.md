@@ -5,8 +5,11 @@ using pinned `cargo-public-api` directly (#176).
 
 Issue #185 temporarily removed `API_FROZEN` so observatory-named CTAO presets
 could be removed from the core contract without failing the post-freeze SemVer
-gate. Keep `public-api.txt` current; re-add `API_FROZEN` after the redesigned
-surface is reviewed.
+gate. That redesign is complete and #185 is closed. The `0.1.0` release tree
+restores `API_FROZEN`; `public-api.txt` is the reviewed baseline that CI must
+match. The marker-introducing commit uses freeze-bootstrap semantics when its
+historical base is still pre-freeze, and later changes are subject to the full
+historical SemVer gate.
 
 The redesigned site-profile surface is typed: `SiteProfileTag` markers supply
 compile-time identity; `SiteProfile<P>` is opaque and erases into

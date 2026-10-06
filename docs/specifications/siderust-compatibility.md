@@ -10,15 +10,29 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.12.0 | crates.io | `crates.io:siderust:0.12.0` | 1.89 | Released baseline |
+| 0.1.x | 0.12.0 | crates.io | `crates.io:siderust:0.12.0` | 1.89 | First-release baseline |
 
-All three workspace crates declare the published Siderust 0.12 package:
-
-```toml
-siderust = { version = "0.12.0", features = ["atmosphere", "photometry"] }
-```
+All three workspace crates pin the published Rust package at `0.12.0`.
+`crates/nsb` and `crates/nsb-cli` request the `atmosphere` and
+`photometry` features, while `crates/nsb-data-tools` uses its own feature set.
+The version/source identity is shared even though feature selection is not
+identical.
 
 `Cargo.lock` resolves the registry package to its published checksum.
+
+### Python package versioning
+
+The Python runtime dependency named `siderust` is the Siderust Python
+distribution and currently uses the independent `0.2.x` version line:
+
+```text
+nsb-rust -> siderust>=0.2.2,<0.3
+```
+
+This is not a mismatch with the Rust `siderust = "0.12.0"` dependency. The
+Python extension uses `siderust-py` for cross-extension interoperability,
+while the Rust scientific implementation links the Rust crate shown in the
+matrix above.
 
 Public library exports `nsb::SIDERUST_VERSION` and `nsb::SIDERUST_SOURCE` must
 match this matrix. A workspace contract test fails if the declared dependency,
