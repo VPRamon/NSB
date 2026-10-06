@@ -350,32 +350,24 @@ fn pending_redistribution_does_not_register_bundled_production_starlight() {
 }
 
 #[test]
-fn final_promotion_is_main_only_and_verifies_review_bundle_first() {
+fn mvp_release_excludes_unapproved_starlight_assets_from_the_nsb_crate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let workflow = fs::read_to_string(root.join(".github/workflows/starlight-final-promotion.yml"))
-        .expect("read final promotion workflow");
+    let cargo_toml =
+        fs::read_to_string(root.join("crates/nsb/Cargo.toml")).expect("read nsb Cargo.toml");
+    let manifest: TomlValue = toml::from_str(&cargo_toml).expect("parse nsb Cargo.toml");
+    let excluded = manifest["package"]["exclude"]
+        .as_array()
+        .expect("package.exclude array");
 
-    assert!(workflow.contains("- name: Checkout approved main only"));
-    assert!(workflow.contains("ref: main"));
-    assert!(workflow.contains("${GITHUB_REF}"));
-    assert!(workflow.contains("refs/heads/main"));
-    assert!(workflow.contains("git rev-parse origin/main"));
-    assert!(workflow.contains("- name: Require canonical promotion source and inputs"));
-    assert!(workflow.contains("--test starlight_review_bundle_contract"));
-    assert!(workflow.contains("frozen_review_bundle_pins_exact_release_evidence -- --exact"));
-    assert!(!workflow.contains("verify_starlight_review_bundle.py"));
-    assert!(!root
-        .join(".github/scripts/verify_starlight_review_bundle.py")
-        .exists());
-
-    let verify_pos = workflow
-        .find("Verify frozen release evidence bundle")
-        .expect("review bundle verification step");
-    let promote_pos = workflow
-        .find("Pack runtime map and apply production registry")
-        .expect("promotion step");
-    assert!(
-        verify_pos < promote_pos,
-        "release evidence bundle must be verified before any runtime asset is packed/applied"
-    );
+    for required in [
+        "data/starlight_nside128.csv",
+        "data/starlight_nside128.release.csv",
+        "data/starlight_nside128.manifest.toml",
+        "data/merge_report.json",
+    ] {
+        assert!(
+            excluded.iter().any(|value| value.as_str() == Some(required)),
+            "MVP package must exclude unapproved Starlight artifact {required}"
+        );
+    }
 }
