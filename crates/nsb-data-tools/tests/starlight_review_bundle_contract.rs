@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use toml::Value as TomlValue;
 
 const REVIEW_BUNDLE_PATH: &str =
@@ -201,6 +202,46 @@ fn release_candidate_and_runtime_assets_agree_semantically() {
         review["licensing_decision_path"].as_str(),
         Some(REDISTRIBUTION_DECISION_PATH)
     );
+}
+
+#[test]
+fn stage_runtime_cli_emits_the_pinned_provenance_complete_assets() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let temporary = tempfile::tempdir().unwrap();
+    let runtime_map = temporary.path().join("starlight.release.csv");
+    let runtime_sidecar = temporary.path().join("starlight.manifest.toml");
+    let output = Command::new(env!("CARGO_BIN_EXE_nsb-data"))
+        .args([
+            "dataset",
+            "starlight",
+            "stage-runtime",
+            "--release-candidate",
+        ])
+        .arg(root.join(RELEASE_CANDIDATE_PATH))
+        .arg("--repository-root")
+        .arg(&root)
+        .arg("--output-csv")
+        .arg(&runtime_map)
+        .arg("--output-sidecar")
+        .arg(&runtime_sidecar)
+        .output()
+        .unwrap();
+
+    assert!(
+        output.status.success(),
+        "stage-runtime failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains(CANDIDATE_SHA256));
+    assert!(stdout.contains(RUNTIME_MAP_SHA256));
+    assert!(stdout.contains(RUNTIME_SIDECAR_SHA256));
+    assert_eq!(sha256_file(&runtime_map), RUNTIME_MAP_SHA256);
+    assert_eq!(sha256_file(&runtime_sidecar), RUNTIME_SIDECAR_SHA256);
+    let sidecar = fs::read_to_string(runtime_sidecar).unwrap();
+    assert!(sidecar.contains("schema_version = 2"));
+    assert!(sidecar.contains("starlight-bright-stars-combined-v1"));
+    assert!(sidecar.contains("ck04-hp-scaled-uv-300-336-v1"));
 }
 
 #[test]
