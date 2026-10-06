@@ -696,7 +696,10 @@ fn verify_frozen_gates_report(
     let mut seen_gate_names = BTreeSet::new();
     for command in &report.recorded_commands {
         if !seen_gate_names.insert(command.name.as_str()) {
-            bail!("frozen gates report contains duplicate gate {}", command.name);
+            bail!(
+                "frozen gates report contains duplicate gate {}",
+                command.name
+            );
         }
     }
     for required in REQUIRED_GATES {
