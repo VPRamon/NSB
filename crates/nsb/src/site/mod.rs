@@ -66,7 +66,7 @@ impl AirglowSiteCalibration {
         Self {
             scale: Ratios::new(1.0),
             provenance: concat!(
-                "Bundled PALACE v1.0 Paranal unresolved-continuum planning product ",
+                "Bundled PALACE v1.0 Paranal-derived unresolved-continuum planning product ",
                 "reused as an explicit generic/planning proxy; neutral site scale; ",
                 "not site-calibrated."
             ),
