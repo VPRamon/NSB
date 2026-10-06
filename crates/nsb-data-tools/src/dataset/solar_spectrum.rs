@@ -1,16 +1,18 @@
-//! TSIS-1 HSRS v2 acquisition contract, deterministic runtime transform, and validation.
+//! Deterministic, NSB-authored analytic solar reference generation and validation.
 
 use super::{Artifact, RunConfig, SourceConfig, ValidationGate};
 use anyhow::{bail, Context, Result};
+use serde::Deserialize;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
 const RUNTIME_NAME: &str = "solar_spectrum.dat";
-pub(super) const SOURCE_NAME: &str = "tsis1_hsrs_p025nm_300_650.csv";
-const HIGH_RESOLUTION_NAME: &str = "tsis1_hsrs_native_300_650.csv";
-const PRODUCT_ID: &str = "tsis1_hsrs_p025nm";
-const RELEASE: &str = "TSIS-1 HSRS Version 2";
+pub(super) const SOURCE_NAME: &str = "solar-planck-v1.toml";
+const PRODUCT_ID: &str = "nsb-planck-solar-reference";
+const RELEASE: &str = "NSB analytic solar reference v1";
+const LICENSE: &str = "AGPL-3.0-only";
+const TERMS_URL: &str = "https://github.com/VPRamon/NSB/blob/main/LICENSE";
 const UNITS: &str = "W m^-2 nm^-1";
 const REFERENCE_DISTANCE: &str = "1 AU";
 const BAND_MIN_NM: f64 = 300.0;
@@ -25,29 +27,42 @@ struct Sample {
     irradiance_w_m2_nm: f64,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AnalyticModel {
+    schema_version: u32,
+    model_id: String,
+    model_version: String,
+    effective_temperature_k: f64,
+    solar_radius_m: f64,
+    astronomical_unit_m: f64,
+    planck_constant_j_s: f64,
+    speed_of_light_m_s: f64,
+    boltzmann_constant_j_k: f64,
+    temperature_source: String,
+    radius_source: String,
+    si_constants_source: String,
+    terms: String,
+    terms_url: String,
+}
+
 pub(super) fn output_name(source_name: &str) -> Result<&str> {
     if source_name == SOURCE_NAME {
         Ok(RUNTIME_NAME)
     } else {
-        bail!("source {source_name:?} is validation-only and has no runtime output")
+        bail!("unexpected solar-spectrum source {source_name:?}")
     }
 }
 
 pub(super) fn validate_config(config: &RunConfig) -> Result<()> {
-    if config.sources.len() != 2 {
-        bail!("solar-spectrum requires the pinned p025nm and native-resolution HSRS sources");
+    if config.sources.len() != 1 {
+        bail!("solar-spectrum requires exactly one pinned NSB analytic-model specification");
     }
     let source = required_source(config, SOURCE_NAME)?;
-    require_provenance(source, PRODUCT_ID)?;
-    let high_resolution = required_source(config, HIGH_RESOLUTION_NAME)?;
-    require_provenance(high_resolution, "tsis1_hsrs")?;
-    Ok(())
-}
-
-fn require_provenance(source: &SourceConfig, product_id: &str) -> Result<()> {
     let required = [
-        ("product_id", source.product_id.as_deref(), product_id),
+        ("product_id", source.product_id.as_deref(), PRODUCT_ID),
         ("release", source.release.as_deref(), RELEASE),
+        ("license", source.license.as_deref(), LICENSE),
         ("units", source.units.as_deref(), UNITS),
         (
             "reference_distance",
@@ -60,14 +75,18 @@ fn require_provenance(source: &SourceConfig, product_id: &str) -> Result<()> {
             bail!("source {:?} requires {field} = {expected:?}", source.name);
         }
     }
-    for (field, value) in [
-        ("metadata_url", source.metadata_url.as_deref()),
-        ("retrieved_at", source.retrieved_at.as_deref()),
-        ("license", source.license.as_deref()),
-    ] {
-        if value.is_none_or(|value| value.trim().is_empty()) {
-            bail!("source {:?} requires non-empty {field}", source.name);
-        }
+    if source.metadata_url.as_deref() != Some(TERMS_URL) {
+        bail!(
+            "source {:?} requires metadata_url = {TERMS_URL:?}",
+            source.name
+        );
+    }
+    if source
+        .retrieved_at
+        .as_deref()
+        .is_none_or(|value| value.trim().is_empty())
+    {
+        bail!("source {:?} requires non-empty retrieved_at", source.name);
     }
     Ok(())
 }
@@ -76,8 +95,9 @@ pub(super) fn transform(source_name: &str, input: &Path, output: &Path) -> Resul
     if source_name != SOURCE_NAME {
         bail!("cannot build runtime solar spectrum from {source_name:?}");
     }
-    let samples = parse_candidate_source(input)?;
-    let bytes = render_runtime(&samples)?;
+    let model = parse_model(input)?;
+    let input_sha256 = crate::platform::checksum_io::sha256_file(input)?;
+    let bytes = render_runtime(&model, &input_sha256)?;
     crate::dataset::engine::atomic_write(output, bytes.as_bytes())
 }
 
@@ -88,19 +108,30 @@ pub(super) fn validate_artifact(name: &str, path: &Path) -> Result<()> {
     let text = fs::read_to_string(path)?;
     for required in [
         "# wavelength_nm,irradiance_W_m2_nm\n",
-        "# source_product=tsis1_hsrs_p025nm\n",
-        "# source_release=TSIS-1 HSRS Version 2\n",
+        "# source_product=nsb-planck-solar-reference\n",
+        "# source_release=NSB analytic solar reference v1\n",
+        "# source_terms=AGPL-3.0-only\n",
+        "# source_terms_url=https://github.com/VPRamon/NSB/blob/main/LICENSE\n",
+        "# generator=nsb-data-tools-0.1.0\n",
         "# units=W m^-2 nm^-1\n",
         "# reference_distance=1 AU\n",
-        "# runtime_grid_method=flux-conserving 1 nm cell means with exact 445/500/551 nm anchors\n",
+        "# runtime_grid_method=analytic Planck spectral irradiance at integer-nanometre nodes\n",
         "# runtime_sampling_interval_nm=1\n",
     ] {
         if !text.contains(required) {
             bail!("solar spectrum is missing required header {required:?}");
         }
     }
+    let checksum = header_value(&text, "input_sha256")?;
+    if checksum.len() != 64
+        || !checksum
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        bail!("solar spectrum input_sha256 is not a lowercase SHA-256 digest");
+    }
     let samples = parse_runtime(&text)?;
-    validate_samples(&samples, true)?;
+    validate_samples(&samples)?;
     validate_runtime_representation(&samples)
 }
 
@@ -114,119 +145,135 @@ pub(super) fn validation_gates(
         .context("solar runtime artifact is missing")?;
     let runtime_text = fs::read_to_string(&artifact.path)?;
     let runtime = parse_runtime(&runtime_text)?;
-    let selected_source =
-        parse_candidate_source(&config.workspace.root.join("sources").join(SOURCE_NAME))?;
-    let regenerated = render_runtime(&selected_source)?;
-    let deterministic = regenerated.as_bytes() == runtime_text.as_bytes();
-
-    let native = parse_native_source(
-        &config
-            .workspace
-            .root
-            .join("sources")
-            .join(HIGH_RESOLUTION_NAME),
-    )?;
-    validate_samples(&native, true)?;
-    let runtime_integral = trapezoid_integral(&runtime);
-    let selected_integral = trapezoid_integral(&selected_source);
-    let native_integral = trapezoid_integral(&native);
-    let selected_native_integral_difference =
-        relative_difference(selected_integral, native_integral);
-    let runtime_integral_difference = relative_difference(runtime_integral, selected_integral);
-    let bv_runtime = ratio_at(&runtime, 445.0, 551.0)?;
-    let bv_selected = ratio_at(&selected_source, 445.0, 551.0)?;
-    let bv_native = ratio_at(&native, 445.0, 551.0)?;
-    let selected_native_bv_difference = relative_difference(bv_selected, bv_native);
-    let runtime_bv_difference = relative_difference(bv_runtime, bv_selected);
-    let anchors_preserved = REQUIRED_ANCHORS_NM.iter().all(|wavelength| {
-        let Ok(runtime_value) = exact_value_at(&runtime, *wavelength) else {
-            return false;
-        };
-        let Ok(selected_value) = exact_value_at(&selected_source, *wavelength) else {
-            return false;
-        };
-        relative_difference(runtime_value, selected_value) <= 1.0e-14
+    let input = config.workspace.root.join("sources").join(SOURCE_NAME);
+    let model = parse_model(&input)?;
+    let input_sha256 = crate::platform::checksum_io::sha256_file(&input)?;
+    let regenerated = render_runtime(&model, &input_sha256)?;
+    let expected = generate_samples(&model)?;
+    let anchors_exact = REQUIRED_ANCHORS_NM.iter().all(|wavelength| {
+        exact_value_at(&runtime, *wavelength).ok() == exact_value_at(&expected, *wavelength).ok()
     });
+    let integral = trapezoid_integral(&runtime);
+    let expected_integral = trapezoid_integral(&expected);
+    let bv = ratio_at(&runtime, 445.0, 551.0)?;
 
     Ok(vec![
         ValidationGate {
             name: "deterministic-regeneration".into(),
-            passed: deterministic,
+            passed: regenerated.as_bytes() == runtime_text.as_bytes(),
             detail: format!("regenerated bytes equal {}", artifact.sha256),
         },
         ValidationGate {
-            name: "source-provenance".into(),
+            name: "source-provenance-and-terms".into(),
             passed: true,
             detail: format!(
-                "product={PRODUCT_ID}; release={RELEASE}; units={UNITS}; reference_distance={REFERENCE_DISTANCE}"
+                "product={PRODUCT_ID}; release={RELEASE}; input_sha256={input_sha256}; terms={LICENSE}; terms_url={TERMS_URL}"
             ),
         },
         ValidationGate {
-            name: "runtime-grid-complexity".into(),
-            passed: runtime.len() <= RUNTIME_SAMPLE_COUNT,
-            detail: format!(
-                "runtime_samples={}; maximum={RUNTIME_SAMPLE_COUNT}; upstream_samples={}",
-                runtime.len(),
-                selected_source.len()
-            ),
+            name: "runtime-grid".into(),
+            passed: runtime.len() == RUNTIME_SAMPLE_COUNT,
+            detail: format!("runtime_samples={}; required={RUNTIME_SAMPLE_COUNT}", runtime.len()),
         },
         ValidationGate {
             name: "runtime-required-anchors".into(),
-            passed: anchors_preserved,
-            detail: "445, 500, and 551 nm are present exactly with p025nm irradiances".into(),
+            passed: anchors_exact,
+            detail: "445, 500, and 551 nm are exact analytic-model samples".into(),
         },
         ValidationGate {
-            name: "runtime-p025nm-integral-comparison".into(),
-            passed: runtime_integral_difference <= 1.0e-12,
+            name: "analytic-integral-regression".into(),
+            passed: relative_difference(integral, expected_integral) <= 1.0e-14,
             detail: format!(
-                "runtime={runtime_integral:.12} W m^-2; p025nm={selected_integral:.12} W m^-2; relative_difference={runtime_integral_difference:.12e}"
+                "runtime={integral:.12} W m^-2; regenerated={expected_integral:.12} W m^-2"
             ),
         },
         ValidationGate {
-            name: "runtime-p025nm-b-v-shape-comparison".into(),
-            passed: runtime_bv_difference <= 1.0e-12,
-            detail: format!(
-                "runtime_445_over_551={bv_runtime:.12}; p025nm_445_over_551={bv_selected:.12}; relative_difference={runtime_bv_difference:.12e}"
-            ),
-        },
-        ValidationGate {
-            name: "p025nm-native-integral-comparison".into(),
-            passed: selected_native_integral_difference <= 5.0e-4,
-            detail: format!(
-                "p025nm={selected_integral:.12} W m^-2; native={native_integral:.12} W m^-2; relative_difference={selected_native_integral_difference:.12e}"
-            ),
-        },
-        ValidationGate {
-            name: "p025nm-native-b-v-shape-comparison".into(),
-            passed: selected_native_bv_difference <= 1.0e-2,
-            detail: format!(
-                "p025nm_445_over_551={bv_selected:.12}; native_445_over_551={bv_native:.12}; relative_difference={selected_native_bv_difference:.12e}"
-            ),
+            name: "analytic-b-v-regression".into(),
+            passed: relative_difference(bv, 0.983_622_222_728_010_8) <= 1.0e-14,
+            detail: format!("runtime_445_over_551={bv:.15}"),
         },
     ])
 }
 
-fn render_runtime(samples: &[Sample]) -> Result<String> {
-    let mut bytes = String::from(
+fn parse_model(path: &Path) -> Result<AnalyticModel> {
+    let raw = fs::read_to_string(path)?;
+    let model: AnalyticModel = toml::from_str(&raw)?;
+    let exact_numbers = [
+        (
+            "effective_temperature_k",
+            model.effective_temperature_k,
+            5772.0,
+        ),
+        ("solar_radius_m", model.solar_radius_m, 695_700_000.0),
+        (
+            "astronomical_unit_m",
+            model.astronomical_unit_m,
+            149_597_870_700.0,
+        ),
+        (
+            "planck_constant_j_s",
+            model.planck_constant_j_s,
+            6.626_070_15e-34,
+        ),
+        (
+            "speed_of_light_m_s",
+            model.speed_of_light_m_s,
+            299_792_458.0,
+        ),
+        (
+            "boltzmann_constant_j_k",
+            model.boltzmann_constant_j_k,
+            1.380_649e-23,
+        ),
+    ];
+    if model.schema_version != 1
+        || model.model_id != PRODUCT_ID
+        || model.model_version != "1"
+        || model.terms != LICENSE
+        || model.terms_url != TERMS_URL
+    {
+        bail!("solar analytic-model identity, version, or terms do not match v1");
+    }
+    for (field, actual, expected) in exact_numbers {
+        if actual != expected {
+            bail!("solar analytic-model {field} must equal {expected:.17e}");
+        }
+    }
+    for (field, value) in [
+        ("temperature_source", model.temperature_source.as_str()),
+        ("radius_source", model.radius_source.as_str()),
+        ("si_constants_source", model.si_constants_source.as_str()),
+    ] {
+        if value.trim().is_empty() {
+            bail!("solar analytic-model {field} must not be empty");
+        }
+    }
+    Ok(model)
+}
+
+fn render_runtime(model: &AnalyticModel, input_sha256: &str) -> Result<String> {
+    let mut bytes = format!(
         "# wavelength_nm,irradiance_W_m2_nm\n\
-# source_product=tsis1_hsrs_p025nm\n\
-# source_release=TSIS-1 HSRS Version 2\n\
-# source_doi=https://doi.org/10.25980/ta3f-7h90\n\
-# units=W m^-2 nm^-1\n\
-# upstream_spectral_resolution_nm=0.025\n\
-# upstream_sampling_interval_nm=0.005\n\
-# reference_distance=1 AU\n\
-# runtime_grid_method=flux-conserving 1 nm cell means with exact 445/500/551 nm anchors\n\
+# source_product={PRODUCT_ID}\n\
+# source_release={RELEASE}\n\
+# source_terms={LICENSE}\n\
+# source_terms_url={TERMS_URL}\n\
+# input_sha256={input_sha256}\n\
+# generator=nsb-data-tools-{}\n\
+# model=Planck spectral radiance scaled by pi*(nominal solar radius/1 AU)^2\n\
+# effective_temperature_k=5772\n\
+# solar_radius_m=695700000\n\
+# astronomical_unit_m=149597870700\n\
+# planck_constant_j_s=6.62607015e-34\n\
+# speed_of_light_m_s=299792458\n\
+# boltzmann_constant_j_k=1.380649e-23\n\
+# units={UNITS}\n\
+# reference_distance={REFERENCE_DISTANCE}\n\
+# runtime_grid_method=analytic Planck spectral irradiance at integer-nanometre nodes\n\
 # runtime_sampling_interval_nm=1\n",
+        env!("CARGO_PKG_VERSION")
     );
-    let selected: Vec<_> = samples
-        .iter()
-        .copied()
-        .filter(|sample| (BAND_MIN_NM..=BAND_MAX_NM).contains(&sample.wavelength_nm))
-        .collect();
-    validate_samples(&selected, true)?;
-    let runtime = reduce_to_runtime(&selected)?;
-    for sample in runtime {
+    for sample in generate_samples(model)? {
         writeln!(
             bytes,
             "{:.3},{:.17e}",
@@ -236,41 +283,26 @@ fn render_runtime(samples: &[Sample]) -> Result<String> {
     Ok(bytes)
 }
 
-/// Reduce the official high-resolution source to the grid the runtime models need.
-///
-/// Each integer-nanometre node initially stores the mean irradiance in its
-/// one-nanometre Voronoi cell (half-width cells at the band edges). With the
-/// trapezoidal integration used by NSB, those means preserve the source's
-/// 300–650 nm integral. The three model diagnostics then replace their cell
-/// means with the exact p025nm values; equal compensating corrections at the
-/// adjacent nodes preserve the integral without adding hot-path samples.
-fn reduce_to_runtime(samples: &[Sample]) -> Result<Vec<Sample>> {
-    validate_samples(samples, true)?;
-    let mut runtime = Vec::with_capacity(RUNTIME_SAMPLE_COUNT);
+fn generate_samples(model: &AnalyticModel) -> Result<Vec<Sample>> {
+    let solid_angle_scale =
+        std::f64::consts::PI * (model.solar_radius_m / model.astronomical_unit_m).powi(2);
+    let mut samples = Vec::with_capacity(RUNTIME_SAMPLE_COUNT);
     for index in 0..RUNTIME_SAMPLE_COUNT {
         let wavelength_nm = BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM;
-        let left = (wavelength_nm - RUNTIME_STEP_NM / 2.0).max(BAND_MIN_NM);
-        let right = (wavelength_nm + RUNTIME_STEP_NM / 2.0).min(BAND_MAX_NM);
-        runtime.push(Sample {
+        let wavelength_m = wavelength_nm * 1.0e-9;
+        let exponent = model.planck_constant_j_s * model.speed_of_light_m_s
+            / (wavelength_m * model.boltzmann_constant_j_k * model.effective_temperature_k);
+        let spectral_radiance_per_m =
+            2.0 * model.planck_constant_j_s * model.speed_of_light_m_s.powi(2)
+                / (wavelength_m.powi(5) * exponent.exp_m1());
+        samples.push(Sample {
             wavelength_nm,
-            irradiance_w_m2_nm: integrate_range(samples, left, right)? / (right - left),
+            irradiance_w_m2_nm: spectral_radiance_per_m * solid_angle_scale * 1.0e-9,
         });
     }
-
-    for wavelength_nm in REQUIRED_ANCHORS_NM {
-        let index = runtime
-            .binary_search_by(|sample| sample.wavelength_nm.total_cmp(&wavelength_nm))
-            .map_err(|_| anyhow::anyhow!("runtime anchor {wavelength_nm} nm is missing"))?;
-        let exact = exact_value_at(samples, wavelength_nm)?;
-        let correction = exact - runtime[index].irradiance_w_m2_nm;
-        runtime[index].irradiance_w_m2_nm = exact;
-        runtime[index - 1].irradiance_w_m2_nm -= correction / 2.0;
-        runtime[index + 1].irradiance_w_m2_nm -= correction / 2.0;
-    }
-
-    validate_samples(&runtime, true)?;
-    validate_runtime_representation(&runtime)?;
-    Ok(runtime)
+    validate_samples(&samples)?;
+    validate_runtime_representation(&samples)?;
+    Ok(samples)
 }
 
 fn validate_runtime_representation(samples: &[Sample]) -> Result<()> {
@@ -293,45 +325,10 @@ fn validate_runtime_representation(samples: &[Sample]) -> Result<()> {
     Ok(())
 }
 
-fn parse_candidate_source(path: &Path) -> Result<Vec<Sample>> {
-    let mut reader = csv::ReaderBuilder::new().from_path(path)?;
-    let expected = ["wavelength (nm)", "irradiance (W/m^2/nm)"];
-    if reader.headers()?.iter().ne(expected) {
-        bail!("unexpected TSIS-1 HSRS p025nm source schema");
-    }
-    let mut samples = Vec::new();
-    for row in reader.records() {
-        let row = row?;
-        if row.len() != 2 {
-            bail!("TSIS-1 HSRS p025nm row must contain two fields");
-        }
-        samples.push(Sample {
-            wavelength_nm: row[0].parse()?,
-            irradiance_w_m2_nm: row[1].parse()?,
-        });
-    }
-    validate_samples(&samples, false)?;
-    Ok(samples)
-}
-
-fn parse_native_source(path: &Path) -> Result<Vec<Sample>> {
-    let mut reader = csv::ReaderBuilder::new().from_path(path)?;
-    let expected = ["wavelength (nm)", "irradiance (W/m^2/nm)"];
-    if reader.headers()?.iter().ne(expected) {
-        bail!("unexpected native-resolution TSIS-1 HSRS source schema");
-    }
-    let mut samples = Vec::new();
-    for row in reader.records() {
-        let row = row?;
-        if row.len() != 2 {
-            bail!("native-resolution TSIS-1 HSRS row must contain two fields");
-        }
-        samples.push(Sample {
-            wavelength_nm: row[0].parse()?,
-            irradiance_w_m2_nm: row[1].parse()?,
-        });
-    }
-    Ok(samples)
+fn header_value<'a>(text: &'a str, key: &str) -> Result<&'a str> {
+    text.lines()
+        .find_map(|line| line.strip_prefix(&format!("# {key}=")))
+        .with_context(|| format!("solar spectrum is missing header {key:?}"))
 }
 
 fn parse_runtime(text: &str) -> Result<Vec<Sample>> {
@@ -350,7 +347,7 @@ fn parse_runtime(text: &str) -> Result<Vec<Sample>> {
         .collect()
 }
 
-fn validate_samples(samples: &[Sample], require_runtime_band: bool) -> Result<()> {
+fn validate_samples(samples: &[Sample]) -> Result<()> {
     if samples.len() < 2 {
         bail!("solar spectrum requires at least two samples");
     }
@@ -358,18 +355,17 @@ fn validate_samples(samples: &[Sample], require_runtime_band: bool) -> Result<()
         if !sample.wavelength_nm.is_finite() || sample.wavelength_nm <= 0.0 {
             bail!("solar wavelength at row {index} must be finite and positive");
         }
-        if !sample.irradiance_w_m2_nm.is_finite() || sample.irradiance_w_m2_nm < 0.0 {
-            bail!("solar irradiance at row {index} must be finite and non-negative");
+        if !sample.irradiance_w_m2_nm.is_finite() || sample.irradiance_w_m2_nm <= 0.0 {
+            bail!("solar irradiance at row {index} must be finite and positive");
         }
         if index > 0 && sample.wavelength_nm <= samples[index - 1].wavelength_nm {
             bail!("solar wavelengths must be strictly increasing without duplicates");
         }
     }
-    if require_runtime_band
-        && (samples[0].wavelength_nm > BAND_MIN_NM
-            || samples.last().unwrap().wavelength_nm < BAND_MAX_NM)
+    if samples[0].wavelength_nm != BAND_MIN_NM
+        || samples.last().unwrap().wavelength_nm != BAND_MAX_NM
     {
-        bail!("solar spectrum must cover 300–650 nm");
+        bail!("solar spectrum must cover exactly 300–650 nm");
     }
     Ok(())
 }
@@ -392,35 +388,6 @@ fn trapezoid_integral(samples: &[Sample]) -> f64 {
         .sum()
 }
 
-fn integrate_range(samples: &[Sample], start_nm: f64, end_nm: f64) -> Result<f64> {
-    if start_nm >= end_nm {
-        bail!("solar integration range must have positive width");
-    }
-    let mut previous = Sample {
-        wavelength_nm: start_nm,
-        irradiance_w_m2_nm: interpolate(samples, start_nm)?,
-    };
-    let mut integral = 0.0;
-    for sample in samples
-        .iter()
-        .copied()
-        .filter(|sample| sample.wavelength_nm > start_nm && sample.wavelength_nm < end_nm)
-    {
-        integral += (sample.wavelength_nm - previous.wavelength_nm)
-            * (sample.irradiance_w_m2_nm + previous.irradiance_w_m2_nm)
-            / 2.0;
-        previous = sample;
-    }
-    let end = Sample {
-        wavelength_nm: end_nm,
-        irradiance_w_m2_nm: interpolate(samples, end_nm)?,
-    };
-    integral += (end.wavelength_nm - previous.wavelength_nm)
-        * (end.irradiance_w_m2_nm + previous.irradiance_w_m2_nm)
-        / 2.0;
-    Ok(integral)
-}
-
 fn exact_value_at(samples: &[Sample], wavelength_nm: f64) -> Result<f64> {
     let index = samples
         .binary_search_by(|sample| sample.wavelength_nm.total_cmp(&wavelength_nm))
@@ -431,21 +398,7 @@ fn exact_value_at(samples: &[Sample], wavelength_nm: f64) -> Result<f64> {
 }
 
 fn ratio_at(samples: &[Sample], numerator_nm: f64, denominator_nm: f64) -> Result<f64> {
-    Ok(interpolate(samples, numerator_nm)? / interpolate(samples, denominator_nm)?)
-}
-
-fn interpolate(samples: &[Sample], wavelength_nm: f64) -> Result<f64> {
-    let upper = samples.partition_point(|sample| sample.wavelength_nm < wavelength_nm);
-    if upper < samples.len() && samples[upper].wavelength_nm == wavelength_nm {
-        return Ok(samples[upper].irradiance_w_m2_nm);
-    }
-    if upper == 0 || upper == samples.len() {
-        bail!("wavelength {wavelength_nm} nm is outside the spectrum");
-    }
-    let low = samples[upper - 1];
-    let high = samples[upper];
-    let fraction = (wavelength_nm - low.wavelength_nm) / (high.wavelength_nm - low.wavelength_nm);
-    Ok(low.irradiance_w_m2_nm + fraction * (high.irradiance_w_m2_nm - low.irradiance_w_m2_nm))
+    Ok(exact_value_at(samples, numerator_nm)? / exact_value_at(samples, denominator_nm)?)
 }
 
 fn relative_difference(left: f64, right: f64) -> f64 {
@@ -457,22 +410,25 @@ mod tests {
     use super::*;
     use std::io::Write as _;
 
+    fn model() -> AnalyticModel {
+        parse_model(Path::new("data/solar-planck-v1.toml")).unwrap()
+    }
+
     fn runtime(rows: &str) -> tempfile::NamedTempFile {
         let mut file = tempfile::NamedTempFile::new().unwrap();
         write!(
             file,
-            "# wavelength_nm,irradiance_W_m2_nm\n# source_product=tsis1_hsrs_p025nm\n# source_release=TSIS-1 HSRS Version 2\n# units=W m^-2 nm^-1\n# reference_distance=1 AU\n# runtime_grid_method=flux-conserving 1 nm cell means with exact 445/500/551 nm anchors\n# runtime_sampling_interval_nm=1\n{rows}"
+            "# wavelength_nm,irradiance_W_m2_nm\n# source_product=nsb-planck-solar-reference\n# source_release=NSB analytic solar reference v1\n# source_terms=AGPL-3.0-only\n# source_terms_url=https://github.com/VPRamon/NSB/blob/main/LICENSE\n# input_sha256=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n# generator=nsb-data-tools-0.1.0\n# units=W m^-2 nm^-1\n# reference_distance=1 AU\n# runtime_grid_method=analytic Planck spectral irradiance at integer-nanometre nodes\n# runtime_sampling_interval_nm=1\n{rows}"
         )
         .unwrap();
         file
     }
 
     #[test]
-    fn runtime_validation_accepts_physical_coverage() {
-        let rows = (0..RUNTIME_SAMPLE_COUNT)
-            .map(|index| format!("{:.3},1.0\n", BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM))
-            .collect::<String>();
-        let file = runtime(&rows);
+    fn runtime_validation_accepts_generated_product() {
+        let rendered = render_runtime(&model(), &"a".repeat(64)).unwrap();
+        let mut file = tempfile::NamedTempFile::new().unwrap();
+        file.write_all(rendered.as_bytes()).unwrap();
         validate_artifact(RUNTIME_NAME, file.path()).unwrap();
     }
 
@@ -488,101 +444,49 @@ mod tests {
             "300.0,1.0,2.0\n650.0,1.0\n",
         ] {
             let file = runtime(rows);
-            assert!(
-                validate_artifact(RUNTIME_NAME, file.path()).is_err(),
-                "accepted {rows:?}"
-            );
+            assert!(validate_artifact(RUNTIME_NAME, file.path()).is_err());
         }
     }
 
     #[test]
-    fn candidate_parser_rejects_unexpected_schema() {
-        let mut file = tempfile::NamedTempFile::new().unwrap();
-        writeln!(file, "wavelength,flux\n300,1").unwrap();
-        assert!(parse_candidate_source(file.path()).is_err());
-    }
-
-    #[test]
-    fn candidate_parser_rejects_malformed_physical_values() {
-        for rows in [
-            "NaN,1.0\n650.0,1.0\n",
-            "0.0,1.0\n650.0,1.0\n",
-            "300.0,1.0\n299.0,1.0\n",
-            "300.0,1.0\n300.0,1.1\n",
-            "300.0,-1.0\n650.0,1.0\n",
-            "300.0,NaN\n650.0,1.0\n",
+    fn model_parser_rejects_changed_constants_or_terms() {
+        let raw = fs::read_to_string("data/solar-planck-v1.toml").unwrap();
+        for changed in [
+            raw.replace("5772.0", "5773.0"),
+            raw.replace("AGPL-3.0-only", "unresolved"),
+            raw.replace("schema_version = 1", "schema_version = 2"),
         ] {
             let mut file = tempfile::NamedTempFile::new().unwrap();
-            write!(file, "wavelength (nm),irradiance (W/m^2/nm)\n{rows}").unwrap();
-            assert!(
-                parse_candidate_source(file.path()).is_err(),
-                "accepted {rows:?}"
-            );
+            file.write_all(changed.as_bytes()).unwrap();
+            assert!(parse_model(file.path()).is_err());
         }
     }
 
     #[test]
-    fn reduction_rejects_incomplete_band_coverage() {
-        let samples = [
-            Sample {
-                wavelength_nm: 301.0,
-                irradiance_w_m2_nm: 1.0,
-            },
-            Sample {
-                wavelength_nm: 650.0,
-                irradiance_w_m2_nm: 1.0,
-            },
-        ];
-        assert!(reduce_to_runtime(&samples).is_err());
-    }
-
-    #[test]
-    fn runtime_sample_count_guard_rejects_a_short_grid() {
-        let rows = (0..RUNTIME_SAMPLE_COUNT - 1)
-            .map(|index| format!("{:.3},1.0\n", BAND_MIN_NM + index as f64 * RUNTIME_STEP_NM))
-            .collect::<String>();
-        let file = runtime(&rows);
-        assert!(validate_artifact(RUNTIME_NAME, file.path()).is_err());
-    }
-
-    #[test]
-    fn reduction_preserves_integral_and_required_anchors() {
-        let samples = (3000..=6500)
-            .map(|index| {
-                let wavelength_nm = f64::from(index) / 10.0;
-                Sample {
-                    wavelength_nm,
-                    irradiance_w_m2_nm: 1.0
-                        + wavelength_nm / 1000.0
-                        + (wavelength_nm * 0.7).sin().abs(),
-                }
-            })
-            .collect::<Vec<_>>();
-        let runtime = reduce_to_runtime(&samples).unwrap();
-        assert_eq!(runtime.len(), RUNTIME_SAMPLE_COUNT);
+    fn analytic_product_has_expected_grid_anchors_and_scale() {
+        let samples = generate_samples(&model()).unwrap();
+        assert_eq!(samples.len(), RUNTIME_SAMPLE_COUNT);
+        assert!(relative_difference(trapezoid_integral(&samples), 547.535_433_337_631_2) < 1e-12);
         assert!(
-            relative_difference(trapezoid_integral(&runtime), trapezoid_integral(&samples))
-                < 1.0e-13
+            relative_difference(
+                exact_value_at(&samples, 500.0).unwrap(),
+                1.782_718_332_319_31
+            ) < 1e-14
         );
-        for wavelength_nm in REQUIRED_ANCHORS_NM {
-            assert_eq!(
-                exact_value_at(&runtime, wavelength_nm).unwrap(),
-                exact_value_at(&samples, wavelength_nm).unwrap()
-            );
-        }
+        assert!(
+            relative_difference(
+                ratio_at(&samples, 445.0, 551.0).unwrap(),
+                0.983_622_222_728_010_8
+            ) < 1e-14
+        );
     }
 
     #[test]
-    fn reduction_is_byte_deterministic() {
-        let samples = (3000..=6500)
-            .map(|index| Sample {
-                wavelength_nm: f64::from(index) / 10.0,
-                irradiance_w_m2_nm: 1.0 + f64::from(index % 17) / 100.0,
-            })
-            .collect::<Vec<_>>();
+    fn generation_is_byte_deterministic() {
+        let model = model();
         assert_eq!(
-            render_runtime(&samples).unwrap(),
-            render_runtime(&samples).unwrap()
+            render_runtime(&model, &"a".repeat(64)).unwrap(),
+            render_runtime(&model, &"a".repeat(64)).unwrap()
         );
     }
 }
