@@ -470,12 +470,12 @@ fn draw_colorbar(
     ))?;
 
     root.draw(&Text::new(
-        format!("{:.6g}", range.min),
+        format!("{:.6e}", range.min),
         (X0 - 38, Y1 + 30),
         ("sans-serif", 19).into_font(),
     ))?;
     root.draw(&Text::new(
-        format!("{:.6g}", range.max),
+        format!("{:.6e}", range.max),
         (X1 - 72, Y1 + 30),
         ("sans-serif", 19).into_font(),
     ))?;
