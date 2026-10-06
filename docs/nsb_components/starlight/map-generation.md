@@ -47,6 +47,29 @@ Runtime queries may convert a pixel-integrated quantity into the runtime
 radiance contract using pixel solid angle; that does not make the candidate CSV
 a surface-radiance field.
 
+## Galactic heatmap
+
+A generated candidate can be inspected as a Galactic Mollweide heatmap with
+the maintainer script:
+
+```bash
+python -m pip install numpy matplotlib healpy
+python3 scripts/plot_starlight_heatmap.py \
+  crates/nsb/data/starlight_nside128.csv \
+  --output starlight_heatmap.png
+```
+
+The renderer validates the Starlight candidate contract used by the plot
+(`nside`, NESTED ordering, integrated-per-pixel quantity and flux unit),
+expands the sparse pixel rows over the full HEALPix domain, and treats omitted
+pixels as physical zero flux. The default logarithmic normalization exposes
+both the Galactic plane and the fainter high-latitude structure. The title
+includes the candidate SHA-256 prefix so screenshots remain tied to exact map
+bytes. Use `--norm linear` when a linear color scale is required.
+
+The visualization packages are optional maintainer dependencies and are not
+runtime dependencies of the `nsb-rust` Python distribution.
+
 Resolution selection, when needed, is a separate scientific study comparing
 independent source-level runs. Only the selected candidate is published.
 Diagnostic resampling is outside the scientific publication lifecycle.
