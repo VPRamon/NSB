@@ -16,6 +16,7 @@ const REDISTRIBUTION_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json";
 const RELEASE_CANDIDATE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml";
+const MERGE_REPORT_PATH: &str = "crates/nsb/data/merge_report.json";
 const RUNTIME_ASSETS_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
 const CANDIDATE_SHA256: &str = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
@@ -152,6 +153,16 @@ fn release_candidate_and_runtime_assets_agree_semantically() {
     let review = release_candidate["review_artifacts"].as_table().unwrap();
 
     assert_eq!(
+        candidate["generation_date_utc"].as_str(),
+        Some("2026-10-06T07:02:23Z")
+    );
+    assert_eq!(review["merge_report_path"].as_str(), Some(MERGE_REPORT_PATH));
+    assert_eq!(
+        review["merge_report_sha256"].as_str(),
+        Some(sha256_file(&root.join(MERGE_REPORT_PATH)).as_str())
+    );
+
+    assert_eq!(
         candidate["map_path"].as_str(),
         runtime_assets["candidate_path"].as_str()
     );
@@ -238,10 +249,68 @@ fn stage_runtime_cli_emits_the_pinned_provenance_complete_assets() {
     assert!(stdout.contains(RUNTIME_SIDECAR_SHA256));
     assert_eq!(sha256_file(&runtime_map), RUNTIME_MAP_SHA256);
     assert_eq!(sha256_file(&runtime_sidecar), RUNTIME_SIDECAR_SHA256);
-    let sidecar = fs::read_to_string(runtime_sidecar).unwrap();
-    assert!(sidecar.contains("schema_version = 2"));
-    assert!(sidecar.contains("starlight-bright-stars-combined-v1"));
-    assert!(sidecar.contains("ck04-hp-scaled-uv-300-336-v1"));
+    let packed_map = fs::read_to_string(&runtime_map).unwrap();
+    assert!(packed_map.contains("# generation_date_utc=2026-10-06T07:02:23Z"));
+
+    let sidecar_raw = fs::read_to_string(&runtime_sidecar).unwrap();
+    assert!(sidecar_raw.contains("schema_version = 2"));
+    assert!(sidecar_raw.contains("starlight-bright-stars-combined-v1"));
+    assert!(sidecar_raw.contains("ck04-hp-scaled-uv-300-336-v1"));
+    let sidecar: TomlValue = toml::from_str(&sidecar_raw).unwrap();
+    assert_eq!(
+        sidecar["generation_date"].as_str(),
+        Some("2026-10-06T07:02:23Z")
+    );
+    assert_eq!(
+        sidecar["header"]["generation_date_utc"].as_str(),
+        Some("2026-10-06T07:02:23Z")
+    );
+
+    let merge_report: JsonValue =
+        serde_json::from_str(&fs::read_to_string(root.join(MERGE_REPORT_PATH)).unwrap()).unwrap();
+    let canonical = &merge_report["bright_star_supplement"];
+    let runtime = &sidecar["bright_star_supplement"];
+    for field in [
+        "artifact_sha256",
+        "model_id",
+        "product_band",
+        "uv_completion_model_id",
+        "population_policy_id",
+        "precedence_policy_id",
+        "build_commit",
+        "spectral_route",
+        "redistribution_scope",
+    ] {
+        assert_eq!(
+            runtime[field].as_str(),
+            canonical[field].as_str(),
+            "runtime bright-star field {field} drifted from canonical merge-report provenance"
+        );
+    }
+    let canonical_inputs = canonical["inputs"].as_array().unwrap();
+    let runtime_inputs = runtime["inputs"].as_array().unwrap();
+    assert_eq!(runtime_inputs.len(), canonical_inputs.len());
+    assert_eq!(runtime_inputs.len(), 34);
+    for expected in canonical_inputs {
+        let source_id = expected["source_id"].as_str().unwrap();
+        let actual = runtime_inputs
+            .iter()
+            .find(|input| input["source_id"].as_str() == Some(source_id))
+            .unwrap_or_else(|| panic!("missing runtime bright-star provenance input {source_id}"));
+        for field in [
+            "role",
+            "release",
+            "sha256",
+            "retrieval_url",
+            "license_or_terms_url",
+        ] {
+            assert_eq!(
+                actual[field].as_str(),
+                expected[field].as_str(),
+                "runtime bright-star input {source_id} field {field} drifted"
+            );
+        }
+    }
 }
 
 #[test]

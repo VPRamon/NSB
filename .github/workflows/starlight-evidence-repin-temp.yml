@@ -1,0 +1,206 @@
+name: Temporary Starlight evidence repin
+
+on:
+  push:
+    branches:
+      - feat/starlight-207-production-bright-stars
+
+permissions:
+  contents: write
+
+jobs:
+  repin:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/starlight-207-production-bright-stars
+          lfs: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Repin deterministic runtime and review evidence
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json, re
+
+          ROOT = Path(".")
+          CANDIDATE = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+          MAP = ROOT / "crates/nsb/data/starlight_nside128.release.csv"
+          SIDECAR = ROOT / "crates/nsb/data/starlight_nside128.manifest.toml"
+          CANDIDATE_PATH = ROOT / "crates/nsb/data/starlight_nside128.csv"
+          MERGE_REPORT = ROOT / "crates/nsb/data/merge_report.json"
+          GATES = ROOT / "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
+          RC = ROOT / "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
+          RUNTIME = ROOT / "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"
+          BUNDLE = ROOT / "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml"
+          DECISION = ROOT / "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"
+          CONTRACT = ROOT / "crates/nsb-data-tools/tests/starlight_review_bundle_contract.rs"
+          PACK = ROOT / "crates/nsb-data-tools/src/starlight/pack.rs"
+          REGISTRY = ROOT / "crates/nsb/data/manifest.toml"
+
+          def sha(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          def sub_one(path, pattern, replacement, flags=0):
+              text = path.read_text()
+              updated, count = re.subn(pattern, replacement, text, count=1, flags=flags)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match for {pattern!r}, got {count}")
+              path.write_text(updated)
+
+          candidate_sha = sha(CANDIDATE_PATH)
+          if candidate_sha != CANDIDATE:
+              raise SystemExit(f"candidate map changed unexpectedly: {candidate_sha}")
+          map_sha = sha(MAP)
+          sidecar_sha = sha(SIDECAR)
+          merge_sha = sha(MERGE_REPORT)
+          gates_sha = sha(GATES)
+
+          for key, value in [
+              ("runtime_map_sha256", map_sha),
+              ("runtime_sidecar_sha256", sidecar_sha),
+              ("merge_report_sha256", merge_sha),
+              ("gates_report_sha256", gates_sha),
+          ]:
+              sub_one(RC, rf'(?m)^{key} = "[0-9a-f]{{64}}"$', f'{key} = "{value}"')
+
+          for key, value in [
+              ("runtime_map_sha256", map_sha),
+              ("runtime_sidecar_sha256", sidecar_sha),
+          ]:
+              sub_one(RUNTIME, rf'(?m)^{key} = "[0-9a-f]{{64}}"$', f'{key} = "{value}"')
+
+          sub_one(
+              PACK,
+              r'(?s)(pub const CANONICAL_RUNTIME_MAP_SHA256: &str =\n    ")[0-9a-f]{64}(";)'
+              ,
+              rf'\g<1>{map_sha}\2',
+          )
+          sub_one(
+              CONTRACT,
+              r'(?m)^const RUNTIME_MAP_SHA256: &str = "[0-9a-f]{64}";$',
+              f'const RUNTIME_MAP_SHA256: &str = "{map_sha}";',
+          )
+          sub_one(
+              CONTRACT,
+              r'(?s)(const RUNTIME_SIDECAR_SHA256: &str =\n    ")[0-9a-f]{64}(";)'
+              ,
+              rf'\g<1>{sidecar_sha}\2',
+          )
+
+          def update_registry_asset(path_value, digest):
+              text = REGISTRY.read_text()
+              pattern = rf'(?ms)(\[\[assets\]\]\npath = "{re.escape(path_value)}".*?\nsha256 = ")[0-9a-f]{{64}}(")'
+              updated, count = re.subn(pattern, rf'\g<1>{digest}\2', text, count=1)
+              if count != 1:
+                  raise SystemExit(f"registry asset not found: {path_value}")
+              REGISTRY.write_text(updated)
+
+          update_registry_asset("starlight_nside128.release.csv", map_sha)
+          update_registry_asset("starlight_nside128.manifest.toml", sidecar_sha)
+          registry = REGISTRY.read_text()
+          registry = registry.replace(
+              "Full Gaia/Hipparcos/XHIP/CK04 terms are recorded in [bright_star_supplement].license_provenance.",
+              "Full bright-star source/release/checksum/retrieval/terms provenance is recorded in [[bright_star_supplement.inputs]].",
+          )
+          REGISTRY.write_text(registry)
+
+          bundle = BUNDLE.read_text()
+          artifact_re = re.compile(
+              r'(\[\[artifacts\]\]\nid = "([^"]+)"\npath = "([^"]+)"\nsha256 = ")[0-9a-f]{64}(")',
+              re.MULTILINE,
+          )
+          seen = set()
+          def repin_artifact(match):
+              artifact_id = match.group(2)
+              path = ROOT / match.group(3)
+              seen.add(artifact_id)
+              return f'{match.group(1)}{sha(path)}{match.group(4)}'
+          bundle = artifact_re.sub(repin_artifact, bundle)
+          required = {
+              "candidate_map", "merge_report", "release_candidate_gates",
+              "redistribution_inventory", "validation_artifact_manifest",
+              "runtime_assets_identity", "release_candidate_manifest",
+              "redistribution_decision_contract_doc",
+          }
+          if seen != required:
+              raise SystemExit(f"unexpected review-bundle artifact ids: {seen}")
+          BUNDLE.write_text(bundle)
+          bundle_sha = sha(BUNDLE)
+
+          decision = json.loads(DECISION.read_text())
+          if decision.get("decision") != "pending":
+              raise SystemExit("redistribution decision must remain pending")
+          decision["review_bundle_sha256"] = bundle_sha
+          matches = [
+              c for c in decision.get("conditions", [])
+              if c.get("id") == "review-bundle-v1"
+          ]
+          if len(matches) != 1:
+              raise SystemExit("redistribution decision must pin one review bundle")
+          matches[0]["verifier"]["sha256"] = bundle_sha
+          DECISION.write_text(json.dumps(decision, indent=2) + "\n")
+
+          sub_one(
+              CONTRACT,
+              r'(?s)(const REVIEW_BUNDLE_SHA256: &str =\n    ")[0-9a-f]{64}(";)'
+              ,
+              rf'\g<1>{bundle_sha}\2',
+          )
+
+          registry_text = REGISTRY.read_text()
+          for p in ["starlight_nside128.release.csv", "starlight_nside128.manifest.toml"]:
+              block = re.search(rf'(?ms)\[\[assets\]\]\npath = "{re.escape(p)}".*?(?=\n\[\[assets\]\]|\Z)', registry_text)
+              if not block:
+                  raise SystemExit(f"missing staged registry block {p}")
+              if 'calibration_status = "candidate"' not in block.group(0) or 'runtime_embedded = false' not in block.group(0):
+                  raise SystemExit(f"staged registry boundary weakened for {p}")
+
+          print(f"candidate_sha256={candidate_sha}")
+          print(f"runtime_map_sha256={map_sha}")
+          print(f"runtime_sidecar_sha256={sidecar_sha}")
+          print(f"merge_report_sha256={merge_sha}")
+          print(f"gates_report_sha256={gates_sha}")
+          print(f"review_bundle_sha256={bundle_sha}")
+          PY
+          cargo fmt --all
+          cargo fmt --all -- --check
+      - name: Focused promotion and evidence tests
+        run: |
+          cargo test --locked -p nsb-data-tools --lib --all-features starlight::promotion::tests
+          cargo test --locked -p nsb-data-tools --test starlight_review_bundle_contract --all-features
+      - name: Show frozen identities
+        run: |
+          sha256sum crates/nsb/data/starlight_nside128.csv
+          sha256sum crates/nsb/data/starlight_nside128.release.csv
+          sha256sum crates/nsb/data/starlight_nside128.manifest.toml
+          sha256sum docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml
+          sha256sum docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml
+          sha256sum docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml
+      - name: Commit repinned evidence
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add \
+            crates/nsb-data-tools/src/starlight/pack.rs \
+            crates/nsb-data-tools/src/starlight/promotion.rs \
+            crates/nsb-data-tools/tests/starlight_review_bundle_contract.rs \
+            crates/nsb/data/manifest.toml \
+            docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+            docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml \
+            docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml \
+            docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json
+          if git diff --cached --quiet; then
+            echo "evidence already pinned"
+            exit 0
+          fi
+          git commit -m "docs(starlight): repin deterministic runtime evidence"
+          git push origin HEAD:feat/starlight-207-production-bright-stars

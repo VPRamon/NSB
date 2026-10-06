@@ -12,7 +12,7 @@ issue #103 and is not approved by this bundle.
 
 | File | Role |
 |---|---|
-| `release-candidate-v1.toml` | Frozen candidate identity, model/provenance route, technical status, external-validation pin, and runtime identities. |
+| `release-candidate-v1.toml` | Frozen candidate identity, deterministic RFC3339 generation timestamp, checksum pin for the canonical merge report, complete bright-star provenance copied from that report, technical status, external-validation pin, and runtime identities. |
 | `redistribution-review-decision-v1.json` | The sole authoritative human redistribution decision. It remains `pending`. |
 | `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v2 provenance sidecar identities. |
 | `review-bundle-v1.toml` | Immutable release evidence pinned by the redistribution decision. |
@@ -34,10 +34,14 @@ nsb-data dataset starlight stage-runtime \
   --output-sidecar crates/nsb/data/starlight_nside128.manifest.toml
 ```
 
-This command verifies the pinned candidate bytes, packs NESTED candidate
-pixels into the RING runtime format, preserves Gaia and bright-star provenance
-as distinct routes, and writes schema-v2 provenance. It does not inspect or
-change the redistribution decision and does not mutate the asset registry.
+This command verifies the pinned candidate bytes and checksum-pinned merge
+report, requires the release-candidate bright-star structure to match the
+canonical merge-report provenance exactly, validates the frozen RFC3339
+generation timestamp, packs NESTED candidate pixels into the RING runtime
+format, and writes the complete 34-input bright-star provenance into the
+schema-v2 sidecar. Gaia and Hipparcos/XHIP/CK04 UV routes remain distinct. It
+does not inspect or change the redistribution decision and does not mutate the
+asset registry. Repeated staging from the same frozen evidence is byte-identical.
 
 ## Final promotion
 
@@ -51,7 +55,9 @@ nsb-data dataset starlight promote \
 
 Promotion fails closed unless all of the following agree:
 
-1. The pinned candidate bytes and repository registry entry.
+1. The pinned candidate bytes, checksum-pinned merge report, deterministic
+   generation timestamp, exact canonical bright-star provenance, and repository
+   registry entry.
 2. The technical validation and a real frozen green GitHub Actions run.
 3. The checksum-pinned external validation using the registered validator and
    `nsb2` reference commits.
