@@ -239,9 +239,7 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
     );
     let published_manifest =
         fs::read_to_string(repository.join("crates/nsb/data/manifest.toml")).unwrap();
-    assert!(published_manifest.contains(&format!(
-        "input_sha256 = \"{source_checksum}\""
-    )));
+    assert!(published_manifest.contains(&format!("input_sha256 = \"{source_checksum}\"")));
     assert!(published_manifest.contains(&format!(
         "generator = \"nsb-data-tools {} dataset solar-spectrum build\"",
         env!("CARGO_PKG_VERSION")
