@@ -1,20 +1,23 @@
 {
   "schema_version": 1,
   "dataset": "starlight",
-  "status": "gates_passed_local_issue207",
+  "status": "gates_passed_ci_issue207",
   "passed": true,
   "blocking_issue": null,
-  "commit_sha": "73e5acce4314f580e79dde9f9b56c2ed7846f9a8",
-  "workflow_run_id": 0,
-  "workflow_run_url": "https://github.com/VPRamon/NSB/pulls",
+  "commit_sha": "b4b21c9c7564106fb755b3a24c5e9993e8ea431c",
+  "workflow_run_id": 37429016585,
+  "workflow_run_url": "https://github.com/VPRamon/NSB/actions/runs/37429016585",
+  "workflow_head_sha": "b4b21c9c7564106fb755b3a24c5e9993e8ea431c",
+  "workflow_conclusion": "success",
+  "workflow_event": "pull_request",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
-  "candidate_sha256": "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf",
+  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
   "merge_report_path": "crates/nsb/data/merge_report.json",
-  "merge_report_sha256": "015545ac8214509a5c1ec86d6c8393e05a0d811a1fec346a0cbd405c52840469",
+  "merge_report_sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
   "config_path": "crates/nsb-data-tools/config/starlight-production-300-650-issue207.ladon.toml",
-  "config_sha256": "cd7762a8d3ccfe38c16a7e0791e1b97de181af6358f7efc3acc88604b0ecf809",
+  "config_sha256": "f0b7f2c9d9f00ae8e3769cb106543cf826b410abb12dc627024119249c0db9bf",
   "manifest_path": "crates/nsb/data/manifest.toml",
-  "manifest_sha256": "5452640a2ba9108c8c5c02fbf765b3a2fd7597280288ecdccaafe0a11effd171",
+  "manifest_sha256": "9c9a0b4b3201c7d2e979371011891be2df9ce414f79aa64439ab25c35b6e1511",
   "photometric_inference_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
   "selection_function_artifact_sha256": "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711",
   "uv_correction_artifact": "calspec-linear-log-ratio-v2",
@@ -96,7 +99,7 @@
       "command": "cargo deny check",
       "status": "passed",
       "ci_job": "Dependency policy",
-      "detail": "Executed on GitHub Actions via EmbarkStudios/cargo-deny-action@v2 in workflow run 32726699659"
+      "detail": "Executed on GitHub Actions via EmbarkStudios/cargo-deny-action@v2 in workflow run 37429016585"
     },
     {
       "name": "msrv",
@@ -108,7 +111,26 @@
       "name": "dataset_starlight_validate",
       "command": "nsb-data dataset starlight validate (Ladon workspace starlight-production-300-650)",
       "status": "passed",
-      "detail": "includes uncertainty-scale-plausible; pixel_relative_p50=0.243; fraction_gt_1=0"
+      "detail": "checksum-pinned report 97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399; source accounting and flux conservation passed"
+    },
+    {
+      "name": "coverage",
+      "command": "cargo llvm-cov plus scripts/coverage-gate.sh overall and diff",
+      "status": "passed",
+      "ci_job": "Test and coverage",
+      "detail": "workspace 86.36%; nsb 92.28%; changed production lines 90.20% (1040/1153; floor 90.00%)"
+    },
+    {
+      "name": "public_api",
+      "command": "scripts/check-public-api.sh",
+      "status": "passed",
+      "ci_job": "Public API policy"
+    },
+    {
+      "name": "python_wheels",
+      "command": "build and test abi3 wheels",
+      "status": "passed",
+      "ci_job": "Python abi3 wheel (ubuntu-latest, macos-14, windows-latest)"
     }
   ],
   "starlight_suites": [
@@ -123,6 +145,6 @@
   "documentation_audit_reference": "docs/nsb_components/starlight/production-runs/documentation-wording-audit-v1.md",
   "promotion_workflow": ".github/workflows/starlight-final-promotion.yml",
   "evidence_class": "candidate_generation_ci",
-  "evidence_pr": 101,
-  "notes": "Regenerated locally after Ladon issue #207 production validation passed; CI workflow ids cleared pending PR merge."
+  "evidence_pr": 211,
+  "notes": "Frozen after the fully green pull-request CI run for the covariance-corrected issue #207 lineage. This report binds the tested code/data commit; a following evidence-only commit repins its checksum without changing scientific or runtime bytes."
 }
