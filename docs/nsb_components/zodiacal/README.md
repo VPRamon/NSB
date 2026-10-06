@@ -89,6 +89,20 @@ site-calibrated all-sky measurement. Its atmospheric correction is an explicit
 approximation. Results should be interpreted together with their returned
 maturity and provenance metadata.
 
+The wavelength colour correction follows Leinert et al. (1998), Eq. (22):
+it is normalized at 500 nm, uses the published 220–500 nm and 500–2500 nm
+branches, and is linear in `log10(lambda / 500 nm)`. The release-band
+reconstruction is independently checked against the 400/500 nm spectral ratio
+from Leinert Table 19. Because NSB uses the modern TSIS-1 HSRS v2 solar
+reference rather than the historical solar spectrum behind that compilation,
+the Table 19 check is a tolerance validation rather than an exact regression.
+
+The v0.1.0 Leinert path does not apply the Earth–Sun-distance `r^-2.3`
+modulation or the seasonal correction associated with the interplanetary-dust
+symmetry plane. Those effects remain explicit follow-up work; v0.1.0 should
+therefore be treated as a planning model with these seasonal approximations,
+not as a seasonally complete zodiacal-light prediction.
+
 ## References and related documentation
 
 - Leinert et al. (1998), *A&AS* 127, 1–99: empirical zodiacal-light table.
