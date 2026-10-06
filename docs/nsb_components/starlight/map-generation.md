@@ -47,6 +47,29 @@ Runtime queries may convert a pixel-integrated quantity into the runtime
 radiance contract using pixel solid angle; that does not make the candidate CSV
 a surface-radiance field.
 
+## Galactic heatmap
+
+A generated candidate can be inspected as a Galactic Mollweide heatmap with
+the Rust example under `crates/nsb/examples`:
+
+```bash
+cargo run --release --locked -p nsb --example starlight_heatmap -- \
+  --map crates/nsb/data/starlight_nside128.csv \
+  --output starlight_heatmap.png
+```
+
+The example validates the Starlight candidate contract used by the plot
+(`nside`, Galactic frame, NESTED ordering, sparse zero-flux omission semantics,
+integrated-per-pixel quantity and flux unit), then uses Siderust HEALPix
+geometry and Plotters to render the map. The default logarithmic normalization
+exposes both the Galactic plane and fainter high-latitude structure; use
+`--norm linear` for a linear colour scale.
+
+The title includes the candidate SHA-256 prefix so screenshots remain tied to
+exact map bytes. Plotting support is already a development-only dependency of
+the `nsb` crate and does not add a runtime dependency to the library or Python
+package.
+
 Resolution selection, when needed, is a separate scientific study comparing
 independent source-level runs. Only the selected candidate is published.
 Diagnostic resampling is outside the scientific publication lifecycle.

@@ -54,6 +54,9 @@ dist/
 # Scratch
 /scratch/
 
+# Local Starlight visualization output
+/starlight_heatmap.png
+
 # Local coverage reports (CI uploads these as artifacts)
 coverage.json
 coverage.xml
