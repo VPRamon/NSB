@@ -245,6 +245,29 @@ fn stage_runtime_cli_emits_the_pinned_provenance_complete_assets() {
 }
 
 #[test]
+fn pending_redistribution_does_not_register_bundled_production_starlight() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let decision: JsonValue = serde_json::from_str(
+        &fs::read_to_string(root.join(REDISTRIBUTION_DECISION_PATH)).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(decision["decision"].as_str(), Some("pending"));
+
+    let manifest: TomlValue =
+        toml::from_str(&fs::read_to_string(root.join("crates/nsb/data/manifest.toml")).unwrap())
+            .unwrap();
+    let assets = manifest["assets"].as_array().expect("asset registry");
+    for asset in assets {
+        let path = asset["path"].as_str().unwrap_or("");
+        assert_ne!(path, "starlight_nside128.release.csv");
+        assert_ne!(path, "starlight_nside128.manifest.toml");
+    }
+
+    assert!(root.join("crates/nsb/data/starlight_nside128.release.csv").is_file());
+    assert!(root.join("crates/nsb/data/starlight_nside128.manifest.toml").is_file());
+}
+
+#[test]
 fn final_promotion_is_main_only_and_verifies_review_bundle_first() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let workflow = fs::read_to_string(root.join(".github/workflows/starlight-final-promotion.yml"))
