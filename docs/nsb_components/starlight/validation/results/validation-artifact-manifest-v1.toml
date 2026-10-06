@@ -4,8 +4,8 @@ generated_at_unix_seconds = 1788174212
 [[artifacts]]
 name = "preregistration-v1.toml"
 path = "docs/nsb_components/starlight/validation/preregistration-v1.toml"
-sha256 = "b85c3e3e9bd1e5430393ff48f6dad45ddc2335d60e8c546998eba1b4715d0b50"
-bytes = 3670
+sha256 = "5002cc27aaaae68e4b2f93ee1f0ff9d2cc7b4dbb03d3d90648f609491a48e23d"
+bytes = 3698
 
 [[artifacts]]
 name = "references-v1.toml"
@@ -22,23 +22,17 @@ bytes = 7129
 [[artifacts]]
 name = "candidate-map"
 path = "crates/nsb/data/starlight_nside128.csv"
-sha256 = "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf"
-bytes = 20240479
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+bytes = 20241161
 
 [[artifacts]]
-name = "validation-results-v1.json"
-path = "docs/nsb_components/starlight/validation/results/validation-results-v1.json"
-sha256 = "70d54b5374be50149ac15c4b692e781ae2684be671c9b1a46f0b67e486cd3e86"
-bytes = 2694
+name = "combined-300-650-validation.json"
+path = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+sha256 = "97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399"
+bytes = 3482
 
 [[artifacts]]
-name = "validation-report-v1.md"
-path = "docs/nsb_components/starlight/validation/results/validation-report-v1.md"
-sha256 = "9c320b42b5be25430ccee7933aa641d9c3f57aeae4724e0288a3df169a8c946d"
-bytes = 2314
-
-[[artifacts]]
-name = "validation-report-v1.html"
-path = "docs/nsb_components/starlight/validation/results/validation-report-v1.html"
-sha256 = "855edbfea50cabb8a8ef8066d06168fd550b488ac59b5f460013eeb23fd9695f"
-bytes = 1921
+name = "issue-207-external-cross-validation-v1.json"
+path = "docs/nsb_components/starlight/validation/results/issue-207-external-cross-validation-v1.json"
+sha256 = "13a9ef6d7bc85a9cfd888b563afd378d21063ece775a3f6165b4d388809de993"
+bytes = 4103

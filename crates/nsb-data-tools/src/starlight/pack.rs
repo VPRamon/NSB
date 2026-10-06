@@ -17,7 +17,7 @@ use std::path::PathBuf;
 pub const PACKER_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
 /// Frozen UV-v2 candidate SHA-256.
 pub const CANONICAL_CANDIDATE_SHA256: &str =
-    "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf";
+    "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
 
 /// SHA-256 of the minimal HEALPix anomaly regression fixture used to verify
 /// issue #116 diagnostic detection without retaining the historical 20 MB map.
@@ -34,7 +34,7 @@ pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH: &str =
 /// The pre-siderust handwritten nest2ring digest was
 /// `c87db972717959962ab590ce71eb90506cbfd73ccb108a3d3851a3e9ecff8f90`.
 pub const CANONICAL_RUNTIME_MAP_SHA256: &str =
-    "a4fd820ef6e7770a220931b02113a3f416b5aecf416100a123ccb325464402fa";
+    "d42e7d9c2583b089e6d12f20b2e2ad8693b1f41ec42b2d766b0d7462a2d0d485";
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";
@@ -602,19 +602,12 @@ mod tests {
         let csv = dir.path().join("starlight_nside128.release.csv");
         let sidecar = dir.path().join("starlight_nside128.pack.toml");
         let production_sidecar = dir.path().join("starlight_nside128.manifest.toml");
-        let candidate_section = crate::starlight::promotion::CandidateSection {
-            status: crate::starlight::promotion::CandidateStatus::Pinned,
-            candidate_sha256: CANONICAL_CANDIDATE_SHA256.to_string(),
-            map_path: "crates/nsb/data/starlight_nside128.csv".into(),
-            map_schema: "nsb-healpix-starlight-candidate-v5".into(),
-            band: "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)".into(),
-            units: "ph_m-2_s-1".into(),
-            nside: 128,
-            ordering: "nested".into(),
-            gaia_release: "Gaia DR3".into(),
-            model_versions: BTreeMap::new(),
-            bright_star_supplement: None,
-        };
+        let release = crate::starlight::promotion::ReleaseCandidateManifest::load(
+            &root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
+        )
+        .unwrap();
+        let candidate_section = release.candidate;
+        assert!(candidate_section.bright_star_supplement.is_some());
         let headers = crate::starlight::promotion::runtime_admission_headers(&candidate_section);
         let outcome = pack_candidate_map(&PackInputs {
             candidate_map: candidate.clone(),

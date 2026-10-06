@@ -1,8 +1,8 @@
 //! Fail-closed release-candidate promotion mechanism (#102).
 //!
 //! This module parses the immutable release-candidate manifest
-//! (`nsb-starlight-release-candidate-v1`) and the paired human scientific
-//! and redistribution decision records owned by issue #103, verifies the
+//! (`nsb-starlight-release-candidate-v1`), reproducible external scientific
+//! validation, and the redistribution decision owned by issue #103; verifies the
 //! exact candidate map bytes against every pinned checksum, packs a
 //! runtime-loadable map without rewriting the candidate, and — only if every
 //! check passes — renders a production `manifest.toml` fragment. With
@@ -120,12 +120,11 @@ pub struct BrightStarRuntimeProvenance {
 ///
 /// `promotion_eligible` is retained for report/display only. Eligibility is
 /// derived from the pinned candidate, frozen CI gates, packed runtime
-/// asset, and the two signed human decisions.
+/// asset, reproducible external validation, and the redistribution decision.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct GatesSection {
     pub validation_status: ValidationStatus,
-    pub scientific_review_status: ReviewStatus,
     pub redistribution_review_status: ReviewStatus,
     /// Report-only snapshot. Ignored by [`run_promotion`].
     pub promotion_eligible: bool,
@@ -295,6 +294,69 @@ pub struct PromotionOutcome {
     pub applied: bool,
 }
 
+/// Inputs for deterministically staging runtime assets without authorizing
+/// redistribution or mutating the production registry.
+#[derive(Debug, Clone)]
+pub struct RuntimeStageInputs {
+    pub release_candidate: PathBuf,
+    pub repository_root: PathBuf,
+    pub output_csv: PathBuf,
+    pub output_sidecar: PathBuf,
+}
+
+/// Result of staging runtime assets from a checksum-pinned candidate.
+#[derive(Debug, Clone)]
+pub struct RuntimeStageOutcome {
+    pub candidate_sha256: String,
+    pub runtime_map_sha256: String,
+    pub runtime_sidecar_sha256: String,
+}
+
+/// Deterministically stage the runtime map and schema-v2 provenance sidecar.
+///
+/// This deliberately does not verify or change redistribution status and does
+/// not register the outputs as production assets. Promotion remains the only
+/// operation that can apply registry changes after the legal decision passes.
+pub fn stage_runtime_assets(inputs: &RuntimeStageInputs) -> Result<RuntimeStageOutcome> {
+    let release = ReleaseCandidateManifest::load(&inputs.release_candidate)?;
+    let candidate = &release.candidate;
+    if candidate.status != CandidateStatus::Pinned {
+        bail!("runtime staging requires a pinned release candidate");
+    }
+    let map_path = inputs.repository_root.join(&candidate.map_path);
+    let actual_sha256 = checksum_io::sha256_file(&map_path)
+        .with_context(|| format!("checksum candidate map {}", map_path.display()))?;
+    if actual_sha256 != candidate.candidate_sha256 {
+        bail!(
+            "candidate map checksum mismatch or tamper detected: release candidate pins {}, actual file is {}",
+            candidate.candidate_sha256,
+            actual_sha256
+        );
+    }
+    let temporary_pack_sidecar = tempfile::NamedTempFile::new()
+        .context("create temporary pack sidecar for runtime staging")?;
+    let packed = pack::pack_candidate_map(&PackInputs {
+        candidate_map: map_path,
+        expected_candidate_sha256: candidate.candidate_sha256.clone(),
+        expected_nside: candidate.nside,
+        output_csv: inputs.output_csv.clone(),
+        output_sidecar: temporary_pack_sidecar.path().to_path_buf(),
+        provenance_headers: runtime_admission_headers(candidate),
+    })?;
+    write_production_sidecar(
+        &inputs.output_sidecar,
+        candidate,
+        &packed.runtime_map_sha256,
+        packed.all_sky_flux_sum_ph_m2_s,
+    )?;
+    require_packed_runtime_header(&inputs.output_csv)?;
+    Ok(RuntimeStageOutcome {
+        candidate_sha256: packed.candidate_sha256,
+        runtime_map_sha256: packed.runtime_map_sha256,
+        runtime_sidecar_sha256: checksum_io::sha256_file(&inputs.output_sidecar)?,
+    })
+}
+
 /// Verify a release candidate and its human decisions, pack a runtime map,
 /// then draft (and optionally apply) the production registry change.
 ///
@@ -363,10 +425,9 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
     )?;
     verify_runtime_assets_identity(&inputs.repository_root, &candidate)?;
 
-    // Decision files are authoritative. Stale TOML gate statuses must not
-    // require a second manual edit after #103 signatures land.
+    // The redistribution decision is authoritative. The TOML status is a
+    // report snapshot and must not require a second edit after #103 signs.
     let _ = (
-        candidate.gates.scientific_review_status,
         candidate.gates.redistribution_review_status,
         candidate.gates.promotion_eligible,
     );
@@ -1353,7 +1414,6 @@ uv_correction_current = "synthetic-test-only-v1"
 
 [gates]
 validation_status = "{validation_status}"
-scientific_review_status = "approved"
 redistribution_review_status = "approved"
 promotion_eligible = {promotion_eligible}
 
@@ -1734,7 +1794,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
     }
 
     #[test]
-    fn stale_toml_gate_status_does_not_block_signed_decisions() {
+    fn stale_toml_eligibility_does_not_block_signed_redistribution_decision() {
         let repo = write_synthetic_repo(
             "pinned",
             "technical_pass",
@@ -1744,10 +1804,6 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         );
         let tampered = fs::read_to_string(&repo.release_candidate)
             .unwrap()
-            .replace(
-                "scientific_review_status = \"approved\"",
-                "scientific_review_status = \"pending\"",
-            )
             .replace("promotion_eligible = true", "promotion_eligible = false");
         fs::write(&repo.release_candidate, tampered).unwrap();
         run_promotion(&inputs(&repo, None)).unwrap();
@@ -2114,6 +2170,42 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             manifest_before,
             "repository manifest.toml must never be mutated"
         );
+    }
+
+    #[test]
+    fn runtime_staging_is_deterministic_and_independent_of_redistribution_decision() {
+        let repo = write_synthetic_repo(
+            "pinned",
+            "technical_pass",
+            false,
+            &decision_json("rejected", "", &synthetic_candidate_sha256()),
+            &redistribution_decision_json("rejected", "", &synthetic_candidate_sha256()),
+        );
+        let first_map = repo.root.join("stage/first.csv");
+        let first_sidecar = repo.root.join("stage/first.toml");
+        let second_map = repo.root.join("stage/second.csv");
+        let second_sidecar = repo.root.join("stage/second.toml");
+        let stage = |output_csv, output_sidecar| {
+            stage_runtime_assets(&RuntimeStageInputs {
+                release_candidate: repo.release_candidate.clone(),
+                repository_root: repo.root.clone(),
+                output_csv,
+                output_sidecar,
+            })
+            .unwrap()
+        };
+        let first = stage(first_map.clone(), first_sidecar.clone());
+        let second = stage(second_map.clone(), second_sidecar.clone());
+        assert_eq!(first.runtime_map_sha256, second.runtime_map_sha256);
+        assert_eq!(first.runtime_sidecar_sha256, second.runtime_sidecar_sha256);
+        assert_eq!(fs::read(first_map).unwrap(), fs::read(second_map).unwrap());
+        assert_eq!(
+            fs::read(first_sidecar).unwrap(),
+            fs::read(&second_sidecar).unwrap()
+        );
+        assert!(fs::read_to_string(second_sidecar)
+            .unwrap()
+            .contains("schema_version = 2"));
     }
 
     #[test]

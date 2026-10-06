@@ -4,9 +4,9 @@
   "reviewer_name": null,
   "reviewer_role": null,
   "reviewed_at_utc": null,
-  "candidate_sha256": "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf",
+  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
   "inventory_sha256": "73bbcacbf6ad2b4efe149c097524de1ab970af048759f3f16caf70e8a6d23fa6",
-  "review_bundle_sha256": "9a19fa68d7748bef68ae6c9e54851b43b6a7751b6503de03fa579730a840e014",
+  "review_bundle_sha256": "0932766ffe7a5ebd02ef72da35010e02497133569c1e63076b0bd576b3c473f2",
   "pinned_artifacts": [],
   "conditions": [
     {
@@ -15,7 +15,7 @@
       "verifier": {
         "type": "repository_file_sha256",
         "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
-        "sha256": "9a19fa68d7748bef68ae6c9e54851b43b6a7751b6503de03fa579730a840e014"
+        "sha256": "0932766ffe7a5ebd02ef72da35010e02497133569c1e63076b0bd576b3c473f2"
       }
     }
   ],

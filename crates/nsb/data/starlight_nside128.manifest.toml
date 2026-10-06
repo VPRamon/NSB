@@ -1,7 +1,7 @@
 schema_version = 2
 calibration_status = "production"
 dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
-version = "uv-v2-packed-from-e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737"
+version = "uv-v2-packed-from-7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 generation_date = "2026-08-24T00:00:00Z"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
 source_catalogue_release = "Gaia DR3"
@@ -15,15 +15,15 @@ band_definition = "300-650 nm combined integrated photon radiance (corrected 300
 smoothing = "none"
 generated_by = "nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-packed-v1)"
 generation_command = "nsb-data dataset starlight promote --apply"
-map_sha256 = "sha256:8b5a217ffa9b0d3e9a9ce332df464d4535482f98202ca8c91fd8351077c11bf5"
+map_sha256 = "sha256:d42e7d9c2583b089e6d12f20b2e2ad8693b1f41ec42b2d766b0d7462a2d0d485"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
 independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae vs nsb2@bc9320db03fbff69997ce366c6e76a37339c5d00; cross-implementation evidence, not astrophysical ground truth"
 flux_conservation_validated = true
-input_integrated_flux_sum = 9.5959642298058445e-01
+input_integrated_flux_sum = 9.5959642298058445e-1
 integrated_flux_conservation_tolerance = 1e-12
 
 [source_candidate]
-sha256 = "e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737"
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 
 [[upstream_inputs]]
 id = "gaia-source"
@@ -42,13 +42,13 @@ nside = "128"
 ordering = "ring"
 s10_diagnostics = "not_provided"
 dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
-version = "uv-v2-packed-from-e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737"
+version = "uv-v2-packed-from-7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 generation_date_utc = "2026-08-24T00:00:00Z"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
 source_catalogue_release = "Gaia DR3"
 source_catalogue_license = "CC BY-NC 3.0 IGO"
 source_catalogue_checksum = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
-source_candidate_sha256 = "sha256:e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737"
+source_candidate_sha256 = "sha256:7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 gaia_source_checksum_manifest_sha256 = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
 xp_continuous_checksum_manifest_sha256 = "sha256:f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
 source_selection = "Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights"
@@ -62,35 +62,25 @@ generated_by = "nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-p
 generation_command = "nsb-data dataset starlight promote --apply"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
 independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae vs nsb2@bc9320db03fbff69997ce366c6e76a37339c5d00; cross-implementation evidence, not astrophysical ground truth"
-bright_star_artifact_sha256 = "c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921"
+bright_star_artifact_sha256 = "dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017"
 bright_star_model_id = "starlight-bright-stars-combined-v1"
 bright_star_product_band = "combined-300-650"
 bright_star_uv_completion_model_id = "ck04-hp-scaled-uv-300-336-v1"
 bright_star_population_policy_id = "bright-stars-population-v1"
 bright_star_precedence_policy_id = "bright-stars-gaia-precedence-v1"
-bright_star_build_commit = "9352888dba1e67a58e7ec5c5b6f35761566caea1"
+bright_star_build_commit = "184b4cd29ce991c25635b911b373518463026a74"
 bright_star_spectral_route = "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion"
 bright_star_redistribution_scope = "derived map only; source catalogue bytes are not embedded"
 
 [bright_star_supplement]
-artifact_sha256 = "c3e63b30f106d8800dc87de3b2f299d44559c02e250e4a862a1d0ddac2b14921"
+artifact_sha256 = "dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017"
 model_id = "starlight-bright-stars-combined-v1"
 product_band = "combined-300-650"
 uv_completion_model_id = "ck04-hp-scaled-uv-300-336-v1"
 population_policy_id = "bright-stars-population-v1"
 precedence_policy_id = "bright-stars-gaia-precedence-v1"
-build_commit = "9352888dba1e67a58e7ec5c5b6f35761566caea1"
+build_commit = "184b4cd29ce991c25635b911b373518463026a74"
 spectral_route = "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion"
 redistribution_scope = "derived map only; source catalogue bytes are not embedded"
-input_catalogues = [
-  "Hipparcos-2 I/311 sha256:8e624f843d4254a9b7c2e8dda8e3158dbe825bf98f6bf3dbbae7f0d0b73d6858",
-  "XHIP V/137D sha256:8b6a7efb5b3ebf985de2072ace9f2d47849f369c345e2de9a1e3fe822594771b",
-  "Gaia EDR3 Hipparcos2BestNeighbour sha256:23a74b073ad78c6294d8248fc04be95be2cf7ac646162493eb7322c698eb3a9c",
-  "CK04 reference atlas v2 sha256:8f7a220bc9480900c372015847057b06a2c218ae8b2dbf8020e6a1dd2990b42c",
-]
-license_provenance = [
-  "Hipparcos/Tycho: ESA CC BY-NC 3.0 IGO catalogue terms",
-  "XHIP: CDS/VizieR scientific-use terms; source bytes are not embedded",
-  "CK04 reference atlas: CC BY 4.0",
-  "Gaia: CC BY-NC 3.0 IGO",
-]
+input_catalogues = ["Hipparcos-2 I/311 sha256:8e624f843d4254a9b7c2e8dda8e3158dbe825bf98f6bf3dbbae7f0d0b73d6858", "XHIP V/137D sha256:8b6a7efb5b3ebf985de2072ace9f2d47849f369c345e2de9a1e3fe822594771b", "Gaia EDR3 Hipparcos2BestNeighbour sha256:23a74b073ad78c6294d8248fc04be95be2cf7ac646162493eb7322c698eb3a9c", "CK04 reference atlas v2 sha256:8f7a220bc9480900c372015847057b06a2c218ae8b2dbf8020e6a1dd2990b42c"]
+license_provenance = ["Hipparcos/Tycho: ESA CC BY-NC 3.0 IGO catalogue terms", "XHIP: CDS/VizieR scientific-use terms; source bytes are not embedded", "CK04 reference atlas: CC BY 4.0", "Gaia: CC BY-NC 3.0 IGO"]

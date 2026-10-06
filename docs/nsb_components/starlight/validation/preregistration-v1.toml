@@ -25,10 +25,10 @@ notes = """
 Technical scaffolding for issue #87. This document, `references-v1.toml`, and
 `regions-v1.json` are frozen before any acquired reference is compared
 against the candidate map, so that thresholds and region definitions cannot
-be tuned to make a specific candidate pass after the fact. Scientific
-production approval of a specific candidate checksum is recorded only in
-issue #103 and is never inferred from a `validation-results-v1.json` produced
-by this pipeline.
+be tuned to make a specific candidate pass after the fact. This literature
+audit is not itself the production-science gate; that gate is the separately
+checksum-pinned external cross-validation artifact. Issue #103 remains the
+redistribution/licensing decision only.
 """
 
 # The tolerances below are taken verbatim from GitHub issue #87 and are frozen

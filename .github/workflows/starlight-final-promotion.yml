@@ -1,7 +1,7 @@
 name: Starlight final promotion
 
 # Manual, post-approval workflow owned by issue #103 and implemented by #102.
-# After valid signed scientific and redistribution decisions exist, it packs
+# After machine-verifiable scientific gates and a valid redistribution decision, it packs
 # the frozen candidate into a runtime-loadable map, applies production
 # registry entries, re-runs required gates, and opens or updates the
 # promotion pull request. It never rewrites candidate map bytes.
@@ -14,12 +14,6 @@ on:
           Path to the nsb-starlight-release-candidate-v1 manifest.
         required: true
         default: docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml
-      scientific_decision:
-        description: >-
-          Path to the signed scientific-review decision file (owned by
-          issue #103).
-        required: true
-        default: docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json
       redistribution_decision:
         description: >-
           Path to the signed redistribution-review decision file (owned by
@@ -62,10 +56,6 @@ jobs:
             echo "::error::final Starlight promotion requires the canonical release-candidate manifest" >&2
             exit 1
           fi
-          if [[ "${{ inputs.scientific_decision }}" != "docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json" ]]; then
-            echo "::error::final Starlight promotion requires the canonical scientific decision record" >&2
-            exit 1
-          fi
           if [[ "${{ inputs.redistribution_decision }}" != "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json" ]]; then
             echo "::error::final Starlight promotion requires the canonical redistribution decision record" >&2
             exit 1
@@ -90,7 +80,6 @@ jobs:
           missing=0
           for path in \
             "${{ inputs.release_candidate }}" \
-            "${{ inputs.scientific_decision }}" \
             "${{ inputs.redistribution_decision }}" \
             "${{ inputs.candidate_map }}"; do
             if [[ ! -f "$path" ]]; then
@@ -100,7 +89,7 @@ jobs:
           done
           if [[ "$missing" -ne 0 ]]; then
             echo "fail-closed: one or more required inputs are missing; see errors above." >&2
-            echo "the scientific and redistribution decisions are owned exclusively by issue #103" >&2
+            echo "the redistribution decision is owned exclusively by issue #103" >&2
             exit 1
           fi
 
@@ -119,18 +108,17 @@ jobs:
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
 
-      - name: Verify frozen human review bundle
+      - name: Verify frozen release evidence bundle
         run: >-
           cargo test --locked -p nsb-data-tools
           --test starlight_review_bundle_contract
-          frozen_review_bundle_pins_exact_human_evidence -- --exact
+          frozen_review_bundle_pins_exact_release_evidence -- --exact
 
       - name: Pack runtime map and apply production registry
         run: |
           cargo run --locked -p nsb-data-tools --bin nsb-data -- \
             dataset starlight promote \
             --release-candidate "${{ inputs.release_candidate }}" \
-            --scientific-decision "${{ inputs.scientific_decision }}" \
             --redistribution-decision "${{ inputs.redistribution_decision }}" \
             --repository-root . \
             --output /tmp/starlight-production-manifest-draft.toml \

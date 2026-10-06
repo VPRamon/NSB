@@ -206,7 +206,10 @@ enum StarlightAction {
     Validation(StarlightValidationArgs),
     /// Pack a frozen candidate-v5 map into a runtime-loadable HEALPix CSV (#102).
     Pack(PackArgs),
-    /// Verify a release-candidate manifest and both human decisions, pack a
+    /// Stage a provenance-complete runtime map without authorizing redistribution.
+    StageRuntime(StageRuntimeArgs),
+    /// Verify a release-candidate manifest, external validation, and the
+    /// redistribution decision; then pack a
     /// runtime map, and draft (or `--apply`) the production registry change (#102).
     Promote(PromoteArgs),
     /// Issue #116 diagnostic baseline and ablation suite.
@@ -450,6 +453,22 @@ struct PackArgs {
     output_sidecar: PathBuf,
 }
 
+#[derive(Debug, Args)]
+struct StageRuntimeArgs {
+    /// Checksum-pinned release-candidate manifest.
+    #[arg(long)]
+    release_candidate: PathBuf,
+    /// Repository root used to resolve the candidate map.
+    #[arg(long)]
+    repository_root: PathBuf,
+    /// Output packed runtime CSV path.
+    #[arg(long)]
+    output_csv: PathBuf,
+    /// Output schema-v2 runtime provenance sidecar.
+    #[arg(long)]
+    output_sidecar: PathBuf,
+}
+
 fn parse_source_override(raw: &str) -> Result<(String, String), String> {
     raw.split_once('=')
         .map(|(id, source)| (id.to_string(), source.to_string()))
@@ -683,6 +702,7 @@ fn execute_starlight(args: StarlightActionArgs) -> Result<()> {
         StarlightAction::Publish(args) => (Operation::Publish, args),
         StarlightAction::Validation(args) => return execute_starlight_validation(args),
         StarlightAction::Pack(args) => return pack_starlight(args),
+        StarlightAction::StageRuntime(args) => return stage_starlight_runtime(args),
         StarlightAction::Promote(args) => return promote(args),
         StarlightAction::Diagnose(args) => return execute_starlight_diagnose(args),
         StarlightAction::BrightStars(args) => {
@@ -947,10 +967,8 @@ fn execute_starlight_validation(args: StarlightValidationArgs) -> Result<()> {
             };
             let results = crate::starlight::validation::run::run(&inputs)?;
             println!(
-                "technical_gates_passed={} scientific_review_status={} scientifically_validated={}",
-                results.technical_gates_passed,
-                results.scientific_review_status,
-                results.scientifically_validated
+                "technical_gates_passed={} scientific_gate={}",
+                results.technical_gates_passed, results.scientific_gate
             );
             if !results.technical_gates_passed {
                 for failure in &results.technical_gate_failures {
@@ -978,6 +996,22 @@ fn pack_starlight(args: PackArgs) -> Result<()> {
         outcome.runtime_sidecar_sha256,
         outcome.occupied_pixels,
         outcome.omitted_pixels
+    );
+    Ok(())
+}
+
+fn stage_starlight_runtime(args: StageRuntimeArgs) -> Result<()> {
+    let outcome = crate::starlight::promotion::stage_runtime_assets(
+        &crate::starlight::promotion::RuntimeStageInputs {
+            release_candidate: args.release_candidate,
+            repository_root: args.repository_root,
+            output_csv: args.output_csv,
+            output_sidecar: args.output_sidecar,
+        },
+    )?;
+    println!(
+        "staged candidate sha256={} runtime map sha256={} sidecar sha256={}",
+        outcome.candidate_sha256, outcome.runtime_map_sha256, outcome.runtime_sidecar_sha256
     );
     Ok(())
 }

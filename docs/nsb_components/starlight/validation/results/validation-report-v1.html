@@ -1,17 +1,16 @@
 <!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Starlight independent validation</title></head><body>
 <h1>Starlight independent validation report</h1>
 <p>technical_gates_passed = false</p>
-<p>scientific_review_status = pending</p>
-<p>scientifically_validated = false</p>
+<p>scientific_gate = external_validation_required</p>
 <p>independent_reference_status = no_admissible_independent_reference</p>
-<p>candidate_map_sha256 = <code>b17124d057faad2445575239c04928514d2846ec36a2f5df7137566058d85154</code></p>
+<p>candidate_map_sha256 = <code>7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d</code></p>
 <h2>Reference statuses</h2><ul>
 <li><code>toller-1981-pioneer-background-starlight</code>: not-admissible — Pioneer 10 Galactic-pole photometry measures ISL+DGL+EBL; diffuse galactic light is inseparable from discrete starlight in the 2.3 deg FOV. Acquired for provenance only.</li>
 <li><code>leinert-1998-diffuse-night-sky-brightness</code>: not-admissible — Leinert et al. 1998 describe a two-dimensional Gaussian fitted to Elsässer &amp; Haug (1960) isophotes and quote five S10 anchors. The published paper does not give the Gaussian amplitudes and widths needed to reconstruct that surface. Matching those anchors with an invented interpolation is not the registered model, so this reference is acquired for provenance only and is not an admissible comparison grid.</li>
 <li><code>masana-2021-gambons-gaia-hipparcos-starlight</code>: not-admissible — GAMBONS all-sky products mix Gaia/Hipparcos ISL with DGL, EBL, zodiacal light and airglow. Not an admissible TOA Galactic starlight-only 300-650 nm grid.</li>
 </ul>
 <h2>Technical gate failures</h2><ul>
-<li>no_admissible_independent_reference: every acquired literature target is not admissible as a starlight-only TOA 300-650 nm comparison grid; this is human-review evidence for #103, not a software defect</li>
+<li>no_admissible_independent_reference: every acquired literature target is not admissible as a starlight-only TOA 300-650 nm comparison grid; use the checksum-pinned cross-implementation validation route</li>
 </ul>
-<p>Independent-validation technical audit for issue #102. Scientific approval is recorded only in issue #103 and is never inferred from this report.</p>
+<p>Independent-validation technical audit for issue #102. Scientific production readiness is established separately by checksum-pinned external cross-validation.</p>
 </body></html>

@@ -10,19 +10,17 @@ use toml::Value as TomlValue;
 const REVIEW_BUNDLE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const REVIEW_BUNDLE_SHA256: &str =
-    "9a19fa68d7748bef68ae6c9e54851b43b6a7751b6503de03fa579730a840e014";
-const SCIENTIFIC_DECISION_PATH: &str =
-    "docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json";
+    "0932766ffe7a5ebd02ef72da35010e02497133569c1e63076b0bd576b3c473f2";
 const REDISTRIBUTION_DECISION_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json";
 const RELEASE_CANDIDATE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml";
 const RUNTIME_ASSETS_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
-const CANDIDATE_SHA256: &str = "555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf";
-const RUNTIME_MAP_SHA256: &str = "a4fd820ef6e7770a220931b02113a3f416b5aecf416100a123ccb325464402fa";
+const CANDIDATE_SHA256: &str = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
+const RUNTIME_MAP_SHA256: &str = "d42e7d9c2583b089e6d12f20b2e2ad8693b1f41ec42b2d766b0d7462a2d0d485";
 const RUNTIME_SIDECAR_SHA256: &str =
-    "0e8647d31d223d00d44449867bcc607a846cbaa4bff8ddf5ab28cbb6cf44c0e9";
+    "f91e8c7442dca03332f9b07236c262b7b997ed4d1ab19dbf98ca8a2bb06627ce";
 
 fn sha256_file(path: &Path) -> String {
     let bytes = fs::read(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
@@ -64,7 +62,7 @@ fn decision_bundle_pin(path: &Path) -> (String, String) {
 }
 
 #[test]
-fn frozen_review_bundle_pins_exact_human_evidence() {
+fn frozen_review_bundle_pins_exact_release_evidence() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let bundle_path = root.join(REVIEW_BUNDLE_PATH);
     assert_eq!(sha256_file(&bundle_path), REVIEW_BUNDLE_SHA256);
@@ -110,14 +108,10 @@ fn frozen_review_bundle_pins_exact_human_evidence() {
         );
     }
 
-    let (scientific_candidate, scientific_bundle) =
-        decision_bundle_pin(&root.join(SCIENTIFIC_DECISION_PATH));
     let (redistribution_candidate, redistribution_bundle) =
         decision_bundle_pin(&root.join(REDISTRIBUTION_DECISION_PATH));
-    assert_eq!(scientific_bundle, REVIEW_BUNDLE_SHA256);
     assert_eq!(redistribution_bundle, REVIEW_BUNDLE_SHA256);
-    assert_eq!(scientific_candidate, redistribution_candidate);
-    assert_eq!(scientific_candidate, CANDIDATE_SHA256);
+    assert_eq!(redistribution_candidate, CANDIDATE_SHA256);
     assert_eq!(
         by_id.get("candidate_map").map(String::as_str),
         Some(CANDIDATE_SHA256)
@@ -200,7 +194,7 @@ fn release_candidate_and_runtime_assets_agree_semantically() {
     );
     assert_eq!(
         runtime_assets["runtime_sidecar_schema"].as_str(),
-        Some("nsb-starlight-runtime-manifest-v1")
+        Some("nsb-starlight-runtime-manifest-v2")
     );
 
     assert_eq!(
@@ -222,20 +216,20 @@ fn final_promotion_is_main_only_and_verifies_review_bundle_first() {
     assert!(workflow.contains("git rev-parse origin/main"));
     assert!(workflow.contains("- name: Require canonical promotion source and inputs"));
     assert!(workflow.contains("--test starlight_review_bundle_contract"));
-    assert!(workflow.contains("frozen_review_bundle_pins_exact_human_evidence -- --exact"));
+    assert!(workflow.contains("frozen_review_bundle_pins_exact_release_evidence -- --exact"));
     assert!(!workflow.contains("verify_starlight_review_bundle.py"));
     assert!(!root
         .join(".github/scripts/verify_starlight_review_bundle.py")
         .exists());
 
     let verify_pos = workflow
-        .find("Verify frozen human review bundle")
+        .find("Verify frozen release evidence bundle")
         .expect("review bundle verification step");
     let promote_pos = workflow
         .find("Pack runtime map and apply production registry")
         .expect("promotion step");
     assert!(
         verify_pos < promote_pos,
-        "human evidence bundle must be verified before any runtime asset is packed/applied"
+        "release evidence bundle must be verified before any runtime asset is packed/applied"
     );
 }

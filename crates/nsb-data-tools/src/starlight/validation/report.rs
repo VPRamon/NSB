@@ -27,11 +27,9 @@ pub struct ValidationResults {
     pub reference_results: Vec<ReferenceValidationResult>,
     pub technical_gates_passed: bool,
     pub technical_gate_failures: Vec<String>,
-    /// Always `"pending"`. Set only by the human review recorded against #103.
-    pub scientific_review_status: String,
-    /// Always `false`. This pipeline never asserts scientific validation.
-    pub scientifically_validated: bool,
-    /// Machine-readable independent-reference outcome for human review (#103).
+    /// Machine-readable route that establishes scientific readiness.
+    pub scientific_gate: String,
+    /// Machine-readable independent-reference outcome for external validation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub independent_reference_status: Option<String>,
     pub notes: String,
@@ -58,16 +56,6 @@ pub struct RegionMetricsEntry {
     pub region_id: String,
     pub metrics: MetricsSummary,
     pub tolerance_failures: Vec<String>,
-}
-
-impl ValidationResults {
-    /// Never call this with `true`: the invariant is enforced structurally by
-    /// always constructing results with this exact pair, but is asserted
-    /// here too so a future refactor cannot silently change it.
-    pub fn assert_never_scientifically_validated(&self) {
-        assert!(!self.scientifically_validated);
-        assert_eq!(self.scientific_review_status, "pending");
-    }
 }
 
 pub fn render_markdown(results: &ValidationResults) -> String {
@@ -103,12 +91,12 @@ pub fn render_markdown(results: &ValidationResults) -> String {
         }
     }
     let _ = writeln!(out);
-    let _ = writeln!(out, "## Scientific review status");
+    let _ = writeln!(out, "## Scientific production gate");
     let _ = writeln!(out);
     let _ = writeln!(
         out,
-        "`scientific_review_status = \"{}\"`, `scientifically_validated = {}`. This pipeline never marks a candidate as scientifically validated on its own; that decision is recorded only by a qualified human scientist in issue #103.",
-        results.scientific_review_status, results.scientifically_validated
+        "`scientific_gate = \"{}\"`. This literature-audit pipeline supplies evidence; checksum-pinned external cross-validation is the authoritative machine-verifiable scientific gate.",
+        results.scientific_gate
     );
     let _ = writeln!(out);
     let _ = writeln!(out, "## Technical gates");
@@ -218,13 +206,8 @@ pub fn render_html(results: &ValidationResults) -> String {
     );
     let _ = writeln!(
         out,
-        "<p>scientific_review_status = {}</p>",
-        html_escape(&results.scientific_review_status)
-    );
-    let _ = writeln!(
-        out,
-        "<p>scientifically_validated = {}</p>",
-        results.scientifically_validated
+        "<p>scientific_gate = {}</p>",
+        html_escape(&results.scientific_gate)
     );
     if let Some(status) = &results.independent_reference_status {
         let _ = writeln!(
@@ -296,18 +279,15 @@ mod tests {
             reference_results: vec![],
             technical_gates_passed: false,
             technical_gate_failures: vec!["no acquired reference data available".to_string()],
-            scientific_review_status: "pending".to_string(),
-            scientifically_validated: false,
+            scientific_gate: "external_validation_required".to_string(),
             independent_reference_status: Some("no_admissible_independent_reference".to_string()),
             notes: "technical scaffolding".to_string(),
         };
-        results.assert_never_scientifically_validated();
         let markdown = render_markdown(&results);
         let html = render_html(&results);
         assert!(markdown.contains("technical_gates_passed = false"));
-        assert!(markdown.contains("scientifically_validated = false"));
-        assert!(!markdown.contains("scientifically_validated = true"));
-        assert!(html.contains("scientifically_validated = false"));
-        assert!(!html.contains("scientifically_validated = true"));
+        assert!(markdown.contains("scientific_gate = \"external_validation_required\""));
+        assert!(html.contains("scientific_gate = external_validation_required"));
+        assert!(!html.contains("scientific_review_status"));
     }
 }

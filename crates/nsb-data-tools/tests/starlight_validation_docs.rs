@@ -83,35 +83,39 @@ fn regions_document_parses_and_validates_at_the_candidate_map_nside() -> Result<
 }
 
 #[test]
-fn only_release_candidate_scientific_decision_is_authoritative() -> Result<()> {
+fn external_validation_is_the_authoritative_scientific_gate() -> Result<()> {
     let obsolete = docs_dir().join("scientific-review-decision-v1.json");
     if obsolete.exists() {
         bail!(
             "obsolete validation/scientific-review-decision-v1.json must not exist; \
-             the only authoritative scientific decision is under release-candidate/"
+             scientific readiness is established by checksum-pinned external validation"
         );
     }
 
-    let path = repository_root()
+    let obsolete_release = repository_root()
         .join("docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json");
+    if obsolete_release.exists() {
+        bail!("manual scientific-decision ceremony must not remain authoritative");
+    }
+
+    let path = repository_root().join(
+        "docs/nsb_components/starlight/validation/results/issue-207-external-cross-validation-v1.json",
+    );
     let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
     let value: Value =
         serde_json::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
     let object = value
         .as_object()
-        .context("scientific-review-decision-v1.json must be a JSON object")?;
-    if object.get("decision").and_then(Value::as_str) != Some("pending") {
-        bail!("canonical scientific-review-decision-v1.json must have decision = \"pending\"");
-    }
-    for field in ["reviewer_name", "reviewer_role", "reviewed_at_utc"] {
-        if !object.get(field).is_some_and(Value::is_null) {
-            bail!("canonical scientific-review-decision-v1.json must leave {field} null");
-        }
+        .context("external validation must be a JSON object")?;
+    if object.get("status").and_then(Value::as_str) != Some("passed")
+        || object.get("passed").and_then(Value::as_bool) != Some(true)
+    {
+        bail!("external scientific validation must pass");
     }
     if object.get("candidate_sha256").and_then(Value::as_str)
-        != Some("555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf")
+        != Some("7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d")
     {
-        bail!("canonical scientific decision must pin the issue #207 candidate SHA");
+        bail!("external validation must pin the final issue #207 candidate SHA");
     }
     Ok(())
 }

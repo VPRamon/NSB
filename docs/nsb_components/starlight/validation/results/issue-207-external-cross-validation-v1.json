@@ -2,13 +2,15 @@
   "schema_version": 1,
   "validation_id": "issue-207-nsb2-cross-implementation-v1",
   "status": "passed",
-  "candidate_sha256": "e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737",
+  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
   "scientific_scope": "Cross-implementation validation of Galactic direct stellar photon radiance over 300-650 nm. This is validation evidence, not astrophysical ground truth; both implementations share Gaia ancestry.",
   "validator": {
     "repository": "VPRamon/nsb-validation",
     "commit": "193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae",
     "config": "configs/starlight-nsb2-issue207.toml",
-    "metrics_sha256": "c5efcd4644fea0357217ab5faac964995c7f664a2efde488b678b10cb84972b9"
+    "metrics_sha256": "2bc1f53f29cde58bdae1a3001b491123fcc9495d70602fbc873e5dbde1b49c4a",
+    "run_manifest_sha256": "230621a0d9693745d55beadecc9904d5b0153cec55240589ed60966c959ca071",
+    "nsb_commit": "a2cdf44d8d0a235092ecdfe24919b429fcb6ec29"
   },
   "reference": {
     "implementation": "GerritRo/nsb2",
@@ -37,7 +39,7 @@
     "global_pixel_correlation": 0.9400633233044149,
     "correlation_excluding_brightest_1_percent": 0.9357802573487137,
     "reference_selected_top_0_1_percent_flux_ratio": 0.630346426354146,
-    "candidate_selected_top_0_1_percent_flux_ratio": 0.8364819210262849,
+    "candidate_selected_top_0_1_percent_flux_ratio": 0.8365104735342083,
     "median_absolute_relative_error": 0.054759034995909686,
     "brightness_bin_flux_ratios": {
       "0-50%": 0.9109385474870102,

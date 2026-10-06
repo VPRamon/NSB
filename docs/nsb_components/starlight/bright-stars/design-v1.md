@@ -2,8 +2,8 @@
 
 Status: **design / experimental**. This document defines the scientific
 policy for an optional NSB-native very-bright-star population supplement.
-It does **not** grant redistribution approval (#103) and does **not**
-promote `scientifically_validated`.
+It does **not** grant redistribution approval (#103). Scientific production
+readiness is established separately by checksum-pinned validation evidence.
 
 Cross-implementation evidence (#182 Experiments A/B) shows that nsb2’s
 88-star XHIP component is ≈ **7.4%** of full nsb2 stellar flux and removes
@@ -20,7 +20,7 @@ sources.
 The supplement is:
 
 - independently versioned (`starlight-bright-stars-v1`);
-- optional / opt-in until human scientific and redistribution gates clear;
+- optional / opt-in until technical validation passes and redistribution is authorized;
 - provenance-visible in runtime and merge reports;
 - never a silent modifier of the Gaia base map.
 
@@ -247,11 +247,12 @@ No silent load of a local unmarked file.
 | `experimental` | **Current target** after implementation |
 | `validated-for-cross-comparison` | Before/after metrics + source audits recorded |
 | `production-candidate` | Policy + uncertainty + provenance complete; still opt-in |
-| `production-approved` | Human scientific approval only |
+| `production-approved` | Checksum-pinned technical and external scientific validation passes |
 | Redistribution | Separate human gate (#103); external asset until cleared |
 
-`scientifically_validated` for Starlight remains **false** until independent
-observational validation — nsb2 agreement alone is insufficient.
+The `nsb2` comparison is cross-implementation evidence rather than independent
+observational ground truth; its limitations must remain explicit in the
+production validation record.
 
 ## 12. Relationship to #182
 

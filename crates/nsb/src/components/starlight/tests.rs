@@ -142,7 +142,7 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
 #[test]
 fn bundled_production_starlight_pins_issue_207_candidate_lineage() {
     const ISSUE_207_CANDIDATE_SHA256: &str =
-        "e14f8254f6afac733aef7ed924de7bf9ebd1d4a257ab51da79ebd5bbd0dfa737";
+        "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
     let sidecar = crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST;
     assert!(
         sidecar.contains(ISSUE_207_CANDIDATE_SHA256),

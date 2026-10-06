@@ -10,7 +10,7 @@ The current dataset version publishes exactly one Gaia-derived candidate map
 
 | Artifact | Role | SHA-256 |
 | --- | --- | --- |
-| `starlight_nside128.csv` | Canonical source-level Gaia accumulation, 300–650 nm (issue #207 bright-star supplement) | `555d514fb0258756319355f02d3bf94439a20bd65858df2f8956a3cccff71acf` |
+| `starlight_nside128.csv` | Canonical source-level Gaia accumulation, 300–650 nm (issue #207 covariance-corrected bright-star supplement) | `7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d` |
 | `merge_report.json` | Map, population, policy, checksum, and deterministic merge evidence | `015545ac8214509a5c1ec86d6c8393e05a0d811a1fec346a0cbd405c52840469` |
 
 Schema `nsb-healpix-starlight-candidate-v5`, nside 128 NESTED sparse, UV model
