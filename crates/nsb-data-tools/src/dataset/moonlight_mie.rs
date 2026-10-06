@@ -416,9 +416,11 @@ fn ensemble_phase(model: &Model, wavelength_um: f64, angles: &[f64]) -> Result<(
         model.refractive_index_real,
         model.refractive_index_imaginary,
     );
-    let mut row = vec![0.0; angles.len()];
-    let mut scattering_weight = 0.0;
-    let mut asymmetry_weight = 0.0;
+    let mut accumulator = EnsembleAccumulator {
+        phase: vec![0.0; angles.len()],
+        scattering_weight: 0.0,
+        asymmetry_weight: 0.0,
+    };
     for mode in &model.modes {
         integrate_mode(
             model,
@@ -426,18 +428,25 @@ fn ensemble_phase(model: &Model, wavelength_um: f64, angles: &[f64]) -> Result<(
             wavelength_um,
             refractive,
             &mus,
-            &mut row,
-            &mut scattering_weight,
-            &mut asymmetry_weight,
+            &mut accumulator,
         )?;
     }
-    if !scattering_weight.is_finite() || scattering_weight <= 0.0 {
+    if !accumulator.scattering_weight.is_finite() || accumulator.scattering_weight <= 0.0 {
         bail!("zero or invalid scattering weight");
     }
-    for value in &mut row {
-        *value /= scattering_weight;
+    for value in &mut accumulator.phase {
+        *value /= accumulator.scattering_weight;
     }
-    Ok((row, asymmetry_weight / scattering_weight))
+    Ok((
+        accumulator.phase,
+        accumulator.asymmetry_weight / accumulator.scattering_weight,
+    ))
+}
+
+struct EnsembleAccumulator {
+    phase: Vec<f64>,
+    scattering_weight: f64,
+    asymmetry_weight: f64,
 }
 
 fn integrate_mode(
@@ -446,9 +455,7 @@ fn integrate_mode(
     wavelength_um: f64,
     refractive: Complex64,
     mus: &[f64],
-    total: &mut [f64],
-    total_weight: &mut f64,
-    asymmetry_weight: &mut f64,
+    accumulator: &mut EnsembleAccumulator,
 ) -> Result<()> {
     validate_mode(mode)?;
     let sigma = mode.log10_geometric_sigma * 10.0_f64.ln();
@@ -471,9 +478,9 @@ fn integrate_mode(
         let x = 2.0 * PI * radius / wavelength_um;
         let sample = mie_phase(x, refractive, mus)?;
         let weight = simpson * h / 3.0 * number_per_ln_r * PI * radius * radius * sample.qsca;
-        *total_weight += weight;
-        *asymmetry_weight += weight * sample.asymmetry;
-        for (sum, value) in total.iter_mut().zip(sample.phase) {
+        accumulator.scattering_weight += weight;
+        accumulator.asymmetry_weight += weight * sample.asymmetry;
+        for (sum, value) in accumulator.phase.iter_mut().zip(sample.phase) {
             *sum += weight * value;
         }
     }
@@ -489,7 +496,6 @@ struct MieSample {
 
 /// Return scattering efficiency, analytic asymmetry and a phase function
 /// whose continuous solid-angle integral is 4 pi.
-
 fn mie_phase(x: f64, m: Complex64, mus: &[f64]) -> Result<MieSample> {
     if !x.is_finite() || x <= 0.0 || !m.re.is_finite() || !m.im.is_finite() || m.norm_sqr() == 0.0 {
         bail!("invalid Mie size parameter or refractive index");
@@ -980,7 +986,7 @@ abundance = 1.0
         let mut worst = 0.0_f64;
         for wavelength_um in [0.3, 0.5, 0.65] {
             let (phase, _) = ensemble_phase(&model, wavelength_um, &probe_angles).unwrap();
-            for values in phase.chunks_exact(3) {
+            for values in phase.chunks(3) {
                 let interpolated = 0.5 * (values[0] + values[2]);
                 worst = worst.max((interpolated / values[1] - 1.0).abs());
             }
