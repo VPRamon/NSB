@@ -4,6 +4,7 @@ mod config;
 mod engine;
 mod execution;
 mod model;
+mod moonlight_mie;
 mod pipeline;
 mod slurm;
 mod solar_spectrum;

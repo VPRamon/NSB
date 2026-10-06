@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `airglow-continuum` | `airglow_cont.dat` | local |
 | `solar-spectrum` | `solar_spectrum.dat` | local |
-| `moonlight-scattering` | `mie_m15s1.dat`, `sscatcor_m15s1.dat` | local |
+| `moonlight-scattering` | `moonlight_mie_nsb_v1.dat`, `sscatcor_m15s1.dat` | local |
 | `starlight` | validated HEALPix map artifacts | local or Slurm |
 
 The supported lifecycle is `update → build → validate → publish`. `update`
@@ -47,8 +47,11 @@ sha256 = "64-lowercase-hex-characters"
 repository_root = "/checkout/nsb"
 ```
 
-The airglow and scattering snapshots remain limited by incomplete upstream
-provenance and licensing. The solar spectrum is reproducibly generated from
+The airglow and multiple-scattering snapshots remain limited by incomplete
+upstream provenance and licensing. The Mie phase grid is independently generated
+from the committed Jones aerosol configuration; see the
+[Mie validation report](../nsb_components/moonlight/mie-phase-validation.md).
+The solar spectrum is reproducibly generated from
 the official 70,001-sample TSIS-1 HSRS v2 p025nm source into a deterministic,
 flux-conserving 351-sample runtime grid. It remains `generic-fallback` because
 dataset-specific redistribution terms were not located and checksum

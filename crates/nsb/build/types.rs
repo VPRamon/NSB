@@ -16,7 +16,7 @@ pub const STARLIGHT_MANIFEST_SCHEMA: &str = "nsb-starlight-runtime-manifest-v2";
 pub const REQUIRED_RUNTIME_ASSETS: &[(&str, &str)] = &[
     ("airglow_cont.dat", "skycalc-airglow-continuum-v1"),
     ("f107_store.json", "nsb-f107-store-v1"),
-    ("mie_m15s1.dat", "moonlight-mie-angle-wavelength-grid-v1"),
+    ("moonlight_mie_nsb_v1.dat", "nsb-moonlight-mie-phase-v1"),
     (
         "sscatcor_m15s1.dat",
         "moonlight-multiple-scattering-grid-v1",

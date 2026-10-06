@@ -232,15 +232,15 @@ mod tests {
     /// The CSV `expected_*` columns remain a schema/tolerance manifest for
     /// external references. Those historical LUT values diverge from the
     /// current spectral implementation (~85% relative). These pins were
-    /// intentionally refreshed for the reviewed TSIS-1 HSRS v2 replacement;
-    /// the validation report records the 1.94–2.10% scientific delta.
+    /// intentionally refreshed for the independently generated NSB Mie phase
+    /// grid; the validation report records the isolated scientific delta.
     #[test]
     fn historical_fixture_geometries_match_spectral_regression_pins() {
         const REL_TOL: f64 = 1.0e-9;
         let cases = [
-            (85.5, 97.523, 36.0, 60.0, 384_400.0, 0.083_367_447_328_456_6),
-            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.308_541_289_220_820_8),
-            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.067_532_264_783_783_4),
+            (85.5, 97.523, 36.0, 60.0, 384_400.0, 0.085_674_216_391_328_8),
+            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.235_696_251_499_208_3),
+            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.071_409_459_325_953_2),
         ];
         let profile = paranal_like_profile();
         for (phase, sep, z_moon, z_src, dist, expected) in cases {

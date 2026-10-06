@@ -18,16 +18,24 @@ calibration_status = "planning-proxy"
 runtime_embedded = true
 
 [[assets]]
-path = "mie_m15s1.dat"
-schema = "moonlight-mie-angle-wavelength-grid-v1"
-sha256 = "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
-source = "Paranal-like aerosol Mie phase grid associated with the ESO Sky Model lineage; exact upstream release is not recorded"
-license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
-generator = "historical import"
-generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/specifications/validation.md#bundled-asset-validation"
-calibration_status = "planning-proxy"
+path = "moonlight_mie_nsb_v1.dat"
+schema = "nsb-moonlight-mie-phase-v1"
+sha256 = "b74ee3c8e1039cdc0cc323bfa488c04cb2d09ce3871932fa957358c677d7e43d"
+source = "NSB-owned calculation from the remote-continental aerosol modes and selected mixture published by Jones et al. 2013, A&A 560 A91, Sect. 2.6 and Table 2; mode parameters originate in Warneck & Williams 2012"
+license = "NSB-generated factual scientific data; generator is AGPL-3.0-only; no third-party dataset bytes are embedded"
+generator = "nsb-data-tools in-tree Bohren-Huffman Mie solver v1"
+generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml"
+validation_report = "docs/nsb_components/moonlight/mie-phase-validation.md"
+calibration_status = "published-model-reconstruction"
 runtime_embedded = true
+
+[assets.header]
+aerosol_schema = "nsb-moonlight-aerosol-model-v1"
+solver = "Bohren-Huffman amplitude recurrences, in-tree implementation v1"
+normalization = "integral P(theta) dOmega = 4*pi"
+wavelength_grid_nm = "300..650 step 10"
+scattering_angle_grid_deg = "0..180 step 1"
+radius_quadrature = "composite Simpson in ln(radius), 800 intervals over +/-5 sigma"
 
 [[assets]]
 path = "solar_spectrum.dat"
