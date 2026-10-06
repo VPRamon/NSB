@@ -36,13 +36,12 @@ Summary of third-party sources:
 
 ## Other bundled runtime assets
 
-The moonlight and airglow/solar bundled snapshots (`airglow_cont.dat`,
-`solar_spectrum.dat`, `mie_m15s1.dat`, `sscatcor_m15s1.dat`) are historical
-imports associated with the ESO Sky Model lineage and have incomplete upstream
-licence records; see `crates/nsb/data/manifest.toml` for the current, explicitly
-flagged state of each. This blocks their calibrated-production promotion until a
-reviewed source and licence are supplied; it is out of scope for this Starlight
-redistribution package (#88).
+The moonlight and airglow bundled snapshots (`airglow_cont.dat`,
+`mie_m15s1.dat`, `sscatcor_m15s1.dat`) are historical imports associated with
+the ESO Sky Model lineage and have incomplete upstream licence records; see
+`crates/nsb/data/manifest.toml` for their explicitly flagged state. The bundled
+`solar_spectrum.dat` is instead an NSB-authored analytic product generated from
+physical constants and distributed under AGPL-3.0-only with the rest of NSB.
 
 ## Reporting a missing or incorrect notice
 
