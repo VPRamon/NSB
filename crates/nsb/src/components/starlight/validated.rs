@@ -1,10 +1,13 @@
 use super::map::parse_header_metadata;
-use super::{StarlightBrightStarSupplementProvenance, StarlightMap, StarlightProvenance};
+use super::{
+    StarlightBrightStarInputProvenance, StarlightBrightStarSupplementProvenance, StarlightMap,
+    StarlightProvenance,
+};
 use crate::error::{NsbError, Result};
 use chrono::DateTime;
 use serde::Deserialize;
 use siderust::checksum::{sha256, to_hex};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 const MANIFEST_SCHEMA_VERSION: u32 = 2;
@@ -83,8 +86,18 @@ struct BrightStarSupplementManifest {
     build_commit: String,
     spectral_route: String,
     redistribution_scope: String,
-    input_catalogues: Vec<String>,
-    license_provenance: Vec<String>,
+    inputs: Vec<BrightStarInputManifest>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BrightStarInputManifest {
+    role: String,
+    source_id: String,
+    release: String,
+    sha256: String,
+    retrieval_url: String,
+    license_or_terms_url: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -274,10 +287,32 @@ impl ExternalManifest {
                 .build_commit
                 .bytes()
                 .all(|byte| byte.is_ascii_hexdigit())
-            || supplement.input_catalogues.is_empty()
-            || supplement.license_provenance.is_empty()
+            || supplement.inputs.is_empty()
         {
             return Err(invalid("bright-star supplement provenance is incomplete"));
+        }
+        let mut input_identities = BTreeSet::new();
+        for input in &supplement.inputs {
+            for (name, value) in [
+                ("role", &input.role),
+                ("source_id", &input.source_id),
+                ("release", &input.release),
+                ("retrieval_url", &input.retrieval_url),
+                ("license_or_terms_url", &input.license_or_terms_url),
+            ] {
+                if value.trim().is_empty() {
+                    return Err(invalid(format!(
+                        "bright-star supplement input field {name} must not be empty"
+                    )));
+                }
+            }
+            validate_sha256("bright_star_supplement.inputs[].sha256", &input.sha256)?;
+            let identity = format!("{}:{}", input.role, input.source_id);
+            if !input_identities.insert(identity.clone()) {
+                return Err(invalid(format!(
+                    "bright-star supplement input identity {identity} is duplicated"
+                )));
+            }
         }
         let header_pairs = [
             ("bright_star_artifact_sha256", &supplement.artifact_sha256),
@@ -493,8 +528,35 @@ impl ExternalManifest {
                     build_commit: supplement.build_commit.clone(),
                     spectral_route: supplement.spectral_route.clone(),
                     redistribution_scope: supplement.redistribution_scope.clone(),
-                    input_catalogues: supplement.input_catalogues.clone(),
-                    license_provenance: supplement.license_provenance.clone(),
+                    inputs: supplement
+                        .inputs
+                        .iter()
+                        .map(|input| StarlightBrightStarInputProvenance {
+                            role: input.role.clone(),
+                            source_id: input.source_id.clone(),
+                            release: input.release.clone(),
+                            sha256: input.sha256.clone(),
+                            retrieval_url: input.retrieval_url.clone(),
+                            license_or_terms_url: input.license_or_terms_url.clone(),
+                        })
+                        .collect(),
+                    input_catalogues: supplement
+                        .inputs
+                        .iter()
+                        .map(|input| {
+                            format!(
+                                "{}:{}@{} sha256:{}",
+                                input.role, input.source_id, input.release, input.sha256
+                            )
+                        })
+                        .collect(),
+                    license_provenance: supplement
+                        .inputs
+                        .iter()
+                        .map(|input| {
+                            format!("{}: {}", input.source_id, input.license_or_terms_url)
+                        })
+                        .collect(),
                 }
             }),
         }

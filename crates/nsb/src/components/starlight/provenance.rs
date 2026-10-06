@@ -2,6 +2,24 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+/// Runtime-visible provenance for one checksum-pinned bright-star build input.
+pub struct StarlightBrightStarInputProvenance {
+    /// Stable role of the input in the supplement build.
+    pub role: String,
+    /// Stable source identity within that role.
+    pub source_id: String,
+    /// Release, retrieval epoch, or version identifier.
+    pub release: String,
+    /// SHA-256 of the exact input bytes or frozen query/config text.
+    pub sha256: String,
+    /// Retrieval or canonical source URL.
+    pub retrieval_url: String,
+    /// Licensing or terms URL governing this input.
+    pub license_or_terms_url: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 /// Runtime-visible provenance for an external very-bright-star supplement.
 pub struct StarlightBrightStarSupplementProvenance {
     /// SHA-256 of the verified supplement artifact.
@@ -22,9 +40,11 @@ pub struct StarlightBrightStarSupplementProvenance {
     pub spectral_route: String,
     /// Exact scope of redistributed derived data.
     pub redistribution_scope: String,
-    /// Checksum-pinned catalogue and model input identities.
+    /// Complete structured, checksum-pinned build-input provenance.
+    pub inputs: Vec<StarlightBrightStarInputProvenance>,
+    /// Backward-compatible textual identities derived from the structured inputs.
     pub input_catalogues: Vec<String>,
-    /// Licensing and terms provenance for those inputs.
+    /// Backward-compatible terms summaries derived from the structured inputs.
     pub license_provenance: Vec<String>,
 }
 

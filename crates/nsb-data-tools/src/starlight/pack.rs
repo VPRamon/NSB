@@ -652,8 +652,24 @@ mod tests {
             );
         assert!(!looked.s10_diagnostics_provided);
         assert!(looked.statistical_uncertainty.is_some());
-        nsb::components::starlight::ValidatedStarlightMap::from_files(&csv, &production_sidecar)
-            .unwrap();
+        let validated =
+            nsb::components::starlight::ValidatedStarlightMap::from_files(&csv, &production_sidecar)
+                .unwrap();
+        let bright_star = validated
+            .map()
+            .provenance()
+            .bright_star_supplement
+            .as_ref()
+            .expect("runtime map must expose canonical bright-star provenance");
+        assert_eq!(bright_star.inputs.len(), 34);
+        assert!(bright_star
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "CALSPEC-alpha_lyr_stis_012"));
+        assert!(bright_star
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "SVO-Hipparcos-Hp-Bessell2000"));
 
         let csv2 = dir.path().join("second.release.csv");
         let sidecar2 = dir.path().join("second.pack.toml");
