@@ -40,8 +40,13 @@ value `F` in sfu, NSB preserves PALACE equation (1):
 ```text
 scale(c,m,t,F) = rI(c,m,t) × [1 + 0.01 × SCE(c,m,t) × (F - 100)]
 continuum(λ)   = Σ template(c,λ) × scale(c,m,t,F)
-sigma(λ)       = Σ template(c,λ) × rdI(c,m,t)
+sigma(λ)       = Σ template(c,λ) × rI(c,m,t) × rdI(c,m,t)
 ```
+
+PALACE equation (2) therefore scales the residual standard deviation by the
+bin-specific mean factor `rI` but applies no additional solar-activity term.
+PALACE sums overlapping component deviations linearly, so this runtime
+uncertainty is a conservative maximum rather than a quadrature combination.
 
 Local time is local mean solar time from observer longitude. Bins 1–12 cover
 18:00–06:00 in one-hour steps, matching PALACE. Astronomical-night samples
@@ -68,8 +73,10 @@ locale, PALACE executable, Python, or live runtime request affects the bytes.
 
 Two independent in-process generations from the pinned archive were
 byte-identical and matched the committed product. The regression is
-`generator_is_byte_deterministic_for_pinned_archive_when_available`; normal CI
-validates the committed product without downloading upstream data. Output:
+`generator_is_byte_deterministic_for_pinned_archive_when_available`; normal PR
+CI validates the committed product offline, while the Scientific validation
+workflow downloads the pinned archive, runs `update → build → validate`, and
+byte-compares the regenerated product with the committed asset. Output:
 
 ```text
 bytes   34,959
@@ -94,6 +101,14 @@ time bin 3, 100 sfu, zenith, no atmosphere, vacuum wavelengths, and a 1 nm
 grid. Its 300–650 nm continuum integral was `1221.712448 R`; the NSB product
 gave `1221.711975 R` (relative difference `3.88e-7`, caused by printed float
 precision). Values at 300, 445, 551, and 650 nm were also finite and positive.
+
+For the residual-variability path, PALACE equations (1) and (2) were evaluated
+directly from the committed January / local-time-bin 2 coefficients at 550 nm.
+The expected continuum is `2.757462436877382 R/nm` at 100 sfu and
+`3.162935499374538 R/nm` at 160 sfu, while the residual standard deviation is
+`1.1181690988460096 R/nm` at both solar-flux values. The runtime regression
+pins those values so omitting the required `f0` factor, or incorrectly applying
+the solar term to the residual deviation, fails.
 
 Runtime tests exercise month, time, and solar changes, parser rejection,
 atmospheric sensitivity, geometry scaling, 300–650 nm integration, B/V
