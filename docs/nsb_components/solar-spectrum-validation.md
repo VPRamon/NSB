@@ -24,11 +24,19 @@ for the nominal solar values; the SI Brochure, 9th edition, is the source for
 the exact SI constants and astronomical unit.
 
 The output has 351 samples and SHA-256
-`aad77316600826e8a9d337fa1fdfabe70c03602abc1bb6065f014cf6b695050c`.
-Its 300–650 nm trapezoidal integral is 547.535433337631 W m^-2, the 500 nm
-irradiance is 1.78271833231931 W m^-2 nm^-1, and the 445/551 ratio is
-0.983622222728011. The lifecycle validates byte-identical regeneration, the
-input checksum and terms, exact grid and anchors, integral, and B/V shape.
+`1cc24671052b7623752eb41dd99a84520393b2845442b8bbde217610fe5ed949`.
+Its 300–650 nm trapezoidal integral is 547.535433337638 W m^-2, the 500 nm
+irradiance is 1.782718332319 W m^-2 nm^-1, and the 445/551 ratio is
+0.983622222728456.
+
+Byte reproducibility does not depend on the host libm: the Planck exponential
+uses a fixed-operation range reduction plus a 24-term Taylor expansion, and the
+generated irradiances are canonically serialized with 12 digits after the
+decimal in scientific notation. The serialization quantization is roughly
+1e-12 relative or better across this band, far below the scientific-impact
+ceilings of this generic fallback. The lifecycle validates byte-identical
+regeneration, the configured input checksum against the copied workspace input
+and runtime header, exact grid and anchors, integral, and B/V shape.
 
 ## Impact relative to the removed TSIS-derived runtime
 
@@ -54,8 +62,12 @@ These changes are accepted for the v0.1.0 `generic-fallback` role with explicit
 regression ceilings: 18% for Zodiacal integrated and V, 12% for Zodiacal B;
 18% for representative Jones integrated output, 30% for Jones B, and 8% for
 Jones V. The bounds include margin over the measured maxima and fail if a later
-analytic-model change drifts further. Jones 2013 remains enabled and its three
-representative geometries are pinned in unit tests.
+analytic-model change drifts further. Both documented Zodiacal cases are
+executable regression tests using offline numeric baselines from the former
+TSIS-derived runtime SHA-256
+`71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02`.
+Jones 2013 remains enabled and its three representative geometries use the same
+offline-baseline approach; no TSIS bytes are required by the tests.
 
 ## Reproduction
 
@@ -70,8 +82,10 @@ cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset solar-spectrum pu
 
 `update` copies and checksum-verifies only the checked-in analytic specification;
 the workflow performs no network request. `build` evaluates the formula,
-`validate` writes machine-readable gates, and `publish` accepts only unchanged
-validated bytes while updating the manifest checksum.
+`validate` writes machine-readable gates and rejects any workspace input whose
+SHA-256 no longer matches the pinned config or the runtime header. `publish`
+accepts only unchanged validated bytes and synchronizes the runtime checksum,
+generator identity, and parsed provenance header into the bundled manifest.
 
 ## Limitations
 
