@@ -16,6 +16,7 @@ use crate::starlight::pack::{
     self, PackInputs, GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256, XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256,
 };
 use anyhow::{bail, Context, Result};
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -92,29 +93,17 @@ pub struct CandidateSection {
     pub nside: u32,
     pub ordering: String,
     pub gaia_release: String,
+    pub generation_date_utc: String,
     #[serde(default)]
     pub model_versions: BTreeMap<String, String>,
     #[serde(default)]
     pub bright_star_supplement: Option<BrightStarRuntimeProvenance>,
 }
 
-/// Provenance that must remain visible in the packed runtime assets when a
-/// candidate includes the external bright-star supplement.
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub struct BrightStarRuntimeProvenance {
-    pub artifact_sha256: String,
-    pub model_id: String,
-    pub product_band: String,
-    pub uv_completion_model_id: String,
-    pub population_policy_id: String,
-    pub precedence_policy_id: String,
-    pub build_commit: String,
-    pub spectral_route: String,
-    pub redistribution_scope: String,
-    pub input_catalogues: Vec<String>,
-    pub license_provenance: Vec<String>,
-}
+/// Canonical bright-star provenance copied from the checksum-pinned merge
+/// report. The release candidate must match it exactly before runtime staging.
+pub type BrightStarRuntimeProvenance =
+    crate::starlight::bright_stars::BrightStarSupplementProvenance;
 
 /// `[gates]` table of the release-candidate manifest.
 ///
@@ -138,6 +127,8 @@ pub struct ReviewArtifactsSection {
     pub inventory_sha256: String,
     pub gates_report_path: String,
     pub gates_report_sha256: String,
+    pub merge_report_path: String,
+    pub merge_report_sha256: String,
     pub external_validation_path: String,
     pub external_validation_sha256: String,
     pub licensing_decision_path: String,
@@ -189,35 +180,20 @@ impl ReleaseCandidateManifest {
         require_text("candidate.units", &self.candidate.units)?;
         require_text("candidate.ordering", &self.candidate.ordering)?;
         require_text("candidate.gaia_release", &self.candidate.gaia_release)?;
+        require_rfc3339(
+            "candidate.generation_date_utc",
+            &self.candidate.generation_date_utc,
+        )?;
         require_sha256(
             "candidate.candidate_sha256",
             &self.candidate.candidate_sha256,
         )?;
         if let Some(supplement) = &self.candidate.bright_star_supplement {
-            require_sha256(
-                "candidate.bright_star_supplement.artifact_sha256",
-                &supplement.artifact_sha256,
-            )?;
-            for (name, value) in [
-                ("model_id", &supplement.model_id),
-                ("product_band", &supplement.product_band),
-                ("uv_completion_model_id", &supplement.uv_completion_model_id),
-                ("population_policy_id", &supplement.population_policy_id),
-                ("precedence_policy_id", &supplement.precedence_policy_id),
-                ("spectral_route", &supplement.spectral_route),
-                ("redistribution_scope", &supplement.redistribution_scope),
-            ] {
-                require_text(&format!("candidate.bright_star_supplement.{name}"), value)?;
-            }
-            if supplement.build_commit.len() != 40
-                || !supplement
-                    .build_commit
-                    .bytes()
-                    .all(|byte| byte.is_ascii_hexdigit())
-                || supplement.input_catalogues.is_empty()
-                || supplement.license_provenance.is_empty()
-            {
-                bail!("candidate bright-star runtime provenance is incomplete");
+            supplement
+                .validate()
+                .context("candidate bright-star runtime provenance is invalid")?;
+            if supplement.inputs.is_empty() {
+                bail!("candidate bright-star runtime provenance has no checksum-pinned inputs");
             }
         }
         if self.candidate.nside == 0 || !self.candidate.nside.is_power_of_two() {
@@ -244,6 +220,14 @@ impl ReleaseCandidateManifest {
             &self.review_artifacts.gates_report_sha256,
         )?;
         require_text(
+            "review_artifacts.merge_report_path",
+            &self.review_artifacts.merge_report_path,
+        )?;
+        require_sha256(
+            "review_artifacts.merge_report_sha256",
+            &self.review_artifacts.merge_report_sha256,
+        )?;
+        require_text(
             "review_artifacts.licensing_decision_path",
             &self.review_artifacts.licensing_decision_path,
         )?;
@@ -265,6 +249,69 @@ impl ReleaseCandidateManifest {
         )?;
         Ok(())
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct MergeReportRuntimeEvidence {
+    canonical_map: MergeReportCanonicalMapEvidence,
+    #[serde(default)]
+    bright_star_supplement: Option<BrightStarRuntimeProvenance>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MergeReportCanonicalMapEvidence {
+    schema: String,
+    nside: u32,
+    ordering: String,
+    flux_unit: String,
+    sha256: String,
+}
+
+fn verified_runtime_candidate(
+    repository_root: &Path,
+    release: &ReleaseCandidateManifest,
+) -> Result<CandidateSection> {
+    let path = repository_root.join(&release.review_artifacts.merge_report_path);
+    let actual_sha256 = checksum_io::sha256_file(&path)
+        .with_context(|| format!("checksum canonical merge report {}", path.display()))?;
+    if actual_sha256 != release.review_artifacts.merge_report_sha256 {
+        bail!(
+            "merge report checksum mismatch or tamper detected: release candidate pins {}, actual file is {}",
+            release.review_artifacts.merge_report_sha256,
+            actual_sha256
+        );
+    }
+
+    let raw = fs::read(&path)
+        .with_context(|| format!("read canonical merge report {}", path.display()))?;
+    let report: MergeReportRuntimeEvidence = serde_json::from_slice(&raw)
+        .with_context(|| format!("parse canonical merge report {}", path.display()))?;
+    let candidate = &release.candidate;
+    if report.canonical_map.sha256 != candidate.candidate_sha256
+        || report.canonical_map.schema != candidate.map_schema
+        || report.canonical_map.nside != candidate.nside
+        || report.canonical_map.ordering != candidate.ordering
+        || report.canonical_map.flux_unit != candidate.units
+    {
+        bail!("canonical merge report map identity disagrees with release candidate");
+    }
+    if let Some(supplement) = &report.bright_star_supplement {
+        supplement
+            .validate()
+            .context("canonical merge-report bright-star provenance is invalid")?;
+        if supplement.inputs.is_empty() {
+            bail!("canonical merge-report bright-star provenance has no checksum-pinned inputs");
+        }
+    }
+    if report.bright_star_supplement != candidate.bright_star_supplement {
+        bail!(
+            "release-candidate bright-star provenance disagrees with checksum-pinned canonical merge report"
+        );
+    }
+
+    let mut runtime_candidate = candidate.clone();
+    runtime_candidate.bright_star_supplement = report.bright_star_supplement;
+    Ok(runtime_candidate)
 }
 
 /// Inputs for [`run_promotion`].
@@ -319,7 +366,7 @@ pub struct RuntimeStageOutcome {
 /// operation that can apply registry changes after the legal decision passes.
 pub fn stage_runtime_assets(inputs: &RuntimeStageInputs) -> Result<RuntimeStageOutcome> {
     let release = ReleaseCandidateManifest::load(&inputs.release_candidate)?;
-    let candidate = &release.candidate;
+    let candidate = verified_runtime_candidate(&inputs.repository_root, &release)?;
     if candidate.status != CandidateStatus::Pinned {
         bail!("runtime staging requires a pinned release candidate");
     }
@@ -341,11 +388,11 @@ pub fn stage_runtime_assets(inputs: &RuntimeStageInputs) -> Result<RuntimeStageO
         expected_nside: candidate.nside,
         output_csv: inputs.output_csv.clone(),
         output_sidecar: temporary_pack_sidecar.path().to_path_buf(),
-        provenance_headers: runtime_admission_headers(candidate),
+        provenance_headers: runtime_admission_headers(&candidate),
     })?;
     write_production_sidecar(
         &inputs.output_sidecar,
-        candidate,
+        &candidate,
         &packed.runtime_map_sha256,
         packed.all_sky_flux_sum_ph_m2_s,
     )?;
@@ -424,6 +471,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         licensing.decision().review_bundle_sha256.as_str(),
     )?;
     verify_runtime_assets_identity(&inputs.repository_root, &candidate)?;
+    let runtime_candidate = verified_runtime_candidate(&inputs.repository_root, &candidate)?;
 
     // The redistribution decision is authoritative. The TOML status is a
     // report snapshot and must not require a second edit after #103 signs.
@@ -451,7 +499,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         expected_nside: candidate.candidate.nside,
         output_csv: staged_map.clone(),
         output_sidecar: staged_pack_sidecar,
-        provenance_headers: runtime_admission_headers(&candidate.candidate),
+        provenance_headers: runtime_admission_headers(&runtime_candidate),
     })?;
 
     let evidence = ConditionEvidence {
@@ -472,7 +520,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
 
     write_production_sidecar(
         &staged_runtime_sidecar,
-        &candidate.candidate,
+        &runtime_candidate,
         &pack_outcome.runtime_map_sha256,
         pack_outcome.all_sky_flux_sum_ph_m2_s,
     )?;
@@ -497,7 +545,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         })?;
         apply_production_registry(
             &data_dir.join("manifest.toml"),
-            &candidate.candidate,
+            &runtime_candidate,
             &pack_outcome.runtime_map_sha256,
             &runtime_sidecar_sha256,
             stem,
@@ -513,7 +561,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
     };
 
     let draft = render_production_manifest_draft(
-        &candidate.candidate,
+        &runtime_candidate,
         &pack_outcome.runtime_map_sha256,
         &runtime_sidecar_sha256,
     );
@@ -950,7 +998,7 @@ pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMa
     let mut headers = BTreeMap::from([
         ("dataset_name".into(), "NSB Gaia DR3 Starlight packed runtime map".into()),
         ("version".into(), version),
-        ("generation_date_utc".into(), "2026-08-24T00:00:00Z".into()),
+        ("generation_date_utc".into(), candidate.generation_date_utc.clone()),
         (
             "source_catalogue".into(),
             "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement".into(),
@@ -1018,10 +1066,6 @@ pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMa
             ("bright_star_model_id", &supplement.model_id),
             ("bright_star_product_band", &supplement.product_band),
             (
-                "bright_star_uv_completion_model_id",
-                &supplement.uv_completion_model_id,
-            ),
-            (
                 "bright_star_population_policy_id",
                 &supplement.population_policy_id,
             ),
@@ -1037,6 +1081,12 @@ pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMa
             ),
         ] {
             headers.insert(key.into(), value.clone());
+        }
+        if let Some(uv_completion_model_id) = &supplement.uv_completion_model_id {
+            headers.insert(
+                "bright_star_uv_completion_model_id".into(),
+                uv_completion_model_id.clone(),
+            );
         }
     }
     headers
@@ -1054,7 +1104,7 @@ pub(crate) fn write_production_sidecar(
 calibration_status = "production"
 dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
 version = "uv-v2-packed-from-{}"
-generation_date = "2026-08-24T00:00:00Z"
+generation_date = "{}"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
 source_catalogue_release = "{}"
 source_catalogue_license = "CC BY-NC 3.0 IGO"
@@ -1095,7 +1145,7 @@ ordering = "{}"
 s10_diagnostics = "not_provided"
 dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
 version = "uv-v2-packed-from-{}"
-generation_date_utc = "2026-08-24T00:00:00Z"
+generation_date_utc = "{}"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
 source_catalogue_release = "{}"
 source_catalogue_license = "CC BY-NC 3.0 IGO"
@@ -1116,6 +1166,7 @@ validation_report = "docs/nsb_components/starlight/production-runs/combined-300-
 independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae vs nsb2@bc9320db03fbff69997ce366c6e76a37339c5d00; cross-implementation evidence, not astrophysical ground truth"
 "#,
         candidate.candidate_sha256,
+        candidate.generation_date_utc,
         candidate.gaia_release,
         candidate.band,
         pack::PACKER_ID,
@@ -1124,6 +1175,7 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         candidate.nside,
         "ring",
         candidate.candidate_sha256,
+        candidate.generation_date_utc,
         candidate.gaia_release,
         candidate.candidate_sha256,
         candidate.band,
@@ -1134,10 +1186,6 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
             ("bright_star_artifact_sha256", &supplement.artifact_sha256),
             ("bright_star_model_id", &supplement.model_id),
             ("bright_star_product_band", &supplement.product_band),
-            (
-                "bright_star_uv_completion_model_id",
-                &supplement.uv_completion_model_id,
-            ),
             (
                 "bright_star_population_policy_id",
                 &supplement.population_policy_id,
@@ -1155,43 +1203,25 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         ] {
             writeln!(body, "{key} = {value:?}").expect("write supplement header");
         }
-        body.push_str("\n[bright_star_supplement]\n");
-        writeln!(body, "artifact_sha256 = {:?}", supplement.artifact_sha256).unwrap();
-        writeln!(body, "model_id = {:?}", supplement.model_id).unwrap();
-        writeln!(body, "product_band = {:?}", supplement.product_band).unwrap();
-        writeln!(
-            body,
-            "uv_completion_model_id = {:?}",
-            supplement.uv_completion_model_id
-        )
-        .unwrap();
-        writeln!(
-            body,
-            "population_policy_id = {:?}",
-            supplement.population_policy_id
-        )
-        .unwrap();
-        writeln!(
-            body,
-            "precedence_policy_id = {:?}",
-            supplement.precedence_policy_id
-        )
-        .unwrap();
-        writeln!(body, "build_commit = {:?}", supplement.build_commit).unwrap();
-        writeln!(body, "spectral_route = {:?}", supplement.spectral_route).unwrap();
-        writeln!(
-            body,
-            "redistribution_scope = {:?}",
-            supplement.redistribution_scope
-        )
-        .unwrap();
-        writeln!(body, "input_catalogues = {:?}", supplement.input_catalogues).unwrap();
-        writeln!(
-            body,
-            "license_provenance = {:?}",
-            supplement.license_provenance
-        )
-        .unwrap();
+        if let Some(uv_completion_model_id) = &supplement.uv_completion_model_id {
+            writeln!(
+                body,
+                "bright_star_uv_completion_model_id = {uv_completion_model_id:?}"
+            )
+            .expect("write supplement UV model header");
+        }
+
+        #[derive(Serialize)]
+        struct RuntimeBrightStarSidecar<'a> {
+            bright_star_supplement: &'a BrightStarRuntimeProvenance,
+        }
+        body.push('\n');
+        body.push_str(
+            &toml::to_string(&RuntimeBrightStarSidecar {
+                bright_star_supplement: supplement,
+            })
+            .context("serialize canonical bright-star runtime provenance")?,
+        );
     }
     fs::write(path, body).with_context(|| format!("write production sidecar {}", path.display()))
 }
@@ -1245,10 +1275,17 @@ fn registry_source(candidate: &CandidateSection) -> String {
 
 fn registry_license(candidate: &CandidateSection) -> String {
     match &candidate.bright_star_supplement {
-        Some(supplement) => format!(
-            "Gaia data licence: CC BY-NC 3.0 IGO; bright-star supplement provenance: {}",
-            supplement.license_provenance.join("; ")
-        ),
+        Some(supplement) => {
+            let terms = supplement
+                .inputs
+                .iter()
+                .map(|input| input.license_or_terms_url.as_str())
+                .collect::<BTreeSet<_>>();
+            format!(
+                "Gaia data licence: CC BY-NC 3.0 IGO; bright-star supplement terms: {}",
+                terms.into_iter().collect::<Vec<_>>().join("; ")
+            )
+        }
         None => "Gaia data licence: CC BY-NC 3.0 IGO".into(),
     }
 }
@@ -1341,6 +1378,13 @@ fn require_text(label: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+fn require_rfc3339(label: &str, value: &str) -> Result<()> {
+    require_text(label, value)?;
+    DateTime::parse_from_rfc3339(value)
+        .with_context(|| format!("{label} must be a valid RFC3339 timestamp"))?;
+    Ok(())
+}
+
 fn require_sha256(label: &str, value: &str) -> Result<()> {
     if value.len() != 64
         || !value
@@ -1423,6 +1467,7 @@ mod tests {
         promotion_eligible: bool,
         inventory_sha256: &str,
         gates_sha256: &str,
+        merge_report_sha256: &str,
         external_validation_sha256: &str,
         candidate_sha256: &str,
         runtime_map_sha256: &str,
@@ -1443,6 +1488,7 @@ units = "ph_m-2_s-1"
 nside = 1
 ordering = "nested"
 gaia_release = "Gaia DR3 (synthetic test fixture)"
+generation_date_utc = "2026-10-06T07:02:23Z"
 
 [candidate.model_versions]
 uv_correction_current = "synthetic-test-only-v1"
@@ -1457,6 +1503,8 @@ inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.
 inventory_sha256 = "{inventory_sha256}"
 gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
 gates_report_sha256 = "{gates_sha256}"
+merge_report_path = "crates/nsb/data/merge_report.json"
+merge_report_sha256 = "{merge_report_sha256}"
 external_validation_path = "docs/nsb_components/starlight/validation/results/issue-207-external-cross-validation-v1.json"
 external_validation_sha256 = "{external_validation_sha256}"
 licensing_decision_path = "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"
@@ -1628,9 +1676,26 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             nside: 1,
             ordering: "nested".to_string(),
             gaia_release: "Gaia DR3 (synthetic test fixture)".to_string(),
+            generation_date_utc: "2026-10-06T07:02:23Z".to_string(),
             model_versions: BTreeMap::new(),
             bright_star_supplement: None,
         };
+        let merge_report = format!(
+            r#"{{
+  "canonical_map": {{
+    "schema": "nsb-healpix-starlight-candidate-v5",
+    "nside": 1,
+    "ordering": "nested",
+    "flux_unit": "ph_m-2_s-1",
+    "sha256": "{sha}"
+  }},
+  "bright_star_supplement": null
+}}"#
+        );
+        let merge_report_path = data_dir.join("merge_report.json");
+        fs::write(&merge_report_path, &merge_report).unwrap();
+        let merge_report_sha256 = checksum_io::sha256_bytes(merge_report.as_bytes());
+
         let staged_map = root.join("crates/nsb/data/starlight_nside128.release.csv");
         let staged_pack_sidecar = root.join("crates/nsb/data/starlight_nside128.pack.toml");
         let staged_runtime_sidecar = root.join("crates/nsb/data/starlight_nside128.manifest.toml");
@@ -1677,6 +1742,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             promotion_eligible,
             &inventory_sha256,
             &gates_sha256,
+            &merge_report_sha256,
             &external_validation_sha256,
             &sha,
             &pack_outcome.runtime_map_sha256,
@@ -2219,22 +2285,27 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             nside: 1,
             ordering: "nested".into(),
             gaia_release: "Gaia DR3".into(),
+            generation_date_utc: "2026-10-06T07:02:23Z".into(),
             model_versions: BTreeMap::new(),
             bright_star_supplement: Some(BrightStarRuntimeProvenance {
                 artifact_sha256: "b".repeat(64),
                 model_id: "starlight-bright-stars-combined-v1".into(),
                 product_band: "combined-300-650".into(),
-                uv_completion_model_id: "ck04-hp-scaled-uv-300-336-v1".into(),
+                uv_completion_model_id: Some("ck04-hp-scaled-uv-300-336-v1".into()),
                 population_policy_id: "bright-stars-population-v1".into(),
                 precedence_policy_id: "bright-stars-gaia-precedence-v1".into(),
                 build_commit: "c".repeat(40),
-                spectral_route: "Hipparcos/XHIP CK04".into(),
-                redistribution_scope: "derived map only".into(),
-                input_catalogues: vec!["Hipparcos/XHIP".into()],
-                license_provenance: vec![
-                    "CK04: CC BY 4.0".into(),
-                    "XHIP: scientific-use terms".into(),
-                ],
+                spectral_route: "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion".into(),
+                redistribution_scope:
+                    "derived map only; source catalogue bytes are not embedded".into(),
+                inputs: vec![crate::starlight::bright_stars::BrightStarInputProvenance {
+                    role: crate::starlight::bright_stars::BrightStarInputRole::SpectralTemplateLibrary,
+                    source_id: "synthetic-ck04".into(),
+                    release: "synthetic-v1".into(),
+                    sha256: "e".repeat(64),
+                    retrieval_url: "https://example.invalid/ck04".into(),
+                    license_or_terms_url: "https://example.invalid/terms".into(),
+                }],
             }),
         };
         let table = registry_asset_table(
@@ -2249,8 +2320,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             .unwrap()
             .contains("Hipparcos/XHIP/CK04"));
         let license = table["license"].as_str().unwrap();
-        assert!(license.contains("CK04: CC BY 4.0"));
-        assert!(license.contains("XHIP: scientific-use terms"));
+        assert!(license.contains("https://example.invalid/terms"));
     }
 
     #[test]
@@ -2284,9 +2354,131 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             fs::read(first_sidecar).unwrap(),
             fs::read(&second_sidecar).unwrap()
         );
-        assert!(fs::read_to_string(second_sidecar)
+        let staged_sidecar = fs::read_to_string(&second_sidecar).unwrap();
+        assert!(staged_sidecar.contains("schema_version = 2"));
+        assert!(staged_sidecar.contains("generation_date = \"2026-10-06T07:02:23Z\""));
+        assert!(staged_sidecar.contains("generation_date_utc = \"2026-10-06T07:02:23Z\""));
+        assert!(fs::read_to_string(&second_map)
             .unwrap()
-            .contains("schema_version = 2"));
+            .contains("# generation_date_utc=2026-10-06T07:02:23Z"));
+    }
+
+    #[test]
+    fn production_generation_metadata_is_required_and_rfc3339() {
+        let repo = valid_synthetic_repo();
+        let original = fs::read_to_string(&repo.release_candidate).unwrap();
+        fs::write(
+            &repo.release_candidate,
+            original.replace(
+                "generation_date_utc = \"2026-10-06T07:02:23Z\"",
+                "generation_date_utc = \"not-a-timestamp\"",
+            ),
+        )
+        .unwrap();
+        let error = ReleaseCandidateManifest::load(&repo.release_candidate).unwrap_err();
+        assert!(format!("{error:#}").contains("RFC3339"));
+
+        let repo = valid_synthetic_repo();
+        let original = fs::read_to_string(&repo.release_candidate).unwrap();
+        fs::write(
+            &repo.release_candidate,
+            original.replace("generation_date_utc = \"2026-10-06T07:02:23Z\"\n", ""),
+        )
+        .unwrap();
+        let error = ReleaseCandidateManifest::load(&repo.release_candidate).unwrap_err();
+        assert!(format!("{error:#}").contains("generation_date_utc"));
+    }
+
+    #[test]
+    fn promotion_implementation_has_no_stale_august_generation_literal() {
+        let stale = ["2026-08-24T00", ":00:00Z"].concat();
+        assert!(!include_str!("promotion.rs").contains(&stale));
+    }
+
+    #[test]
+    fn canonical_merge_report_provenance_matches_release_candidate_and_tampering_fails_closed() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let release_path =
+            root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml");
+        let release = ReleaseCandidateManifest::load(&release_path).unwrap();
+        let canonical = verified_runtime_candidate(&root, &release).unwrap();
+        let supplement = canonical
+            .bright_star_supplement
+            .as_ref()
+            .expect("production candidate must carry canonical bright-star provenance");
+        assert!(supplement.inputs.len() >= 30);
+        assert!(supplement
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "CALSPEC-alpha_lyr_stis_012"));
+        assert!(supplement
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "SVO-Hipparcos-Hp-Bessell2000"));
+        assert!(supplement
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "CDS-I-259-tyc2.dat.00.gz"));
+        assert!(supplement
+            .inputs
+            .iter()
+            .any(|input| input.source_id == "starlight-bright-stars-combined-v1.ladon.toml"));
+
+        let assert_tamper_fails = |tampered: ReleaseCandidateManifest| {
+            let error = verified_runtime_candidate(&root, &tampered).unwrap_err();
+            assert!(
+                error.to_string().contains("bright-star provenance disagrees"),
+                "unexpected error: {error:#}"
+            );
+        };
+
+        let mut missing_input = release.clone();
+        missing_input
+            .candidate
+            .bright_star_supplement
+            .as_mut()
+            .unwrap()
+            .inputs
+            .pop();
+        assert_tamper_fails(missing_input);
+
+        let mut changed_input_sha = release.clone();
+        changed_input_sha
+            .candidate
+            .bright_star_supplement
+            .as_mut()
+            .unwrap()
+            .inputs[0]
+            .sha256 = "a".repeat(64);
+        assert_tamper_fails(changed_input_sha);
+
+        let mut changed_artifact_sha = release.clone();
+        changed_artifact_sha
+            .candidate
+            .bright_star_supplement
+            .as_mut()
+            .unwrap()
+            .artifact_sha256 = "a".repeat(64);
+        assert_tamper_fails(changed_artifact_sha);
+
+        let mut changed_route = release.clone();
+        changed_route
+            .candidate
+            .bright_star_supplement
+            .as_mut()
+            .unwrap()
+            .spectral_route
+            .push_str(" tampered");
+        assert_tamper_fails(changed_route);
+
+        let mut changed_model = release;
+        changed_model
+            .candidate
+            .bright_star_supplement
+            .as_mut()
+            .unwrap()
+            .model_id = "starlight-bright-stars-v1".into();
+        assert_tamper_fails(changed_model);
     }
 
     #[test]

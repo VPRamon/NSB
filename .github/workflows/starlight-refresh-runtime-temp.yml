@@ -1,0 +1,50 @@
+name: Temporary Starlight runtime refresh
+
+on:
+  push:
+    branches:
+      - feat/starlight-207-production-bright-stars
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/starlight-207-production-bright-stars
+          lfs: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Format changed Rust
+        run: cargo fmt --all
+      - name: Stage deterministic runtime assets
+        run: |
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- \
+            dataset starlight stage-runtime \
+            --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+            --repository-root . \
+            --output-csv crates/nsb/data/starlight_nside128.release.csv \
+            --output-sidecar crates/nsb/data/starlight_nside128.manifest.toml
+          sha256sum crates/nsb/data/starlight_nside128.csv
+          sha256sum crates/nsb/data/starlight_nside128.release.csv
+          sha256sum crates/nsb/data/starlight_nside128.manifest.toml
+      - name: Commit refreshed runtime assets
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add crates/nsb-data-tools/src/starlight/promotion.rs crates/nsb/data/starlight_nside128.release.csv crates/nsb/data/starlight_nside128.manifest.toml
+          if git diff --cached --quiet; then
+            echo "runtime assets already deterministic and current"
+            exit 0
+          fi
+          git commit -m "chore(starlight): refresh deterministic runtime assets"
+          git push origin HEAD:feat/starlight-207-production-bright-stars
