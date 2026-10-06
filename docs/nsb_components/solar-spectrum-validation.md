@@ -21,7 +21,10 @@ AGPL-3.0-only; the repository `LICENSE` is the terms URL recorded in the input,
 runtime header, and bundled-data manifest. The numerical constants are physical
 facts rather than copied spectral samples. IAU 2015 Resolution B3 is the source
 for the nominal solar values; the SI Brochure, 9th edition, is the source for
-the exact SI constants and astronomical unit.
+the exact SI constants and astronomical unit. The model parser pins these three
+source labels exactly, together with the numerical constants, model identity,
+version, and redistribution terms; changing a provenance label therefore
+requires an explicit model-version review rather than silently retaining `v1`.
 
 The output has 351 samples and SHA-256
 `1cc24671052b7623752eb41dd99a84520393b2845442b8bbde217610fe5ed949`.
@@ -68,6 +71,11 @@ TSIS-derived runtime SHA-256
 `71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02`.
 Jones 2013 remains enabled and its three representative geometries use the same
 offline-baseline approach; no TSIS bytes are required by the tests.
+
+These TSIS comparisons are regression/impact checks, not independent external
+validation of the reconstructed Zodiacal spectrum. The published-reference
+Zodiacal validation tracked by #164 remains outstanding, so this change alone
+must not be used to close #215.
 
 ## Reproduction
 
