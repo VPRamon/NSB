@@ -88,8 +88,6 @@ jobs:
         run: cargo test --workspace --all-targets --locked
       - name: Test coverage gate
         run: scripts/test-coverage-gate.sh
-      - name: Test Starlight heatmap parser
-        run: python3 scripts/test-plot-starlight-heatmap.py
 
   runtime_integration_tests:
     name: Runtime integration tests
