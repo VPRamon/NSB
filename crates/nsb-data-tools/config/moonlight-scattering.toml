@@ -11,7 +11,7 @@ concurrency = 1
 [[sources]]
 name = "moonlight-aerosol-nsb-v1.toml"
 path = "moonlight-aerosol-nsb-v1.toml"
-sha256 = "6fa37780c56e8f5ade0a2083780aa228570be786e1d4812b30468ec27f355afd"
+sha256 = "d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82"
 
 [[sources]]
 name = "sscatcor_m15s1.dat"
