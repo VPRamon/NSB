@@ -256,10 +256,16 @@ fn pending_redistribution_does_not_register_bundled_production_starlight() {
         toml::from_str(&fs::read_to_string(root.join("crates/nsb/data/manifest.toml")).unwrap())
             .unwrap();
     let assets = manifest["assets"].as_array().expect("asset registry");
-    for asset in assets {
-        let path = asset["path"].as_str().unwrap_or("");
-        assert_ne!(path, "starlight_nside128.release.csv");
-        assert_ne!(path, "starlight_nside128.manifest.toml");
+    for path in [
+        "starlight_nside128.release.csv",
+        "starlight_nside128.manifest.toml",
+    ] {
+        let asset = assets
+            .iter()
+            .find(|asset| asset["path"].as_str() == Some(path))
+            .unwrap_or_else(|| panic!("staged runtime asset {path} must be checksum-registered"));
+        assert_eq!(asset["calibration_status"].as_str(), Some("candidate"));
+        assert_eq!(asset["runtime_embedded"].as_bool(), Some(false));
     }
 
     assert!(root
