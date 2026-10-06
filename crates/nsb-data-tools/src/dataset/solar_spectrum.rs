@@ -13,6 +13,10 @@ const PRODUCT_ID: &str = "nsb-planck-solar-reference";
 const RELEASE: &str = "NSB analytic solar reference v1";
 const LICENSE: &str = "AGPL-3.0-only";
 const TERMS_URL: &str = "https://github.com/VPRamon/NSB/blob/main/LICENSE";
+const TEMPERATURE_SOURCE: &str = "IAU 2015 Resolution B3 nominal solar effective temperature";
+const RADIUS_SOURCE: &str = "IAU 2015 Resolution B3 nominal solar radius";
+const SI_CONSTANTS_SOURCE: &str =
+    "SI Brochure, 9th edition: exact h, c, k and astronomical unit";
 const UNITS: &str = "W m^-2 nm^-1";
 const REFERENCE_DISTANCE: &str = "1 AU";
 const BAND_MIN_NM: f64 = 300.0;
@@ -262,13 +266,21 @@ fn parse_model(path: &Path) -> Result<AnalyticModel> {
             bail!("solar analytic-model {field} must equal {expected:.17e}");
         }
     }
-    for (field, value) in [
-        ("temperature_source", model.temperature_source.as_str()),
-        ("radius_source", model.radius_source.as_str()),
-        ("si_constants_source", model.si_constants_source.as_str()),
+    for (field, actual, expected) in [
+        (
+            "temperature_source",
+            model.temperature_source.as_str(),
+            TEMPERATURE_SOURCE,
+        ),
+        ("radius_source", model.radius_source.as_str(), RADIUS_SOURCE),
+        (
+            "si_constants_source",
+            model.si_constants_source.as_str(),
+            SI_CONSTANTS_SOURCE,
+        ),
     ] {
-        if value.trim().is_empty() {
-            bail!("solar analytic-model {field} must not be empty");
+        if actual != expected {
+            bail!("solar analytic-model {field} must equal {expected:?}");
         }
     }
     Ok(model)
@@ -508,12 +520,15 @@ mod tests {
     }
 
     #[test]
-    fn model_parser_rejects_changed_constants_or_terms() {
+    fn model_parser_rejects_changed_constants_terms_or_sources() {
         let raw = fs::read_to_string("data/solar-planck-v1.toml").unwrap();
         for changed in [
             raw.replace("5772.0", "5773.0"),
             raw.replace("AGPL-3.0-only", "unresolved"),
             raw.replace("schema_version = 1", "schema_version = 2"),
+            raw.replace(TEMPERATURE_SOURCE, "unreviewed temperature source"),
+            raw.replace(RADIUS_SOURCE, "unreviewed radius source"),
+            raw.replace(SI_CONSTANTS_SOURCE, "unreviewed SI constants source"),
         ] {
             let mut file = tempfile::NamedTempFile::new().unwrap();
             file.write_all(changed.as_bytes()).unwrap();
