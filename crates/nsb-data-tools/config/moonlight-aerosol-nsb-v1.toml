@@ -5,14 +5,46 @@ distribution = "lognormal-number-per-log10-radius"
 refractive_index_real = 1.5
 refractive_index_imaginary = 0.0
 normalization = "integral-over-solid-angle-equals-4pi"
-radius_sigma_bounds = 5.0
-radius_intervals = 800
+radius_sigma_bounds = 8.0
+radius_intervals = 1280
 wavelength_start_nm = 300
 wavelength_end_nm = 650
 wavelength_step_nm = 10
-angle_start_deg = 0
-angle_end_deg = 180
-angle_step_deg = 1
+
+[[angle_segments]]
+start_deg = 0.0
+end_deg = 0.25
+step_deg = 0.0125
+
+[[angle_segments]]
+start_deg = 0.25
+end_deg = 1.0
+step_deg = 0.025
+
+[[angle_segments]]
+start_deg = 1.0
+end_deg = 2.0
+step_deg = 0.05
+
+[[angle_segments]]
+start_deg = 2.0
+end_deg = 5.0
+step_deg = 0.125
+
+[[angle_segments]]
+start_deg = 5.0
+end_deg = 10.0
+step_deg = 0.25
+
+[[angle_segments]]
+start_deg = 10.0
+end_deg = 170.0
+step_deg = 1.0
+
+[[angle_segments]]
+start_deg = 170.0
+end_deg = 180.0
+step_deg = 0.125
 
 [[modes]]
 name = "tropospheric-nucleation"
