@@ -95,8 +95,11 @@ impl AirglowContinuum {
             }
             let template = component.spectrum_rayleigh_per_nm[sample];
             mean += template * scale;
-            // This matches PALACE v1.0's linear sum of component deviations.
-            sigma += template * variability.residual_sigma;
+            // PALACE Eq. (2): sigma_f = f0 * sigma_f,0. The residual
+            // variability has no explicit solar-activity term. PALACE then
+            // linearly sums overlapping emission deviations as a conservative
+            // maximum-variability estimate.
+            sigma += template * variability.relative_mean * variability.residual_sigma;
         }
         Ok((mean, sigma))
     }
@@ -107,15 +110,6 @@ impl AirglowContinuum {
         self.components[1].emission_height_km
     }
 
-    #[cfg(test)]
-    pub(crate) fn solar_flux_evidence_range_sfu(&self) -> (f64, f64) {
-        self.solar_flux_evidence_range_sfu
-    }
-
-    #[cfg(test)]
-    pub(crate) fn nighttime_weight(&self, month: u32, time_bin: usize) -> f64 {
-        self.climatology[(month as usize - 1) * 12 + time_bin - 1].nighttime_weight
-    }
 }
 
 impl std::str::FromStr for AirglowContinuum {
@@ -351,8 +345,8 @@ mod tests {
         assert_eq!(model.components[0].name, "HO2");
         assert_eq!(model.components[1].variability_class, "FeO");
         assert_eq!(model.components[2].emission_height_km.value(), 94.0);
-        assert_eq!(model.solar_flux_evidence_range_sfu(), (67.0, 166.0));
-        assert_eq!(model.nighttime_weight(1, 1), 0.0);
+        assert_eq!(model.solar_flux_evidence_range_sfu, (67.0, 166.0));
+        assert_eq!(model.climatology[0].nighttime_weight, 0.0);
     }
 
     #[test]
@@ -365,6 +359,50 @@ mod tests {
         assert_ne!(january_early.to_bits(), january_late.to_bits());
         assert_ne!(january_early.to_bits(), july_early.to_bits());
         assert_ne!(january_early.to_bits(), solar_high.to_bits());
+    }
+
+    #[test]
+    fn palace_residual_sigma_uses_f0_and_not_the_solar_term() {
+        let model = load_builtin_standard().unwrap();
+
+        // 550 nm, January, PALACE local-time bin 2. These pinned values are
+        // Eq. (1) and Eq. (2) evaluated directly from the committed PALACE
+        // template/climatology rows.
+        let (mean_100, sigma_100) = model.sample(250, 1, 2, 100.0).unwrap();
+        let (mean_160, sigma_160) = model.sample(250, 1, 2, 160.0).unwrap();
+        assert!((mean_100 - 2.757_462_436_877_382).abs() < 1.0e-12);
+        assert!((mean_160 - 3.162_935_499_374_538).abs() < 1.0e-12);
+        assert!((sigma_100 - 1.118_169_098_846_009_6).abs() < 1.0e-12);
+        assert_eq!(
+            sigma_100.to_bits(),
+            sigma_160.to_bits(),
+            "PALACE Eq. (2) has no explicit solar-activity term"
+        );
+
+        let cell = model.climatology[1];
+        let expected_sigma = model
+            .components
+            .iter()
+            .zip(cell.components)
+            .map(|(component, variability)| {
+                component.spectrum_rayleigh_per_nm[250]
+                    * variability.relative_mean
+                    * variability.residual_sigma
+            })
+            .sum::<f64>();
+        let old_unscaled_sigma = model
+            .components
+            .iter()
+            .zip(cell.components)
+            .map(|(component, variability)| {
+                component.spectrum_rayleigh_per_nm[250] * variability.residual_sigma
+            })
+            .sum::<f64>();
+        assert!((sigma_100 - expected_sigma).abs() < 1.0e-15);
+        assert!(
+            (sigma_100 - old_unscaled_sigma).abs() > 0.2,
+            "regression must catch omission of PALACE f0 from residual variability"
+        );
     }
 
     #[test]
