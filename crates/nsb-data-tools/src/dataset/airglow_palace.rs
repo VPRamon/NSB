@@ -320,7 +320,108 @@ pub(crate) fn validation_gates(artifacts: &[Artifact]) -> Result<Vec<ValidationG
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
     use std::path::PathBuf;
+
+    const FITS_BLOCK: usize = 2880;
+    const FITS_DATA_OFFSET: usize = FITS_BLOCK * 2;
+
+    fn append_card(bytes: &mut Vec<u8>, card: &str) {
+        assert!(card.len() <= 80);
+        bytes.extend_from_slice(format!("{card:<80}").as_bytes());
+    }
+
+    fn pad_fits_block(bytes: &mut Vec<u8>) {
+        bytes.resize(bytes.len().div_ceil(FITS_BLOCK) * FITS_BLOCK, b' ');
+    }
+
+    fn fits_table(row_len: usize, rows: usize) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        append_card(&mut bytes, "SIMPLE  = T");
+        append_card(&mut bytes, "END     ");
+        pad_fits_block(&mut bytes);
+
+        append_card(&mut bytes, "XTENSION= 'BINTABLE'");
+        append_card(&mut bytes, &format!("NAXIS1  = {row_len}"));
+        append_card(&mut bytes, &format!("NAXIS2  = {rows}"));
+        append_card(&mut bytes, "END     ");
+        pad_fits_block(&mut bytes);
+        assert_eq!(bytes.len(), FITS_DATA_OFFSET);
+        bytes.resize(FITS_DATA_OFFSET + row_len * rows, 0);
+        bytes
+    }
+
+    fn field_offset(row_len: usize, row: usize, field: usize) -> usize {
+        FITS_DATA_OFFSET + row * row_len + field
+    }
+
+    fn put_i32(bytes: &mut [u8], row_len: usize, row: usize, field: usize, value: i32) {
+        let start = field_offset(row_len, row, field);
+        bytes[start..start + 4].copy_from_slice(&value.to_be_bytes());
+    }
+
+    fn put_f32(bytes: &mut [u8], row_len: usize, row: usize, field: usize, value: f32) {
+        let start = field_offset(row_len, row, field);
+        bytes[start..start + 4].copy_from_slice(&value.to_be_bytes());
+    }
+
+    fn put_f64(bytes: &mut [u8], row_len: usize, row: usize, field: usize, value: f64) {
+        let start = field_offset(row_len, row, field);
+        bytes[start..start + 8].copy_from_slice(&value.to_be_bytes());
+    }
+
+    fn synthetic_palace_tables() -> (Vec<u8>, Vec<u8>) {
+        let mut continuum = fits_table(32, 110_001);
+        for wavelength_nm in 300..=650 {
+            let row = ((wavelength_nm - 300) * 50) as usize;
+            put_f64(
+                &mut continuum,
+                32,
+                row,
+                0,
+                f64::from(wavelength_nm) / 1000.0,
+            );
+            put_f32(&mut continuum, 32, row, 16, 1.0);
+            put_f32(&mut continuum, 32, row, 20, 2.0);
+            put_f32(&mut continuum, 32, row, 24, 3.0);
+        }
+
+        let mut variability = fits_table(296, 144);
+        for row in 0..144 {
+            put_i32(&mut variability, 296, row, 0, (row / 12 + 1) as i32);
+            put_i32(&mut variability, 296, row, 8, (row % 12 + 1) as i32);
+            put_f32(&mut variability, 296, row, 16, 1.0);
+            for (_, _, _, field_index) in COMPONENTS {
+                let offset = 20 + (field_index - 5) * 4;
+                put_f32(&mut variability, 296, row, offset, 1.0);
+                put_f32(&mut variability, 296, row, offset + 4, 0.1);
+                put_f32(&mut variability, 296, row, offset + 8, 0.2);
+            }
+        }
+        (continuum, variability)
+    }
+
+    fn config_with_workspace(root: &Path) -> RunConfig {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("config")
+            .join("airglow-continuum.toml");
+        let mut config = RunConfig::load(&path).unwrap();
+        config.workspace.root = root.to_path_buf();
+        config
+    }
+
+    fn write_synthetic_archive(root: &Path, continuum: &[u8], variability: &[u8]) {
+        let source_root = root.join("sources");
+        fs::create_dir_all(&source_root).unwrap();
+        let file = fs::File::create(source_root.join(SOURCE_NAME)).unwrap();
+        let mut archive = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default();
+        archive.start_file(CONT_PATH, options).unwrap();
+        archive.write_all(continuum).unwrap();
+        archive.start_file(VAR_PATH, options).unwrap();
+        archive.write_all(variability).unwrap();
+        archive.finish().unwrap();
+    }
 
     #[test]
     fn committed_product_satisfies_schema() {
@@ -330,6 +431,93 @@ mod tests {
         if path.is_file() {
             validate_artifact(&path).unwrap();
         }
+    }
+
+    #[test]
+    fn synthetic_palace_tables_exercise_generation_and_build_pipeline() {
+        let (continuum, variability) = synthetic_palace_tables();
+        let generated = generate(&continuum, &variability).unwrap();
+        let generated_again = generate(&continuum, &variability).unwrap();
+        assert_eq!(generated, generated_again);
+        let text = std::str::from_utf8(&generated).unwrap();
+        assert!(text.contains("300 1.0000000e0 2.0000000e0 3.0000000e0"));
+        assert!(text.contains("12 12 1.0000000e0"));
+        assert!(text.ends_with("climatology_end\n"));
+
+        let workspace = tempfile::tempdir().unwrap();
+        let config = config_with_workspace(workspace.path());
+        validate_config(&config).unwrap();
+        write_synthetic_archive(workspace.path(), &continuum, &variability);
+        let artifacts = build(&config).unwrap();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts[0].name, OUTPUT_NAME);
+        assert_eq!(fs::read(&artifacts[0].path).unwrap(), generated);
+        let gates = validation_gates(&artifacts).unwrap();
+        assert_eq!(gates.len(), 2);
+        assert!(gates.iter().all(|gate| gate.passed));
+    }
+
+    #[test]
+    fn generator_and_validation_fail_closed_on_malformed_palace_inputs() {
+        let (continuum, variability) = synthetic_palace_tables();
+
+        assert!(FitsTable::parse(&[]).is_err());
+        let table = FitsTable::parse(&continuum).unwrap();
+        assert!(table.row(110_001).is_err());
+
+        let mut truncated = continuum.clone();
+        truncated.pop();
+        assert!(FitsTable::parse(&truncated).is_err());
+
+        let wrong_shape = fits_table(31, 110_001);
+        assert!(generate(&wrong_shape, &variability).is_err());
+
+        let mut bad_wavelength = continuum.clone();
+        put_f64(&mut bad_wavelength, 32, 0, 0, 0.301);
+        assert!(generate(&bad_wavelength, &variability).is_err());
+
+        let mut negative_continuum = continuum.clone();
+        put_f32(&mut negative_continuum, 32, 0, 16, -1.0);
+        assert!(generate(&negative_continuum, &variability).is_err());
+
+        let mut bad_order = variability.clone();
+        put_i32(&mut bad_order, 296, 0, 0, 2);
+        assert!(generate(&continuum, &bad_order).is_err());
+
+        let mut negative_climatology = variability.clone();
+        let first_component_offset = 20 + (COMPONENTS[0].3 - 5) * 4;
+        put_f32(
+            &mut negative_climatology,
+            296,
+            0,
+            first_component_offset,
+            -1.0,
+        );
+        assert!(generate(&continuum, &negative_climatology).is_err());
+
+        let workspace = tempfile::tempdir().unwrap();
+        let config = config_with_workspace(workspace.path());
+        assert!(build(&config).is_err());
+
+        let mut bad_config = config.clone();
+        bad_config.sources.clear();
+        assert!(validate_config(&bad_config).is_err());
+        let mut missing_release = config.clone();
+        missing_release.sources[0].release = None;
+        assert!(validate_config(&missing_release).is_err());
+
+        let malformed = workspace.path().join("malformed.dat");
+        fs::write(&malformed, "not a PALACE product\n").unwrap();
+        assert!(validate_artifact(&malformed).is_err());
+
+        let wrong_rows = workspace.path().join("wrong-rows.dat");
+        fs::write(
+            &wrong_rows,
+            "schema nsb-airglow-palace-continuum-v1\nspectra_begin\nspectra_end\nclimatology_begin\nclimatology_end\n",
+        )
+        .unwrap();
+        assert!(validate_artifact(&wrong_rows).is_err());
+        assert!(validation_gates(&[]).is_err());
     }
 
     #[test]
