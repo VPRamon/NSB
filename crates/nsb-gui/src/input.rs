@@ -464,7 +464,7 @@ fn parse_sexagesimal_parts(input: &str, label: &str) -> Result<SexagesimalParts,
         .trim()
         .chars()
         .map(|ch| match ch {
-            ':' | 'h' | 'd' | '°' | ''' | '"' | 'm' | 's' => ' ',
+            ':' | 'h' | 'd' | '°' | '\\'' | '"' | 'm' | 's' => ' ',
             other => other,
         })
         .collect();
