@@ -1,4 +1,4 @@
-name: Check moonlight Mie reproducibility
+name: Check moonlight scattering reproducibility
 
 on:
   pull_request:
@@ -8,11 +8,15 @@ on:
       - Cargo.toml
       - Cargo.lock
       - crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml
+      - crates/nsb-data-tools/config/moonlight-multiscatter-nsb-v1.toml
       - crates/nsb-data-tools/config/moonlight-scattering.toml
       - crates/nsb/src/components/moonlight/**
       - crates/nsb/data/moonlight_mie_nsb_v1.dat
+      - crates/nsb/data/moonlight_multiscatter_nsb_v1.dat
       - crates/nsb/data/manifest.toml
       - docs/nsb_components/moonlight/mie-phase-validation.md
+      - docs/nsb_components/moonlight/multiple-scattering-validation.md
+      - docs/nsb_components/moonlight/production-runs/multiscatter-nsb-v1.toml
       - .github/workflows/mie-regenerate.yml
   push:
     branches:
@@ -23,11 +27,15 @@ on:
       - Cargo.toml
       - Cargo.lock
       - crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml
+      - crates/nsb-data-tools/config/moonlight-multiscatter-nsb-v1.toml
       - crates/nsb-data-tools/config/moonlight-scattering.toml
       - crates/nsb/src/components/moonlight/**
       - crates/nsb/data/moonlight_mie_nsb_v1.dat
+      - crates/nsb/data/moonlight_multiscatter_nsb_v1.dat
       - crates/nsb/data/manifest.toml
       - docs/nsb_components/moonlight/mie-phase-validation.md
+      - docs/nsb_components/moonlight/multiple-scattering-validation.md
+      - docs/nsb_components/moonlight/production-runs/multiscatter-nsb-v1.toml
       - .github/workflows/mie-regenerate.yml
 
 permissions:
@@ -48,4 +56,8 @@ jobs:
           cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml
           cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml
       - name: Verify deterministic generated outputs
-        run: git diff --exit-code -- crates/nsb/data/moonlight_mie_nsb_v1.dat crates/nsb/data/manifest.toml
+        run: |
+          git diff --exit-code -- \
+            crates/nsb/data/moonlight_mie_nsb_v1.dat \
+            crates/nsb/data/moonlight_multiscatter_nsb_v1.dat \
+            crates/nsb/data/manifest.toml

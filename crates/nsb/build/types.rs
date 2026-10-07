@@ -18,8 +18,8 @@ pub const REQUIRED_RUNTIME_ASSETS: &[(&str, &str)] = &[
     ("f107_store.json", "nsb-f107-store-v1"),
     ("moonlight_mie_nsb_v1.dat", "nsb-moonlight-mie-phase-v1"),
     (
-        "sscatcor_m15s1.dat",
-        "moonlight-multiple-scattering-grid-v1",
+        "moonlight_multiscatter_nsb_v1.dat",
+        "nsb-moonlight-multiscatter-v1",
     ),
     ("solar_spectrum.dat", "wavelength-nm_irradiance-w-m2-nm-v1"),
 ];

@@ -195,20 +195,37 @@ impl DatasetPipeline for MoonlightPipeline {
         DatasetName::MoonlightScattering
     }
 
+    fn supports_partitions(&self) -> bool {
+        true
+    }
+
     fn expected_outputs(&self) -> &'static [&'static str] {
-        &[super::moonlight_mie::OUTPUT, super::moonlight_mie::SSCAT]
+        &[
+            super::moonlight_mie::OUTPUT,
+            super::moonlight_multiscatter::OUTPUT,
+        ]
+    }
+
+    fn available_partitions(&self, config: &RunConfig) -> Result<Option<Vec<String>>> {
+        Ok(Some(super::moonlight_multiscatter::partitions(config)?))
     }
 
     fn is_build_source(&self, source_name: &str) -> bool {
-        source_name != super::moonlight_mie::MODEL_SOURCE
+        source_name == super::moonlight_mie::OUTPUT
     }
 
     fn validate_config(&self, config: &RunConfig) -> Result<()> {
-        super::moonlight_mie::validate_config(config)
+        super::moonlight_multiscatter::validate_config(config)
     }
 
-    fn build(&self, config: &RunConfig, _partitions: &[String]) -> Result<Option<Vec<Artifact>>> {
-        Ok(Some(super::moonlight_mie::build(config)?))
+    fn build(&self, config: &RunConfig, partitions: &[String]) -> Result<Option<Vec<Artifact>>> {
+        Ok(Some(super::moonlight_multiscatter::build(
+            config, partitions,
+        )?))
+    }
+
+    fn finalize(&self, config: &RunConfig) -> Result<Option<Vec<Artifact>>> {
+        Ok(Some(super::moonlight_multiscatter::finalize(config)?))
     }
 
     fn validation_gates(
@@ -216,19 +233,18 @@ impl DatasetPipeline for MoonlightPipeline {
         config: &RunConfig,
         artifacts: &[Artifact],
     ) -> Result<Vec<ValidationGate>> {
-        super::moonlight_mie::validation_gates(config, artifacts)
+        super::moonlight_multiscatter::validation_gates(config, artifacts)
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
         match source_name {
-            super::moonlight_mie::MODEL_SOURCE => Ok(super::moonlight_mie::OUTPUT),
-            super::moonlight_mie::SSCAT => Ok(super::moonlight_mie::SSCAT),
+            super::moonlight_mie::OUTPUT => Ok(super::moonlight_mie::OUTPUT),
             _ => bail!("unexpected moonlight source {source_name:?}"),
         }
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
-        super::moonlight_mie::validate_artifact(name, path)
+        super::moonlight_multiscatter::validate_artifact(name, path)
     }
 }
 
@@ -241,27 +257,19 @@ mod tests {
     fn moonlight_pipeline_routes_model_and_runtime_artifacts() {
         let pipeline = pipeline_for(DatasetName::MoonlightScattering);
         assert_eq!(pipeline.dataset(), DatasetName::MoonlightScattering);
+        assert!(pipeline.supports_partitions());
         assert_eq!(
             pipeline.expected_outputs(),
-            &[moonlight_mie::OUTPUT, moonlight_mie::SSCAT]
+            &[
+                moonlight_mie::OUTPUT,
+                super::super::moonlight_multiscatter::OUTPUT
+            ]
         );
-        assert!(!pipeline.is_build_source(moonlight_mie::MODEL_SOURCE));
-        assert!(pipeline.is_build_source(moonlight_mie::SSCAT));
+        assert!(pipeline.is_build_source(moonlight_mie::OUTPUT));
         assert_eq!(
-            pipeline.output_name(moonlight_mie::MODEL_SOURCE).unwrap(),
+            pipeline.output_name(moonlight_mie::OUTPUT).unwrap(),
             moonlight_mie::OUTPUT
         );
-        assert_eq!(
-            pipeline.output_name(moonlight_mie::SSCAT).unwrap(),
-            moonlight_mie::SSCAT
-        );
         assert!(pipeline.output_name("unexpected").is_err());
-
-        let temp = tempfile::tempdir().unwrap();
-        let path = temp.path().join(moonlight_mie::SSCAT);
-        fs::write(&path, "1\n2\n").unwrap();
-        pipeline
-            .validate_artifact(moonlight_mie::SSCAT, &path)
-            .unwrap();
     }
 }

@@ -69,8 +69,8 @@ pub fn execute(
     }
 
     let result = if config.execution.executor == Executor::Slurm {
-        if dataset != DatasetName::Starlight {
-            bail!("the Slurm executor is supported only for starlight");
+        if !pipeline.supports_partitions() {
+            bail!("the Slurm executor requires a partitioned dataset");
         }
         if matches!(operation, Operation::Validate | Operation::Publish) {
             bail!("validate and publish run locally after distributed build reconciliation");
@@ -157,8 +157,8 @@ pub fn run_worker(
         _ => bail!("worker requires exactly one of --partition or --partition-manifest"),
     };
     let config = RunConfig::load(config_path)?;
-    if dataset != DatasetName::Starlight || config.dataset != dataset {
-        bail!("distributed workers are available only for starlight");
+    if config.dataset != dataset || !pipeline_for(dataset).supports_partitions() {
+        bail!("distributed workers require a matching partitioned dataset");
     }
     let pipeline = pipeline_for(dataset);
     pipeline.validate_config(&config)?;
@@ -268,7 +268,7 @@ fn selected_partitions(
     let pipeline = pipeline_for(config.dataset);
     if !pipeline.supports_partitions() {
         if !selected.is_empty() {
-            bail!("partition selection is supported only for starlight");
+            bail!("partition selection requires a partitioned dataset");
         }
         return Ok(Vec::new());
     }
@@ -579,18 +579,39 @@ fn sync_moonlight_manifest_metadata(
     name: &str,
     artifact_path: &Path,
 ) -> Result<()> {
-    if config.dataset != DatasetName::MoonlightScattering
-        || name != crate::dataset::moonlight_mie::OUTPUT
-    {
+    if config.dataset != DatasetName::MoonlightScattering {
         return Ok(());
     }
+
+    let required_headers: &[&str] = match name {
+        crate::dataset::moonlight_mie::OUTPUT => &[
+            "schema",
+            "aerosol_schema",
+            "solver",
+            "normalization",
+            "wavelength_grid_nm",
+            "scattering_angle_grid_deg",
+            "radius_quadrature",
+        ],
+        crate::dataset::moonlight_multiscatter::OUTPUT => &[
+            "schema",
+            "definition",
+            "solver",
+            "aerosol_model_sha256",
+            "mie_artifact_sha256",
+            "seed_namespace",
+        ],
+        _ => return Ok(()),
+    };
+
     let assets = document["assets"]
         .as_array_of_tables_mut()
         .context("manifest is missing [[assets]]")?;
     let asset = assets
         .iter_mut()
         .find(|asset| asset["path"].as_str() == Some(name))
-        .context("moonlight Mie asset is not registered")?;
+        .with_context(|| format!("moonlight asset {name:?} is not registered"))?;
+
     let text = fs::read_to_string(artifact_path)?;
     let mut header = toml_edit::Table::new();
     for line in text.lines().map(str::trim) {
@@ -602,33 +623,27 @@ fn sync_moonlight_manifest_metadata(
         };
         header[key.trim()] = toml_edit::value(value.trim());
     }
-    for required in [
-        "schema",
-        "aerosol_schema",
-        "solver",
-        "normalization",
-        "wavelength_grid_nm",
-        "scattering_angle_grid_deg",
-        "radius_quadrature",
-    ] {
+    for required in required_headers {
         if !header.contains_key(required) {
-            bail!("moonlight Mie artifact is missing header {required:?}");
+            bail!("moonlight artifact {name:?} is missing header {required:?}");
         }
     }
-    let source = config
-        .sources
-        .iter()
-        .find(|source| source.name == crate::dataset::moonlight_mie::MODEL_SOURCE)
-        .context("moonlight model source is not configured")?;
     asset["header"] = toml_edit::Item::Table(header);
-    asset["source_model_sha256"] = toml_edit::value(&source.sha256);
-    asset["generator"] = toml_edit::value(format!(
-        "nsb-data-tools {} dataset moonlight-scattering build",
-        env!("CARGO_PKG_VERSION")
-    ));
+
+    if name == crate::dataset::moonlight_mie::OUTPUT {
+        let source = config
+            .sources
+            .iter()
+            .find(|source| source.name == crate::dataset::moonlight_mie::MODEL_SOURCE)
+            .context("moonlight model source is not configured")?;
+        asset["source_model_sha256"] = toml_edit::value(&source.sha256);
+        asset["generator"] = toml_edit::value(format!(
+            "nsb-data-tools {} dataset moonlight-scattering build",
+            env!("CARGO_PKG_VERSION")
+        ));
+    }
     Ok(())
 }
-
 fn filtered_sources<'a>(
     config: &'a RunConfig,
     partitions: &'a [String],
@@ -1175,4 +1190,111 @@ schema = "nsb-moonlight-mie-phase-v1"
             Some(source_sha.as_str())
         );
     }
+    #[test]
+    fn moonlight_publish_synchronizes_multiscatter_generated_header() {
+        let mut document = r#"schema_version = 1
+
+[[assets]]
+path = "moonlight_multiscatter_nsb_v1.dat"
+schema = "nsb-moonlight-multiscatter-v1"
+
+[assets.header]
+solver = "stale"
+"#.parse::<toml_edit::DocumentMut>().unwrap();
+        let artifact = tempfile::NamedTempFile::new().unwrap();
+        fs::write(
+            artifact.path(),
+            "# schema = nsb-moonlight-multiscatter-v1\n\
+# definition = f = I_total/I_SS = 1/(1-min(I_DS/I_SS,0.9))\n\
+# solver = nsb-forced-collision-plane-parallel-mc-v1\n\
+# aerosol_model_sha256 = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\
+# mie_artifact_sha256 = bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n\
+# seed_namespace = nsb-moonlight-multiscatter-v1\n",
+        ).unwrap();
+        let config = RunConfig {
+            schema_version: 1,
+            dataset: DatasetName::MoonlightScattering,
+            workspace: super::super::config::WorkspaceConfig {
+                root: PathBuf::from("/tmp/moonlight"),
+            },
+            execution: super::super::config::ExecutionConfig::default(),
+            sources: Vec::new(),
+            publish: None,
+            starlight: None,
+        };
+
+        sync_moonlight_manifest_metadata(
+            &mut document,
+            &config,
+            crate::dataset::moonlight_multiscatter::OUTPUT,
+            artifact.path(),
+        ).unwrap();
+
+        let asset = document["assets"]
+            .as_array_of_tables()
+            .unwrap()
+            .iter()
+            .next()
+            .unwrap();
+        assert_eq!(
+            asset["header"]["solver"].as_str(),
+            Some("nsb-forced-collision-plane-parallel-mc-v1")
+        );
+        assert_eq!(
+            asset["header"]["mie_artifact_sha256"].as_str(),
+            Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+        );
+
+        fs::write(artifact.path(), "# schema = nsb-moonlight-multiscatter-v1\n").unwrap();
+        assert!(sync_moonlight_manifest_metadata(
+            &mut document,
+            &config,
+            crate::dataset::moonlight_multiscatter::OUTPUT,
+            artifact.path(),
+        ).is_err());
+    }
+
+    #[test]
+    fn moonlight_partition_selection_accepts_known_and_rejects_unknown() {
+        let config = RunConfig {
+            schema_version: 1,
+            dataset: DatasetName::MoonlightScattering,
+            workspace: super::super::config::WorkspaceConfig {
+                root: PathBuf::from("/tmp/moonlight-partitions"),
+            },
+            execution: super::super::config::ExecutionConfig::default(),
+            sources: vec![super::super::SourceConfig {
+                name: "moonlight-multiscatter-nsb-v1.toml".into(),
+                path: Some(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("config/moonlight-multiscatter-nsb-v1.toml"),
+                ),
+                url: None,
+                sha256: "0".repeat(64),
+                product_id: None,
+                release: None,
+                metadata_url: None,
+                retrieved_at: None,
+                license: None,
+                units: None,
+                reference_distance: None,
+                partition: None,
+            }],
+            publish: None,
+            starlight: None,
+        };
+
+        let chosen = selected_partitions(&config, Operation::Build, &["w0300".into()]).unwrap();
+        assert_eq!(chosen, vec!["w0300".to_string()]);
+
+        let all = selected_partitions(&config, Operation::Build, &[]).unwrap();
+        assert_eq!(all.len(), 36);
+        assert_eq!(all.first().map(String::as_str), Some("w0300"));
+        assert_eq!(all.last().map(String::as_str), Some("w0650"));
+
+        let error =
+            selected_partitions(&config, Operation::Build, &["w0290".into()]).unwrap_err();
+        assert!(error.to_string().contains("unknown partition"));
+    }
+
 }

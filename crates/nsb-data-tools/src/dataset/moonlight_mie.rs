@@ -15,7 +15,6 @@ use std::path::Path;
 
 pub const MODEL_SOURCE: &str = "moonlight-aerosol-nsb-v1.toml";
 pub const OUTPUT: &str = "moonlight_mie_nsb_v1.dat";
-pub const SSCAT: &str = "sscatcor_m15s1.dat";
 const SPECTRAL_INTERPOLATION_LIMIT: f64 = 0.4;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -61,8 +60,8 @@ pub fn validate_config(config: &RunConfig) -> Result<()> {
         .iter()
         .map(|source| source.name.as_str())
         .collect();
-    if names != [MODEL_SOURCE, SSCAT] {
-        bail!("moonlight sources must be ordered as {MODEL_SOURCE:?}, {SSCAT:?}");
+    if names.first().copied() != Some(MODEL_SOURCE) {
+        bail!("the first moonlight source must be {MODEL_SOURCE:?}");
     }
     Ok(())
 }
@@ -72,28 +71,18 @@ pub fn build(config: &RunConfig) -> Result<Vec<Artifact>> {
     let output_root = config.workspace.root.join("outputs");
     fs::create_dir_all(&output_root)?;
     let model_path = source_root.join(MODEL_SOURCE);
-    let sscat_path = source_root.join(SSCAT);
     verify_source(config, MODEL_SOURCE, &model_path)?;
-    verify_source(config, SSCAT, &sscat_path)?;
     let model = read_model(&model_path)?;
     let bytes = generate(&model)?;
     let mie_path = output_root.join(OUTPUT);
     super::engine::atomic_write(&mie_path, bytes.as_bytes())?;
-    let sscat_output_path = output_root.join(SSCAT);
-    let sscat_bytes = fs::read(&sscat_path).context("run update before build")?;
-    super::engine::atomic_write(&sscat_output_path, &sscat_bytes)?;
-    let mut artifacts = vec![
-        artifact(OUTPUT, &mie_path)?,
-        artifact(SSCAT, &sscat_output_path)?,
-    ];
-    artifacts.sort_by(|a, b| a.name.cmp(&b.name));
+    let artifacts = vec![artifact(OUTPUT, &mie_path)?];
     super::engine::atomic_write(
         &output_root.join("artifacts.json"),
         &serde_json::to_vec_pretty(&artifacts)?,
     )?;
     Ok(artifacts)
 }
-
 fn verify_source(config: &RunConfig, name: &str, path: &Path) -> Result<()> {
     let source = config
         .sources
@@ -104,19 +93,6 @@ fn verify_source(config: &RunConfig, name: &str, path: &Path) -> Result<()> {
 }
 
 pub fn validate_artifact(name: &str, path: &Path) -> Result<()> {
-    if name == SSCAT {
-        let rows = fs::read_to_string(path)?
-            .lines()
-            .filter(|line| {
-                let line = line.trim();
-                !line.is_empty() && !line.starts_with('#')
-            })
-            .count();
-        if rows < 2 {
-            bail!("{name} contains too few data rows");
-        }
-        return Ok(());
-    }
     if name != OUTPUT {
         bail!("unexpected moonlight artifact {name:?}");
     }
@@ -850,7 +826,7 @@ abundance = 1.0
     }
 
     fn configured_sources(workspace: &Path) -> Vec<SourceConfig> {
-        [MODEL_SOURCE, SSCAT]
+        [MODEL_SOURCE]
             .into_iter()
             .map(|name| {
                 let mut source = source(name);
@@ -983,30 +959,25 @@ abundance = 1.0
     fn validate_config_requires_exact_source_order() {
         let root = tempfile::tempdir().unwrap();
         let mut config = run_config(root.path().to_path_buf());
-        config.sources = vec![source(MODEL_SOURCE), source(SSCAT)];
+        config.sources = vec![source(MODEL_SOURCE), source("canonical-mie.dat")];
         validate_config(&config).unwrap();
         config.sources.swap(0, 1);
         assert!(validate_config(&config).is_err());
     }
 
     #[test]
-    fn build_emits_generated_mie_and_copied_multiple_scattering_artifacts() {
+    fn build_emits_generated_mie_artifact() {
         let temp = tempfile::tempdir().unwrap();
         let workspace = temp.path().join("workspace");
         let sources = workspace.join("sources");
         fs::create_dir_all(&sources).unwrap();
         fs::write(sources.join(MODEL_SOURCE), tiny_model_toml()).unwrap();
-        fs::write(sources.join(SSCAT), "first\nsecond\n").unwrap();
 
         let mut config = run_config(workspace.clone());
         config.sources = configured_sources(&workspace);
         let artifacts = build(&config).unwrap();
-        assert_eq!(artifacts.len(), 2);
+        assert_eq!(artifacts.len(), 1);
         assert!(workspace.join("outputs").join(OUTPUT).is_file());
-        assert_eq!(
-            fs::read_to_string(workspace.join("outputs").join(SSCAT)).unwrap(),
-            "first\nsecond\n"
-        );
         assert!(workspace.join("outputs/artifacts.json").is_file());
     }
 
@@ -1017,7 +988,6 @@ abundance = 1.0
         let sources = workspace.join("sources");
         fs::create_dir_all(&sources).unwrap();
         fs::write(sources.join(MODEL_SOURCE), tiny_model_toml()).unwrap();
-        fs::write(sources.join(SSCAT), "first\nsecond\n").unwrap();
         let mut config = run_config(workspace.clone());
         config.sources = configured_sources(&workspace);
 
@@ -1032,14 +1002,8 @@ abundance = 1.0
     }
 
     #[test]
-    fn artifact_validation_checks_all_supported_formats() {
+    fn artifact_validation_checks_mie_format() {
         let temp = tempfile::tempdir().unwrap();
-        let sscat = temp.path().join("sscat.dat");
-        fs::write(&sscat, "# comment\n1\n2\n").unwrap();
-        validate_artifact(SSCAT, &sscat).unwrap();
-        fs::write(&sscat, "1\n").unwrap();
-        assert!(validate_artifact(SSCAT, &sscat).is_err());
-
         let mie = temp.path().join("mie.dat");
         fs::write(&mie, "2 2\n0.300 0.650\n0 180\n1 1\n1 1\n").unwrap();
         validate_artifact(OUTPUT, &mie).unwrap();

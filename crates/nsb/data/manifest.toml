@@ -83,16 +83,24 @@ runtime_grid_method = "analytic Planck spectral irradiance at integer-nanometre 
 runtime_sampling_interval_nm = "1"
 
 [[assets]]
-path = "sscatcor_m15s1.dat"
-schema = "moonlight-multiple-scattering-grid-v1"
-sha256 = "2bf48a71e007bc557bd088d53ede15e97163d9154f19b1e411b104c38c4a18b8"
-source = "multiple Rayleigh/Mie scattering corrections associated with the ESO Sky Model lineage; exact upstream release is not recorded"
-license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
-generator = "historical import"
-generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/specifications/validation.md#bundled-asset-validation"
-calibration_status = "planning-proxy"
+path = "moonlight_multiscatter_nsb_v1.dat"
+schema = "nsb-moonlight-multiscatter-v1"
+sha256 = "7251dd540a7dd0a10eceda9bec12e5061a1bbc29332ac2f92b44e4684f3cc050"
+source = "NSB-owned order-resolved forced-collision scalar radiative-transfer calculation implementing the Jones et al. 2013 Sect. 2.4.3 double/single ratio and higher-order geometric-series approximation"
+license = "AGPL-3.0-only; NSB-authored code and newly calculated factual numeric output; no historical ESO LUT or solver bytes are embedded"
+generator = "nsb-data-tools forced-collision plane-parallel Monte Carlo solver v1"
+generation_command = "cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml"
+validation_report = "docs/nsb_components/moonlight/multiple-scattering-validation.md"
+calibration_status = "published-model-reconstruction"
 runtime_embedded = true
+
+[assets.header]
+schema = "nsb-moonlight-multiscatter-v1"
+solver = "nsb-forced-collision-plane-parallel-mc-v1"
+definition = "f = I_total/I_SS = 1/(1-min(I_DS/I_SS,0.9))"
+aerosol_model_sha256 = "d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82"
+mie_artifact_sha256 = "8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc"
+seed_namespace = "nsb-moonlight-multiscatter-v1"
 
 [[assets]]
 path = "merge_report.json"
