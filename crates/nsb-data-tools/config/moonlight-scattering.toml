@@ -9,9 +9,9 @@ executor = "local"
 concurrency = 1
 
 [[sources]]
-name = "mie_m15s1.dat"
-path = "../../nsb/data/mie_m15s1.dat"
-sha256 = "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
+name = "moonlight-aerosol-nsb-v1.toml"
+path = "moonlight-aerosol-nsb-v1.toml"
+sha256 = "d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82"
 
 [[sources]]
 name = "sscatcor_m15s1.dat"

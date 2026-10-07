@@ -26,6 +26,10 @@ pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> Result<()> {
     core::atomic_write(path, bytes)
 }
 
+pub(crate) fn verify_source(path: &Path, expected: &str) -> Result<()> {
+    core::verify_source(path, expected)
+}
+
 pub fn execute(
     config_path: &Path,
     dataset: DatasetName,

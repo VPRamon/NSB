@@ -1,13 +1,14 @@
 //! Tabulated scattering grids used by the Jones (2013) spectral moonlight model.
 //!
-//! The bundled tables are owned by the moonlight component. `mie_m15s1.dat`
-//! provides the wavelength/angle Mie phase grid, and `sscatcor_m15s1.dat`
+//! The bundled tables are owned by the moonlight component. The independently
+//! generated `moonlight_mie_nsb_v1.dat` provides the wavelength/angle Mie phase
+//! grid, and the transitional historical `sscatcor_m15s1.dat`
 //! provides the matching multiple-scattering correction grid.
 
 use crate::error::{NsbError, Result};
 use siderust::qtty::{Degrees, Micrometers, Nanometer, Nanometers};
 
-const MIE_RAW: &str = include_str!("../../../data/mie_m15s1.dat");
+const MIE_RAW: &str = include_str!("../../../data/moonlight_mie_nsb_v1.dat");
 const SSCAT_RAW: &str = include_str!("../../../data/sscatcor_m15s1.dat");
 
 #[derive(Clone, Debug)]
@@ -23,7 +24,7 @@ impl ScatterGrid {
     }
 
     pub fn mie_phase() -> Result<Self> {
-        parse_grid(MIE_RAW, "mie_m15s1.dat")
+        parse_grid(MIE_RAW, "moonlight_mie_nsb_v1.dat")
     }
 
     pub fn multiple_scattering_correction() -> Result<Self> {
@@ -86,7 +87,7 @@ fn parse_grid(raw: &str, file: &'static str) -> Result<ScatterGrid> {
         .next()
         .ok_or_else(|| parse_err(file, "missing dimensions"))?;
     let dims = parse_usizes(dims, file, "dimensions")?;
-    if dims.len() != 2 {
+    if dims.len() != 2 || dims[0] == 0 || dims[1] == 0 {
         return Err(parse_err(file, "dimensions must contain two values"));
     }
     let (n_wavelength, n_angle) = (dims[0], dims[1]);
@@ -100,6 +101,14 @@ fn parse_grid(raw: &str, file: &'static str) -> Result<ScatterGrid> {
     )?;
     if wavelength_um.len() != n_wavelength {
         return Err(parse_err(file, "wavelength axis length mismatch"));
+    }
+    if wavelength_um.iter().any(|value| !value.is_finite())
+        || !wavelength_um.windows(2).all(|pair| pair[0] < pair[1])
+    {
+        return Err(parse_err(
+            file,
+            "wavelength axis must be finite and strictly increasing",
+        ));
     }
     let wavelength_nm: Vec<f64> = wavelength_um
         .into_iter()
@@ -116,6 +125,14 @@ fn parse_grid(raw: &str, file: &'static str) -> Result<ScatterGrid> {
     if angle_deg.len() != n_angle {
         return Err(parse_err(file, "angle axis length mismatch"));
     }
+    if angle_deg.iter().any(|value| !value.is_finite())
+        || !angle_deg.windows(2).all(|pair| pair[0] < pair[1])
+    {
+        return Err(parse_err(
+            file,
+            "angle axis must be finite and strictly increasing",
+        ));
+    }
 
     let mut wavelength_major = Vec::with_capacity(n_wavelength);
     for row_idx in 0..n_wavelength {
@@ -129,7 +146,19 @@ fn parse_grid(raw: &str, file: &'static str) -> Result<ScatterGrid> {
                 format!("grid row {row_idx} length mismatch"),
             ));
         }
+        if values
+            .iter()
+            .any(|value| !value.is_finite() || *value < 0.0)
+        {
+            return Err(parse_err(
+                file,
+                format!("grid row {row_idx} contains invalid values"),
+            ));
+        }
         wavelength_major.push(values);
+    }
+    if lines.next().is_some() {
+        return Err(parse_err(file, "unexpected data after grid rows"));
     }
 
     let mut data = Vec::with_capacity(n_angle * n_wavelength);
@@ -180,7 +209,7 @@ mod tests {
     fn moonlight_scattering_checksums_match() {
         assert_eq!(
             to_hex(&sha256(MIE_RAW.as_bytes())),
-            "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
+            "8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc"
         );
         assert_eq!(
             to_hex(&sha256(SSCAT_RAW.as_bytes())),
@@ -191,9 +220,9 @@ mod tests {
     #[test]
     fn moonlight_mie_phase_grid_loads_known_value() {
         let grid = ScatterGrid::mie_phase().unwrap();
-        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (181, 40));
+        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (355, 36));
         let v = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
-        assert!((v - 57.433_337).abs() < 1.0e-6);
+        assert!((v - 154.664_001_7).abs() < 1.0e-6);
     }
 
     #[test]
@@ -210,5 +239,22 @@ mod tests {
         let low = grid.lookup(Degrees::new(-10.0), Nanometers::new(100.0));
         let edge = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
         assert!((low - edge).abs() < 1.0e-12);
+    }
+
+    #[test]
+    fn scattering_grid_parser_rejects_invalid_axes_values_and_trailing_data() {
+        const FILE: &str = "test-scattering-grid.dat";
+        let cases = [
+            "2 2\n0.3 0.3\n0 180\n1 1\n1 1\n",
+            "2 2\n0.3 0.65\n0 0\n1 1\n1 1\n",
+            "2 2\n0.3 0.65\n0 180\n1 -1\n1 1\n",
+            "2 2\n0.3 0.65\n0 180\n1 1\n1 1\nextra\n",
+        ];
+        for raw in cases {
+            assert!(
+                parse_grid(raw, FILE).is_err(),
+                "accepted invalid grid: {raw}"
+            );
+        }
     }
 }

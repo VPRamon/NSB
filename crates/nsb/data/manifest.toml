@@ -27,16 +27,27 @@ units = "wavelength nm; source continuum radiance R nm^-1; dimensionless climato
 runtime_band_nm = "300-650"
 
 [[assets]]
-path = "mie_m15s1.dat"
-schema = "moonlight-mie-angle-wavelength-grid-v1"
-sha256 = "dba01f9b49ddf9a547bccc7eaca013bec1e4b1d8e081ec5ec4dd284ea7ec425e"
-source = "Paranal-like aerosol Mie phase grid associated with the ESO Sky Model lineage; exact upstream release is not recorded"
-license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
-generator = "historical import"
-generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/specifications/validation.md#bundled-asset-validation"
-calibration_status = "planning-proxy"
+path = "moonlight_mie_nsb_v1.dat"
+schema = "nsb-moonlight-mie-phase-v1"
+sha256 = "8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc"
+source = "NSB-owned calculation from the remote-continental aerosol modes and selected mixture published by Jones et al. 2013, A&A 560 A91, Sect. 2.6 and Table 2; mode parameters originate in Warneck & Williams 2012"
+license = "NSB-generated factual scientific data; generator is AGPL-3.0-only; no third-party dataset bytes are embedded"
+generator = "nsb-data-tools 0.1.0 dataset moonlight-scattering build"
+generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml"
+validation_report = "docs/nsb_components/moonlight/mie-phase-validation.md"
+calibration_status = "published-model-reconstruction"
 runtime_embedded = true
+source_model_sha256 = "d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82"
+
+[assets.header]
+schema = "nsb-moonlight-mie-phase-v1"
+aerosol_schema = "nsb-moonlight-aerosol-model-v1"
+solver = "Bohren-Huffman amplitude recurrences, in-tree implementation v1"
+normalization = "integral P(theta) dOmega = 4*pi; analytic coefficient normalization"
+wavelength_grid_nm = "300..650 step 10"
+scattering_angle_grid_deg = "nonuniform: 0..0.25/0.0125;0.25..1/0.025;1..2/0.05;2..5/0.125;5..10/0.25;10..170/1;170..180/0.125"
+radius_quadrature = "composite Simpson in ln(radius), 1280 intervals over +/-8 sigma"
+axes = "wavelength_um then scattering_angle_deg; rows are wavelength-major"
 
 [[assets]]
 path = "solar_spectrum.dat"

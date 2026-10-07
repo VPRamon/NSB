@@ -209,8 +209,10 @@ mod tests {
 
     /// Regression pins and TSIS-runtime impact bounds for representative geometries.
     ///
-    /// The TSIS tuples are offline numeric baselines from the former bundled
-    /// runtime SHA-256 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02;
+    /// The expected tuples pin the independently generated NSB Mie phase grid
+    /// with the current analytic solar reference. The TSIS tuples are offline
+    /// numeric baselines from former bundled runtime SHA-256
+    /// 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02;
     /// no TSIS-derived bytes are loaded by this test or shipped in the package.
     #[test]
     fn analytic_solar_reference_matches_regression_and_tsis_impact_bounds() {
@@ -223,9 +225,9 @@ mod tests {
                 60.0,
                 384_400.0,
                 (
-                    0.095_710_815_440_353_36,
-                    78.340_588_545_060_33,
-                    22.453_501_426_598_88,
+                    0.098_071_353_424_892_55,
+                    81.156_672_803_959_74,
+                    23.996_133_663_932_923,
                 ),
                 (
                     0.083_367_447_328_456_6,
@@ -240,9 +242,9 @@ mod tests {
                 40.0,
                 384_400.0,
                 (
-                    0.335_113_216_303_942_6,
-                    345.202_605_100_630_7,
-                    137.244_745_963_178_16,
+                    0.254_488_523_912_692_83,
+                    263.753_771_498_536_8,
+                    111.005_140_672_811_89,
                 ),
                 (
                     0.308_541_289_220_820_8,
@@ -257,9 +259,9 @@ mod tests {
                 15.0,
                 384_400.0,
                 (
-                    0.075_859_551_935_004_49,
-                    67.831_673_177_649_63,
-                    23.090_105_378_601_283,
+                    0.080_252_085_202_103_52,
+                    72.166_542_917_887_24,
+                    23.779_083_525_545_524,
                 ),
                 (
                     0.067_532_264_783_783_4,
@@ -277,18 +279,29 @@ mod tests {
                 profile,
             )
             .expect("spectral evaluate");
-            let actual = out.integrated.value();
-            let actuals = (actual, out.b_flux_s10.value(), out.v_flux_s10.value());
+            let actuals = (
+                out.integrated.value(),
+                out.b_flux_s10.value(),
+                out.v_flux_s10.value(),
+            );
             for (actual, expected) in [
                 (actuals.0, expected.0),
                 (actuals.1, expected.1),
                 (actuals.2, expected.2),
             ] {
-                assert!(((actual / expected) - 1.0).abs() <= REL_TOL);
+                let rel = (actual - expected).abs() / expected.max(1.0e-12);
+                assert!(
+                    rel <= REL_TOL,
+                    "geometry phase={phase} sep={sep}: actual={actual} expected={expected} rel={rel}"
+                );
+                assert!(actual > 0.0);
             }
-            assert!(((actuals.0 / tsis.0) - 1.0).abs() < 0.18);
-            assert!(((actuals.1 / tsis.1) - 1.0).abs() < 0.30);
-            assert!(((actuals.2 / tsis.2) - 1.0).abs() < 0.08);
+            assert!(((actuals.0 / tsis.0) - 1.0).abs() < 0.20);
+            // These offline tuples include both the former TSIS solar spectrum
+            // and the historical Mie table, so the bounds cover both admitted
+            // scientific replacements rather than isolating solar resolution.
+            assert!(((actuals.1 / tsis.1) - 1.0).abs() < 0.50);
+            assert!(((actuals.2 / tsis.2) - 1.0).abs() < 0.25);
         }
     }
 }

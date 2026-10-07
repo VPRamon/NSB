@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `airglow-continuum` | `airglow_palace_v1.dat` | local |
 | `solar-spectrum` | `solar_spectrum.dat` | local |
-| `moonlight-scattering` | `mie_m15s1.dat`, `sscatcor_m15s1.dat` | local |
+| `moonlight-scattering` | `moonlight_mie_nsb_v1.dat`, `sscatcor_m15s1.dat` | local |
 | `starlight` | validated HEALPix map artifacts | local or Slurm |
 
 The supported lifecycle is `update → build → validate → publish`. `update`
@@ -57,8 +57,11 @@ repository_root = "/checkout/nsb"
 The Airglow product is reproducibly generated from the checksum-pinned PALACE
 v1.0 CC-BY-4.0 model-data archive; see the
 [PALACE runtime report](../nsb_components/airglow/validation/palace-v1-runtime-product.md).
-The moonlight scattering snapshots remain limited by incomplete upstream
-provenance and licensing. The solar spectrum is reproducibly generated offline
+The historical multiple-scattering snapshot remains limited by incomplete
+upstream provenance and licensing. The Mie phase grid is independently generated
+from the committed Jones aerosol configuration; see the
+[Mie validation report](../nsb_components/moonlight/mie-phase-validation.md).
+The solar spectrum is reproducibly generated offline
 from the checked-in NSB Planck-model specification into a deterministic
 351-sample runtime grid. It remains `generic-fallback` because a smooth
 blackbody continuum is a planning reference rather than a line-resolved solar
@@ -75,6 +78,21 @@ nsb-data dataset solar-spectrum publish --config run.toml
 nsb-data run status --run /shared/nsb/runs/solar-spectrum/runs/solar-spectrum/build/run.json
 nsb-data run resume --run /shared/nsb/runs/solar-spectrum/runs/solar-spectrum/build/run.json
 ```
+
+Moonlight scattering uses the same lifecycle and publishes both the generated
+NSB-owned Mie phase grid and the transitional historical multiple-scattering
+correction:
+
+```bash
+nsb-data dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
+nsb-data dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml
+nsb-data dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml
+nsb-data dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml
+```
+
+Moonlight publication derives the manifest header and source-model checksum
+from the generated artifact and canonical aerosol source. It therefore cannot
+silently publish new bytes while retaining stale grid or quadrature metadata.
 
 Run manifests pin the resolved workspace, configuration checksum, Git commit,
 executor, partitions, artifacts and validation report. Atomic output promotion

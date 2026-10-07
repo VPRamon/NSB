@@ -1,0 +1,75 @@
+schema = "nsb-moonlight-aerosol-model-v1"
+solver_version = "nsb-bh-mie-v1"
+reference = "Jones et al. (2013), A&A 560 A91, Sect. 2.6 and Table 2"
+distribution = "lognormal-number-per-log10-radius"
+refractive_index_real = 1.5
+refractive_index_imaginary = 0.0
+normalization = "integral-over-solid-angle-equals-4pi"
+radius_sigma_bounds = 8.0
+radius_intervals = 1280
+wavelength_start_nm = 300
+wavelength_end_nm = 650
+wavelength_step_nm = 10
+
+[[angle_segments]]
+start_deg = 0.0
+end_deg = 0.25
+step_deg = 0.0125
+
+[[angle_segments]]
+start_deg = 0.25
+end_deg = 1.0
+step_deg = 0.025
+
+[[angle_segments]]
+start_deg = 1.0
+end_deg = 2.0
+step_deg = 0.05
+
+[[angle_segments]]
+start_deg = 2.0
+end_deg = 5.0
+step_deg = 0.125
+
+[[angle_segments]]
+start_deg = 5.0
+end_deg = 10.0
+step_deg = 0.25
+
+[[angle_segments]]
+start_deg = 10.0
+end_deg = 170.0
+step_deg = 1.0
+
+[[angle_segments]]
+start_deg = 170.0
+end_deg = 180.0
+step_deg = 0.125
+
+[[modes]]
+name = "tropospheric-nucleation"
+number_density_cm3 = 3200.0
+modal_radius_um = 0.010
+log10_geometric_sigma = 0.161
+abundance = 1.00
+
+[[modes]]
+name = "tropospheric-accumulation"
+number_density_cm3 = 2900.0
+modal_radius_um = 0.058
+log10_geometric_sigma = 0.217
+abundance = 0.45
+
+[[modes]]
+name = "tropospheric-coarse"
+number_density_cm3 = 0.300
+modal_radius_um = 0.900
+log10_geometric_sigma = 0.380
+abundance = 0.05
+
+[[modes]]
+name = "stratospheric"
+number_density_cm3 = 4.49
+modal_radius_um = 0.217
+log10_geometric_sigma = 0.248
+abundance = 1.00

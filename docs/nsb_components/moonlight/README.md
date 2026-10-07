@@ -81,5 +81,6 @@ independent SkyCalc agreement or dedicated CTAO aerosol calibration.
 ## Related documentation
 
 - [Jones 2013 spectral moonlight validation](jones2013-validation.md)
+- [NSB Mie phase-grid reconstruction and validation](mie-phase-validation.md)
 - [CTAO site profiles](../../specifications/ctao-site-profiles.md)
 - [Validation matrix](../../specifications/validation.md)

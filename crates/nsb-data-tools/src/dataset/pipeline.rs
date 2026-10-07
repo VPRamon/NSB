@@ -3,7 +3,6 @@
 use super::{Artifact, DatasetName, RunConfig, ValidationGate};
 use anyhow::{bail, Result};
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 /// Domain behavior required by the generic dataset engine.
@@ -197,53 +196,72 @@ impl DatasetPipeline for MoonlightPipeline {
     }
 
     fn expected_outputs(&self) -> &'static [&'static str] {
-        &["mie_m15s1.dat", "sscatcor_m15s1.dat"]
+        &[super::moonlight_mie::OUTPUT, super::moonlight_mie::SSCAT]
+    }
+
+    fn is_build_source(&self, source_name: &str) -> bool {
+        source_name != super::moonlight_mie::MODEL_SOURCE
+    }
+
+    fn validate_config(&self, config: &RunConfig) -> Result<()> {
+        super::moonlight_mie::validate_config(config)
+    }
+
+    fn build(&self, config: &RunConfig, _partitions: &[String]) -> Result<Option<Vec<Artifact>>> {
+        Ok(Some(super::moonlight_mie::build(config)?))
+    }
+
+    fn validation_gates(
+        &self,
+        config: &RunConfig,
+        artifacts: &[Artifact],
+    ) -> Result<Vec<ValidationGate>> {
+        super::moonlight_mie::validation_gates(config, artifacts)
     }
 
     fn output_name<'a>(&self, source_name: &'a str) -> Result<&'a str> {
-        require_expected(self, source_name)
+        match source_name {
+            super::moonlight_mie::MODEL_SOURCE => Ok(super::moonlight_mie::OUTPUT),
+            super::moonlight_mie::SSCAT => Ok(super::moonlight_mie::SSCAT),
+            _ => bail!("unexpected moonlight source {source_name:?}"),
+        }
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
-        require_minimum_rows(name, path, 2)
+        super::moonlight_mie::validate_artifact(name, path)
     }
 }
 
-fn require_expected<'a>(pipeline: &dyn DatasetPipeline, source_name: &'a str) -> Result<&'a str> {
-    if pipeline.expected_outputs().contains(&source_name) {
-        Ok(source_name)
-    } else {
-        bail!(
-            "unexpected source name {source_name:?} for {}",
-            pipeline.dataset()
-        )
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dataset::moonlight_mie;
+
+    #[test]
+    fn moonlight_pipeline_routes_model_and_runtime_artifacts() {
+        let pipeline = pipeline_for(DatasetName::MoonlightScattering);
+        assert_eq!(pipeline.dataset(), DatasetName::MoonlightScattering);
+        assert_eq!(
+            pipeline.expected_outputs(),
+            &[moonlight_mie::OUTPUT, moonlight_mie::SSCAT]
+        );
+        assert!(!pipeline.is_build_source(moonlight_mie::MODEL_SOURCE));
+        assert!(pipeline.is_build_source(moonlight_mie::SSCAT));
+        assert_eq!(
+            pipeline.output_name(moonlight_mie::MODEL_SOURCE).unwrap(),
+            moonlight_mie::OUTPUT
+        );
+        assert_eq!(
+            pipeline.output_name(moonlight_mie::SSCAT).unwrap(),
+            moonlight_mie::SSCAT
+        );
+        assert!(pipeline.output_name("unexpected").is_err());
+
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join(moonlight_mie::SSCAT);
+        fs::write(&path, "1\n2\n").unwrap();
+        pipeline
+            .validate_artifact(moonlight_mie::SSCAT, &path)
+            .unwrap();
     }
-}
-
-fn require_minimum_rows(name: &str, path: &Path, minimum: usize) -> Result<()> {
-    if data_rows(path)?.len() < minimum {
-        bail!("{name} contains too few data rows");
-    }
-    Ok(())
-}
-
-fn data_rows(path: &Path) -> Result<Vec<String>> {
-    Ok(data_rows_from(&read_lines(path)?)
-        .into_iter()
-        .map(str::to_string)
-        .collect())
-}
-
-fn data_rows_from(lines: &[String]) -> Vec<&str> {
-    lines
-        .iter()
-        .map(String::as_str)
-        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
-        .collect()
-}
-
-fn read_lines(path: &Path) -> Result<Vec<String>> {
-    Ok(BufReader::new(fs::File::open(path)?)
-        .lines()
-        .collect::<std::io::Result<_>>()?)
 }
