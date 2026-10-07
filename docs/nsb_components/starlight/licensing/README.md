@@ -60,7 +60,7 @@ that canonical redistribution `decision` to anything other than `"pending"`.
 ## Known gaps remaining for human #103 review
 
 - Independent validation (#87) acquired three references and ran against the
-  UV v2 candidate. Preregistered numerical gates versus the Leinert 1998 ISL
+  UV-corrected candidate. Preregistered numerical gates versus the Leinert 1998 ISL
   model did **not** pass; reports are under `validation/results/`. Do not
   treat that as scientific approval.
 - The Gaia CC BY-NC 3.0 IGO non-commercial clause's compatibility with NSB's

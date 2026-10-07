@@ -9,7 +9,7 @@ current evaluation behaviour, start at [../README.md](../README.md).
 
 | Document | Role |
 |---|---|
-| [palace-v1-runtime-product.md](palace-v1-runtime-product.md) | PALACE v1 source/license evidence, scientific mapping, deterministic generation, reference validation, historical comparison, checksums, and limitations for the shipped runtime product |
+| [palace-v1-runtime-product.md](palace-v1-runtime-product.md) | PALACE v1 source/license evidence, scientific mapping, deterministic generation, reference validation, reference comparison, checksums, and limitations for the shipped runtime product |
 | [optical-vertical-profile-decision-v1.md](optical-vertical-profile-decision-v1.md) | Scientific rationale for not bundling one broadband 300–650 nm VER profile; species/altitude evidence; candidate-data and licence review; Van Rhijn default decision; deterministic cross-model validation and bench method |
 
 Issue chronology and obsolete checklists are not canonical runtime documentation.

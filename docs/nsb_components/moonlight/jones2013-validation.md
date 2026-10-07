@@ -60,13 +60,13 @@ case_id,reference,phase_angle_deg,moon_target_sep_deg,moon_zenith_deg,source_zen
 ```
 
 The CSV remains the schema and scientific-tolerance manifest for those geometry
-cases. Its historical `expected_*` columns are not an independent SkyCalc or
+cases. Its reference `expected_*` columns are not an independent SkyCalc or
 Jones-table agreement campaign.
 
 Numeric protection for the current spectral implementation uses regression pins
 in `crates/nsb/src/components/moonlight/jones_2013_spectral.rs` for the same
 fixture geometries. Those pins detect silent radiance changes in the spectral
-model; they intentionally do not reuse the historical LUT expected columns,
+model; they intentionally do not reuse the reference LUT expected columns,
 which diverge from the present scattering path.
 
 Calibration still requires independently generated spectral densities for

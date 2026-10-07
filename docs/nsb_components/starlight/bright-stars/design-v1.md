@@ -68,7 +68,7 @@ supplement candidate if:
 Rationale: target the regime where Gaia incompleteness/saturation is
 documented, not a threshold fitted to erase the −16% residual. Exact Hp/VT
 cut may be refined after source-level audits; changes require a new policy
-id (`bright-stars-population-v1` → `v2`).
+identifier rather than changing the meaning of the existing ID.
 
 Non-stellar / problematic flags (doubles without resolved flux rule,
 variables without mean-flux policy) are excluded or deferred to

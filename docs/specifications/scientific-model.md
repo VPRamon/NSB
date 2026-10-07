@@ -25,7 +25,7 @@ maturity metadata, and CLI presentation.
 Atmospheric propagation is conceptually separate from source emission and from
 future instrument response. The reusable transport foundation lives in
 `nsb::transport` (identity and direct Beer–Lambert paths). Existing components
-may still apply legacy, component-specific propagation until they migrate
+may still apply component-specific propagation until generic transport coverage is defined
 explicitly; see [Atmospheric transport](atmospheric-transport.md).
 
 ## Components

@@ -32,20 +32,20 @@ admission of this schema must materialize an omitted pixel as the same explicit
 zero-flux, zero-source-count value rather than treating omission as missing or
 unknown data.
 
-Report schema v6 declares one `canonical_map` and one `deterministic_merge`.
+Report schema v1 declares one `canonical_map` and one `deterministic_merge`.
 Validation independently reads the CSV and requires its checksum, nside,
 schema, representation, omitted-pixel semantics, pixel-domain size,
 occupied-pixel count, integrated flux, admitted sources, and excluded sources
 to match the report. Global report totals must match the canonical map, and
 `observed_sources` must equal admitted plus excluded with checked arithmetic.
-Report schema v8 defines this as processing-record accounting, not unique
+The v1 report defines this as processing-record accounting, not unique
 physical-star accounting. `source_record_accounting` separates primary and
 supplement input/admission records, replacement records, unique replacement
 Gaia IDs, and the derived unique physical-source count. A replacement therefore
 has one excluded primary record plus one supplement record, but is subtracted
 once from `observed_sources` when deriving `unique_physical_sources`.
 
-Starlight shard schema v3 stores flux and uncertainty sums as sparse exact
+Starlight shard schema v1 stores flux and uncertainty sums as sparse exact
 binary64 superaccumulators. The state uses integer limbs with a `2^-1074` unit,
 so merging is associative and commutative and rounding occurs only when the
 canonical CSV value is requested. Reordering shards or changing the reduction

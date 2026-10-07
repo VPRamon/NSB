@@ -8,7 +8,7 @@ or invent a starlight-only comparison grid.
 ## Question
 
 Is there a documented, machine-readable, starlight-only top-of-atmosphere
-300–650 nm product that can be transformed onto the frozen UV-v2 candidate
+300–650 nm product that can be transformed onto the frozen UV-corrected candidate
 without unpublished amplitudes, contamination subtraction, or treating a
 Gaia-derived map as independent ground truth?
 
@@ -27,11 +27,11 @@ are out of scope.
 
 ## Other documented candidates considered and not acquired
 
-These appear in historical notes (`existing-datasets.md`, validation README,
+These appear in provenance notes (`existing-datasets.md`, validation README,
 science-requirements) but are not admissible starlight-only TOA 300–650 nm
 grids for this candidate:
 
-- Historical manual Tycho/Hipparcos experimental seed
+- Manual Tycho/Hipparcos experimental seed
   (`starlight_manual_seed_v1.csv`, removed from the runtime tree): was a
   runtime fixture, not independent validation.
 - Retired nside 64/256/512 derived maps: not independent source-level products.

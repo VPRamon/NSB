@@ -157,8 +157,7 @@ foundation. Supported capabilities are identity transport and direct
 wavelength-dependent Beer–Lambert extinction, applied only through
 origin-checked spectral APIs (`apply_energy_spectral` /
 `apply_photon_spectral`). Zodiacal evaluation does **not** yet consume it;
-legacy `ZodiacalExtinction` remains the runtime path until an explicit
-migration lands. Single-scattering request/result types are intentionally
+the current `ZodiacalExtinction` runtime path remains component-specific until generic transport integration is defined. Single-scattering request/result types are intentionally
 absent from the frozen surface. See
 [Atmospheric transport](../specifications/atmospheric-transport.md).
 

@@ -4,7 +4,7 @@
 
 `moonlight_mie_nsb_v1.dat` is an independently calculated, NSB-owned aerosol
 phase-function table for the Jones et al. (2013) scattered-moonlight runtime.
-It replaces the historical ESO-lineage `mie_m15s1.dat`; those bytes are neither
+The runtime grid is NSB-owned; the ESO-lineage `mie_m15s1.dat` bytes are neither
 an input nor a generation target.
 
 The runtime keeps aerosol optical depth and angular redistribution separate:
@@ -15,7 +15,7 @@ scatter = tau_R P_R(theta) + tau_M(lambda) JONES_MIE_WEIGHT P_M(theta, lambda)
 
 `tau_M` therefore remains the site-profile extinction law. This product only
 supplies `P_M`; it does not encode aerosol column density or optical depth.
-The still-historical multiple-scattering correction is a separate multiplicative
+The multiple-scattering correction is a separate multiplicative
 table and is tracked for replacement in #217.
 
 ## Published assumptions and independent choices
@@ -41,7 +41,7 @@ NSB interprets the paper's tabulated `log s` as base-10 logarithmic width, so
 the standard deviation in ln(radius) is `ln(10) log10(s)`. It uses a constant
 complex refractive index `1.5 + 0i`. These are explicit implementation choices
 where the paper does not specify log base or dispersion. No value was tuned to
-the historical LUT. The altitude profiles in Jones control column optical depth,
+the reference LUT. The altitude profiles in Jones control column optical depth,
 not the normalized phase function, and are consequently not generator inputs.
 
 ## Solver, equations, and licensing
@@ -130,23 +130,23 @@ result reproduces the reported strong forward lobe, much weaker intermediate
 and backward scattering, and modest wavelength dependence. No quantitative
 curve values are published, so exact numerical agreement is not claimed.
 
-## Historical ESO diagnostic only
+## ESO reference diagnostic
 
 After the model and production settings were fixed independently, the generated
-grid was compared offline with the historical LUT where the domains overlap.
-That comparison is diagnostic only: the historical solver details, radius
+grid was compared offline with the reference LUT where the domains overlap.
+That comparison is diagnostic only: the reference solver details, radius
 cutoffs, refractive-index treatment, normalization processing, and exact bytes'
 provenance are not fully documented. The historical `mie_m15s1.dat` bytes are
 not a generator input and are not shipped by NSB.
 
-The discrepancy is expected because the historical solver details, radius
+The discrepancy is expected because the reference solver details, radius
 cutoffs, refractive-index treatment, normalization processing, and exact bytes'
 provenance are not fully documented. No generator input was changed in response.
 
 ## Jones 2013 end-to-end impact
 
 Using the same `main` solar spectrum, optical-depth code, empirical
-`JONES_MIE_WEIGHT`, and historical multiple-scattering table, the admitted
+`JONES_MIE_WEIGHT`, and reference multiple-scattering table, the admitted
 artifact produces these regression outputs:
 
 | Separation | integrated 300--650 nm | B diagnostic | V diagnostic |
@@ -162,7 +162,7 @@ These values are pinned by the runtime regression test; no retuning of
 
 Issue #217 now consumes this exact aerosol configuration and phase-grid hash to
 generate `moonlight_multiscatter_nsb_v1.dat`. Runtime/build validation rejects a
-Mie/correction pair whose recorded identities differ. The historical correction
+Mie/correction pair whose recorded identities differ. The reference correction
 table is no longer shipped.
 
 Spherical particles, constant real refractive index, the eight-sigma cutoff, and

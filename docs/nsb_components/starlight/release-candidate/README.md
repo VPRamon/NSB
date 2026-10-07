@@ -76,7 +76,7 @@ technical gates never implies redistribution approval.
 fail-closed. The build only enables bundled production Starlight when a
 registered `nsb-healpix-starlight-v1` map and
 `nsb-starlight-runtime-manifest-v1` sidecar pass checksum and provenance
-validation. Malformed or incomplete v2 provenance is rejected.
+validation. Malformed or incomplete v1 provenance is rejected.
 
 ## Related issues
 
