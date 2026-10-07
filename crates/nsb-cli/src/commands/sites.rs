@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use crate::cli::{OutputFormat, SitesArgs, SitesCommand};
 use crate::output;
 use crate::parsing::location::{catalog_output, load_catalog, resolve_site, ObservatoryOutput};

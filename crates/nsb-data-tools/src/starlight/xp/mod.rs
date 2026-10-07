@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Frozen, in-process Gaia DR3 XP continuous reconstruction.
 
 use anyhow::{bail, Context, Result};

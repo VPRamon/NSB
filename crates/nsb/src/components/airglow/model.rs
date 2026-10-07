@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::calibration::AirglowContinuum;
 use super::continuum::{
     evaluate_continuum, evaluate_integrated_continuum_with_night_phase,

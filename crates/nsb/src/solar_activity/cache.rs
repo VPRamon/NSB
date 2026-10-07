@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::{bundled_f107_store, resolve_f107, F107Store, SolarActivitySource};
 use crate::components::airglow::units::SolarFluxUnits;
 use chrono::{DateTime, NaiveDate};

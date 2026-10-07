@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Shared Gaia-compatible HEALPix helpers backed by Siderust.
 //!
 //! Starlight accumulation uses nested HEALPix at or below Gaia DR3 level 12

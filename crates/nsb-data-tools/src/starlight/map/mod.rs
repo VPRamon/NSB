@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Sparse deterministic HEALPix shard accumulation and reconciliation.
 
 pub mod accumulator;

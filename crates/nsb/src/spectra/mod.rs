@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Shared physical spectra used across NSB components.
 //!
 //! Spectral inputs whose scientific ownership spans multiple night-sky

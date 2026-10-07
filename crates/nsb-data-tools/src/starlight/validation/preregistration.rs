@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Frozen preregistration for the independent Starlight validation pipeline
 //! (GitHub issue #87). Tolerances here are fixed before any candidate map is
 //! compared against real reference data, so they cannot be adjusted after

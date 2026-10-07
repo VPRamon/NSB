@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Optional Python adapter for NSB.
 //!
 //! NSB-owned types are exposed directly where Python preserves their Rust

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Reproducible multiple-scattering correction for the Jones moonlight model.
 //!
 //! The production calculation is an order-resolved, forced-collision Monte

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Authoritative tests for the atmospheric transport foundation (#187 / #193).
 
 use nsb::site::AtmosphericConditions;

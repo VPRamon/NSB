@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Spherical line-of-sight numerical integration for vertical emissivity profiles.
 //!
 //! This module owns only the reference integrator. It consumes

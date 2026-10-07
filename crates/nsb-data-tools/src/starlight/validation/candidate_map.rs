@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Independent, minimal reader for the published Starlight candidate map.
 //!
 //! This intentionally does not call into `crate::starlight::map::product`:

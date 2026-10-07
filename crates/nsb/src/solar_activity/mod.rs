@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Date-aware F10.7 solar-radio-flux resolution.
 //!
 //! Network acquisition belongs in `nsb-data-tools`. This module only loads

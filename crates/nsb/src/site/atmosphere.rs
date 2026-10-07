@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Shared atmospheric assumptions for site-aware NSB components.
 //!
 //! These conditions are intentionally component-neutral. Moonlight and airglow

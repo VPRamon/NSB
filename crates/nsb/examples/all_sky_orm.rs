@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Render a proof-of-concept all-sky natural NSB map for ORM.
 //!
 //! The map uses the production-safe [`NsbEvaluator::new`] configuration and

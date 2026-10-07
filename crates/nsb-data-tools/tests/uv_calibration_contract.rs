@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use nsb_data_tools::platform::checksum_io;
 use nsb_data_tools::starlight::uv::{
     run_reproducibility_validation, ApplicabilityStatus, CorrectionModel, EvaluationDecision,

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! NSB evaluator: point evaluation and component composition.
 //!
 //! This module constructs immutable component models and evaluates night-sky

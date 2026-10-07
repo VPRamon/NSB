@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Spectral-type/template reconstruction for sources without usable Gaia XP.
 
 use super::artifact::CorrelatedUncertainty;

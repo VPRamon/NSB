@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Empirical continuum airglow component.
 //!
 //! Airglow is terrestrial atmospheric emission and a natural part of the night

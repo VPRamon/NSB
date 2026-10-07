@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use nsb_data_tools::starlight::conditions::verify_review_bundle_evidence;
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};

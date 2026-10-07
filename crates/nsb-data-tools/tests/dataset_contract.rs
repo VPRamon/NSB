@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use nsb_data_tools::dataset::{DatasetName, RunConfig};
 use std::fs;
 use std::path::{Path, PathBuf};

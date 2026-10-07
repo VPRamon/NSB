@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Reference-exact HEALPix topology helpers (RING ↔ NESTED, neighbours).
 //!
 //! Integer algorithms adapted from the HEALPix reference implementation, validated

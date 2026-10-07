@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Versioned Starlight science-policy registry.
 //!
 //! New production policies may be introduced over time. Historical merge reports

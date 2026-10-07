@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use assert_cmd::Command;
 use nsb::components::airglow::VERTICAL_EMISSION_PROFILE_SCHEMA_VERSION;
 use std::fs;

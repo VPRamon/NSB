@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Correlation-scope vocabulary for Starlight uncertainty terms.
 //!
 //! [`super::uv::SystematicCorrelation`] encodes exactly the two source-to-source

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Runtime access to build-verified bundled scientific data metadata.
 //!
 //! `crates/nsb/data/manifest.toml` remains the canonical declarative registry.

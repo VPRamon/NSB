@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Versioned physical transformations from published reference units onto
 //! top-of-atmosphere Galactic stellar photon radiance integrated over 300–650 nm.
 //!

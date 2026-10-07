@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Candidate-window smoothing and airglow phase helpers for threshold search.
 
 use super::types::PreparedThresholdQuery;

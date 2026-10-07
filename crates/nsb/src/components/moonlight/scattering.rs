@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Tabulated scattering grids used by the Jones (2013) spectral moonlight model.
 //!
 //! The bundled tables are owned by the moonlight component. The independently

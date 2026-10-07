@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Deterministic NSB-owned Mie phase-grid generation.
 //!
 //! The solver follows the amplitude recurrences in Bohren & Huffman (1983),

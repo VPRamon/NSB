@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::map::StarlightMap;
 use super::output::StarlightOutputs;
 use super::photometry::scale_outputs;

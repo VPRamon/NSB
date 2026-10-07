@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! `nsb` — Night Sky Background model.
 //!
 //! Computes the photon flux reaching a ground-based observer from a configurable

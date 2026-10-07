@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Compatibility binary for the scientific-validation workflow pin.
 //!
 //! Broader starlight CLI contracts live in `starlight_contract.rs`. Keep this

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Ties the frozen `docs/nsb_components/starlight/validation/*` documents to
 //! the schemas that read them, so the documentation cannot silently drift
 //! out of sync with the Rust types that parse it.

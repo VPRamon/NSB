@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Physical and empirical NSB component models.
 //!
 //! Each submodule in this directory corresponds to one contributor to the

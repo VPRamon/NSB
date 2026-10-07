@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
 # Publish the NSB crate when its version is not yet on crates.io.
 #
 # Usage (from repository root):

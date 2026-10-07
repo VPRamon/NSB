@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! In-process Gaia DR3 XP continuous calibration with frozen GaiaXPy 2.1.4 parity.
 //!
 //! The implementation consumes design matrices exported from the pinned GaiaXPy

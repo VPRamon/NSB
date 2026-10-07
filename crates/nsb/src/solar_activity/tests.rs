@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Unit tests for offline F10.7 resolution.
 
 use super::monthly::{days_in_month, is_finalized_monthly_observation};

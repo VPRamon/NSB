@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::config::RunConfig;
 use super::engine::{read_manifest, write_manifest};
 use super::execution::scheduler::{

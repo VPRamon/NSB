@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Optional very-bright-star supplement for Starlight (#182).
 //!
 //! Scientific design: `docs/nsb_components/starlight/bright-stars/design-v1.md`.

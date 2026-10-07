@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Behavioral and public-surface contracts for the first-release API freeze (#175).
 
 mod common;

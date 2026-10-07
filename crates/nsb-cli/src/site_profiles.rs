@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Application-layer scientific site-profile presets.
 //!
 //! Observatory coordinates live in `data/observatories.toml`. Scientific

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use tempoch::{Time, UTC};

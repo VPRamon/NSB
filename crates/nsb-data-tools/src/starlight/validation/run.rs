@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Orchestration for `nsb-data dataset starlight validation run`.
 //!
 //! This never fabricates a metric: when no acquired-and-transformed reference data is available for

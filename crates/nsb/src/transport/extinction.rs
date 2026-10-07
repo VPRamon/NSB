@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Extinction ingredient selection and optical-depth composition.
 
 use crate::site::atmosphere::rayleigh_optical_depth_local_pressure;

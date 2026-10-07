@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Jones 2013 reference-fixture schema validation.
 //!
 //! Numerical spectral-model regression pins for fixed moonlight geometries live

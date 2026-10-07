@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Fail-safe F10.7 store update / freeze / import / verify / resolve helpers.
 
 use super::providers::{

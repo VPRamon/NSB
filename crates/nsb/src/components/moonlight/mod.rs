@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Scattered moonlight scientific-model selection and implementation.
 //!
 //! Public callers select a supported scientific model with [`MoonlightModel`]

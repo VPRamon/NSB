@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use chrono::{DateTime, Utc};
 use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
 use siderust::catalogs::observatories;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Flux-weighted exclusion accounting for issue #182.
 //!
 //! Source counts alone cannot explain the Starlight vs nsb2 radiometric deficit.

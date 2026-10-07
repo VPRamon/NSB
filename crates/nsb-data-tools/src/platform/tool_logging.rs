@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Stderr logger for data-product executable adapters.
 //!
 //! Reusable services emit through the `log` facade. Executable adapters call

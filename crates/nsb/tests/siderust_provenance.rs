@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Siderust dependency provenance must stay truthful with the locked graph.
 //!
 //! Hard-coded `SIDERUST_VERSION` / `SIDERUST_SOURCE` are intentional public

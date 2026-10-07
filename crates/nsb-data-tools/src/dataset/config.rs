@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::{DatasetName, Executor};
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};

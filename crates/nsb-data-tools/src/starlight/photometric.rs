@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Versioned, fail-closed contract for non-XP photometric 336–650 nm inference.
 //!
 //! This module defines ingestion, source routing, and linear evaluation only.

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Typed F10.7 records and validation.
 
 use chrono::{NaiveDate, NaiveDateTime};

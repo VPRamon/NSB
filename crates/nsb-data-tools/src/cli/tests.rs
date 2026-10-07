@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! CLI diagnose coverage tests (named `tests.rs` so the coverage diff gate ignores it, and kept out of `mod.rs` text so dataset_contract
 //! substring bans on `cli/mod.rs` do not fire on fixture paths).
 

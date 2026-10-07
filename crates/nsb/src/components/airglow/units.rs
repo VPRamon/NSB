@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 pub use crate::units::SolarFluxUnits;
 
 pub(crate) fn is_valid_solar_flux(flux: SolarFluxUnits) -> bool {

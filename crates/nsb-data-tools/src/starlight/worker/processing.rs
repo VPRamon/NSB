@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Shared per-source evaluation for production and diagnostic ablation.
 
 use super::gaia_source::GaiaSourceEntry;

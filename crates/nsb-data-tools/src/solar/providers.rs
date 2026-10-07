@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Parsers for NOAA/NWS SWPC F10.7 products (fixture-friendly).
 
 use anyhow::{bail, Context, Result};
