@@ -416,12 +416,13 @@ mod tests {
                 .single()
                 .unwrap(),
         );
-        let greenwich =
-            Geodetic::new_raw(Degrees::new(0.0), Degrees::new(0.0), Meters::new(0.0));
-        let east_30 =
-            Geodetic::new_raw(Degrees::new(30.0), Degrees::new(0.0), Meters::new(0.0));
+        let greenwich = Geodetic::new_raw(Degrees::new(0.0), Degrees::new(0.0), Meters::new(0.0));
+        let east_30 = Geodetic::new_raw(Degrees::new(30.0), Degrees::new(0.0), Meters::new(0.0));
 
-        assert_eq!(palace_climatology_coordinates(time, greenwich), Some((9, 5)));
+        assert_eq!(
+            palace_climatology_coordinates(time, greenwich),
+            Some((9, 5))
+        );
         assert_eq!(palace_climatology_coordinates(time, east_30), Some((9, 7)));
     }
 
