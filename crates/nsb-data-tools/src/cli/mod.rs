@@ -290,7 +290,7 @@ struct StarlightDiagnoseSuiteArgs {
     commit: String,
     #[arg(long)]
     output_dir: PathBuf,
-    /// Override photometric artifact path (for ablation with legacy/miscalibrated models).
+    /// Override photometric artifact path for calibration ablation studies.
     #[arg(long)]
     photometric_artifact_path: Option<PathBuf>,
     #[arg(long)]
