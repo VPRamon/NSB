@@ -576,14 +576,7 @@ mod tests {
     #[test]
     fn utc_offset_validation_rejects_malformed_and_out_of_range_values() {
         for invalid in [
-            "02:00",
-            "+24:00",
-            "+01:60",
-            "+2",
-            "UTC",
-            "+-02:00",
-            "--02:00",
-            "+01:-30",
+            "02:00", "+24:00", "+01:60", "+2", "UTC", "+-02:00", "--02:00", "+01:-30",
         ] {
             assert!(parse_utc_offset(invalid).is_err(), "accepted {invalid:?}");
         }

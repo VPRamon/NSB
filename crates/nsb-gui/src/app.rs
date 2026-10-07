@@ -144,11 +144,7 @@ impl NsbApp {
                                 });
                             }
                             CalculationState::Error(error) => {
-                                ui.label(
-                                    egui::RichText::new(error)
-                                        .size(12.0)
-                                        .color(ERROR),
-                                );
+                                ui.label(egui::RichText::new(error).size(12.0).color(ERROR));
                             }
                             CalculationState::Ready(_) => {
                                 ui.label(
@@ -328,7 +324,11 @@ impl NsbApp {
 
         ui.add_space(10.0);
         ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("Representation").size(12.0).color(MUTED));
+            ui.label(
+                egui::RichText::new("Representation")
+                    .size(12.0)
+                    .color(MUTED),
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 egui::ComboBox::from_id_salt("coordinate-format")
                     .selected_text(self.input.coordinate_format.to_string())
@@ -377,7 +377,11 @@ impl NsbApp {
     }
 
     fn component_inputs(&mut self, ui: &mut egui::Ui) {
-        section_header(ui, "Model components", "Contributors included in the NSB model");
+        section_header(
+            ui,
+            "Model components",
+            "Contributors included in the NSB model",
+        );
         ui.add_space(10.0);
 
         ui.columns(2, |columns| {
@@ -397,7 +401,10 @@ impl NsbApp {
         });
 
         if !InputState::starlight_available() {
-            help_text(ui, "Starlight is unavailable because this build has no admitted production map.");
+            help_text(
+                ui,
+                "Starlight is unavailable because this build has no admitted production map.",
+            );
         }
     }
 
@@ -529,12 +536,7 @@ fn configure_style(ctx: &egui::Context) {
 }
 
 fn sidebar_header(ui: &mut egui::Ui) {
-    ui.label(
-        egui::RichText::new("NSB")
-            .size(25.0)
-            .strong()
-            .color(TEXT),
-    );
+    ui.label(egui::RichText::new("NSB").size(25.0).strong().color(TEXT));
     ui.label(
         egui::RichText::new("Observation planner")
             .size(14.0)
@@ -790,12 +792,7 @@ fn metric_card(
         ui.label(egui::RichText::new(label).size(11.5).color(MUTED));
         ui.add_space(2.0);
         ui.horizontal_wrapped(|ui| {
-            ui.label(
-                egui::RichText::new(value)
-                    .size(22.0)
-                    .strong()
-                    .color(accent),
-            );
+            ui.label(egui::RichText::new(value).size(22.0).strong().color(accent));
             if !unit.is_empty() {
                 ui.label(egui::RichText::new(unit).size(11.5).color(MUTED));
             }
@@ -1089,11 +1086,7 @@ fn component_row(ui: &mut egui::Ui, component: &compute::ComponentContribution) 
     ui.horizontal(|ui| {
         ui.add_sized(
             [150.0, 24.0],
-            egui::Label::new(
-                egui::RichText::new(&component.name)
-                    .size(12.5)
-                    .color(TEXT),
-            ),
+            egui::Label::new(egui::RichText::new(&component.name).size(12.5).color(TEXT)),
         );
 
         let value_width = 205.0;
@@ -1103,7 +1096,10 @@ fn component_row(ui: &mut egui::Ui, component: &compute::ComponentContribution) 
         painter.rect_filled(bar, 99.0, INPUT_BG);
         let filled = Rect::from_min_max(
             bar.min,
-            Pos2::new(bar.left() + bar.width() * component.share as f32, bar.bottom()),
+            Pos2::new(
+                bar.left() + bar.width() * component.share as f32,
+                bar.bottom(),
+            ),
         );
         painter.rect_filled(filled, 99.0, component_color(&component.name));
 
@@ -1269,7 +1265,10 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
             .collect();
         painter.line(points, Stroke::new(2.2, ACCENT));
 
-        if let Some(pointer) = response.hover_pos().filter(|position| plot.contains(*position)) {
+        if let Some(pointer) = response
+            .hover_pos()
+            .filter(|position| plot.contains(*position))
+        {
             let fraction = ((pointer.x - plot.left()) / plot.width()).clamp(0.0, 1.0);
             let pointer_time = interpolate_time(output.start, output.end, fraction as f64);
             if let Some(sample) = nearest_sample(&output.samples, pointer_time) {
@@ -1278,7 +1277,10 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
                     value_y(sample.integrated_radiance, y_min, y_max, plot),
                 );
                 painter.line_segment(
-                    [Pos2::new(point.x, plot.top()), Pos2::new(point.x, plot.bottom())],
+                    [
+                        Pos2::new(point.x, plot.top()),
+                        Pos2::new(point.x, plot.bottom()),
+                    ],
                     Stroke::new(1.0, ACCENT.gamma_multiply(0.45)),
                 );
                 painter.circle_filled(point, 4.5, TEXT);
@@ -1429,15 +1431,10 @@ fn paint_periods(
     }
 }
 
-fn nearest_sample(
-    samples: &[compute::Sample],
-    target: DateTime<Utc>,
-) -> Option<&compute::Sample> {
-    samples.iter().min_by_key(|sample| {
-        (sample.time - target)
-            .num_milliseconds()
-            .abs()
-    })
+fn nearest_sample(samples: &[compute::Sample], target: DateTime<Utc>) -> Option<&compute::Sample> {
+    samples
+        .iter()
+        .min_by_key(|sample| (sample.time - target).num_milliseconds().abs())
 }
 
 fn time_x(time: DateTime<Utc>, start: DateTime<Utc>, end: DateTime<Utc>, rect: Rect) -> f32 {
