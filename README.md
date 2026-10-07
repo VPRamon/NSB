@@ -258,12 +258,17 @@ observer + time + target
           +-> window planning
 ```
 
+Airglow’s arbitrary-coordinate API does not establish portability of its
+empirical data. The [#200 scientific decision](docs/nsb_components/airglow/validation/generic-model-decision-200.md)
+records the evidence gap and the separation required between generic core data
+and optional, explicit site calibration.
+
 The current scientific roles are:
 
 | Component | Current role |
 | --- | --- |
 | Zodiacal light | Generic clear-sky planning model |
-| Airglow | Generic model or explicit planning preset |
+| Airglow | Paranal-trained planning proxy; generic replacement not yet admitted under #200 |
 | Jones 2013 moonlight | Generic model or explicit planning preset |
 | KS91 moonlight | Published reference and alternate model |
 | Integrated starlight | Production only for a validated, admitted product and its declared domain |

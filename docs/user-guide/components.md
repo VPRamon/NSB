@@ -83,6 +83,11 @@ See the [external manifest contract](../nsb_components/starlight/external-manife
 
 ## Airglow
 
+The current continuum is trained on Paranal observations. Arbitrary observer
+coordinates do not make those empirical coefficients geographically portable.
+The [#200 survey](../nsb_components/airglow/validation/generic-model-decision-200.md)
+has not yet admitted a replacement; no site calibration is implied by location.
+
 The airglow model uses a bundled continuum template and applies empirical
 corrections for observing geometry and temporal conditions. Van Rhijn is the
 unchanged default geometry: an explicit thin shell at 90 km. Callers can instead
