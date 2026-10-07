@@ -238,9 +238,42 @@ mod tests {
     fn historical_fixture_geometries_match_spectral_regression_pins() {
         const REL_TOL: f64 = 1.0e-9;
         let cases = [
-            (85.5, 97.523, 36.0, 60.0, 384_400.0, 0.085_674_216_391_328_8),
-            (85.5, 4.0, 36.0, 40.0, 384_400.0, 0.235_696_251_499_208_3),
-            (85.5, 52.216, 62.0, 15.0, 384_400.0, 0.071_409_459_325_953_2),
+            (
+                85.5,
+                97.523,
+                36.0,
+                60.0,
+                384_400.0,
+                (
+                    0.085_664_723_457_320_51,
+                    110.863_054_487_601_4,
+                    25.381_150_907_940_707,
+                ),
+            ),
+            (
+                85.5,
+                4.0,
+                36.0,
+                40.0,
+                384_400.0,
+                (
+                    0.235_534_540_532_990_36,
+                    360.297_529_835_722_5,
+                    117.412_174_245_742_73,
+                ),
+            ),
+            (
+                85.5,
+                52.216,
+                62.0,
+                15.0,
+                384_400.0,
+                (
+                    0.071_384_018_836_102_51,
+                    98.582_200_369_569_59,
+                    25.151_572_993_675_284,
+                ),
+            ),
         ];
         let profile = paranal_like_profile();
         for (phase, sep, z_moon, z_src, dist, expected) in cases {
@@ -251,13 +284,23 @@ mod tests {
                 profile,
             )
             .expect("spectral evaluate");
-            let actual = out.integrated.value();
-            let rel = (actual - expected).abs() / expected.max(1.0e-12);
-            assert!(
-                rel <= REL_TOL,
-                "geometry phase={phase} sep={sep}: actual={actual} expected={expected} rel={rel}"
+            let actual = (
+                out.integrated.value(),
+                out.b_flux_s10.value(),
+                out.v_flux_s10.value(),
             );
-            assert!(actual > 0.0);
+            for (actual, expected) in [
+                (actual.0, expected.0),
+                (actual.1, expected.1),
+                (actual.2, expected.2),
+            ] {
+                let rel = (actual - expected).abs() / expected.max(1.0e-12);
+                assert!(
+                    rel <= REL_TOL,
+                    "geometry phase={phase} sep={sep}: actual={actual} expected={expected} rel={rel}"
+                );
+                assert!(actual > 0.0);
+            }
         }
     }
 

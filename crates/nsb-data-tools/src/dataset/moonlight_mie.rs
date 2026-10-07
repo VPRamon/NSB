@@ -128,6 +128,27 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
         .context("missing Mie artifact")?;
     let grid = parse_grid(&fs::read_to_string(&artifact.path)?)?;
     let model = read_model(&config.workspace.root.join("sources").join(MODEL_SOURCE))?;
+    let expected_wavelengths: Vec<f64> = (model.wavelength_start_nm..=model.wavelength_end_nm)
+        .step_by(model.wavelength_step_nm)
+        .map(|value| value as f64)
+        .collect();
+    let expected_angles = angle_grid(&model)?;
+    let axes_match = axis_matches(&grid.wavelengths, &expected_wavelengths)
+        && axis_matches(&grid.angles, &expected_angles);
+    let grid_gate = ValidationGate {
+        name: "mie-grid-contract".into(),
+        passed: axes_match,
+        detail: format!(
+            "artifact={}x{}; model={}x{} wavelengths x angles",
+            grid.wavelengths.len(),
+            grid.angles.len(),
+            expected_wavelengths.len(),
+            expected_angles.len()
+        ),
+    };
+    if !axes_match {
+        return Ok(vec![grid_gate]);
+    }
 
     let mut worst_norm = 0.0_f64;
     let mut min_g = f64::INFINITY;
@@ -148,6 +169,7 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
     let interpolation_error = angular_interpolation_error(&model, &grid)?;
 
     Ok(vec![
+        grid_gate,
         ValidationGate {
             name: "mie-4pi-normalization".into(),
             passed: worst_norm < 1.0e-4,
@@ -174,6 +196,53 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
             detail: "P(0 degrees) exceeds P(90 degrees) at every wavelength".into(),
         },
     ])
+}
+
+fn axis_matches(actual: &[f64], expected: &[f64]) -> bool {
+    actual.len() == expected.len()
+        && actual
+            .iter()
+            .zip(expected)
+            .all(|(&actual, &expected)| (actual - expected).abs() < 1.0e-10)
+}
+
+pub(crate) fn update_manifest_header(
+    document: &mut toml_edit::DocumentMut,
+    artifact_path: &Path,
+) -> Result<()> {
+    let raw = fs::read_to_string(artifact_path)?;
+    let grid = parse_grid(&raw)?;
+    let assets = document["assets"]
+        .as_array_of_tables_mut()
+        .context("manifest is missing [[assets]]")?;
+    let asset = assets
+        .iter_mut()
+        .find(|asset| asset["path"].as_str() == Some(OUTPUT))
+        .context("moonlight Mie asset is not registered")?;
+
+    let mut header = toml_edit::Table::new();
+    for key in [
+        "aerosol_schema",
+        "solver",
+        "normalization",
+        "wavelength_grid_nm",
+        "scattering_angle_grid_deg",
+        "radius_quadrature",
+    ] {
+        header[key] = toml_edit::value(generated_header(&raw, key)?);
+    }
+    header["wavelength_samples"] = toml_edit::value(grid.wavelengths.len() as i64);
+    header["angle_samples"] = toml_edit::value(grid.angles.len() as i64);
+    asset["header"] = toml_edit::Item::Table(header);
+    Ok(())
+}
+
+fn generated_header(raw: &str, key: &str) -> Result<String> {
+    let prefix = format!("# {key} = ");
+    raw.lines()
+        .find_map(|line| line.strip_prefix(&prefix))
+        .map(str::to_owned)
+        .with_context(|| format!("generated Mie artifact is missing {key:?} header"))
 }
 
 fn angular_interpolation_error(model: &Model, grid: &Grid) -> Result<f64> {
@@ -969,8 +1038,8 @@ abundance = 1.0
     }
 
     #[test]
-    fn refined_forward_grid_resolves_single_particle_peak() {
-        let intervals = [
+    fn refined_forward_grid_resolves_production_ensemble_peak() {
+        let intervals: [(f64, f64); 4] = [
             (0.0, 0.0125),
             (0.5, 0.525),
             (1.0, 1.05),
@@ -980,13 +1049,9 @@ abundance = 1.0
         for (lo, hi) in intervals {
             probe_angles.extend([lo, 0.5 * (lo + hi), hi]);
         }
-        let mus: Vec<f64> = probe_angles
-            .iter()
-            .map(|angle| angle.to_radians().cos())
-            .collect();
-        let sample = mie_phase(100.0, Complex64::new(1.5, 0.0), &mus).unwrap();
+        let (phase, _) = ensemble_phase(&production_model(), 0.3, &probe_angles).unwrap();
         let mut worst = 0.0_f64;
-        for values in sample.phase.chunks(3) {
+        for values in phase.chunks(3) {
             let interpolated = 0.5 * (values[0] + values[2]);
             worst = worst.max((interpolated / values[1] - 1.0).abs());
         }
@@ -1023,23 +1088,36 @@ abundance = 1.0
     fn production_quadrature_convergence() {
         let production = production_model();
         let production_grid = parse_grid(&generate(&production).unwrap()).unwrap();
-        let mut candidate = production.clone();
-        candidate.radius_sigma_bounds = 7.0;
-        candidate.radius_intervals = 1120;
-        let candidate_grid = parse_grid(&generate(&candidate).unwrap()).unwrap();
-
-        let mut max_relative = 0.0_f64;
-        let mut max_g_delta = 0.0_f64;
-        for (reference, trial) in production_grid.values.iter().zip(&candidate_grid.values) {
-            for (&a, &b) in reference.iter().zip(trial) {
-                max_relative = max_relative.max((b / a - 1.0).abs());
+        let compare = |candidate: &Model| {
+            let candidate_grid = parse_grid(&generate(candidate).unwrap()).unwrap();
+            let mut max_relative = 0.0_f64;
+            let mut max_g_delta = 0.0_f64;
+            for (reference, trial) in production_grid.values.iter().zip(&candidate_grid.values) {
+                for (&a, &b) in reference.iter().zip(trial) {
+                    max_relative = max_relative.max((b / a - 1.0).abs());
+                }
+                let (_, reference_g) = angular_moments(&production_grid.angles, reference);
+                let (_, trial_g) = angular_moments(&candidate_grid.angles, trial);
+                max_g_delta = max_g_delta.max((trial_g - reference_g).abs());
             }
-            let (_, reference_g) = angular_moments(&production_grid.angles, reference);
-            let (_, trial_g) = angular_moments(&candidate_grid.angles, trial);
-            max_g_delta = max_g_delta.max((trial_g - reference_g).abs());
-        }
+            (max_relative, max_g_delta)
+        };
+
+        let mut seven_sigma = production.clone();
+        seven_sigma.radius_sigma_bounds = 7.0;
+        seven_sigma.radius_intervals = 1120;
+        let tail = compare(&seven_sigma);
         eprintln!(
-            "7 sigma / 1120 versus production: max pointwise relative={max_relative:.6e}, max |delta g|={max_g_delta:.6e}"
+            "7 sigma / 1120 versus production: max pointwise relative={:.6e}, max |delta g|={:.6e}",
+            tail.0, tail.1
+        );
+
+        let mut coarse_quadrature = production.clone();
+        coarse_quadrature.radius_intervals = 640;
+        let quadrature = compare(&coarse_quadrature);
+        eprintln!(
+            "8 sigma / 640 versus production: max pointwise relative={:.6e}, max |delta g|={:.6e}",
+            quadrature.0, quadrature.1
         );
     }
 }

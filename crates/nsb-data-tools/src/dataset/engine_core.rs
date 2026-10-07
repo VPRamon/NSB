@@ -518,6 +518,14 @@ fn publish(config: &RunConfig) -> Result<Vec<Artifact>> {
             &artifact.name,
             &artifact.sha256,
         )?;
+        if config.dataset == DatasetName::MoonlightScattering
+            && artifact.name == crate::dataset::moonlight_mie::OUTPUT
+        {
+            crate::dataset::moonlight_mie::update_manifest_header(
+                &mut document,
+                &artifact.path,
+            )?;
+        }
     }
     atomic_write(&manifest_path, document.to_string().as_bytes())?;
     Ok(report.artifacts)
