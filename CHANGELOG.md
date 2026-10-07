@@ -3,7 +3,7 @@
 All notable changes are recorded here. Published versions follow semantic
 versioning; the `0.x` series remains pre-1.0.
 
-## 0.1.0 - Unreleased
+## 0.1.0 - 2026-10-07
 
 First public NSB release.
 
