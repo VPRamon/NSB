@@ -1,0 +1,356 @@
+schema_version = 2
+calibration_status = "production"
+dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
+version = "uv-v2-packed-from-7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+generation_date = "2026-10-06T07:02:23Z"
+source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
+source_catalogue_release = "Gaia DR3"
+source_catalogue_license = "CC BY-NC 3.0 IGO"
+source_catalogue_checksum = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+source_selection = "Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights"
+magnitude_limit = "Gaia DR3 catalogue as admitted by the frozen merge report"
+map_resolution = "HEALPix nside=128 ordering=ring"
+photometry_model = "gaia_dr3_xp_photon_radiance_300_650nm_packed_v1"
+band_definition = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
+smoothing = "none"
+generated_by = "nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-packed-v1)"
+generation_command = "nsb-data dataset starlight promote --apply"
+map_sha256 = "sha256:70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
+validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae vs nsb2@bc9320db03fbff69997ce366c6e76a37339c5d00; cross-implementation evidence, not astrophysical ground truth"
+flux_conservation_validated = true
+input_integrated_flux_sum = 9.5959642298058445e-1
+integrated_flux_conservation_tolerance = 1e-12
+
+[source_candidate]
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+
+[[upstream_inputs]]
+id = "gaia-source"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+
+[[upstream_inputs]]
+id = "xp-continuous"
+release = "Gaia DR3"
+checksum_manifest_sha256 = "f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+
+[header]
+map_type = "healpix"
+coordinate_frame = "galactic"
+nside = "128"
+ordering = "ring"
+s10_diagnostics = "not_provided"
+dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
+version = "uv-v2-packed-from-7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+generation_date_utc = "2026-10-06T07:02:23Z"
+source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
+source_catalogue_release = "Gaia DR3"
+source_catalogue_license = "CC BY-NC 3.0 IGO"
+source_catalogue_checksum = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+source_candidate_sha256 = "sha256:7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+gaia_source_checksum_manifest_sha256 = "sha256:9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369"
+xp_continuous_checksum_manifest_sha256 = "sha256:f23df1ffb45b19fc3f34d6f37791179cef1ebec6c5b9fd613a488b3be580fccd"
+source_selection = "Gaia DR3 full-population admission with photometric-inference fallback and selection-function weights"
+magnitude_limit = "Gaia DR3 catalogue as admitted by the frozen merge report"
+map_resolution = "HEALPix nside=128 ordering=ring"
+calibration_status = "production"
+photometry_model = "gaia_dr3_xp_photon_radiance_300_650nm_packed_v1"
+band_definition = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
+smoothing = "none"
+generated_by = "nsb-data dataset starlight promote (candidate-v5-to-healpix-v2-packed-v1)"
+generation_command = "nsb-data dataset starlight promote --apply"
+validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800ae vs nsb2@bc9320db03fbff69997ce366c6e76a37339c5d00; cross-implementation evidence, not astrophysical ground truth"
+bright_star_artifact_sha256 = "dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017"
+bright_star_model_id = "starlight-bright-stars-combined-v1"
+bright_star_product_band = "combined-300-650"
+bright_star_population_policy_id = "bright-stars-population-v1"
+bright_star_precedence_policy_id = "bright-stars-gaia-precedence-v1"
+bright_star_build_commit = "184b4cd29ce991c25635b911b373518463026a74"
+bright_star_spectral_route = "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion"
+bright_star_redistribution_scope = "derived map only; source catalogue bytes are not embedded"
+bright_star_uv_completion_model_id = "ck04-hp-scaled-uv-300-336-v1"
+
+[bright_star_supplement]
+artifact_sha256 = "dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017"
+model_id = "starlight-bright-stars-combined-v1"
+product_band = "combined-300-650"
+uv_completion_model_id = "ck04-hp-scaled-uv-300-336-v1"
+population_policy_id = "bright-stars-population-v1"
+precedence_policy_id = "bright-stars-gaia-precedence-v1"
+build_commit = "184b4cd29ce991c25635b911b373518463026a74"
+spectral_route = "Hipparcos/XHIP-selected CK04; Hp-scaled CK04 336-650 nm plus Hp-scaled CK04 300-336 nm completion"
+redistribution_scope = "derived map only; source catalogue bytes are not embedded"
+
+[[bright_star_supplement.inputs]]
+role = "hipparcos2"
+source_id = "CDS-I-311-hip2.dat.gz"
+release = "corrected-2008-09-16"
+sha256 = "8e624f843d4254a9b7c2e8dda8e3158dbe825bf98f6bf3dbbae7f0d0b73d6858"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/311/hip2.dat.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.00.gz"
+release = "Tycho-2-main"
+sha256 = "1b224570fc6eb151984ce106fdf797728649d1ea77aaf3effd2d3444cfac6df6"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.00.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.01.gz"
+release = "Tycho-2-main"
+sha256 = "36221f4a5cdd9c5009d64299d2e6409f8d4cdf924321768780165bd3e2a2a99a"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.01.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.02.gz"
+release = "Tycho-2-main"
+sha256 = "e2ea4eeb7d204dde70ac54d172b1c429540c0d23d62ec0d7500561adc44cc57b"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.02.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.03.gz"
+release = "Tycho-2-main"
+sha256 = "29e0cb57cba7e1651455efcb528276b0c28e1fe83f47f8ebe963e48d8b180afb"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.03.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.04.gz"
+release = "Tycho-2-main"
+sha256 = "d04868329b470aa320f0fe5e9c525be619a7a228b364433e5f114f2178946d9b"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.04.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.05.gz"
+release = "Tycho-2-main"
+sha256 = "51f08772197dcf0cd26ff098c866036340b797f71ee04be22712517c10c73c4e"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.05.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.06.gz"
+release = "Tycho-2-main"
+sha256 = "f55503a66abce0e11d1a4ccbcde1f4c97a6e3e769de85e005f57ba963086ab03"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.06.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.07.gz"
+release = "Tycho-2-main"
+sha256 = "bc15b5b1f6308477360fbb93f6a98d9029601cab68973202be0f8764c127f524"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.07.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.08.gz"
+release = "Tycho-2-main"
+sha256 = "315ac34c678bc2e0f568b43b6b2d7c3d7c9cf9c089b51115d18b872864e50426"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.08.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.09.gz"
+release = "Tycho-2-main"
+sha256 = "d66c671fa29aad10bc5fd697f68c918bb774c1ffc3c7db9c20234895268390d5"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.09.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.10.gz"
+release = "Tycho-2-main"
+sha256 = "d86529df819ebdf3f4b8892510973ee10e1db06930814e014dd467193e740d52"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.10.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.11.gz"
+release = "Tycho-2-main"
+sha256 = "fc0c3203b3d2787da54c43d9963e363c8a3926576c383b101a15350a7ca23e9c"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.11.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.12.gz"
+release = "Tycho-2-main"
+sha256 = "68fd9d7e7353d52dea0de043cc62b45c04d234104eb05c063dc23ea7b6759576"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.12.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.13.gz"
+release = "Tycho-2-main"
+sha256 = "a08ecc092e6d134742c0f594c56c5c2e02b8fd5e76cffb1779877f2fcefac3fc"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.13.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.14.gz"
+release = "Tycho-2-main"
+sha256 = "2846e8cc489795a4d8160d2d5b64ff0e9a00598adba35a52a4f8ccf4c5e38b3e"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.14.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.15.gz"
+release = "Tycho-2-main"
+sha256 = "74784a3656382090a70d778820335f4a781509dbe3fcb9e92d18cf96b2c46c72"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.15.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.16.gz"
+release = "Tycho-2-main"
+sha256 = "320560e3d551cc40fa1f54ef7133709bf4bd45efa6688f808be7c09be5544a4d"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.16.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.17.gz"
+release = "Tycho-2-main"
+sha256 = "a8154e940aa0a0e8f31d91b4bd9fd56e6849da42cddb13c7dda772439b06991a"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.17.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.18.gz"
+release = "Tycho-2-main"
+sha256 = "5e951a1a51df7956f205b83cbfa5501d357c843640a253c1e6d3917bebe7d928"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.18.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "tycho2"
+source_id = "CDS-I-259-tyc2.dat.19.gz"
+release = "Tycho-2-main"
+sha256 = "f59605a38116f517a31a7dbdee3469c077658f2f40b8afe5da2aeb832eaee3dd"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/I/259/tyc2.dat.19.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+
+[[bright_star_supplement.inputs]]
+role = "hip_gaia_crossmatch"
+source_id = "Gaia-EDR3-Hipparcos2BestNeighbour.csv.gz"
+release = "bulk-file-2024-11-13"
+sha256 = "23a74b073ad78c6294d8248fc04be95be2cf7ac646162493eb7322c698eb3a9c"
+retrieval_url = "https://cdn.gea.esac.esa.int/Gaia/gedr3/cross_match/hipparcos2_best_neighbour/Hipparcos2BestNeighbour.csv.gz"
+license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+
+[[bright_star_supplement.inputs]]
+role = "gaia_dr3_quality_extract"
+source_id = "gaia-dr3-hip-le-4-positional-fallback.csv"
+release = "Gaia-DR3-TAP-2026-10-02"
+sha256 = "72c625c953f00300570778a0e756e9b2a865e10babe98d8c886c7f7e6dd4daf9"
+retrieval_url = "https://gea.esac.esa.int/tap-server/tap"
+license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+
+[[bright_star_supplement.inputs]]
+role = "gaia_dr3_quality_extract"
+source_id = "gaia-dr3-hip-le-4-quality.csv"
+release = "Gaia-DR3-TAP-2026-10-02"
+sha256 = "b109c8b72e65906875b1f657fa0cbaefd4fd243798f21f4e5a46c8d497c46df0"
+retrieval_url = "https://gea.esac.esa.int/tap-server/tap"
+license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+
+[[bright_star_supplement.inputs]]
+role = "spectral_type_catalogue"
+source_id = "CDS-V-137D-main.dat.gz"
+release = "XHIP-main"
+sha256 = "8b6a7efb5b3ebf985de2072ace9f2d47849f369c345e2de9a1e3fe822594771b"
+retrieval_url = "https://cdsarc.cds.unistra.fr/ftp/V/137D/main.dat.gz"
+license_or_terms_url = "https://cds.unistra.fr/vizier-org/licences_vizier.html"
+
+[[bright_star_supplement.inputs]]
+role = "spectral_template_library"
+source_id = "MAST-REFERENCE-ATLASES-CK04-v2"
+release = "HLSP-v2"
+sha256 = "8f7a220bc9480900c372015847057b06a2c218ae8b2dbf8020e6a1dd2990b42c"
+retrieval_url = "https://archive.stsci.edu/hlsps/reference-atlases/hlsp_reference-atlases_hst_multi_castelli-kurucz-2004-atlas_multi_v2_synphot3.tar"
+license_or_terms_url = "https://creativecommons.org/licenses/by/4.0/"
+
+[[bright_star_supplement.inputs]]
+role = "photometric_response_curve"
+source_id = "SVO-Hipparcos-Hp-Bessell2000"
+release = "retrieved-2026-10-02"
+sha256 = "b0c26cd58a6cd55e282f9933a466d865b010b18f0a688353e0d691f6f8f0382c"
+retrieval_url = "https://svo2.cab.inta-csic.es/theory/fps/fps.php?ID=Hipparcos/Hipparcos.Hp_bes"
+license_or_terms_url = "https://svo2.cab.inta-csic.es/theory/fps/index.php?mode=voservice"
+
+[[bright_star_supplement.inputs]]
+role = "photometric_zero_point"
+source_id = "CALSPEC-alpha_lyr_stis_012"
+release = "2026-03-24"
+sha256 = "7201cd8566d53d384430c3d5fd2ae8d8122e9a7f765711748b49336f63237672"
+retrieval_url = "https://ssb.stsci.edu/cdbs/current_calspec/alpha_lyr_stis_012.fits"
+license_or_terms_url = "https://archive.stsci.edu/hlsp/reference-atlases"
+
+[[bright_star_supplement.inputs]]
+role = "build_config"
+source_id = "bright-star-spectral-calibration-v1.json"
+release = "provisional-uncalibrated-v1"
+sha256 = "cdcb2cbb1a77ae30c7ba2f267ea77be9155f181b3837679d5ccb701ddeb9936f"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/models/bright-star-spectral-calibration-v1.json"
+license_or_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
+
+[[bright_star_supplement.inputs]]
+role = "build_config"
+source_id = "gaia-dr3-hip-le-4-positional-fallback.adql"
+release = "query-2026-10-02"
+sha256 = "6a51b122fd0a6ff9ccb075aa22a5c01d4fe059b81b44dda67aa314b3ba5cad87"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/queries/gaia-dr3-hip-le-4-positional-fallback.adql"
+license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+
+[[bright_star_supplement.inputs]]
+role = "build_config"
+source_id = "gaia-dr3-hip-le-4-quality.adql"
+release = "query-2026-10-02"
+sha256 = "4827e98199b56fe46d02f1eb452e94bed4e3209ca15fd09806688ac3350e51d4"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/queries/gaia-dr3-hip-le-4-quality.adql"
+license_or_terms_url = "https://www.cosmos.esa.int/web/gaia-users/license"
+
+[[bright_star_supplement.inputs]]
+role = "build_config"
+source_id = "mk-sptype-to-ck04-v1.json"
+release = "experimental-provisional-v1"
+sha256 = "c56d9543a99cb4feca3c8d64a4568a5b65bc7f216056850ddc8d2a6c57de8173"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/agent/fix-starlight-bright-star-review/docs/nsb_components/starlight/bright-stars/models/mk-sptype-to-ck04-v1.json"
+license_or_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
+
+[[bright_star_supplement.inputs]]
+role = "build_config"
+source_id = "starlight-bright-stars-combined-v1.ladon.toml"
+release = "experimental-combined-v1"
+sha256 = "2c915620edf171d9562fa24dba5d3b50a1c4abaf3d862166ba62975166f165e2"
+retrieval_url = "https://github.com/VPRamon/NSB/blob/feat/starlight-207-production-bright-stars/crates/nsb-data-tools/config/starlight-bright-stars-combined-v1.ladon.toml"
+license_or_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
+
+[[bright_star_supplement.inputs]]
+role = "build_config"
+source_id = "starlight-bright-stars-spectral-model-v1.json"
+release = "experimental-v1"
+sha256 = "9567e50aa8728738999782846ce67c9882464c712503dceb5ea270dfab966b60"
+retrieval_url = "https://github.com/VPRamon/NSB/issues/205"
+license_or_terms_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"

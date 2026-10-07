@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "reference_id": "toller-1981-pioneer-background-starlight",
+  "spec_id": "none",
+  "admissibility": "not-admissible",
+  "detail": "Pioneer 10 Galactic-pole photometry measures ISL+DGL+EBL; diffuse galactic light is inseparable from discrete starlight in the 2.3 deg FOV. Acquired for provenance only."
+}

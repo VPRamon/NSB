@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "reference_id": "leinert-1998-diffuse-night-sky-brightness",
+  "source": "docs/nsb_components/starlight/validation/acquired/leinert1998-diffuse-night-sky-brightness.csv",
+  "acquired_at_unix_seconds": 1787571297,
+  "sha256": "3296cb20ff7398045afc5e691b45e72590165b88c859d5782bc7908952ba5dc6",
+  "bytes": 918,
+  "object_path": "objects/sha256/3296cb20ff7398045afc5e691b45e72590165b88c859d5782bc7908952ba5dc6"
+}

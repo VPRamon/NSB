@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "decision": "pending",
+  "reviewer_name": null,
+  "reviewer_role": null,
+  "reviewed_at_utc": null,
+  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+  "inventory_sha256": "73bbcacbf6ad2b4efe149c097524de1ab970af048759f3f16caf70e8a6d23fa6",
+  "review_bundle_sha256": "26e55da492e578372aa800159accf83468b10c6238195ee9a9736278acbd5e85",
+  "pinned_artifacts": [],
+  "conditions": [
+    {
+      "id": "review-bundle-v1",
+      "description": "Pin the immutable Starlight #103 human-review evidence bundle.",
+      "verifier": {
+        "type": "repository_file_sha256",
+        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
+        "sha256": "26e55da492e578372aa800159accf83468b10c6238195ee9a9736278acbd5e85"
+      }
+    }
+  ],
+  "restrictions": [],
+  "notes": "Template only, owned by issue #103. This is the single authoritative redistribution decision record consumed by both promotion and licensing checks. Keep candidate_sha256, inventory_sha256, review_bundle_sha256, and the review-bundle-v1 condition pinned to the same frozen evidence unless a new review bundle is deliberately published. Additional approved_with_conditions entries must be structured machine-verifiable conditions; free-text conditions block automatic promotion. Do not fill reviewer_name/reviewer_role/reviewed_at_utc or change decision away from pending outside the #103 human process."
+}

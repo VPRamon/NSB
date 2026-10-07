@@ -1,38 +1,98 @@
-# Starlight source attribution
+# Starlight attribution
 
-NSB's Starlight tooling can derive maps from several external catalogues and
-reference datasets. The exact sources used by a promoted product must be pinned
-in that product's provenance and redistribution review.
+Status: current attribution record for the Starlight component's inputs and
+generated artifacts.
+Audience: redistribution reviewers, maintainers, and downstream integrators.
+Scope: attribution wording only. Licence review, distribution classification,
+and checksums live in [`artifact-inventory-v1.toml`](artifact-inventory-v1.toml).
+The human redistribution decision is recorded only in issue #103 (see
+[`README.md`](README.md)).
 
-## Gaia
+This document does not itself authorize redistribution. It records the
+attribution text that must accompany any Starlight artifact, on any channel,
+once a channel is authorized.
 
-GaiaSource and XP continuous products come from ESA's Gaia Archive. Their
-release, licence, source URLs, checksum manifests, and applicable attribution
-must be recorded for every promoted derived product.
+## Gaia DR3
 
-## Hipparcos and Tycho
+> This work has made use of data from the European Space Agency (ESA)
+> mission Gaia (<https://www.cosmos.esa.int/gaia>), processed by the Gaia
+> Data Processing and Analysis Consortium (DPAC,
+> <https://www.cosmos.esa.int/web/gaia/dpac/consortium>). Funding for the
+> DPAC has been provided by national institutions, in particular the
+> institutions participating in the Gaia Multilateral Agreement.
 
-A bright-star supplement may use Hipparcos-2 and Tycho-2 source material.
-Those upstream catalogue bytes remain external to NSB. A promoted derived
-product must record the exact releases, source URLs, checksums, and applicable
-terms used by its build.
+Gaia DR3 GaiaSource and XP continuous mean spectrum bulk products are
+licensed under the Gaia data licence (CC BY-NC 3.0 IGO):
+<https://www.cosmos.esa.int/web/gaia-users/license>. This licence's
+non-commercial clause is the specific open question tracked by #103 for
+any output derived from Gaia bulk data, including
+`starlight_nside128.csv` and `merge_report.json`.
 
-## XHIP and CK04
+Primary references:
 
-Spectral typing may use XHIP and Castelli–Kurucz/CK04 reference spectra.
-A build must pin the exact source release and checksum. Version identifiers
-belonging to those external products are retained as upstream provenance and
-are independent of NSB's own schema numbering.
+- Gaia DR3 documentation, release 1.3:
+  <https://gea.esac.esa.int/archive/documentation/GDR3/>.
+- Gaia DR3 XP processing and validation, De Angeli et al. (2023),
+  DOI `10.1051/0004-6361/202243680`.
+- Gaia DR3 XP external calibration, Montegriffo et al. (2023),
+  DOI `10.1051/0004-6361/202243880`.
 
-## CALSPEC and photometric response data
+## Cantat-Gaudin Gaia DR3 selection function
 
-CALSPEC spectra and external photometric response curves may be used for
-calibration or validation. Their exact identities and terms must be retained in
-the candidate evidence; their raw bytes are not bundled by NSB 0.1.0.
+> Cantat-Gaudin, T., et al. 2023, "Considerations on the Gaia DR3
+> selection function of the astrophysical parameters catalogue",
+> Astronomy & Astrophysics, DOI `10.1051/0004-6361/202244784`.
 
-## Derived NSB products
+Licensed CC-BY-4.0. Attribution to the original authors and DOI above is
+required in any redistributed product derived from this selection function.
+The UV-v2 candidate pins a BeeGFS-only selection-function artifact (see
+`gaia-selection-function-cantat-gaudin` in the artifact inventory;
+`distributed = false`).
 
-NSB-generated candidate maps, merge reports, validation reports, runtime maps,
-and sidecars are not automatically redistributable merely because NSB authored
-the transformation code. Promotion must account for the licences and
-restrictions of every upstream source represented in the derived bytes.
+## STScI CALSPEC
+
+> This work uses spectrophotometric standard-star data from CALSPEC,
+> maintained by the Space Telescope Science Institute (STScI):
+> <https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec>.
+
+CALSPEC data are publicly available HST calibration products; STScI requests
+attribution. CALSPEC spectra are used only as an offline training reference
+for the 300-336 nm UV correction (#83) and are never hosted or redistributed
+by NSB directly. Any redistributed UV-correction artifact (`calspec-linear-log-ratio-v1`
+or `v2`) must carry this attribution because it is trained against CALSPEC
+data.
+
+## GaiaXPy (historical reference only)
+
+GaiaXPy is cited only as historical independent reference evidence for
+continuous-XP reconstruction accuracy. It is not an operational NSB
+dependency and no GaiaXPy code or data is redistributed:
+<https://gaia-dpci.github.io/GaiaXPy-website/>.
+
+## NSB-generated artifacts
+
+`starlight_nside128.csv`, `merge_report.json`,
+`crates/nsb/data/manifest.toml`, and the validation reports under
+`docs/nsb_components/starlight/production-runs/` are generated by NSB's own
+pipeline (`crates/nsb-data-tools`). NSB source itself is licensed under
+AGPL-3.0-only (see the repository [`LICENSE`](../../../../LICENSE) and
+[`README.md`](../../../../README.md#licensing)). Third-party dependencies retain
+their own licence obligations. The Gaia-derived candidate artifacts additionally
+retain the Gaia attribution and licence terms above because they are derived
+from Gaia bulk data; they are not independently re-licensed by virtue of being
+processed by NSB.
+
+## How to attribute a redistributed Starlight artifact
+
+Any release channel that ships a Starlight artifact must include, verbatim
+or by direct link:
+
+1. the Gaia DR3 acknowledgement above;
+2. the Cantat-Gaudin citation, if a selection-function artifact is included;
+3. the CALSPEC attribution, if a UV-correction artifact is included;
+4. a link to this file and to `artifact-inventory-v1.toml` for the exact
+   licence and checksum of the specific bytes being redistributed.
+
+See [`THIRD_PARTY_NOTICES.md`](../../../../THIRD_PARTY_NOTICES.md) at the
+repository root for the consolidated, project-wide third-party notice this
+wording feeds into.

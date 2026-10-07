@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "reference_id": "leinert-1998-diffuse-night-sky-brightness",
+  "spec_id": "none",
+  "admissibility": "not-admissible",
+  "detail": "Leinert et al. 1998 describe a two-dimensional Gaussian fitted to Elsässer & Haug (1960) isophotes and quote five S10 anchors. The published paper does not give the Gaussian amplitudes and widths needed to reconstruct that surface. Matching those anchors with an invented interpolation is not the registered model, so this reference is acquired for provenance only and is not an admissible comparison grid."
+}

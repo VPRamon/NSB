@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "reference_id": "toller-1981-pioneer-background-starlight",
+  "source": "docs/nsb_components/starlight/validation/acquired/toller1981-pioneer-background-starlight.csv",
+  "acquired_at_unix_seconds": 1787571297,
+  "sha256": "41871c3273f644aedd2b657b1fbd6f0cbe454e709c5ff08bf91a3902928d26ff",
+  "bytes": 741,
+  "object_path": "objects/sha256/41871c3273f644aedd2b657b1fbd6f0cbe454e709c5ff08bf91a3902928d26ff"
+}

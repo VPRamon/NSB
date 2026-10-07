@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "reference_id": "masana-2021-gambons-gaia-hipparcos-starlight",
+  "source": "https://arxiv.org/pdf/2101.01500.pdf",
+  "acquired_at_unix_seconds": 1787571298,
+  "sha256": "a45183a5f94aceebca989bf7b8e3f4556acb5769175453ca7a8514a9ec0e9bed",
+  "bytes": 6765040,
+  "object_path": "objects/sha256/a45183a5f94aceebca989bf7b8e3f4556acb5769175453ca7a8514a9ec0e9bed"
+}
