@@ -177,9 +177,11 @@ from the full Cerro Paranal ASM/SkyCalc pipeline is not reproduced.
 The bundled `crates/nsb/data/airglow_palace_v1.dat` is deterministically derived
 from PALACE v1.0 `palace_cont.fits` and `palace_var.fits`, released as model data
 under CC BY 4.0. It covers the full NSB 300–650 nm band and retains all 12 months,
-12 one-hour local-mean-solar-time bins, component-specific F10.7 slopes, residual
-variability, and source layer heights. The GPL PALACE program and PALACE line
-list are neither inputs to the derived bytes nor redistributed.
+12 one-hour Paranal-fitted local-mean-solar-time bins, component-specific F10.7
+slopes, residual variability, and source layer heights. Away from Paranal, NSB
+maps the observer's local mean solar month/hour onto the equivalent PALACE bin as
+an explicit planning-proxy spatial extrapolation. The GPL PALACE program and
+PALACE line list are neither inputs to the derived bytes nor redistributed.
 
 PALACE is based mainly on ten years of X-shooter observations at Cerro Paranal.
 Its provenance is resolved, but its geographic applicability remains Paranal;
