@@ -122,8 +122,7 @@ separately.
 
 Continuous-XP reconstruction uses the official coefficient representation,
 calibration bases, truncation information, standard deviations and
-correlations, all pinned by checksum. GaiaXPy may be cited only as historical
-independent reference evidence and is not an operational dependency. A deterministic,
+correlations, all pinned by checksum. GaiaXPy may be cited only as independent reference evidence and is not an operational dependency. A deterministic,
 stratified overlap sample containing both sampled and continuous products must
 demonstrate reconstruction accuracy before the continuous-only population is
 admitted.

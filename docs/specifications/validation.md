@@ -103,22 +103,13 @@ These checks establish a fail-closed evidence contract; they do not make an
 unreviewed caller claim true. Scientific users remain responsible for reviewing
 the referenced catalogue license, calibration, and comparison report.
 
-## Combined bundled Starlight candidate
+## Bundled Starlight in 0.1.0
 
-The exact nside128 combined 300–650 nm candidate finalized in #211 is frozen and
-checksum-pinned under `docs/nsb_components/starlight/release-candidate/`. Its
-bundle pins the candidate, provenance, technical validation, external
-cross-implementation validation, staged runtime identities, and green CI
-reference. Scientific readiness is therefore machine-verifiable from that
-evidence; there is no separate human scientific-signature gate.
-
-Production admission is still blocked on a different axis: issue #103 records
-the required authorized human redistribution/licensing decision. While that
-decision is pending, the candidate remains `calibration_status = "candidate"`
-and `runtime_embedded = false`, is excluded from publishable crates.io/PyPI
-artifacts, and must not be described as redistribution-approved or bundled
-production data. This pending decision explicitly does not block the `0.1.0`
-MVP release.
+NSB 0.1.0 does not register or ship a Gaia-derived production Starlight map.
+Candidate-specific generation and validation evidence stays outside the release
+tree until a candidate has passed scientific, provenance, and redistribution
+review. A future bundled product must enter through an explicit release change
+that registers the runtime map and sidecar together.
 
 ## Missing external campaigns
 
