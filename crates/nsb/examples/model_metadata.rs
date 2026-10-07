@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use nsb::{
-    AirglowModel, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery,
-    Target, ZodiacalModel, DEG,
+    AirglowModel, ComponentMask, MoonlightModel, NsbEvaluator, NsbModelConfig, PointQuery, Target,
+    ZodiacalModel, DEG,
 };
 use siderust::catalogs::observatories;
 use tempoch::{Time, UTC};
@@ -33,7 +33,10 @@ fn main() -> nsb::Result<()> {
             component.integrated.value()
         );
         println!("  provenance: {}", component.metadata.provenance);
-        println!("  validated domain: {}", component.metadata.validated_domain);
+        println!(
+            "  validated domain: {}",
+            component.metadata.validated_domain
+        );
     }
 
     Ok(())
