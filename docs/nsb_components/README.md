@@ -37,7 +37,7 @@ values are monochromatic diagnostics, not passband-integrated magnitudes.
 | [Scattered moonlight](moonlight/README.md) | Lunar light scattered in the atmosphere | Jones et al. (2013) spectral model or Krisciunas & Schaefer (1991) V-band reference |
 
 Zodiacal light and Jones spectral Moonlight share the reproducible
-[TSIS-1 HSRS v2 solar spectrum](solar-spectrum-validation.md).
+[NSB analytic solar reference](solar-spectrum-validation.md).
 
 ## Shared runtime behaviour
 
