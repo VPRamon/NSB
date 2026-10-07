@@ -160,16 +160,17 @@ table changes the three regression geometries by:
 
 | Separation | integrated 300--650 nm | B diagnostic | V diagnostic |
 |---:|---:|---:|---:|
-| 97.523 deg | +2.756% | +3.595% | +6.870% |
-| 4.000 deg | -23.662% | -23.595% | -19.119% |
-| 52.216 deg | +5.704% | +6.391% | +2.984% |
+| 97.523 deg | +2.466% | +3.595% | +6.870% |
+| 4.000 deg | -24.059% | -23.595% | -19.119% |
+| 52.216 deg | +5.790% | +6.391% | +2.984% |
 
-The final ±8-sigma/1280/non-uniform artifact changes the integrated results by
-`-0.0111%`, `-0.0686%`, and `-0.0356%`, respectively, relative to the preceding
-5-sigma/800/uniform generated artifact. Runtime regression tests pin integrated,
-B, and V outputs for all three geometries. The close-Moon change versus the
-historical runtime follows from the independently generated forward lobe and is
-not compensated by retuning `JONES_MIE_WEIGHT`.
+Runtime regression tests pin integrated, B, and V outputs for all three
+geometries using the current analytic solar reference. The pins changed because
+the final artifact adds the 5--8 sigma radius tail, doubles the Simpson sampling
+density, and resolves the forward/backward angular structure on the non-uniform
+grid. The close-Moon change versus the historical runtime follows from the
+independently generated forward lobe and is not compensated by retuning
+`JONES_MIE_WEIGHT`.
 
 ## Provenance, reproducibility, and limitations
 
