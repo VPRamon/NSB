@@ -1,0 +1,33 @@
+name: Bootstrap GUI lockfile
+
+on:
+  push:
+    branches:
+      - feat/issue-223-native-gui
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check GUI and resolve its new dependencies
+        run: cargo check -p nsb-gui
+      - name: Commit lockfile update
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Cargo.lock; then
+            echo "Cargo.lock already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.lock
+          git commit -m "chore(gui): update Cargo.lock"
+          git push
