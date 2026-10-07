@@ -162,14 +162,14 @@ impl NsbApp {
             let x = rect.left() + (lon + 180.0) / 360.0 * rect.width();
             painter.line_segment(
                 [Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
         }
         for lat in [-60.0_f32, -30.0, 0.0, 30.0, 60.0] {
             let y = rect.top() + (90.0 - lat) / 180.0 * rect.height();
             painter.line_segment(
                 [Pos2::new(rect.left(), y), Pos2::new(rect.right(), y)],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
         }
 
@@ -630,7 +630,7 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
             let y = egui::lerp(plot.bottom()..=plot.top(), fraction);
             painter.line_segment(
                 [Pos2::new(plot.left(), y), Pos2::new(plot.right(), y)],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
             let value = y_min + (y_max - y_min) * fraction as f64;
             painter.text(
@@ -646,7 +646,7 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
             let x = egui::lerp(plot.left()..=plot.right(), fraction);
             painter.line_segment(
                 [Pos2::new(x, plot.top()), Pos2::new(x, plot.bottom())],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
             let when = interpolate_time(output.start, output.end, fraction as f64);
             painter.text(
@@ -690,7 +690,7 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
                 )
             })
             .collect();
-        painter.line(points, Stroke::new(2.0, BLUE));
+        painter.line(points, Stroke::new(2.0_f32, BLUE));
 
         painter.text(
             Pos2::new(rect.left() + 12.0, rect.center().y),
@@ -804,7 +804,7 @@ fn dashed_horizontal(painter: &egui::Painter, rect: Rect, y: f32, color: Color32
                 Pos2::new(x, y),
                 Pos2::new((x + dash).min(rect.right()), y),
             ],
-            Stroke::new(1.5, color),
+            Stroke::new(1.5_f32, color),
         );
         x += dash + gap;
     }
