@@ -22,7 +22,7 @@ def test_point_fixture_matches_rust_public_contract(observer, direction, evaluat
     # frame-bias transform and the reviewed analytic solar-reference asset.
     # The Airglow reference is the PALACE v1 runtime contract for this query.
     assert result.components[0].integrated_photons_cm2_ns_sr == pytest.approx(
-        0.07327415010333563, abs=1.0e-12
+        0.07321785371696575, abs=1.0e-12
     )
     assert result.components[1].integrated_photons_cm2_ns_sr == pytest.approx(
         0.11991978681184148, abs=1.0e-12

@@ -185,8 +185,9 @@ fn authoritative_threshold_search_matches_scan_oracle_for_representative_window(
 #[test]
 fn authoritative_search_matches_exact_scan_across_components_and_year_boundary() {
     let evaluator = NsbEvaluator::new().unwrap();
-    for (start, hours, target, components, threshold) in [
+    for (fixture, start, hours, target, components, threshold) in [
         (
+            "all-sgr-a",
             "2026-12-30T00:00:00Z",
             72,
             target_sgr_a(),
@@ -194,6 +195,7 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
             0.25,
         ),
         (
+            "moon-only",
             "2026-01-14T00:00:00Z",
             72,
             Target::new(83.6331 * crate::DEG, 22.0145 * crate::DEG),
@@ -201,6 +203,7 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
             0.02,
         ),
         (
+            "airglow-zodiacal",
             "2026-06-01T00:00:00Z",
             48,
             Target::new(120.0 * crate::DEG, -10.0 * crate::DEG),
@@ -212,7 +215,19 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
         query.threshold = BandPhotonRadiance::new(threshold);
         query.sample_step = Second::new(600.0);
         let authoritative = evaluator.periods_below_threshold(&query).unwrap();
-        let scan = scan_threshold_periods(&evaluator, &query).unwrap();
+        // The corrected zodiacal model exposes a sub-second crossing at a
+        // PALACE boundary; keep the independent oracle finer than the
+        // caller-selected production sampling step so it cannot skip it.
+        let mut oracle_query = query.clone();
+        oracle_query.sample_step = Second::new(10.0);
+        let scan = scan_threshold_periods(&evaluator, &oracle_query).unwrap();
+        assert_eq!(
+            authoritative.periods.len(),
+            scan.periods.len(),
+            "{fixture}: authoritative={:?}, scan={:?}",
+            authoritative.periods,
+            scan.periods
+        );
         assert_periods_match_within_seconds(&authoritative, &scan, 2);
     }
 }
