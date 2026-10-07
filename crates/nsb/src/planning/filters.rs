@@ -24,6 +24,12 @@ pub(crate) fn smooth_threshold_windows(
             for phase in prepared.airglow_phase_periods.iter() {
                 collect_internal_boundaries(&mut boundaries, phase.period, *candidate);
             }
+            boundaries.extend(
+                airglow::temporal::palace_climatology_boundaries_for_window(
+                    *candidate,
+                    prepared.observer,
+                ),
+            );
         }
         if let Some(moon_visible_periods) = &prepared.moon_visible_periods {
             for moon_period in moon_visible_periods.iter() {
