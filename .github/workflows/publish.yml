@@ -22,6 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           lfs: false
 
       - uses: actions/setup-python@v7
@@ -29,6 +30,22 @@ jobs:
           python-version: "3.14"
 
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install nightly rustdoc toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2026-09-02
+
+      - name: Install cargo-public-api
+        run: cargo install cargo-public-api --locked --version 0.50.1 --force
+
+      - name: Verify frozen public API
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f crates/nsb/api/API_FROZEN
+          base="$(git rev-parse "${GITHUB_SHA}^")"
+          scripts/check-public-api.sh --base "$base"
 
       - name: Verify tag, package metadata, and redistribution gates
         shell: python
@@ -99,6 +116,9 @@ jobs:
             echo "package exceeds the crates.io 10 MiB upload limit" >&2
             exit 1
           fi
+
+      - name: Verify crates.io publish dry-run
+        run: cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked
 
   linux-wheels:
     name: Linux wheel (${{ matrix.arch }})
