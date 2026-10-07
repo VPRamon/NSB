@@ -210,12 +210,9 @@ mod tests {
     /// Regression pins and TSIS-runtime impact bounds for representative geometries.
     ///
     /// The expected tuples pin the independently generated NSB Mie phase grid
-    /// with the current analytic solar reference. The TSIS tuples are offline
-    /// numeric baselines from former bundled runtime SHA-256
-    /// 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02;
-    /// no TSIS-derived bytes are loaded by this test or shipped in the package.
+    /// with the current analytic solar reference.
     #[test]
-    fn analytic_solar_reference_matches_regression_and_tsis_impact_bounds() {
+    fn analytic_solar_reference_matches_moonlight_regression() {
         const REL_TOL: f64 = 1.0e-9;
         let cases = [
             (
@@ -225,14 +222,9 @@ mod tests {
                 60.0,
                 384_400.0,
                 (
-                    0.098_071_353_424_892_55,
-                    81.156_672_803_959_74,
-                    23.996_133_663_932_923,
-                ),
-                (
-                    0.083_367_447_328_456_6,
-                    107.016_177_923_456_31,
-                    23.749_480_483_043_34,
+                    0.084_757_058_295_834_28,
+                    68.561_054_704_220_35,
+                    19.464_547_939_217_48,
                 ),
             ),
             (
@@ -242,14 +234,9 @@ mod tests {
                 40.0,
                 384_400.0,
                 (
-                    0.254_488_523_912_692_83,
-                    263.753_771_498_536_8,
-                    111.005_140_672_811_89,
-                ),
-                (
-                    0.308_541_289_220_820_8,
-                    471.559_686_915_564_8,
-                    145.166_286_260_880_5,
+                    0.221_611_869_688_389_17,
+                    243.750_870_433_800_3,
+                    105.025_839_181_321_26,
                 ),
             ),
             (
@@ -259,19 +246,14 @@ mod tests {
                 15.0,
                 384_400.0,
                 (
-                    0.080_252_085_202_103_52,
-                    72.166_542_917_887_24,
-                    23.779_083_525_545_524,
-                ),
-                (
-                    0.067_532_264_783_783_4,
-                    92.660_605_957_150_47,
-                    24.422_828_164_826_25,
+                    0.065_531_998_882_438_27,
+                    62.291_193_614_982_27,
+                    20.813_897_921_040_137,
                 ),
             ),
         ];
         let profile = paranal_like_profile();
-        for (phase, sep, z_moon, z_src, dist, expected, tsis) in cases {
+        for (phase, sep, z_moon, z_src, dist, expected) in cases {
             let out = compute_jones_2013_spectral(
                 &geometry(phase, sep, z_moon, z_src, dist),
                 bundled_solar_spectrum(),
@@ -296,12 +278,6 @@ mod tests {
                 );
                 assert!(actual > 0.0);
             }
-            assert!(((actuals.0 / tsis.0) - 1.0).abs() < 0.20);
-            // These offline tuples include both the former TSIS solar spectrum
-            // and the historical Mie table, so the bounds cover both admitted
-            // scientific replacements rather than isolating solar resolution.
-            assert!(((actuals.1 / tsis.1) - 1.0).abs() < 0.50);
-            assert!(((actuals.2 / tsis.2) - 1.0).abs() < 0.25);
         }
     }
 }

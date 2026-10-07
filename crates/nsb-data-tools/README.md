@@ -28,6 +28,11 @@ The public contract, configuration reference, local/Slurm execution model and
 publication workflow are documented in
 [`docs/maintainer-guide/datasets.md`](../../docs/maintainer-guide/datasets.md).
 
+Moonlight scattering is split into deterministic wavelength partitions for
+local reproducibility and resumability. The complete production run is
+lightweight enough not to require a cluster; see the
+[multiple-scattering validation report](../../docs/nsb_components/moonlight/multiple-scattering-validation.md).
+
 The Starlight lifecycle builds receipt-backed partition shards directly at the
 configured `canonical_nside`, then emits exactly one canonical map plus
 `merge_report.json`. The generic checked-in `starlight-production.toml` remains

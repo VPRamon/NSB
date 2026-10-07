@@ -15,7 +15,7 @@ fn versioned_source_configs_are_portable_and_complete() {
         (
             "moonlight-scattering.toml",
             DatasetName::MoonlightScattering,
-            2,
+            3,
         ),
     ];
     for (name, dataset, sources) in cases {

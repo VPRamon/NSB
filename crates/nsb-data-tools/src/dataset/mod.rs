@@ -6,6 +6,7 @@ mod engine;
 mod execution;
 mod model;
 mod moonlight_mie;
+mod moonlight_multiscatter;
 mod pipeline;
 mod slurm;
 mod solar_spectrum;

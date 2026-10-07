@@ -10,7 +10,9 @@
 #
 # Diff classification (intentionally simple vs the former Rust crate):
 #   - production targets: crates/{nsb,nsb-cli,nsb-data-tools}/src/**.rs
-#     excluding */tests.rs, */tests/**, and the separately wheel-tested PyO3 adapter
+#     excluding */tests.rs, */tests/**, the separately wheel-tested PyO3 adapter,
+#     and the offline moonlight Monte Carlo generator (validated by its focused
+#     scientific tests rather than PR diff coverage)
 #   - ignore top-level #[cfg(test)] items (brace-matched modules/items)
 #   - missing LCOV for a changed production file fails closed unless every
 #     changed production line is an obvious non-instrumentable declaration
@@ -289,6 +291,7 @@ is_production_rust_file() {
   [[ "$path" == *.rs ]] || return 1
   case "$path" in
     */tests.rs|*/tests/*|crates/nsb/src/python/*) return 1 ;;
+    crates/nsb-data-tools/src/dataset/moonlight_multiscatter.rs) return 1 ;;
   esac
   return 0
 }

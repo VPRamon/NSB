@@ -1,0 +1,25 @@
+schema = "nsb-moonlight-multiscatter-model-v1"
+solver = "nsb-forced-collision-plane-parallel-mc-v1"
+reference = "Jones et al. (2013), A&A 560 A91, Sects. 2.4.1--2.4.3"
+mie_schema = "nsb-moonlight-mie-phase-v1"
+mie_artifact_sha256 = "8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc"
+aerosol_model_sha256 = "d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82"
+wavelength_start_nm = 300
+wavelength_end_nm = 650
+wavelength_step_nm = 10
+separation_deg = [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 180]
+photons_per_replicate = 32768
+replicates = 4
+seed_namespace = "nsb-moonlight-multiscatter-v1"
+ratio_cap = 0.9
+rayleigh_pressure_hpa = 744.0
+observer_altitude_km = 2.64
+rayleigh_scale_height_km = 7.99
+aerosol_scale_height_km = 1.2
+aerosol_single_scattering_albedo = 0.97
+aerosol_extinction_mag_per_airmass_500nm = 0.014
+aerosol_angstrom_exponent = -1.38
+geometry_zenith_floor_deg = [30.0, 45.0]
+geometry_zenith_cap_deg = 80.0
+serialization_digits = 8
+
