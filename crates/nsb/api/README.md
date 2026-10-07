@@ -3,15 +3,11 @@
 The first-release public API lifecycle is protected by [`scripts/check-public-api.sh`](../../../scripts/check-public-api.sh)
 using pinned `cargo-public-api` directly (#176).
 
-Issue #185 previously used the documented pre-freeze mode for the typed
-site-profile redesign. Issue #214 now temporarily returns the unreleased
-`0.1.0` tree to that same pre-freeze mode because the truthful Airglow model
-identity changes from the historical Noll/SkyCalc/FORS1 label to PALACE v1.0.
-No public NSB release exists yet, so preserving the obsolete model name as a
-compatibility alias would be scientifically misleading. `public-api.txt`
-records the current candidate surface, but snapshot equality and historical
-SemVer rejection remain disabled until maintainers re-add `API_FROZEN` and
-bootstrap the final reviewed `0.1.0` baseline.
+Issue #185 and issue #214 temporarily used the documented pre-freeze mode while
+the typed site-profile API and truthful PALACE v1.0 Airglow model identity were
+finalized before the first public release. That work is complete. The reviewed
+`0.1.0` surface is recorded in `public-api.txt`, and `API_FROZEN` activates
+snapshot equality plus the historical SemVer gate for subsequent changes.
 
 The redesigned site-profile surface is typed: `SiteProfileTag` markers supply
 compile-time identity; `SiteProfile<P>` is opaque and erases into
