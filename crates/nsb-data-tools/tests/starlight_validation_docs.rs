@@ -13,7 +13,6 @@ fn docs_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/nsb_components/starlight/validation")
 }
 
-
 #[test]
 fn preregistration_document_parses_and_validates() -> Result<()> {
     let path = docs_dir().join("preregistration-v1.toml");
