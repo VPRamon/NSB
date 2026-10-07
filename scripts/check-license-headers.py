@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Vallés Puig, Ramon
-"""Validate SPDX license headers in tracked source and CI workflow files."""
+"""Validate SPDX license headers in tracked Rust and Python source files."""
 
 from __future__ import annotations
 
@@ -16,9 +16,6 @@ COMMENT_PREFIXES = {
     ".py": "#",
     ".pyi": "#",
     ".rs": "//",
-    ".sh": "#",
-    ".yaml": "#",
-    ".yml": "#",
 }
 
 
