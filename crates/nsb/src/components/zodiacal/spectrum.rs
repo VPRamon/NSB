@@ -4,7 +4,7 @@
 //!
 //! 1. An S10 brightness at 500 nm (from the Leinert grid or a custom source).
 //! 2. A solar spectrum (scaled to match the 500 nm S10 value).
-//! 3. A wavelength-dependent reddening factor (Leinert 1997).
+//! 3. A wavelength-dependent reddening factor (Leinert et al. 1998, Eq. 22).
 //! 4. An optional atmospheric extinction strategy.
 //!
 //! The integration covers the 300–650 nm band. B/V surface brightnesses are
@@ -222,6 +222,36 @@ mod tests {
         let midpoint = spectrum.interp_at(Nanometers::new(475.0));
         let _: crate::units::Quantity<PhotonPerSquareCentimeterNanosecondSteradianNanometer> =
             midpoint;
+    }
+
+    #[test]
+    fn reconstruction_agrees_with_leinert_table19_at_400_nm() {
+        // Independent published-reference check for the reconstructed in-band
+        // spectral shape. Leinert et al. (1998), Table 19, gives the zodiacal
+        // radiance at epsilon=90 deg in the ecliptic as 2.2e-6 at 400 nm and
+        // 2.6e-6 W m^-2 sr^-1 um^-1 at 500 nm.
+        //
+        // NSB uses a modern TSIS-1 HSRS v2 solar spectrum rather than the solar
+        // reference underlying the 1998 compilation, so this is intentionally
+        // a tolerance check rather than an exact-value regression.
+        let solar = crate::spectra::solar::load().expect("load solar reference spectrum");
+        let solar_400 = solar.interp_at(Nanometers::new(400.0)).value();
+        let solar_500 = solar.interp_at(S10_SCALE_WAVELENGTH).value();
+
+        let beta = crate::units::angular::Radians::new(0.0);
+        let elong_90 = crate::units::angular::Radians::new(90.0_f64.to_radians());
+        let reconstructed_ratio = (solar_400 / solar_500) * reddening_factor(beta, elong_90, 400.0);
+        let published_ratio = 2.2e-6 / 2.6e-6;
+        let relative_error = (reconstructed_ratio - published_ratio).abs() / published_ratio;
+
+        // The corrected log10 reconstruction differs by 16.57%; the former
+        // natural-log implementation differs by 26.95% and fails this bound.
+        assert!(
+            relative_error <= 0.20,
+            "400/500 nm reconstructed ratio {reconstructed_ratio:.6} differs from \
+             Leinert Table 19 ratio {published_ratio:.6} by {:.2}%",
+            100.0 * relative_error
+        );
     }
 
     #[test]

@@ -397,16 +397,16 @@ fn regression_known_case_sgr_a_star_paranal() {
 
     let integrated = out.integrated.value();
     assert!(
-        (integrated - 0.073_305_486_560_447_7).abs() <= 1.0e-12,
+        (integrated - 0.073_249_824_745_366_44).abs() <= 1.0e-12,
         "integrated={integrated:.17}"
     );
     assert!(
-        (out.b_flux_s10.value() - 57.882_004_168_079_67).abs() <= 1.0e-10,
+        (out.b_flux_s10.value() - 61.915_204_290_146_7).abs() <= 1.0e-10,
         "b={:.17}",
         out.b_flux_s10.value()
     );
     assert!(
-        (out.v_flux_s10.value() - 87.653_810_483_250_65).abs() <= 1.0e-10,
+        (out.v_flux_s10.value() - 84.824_136_370_918).abs() <= 1.0e-10,
         "v={:.17}",
         out.v_flux_s10.value()
     );
