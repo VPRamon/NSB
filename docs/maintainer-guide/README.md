@@ -5,7 +5,7 @@ entry point for scientific asset update, build, validation, local/Slurm
 execution, recovery and publication.
 
 Maintainers must keep software correctness separate from scientific maturity.
-Reproducing a historical snapshot does not resolve missing provenance,
+Reproducing an existing snapshot does not resolve missing provenance,
 licensing, calibration or independent validation.
 
 Before a release run:

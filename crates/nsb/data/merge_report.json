@@ -3742,7 +3742,7 @@
         650
       ],
       "ultraviolet_correction_applied": true,
-      "correction_model_id": "calspec-linear-log-ratio-v2",
+      "correction_model_id": "calspec-linear-log-ratio-v1",
       "correction_artifact_sha256": "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367",
       "calibration_status": "validated",
       "model_response": {

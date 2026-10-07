@@ -21,8 +21,8 @@ Every command requires a versioned TOML file. Relative paths are resolved
 against that file, never the current directory. The repository configurations
 under `crates/nsb-data-tools/config/` define the supported regeneration
 workflows. They do not, by themselves, prove byte-for-byte reproducibility of
-historical artifacts whose original run evidence was not retained; the
-starlight exceptions are recorded in
+artifacts without complete regeneration evidence; current Starlight provenance
+limitations are recorded in
 [Provenance of existing starlight datasets](../nsb_components/starlight/existing-datasets.md).
 Each source defines exactly one local `path` or HTTPS `url` plus its mandatory
 SHA-256; downloaded bytes are never admitted before verification.
@@ -78,8 +78,7 @@ nsb-data run resume --run /shared/nsb/runs/solar-spectrum/runs/solar-spectrum/bu
 ```
 
 Moonlight scattering uses the same lifecycle and publishes both the generated
-NSB-owned Mie phase grid and the transitional historical multiple-scattering
-correction:
+NSB-owned Mie phase grid and the multiple-scattering correction:
 
 ```bash
 nsb-data dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
@@ -237,8 +236,8 @@ nsb-data dataset starlight build \
 
 Workers already completed under the lifecycle return from their checksum-valid
 manifests and CAS receipts. Resume unfinished partitions with
-`nsb-data run resume` or by re-submitting the same build; do not import legacy
-checkpoint ledgers. Dense legacy accumulator bytes are never accepted as a
+`nsb-data run resume` or by re-submitting the same build; only current-schema
+checkpoint ledgers are supported. Accumulator bytes from incompatible schemas are never accepted as a
 production shard.
 
 After all workers finish, run validation locally:

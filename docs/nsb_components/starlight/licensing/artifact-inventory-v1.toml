@@ -192,7 +192,7 @@ starlight-uv-artifact-v2.
 [[artifacts]]
 id = "starlight-uv-artifact-v2"
 category = "generated-calibration-artifact"
-source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v2 (replacement for v1 per #94)"
+source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v1 (replacement for v1 per #94)"
 release = "v2, integrated into the published UV v2 candidate"
 license = "NSB-derived model artifact (AGPL-3.0-only source licence, see README.md#Licensing); trained against CALSPEC reference spectra (STScI attribution) and Gaia DR3 XP samples (CC BY-NC 3.0 IGO)"
 sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
@@ -242,7 +242,7 @@ channels = ["git_repository"]
 tracking_issue = "#103"
 notes = """
 Path: crates/nsb/data/starlight_nside128.csv. calibration_status = candidate,
-runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
+runtime_embedded = false. UV model calspec-linear-log-ratio-v1. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
 redistribution decision remains pending in #103. The invalidated #93 digest
 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is

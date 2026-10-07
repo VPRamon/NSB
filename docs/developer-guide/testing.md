@@ -28,7 +28,7 @@ in [Coverage policy](coverage.md) (`baseline_kind = release-post-audit`).
 | Invariant / property | evaluator, planning/window search, component composition | Sums, ordering, monotonicity, fail-closed rules |
 | Numerical / physical boundary | component unit tests | Zenith edges, domain cut-offs, FP clamps |
 | Error / rejection | `query_api`, component constructors, CLI error suite | Invalid input, missing assets, inverted ranges |
-| Known regression | named `regression_*` tests, fixtures under `tests/data/` | Previously fixed bugs and pinned radiance cases |
+| Known regression | named `regression_*` tests, fixtures under `tests/data/` | Pinned bug regressions and radiance cases |
 | Scientific validation / reference | Jones/KS91/airglow fixtures, scientific-validation workflow | Literature or independent reference agreement |
 | Public API contract | `crates/nsb/tests/{api_contract,query_api}.rs` | Supported constructors, masks, defaults, `NsbError` |
 | Serialization / schema / metadata | `science_metadata`, CLI JSON/CSV suites, asset manifests | Schema versions, provenance, maturity honesty |
@@ -108,7 +108,7 @@ Rename that test or binary only together with `.github/workflows/scientific-vali
 - Do not weaken scientific tolerances to make a mutant or CI job easier.
 - Prefer behaviour-level assertions over re-implementing the production formula
   inside the test.
-- Historical reference CSV columns may remain as schema/tolerance manifests even
+- Reference CSV columns may remain as schema/tolerance manifests even
   when numeric protection lives in unit-test regression pins (see Jones 2013
   validation notes).
 
@@ -160,15 +160,15 @@ job because full runs are long and flaky under unconstrained scope.
   tests; strengthened public `NsbError` diagnostics and component-mask naming.
 - Replaced absurd e2e radiance envelopes with composition + moonlit scene
   contrast; fixed the bright-Moon case to a time with non-zero moonlight.
-- Added Jones spectral regression pins for historical fixture geometries;
+- Jones spectral regression pins cover the reference fixture geometries;
   retained the CSV as schema/tolerance manifest.
-- Split the former monolithic `cli_smoke.rs` into focused CLI contract suites,
+- CLI contract coverage is split into focused suites,
   keeping a thin `cli_smoke` binary only for the scientific-validation workflow
   pin.
 - Introduced `.cargo/mutants.toml` and recorded the maintainer mutation workflow
   above.
 - Mutation follow-up on the default examine set (`cargo-mutants` 27.1.0):
-  - `site_calibration` validity / identifier / uncertainty mutants that previously
+  - `site_calibration` validity / identifier / uncertainty mutants that
     survived were closed with fail-closed asset tests (25/25 caught on re-verify).
   - `solar_activity/resolve` policy mutants: explicit/observed maturity and
     `is_degraded_planning_input` kind-or-completeness contracts were strengthened;

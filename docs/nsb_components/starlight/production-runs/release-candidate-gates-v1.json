@@ -20,7 +20,7 @@
   "manifest_sha256": "5cf8c358bf5dc84b9adaaccc30b30be390c55d6ee56e9a039f58bbdd4ddb41da",
   "photometric_inference_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
   "selection_function_artifact_sha256": "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711",
-  "uv_correction_artifact": "calspec-linear-log-ratio-v2",
+  "uv_correction_artifact": "calspec-linear-log-ratio-v1",
   "uv_correction_artifact_sha256": "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367",
   "toolchain": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
   "msrv": "1.89",

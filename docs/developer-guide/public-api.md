@@ -9,22 +9,14 @@ API freeze via direct `cargo-public-api` checks (`scripts/check-public-api.sh`).
 
 ## Freeze status
 
-The API was initially frozen after the minimization work in #175. Issue #185
-then temporarily returned the crate to pre-freeze mode so the generic typed
-site-profile surface could replace the observatory-specific contract.
-
-Issue #214 required one final deliberate pre-release API correction:
-`AirglowModel::ParanalNollSkyCalcFors1` no longer truthfully identified the
-runtime after replacing the historical continuum with PALACE v1.0. Because
-`0.1.0` had not yet been published, the project reopened the freeze instead
-of retaining a misleading compatibility alias. The corrected surface has now
-been reviewed and frozen again; snapshot equality and historical removed/changed
-API checks are blocking from this baseline onward.
+The 0.1.0 public API is the initial compatibility baseline. The reviewed
+surface is recorded in `crates/nsb/api/public-api.txt`, and
+`crates/nsb/api/API_FROZEN` enables snapshot and SemVer enforcement.
 
 Behavioral contracts that `cargo-public-api` cannot see (Airglow
 selection/outcome, `ComponentMask::DEFAULT`/`ALL`, Starlight map ownership,
-and site-profile maturity invariants) remain covered by dedicated regression
-tests under `crates/nsb/tests/`.
+and site-profile maturity invariants) are covered by dedicated regression tests
+under `crates/nsb/tests/`.
 
 ## Recommended application path
 
@@ -323,68 +315,34 @@ metadata cannot claim a custom Airglow template.
 
 ## Public API CI lifecycle
 
-[`scripts/check-public-api.sh`](../../scripts/check-public-api.sh) replaces the
-former `nsb-public-api-gate` crate (#176) and drives pinned `cargo-public-api`
-directly.
+[`scripts/check-public-api.sh`](../../scripts/check-public-api.sh) drives the
+pinned `cargo-public-api` checks directly.
 
-### Pre-freeze mode
+For the frozen public baseline, CI enforces:
 
-When `crates/nsb/api/API_FROZEN` is absent, CI runs only the forbidden-public-API
-debt guard against the generated API. Snapshot equality and historical SemVer
-rejection are disabled so the first-release surface can still be corrected.
-
-### Freeze bootstrap
-
-When maintainers decide the public surface is ready:
-
-1. review all public exports and signatures;
-2. add `crates/nsb/api/API_FROZEN`;
-3. generate `crates/nsb/api/public-api.txt` from that same tree;
-4. commit the marker and snapshot together.
-
-The first commit containing the marker is a bootstrap: when the selected
-historical base lacks `API_FROZEN`, the snapshot must match HEAD and historical
-`BASE..HEAD` comparison is skipped. Once HEAD is frozen, a check **without** a
-usable historical base fails closed — missing base is never treated as success.
-
-### Frozen mode
-
-Once the selected historical base also contains `API_FROZEN`, CI enforces:
-
-1. **Snapshot integrity** — `public-api.txt` must exist, be non-empty, and match
-   the API generated from HEAD.
-2. **Historical SemVer gate** — `cargo public-api diff $BASE..HEAD` runs with
+1. **Snapshot integrity** — `public-api.txt` must exist, be non-empty, and
+   match the API generated from HEAD.
+2. **SemVer gate** — when a valid frozen base revision is supplied,
+   `cargo public-api diff $BASE..HEAD` runs with
    `--deny=removed --deny=changed`.
-3. **Forbidden-API guard** — deliberately removed public debt remains absent.
+3. **Forbidden-API guard** — deliberately excluded public implementation
+   details remain absent.
 
-Updating the snapshot cannot hide a breaking change after the freeze because the
-historical diff is evaluated against a previously frozen base revision.
+For pull requests, `$BASE` is the PR base SHA. For pushes, it is the commit
+before the push. Local checks may pass an explicit revision with `--base`.
+Invalid `BASE == HEAD` comparisons fail closed.
 
-### How `$BASE` is chosen after freeze
-
-| Context | Base revision |
-| --- | --- |
-| GitHub Actions `pull_request` | Explicit `${{ github.event.pull_request.base.sha }}` via `--base` / `NSB_PUBLIC_API_BASE` |
-| GitHub Actions `push` | Explicit `${{ github.event.before }}` (commit before the push) |
-| Local with `--base REV` | Explicit historical revision |
-
-Invalid `BASE == HEAD` and empty historical comparisons fail closed.
-
-## Generating the freeze snapshot
+To refresh the snapshot after an intentional compatible API addition:
 
 ```bash
 rustup toolchain install nightly-2026-09-02
 cargo install cargo-public-api --locked --version 0.50.1
-
-# Add the freeze marker when the project is actually ready to freeze the API.
-touch crates/nsb/api/API_FROZEN
 scripts/check-public-api.sh --write
 git add crates/nsb/api/API_FROZEN crates/nsb/api/public-api.txt
 ```
 
-Review the generated public surface before committing the freeze. After that
-point, changed or removed signatures are governed by the frozen compatibility
-policy.
+Breaking changes are not permitted on the 0.1.0 frozen baseline without an
+explicit release-version decision.
 
 ## Related issues
 

@@ -3,7 +3,7 @@
 Status: Foundation for issue #187 / PR #193.
 Audience: Library developers, scientific reviewers, and integrators.
 Scope: Typed atmospheric propagation of **wavelength-resolved** radiance;
-ownership boundary with Siderust; component migration status.
+ownership boundary with Siderust; current component integration status.
 Non-goals: Telescope/camera response (#189), Diffuse Galactic Light (#188),
 full multiple-scattering RT, or silent replacement of validated component
 paths.
@@ -58,7 +58,7 @@ absent so the eventual contract is not locked prematurely.
 | **Siderust** | Airmass formulas, Bodhaine Rayleigh, Patat Mie, Beer–Lambert `transmission`, ozone table, Rayleigh / tabulated phase functions, `AtmosphereProfile` |
 | **NSB `site`** | Site-profile selection, `AtmosphericConditions`, maturity / calibration metadata |
 | **NSB `transport`** | Transport model selection, origin policy, model metadata, spectral radiance application |
-| **NSB components** | Source emission models and any still-legacy component-specific propagation |
+| **NSB components** | Source emission models and component-specific propagation not yet represented by generic transport |
 
 Missing *generic* optical primitives belong in Siderust before an NSB-local
 substitute is added. The public module is `nsb::transport` (not
@@ -71,11 +71,11 @@ substitute is added. The public module is `nsb::transport` (not
 | --- | --- | --- |
 | `TopOfAtmosphere` | Zodiacal, starlight, future DGL | Yes |
 | `AtmosphericEmission` | Airglow | No (direct path rejected) |
-| `PreScatteredAtmosphere` | Legacy Jones / KS91 moonlight | No (direct path rejected) |
+| `PreScatteredAtmosphere` | Jones / KS91 moonlight | No (direct path rejected) |
 
 Identity transport accepts every origin (no atmosphere is applied).
 
-## Component migration status
+## Component integration status
 
 | Component | Runtime behaviour change? | Notes |
 | --- | --- | --- |
@@ -107,5 +107,5 @@ assumptions.
 
 - Bodhaine et al. (1999), Rayleigh optical depth.
 - Patat et al. (2011), Paranal aerosol extinction.
-- Noll et al. (2012), Cerro Paranal ASM (legacy component paths).
+- Noll et al. (2012), Cerro Paranal ASM (component reference).
 - Roellinghoff et al. (2025), nsb2 architectural comparison (not a dependency).

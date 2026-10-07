@@ -33,8 +33,8 @@ gaia_release = "Gaia DR3"
 generation_date_utc = "2026-10-06T07:02:23Z"
 
 [candidate.model_versions]
-uv_correction_current = "calspec-linear-log-ratio-v2"
-uv_correction_required_for_regeneration = "calspec-linear-log-ratio-v2"
+uv_correction_current = "calspec-linear-log-ratio-v1"
+uv_correction_required_for_regeneration = "calspec-linear-log-ratio-v1"
 target_production_photometry_model = "gaia_dr3_xp_photon_radiance_336_650nm_v1"
 
 [candidate.bright_star_supplement]

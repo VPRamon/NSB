@@ -14,7 +14,7 @@ bright-star-supplement candidate map (UV-v2 Ladon lineage, finalized by #211):
 | `merge_report.json` | Map, population, policy, checksum, and deterministic merge evidence | `015545ac8214509a5c1ec86d6c8393e05a0d811a1fec346a0cbd405c52840469` |
 
 Schema `nsb-healpix-starlight-candidate-v1`, nside 128 NESTED sparse, UV model
-`calspec-linear-log-ratio-v2`. Photometric-inference and selection-function
+`calspec-linear-log-ratio-v1`. Photometric-inference and selection-function
 artifacts are pinned in `starlight-production-300-650.ladon.toml` and remain
 off-git. The candidate stays `calibration_status = "candidate"` and
 `runtime_embedded = false` until an authorized #103 redistribution decision and
