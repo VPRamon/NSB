@@ -1110,6 +1110,52 @@ abundance = 1.0
     }
 
     #[test]
+    fn artifact_and_grid_validation_rejects_bad_boundaries() {
+        let temp = tempfile::tempdir().unwrap();
+        let mie = temp.path().join("mie.dat");
+
+        fs::write(&mie, "2 2\n0.310 0.650\n0 180\n1 1\n1 1\n").unwrap();
+        assert!(validate_artifact(OUTPUT, &mie).is_err());
+        fs::write(&mie, "2 2\n0.300 0.650\n1 180\n1 1\n1 1\n").unwrap();
+        assert!(validate_artifact(OUTPUT, &mie).is_err());
+
+        assert_eq!(linear_lookup(&[0.0, 1.0], &[2.0, 4.0], -1.0), 2.0);
+        assert_eq!(linear_lookup(&[0.0, 1.0], &[2.0, 4.0], 2.0), 4.0);
+
+        let mut model = tiny_model();
+        model.angle_segments.clear();
+        assert!(angle_grid(&model).is_err());
+
+        model = tiny_model();
+        model.angle_segments[0].start_deg = -1.0;
+        assert!(angle_grid(&model).is_err());
+
+        model = tiny_model();
+        model.angle_segments[0].step_deg = 7.0;
+        assert!(angle_grid(&model).is_err());
+
+        model = tiny_model();
+        model.angle_segments[0].start_deg = 1.0;
+        assert!(angle_grid(&model).is_err());
+
+        assert!(ensemble_phase(&tiny_model(), 0.0, &[0.0]).is_err());
+
+        let workspace = temp.path().join("workspace");
+        fs::create_dir_all(workspace.join("sources")).unwrap();
+        fs::write(
+            workspace.join("sources").join(MODEL_SOURCE),
+            tiny_model_toml(),
+        )
+        .unwrap();
+        fs::write(&mie, "1 2\n0.300\n0 180\n1 1\n").unwrap();
+        let mismatched = artifact(OUTPUT, &mie).unwrap();
+        let gates = validation_gates(&run_config(workspace), &[mismatched]).unwrap();
+        assert_eq!(gates.len(), 1);
+        assert_eq!(gates[0].name, "mie-grid-contract");
+        assert!(!gates[0].passed);
+    }
+
+    #[test]
     fn validation_gates_compare_artifact_with_direct_model() {
         let temp = tempfile::tempdir().unwrap();
         let workspace = temp.path().join("workspace");

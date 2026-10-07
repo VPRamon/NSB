@@ -240,4 +240,21 @@ mod tests {
         let edge = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
         assert!((low - edge).abs() < 1.0e-12);
     }
+
+    #[test]
+    fn scattering_grid_parser_rejects_invalid_axes_values_and_trailing_data() {
+        const FILE: &str = "test-scattering-grid.dat";
+        let cases = [
+            "2 2\n0.3 0.3\n0 180\n1 1\n1 1\n",
+            "2 2\n0.3 0.65\n0 0\n1 1\n1 1\n",
+            "2 2\n0.3 0.65\n0 180\n1 -1\n1 1\n",
+            "2 2\n0.3 0.65\n0 180\n1 1\n1 1\nextra\n",
+        ];
+        for raw in cases {
+            assert!(
+                parse_grid(raw, FILE).is_err(),
+                "accepted invalid grid: {raw}"
+            );
+        }
+    }
 }

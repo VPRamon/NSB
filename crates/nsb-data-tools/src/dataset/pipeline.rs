@@ -255,3 +255,37 @@ fn read_lines(path: &Path) -> Result<Vec<String>> {
         .lines()
         .collect::<std::io::Result<_>>()?)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dataset::moonlight_mie;
+
+    #[test]
+    fn moonlight_pipeline_routes_model_and_runtime_artifacts() {
+        let pipeline = pipeline_for(DatasetName::MoonlightScattering);
+        assert_eq!(pipeline.dataset(), DatasetName::MoonlightScattering);
+        assert_eq!(
+            pipeline.expected_outputs(),
+            &[moonlight_mie::OUTPUT, moonlight_mie::SSCAT]
+        );
+        assert!(!pipeline.is_build_source(moonlight_mie::MODEL_SOURCE));
+        assert!(pipeline.is_build_source(moonlight_mie::SSCAT));
+        assert_eq!(
+            pipeline.output_name(moonlight_mie::MODEL_SOURCE).unwrap(),
+            moonlight_mie::OUTPUT
+        );
+        assert_eq!(
+            pipeline.output_name(moonlight_mie::SSCAT).unwrap(),
+            moonlight_mie::SSCAT
+        );
+        assert!(pipeline.output_name("unexpected").is_err());
+
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join(moonlight_mie::SSCAT);
+        fs::write(&path, "1\n2\n").unwrap();
+        pipeline
+            .validate_artifact(moonlight_mie::SSCAT, &path)
+            .unwrap();
+    }
+}
