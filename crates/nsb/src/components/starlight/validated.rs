@@ -10,7 +10,7 @@ use siderust::checksum::{sha256, to_hex};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-const MANIFEST_SCHEMA_VERSION: u32 = 2;
+const MANIFEST_SCHEMA_VERSION: u32 = 1;
 const GAIA_DR3_SOURCE_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";
 const GAIA_DR3_XP_CONTINUOUS_MANIFEST_SHA256: &str =
@@ -664,7 +664,7 @@ mod tests {
         }
         let checksum = format!("sha256:{}", to_hex(&sha256(raw.as_bytes())));
         let manifest = format!(
-            r#"schema_version = 2
+            r#"schema_version = 1
 calibration_status = "production"
 dataset_name = "synthetic validated admission fixture"
 version = "fixture-v1"

@@ -109,7 +109,7 @@ pub(crate) const NSB_S10_ZP: SurfaceBrightness = SurfaceBrightness::new(27.78);
 /// Version of the NSB library crate.
 pub const NSB_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Versioned model-composition contract used in operational metadata.
-pub const MODEL_VERSION: &str = "nsb-model-2026.1";
+pub const MODEL_VERSION: &str = "nsb-model-v1";
 /// Siderust package version represented by the locked dependency.
 pub const SIDERUST_VERSION: &str = "0.12.0";
 /// Truthful package-source identity for the Siderust dependency.

@@ -45,7 +45,7 @@
   "deferred_metrics": [
     {
       "name": "validated_runtime_load",
-      "reason": "Public StarlightMap::from_csv_path does not accept nsb-healpix-starlight-candidate-v5. Timing that path would invent a loader."
+      "reason": "Public StarlightMap::from_csv_path does not accept nsb-healpix-starlight-candidate-v1. Timing that path would invent a loader."
     }
   ],
   "notes": "Re-measured against the UV v2 candidate 76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a. Reproduce with cargo run --release -p nsb --example starlight_candidate_load_benchmark."

@@ -191,7 +191,7 @@ mod tests {
             title: "Starlight independent validation preregistration".to_string(),
             candidate: CandidateIdentity {
                 map_path: EXPECTED_CANDIDATE_MAP_PATH.to_string(),
-                map_schema: "nsb-healpix-starlight-candidate-v5".to_string(),
+                map_schema: "nsb-healpix-starlight-candidate-v1".to_string(),
                 checksum_pinning_status: "pending-regeneration-after-94".to_string(),
                 checksum_note:
                     "checksum may change after the #94 uncertainty audit regenerates the map"

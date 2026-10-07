@@ -1,4 +1,4 @@
-schema_version = 2
+schema_version = 1
 calibration_status = "production"
 dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
 version = "uv-v2-packed-from-7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"

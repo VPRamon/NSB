@@ -28,9 +28,9 @@ pub const RELEASE_CANDIDATE_SCHEMA: &str = "nsb-starlight-release-candidate-v1";
 const RELEASE_CANDIDATE_SCHEMA_VERSION: u32 = 1;
 
 /// Schema identifier a promoted map must use (matches `crates/nsb/build.rs`).
-pub const PRODUCTION_MAP_SCHEMA: &str = "nsb-healpix-starlight-v2";
+pub const PRODUCTION_MAP_SCHEMA: &str = "nsb-healpix-starlight-v1";
 /// Schema identifier a promoted runtime sidecar manifest must use.
-pub const PRODUCTION_MANIFEST_SCHEMA: &str = "nsb-starlight-runtime-manifest-v2";
+pub const PRODUCTION_MANIFEST_SCHEMA: &str = "nsb-starlight-runtime-manifest-v1";
 
 /// Fail-closed lock on whether the pinned candidate checksum is admissible.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -359,7 +359,7 @@ pub struct RuntimeStageOutcome {
     pub runtime_sidecar_sha256: String,
 }
 
-/// Deterministically stage the runtime map and schema-v2 provenance sidecar.
+/// Deterministically stage the runtime map and schema-v1 provenance sidecar.
 ///
 /// This deliberately does not verify or change redistribution status and does
 /// not register the outputs as production assets. Promotion remains the only
@@ -1401,7 +1401,7 @@ mod tests {
     use super::*;
 
     const SYNTHETIC_CANDIDATE_V5: &str = concat!(
-        "# schema=nsb-healpix-starlight-candidate-v5\n",
+        "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# ordering=nested\n",
         "# representation=sparse\n",
         "# nside=1\n",
@@ -1482,7 +1482,7 @@ notes = "Synthetic test-only fixture for nsb-data-tools promotion unit tests; no
 status = "{status}"
 candidate_sha256 = "{candidate_sha256}"
 map_path = "crates/nsb/data/starlight_nside128.csv"
-map_schema = "nsb-healpix-starlight-candidate-v5"
+map_schema = "nsb-healpix-starlight-candidate-v1"
 band = "synthetic test-only combined band"
 units = "ph_m-2_s-1"
 nside = 1
@@ -1580,7 +1580,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         fs::write(
             data_dir.join("manifest.toml"),
             format!(
-                "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-candidate-v5\"\nsha256 = \"{sha}\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n"
+                "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-candidate-v1\"\nsha256 = \"{sha}\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n"
             ),
         )
         .unwrap();
@@ -1670,7 +1670,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             status: CandidateStatus::Pinned,
             candidate_sha256: sha.clone(),
             map_path: "crates/nsb/data/starlight_nside128.csv".to_string(),
-            map_schema: "nsb-healpix-starlight-candidate-v5".to_string(),
+            map_schema: "nsb-healpix-starlight-candidate-v1".to_string(),
             band: "synthetic test-only combined band".to_string(),
             units: "ph_m-2_s-1".to_string(),
             nside: 1,
@@ -1683,7 +1683,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
         let merge_report = format!(
             r#"{{
   "canonical_map": {{
-    "schema": "nsb-healpix-starlight-candidate-v5",
+    "schema": "nsb-healpix-starlight-candidate-v1",
     "nside": 1,
     "ordering": "nested",
     "flux_unit": "ph_m-2_s-1",
@@ -1725,10 +1725,10 @@ schema = "nsb-starlight-runtime-assets-v1"
 candidate_path = "crates/nsb/data/starlight_nside128.csv"
 candidate_sha256 = "{sha}"
 runtime_map_path = "crates/nsb/data/starlight_nside128.release.csv"
-runtime_map_schema = "nsb-healpix-starlight-v2"
+runtime_map_schema = "nsb-healpix-starlight-v1"
 runtime_map_sha256 = "{}"
 runtime_sidecar_path = "crates/nsb/data/starlight_nside128.manifest.toml"
-runtime_sidecar_schema = "nsb-starlight-runtime-manifest-v2"
+runtime_sidecar_schema = "nsb-starlight-runtime-manifest-v1"
 runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
 "#,
                 pack_outcome.runtime_map_sha256
@@ -1816,7 +1816,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         let repo = valid_synthetic_repo();
         fs::write(
             repo.root.join("crates/nsb/data/manifest.toml"),
-            "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-v2\"\nsha256 = \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n",
+            "schema_version = 1\n\n[[assets]]\npath = \"starlight_nside128.csv\"\nschema = \"nsb-healpix-starlight-v1\"\nsha256 = \"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"\ncalibration_status = \"candidate\"\nruntime_embedded = false\n",
         )
         .unwrap();
         let error = run_promotion(&inputs(&repo, None)).unwrap_err();
@@ -2279,7 +2279,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             status: CandidateStatus::Pinned,
             candidate_sha256: "a".repeat(64),
             map_path: "crates/nsb/data/starlight_nside128.csv".into(),
-            map_schema: "nsb-healpix-starlight-candidate-v5".into(),
+            map_schema: "nsb-healpix-starlight-candidate-v1".into(),
             band: "synthetic combined band".into(),
             units: "ph_m-2_s-1".into(),
             nside: 1,

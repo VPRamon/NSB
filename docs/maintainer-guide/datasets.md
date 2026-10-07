@@ -215,7 +215,7 @@ release candidate.
 The combined 300–650 nm Ladon run is pinned in
 `starlight-production-300-650-issue207.ladon.toml` with absolute BeeGFS paths for the UV,
 photometric, selection-function, and bright-star inputs used by the frozen
-candidate. Map schema `nsb-healpix-starlight-candidate-v5` emits
+candidate. Map schema `nsb-healpix-starlight-candidate-v1` emits
 `total_uncertainty_ph_m2_s = hypot(statistical, systematic)`. Reproducing the
 frozen candidate requires the exact pinned external artifact identities; a
 replacement path or changed digest defines a new candidate and needs fresh

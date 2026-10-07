@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "dataset": "starlight",
   "passed": true,
   "gates": [
@@ -61,7 +61,7 @@
     {
       "name": "uncertainty-budget-total-column",
       "passed": true,
-      "detail": "schema=nsb-healpix-starlight-candidate-v5; total_uncertainty_column=true"
+      "detail": "schema=nsb-healpix-starlight-candidate-v1; total_uncertainty_column=true"
     },
     {
       "name": "uncertainty-interval-coverage-declared",

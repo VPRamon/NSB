@@ -2,7 +2,7 @@
 //!
 //! Architecture: candidate-v5 → `dataset starlight pack` → `.release.csv` →
 //! `StarlightMap` runtime load. This example never loads the sparse
-//! `nsb-healpix-starlight-candidate-v5` candidate CSV through the runtime API.
+//! `nsb-healpix-starlight-candidate-v1` candidate CSV through the runtime API.
 //!
 //! Historical wall-clock numbers in
 //! `docs/nsb_components/starlight/production-runs/performance-v1.json` remain

@@ -14,7 +14,7 @@ issue #103 and is not approved by this bundle.
 |---|---|
 | `release-candidate-v1.toml` | Frozen candidate identity, deterministic RFC3339 generation timestamp, checksum pin for the canonical merge report, complete bright-star provenance copied from that report, technical status, external-validation pin, and runtime identities. |
 | `redistribution-review-decision-v1.json` | The sole authoritative human redistribution decision. It remains `pending`. |
-| `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v2 provenance sidecar identities. |
+| `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v1 provenance sidecar identities. |
 | `review-bundle-v1.toml` | Immutable release evidence pinned by the redistribution decision. |
 
 The release-candidate gate table contains `validation_status`,
@@ -39,7 +39,7 @@ report, requires the release-candidate bright-star structure to match the
 canonical merge-report provenance exactly, validates the frozen RFC3339
 generation timestamp, packs NESTED candidate pixels into the RING runtime
 format, and writes the complete 34-input bright-star provenance into the
-schema-v2 sidecar. Gaia and Hipparcos/XHIP/CK04 UV routes remain distinct. It
+schema-v1 sidecar. Gaia and Hipparcos/XHIP/CK04 UV routes remain distinct. It
 does not inspect or change the redistribution decision and does not mutate the
 asset registry. Repeated staging from the same frozen evidence is byte-identical.
 
@@ -61,7 +61,7 @@ Promotion fails closed unless all of the following agree:
 2. The technical validation and a real frozen green GitHub Actions run.
 3. The checksum-pinned external validation using the registered validator and
    `nsb2` reference commits.
-4. The deterministic runtime map and schema-v2 sidecar checksums.
+4. The deterministic runtime map and schema-v1 sidecar checksums.
 5. The immutable review bundle and an authorized redistribution decision with
    reviewer identity, timestamp, candidate pin, inventory pin, and structured
    machine-verifiable conditions.
@@ -74,8 +74,8 @@ technical gates never implies redistribution approval.
 
 `StarlightModel::BundledProductionGaiaDr3` and `ComponentMask::ALL` remain
 fail-closed. The build only enables bundled production Starlight when a
-registered `nsb-healpix-starlight-v2` map and
-`nsb-starlight-runtime-manifest-v2` sidecar pass checksum and provenance
+registered `nsb-healpix-starlight-v1` map and
+`nsb-starlight-runtime-manifest-v1` sidecar pass checksum and provenance
 validation. Malformed or incomplete v2 provenance is rejected.
 
 ## Related issues

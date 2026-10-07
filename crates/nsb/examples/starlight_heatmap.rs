@@ -676,7 +676,7 @@ mod tests {
     use super::*;
 
     const FIXTURE: &str = concat!(
-        "# schema=nsb-healpix-starlight-candidate-v5\n",
+        "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# map_type=healpix\n",
         "# coordinate_frame=galactic\n",
         "# ordering=nested\n",

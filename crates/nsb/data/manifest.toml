@@ -116,7 +116,7 @@ runtime_embedded = false
 
 [[assets]]
 path = "starlight_nside128.csv"
-schema = "nsb-healpix-starlight-candidate-v5"
+schema = "nsb-healpix-starlight-candidate-v1"
 sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
 license = "Gaia data licence: CC BY-NC 3.0 IGO"
@@ -127,7 +127,7 @@ calibration_status = "candidate"
 runtime_embedded = false
 
 [assets.header]
-schema = "nsb-healpix-starlight-candidate-v5"
+schema = "nsb-healpix-starlight-candidate-v1"
 map_type = "healpix"
 coordinate_frame = "galactic"
 ordering = "nested"
@@ -153,13 +153,13 @@ runtime_embedded = true
 
 [[assets]]
 path = "starlight_nside128.release.csv"
-schema = "nsb-healpix-starlight-v2"
+schema = "nsb-healpix-starlight-v1"
 sha256 = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"
 source = "Gaia DR3 GaiaSource and XP continuous plus checksum-pinned Hipparcos/XHIP/CK04 bright-star supplement"
-license = "Staged derived runtime asset; redistribution decision pending under issue #103. Detailed upstream licence provenance is carried by the schema-v2 sidecar."
+license = "Staged derived runtime asset; redistribution decision pending under issue #103. Detailed upstream licence provenance is carried by the schema-v1 sidecar."
 generator = "nsb-data dataset starlight stage-runtime"
 generation_command = "nsb-data dataset starlight stage-runtime --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
@@ -168,7 +168,7 @@ runtime_embedded = false
 
 [[assets]]
 path = "starlight_nside128.manifest.toml"
-schema = "nsb-starlight-runtime-manifest-v2"
+schema = "nsb-starlight-runtime-manifest-v1"
 sha256 = "b8d362b166ef15fedf6fc0b6875710d859cb11facc1507d43f119310053b17cd"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"

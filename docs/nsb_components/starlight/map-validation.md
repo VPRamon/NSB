@@ -5,7 +5,7 @@ configured canonical map and `merge_report.json`. Publication recomputes
 checksums and rejects missing, extra, changed, malformed, or mismatched
 artifacts.
 
-Candidate schema `nsb-healpix-starlight-candidate-v5` requires:
+Candidate schema `nsb-healpix-starlight-candidate-v1` requires:
 
 ```text
 map_type=healpix

@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
-pub const EXPECTED_MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v5";
+pub const EXPECTED_MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v1";
 pub const EXPECTED_FLUX_UNIT: &str = "ph_m-2_s-1";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -251,7 +251,7 @@ mod tests {
     }
 
     const HEADER: &str = concat!(
-        "# schema=nsb-healpix-starlight-candidate-v5\n",
+        "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# ordering=nested\n",
         "# representation=sparse\n",
         "# nside=1\n",
@@ -291,7 +291,7 @@ mod tests {
         assert!(load(&path, 2, None).is_err());
 
         let body = format!("{HEADER}0,1.0,0.1,0.2,0.223606797749979,5,1\n").replace(
-            "nsb-healpix-starlight-candidate-v5",
+            "nsb-healpix-starlight-candidate-v1",
             "nsb-healpix-starlight-candidate-v3",
         );
         let path = write_fixture(&directory, &body);

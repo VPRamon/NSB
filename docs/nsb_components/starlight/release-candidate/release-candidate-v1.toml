@@ -24,7 +24,7 @@ production after the redistribution decision passes.
 status = "pinned"
 candidate_sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 map_path = "crates/nsb/data/starlight_nside128.csv"
-map_schema = "nsb-healpix-starlight-candidate-v5"
+map_schema = "nsb-healpix-starlight-candidate-v1"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_m-2_s-1"
 nside = 128

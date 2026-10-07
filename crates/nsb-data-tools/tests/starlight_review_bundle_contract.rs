@@ -193,7 +193,7 @@ fn release_candidate_and_runtime_assets_agree_semantically() {
     );
     assert_eq!(
         runtime_assets["runtime_map_schema"].as_str(),
-        Some("nsb-healpix-starlight-v2")
+        Some("nsb-healpix-starlight-v1")
     );
 
     assert_eq!(
@@ -210,7 +210,7 @@ fn release_candidate_and_runtime_assets_agree_semantically() {
     );
     assert_eq!(
         runtime_assets["runtime_sidecar_schema"].as_str(),
-        Some("nsb-starlight-runtime-manifest-v2")
+        Some("nsb-starlight-runtime-manifest-v1")
     );
 
     assert_eq!(

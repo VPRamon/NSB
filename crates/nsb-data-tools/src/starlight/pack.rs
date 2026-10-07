@@ -174,7 +174,7 @@ fn render_packed_csv(
     let mut sum_in = 0.0;
     let mut sum_out = 0.0;
     let mut out = String::new();
-    out.push_str("# schema=nsb-healpix-starlight-v2\n");
+    out.push_str("# schema=nsb-healpix-starlight-v1\n");
     out.push_str("# packer_id=");
     out.push_str(PACKER_ID);
     out.push('\n');
@@ -304,7 +304,7 @@ mod tests {
     use tempfile::TempDir;
 
     const HEADER: &str = concat!(
-        "# schema=nsb-healpix-starlight-candidate-v5\n",
+        "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# ordering=nested\n",
         "# representation=sparse\n",
         "# nside=1\n",
@@ -473,7 +473,7 @@ mod tests {
     fn wrong_schema_ordering_nside_and_representation_fail_closed() {
         let dir = TempDir::new().unwrap();
         let wrong_schema = HEADER.replace(
-            "nsb-healpix-starlight-candidate-v5",
+            "nsb-healpix-starlight-candidate-v1",
             "nsb-healpix-starlight-candidate-v4",
         ) + "0,1.0,0.1,0.2,0.25,5,1\n";
         let candidate = write_candidate(&dir, &wrong_schema);

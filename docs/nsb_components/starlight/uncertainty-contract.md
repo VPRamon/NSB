@@ -226,7 +226,7 @@ where `systematic_uncertainty_ph_m2_s` is itself
   semantics): additive `SpectralCoverageReport.systematic_correlation_scope`
   and `MergeReport.uncertainty_scale` fields.
 - `crate::starlight::map::accumulator::SHARD_SCHEMA_VERSION` and the
-  canonical map's `nsb-healpix-starlight-candidate-v5` schema are unchanged
+  canonical map's `nsb-healpix-starlight-candidate-v1` schema are unchanged
   by this contract — no per-source, per-pixel, or CSV-column representation
   changed.
 

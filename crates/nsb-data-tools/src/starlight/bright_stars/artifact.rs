@@ -11,7 +11,7 @@ use std::fs;
 use std::path::Path;
 
 pub const BRIGHT_STAR_ARTIFACT_SCHEMA_VERSION: u32 = 1;
-pub const BRIGHT_STAR_COMBINED_ARTIFACT_SCHEMA_VERSION: u32 = 2;
+pub const BRIGHT_STAR_COMBINED_ARTIFACT_SCHEMA_VERSION: u32 = 1;
 pub const BRIGHT_STAR_MODEL_ID: &str = "starlight-bright-stars-v1";
 pub const BRIGHT_STAR_COMBINED_MODEL_ID: &str = "starlight-bright-stars-combined-v1";
 pub const BRIGHT_STAR_PRODUCT_BAND_ID: &str = "measured-336-650";

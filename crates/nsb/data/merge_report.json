@@ -1,5 +1,5 @@
 {
-  "schema_version": 9,
+  "schema_version": 1,
   "shard_count": 3387,
   "partition_ids": [
     "000000-003111",
@@ -3703,7 +3703,7 @@
     ]
   },
   "science_policy": {
-    "schema_version": 2,
+    "schema_version": 1,
     "admission_policy_id": "gaia-dr3-full-population-v1",
     "admission_rules": [
       "require_gaia_source_match",
@@ -3773,7 +3773,7 @@
   },
   "canonical_map": {
     "path": "starlight_nside128.csv",
-    "schema": "nsb-healpix-starlight-candidate-v5",
+    "schema": "nsb-healpix-starlight-candidate-v1",
     "nside": 128,
     "ordering": "nested",
     "flux_quantity": "integrated_per_pixel",

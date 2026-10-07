@@ -368,7 +368,7 @@ notes = "technical scaffolding only; scientific review deferred to #47"
 
 [candidate]
 map_path = "crates/nsb/data/starlight_nside128.csv"
-map_schema = "nsb-healpix-starlight-candidate-v5"
+map_schema = "nsb-healpix-starlight-candidate-v1"
 checksum_pinning_status = "pending-regeneration-after-94"
 checksum_note = "checksum may change after the #94 uncertainty audit regenerates the map"
 
@@ -446,7 +446,7 @@ acquisition_notes = "requires manual literature request"
 
     fn candidate_map_csv() -> String {
         let header = concat!(
-            "# schema=nsb-healpix-starlight-candidate-v5\n",
+            "# schema=nsb-healpix-starlight-candidate-v1\n",
             "# ordering=nested\n",
             "# representation=sparse\n",
             "# nside=1\n",

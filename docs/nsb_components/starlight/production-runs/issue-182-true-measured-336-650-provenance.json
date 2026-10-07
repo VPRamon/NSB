@@ -30,7 +30,7 @@
     "path": "starlight_nside128.csv",
     "pixel_domain_size": 196608,
     "representation": "sparse",
-    "schema": "nsb-healpix-starlight-candidate-v5",
+    "schema": "nsb-healpix-starlight-candidate-v1",
     "sha256": "32d4f6d2557ead304ea07c09372c63b084d8f0d14ad751984d48915e7f8b9d47",
     "total_flux_ph_m2_s": 8745736972625.455
   },
@@ -93,7 +93,7 @@
       "policy_id": "gaia-dr3-selection-function-cantat-gaudin-v1",
       "residual_faint_tail_estimated": true
     },
-    "schema_version": 2,
+    "schema_version": 1,
     "spectral_coverage": {
       "calibration_status": null,
       "combined_band_nm": null,
