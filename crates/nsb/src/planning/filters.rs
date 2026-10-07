@@ -28,12 +28,10 @@ pub(crate) fn smooth_threshold_windows(
                 let start = candidate.start.max(night.period.start);
                 let end = candidate.end.min(night.period.end);
                 if start < end {
-                    boundaries.extend(
-                        airglow::temporal::palace_climatology_boundaries_for_window(
-                            TimePeriod::new(start, end),
-                            prepared.observer,
-                        ),
-                    );
+                    boundaries.extend(airglow::temporal::palace_climatology_boundaries_for_window(
+                        TimePeriod::new(start, end),
+                        prepared.observer,
+                    ));
                 }
             }
         }
