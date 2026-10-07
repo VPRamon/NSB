@@ -1040,9 +1040,16 @@ root = \"workspace\"\n\n\
 executor = \"local\"\n\
 concurrency = 1\n\n\
 [[sources]]\n\
-name = \"dummy.dat\"\n\
+name = \"solar-planck-v1.toml\"\n\
 path = \"dummy.dat\"\n\
-sha256 = \"{}\"\n",
+sha256 = \"{}\"\n\
+product_id = \"nsb-planck-solar-reference\"\n\
+release = \"NSB analytic solar reference v1\"\n\
+metadata_url = \"https://github.com/VPRamon/NSB/blob/main/LICENSE\"\n\
+retrieved_at = \"test fixture\"\n\
+license = \"AGPL-3.0-only\"\n\
+units = \"W m^-2 nm^-1\"\n\
+reference_distance = \"1 AU\"\n",
                 "0".repeat(64)
             ),
         )
@@ -1087,8 +1094,8 @@ sha256 = \"{}\"\n",
     fn partition_selection_rejects_non_partitioned_dataset() {
         let (_temp, config_path) = write_non_partitioned_config();
         let config = RunConfig::load(&config_path).unwrap();
-        let error = selected_partitions(&config, Operation::Build, &["partition".into()])
-            .unwrap_err();
+        let error =
+            selected_partitions(&config, Operation::Build, &["partition".into()]).unwrap_err();
         assert!(error
             .to_string()
             .contains("partition selection requires a partitioned dataset"));
