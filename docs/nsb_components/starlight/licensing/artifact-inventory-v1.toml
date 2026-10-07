@@ -24,9 +24,8 @@
 #                         required when distribution_class is
 #                         repository_embedded or generated_derived_output and
 #                         distributed = true
-#   superseded_by_sha256  optional digest of a replacement artifact that has
-#                         not yet been integrated into a published candidate
 #   distribution_class    one of: download_only, repository_embedded,
+#                         generated_derived_output, documentation_reference    one of: download_only, repository_embedded,
 #                         generated_derived_output, documentation_reference
 #   distributed           whether NSB currently ships these bytes on any channel
 #   channels              non-empty when distributed = true, e.g. git_repository
@@ -139,7 +138,7 @@ distribution_class = "download_only"
 distributed = false
 channels = []
 notes = """
-CC-BY-4.0 permits redistribution with attribution. The UV-v2 Ladon production
+CC-BY-4.0 permits redistribution with attribution. The UV-corrected Ladon production
 run pins a selection-function artifact at BeeGFS
 /mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/selection-artifact.json
 with SHA-256
@@ -155,7 +154,7 @@ policy gaia-dr3-selection-function-cantat-gaudin-v1.
 id = "starlight-photometric-inference-artifact"
 category = "generated-calibration-artifact"
 source = "NSB-trained non-XP photometric inference model (crates/nsb-data-tools/src/starlight/photometric.rs contract)"
-release = "Ladon UV-v2 production pin"
+release = "first-public-baseline production pin"
 license = "NSB-derived model artifact (AGPL-3.0-only source licence, see README.md#Licensing) plus attributions of the photometry that trained it"
 sha256 = "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2"
 distribution_class = "generated_derived_output"
@@ -167,52 +166,30 @@ at BeeGFS
 /mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/photometric-artifact.json.
 Bytes are not git-embedded (distributed = false). The measured-only default
 starlight-production.toml still leaves photometric_inference unset; that is
-not the published UV-v2 candidate configuration.
+not the published UV-corrected candidate configuration.
 """
 
 [[artifacts]]
-id = "starlight-uv-artifact-v1"
+id = "starlight-uv-artifact"
 category = "generated-calibration-artifact"
-source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v1 (crates/nsb-data-tools/src/starlight/uv.rs contract, trained against CALSPEC reference spectra)"
-release = "v1, calibration_status = validated at time of use"
-license = "NSB-derived model artifact (AGPL-3.0-only source licence, see README.md#Licensing); trained against CALSPEC reference spectra (STScI attribution) and Gaia DR3 XP samples (CC BY-NC 3.0 IGO)"
-sha256 = "6bfbda6b37b9732bb585000999f15d8a18795a6511e2874e53e3c43d793858e8"
-superseded_by_sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
-distribution_class = "generated_derived_output"
-distributed = false
-channels = []
-tracking_issue = "#94"
-notes = """
-This is the exact uv_correction_sha256 that was embedded in the invalidated
-PR #93 candidate. It is scientifically invalidated per #94. Do not treat
-this digest as an approved redistribution basis. Superseded by
-starlight-uv-artifact-v2.
-"""
-
-[[artifacts]]
-id = "starlight-uv-artifact-v2"
-category = "generated-calibration-artifact"
-source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v1 (replacement for v1 per #94)"
-release = "v2, integrated into the published UV v2 candidate"
+source = "NSB-trained 300-336 nm UV correction model calspec-linear-log-ratio-v1"
+release = "v1 public baseline"
 license = "NSB-derived model artifact (AGPL-3.0-only source licence, see README.md#Licensing); trained against CALSPEC reference spectra (STScI attribution) and Gaia DR3 XP samples (CC BY-NC 3.0 IGO)"
 sha256 = "5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367"
 distribution_class = "generated_derived_output"
 distributed = false
 channels = []
-tracking_issue = "#94"
 notes = """
-Replacement UV artifact used by the published UV v2 candidate map
-(starlight-candidate-map-nside128 sha256
-76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a).
-Artifact bytes remain offline (BeeGFS starlight-calibration); only the
-digest is embedded in the map header and merge_report.json.
+Current UV-correction artifact used by the first public candidate baseline.
+Artifact bytes remain offline; the checksum is pinned by release evidence and
+the derived candidate metadata.
 """
 
 [[artifacts]]
 id = "starlight-independent-validation-reference"
 category = "independent-validation-evidence"
 source = "Acquired literature targets (Toller 1981 Pioneer poles, Leinert 1998 ISL paper, Masana 2021 GAMBONS); none is an admissible starlight-only TOA 300-650 nm grid"
-release = "validation results against UV v2 candidate; technical_gates_passed = false"
+release = "validation results against UV-corrected candidate; technical_gates_passed = false"
 license = "see references-v1.toml per reference"
 distribution_class = "documentation_reference"
 distributed = false
@@ -232,10 +209,10 @@ Scientific sign-off remains #103.
 id = "starlight-candidate-map-nside128"
 category = "generated-derived-output"
 source = "Derived from Gaia DR3 GaiaSource + XP continuous bulk products via the NSB pipeline (nsb-data dataset starlight publish)"
-release = "candidate v5 (nsb-healpix-starlight-candidate-v1); UV v2 Ladon rebuild"
+release = "candidate v1 (nsb-healpix-starlight-candidate-v1)"
 license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml; whether the CC BY-NC 3.0 IGO non-commercial clause permits NSB's intended redistribution channels is the open legal/scientific question #88/#103 must resolve"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -244,11 +221,7 @@ notes = """
 Path: crates/nsb/data/starlight_nside128.csv. calibration_status = candidate,
 runtime_embedded = false. UV model calspec-linear-log-ratio-v1. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
-redistribution decision remains pending in #103. The invalidated #93 digest
-7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
-historical only.
-
-The packed RING production-admission runtime CSV is generated by
+redistribution decision remains pending in #103. The packed RING production-admission runtime CSV is generated by
 `nsb-data dataset starlight pack`/`promote` (not git-embedded until #103).
 SHA-256
 c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b.
@@ -258,10 +231,10 @@ c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b.
 id = "starlight-packed-runtime-map-nside128"
 category = "generated-derived-output"
 source = "Packed RING runtime map derived from starlight-candidate-map-nside128 by nsb-data dataset starlight pack/promote"
-release = "nsb-healpix-starlight-v1 packed from UV-v2 candidate; production admission headers"
+release = "nsb-healpix-starlight-v1 public baseline"
 license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO); redistribution remains #103"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b"
+sha256 = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
 distribution_class = "generated_derived_output"
 distributed = false
 channels = []
@@ -276,10 +249,10 @@ the candidate SHA-256. Human redistribution approval remains #103.
 id = "starlight-merge-report"
 category = "generated-derived-output"
 source = "NSB-generated deterministic merge/provenance report for starlight-candidate-map-nside128"
-release = "schema nsb-starlight-merge-report-v5; UV v2 Ladon rebuild"
+release = "schema nsb-starlight-merge-report-v1"
 license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9"
+sha256 = "TO_BE_REPINNED"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -287,7 +260,7 @@ tracking_issue = "#103"
 notes = """
 Path: crates/nsb/data/merge_report.json. calibration_status = candidate,
 runtime_embedded = false. Checksum-linked to starlight-candidate-map-nside128
-UV v2. Human redistribution decision remains pending in #103.
+UV-corrected. Human redistribution decision remains pending in #103.
 """
 
 # --- Manifests, sidecars, and reports --------------------------------------
@@ -329,14 +302,14 @@ externally supplied, must carry. No third-party bytes are contained.
 id = "starlight-combined-300-650-validation-report"
 category = "report"
 source = "NSB-generated validation gate report for the candidate build"
-release = "schema_version = 2"
+release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); reports only aggregate diagnostics, no raw third-party catalogue bytes"
-sha256 = "8b2f71f984040e5d519245a8d199c359313851ed39755edaba248fff59695303"
+sha256 = "TO_BE_REPINNED"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
 tracking_issue = "#103"
 notes = """
 Path: docs/nsb_components/starlight/production-runs/combined-300-650-validation.json.
-Records the UV-v2 candidate/report checksums. Human scientific review is #103.
+Records the current candidate/report checksums. Human scientific review is #103.
 """

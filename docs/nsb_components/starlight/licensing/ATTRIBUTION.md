@@ -45,7 +45,7 @@ Primary references:
 
 Licensed CC-BY-4.0. Attribution to the original authors and DOI above is
 required in any redistributed product derived from this selection function.
-The UV-v2 candidate pins a BeeGFS-only selection-function artifact (see
+The UV-corrected candidate pins a BeeGFS-only selection-function artifact (see
 `gaia-selection-function-cantat-gaudin` in the artifact inventory;
 `distributed = false`).
 
@@ -59,7 +59,7 @@ CALSPEC data are publicly available HST calibration products; STScI requests
 attribution. CALSPEC spectra are used only as an offline training reference
 for the 300-336 nm UV correction (#83) and are never hosted or redistributed
 by NSB directly. Any redistributed UV-correction artifact (`calspec-linear-log-ratio-v1`
-or `v2`) must carry this attribution because it is trained against CALSPEC
+or later external source revisions) must carry this attribution because it is trained against CALSPEC
 data.
 
 ## GaiaXPy (historical reference only)

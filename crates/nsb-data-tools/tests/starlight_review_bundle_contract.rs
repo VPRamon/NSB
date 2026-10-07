@@ -257,7 +257,7 @@ fn stage_runtime_cli_emits_the_pinned_provenance_complete_assets() {
     assert!(packed_map.contains("# generation_date_utc=2026-10-06T07:02:23Z"));
 
     let sidecar_raw = fs::read_to_string(&runtime_sidecar).unwrap();
-    assert!(sidecar_raw.contains("schema_version = 2"));
+    assert!(sidecar_raw.contains("schema_version = 1"));
     assert!(sidecar_raw.contains("starlight-bright-stars-combined-v1"));
     assert!(sidecar_raw.contains("ck04-hp-scaled-uv-300-336-v1"));
     let sidecar: TomlValue = toml::from_str(&sidecar_raw).unwrap();

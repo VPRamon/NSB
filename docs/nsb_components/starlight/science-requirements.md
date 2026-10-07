@@ -244,7 +244,7 @@ redistribution gate does not block the `0.1.0` MVP release.
   DOI `10.1051/0004-6361/202243680`.
 - Gaia DR3 XP external calibration, Montegriffo et al. (2023),
   DOI `10.1051/0004-6361/202243880`.
-- Historical GaiaXPy reference documentation:
+- GaiaXPy independent reference documentation:
   <https://gaia-dpci.github.io/GaiaXPy-website/>.
 - Empirical Gaia DR3 selection function, Cantat-Gaudin et al. (2023),
   DOI `10.1051/0004-6361/202244784`.

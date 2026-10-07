@@ -89,7 +89,7 @@ contract](map-validation.md), redistribution policy, and [runtime manifest
 contract](external-manifest.md).
 
 Operational recovery and publication are documented in the
-[dataset maintainer guide](../../maintainer-guide/datasets.md). Historical
+[dataset maintainer guide](../../maintainer-guide/datasets.md). Reference
 artifacts and limitations are recorded in
 [Provenance of existing starlight datasets](existing-datasets.md).
 

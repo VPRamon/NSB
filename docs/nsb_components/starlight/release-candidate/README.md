@@ -1,12 +1,11 @@
-# Starlight release-candidate bundle and promotion mechanism (#102)
+# Starlight release-candidate bundle and promotion mechanism
 
 Status: Current fail-closed bundle for the frozen combined 300–650 nm candidate.
 
 Scientific production readiness is machine-verifiable: the exact candidate,
 technical validation, external cross-implementation validation, provenance,
 and green CI are checksum-pinned. A separate manual scientific signature is
-not required. Redistribution/licensing remains a distinct human/legal gate in
-issue #103 and is not approved by this bundle.
+not required. Redistribution/licensing remains a distinct human/legal gate by an authorized reviewer and is not approved by this bundle.
 
 ## Files
 
@@ -78,8 +77,6 @@ registered `nsb-healpix-starlight-v1` map and
 `nsb-starlight-runtime-manifest-v1` sidecar pass checksum and provenance
 validation. Malformed or incomplete v1 provenance is rejected.
 
-## Related issues
+## Redistribution status
 
-- #207 — final combined-band candidate and bright-star supplement.
-- #103 — the remaining human/legal redistribution decision.
-- #102 — technical packing, validation, and promotion automation.
+The checked-in decision remains `pending`; production promotion therefore remains fail-closed.
