@@ -14,7 +14,7 @@ pub const fn nsb::components::airglow::AirglowGeometryModel::model_id(&self) -> 
 impl core::default::Default for nsb::components::airglow::AirglowGeometryModel
 pub fn nsb::components::airglow::AirglowGeometryModel::default() -> Self
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowModel
-pub nsb::components::airglow::AirglowModel::ParanalNollSkyCalcFors1
+pub nsb::components::airglow::AirglowModel::ParanalPalaceV1
 impl nsb::AirglowModel
 pub const fn nsb::AirglowModel::as_str(self) -> &'static str
 #[non_exhaustive] pub enum nsb::components::airglow::AirglowPhysicalOutcome
@@ -481,7 +481,7 @@ pub const nsb::SolarFluxUnit::RATIO: f64
 pub const nsb::SolarFluxUnit::SYMBOL: &'static str
 pub type nsb::units::SolarFluxUnits = qtty_core::quantity::Quantity<nsb::SolarFluxUnit>
 #[non_exhaustive] pub enum nsb::AirglowModel
-pub nsb::AirglowModel::ParanalNollSkyCalcFors1
+pub nsb::AirglowModel::ParanalPalaceV1
 impl nsb::AirglowModel
 pub const fn nsb::AirglowModel::as_str(self) -> &'static str
 #[non_exhaustive] pub enum nsb::AirglowSelection

@@ -91,7 +91,7 @@ fn default_van_rhijn_csv_reports_geometry_identity() {
     assert!(!csv_value(&headers, &row, "airglow_geometry_version").is_empty());
     assert_eq!(
         csv_value(&headers, &row, "airglow_geometry_emission_height_km"),
-        "90"
+        "88"
     );
 }
 

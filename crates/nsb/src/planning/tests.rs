@@ -131,19 +131,32 @@ fn assert_periods_match_within_seconds(
 }
 
 #[test]
-fn threshold_airglow_precomputes_night_phase_context() {
+fn threshold_airglow_splits_palace_hour_boundaries_for_coarse_scans() {
     let evaluator = NsbEvaluator::new().unwrap();
-    let query = threshold_query(
+    let mut query = threshold_query(
         paranal(),
         target_sgr_a(),
         "2023-09-04T00:00:00Z",
         12,
         ComponentMask::AIRGLOW,
     );
+    query.sample_step = Second::new(7_200.0);
+    query.target_altitude_floor = None;
     let tt_window = utc_period_to_tt_mjd(query.window);
     let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
 
     assert!(!prepared.airglow_phase_periods.is_empty());
+    let windows = crate::planning::filters::smooth_threshold_windows(&prepared);
+    assert!(!windows.is_empty());
+    let max_window_seconds = windows
+        .iter()
+        .map(|window| (window.end.raw().value() - window.start.raw().value()) * 86_400.0)
+        .fold(0.0, f64::max);
+    assert!(
+        max_window_seconds <= 3_600.1,
+        "PALACE climatology discontinuities must split coarse threshold scans; longest window was {max_window_seconds}s"
+    );
+
     let sample = prepared.airglow_phase_periods[0].period.start;
     let _ = crate::planning::threshold::evaluate_integrated(&evaluator, &prepared, sample).unwrap();
 }

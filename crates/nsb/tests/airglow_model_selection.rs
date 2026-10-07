@@ -12,7 +12,7 @@ use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{Degrees, Kilometers, Meters};
 use tempoch::{Time, UTC};
 
-const REFERENCE_MODEL: AirglowModel = AirglowModel::ParanalNollSkyCalcFors1;
+const REFERENCE_MODEL: AirglowModel = AirglowModel::ParanalPalaceV1;
 
 fn observer(lon_deg: f64, lat_deg: f64, height_m: f64) -> Geodetic<ECEF> {
     Geodetic::new_raw(

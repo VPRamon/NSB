@@ -33,7 +33,7 @@ completed.
 
 | Profile | Layer | Status | Atmosphere | Airglow |
 | --- | --- | --- | --- | --- |
-| `SiteProfile::<GenericClearSky>::generic_clear_sky()` / `NAME` `generic-clear-sky` | core `nsb` | `GenericFallback` | Pressure derived from observer altitude; default Rayleigh scale height; bundled clear-sky Mie parameters. | Bundled Paranal-derived `NSB/data/airglow_cont.dat` continuum with neutral scale; generic/planning proxy even at Paranal. |
+| `SiteProfile::<GenericClearSky>::generic_clear_sky()` / `NAME` `generic-clear-sky` | core `nsb` | `GenericFallback` | Pressure derived from observer altitude; default Rayleigh scale height; bundled clear-sky Mie parameters. | Bundled PALACE v1.0 Paranal `NSB/data/airglow_palace_v1.dat` unresolved continuum with neutral site scale; generic/planning proxy even at Paranal. |
 | CLI `--site-profile cta-north` / marker `CtaNorth`, `NAME` `ctao-north-planning` | `nsb-cli` | `PlanningPreset` | Representative La Palma/ORM-like planning altitude/pressure assumptions, default Rayleigh scale height, Paranal-like bundled Mie parameters. These are scientific assumptions, not CTAO-N/ORM location aliases. | Bundled Paranal-derived continuum with neutral scale; no CTA-N-specific continuum calibration is bundled yet. |
 | CLI `--site-profile cta-south` / marker `CtaSouth`, `NAME` `ctao-south-planning` | `nsb-cli` | `PlanningPreset` | Paranal-like `AtmosphereProfile::EL_PARANAL` planning assumptions. This does not identify the observer as Paranal. | Bundled Paranal-derived continuum with neutral scale; no CTA-S-specific continuum calibration is bundled yet. |
 

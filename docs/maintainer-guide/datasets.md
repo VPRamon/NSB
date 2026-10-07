@@ -4,7 +4,7 @@
 
 | Dataset | Published artifacts | Execution |
 | --- | --- | --- |
-| `airglow-continuum` | `airglow_cont.dat` | local |
+| `airglow-continuum` | `airglow_palace_v1.dat` | local |
 | `solar-spectrum` | `solar_spectrum.dat` | local |
 | `moonlight-scattering` | `mie_m15s1.dat`, `sscatcor_m15s1.dat` | local |
 | `starlight` | validated HEALPix map artifacts | local or Slurm |
@@ -54,7 +54,10 @@ reference_distance = "1 AU"
 repository_root = "/checkout/nsb"
 ```
 
-The airglow and scattering snapshots remain limited by incomplete upstream
+The Airglow product is reproducibly generated from the checksum-pinned PALACE
+v1.0 CC-BY-4.0 model-data archive; see the
+[PALACE runtime report](../nsb_components/airglow/validation/palace-v1-runtime-product.md).
+The moonlight scattering snapshots remain limited by incomplete upstream
 provenance and licensing. The solar spectrum is reproducibly generated offline
 from the checked-in NSB Planck-model specification into a deterministic
 351-sample runtime grid. It remains `generic-fallback` because a smooth

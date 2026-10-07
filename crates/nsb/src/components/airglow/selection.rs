@@ -197,14 +197,14 @@ pub(crate) fn resolve_airglow_selection(
 ) -> Result<ResolvedAirglowSelection> {
     match selection {
         AirglowSelection::Automatic => Ok(ResolvedAirglowSelection {
-            model: AirglowModel::ParanalNollSkyCalcFors1,
+            model: AirglowModel::ParanalPalaceV1,
             selection_kind: AirglowSelectionKind::Automatic,
             requested_model: None,
             used_automatic_fallback: true,
             fallback_reason: Some(AirglowFallbackReason::GlobalPlanningModelUnavailable),
         }),
         AirglowSelection::Explicit(model) => match model {
-            AirglowModel::ParanalNollSkyCalcFors1 => Ok(ResolvedAirglowSelection {
+            AirglowModel::ParanalPalaceV1 => Ok(ResolvedAirglowSelection {
                 model,
                 selection_kind: AirglowSelectionKind::Explicit,
                 requested_model: Some(model),
@@ -220,7 +220,7 @@ pub(crate) fn load_continuum_for_model(
     model: AirglowModel,
 ) -> Result<std::sync::Arc<super::calibration::AirglowContinuum>> {
     match model {
-        AirglowModel::ParanalNollSkyCalcFors1 => Ok(std::sync::Arc::new(
+        AirglowModel::ParanalPalaceV1 => Ok(std::sync::Arc::new(
             super::calibration::load_builtin_standard()?,
         )),
     }
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn automatic_selection_uses_visible_temporary_fallback() {
         let resolved = resolve_airglow_selection(AirglowSelection::Automatic).unwrap();
-        assert_eq!(resolved.model, AirglowModel::ParanalNollSkyCalcFors1);
+        assert_eq!(resolved.model, AirglowModel::ParanalPalaceV1);
         assert!(resolved.used_automatic_fallback);
         assert_eq!(
             resolved.fallback_reason,
@@ -248,16 +248,15 @@ mod tests {
 
     #[test]
     fn explicit_paranal_selection_is_not_reported_as_fallback() {
-        let resolved = resolve_airglow_selection(AirglowSelection::Explicit(
-            AirglowModel::ParanalNollSkyCalcFors1,
-        ))
-        .unwrap();
+        let resolved =
+            resolve_airglow_selection(AirglowSelection::Explicit(AirglowModel::ParanalPalaceV1))
+                .unwrap();
         assert!(!resolved.used_automatic_fallback);
         assert_eq!(resolved.fallback_reason, None);
         assert_eq!(resolved.selection_kind, AirglowSelectionKind::Explicit);
         assert_eq!(
             resolved.requested_model,
-            Some(AirglowModel::ParanalNollSkyCalcFors1)
+            Some(AirglowModel::ParanalPalaceV1)
         );
     }
 

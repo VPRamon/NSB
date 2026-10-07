@@ -6,16 +6,25 @@ schema_version = 1
 # docs/nsb_components/starlight/external-manifest.md.
 
 [[assets]]
-path = "airglow_cont.dat"
-schema = "skycalc-airglow-continuum-v1"
-sha256 = "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
-source = "Cerro Paranal Advanced Sky Model / ESO SkyCalc airglow continuum lineage (Noll et al. 2012, A&A 543 A92); optical residual continuum derived from FORS1 spectra at Cerro Paranal (normalized near 0.543 µm). Exact historical source file/release imported into NSB is not recorded."
-license = "upstream dataset license is not recorded; this blocks calibrated-production promotion"
-generator = "historical import"
-generation_command = "not reproducible from repository; provenance recovery is a release limitation"
-validation_report = "docs/specifications/validation.md#bundled-asset-validation"
+path = "airglow_palace_v1.dat"
+schema = "nsb-airglow-palace-continuum-v1"
+sha256 = "f03b48cce44764c05e7208e59a0c9dbbb773ffc4b32444f8157dc5ac36fd119e"
+source = "PALACE v1.0 Cerro Paranal model data palace_cont.fits and palace_var.fits from Noll et al. (2024), Zenodo record 14064023, DOI 10.5281/zenodo.14064023; source archive SHA-256 a42577ffee8f76d9ac3765a9a2811d766c30158cf74c0a364ebf7a726dd9a0dc"
+license = "CC-BY-4.0"
+generator = "nsb-data-tools 0.1.0 PALACE continuum projection"
+generation_command = "cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum update --config crates/nsb-data-tools/config/airglow-continuum.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum build --config crates/nsb-data-tools/config/airglow-continuum.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum validate --config crates/nsb-data-tools/config/airglow-continuum.toml && cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum publish --config crates/nsb-data-tools/config/airglow-continuum.toml"
+validation_report = "docs/nsb_components/airglow/validation/palace-v1-runtime-product.md"
 calibration_status = "planning-proxy"
 runtime_embedded = true
+
+[assets.header]
+source_release = "PALACE v1.0 (2024-10)"
+source_record = "https://zenodo.org/records/14064023"
+source_archive_sha256 = "a42577ffee8f76d9ac3765a9a2811d766c30158cf74c0a364ebf7a726dd9a0dc"
+source_inputs = "PALACE/src/palace/data/palace_cont.fits; PALACE/src/palace/data/palace_var.fits"
+scientific_role = "unresolved continuum templates plus month/local-time/F10.7 climatology and residual variability; PALACE line list excluded"
+units = "wavelength nm; source continuum radiance R nm^-1; dimensionless climatology factors"
+runtime_band_nm = "300-650"
 
 [[assets]]
 path = "mie_m15s1.dat"
@@ -114,8 +123,8 @@ source_count_semantics = "exact_source_membership"
 [[assets]]
 path = "f107_store.json"
 schema = "nsb-f107-store-v1"
-sha256 = "90aec6a640befd23f1fffbd6e3ddcfc7d005a8365cc56652f5324330e3b3f6b8"
-source = "NOAA/NWS SWPC machine-readable F10.7 products (Penticton/DRAO 10.7 cm radio flux lineage) pinned as a bundled offline snapshot for deterministic resolution; includes daily observations (diagnostic), finalized monthly observed indices, 45-day forecasts, monthly solar-cycle predictions, and a Noll/SkyCalc-compatible climatological fallback"
+sha256 = "9dcda8155835bcfda03bce62e2ac8c7158272cc9e12487d1d0b08030d1cf3cb4"
+source = "NOAA/NWS SWPC machine-readable F10.7 products (Penticton/DRAO 10.7 cm radio flux lineage) pinned as a bundled offline snapshot for deterministic resolution; includes daily observations (diagnostic), finalized monthly observed indices, 45-day forecasts, monthly solar-cycle predictions, and a legacy monthly planning climatology that is not neutral for PALACE"
 license = "NOAA/NWS SWPC product data; U.S. government work / public domain for federal works; redistributed as a pinned scientific fixture for offline reproducibility"
 generator = "nsb-data solar f107 freeze (deterministic fixture freeze for #109)"
 generation_command = "nsb-data solar f107 freeze --fixture-dir crates/nsb-data-tools/tests/fixtures/swpc --store crates/nsb/data/f107_store.json --dataset-id nsb-f107-bundled-offline --snapshot-id bundled-2026-08-27 --retrieved-at 2026-08-27T08:00:00Z"
