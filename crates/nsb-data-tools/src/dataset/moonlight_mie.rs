@@ -211,7 +211,7 @@ pub(crate) fn update_manifest_header(
     artifact_path: &Path,
 ) -> Result<()> {
     let raw = fs::read_to_string(artifact_path)?;
-    let grid = parse_grid(&raw)?;
+    parse_grid(&raw)?;
     let assets = document["assets"]
         .as_array_of_tables_mut()
         .context("manifest is missing [[assets]]")?;
@@ -231,8 +231,6 @@ pub(crate) fn update_manifest_header(
     ] {
         header[key] = toml_edit::value(generated_header(&raw, key)?);
     }
-    header["wavelength_samples"] = toml_edit::value(grid.wavelengths.len().to_string());
-    header["angle_samples"] = toml_edit::value(grid.angles.len().to_string());
     asset["header"] = toml_edit::Item::Table(header);
     Ok(())
 }
@@ -977,8 +975,6 @@ abundance = 1.0
             .get(0)
             .unwrap();
         let header = asset["header"].as_table().unwrap();
-        assert_eq!(header["wavelength_samples"].as_str(), Some("1"));
-        assert_eq!(header["angle_samples"].as_str(), Some("7"));
         assert_eq!(
             header["radius_quadrature"].as_str(),
             Some("composite Simpson in ln(radius), 8 intervals over +/-3 sigma")
@@ -1046,8 +1042,6 @@ abundance = 1.0
                 Some(generated_header(&artifact_raw, key).unwrap().as_str())
             );
         }
-        assert_eq!(header["wavelength_samples"].as_str(), Some("36"));
-        assert_eq!(header["angle_samples"].as_str(), Some("355"));
 
         let report = fs::read_to_string(report_path).unwrap();
         let run_config = fs::read_to_string(run_config_path).unwrap();

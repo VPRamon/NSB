@@ -36,8 +36,6 @@ normalization = "integral P(theta) dOmega = 4*pi; analytic coefficient normaliza
 wavelength_grid_nm = "300..650 step 10"
 scattering_angle_grid_deg = "nonuniform: 0..0.25/0.0125;0.25..1/0.025;1..2/0.05;2..5/0.125;5..10/0.25;10..170/1;170..180/0.125"
 radius_quadrature = "composite Simpson in ln(radius), 1280 intervals over +/-8 sigma"
-wavelength_samples = "36"
-angle_samples = "355"
 
 [[assets]]
 path = "solar_spectrum.dat"
