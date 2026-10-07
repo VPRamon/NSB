@@ -383,6 +383,13 @@ fn parse_utc_offset(input: &str) -> Result<FixedOffset, String> {
     let (hours, minutes) = rest
         .split_once(':')
         .ok_or_else(|| "UTC offset must use ±HH:MM, e.g. +02:00".to_string())?;
+    if hours.len() != 2
+        || minutes.len() != 2
+        || !hours.bytes().all(|byte| byte.is_ascii_digit())
+        || !minutes.bytes().all(|byte| byte.is_ascii_digit())
+    {
+        return Err("UTC offset must use unsigned two-digit HH:MM fields".into());
+    }
     let hours: i32 = hours
         .parse()
         .map_err(|_| "invalid UTC-offset hours".to_string())?;
@@ -568,7 +575,16 @@ mod tests {
 
     #[test]
     fn utc_offset_validation_rejects_malformed_and_out_of_range_values() {
-        for invalid in ["02:00", "+24:00", "+01:60", "+2", "UTC"] {
+        for invalid in [
+            "02:00",
+            "+24:00",
+            "+01:60",
+            "+2",
+            "UTC",
+            "+-02:00",
+            "--02:00",
+            "+01:-30",
+        ] {
             assert!(parse_utc_offset(invalid).is_err(), "accepted {invalid:?}");
         }
     }
