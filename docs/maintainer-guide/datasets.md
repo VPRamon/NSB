@@ -54,17 +54,16 @@ reference_distance = "1 AU"
 repository_root = "/checkout/nsb"
 ```
 
-The airglow and scattering snapshots remain limited by incomplete upstream
-provenance and licensing. The solar spectrum is reproducibly generated offline
+The airglow and multiple-scattering snapshots remain limited by incomplete
+upstream provenance and licensing. The Mie phase grid is independently generated
+from the committed Jones aerosol configuration; see the
+[Mie validation report](../nsb_components/moonlight/mie-phase-validation.md).
+The solar spectrum is reproducibly generated offline
 from the checked-in NSB Planck-model specification into a deterministic
 351-sample runtime grid. It remains `generic-fallback` because a smooth
 blackbody continuum is a planning reference rather than a line-resolved solar
 standard. See the
 [solar-spectrum validation report](../nsb_components/solar-spectrum-validation.md).
-
-The Mie phase grid is independently generated from the committed Jones aerosol
-configuration; see the
-[Mie validation report](../nsb_components/moonlight/mie-phase-validation.md).
 
 ## Local operation and recovery
 
