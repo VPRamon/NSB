@@ -39,9 +39,16 @@ executor = "local"
 concurrency = 1
 
 [[sources]]
-name = "solar_spectrum.dat"
-path = "/shared/nsb/sources/solar_spectrum.dat"
+name = "solar-planck-v1.toml"
+path = "crates/nsb-data-tools/data/solar-planck-v1.toml"
 sha256 = "64-lowercase-hex-characters"
+product_id = "nsb-planck-solar-reference"
+release = "NSB analytic solar reference v1"
+metadata_url = "https://github.com/VPRamon/NSB/blob/main/LICENSE"
+retrieved_at = "repository source at generation time"
+license = "AGPL-3.0-only"
+units = "W m^-2 nm^-1"
+reference_distance = "1 AU"
 
 [publish]
 repository_root = "/checkout/nsb"
@@ -51,11 +58,11 @@ The Airglow product is reproducibly generated from the checksum-pinned PALACE
 v1.0 CC-BY-4.0 model-data archive; see the
 [PALACE runtime report](../nsb_components/airglow/validation/palace-v1-runtime-product.md).
 The moonlight scattering snapshots remain limited by incomplete upstream
-provenance and licensing. The solar spectrum is reproducibly generated from
-the official 70,001-sample TSIS-1 HSRS v2 p025nm source into a deterministic,
-flux-conserving 351-sample runtime grid. It remains `generic-fallback` because
-dataset-specific redistribution terms were not located and checksum
-reproducibility alone does not establish scientific maturity. See the
+provenance and licensing. The solar spectrum is reproducibly generated offline
+from the checked-in NSB Planck-model specification into a deterministic
+351-sample runtime grid. It remains `generic-fallback` because a smooth
+blackbody continuum is a planning reference rather than a line-resolved solar
+standard. See the
 [solar-spectrum validation report](../nsb_components/solar-spectrum-validation.md).
 
 ## Local operation and recovery

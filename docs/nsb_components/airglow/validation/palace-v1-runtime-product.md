@@ -48,10 +48,13 @@ bin-specific mean factor `rI` but applies no additional solar-activity term.
 PALACE sums overlapping component deviations linearly, so this runtime
 uncertainty is a conservative maximum rather than a quadrature combination.
 
-Local time is local mean solar time from observer longitude. Bins 1–12 cover
-18:00–06:00 in one-hour steps, matching PALACE. Astronomical-night samples
-outside that interval at non-Paranal latitudes use the nearest endpoint and are
-explicit extrapolations. The model paper reports that its X-shooter training
+PALACE fitted bins 1–12 to Cerro Paranal local mean solar time over
+18:00–06:00 in one-hour steps. For NSB's arbitrary-location `planning-proxy`
+use, the observer's local mean solar month/hour is mapped onto the equivalent
+PALACE bin. This preserves time-of-night phase under longitude transfer, but it
+is an explicit spatial extrapolation rather than a claim that PALACE was fitted
+at the observer longitude. Astronomical-night samples outside 18:00–06:00 use
+the nearest endpoint and are an additional temporal extrapolation. The model paper reports that its X-shooter training
 sample's centred 27-day F10.7 averages span 67–166 sfu. NSB records that evidence
 range but does not silently clamp user input.
 

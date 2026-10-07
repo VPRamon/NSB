@@ -11,7 +11,7 @@ fn crate_root() -> PathBuf {
 fn versioned_source_configs_are_portable_and_complete() {
     let cases = [
         ("airglow-continuum.toml", DatasetName::AirglowContinuum, 1),
-        ("solar-spectrum.toml", DatasetName::SolarSpectrum, 2),
+        ("solar-spectrum.toml", DatasetName::SolarSpectrum, 1),
         (
             "moonlight-scattering.toml",
             DatasetName::MoonlightScattering,
@@ -188,28 +188,33 @@ fn no_tracked_python_or_shell_programs_exist() {
 #[test]
 fn lifecycle_publishes_only_unchanged_validated_bytes() {
     let temporary = tempfile::tempdir().unwrap();
-    let source = temporary.path().join("candidate.csv");
-    let native = temporary.path().join("native.csv");
-    let source_bytes = "wavelength (nm),irradiance (W/m^2/nm)\n\
-300.000,1.0\n445.000,1.8\n500.000,2.0\n551.000,1.7\n650.000,1.5\n";
-    fs::write(&source, source_bytes).unwrap();
-    fs::write(&native, source_bytes).unwrap();
+    let source = crate_root().join("data/solar-planck-v1.toml");
     let source_checksum = nsb_data_tools::platform::checksum_io::sha256_file(&source).unwrap();
-    let native_checksum = nsb_data_tools::platform::checksum_io::sha256_file(&native).unwrap();
     let repository = temporary.path().join("repository");
     fs::create_dir_all(repository.join("crates/nsb/data")).unwrap();
     let config = temporary.path().join("run.toml");
     fs::write(
         &config,
         format!(
-            "schema_version = 1\ndataset = \"solar-spectrum\"\n\n[workspace]\nroot = \"work\"\n\n[[sources]]\nname = \"tsis1_hsrs_p025nm_300_650.csv\"\npath = \"{}\"\nsha256 = \"{source_checksum}\"\nproduct_id = \"tsis1_hsrs_p025nm\"\nrelease = \"TSIS-1 HSRS Version 2\"\nmetadata_url = \"https://doi.org/10.25980/ta3f-7h90\"\nretrieved_at = \"fixture\"\nlicense = \"fixture\"\nunits = \"W m^-2 nm^-1\"\nreference_distance = \"1 AU\"\n\n[[sources]]\nname = \"tsis1_hsrs_native_300_650.csv\"\npath = \"{}\"\nsha256 = \"{native_checksum}\"\nproduct_id = \"tsis1_hsrs\"\nrelease = \"TSIS-1 HSRS Version 2\"\nmetadata_url = \"https://doi.org/10.25980/ta3f-7h90\"\nretrieved_at = \"fixture\"\nlicense = \"fixture\"\nunits = \"W m^-2 nm^-1\"\nreference_distance = \"1 AU\"\n\n[publish]\nrepository_root = \"{}\"\n",
+            "schema_version = 1\ndataset = \"solar-spectrum\"\n\n[workspace]\nroot = \"work\"\n\n[[sources]]\nname = \"solar-planck-v1.toml\"\npath = \"{}\"\nsha256 = \"{source_checksum}\"\nproduct_id = \"nsb-planck-solar-reference\"\nrelease = \"NSB analytic solar reference v1\"\nmetadata_url = \"https://github.com/VPRamon/NSB/blob/main/LICENSE\"\nretrieved_at = \"fixture\"\nlicense = \"AGPL-3.0-only\"\nunits = \"W m^-2 nm^-1\"\nreference_distance = \"1 AU\"\n\n[publish]\nrepository_root = \"{}\"\n",
             source.display(),
-            native.display(),
             repository.display()
         ),
     )
     .unwrap();
 
+    command(&config, "update").assert_success();
+    let copied_source = temporary.path().join("work/sources/solar-planck-v1.toml");
+    let original_source = fs::read_to_string(&copied_source).unwrap();
+    fs::write(
+        &copied_source,
+        format!("{original_source}\n# tampered after verified update\n"),
+    )
+    .unwrap();
+    command(&config, "build").assert_success();
+    command(&config, "validate").assert_failure();
+
+    fs::remove_dir_all(temporary.path().join("work")).unwrap();
     command(&config, "update").assert_success();
     command(&config, "build").assert_success();
     let output_path = temporary.path().join("work/outputs/solar_spectrum.dat");
@@ -232,6 +237,13 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
         fs::read(repository.join("crates/nsb/data/solar_spectrum.dat")).unwrap(),
         first_build
     );
+    let published_manifest =
+        fs::read_to_string(repository.join("crates/nsb/data/manifest.toml")).unwrap();
+    assert!(published_manifest.contains(&format!("input_sha256 = \"{source_checksum}\"")));
+    assert!(published_manifest.contains(&format!(
+        "generator = \"nsb-data-tools {} dataset solar-spectrum build\"",
+        env!("CARGO_PKG_VERSION")
+    )));
 
     fs::write(
         temporary.path().join("work/outputs/solar_spectrum.dat"),

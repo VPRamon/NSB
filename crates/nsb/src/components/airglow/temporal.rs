@@ -34,7 +34,7 @@ pub(crate) struct AirglowPhasePeriod {
 /// of the six named double-month seasons.
 #[allow(dead_code)]
 pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason {
-    let Some(dt) = local_solar_datetime(time, location) else {
+    let Some(dt) = observer_local_mean_solar_datetime(time, location) else {
         return AirglowSeason::FullYear;
     };
     match dt.month() {
@@ -48,16 +48,19 @@ pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason
     }
 }
 
-/// PALACE month and one-hour local-mean-solar-time bin.
+/// PALACE month and one-hour local-mean-solar-time bin for the planning proxy.
 ///
-/// PALACE bins 1..=12 cover 18:00..06:00. Astronomical-night samples outside
-/// that interval (possible away from Paranal) use the nearest endpoint bin and
-/// are therefore explicit temporal extrapolations of the Paranal climatology.
+/// PALACE's climatology was fitted at Cerro Paranal. For arbitrary-location
+/// planning, NSB transfers that climatology by local mean solar clock: the
+/// observer's local solar month/hour selects the equivalent PALACE bin. This is
+/// an explicit spatial-transfer assumption, not evidence that PALACE was fitted
+/// at the observer longitude. Bins 1..=12 cover 18:00..06:00; astronomical-night
+/// samples outside that interval use the nearest endpoint bin.
 pub(crate) fn palace_climatology_coordinates(
     time: Time<UTC>,
     location: Geodetic<ECEF>,
 ) -> Option<(u32, usize)> {
-    let dt = local_solar_datetime(time, location)?;
+    let dt = observer_local_mean_solar_datetime(time, location)?;
     let hour = dt.hour();
     let bin = match hour {
         18..=23 => (hour - 17) as usize,
@@ -292,7 +295,7 @@ fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
     ModifiedJulianDate::from(time.to::<TT>().to::<MJD>())
 }
 
-fn local_solar_datetime(
+fn observer_local_mean_solar_datetime(
     time: Time<UTC>,
     location: Geodetic<ECEF>,
 ) -> Option<chrono::DateTime<chrono::Utc>> {
@@ -404,6 +407,22 @@ mod tests {
         ] {
             assert_eq!(season(utc(2023, month, 15), location), expected);
         }
+    }
+
+    #[test]
+    fn palace_planning_transfer_uses_observer_local_mean_solar_clock() {
+        let time = Time::<UTC>::from_chrono(
+            Utc.with_ymd_and_hms(2026, 9, 15, 22, 0, 0)
+                .single()
+                .unwrap(),
+        );
+        let greenwich =
+            Geodetic::new_raw(Degrees::new(0.0), Degrees::new(0.0), Meters::new(0.0));
+        let east_30 =
+            Geodetic::new_raw(Degrees::new(30.0), Degrees::new(0.0), Meters::new(0.0));
+
+        assert_eq!(palace_climatology_coordinates(time, greenwich), Some((9, 5)));
+        assert_eq!(palace_climatology_coordinates(time, east_30), Some((9, 7)));
     }
 
     #[test]

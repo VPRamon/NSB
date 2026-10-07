@@ -13,7 +13,7 @@ scientific calibration evidence.
 - [ ] `cargo package -p nsb --locked` succeeds using publishable registry dependencies.
 - [ ] `cargo package -p nsb --list` contains only intended distribution files and the resulting `.crate` is below the crates.io 10 MiB upload limit.
 - [ ] The registry verifier passes from a normal checkout and validates every tracked scientific payload checksum.
-- [ ] The manual/release scientific-validation workflow passes without external asset fetching.
+- [ ] The release and default manual scientific-validation paths pass without external asset fetching; the optional `verify_upstream` manual input is reserved for live PALACE provenance regeneration.
 - [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
 - [ ] Every `runtime_embedded = true` asset has explicit redistribution terms; release automation fails closed for missing, unresolved, pending, or unrecorded terms.
 - [ ] The packaged Airglow runtime contains `airglow_palace_v1.dat` with the manifest checksum and excludes historical `airglow_cont.dat`; PALACE attribution and CC BY 4.0 data terms remain in `THIRD_PARTY_NOTICES.md`.

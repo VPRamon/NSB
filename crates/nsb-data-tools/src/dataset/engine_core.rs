@@ -523,9 +523,53 @@ fn publish(config: &RunConfig) -> Result<Vec<Artifact>> {
             &artifact.name,
             &artifact.sha256,
         )?;
+        sync_solar_manifest_metadata(
+            &mut document,
+            config.dataset,
+            &artifact.name,
+            &artifact.path,
+        )?;
     }
     atomic_write(&manifest_path, document.to_string().as_bytes())?;
     Ok(report.artifacts)
+}
+
+fn sync_solar_manifest_metadata(
+    document: &mut toml_edit::DocumentMut,
+    dataset: DatasetName,
+    name: &str,
+    artifact_path: &Path,
+) -> Result<()> {
+    if dataset != DatasetName::SolarSpectrum || name != "solar_spectrum.dat" {
+        return Ok(());
+    }
+    let assets = document["assets"]
+        .as_array_of_tables_mut()
+        .context("manifest is missing [[assets]]")?;
+    let asset = assets
+        .iter_mut()
+        .find(|asset| asset["path"].as_str() == Some(name))
+        .context("solar spectrum asset is not registered")?;
+    let text = fs::read_to_string(artifact_path)?;
+    let mut header = toml_edit::Table::new();
+    for line in text.lines().map(str::trim) {
+        let Some(comment) = line.strip_prefix('#') else {
+            continue;
+        };
+        let Some((key, value)) = comment.trim().split_once('=') else {
+            continue;
+        };
+        header[key.trim()] = toml_edit::value(value.trim());
+    }
+    if header.is_empty() {
+        bail!("solar spectrum runtime header is empty");
+    }
+    asset["header"] = toml_edit::Item::Table(header);
+    asset["generator"] = toml_edit::value(format!(
+        "nsb-data-tools {} dataset solar-spectrum build",
+        env!("CARGO_PKG_VERSION")
+    ));
+    Ok(())
 }
 
 fn filtered_sources<'a>(

@@ -43,9 +43,10 @@ licensed under Creative Commons Attribution 4.0. Source: Zenodo record 14064023,
 DOI `10.5281/zenodo.14064023`. The PALACE program is GPL-3.0-or-later; NSB's
 generator does not copy, execute, or redistribute that program.
 
-The solar and moonlight snapshots (`solar_spectrum.dat`, `mie_m15s1.dat`, and
-`sscatcor_m15s1.dat`) retain the separate provenance/licensing status recorded
-in `crates/nsb/data/manifest.toml`.
+`solar_spectrum.dat` is an NSB-authored analytic product generated from
+physical constants and distributed under AGPL-3.0-only with the rest of NSB.
+The moonlight snapshots (`mie_m15s1.dat` and `sscatcor_m15s1.dat`) retain the
+separate provenance/licensing status recorded in `crates/nsb/data/manifest.toml`.
 
 ## Reporting a missing or incorrect notice
 

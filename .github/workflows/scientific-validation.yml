@@ -2,6 +2,12 @@ name: Scientific validation
 
 on:
   workflow_dispatch:
+    inputs:
+      verify_upstream:
+        description: Regenerate PALACE from the pinned Zenodo archive
+        required: false
+        default: false
+        type: boolean
   release:
     types: [published]
 
@@ -21,6 +27,7 @@ jobs:
       - name: Verify scientific assets
         run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
       - name: Regenerate PALACE continuum from pinned upstream
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_upstream }}
         run: |
           CONFIG=crates/nsb-data-tools/config/airglow-continuum.toml
           cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum update --config "$CONFIG"
