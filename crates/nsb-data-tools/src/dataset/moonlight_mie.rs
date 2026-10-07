@@ -969,21 +969,27 @@ abundance = 1.0
     }
 
     #[test]
-    fn refined_forward_grid_resolves_single_particle_peak() {
-        let intervals = [(0.0, 0.0125), (0.5, 0.525), (1.0, 1.05), (2.0, 2.125)];
+    fn production_angular_interpolation_probes_are_bounded() {
+        let model = production_model();
+        let intervals: [(f64, f64); 5] = [
+            (0.0, 0.0125),
+            (0.5, 0.525),
+            (2.0, 2.125),
+            (5.0, 5.25),
+            (179.875, 180.0),
+        ];
         let mut probe_angles = Vec::new();
         for (lo, hi) in intervals {
             probe_angles.extend([lo, 0.5 * (lo + hi), hi]);
         }
-        let mus: Vec<f64> = probe_angles
-            .iter()
-            .map(|angle| angle.to_radians().cos())
-            .collect();
-        let sample = mie_phase(100.0, Complex64::new(1.5, 0.0), &mus).unwrap();
+
         let mut worst = 0.0_f64;
-        for values in sample.phase.chunks(3) {
-            let interpolated = 0.5 * (values[0] + values[2]);
-            worst = worst.max((interpolated / values[1] - 1.0).abs());
+        for wavelength_um in [0.3, 0.5, 0.65] {
+            let (phase, _) = ensemble_phase(&model, wavelength_um, &probe_angles).unwrap();
+            for values in phase.chunks_exact(3) {
+                let interpolated = 0.5 * (values[0] + values[2]);
+                worst = worst.max((interpolated / values[1] - 1.0).abs());
+            }
         }
         assert!(worst < 3.0e-3, "worst interpolation error={worst:.6e}");
     }
@@ -1009,6 +1015,9 @@ abundance = 1.0
             }
             worst_g = worst_g.max((candidate_g - reference_g).abs());
         }
+        eprintln!(
+            "7 sigma / 1120 versus production: max pointwise relative={worst_phase:.6e}, max |delta g|={worst_g:.6e}"
+        );
         assert!(worst_phase < 3.0e-4, "worst phase delta={worst_phase:.6e}");
         assert!(worst_g < 2.0e-8, "worst g delta={worst_g:.6e}");
     }

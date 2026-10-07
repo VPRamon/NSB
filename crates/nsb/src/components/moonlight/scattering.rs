@@ -209,7 +209,7 @@ mod tests {
     fn moonlight_scattering_checksums_match() {
         assert_eq!(
             to_hex(&sha256(MIE_RAW.as_bytes())),
-            "b74ee3c8e1039cdc0cc323bfa488c04cb2d09ce3871932fa957358c677d7e43d"
+            "8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc"
         );
         assert_eq!(
             to_hex(&sha256(SSCAT_RAW.as_bytes())),
@@ -220,9 +220,9 @@ mod tests {
     #[test]
     fn moonlight_mie_phase_grid_loads_known_value() {
         let grid = ScatterGrid::mie_phase().unwrap();
-        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (181, 36));
+        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (355, 36));
         let v = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
-        assert!((v - 145.852_700_8).abs() < 1.0e-6);
+        assert!((v - 154.664_001_7).abs() < 1.0e-6);
     }
 
     #[test]

@@ -61,46 +61,44 @@ g(lambda) = (1 / 4pi) integral P_M cos(theta) dOmega
 ```
 
 This matches the Jones single-scattering equation, which applies `P/(4 pi)`.
-The generated rows are renormalized with the same 1-degree trapezoidal angular
-integral used by validation, making generator, artifact, and runtime convention
-unambiguous.
+The generated rows use the analytic coefficient normalization; validation
+independently checks the resulting grid with a piecewise-linear solid-angle
+integral, making generator, artifact, and runtime convention unambiguous.
 
 ## Numerical grid and integration
 
 The artifact schema is `nsb-moonlight-mie-phase-v1`. It contains 36 wavelengths
-from 300 through 650 nm at 10 nm spacing and 181 scattering angles from 0 through
-180 degrees at 1 degree spacing. Rows are wavelength-major and retain the compact
-text format understood by `ScatterGrid`; runtime evaluation remains bilinear LUT
-interpolation.
+from 300 through 650 nm at 10 nm spacing and 355 scattering angles from 0 through
+180 degrees on a refined, non-uniform grid. The grid uses 0.0125-degree spacing
+at the forward edge, progressively coarsening to 1 degree between 10 and 170
+degrees, then refining symmetrically to 0.125 degrees at the backward edge.
+Rows are wavelength-major and retain the compact text format understood by
+`ScatterGrid`; runtime evaluation remains bilinear LUT interpolation.
 
 Each mode is integrated in ln(radius) with composite Simpson quadrature over
-plus/minus five lognormal standard deviations and 800 even intervals. All axes,
-bounds, formatting, ordering, and solver inputs are pinned in
+plus/minus eight lognormal standard deviations and 1280 even intervals. All
+axes, bounds, formatting, ordering, and solver inputs are pinned in
 `crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml`.
 
 ### Convergence evidence
 
 The ignored `production_quadrature_convergence` test records expensive sensitivity
-runs. Relative to production:
+runs. Relative to the admitted ±8σ/1280 production configuration:
 
 | Perturbation | maximum pointwise phase change | maximum absolute change in g |
 |---|---:|---:|
-| 400 instead of 800 radius intervals | 1.107% | 9.84e-5 |
-| four instead of five radius sigmas | 22.65% | 1.37e-3 |
-| six instead of five radius sigmas | 5.78% | 7.49e-5 |
+| seven instead of eight radius sigmas, 1120 intervals | 0.019768% | 1.184209e-9 |
 
 The bound sensitivity is concentrated in the very narrow forward peak produced
-by the mathematically unbounded coarse-mode lognormal tail; integral diagnostics
-are stable. Five sigma is retained as the smallest practical, explicitly bounded
-interpretation of a distribution whose physical large-particle cutoff is not
-published. This forward-angle limitation is part of the v1 model uncertainty.
+by the mathematically unbounded coarse-mode lognormal tail; the asymmetry
+integral is stable. Eight sigma is retained as the explicit production bound
+because the physical large-particle cutoff is not published. This forward-angle
+limitation is part of the v1 model uncertainty.
 
-A deterministic coarsening study found that reconstructing the 10 nm rows from
-20 nm samples gives 0.022% median, 0.256% 99th-percentile, and 0.520% maximum
-pointwise differences. Reconstructing the 1-degree grid from 2-degree samples is
-not adequate near the forward peak (up to 231% at 1 degree); away from angles
-below 5 degrees its median, 99th-percentile, and maximum differences are 0.077%,
-1.61%, and 2.97%. These results justify 10 nm and retaining the 1-degree grid.
+The lifecycle's direct-solver interpolation probes report a worst relative
+error of `1.781e-3` for the admitted refined angular grid. This check includes
+sub-cell probes at the forward and backward edges and remains independent of
+the artifact interpolation implementation.
 
 ## Physical and integral validation
 
@@ -108,10 +106,12 @@ The lifecycle validation checks finite/non-negative values, strictly increasing
 axes, exact domain endpoints, the 4-pi integral, a physical asymmetry range, and
 forward scattering at every wavelength. For the admitted artifact:
 
-- worst relative 4-pi trapezoidal normalization error: `2.291e-11`;
-- asymmetry-factor range: `0.573151` to `0.675545`;
+- worst relative 4-pi trapezoidal normalization error: `7.371e-5`;
+- asymmetry-factor range: `0.573705` to `0.675937`;
+- worst absolute coefficient-vs-grid asymmetry difference: `1.513e-5`;
+- worst direct-solver interpolation probe error: `1.781e-3`;
 - `P(0 deg) > P(90 deg)` at every wavelength;
-- output SHA-256: `b74ee3c8e1039cdc0cc323bfa488c04cb2d09ce3871932fa957358c677d7e43d`.
+- output SHA-256: `8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc`.
 
 Jones Fig. 9b provides only a graphical primary-reference comparison. The NSB
 result reproduces the reported strong forward lobe, much weaker intermediate
@@ -121,13 +121,11 @@ curve values are published, so exact numerical agreement is not claimed.
 ## Historical ESO diagnostic only
 
 After the model and production settings were fixed independently, the generated
-grid was compared offline with common points in the historical LUT. Across 1,448
-common wavelength/angle points, the median NSB/legacy ratio is 1.221 and median
-absolute relative difference is 27.34%. The largest relative difference is at
-650 nm and 0 degrees: ratio 4.278 (`106.034` versus `24.786`). Representative
-NSB/legacy ratios at 300 nm for 0, 10, 30, 90, 150, and 180 degrees are 2.540,
-0.671, 1.061, 1.298, 0.767, and 0.638. At 650 nm they are 4.278, 0.823, 0.900,
-1.326, 1.672, and 1.303.
+grid was compared offline with the historical LUT where the domains overlap.
+That comparison is diagnostic only: the historical solver details, radius
+cutoffs, refractive-index treatment, normalization processing, and exact bytes'
+provenance are not fully documented. The historical `mie_m15s1.dat` bytes are
+not a generator input and are not shipped by NSB.
 
 The discrepancy is expected because the historical solver details, radius
 cutoffs, refractive-index treatment, normalization processing, and exact bytes'
@@ -136,18 +134,17 @@ provenance are not fully documented. No generator input was changed in response.
 ## Jones 2013 end-to-end impact
 
 Using the same `main` solar spectrum, optical-depth code, empirical
-`JONES_MIE_WEIGHT`, and historical multiple-scattering table, the isolated Mie
-replacement changes the three regression geometries as follows:
+`JONES_MIE_WEIGHT`, and historical multiple-scattering table, the admitted
+artifact produces these regression outputs:
 
 | Separation | integrated 300--650 nm | B diagnostic | V diagnostic |
 |---:|---:|---:|---:|
-| 97.523 deg | +2.767% | +3.609% | +6.898% |
-| 4.000 deg | -23.609% | -23.546% | -19.049% |
-| 52.216 deg | +5.741% | +6.435% | +3.048% |
+| 97.523 deg | 0.09807135342489255 | 81.15667280395974 | 23.99613366393292 |
+| 4.000 deg | 0.25448852391269283 | 263.7537714985368 | 111.0051406728119 |
+| 52.216 deg | 0.08025208520210352 | 72.16654291788724 | 23.77908352554552 |
 
-The large close-Moon change follows directly from the independently calculated
-forward lobe and is intentionally not hidden by retuning `JONES_MIE_WEIGHT`.
-Regression pins were refreshed only after this impact was measured.
+These values are pinned by the runtime regression test; no retuning of
+`JONES_MIE_WEIGHT` is performed.
 
 ## Transition policy and limitations
 
@@ -159,7 +156,7 @@ radiative-transfer calibration. Issue #217 must consume the versioned aerosol
 configuration and replace that table before the v0.1.0 redistribution gate can
 be fully cleared.
 
-Spherical particles, constant real refractive index, the five-sigma cutoff, and
+Spherical particles, constant real refractive index, the eight-sigma cutoff, and
 the paper's underspecified log-width notation are known limitations. Jones also
 notes that Mie spheres can underrepresent nonspherical large-angle backscatter.
 
@@ -175,7 +172,7 @@ cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scatter
 ```
 
 The pinned model-input SHA-256 is
-`6fa37780c56e8f5ade0a2083780aa228570be786e1d4812b30468ec27f355afd`.
+`d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82`.
 Running build twice produces the identical output checksum above.
 
 ## References

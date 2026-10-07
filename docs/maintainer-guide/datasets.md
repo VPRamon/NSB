@@ -77,6 +77,21 @@ nsb-data run status --run /shared/nsb/runs/solar-spectrum/runs/solar-spectrum/bu
 nsb-data run resume --run /shared/nsb/runs/solar-spectrum/runs/solar-spectrum/build/run.json
 ```
 
+Moonlight scattering uses the same lifecycle and publishes both the generated
+NSB-owned Mie phase grid and the transitional historical multiple-scattering
+correction:
+
+```bash
+nsb-data dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
+nsb-data dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml
+nsb-data dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml
+nsb-data dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml
+```
+
+Moonlight publication derives the manifest header and source-model checksum
+from the generated artifact and canonical aerosol source. It therefore cannot
+silently publish new bytes while retaining stale grid or quadrature metadata.
+
 Run manifests pin the resolved workspace, configuration checksum, Git commit,
 executor, partitions, artifacts and validation report. Atomic output promotion
 prevents a partial file from being treated as complete.

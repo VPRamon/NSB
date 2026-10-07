@@ -524,6 +524,7 @@ fn publish(config: &RunConfig) -> Result<Vec<Artifact>> {
             &artifact.name,
             &artifact.path,
         )?;
+        sync_moonlight_manifest_metadata(&mut document, config, &artifact.name, &artifact.path)?;
     }
     atomic_write(&manifest_path, document.to_string().as_bytes())?;
     Ok(report.artifacts)
@@ -562,6 +563,62 @@ fn sync_solar_manifest_metadata(
     asset["header"] = toml_edit::Item::Table(header);
     asset["generator"] = toml_edit::value(format!(
         "nsb-data-tools {} dataset solar-spectrum build",
+        env!("CARGO_PKG_VERSION")
+    ));
+    Ok(())
+}
+
+fn sync_moonlight_manifest_metadata(
+    document: &mut toml_edit::DocumentMut,
+    config: &RunConfig,
+    name: &str,
+    artifact_path: &Path,
+) -> Result<()> {
+    if config.dataset != DatasetName::MoonlightScattering
+        || name != crate::dataset::moonlight_mie::OUTPUT
+    {
+        return Ok(());
+    }
+    let assets = document["assets"]
+        .as_array_of_tables_mut()
+        .context("manifest is missing [[assets]]")?;
+    let asset = assets
+        .iter_mut()
+        .find(|asset| asset["path"].as_str() == Some(name))
+        .context("moonlight Mie asset is not registered")?;
+    let text = fs::read_to_string(artifact_path)?;
+    let mut header = toml_edit::Table::new();
+    for line in text.lines().map(str::trim) {
+        let Some(comment) = line.strip_prefix('#') else {
+            continue;
+        };
+        let Some((key, value)) = comment.trim().split_once('=') else {
+            continue;
+        };
+        header[key.trim()] = toml_edit::value(value.trim());
+    }
+    for required in [
+        "schema",
+        "aerosol_schema",
+        "solver",
+        "normalization",
+        "wavelength_grid_nm",
+        "scattering_angle_grid_deg",
+        "radius_quadrature",
+    ] {
+        if !header.contains_key(required) {
+            bail!("moonlight Mie artifact is missing header {required:?}");
+        }
+    }
+    let source = config
+        .sources
+        .iter()
+        .find(|source| source.name == crate::dataset::moonlight_mie::MODEL_SOURCE)
+        .context("moonlight model source is not configured")?;
+    asset["header"] = toml_edit::Item::Table(header);
+    asset["source_model_sha256"] = toml_edit::value(&source.sha256);
+    asset["generator"] = toml_edit::value(format!(
+        "nsb-data-tools {} dataset moonlight-scattering build",
         env!("CARGO_PKG_VERSION")
     ));
     Ok(())
@@ -1039,6 +1096,78 @@ runtime_embedded = false
         assert_eq!(
             report["schema"].as_str(),
             Some("nsb-starlight-merge-report-v5")
+        );
+    }
+
+    #[test]
+    fn moonlight_publish_synchronizes_generated_header_and_source_checksum() {
+        let mut document = r#"schema_version = 1
+
+[[assets]]
+path = "moonlight_mie_nsb_v1.dat"
+schema = "nsb-moonlight-mie-phase-v1"
+"#
+        .parse::<toml_edit::DocumentMut>()
+        .unwrap();
+        let artifact = tempfile::NamedTempFile::new().unwrap();
+        fs::write(
+            artifact.path(),
+            "# schema = nsb-moonlight-mie-phase-v1\n\
+# aerosol_schema = nsb-moonlight-aerosol-model-v1\n\
+# solver = Bohren-Huffman amplitude recurrences, in-tree implementation v1\n\
+# normalization = integral P(theta) dOmega = 4*pi\n\
+# wavelength_grid_nm = 300..650 step 10\n\
+# scattering_angle_grid_deg = nonuniform refined grid\n\
+# radius_quadrature = composite Simpson in ln(radius), 1280 intervals over +/-8 sigma\n",
+        )
+        .unwrap();
+        let config = RunConfig {
+            schema_version: 1,
+            dataset: DatasetName::MoonlightScattering,
+            workspace: super::super::config::WorkspaceConfig {
+                root: PathBuf::from("/tmp/moonlight"),
+            },
+            execution: super::super::config::ExecutionConfig::default(),
+            sources: vec![super::super::SourceConfig {
+                name: crate::dataset::moonlight_mie::MODEL_SOURCE.into(),
+                path: Some(PathBuf::from("model.toml")),
+                url: None,
+                sha256: "a".repeat(64),
+                product_id: None,
+                release: None,
+                metadata_url: None,
+                retrieved_at: None,
+                license: None,
+                units: None,
+                reference_distance: None,
+                partition: None,
+            }],
+            publish: None,
+            starlight: None,
+        };
+
+        sync_moonlight_manifest_metadata(
+            &mut document,
+            &config,
+            crate::dataset::moonlight_mie::OUTPUT,
+            artifact.path(),
+        )
+        .unwrap();
+
+        let asset = document["assets"]
+            .as_array_of_tables()
+            .unwrap()
+            .iter()
+            .next()
+            .unwrap();
+        assert_eq!(
+            asset["header"]["scattering_angle_grid_deg"].as_str(),
+            Some("nonuniform refined grid")
+        );
+        let source_sha = "a".repeat(64);
+        assert_eq!(
+            asset["source_model_sha256"].as_str(),
+            Some(source_sha.as_str())
         );
     }
 }

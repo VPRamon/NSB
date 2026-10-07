@@ -1,45 +1,57 @@
 name: Regenerate moonlight Mie artifact
 
 on:
-  push:
-    branches:
-      - 216-datamoonlight-generate-an-nsb-owned-mie-phase-grid-from-published-aerosol-parameters
+  pull_request:
     paths:
+      - crates/nsb-data-tools/src/dataset/engine_core.rs
       - crates/nsb-data-tools/src/dataset/moonlight_mie.rs
       - crates/nsb-data-tools/src/dataset/pipeline.rs
       - crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml
       - crates/nsb-data-tools/config/moonlight-scattering.toml
+      - crates/nsb/data/moonlight_mie_nsb_v1.dat
+      - crates/nsb/data/manifest.toml
+      - Cargo.lock
       - .github/workflows/mie-regenerate.yml
+  push:
+    branches:
+      - main
+    paths:
+      - crates/nsb-data-tools/src/dataset/engine_core.rs
+      - crates/nsb-data-tools/src/dataset/moonlight_mie.rs
+      - crates/nsb-data-tools/src/dataset/pipeline.rs
+      - crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml
+      - crates/nsb-data-tools/config/moonlight-scattering.toml
+      - crates/nsb/data/moonlight_mie_nsb_v1.dat
+      - crates/nsb/data/manifest.toml
+      - Cargo.lock
+      - .github/workflows/mie-regenerate.yml
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  regenerate:
-    if: github.actor != 'github-actions[bot]'
+  verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Regenerate and validate moonlight scattering
+      - name: Regenerate, validate, and publish in the workspace
         run: |
           set -euo pipefail
-          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
-          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml
-          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml
-          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml
-      - name: Commit regenerated artifact
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add crates/nsb/data/moonlight_mie_nsb_v1.dat crates/nsb/data/manifest.toml
-          if git diff --cached --quiet; then
-            echo "Artifact already current."
-          else
-            git commit -m "chore(data): regenerate moonlight Mie grid"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
+          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- \
+            dataset moonlight-scattering update \
+            --config crates/nsb-data-tools/config/moonlight-scattering.toml
+          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- \
+            dataset moonlight-scattering build \
+            --config crates/nsb-data-tools/config/moonlight-scattering.toml
+          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- \
+            dataset moonlight-scattering validate \
+            --config crates/nsb-data-tools/config/moonlight-scattering.toml
+          cargo run --release --locked -p nsb-data-tools --bin nsb-data -- \
+            dataset moonlight-scattering publish \
+            --config crates/nsb-data-tools/config/moonlight-scattering.toml
+          git diff --exit-code -- \
+            crates/nsb/data/moonlight_mie_nsb_v1.dat \
+            crates/nsb/data/manifest.toml
