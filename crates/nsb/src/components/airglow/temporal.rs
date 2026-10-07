@@ -108,9 +108,8 @@ pub(crate) fn palace_climatology_boundaries_for_window(
     let offset_seconds = local_mean_solar_offset_seconds(location);
     let mut boundaries = Vec::new();
     while boundary_local < end_local {
-        let boundary_utc = Time::<UTC>::from_chrono(
-            boundary_local - chrono::Duration::seconds(offset_seconds),
-        );
+        let boundary_utc =
+            Time::<UTC>::from_chrono(boundary_local - chrono::Duration::seconds(offset_seconds));
         boundaries.push(utc_time_to_tt_mjd(boundary_utc));
         boundary_local += chrono::Duration::hours(1);
     }
