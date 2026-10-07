@@ -283,8 +283,8 @@ impl InputState {
             }
             TimeMode::JulianDate => {
                 let value = parse_finite(&self.jd_tt, "JD (TT)")?;
-                let jd = time::try_jd_f64(value)
-                    .map_err(|error| format!("invalid JD (TT): {error}"))?;
+                let jd =
+                    time::try_jd_f64(value).map_err(|error| format!("invalid JD (TT): {error}"))?;
                 Ok(Time::<TT>::from(jd).to::<UTC>())
             }
             TimeMode::ModifiedJulianDate => {
@@ -487,9 +487,7 @@ fn parse_sexagesimal_parts(input: &str, label: &str) -> Result<SexagesimalParts,
         return Err(format!("{label} must be finite"));
     }
     if !(0.0..60.0).contains(&minutes) || !(0.0..60.0).contains(&seconds) {
-        return Err(format!(
-            "{label} minutes and seconds must be in [0, 60)"
-        ));
+        return Err(format!("{label} minutes and seconds must be in [0, 60)"));
     }
     Ok(SexagesimalParts {
         negative,
@@ -524,13 +522,9 @@ mod tests {
 
     #[test]
     fn parses_hms_and_signed_dms() {
+        assert!((parse_ra_hms("17 45 40.04").unwrap() - 266.416_833_333).abs() < 1.0e-8);
         assert!(
-            (parse_ra_hms("17 45 40.04").unwrap() - 266.416_833_333).abs() < 1.0e-8
-        );
-        assert!(
-            (parse_signed_dms("-29 00 28.1", "dec", -90.0, 90.0).unwrap()
-                + 29.007_805_556)
-                .abs()
+            (parse_signed_dms("-29 00 28.1", "dec", -90.0, 90.0).unwrap() + 29.007_805_556).abs()
                 < 1.0e-8
         );
     }

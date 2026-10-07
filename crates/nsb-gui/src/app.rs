@@ -93,9 +93,12 @@ impl NsbApp {
                     ui.add_space(12.0);
 
                     let running = matches!(self.state, CalculationState::Running);
-                    let button =
-                        egui::Button::new(if running { "Calculating…" } else { "Calculate" })
-                            .min_size(Vec2::new(ui.available_width(), 42.0));
+                    let button = egui::Button::new(if running {
+                        "Calculating…"
+                    } else {
+                        "Calculate"
+                    })
+                    .min_size(Vec2::new(ui.available_width(), 42.0));
                     if ui.add_enabled(!running, button).clicked() {
                         self.start_calculation(ctx);
                     }
@@ -177,8 +180,8 @@ impl NsbApp {
             if let Some(position) = response.interact_pointer_pos() {
                 let lon = ((position.x - rect.left()) / rect.width() * 360.0 - 180.0)
                     .clamp(-180.0, 180.0);
-                let lat = (90.0 - (position.y - rect.top()) / rect.height() * 180.0)
-                    .clamp(-90.0, 90.0);
+                let lat =
+                    (90.0 - (position.y - rect.top()) / rect.height() * 180.0).clamp(-90.0, 90.0);
                 self.input.longitude = format!("{lon:.5}");
                 self.input.latitude = format!("{lat:.5}");
             }
@@ -426,7 +429,10 @@ fn render_criteria(ui: &mut egui::Ui, input: &mut InputState, open: &mut bool) {
         ui.horizontal(|ui| {
             ui.heading("Observing criteria");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(if *open { "Done" } else { "Edit" }).clicked() {
+                if ui
+                    .small_button(if *open { "Done" } else { "Edit" })
+                    .clicked()
+                {
                     *open = !*open;
                 }
             });
@@ -457,12 +463,7 @@ fn render_criteria(ui: &mut egui::Ui, input: &mut InputState, open: &mut bool) {
 
         if *open {
             ui.separator();
-            input_row(
-                ui,
-                "Max NSB",
-                &mut input.max_radiance,
-                "ph cm⁻² ns⁻¹ sr⁻¹",
-            );
+            input_row(ui, "Max NSB", &mut input.max_radiance, "ph cm⁻² ns⁻¹ sr⁻¹");
             ui.horizontal(|ui| {
                 ui.checkbox(&mut input.use_sun_ceiling, "Sun altitude ceiling");
                 ui.add_enabled(
@@ -532,12 +533,9 @@ fn render_summary(ui: &mut egui::Ui, output: &CalculationOutput) {
             }
             windows => {
                 ui.label(
-                    egui::RichText::new(format!(
-                        "{} matching observing windows",
-                        windows.len()
-                    ))
-                    .size(18.0)
-                    .color(GREEN),
+                    egui::RichText::new(format!("{} matching observing windows", windows.len()))
+                        .size(18.0)
+                        .color(GREEN),
                 );
                 for window in windows.iter().take(4) {
                     ui.label(format!(
@@ -785,11 +783,7 @@ fn value_y(value: f64, min: f64, max: f64, rect: Rect) -> f32 {
     egui::lerp(rect.bottom()..=rect.top(), fraction)
 }
 
-fn interpolate_time(
-    start: DateTime<Utc>,
-    end: DateTime<Utc>,
-    fraction: f64,
-) -> DateTime<Utc> {
+fn interpolate_time(start: DateTime<Utc>, end: DateTime<Utc>, fraction: f64) -> DateTime<Utc> {
     let millis = (end - start).num_milliseconds();
     start + chrono::Duration::milliseconds((millis as f64 * fraction).round() as i64)
 }
@@ -800,10 +794,7 @@ fn dashed_horizontal(painter: &egui::Painter, rect: Rect, y: f32, color: Color32
     let mut x = rect.left();
     while x < rect.right() {
         painter.line_segment(
-            [
-                Pos2::new(x, y),
-                Pos2::new((x + dash).min(rect.right()), y),
-            ],
+            [Pos2::new(x, y), Pos2::new((x + dash).min(rect.right()), y)],
             Stroke::new(1.5_f32, color),
         );
         x += dash + gap;
@@ -827,10 +818,7 @@ mod tests {
 
     #[test]
     fn duration_format_is_compact() {
-        assert_eq!(
-            format_duration(4.0 * 3600.0 + 10.0 * 60.0),
-            "4 h 10 min"
-        );
+        assert_eq!(format_duration(4.0 * 3600.0 + 10.0 * 60.0), "4 h 10 min");
         assert_eq!(format_duration(45.0 * 60.0), "45 min");
     }
 }

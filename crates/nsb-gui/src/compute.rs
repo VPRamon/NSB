@@ -109,11 +109,12 @@ pub fn calculate(request: &CalculationRequest) -> Result<CalculationOutput, Stri
             v_mag_arcsec2: result.v_mag.value(),
         };
 
-        let should_replace = reference
-            .as_ref()
-            .is_none_or(|(_, best): &(DateTime<Utc>, nsb::NsbResult)| {
-                integrated < best.integrated.value()
-            });
+        let should_replace =
+            reference
+                .as_ref()
+                .is_none_or(|(_, best): &(DateTime<Utc>, nsb::NsbResult)| {
+                    integrated < best.integrated.value()
+                });
         if should_replace {
             reference = Some((current, result));
         }
