@@ -970,12 +970,7 @@ abundance = 1.0
 
     #[test]
     fn refined_forward_grid_resolves_single_particle_peak() {
-        let intervals = [
-            (0.0, 0.0125),
-            (0.5, 0.525),
-            (1.0, 1.05),
-            (2.0, 2.125),
-        ];
+        let intervals = [(0.0, 0.0125), (0.5, 0.525), (1.0, 1.05), (2.0, 2.125)];
         let mut probe_angles = Vec::new();
         for (lo, hi) in intervals {
             probe_angles.extend([lo, 0.5 * (lo + hi), hi]);
