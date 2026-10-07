@@ -97,6 +97,21 @@ assert_contains "$(cat "$TMP/out")" "no executable changed production lines" "Py
 assert_contains "$(cat "$TMP/out")" "result: PASS" "Python boundary pass"
 pass "installed-wheel-tested Python adapter does not count as Rust diff coverage"
 
+cat >"$TMP/moonlight-generator.diff" <<'EOF'
+diff --git a/crates/nsb-data-tools/src/dataset/moonlight_multiscatter.rs b/crates/nsb-data-tools/src/dataset/moonlight_multiscatter.rs
+--- a/crates/nsb-data-tools/src/dataset/moonlight_multiscatter.rs
++++ b/crates/nsb-data-tools/src/dataset/moonlight_multiscatter.rs
+@@ -1,0 +2,1 @@
++pub fn offline_scientific_generator() { expensive_science(); }
+EOF
+assert_exit 0 "$SCRIPT" diff \
+  --policy "$FIX/policy.toml" \
+  --lcov "$FIX/diff-covered.lcov" \
+  --diff-file "$TMP/moonlight-generator.diff"
+assert_contains "$(cat "$TMP/out")" "no executable changed production lines" "moonlight generator message"
+assert_contains "$(cat "$TMP/out")" "result: PASS" "moonlight generator pass"
+pass "offline moonlight generator does not count as PR diff production coverage"
+
 assert_exit 0 "$SCRIPT" diff \
   --policy "$FIX/policy.toml" \
   --lcov "$FIX/diff-nonexec.lcov" \

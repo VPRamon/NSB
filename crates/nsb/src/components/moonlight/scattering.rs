@@ -2,14 +2,14 @@
 //!
 //! The bundled tables are owned by the moonlight component. The independently
 //! generated `moonlight_mie_nsb_v1.dat` provides the wavelength/angle Mie phase
-//! grid, and the transitional historical `sscatcor_m15s1.dat`
-//! provides the matching multiple-scattering correction grid.
+//! grid, and `moonlight_multiscatter_nsb_v1.dat` provides the independently
+//! generated matching multiple-scattering correction grid.
 
 use crate::error::{NsbError, Result};
 use siderust::qtty::{Degrees, Micrometers, Nanometer, Nanometers};
 
 const MIE_RAW: &str = include_str!("../../../data/moonlight_mie_nsb_v1.dat");
-const SSCAT_RAW: &str = include_str!("../../../data/sscatcor_m15s1.dat");
+const SSCAT_RAW: &str = include_str!("../../../data/moonlight_multiscatter_nsb_v1.dat");
 
 #[derive(Clone, Debug)]
 pub struct ScatterGrid {
@@ -28,7 +28,7 @@ impl ScatterGrid {
     }
 
     pub fn multiple_scattering_correction() -> Result<Self> {
-        parse_grid(SSCAT_RAW, "sscatcor_m15s1.dat")
+        parse_grid(SSCAT_RAW, "moonlight_multiscatter_nsb_v1.dat")
     }
 
     pub fn lookup(&self, angle: Degrees, wavelength: Nanometers) -> f64 {
@@ -213,7 +213,7 @@ mod tests {
         );
         assert_eq!(
             to_hex(&sha256(SSCAT_RAW.as_bytes())),
-            "2bf48a71e007bc557bd088d53ede15e97163d9154f19b1e411b104c38c4a18b8"
+            "7251dd540a7dd0a10eceda9bec12e5061a1bbc29332ac2f92b44e4684f3cc050"
         );
     }
 
@@ -228,9 +228,9 @@ mod tests {
     #[test]
     fn moonlight_scattering_correction_grid_loads_known_value() {
         let grid = ScatterGrid::multiple_scattering_correction().unwrap();
-        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (16, 40));
+        assert_eq!((grid.angle_deg.len(), grid.wavelength_nm.len()), (16, 36));
         let v = grid.lookup(Degrees::new(0.0), Nanometers::new(300.0));
-        assert!((v - 1.936).abs() < 1.0e-12);
+        assert!((v - 1.120_330_77).abs() < 1.0e-8);
     }
 
     #[test]

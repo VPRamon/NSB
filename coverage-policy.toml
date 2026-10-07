@@ -53,7 +53,9 @@ base_ref = "origin/main"
 
 # No LCOV filename or region exclusions are approved. A nonempty `files` list
 # is rejected so it cannot silently change the Rust denominator. The diff gate
-# separately classifies the PyO3 adapter as installed-wheel-tested boundary code.
+# separately classifies the PyO3 adapter as installed-wheel-tested boundary code
+# and the offline moonlight Monte Carlo generator as scientific tooling rather
+# than PR production-line coverage.
 [exclusions]
 files = []
-notes = "No LCOV exclusions. The feature-gated PyO3 boundary is measured by installed-wheel pytest jobs, not the normal Rust coverage build."
+notes = "No LCOV exclusions. The feature-gated PyO3 boundary is measured by installed-wheel pytest jobs; the offline moonlight Monte Carlo generator is exercised by focused scientific tests and excluded only from the PR diff-production classifier."

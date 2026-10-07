@@ -158,15 +158,12 @@ artifact produces these regression outputs:
 These values are pinned by the runtime regression test; no retuning of
 `JONES_MIE_WEIGHT` is performed.
 
-## Transition policy and limitations
+## Integration policy and limitations
 
-This PR uses transition option A: activate the distributable phase grid now and
-retain `sscatcor_m15s1.dat` temporarily. The correction is only a few-percent
-higher-order multiplier in the Jones reference model, so it remains usable as a
-planning approximation, but the mixed pair is not claimed to be a coherent new
-radiative-transfer calibration. Issue #217 must consume the versioned aerosol
-configuration and replace that table before the v0.1.0 redistribution gate can
-be fully cleared.
+Issue #217 now consumes this exact aerosol configuration and phase-grid hash to
+generate `moonlight_multiscatter_nsb_v1.dat`. Runtime/build validation rejects a
+Mie/correction pair whose recorded identities differ. The historical correction
+table is no longer shipped.
 
 Spherical particles, constant real refractive index, the eight-sigma cutoff, and
 the paper's underspecified log-width notation are known limitations. Jones also

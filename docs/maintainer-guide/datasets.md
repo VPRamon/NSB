@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `airglow-continuum` | `airglow_palace_v1.dat` | local |
 | `solar-spectrum` | `solar_spectrum.dat` | local |
-| `moonlight-scattering` | `moonlight_mie_nsb_v1.dat`, `sscatcor_m15s1.dat` | local |
+| `moonlight-scattering` | `moonlight_mie_nsb_v1.dat`, `moonlight_multiscatter_nsb_v1.dat` | local |
 | `starlight` | validated HEALPix map artifacts | local or Slurm |
 
 The supported lifecycle is `update → build → validate → publish`. `update`
@@ -57,15 +57,13 @@ repository_root = "/checkout/nsb"
 The Airglow product is reproducibly generated from the checksum-pinned PALACE
 v1.0 CC-BY-4.0 model-data archive; see the
 [PALACE runtime report](../nsb_components/airglow/validation/palace-v1-runtime-product.md).
-The historical multiple-scattering snapshot remains limited by incomplete
-upstream provenance and licensing. The Mie phase grid is independently generated
-from the committed Jones aerosol configuration; see the
-[Mie validation report](../nsb_components/moonlight/mie-phase-validation.md).
-The solar spectrum is reproducibly generated offline
-from the checked-in NSB Planck-model specification into a deterministic
-351-sample runtime grid. It remains `generic-fallback` because a smooth
-blackbody continuum is a planning reference rather than a line-resolved solar
-standard. See the
+The moonlight Mie and multiple-scattering products are NSB-generated from the
+committed aerosol and radiative-transfer configurations; their validation
+reports record the scientific assumptions and limitations. The solar spectrum
+is reproducibly generated offline from the checked-in NSB Planck-model
+specification into a deterministic 351-sample runtime grid. It remains
+`generic-fallback` because a smooth blackbody continuum is a planning reference
+rather than a line-resolved solar standard. See the
 [solar-spectrum validation report](../nsb_components/solar-spectrum-validation.md).
 
 ## Local operation and recovery
