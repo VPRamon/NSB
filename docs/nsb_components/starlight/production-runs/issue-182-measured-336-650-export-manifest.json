@@ -22,7 +22,7 @@
   "physical_quantity": "photon_radiance_336_650_nm",
   "product_band": "336-650-measured",
   "provisional": true,
-  "schema_version": 2,
+  "schema_version": 1,
   "shard_count": 3386,
   "source_commit": "53670d7b3be25cf99be7d13a9f2079d2145a0eb7",
   "total_flux_336_650_ph_m2_s": 8681550549260.129,

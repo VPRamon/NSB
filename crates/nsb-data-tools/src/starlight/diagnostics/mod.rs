@@ -306,7 +306,7 @@ pub fn export_measured_336_650_from_shards(
     let sha256 = checksum_io::sha256_file(output)?;
 
     let report = MeasuredBandExportReport {
-        schema_version: 2,
+        schema_version: 1,
         experiment: "A_combined_candidate_measured_subcomponent_export".to_string(),
         issue: "182".to_string(),
         artifact_class: COMBINED_CANDIDATE_MEASURED_SUBCOMPONENT.to_string(),
@@ -529,7 +529,7 @@ fn load_production_shards(workspace: &Path) -> Result<Vec<PartitionShard>> {
 }
 
 /// Merge every `workers/*/shard.json` under `workspace` and write a sparse
-/// candidate-v5 CSV suitable for diagnostic heatmaps.
+/// candidate-v1 CSV suitable for diagnostic heatmaps.
 pub fn export_workspace_candidate_map(workspace: &Path, output: &Path) -> Result<String> {
     let workers = workspace.join("workers");
     let mut shards = Vec::new();
@@ -805,7 +805,7 @@ mod tests {
             .join("run.json");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         let manifest = RunManifest {
-            schema_version: 2,
+            schema_version: 1,
             run_id: "fixture-run".to_string(),
             dataset: DatasetName::Starlight,
             operation: Operation::Validate,
