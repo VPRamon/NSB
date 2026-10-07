@@ -123,7 +123,7 @@ impl NsbApp {
                                 .color(Color32::from_rgb(5, 24, 31)),
                         )
                         .fill(ACCENT)
-                        .stroke(Stroke::new(0.0, Color32::TRANSPARENT))
+                        .stroke(Stroke::new(0.0_f32, Color32::TRANSPARENT))
                         .corner_radius(8)
                         .min_size(Vec2::new(ui.available_width(), 44.0));
 
@@ -223,14 +223,14 @@ impl NsbApp {
             let x = rect.left() + (lon + 180.0) / 360.0 * rect.width();
             painter.line_segment(
                 [Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom())],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
         }
         for lat in [-60.0_f32, -30.0, 0.0, 30.0, 60.0] {
             let y = rect.top() + (90.0 - lat) / 180.0 * rect.height();
             painter.line_segment(
                 [Pos2::new(rect.left(), y), Pos2::new(rect.right(), y)],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
         }
 
@@ -262,7 +262,7 @@ impl NsbApp {
             rect.top() + (90.0 - lat) / 180.0 * rect.height(),
         );
         painter.circle_filled(marker, 6.0, ACCENT);
-        painter.circle_stroke(marker, 9.0, Stroke::new(1.0, Color32::WHITE));
+        painter.circle_stroke(marker, 9.0, Stroke::new(1.0_f32, Color32::WHITE));
         painter.text(
             rect.left_top() + Vec2::new(10.0, 9.0),
             Align2::LEFT_TOP,
@@ -593,7 +593,7 @@ fn status_pill(ui: &mut egui::Ui, label: &str, color: Color32) {
 fn sidebar_card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(CARD_BG)
-        .stroke(Stroke::new(1.0, BORDER))
+        .stroke(Stroke::new(1.0_f32, BORDER))
         .corner_radius(10)
         .inner_margin(egui::Margin::same(14))
         .show(ui, add_contents);
@@ -602,7 +602,7 @@ fn sidebar_card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
 fn card(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .fill(CARD_BG)
-        .stroke(Stroke::new(1.0, BORDER))
+        .stroke(Stroke::new(1.0_f32, BORDER))
         .corner_radius(10)
         .inner_margin(egui::Margin::same(16))
         .show(ui, add_contents);
@@ -664,7 +664,7 @@ fn help_text(ui: &mut egui::Ui, text: &str) {
 fn stale_banner(ui: &mut egui::Ui) {
     egui::Frame::new()
         .fill(WARNING.gamma_multiply(0.11))
-        .stroke(Stroke::new(1.0, WARNING.gamma_multiply(0.55)))
+        .stroke(Stroke::new(1.0_f32, WARNING.gamma_multiply(0.55)))
         .corner_radius(8)
         .inner_margin(egui::Margin::symmetric(12, 9))
         .show(ui, |ui| {
@@ -681,7 +681,7 @@ fn stale_banner(ui: &mut egui::Ui) {
 fn error_card(ui: &mut egui::Ui, error: &str) {
     egui::Frame::new()
         .fill(ERROR.gamma_multiply(0.08))
-        .stroke(Stroke::new(1.0, ERROR.gamma_multiply(0.55)))
+        .stroke(Stroke::new(1.0_f32, ERROR.gamma_multiply(0.55)))
         .corner_radius(10)
         .inner_margin(egui::Margin::same(16))
         .show(ui, |ui| {
@@ -1213,7 +1213,7 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
             let y = egui::lerp(plot.bottom()..=plot.top(), fraction);
             painter.line_segment(
                 [Pos2::new(plot.left(), y), Pos2::new(plot.right(), y)],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
             let value = y_min + (y_max - y_min) * fraction as f64;
             painter.text(
@@ -1231,7 +1231,7 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
             let x = egui::lerp(plot.left()..=plot.right(), fraction);
             painter.line_segment(
                 [Pos2::new(x, plot.top()), Pos2::new(x, plot.bottom())],
-                Stroke::new(1.0, GRID),
+                Stroke::new(1.0_f32, GRID),
             );
             let when = interpolate_time(output.start, output.end, fraction as f64);
             painter.text(
@@ -1263,7 +1263,7 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
                 )
             })
             .collect();
-        painter.line(points, Stroke::new(2.2, ACCENT));
+        painter.line(points, Stroke::new(2.2_f32, ACCENT));
 
         if let Some(pointer) = response
             .hover_pos()
@@ -1281,7 +1281,7 @@ fn render_chart(ui: &mut egui::Ui, output: &CalculationOutput) {
                         Pos2::new(point.x, plot.top()),
                         Pos2::new(point.x, plot.bottom()),
                     ],
-                    Stroke::new(1.0, ACCENT.gamma_multiply(0.45)),
+                    Stroke::new(1.0_f32, ACCENT.gamma_multiply(0.45)),
                 );
                 painter.circle_filled(point, 4.5, TEXT);
 
@@ -1485,7 +1485,7 @@ fn dashed_horizontal(painter: &egui::Painter, rect: Rect, y: f32, color: Color32
     while x < rect.right() {
         painter.line_segment(
             [Pos2::new(x, y), Pos2::new((x + dash).min(rect.right()), y)],
-            Stroke::new(1.4, color),
+            Stroke::new(1.4_f32, color),
         );
         x += dash + gap;
     }
