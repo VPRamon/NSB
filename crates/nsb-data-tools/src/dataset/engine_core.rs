@@ -1200,7 +1200,9 @@ schema = "nsb-moonlight-multiscatter-v1"
 
 [assets.header]
 solver = "stale"
-"#.parse::<toml_edit::DocumentMut>().unwrap();
+"#
+        .parse::<toml_edit::DocumentMut>()
+        .unwrap();
         let artifact = tempfile::NamedTempFile::new().unwrap();
         fs::write(
             artifact.path(),
@@ -1210,7 +1212,8 @@ solver = "stale"
 # aerosol_model_sha256 = aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\
 # mie_artifact_sha256 = bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n\
 # seed_namespace = nsb-moonlight-multiscatter-v1\n",
-        ).unwrap();
+        )
+        .unwrap();
         let config = RunConfig {
             schema_version: 1,
             dataset: DatasetName::MoonlightScattering,
@@ -1228,7 +1231,8 @@ solver = "stale"
             &config,
             crate::dataset::moonlight_multiscatter::OUTPUT,
             artifact.path(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let asset = document["assets"]
             .as_array_of_tables()
@@ -1245,13 +1249,18 @@ solver = "stale"
             Some("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
         );
 
-        fs::write(artifact.path(), "# schema = nsb-moonlight-multiscatter-v1\n").unwrap();
+        fs::write(
+            artifact.path(),
+            "# schema = nsb-moonlight-multiscatter-v1\n",
+        )
+        .unwrap();
         assert!(sync_moonlight_manifest_metadata(
             &mut document,
             &config,
             crate::dataset::moonlight_multiscatter::OUTPUT,
             artifact.path(),
-        ).is_err());
+        )
+        .is_err());
     }
 
     #[test]
@@ -1292,9 +1301,7 @@ solver = "stale"
         assert_eq!(all.first().map(String::as_str), Some("w0300"));
         assert_eq!(all.last().map(String::as_str), Some("w0650"));
 
-        let error =
-            selected_partitions(&config, Operation::Build, &["w0290".into()]).unwrap_err();
+        let error = selected_partitions(&config, Operation::Build, &["w0290".into()]).unwrap_err();
         assert!(error.to_string().contains("unknown partition"));
     }
-
 }
