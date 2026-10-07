@@ -3,7 +3,7 @@
 All notable changes are recorded here. Published versions follow semantic
 versioning; the `0.x` series remains pre-1.0.
 
-## 0.1.0 - 2026-10-06
+## 0.1.0 - Unreleased
 
 First public NSB release.
 
@@ -73,11 +73,12 @@ First public NSB release.
 - Replaced the former Rust coverage-gate crate with
   `scripts/coverage-gate.sh` while preserving blocking workspace/core/diff
   coverage floors.
-- Minimized and reviewed the first-release Rust public API and marked evolvable
-  records/enums/errors non-exhaustive where appropriate. The pre-release API
-  freeze is temporarily reopened for #214 so the public Airglow model identity
-  can truthfully change to PALACE v1.0; `API_FROZEN` must be bootstrapped again
-  before the `0.1.0` tag.
+- Replaced the historical Moonlight Mie and multiple-scattering lookup bytes
+  with NSB-owned reproducible products generated from documented Jones-model
+  assumptions and an in-tree radiative-transfer pipeline (#220, #222).
+- Minimized and reviewed the first-release Rust public API, marked evolvable
+  records/enums/errors non-exhaustive where appropriate, and froze the final
+  `0.1.0` surface after the PALACE v1.0 Airglow identity correction.
 
 ### Scientific status and release boundaries
 
