@@ -646,7 +646,7 @@ fn filtered_sources<'a>(
         .collect()
 }
 
-fn verify_source(path: &Path, expected: &str) -> Result<()> {
+pub(crate) fn verify_source(path: &Path, expected: &str) -> Result<()> {
     let actual = sha256_file(path)?;
     if actual != expected {
         bail!(

@@ -16,6 +16,7 @@ use std::path::Path;
 pub const MODEL_SOURCE: &str = "moonlight-aerosol-nsb-v1.toml";
 pub const OUTPUT: &str = "moonlight_mie_nsb_v1.dat";
 pub const SSCAT: &str = "sscatcor_m15s1.dat";
+const SPECTRAL_INTERPOLATION_LIMIT: f64 = 0.4;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -70,20 +71,36 @@ pub fn build(config: &RunConfig) -> Result<Vec<Artifact>> {
     let source_root = config.workspace.root.join("sources");
     let output_root = config.workspace.root.join("outputs");
     fs::create_dir_all(&output_root)?;
-    let model = read_model(&source_root.join(MODEL_SOURCE))?;
+    let model_path = source_root.join(MODEL_SOURCE);
+    let sscat_path = source_root.join(SSCAT);
+    verify_source(config, MODEL_SOURCE, &model_path)?;
+    verify_source(config, SSCAT, &sscat_path)?;
+    let model = read_model(&model_path)?;
     let bytes = generate(&model)?;
     let mie_path = output_root.join(OUTPUT);
     super::engine::atomic_write(&mie_path, bytes.as_bytes())?;
-    let sscat_path = output_root.join(SSCAT);
-    let sscat_bytes = fs::read(source_root.join(SSCAT)).context("run update before build")?;
-    super::engine::atomic_write(&sscat_path, &sscat_bytes)?;
-    let mut artifacts = vec![artifact(OUTPUT, &mie_path)?, artifact(SSCAT, &sscat_path)?];
+    let sscat_output_path = output_root.join(SSCAT);
+    let sscat_bytes = fs::read(&sscat_path).context("run update before build")?;
+    super::engine::atomic_write(&sscat_output_path, &sscat_bytes)?;
+    let mut artifacts = vec![
+        artifact(OUTPUT, &mie_path)?,
+        artifact(SSCAT, &sscat_output_path)?,
+    ];
     artifacts.sort_by(|a, b| a.name.cmp(&b.name));
     super::engine::atomic_write(
         &output_root.join("artifacts.json"),
         &serde_json::to_vec_pretty(&artifacts)?,
     )?;
     Ok(artifacts)
+}
+
+fn verify_source(config: &RunConfig, name: &str, path: &Path) -> Result<()> {
+    let source = config
+        .sources
+        .iter()
+        .find(|source| source.name == name)
+        .with_context(|| format!("moonlight source {name:?} is not configured"))?;
+    super::engine::verify_source(path, &source.sha256)
 }
 
 pub fn validate_artifact(name: &str, path: &Path) -> Result<()> {
@@ -145,7 +162,13 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
         let ninety = linear_lookup(&grid.angles, row, 90.0);
         row[0] > ninety
     });
-    let interpolation_error = angular_interpolation_error(&model, &grid)?;
+    let angular_error = angular_interpolation_error(&model, &grid)?;
+    let spectral_error = spectral_interpolation_error(
+        &model,
+        &grid,
+        &SPECTRAL_WAVELENGTH_PROBES_NM,
+        &SPECTRAL_ANGLE_PROBES_DEG,
+    )?;
 
     Ok(vec![
         ValidationGate {
@@ -165,8 +188,15 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
         },
         ValidationGate {
             name: "mie-angular-interpolation".into(),
-            passed: interpolation_error < 3.0e-3,
-            detail: format!("worst direct-solver probe relative error={interpolation_error:.3e}"),
+            passed: angular_error < 3.0e-3,
+            detail: format!("worst direct-solver probe relative error={angular_error:.3e}"),
+        },
+        ValidationGate {
+            name: "mie-spectral-interpolation".into(),
+            passed: spectral_error < SPECTRAL_INTERPOLATION_LIMIT,
+            detail: format!(
+                "worst off-grid bilinear direct-solver probe relative error={spectral_error:.3e}"
+            ),
         },
         ValidationGate {
             name: "mie-forward-scattering".into(),
@@ -174,6 +204,34 @@ pub fn validation_gates(config: &RunConfig, artifacts: &[Artifact]) -> Result<Ve
             detail: "P(0 degrees) exceeds P(90 degrees) at every wavelength".into(),
         },
     ])
+}
+
+const SPECTRAL_WAVELENGTH_PROBES_NM: [f64; 35] = [
+    305.0, 315.0, 325.0, 335.0, 345.0, 355.0, 365.0, 375.0, 385.0, 395.0, 405.0, 415.0, 425.0,
+    435.0, 445.0, 455.0, 465.0, 475.0, 485.0, 495.0, 505.0, 515.0, 525.0, 535.0, 545.0, 555.0,
+    565.0, 575.0, 585.0, 595.0, 605.0, 615.0, 625.0, 635.0, 645.0,
+];
+
+const SPECTRAL_ANGLE_PROBES_DEG: [f64; 14] = [
+    0.00625, 0.01875, 0.0625, 0.1875, 0.5125, 1.025, 2.0625, 5.125, 9.875, 10.5, 45.0, 90.5, 169.5,
+    179.9375,
+];
+
+fn spectral_interpolation_error(
+    model: &Model,
+    grid: &Grid,
+    wavelengths_nm: &[f64],
+    angles_deg: &[f64],
+) -> Result<f64> {
+    let mut worst = 0.0_f64;
+    for &wavelength_nm in wavelengths_nm {
+        let (direct, _) = ensemble_phase(model, wavelength_nm / 1000.0, angles_deg)?;
+        for (&angle, &expected) in angles_deg.iter().zip(&direct) {
+            let interpolated = bilinear_lookup(grid, wavelength_nm / 1000.0, angle);
+            worst = worst.max((interpolated / expected - 1.0).abs());
+        }
+    }
+    Ok(worst)
 }
 
 fn angular_interpolation_error(model: &Model, grid: &Grid) -> Result<f64> {
@@ -192,6 +250,15 @@ fn angular_interpolation_error(model: &Model, grid: &Grid) -> Result<f64> {
         }
     }
     Ok(worst)
+}
+
+fn bilinear_lookup(grid: &Grid, wavelength: f64, angle: f64) -> f64 {
+    let rows: Vec<_> = grid
+        .values
+        .iter()
+        .map(|row| linear_lookup(&grid.angles, row, angle))
+        .collect();
+    linear_lookup(&grid.wavelengths, &rows, wavelength)
 }
 
 fn linear_lookup(axis: &[f64], values: &[f64], value: f64) -> f64 {
@@ -782,6 +849,20 @@ abundance = 1.0
         }
     }
 
+    fn configured_sources(workspace: &Path) -> Vec<SourceConfig> {
+        [MODEL_SOURCE, SSCAT]
+            .into_iter()
+            .map(|name| {
+                let mut source = source(name);
+                source.sha256 = crate::platform::checksum_io::sha256_file(
+                    &workspace.join("sources").join(name),
+                )
+                .unwrap();
+                source
+            })
+            .collect()
+    }
+
     #[test]
     fn model_validation_rejects_bad_contracts() {
         let model = tiny_model();
@@ -917,7 +998,9 @@ abundance = 1.0
         fs::write(sources.join(MODEL_SOURCE), tiny_model_toml()).unwrap();
         fs::write(sources.join(SSCAT), "first\nsecond\n").unwrap();
 
-        let artifacts = build(&run_config(workspace.clone())).unwrap();
+        let mut config = run_config(workspace.clone());
+        config.sources = configured_sources(&workspace);
+        let artifacts = build(&config).unwrap();
         assert_eq!(artifacts.len(), 2);
         assert!(workspace.join("outputs").join(OUTPUT).is_file());
         assert_eq!(
@@ -925,6 +1008,27 @@ abundance = 1.0
             "first\nsecond\n"
         );
         assert!(workspace.join("outputs/artifacts.json").is_file());
+    }
+
+    #[test]
+    fn build_rejects_mutated_checksum_pinned_model_source() {
+        let temp = tempfile::tempdir().unwrap();
+        let workspace = temp.path().join("workspace");
+        let sources = workspace.join("sources");
+        fs::create_dir_all(&sources).unwrap();
+        fs::write(sources.join(MODEL_SOURCE), tiny_model_toml()).unwrap();
+        fs::write(sources.join(SSCAT), "first\nsecond\n").unwrap();
+        let mut config = run_config(workspace.clone());
+        config.sources = configured_sources(&workspace);
+
+        fs::write(
+            sources.join(MODEL_SOURCE),
+            format!("{}\n# mutated\n", tiny_model_toml()),
+        )
+        .unwrap();
+        let error = build(&config).unwrap_err();
+        assert!(error.to_string().contains("checksum mismatch"));
+        assert!(error.to_string().contains(MODEL_SOURCE));
     }
 
     #[test]
@@ -965,6 +1069,9 @@ abundance = 1.0
         assert!(gates
             .iter()
             .any(|gate| gate.name == "mie-angular-interpolation"));
+        assert!(gates
+            .iter()
+            .any(|gate| gate.name == "mie-spectral-interpolation"));
         assert!(validation_gates(&run_config(temp.path().join("missing")), &[]).is_err());
     }
 
@@ -992,6 +1099,26 @@ abundance = 1.0
             }
         }
         assert!(worst < 3.0e-3, "worst interpolation error={worst:.6e}");
+    }
+
+    #[test]
+    fn production_spectral_interpolation_probes_are_bounded() {
+        let model = production_model();
+        let grid = parse_grid(
+            &std::fs::read_to_string(
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../nsb/data/moonlight_mie_nsb_v1.dat"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let wavelengths_nm = [305.0, 405.0, 505.0, 605.0, 645.0];
+        let angles_deg = [0.00625, 0.5, 10.5, 90.5, 169.5, 179.9375];
+        let worst =
+            spectral_interpolation_error(&model, &grid, &wavelengths_nm, &angles_deg).unwrap();
+        assert!(
+            worst < SPECTRAL_INTERPOLATION_LIMIT,
+            "worst spectral interpolation error={worst:.6e}"
+        );
     }
 
     #[test]

@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - crates/nsb-data-tools/src/dataset/**
+      - crates/nsb-data-tools/Cargo.toml
+      - Cargo.toml
+      - Cargo.lock
       - crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml
       - crates/nsb-data-tools/config/moonlight-scattering.toml
       - crates/nsb/src/components/moonlight/**
@@ -16,6 +19,9 @@ on:
       - main
     paths:
       - crates/nsb-data-tools/src/dataset/**
+      - crates/nsb-data-tools/Cargo.toml
+      - Cargo.toml
+      - Cargo.lock
       - crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml
       - crates/nsb-data-tools/config/moonlight-scattering.toml
       - crates/nsb/src/components/moonlight/**

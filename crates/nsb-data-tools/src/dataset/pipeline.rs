@@ -3,7 +3,6 @@
 use super::{Artifact, DatasetName, RunConfig, ValidationGate};
 use anyhow::{bail, Result};
 use std::fs;
-use std::io::{BufRead, BufReader};
 use std::path::Path;
 
 /// Domain behavior required by the generic dataset engine.
@@ -231,45 +230,6 @@ impl DatasetPipeline for MoonlightPipeline {
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
         super::moonlight_mie::validate_artifact(name, path)
     }
-}
-
-fn require_expected<'a>(pipeline: &dyn DatasetPipeline, source_name: &'a str) -> Result<&'a str> {
-    if pipeline.expected_outputs().contains(&source_name) {
-        Ok(source_name)
-    } else {
-        bail!(
-            "unexpected source name {source_name:?} for {}",
-            pipeline.dataset()
-        )
-    }
-}
-
-fn require_minimum_rows(name: &str, path: &Path, minimum: usize) -> Result<()> {
-    if data_rows(path)?.len() < minimum {
-        bail!("{name} contains too few data rows");
-    }
-    Ok(())
-}
-
-fn data_rows(path: &Path) -> Result<Vec<String>> {
-    Ok(data_rows_from(&read_lines(path)?)
-        .into_iter()
-        .map(str::to_string)
-        .collect())
-}
-
-fn data_rows_from(lines: &[String]) -> Vec<&str> {
-    lines
-        .iter()
-        .map(String::as_str)
-        .filter(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
-        .collect()
-}
-
-fn read_lines(path: &Path) -> Result<Vec<String>> {
-    Ok(BufReader::new(fs::File::open(path)?)
-        .lines()
-        .collect::<std::io::Result<_>>()?)
 }
 
 #[cfg(test)]

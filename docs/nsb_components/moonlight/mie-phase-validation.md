@@ -100,6 +100,16 @@ error of `1.781e-3` for the admitted refined angular grid. This check includes
 sub-cell probes at the forward and backward edges and remains independent of
 the artifact interpolation implementation.
 
+The lifecycle also evaluates the direct solver at every 10 nm spectral
+midpoint from 305 through 645 nm, at representative forward-lobe,
+low/intermediate, near-90-degree, and backward angles. It compares those
+values with the runtime-equivalent bilinear interpolation of the published
+grid. The production result is a worst relative error of `3.691e-1` (36.91%),
+concentrated in the narrow forward lobe. The validation gate therefore uses an
+explicit `0.4` (40%) upper bound for this known v1 discretization limitation;
+it is separate from the `3.0e-3` angular interpolation bound and detects any
+future spectral degradation beyond the measured production behavior.
+
 ## Physical and integral validation
 
 The lifecycle validation checks finite/non-negative values, strictly increasing
@@ -110,6 +120,8 @@ forward scattering at every wavelength. For the admitted artifact:
 - asymmetry-factor range: `0.573705` to `0.675937`;
 - worst absolute coefficient-vs-grid asymmetry difference: `1.513e-5`;
 - worst direct-solver interpolation probe error: `1.781e-3`;
+- worst off-grid spectral/bilinear interpolation error: `3.691e-1` (gate:
+  `< 0.4`);
 - `P(0 deg) > P(90 deg)` at every wavelength;
 - output SHA-256: `8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc`.
 
