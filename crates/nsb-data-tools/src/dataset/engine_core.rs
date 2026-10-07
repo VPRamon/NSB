@@ -1025,6 +1025,100 @@ impl Drop for Lease {
 mod tests {
     use super::*;
 
+    fn write_non_partitioned_config() -> (tempfile::TempDir, PathBuf) {
+        let temp = tempfile::tempdir().unwrap();
+        fs::write(temp.path().join("dummy.dat"), b"dummy").unwrap();
+        let config_path = temp.path().join("run.toml");
+        fs::write(
+            &config_path,
+            format!(
+                "schema_version = 1\n\
+dataset = \"solar-spectrum\"\n\n\
+[workspace]\n\
+root = \"workspace\"\n\n\
+[execution]\n\
+executor = \"local\"\n\
+concurrency = 1\n\n\
+[[sources]]\n\
+name = \"dummy.dat\"\n\
+path = \"dummy.dat\"\n\
+sha256 = \"{}\"\n",
+                "0".repeat(64)
+            ),
+        )
+        .unwrap();
+        (temp, config_path)
+    }
+
+    #[test]
+    fn slurm_rejects_non_partitioned_dataset() {
+        let (_temp, config_path) = write_non_partitioned_config();
+        let error = execute(
+            &config_path,
+            DatasetName::SolarSpectrum,
+            Operation::Build,
+            Some(Executor::Slurm),
+            None,
+            &[],
+        )
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("Slurm executor requires a partitioned dataset"));
+    }
+
+    #[test]
+    fn distributed_worker_rejects_non_partitioned_dataset() {
+        let (_temp, config_path) = write_non_partitioned_config();
+        let error = run_worker(
+            &config_path,
+            DatasetName::SolarSpectrum,
+            Operation::Build,
+            Some("partition"),
+            None,
+        )
+        .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("distributed workers require a matching partitioned dataset"));
+    }
+
+    #[test]
+    fn partition_selection_rejects_non_partitioned_dataset() {
+        let (_temp, config_path) = write_non_partitioned_config();
+        let config = RunConfig::load(&config_path).unwrap();
+        let error = selected_partitions(&config, Operation::Build, &["partition".into()])
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("partition selection requires a partitioned dataset"));
+    }
+
+    #[test]
+    fn moonlight_metadata_ignores_unrelated_artifacts() {
+        let mut document = "schema_version = 1\n"
+            .parse::<toml_edit::DocumentMut>()
+            .unwrap();
+        let config = RunConfig {
+            schema_version: 1,
+            dataset: DatasetName::MoonlightScattering,
+            workspace: super::super::config::WorkspaceConfig {
+                root: PathBuf::from("/tmp/moonlight"),
+            },
+            execution: super::super::config::ExecutionConfig::default(),
+            sources: Vec::new(),
+            publish: None,
+            starlight: None,
+        };
+        sync_moonlight_manifest_metadata(
+            &mut document,
+            &config,
+            "unrelated.dat",
+            Path::new("/does/not/matter"),
+        )
+        .unwrap();
+    }
+
     #[test]
     fn source_checksum_mismatch_is_rejected() {
         let file = tempfile::NamedTempFile::new().unwrap();
