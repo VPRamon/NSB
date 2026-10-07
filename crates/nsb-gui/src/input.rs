@@ -553,9 +553,11 @@ mod tests {
 
     #[test]
     fn jd_and_mjd_represent_the_same_tt_instant() {
-        let mut jd = InputState::default();
-        jd.time_mode = TimeMode::JulianDate;
-        jd.jd_tt = "2461321.25".into();
+        let jd = InputState {
+            time_mode: TimeMode::JulianDate,
+            jd_tt: "2461321.25".into(),
+            ..Default::default()
+        };
         let mut mjd = jd.clone();
         mjd.time_mode = TimeMode::ModifiedJulianDate;
         mjd.mjd_tt = "61320.75".into();
@@ -566,12 +568,18 @@ mod tests {
 
     #[test]
     fn coordinate_validation_matches_domain_ranges() {
-        let mut state = InputState::default();
-        state.longitude = "181".into();
-        assert!(state.resolve_observer().is_err());
-        state.longitude = "0".into();
-        state.latitude = "-91".into();
-        assert!(state.resolve_observer().is_err());
+        let invalid_longitude = InputState {
+            longitude: "181".into(),
+            ..Default::default()
+        };
+        assert!(invalid_longitude.resolve_observer().is_err());
+
+        let invalid_latitude = InputState {
+            longitude: "0".into(),
+            latitude: "-91".into(),
+            ..Default::default()
+        };
+        assert!(invalid_latitude.resolve_observer().is_err());
     }
 
     #[test]
@@ -592,9 +600,11 @@ mod tests {
 
     #[test]
     fn horizontal_input_resolves_to_finite_j2000_target() {
-        let mut state = InputState::default();
-        state.target_frame = TargetFrame::Horizontal;
-        state.coordinate_format = CoordinateFormat::DecimalDegrees;
+        let state = InputState {
+            target_frame: TargetFrame::Horizontal,
+            coordinate_format: CoordinateFormat::DecimalDegrees,
+            ..Default::default()
+        };
         let observer = state.resolve_observer().unwrap();
         let start = state.resolve_time().unwrap();
         let target = state.resolve_target(observer, start).unwrap();
