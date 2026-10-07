@@ -95,10 +95,7 @@ mod tests {
             reddening_factor(beta, elong_30, 400.0),
             0.883_707_984_390_332_4,
         );
-        assert_close(
-            reddening_factor(beta, elong_30, 600.0),
-            1.063_344_996_838_1,
-        );
+        assert_close(reddening_factor(beta, elong_30, 600.0), 1.063_344_996_838_1);
 
         // epsilon=90 deg: slope 0.9 below 500 nm, 0.6 above.
         let elong_90 = Radians::new(90.0_f64.to_radians());
@@ -125,6 +122,21 @@ mod tests {
         assert_close(
             reddening_factor(beta, elong_30, 501.0),
             1.000_694_177_224_981_6,
+        );
+
+        // The historical implementation incorrectly changed branches at
+        // 550 nm. All three wavelengths must use the long-wavelength slope.
+        assert_close(
+            reddening_factor(beta, elong_30, 549.0),
+            1.032_481_872_091_258_5,
+        );
+        assert_close(
+            reddening_factor(beta, elong_30, 550.0),
+            1.033_114_148_126_58,
+        );
+        assert_close(
+            reddening_factor(beta, elong_30, 551.0),
+            1.033_745_275_612_613,
         );
     }
 

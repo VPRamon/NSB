@@ -240,12 +240,12 @@ mod tests {
 
         let beta = crate::units::angular::Radians::new(0.0);
         let elong_90 = crate::units::angular::Radians::new(90.0_f64.to_radians());
-        let reconstructed_ratio =
-            (solar_400 / solar_500) * reddening_factor(beta, elong_90, 400.0);
+        let reconstructed_ratio = (solar_400 / solar_500) * reddening_factor(beta, elong_90, 400.0);
         let published_ratio = 2.2e-6 / 2.6e-6;
-        let relative_error =
-            (reconstructed_ratio - published_ratio).abs() / published_ratio;
+        let relative_error = (reconstructed_ratio - published_ratio).abs() / published_ratio;
 
+        // The corrected log10 reconstruction differs by 16.57%; the former
+        // natural-log implementation differs by 26.95% and fails this bound.
         assert!(
             relative_error <= 0.20,
             "400/500 nm reconstructed ratio {reconstructed_ratio:.6} differs from \

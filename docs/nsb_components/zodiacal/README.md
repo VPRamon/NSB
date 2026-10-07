@@ -98,10 +98,19 @@ reference rather than the historical solar spectrum behind that compilation,
 the Table 19 check is a tolerance validation rather than an exact regression.
 
 The v0.1.0 Leinert path does not apply the Earth–Sun-distance `r^-2.3`
-modulation or the seasonal correction associated with the interplanetary-dust
-symmetry plane. Those effects remain explicit follow-up work; v0.1.0 should
-therefore be treated as a planning model with these seasonal approximations,
-not as a seasonally complete zodiacal-light prediction.
+modulation. Using Earth's orbital eccentricity (`e` approximately 0.0167), the
+factor `(r / 1 AU)^-2.3` is approximately +4% at perihelion and -4% at
+aphelion, or about 8% peak-to-peak relative to the 1 AU normalization. These
+figures describe only the omitted distance scaling, not the total model error.
+
+The seasonal correction associated with the interplanetary-dust symmetry plane
+is also deferred. It changes the directional brightness pattern as Earth moves
+relative to the inclined and offset dust cloud; a robust single percentage is
+not established by the references used for this implementation, so no
+quantitative accuracy claim is made here. Both effects remain explicit
+follow-up work. v0.1.0 should therefore be treated as a planning model with
+these seasonal approximations, not as a seasonally complete zodiacal-light
+prediction.
 
 ## References and related documentation
 
