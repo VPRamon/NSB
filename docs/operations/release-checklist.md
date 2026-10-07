@@ -12,8 +12,10 @@ scientific calibration evidence.
 - [ ] `Cargo.lock` is committed and the Siderust crates.io source identity matches the compatibility matrix.
 - [ ] `cargo package -p nsb --locked` succeeds using publishable registry dependencies.
 - [ ] `cargo package -p nsb --list` contains only intended distribution files and the resulting `.crate` is below the crates.io 10 MiB upload limit.
+- [ ] `cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked` succeeds on the exact release commit.
 - [ ] The registry verifier passes from a normal checkout and validates every tracked scientific payload checksum.
 - [ ] The release and default manual scientific-validation paths pass without external asset fetching; the optional `verify_upstream` manual input is reserved for live PALACE provenance regeneration.
+- [ ] The Moonlight reproducibility workflow completes `update → build → validate → publish` and leaves the committed Mie LUT, multiple-scattering LUT, and manifest byte-for-byte unchanged.
 - [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
 - [ ] Every `runtime_embedded = true` asset has explicit redistribution terms; release automation fails closed for missing, unresolved, pending, or unrecorded terms.
 - [ ] The packaged Airglow runtime contains `airglow_palace_v1.dat` with the manifest checksum and excludes historical `airglow_cont.dat`; PALACE attribution and CC BY 4.0 data terms remain in `THIRD_PARTY_NOTICES.md`.
@@ -26,7 +28,7 @@ scientific calibration evidence.
 - [ ] Model maturity and known limitations match CLI metadata.
 - [ ] CTAO profiles remain uncalibrated unless dedicated validation data justify promotion.
 - [ ] B/V values remain labelled diagnostic unless passband validation lands.
-- [ ] Format, check, Clippy, unit tests, integration tests, doctests, docs, release build, MSRV, `cargo deny`, and the aggregate `CI success` gate pass.
+- [ ] Format, check, Clippy, unit tests, integration tests, doctests, docs, release build, MSRV, `cargo deny`, all canonical examples, and the aggregate `CI success` gate pass.
 - [ ] Coverage gates in [`coverage-policy.toml`](../../coverage-policy.toml) pass on `main`: workspace and `nsb` line floors are blocking (LCOV line data; fail-closed if `nsb` is missing), and the HTML/JSON/LCOV artifacts remain available. Do not lower a floor merely to make a PR pass. See [Coverage policy](../developer-guide/coverage.md).
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
 - [ ] Scheduled/manual benchmarks compile and performance changes are summarized.
