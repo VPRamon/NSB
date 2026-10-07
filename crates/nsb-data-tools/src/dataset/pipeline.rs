@@ -253,6 +253,34 @@ mod tests {
     use super::*;
     use crate::dataset::moonlight_mie;
 
+    fn invalid_moonlight_config() -> RunConfig {
+        RunConfig {
+            schema_version: 1,
+            dataset: DatasetName::MoonlightScattering,
+            workspace: super::super::config::WorkspaceConfig {
+                root: std::path::PathBuf::from("/tmp/nsb-missing-moonlight"),
+            },
+            execution: super::super::config::ExecutionConfig::default(),
+            sources: Vec::new(),
+            publish: None,
+            starlight: None,
+        }
+    }
+
+    #[test]
+    fn moonlight_pipeline_delegates_specialized_operations() {
+        let pipeline = pipeline_for(DatasetName::MoonlightScattering);
+        let config = invalid_moonlight_config();
+
+        assert!(pipeline.validate_config(&config).is_err());
+        assert!(pipeline.build(&config, &[]).is_err());
+        assert!(pipeline.finalize(&config).is_err());
+        assert!(pipeline.validation_gates(&config, &[]).is_err());
+        assert!(pipeline
+            .validate_artifact("unexpected", Path::new("/does/not/matter"))
+            .is_err());
+    }
+
     #[test]
     fn moonlight_pipeline_routes_model_and_runtime_artifacts() {
         let pipeline = pipeline_for(DatasetName::MoonlightScattering);
