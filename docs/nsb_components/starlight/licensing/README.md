@@ -1,68 +1,33 @@
-# Starlight redistribution and licensing package
+# Starlight redistribution and licensing
 
-Status: technical scaffolding for #88 (redistribution and attribution
-review). Human approval is intentionally not recorded here.
+Status: Current redistribution policy for Starlight data products.
 
-## What lives in this folder
+NSB 0.1.0 does not redistribute a Gaia-derived production Starlight map. Raw
+Gaia, Hipparcos, Tycho, CALSPEC, CK04, and other upstream catalogue/reference
+bytes are not bundled by the runtime package.
 
-| File | Purpose |
-| --- | --- |
-| [`artifact-inventory-v1.toml`](artifact-inventory-v1.toml) | Every upstream input, generated artifact, sidecar, manifest, and report that participates in the Starlight candidate, with source, release, licence, checksum (when known), distribution class, and current distribution status. |
-| [`ATTRIBUTION.md`](ATTRIBUTION.md) | Attribution wording for Gaia DR3, Cantat-Gaudin, CALSPEC, and GaiaXPy, plus how NSB-generated artifacts are licensed. |
+The attribution requirements and source families relevant to a future
+Starlight product are documented in [ATTRIBUTION.md](ATTRIBUTION.md) and the
+project-wide [THIRD_PARTY_NOTICES.md](../../../../THIRD_PARTY_NOTICES.md).
 
-The consolidated, project-wide notice this folder feeds into is
-[`THIRD_PARTY_NOTICES.md`](../../../../THIRD_PARTY_NOTICES.md) at the
-repository root.
+## Promotion contract
 
-The fail-closed Rust contract that parses and cross-validates the inventory
-and the canonical redistribution decision file lives in
-[`crates/nsb-data-tools/src/starlight/licensing.rs`](../../../../crates/nsb-data-tools/src/starlight/licensing.rs).
-It is invoked by `nsb-data dataset starlight promote` as a fail-closed
-licensing gate. The human redistribution decision remains #103.
+`nsb-data` implements a fail-closed redistribution review contract. A future
+candidate promotion must provide:
 
-## What this package does *not* do
+- an inventory of every distributed and referenced artifact;
+- exact SHA-256 identities for distributed derived outputs;
+- source/release/licence information for upstream inputs;
+- the intended distribution channels;
+- an authorized human redistribution decision; and
+- any machine-verifiable conditions attached to that decision.
 
-This package inventories facts and enforces internal consistency. It does
-not, and cannot, authorize redistribution. Specifically, it does not:
+The Rust implementation validates those records but cannot grant
+redistribution approval itself. Approval belongs to an authorized human
+reviewer.
 
-- decide whether the Gaia data licence (CC BY-NC 3.0 IGO) non-commercial
-  clause permits NSB's intended release channels for a Gaia-derived
-  candidate map;
-- select or approve independent validation evidence for #87;
-- fill in `reviewer_name`, `reviewer_role`, `reviewed_at_utc`, or change
-  `decision` away from `"pending"` in the decision template;
-- claim that any artifact currently marked `distributed = true` in the
-  inventory has completed redistribution review. Several already-embedded
-  repository artifacts (the candidate map, its merge report, and the
-  validation report) are flagged in the inventory as pending exactly this
-  review.
+## First-release rule
 
-## Where the human decision lives
-
-**The human decision stays in #103.** Per that issue's structure, the
-technical package (#88, this folder, closed by an authorized human process)
-and the human sign-off (#103, the single final gate for Starlight production)
-are deliberately separate. An authorized human reviewer — the project owner
-or an authorized reviewer, not a software agent — must:
-
-1. review the inventory, licences, attributions, distributed outputs,
-   channels, notices, and restrictions recorded here;
-2. update `../release-candidate/redistribution-review-decision-v1.json`, recompute
-   `inventory_sha256` against the exact inventory bytes under review, and
-   set `decision`, `reviewer_name`, `reviewer_role`, `reviewed_at_utc`, and
-   the pinned per-artifact checksums/channels;
-3. commit or attach the signed decision JSON on the promotion branch or
-   workflow inputs referenced by #103.
-
-No software agent, including the one that produced this package, may set
-that canonical redistribution `decision` to anything other than `"pending"`.
-
-## Known gaps remaining for human #103 review
-
-- Independent validation (#87) acquired three references and ran against the
-  UV-corrected candidate. Preregistered numerical gates versus the Leinert 1998 ISL
-  model did **not** pass; reports are under `validation/results/`. Do not
-  treat that as scientific approval.
-- The Gaia CC BY-NC 3.0 IGO non-commercial clause's compatibility with NSB's
-  intended distribution channels has not been legally determined; this is
-  the central open question for #103.
+Until a Gaia-derived product has completed that process, it remains external to
+the NSB release. Generating or validating a candidate does not make it a bundled
+runtime asset.

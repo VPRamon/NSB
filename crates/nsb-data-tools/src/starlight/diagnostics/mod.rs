@@ -705,10 +705,6 @@ mod tests {
     use crate::starlight::healpix::test_support::fixture_icrs_from_source_id;
     use crate::starlight::map::accumulator::{PartitionShard, UvCorrectionShardMetadata};
     use crate::starlight::map::product::emit_maps;
-    use crate::starlight::pack::{
-        CANONICAL_CANDIDATE_SHA256, LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH,
-        LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256,
-    };
     use crate::starlight::uv::{
         ApplicabilityStatus, CalibrationStatus, CombinedBandFlux, EvaluationDecision,
         ModelResponse, SystematicCorrelation,
@@ -948,60 +944,6 @@ mod tests {
             err.contains("partition") || err.contains("inventory") || err.contains("missing"),
             "unexpected error: {err}"
         );
-        Ok(())
-    }
-
-    #[test]
-    fn legacy_candidate_exhibits_six_nside2_anomalies() -> Result<()> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let candidate = root.join(LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH);
-        let report = analyse_candidate_path(
-            &candidate,
-            128,
-            Some(LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256),
-        )?;
-        assert_eq!(report.pixel_count, 48);
-        assert!(
-            report.anomalous_parents.len() >= 6,
-            "expected at least six anomalous NSIDE=2 parents, got {:?}",
-            report.anomalous_parents
-        );
-        for parent in [0_u32, 16, 18, 26, 27, 43] {
-            assert!(
-                report.anomalous_parents.contains(&parent),
-                "parent {parent} should be anomalous in the legacy candidate"
-            );
-        }
-        Ok(())
-    }
-
-    #[test]
-    fn corrected_candidate_does_not_reproduce_legacy_six_parent_anomalies() -> Result<()> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let candidate = root.join("crates/nsb/data/starlight_nside128.csv");
-        let report = analyse_candidate_path(&candidate, 128, Some(CANONICAL_CANDIDATE_SHA256))?;
-        let legacy_six = [0_u32, 16, 18, 26, 27, 43];
-        let legacy_anomalous: Vec<_> = legacy_six
-            .into_iter()
-            .filter(|parent| report.anomalous_parents.contains(parent))
-            .collect();
-        assert!(
-            legacy_anomalous.len() <= 1,
-            "expected at most one legacy parent still anomalous after frame fix, got {legacy_anomalous:?} (all anomalous parents: {:?})",
-            report.anomalous_parents
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn corrected_candidate_reports_boundary_discontinuity_metrics() -> Result<()> {
-        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let candidate = root.join("crates/nsb/data/starlight_nside128.csv");
-        let map = candidate_map::load(&candidate, 128, Some(CANONICAL_CANDIDATE_SHA256))?;
-        let report = boundary_discontinuity_report(&map, NSIDE2_PARENT_NSIDE)?;
-        assert!(report.median_internal_log_jump.is_finite());
-        assert!(report.median_cross_parent_log_jump.is_finite());
-        assert!(report.cross_to_internal_ratio.is_finite());
         Ok(())
     }
 

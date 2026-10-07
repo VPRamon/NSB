@@ -12,12 +12,6 @@ readme = "README.md"
 publish = ["crates-io"]
 keywords = ["astronomy", "atmosphere", "sky-brightness", "ctao", "nsb"]
 categories = ["science"]
-exclude = [
-    "data/starlight_nside128.csv",
-    "data/starlight_nside128.release.csv",
-    "data/starlight_nside128.manifest.toml",
-    "data/merge_report.json",
-]
 
 [lib]
 name = "nsb"

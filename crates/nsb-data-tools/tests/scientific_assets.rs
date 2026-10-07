@@ -33,31 +33,17 @@ fn repository_scientific_asset_registry_verify() -> Result<()> {
 }
 
 #[test]
-fn manifest_registers_only_one_gaia_candidate_map() -> Result<()> {
+fn first_release_registry_excludes_unapproved_starlight_products() -> Result<()> {
     let raw = fs::read_to_string(repository_manifest_path())?;
     let manifest: Manifest = toml::from_str(&raw)?;
-    let candidates = manifest
+    let starlight = manifest
         .assets
         .iter()
-        .filter(|asset| asset.schema == "nsb-healpix-starlight-candidate-v1")
+        .filter(|asset| asset.path.contains("starlight") || asset.schema.contains("starlight"))
         .map(|asset| asset.path.as_str())
         .collect::<Vec<_>>();
-    if candidates != ["starlight_nside128.csv"] {
-        bail!("expected exactly one Gaia-derived canonical map, found {candidates:?}");
-    }
-    let candidate = manifest
-        .assets
-        .iter()
-        .find(|asset| asset.path == "starlight_nside128.csv")
-        .context("canonical Gaia candidate is missing")?;
-    if candidate.header.get("representation").map(String::as_str) != Some("sparse")
-        || candidate
-            .header
-            .get("omitted_pixel_semantics")
-            .map(String::as_str)
-            != Some("zero_flux_and_source_counts")
-    {
-        bail!("canonical Gaia candidate lacks the sparse representation contract");
+    if !starlight.is_empty() {
+        bail!("first public release must not register unapproved Starlight products: {starlight:?}");
     }
     Ok(())
 }

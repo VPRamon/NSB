@@ -39,7 +39,7 @@ pub enum CandidateStatus {
     /// The checksum below names an admissible, checksum-locked release.
     Pinned,
     /// The checksum below is retained for provenance only; a regenerated
-    /// candidate is expected (historical #94/#95) before promotion can proceed.
+    /// candidate is expected before promotion can proceed.
     AwaitingRegeneration,
 }
 
@@ -987,14 +987,14 @@ fn require_packed_runtime_header(map_path: &Path) -> Result<()> {
         .find(|line| !line.trim().is_empty() && !line.trim_start().starts_with('#'))
         .unwrap_or("");
     if !pack::is_packed_runtime_header(header) {
-        bail!("packed runtime map data header {header:?} is not the candidate-v5 packing contract");
+        bail!("packed runtime map data header {header:?} is not the Starlight candidate packing contract");
     }
     Ok(())
 }
 
 pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, String> {
     let map_resolution = format!("HEALPix nside={} ordering=ring", candidate.nside);
-    let version = format!("uv-v2-packed-from-{}", candidate.candidate_sha256);
+    let version = format!("starlight-runtime-v1-from-{}", candidate.candidate_sha256);
     let mut headers = BTreeMap::from([
         ("dataset_name".into(), "NSB Gaia DR3 Starlight packed runtime map".into()),
         ("version".into(), version),
@@ -1100,10 +1100,10 @@ pub(crate) fn write_production_sidecar(
 ) -> Result<()> {
     let map_resolution = format!("HEALPix nside={} ordering=ring", candidate.nside);
     let mut body = format!(
-        r#"schema_version = 2
+        r#"schema_version = 1
 calibration_status = "production"
 dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
-version = "uv-v2-packed-from-{}"
+version = "starlight-runtime-v1-from-{}"
 generation_date = "{}"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
 source_catalogue_release = "{}"
