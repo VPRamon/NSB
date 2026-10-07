@@ -98,18 +98,21 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
             .as_ref()
             .unwrap()
             .resolved_model,
-        Some(AirglowModel::ParanalNollSkyCalcFors1)
+        Some(AirglowModel::ParanalPalaceV1)
     );
-    assert!(airglow.metadata.provenance.contains("airglow_cont.dat"));
+    assert!(airglow
+        .metadata
+        .provenance
+        .contains("airglow_palace_v1.dat"));
     // Bundled scientific baseline identity is pinned and machine-checkable.
     assert!(airglow
         .metadata
         .provenance
-        .contains("sha256 d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"));
+        .contains("sha256 f03b48cce44764c05e7208e59a0c9dbbb773ffc4b32444f8157dc5ac36fd119e"));
     assert!(airglow
         .metadata
         .provenance
-        .contains("schema skycalc-airglow-continuum-v1"));
+        .contains("schema nsb-airglow-palace-continuum-v1"));
     assert!(airglow
         .metadata
         .provenance
@@ -117,7 +120,7 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
     assert!(airglow
         .metadata
         .provenance
-        .contains("baseline_source Cerro Paranal / Noll / SkyCalc-derived"));
+        .contains("baseline_source PALACE v1.0 Paranal continuum"));
     assert!(airglow
         .metadata
         .provenance
@@ -133,9 +136,9 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .expect("airglow evaluation exposes resolved F10.7");
     assert!(solar.value.value().is_finite() && solar.value.value() > 0.0);
     assert!(
-        airglow.metadata.provenance.contains("Cerro Paranal")
-            && airglow.metadata.provenance.contains("FORS1"),
-        "runtime provenance must surface Paranal/FORS1 lineage from the asset registry"
+        airglow.metadata.provenance.contains("PALACE v1.0")
+            && airglow.metadata.provenance.contains("Cerro Paranal"),
+        "runtime provenance must surface the PALACE/Paranal lineage"
     );
     assert!(
         airglow
@@ -164,14 +167,14 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         .as_ref()
         .expect("airglow metadata includes geometry");
     assert_eq!(geometry.model, "van_rhijn");
-    assert_eq!(geometry.emission_height_km.unwrap().value(), 90.0);
+    assert_eq!(geometry.emission_height_km.unwrap().value(), 88.0);
     assert_eq!(geometry.validated_zenith.min.value(), 0.0);
     assert_eq!(geometry.validated_zenith.max.value(), 90.0);
     assert!(geometry.assumptions.contains("thin"));
     assert!(airglow
         .metadata
         .validated_domain
-        .contains("weaker evidence at the UV end"));
+        .contains("integrated 300–650 nm"));
     let airglow_uncertainty = airglow.relative_uncertainty.unwrap();
     assert!(airglow_uncertainty.is_finite() && airglow_uncertainty > 0.0);
 
@@ -251,7 +254,7 @@ fn vertical_profile_identity_reaches_metadata_without_upgrading_maturity() {
             .as_ref()
             .unwrap()
             .resolved_model,
-        Some(AirglowModel::ParanalNollSkyCalcFors1)
+        Some(AirglowModel::ParanalPalaceV1)
     );
     let geometry = airglow.metadata.airglow_geometry.as_ref().unwrap();
     assert_eq!(geometry.model, "vertical_profile");
@@ -349,7 +352,8 @@ fn generic_airglow_metadata_and_values_work_for_arbitrary_location() {
 fn airglow_runtime_provenance_tracks_bundled_asset_metadata() {
     use nsb::data::bundled::bundled_asset;
 
-    let asset = bundled_asset("airglow_cont.dat").expect("airglow continuum must be registered");
+    let asset =
+        bundled_asset("airglow_palace_v1.dat").expect("airglow continuum must be registered");
     let evaluator = NsbEvaluator::new().unwrap();
     let result = evaluator
         .evaluate(

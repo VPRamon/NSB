@@ -4,7 +4,7 @@
 
 | Dataset | Published artifacts | Execution |
 | --- | --- | --- |
-| `airglow-continuum` | `airglow_cont.dat` | local |
+| `airglow-continuum` | `airglow_palace_v1.dat` | local |
 | `solar-spectrum` | `solar_spectrum.dat` | local |
 | `moonlight-scattering` | `moonlight_mie_nsb_v1.dat`, `sscatcor_m15s1.dat` | local |
 | `starlight` | validated HEALPix map artifacts | local or Slurm |
@@ -54,7 +54,10 @@ reference_distance = "1 AU"
 repository_root = "/checkout/nsb"
 ```
 
-The airglow and multiple-scattering snapshots remain limited by incomplete
+The Airglow product is reproducibly generated from the checksum-pinned PALACE
+v1.0 CC-BY-4.0 model-data archive; see the
+[PALACE runtime report](../nsb_components/airglow/validation/palace-v1-runtime-product.md).
+The historical multiple-scattering snapshot remains limited by incomplete
 upstream provenance and licensing. The Mie phase grid is independently generated
 from the committed Jones aerosol configuration; see the
 [Mie validation report](../nsb_components/moonlight/mie-phase-validation.md).

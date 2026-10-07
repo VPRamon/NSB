@@ -533,14 +533,14 @@ fn empty_store(dataset_id: &str, snapshot_id: &str, retrieved_at: &str) -> F107S
         convention_notes: (
             "Values are Penticton/DRAO 10.7 cm solar radio flux in sfu as republished by NOAA/NWS SWPC. \
              NSB does not convert between Earth-observed and 1-AU-adjusted variants; product identity is retained. \
-             Airglow applies the Noll/SkyCalc monthly-averaged F10.7 quantity (msolflux)."
+             The NSB offline resolver supplies a monthly planning F10.7 estimate; PALACE was fitted with centred 27-day averages."
         ).into(),
         climatology_sfu: (1.0 - 2.068e-1) / 6.139e-3,
         climatology_notes: (
-            "Noll/SkyCalc-compatible climatological fallback equal to the Airglow neutralizing \
-             F10.7 (DEFAULT_SOLAR_RADIO_FLUX ≈ 129.207 sfu), aligned with the ~129 sfu reference \
-             mean used with the continuum solar-activity coefficients. Deterministic planning \
-             fallback only — not an observation or forecast."
+            "Legacy Noll/SkyCalc-compatible climatological planning fallback (≈129.207 sfu). \
+             PALACE uses a 100 sfu reference in its component scaling, so this value is not \
+             neutral for the PALACE model. Deterministic planning fallback only — not an \
+             observation or forecast."
         ).into(),
         retrieved_at_utc: Some(retrieved_at.into()),
         records: Vec::new(),

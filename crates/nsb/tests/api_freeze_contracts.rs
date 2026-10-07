@@ -79,18 +79,13 @@ fn nsb_crate_only_exposes_the_supported_python_feature() {
 #[test]
 fn config_is_opaque_and_builder_getter_complete() {
     let config = NsbModelConfig::generic_clear_sky()
-        .with_airglow_selection(AirglowSelection::Explicit(
-            AirglowModel::ParanalNollSkyCalcFors1,
-        ))
+        .with_airglow_selection(AirglowSelection::Explicit(AirglowModel::ParanalPalaceV1))
         .with_site_profile(ctao_south_planning());
     assert_eq!(
         config.airglow_selection(),
-        AirglowSelection::Explicit(AirglowModel::ParanalNollSkyCalcFors1)
+        AirglowSelection::Explicit(AirglowModel::ParanalPalaceV1)
     );
-    assert_eq!(
-        config.airglow_model(),
-        Some(AirglowModel::ParanalNollSkyCalcFors1)
-    );
+    assert_eq!(config.airglow_model(), Some(AirglowModel::ParanalPalaceV1));
     assert_eq!(config.site_profile_name(), "ctao-south-planning");
     assert_eq!(
         config.moonlight_model(),
@@ -129,7 +124,7 @@ fn automatic_airglow_fallback_is_machine_visible() {
     assert!(selection.used_automatic_fallback);
     assert_eq!(
         selection.resolved_model,
-        Some(AirglowModel::ParanalNollSkyCalcFors1)
+        Some(AirglowModel::ParanalPalaceV1)
     );
     assert_eq!(
         selection.fallback_reason,
@@ -149,18 +144,14 @@ fn automatic_airglow_fallback_is_machine_visible() {
 #[test]
 fn first_release_airglow_model_contains_only_supported_variants() {
     // Speculative unimplemented variants must not be frozen; #157 adds models later.
-    assert_eq!(
-        AirglowModel::ParanalNollSkyCalcFors1.as_str(),
-        "paranal-noll-skycalc-fors1"
-    );
-    let _ = AirglowModel::ParanalNollSkyCalcFors1;
+    assert_eq!(AirglowModel::ParanalPalaceV1.as_str(), "paranal-palace-v1");
+    let _ = AirglowModel::ParanalPalaceV1;
 }
 
 #[test]
 fn explicit_paranal_airglow_is_not_reported_as_automatic_fallback() {
     let result = NsbEvaluator::with_config(
-        NsbModelConfig::generic_clear_sky()
-            .with_airglow_model(AirglowModel::ParanalNollSkyCalcFors1),
+        NsbModelConfig::generic_clear_sky().with_airglow_model(AirglowModel::ParanalPalaceV1),
     )
     .unwrap()
     .evaluate(
@@ -199,7 +190,7 @@ fn describe_components_does_not_fabricate_evaluation_outcome() {
     assert!(selection.used_automatic_fallback);
     assert_eq!(
         selection.resolved_model,
-        Some(AirglowModel::ParanalNollSkyCalcFors1)
+        Some(AirglowModel::ParanalPalaceV1)
     );
     assert!(
         airglow.metadata.airglow_evaluation.is_none(),

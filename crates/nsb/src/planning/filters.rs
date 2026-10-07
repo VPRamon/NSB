@@ -24,6 +24,16 @@ pub(crate) fn smooth_threshold_windows(
             for phase in prepared.airglow_phase_periods.iter() {
                 collect_internal_boundaries(&mut boundaries, phase.period, *candidate);
             }
+            for night in prepared.astronomical_night_periods.iter() {
+                let start = candidate.start.max(night.period.start);
+                let end = candidate.end.min(night.period.end);
+                if start < end {
+                    boundaries.extend(airglow::temporal::palace_climatology_boundaries_for_window(
+                        TimePeriod::new(start, end),
+                        prepared.observer,
+                    ));
+                }
+            }
         }
         if let Some(moon_visible_periods) = &prepared.moon_visible_periods {
             for moon_period in moon_visible_periods.iter() {

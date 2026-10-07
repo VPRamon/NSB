@@ -1,8 +1,10 @@
 # Public API policy (crate `nsb`)
 
-Status: First-release API is **frozen** for the `0.1.0` release baseline and
-protected by `crates/nsb/api/API_FROZEN` plus
-`crates/nsb/api/public-api.txt` on the reviewed tree.
+Status: First-release API is temporarily **pre-freeze** while issue #214
+replaces the unreleased historical Airglow model identity with PALACE v1.0.
+`crates/nsb/api/public-api.txt` records the current candidate surface; the
+`API_FROZEN` marker must be restored and bootstrapped again before tagging
+`0.1.0`.
 Audience: Library consumers, contributors, and release maintainers.
 Scope: Intended public surface, forward-compatibility design, and enforced
 API freeze via direct `cargo-public-api` checks (`scripts/check-public-api.sh`).
@@ -11,13 +13,16 @@ API freeze via direct `cargo-public-api` checks (`scripts/check-public-api.sh`).
 
 The API was initially frozen after the minimization work in #175. Issue #185
 then temporarily returned the crate to pre-freeze mode so the generic typed
-site-profile surface could replace the observatory-specific contract. That
-redesign is complete and #185 is closed.
+site-profile surface could replace the observatory-specific contract.
 
-The `0.1.0` release baseline therefore restores `crates/nsb/api/API_FROZEN` and
-uses the committed `public-api.txt` as the reviewed snapshot. The commit that
-introduces the marker over a historical base without it uses the documented
-freeze-bootstrap semantics below; after that baseline, snapshot equality and
+Issue #214 again requires a deliberate pre-release API correction:
+`AirglowModel::ParanalNollSkyCalcFors1` no longer truthfully identifies the
+runtime after replacing the historical continuum with PALACE v1.0. Because
+`0.1.0` has not been published, the freeze marker is temporarily removed
+instead of retaining a misleading compatibility alias. After #214 is merged and
+the first-release surface is reviewed, maintainers must re-add
+`crates/nsb/api/API_FROZEN` and regenerate `public-api.txt` in the same
+freeze-bootstrap commit. From that baseline onward, snapshot equality and
 historical removed/changed API checks are blocking.
 
 Behavioral contracts that `cargo-public-api` cannot see (Airglow

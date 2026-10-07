@@ -1,5 +1,6 @@
 //! Typed, portable dataset pipeline engine.
 
+mod airglow_palace;
 mod config;
 mod engine;
 mod execution;

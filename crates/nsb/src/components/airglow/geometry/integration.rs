@@ -210,7 +210,8 @@ mod tests {
         use super::super::AirglowGeometryModel;
 
         let location = observer(0.0);
-        let van_rhijn = AirglowGeometryModel::VanRhijn(VanRhijnConfig::default());
+        let van_rhijn =
+            AirglowGeometryModel::VanRhijn(VanRhijnConfig::new(Kilometers::new(90.0)).unwrap());
         let thin = profile(
             "thin-shell-90km-width-20m",
             &[89.99, 90.0, 90.01],

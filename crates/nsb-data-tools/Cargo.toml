@@ -31,6 +31,7 @@ toml = "1.1.2"
 toml_edit = "0.23"
 tempfile = "3"
 tempoch = "0.7"
+zip = { version = "2.4", default-features = false, features = ["deflate"] }
 
 [package.metadata.cargo-machete]
 ignored = ["md-5"]

@@ -11,12 +11,12 @@ use siderust::qtty::{unit::Radian, Degrees, Kilometers, Quantity};
 
 /// Implementation identifier for the preserved Siderust Van Rhijn baseline.
 pub(crate) const VAN_RHIJN_IMPLEMENTATION_VERSION: &str = "siderust-0.11.0-mean-earth-radius";
-/// Historical NSB effective emitting-shell height.
+/// PALACE representative effective emitting-shell height.
 ///
-/// This is the retained default for the thin-shell model. It is not a universal
-/// Airglow emission height; other geometry models and scientific components may
-/// supply different layer altitudes explicitly.
-pub(crate) const DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM: Kilometers = Kilometers::new(90.0);
+/// PALACE records component heights of 81, 88, and 94 km. The middle component
+/// height is the scalar approximation used by the default thin-shell geometry;
+/// it is not a universal Airglow emission height.
+pub(crate) const DEFAULT_VAN_RHIJN_EMISSION_HEIGHT_KM: Kilometers = Kilometers::new(88.0);
 
 /// Explicit configuration for the fast thin-shell Van Rhijn baseline.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -97,10 +97,10 @@ mod tests {
     }
 
     #[test]
-    fn van_rhijn_default_is_the_historical_explicit_configuration() {
+    fn van_rhijn_default_is_the_palace_representative_configuration() {
         let default = AirglowGeometryModel::default();
         let explicit =
-            AirglowGeometryModel::VanRhijn(VanRhijnConfig::new(Kilometers::new(90.0)).unwrap());
+            AirglowGeometryModel::VanRhijn(VanRhijnConfig::new(Kilometers::new(88.0)).unwrap());
         for zenith in [0.0, 30.0, 60.0, 80.0, 90.0] {
             let default_factor = default
                 .geometry_factor(observer(2_635.0), Degrees::new(zenith))

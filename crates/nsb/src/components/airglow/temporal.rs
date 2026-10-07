@@ -1,6 +1,6 @@
 use super::domain::{AirglowNightPhase, AirglowSeason};
 use crate::units::angular::Degrees;
-use chrono::Datelike;
+use chrono::{Datelike, Timelike};
 use siderust::bodies::Sun as SunBody;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
@@ -32,8 +32,9 @@ pub(crate) struct AirglowPhasePeriod {
 /// `FullYear` preserves the existing aggregate fallback when the UTC instant
 /// cannot be represented by `chrono`; normal month mappings always select one
 /// of the six named double-month seasons.
+#[allow(dead_code)]
 pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason {
-    let Some(dt) = local_solar_datetime(time, location) else {
+    let Some(dt) = observer_local_mean_solar_datetime(time, location) else {
         return AirglowSeason::FullYear;
     };
     match dt.month() {
@@ -47,12 +48,79 @@ pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason
     }
 }
 
+/// PALACE month and one-hour local-mean-solar-time bin for the planning proxy.
+///
+/// PALACE's climatology was fitted at Cerro Paranal. For arbitrary-location
+/// planning, NSB transfers that climatology by local mean solar clock: the
+/// observer's local solar month/hour selects the equivalent PALACE bin. This is
+/// an explicit spatial-transfer assumption, not evidence that PALACE was fitted
+/// at the observer longitude. Bins 1..=12 cover 18:00..06:00; astronomical-night
+/// samples outside that interval use the nearest endpoint bin.
+pub(crate) fn palace_climatology_coordinates(
+    time: Time<UTC>,
+    location: Geodetic<ECEF>,
+) -> Option<(u32, usize)> {
+    let dt = observer_local_mean_solar_datetime(time, location)?;
+    let hour = dt.hour();
+    let bin = match hour {
+        18..=23 => (hour - 17) as usize,
+        0..=5 => (hour + 7) as usize,
+        6..=11 => 12,
+        12..=17 => 1,
+        _ => unreachable!("chrono hour is always 0..=23"),
+    };
+    Some((dt.month(), bin))
+}
+
+/// Return every local-mean-solar hour boundary strictly inside a TT window.
+///
+/// PALACE selects a discrete climatology row from calendar month and local
+/// mean solar hour. Threshold scans must therefore treat these boundaries as
+/// potential discontinuities independently of the legacy astronomical-night
+/// third boundaries.
+pub(crate) fn palace_climatology_boundaries_for_window(
+    window: TimePeriod<ModifiedJulianDate>,
+    location: Geodetic<ECEF>,
+) -> Vec<ModifiedJulianDate> {
+    if window.start >= window.end {
+        return Vec::new();
+    }
+
+    let start_utc = Time::<TT>::from(window.start).to::<UTC>();
+    let end_utc = Time::<TT>::from(window.end).to::<UTC>();
+    let Some(start_local) = observer_local_mean_solar_datetime(start_utc, location) else {
+        return Vec::new();
+    };
+    let Some(end_local) = observer_local_mean_solar_datetime(end_utc, location) else {
+        return Vec::new();
+    };
+    let Some(mut boundary_local) = start_local
+        .with_minute(0)
+        .and_then(|dt| dt.with_second(0))
+        .and_then(|dt| dt.with_nanosecond(0))
+    else {
+        return Vec::new();
+    };
+    if boundary_local <= start_local {
+        boundary_local += chrono::Duration::hours(1);
+    }
+
+    let offset_seconds = local_mean_solar_offset_seconds(location);
+    let mut boundaries = Vec::new();
+    while boundary_local < end_local {
+        let boundary_utc =
+            Time::<UTC>::from_chrono(boundary_local - chrono::Duration::seconds(offset_seconds));
+        boundaries.push(utc_time_to_tt_mjd(boundary_utc));
+        boundary_local += chrono::Duration::hours(1);
+    }
+    boundaries
+}
+
 /// Site-aware Airglow night phase based on astronomical-night thirds.
 ///
-/// The SkyCalc-derived Airglow calibration table defines three equal periods
-/// over the full astronomical-night interval (`alt_sun < -18°`). We compute the
-/// complete astronomical night containing `time`, normalize the instant to that
-/// interval, and return the corresponding semantic phase.
+/// Divide the full astronomical-night interval (`alt_sun < -18°`) into thirds
+/// for the retained phase identity. PALACE evaluation itself uses local mean
+/// solar hour bins, and threshold searches split those discontinuities separately.
 ///
 /// The search expands adaptively so high-latitude winter nights are not
 /// mistaken for missing Airglow merely because the first local window is clipped.
@@ -271,13 +339,16 @@ fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
     ModifiedJulianDate::from(time.to::<TT>().to::<MJD>())
 }
 
-fn local_solar_datetime(
+fn local_mean_solar_offset_seconds(location: Geodetic<ECEF>) -> i64 {
+    (location.lon.value() / 15.0 * 3600.0).round() as i64
+}
+
+fn observer_local_mean_solar_datetime(
     time: Time<UTC>,
     location: Geodetic<ECEF>,
 ) -> Option<chrono::DateTime<chrono::Utc>> {
     let dt = time.to_chrono()?;
-    let offset_seconds = (location.lon.value() / 15.0 * 3600.0).round() as i64;
-    Some(dt + chrono::Duration::seconds(offset_seconds))
+    Some(dt + chrono::Duration::seconds(local_mean_solar_offset_seconds(location)))
 }
 
 #[cfg(test)]
@@ -383,6 +454,23 @@ mod tests {
         ] {
             assert_eq!(season(utc(2023, month, 15), location), expected);
         }
+    }
+
+    #[test]
+    fn palace_planning_transfer_uses_observer_local_mean_solar_clock() {
+        let time = Time::<UTC>::from_chrono(
+            Utc.with_ymd_and_hms(2026, 9, 15, 22, 0, 0)
+                .single()
+                .unwrap(),
+        );
+        let greenwich = Geodetic::new_raw(Degrees::new(0.0), Degrees::new(0.0), Meters::new(0.0));
+        let east_30 = Geodetic::new_raw(Degrees::new(30.0), Degrees::new(0.0), Meters::new(0.0));
+
+        assert_eq!(
+            palace_climatology_coordinates(time, greenwich),
+            Some((9, 5))
+        );
+        assert_eq!(palace_climatology_coordinates(time, east_30), Some((9, 7)));
     }
 
     #[test]

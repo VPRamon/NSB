@@ -62,8 +62,8 @@ pub(crate) fn model_config(
         .with_moonlight_model(moonlight_model);
     config = match args.airglow_model {
         crate::cli::AirglowModelArg::Automatic => config,
-        crate::cli::AirglowModelArg::ParanalNollSkyCalcFors1 => {
-            config.with_airglow_model(AirglowModel::ParanalNollSkyCalcFors1)
+        crate::cli::AirglowModelArg::ParanalPalaceV1 => {
+            config.with_airglow_model(AirglowModel::ParanalPalaceV1)
         }
     };
     if let Some(sfu) = args.solar_radio_flux_sfu {

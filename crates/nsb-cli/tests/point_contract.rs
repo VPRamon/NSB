@@ -38,7 +38,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     assert_eq!(value["model"]["airglow_selection"]["kind"], "automatic");
     assert_eq!(
         value["model"]["airglow_selection"]["resolved_model"],
-        "paranal-noll-skycalc-fors1"
+        "paranal-palace-v1"
     );
     assert_eq!(value["model"]["airglow_selection"]["used_fallback"], true);
     assert_eq!(
@@ -85,7 +85,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     );
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["resolved_model"],
-        "paranal-noll-skycalc-fors1"
+        "paranal-palace-v1"
     );
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["used_fallback"],
@@ -104,7 +104,7 @@ fn default_point_json_reports_schema_versions_and_components() {
     );
     assert_eq!(
         airglow["metadata"]["airglow_geometry"]["emission_height_km"],
-        90.0
+        88.0
     );
 }
 
