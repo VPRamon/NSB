@@ -1,15 +1,17 @@
 # `nsb` public API lifecycle
 
-The first-release public API is protected by [`scripts/check-public-api.sh`](../../../scripts/check-public-api.sh)
+The first-release public API lifecycle is protected by [`scripts/check-public-api.sh`](../../../scripts/check-public-api.sh)
 using pinned `cargo-public-api` directly (#176).
 
-Issue #185 temporarily removed `API_FROZEN` so observatory-named CTAO presets
-could be removed from the core contract without failing the post-freeze SemVer
-gate. That redesign is complete and #185 is closed. The `0.1.0` release tree
-restores `API_FROZEN`; `public-api.txt` is the reviewed baseline that CI must
-match. The marker-introducing commit uses freeze-bootstrap semantics when its
-historical base is still pre-freeze, and later changes are subject to the full
-historical SemVer gate.
+Issue #185 previously used the documented pre-freeze mode for the typed
+site-profile redesign. Issue #214 now temporarily returns the unreleased
+`0.1.0` tree to that same pre-freeze mode because the truthful Airglow model
+identity changes from the historical Noll/SkyCalc/FORS1 label to PALACE v1.0.
+No public NSB release exists yet, so preserving the obsolete model name as a
+compatibility alias would be scientifically misleading. `public-api.txt`
+records the current candidate surface, but snapshot equality and historical
+SemVer rejection remain disabled until maintainers re-add `API_FROZEN` and
+bootstrap the final reviewed `0.1.0` baseline.
 
 The redesigned site-profile surface is typed: `SiteProfileTag` markers supply
 compile-time identity; `SiteProfile<P>` is opaque and erases into

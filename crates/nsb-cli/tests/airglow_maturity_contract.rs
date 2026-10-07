@@ -52,7 +52,8 @@ fn assert_generic_airglow(value: &serde_json::Value) {
     let provenance = value["components"][0]["metadata"]["provenance"]
         .as_str()
         .unwrap();
-    assert!(provenance.contains("Paranal-derived"));
+    assert!(provenance.contains("PALACE v1.0"));
+    assert!(provenance.contains("Cerro Paranal"));
     assert!(provenance.contains("site_calibrated false"));
 }
 

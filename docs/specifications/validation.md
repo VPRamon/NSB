@@ -19,12 +19,12 @@ observations, and sanity envelopes. A broad envelope is not external validation.
 | Zodiacal table | Leinert selected anchors | S10 diagnostic | exact anchors | Implementation error |
 | Noll extinction | numeric formula fixture | dimensionless transmission | `1e-12` absolute | Implementation error |
 | KS91 full Moon | `external_reference_cases.csv` citing PASP 103, 1033 | approximate Johnson V mag arcsec⁻² | 0.7 mag | Model choice |
-| Airglow default | historical integrated/B/V regressions plus explicit/default Van Rhijn bit parity | 300–650 nm plus 445/551 nm diagnostics | exact factor parity; strict stored output tolerances | Implementation error |
+| Airglow default | checksum-pinned PALACE v1 continuum product; official PALACE continuum cross-check; month/time/F10.7/runtime regressions; diagnostic historical comparison | R/nm source; ph cm⁻² ns⁻¹ sr⁻¹ runtime, 300–650 nm plus 445/551 nm diagnostics | byte-identical regeneration; PALACE integral relative difference `3.88e-7`; strict stored output tolerances | Implementation error, model-semantic difference, or documented planning limitation |
 | Airglow vertical geometry | synthetic thin/broad/two-layer profiles; spherical LOS refinement; observer-height cases | dimensionless geometry factor | zenith exact; thin-shell relative tolerance derived from 20 m profile; refinement convergence | Implementation error; profile representativeness remains a data limitation |
 | Experimental starlight | synthetic contrast and HEALPix completeness | proxy radiance plus S10 diagnostics | deterministic | Implementation error only; no science claim |
 | Validated external starlight admission | caller map plus TOML sidecar | declared calibrated integrated band plus B/V diagnostics | exact integrity/header checks; plane/pole >= 1; seam jump <= 1; declared flux tolerance | Implementation error or rejected caller evidence |
 | Jones spectral fixture | historical Jones-model regression rows | 300–650 nm | 20% fixture tolerance | Data limitation/regression |
-| Solar spectrum | pinned TSIS-1 HSRS v2 p025nm and native LISIRD responses | W m^-2 nm^-1, 300–650 nm | exact regeneration; p025nm/native resolution gates; compact/p025nm integral and anchor gates; <=351 runtime samples | Implementation, resolution-choice, or runtime-complexity regression |
+| Solar spectrum | pinned NSB Planck-model specification using IAU nominal solar values and exact SI constants | W m^-2 nm^-1, 300–650 nm | exact regeneration; input/output checksums and redistribution terms; 351-point grid and exact anchors; integral/B-V regression; Zodiacal/Jones impact bounds | Implementation, provenance, licensing, or scientific-impact regression |
 | CTAO-N/S | explicit assumptions only | atmosphere and airglow profile | none | Data limitation |
 
 ## Threshold Window Contract

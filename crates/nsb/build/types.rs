@@ -14,7 +14,7 @@ pub const STARLIGHT_MANIFEST_SCHEMA: &str = "nsb-starlight-runtime-manifest-v2";
 
 /// Component-owned assets that must be present as `runtime_embedded` with a fixed schema.
 pub const REQUIRED_RUNTIME_ASSETS: &[(&str, &str)] = &[
-    ("airglow_cont.dat", "skycalc-airglow-continuum-v1"),
+    ("airglow_palace_v1.dat", "nsb-airglow-palace-continuum-v1"),
     ("f107_store.json", "nsb-f107-store-v1"),
     ("mie_m15s1.dat", "moonlight-mie-angle-wavelength-grid-v1"),
     (

@@ -9,9 +9,15 @@ executor = "local"
 concurrency = 1
 
 [[sources]]
-name = "airglow_cont.dat"
-path = "../../nsb/data/airglow_cont.dat"
-sha256 = "d684fcd5d4589a0e79c9c6adc8be001fbc8fbaa599b4f6ef6a32a4740329905f"
+name = "PALACE-v1.0.zip"
+url = "https://zenodo.org/api/records/14064023/files/PALACE.zip/content"
+sha256 = "a42577ffee8f76d9ac3765a9a2811d766c30158cf74c0a364ebf7a726dd9a0dc"
+product_id = "doi:10.5281/zenodo.14064023"
+release = "PALACE v1.0 (2024-10)"
+metadata_url = "https://zenodo.org/records/14064023"
+retrieved_at = "2026-10-06"
+license = "Model data palace_cont.fits and palace_var.fits: CC BY 4.0; bundled PALACE program: GPL-3.0-or-later (not executed or redistributed by NSB)"
+units = "palace_cont.fits: wavelength um, continuum radiance R/nm; palace_var.fits: dimensionless relative intensity and residual sigma, solar slope per 100 sfu"
 
 [publish]
 repository_root = "../../.."

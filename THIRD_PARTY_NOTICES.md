@@ -36,13 +36,17 @@ Summary of third-party sources:
 
 ## Other bundled runtime assets
 
-The moonlight and airglow/solar bundled snapshots (`airglow_cont.dat`,
-`solar_spectrum.dat`, `mie_m15s1.dat`, `sscatcor_m15s1.dat`) are historical
-imports associated with the ESO Sky Model lineage and have incomplete upstream
-licence records; see `crates/nsb/data/manifest.toml` for the current, explicitly
-flagged state of each. This blocks their calibrated-production promotion until a
-reviewed source and licence are supplied; it is out of scope for this Starlight
-redistribution package (#88).
+`airglow_palace_v1.dat` is an NSB-generated derivative of the PALACE v1.0 model
+data `palace_cont.fits` and `palace_var.fits` by Stefan Noll, Carsten Schmidt,
+Patrick Hannawald, Wolfgang Kausch, and Stefan Kimeswenger. PALACE model data are
+licensed under Creative Commons Attribution 4.0. Source: Zenodo record 14064023,
+DOI `10.5281/zenodo.14064023`. The PALACE program is GPL-3.0-or-later; NSB's
+generator does not copy, execute, or redistribute that program.
+
+`solar_spectrum.dat` is an NSB-authored analytic product generated from
+physical constants and distributed under AGPL-3.0-only with the rest of NSB.
+The moonlight snapshots (`mie_m15s1.dat` and `sscatcor_m15s1.dat`) retain the
+separate provenance/licensing status recorded in `crates/nsb/data/manifest.toml`.
 
 ## Reporting a missing or incorrect notice
 

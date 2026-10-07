@@ -27,7 +27,7 @@ fn point_json_exposes_automatic_airglow_fallback_structurally() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let selection = &value["model"]["airglow_selection"];
     assert_eq!(selection["kind"], "automatic");
-    assert_eq!(selection["resolved_model"], "paranal-noll-skycalc-fors1");
+    assert_eq!(selection["resolved_model"], "paranal-palace-v1");
     assert_eq!(selection["used_fallback"], true);
     assert_eq!(
         selection["fallback_reason"],
@@ -59,7 +59,7 @@ fn point_json_exposes_explicit_paranal_without_fallback_flag() {
             "--components",
             "airglow",
             "--airglow-model",
-            "paranal-noll-skycalc-fors1",
+            "paranal-palace-v1",
         ])
         .assert()
         .success()
@@ -69,8 +69,8 @@ fn point_json_exposes_explicit_paranal_without_fallback_flag() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let selection = &value["model"]["airglow_selection"];
     assert_eq!(selection["kind"], "explicit");
-    assert_eq!(selection["requested_model"], "paranal-noll-skycalc-fors1");
-    assert_eq!(selection["resolved_model"], "paranal-noll-skycalc-fors1");
+    assert_eq!(selection["requested_model"], "paranal-palace-v1");
+    assert_eq!(selection["resolved_model"], "paranal-palace-v1");
     assert_eq!(selection["used_fallback"], false);
     assert!(selection["fallback_reason"].is_null());
     assert_eq!(selection["physical_outcome"], "evaluated");
@@ -95,7 +95,7 @@ fn point_without_airglow_uses_config_only_selection_metadata() {
             "--components",
             "moon",
             "--airglow-model",
-            "paranal-noll-skycalc-fors1",
+            "paranal-palace-v1",
         ])
         .assert()
         .success()
@@ -105,8 +105,8 @@ fn point_without_airglow_uses_config_only_selection_metadata() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     let selection = &value["model"]["airglow_selection"];
     assert_eq!(selection["kind"], "explicit");
-    assert_eq!(selection["requested_model"], "paranal-noll-skycalc-fors1");
-    assert_eq!(selection["resolved_model"], "paranal-noll-skycalc-fors1");
+    assert_eq!(selection["requested_model"], "paranal-palace-v1");
+    assert_eq!(selection["resolved_model"], "paranal-palace-v1");
     assert!(selection["physical_outcome"].is_null());
 }
 

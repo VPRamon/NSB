@@ -14,7 +14,7 @@
 //! Paranal-derived planning fallback with that fallback visible in
 //! [`AirglowSelectionMetadata`] via [`AirglowFallbackReason`].
 //!
-//! The bundled Paranal-derived continuum (Noll/SkyCalc/FORS1 lineage) remains a
+//! The bundled PALACE v1.0 Paranal unresolved-continuum product remains a
 //! supported explicit legacy/reference model and the temporary automatic
 //! fallback. It is not intrinsically the generic global scientific contract.
 //! Future climatology adds a new [`AirglowModel`] variant when admitted — the

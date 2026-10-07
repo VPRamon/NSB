@@ -26,9 +26,11 @@ pub(crate) type SolarSpectralIrradiance = Quantity<SolarSpectralIrradianceUnit>;
     dimension = siderust::qtty::radiometry::SpectralPhotonRadiance,
     ratio = 4.254_517_029_022_576e16
 )]
+#[allow(dead_code)]
 pub(crate) struct SkyCalcPhotonPerSquareMeterSecondSquareArcsecondMicrometer;
 
 /// Spectral photon radiance in SkyCalc's native tabulated convention.
+#[allow(dead_code)]
 pub(crate) type SkyCalcSpectralPhotonRadiance =
     Quantity<SkyCalcPhotonPerSquareMeterSecondSquareArcsecondMicrometer>;
 

@@ -18,14 +18,14 @@ def test_point_fixture_matches_rust_public_contract(observer, direction, evaluat
         rel=1e-12,
     )
 
-    # These values include the ICRS -> EquatorialMeanJ2000 frame-bias transform.
-    # Numerically reinterpreting ICRS as J2000 instead would produce
-    # 0.06237384983016179 and 0.14839908015622694, respectively.
+    # The zodiacal reference includes the ICRS -> EquatorialMeanJ2000
+    # frame-bias transform and the reviewed analytic solar-reference asset.
+    # The Airglow reference is the PALACE v1 runtime contract for this query.
     assert result.components[0].integrated_photons_cm2_ns_sr == pytest.approx(
-        0.06234678030837224, abs=1.0e-12
+        0.07327415010333563, abs=1.0e-12
     )
     assert result.components[1].integrated_photons_cm2_ns_sr == pytest.approx(
-        0.1483990786146788, abs=1.0e-12
+        0.11991978681184148, abs=1.0e-12
     )
 
 

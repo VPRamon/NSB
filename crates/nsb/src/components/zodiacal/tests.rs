@@ -397,111 +397,56 @@ fn regression_known_case_sgr_a_star_paranal() {
 
     let integrated = out.integrated.value();
     assert!(
-        (integrated - 0.062_373_849_830_161_79).abs() <= 1.0e-12,
+        (integrated - 0.073_249_824_745_366_44).abs() <= 1.0e-12,
         "integrated={integrated:.17}"
     );
     assert!(
-        (out.b_flux_s10.value() - 69.560_151_467_088_9).abs() <= 1.0e-10,
+        (out.b_flux_s10.value() - 61.915_204_290_146_7).abs() <= 1.0e-10,
         "b={:.17}",
         out.b_flux_s10.value()
     );
     assert!(
-        (out.v_flux_s10.value() - 72.993_011_975_782_07).abs() <= 1.0e-10,
+        (out.v_flux_s10.value() - 84.824_136_370_918).abs() <= 1.0e-10,
         "v={:.17}",
         out.v_flux_s10.value()
     );
+    assert!(((integrated / 0.062_772_202_918_743_08) - 1.0).abs() < 0.18);
+    assert!(((out.b_flux_s10.value() / 65.028_954_088_309_32) - 1.0).abs() < 0.12);
+    assert!(((out.v_flux_s10.value() / 75.428_008_018_252_03) - 1.0).abs() < 0.18);
 }
 
-fn hsrs_from_env(variable: &str) -> crate::spectra::solar::SolarSpectrum {
-    use crate::spectra::solar::SolarSpectrum;
-    use siderust::optica::grid::OutOfRange;
-    use siderust::optica::spectrum::Interpolation;
-
-    let path = std::env::var(variable).unwrap_or_else(|_| panic!("{variable} path"));
-    let raw = std::fs::read_to_string(path).expect("HSRS CSV");
-    let mut wavelengths = Vec::new();
-    let mut irradiances = Vec::new();
-    for line in raw.lines().skip(1) {
-        let (wavelength, irradiance) = line.split_once(',').expect("two columns");
-        wavelengths.push(wavelength.parse().expect("wavelength"));
-        irradiances.push(irradiance.parse().expect("irradiance"));
-    }
-    SolarSpectrum::from_raw(
-        wavelengths,
-        irradiances,
-        Interpolation::Linear,
-        OutOfRange::ClampToEndpoints,
-        None,
-    )
-    .expect("HSRS spectrum")
-}
-
-/// Reproducible upstream resolution study used by the validation report.
 #[test]
-#[ignore = "requires NSB_TSIS_P025 and NSB_TSIS_NATIVE from the solar-spectrum update workspace"]
-fn native_hsrs_resolution_comparison() {
+fn analytic_solar_reference_validation_geometry_stays_within_tsis_impact_bounds() {
     use super::geometry::ZodiacalGeometry;
     use super::spectrum::compute_outputs;
 
-    let candidate = hsrs_from_env("NSB_TSIS_P025");
-    let native = hsrs_from_env("NSB_TSIS_NATIVE");
+    // Offline baseline from the former TSIS-derived runtime
+    // solar_spectrum.dat SHA-256
+    // 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02.
+    // The old bytes are intentionally not required by this test.
+    const TSIS_BASELINE: (f64, f64, f64) =
+        (0.056_968_993_257_1, 58.708_789_926_3, 68.565_285_636_9);
+    let solar = crate::spectra::solar::load().expect("bundled analytic solar spectrum");
     let geometry = ZodiacalGeometry {
         beta: Radians::new(0.3),
         delta_lambda: Radians::new(1.5),
         zenith: Some(Degrees::new(30.0)),
     };
-    let candidate = compute_outputs(&geometry, &candidate, ZodiacalExtinction::Noll2012Approx)
-        .expect("candidate-resolution evaluation");
-    let native = compute_outputs(&geometry, &native, ZodiacalExtinction::Noll2012Approx)
-        .expect("native-resolution evaluation");
-    eprintln!(
-        "candidate=({:.17},{:.17},{:.17}) native=({:.17},{:.17},{:.17})",
-        candidate.integrated.value(),
-        candidate.b_flux_s10.value(),
-        candidate.v_flux_s10.value(),
-        native.integrated.value(),
-        native.b_flux_s10.value(),
-        native.v_flux_s10.value()
-    );
-    // Source-selection gates (p025nm ↔ native). Measured: ~0.265% / 0.94% / 0.027%.
-    assert!(((candidate.integrated.value() / native.integrated.value()) - 1.0).abs() < 3.0e-3);
-    assert!(((candidate.b_flux_s10.value() / native.b_flux_s10.value()) - 1.0).abs() < 0.01);
-    assert!(((candidate.v_flux_s10.value() / native.v_flux_s10.value()) - 1.0).abs() < 5.0e-4);
-}
+    let output = compute_outputs(&geometry, &solar, ZodiacalExtinction::Noll2012Approx)
+        .expect("validation geometry");
 
-/// Scientific error budget for the compact runtime representation.
-#[test]
-#[ignore = "requires NSB_TSIS_P025 from the solar-spectrum update workspace"]
-fn compact_runtime_hsrs_comparison() {
-    use super::geometry::ZodiacalGeometry;
-    use super::spectrum::compute_outputs;
-    use crate::spectra::solar;
-
-    let runtime = solar::load().expect("bundled compact runtime spectrum");
-    let selected = hsrs_from_env("NSB_TSIS_P025");
-    let geometry = ZodiacalGeometry {
-        beta: Radians::new(0.3),
-        delta_lambda: Radians::new(1.5),
-        zenith: Some(Degrees::new(30.0)),
-    };
-    let runtime = compute_outputs(&geometry, &runtime, ZodiacalExtinction::Noll2012Approx)
-        .expect("compact runtime evaluation");
-    let selected = compute_outputs(&geometry, &selected, ZodiacalExtinction::Noll2012Approx)
-        .expect("p025nm evaluation");
-    eprintln!(
-        "runtime=({:.17},{:.17},{:.17}) p025nm=({:.17},{:.17},{:.17})",
-        runtime.integrated.value(),
-        runtime.b_flux_s10.value(),
-        runtime.v_flux_s10.value(),
-        selected.integrated.value(),
-        selected.b_flux_s10.value(),
-        selected.v_flux_s10.value()
+    assert!(
+        ((output.integrated.value() / TSIS_BASELINE.0) - 1.0).abs() < 0.18,
+        "integrated impact exceeded 18%"
     );
-    // 0.05% is one sixth of the HSRS's best quoted radiometric uncertainty
-    // (0.3%) and distinguishes computational reduction error from source error.
-    assert!(((runtime.integrated.value() / selected.integrated.value()) - 1.0).abs() < 5.0e-4);
-    assert!(((runtime.b_flux_s10.value() / selected.b_flux_s10.value()) - 1.0).abs() < 1.0e-12);
-    assert!(((runtime.v_flux_s10.value() / selected.v_flux_s10.value()) - 1.0).abs() < 1.0e-12);
+    assert!(
+        ((output.b_flux_s10.value() / TSIS_BASELINE.1) - 1.0).abs() < 0.12,
+        "B diagnostic impact exceeded 12%"
+    );
+    assert!(
+        ((output.v_flux_s10.value() / TSIS_BASELINE.2) - 1.0).abs() < 0.18,
+        "V diagnostic impact exceeded 18%"
+    );
 }
 
 fn sgr_a_star() -> Target {

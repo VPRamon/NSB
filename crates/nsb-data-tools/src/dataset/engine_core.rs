@@ -301,6 +301,9 @@ fn selected_partitions(
 fn update_sources(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artifact>> {
     let root = config.workspace.root.join("sources");
     fs::create_dir_all(&root)?;
+    let http = reqwest::blocking::Client::builder()
+        .user_agent(concat!("nsb-data-tools/", env!("CARGO_PKG_VERSION")))
+        .build()?;
     let mut artifacts = Vec::new();
     for source in filtered_sources(config, partitions) {
         let destination = root.join(&source.name);
@@ -309,7 +312,9 @@ fn update_sources(config: &RunConfig, partitions: &[String]) -> Result<Vec<Artif
             copy_atomic(path, &destination)?;
         } else {
             let url = source.url.as_deref().context("source URL is missing")?;
-            let response = reqwest::blocking::get(url)
+            let response = http
+                .get(url)
+                .send()
                 .with_context(|| format!("failed to download {url}"))?
                 .error_for_status()
                 .with_context(|| format!("source request failed for {url}"))?;
@@ -518,9 +523,53 @@ fn publish(config: &RunConfig) -> Result<Vec<Artifact>> {
             &artifact.name,
             &artifact.sha256,
         )?;
+        sync_solar_manifest_metadata(
+            &mut document,
+            config.dataset,
+            &artifact.name,
+            &artifact.path,
+        )?;
     }
     atomic_write(&manifest_path, document.to_string().as_bytes())?;
     Ok(report.artifacts)
+}
+
+fn sync_solar_manifest_metadata(
+    document: &mut toml_edit::DocumentMut,
+    dataset: DatasetName,
+    name: &str,
+    artifact_path: &Path,
+) -> Result<()> {
+    if dataset != DatasetName::SolarSpectrum || name != "solar_spectrum.dat" {
+        return Ok(());
+    }
+    let assets = document["assets"]
+        .as_array_of_tables_mut()
+        .context("manifest is missing [[assets]]")?;
+    let asset = assets
+        .iter_mut()
+        .find(|asset| asset["path"].as_str() == Some(name))
+        .context("solar spectrum asset is not registered")?;
+    let text = fs::read_to_string(artifact_path)?;
+    let mut header = toml_edit::Table::new();
+    for line in text.lines().map(str::trim) {
+        let Some(comment) = line.strip_prefix('#') else {
+            continue;
+        };
+        let Some((key, value)) = comment.trim().split_once('=') else {
+            continue;
+        };
+        header[key.trim()] = toml_edit::value(value.trim());
+    }
+    if header.is_empty() {
+        bail!("solar spectrum runtime header is empty");
+    }
+    asset["header"] = toml_edit::Item::Table(header);
+    asset["generator"] = toml_edit::value(format!(
+        "nsb-data-tools {} dataset solar-spectrum build",
+        env!("CARGO_PKG_VERSION")
+    ));
+    Ok(())
 }
 
 fn filtered_sources<'a>(

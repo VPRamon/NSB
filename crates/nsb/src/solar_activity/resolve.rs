@@ -1,9 +1,10 @@
 //! Offline F10.7 resolver (no network I/O).
 //!
-//! Airglow's Noll/SkyCalc solar correction expects a **monthly-averaged** F10.7
-//! quantity (`msolflux`). This resolver therefore never feeds a raw daily
-//! observation or daily forecast value into Airglow, and never promotes a
-//! partial-month average to a completed monthly mean.
+//! NSB's established offline resolver produces a **monthly-averaged** F10.7
+//! planning quantity. PALACE was fitted with centred 27-day averages, so using
+//! this resolver for PALACE is an explicitly documented cadence approximation.
+//! The resolver never feeds a raw daily observation or daily forecast value
+//! into Airglow, and never promotes a partial-month average to a completed mean.
 
 use super::monthly::{resolve_monthly_evidence, MonthlyCompleteness, MonthlyF107Evidence};
 use super::record::{explicit_record, F107Kind, F107Record};
@@ -121,7 +122,7 @@ impl ResolvedSolarActivity {
 
 /// Resolve F10.7 for `requested_time` against `source`.
 ///
-/// Precedence (Noll/SkyCalc monthly-averaged quantity):
+/// Precedence (monthly-averaged planning quantity):
 /// 1. explicit caller override (validated finite and positive)
 /// 2. finalized monthly observed covering a completed month
 /// 3. current month: provisional observed+forecast mean (full coverage only)

@@ -113,7 +113,7 @@ fn duplicate_paths_are_rejected() {
 #[test]
 fn missing_required_runtime_asset_is_rejected() {
     let mut assets = valid_required_set();
-    assets.retain(|asset| asset.path != "airglow_cont.dat");
+    assets.retain(|asset| asset.path != "airglow_palace_v1.dat");
     let err = validate_manifest_structure(&Manifest {
         schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
         assets,
@@ -121,7 +121,7 @@ fn missing_required_runtime_asset_is_rejected() {
     .unwrap_err();
     assert!(matches!(
         err,
-        ManifestValidationError::RequiredAsset { path, .. } if path == "airglow_cont.dat"
+        ManifestValidationError::RequiredAsset { path, .. } if path == "airglow_palace_v1.dat"
     ));
 }
 
@@ -130,7 +130,7 @@ fn invalid_required_schema_is_rejected() {
     let mut assets = valid_required_set();
     let airglow = assets
         .iter_mut()
-        .find(|asset| asset.path == "airglow_cont.dat")
+        .find(|asset| asset.path == "airglow_palace_v1.dat")
         .unwrap();
     airglow.schema = "wrong-schema".into();
     let err = validate_manifest_structure(&Manifest {
@@ -144,7 +144,7 @@ fn invalid_required_schema_is_rejected() {
             path,
             expected_schema,
             ..
-        } if path == "airglow_cont.dat" && expected_schema == "skycalc-airglow-continuum-v1"
+        } if path == "airglow_palace_v1.dat" && expected_schema == "nsb-airglow-palace-continuum-v1"
     ));
 }
 
@@ -167,7 +167,7 @@ fn unsafe_manifest_paths_are_rejected() {
             Err(ManifestValidationError::UnsafePath(_))
         ));
     }
-    assert!(is_safe_data_relative_path("airglow_cont.dat"));
+    assert!(is_safe_data_relative_path("airglow_palace_v1.dat"));
     assert!(is_safe_data_relative_path("nested/ok.dat"));
     assert!(validate_path_confinement("nested/ok.dat").is_ok());
 
@@ -216,7 +216,7 @@ fn candidate_non_embedded_assets_do_not_block_or_enter_verified_codegen() {
         .iter()
         .all(|asset| asset.path != "absent_candidate.dat"));
     let generated = generate_bundled_assets_rs(manifest.schema_version, &verified, None);
-    assert!(generated.contains("airglow_cont.dat"));
+    assert!(generated.contains("airglow_palace_v1.dat"));
     assert!(!generated.contains("absent_candidate.dat"));
 }
 
@@ -383,7 +383,7 @@ fn generated_output_is_deterministic_and_verified_only() {
     assert_eq!(once, twice);
     assert!(once.contains("ASSET_MANIFEST_SCHEMA_VERSION"));
     assert!(once.contains("BUNDLED_ASSETS"));
-    assert!(once.contains("airglow_cont.dat"));
+    assert!(once.contains("airglow_palace_v1.dat"));
     assert!(once.contains("f107_store.json"));
     // Candidate registry entries must not appear in verified runtime metadata.
     assert!(!once.contains("merge_report.json"));

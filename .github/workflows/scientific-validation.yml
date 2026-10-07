@@ -2,6 +2,12 @@ name: Scientific validation
 
 on:
   workflow_dispatch:
+    inputs:
+      verify_upstream:
+        description: Regenerate PALACE from the pinned Zenodo archive
+        required: false
+        default: false
+        type: boolean
   release:
     types: [published]
 
@@ -20,6 +26,15 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Verify scientific assets
         run: cargo test --locked -p nsb-data-tools --test scientific_assets repository_scientific_asset_registry_verify -- --exact
+      - name: Regenerate PALACE continuum from pinned upstream
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.verify_upstream }}
+        run: |
+          CONFIG=crates/nsb-data-tools/config/airglow-continuum.toml
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum update --config "$CONFIG"
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum build --config "$CONFIG"
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset airglow-continuum validate --config "$CONFIG"
+          cmp target/nsb-data/airglow-continuum/outputs/airglow_palace_v1.dat crates/nsb/data/airglow_palace_v1.dat
+          test "$(sha256sum target/nsb-data/airglow-continuum/outputs/airglow_palace_v1.dat | cut -d' ' -f1)" = "f03b48cce44764c05e7208e59a0c9dbbb773ffc4b32444f8157dc5ac36fd119e"
       - name: Run external and end-to-end validation matrices
         run: |
           cargo test --locked -p nsb full_moon_reference_geometry_matches_published_brightness

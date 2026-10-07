@@ -38,7 +38,7 @@ fn window_json_v1_contains_audit_metadata() {
     assert_eq!(value["model"]["airglow_selection"]["kind"], "automatic");
     assert_eq!(
         value["model"]["airglow_selection"]["resolved_model"],
-        "paranal-noll-skycalc-fors1"
+        "paranal-palace-v1"
     );
     assert_eq!(value["model"]["airglow_selection"]["used_fallback"], true);
     assert!(
@@ -67,7 +67,7 @@ fn window_json_v1_contains_audit_metadata() {
         .expect("airglow component metadata");
     assert_eq!(
         airglow["metadata"]["airglow_selection"]["resolved_model"],
-        "paranal-noll-skycalc-fors1"
+        "paranal-palace-v1"
     );
     assert!(
         airglow["metadata"]["airglow_selection"]["physical_outcome"].is_null(),

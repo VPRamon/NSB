@@ -35,6 +35,10 @@ First public NSB release.
 - Added the Rust-only `nsb-data` maintainer executable and reproducible
   scientific-asset lifecycle for acquisition, transformation, validation,
   reconciliation, checksums, provenance, and packaging.
+- Replaced the provenance-unresolved historical Airglow continuum snapshot with
+  a compact, deterministic PALACE v1.0 CC-BY-4.0 continuum product preserving
+  separate HO2, FeO-like, and unresolved O2 spectra plus month, local-time,
+  solar-activity, and residual-variability semantics (#214).
 - Added the frozen nside-128 combined 300–650 nm Starlight candidate with the
   covariance-corrected bright-star supplement, deterministic runtime staging,
   checksum-pinned technical and external cross-implementation validation, and
@@ -69,10 +73,11 @@ First public NSB release.
 - Replaced the former Rust coverage-gate crate with
   `scripts/coverage-gate.sh` while preserving blocking workspace/core/diff
   coverage floors.
-- Minimized and reviewed the first-release Rust public API, marked evolvable
-  records/enums/errors non-exhaustive where appropriate, and restored the
-  `API_FROZEN` marker after the completed generic site-profile redesign so
-  snapshot and historical SemVer gates protect the `0.1.0` baseline.
+- Minimized and reviewed the first-release Rust public API and marked evolvable
+  records/enums/errors non-exhaustive where appropriate. The pre-release API
+  freeze is temporarily reopened for #214 so the public Airglow model identity
+  can truthfully change to PALACE v1.0; `API_FROZEN` must be bootstrapped again
+  before the `0.1.0` tag.
 
 ### Scientific status and release boundaries
 

@@ -24,8 +24,8 @@ site calibration are separate axes.
 | Caller experimental starlight map | Experimental | Map schema/value checks | No production claim |
 | B/V S10 and magnitudes | Proxy diagnostic | 445/551 nm central-wavelength convention | No passband-photometry claim |
 
-For Airglow, the bundled continuum's Paranal/Noll/SkyCalc/FORS1 lineage records
-source provenance, not calibration evidence. Observer coordinates, observatory
+For Airglow, the bundled PALACE v1.0 continuum's Paranal lineage records source
+provenance, not calibration evidence. Observer coordinates, observatory
 identity, geometry, F10.7, atmospheric/extinction assumptions, and user scaling
 may change the numerical result or provenance but cannot promote scientific
 maturity.

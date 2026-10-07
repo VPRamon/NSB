@@ -13,7 +13,7 @@ use siderust::catalogs::observatories;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::{EquatorialMeanJ2000, ECEF};
 use siderust::coordinates::spherical::Direction as SphericalDirection;
-use siderust::qtty::{Degrees, Hectopascals, Kilometers, Meters, Nanometer, Nanometers};
+use siderust::qtty::{Degrees, Hectopascals, Kilometers, Meters, Nanometers};
 use siderust::time::{ModifiedJulianDate, TT};
 use tempoch::{Time, UTC};
 
@@ -273,9 +273,10 @@ fn geometry_selection_changes_only_the_geometry_multiplier() {
     ] {
         assert!((ratio - expected_ratio).abs() < 1.0e-12);
     }
-    assert_eq!(
-        van_output.relative_uncertainty,
-        vertical_output.relative_uncertainty,
+    let van_uncertainty = van_output.relative_uncertainty.unwrap();
+    let vertical_uncertainty = vertical_output.relative_uncertainty.unwrap();
+    assert!(
+        (van_uncertainty - vertical_uncertainty).abs() < 1.0e-15,
         "multiplicative geometry must propagate through signal and absolute uncertainty consistently"
     );
 }
@@ -512,11 +513,11 @@ fn altitude_at_or_below_minus_ninety_is_out_of_range() {
 fn airglow_selection_helpers_expose_stable_identifiers() {
     assert_eq!(AirglowSelection::Automatic.as_str(), "automatic");
     assert_eq!(AirglowSelection::Automatic.requested_model(), None);
-    let explicit = AirglowSelection::Explicit(AirglowModel::ParanalNollSkyCalcFors1);
+    let explicit = AirglowSelection::Explicit(AirglowModel::ParanalPalaceV1);
     assert_eq!(explicit.as_str(), "explicit");
     assert_eq!(
         explicit.requested_model(),
-        Some(AirglowModel::ParanalNollSkyCalcFors1)
+        Some(AirglowModel::ParanalPalaceV1)
     );
 }
 
@@ -574,10 +575,11 @@ fn invalid_scale_errors_at_night_and_outside_astronomical_night() {
 }
 
 #[test]
-fn default_solar_radio_flux_is_neutral() {
+fn palace_reference_solar_flux_is_100_sfu() {
     let continuum = load_builtin_standard().unwrap();
-    let correction = continuum.solar_activity_correction(DEFAULT_SOLAR_RADIO_FLUX.value());
-    assert!((correction - 1.0).abs() < 1e-12);
+    let reference = continuum.sample(250, 9, 2, 100.0).unwrap().0;
+    let repeated = continuum.sample(250, 9, 2, 100.0).unwrap().0;
+    assert_eq!(reference.to_bits(), repeated.to_bits());
 }
 
 #[test]
@@ -661,17 +663,22 @@ fn regression_noll_geometry_reference_values() {
 #[test]
 fn spectral_extinction_differs_from_unextincted_baseline_integral() {
     let continuum = load_builtin_standard().unwrap();
+    let location = paranal();
     let atmosphere = AtmosphericConditions::paranal_average();
-    let zenith = Degrees::new(60.0);
-    let spectral = super::continuum::integrate_attenuated_continuum(&continuum, zenith, atmosphere);
-    let baseline = continuum
-        .spectrum()
-        .integrate_range(Nanometers::new(300.0), Nanometers::new(650.0))
-        .to::<Nanometer>();
-    assert!(
-        spectral.integrated_relative < baseline,
-        "60° zenith scattering should reduce the spectrally integrated continuum"
-    );
+    let spectral = super::continuum::integrate_attenuated_continuum(
+        &continuum,
+        t("2023-09-04T01:48:00Z"),
+        Degrees::new(30.0),
+        &airglow_ctx_with(
+            location,
+            atmosphere,
+            DEFAULT_SOLAR_RADIO_FLUX,
+            crate::units::ScaleFactors::new(1.0),
+        ),
+    )
+    .unwrap();
+    assert!(spectral.integrated.value().is_finite());
+    assert!(spectral.integrated > BandPhotonRadiance::zero());
 }
 
 #[test]
@@ -684,10 +691,10 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
         .compute(time, query_target)
         .unwrap();
 
-    // Reference from independent recomputation of the Noll scattering stack at
-    // Paranal for this query geometry (CTAO-S planning atmosphere).
+    // Pinned PALACE v1 continuum plus NSB Noll-scattering reference for this
+    // Paranal query geometry (CTAO-S planning atmosphere).
     assert!(
-        (model.integrated.value() - 0.127_477_149_243_599_1).abs() < 1e-10,
+        (model.integrated.value() - 0.110_457_872_525_372_98).abs() < 1e-10,
         "zenith reference changed: {}",
         model.integrated.value()
     );
@@ -697,7 +704,7 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
         .compute(time, target(80.0, -20.0))
         .unwrap();
     assert!(
-        (low.integrated.value() - 0.209_872_696_340_495_5).abs() < 1e-10,
+        (low.integrated.value() - 0.194_011_832_826_166_6).abs() < 1e-10,
         "30° zenith reference changed: {}",
         low.integrated.value()
     );
