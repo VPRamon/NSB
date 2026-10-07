@@ -986,7 +986,7 @@ abundance = 1.0
         let mut worst = 0.0_f64;
         for wavelength_um in [0.3, 0.5, 0.65] {
             let (phase, _) = ensemble_phase(&model, wavelength_um, &probe_angles).unwrap();
-            for values in phase.chunks_exact(3) {
+            for values in phase.as_chunks::<3>().0 {
                 let interpolated = 0.5 * (values[0] + values[2]);
                 worst = worst.max((interpolated / values[1] - 1.0).abs());
             }
