@@ -231,8 +231,8 @@ pub(crate) fn update_manifest_header(
     ] {
         header[key] = toml_edit::value(generated_header(&raw, key)?);
     }
-    header["wavelength_samples"] = toml_edit::value(grid.wavelengths.len() as i64);
-    header["angle_samples"] = toml_edit::value(grid.angles.len() as i64);
+    header["wavelength_samples"] = toml_edit::value(grid.wavelengths.len().to_string());
+    header["angle_samples"] = toml_edit::value(grid.angles.len().to_string());
     asset["header"] = toml_edit::Item::Table(header);
     Ok(())
 }
@@ -959,6 +959,108 @@ abundance = 1.0
     }
 
     #[test]
+    fn publish_derives_manifest_header_from_generated_artifact() {
+        let temp = tempfile::tempdir().unwrap();
+        let artifact_path = temp.path().join(OUTPUT);
+        fs::write(&artifact_path, generate(&tiny_model()).unwrap()).unwrap();
+        let mut document = format!(
+            "schema_version = 1\n\n[[assets]]\npath = \"{OUTPUT}\"\nsha256 = \"unused\"\n\n[assets.header]\nstale = \"value\"\n"
+        )
+        .parse::<toml_edit::DocumentMut>()
+        .unwrap();
+
+        update_manifest_header(&mut document, &artifact_path).unwrap();
+
+        let asset = document["assets"]
+            .as_array_of_tables()
+            .unwrap()
+            .get(0)
+            .unwrap();
+        let header = asset["header"].as_table().unwrap();
+        assert_eq!(header["wavelength_samples"].as_str(), Some("1"));
+        assert_eq!(header["angle_samples"].as_str(), Some("7"));
+        assert_eq!(
+            header["radius_quadrature"].as_str(),
+            Some("composite Simpson in ln(radius), 8 intervals over +/-3 sigma")
+        );
+        assert!(header.get("stale").is_none());
+    }
+
+    #[test]
+    fn committed_artifact_manifest_and_report_match_production_model() {
+        const ARTIFACT_SHA: &str =
+            "8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc";
+        const MODEL_SHA: &str = "d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82";
+        let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let model_path = repository
+            .join("crates/nsb-data-tools/config")
+            .join(MODEL_SOURCE);
+        let artifact_path = repository.join("crates/nsb/data").join(OUTPUT);
+        let manifest_path = repository.join("crates/nsb/data/manifest.toml");
+        let report_path = repository.join("docs/nsb_components/moonlight/mie-phase-validation.md");
+        let run_config_path =
+            repository.join("crates/nsb-data-tools/config/moonlight-scattering.toml");
+
+        assert_eq!(
+            crate::platform::checksum_io::sha256_file(&model_path).unwrap(),
+            MODEL_SHA
+        );
+        assert_eq!(
+            crate::platform::checksum_io::sha256_file(&artifact_path).unwrap(),
+            ARTIFACT_SHA
+        );
+
+        let model = read_model(&model_path).unwrap();
+        let artifact_raw = fs::read_to_string(&artifact_path).unwrap();
+        let grid = parse_grid(&artifact_raw).unwrap();
+        let expected_wavelengths: Vec<f64> = (model.wavelength_start_nm..=model.wavelength_end_nm)
+            .step_by(model.wavelength_step_nm)
+            .map(|value| value as f64)
+            .collect();
+        assert!(axis_matches(&grid.wavelengths, &expected_wavelengths));
+        assert!(axis_matches(&grid.angles, &angle_grid(&model).unwrap()));
+        assert_eq!((grid.wavelengths.len(), grid.angles.len()), (36, 355));
+
+        let document = fs::read_to_string(manifest_path)
+            .unwrap()
+            .parse::<toml_edit::DocumentMut>()
+            .unwrap();
+        let asset = document["assets"]
+            .as_array_of_tables()
+            .unwrap()
+            .iter()
+            .find(|asset| asset["path"].as_str() == Some(OUTPUT))
+            .unwrap();
+        assert_eq!(asset["sha256"].as_str(), Some(ARTIFACT_SHA));
+        let header = asset["header"].as_table().unwrap();
+        for key in [
+            "aerosol_schema",
+            "solver",
+            "normalization",
+            "wavelength_grid_nm",
+            "scattering_angle_grid_deg",
+            "radius_quadrature",
+        ] {
+            assert_eq!(
+                header[key].as_str(),
+                Some(generated_header(&artifact_raw, key).unwrap().as_str())
+            );
+        }
+        assert_eq!(header["wavelength_samples"].as_str(), Some("36"));
+        assert_eq!(header["angle_samples"].as_str(), Some("355"));
+
+        let report = fs::read_to_string(report_path).unwrap();
+        let run_config = fs::read_to_string(run_config_path).unwrap();
+        for value in [ARTIFACT_SHA, MODEL_SHA] {
+            assert!(report.contains(value));
+        }
+        assert!(run_config.contains(MODEL_SHA));
+        assert!(report.contains("36 wavelengths"));
+        assert!(report.contains("355 scattering angles"));
+        assert!(report.contains("1280"));
+    }
+
+    #[test]
     fn parse_grid_fails_closed() {
         assert!(parse_grid("").is_err());
         assert!(parse_grid("0 2\n\n0 180\n").is_err());
@@ -1039,12 +1141,7 @@ abundance = 1.0
 
     #[test]
     fn refined_forward_grid_resolves_production_ensemble_peak() {
-        let intervals: [(f64, f64); 4] = [
-            (0.0, 0.0125),
-            (0.5, 0.525),
-            (1.0, 1.05),
-            (2.0, 2.125),
-        ];
+        let intervals: [(f64, f64); 4] = [(0.0, 0.0125), (0.5, 0.525), (1.0, 1.05), (2.0, 2.125)];
         let mut probe_angles = Vec::new();
         for (lo, hi) in intervals {
             probe_angles.extend([lo, 0.5 * (lo + hi), hi]);
@@ -1060,27 +1157,41 @@ abundance = 1.0
 
     #[test]
     #[ignore = "production-size tail-convergence evidence; run explicitly when changing quadrature"]
-    fn production_radius_tail_is_converged() {
+    fn production_radius_integration_is_converged() {
         let production = production_model();
         let mut seven_sigma = production.clone();
         seven_sigma.radius_sigma_bounds = 7.0;
         seven_sigma.radius_intervals = 1120;
+        let mut fine_quadrature = production.clone();
+        fine_quadrature.radius_intervals = 2560;
         let angles = [0.0, 0.025, 0.1, 0.5, 2.0, 10.0, 90.0, 180.0];
 
-        let mut worst_phase = 0.0_f64;
-        let mut worst_g = 0.0_f64;
+        let mut worst_tail_phase = 0.0_f64;
+        let mut worst_tail_g = 0.0_f64;
+        let mut worst_quadrature_phase = 0.0_f64;
+        let mut worst_quadrature_g = 0.0_f64;
         for wavelength_um in [0.3, 0.5, 0.65] {
             let (reference, reference_g) =
                 ensemble_phase(&production, wavelength_um, &angles).unwrap();
-            let (candidate, candidate_g) =
-                ensemble_phase(&seven_sigma, wavelength_um, &angles).unwrap();
-            for (&reference, &candidate) in reference.iter().zip(&candidate) {
-                worst_phase = worst_phase.max((candidate / reference - 1.0).abs());
+            let (tail, tail_g) = ensemble_phase(&seven_sigma, wavelength_um, &angles).unwrap();
+            let (fine, fine_g) = ensemble_phase(&fine_quadrature, wavelength_um, &angles).unwrap();
+            for ((&reference, &tail), &fine) in reference.iter().zip(&tail).zip(&fine) {
+                worst_tail_phase = worst_tail_phase.max((tail / reference - 1.0).abs());
+                worst_quadrature_phase = worst_quadrature_phase.max((reference / fine - 1.0).abs());
             }
-            worst_g = worst_g.max((candidate_g - reference_g).abs());
+            worst_tail_g = worst_tail_g.max((tail_g - reference_g).abs());
+            worst_quadrature_g = worst_quadrature_g.max((reference_g - fine_g).abs());
         }
-        assert!(worst_phase < 3.0e-4, "worst phase delta={worst_phase:.6e}");
-        assert!(worst_g < 2.0e-8, "worst g delta={worst_g:.6e}");
+        eprintln!(
+            "sampled 7 sigma / 1120 tail delta: phase={worst_tail_phase:.6e}, |delta g|={worst_tail_g:.6e}"
+        );
+        eprintln!(
+            "sampled 8 sigma / 1280 versus 2560: phase={worst_quadrature_phase:.6e}, |delta g|={worst_quadrature_g:.6e}"
+        );
+        assert!(worst_tail_phase < 3.0e-4);
+        assert!(worst_tail_g < 2.0e-8);
+        assert!(worst_quadrature_phase < 5.0e-3);
+        assert!(worst_quadrature_g < 3.0e-5);
     }
 
     #[test]
@@ -1119,5 +1230,7 @@ abundance = 1.0
             "8 sigma / 640 versus production: max pointwise relative={:.6e}, max |delta g|={:.6e}",
             quadrature.0, quadrature.1
         );
+        assert!(tail.0 < 2.1e-4 && tail.1 < 2.0e-9);
+        assert!(quadrature.0 < 1.2e-2 && quadrature.1 < 1.1e-4);
     }
 }

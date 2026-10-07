@@ -3,9 +3,9 @@
 ## Scientific objective and Jones context
 
 `moonlight_mie_nsb_v1.dat` is an independently calculated, NSB-owned aerosol
-phase-function table for the Jones et al. (2013) scattered-moonlight runtime.
-It replaces the historical ESO-lineage `mie_m15s1.dat`; those bytes are neither
-an input nor a generation target.
+phase-function table for the Jones et al. (2013) scattered-moonlight runtime. It
+replaces the historical ESO-lineage `mie_m15s1.dat`; those bytes are neither a
+generator input nor a published output.
 
 The runtime keeps aerosol optical depth and angular redistribution separate:
 
@@ -13,16 +13,15 @@ The runtime keeps aerosol optical depth and angular redistribution separate:
 scatter = tau_R P_R(theta) + tau_M(lambda) JONES_MIE_WEIGHT P_M(theta, lambda)
 ```
 
-`tau_M` therefore remains the site-profile extinction law. This product only
-supplies `P_M`; it does not encode aerosol column density or optical depth.
-The still-historical multiple-scattering correction is a separate multiplicative
-table and is tracked for replacement in #217.
+The generated product supplies only `P_M`. Site-profile aerosol optical depth,
+the empirical `JONES_MIE_WEIGHT`, and the temporarily retained historical
+multiple-scattering correction remain separate runtime inputs.
 
-## Published assumptions and independent choices
+## Published assumptions and NSB choices
 
-Jones et al. (2013), Sect. 2.6 and Table 2, explicitly publish remote-continental
-lognormal modes and select real refractive index 1.5 with relative mode amounts
-100%, 45%, 5%, and 100%. The admitted model is:
+Jones et al. (2013), Sect. 2.6 and Table 2, publish the remote-continental
+lognormal modes, select real refractive index 1.5, and use relative mode amounts
+100%, 45%, 5%, and 100%:
 
 | Mode | number density (cm^-3) | modal radius (um) | log10(s) | admitted fraction |
 |---|---:|---:|---:|---:|
@@ -32,26 +31,25 @@ lognormal modes and select real refractive index 1.5 with relative mode amounts
 | Stratospheric | 4.49 | 0.217 | 0.248 | 1.00 |
 
 The paper attributes the mode parameters to Warneck & Williams (2012), states
-that they are number distributions, and describes the selected mixture as the
-combination matching the Patat et al. (2011) Paranal extinction curve. Jones
-uses a single refractive index for the selected reconstruction; no wavelength
-dependence or absorptive imaginary part is published for this calculation.
+that they are number distributions, and describes the mixture as matching the
+Patat et al. (2011) Paranal extinction curve.
 
-NSB interprets the paper's tabulated `log s` as base-10 logarithmic width, so
-the standard deviation in ln(radius) is `ln(10) log10(s)`. It uses a constant
-complex refractive index `1.5 + 0i`. These are explicit implementation choices
-where the paper does not specify log base or dispersion. No value was tuned to
-the historical LUT. The altitude profiles in Jones control column optical depth,
-not the normalized phase function, and are consequently not generator inputs.
+NSB interprets the tabulated `log s` as a base-10 logarithmic width, hence
+`sigma_ln(r) = ln(10) log10(s)`, and uses constant refractive index `1.5 + 0i`.
+The paper does not fully specify the log base, dispersion, a physical
+large-particle cutoff, or an absorptive component. These are versioned NSB
+implementation choices, not fitted parameters. No value was tuned against the
+historical ESO lookup table. Jones altitude profiles affect column optical depth
+and therefore are not inputs to the normalized phase-function generator.
 
-## Solver, equations, and licensing
+## Solver and normalization
 
-The generator is a small Rust implementation of the spherical-particle Mie
-amplitude recurrences in Bohren & Huffman (1983), equations 4.74 and 4.88. It is
-part of `nsb-data-tools` under AGPL-3.0-only and uses `num-complex` 0.4.6
-(MIT/Apache-2.0) for complex arithmetic. There is no external solver or input
-dataset. Per-particle intensities are combined using number density times Mie
-scattering cross section, `n(r) pi r^2 Q_sca`, before normalization.
+The in-tree Rust solver implements the spherical-particle Mie amplitude
+recurrences of Bohren & Huffman (1983), equations 4.74 and 4.88. Per-particle
+phase functions are combined with number density times scattering cross section,
+`n(r) pi r^2 Q_sca`. The generator is AGPL-3.0-only and its only numerical
+dependency here is `num-complex` (MIT/Apache-2.0); it consumes no proprietary or
+unlicensed input data.
 
 The convention is
 
@@ -60,123 +58,151 @@ integral over 4pi of P_M(theta, lambda) dOmega = 4 pi
 g(lambda) = (1 / 4pi) integral P_M cos(theta) dOmega
 ```
 
-This matches the Jones single-scattering equation, which applies `P/(4 pi)`.
-The generated rows are renormalized with the same 1-degree trapezoidal angular
-integral used by validation, making generator, artifact, and runtime convention
-unambiguous.
+Each particle phase function is normalized analytically by the Mie coefficient
+sum (`qsum`), and ensemble rows are divided by the integrated scattering weight.
+Generated rows are **not** renormalized by an angular trapezoid. The independent
+trapezoidal integral over the stored non-uniform grid is a validation diagnostic.
+This convention matches the Jones single-scattering equation, which applies
+`P/(4 pi)`.
 
-## Numerical grid and integration
+## Production grid and radius integration
 
-The artifact schema is `nsb-moonlight-mie-phase-v1`. It contains 36 wavelengths
-from 300 through 650 nm at 10 nm spacing and 181 scattering angles from 0 through
-180 degrees at 1 degree spacing. Rows are wavelength-major and retain the compact
-text format understood by `ScatterGrid`; runtime evaluation remains bilinear LUT
-interpolation.
+The artifact schema is `nsb-moonlight-mie-phase-v1` and contains 36 wavelengths
+from 300 through 650 nm at 10 nm spacing. Its 355 scattering angles use this
+piecewise grid (degrees, inclusive contiguous segments):
 
-Each mode is integrated in ln(radius) with composite Simpson quadrature over
-plus/minus five lognormal standard deviations and 800 even intervals. All axes,
-bounds, formatting, ordering, and solver inputs are pinned in
+```text
+0..0.25/0.0125; 0.25..1/0.025; 1..2/0.05; 2..5/0.125;
+5..10/0.25; 10..170/1; 170..180/0.125
+```
+
+Rows are wavelength-major. Runtime evaluation is bilinear interpolation in
+wavelength and angle. Each mode is integrated in `ln(radius)` with composite
+Simpson quadrature over plus/minus 8 lognormal standard deviations using 1280
+even intervals. The complete configuration is pinned in
 `crates/nsb-data-tools/config/moonlight-aerosol-nsb-v1.toml`.
 
-### Convergence evidence
+## Numerical convergence and interpolation
 
-The ignored `production_quadrature_convergence` test records expensive sensitivity
-runs. Relative to production:
+The ignored tests `production_radius_integration_is_converged` and
+`production_quadrature_convergence` are run explicitly for production changes.
+They produced:
 
-| Perturbation | maximum pointwise phase change | maximum absolute change in g |
-|---|---:|---:|
-| 400 instead of 800 radius intervals | 1.107% | 9.84e-5 |
-| four instead of five radius sigmas | 22.65% | 1.37e-3 |
-| six instead of five radius sigmas | 5.78% | 7.49e-5 |
+| Comparison against production | Coverage | max pointwise phase change | max absolute change in g |
+|---|---|---:|---:|
+| 7 sigma / 1120 vs 8 sigma / 1280 | all 36 x 355 samples | 0.01977% | 1.18e-9 |
+| 8 sigma / 640 vs 8 sigma / 1280 | all 36 x 355 samples | 1.109% | 9.96e-5 |
+| 8 sigma / 1280 vs 8 sigma / 2560 | 3 wavelengths x 8 representative angles | 0.4365% | 2.72e-5 |
 
-The bound sensitivity is concentrated in the very narrow forward peak produced
-by the mathematically unbounded coarse-mode lognormal tail; integral diagnostics
-are stable. Five sigma is retained as the smallest practical, explicitly bounded
-interpretation of a distribution whose physical large-particle cutoff is not
-published. This forward-angle limitation is part of the v1 model uncertainty.
+Using 1120 intervals at 7 sigma preserves the same steps-per-sigma as
+production, so the first comparison isolates the omitted tail. It supports the
+8-sigma cutoff: the additional tail has a small but measurable effect and is
+included. The 640/1280 full-grid and 1280/2560 sampled comparisons quantify the
+remaining radius-quadrature sensitivity. The production choice keeps measured
+pointwise sensitivity below 0.5% at the explicit refinement probes and keeps `g`
+stable to `3e-5`; the narrow forward structure remains the limiting numerical
+region and is recorded as a v1 limitation rather than hidden by retuning.
 
-A deterministic coarsening study found that reconstructing the 10 nm rows from
-20 nm samples gives 0.022% median, 0.256% 99th-percentile, and 0.520% maximum
-pointwise differences. Reconstructing the 1-degree grid from 2-degree samples is
-not adequate near the forward peak (up to 231% at 1 degree); away from angles
-below 5 degrees its median, 99th-percentile, and maximum differences are 0.077%,
-1.61%, and 2.97%. These results justify 10 nm and retaining the 1-degree grid.
+The lifecycle validation also compares linear interpolation against direct
+solver evaluations at 14 off-grid angles for 300, 480, and 650 nm. The worst
+relative error is `1.781e-3` (0.1781%), below the `3e-3` gate. The refined grid
+is therefore required near 0 and 180 degrees; a uniform 1-degree description is
+not valid for this artifact.
 
 ## Physical and integral validation
 
-The lifecycle validation checks finite/non-negative values, strictly increasing
-axes, exact domain endpoints, the 4-pi integral, a physical asymmetry range, and
-forward scattering at every wavelength. For the admitted artifact:
+Release-mode lifecycle validation of the committed artifact reports:
 
-- worst relative 4-pi trapezoidal normalization error: `2.291e-11`;
-- asymmetry-factor range: `0.573151` to `0.675545`;
-- `P(0 deg) > P(90 deg)` at every wavelength;
-- output SHA-256: `b74ee3c8e1039cdc0cc323bfa488c04cb2d09ce3871932fa957358c677d7e43d`.
+- exact model/artifact axes: 36 wavelengths x 355 angles, strictly increasing,
+  with exact 300--650 nm and 0--180 degree endpoint coverage;
+- finite, non-negative phase values at every sample;
+- worst independent trapezoidal 4-pi normalization error: `7.371e-5`;
+- grid asymmetry-factor range: `0.573705` to `0.675937`;
+- worst `|grid g - coefficient g|`: `1.513e-5`;
+- worst direct-solver angular interpolation error: `1.781e-3`;
+- `P(0 deg) > P(90 deg)` at every wavelength.
 
-Jones Fig. 9b provides only a graphical primary-reference comparison. The NSB
-result reproduces the reported strong forward lobe, much weaker intermediate
-and backward scattering, and modest wavelength dependence. No quantitative
-curve values are published, so exact numerical agreement is not claimed.
+The coefficient-derived normalization is the source of truth. The finite-grid
+normalization and `g` discrepancies above measure angular sampling/integration
+error and are not corrections applied to the data.
 
-## Historical ESO diagnostic only
+Jones Fig. 9b offers only a graphical primary-reference check. The generated
+model reproduces strong forward scattering, much weaker intermediate/backward
+scattering, and modest wavelength dependence. Exact curve agreement is not
+claimed because the paper publishes no machine-readable curve.
 
-After the model and production settings were fixed independently, the generated
-grid was compared offline with common points in the historical LUT. Across 1,448
-common wavelength/angle points, the median NSB/legacy ratio is 1.221 and median
-absolute relative difference is 27.34%. The largest relative difference is at
-650 nm and 0 degrees: ratio 4.278 (`106.034` versus `24.786`). Representative
-NSB/legacy ratios at 300 nm for 0, 10, 30, 90, 150, and 180 degrees are 2.540,
-0.671, 1.061, 1.298, 0.767, and 0.638. At 650 nm they are 4.278, 0.823, 0.900,
-1.326, 1.672, and 1.303.
+## Historical ESO table: diagnostic only
 
-The discrepancy is expected because the historical solver details, radius
-cutoffs, refractive-index treatment, normalization processing, and exact bytes'
-provenance are not fully documented. No generator input was changed in response.
+Only after fixing the published model and numerical configuration was the final
+artifact compared offline with the historical table from Git history. The 1,448
+common samples comprise eight common wavelengths (300--650 nm at 50 nm spacing)
+and all 181 integer-degree angles. The median NSB/legacy ratio is `1.2198`; the
+median absolute relative difference is `27.345%`. The largest relative
+difference is at 650 nm and 0 degrees: ratio `4.5334` (`112.3641` versus
+`24.7858`).
+
+Representative NSB/legacy ratios are:
+
+| wavelength | 0 deg | 10 deg | 30 deg | 90 deg | 150 deg | 180 deg |
+|---:|---:|---:|---:|---:|---:|---:|
+| 300 nm | 2.6929 | 0.6697 | 1.0596 | 1.2961 | 0.7657 | 0.6368 |
+| 650 nm | 4.5334 | 0.8223 | 0.8991 | 1.3245 | 1.6702 | 1.3018 |
+
+This is diagnostic-only evidence, not a fit target or acceptance oracle. The
+legacy solver, cutoff, refractive-index treatment, post-processing, and exact
+provenance are insufficiently documented to attribute the differences uniquely.
 
 ## Jones 2013 end-to-end impact
 
-Using the same `main` solar spectrum, optical-depth code, empirical
-`JONES_MIE_WEIGHT`, and historical multiple-scattering table, the isolated Mie
-replacement changes the three regression geometries as follows:
+With the same solar spectrum, optical-depth code, `JONES_MIE_WEIGHT`, and
+historical multiple-scattering correction, replacing only the historical Mie
+table changes the three regression geometries by:
 
 | Separation | integrated 300--650 nm | B diagnostic | V diagnostic |
 |---:|---:|---:|---:|
-| 97.523 deg | +2.767% | +3.609% | +6.898% |
-| 4.000 deg | -23.609% | -23.546% | -19.049% |
-| 52.216 deg | +5.741% | +6.435% | +3.048% |
+| 97.523 deg | +2.756% | +3.595% | +6.870% |
+| 4.000 deg | -23.662% | -23.595% | -19.119% |
+| 52.216 deg | +5.704% | +6.391% | +2.984% |
 
-The large close-Moon change follows directly from the independently calculated
-forward lobe and is intentionally not hidden by retuning `JONES_MIE_WEIGHT`.
-Regression pins were refreshed only after this impact was measured.
+The final ±8-sigma/1280/non-uniform artifact changes the integrated results by
+`-0.0111%`, `-0.0686%`, and `-0.0356%`, respectively, relative to the preceding
+5-sigma/800/uniform generated artifact. Runtime regression tests pin integrated,
+B, and V outputs for all three geometries. The close-Moon change versus the
+historical runtime follows from the independently generated forward lobe and is
+not compensated by retuning `JONES_MIE_WEIGHT`.
 
-## Transition policy and limitations
+## Provenance, reproducibility, and limitations
 
-This PR uses transition option A: activate the distributable phase grid now and
-retain `sscatcor_m15s1.dat` temporarily. The correction is only a few-percent
-higher-order multiplier in the Jones reference model, so it remains usable as a
-planning approximation, but the mixed pair is not claimed to be a coherent new
-radiative-transfer calibration. Issue #217 must consume the versioned aerosol
-configuration and replace that table before the v0.1.0 redistribution gate can
-be fully cleared.
+- artifact SHA-256:
+  `8ac2548e2699dee1448f60d867d4c2fd5a49b4702dba63297972e81cb3cb4bbc`;
+- model/config SHA-256:
+  `d63543d5b168e27669479fc0004f0a9c21f94de81b83920981e4a61c8ae24e82`.
 
-Spherical particles, constant real refractive index, the five-sigma cutoff, and
-the paper's underspecified log-width notation are known limitations. Jones also
-notes that Mie spheres can underrepresent nonspherical large-angle backscatter.
+The publish step derives machine-readable manifest header metadata from the
+generated artifact. Validation independently checks artifact axes against the
+pinned model. CI regenerates and validates on relevant pull requests and main
+branch pushes, then fails if artifact or manifest bytes differ.
+
+Known v1 limitations are spherical particles, constant real refractive index,
+the paper's underspecified log-width notation and physical coarse-particle
+cutoff, the quantified sub-0.5% sampled quadrature sensitivity, and Mie spheres'
+known tendency to underrepresent nonspherical large-angle backscatter. The
+historical multiple-scattering table remains a temporary planning approximation
+tracked for replacement in issue #217; the pair is not claimed as a newly
+calibrated radiative-transfer solution.
 
 ## Reproduction
 
-Run, in order:
+Run in order:
 
 ```bash
-cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
-cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml
-cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml
-cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml
+cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
+cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering build --config crates/nsb-data-tools/config/moonlight-scattering.toml
+cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering validate --config crates/nsb-data-tools/config/moonlight-scattering.toml
+cargo run --release --locked -p nsb-data-tools --bin nsb-data -- dataset moonlight-scattering publish --config crates/nsb-data-tools/config/moonlight-scattering.toml
 ```
 
-The pinned model-input SHA-256 is
-`6fa37780c56e8f5ade0a2083780aa228570be786e1d4812b30468ec27f355afd`.
-Running build twice produces the identical output checksum above.
+Repeating the lifecycle produces the hashes above and no Git diff.
 
 ## References
 
