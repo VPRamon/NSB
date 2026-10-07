@@ -20,11 +20,16 @@ allow = [
     "AGPL-3.0-only",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
+    # Native GUI clipboard support on Windows uses Boost-licensed crates.
+    "BSL-1.0",
     "BSD-3-Clause",
     "CDLA-Permissive-2.0",
     "ISC",
     "MIT",
+    # egui's embedded default fonts include Hack/Noto Emoji and Ubuntu Light.
+    "OFL-1.1",
     "Unicode-3.0",
+    "Ubuntu-font-1.0",
     "Zlib",
 ]
 
