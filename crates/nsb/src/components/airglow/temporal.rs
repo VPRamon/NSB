@@ -72,11 +72,56 @@ pub(crate) fn palace_climatology_coordinates(
     Some((dt.month(), bin))
 }
 
+/// Return every local-mean-solar hour boundary strictly inside a TT window.
+///
+/// PALACE selects a discrete climatology row from calendar month and local
+/// mean solar hour. Threshold scans must therefore treat these boundaries as
+/// potential discontinuities independently of the legacy astronomical-night
+/// third boundaries.
+pub(crate) fn palace_climatology_boundaries_for_window(
+    window: TimePeriod<ModifiedJulianDate>,
+    location: Geodetic<ECEF>,
+) -> Vec<ModifiedJulianDate> {
+    if window.start >= window.end {
+        return Vec::new();
+    }
+
+    let start_utc = Time::<TT>::from(window.start).to::<UTC>();
+    let end_utc = Time::<TT>::from(window.end).to::<UTC>();
+    let Some(start_local) = observer_local_mean_solar_datetime(start_utc, location) else {
+        return Vec::new();
+    };
+    let Some(end_local) = observer_local_mean_solar_datetime(end_utc, location) else {
+        return Vec::new();
+    };
+    let Some(mut boundary_local) = start_local
+        .with_minute(0)
+        .and_then(|dt| dt.with_second(0))
+        .and_then(|dt| dt.with_nanosecond(0))
+    else {
+        return Vec::new();
+    };
+    if boundary_local <= start_local {
+        boundary_local += chrono::Duration::hours(1);
+    }
+
+    let offset_seconds = local_mean_solar_offset_seconds(location);
+    let mut boundaries = Vec::new();
+    while boundary_local < end_local {
+        let boundary_utc = Time::<UTC>::from_chrono(
+            boundary_local - chrono::Duration::seconds(offset_seconds),
+        );
+        boundaries.push(utc_time_to_tt_mjd(boundary_utc));
+        boundary_local += chrono::Duration::hours(1);
+    }
+    boundaries
+}
+
 /// Site-aware Airglow night phase based on astronomical-night thirds.
 ///
 /// Divide the full astronomical-night interval (`alt_sun < -18°`) into thirds
-/// for stable threshold-window partitioning. PALACE evaluation itself uses local
-/// mean solar hour bins rather than these thirds.
+/// for the retained phase identity. PALACE evaluation itself uses local mean
+/// solar hour bins, and threshold searches split those discontinuities separately.
 ///
 /// The search expands adaptively so high-latitude winter nights are not
 /// mistaken for missing Airglow merely because the first local window is clipped.
@@ -295,13 +340,16 @@ fn utc_time_to_tt_mjd(time: Time<UTC>) -> ModifiedJulianDate {
     ModifiedJulianDate::from(time.to::<TT>().to::<MJD>())
 }
 
+fn local_mean_solar_offset_seconds(location: Geodetic<ECEF>) -> i64 {
+    (location.lon.value() / 15.0 * 3600.0).round() as i64
+}
+
 fn observer_local_mean_solar_datetime(
     time: Time<UTC>,
     location: Geodetic<ECEF>,
 ) -> Option<chrono::DateTime<chrono::Utc>> {
     let dt = time.to_chrono()?;
-    let offset_seconds = (location.lon.value() / 15.0 * 3600.0).round() as i64;
-    Some(dt + chrono::Duration::seconds(offset_seconds))
+    Some(dt + chrono::Duration::seconds(local_mean_solar_offset_seconds(location)))
 }
 
 #[cfg(test)]
