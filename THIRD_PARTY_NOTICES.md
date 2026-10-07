@@ -16,23 +16,9 @@ decision remains the sole authorization gate.
 
 ## Starlight (integrated starlight component)
 
-Full artifact inventory, licence classification, and attribution wording:
-
-- [`docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml`](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml)
-- [`docs/nsb_components/starlight/licensing/ATTRIBUTION.md`](docs/nsb_components/starlight/licensing/ATTRIBUTION.md)
-
-Summary of third-party sources:
-
-- **Gaia DR3** (ESA/DPAC) — GaiaSource and XP continuous mean spectrum bulk
-  products. Licence: Gaia data licence (CC BY-NC 3.0 IGO),
-  <https://www.cosmos.esa.int/web/gaia-users/license>.
-- **Cantat-Gaudin et al. (2023)** empirical Gaia DR3 selection function.
-  Licence: CC-BY-4.0, DOI `10.1051/0004-6361/202244784`.
-- **STScI CALSPEC** spectrophotometric standard-star atlas, used as an
-  offline UV-correction training reference only. Public HST calibration
-  data; attribution requested.
-- **GaiaXPy** — cited only as historical independent reference evidence for
-  continuous-XP reconstruction; not redistributed.
+NSB 0.1.0 bundles no Gaia-derived Starlight map or supporting catalogue data.
+Any future Starlight admission must add the applicable source notices,
+licensing review, and redistribution terms with the admitted product.
 
 ## Other bundled runtime assets
 
@@ -58,5 +44,4 @@ ESO correction-table bytes and no third-party solver or dataset bytes.
 
 ## Reporting a missing or incorrect notice
 
-Open an issue referencing the specific artifact id from the relevant
-`artifact-inventory-v1.toml` entry.
+Open an issue identifying the affected bundled asset or dependency.

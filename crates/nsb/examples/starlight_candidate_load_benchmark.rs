@@ -1,6 +1,6 @@
 //! Timing harness for packed Starlight runtime maps.
 //!
-//! Architecture: candidate-v5 → `dataset starlight pack` → `.release.csv` →
+//! Architecture: candidate → `dataset starlight pack` → `.release.csv` →
 //! `StarlightMap` runtime load. This example never loads the sparse
 //! `nsb-healpix-starlight-candidate-v1` candidate CSV through the runtime API.
 //!
@@ -64,14 +64,18 @@ fn main() {
         fixture_elapsed.as_secs_f64()
     );
 
-    let path = env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("data/starlight_nside128.release.csv")
-    });
+    let Some(path) = env::args().nth(1).map(PathBuf::from) else {
+        println!("packed_runtime_load_result=not-requested");
+        println!(
+            "packed_runtime_load_hint=pass a generated packed runtime CSV path to benchmark it"
+        );
+        return;
+    };
     println!("packed_runtime_path={}", path.display());
     if !path.is_file() {
         println!("packed_runtime_load_result=missing");
         println!(
-            "packed_runtime_load_hint=run `nsb-data dataset starlight pack` first, then pass the .release.csv path"
+            "packed_runtime_load_hint=generate a runtime map with `nsb-data dataset starlight pack`, then pass its path"
         );
         return;
     }

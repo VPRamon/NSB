@@ -43,7 +43,9 @@ fn first_release_registry_excludes_unapproved_starlight_products() -> Result<()>
         .map(|asset| asset.path.as_str())
         .collect::<Vec<_>>();
     if !starlight.is_empty() {
-        bail!("first public release must not register unapproved Starlight products: {starlight:?}");
+        bail!(
+            "first public release must not register unapproved Starlight products: {starlight:?}"
+        );
     }
     Ok(())
 }

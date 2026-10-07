@@ -39,14 +39,6 @@ configured `canonical_nside`, then emits exactly one canonical map plus
 a measured-only 336–650 nm configuration and deliberately records its missing
 UV/selection inputs rather than inventing them.
 
-The frozen candidate used for the current release review is different: the
-nside-128 combined 300–650 nm Ladon run pins external UV, photometric,
-selection-function, and bright-star-supplement artifacts and records their
-checksums/provenance in the candidate and merge report. Those large calibration
-inputs are not embedded in the repository. See
-[`docs/maintainer-guide/starlight-uv-calibration.md`](../../docs/maintainer-guide/starlight-uv-calibration.md)
-and the [Starlight release-candidate bundle](../../docs/nsb_components/starlight/release-candidate/README.md).
-
-Neither candidate generation path silently registers Starlight as runtime
-production data; #103 redistribution approval is still required before bundled
-activation.
+Candidate generation never silently registers Starlight as runtime production
+data. A future bundled product requires explicit scientific, provenance, and
+redistribution approval in its release change.

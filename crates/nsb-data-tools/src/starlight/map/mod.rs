@@ -17,7 +17,7 @@ mod tests {
         fs::write(
             &path,
             concat!(
-                "# schema=nsb-healpix-starlight-candidate-v3\n",
+                "# schema=nsb-healpix-starlight-candidate-v1\n",
                 "# map_type=healpix\n",
                 "# coordinate_frame=galactic\n",
                 "# ordering=nested\n",

@@ -1144,7 +1144,7 @@ nside = "{}"
 ordering = "{}"
 s10_diagnostics = "not_provided"
 dataset_name = "NSB Gaia DR3 Starlight packed runtime map"
-version = "uv-v2-packed-from-{}"
+version = "starlight-runtime-v1-from-{}"
 generation_date_utc = "{}"
 source_catalogue = "Gaia DR3 GaiaSource and XP continuous plus Hipparcos/XHIP/CK04 bright-star supplement"
 source_catalogue_release = "{}"
@@ -1400,7 +1400,7 @@ fn require_sha256(label: &str, value: &str) -> Result<()> {
 mod tests {
     use super::*;
 
-    const SYNTHETIC_CANDIDATE_V5: &str = concat!(
+    const SYNTHETIC_CANDIDATE: &str = concat!(
         "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# ordering=nested\n",
         "# representation=sparse\n",
@@ -1411,7 +1411,7 @@ mod tests {
     );
 
     fn synthetic_candidate_sha256() -> String {
-        checksum_io::sha256_bytes(SYNTHETIC_CANDIDATE_V5.as_bytes())
+        checksum_io::sha256_bytes(SYNTHETIC_CANDIDATE.as_bytes())
     }
 
     fn complete_gates_json(candidate_sha256: &str) -> String {
@@ -1572,11 +1572,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         let root = dir.path().to_path_buf();
         let data_dir = root.join("crates/nsb/data");
         fs::create_dir_all(&data_dir).unwrap();
-        fs::write(
-            data_dir.join("starlight_nside128.csv"),
-            SYNTHETIC_CANDIDATE_V5,
-        )
-        .unwrap();
+        fs::write(data_dir.join("starlight_nside128.csv"), SYNTHETIC_CANDIDATE).unwrap();
         fs::write(
             data_dir.join("manifest.toml"),
             format!(
@@ -2107,7 +2103,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
     }
 
     #[test]
-    fn candidate_v5_packs_into_runtime_assets() {
+    fn synthetic_candidate_packs_into_runtime_assets() {
         let repo = valid_synthetic_repo();
         let outcome = run_promotion(&inputs(&repo, None)).unwrap();
         assert!(
@@ -2124,7 +2120,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             .contains("starlight_nside128.release.csv"));
         assert_eq!(
             fs::read(repo.root.join("crates/nsb/data/starlight_nside128.csv")).unwrap(),
-            SYNTHETIC_CANDIDATE_V5.as_bytes()
+            SYNTHETIC_CANDIDATE.as_bytes()
         );
     }
 
@@ -2358,7 +2354,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             fs::read(&second_sidecar).unwrap()
         );
         let staged_sidecar = fs::read_to_string(&second_sidecar).unwrap();
-        assert!(staged_sidecar.contains("schema_version = 2"));
+        assert!(staged_sidecar.contains("schema_version = 1"));
         assert!(staged_sidecar.contains("generation_date = \"2026-10-06T07:02:23Z\""));
         assert!(staged_sidecar.contains("generation_date_utc = \"2026-10-06T07:02:23Z\""));
         assert!(fs::read_to_string(&second_map)
@@ -2399,94 +2395,6 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
     }
 
     #[test]
-    fn canonical_merge_report_provenance_matches_release_candidate_and_tampering_fails_closed() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let release_path =
-            root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml");
-        let release = ReleaseCandidateManifest::load(&release_path).unwrap();
-        let canonical = verified_runtime_candidate(&root, &release).unwrap();
-        let supplement = canonical
-            .bright_star_supplement
-            .as_ref()
-            .expect("production candidate must carry canonical bright-star provenance");
-        assert!(supplement.inputs.len() >= 30);
-        assert!(supplement
-            .inputs
-            .iter()
-            .any(|input| input.source_id == "CALSPEC-alpha_lyr_stis_012"));
-        assert!(supplement
-            .inputs
-            .iter()
-            .any(|input| input.source_id == "SVO-Hipparcos-Hp-Bessell2000"));
-        assert!(supplement
-            .inputs
-            .iter()
-            .any(|input| input.source_id == "CDS-I-259-tyc2.dat.00.gz"));
-        assert!(supplement
-            .inputs
-            .iter()
-            .any(|input| input.source_id == "starlight-bright-stars-combined-v1.ladon.toml"));
-
-        let assert_tamper_fails = |tampered: ReleaseCandidateManifest| {
-            let error = verified_runtime_candidate(&root, &tampered).unwrap_err();
-            assert!(
-                error
-                    .to_string()
-                    .contains("bright-star provenance disagrees"),
-                "unexpected error: {error:#}"
-            );
-        };
-
-        let mut missing_input = release.clone();
-        missing_input
-            .candidate
-            .bright_star_supplement
-            .as_mut()
-            .unwrap()
-            .inputs
-            .pop();
-        assert_tamper_fails(missing_input);
-
-        let mut changed_input_sha = release.clone();
-        changed_input_sha
-            .candidate
-            .bright_star_supplement
-            .as_mut()
-            .unwrap()
-            .inputs[0]
-            .sha256 = "a".repeat(64);
-        assert_tamper_fails(changed_input_sha);
-
-        let mut changed_artifact_sha = release.clone();
-        changed_artifact_sha
-            .candidate
-            .bright_star_supplement
-            .as_mut()
-            .unwrap()
-            .artifact_sha256 = "a".repeat(64);
-        assert_tamper_fails(changed_artifact_sha);
-
-        let mut changed_route = release.clone();
-        changed_route
-            .candidate
-            .bright_star_supplement
-            .as_mut()
-            .unwrap()
-            .spectral_route
-            .push_str(" tampered");
-        assert_tamper_fails(changed_route);
-
-        let mut changed_model = release;
-        changed_model
-            .candidate
-            .bright_star_supplement
-            .as_mut()
-            .unwrap()
-            .model_id = "starlight-bright-stars-v1".into();
-        assert_tamper_fails(changed_model);
-    }
-
-    #[test]
     fn unsupported_schema_is_rejected() {
         let repo = valid_synthetic_repo();
         let tampered = fs::read_to_string(&repo.release_candidate)
@@ -2500,32 +2408,5 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         assert!(error
             .to_string()
             .contains("unsupported release-candidate schema"));
-    }
-
-    #[test]
-    fn documented_pending_release_candidate_never_promotes() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let release_candidate =
-            root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml");
-        let redistribution_decision = root.join(
-            "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json",
-        );
-        let manifest = ReleaseCandidateManifest::load(&release_candidate).unwrap();
-        assert!(!manifest.gates.promotion_eligible);
-        assert_eq!(manifest.candidate.status, CandidateStatus::Pinned);
-        assert!(!manifest.gates.promotion_eligible);
-
-        let error = run_promotion(&PromotionInputs {
-            release_candidate,
-            redistribution_decision,
-            repository_root: root,
-            output: None,
-            apply: false,
-        })
-        .unwrap_err();
-        assert!(
-            !error.to_string().is_empty(),
-            "documented release candidate must fail closed until all pinned evidence agrees"
-        );
     }
 }
