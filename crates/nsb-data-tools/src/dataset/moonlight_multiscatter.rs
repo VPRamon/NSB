@@ -982,6 +982,42 @@ mod tests {
             "../../config/moonlight-multiscatter-nsb-v1.toml"
         ))
         .unwrap();
+        let run_config_sha256 = crate::platform::checksum_io::sha256_bytes(include_bytes!(
+            "../../config/moonlight-scattering.toml"
+        ));
+        let rt_config_sha256 = crate::platform::checksum_io::sha256_bytes(include_bytes!(
+            "../../config/moonlight-multiscatter-nsb-v1.toml"
+        ));
+        let output_sha256 = crate::platform::checksum_io::sha256_bytes(include_bytes!(
+            "../../../nsb/data/moonlight_multiscatter_nsb_v1.dat"
+        ));
+        assert_eq!(
+            manifest["run_config_sha256"].as_str(),
+            Some(run_config_sha256.as_str())
+        );
+        assert_eq!(
+            manifest["rt_config_sha256"].as_str(),
+            Some(rt_config_sha256.as_str())
+        );
+        assert_eq!(
+            manifest["output_sha256"].as_str(),
+            Some(output_sha256.as_str())
+        );
+
+        let committed_grid = parse_phase_grid(include_str!(
+            "../../../nsb/data/moonlight_multiscatter_nsb_v1.dat"
+        ))
+        .unwrap();
+        let at_140 = committed_grid
+            .angles_rad
+            .iter()
+            .position(|angle| (*angle - 140.0_f64.to_radians()).abs() < 1.0e-12)
+            .unwrap();
+        let at_180 = committed_grid.angles_rad.len() - 1;
+        assert!(committed_grid
+            .rows
+            .iter()
+            .all(|row| row[at_180] == row[at_140]));
         let rows = wavelengths(&rt)
             .map(|wavelength_nm| PartitionResult {
                 schema: PARTITION_SCHEMA.into(),
