@@ -10,6 +10,8 @@ const PLOT_FILL: Color32 = Color32::from_rgb(10, 24, 38);
 const GRID: Color32 = Color32::from_rgb(47, 67, 84);
 const BLUE: Color32 = Color32::from_rgb(89, 169, 255);
 const GREEN: Color32 = Color32::from_rgb(92, 225, 160);
+const TWILIGHT: Color32 = Color32::from_rgb(77, 105, 142);
+const NIGHT: Color32 = Color32::from_rgb(35, 55, 82);
 const MUTED: Color32 = Color32::from_rgb(162, 178, 192);
 const ERROR: Color32 = Color32::from_rgb(255, 120, 120);
 
@@ -17,6 +19,7 @@ pub struct NsbApp {
     input: InputState,
     site_names: Vec<String>,
     criteria_open: bool,
+    last_submitted: Option<InputState>,
     state: CalculationState,
     sender: Sender<Result<CalculationOutput, String>>,
     receiver: Receiver<Result<CalculationOutput, String>>,
@@ -25,7 +28,7 @@ pub struct NsbApp {
 enum CalculationState {
     Idle,
     Running,
-    Ready(CalculationOutput),
+    Ready(Box<CalculationOutput>),
     Error(String),
 }
 
@@ -42,6 +45,7 @@ impl NsbApp {
             input: InputState::default(),
             site_names: InputState::site_names(),
             criteria_open: false,
+            last_submitted: None,
             state: CalculationState::Idle,
             sender,
             receiver,
@@ -51,7 +55,7 @@ impl NsbApp {
     fn poll_result(&mut self) {
         while let Ok(result) = self.receiver.try_recv() {
             self.state = match result {
-                Ok(output) => CalculationState::Ready(output),
+                Ok(output) => CalculationState::Ready(Box::new(output)),
                 Err(error) => CalculationState::Error(error),
             };
         }
@@ -66,6 +70,7 @@ impl NsbApp {
             }
         };
 
+        self.last_submitted = Some(self.input.clone());
         self.state = CalculationState::Running;
         let sender = self.sender.clone();
         let ctx = ctx.clone();
@@ -333,49 +338,68 @@ impl NsbApp {
 
     fn results(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add_space(4.0);
-            let state = &self.state;
-            let input = &mut self.input;
-            let criteria_open = &mut self.criteria_open;
-            match state {
-                CalculationState::Ready(output) => {
-                    render_chart(ui, output);
-                    ui.add_space(8.0);
-                    ui.columns(2, |columns| {
-                        render_criteria(&mut columns[0], input, criteria_open);
-                        render_summary(&mut columns[1], output);
-                    });
-                    ui.add_space(8.0);
-                    render_components(ui, output);
-                    ui.add_space(8.0);
-                    render_timeline(ui, output);
+            let results_stale = self
+                .last_submitted
+                .as_ref()
+                .is_some_and(|submitted| submitted != &self.input);
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.add_space(4.0);
+                let state = &self.state;
+                let input = &mut self.input;
+                let criteria_open = &mut self.criteria_open;
+                match state {
+                    CalculationState::Ready(output) => {
+                        if results_stale {
+                            ui.colored_label(
+                                Color32::from_rgb(255, 196, 92),
+                                "Inputs changed since this result was calculated. Calculate again to refresh it.",
+                            );
+                            ui.add_space(5.0);
+                        }
+                        render_chart(ui, output);
+                        ui.add_space(8.0);
+                        ui.columns(2, |columns| {
+                            render_criteria(
+                                &mut columns[0],
+                                input,
+                                criteria_open,
+                                Some(output),
+                                results_stale,
+                            );
+                            render_summary(&mut columns[1], output);
+                        });
+                        ui.add_space(8.0);
+                        render_components(ui, output);
+                        ui.add_space(8.0);
+                        render_timeline(ui, output);
+                    }
+                    CalculationState::Running => {
+                        render_criteria(ui, input, criteria_open, None, false);
+                        ui.add_space(18.0);
+                        ui.vertical_centered(|ui| {
+                            ui.spinner();
+                            ui.heading("Calculating NSB…");
+                            ui.label("The scientific model is running on a worker thread.");
+                        });
+                    }
+                    CalculationState::Error(error) => {
+                        render_criteria(ui, input, criteria_open, None, false);
+                        ui.add_space(18.0);
+                        ui.colored_label(ERROR, "Calculation error");
+                        ui.label(error);
+                    }
+                    CalculationState::Idle => {
+                        render_criteria(ui, input, criteria_open, None, false);
+                        ui.add_space(24.0);
+                        ui.vertical_centered(|ui| {
+                            ui.heading("Night Sky Brightness");
+                            ui.label(
+                                "Configure the observation and calculate to plot real NSB model results.",
+                            );
+                        });
+                    }
                 }
-                CalculationState::Running => {
-                    render_criteria(ui, input, criteria_open);
-                    ui.add_space(18.0);
-                    ui.vertical_centered(|ui| {
-                        ui.spinner();
-                        ui.heading("Calculating NSB…");
-                        ui.label("The scientific model is running on a worker thread.");
-                    });
-                }
-                CalculationState::Error(error) => {
-                    render_criteria(ui, input, criteria_open);
-                    ui.add_space(18.0);
-                    ui.colored_label(ERROR, "Calculation error");
-                    ui.label(error);
-                }
-                CalculationState::Idle => {
-                    render_criteria(ui, input, criteria_open);
-                    ui.add_space(24.0);
-                    ui.vertical_centered(|ui| {
-                        ui.heading("Night Sky Brightness");
-                        ui.label(
-                            "Configure the observation and calculate to plot real NSB model results.",
-                        );
-                    });
-                }
-            }
+            });
         });
     }
 }
@@ -424,7 +448,13 @@ fn input_row(ui: &mut egui::Ui, label: &str, value: &mut String, unit: &str) {
         });
 }
 
-fn render_criteria(ui: &mut egui::Ui, input: &mut InputState, open: &mut bool) {
+fn render_criteria(
+    ui: &mut egui::Ui,
+    input: &mut InputState,
+    open: &mut bool,
+    applied: Option<&CalculationOutput>,
+    inputs_changed: bool,
+) {
     section(ui, |ui| {
         ui.horizontal(|ui| {
             ui.heading("Observing criteria");
@@ -437,20 +467,43 @@ fn render_criteria(ui: &mut egui::Ui, input: &mut InputState, open: &mut bool) {
                 }
             });
         });
-        ui.label(format!(
-            "Integrated NSB ≤ {} ph cm⁻² ns⁻¹ sr⁻¹",
-            input.max_radiance
-        ));
-        if input.use_sun_ceiling {
-            ui.label(format!(
-                "Sun altitude ≤ {}°",
-                input.sun_altitude_ceiling_deg
-            ));
+        let threshold = applied
+            .map(|output| format!("{:.6}", output.threshold))
+            .unwrap_or_else(|| input.max_radiance.clone());
+        ui.label(format!("Integrated NSB ≤ {threshold} ph cm⁻² ns⁻¹ sr⁻¹"));
+        let sun_ceiling = applied
+            .map(|output| {
+                output
+                    .sun_altitude_ceiling_deg
+                    .map(|value| format!("{value:.3}"))
+            })
+            .unwrap_or_else(|| {
+                input
+                    .use_sun_ceiling
+                    .then(|| input.sun_altitude_ceiling_deg.clone())
+            });
+        if let Some(value) = sun_ceiling {
+            ui.label(format!("Sun altitude ≤ {value}°"));
         }
-        if input.use_target_floor {
+        let target_floor = applied
+            .map(|output| {
+                output
+                    .target_altitude_floor_deg
+                    .map(|value| format!("{value:.3}"))
+            })
+            .unwrap_or_else(|| {
+                input
+                    .use_target_floor
+                    .then(|| input.target_altitude_floor_deg.clone())
+            });
+        if let Some(value) = target_floor {
+            ui.label(format!("Target altitude ≥ {value}°"));
+        }
+        if let Some(output) = applied {
             ui.label(format!(
-                "Target altitude ≥ {}°",
-                input.target_altitude_floor_deg
+                "Search span {} · sample step {} s",
+                format_duration((output.end - output.start).num_seconds() as f64),
+                output.sample_step_seconds
             ));
         }
         ui.label(
@@ -460,6 +513,13 @@ fn render_criteria(ui: &mut egui::Ui, input: &mut InputState, open: &mut bool) {
             .small()
             .color(MUTED),
         );
+        if inputs_changed {
+            ui.label(
+                egui::RichText::new("Showing the criteria applied to the plotted result.")
+                    .small()
+                    .color(Color32::from_rgb(255, 196, 92)),
+            );
+        }
 
         if *open {
             ui.separator();
@@ -484,6 +544,13 @@ fn render_criteria(ui: &mut egui::Ui, input: &mut InputState, open: &mut bool) {
             });
             input_row(ui, "Duration", &mut input.duration_hours, "h");
             input_row(ui, "Sample step", &mut input.sample_step_seconds, "s");
+            if applied.is_some() {
+                ui.label(
+                    egui::RichText::new("Edits take effect on the next Calculate.")
+                        .small()
+                        .color(MUTED),
+                );
+            }
         }
     });
 }
@@ -513,6 +580,11 @@ fn render_summary(ui: &mut egui::Ui, output: &CalculationOutput) {
             "V diagnostic: {:.3} mag/arcsec²",
             output.reference_v_mag_arcsec2
         ));
+        ui.label(if output.reference_satisfies_criteria {
+            "All active criteria are satisfied at this sampled time."
+        } else {
+            "Not all active criteria are satisfied at this sampled time."
+        });
         ui.separator();
         match output.windows.as_slice() {
             [] => {
@@ -739,29 +811,58 @@ fn render_timeline(ui: &mut egui::Ui, output: &CalculationOutput) {
             .color(MUTED),
         );
         ui.add_space(5.0);
+        ui.horizontal_wrapped(|ui| {
+            timeline_legend(ui, Color32::from_rgb(105, 91, 72), "Day");
+            timeline_legend(ui, TWILIGHT, "Twilight (Sun 0° to −18°)");
+            timeline_legend(ui, NIGHT, "Astronomical night");
+            timeline_legend(ui, GREEN, "All criteria");
+        });
         let (rect, _) =
-            ui.allocate_exact_size(Vec2::new(ui.available_width(), 62.0), Sense::hover());
+            ui.allocate_exact_size(Vec2::new(ui.available_width(), 76.0), Sense::hover());
         let painter = ui.painter_at(rect);
-        let bar = Rect::from_min_max(
-            Pos2::new(rect.left(), rect.top() + 8.0),
-            Pos2::new(rect.right(), rect.top() + 30.0),
+        let label_width = 88.0;
+        let solar_bar = Rect::from_min_max(
+            Pos2::new(rect.left() + label_width, rect.top() + 5.0),
+            Pos2::new(rect.right(), rect.top() + 25.0),
         );
-        painter.rect_filled(bar, 4.0, Color32::from_rgb(23, 50, 76));
-        for window in &output.windows {
-            let x0 = time_x(window.start, output.start, output.end, bar);
-            let x1 = time_x(window.end, output.start, output.end, bar);
-            painter.rect_filled(
-                Rect::from_min_max(Pos2::new(x0, bar.top()), Pos2::new(x1, bar.bottom())),
-                3.0,
-                GREEN,
-            );
-        }
+        let criteria_bar = solar_bar.translate(Vec2::new(0.0, 30.0));
+        painter.text(
+            Pos2::new(rect.left(), solar_bar.center().y),
+            Align2::LEFT_CENTER,
+            "Solar state",
+            FontId::proportional(11.0),
+            MUTED,
+        );
+        painter.text(
+            Pos2::new(rect.left(), criteria_bar.center().y),
+            Align2::LEFT_CENTER,
+            "All criteria",
+            FontId::proportional(11.0),
+            MUTED,
+        );
+        painter.rect_filled(solar_bar, 4.0, Color32::from_rgb(105, 91, 72));
+        paint_periods(
+            &painter,
+            solar_bar,
+            &output.sun_below_horizon,
+            output,
+            TWILIGHT,
+        );
+        paint_periods(
+            &painter,
+            solar_bar,
+            &output.astronomical_night,
+            output,
+            NIGHT,
+        );
+        painter.rect_filled(criteria_bar, 4.0, Color32::from_rgb(30, 43, 54));
+        paint_periods(&painter, criteria_bar, &output.windows, output, GREEN);
         for i in 0..=5 {
             let fraction = i as f32 / 5.0;
-            let x = egui::lerp(bar.left()..=bar.right(), fraction);
+            let x = egui::lerp(criteria_bar.left()..=criteria_bar.right(), fraction);
             let when = interpolate_time(output.start, output.end, fraction as f64);
             painter.text(
-                Pos2::new(x, bar.bottom() + 6.0),
+                Pos2::new(x, criteria_bar.bottom() + 6.0),
                 Align2::CENTER_TOP,
                 when.format("%H:%M").to_string(),
                 FontId::proportional(10.5),
@@ -769,6 +870,30 @@ fn render_timeline(ui: &mut egui::Ui, output: &CalculationOutput) {
             );
         }
     });
+}
+
+fn timeline_legend(ui: &mut egui::Ui, color: Color32, label: &str) {
+    let (swatch, _) = ui.allocate_exact_size(Vec2::splat(10.0), Sense::hover());
+    ui.painter().rect_filled(swatch, 2.0, color);
+    ui.label(egui::RichText::new(label).small().color(MUTED));
+}
+
+fn paint_periods(
+    painter: &egui::Painter,
+    bar: Rect,
+    periods: &[compute::ObservingWindow],
+    output: &CalculationOutput,
+    color: Color32,
+) {
+    for period in periods {
+        let x0 = time_x(period.start, output.start, output.end, bar);
+        let x1 = time_x(period.end, output.start, output.end, bar);
+        painter.rect_filled(
+            Rect::from_min_max(Pos2::new(x0, bar.top()), Pos2::new(x1, bar.bottom())),
+            3.0,
+            color,
+        );
+    }
 }
 
 fn time_x(time: DateTime<Utc>, start: DateTime<Utc>, end: DateTime<Utc>, rect: Rect) -> f32 {

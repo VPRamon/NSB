@@ -90,7 +90,7 @@ impl fmt::Display for CoordinateFormat {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct InputState {
     pub observer_mode: ObserverMode,
     pub longitude: String,
@@ -464,7 +464,8 @@ fn parse_sexagesimal_parts(input: &str, label: &str) -> Result<SexagesimalParts,
         .trim()
         .chars()
         .map(|ch| match ch {
-            ':' | 'h' | 'd' | '°' | '\u{27}' | '\u{22}' | 'm' | 's' => ' ',
+            ':' | 'h' | 'H' | 'd' | 'D' | '°' | '\u{27}' | '\u{22}' | '′' | '″' | 'm' | 'M'
+            | 's' | 'S' => ' ',
             other => other,
         })
         .collect();
@@ -536,6 +537,16 @@ mod tests {
     }
 
     #[test]
+    fn accepts_symbols_shown_by_the_gui() {
+        assert!(
+            (parse_signed_dms("-29° 00′ 28.1″", "dec", -90.0, 90.0).unwrap() + 29.007_805_556)
+                .abs()
+                < 1.0e-8
+        );
+        assert!((parse_ra_hms("17H 45M 40.04S").unwrap() - 266.416_833_333).abs() < 1.0e-8);
+    }
+
+    #[test]
     fn local_time_respects_fixed_utc_offset() {
         let parsed = parse_local_time("2026-10-07", "20:00", "+02:00").unwrap();
         let utc = parsed.to_chrono().unwrap();
@@ -543,6 +554,23 @@ mod tests {
             utc.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
             "2026-10-07T18:00:00Z"
         );
+    }
+
+    #[test]
+    fn local_time_offset_can_cross_a_utc_date_boundary() {
+        let parsed = parse_local_time("2026-01-01", "00:30", "+02:00").unwrap();
+        let utc = parsed.to_chrono().unwrap();
+        assert_eq!(
+            utc.format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+            "2025-12-31T22:30:00Z"
+        );
+    }
+
+    #[test]
+    fn utc_offset_validation_rejects_malformed_and_out_of_range_values() {
+        for invalid in ["02:00", "+24:00", "+01:60", "+2", "UTC"] {
+            assert!(parse_utc_offset(invalid).is_err(), "accepted {invalid:?}");
+        }
     }
 
     #[test]
@@ -604,5 +632,27 @@ mod tests {
         let target = state.resolve_target(observer, start).unwrap();
         assert!(target.ra().value().is_finite());
         assert!(target.dec().value().is_finite());
+    }
+
+    #[test]
+    fn horizontal_sexagesimal_and_decimal_inputs_agree_at_reference_time() {
+        let mut state = InputState {
+            target_frame: TargetFrame::Horizontal,
+            coordinate_format: CoordinateFormat::Sexagesimal,
+            az_dms: "180 30 00".into(),
+            alt_dms: "45 15 00".into(),
+            ..Default::default()
+        };
+        let observer = state.resolve_observer().unwrap();
+        let start = state.resolve_time().unwrap();
+        let sexagesimal = state.resolve_target(observer, start).unwrap();
+
+        state.coordinate_format = CoordinateFormat::DecimalDegrees;
+        state.az_deg = "180.5".into();
+        state.target_alt_deg = "45.25".into();
+        let decimal = state.resolve_target(observer, start).unwrap();
+
+        assert!((sexagesimal.ra().value() - decimal.ra().value()).abs() < 1.0e-10);
+        assert!((sexagesimal.dec().value() - decimal.dec().value()).abs() < 1.0e-10);
     }
 }

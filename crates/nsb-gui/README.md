@@ -7,7 +7,7 @@ not invoke the command-line interface.
 ## Run
 
 ```bash
-cargo run -p nsb-gui
+cargo run --locked -p nsb-gui
 ```
 
 The GUI is intentionally a workspace application crate (`publish = false`), so
@@ -46,11 +46,26 @@ not used as an invented planning threshold.
 The planner can return zero, one, or multiple matching windows; the GUI keeps
 all of them and does not invent a ranking rule called “best”.
 
+The main chart and the “All criteria” timeline row are painted from the
+same `ThresholdQuery` periods. The separate solar-state row uses Siderust solar
+events to distinguish daytime, twilight (Sun between 0° and −18°), and
+astronomical night. Editing inputs never silently relabels an existing result:
+the GUI marks it stale until **Calculate** is run again.
+
 ## Component contributions
 
 Component shares are computed only from each component's additive integrated
 photon radiance divided by total integrated photon radiance. The GUI never
 computes percentages from astronomical magnitudes, which are logarithmic.
+
+## Computation model
+
+Model evaluation runs on a background worker thread and returns through a
+channel; egui's render/event thread remains responsive. **Calculate** is
+disabled until the submitted job finishes, so rapid clicks cannot create
+unbounded work and there can be no older overlapping result to overwrite a
+newer one. Input changes made while a result is visible are detected against
+the submitted snapshot and clearly mark that result as stale.
 
 ## Native map scope
 
@@ -58,3 +73,11 @@ The Map observer mode is deliberately offline and native: it is an interactive
 equirectangular coordinate picker rendered with `egui`. It does not fetch map
 tiles and does not embed web content. A richer native geographic basemap can be
 added later without changing the observer-input abstraction.
+
+## Intentional limitations
+
+- Local time uses an explicit fixed UTC offset, not a daylight-saving timezone
+  database. The offset entered by the user is authoritative.
+- Horizontal input defines a fixed celestial direction at the search start; it
+  does not model a continuously fixed altitude/azimuth mount track.
+- The native map is a coordinate picker without geographic basemap tiles.
