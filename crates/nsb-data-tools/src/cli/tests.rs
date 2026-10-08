@@ -382,11 +382,8 @@ fn dataset_dispatch_covers_all_operations_without_side_effects() -> anyhow::Resu
         Action::Validate(common.clone()),
         Action::Publish(common.clone()),
     ] {
-        let error = execute(
-            DatasetName::SolarSpectrum,
-            ActionArgs { operation },
-        )
-        .expect_err("dataset operations require a readable configuration");
+        let error = execute(DatasetName::SolarSpectrum, ActionArgs { operation })
+            .expect_err("dataset operations require a readable configuration");
         assert!(
             format!("{error:#}").contains("absent.toml"),
             "missing input should be identified: {error:#}"
@@ -452,7 +449,10 @@ fn starlight_cli_pack_accepts_synthetic_map_and_detects_checksum_drift() -> anyh
         }),
     });
     assert!(error.is_err());
-    assert!(!failed_csv.exists(), "checksum drift must fail before publication");
+    assert!(
+        !failed_csv.exists(),
+        "checksum drift must fail before publication"
+    );
     Ok(())
 }
 
@@ -516,9 +516,15 @@ fn starlight_validation_cli_acquires_offline_and_transforms_registered_reference
             sources: vec![(id.into(), invalid.display().to_string())],
         }),
     });
-    assert!(error.is_err(), "the pinned SHA must be checked on acquisition");
     assert!(
-        !workspace.join("receipts").join(format!("{id}.json")).exists(),
+        error.is_err(),
+        "the pinned SHA must be checked on acquisition"
+    );
+    assert!(
+        !workspace
+            .join("receipts")
+            .join(format!("{id}.json"))
+            .exists(),
         "bad reference bytes may not be receipted"
     );
 
@@ -532,7 +538,10 @@ fn starlight_validation_cli_acquires_offline_and_transforms_registered_reference
             }),
         }),
     })?;
-    assert!(workspace.join("receipts").join(format!("{id}.json")).is_file());
+    assert!(workspace
+        .join("receipts")
+        .join(format!("{id}.json"))
+        .is_file());
 
     // Receipt-based resolution succeeds without an explicit source override.
     execute_starlight_validation(StarlightValidationArgs {
@@ -575,7 +584,7 @@ fn starlight_validation_cli_rejects_unacquired_or_invalid_inputs() -> anyhow::Re
     });
     assert!(invalid.is_err());
 
-    fs::write(&references, "this is not TOML = [[[" )?;
+    fs::write(&references, "this is not TOML = [[[")?;
     assert!(execute_starlight_validation(StarlightValidationArgs {
         command: StarlightValidationCommand::Transform(StarlightValidationTransformArgs {
             references: references.clone(),
@@ -609,7 +618,10 @@ fn starlight_validation_cli_rejects_unacquired_or_invalid_inputs() -> anyhow::Re
         }),
     })
     .expect_err("acquired entry without a receipt must fail closed");
-    assert!(format!("{error:#}").contains("no acquired bytes"), "{error:#}");
+    assert!(
+        format!("{error:#}").contains("no acquired bytes"),
+        "{error:#}"
+    );
 
     let missing = temporary.path().join("absent.toml");
     assert!(execute_starlight(StarlightActionArgs {
@@ -688,8 +700,7 @@ fn starlight_cli_diagnostic_dispatch_validates_override_pairs() -> anyhow::Resul
 }
 
 #[test]
-fn starlight_runtime_admission_cli_fails_closed_without_signed_inputs(
-) -> anyhow::Result<()> {
+fn starlight_runtime_admission_cli_fails_closed_without_signed_inputs() -> anyhow::Result<()> {
     let temporary = TempDir::new()?;
     let root = temporary.path();
     let missing = root.join("missing-release-candidate.toml");
