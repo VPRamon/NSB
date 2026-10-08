@@ -233,17 +233,23 @@ id = "svo-hipparcos-hp-response"
 category = "upstream-photometric-response-curve"
 source = "SVO Filter Profile Service Hipparcos/Hipparcos.Hp_bes (Bessell 2000)"
 release = "retrieved 2026-10-02; exact byte digest in candidate provenance"
-license = "NO_EXPLICIT_BANDPASS_REDISTRIBUTION_LICENSE_VERIFIED; SVO Filter Profile Service citation/access conditions"
+license = "SVO FPS correspondence: inform NSB users that calculations used SVO FPS and Bessell (2000), with exact acknowledgement and citations; NO_EXPLICIT_ORIGINAL_CURVE_REDISTRIBUTION_GRANT_VERIFIED"
 license_url = "https://svo2.cab.inta-csic.es/theory/fps/index.php?mode=voservice"
 distribution_class = "download_only"
 distributed = false
 channels = []
 tracking_issue = "#103"
 notes = """
-Public availability and requested scientific citations do not alone grant
-rights to redistribute a complete passband curve. The original SVO table is
-used for offline photometric integration and is not bundled with NSB. Assess
-whether derived scalar calibrations implicate any database/copyright rights.
+The maintainer supplied a reply from the SVO/FPS team signed Enrique,
+reported 2026-10-08: from the service's perspective it is sufficient that NSB
+users are informed the calculations used the SVO Filter Profile Service and
+particularly the Bessell (2000) response, including their specified verbatim
+acknowledgement and four references. See licensing/ATTRIBUTION.md for exact
+wording. This supports publishing numerical calculations under those notice
+conditions; the message does not explicitly license copying the SVO XML curve
+itself or settle unrestricted commercial redistribution or all third-party
+rights. The original response XML stays offline and is not bundled. Keep the
+original correspondence privately as source evidence for the #103 reviewer.
 """
 
 # --- Generated calibration artifacts (NSB-trained, checksum-pinned) -------
