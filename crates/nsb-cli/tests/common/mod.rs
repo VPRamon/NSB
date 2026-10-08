@@ -102,7 +102,7 @@ pub(crate) fn write_validated_fixture_schema(
     let checksum = format!("sha256:{}", to_hex(&sha256(map.as_bytes())));
     fs::write(map_path, &map).unwrap();
     let manifest = format!(
-        r#"schema_version = 2
+        r#"schema_version = 1
 calibration_status = "production"
 dataset_name = "CLI validated fixture"
 version = "fixture-v1"

@@ -2,10 +2,8 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Versioned Starlight science-policy registry.
 //!
-//! New production policies may be introduced over time. Historical merge reports
-//! must remain independently verifiable against the policy version they were
-//! emitted under — validation looks up the report's declared policy IDs in this
-//! registry rather than requiring equality with the *current* emission constants.
+//! Validation is fail-closed: reports must use a registered policy ID and match
+//! the corresponding rules and spectral contract exactly.
 
 use super::product::{PopulationCorrectionReport, SciencePolicyReport, SpectralCoverageReport};
 use crate::starlight::uncertainty::CorrelationScope;
@@ -53,7 +51,7 @@ pub(crate) struct KnownSpectralPolicy {
     pub ultraviolet_correction_applied: bool,
 }
 
-/// Every admission policy that validators still accept.
+/// Admission policies accepted by the public baseline.
 pub(crate) fn known_admission_policies() -> &'static [KnownAdmissionPolicy] {
     &[KnownAdmissionPolicy {
         id: "gaia-dr3-full-population-v1",
@@ -61,7 +59,7 @@ pub(crate) fn known_admission_policies() -> &'static [KnownAdmissionPolicy] {
     }]
 }
 
-/// Every spectral-coverage policy that validators still accept.
+/// Spectral-coverage policies accepted by the public baseline.
 pub(crate) fn known_spectral_policies() -> &'static [KnownSpectralPolicy] {
     &[
         KnownSpectralPolicy {
@@ -146,11 +144,10 @@ fn is_sha256(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
 }
 
-/// Validate a merge-report science-policy block against the historical registry.
+/// Validate a merge-report science-policy block against the public baseline.
 ///
-/// Unknown policy IDs fail closed. Known IDs must match their registered rules /
-/// spectral contract exactly — a report that claims `v1` but carries `v2` rules
-/// is rejected even if `v2` also exists in the registry.
+/// Unknown policy IDs fail closed. Known IDs must match their registered rules
+/// and spectral contract exactly.
 pub(crate) fn science_policy_matches_registry(policy: &SciencePolicyReport) -> bool {
     let Some(admission) = lookup_admission_policy(&policy.admission_policy_id) else {
         return false;
@@ -164,7 +161,7 @@ pub(crate) fn science_policy_matches_registry(policy: &SciencePolicyReport) -> b
             .iter()
             .zip(admission.rules.iter())
             .all(|(observed, expected)| observed == expected);
-    policy.schema_version == 2
+    policy.schema_version == 1
         && rules_match
         && population_policy_matches(&policy.population_correction)
         && policy.spectral_coverage.target_band_nm == [300, 650]
@@ -179,7 +176,7 @@ mod tests {
 
     fn valid_v1_corrected_policy() -> SciencePolicyReport {
         SciencePolicyReport {
-            schema_version: 2,
+            schema_version: 1,
             admission_policy_id: CURRENT_ADMISSION_POLICY_ID.to_string(),
             admission_rules: ADMISSION_RULES_V1
                 .iter()
@@ -200,7 +197,7 @@ mod tests {
                 corrected_band_nm: Some([300, 336]),
                 combined_band_nm: Some([300, 650]),
                 ultraviolet_correction_applied: true,
-                correction_model_id: Some("calspec-linear-log-ratio-v2".to_string()),
+                correction_model_id: Some("calspec-linear-log-ratio-v1".to_string()),
                 correction_artifact_sha256: Some("a".repeat(64)),
                 calibration_status: Some(CalibrationStatus::Validated),
                 model_response: Some(ModelResponse::NaturalLogUvToMeasuredFluxRatio {

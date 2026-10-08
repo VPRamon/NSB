@@ -126,8 +126,8 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
             .expect("production map metadata");
         let sidecar_meta = crate::data::bundled::bundled_asset("starlight_nside128.manifest.toml")
             .expect("production sidecar metadata");
-        assert_eq!(map_meta.schema, "nsb-healpix-starlight-v2");
-        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v2");
+        assert_eq!(map_meta.schema, "nsb-healpix-starlight-v1");
+        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v1");
         assert_eq!(map_meta.calibration_status, "production");
         assert_eq!(sidecar_meta.calibration_status, "production");
         assert!(!map_meta.sha256.is_empty());

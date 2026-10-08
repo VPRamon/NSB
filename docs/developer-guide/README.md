@@ -44,7 +44,7 @@ the principal library crates.
 | CLI argument, command, or output | `crates/nsb-cli/src/` | Getting started and CLI schema when machine output changes |
 | Scientific asset | `crates/nsb/data/` and its manifest | Provenance, checksum, validation, data-update runbook, and release impact |
 | Dataset command | thin `nsb-data` adapter plus typed dataset engine | Cargo manifest, versioned configuration, run manifest, validation report, and exit-code contract |
-| Persisted pipeline schema | `crates/nsb-data-tools/src/platform/pipeline/` | Architecture, module reference, migration policy, recovery and contract tests |
+| Persisted pipeline schema | `crates/nsb-data-tools/src/platform/pipeline/` | Architecture, module reference, schema evolution policy, recovery and contract tests |
 
 ## Core design rules
 

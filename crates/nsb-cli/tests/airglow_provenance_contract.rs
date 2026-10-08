@@ -85,7 +85,7 @@ fn default_van_rhijn_csv_reports_geometry_identity() {
     let mut reader = csv::Reader::from_reader(output.as_slice());
     let headers = reader.headers().unwrap().clone();
     let row = reader.records().next().unwrap().unwrap();
-    assert_eq!(row.get(0), Some("nsb-cli-point-csv-v3"));
+    assert_eq!(row.get(0), Some("nsb-cli-point-csv-v1"));
     assert_eq!(
         csv_value(&headers, &row, "airglow_geometry_model"),
         "van_rhijn"
@@ -278,7 +278,7 @@ fn window_csv_preserves_selected_vertical_profile_identity() {
     let headers = reader.headers().unwrap().clone();
     let rows = reader.records().collect::<Result<Vec<_>, _>>().unwrap();
     assert!(rows.len() >= 2);
-    assert_eq!(rows[0].get(0), Some("nsb-cli-window-csv-v3"));
+    assert_eq!(rows[0].get(0), Some("nsb-cli-window-csv-v1"));
     assert_eq!(
         csv_value(&headers, &rows[0], "record_type"),
         "query_summary"
@@ -288,7 +288,7 @@ fn window_csv_preserves_selected_vertical_profile_identity() {
         .skip(1)
         .all(|row| csv_value(&headers, row, "record_type") == "period"));
     for row in &rows {
-        assert_eq!(row.get(0), Some("nsb-cli-window-csv-v3"));
+        assert_eq!(row.get(0), Some("nsb-cli-window-csv-v1"));
         assert_eq!(
             csv_value(&headers, row, "airglow_geometry_model"),
             "vertical_profile"
@@ -352,7 +352,7 @@ fn empty_window_csv_preserves_selected_vertical_profile_identity() {
         "an empty result must contain only its summary"
     );
     let row = &rows[0];
-    assert_eq!(row.get(0), Some("nsb-cli-window-csv-v3"));
+    assert_eq!(row.get(0), Some("nsb-cli-window-csv-v1"));
     assert_eq!(csv_value(&headers, row, "record_type"), "query_summary");
     assert_eq!(
         csv_value(&headers, row, "airglow_geometry_model"),

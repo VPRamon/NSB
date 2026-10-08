@@ -64,7 +64,7 @@ those primitives into typed identity and direct-transmission models with
 model-only scientific metadata. Single in-scattering remains an architectural
 goal and is **not** part of the frozen public API.
 
-Component migration is intentional and incomplete: Zodiacal still uses
+Component integration with generic transport is intentionally incremental: Zodiacal still uses
 `ZodiacalExtinction`, Airglow retains Noll in-atmosphere scattering, Moonlight
 retains Jones/KS91 embedded scattering, and Starlight remains a TOA map product.
 See [Atmospheric transport](../specifications/atmospheric-transport.md).

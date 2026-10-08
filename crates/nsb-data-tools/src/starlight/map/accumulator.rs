@@ -14,7 +14,7 @@ use siderust::healpix::HealpixIndex;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-const SHARD_SCHEMA_VERSION: u32 = 3;
+const SHARD_SCHEMA_VERSION: u32 = 1;
 const EXACT_SUM_LIMBS: usize = 33;
 const EXACT_SUM_BASE_EXPONENT: i32 = -1074;
 
@@ -1032,7 +1032,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_ambiguous_pre_uv_shard_schema() -> Result<()> {
+    fn rejects_unsupported_shard_schema() -> Result<()> {
         let shard = PartitionShard::new("schema-test", 128)?;
         let mut json = serde_json::to_value(shard)?;
         json["schema_version"] = serde_json::json!(2);

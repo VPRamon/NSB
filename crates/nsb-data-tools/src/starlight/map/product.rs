@@ -22,9 +22,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 
-const REPORT_SCHEMA_VERSION: u32 = 9;
+const REPORT_SCHEMA_VERSION: u32 = 1;
 const DETERMINISTIC_MERGE_ALGORITHM: &str = "complete-partition-shard-v1";
-const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v5";
+const MAP_SCHEMA: &str = "nsb-healpix-starlight-candidate-v1";
 const MAP_ORDERING: &str = "nested";
 const MAP_REPRESENTATION: &str = "sparse";
 const MAP_OMITTED_PIXEL_SEMANTICS: &str = "zero_flux_and_source_counts";
@@ -33,7 +33,7 @@ const MAP_FLUX_UNIT: &str = "ph_m-2_s-1";
 const MAP_DERIVATION: &str = "canonical_gaia_source_accumulation";
 const MAP_SOURCE_COUNT_SEMANTICS: &str = "exact_source_membership";
 // Admission / spectral policy IDs and rules come from policy_registry
-// (CURRENT_* constants) so historical versions remain independently verifiable.
+// (CURRENT_* constants) so the public baseline remains explicit and verifiable.
 
 /// Optional selection-function identity passed from finalize into the merge report.
 #[derive(Debug, Clone)]
@@ -872,7 +872,7 @@ fn validate_report_fields(
         || (!ultraviolet_applied
             && (diagnostics.total_flux_300_336_ph_m2_s != 0.0
                 || diagnostics.statistical_uncertainty_300_336_ph_m2_s != 0.0
-                // Measured-only admit historically dual-filed selected systematics
+                // Measured-only admit dual-filed selected systematics
                 // into the 300–336 systematic buckets; UV flux/stat must still be
                 // zero and 300–650 must agree with 336–650. Do not require the UV
                 // systematic diagnostic to be zero for measured-only reports.
@@ -1426,7 +1426,7 @@ fn science_policy_report(
         },
     };
     SciencePolicyReport {
-        schema_version: 2,
+        schema_version: 1,
         admission_policy_id: ADMISSION_POLICY_ID.to_string(),
         admission_rules: ADMISSION_RULES
             .iter()
@@ -1993,7 +1993,7 @@ fn complete_deterministic_merge_report(
 fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
     shard.validate()?;
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v3\0");
+    bytes.extend_from_slice(b"nsb-starlight-complete-merge-v1\0");
     bytes.extend_from_slice(&shard.nside.to_be_bytes());
     bytes.push(match shard.product_band {
         crate::starlight::config::StarlightProductBand::Measured336To650 => 0,
@@ -2376,7 +2376,7 @@ mod tests {
             &fs::read(temp.path().join("outputs/merge_report.json")).unwrap(),
         )
         .unwrap();
-        assert_eq!(report.schema_version, 9);
+        assert_eq!(report.schema_version, 1);
         assert_eq!(report.bright_star_supplement.as_ref(), Some(&provenance));
         assert_eq!(
             report
@@ -2660,7 +2660,7 @@ mod tests {
     }
 
     #[test]
-    fn validation_rejects_pre_uv_report_schema() {
+    fn validation_rejects_unsupported_report_schema() {
         let temp = TempDir::new().unwrap();
         let mut report = emit_fixture(&temp, 128);
         report.schema_version = 5;
@@ -2772,10 +2772,10 @@ mod tests {
     }
 
     #[test]
-    fn candidate_science_limitations_are_versioned_and_explicit() {
+    fn candidate_science_limitations_are_explicit() {
         let shard = fixture_shard(128);
         let policy = science_policy_report(&shard, None);
-        assert_eq!(policy.schema_version, 2);
+        assert_eq!(policy.schema_version, 1);
         assert_eq!(policy.admission_policy_id, ADMISSION_POLICY_ID);
         assert_eq!(policy.population_correction.policy_id, POPULATION_POLICY_ID);
         assert!(!policy.population_correction.applied);

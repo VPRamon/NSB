@@ -41,42 +41,6 @@ ceilings of this generic fallback. The lifecycle validates byte-identical
 regeneration, the configured input checksum against the copied workspace input
 and runtime header, exact grid and anchors, integral, and B/V shape.
 
-## Impact relative to the removed TSIS-derived runtime
-
-The former runtime product is used only as an offline comparison baseline; it
-is no longer downloaded by the generator or included in the package. Positive
-percentages mean the analytic product produces a larger value.
-
-| Component/case | Integrated | B diagnostic | V diagnostic |
-| --- | ---: | ---: | ---: |
-| Zodiacal, Sgr A*/Paranal regression | +16.7802% | -10.9904% | +16.2086% |
-| Zodiacal, validation geometry | +16.7497% | -10.9931% | +16.2120% |
-| Jones, separation 97.523 deg | +14.8060% | -26.7956% | -5.4569% |
-| Jones, separation 4 deg | +8.6121% | -26.7956% | -5.4569% |
-| Jones, separation 52.216 deg | +12.3308% | -26.7956% | -5.4569% |
-
-Zodiacal normalizes at 500 nm, so its differences measure the smooth Planck
-shape after Leinert reddening rather than the absolute irradiance scale. Jones
-uses the absolute spectrum and is correspondingly sensitive to both scale and
-shape. The B/V quantities are single-wavelength diagnostics, not Johnson-filter
-integrals, and are especially sensitive to removing line structure.
-
-These changes are accepted for the v0.1.0 `generic-fallback` role with explicit
-regression ceilings: 18% for Zodiacal integrated and V, 12% for Zodiacal B;
-18% for representative Jones integrated output, 30% for Jones B, and 8% for
-Jones V. The bounds include margin over the measured maxima and fail if a later
-analytic-model change drifts further. Both documented Zodiacal cases are
-executable regression tests using offline numeric baselines from the former
-TSIS-derived runtime SHA-256
-`71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02`.
-Jones 2013 remains enabled and its three representative geometries use the same
-offline-baseline approach; no TSIS bytes are required by the tests.
-
-These TSIS comparisons are regression/impact checks, not independent external
-validation of the reconstructed Zodiacal spectrum. The published-reference
-Zodiacal validation tracked by #164 remains outstanding, so this change alone
-must not be used to close #215.
-
 ## Reproduction
 
 Run the commands recorded verbatim in `crates/nsb/data/manifest.toml`:

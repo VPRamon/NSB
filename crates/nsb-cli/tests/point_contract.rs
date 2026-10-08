@@ -29,7 +29,7 @@ fn default_point_json_reports_schema_versions_and_components() {
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
-    assert_eq!(value["version"]["model_version"], "nsb-model-2026.1");
+    assert_eq!(value["version"]["model_version"], "nsb-model-v1");
     assert_eq!(value["version"]["siderust_version"], "0.12.0");
     assert_eq!(
         value["version"]["siderust_source"],

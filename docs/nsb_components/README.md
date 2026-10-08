@@ -19,7 +19,7 @@ source emission → atmospheric transport → ground-level radiance
 ```
 
 The reusable transport foundation is `nsb::transport`. Component guides below
-document which contributors still use legacy component-specific propagation.
+document which contributors use component-specific propagation outside the generic transport layer.
 See [Atmospheric transport](../specifications/atmospheric-transport.md).
 
 All integrated results use the NSB optical planning band, 300–650 nm, and are

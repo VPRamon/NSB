@@ -1,7 +1,6 @@
 # Starlight dataset generation
 
-Starlight uses the common dataset lifecycle with the Gaia production
-configuration:
+Starlight uses the common dataset lifecycle:
 
 ```bash
 nsb-data dataset starlight update --config crates/nsb-data-tools/config/starlight-production.toml
@@ -10,92 +9,67 @@ nsb-data dataset starlight validate --config crates/nsb-data-tools/config/starli
 nsb-data dataset starlight publish --config crates/nsb-data-tools/config/starlight-production.toml
 ```
 
-The production configuration imports the official GaiaSource and XP continuous
-checksum inventories. Both products must expose the same source-range
-partitions. Downloads enter the content-addressed cache only after checksum
-verification. Local and Slurm workers use the same Rust implementation and
-write isolated, strictly validated partition shards.
+The production configuration imports official GaiaSource and XP continuous
+checksum inventories. Downloads enter the content-addressed cache only after
+checksum verification. Local and Slurm workers use the same Rust
+implementation and write isolated, validated partition shards.
 
-The combined candidate finalized in #211 also integrates a checksum-pinned
-bright-star supplement built offline from externally supplied
-Hipparcos-2/Tycho-2/XHIP inputs and pinned CK04 templates. Those catalogue
-bytes remain external and are not shipped in the repository or release
-packages. Their exact source identities/checksums and the supplement merge
-accounting are retained in the candidate manifest and merge report; the
-supplement is part of the one Starlight data product, not a second runtime
-component.
+Bright-star supplementation is built offline from explicitly supplied
+catalogue/reference inputs. Raw upstream catalogue bytes remain external. A
+candidate's merge report records exact input identities, checksums, source
+accounting, calibration models, and uncertainty policy.
 
-## One canonical map
+## Canonical map
 
-Each Starlight dataset version has exactly one `canonical_nside`:
+Each run selects one `canonical_nside`:
 
 ```toml
 [starlight.map]
 canonical_nside = 128
 ```
 
-Every Gaia source contribution is accumulated directly into that resolution.
-The reconciled shards produce:
+Workers accumulate directly into that resolution. Reconciliation produces:
 
 ```text
 starlight_nside{canonical_nside}.csv
 merge_report.json
 ```
 
-The current candidate is nside 128. Changing `canonical_nside` changes the
-configuration checksum and run identity and requires a clean source-level
-generation, fresh report, validation, provenance, and scientific review. A
-higher-resolution release must never use a lower-resolution map as its input.
+The first public candidate schema is
+`nsb-healpix-starlight-candidate-v1`. It is sparse, strictly pixel-sorted,
+uses Galactic NESTED HEALPix indexing, stores integrated photon flux per pixel,
+and defines omitted pixels as zero flux and zero source counts.
 
-The canonical candidate uses a sparse, strictly pixel-sorted representation.
-Omitted HEALPix pixels have zero integrated flux and zero source counts; the
-report records both the occupied row count and the full `12 * nside^2` pixel
-domain. `flux_ph_m2_s` is integrated photon flux per HEALPix pixel in
-`ph m-2 s-1`.
-Runtime queries may convert a pixel-integrated quantity into the runtime
-radiance contract using pixel solid angle; that does not make the candidate CSV
-a surface-radiance field.
+Changing the map resolution, scientific policy, calibration artifact,
+source-selection contract, or input checksums creates a new candidate and
+requires fresh validation and admission evidence.
 
-## Galactic heatmap
+## Runtime packing
 
-A generated candidate can be inspected as a Galactic Mollweide heatmap with
-the Rust example under `crates/nsb/examples`:
+An admitted candidate can be packed to the runtime RING representation with
+the `starlight-runtime-pack-v1` packer. Packing is deterministic and preserves
+the candidate checksum in provenance. Promotion emits the first public runtime
+schemas:
+
+- `nsb-healpix-starlight-v1`
+- `nsb-starlight-runtime-manifest-v1`
+
+Generated candidates and packed runtime assets remain outside the NSB 0.1.0
+release registry until redistribution and production admission are explicitly
+approved.
+
+## Inspection
+
+A generated map can be visualized with the Rust example by supplying its path
+explicitly:
 
 ```bash
 cargo run --release --locked -p nsb --example starlight_heatmap -- \
-  --map crates/nsb/data/starlight_nside128.csv \
+  --map /path/to/starlight_nside128.csv \
   --output starlight_heatmap.png
 ```
 
-The example validates the Starlight candidate contract used by the plot
-(`nside`, Galactic frame, NESTED ordering, sparse zero-flux omission semantics,
-integrated-per-pixel quantity and flux unit), then uses Siderust HEALPix
-geometry and Plotters to render the map. The default logarithmic normalization
-exposes both the Galactic plane and fainter high-latitude structure; use
-`--norm linear` for a linear colour scale.
+The example validates the map contract before plotting.
 
-The title includes the candidate SHA-256 prefix so screenshots remain tied to
-exact map bytes. Plotting support is already a development-only dependency of
-the `nsb` crate and does not add a runtime dependency to the library or Python
-package.
-
-Resolution selection, when needed, is a separate scientific study comparing
-independent source-level runs. Only the selected candidate is published.
-Diagnostic resampling is outside the scientific publication lifecycle.
-
-A production Gaia-derived replacement must satisfy the
-[science requirements](science-requirements.md), [validation
-contract](map-validation.md), redistribution policy, and [runtime manifest
-contract](external-manifest.md).
-
-Operational recovery and publication are documented in the
-[dataset maintainer guide](../../maintainer-guide/datasets.md). Historical
-artifacts and limitations are recorded in
-[Provenance of existing starlight datasets](existing-datasets.md).
-
-## Production hardening note
-
-The full Gaia DR3 run encountered an upstream XP row with
-`bp_n_parameters=null`. Canonical parsing excludes records that cannot be
-calibrated and retains exact partition/source accounting. If a Slurm partition
-fails, rerun only that partition and then repeat validation before publication.
+Operational recovery and cluster execution are documented in the
+[dataset maintainer guide](../../maintainer-guide/datasets.md).

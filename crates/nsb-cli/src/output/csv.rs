@@ -11,9 +11,9 @@ use nsb::{
 };
 use tempoch::{Period, UTC};
 
-const POINT_SCHEMA_V3: &str = "nsb-cli-point-csv-v3";
-const POINT_SCHEMA_V4: &str = "nsb-cli-point-csv-v4";
-const WINDOW_SCHEMA_V3: &str = "nsb-cli-window-csv-v3";
+const POINT_SCHEMA_V1: &str = "nsb-cli-point-csv-v1";
+const POINT_SCHEMA_UNCERTAINTY_V1: &str = "nsb-cli-point-csv-uncertainty-v1";
+const WINDOW_SCHEMA_V1: &str = "nsb-cli-window-csv-v1";
 
 const AIRGLOW_GEOMETRY_COLUMNS: [&str; 17] = [
     "airglow_geometry_model",
@@ -82,9 +82,9 @@ fn write_point_to<W: std::io::Write>(
     }
     writer.write_record(header)?;
     let point_schema = if has_absolute_uncertainty {
-        POINT_SCHEMA_V4
+        POINT_SCHEMA_UNCERTAINTY_V1
     } else {
-        POINT_SCHEMA_V3
+        POINT_SCHEMA_V1
     };
     let assets = asset_checksums();
     for component in &result.components {
@@ -184,7 +184,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
         .iter()
         .find_map(|description| description.metadata.airglow_geometry.as_ref());
     let mut summary_row = vec![
-        WINDOW_SCHEMA_V3.to_string(),
+        WINDOW_SCHEMA_V1.to_string(),
         "query_summary".to_string(),
         format_utc(output.start),
         format_utc(output.end),
@@ -202,7 +202,7 @@ pub fn write_window(output: &WindowOutput<'_>) -> Result<()> {
     writer.write_record(summary_row)?;
     for period in output.periods {
         let mut row = vec![
-            WINDOW_SCHEMA_V3.to_string(),
+            WINDOW_SCHEMA_V1.to_string(),
             "period".to_string(),
             format_utc(period.start),
             format_utc(period.end),

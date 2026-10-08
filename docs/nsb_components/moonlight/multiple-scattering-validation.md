@@ -5,7 +5,7 @@
 This report admits `moonlight_multiscatter_nsb_v1.dat`, an NSB-owned compact
 wavelength × Moon-target-separation correction for the Jones et al. (2013)
 spectral moonlight path. Production generation neither reads nor fits the
-historical ESO `sscatcor_m15s1.dat` table. Jones et al. (2013), A&A 560 A91,
+ESO `sscatcor_m15s1.dat` reference table. Jones et al. (2013), A&A 560 A91,
 DOI `10.1051/0004-6361/201322433`, is the primary scientific reference.
 
 ## 2. Published multiple-scattering definition
@@ -49,9 +49,9 @@ position weights are not published numerically.
 | Explicitly published | Eq. 6 single scattering; two-event double scattering; geometric higher-order series; `r <= 0.9`; multiplicative `f`; Rayleigh phase `3/4(1+cos²θ)`; 744 hPa, 2.64 km, 7.99 km molecular scale height, 1.2 km aerosol scale height, aerosol scattering/extinction ratio 0.97 |
 | Jones/Paranal atmosphere | Liou/Jones Rayleigh optical-depth law; Patat aerosol extinction `0.014 lambda^-1.38 mag/airmass`; remote-continental aerosol mixture and Mie phase function shared with issue #216 |
 | NSB design choice | Scalar, plane-parallel, forced-collision Monte Carlo; no ground reflection; exponential vertical profiles above the observer; two equally weighted symmetric geometries; 140° boundary value at 180°; fixed-seed deterministic rounding |
-| Not publicly specified | Exact historical zenith/azimuth weights, numerical double-scattering quadrature, and original table-reduction details |
+| Not publicly specified | Exact reference zenith/azimuth weights, numerical double-scattering quadrature, and original table-reduction details |
 
-No unknown was inferred by optimizing against the historical table.
+No unknown was inferred by optimizing against the reference table.
 
 ## 4. Atmosphere model
 
@@ -185,7 +185,7 @@ The paper provides no numeric correction cells. Its qualitative expectation of
 larger multiple scattering at larger optical depth is reproduced: factors are
 largest at 300 nm and approach unity toward 650 nm.
 
-## 18. Historical ESO LUT comparison (diagnostic only)
+## 18. ESO LUT comparison (diagnostic only)
 
 This comparison was run only after the model/config and production artifact
 were fixed. On common 300–650 nm and separation nodes, median absolute factor
@@ -195,7 +195,7 @@ The NSB grid is generally lower: median signed differences range from -28.01%
 at 300 nm to -12.20% at 500 nm and -18.38% at 650 nm. Median signed angular
 differences range from -3.03% at 10° to about -17.45% at 70°.
 
-Representative `(new, historical)` factors are: 300 nm `(1.1203,1.9360)` at
+Representative `(NSB, reference)` factors are: 300 nm `(1.1203,1.9360)` at
 0°, `(5.0783,5.0900)` at 90°, `(3.3416,6.0920)` at 140°; 500 nm
 `(1.0120,1.1040)`, `(1.2984,1.5590)`, `(1.2424,1.4050)`; and 650 nm
 `(1.0035,1.0680)`, `(1.1288,1.4870)`, `(1.1187,1.3710)`. No parameter was

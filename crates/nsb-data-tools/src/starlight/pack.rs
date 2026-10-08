@@ -16,27 +16,7 @@ use std::fs;
 use std::path::PathBuf;
 
 /// Packer identity recorded in the runtime sidecar.
-pub const PACKER_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
-/// Frozen UV-v2 candidate SHA-256.
-pub const CANONICAL_CANDIDATE_SHA256: &str =
-    "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
-
-/// SHA-256 of the minimal HEALPix anomaly regression fixture used to verify
-/// issue #116 diagnostic detection without retaining the historical 20 MB map.
-pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_SHA256: &str =
-    "09cac5a58d0089529c8b8967cca02e893152cc51eeec0417864e8c04e9c0a1f0";
-/// Repository-relative path to the minimal regression fixture.
-pub const LEGACY_HEALPIX_ANOMALY_REGRESSION_FIXTURE_PATH: &str =
-    "crates/nsb-data-tools/tests/fixtures/healpix_legacy_anomaly_regression.csv";
-/// Packed RING runtime map SHA-256 for the canonical nside=128 candidate
-/// after siderust NESTED→RING conversion **and** production admission CSV
-/// headers required by `ValidatedStarlightMap`. The same digest without those
-/// headers (packer comments only) is
-/// `4a9275fd98d8565a33a7db29bce5f0544819387a970782f06c0f480b25877698`.
-/// The pre-siderust handwritten nest2ring digest was
-/// `c87db972717959962ab590ce71eb90506cbfd73ccb108a3d3851a3e9ecff8f90`.
-pub const CANONICAL_RUNTIME_MAP_SHA256: &str =
-    "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b";
+pub const PACKER_ID: &str = "starlight-runtime-pack-v1";
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";
@@ -94,7 +74,7 @@ pub struct PackSidecar {
     pub flux_conservation_relative_tolerance: f64,
 }
 
-/// Pack a checksum-pinned candidate-v5 CSV into a dense runtime HEALPix CSV.
+/// Pack a checksum-pinned candidate CSV into a dense runtime HEALPix CSV.
 pub fn pack_candidate_map(inputs: &PackInputs) -> Result<PackOutcome> {
     let candidate = candidate_map::load(
         &inputs.candidate_map,
@@ -176,7 +156,7 @@ fn render_packed_csv(
     let mut sum_in = 0.0;
     let mut sum_out = 0.0;
     let mut out = String::new();
-    out.push_str("# schema=nsb-healpix-starlight-v2\n");
+    out.push_str("# schema=nsb-healpix-starlight-v1\n");
     out.push_str("# packer_id=");
     out.push_str(PACKER_ID);
     out.push('\n');
@@ -306,7 +286,7 @@ mod tests {
     use tempfile::TempDir;
 
     const HEADER: &str = concat!(
-        "# schema=nsb-healpix-starlight-candidate-v5\n",
+        "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# ordering=nested\n",
         "# representation=sparse\n",
         "# nside=1\n",
@@ -475,7 +455,7 @@ mod tests {
     fn wrong_schema_ordering_nside_and_representation_fail_closed() {
         let dir = TempDir::new().unwrap();
         let wrong_schema = HEADER.replace(
-            "nsb-healpix-starlight-candidate-v5",
+            "nsb-healpix-starlight-candidate-v1",
             "nsb-healpix-starlight-candidate-v4",
         ) + "0,1.0,0.1,0.2,0.25,5,1\n";
         let candidate = write_candidate(&dir, &wrong_schema);
@@ -589,113 +569,6 @@ mod tests {
         assert_eq!(fs::read(&candidate).unwrap(), before);
         assert!(!String::from_utf8_lossy(&maps[0]).contains("b_s10"));
         assert!(String::from_utf8_lossy(&maps[0]).contains("s10_diagnostics=not_provided"));
-    }
-
-    #[test]
-    fn canonical_nside128_pack_is_deterministic_and_runtime_loadable() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let candidate = root.join("crates/nsb/data/starlight_nside128.csv");
-        if !candidate.is_file() {
-            return;
-        }
-        let before = checksum_io::sha256_file(&candidate).unwrap();
-        assert_eq!(before, CANONICAL_CANDIDATE_SHA256);
-        let dir = TempDir::new().unwrap();
-        let csv = dir.path().join("starlight_nside128.release.csv");
-        let sidecar = dir.path().join("starlight_nside128.pack.toml");
-        let production_sidecar = dir.path().join("starlight_nside128.manifest.toml");
-        let release = crate::starlight::promotion::ReleaseCandidateManifest::load(
-            &root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
-        )
-        .unwrap();
-        let candidate_section = release.candidate;
-        assert!(candidate_section.bright_star_supplement.is_some());
-        let headers = crate::starlight::promotion::runtime_admission_headers(&candidate_section);
-        let outcome = pack_candidate_map(&PackInputs {
-            candidate_map: candidate.clone(),
-            expected_candidate_sha256: CANONICAL_CANDIDATE_SHA256.to_string(),
-            expected_nside: 128,
-            output_csv: csv.clone(),
-            output_sidecar: sidecar.clone(),
-            provenance_headers: headers.clone(),
-        })
-        .unwrap();
-        assert_eq!(
-            checksum_io::sha256_file(&candidate).unwrap(),
-            CANONICAL_CANDIDATE_SHA256
-        );
-        assert_eq!(
-            outcome.runtime_map_sha256, CANONICAL_RUNTIME_MAP_SHA256,
-            "runtime map SHA-256 changed; update the pin only with a documented conversion reason"
-        );
-        assert_eq!(outcome.occupied_pixels + outcome.omitted_pixels, 196_608);
-        crate::starlight::promotion::write_production_sidecar(
-            &production_sidecar,
-            &candidate_section,
-            &outcome.runtime_map_sha256,
-            outcome.all_sky_flux_sum_ph_m2_s,
-        )
-        .unwrap();
-        let packed = fs::read_to_string(&csv).unwrap();
-        let map = nsb::components::starlight::StarlightMap::from_csv_str(
-            &packed,
-            starlight_test_provenance(),
-        )
-        .unwrap();
-        assert_eq!(map.pixels().len(), 196_608);
-        use siderust::healpix::HealpixIndex;
-        let direction = map.pixel_direction(HealpixIndex::new(0)).unwrap();
-        let looked =
-            map.pixel_at(
-                siderust::coordinates::spherical::Direction::<
-                    siderust::coordinates::frames::Galactic,
-                >::new(direction.l(), direction.b())
-                .to_cartesian(),
-            );
-        assert!(!looked.s10_diagnostics_provided);
-        assert!(looked.statistical_uncertainty.is_some());
-        let validated = nsb::components::starlight::ValidatedStarlightMap::from_files(
-            &csv,
-            &production_sidecar,
-        )
-        .unwrap();
-        let bright_star = validated
-            .map()
-            .provenance()
-            .bright_star_supplement
-            .as_ref()
-            .expect("runtime map must expose canonical bright-star provenance");
-        assert_eq!(bright_star.inputs.len(), 34);
-        assert!(bright_star
-            .inputs
-            .iter()
-            .any(|input| input.source_id == "CALSPEC-alpha_lyr_stis_012"));
-        assert!(bright_star
-            .inputs
-            .iter()
-            .any(|input| input.source_id == "SVO-Hipparcos-Hp-Bessell2000"));
-
-        let csv2 = dir.path().join("second.release.csv");
-        let sidecar2 = dir.path().join("second.pack.toml");
-        let outcome2 = pack_candidate_map(&PackInputs {
-            candidate_map: candidate,
-            expected_candidate_sha256: CANONICAL_CANDIDATE_SHA256.to_string(),
-            expected_nside: 128,
-            output_csv: csv2.clone(),
-            output_sidecar: sidecar2,
-            provenance_headers: headers,
-        })
-        .unwrap();
-        assert_eq!(fs::read(&csv).unwrap(), fs::read(&csv2).unwrap());
-        assert_eq!(
-            fs::read(&sidecar).unwrap(),
-            fs::read(dir.path().join("second.pack.toml")).unwrap()
-        );
-        assert_eq!(outcome.runtime_map_sha256, outcome2.runtime_map_sha256);
-        assert_eq!(
-            outcome.runtime_sidecar_sha256,
-            outcome2.runtime_sidecar_sha256
-        );
     }
 
     #[test]

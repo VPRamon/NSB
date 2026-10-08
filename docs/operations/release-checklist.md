@@ -11,15 +11,17 @@ scientific calibration evidence.
 - [ ] No removed compatibility API appears under `crates/*/src`.
 - [ ] `Cargo.lock` is committed and the Siderust crates.io source identity matches the compatibility matrix.
 - [ ] `cargo package -p nsb --locked` succeeds using publishable registry dependencies.
-- [ ] `cargo package -p nsb --list` contains only intended distribution files and the resulting `.crate` is below the crates.io 10 MiB upload limit.
+- [ ] `cargo package -p nsb --list` contains only intended distribution files and the resulting `.crate` is below the crates.io 10 MiB upload limit; specifically, the four frozen Starlight candidate/report files remain in Git but are excluded from the `.crate`, while their SHA-256 is checked against the release review bundle.
 - [ ] `cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked` succeeds on the exact release commit.
 - [ ] The registry verifier passes from a normal checkout and validates every tracked scientific payload checksum.
 - [ ] The release and default manual scientific-validation paths pass without external asset fetching; the optional `verify_upstream` manual input is reserved for live PALACE provenance regeneration.
 - [ ] The Moonlight reproducibility workflow completes `update → build → validate → publish` and leaves the committed Mie LUT, multiple-scattering LUT, and manifest byte-for-byte unchanged.
 - [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
 - [ ] Every `runtime_embedded = true` asset has explicit redistribution terms; release automation fails closed for missing, unresolved, pending, or unrecorded terms.
-- [ ] The packaged Airglow runtime contains `airglow_palace_v1.dat` with the manifest checksum and excludes historical `airglow_cont.dat`; PALACE attribution and CC BY 4.0 data terms remain in `THIRD_PARTY_NOTICES.md`.
-- [ ] Bundled Gaia DR3 starlight, if shipped, has only the derived release CSV/TOML committed under `crates/nsb/data`, both registered as runtime-embedded production assets, plus validation evidence under `docs/nsb_components/starlight/validation/` and the release-candidate review bundle.
+- [ ] The packaged Airglow runtime contains `airglow_palace_v1.dat` with the manifest checksum; PALACE attribution and CC BY 4.0 data terms remain in `THIRD_PARTY_NOTICES.md`.
+- [ ] NSB 0.1.0 packages contain no production Gaia-derived Starlight; keep the scientific candidate/report in the repository. Treat the existing Git repository as a separate distribution channel with its own legal assessment, not as undistributed data.
+- [ ] Verify all 34 Starlight source inputs have a defensible, cited provenance/rights classification; XHIP/SVO unverified grants and later Hipparcos-2/Tycho-2 scope cannot be silently represented as CC BY 4.0 or cleared by a CI string.
+- [ ] Before a release that includes the Starlight map, issue #103 records an authorized human decision and channel-specific restrictions. Do not approve automatically solely because source metadata is populated.
 - [ ] Runtime starlight header checks agree with the release CSV manifest, and `pack_starlight_asset --production` self-loads the emitted CSV/TOML pair through `ValidatedStarlightMap`.
 - [ ] Gaia production extraction diagnostics show zero rejected selected sources, zero XP chunk failures, and at least one accepted XP source.
 - [ ] Gaia map validation reports `radiance_field = integrated_ph_cm2_ns_sr` and passing integrated flux conservation.

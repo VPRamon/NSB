@@ -20,10 +20,9 @@ Publishing updates `crates/nsb/data` and its manifest but never commits.
 Every command requires a versioned TOML file. Relative paths are resolved
 against that file, never the current directory. The repository configurations
 under `crates/nsb-data-tools/config/` define the supported regeneration
-workflows. They do not, by themselves, prove byte-for-byte reproducibility of
-historical artifacts whose original run evidence was not retained; the
-starlight exceptions are recorded in
-[Provenance of existing starlight datasets](../nsb_components/starlight/existing-datasets.md).
+workflows. They do not, by themselves, prove byte-for-byte reproducibility of artifacts
+without complete regeneration evidence. Candidate-specific Starlight evidence
+belongs with the generated run until that product is approved for release.
 Each source defines exactly one local `path` or HTTPS `url` plus its mandatory
 SHA-256; downloaded bytes are never admitted before verification.
 
@@ -78,8 +77,7 @@ nsb-data run resume --run /shared/nsb/runs/solar-spectrum/runs/solar-spectrum/bu
 ```
 
 Moonlight scattering uses the same lifecycle and publishes both the generated
-NSB-owned Mie phase grid and the transitional historical multiple-scattering
-correction:
+NSB-owned Mie phase grid and the multiple-scattering correction:
 
 ```bash
 nsb-data dataset moonlight-scattering update --config crates/nsb-data-tools/config/moonlight-scattering.toml
@@ -207,22 +205,14 @@ GaiaSource row exactly once:
   inverse-completeness weighted with a registered cap and optional faint-tail
   term.
 
-The measured-only default in `starlight-production.toml` remains
-`product_band = "measured-336-650"`. It is useful for exercising the generic
-lifecycle but it is **not** the configuration that produced the frozen combined
-release candidate.
+The checked-in `starlight-production.toml` is the canonical starting point for
+a source-level run. Site-specific absolute paths and calibration artifacts
+belong in local configuration, not in the repository. A 300–650 nm production
+candidate must pin its UV correction, photometric inference, selection-function,
+bright-star inputs, and checksums before validation.
 
-The combined 300–650 nm Ladon run is pinned in
-`starlight-production-300-650-issue207.ladon.toml` with absolute BeeGFS paths for the UV,
-photometric, selection-function, and bright-star inputs used by the frozen
-candidate. Map schema `nsb-healpix-starlight-candidate-v5` emits
-`total_uncertainty_ph_m2_s = hypot(statistical, systematic)`. Reproducing the
-frozen candidate requires the exact pinned external artifact identities; a
-replacement path or changed digest defines a new candidate and needs fresh
-evidence.
-
-The versioned UV artifact, partition, holdout, evaluation, and runtime
-configuration contracts are documented in
+The UV artifact, partition, holdout, evaluation, and runtime configuration
+contracts are documented in
 [Starlight ultraviolet calibration contract](starlight-uv-calibration.md).
 Offline CALSPEC / Cantat-Gaudin training lives outside the repository (BeeGFS
 `starlight-calibration/`); NSB only validates and consumes pinned artifacts.
@@ -237,8 +227,8 @@ nsb-data dataset starlight build \
 
 Workers already completed under the lifecycle return from their checksum-valid
 manifests and CAS receipts. Resume unfinished partitions with
-`nsb-data run resume` or by re-submitting the same build; do not import legacy
-checkpoint ledgers. Dense legacy accumulator bytes are never accepted as a
+`nsb-data run resume` or by re-submitting the same build; only current-schema
+checkpoint ledgers are supported. Accumulator bytes from incompatible schemas are never accepted as a
 production shard.
 
 After all workers finish, run validation locally:
@@ -273,14 +263,17 @@ copies them into `crates/nsb/data`, and updates or creates checksum registry
 entries. Newly created Starlight entries are deliberately
 `calibration_status = "candidate"` and `runtime_embedded = false`; each new
 candidate still requires its declared scientific-validation and redistribution
-admission gates before production activation. For the frozen #211 candidate,
-the scientific/technical bundle is already pinned and #103 is the remaining
-human redistribution gate:
+admission gates before production activation. Publication registers a newly generated candidate as non-production evidence.
+It does not grant redistribution or runtime admission:
 
 ```bash
 nsb-data dataset starlight publish \
   --config crates/nsb-data-tools/config/starlight-production.toml
 ```
+
+NSB 0.1.0 deliberately keeps such candidates outside `crates/nsb/data`.
+Promotion to a bundled runtime asset requires a separate reviewed release
+change.
 
 ## Cluster runbook
 

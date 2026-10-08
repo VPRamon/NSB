@@ -164,7 +164,7 @@ fn starlight_uncertainties_are_serialized_in_json_and_csv_v4() {
         .iter()
         .any(|header| header == "total_uncertainty_ph_cm2_ns_sr"));
     let row = reader.records().next().unwrap().unwrap();
-    assert_eq!(row.get(0), Some("nsb-cli-point-csv-v4"));
+    assert_eq!(row.get(0), Some("nsb-cli-point-csv-uncertainty-v1"));
     assert_eq!(row.get(8).unwrap().parse::<f64>().unwrap(), 0.25);
     assert_eq!(
         csv_value(&headers, &row, "statistical_uncertainty_ph_cm2_ns_sr")

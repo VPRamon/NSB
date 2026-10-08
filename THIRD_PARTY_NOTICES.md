@@ -16,23 +16,59 @@ decision remains the sole authorization gate.
 
 ## Starlight (integrated starlight component)
 
-Full artifact inventory, licence classification, and attribution wording:
+NSB 0.1.0 does not bundle a production Starlight map in crates.io/PyPI.
+The frozen candidate and its merge report **are present in the Git repository**
+and constitute a distinct distribution channel. They are not yet authorized
+as production assets; issue #103 remains the human redistribution gate.
 
-- [`docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml`](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml)
-- [`docs/nsb_components/starlight/licensing/ATTRIBUTION.md`](docs/nsb_components/starlight/licensing/ATTRIBUTION.md)
+Provenance and exact source-family terms:
+[artifact inventory](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml)
+and [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md).
 
-Summary of third-party sources:
+- **Gaia DR3 GaiaSource/XP:** ESA CC BY-NC 3.0 IGO; cite Gaia/DPAC.
+- **Original Hipparcos/Tycho (ESA):** CC BY-NC 3.0 IGO, Credit: ESA.
+- **Tycho-2 (Høg et al. 2000, CDS I/259):** the CDS catalogue's own record
+  declares CC BY-NC 3.0 IGO; see
+  <https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259>. All 20 Tycho-2 shards
+  remain offline inputs.
+- **Hipparcos-2 (van Leeuwen 2007, CDS I/311):** licence specific to the
+  later re-reduction has not been independently verified.
+- **CALSPEC and Castelli-Kurucz CK04 REFERENCE-ATLASES HLSP:** CC BY 4.0;
+  cite STScI/ReDCaT and DOI 10.17909/t9-khb7-4049.
+- **Cantat-Gaudin Gaia DR3 M10 selection dataset:** CC BY 4.0;
+  Zenodo DOI 10.5281/zenodo.8063930.
+- **XHIP V/137D:** catalogue-specific redistribution licence not verified;
+  CDS/VizieR scientific-use and citation conditions apply to access.
+- **SVO Hipparcos Hp_bes passband:** according to the maintainer-provided
+  reply from the SVO/FPS team, users should be informed of SVO's role in
+  NSB's calculations and receive the acknowledgement and citations below.
+  This does not grant redistribution of the original response curve.
 
-- **Gaia DR3** (ESA/DPAC) — GaiaSource and XP continuous mean spectrum bulk
-  products. Licence: Gaia data licence (CC BY-NC 3.0 IGO),
-  <https://www.cosmos.esa.int/web/gaia-users/license>.
-- **Cantat-Gaudin et al. (2023)** empirical Gaia DR3 selection function.
-  Licence: CC-BY-4.0, DOI `10.1051/0004-6361/202244784`.
-- **STScI CALSPEC** spectrophotometric standard-star atlas, used as an
-  offline UV-correction training reference only. Public HST calibration
-  data; attribution requested.
-- **GaiaXPy** — cited only as historical independent reference evidence for
-  continuous-XP reconstruction; not redistributed.
+No raw upstream catalogue, atlas, or filter curve is intended to be bundled in
+release packages. This notice cannot supply a missing upstream permission.
+
+### SVO/FPS acknowledgement for Starlight-derived calculations
+
+The SVO team provided the following requested acknowledgement via
+maintainer-reported correspondence (2026-10-08), for use of
+`Hipparcos/Hipparcos.Hp_bes` (Bessell 2000):
+
+> This research has made use of the SVO Filter Profile Service "Carlos Rodrigo", funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
+
+SVO/FPS references requested in the reply:
+
+- Rodrigo, C., Cruz, P., Aguilar, J.F., et al. (2024):
+  <https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract>.
+- Rodrigo, C., Solano, E., Bayo, A. (2012):
+  <https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract>.
+- Rodrigo, C., Solano, E. (2020):
+  <https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract>.
+- Bessell (2000), Hipparcos Hp passband:
+  <https://ui.adsabs.harvard.edu/abs/2000PASP..112..961B/abstract>.
+
+The original SVO curve is not bundled by the `nsb` crate. These credits
+also remain applicable when the scientific computation is redistributed
+as a derived map; they do not grant a licence for the original table.
 
 ## Other bundled runtime assets
 
@@ -58,5 +94,4 @@ ESO correction-table bytes and no third-party solver or dataset bytes.
 
 ## Reporting a missing or incorrect notice
 
-Open an issue referencing the specific artifact id from the relevant
-`artifact-inventory-v1.toml` entry.
+Open an issue identifying the affected bundled asset or dependency.

@@ -266,7 +266,7 @@ fn legitimate_absence_of_production_starlight_is_allowed() {
     let mut assets = assets;
     assets.push(sample_asset(
         "starlight_nside128.csv",
-        "nsb-healpix-starlight-candidate-v5",
+        "nsb-healpix-starlight-candidate-v1",
         &"b".repeat(64),
         false,
     ));
@@ -342,7 +342,7 @@ fn incompatible_release_schema_fails_build_policy() {
     let mut assets = valid_required_set();
     let zero = "0".repeat(64);
     let mut map = production_map("starlight_nside128.release.csv", &zero);
-    map.schema = "nsb-healpix-starlight-candidate-v5".into();
+    map.schema = "nsb-healpix-starlight-candidate-v1".into();
     assets.push(map);
     assets.push(production_sidecar(
         "starlight_nside128.manifest.toml",
@@ -390,7 +390,7 @@ fn generated_output_is_deterministic_and_verified_only() {
     // Candidate registry entries must not appear in verified runtime metadata.
     assert!(!once.contains("merge_report.json"));
     assert!(!once.contains("starlight_nside128.csv"));
-    assert!(!once.contains("nsb-healpix-starlight-candidate-v5"));
+    assert!(!once.contains("nsb-healpix-starlight-candidate-v1"));
 }
 
 fn tempfile_dir() -> PathBuf {

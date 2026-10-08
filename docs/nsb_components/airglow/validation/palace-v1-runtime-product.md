@@ -117,31 +117,6 @@ Runtime tests exercise month, time, and solar changes, parser rejection,
 atmospheric sensitivity, geometry scaling, 300–650 nm integration, B/V
 diagnostics, uncertainty, and full/integrated-path parity.
 
-## Diagnostic comparison with the removed historical asset
-
-The historical `airglow_cont.dat` was read only from Git history for this
-diagnostic. It was not a generator input. The table compares vertical,
-unattenuated 300–650 nm photon radiance in `ph cm^-2 ns^-1 sr^-1`; old
-three-night-phase bins were paired with representative PALACE local-time bins.
-
-| Case | F10.7 | PALACE/NSB | Historical | Ratio |
-|---|---:|---:|---:|---:|
-| September early night | 100 | 0.09722 | 0.08900 | 1.09 |
-| September middle night | 100 | 0.08281 | 0.07828 | 1.06 |
-| September late night | 100 | 0.08981 | 0.12311 | 0.73 |
-| January middle night | 100 | 0.07656 | 0.07204 | 1.06 |
-| July middle night | 100 | 0.07100 | 0.08350 | 0.85 |
-| September middle night | 67 | 0.08228 | 0.05896 | 1.40 |
-| September middle night | 166 | 0.08387 | 0.11693 | 0.72 |
-
-At 100 sfu several representative cases agree to roughly 6–27%, but the solar
-response and late-night behaviour differ substantially. This is expected: the
-historical file imposed one wavelength-independent solar law and coarse
-6-season × 3-phase factors on a fixed FORS1-era shape, whereas PALACE provides
-component-, month-, time-, and solar-dependent climatologies derived from ten
-years of X-shooter data. No PALACE coefficient was tuned to reproduce the old
-snapshot.
-
 ## Limitations and maturity
 
 This is a Paranal-trained, continuum-only planning model. It is not a global

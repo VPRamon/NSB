@@ -116,6 +116,17 @@ jobs:
             echo "package exceeds the crates.io 10 MiB upload limit" >&2
             exit 1
           fi
+          contents="$(tar -tzf "$crate")"
+          if ! grep -Fq "/THIRD_PARTY_NOTICES.md" <<<"$contents"; then
+            echo "crate omits scientific-data notices" >&2
+            exit 1
+          fi
+          for asset in starlight_nside128.csv starlight_nside128.release.csv starlight_nside128.manifest.toml merge_report.json; do
+            if grep -Fq "/data/$asset" <<<"$contents"; then
+              echo "unapproved Starlight payload present in crate: $asset" >&2
+              exit 1
+            fi
+          done
 
       - name: Verify crates.io publish dry-run
         run: cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked
@@ -233,6 +244,30 @@ jobs:
           command: sdist
           maturin-version: ${{ env.MATURIN_VERSION }}
           args: --out dist
+
+      - name: Reject unapproved Starlight in the Python source distribution
+        shell: python
+        run: |
+          from pathlib import Path
+          import tarfile
+
+          bundles = list(Path("dist").glob("*.tar.gz"))
+          if len(bundles) != 1:
+              raise SystemExit(f"expected one source distribution, found {bundles}")
+          forbidden = {
+              "starlight_nside128.csv",
+              "starlight_nside128.release.csv",
+              "starlight_nside128.manifest.toml",
+              "merge_report.json",
+          }
+          with tarfile.open(bundles[0], "r:gz") as archive:
+              leaked = sorted({
+                  Path(member.name).name
+                  for member in archive.getmembers()
+                  if Path(member.name).name in forbidden
+              })
+          if leaked:
+              raise SystemExit(f"unapproved Starlight payload in sdist: {leaked}")
 
       - uses: actions/upload-artifact@v4
         with:
