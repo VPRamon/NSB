@@ -43,8 +43,9 @@ Primary references:
 > selection function of the astrophysical parameters catalogue",
 > Astronomy & Astrophysics, DOI `10.1051/0004-6361/202244784`.
 
-Licensed CC-BY-4.0. Attribution to the original authors and DOI above is
-required in any redistributed product derived from this selection function.
+The original dataset at <https://zenodo.org/records/8063930> is published
+under CC BY 4.0. Attribute the dataset creator, dataset DOI
+10.5281/zenodo.8063930 and accompanying scientific paper when reused.
 The UV-v2 candidate pins a BeeGFS-only selection-function artifact (see
 `gaia-selection-function-cantat-gaudin` in the artifact inventory;
 `distributed = false`).
@@ -55,12 +56,47 @@ The UV-v2 candidate pins a BeeGFS-only selection-function artifact (see
 > maintained by the Space Telescope Science Institute (STScI):
 > <https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec>.
 
-CALSPEC data are publicly available HST calibration products; STScI requests
-attribution. CALSPEC spectra are used only as an offline training reference
+The MAST REFERENCE-ATLASES HLSP explicitly licenses its data products
+CC BY 4.0: <https://archive.stsci.edu/hlsp/reference-atlases>.
+Acknowledge STScI/ReDCaT, DOI 10.17909/t9-khb7-4049, and the applicable
+CALSPEC publication. The precise historical training snapshot is not pinned. CALSPEC spectra are used only as an offline training reference
 for the 300-336 nm UV correction (#83) and are never hosted or redistributed
 by NSB directly. Any redistributed UV-correction artifact (`calspec-linear-log-ratio-v1`
 or `v2`) must carry this attribution because it is trained against CALSPEC
 data.
+
+## Bright-star supplement: Hipparcos, Tycho-2, XHIP, CK04 and SVO
+
+The 34 checksum-pinned inputs for the current candidate are recorded in
+`../release-candidate/release-candidate-v1.toml`. They are acquired offline;
+none of the original catalogue, SVO response, or CK04 spectral-file bytes
+belongs in crates.io/PyPI wheels. This does **not** itself prove permission to
+redistribute the resulting map.
+
+- **Hipparcos/Tycho (ESA)**: the original ESA Hipparcos and Tycho catalogues
+  carry CC BY-NC 3.0 IGO and require "Credit: ESA":
+  <https://www.cosmos.esa.int/web/hipparcos/catalogues>.
+  The candidate uses a later Hipparcos-2 reduction (CDS I/311) and Tycho-2
+  (CDS I/259); the original ESA notice alone does not establish the full
+  licence status of those later compilations.
+- **XHIP (Anderson and Francis 2012, CDS V/137D)**: cite the original catalogue
+  and CDS/VizieR (DOI 10.26093/cds/vizier). Its catalogue-specific grant to
+  redistribute XHIP bytes has **not** been verified. CDS's scientific-use
+  access conditions must not be mislabeled as CC BY 4.0:
+  <https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/V/137D?format=html>.
+- **Castelli–Kurucz 2004 atlas**: the MAST REFERENCE-ATLASES HLSP is CC BY
+  4.0. Credit STScI/ReDCaT, Castelli and Kurucz, and the HLSP
+  DOI 10.17909/t9-khb7-4049:
+  <https://archive.stsci.edu/hlsp/reference-atlases>.
+- **SVO Hipparcos Hp Bessell (2000) response**: acknowledge the SVO Filter
+  Profile Service (Rodrigo et al. 2012, 2020), cite the original bandpass
+  source and identify `Hipparcos/Hipparcos.Hp_bes`. Its explicit license for
+  redistributing the entire curve has **not** been verified:
+  <https://svo2.cab.inta-csic.es/theory/fps/>.
+
+These qualifications are unresolved rights questions, not invitations to
+remove the frozen scientific inputs, nor automatic authorization to change
+`redistribution-review-decision-v1.json` from `pending`.
 
 ## GaiaXPy (historical reference only)
 
@@ -77,10 +113,10 @@ dependency and no GaiaXPy code or data is redistributed:
 pipeline (`crates/nsb-data-tools`). NSB source itself is licensed under
 AGPL-3.0-only (see the repository [`LICENSE`](../../../../LICENSE) and
 [`README.md`](../../../../README.md#licensing)). Third-party dependencies retain
-their own licence obligations. The Gaia-derived candidate artifacts additionally
-retain the Gaia attribution and licence terms above because they are derived
-from Gaia bulk data; they are not independently re-licensed by virtue of being
-processed by NSB.
+their own licence obligations. Gaia's CC BY-NC obligations apply where the underlying protected rights
+reach the derived artifact. Numerical transformations do not automatically
+relicense any upstream catalogue, nor do they automatically inherit all its
+restrictions. A reviewer must evaluate the exact final map and its inputs.
 
 ## How to attribute a redistributed Starlight artifact
 
@@ -89,8 +125,9 @@ or by direct link:
 
 1. the Gaia DR3 acknowledgement above;
 2. the Cantat-Gaudin citation, if a selection-function artifact is included;
-3. the CALSPEC attribution, if a UV-correction artifact is included;
-4. a link to this file and to `artifact-inventory-v1.toml` for the exact
+3. the CALSPEC/CK04 attribution when their data support the artifact;
+4. the Hipparcos/Tycho and XHIP/SVO acknowledgements when used;
+5. a link to this file and to `artifact-inventory-v1.toml` for the exact
    licence and checksum of the specific bytes being redistributed.
 
 See [`THIRD_PARTY_NOTICES.md`](../../../../THIRD_PARTY_NOTICES.md) at the
