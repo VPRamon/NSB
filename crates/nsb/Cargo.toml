@@ -10,6 +10,15 @@ repository = "https://github.com/VPRamon/NSB"
 documentation = "https://docs.rs/nsb"
 readme = "README.md"
 publish = ["crates-io"]
+# The frozen Starlight candidate is retained in Git, but redistribution as a
+# production runtime asset requires the separate human review in issue #103.
+# Cargo packages must never contain these four repository-only candidates.
+exclude = [
+    "data/starlight_nside128.csv",
+    "data/starlight_nside128.release.csv",
+    "data/starlight_nside128.manifest.toml",
+    "data/merge_report.json",
+]
 keywords = ["astronomy", "atmosphere", "sky-brightness", "ctao", "nsb"]
 categories = ["science"]
 
