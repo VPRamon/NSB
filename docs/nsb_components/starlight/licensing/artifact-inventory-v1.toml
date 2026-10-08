@@ -178,16 +178,19 @@ id = "tycho2-bright-star-input"
 category = "upstream-bright-star-catalogue"
 source = "CDS I/259 Tycho-2 main catalogue, 20 tyc2.dat.00..19.gz shards"
 release = "Tycho-2 (Hog et al. 2000)"
-license = "ESA original Tycho catalogue CC BY-NC 3.0 IGO; application to later Tycho-2 (I/259) compilation not explicitly verified"
-license_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+license = "CC-BY-NC-3.0 IGO (CDS/VizieR I/259 Tycho-2 catalogue)"
+license_url = "https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259"
 distribution_class = "download_only"
 distributed = false
 channels = []
 tracking_issue = "#103"
 notes = """
-The source URL is ESA's license for the 1997 Hipparcos/Tycho catalogues, not
-an unambiguous license grant for the later Tycho-2 I/259 compilation. Preserve
-all 20 original inputs and their checksums outside the publishable package.
+The CDS/VizieR catalogue-specific record for I/259 Tycho-2 (Hog et al. 2000)
+explicitly states CC-BY-NC-3.0 IGO. This is source-specific grant evidence for
+the 20 pinned tyc2.dat.00..19 shards, not merely an analogy to ESA Tycho-1.
+Credit the Tycho-2 authors and ESA and comply with non-commercial terms
+where applicable. Preserve all 20 raw inputs and hashes outside packages.
+This does not independently approve redistribution of the complete NSB map.
 """
 
 [[artifacts]]
