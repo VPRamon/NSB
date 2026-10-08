@@ -11,7 +11,7 @@ scientific calibration evidence.
 - [ ] No removed compatibility API appears under `crates/*/src`.
 - [ ] `Cargo.lock` is committed and the Siderust crates.io source identity matches the compatibility matrix.
 - [ ] `cargo package -p nsb --locked` succeeds using publishable registry dependencies.
-- [ ] `cargo package -p nsb --list` contains only intended distribution files and the resulting `.crate` is below the crates.io 10 MiB upload limit.
+- [ ] `cargo package -p nsb --list` contains only intended distribution files and the resulting `.crate` is below the crates.io 10 MiB upload limit; specifically, the four frozen Starlight candidate/report files remain in Git but are excluded from the `.crate`, while their SHA-256 is checked against the release review bundle.
 - [ ] `cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked` succeeds on the exact release commit.
 - [ ] The registry verifier passes from a normal checkout and validates every tracked scientific payload checksum.
 - [ ] The release and default manual scientific-validation paths pass without external asset fetching; the optional `verify_upstream` manual input is reserved for live PALACE provenance regeneration.
