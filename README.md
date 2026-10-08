@@ -18,7 +18,7 @@ product is available. Results report integrated photon radiance over 300 to
 650 nm in `ph cm^-2 ns^-1 sr^-1` and retain scientific metadata needed to
 interpret the calculation.
 
-NSB is available through Python, Rust, and a command-line interface.
+NSB is available through Python, Rust, a command-line interface, and a native Rust desktop GUI.
 
 ## Installation
 
@@ -52,12 +52,12 @@ distribution.
 
 | Capability | Support |
 | --- | --- |
-| Point NSB evaluation | Python, Rust, CLI |
-| Observing-window search | Python, Rust, CLI |
+| Point NSB evaluation | Python, Rust, CLI, native GUI |
+| Observing-window search | Python, Rust, CLI, native GUI |
 | Zodiacal light, airglow, and scattered moonlight | Runtime components |
 | Integrated starlight | Validated bundled or external products, with explicit maturity rules |
 | Arbitrary observatory coordinates | Supported |
-| Named observatory catalogs | CLI through Siderust `ObservatoryCatalog` |
+| Named observatory catalogs | CLI and native GUI through Siderust `ObservatoryCatalog` |
 | Machine-readable output | Versioned JSON and CSV schemas |
 | Scientific audit metadata | Provenance, maturity, validated domain, model identity, uncertainty where available |
 | Offline evaluation | No runtime catalog downloads or data-generation tools |
@@ -149,6 +149,35 @@ for start, end in result.periods:
 Python datetime inputs must be timezone-aware. See
 [Python bindings](docs/python.md) for the complete API, units, errors, and
 development workflow.
+
+## Native desktop GUI
+
+The workspace contains `nsb-gui`, a local desktop application implemented in
+Rust with `egui`/`eframe`. It calls the `nsb` library directly; it does not
+invoke the CLI and does not embed a browser runtime.
+
+Launch it from a repository checkout:
+
+```bash
+cargo run --locked -p nsb-gui
+```
+
+The GUI exposes compact, switchable input representations for observer
+location, time, and target coordinates. Date/time accepts local civil time with
+a UTC offset, JD (TT), or MJD (TT). Target coordinate system and display/input
+format are separate choices: ICRS/J2000 or horizontal coordinates can be
+entered independently of sexagesimal versus decimal-degree notation.
+
+Observing windows are computed by the same `ThresholdQuery` planner used by
+the Rust/Python/CLI APIs. The configurable NSB threshold therefore uses the
+library's authoritative integrated photon-radiance unit,
+`ph cm^-2 ns^-1 sr^-1`; B/V `mag/arcsec²` values are diagnostics rather than
+an invented planning threshold. Zero, one, or multiple matching intervals are
+preserved.
+
+See [the GUI README](crates/nsb-gui/README.md) for input semantics, the native
+offline map picker, horizontal-coordinate interpretation, and component-share
+details.
 
 ## CLI
 

@@ -92,6 +92,17 @@ AGPL-3.0-only scalar radiative-transfer implementation from the Jones et al.
 (2013) equations and the compatible NSB Mie product. It contains no historical
 ESO correction-table bytes and no third-party solver or dataset bytes.
 
+## Native GUI runtime dependencies
+
+The optional native `nsb-gui` workspace application uses `egui`/`eframe` and
+their platform integration dependencies. Windows clipboard support includes
+`clipboard-win` and `error-code`, licensed under the Boost Software License
+1.0. The embedded egui default-font package includes Hack and Noto Emoji under
+the SIL Open Font License 1.1, Ubuntu Light under the Ubuntu Font Licence 1.0,
+and an MIT-licensed emoji icon font. The corresponding license texts are
+distributed in the upstream crates and must accompany redistributed GUI
+binaries as required by those licenses.
+
 ## Reporting a missing or incorrect notice
 
 Open an issue identifying the affected bundled asset or dependency.

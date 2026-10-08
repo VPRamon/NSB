@@ -1,0 +1,21 @@
+[package]
+name = "nsb-gui"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.89"
+publish = false
+license = "AGPL-3.0-only"
+description = "Native desktop interface for the NSB night-sky background model."
+
+[[bin]]
+name = "nsb-gui"
+path = "src/main.rs"
+doc = false
+
+[dependencies]
+nsb = { version = "=0.1.0", path = "../nsb" }
+
+eframe = { version = "=0.32.3", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+chrono = "0.4"
+siderust = { version = "0.12.0", features = ["atmosphere", "photometry"] }
+tempoch = "0.7"

@@ -1,0 +1,85 @@
+name: Native GUI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/nsb/**"
+      - "crates/nsb-gui/**"
+      - "README.md"
+      - ".github/workflows/gui.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/nsb/**"
+      - "crates/nsb-gui/**"
+      - "README.md"
+      - ".github/workflows/gui.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-check:
+    name: Desktop check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Check GUI targets
+        run: cargo check -p nsb-gui --all-targets --locked
+      - name: Test GUI without launching a display
+        run: cargo test -p nsb-gui --locked
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install Rustfmt and Clippy
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Run Clippy
+        run: cargo clippy -p nsb-gui --all-targets --locked -- -D warnings
+
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout without Git LFS payloads
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+      - name: Install MSRV
+        uses: dtolnay/rust-toolchain@1.89.0
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+      - name: Check GUI on MSRV
+        run: cargo check -p nsb-gui --all-targets --locked
