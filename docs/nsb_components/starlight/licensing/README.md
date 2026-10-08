@@ -39,8 +39,12 @@ runtime asset.
   (<https://archive.stsci.edu/hlsp/reference-atlases>).
 - **Cantat-Gaudin 2023 selection-function dataset:** Zenodo CC BY 4.0
   (<https://zenodo.org/records/8063930>).
-- **ESA original Hipparcos/Tycho:** CC BY-NC 3.0 IGO; provenance for later
-  Hipparcos-2 (CDS I/311) / Tycho-2 (CDS I/259) must be separately checked.
+- **ESA original Hipparcos/Tycho:** CC BY-NC 3.0 IGO.
+- **Tycho-2 (CDS I/259):** CDS's record for Tycho-2 explicitly declares
+  CC BY-NC 3.0 IGO; source family verified for the 20 frozen shards
+  (<https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259>).
+- **Hipparcos-2 (CDS I/311):** 2007 re-reduction has no verified
+  source-specific reuse/redistribution grant in the ReadMe; still pending.
 - **XHIP V/137D:** CDS/VizieR research access/citation conditions;
   no catalogue-specific redistributable CC or SPDX grant verified.
 - **SVO Hp_bes:** public photometric profile and citation requirements;
