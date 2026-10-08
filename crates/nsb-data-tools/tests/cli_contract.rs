@@ -127,7 +127,11 @@ fn clap_rejects_unknown_commands_missing_flags_and_worker_conflicts() {
         ),
     ] {
         let (exit, stderr) = fails(&args);
-        assert_eq!(exit, Some(2), "unexpected parser exit for {args:?}: {stderr}");
+        assert_eq!(
+            exit,
+            Some(2),
+            "unexpected parser exit for {args:?}: {stderr}"
+        );
         assert!(
             stderr.contains(expected),
             "nsb-data {args:?} did not explain {expected:?}: {stderr}"
@@ -163,7 +167,11 @@ fn lifecycle_and_run_commands_fail_closed_on_missing_files() -> anyhow::Result<(
     let run_path = run_path.to_str().expect("UTF-8 temporary path");
     for operation in ["status", "resume"] {
         let (exit, stderr) = fails(&["run", operation, "--run", run_path]);
-        assert_ne!(exit, Some(2), "run {operation} rejected valid arguments: {stderr}");
+        assert_ne!(
+            exit,
+            Some(2),
+            "run {operation} rejected valid arguments: {stderr}"
+        );
         assert!(stderr.contains("missing-run.json"), "{stderr}");
     }
     assert!(!dir.path().join("missing.toml").exists());
@@ -182,9 +190,19 @@ fn offline_f107_freeze_verify_status_resolve_and_import_round_trip() -> anyhow::
     let snapshot = "cli-fixture-2026-08-27";
 
     let freeze = succeeds(&[
-        "solar", "f107", "freeze", "--store", original_path,
-        "--fixture-dir", fixture_dir, "--dataset-id", dataset,
-        "--snapshot-id", snapshot, "--retrieved-at", "2026-08-27T08:00:00Z",
+        "solar",
+        "f107",
+        "freeze",
+        "--store",
+        original_path,
+        "--fixture-dir",
+        fixture_dir,
+        "--dataset-id",
+        dataset,
+        "--snapshot-id",
+        snapshot,
+        "--retrieved-at",
+        "2026-08-27T08:00:00Z",
     ]);
     assert!(freeze.contains("status=frozen"), "{freeze}");
     assert!(freeze.contains(&format!("dataset={dataset}")), "{freeze}");
@@ -192,8 +210,18 @@ fn offline_f107_freeze_verify_status_resolve_and_import_round_trip() -> anyhow::
     let checksum = checksum_io::sha256_file(&original)?;
     assert!(freeze.contains(&format!("checksum={checksum}")), "{freeze}");
 
-    let verify = succeeds(&["solar", "f107", "verify", original_path, "--sha256", &checksum]);
-    assert!(verify.contains(&format!("ok dataset={dataset}")), "{verify}");
+    let verify = succeeds(&[
+        "solar",
+        "f107",
+        "verify",
+        original_path,
+        "--sha256",
+        &checksum,
+    ]);
+    assert!(
+        verify.contains(&format!("ok dataset={dataset}")),
+        "{verify}"
+    );
     assert!(verify.contains(&format!("snapshot={snapshot}")), "{verify}");
 
     // Freshness changes over time, but status must always identify the same store.
@@ -202,23 +230,51 @@ fn offline_f107_freeze_verify_status_resolve_and_import_round_trip() -> anyhow::
     assert!(status.contains(&format!("checksum={checksum}")), "{status}");
 
     let resolved = succeeds(&[
-        "solar", "f107", "resolve", "--time", "2026-08-20T12:00:00Z",
-        "--store", original_path,
+        "solar",
+        "f107",
+        "resolve",
+        "--time",
+        "2026-08-20T12:00:00Z",
+        "--store",
+        original_path,
     ]);
     for field in [
-        "value_sfu=", "kind=", "provider=", "requested_date=2026-08-20",
+        "value_sfu=",
+        "kind=",
+        "provider=",
+        "requested_date=2026-08-20",
         "resolution_step=",
     ] {
-        assert!(resolved.contains(field), "resolve omitted {field}: {resolved}");
+        assert!(
+            resolved.contains(field),
+            "resolve omitted {field}: {resolved}"
+        );
     }
-    assert!(resolved.contains(&format!("dataset={dataset}")), "{resolved}");
+    assert!(
+        resolved.contains(&format!("dataset={dataset}")),
+        "{resolved}"
+    );
 
     let imported = dir.path().join("imported/store.json");
     let imported_path = imported.to_str().expect("UTF-8 temporary path");
-    let import = succeeds(&["solar", "f107", "import", original_path, "--store", imported_path]);
+    let import = succeeds(&[
+        "solar",
+        "f107",
+        "import",
+        original_path,
+        "--store",
+        imported_path,
+    ]);
     assert!(import.contains("status=imported"), "{import}");
     assert_eq!(fs::read(&original)?, fs::read(&imported)?);
-    succeeds(&["solar", "f107", "verify", imported_path, "--sha256", &checksum]);
+    succeeds(&[
+        "solar",
+        "f107",
+        "verify",
+        imported_path,
+        "--sha256",
+        &checksum,
+    ]);
     Ok(())
 }
 
@@ -239,15 +295,20 @@ fn f107_rejects_invalid_time_checksum_and_store_without_importing() -> anyhow::R
     assert!(time_error.contains("invalid --time"), "{time_error}");
 
     let (_, mismatch) = fails(&[
-        "solar", "f107", "verify", valid, "--sha256",
+        "solar",
+        "f107",
+        "verify",
+        valid,
+        "--sha256",
         "0000000000000000000000000000000000000000000000000000000000000000",
     ]);
     assert!(mismatch.contains("checksum mismatch"), "{mismatch}");
 
-    let (_, import_error) = fails(&[
-        "solar", "f107", "import", bad_path, "--store", dest_path,
-    ]);
+    let (_, import_error) = fails(&["solar", "f107", "import", bad_path, "--store", dest_path]);
     assert!(!import_error.is_empty());
-    assert!(!dest.exists(), "invalid input must not create an active store");
+    assert!(
+        !dest.exists(),
+        "invalid input must not create an active store"
+    );
     Ok(())
 }
