@@ -26,8 +26,13 @@ Provenance and exact source-family terms:
 and [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md).
 
 - **Gaia DR3 GaiaSource/XP:** ESA CC BY-NC 3.0 IGO; cite Gaia/DPAC.
-- **Original Hipparcos and Tycho (ESA):** CC BY-NC 3.0 IGO, Credit: ESA.
-  Later Hipparcos-2 and Tycho-2 catalogue rights are not fully verified.
+- **Original Hipparcos/Tycho (ESA):** CC BY-NC 3.0 IGO, Credit: ESA.
+- **Tycho-2 (Høg et al. 2000, CDS I/259):** the CDS catalogue's own record
+  declares CC BY-NC 3.0 IGO; see
+  <https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259>. All 20 Tycho-2 shards
+  remain offline inputs.
+- **Hipparcos-2 (van Leeuwen 2007, CDS I/311):** licence specific to the
+  later re-reduction has not been independently verified.
 - **CALSPEC and Castelli-Kurucz CK04 REFERENCE-ATLASES HLSP:** CC BY 4.0;
   cite STScI/ReDCaT and DOI 10.17909/t9-khb7-4049.
 - **Cantat-Gaudin Gaia DR3 M10 selection dataset:** CC BY 4.0;
