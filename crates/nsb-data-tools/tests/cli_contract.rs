@@ -320,8 +320,7 @@ fn f107_rejects_invalid_time_checksum_and_store_without_importing() -> anyhow::R
 fn fixture_only_solar_update_executes_the_cli_branch() -> anyhow::Result<()> {
     let temporary = tempfile::tempdir()?;
     let store = temporary.path().join("local-f107.json");
-    let fixtures =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/swpc");
+    let fixtures = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/swpc");
     let output = succeeds(&[
         "solar",
         "f107",
