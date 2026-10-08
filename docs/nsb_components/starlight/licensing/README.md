@@ -47,8 +47,12 @@ runtime asset.
   source-specific reuse/redistribution grant in the ReadMe; still pending.
 - **XHIP V/137D:** CDS/VizieR research access/citation conditions;
   no catalogue-specific redistributable CC or SPDX grant verified.
-- **SVO Hp_bes:** public photometric profile and citation requirements;
-  no explicit curve redistribution grant verified.
+- **SVO Hp_bes:** the maintainer supplied an SVO/FPS team reply confirming
+  that acknowledging SVO FPS and Bessell (2000), and citing their four
+  requested references, is sufficient **from the service's perspective**
+  for calculations using the profile. Exact text: [ATTRIBUTION.md](ATTRIBUTION.md#svofps-exact-acknowledgement-and-requested-references).
+  No explicit right to redistribute the **original response curve** was
+  granted.
 
 Never fill unknown upstream licences with AGPL, CC BY, or CC BY-NC by
 analogy. `license` strings that begin with `NO_EXPLICIT_` are disclosure of a
