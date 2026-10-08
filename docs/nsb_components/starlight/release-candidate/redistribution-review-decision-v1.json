@@ -5,8 +5,8 @@
   "reviewer_role": null,
   "reviewed_at_utc": null,
   "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
-  "inventory_sha256": "5596ea919deb7a6ced7fac8e683fcf79bb543f2638a238a890efff8891e66518",
-  "review_bundle_sha256": "6c669eb5bdc746dfe18cd98a08d40c3c32493827e0c07516b9914bacd789f2b2",
+  "inventory_sha256": "7ef5ad4dcacf029cc2aaae0171a21f6d1f0623b30e82230bff45f2f6d8d376d8",
+  "review_bundle_sha256": "06b1fa84f80c1df6057907d93abaac8a0b525b392dd80e65526dda4ac6d08bb5",
   "pinned_artifacts": [],
   "conditions": [
     {
@@ -15,10 +15,10 @@
       "verifier": {
         "type": "repository_file_sha256",
         "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
-        "sha256": "6c669eb5bdc746dfe18cd98a08d40c3c32493827e0c07516b9914bacd789f2b2"
+        "sha256": "06b1fa84f80c1df6057907d93abaac8a0b525b392dd80e65526dda4ac6d08bb5"
       }
     }
   ],
   "restrictions": [],
-  "notes": "Template only, owned by issue #103. This is the single authoritative redistribution decision record consumed by both promotion and licensing checks. Keep candidate_sha256, inventory_sha256, review_bundle_sha256, and the review-bundle-v1 condition pinned to the same frozen evidence unless a new review bundle is deliberately published. Additional approved_with_conditions entries must be structured machine-verifiable conditions; free-text conditions block automatic promotion. Do not fill reviewer_name/reviewer_role/reviewed_at_utc or change decision away from pending outside the #103 human process. Licensing evidence updated for Hipparcos-2, Tycho-2, XHIP, CK04, SVO and CALSPEC without modifying scientific dataset bytes. Unknown upstream grants are not invented; #103 human approval still required."
+  "notes": "Template only, owned by issue #103. This is the single authoritative redistribution decision record consumed by both promotion and licensing checks. Keep candidate_sha256, inventory_sha256, review_bundle_sha256, and the review-bundle-v1 condition pinned to the same frozen evidence unless a new review bundle is deliberately published. Additional approved_with_conditions entries must be structured machine-verifiable conditions; free-text conditions block automatic promotion. Do not fill reviewer_name/reviewer_role/reviewed_at_utc or change decision away from pending outside the #103 human process. Licensing evidence updated for Hipparcos-2, Tycho-2, XHIP, CK04, SVO and CALSPEC without modifying scientific dataset bytes. Unknown upstream grants are not invented; #103 human approval still required. Tycho-2 source license newly verified via the official CDS I/259 catalogue page (CC BY-NC 3.0 IGO); XHIP, SVO, Hipparcos-2 and the final map #103 decision remain pending."
 }
