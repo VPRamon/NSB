@@ -18,7 +18,8 @@
 #                         output, manifest, report, ...)
 #   source                origin/provenance description
 #   release               upstream release, artifact version, or candidate tag
-#   license               licence string as currently recorded in this repository
+#   license               source grant or explicit NOT-VERIFIED terms; must not
+#                         manufacture upstream permissions from a URL
 #   license_url           optional canonical licence reference
 #   sha256                optional pinned digest of the exact artifact bytes;
 #                         required when distribution_class is
@@ -113,12 +114,13 @@ id = "calspec-reference-spectra"
 category = "upstream-reference-spectra"
 source = "STScI CALSPEC HST spectrophotometric standard-star atlas"
 release = "CALSPEC (current STScI release; exact snapshot is not pinned in this repository)"
-license = "STScI CALSPEC: publicly available HST calibration data; attribution to STScI/CALSPEC is requested, no additional redistribution restriction is currently recorded"
-license_url = "https://www.stsci.edu/hst/instrumentation/reference-data-for-calibration-and-tools/astronomical-catalogs/calspec"
+license = "CC-BY-4.0 (MAST REFERENCE-ATLASES HLSP data products; exact CALSPEC training snapshot is not pinned)"
+license_url = "https://archive.stsci.edu/hlsp/reference-atlases"
 distribution_class = "documentation_reference"
 distributed = false
 channels = []
 notes = """
+The MAST REFERENCE-ATLASES HLSP explicitly identifies CC BY 4.0 for its products and DOI 10.17909/t9-khb7-4049. Cite STScI/CALSPEC and the reference atlas. The individual CALSPEC training snapshot is not pinned; preserve this limitation.
 CALSPEC spectra are the independently flux-calibrated reference used to train
 the 300-336 nm UV correction (#83). Offline CALSPEC / Cantat-Gaudin training
 lives outside this repository (BeeGFS starlight-calibration/, per
@@ -133,13 +135,13 @@ category = "upstream-reference-dataset"
 source = "Cantat-Gaudin et al. (2023) empirical Gaia DR3 selection function / M10 completeness map"
 release = "2023 (DOI 10.1051/0004-6361/202244784)"
 license = "CC-BY-4.0"
-license_url = "https://doi.org/10.1051/0004-6361/202244784"
+license_url = "https://zenodo.org/records/8063930"
 sha256 = "1a3670b56eedaf9f9de0b32f081ccfa2baf741a449cd70c2be37d666101a9711"
 distribution_class = "download_only"
 distributed = false
 channels = []
 notes = """
-CC-BY-4.0 permits redistribution with attribution. The UV-v2 Ladon production
+Source DATASET license CC BY 4.0 is associated with the Zenodo record 8063930; journal licensing alone is not the basis. CC BY 4.0 requires attribution. The UV-v2 Ladon production
 run pins a selection-function artifact at BeeGFS
 /mnt/beegfs/valles/nsb-data/starlight-calibration/artifacts/selection-artifact.json
 with SHA-256
@@ -147,6 +149,98 @@ with SHA-256
 (starlight-production-300-650.ladon.toml). Bytes remain download_only /
 distributed = false. Merge report population_correction.applied = true with
 policy gaia-dr3-selection-function-cantat-gaudin-v1.
+"""
+
+# --- Bright-star upstream inputs (34 checksum-pinned files in candidate) ----
+# The entries below classify SOURCE FAMILY rights, not raw files distributed
+# by NSB. Individual input URLs/checksums live in release-candidate-v1.toml.
+
+[[artifacts]]
+id = "hipparcos2-bright-star-input"
+category = "upstream-bright-star-catalogue"
+source = "CDS I/311, van Leeuwen new Hipparcos reduction; hip2.dat.gz"
+release = "I/311 corrected 2008-09-16"
+license = "ESA original Hipparcos catalogue CC BY-NC 3.0 IGO; application to independent Hipparcos-2 (I/311) revision not explicitly verified"
+license_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+distribution_class = "download_only"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+ESA expressly licenses its original Hipparcos/Tycho catalogues under CC BY-NC
+3.0 IGO with Credit: ESA. I/311 is a later reduction, so ESA's page alone does
+not prove that every independently added element has that grant. Raw data
+remain offline; preserve the correction and attribution requirement.
+"""
+
+[[artifacts]]
+id = "tycho2-bright-star-input"
+category = "upstream-bright-star-catalogue"
+source = "CDS I/259 Tycho-2 main catalogue, 20 tyc2.dat.00..19.gz shards"
+release = "Tycho-2 (Hog et al. 2000)"
+license = "ESA original Tycho catalogue CC BY-NC 3.0 IGO; application to later Tycho-2 (I/259) compilation not explicitly verified"
+license_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+distribution_class = "download_only"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+The source URL is ESA's license for the 1997 Hipparcos/Tycho catalogues, not
+an unambiguous license grant for the later Tycho-2 I/259 compilation. Preserve
+all 20 original inputs and their checksums outside the publishable package.
+"""
+
+[[artifacts]]
+id = "xhip-bright-star-spectral-types"
+category = "upstream-bright-star-catalogue"
+source = "CDS V/137D XHIP Extended Hipparcos Compilation, Anderson & Francis 2012"
+release = "V/137D XHIP main.dat.gz"
+license = "NO_EXPLICIT_CATALOGUE_REDISTRIBUTION_LICENSE_VERIFIED; CDS/VizieR scientific-use and citation terms"
+license_url = "https://cds.unistra.fr/vizier-org/licences_vizier.html"
+distribution_class = "download_only"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+VizieR catalogue access and citation terms do not grant a blanket CC BY 4.0
+licence for the XHIP compilation. The catalog is downloaded offline as a
+spectral-classification lookup; no original XHIP table is included in the
+runtime crate. Review whether protected extraction/arrangement persists in
+the derived HEALPix map before approving repository/registry redistribution.
+"""
+
+[[artifacts]]
+id = "ck04-bright-star-templates"
+category = "upstream-spectral-template-library"
+source = "MAST REFERENCE-ATLASES HLSP Castelli-Kurucz 2004 atlas synphot3 v2"
+release = "MAST HLSP v2, source tar pinned by candidate provenance"
+license = "CC-BY-4.0 (MAST REFERENCE-ATLASES HLSP)"
+license_url = "https://archive.stsci.edu/hlsp/reference-atlases"
+distribution_class = "download_only"
+distributed = false
+channels = []
+notes = """
+MAST explicitly licenses REFERENCE-ATLASES high-level science products
+CC BY 4.0; acknowledge ReDCaT/STScI, Castelli and Kurucz (2004), and
+DOI 10.17909/t9-khb7-4049. NSB redistributes no original CK04 atlas files.
+"""
+
+[[artifacts]]
+id = "svo-hipparcos-hp-response"
+category = "upstream-photometric-response-curve"
+source = "SVO Filter Profile Service Hipparcos/Hipparcos.Hp_bes (Bessell 2000)"
+release = "retrieved 2026-10-02; exact byte digest in candidate provenance"
+license = "NO_EXPLICIT_BANDPASS_REDISTRIBUTION_LICENSE_VERIFIED; SVO Filter Profile Service citation/access conditions"
+license_url = "https://svo2.cab.inta-csic.es/theory/fps/index.php?mode=voservice"
+distribution_class = "download_only"
+distributed = false
+channels = []
+tracking_issue = "#103"
+notes = """
+Public availability and requested scientific citations do not alone grant
+rights to redistribute a complete passband curve. The original SVO table is
+used for offline photometric integration and is not bundled with NSB. Assess
+whether derived scalar calibrations implicate any database/copyright rights.
 """
 
 # --- Generated calibration artifacts (NSB-trained, checksum-pinned) -------
@@ -232,16 +326,19 @@ Scientific sign-off remains #103.
 id = "starlight-candidate-map-nside128"
 category = "generated-derived-output"
 source = "Derived from Gaia DR3 GaiaSource + XP continuous bulk products via the NSB pipeline (nsb-data dataset starlight publish)"
-release = "candidate v5 (nsb-healpix-starlight-candidate-v5); UV v2 Ladon rebuild"
-license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml; whether the CC BY-NC 3.0 IGO non-commercial clause permits NSB's intended redistribution channels is the open legal/scientific question #88/#103 must resolve"
+release = "2026-10-06 combined 300-650 nm, checksum-pinned candidate"
+license = "NSB-derived numerical map; upstream Gaia DR3 CC BY-NC 3.0 IGO where applicable; CK04 CC BY 4.0; XHIP and SVO redistribution rights not independently verified"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
 tracking_issue = "#103"
 notes = """
-Path: crates/nsb/data/starlight_nside128.csv. calibration_status = candidate,
+Exact map remains checked into Git: crates/nsb/data/starlight_nside128.csv.
+Not contained in publishable .crate/wheel. Candidate status is not an
+approval of redistribution on GitHub, crates.io, PyPI, or releases.
+calibration_status = candidate,
 runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
 redistribution decision remains pending in #103. The invalidated #93 digest
@@ -259,9 +356,9 @@ id = "starlight-packed-runtime-map-nside128"
 category = "generated-derived-output"
 source = "Packed RING runtime map derived from starlight-candidate-map-nside128 by nsb-data dataset starlight pack/promote"
 release = "nsb-healpix-starlight-v2 packed from UV-v2 candidate; production admission headers"
-license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO); redistribution remains #103"
+license = "NSB-derived runtime map; Gaia DR3 CC BY-NC 3.0 IGO where applicable; CK04 CC BY 4.0; other source rights pending review #103"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b"
+sha256 = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
 distribution_class = "generated_derived_output"
 distributed = false
 channels = []
@@ -277,9 +374,9 @@ id = "starlight-merge-report"
 category = "generated-derived-output"
 source = "NSB-generated deterministic merge/provenance report for starlight-candidate-map-nside128"
 release = "schema nsb-starlight-merge-report-v5; UV v2 Ladon rebuild"
-license = "Derived output retains the upstream Gaia data licence (CC BY-NC 3.0 IGO) as currently recorded in crates/nsb/data/manifest.toml"
+license = "NSB-generated scientific provenance/report; Gaia DR3 CC BY-NC 3.0 IGO applies where protected upstream content is reproduced"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "3f003afb6dcae09eaf917c5a3cbd0fc2fd113a331164fb0509d14c82bb76c5f9"
+sha256 = "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -298,7 +395,7 @@ category = "manifest"
 source = "NSB-authored checksum/provenance registry for bundled runtime assets"
 release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); contains no third-party bytes, only metadata describing third-party inputs"
-sha256 = "d0ebb0962dfbbd76e748c04150326ee86a0c13c42762c97dc34fe1e8f327e65e"
+sha256 = "7c0e894ce036ee2cb51036f14b93983c86c371d9c6a05da256d743b090c56f74"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -331,7 +428,7 @@ category = "report"
 source = "NSB-generated validation gate report for the candidate build"
 release = "schema_version = 2"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); reports only aggregate diagnostics, no raw third-party catalogue bytes"
-sha256 = "8b2f71f984040e5d519245a8d199c359313851ed39755edaba248fff59695303"
+sha256 = "97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
