@@ -22,7 +22,7 @@ sha256 = "66d37d3124d8e5447a97e6799f3542b51c588e2c06c1b4a9f3044ccc1d1e1976"
 [[artifacts]]
 id = "redistribution_inventory"
 path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
-sha256 = "5596ea919deb7a6ced7fac8e683fcf79bb543f2638a238a890efff8891e66518"
+sha256 = "7ef5ad4dcacf029cc2aaae0171a21f6d1f0623b30e82230bff45f2f6d8d376d8"
 
 [[artifacts]]
 id = "validation_artifact_manifest"
@@ -37,7 +37,7 @@ sha256 = "fdf1be8d9e026bd5e38a09c00aedb4bbd563be21895b5d9fe5dfebf3d6735146"
 [[artifacts]]
 id = "release_candidate_manifest"
 path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
-sha256 = "48d871eb444c65ddac6b350fb02ea50c261ce09445c9939ca8192245341bd301"
+sha256 = "e3a26c6721242091033cb0dcf07adb48f03bf24a382d5a0d2ed5e5b621d70ef6"
 
 [[artifacts]]
 id = "redistribution_decision_contract_doc"
