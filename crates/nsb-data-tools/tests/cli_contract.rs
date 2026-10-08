@@ -315,3 +315,69 @@ fn f107_rejects_invalid_time_checksum_and_store_without_importing() -> anyhow::R
     );
     Ok(())
 }
+
+#[test]
+fn fixture_only_solar_update_executes_the_cli_branch() -> anyhow::Result<()> {
+    let temporary = tempfile::tempdir()?;
+    let store = temporary.path().join("local-f107.json");
+    let fixtures =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/swpc");
+    let output = succeeds(&[
+        "solar",
+        "f107",
+        "update",
+        "--store",
+        store.to_str().expect("UTF-8 store path"),
+        "--fixture-dir",
+        fixtures.to_str().expect("UTF-8 fixture path"),
+        "--dataset-id",
+        "cli-update-fixture",
+    ]);
+    assert!(output.contains("dataset=cli-update-fixture"), "{output}");
+    let checksum = checksum_io::sha256_file(&store)?;
+    assert!(output.contains(&format!("checksum={checksum}")), "{output}");
+    assert!(store.is_file());
+    Ok(())
+}
+
+#[test]
+fn uv_validation_and_internal_worker_reject_missing_inputs() -> anyhow::Result<()> {
+    let temporary = tempfile::tempdir()?;
+    let missing = temporary.path().join("no-such-input.toml");
+    let absent = missing.to_str().expect("UTF-8 input path");
+    let output = temporary.path().join("report.json");
+    let output = output.to_str().expect("UTF-8 report path");
+    let (_, uv_error) = fails(&[
+        "starlight-uv",
+        "validate",
+        "--reference-manifest",
+        absent,
+        "--partition-manifest",
+        absent,
+        "--artifact",
+        absent,
+        "--artifact-sha256",
+        "0000000000000000000000000000000000000000000000000000000000000000",
+        "--holdout",
+        absent,
+        "--output",
+        output,
+    ]);
+    assert!(!uv_error.is_empty());
+    assert!(!temporary.path().join("report.json").exists());
+
+    let (_, worker_error) = fails(&[
+        "_worker",
+        "--config",
+        absent,
+        "--dataset",
+        "starlight",
+        "--operation",
+        "build",
+        "--partition",
+        "one",
+    ]);
+    assert!(!worker_error.is_empty());
+    assert!(!missing.exists());
+    Ok(())
+}
