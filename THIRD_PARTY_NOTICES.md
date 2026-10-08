@@ -16,9 +16,29 @@ decision remains the sole authorization gate.
 
 ## Starlight (integrated starlight component)
 
-NSB 0.1.0 bundles no Gaia-derived Starlight map or supporting catalogue data.
-Any future Starlight admission must add the applicable source notices,
-licensing review, and redistribution terms with the admitted product.
+NSB 0.1.0 does not bundle a production Starlight map in crates.io/PyPI.
+The frozen candidate and its merge report **are present in the Git repository**
+and constitute a distinct distribution channel. They are not yet authorized
+as production assets; issue #103 remains the human redistribution gate.
+
+Provenance and exact source-family terms:
+[artifact inventory](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml)
+and [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md).
+
+- **Gaia DR3 GaiaSource/XP:** ESA CC BY-NC 3.0 IGO; cite Gaia/DPAC.
+- **Original Hipparcos and Tycho (ESA):** CC BY-NC 3.0 IGO, Credit: ESA.
+  Later Hipparcos-2 and Tycho-2 catalogue rights are not fully verified.
+- **CALSPEC and Castelli-Kurucz CK04 REFERENCE-ATLASES HLSP:** CC BY 4.0;
+  cite STScI/ReDCaT and DOI 10.17909/t9-khb7-4049.
+- **Cantat-Gaudin Gaia DR3 M10 selection dataset:** CC BY 4.0;
+  Zenodo DOI 10.5281/zenodo.8063930.
+- **XHIP V/137D:** catalogue-specific redistribution licence not verified;
+  CDS/VizieR scientific-use and citation conditions apply to access.
+- **SVO Hipparcos Hp_bes passband:** cite the SVO Filter Profile Service and
+  Bessell (2000); explicit redistribution licence not verified.
+
+No raw upstream catalogue, atlas, or filter curve is intended to be bundled in
+release packages. This notice cannot supply a missing upstream permission.
 
 ## Other bundled runtime assets
 
