@@ -349,3 +349,378 @@ fn bright_stars_build_cli_arm_is_fail_closed_on_commit_mismatch() -> anyhow::Res
     );
     Ok(())
 }
+
+#[test]
+fn source_override_parser_preserves_paths_and_query_strings() {
+    assert_eq!(
+        parse_source_override("leinert=/tmp/anchor=a.dat").unwrap(),
+        ("leinert".to_string(), "/tmp/anchor=a.dat".to_string())
+    );
+    assert_eq!(
+        parse_source_override("ref=https://example.test/file?a=b").unwrap(),
+        (
+            "ref".to_string(),
+            "https://example.test/file?a=b".to_string()
+        )
+    );
+    assert!(parse_source_override("missing-separator").is_err());
+}
+
+#[test]
+fn dataset_dispatch_covers_all_operations_without_side_effects() -> anyhow::Result<()> {
+    let temporary = TempDir::new()?;
+    let missing_config = temporary.path().join("absent.toml");
+    let common = CommonArgs {
+        config: missing_config.clone(),
+        executor: None,
+        concurrency: None,
+        partitions: Vec::new(),
+    };
+    for operation in [
+        Action::Update(common.clone()),
+        Action::Build(common.clone()),
+        Action::Validate(common.clone()),
+        Action::Publish(common.clone()),
+    ] {
+        let error = execute(
+            DatasetName::SolarSpectrum,
+            ActionArgs { operation },
+        )
+        .expect_err("dataset operations require a readable configuration");
+        assert!(
+            format!("{error:#}").contains("absent.toml"),
+            "missing input should be identified: {error:#}"
+        );
+    }
+    for operation in [
+        StarlightAction::Update(common.clone()),
+        StarlightAction::Build(common.clone()),
+        StarlightAction::Validate(common.clone()),
+        StarlightAction::Publish(common),
+    ] {
+        let error = execute_starlight(StarlightActionArgs { operation })
+            .expect_err("Starlight lifecycle must reject a missing configuration");
+        assert!(
+            format!("{error:#}").contains("absent.toml"),
+            "missing input should be identified: {error:#}"
+        );
+    }
+    assert!(!missing_config.exists());
+    Ok(())
+}
+
+#[test]
+fn starlight_cli_pack_accepts_synthetic_map_and_detects_checksum_drift() -> anyhow::Result<()> {
+    let temporary = TempDir::new()?;
+    let candidate = temporary.path().join("candidate.csv");
+    fs::write(
+        &candidate,
+        concat!(
+            "# schema=nsb-healpix-starlight-candidate-v1\n",
+            "# ordering=nested\n",
+            "# representation=sparse\n",
+            "# nside=1\n",
+            "# flux_unit=ph_m-2_s-1\n",
+            "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n",
+            "0,1.0,0.1,0.2,0.25,5,1\n"
+        ),
+    )?;
+    let sha = checksum_io::sha256_file(&candidate)?;
+    let csv = temporary.path().join("runtime.csv");
+    let sidecar = temporary.path().join("runtime.toml");
+    execute_starlight(StarlightActionArgs {
+        operation: StarlightAction::Pack(PackArgs {
+            candidate_map: candidate.clone(),
+            expected_sha256: sha.clone(),
+            nside: 1,
+            output_csv: csv.clone(),
+            output_sidecar: sidecar.clone(),
+        }),
+    })?;
+    let packed = fs::read_to_string(&csv)?;
+    assert!(packed.contains("healpix_index"));
+    assert!(sidecar.is_file());
+
+    let failed_csv = temporary.path().join("should-not-exist.csv");
+    let error = execute_starlight(StarlightActionArgs {
+        operation: StarlightAction::Pack(PackArgs {
+            candidate_map: candidate,
+            expected_sha256: "0".repeat(64),
+            nside: 1,
+            output_csv: failed_csv.clone(),
+            output_sidecar: temporary.path().join("should-not-exist.toml"),
+        }),
+    });
+    assert!(error.is_err());
+    assert!(!failed_csv.exists(), "checksum drift must fail before publication");
+    Ok(())
+}
+
+fn synthetic_reference(
+    id: &str,
+    acquired_sha: Option<String>,
+) -> crate::starlight::validation::references::ReferenceEntry {
+    use crate::starlight::validation::references::{ReferenceEntry, ReferenceStatus};
+    ReferenceEntry {
+        id: id.to_string(),
+        citation: "Synthetic authors (2026), test reference".into(),
+        description: "synthetic test-only reference document".into(),
+        coverage: "all sky".into(),
+        wavelength_band_nm: [300.0, 650.0],
+        spectral_quantity: "photon radiance".into(),
+        transformation_to_target: "documented non-admissible literature source".into(),
+        acquisition_url: None,
+        license: "synthetic test fixture".into(),
+        status: if acquired_sha.is_some() {
+            ReferenceStatus::Acquired
+        } else {
+            ReferenceStatus::PendingAcquisition
+        },
+        sha256: acquired_sha,
+        filename: format!("{id}.dat"),
+        acquisition_notes: "local fixtures only".into(),
+    }
+}
+
+#[test]
+fn starlight_validation_cli_acquires_offline_and_transforms_registered_reference(
+) -> anyhow::Result<()> {
+    use crate::starlight::validation::references::ReferencesDocument;
+
+    let temporary = TempDir::new()?;
+    let source = temporary.path().join("original-reference.dat");
+    fs::write(&source, b"synthetic literature sample\n")?;
+    let sha = checksum_io::sha256_file(&source)?;
+    let id = "leinert-1998-diffuse-night-sky-brightness";
+    let document = ReferencesDocument {
+        schema_version: 1,
+        acquisition_required: false,
+        notes: "CLI routing test of acquired and pending references".into(),
+        references: vec![
+            synthetic_reference(id, Some(sha)),
+            synthetic_reference("manual-pending-reference", None),
+        ],
+    };
+    document.validate()?;
+    let references = temporary.path().join("references.toml");
+    fs::write(&references, toml::to_string(&document)?)?;
+    let workspace = temporary.path().join("reference-workspace");
+
+    // Bad bytes must not create an acquisition receipt.
+    let invalid = temporary.path().join("different.dat");
+    fs::write(&invalid, b"wrong source\n")?;
+    let error = execute_starlight_validation(StarlightValidationArgs {
+        command: StarlightValidationCommand::Acquire(StarlightValidationAcquireArgs {
+            references: references.clone(),
+            workspace: workspace.clone(),
+            sources: vec![(id.into(), invalid.display().to_string())],
+        }),
+    });
+    assert!(error.is_err(), "the pinned SHA must be checked on acquisition");
+    assert!(
+        !workspace.join("receipts").join(format!("{id}.json")).exists(),
+        "bad reference bytes may not be receipted"
+    );
+
+    // Local acquisition succeeds; the other reference remains manual.
+    execute_starlight(StarlightActionArgs {
+        operation: StarlightAction::Validation(StarlightValidationArgs {
+            command: StarlightValidationCommand::Acquire(StarlightValidationAcquireArgs {
+                references: references.clone(),
+                workspace: workspace.clone(),
+                sources: vec![(id.into(), source.display().to_string())],
+            }),
+        }),
+    })?;
+    assert!(workspace.join("receipts").join(format!("{id}.json")).is_file());
+
+    // Receipt-based resolution succeeds without an explicit source override.
+    execute_starlight_validation(StarlightValidationArgs {
+        command: StarlightValidationCommand::Transform(StarlightValidationTransformArgs {
+            references: references.clone(),
+            workspace: workspace.clone(),
+            nside: 1,
+            sources: Vec::new(),
+        }),
+    })?;
+    let status = workspace.join(id).join("transform-status-v1.json");
+    let status: Value = serde_json::from_slice(&fs::read(status)?)?;
+    assert_eq!(status["reference_id"], id);
+
+    // A caller-supplied source also exercises the explicit override branch.
+    execute_starlight_validation(StarlightValidationArgs {
+        command: StarlightValidationCommand::Transform(StarlightValidationTransformArgs {
+            references,
+            workspace,
+            nside: 1,
+            sources: vec![(id.into(), source.display().to_string())],
+        }),
+    })?;
+    Ok(())
+}
+
+#[test]
+fn starlight_validation_cli_rejects_unacquired_or_invalid_inputs() -> anyhow::Result<()> {
+    use crate::starlight::validation::references::ReferencesDocument;
+
+    let temporary = TempDir::new()?;
+    let references = temporary.path().join("refs.toml");
+    let workspace = temporary.path().join("workspace");
+    let invalid = execute_starlight_validation(StarlightValidationArgs {
+        command: StarlightValidationCommand::Acquire(StarlightValidationAcquireArgs {
+            references: references.clone(),
+            workspace: workspace.clone(),
+            sources: vec![],
+        }),
+    });
+    assert!(invalid.is_err());
+
+    fs::write(&references, "this is not TOML = [[[" )?;
+    assert!(execute_starlight_validation(StarlightValidationArgs {
+        command: StarlightValidationCommand::Transform(StarlightValidationTransformArgs {
+            references: references.clone(),
+            workspace: workspace.clone(),
+            nside: 128,
+            sources: vec![],
+        }),
+    })
+    .is_err());
+
+    let document = ReferencesDocument {
+        schema_version: 1,
+        acquisition_required: false,
+        notes: "Acquired references require content-addressed receipts".into(),
+        references: vec![
+            synthetic_reference(
+                "leinert-1998-diffuse-night-sky-brightness",
+                Some("a".repeat(64)),
+            ),
+            synthetic_reference("another-pending-reference", None),
+        ],
+    };
+    document.validate()?;
+    fs::write(&references, toml::to_string(&document)?)?;
+    let error = execute_starlight_validation(StarlightValidationArgs {
+        command: StarlightValidationCommand::Transform(StarlightValidationTransformArgs {
+            references,
+            workspace,
+            nside: 128,
+            sources: vec![],
+        }),
+    })
+    .expect_err("acquired entry without a receipt must fail closed");
+    assert!(format!("{error:#}").contains("no acquired bytes"), "{error:#}");
+
+    let missing = temporary.path().join("absent.toml");
+    assert!(execute_starlight(StarlightActionArgs {
+        operation: StarlightAction::Validation(StarlightValidationArgs {
+            command: StarlightValidationCommand::Run(StarlightValidationRunArgs {
+                preregistration: missing.clone(),
+                references: missing.clone(),
+                regions: temporary.path().join("absent-regions.json"),
+                candidate_map: temporary.path().join("absent-candidate.csv"),
+                candidate_map_sha256: None,
+                references_workspace: temporary.path().join("workspace"),
+                output: temporary.path().join("report"),
+            }),
+        }),
+    })
+    .is_err());
+    Ok(())
+}
+
+#[test]
+fn starlight_cli_diagnostic_dispatch_validates_override_pairs() -> anyhow::Result<()> {
+    let temporary = TempDir::new()?;
+    let workspace = temporary.path().join("workspace");
+    let missing = temporary.path().join("missing-config.toml");
+    let repo_root = temporary.path().to_path_buf();
+    let output = temporary.path().join("output.json");
+
+    // Baseline and map export must fail rather than invent missing assets.
+    assert!(execute_starlight(StarlightActionArgs {
+        operation: StarlightAction::Diagnose(StarlightDiagnoseArgs {
+            command: StarlightDiagnoseCommand::Baseline(StarlightDiagnoseBaselineArgs {
+                config: missing.clone(),
+                workspace: workspace.clone(),
+                repo_root: repo_root.clone(),
+                commit: "fixture".into(),
+                output: output.clone(),
+            }),
+        }),
+    })
+    .is_err());
+    assert!(execute_starlight_diagnose(StarlightDiagnoseArgs {
+        command: StarlightDiagnoseCommand::ExportMap(StarlightDiagnoseExportMapArgs {
+            workspace: workspace.clone(),
+            output: temporary.path().join("map.csv"),
+        }),
+    })
+    .is_err());
+
+    for (path, sha, expected_mismatch) in [
+        (None, None, false),
+        (Some(missing.clone()), None, true),
+        (None, Some("a".repeat(64)), true),
+        (Some(missing.clone()), Some("a".repeat(64)), false),
+    ] {
+        let result = execute_starlight_diagnose(StarlightDiagnoseArgs {
+            command: StarlightDiagnoseCommand::Suite(StarlightDiagnoseSuiteArgs {
+                config: missing.clone(),
+                workspace: workspace.clone(),
+                repo_root: repo_root.clone(),
+                commit: "fixture".into(),
+                output_dir: temporary.path().join("suite"),
+                photometric_artifact_path: path,
+                photometric_artifact_sha256: sha,
+            }),
+        });
+        let error = result.expect_err("missing config or partial override must fail");
+        if expected_mismatch {
+            assert!(
+                format!("{error:#}").contains("requires both"),
+                "partial overrides must explain both required options: {error:#}"
+            );
+        }
+    }
+    assert!(!output.is_file());
+    Ok(())
+}
+
+#[test]
+fn starlight_runtime_admission_cli_fails_closed_without_signed_inputs(
+) -> anyhow::Result<()> {
+    let temporary = TempDir::new()?;
+    let root = temporary.path();
+    let missing = root.join("missing-release-candidate.toml");
+    let csv = root.join("runtime.csv");
+    let sidecar = root.join("runtime.toml");
+
+    assert!(execute_starlight(StarlightActionArgs {
+        operation: StarlightAction::StageRuntime(StageRuntimeArgs {
+            release_candidate: missing.clone(),
+            repository_root: root.to_path_buf(),
+            output_csv: csv.clone(),
+            output_sidecar: sidecar.clone(),
+        }),
+    })
+    .is_err());
+
+    for apply in [false, true] {
+        assert!(execute_starlight(StarlightActionArgs {
+            operation: StarlightAction::Promote(PromoteArgs {
+                release_candidate: missing.clone(),
+                redistribution_decision: root.join("absent-review.json"),
+                repository_root: root.to_path_buf(),
+                output: Some(root.join("draft.toml")),
+                apply,
+            }),
+        })
+        .is_err());
+    }
+
+    assert!(!csv.exists());
+    assert!(!sidecar.exists());
+    assert!(!root.join("draft.toml").exists());
+    Ok(())
+}
