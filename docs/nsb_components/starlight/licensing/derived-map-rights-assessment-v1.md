@@ -84,7 +84,31 @@ ESA license, Creative Commons **BY-NC 3.0 IGO** grants specified
 noncommercial uses, not general unrestricted downstream commercialization.
 Free downloads/sponsorship do not replace a purpose-and-use review.
 
-## 4. Evidence needed before approving the precise map
+## 4. Source-specific rights verification update (2026-10-08)
+
+This update uses source-specific records instead of inferring licenses from the
+older ESA Hipparcos/Tycho catalogue terms:
+
+| Upstream source | Primary source evidence | Current rights classification |
+| --- | --- | --- |
+| Tycho-2, CDS `I/259` | [Official CDS catalogue record](https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259) explicitly declares CC BY-NC 3.0 IGO | **Verified source licence**, including the 20 pinned Tycho-2 segments; attribution and noncommercial restrictions apply where relevant |
+| Hipparcos-2, CDS `I/311` | [Official van Leeuwen catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html) gives provenance and references but no explicit reuse/redistribution licence | **Not yet source-licensed for the exact reduction** |
+| XHIP, CDS `V/137D` | [Official Anderson–Francis catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/V/137D?format=html) identifies the authors and multiple upstream catalogues but no express redistribution licence | **No explicit source grant verified**; cite source/CDS, review derived-map rights or request written permission |
+| SVO `Hipparcos/Hipparcos.Hp_bes` | [Official SVO VO service documentation](https://svo2.cab.inta-csic.es/theory/fps/index.php?mode=voservice) describes retrieving transmission curves and requests citation, without an explicit reuse licence | **No explicit source grant verified**; review rights to underlying Bessell 2000 curve separately |
+| Gaia DR3 | [ESA Gaia data licensing](https://www.cosmos.esa.int/web/gaia-users/license) | CC BY-NC 3.0 IGO, subject to downstream scope and restrictions |
+
+A source-specific license is not the same as authorization for the exact
+aggregate map under all distribution channels. Conversely, not finding
+a catalog-level license does not prove that mathematical integrated flux
+requires permission: the issue #103 reviewer must document that determination.
+
+**Unaltered frozen input identity:** the 20 Tycho-2 SHA-256 values in
+`release-candidate-v1.toml` identify the same data shards. Their original
+`license_or_terms_url` fields are historical provenance, not the exhaustive
+license review; this document and `artifact-inventory-v1.toml` provide the
+new source-specific citation without changing the signed science output.
+
+## 5. Evidence needed before approving the precise map
 
 1. **Pin actual output scope** separately for Git repository, GitHub Release,
    `.crate`, Python wheel/sdist, Zenodo, and optional remote downloads.
@@ -109,7 +133,7 @@ Free downloads/sponsorship do not replace a purpose-and-use review.
    permission from the relevant copyright/database-right holder(s).
    Record the decision, reviewer/date and checksums in #103.
 
-## 5. Current conclusion and distribution boundary
+## 6. Current conclusion and distribution boundary
 
 **Preliminary technical conclusion:** the spectral reconstruction described
 above uses XHIP classifications and SVO filter transmission as computational
