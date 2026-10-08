@@ -208,7 +208,6 @@ fn repository_does_not_embed_restricted_gaia_or_calspec_inputs() -> Result<()> {
     Ok(())
 }
 
-
 #[derive(Debug, Deserialize)]
 struct FrozenReviewBundle {
     artifacts: Vec<FrozenReviewArtifact>,
@@ -275,7 +274,9 @@ fn verify_frozen_non_runtime_starlight(base: &Path) -> Result<BTreeSet<String>> 
     let mut protected = BTreeSet::new();
     for (repository_path, expected_sha256) in hashes {
         if expected_sha256.len() != 64
-            || !expected_sha256.bytes().all(|value| value.is_ascii_hexdigit())
+            || !expected_sha256
+                .bytes()
+                .all(|value| value.is_ascii_hexdigit())
         {
             bail!("invalid frozen SHA-256 for {repository_path}");
         }
