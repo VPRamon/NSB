@@ -190,6 +190,15 @@ jobs:
           crate="$(find target/package -maxdepth 1 -name 'nsb-*.crate' -print -quit)"
           test -n "$crate"
           contents="$(tar -tzf "$crate")"
+          if ! grep -Fq "/THIRD_PARTY_NOTICES.md" <<<"$contents"; then
+            echo "::error::published crate omits required scientific-data notices" >&2
+            exit 1
+          fi
+          crate_bytes="$(stat -c %s "$crate")"
+          if (( crate_bytes > 10485760 )); then
+            echo "::error::nsb crate exceeds 10 MiB upload limit ($crate_bytes bytes)" >&2
+            exit 1
+          fi
           for asset in \
             starlight_nside128.csv \
             starlight_nside128.release.csv \
