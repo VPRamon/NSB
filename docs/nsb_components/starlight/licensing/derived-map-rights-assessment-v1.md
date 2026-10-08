@@ -94,8 +94,17 @@ older ESA Hipparcos/Tycho catalogue terms:
 | Tycho-2, CDS `I/259` | [Official CDS catalogue record](https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259) explicitly declares CC BY-NC 3.0 IGO | **Verified source licence**, including the 20 pinned Tycho-2 segments; attribution and noncommercial restrictions apply where relevant |
 | Hipparcos-2, CDS `I/311` | [Official van Leeuwen catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html) gives provenance and references but no explicit reuse/redistribution licence | **Not yet source-licensed for the exact reduction** |
 | XHIP, CDS `V/137D` | [Official Anderson–Francis catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/V/137D?format=html) identifies the authors and multiple upstream catalogues but no express redistribution licence | **No explicit source grant verified**; cite source/CDS, review derived-map rights or request written permission |
-| SVO `Hipparcos/Hipparcos.Hp_bes` | [Official SVO VO service documentation](https://svo2.cab.inta-csic.es/theory/fps/index.php?mode=voservice) describes retrieving transmission curves and requests citation, without an explicit reuse licence | **No explicit source grant verified**; review rights to underlying Bessell 2000 curve separately |
+| SVO `Hipparcos/Hipparcos.Hp_bes` | Maintainer-provided SVO/FPS team email (signed Enrique, reported 2026-10-08) states that informing NSB users of the SVO FPS and Bessell (2000) usage and including specific credits/references is sufficient **on SVO's part** | **Acknowledgement conditions for computed results documented**; no express grant for republishing the original curve. Preserve original reply privately as review evidence. |
 | Gaia DR3 | [ESA Gaia data licensing](https://www.cosmos.esa.int/web/gaia-users/license) | CC BY-NC 3.0 IGO, subject to downstream scope and restrictions |
+
+The exact acknowledgement and FPS/Bessell citations requested by SVO are
+reproduced in [ATTRIBUTION.md](ATTRIBUTION.md#svofps-exact-acknowledgement-and-requested-references)
+and both project and published-crate notices. This is **direct correspondence
+provided by the maintainer**, not independently verified license terms; the
+original email should be retained for the authorized #103 review. SVO did not
+explicitly waive rights to the source XML/throughput table. Clarify the
+commercial-use/channel scope if an unequivocal waiver or written permission
+for that scope is required.
 
 A source-specific license is not the same as authorization for the exact
 aggregate map under all distribution channels. Conversely, not finding
