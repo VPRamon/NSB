@@ -39,11 +39,36 @@ and [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md).
   Zenodo DOI 10.5281/zenodo.8063930.
 - **XHIP V/137D:** catalogue-specific redistribution licence not verified;
   CDS/VizieR scientific-use and citation conditions apply to access.
-- **SVO Hipparcos Hp_bes passband:** cite the SVO Filter Profile Service and
-  Bessell (2000); explicit redistribution licence not verified.
+- **SVO Hipparcos Hp_bes passband:** according to the maintainer-provided
+  reply from the SVO/FPS team, users should be informed of SVO's role in
+  NSB's calculations and receive the acknowledgement and citations below.
+  This does not grant redistribution of the original response curve.
 
 No raw upstream catalogue, atlas, or filter curve is intended to be bundled in
 release packages. This notice cannot supply a missing upstream permission.
+
+### SVO/FPS acknowledgement for Starlight-derived calculations
+
+The SVO team provided the following requested acknowledgement via
+maintainer-reported correspondence (2026-10-08), for use of
+`Hipparcos/Hipparcos.Hp_bes` (Bessell 2000):
+
+> This research has made use of the SVO Filter Profile Service "Carlos Rodrigo", funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
+
+SVO/FPS references requested in the reply:
+
+- Rodrigo, C., Cruz, P., Aguilar, J.F., et al. (2024):
+  <https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract>.
+- Rodrigo, C., Solano, E., Bayo, A. (2012):
+  <https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract>.
+- Rodrigo, C., Solano, E. (2020):
+  <https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract>.
+- Bessell (2000), Hipparcos Hp passband:
+  <https://ui.adsabs.harvard.edu/abs/2000PASP..112..961B/abstract>.
+
+The original SVO curve is not bundled by the `nsb` crate. These credits
+also remain applicable when the scientific computation is redistributed
+as a derived map; they do not grant a licence for the original table.
 
 ## Other bundled runtime assets
 
