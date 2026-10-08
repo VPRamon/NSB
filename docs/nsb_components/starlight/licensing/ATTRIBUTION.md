@@ -73,12 +73,20 @@ none of the original catalogue, SVO response, or CK04 spectral-file bytes
 belongs in crates.io/PyPI wheels. This does **not** itself prove permission to
 redistribute the resulting map.
 
-- **Hipparcos/Tycho (ESA)**: the original ESA Hipparcos and Tycho catalogues
-  carry CC BY-NC 3.0 IGO and require "Credit: ESA":
+- **Original Hipparcos/Tycho (ESA)**: the ESA 1997 catalogues carry
+  CC BY-NC 3.0 IGO and require "Credit: ESA":
   <https://www.cosmos.esa.int/web/hipparcos/catalogues>.
-  The candidate uses a later Hipparcos-2 reduction (CDS I/311) and Tycho-2
-  (CDS I/259); the original ESA notice alone does not establish the full
-  licence status of those later compilations.
+- **Tycho-2 (Høg et al. 2000, CDS I/259)**: the **Tycho-2 catalogue itself**
+  is explicitly listed by CDS/VizieR as **CC BY-NC 3.0 IGO**, covering
+  the dataset represented by the 20 pinned `tyc2.dat.00..19` shards.
+  Credit ESA, Høg et al. (2000), and CDS/VizieR as appropriate. Source-specific
+  license evidence: <https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259>.
+- **Hipparcos-2 (van Leeuwen 2007, CDS I/311)**: this is an independent
+  re-reduction of Hipparcos raw observations. No source-specific licence
+  is recorded in the catalogue's public ReadMe:
+  <https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html>.
+  The ESA 1997 grant alone must not be treated as an express grant for
+  every element of the 2007 reduction.
 - **XHIP (Anderson and Francis 2012, CDS V/137D)**: cite the original catalogue
   and CDS/VizieR (DOI 10.26093/cds/vizier). Its catalogue-specific grant to
   redistribute XHIP bytes has **not** been verified. CDS's scientific-use
