@@ -31,3 +31,27 @@ reviewer.
 Until a Gaia-derived product has completed that process, it remains external to
 the NSB release. Generating or validating a candidate does not make it a bundled
 runtime asset.
+
+## Verified licenses and unresolved permissions (candidate 2026-10-06)
+
+- **Gaia DR3 GaiaSource/XP and Gaia EDR3 crossmatch:** ESA CC BY-NC 3.0 IGO.
+- **MAST REFERENCE-ATLASES CK04 and CALSPEC:** HLSP CC BY 4.0
+  (<https://archive.stsci.edu/hlsp/reference-atlases>).
+- **Cantat-Gaudin 2023 selection-function dataset:** Zenodo CC BY 4.0
+  (<https://zenodo.org/records/8063930>).
+- **ESA original Hipparcos/Tycho:** CC BY-NC 3.0 IGO; provenance for later
+  Hipparcos-2 (CDS I/311) / Tycho-2 (CDS I/259) must be separately checked.
+- **XHIP V/137D:** CDS/VizieR research access/citation conditions;
+  no catalogue-specific redistributable CC or SPDX grant verified.
+- **SVO Hp_bes:** public photometric profile and citation requirements;
+  no explicit curve redistribution grant verified.
+
+Never fill unknown upstream licences with AGPL, CC BY, or CC BY-NC by
+analogy. `license` strings that begin with `NO_EXPLICIT_` are disclosure of a
+remaining blocker, **not a license grant**. All original scientific source
+files and checksum pins are preserved.
+
+The exact derived candidate and report are already tracked in the Git
+repository; their `git_repository` distribution status must be considered
+separately from the non-distributed crates.io/PyPI production assets.
+The issue #103 human redistribution review remains `pending`.
