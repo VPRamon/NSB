@@ -83,5 +83,5 @@ belong to `nsb-data-tools`; the runtime library performs no catalogue downloads.
 ## License
 
 AGPL-3.0-only. Scientific assets and third-party dependencies retain their own
-licensing and attribution requirements; see the repository notices and
-manifests.
+licensing and attribution requirements; see the [notices included in this
+crate](THIRD_PARTY_NOTICES.md) and the repository asset manifests.

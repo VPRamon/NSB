@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 pub const PREREGISTRATION_SCHEMA_VERSION: u32 = 1;
 pub const TARGET_BAND_NM: [u16; 2] = [300, 650];
 pub const TARGET_FLUX_UNIT: &str = "ph_m-2_s-1";
-pub const EXPECTED_CANDIDATE_MAP_PATH: &str = "crates/nsb/data/starlight_nside128.csv";
 
 pub const REQUIRED_METRICS: [&str; 12] = [
     "signed_bias",
@@ -125,11 +124,11 @@ impl Preregistration {
 
 impl CandidateIdentity {
     fn validate(&self) -> Result<()> {
-        if self.map_path != EXPECTED_CANDIDATE_MAP_PATH {
-            bail!(
-                "preregistration candidate map_path must be pinned to {EXPECTED_CANDIDATE_MAP_PATH}, found {}",
-                self.map_path
-            );
+        require_text("candidate map_path", &self.map_path)?;
+        if std::path::Path::new(&self.map_path).is_absolute()
+            || self.map_path.split('/').any(|component| component == "..")
+        {
+            bail!("candidate map_path must be a repository-relative path");
         }
         require_text("candidate map_schema", &self.map_schema)?;
         require_text(
@@ -190,8 +189,8 @@ mod tests {
             issue: 87,
             title: "Starlight independent validation preregistration".to_string(),
             candidate: CandidateIdentity {
-                map_path: EXPECTED_CANDIDATE_MAP_PATH.to_string(),
-                map_schema: "nsb-healpix-starlight-candidate-v5".to_string(),
+                map_path: "generated/starlight-candidate.csv".to_string(),
+                map_schema: "nsb-healpix-starlight-candidate-v1".to_string(),
                 checksum_pinning_status: "pending-regeneration-after-94".to_string(),
                 checksum_note:
                     "checksum may change after the #94 uncertainty audit regenerates the map"
@@ -238,9 +237,9 @@ mod tests {
     }
 
     #[test]
-    fn wrong_candidate_map_path_is_rejected() {
+    fn unsafe_candidate_map_path_is_rejected() {
         let mut document = valid();
-        document.candidate.map_path = "somewhere/else.csv".to_string();
+        document.candidate.map_path = "../somewhere/else.csv".to_string();
         assert!(document.validate().is_err());
     }
 

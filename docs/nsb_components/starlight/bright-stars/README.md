@@ -15,12 +15,10 @@ Implementation lives in `crates/nsb-data-tools/src/starlight/bright_stars/`.
 | Spectral coverage | The combined artifact includes the CK04-based 300–336 nm completion plus 336–650 nm reconstruction; the measured-only artifact remains diagnostic and fails closed in a combined build |
 | Replacement semantics | Gaia `source_id` suppression + supplement admission, checked atomically |
 | Runtime config | `starlight.bright_star_supplement` optional pin during candidate generation |
-| Frozen candidate | **Included** in the #211 combined 300–650 nm candidate with checksum-pinned provenance |
-| Bundled runtime activation | **off** while #103 redistribution approval is pending |
+| Bundled runtime activation | **Not present** in NSB 0.1.0; future admission requires explicit review |
 
-The current release-candidate bundle pins candidate-level technical and external
-cross-implementation validation. This page does not independently promote raw
-catalogue inputs or authorize redistribution.
+This page does not independently promote raw catalogue inputs or authorize
+redistribution.
 
 Do not embed Hipparcos, Tycho-2, or XHIP catalogue bytes in the NSB repository
 or published packages.

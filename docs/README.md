@@ -62,7 +62,7 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 | Document | Purpose |
 | --- | --- |
 | [Scientific-model specification](specifications/scientific-model.md) | Physical quantities, query model, component composition, and window-search concepts |
-| [Atmospheric-transport specification](specifications/atmospheric-transport.md) | Generic identity/direct transport layer, Siderust ownership boundary, and component migration status |
+| [Atmospheric-transport specification](specifications/atmospheric-transport.md) | Generic identity/direct transport layer, Siderust ownership boundary, and current component status |
 | [Model-maturity specification](specifications/model-maturity.md) | Allowed scientific claims for every component and profile |
 | [Scientific-metadata specification](specifications/scientific-metadata.md) | Provenance, maturity, uncertainty, validated domain, and diagnostic-band semantics |
 | [Validation specification](specifications/validation.md) | Evidence, tolerances, limitations, and remaining validation gaps |
@@ -105,9 +105,8 @@ fallback.
 - Component-specific science, generation, and validation live under
   `docs/nsb_components/`.
 - Release procedures live under `docs/operations/`.
-- Historical roadmaps, audits, migrations, and duplication registers are not
-  retained as documentation; active requirements belong in their current
-  specification.
+- Documentation describes the current public contracts and supported workflows;
+  active requirements belong in their authoritative specification.
 - Rust public APIs are documented in rustdoc.
 - Pages should state status, audience, scope, and important non-goals whenever
   misuse would affect scientific interpretation.

@@ -6,12 +6,10 @@ combined candidates. The repository intentionally does not embed the large
 training/reference data or the production model artifact itself.
 
 The generic checked-in `crates/nsb-data-tools/config/starlight-production.toml`
-therefore remains a measured-only 336–650 nm configuration. The frozen combined
-candidate finalized in #211 was instead produced with
-`starlight-production-300-650.ladon.toml`, which pins the external UV artifact,
-photometric model, selection-function artifact, and their evidence/checksums on
-the production filesystem. The resulting model identity and digest are carried
-into the merge report and release-candidate evidence.
+therefore remains a measured-only 336–650 nm configuration. A future combined
+candidate must pin its external UV artifact, photometric model,
+selection-function artifact, and evidence/checksums outside the release tree.
+NSB 0.1.0 bundles no Gaia-derived Starlight map.
 
 Training remains an offline maintainer operation over immutable,
 flux-calibrated reference data with disjoint holdout evidence. The runtime and

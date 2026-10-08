@@ -1,4 +1,4 @@
-//! Ties the frozen `docs/nsb_components/starlight/validation/*` documents to
+//! Ties the checked-in `docs/nsb_components/starlight/validation/*` contracts to
 //! the schemas that read them, so the documentation cannot silently drift
 //! out of sync with the Rust types that parse it.
 
@@ -6,16 +6,11 @@ use anyhow::{bail, Context, Result};
 use nsb_data_tools::starlight::validation::preregistration::Preregistration;
 use nsb_data_tools::starlight::validation::references::ReferencesDocument;
 use nsb_data_tools::starlight::validation::regions::RegionsDocument;
-use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 
 fn docs_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/nsb_components/starlight/validation")
-}
-
-fn repository_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
 #[test]
@@ -78,44 +73,6 @@ fn regions_document_parses_and_validates_at_the_candidate_map_nside() -> Result<
         if !document.regions.iter().any(|region| region.id == id) {
             bail!("regions-v1.json is missing required region {id}");
         }
-    }
-    Ok(())
-}
-
-#[test]
-fn external_validation_is_the_authoritative_scientific_gate() -> Result<()> {
-    let obsolete = docs_dir().join("scientific-review-decision-v1.json");
-    if obsolete.exists() {
-        bail!(
-            "obsolete validation/scientific-review-decision-v1.json must not exist; \
-             scientific readiness is established by checksum-pinned external validation"
-        );
-    }
-
-    let obsolete_release = repository_root()
-        .join("docs/nsb_components/starlight/release-candidate/scientific-review-decision-v1.json");
-    if obsolete_release.exists() {
-        bail!("manual scientific-decision ceremony must not remain authoritative");
-    }
-
-    let path = repository_root().join(
-        "docs/nsb_components/starlight/validation/results/issue-207-external-cross-validation-v1.json",
-    );
-    let raw = fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
-    let value: Value =
-        serde_json::from_str(&raw).with_context(|| format!("parse {}", path.display()))?;
-    let object = value
-        .as_object()
-        .context("external validation must be a JSON object")?;
-    if object.get("status").and_then(Value::as_str) != Some("passed")
-        || object.get("passed").and_then(Value::as_bool) != Some(true)
-    {
-        bail!("external scientific validation must pass");
-    }
-    if object.get("candidate_sha256").and_then(Value::as_str)
-        != Some("7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d")
-    {
-        bail!("external validation must pin the final issue #207 candidate SHA");
     }
     Ok(())
 }

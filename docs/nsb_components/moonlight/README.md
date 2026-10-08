@@ -13,7 +13,7 @@ distance, wavelength, and atmospheric aerosol properties.
 
 Jones/KS91 already embed atmospheric scattering in the observable. Do **not**
 feed Moonlight radiance through `nsb::transport::TransportModel::Direct` or a
-future scattered path without an explicit migration that removes the legacy
+future scattered path without an explicit transport change that removes the component-specific
 scattering terms; that would double-count atmosphere. See
 [Atmospheric transport](../../specifications/atmospheric-transport.md).
 

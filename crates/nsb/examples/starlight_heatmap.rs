@@ -9,7 +9,7 @@
 //!
 //! ```text
 //! cargo run --release --locked -p nsb --example starlight_heatmap -- \
-//!   --map crates/nsb/data/starlight_nside128.csv \
+//!   --map /path/to/generated-starlight-candidate.csv \
 //!   --output starlight_heatmap.png
 //! ```
 
@@ -27,7 +27,6 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
-const DEFAULT_MAP: &str = "crates/nsb/data/starlight_nside128.csv";
 const DEFAULT_OUTPUT: &str = "starlight_heatmap.png";
 const IMAGE_WIDTH: u32 = 1800;
 const IMAGE_HEIGHT: u32 = 920;
@@ -122,7 +121,7 @@ fn parse_args<I>(args: I) -> AppResult<Option<Args>>
 where
     I: IntoIterator<Item = String>,
 {
-    let mut map = PathBuf::from(DEFAULT_MAP);
+    let mut map = None;
     let mut output = PathBuf::from(DEFAULT_OUTPUT);
     let mut normalization = Normalization::Log;
     let mut iter = args.into_iter();
@@ -130,7 +129,7 @@ where
     while let Some(arg) = iter.next() {
         match arg.as_str() {
             "-h" | "--help" => return Ok(None),
-            "--map" => map = PathBuf::from(next_value(&mut iter, "--map")?),
+            "--map" => map = Some(PathBuf::from(next_value(&mut iter, "--map")?)),
             "--output" => output = PathBuf::from(next_value(&mut iter, "--output")?),
             "--norm" => normalization = Normalization::parse(&next_value(&mut iter, "--norm")?)?,
             other => {
@@ -142,6 +141,7 @@ where
         }
     }
 
+    let map = map.ok_or_else(|| invalid_input("--map is required"))?;
     if !map.is_file() {
         return Err(
             invalid_input(format!("candidate map does not exist: {}", map.display())).into(),
@@ -182,7 +182,7 @@ fn print_help() {
     println!(
         "starlight_heatmap - render the generated Starlight HEALPix candidate\n\n\
 Usage:\n  cargo run --release --locked -p nsb --example starlight_heatmap -- [OPTIONS]\n\n\
-Options:\n  --map <candidate.csv>   Candidate map [default: {DEFAULT_MAP}]\n  --output <path.png>     Output PNG [default: {DEFAULT_OUTPUT}]\n  --norm <log|linear>     Colour normalization [default: log]\n  -h, --help              Show this help\n\n\
+Options:\n  --map <candidate.csv>   Candidate map (required)\n  --output <path.png>     Output PNG [default: {DEFAULT_OUTPUT}]\n  --norm <log|linear>     Colour normalization [default: log]\n  -h, --help              Show this help\n\n\
 Projection: Galactic Mollweide with l=0° at centre and longitude increasing left.\n\
 Quantity: integrated photon flux per HEALPix pixel, ph m^-2 s^-1."
     );
@@ -676,7 +676,7 @@ mod tests {
     use super::*;
 
     const FIXTURE: &str = concat!(
-        "# schema=nsb-healpix-starlight-candidate-v5\n",
+        "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# map_type=healpix\n",
         "# coordinate_frame=galactic\n",
         "# ordering=nested\n",

@@ -33,31 +33,19 @@ fn repository_scientific_asset_registry_verify() -> Result<()> {
 }
 
 #[test]
-fn manifest_registers_only_one_gaia_candidate_map() -> Result<()> {
+fn first_release_registry_excludes_unapproved_starlight_products() -> Result<()> {
     let raw = fs::read_to_string(repository_manifest_path())?;
     let manifest: Manifest = toml::from_str(&raw)?;
-    let candidates = manifest
+    let starlight = manifest
         .assets
         .iter()
-        .filter(|asset| asset.schema == "nsb-healpix-starlight-candidate-v5")
+        .filter(|asset| asset.path.contains("starlight") || asset.schema.contains("starlight"))
         .map(|asset| asset.path.as_str())
         .collect::<Vec<_>>();
-    if candidates != ["starlight_nside128.csv"] {
-        bail!("expected exactly one Gaia-derived canonical map, found {candidates:?}");
-    }
-    let candidate = manifest
-        .assets
-        .iter()
-        .find(|asset| asset.path == "starlight_nside128.csv")
-        .context("canonical Gaia candidate is missing")?;
-    if candidate.header.get("representation").map(String::as_str) != Some("sparse")
-        || candidate
-            .header
-            .get("omitted_pixel_semantics")
-            .map(String::as_str)
-            != Some("zero_flux_and_source_counts")
-    {
-        bail!("canonical Gaia candidate lacks the sparse representation contract");
+    if !starlight.is_empty() {
+        bail!(
+            "first public release must not register unapproved Starlight products: {starlight:?}"
+        );
     }
     Ok(())
 }
@@ -96,11 +84,24 @@ fn verify(manifest_path: &Path) -> Result<()> {
         verify_asset(base, asset)?;
     }
 
+    // These four frozen files are deliberately retained in Git for scientific
+    // reproducibility but are *not* production assets in the runtime registry.
+    // Do not silently whitelist them: verify their exact hashes against the
+    // independently pinned review bundle/runtime identity before excluding
+    // them from the registered production asset set.
+    let frozen = verify_frozen_non_runtime_starlight(base)?;
+    if !registered.is_disjoint(&frozen) {
+        bail!("frozen non-production Starlight is incorrectly registered as runtime data");
+    }
     let discovered = discover_assets(base)?;
-    if registered != discovered {
-        let missing: Vec<_> = discovered.difference(&registered).cloned().collect();
-        let stale: Vec<_> = registered.difference(&discovered).cloned().collect();
-        bail!("asset registry mismatch; unregistered={missing:?}, missing_files={stale:?}");
+    let unregistered: Vec<_> = discovered
+        .difference(&registered)
+        .filter(|path| !frozen.contains(*path))
+        .cloned()
+        .collect();
+    let stale: Vec<_> = registered.difference(&discovered).cloned().collect();
+    if !unregistered.is_empty() || !stale.is_empty() {
+        bail!("asset registry mismatch; unregistered={unregistered:?}, missing_files={stale:?}");
     }
 
     Ok(())
@@ -205,6 +206,95 @@ fn repository_does_not_embed_restricted_gaia_or_calspec_inputs() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct FrozenReviewBundle {
+    artifacts: Vec<FrozenReviewArtifact>,
+}
+
+#[derive(Debug, Deserialize)]
+struct FrozenReviewArtifact {
+    id: String,
+    path: String,
+    sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct FrozenRuntimeAssets {
+    candidate_path: String,
+    candidate_sha256: String,
+    runtime_map_path: String,
+    runtime_map_sha256: String,
+    runtime_sidecar_path: String,
+    runtime_sidecar_sha256: String,
+}
+
+/// Verify the repository-only candidate payloads without making them
+/// production-registered data. Fail closed on paths, missing files, or hashes.
+fn verify_frozen_non_runtime_starlight(base: &Path) -> Result<BTreeSet<String>> {
+    let repository = base.join("../../..");
+    let review: FrozenReviewBundle = toml::from_str(&fs::read_to_string(
+        repository.join("docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml"),
+    )?)?;
+    let runtime: FrozenRuntimeAssets = toml::from_str(&fs::read_to_string(
+        repository.join("docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"),
+    )?)?;
+
+    const CANDIDATE: &str = "crates/nsb/data/starlight_nside128.csv";
+    const REPORT: &str = "crates/nsb/data/merge_report.json";
+    const MAP: &str = "crates/nsb/data/starlight_nside128.release.csv";
+    const SIDECAR: &str = "crates/nsb/data/starlight_nside128.manifest.toml";
+
+    if runtime.candidate_path != CANDIDATE
+        || runtime.runtime_map_path != MAP
+        || runtime.runtime_sidecar_path != SIDECAR
+    {
+        bail!("frozen runtime identities use unexpected Starlight paths");
+    }
+
+    let mut hashes = BTreeMap::new();
+    for (id, expected_path) in [("candidate_map", CANDIDATE), ("merge_report", REPORT)] {
+        let matches = review
+            .artifacts
+            .iter()
+            .filter(|artifact| artifact.id == id)
+            .collect::<Vec<_>>();
+        if matches.len() != 1 || matches[0].path != expected_path {
+            bail!("frozen review bundle must pin exactly one {id} at {expected_path}");
+        }
+        hashes.insert(expected_path, matches[0].sha256.as_str());
+    }
+    if hashes.get(CANDIDATE) != Some(&runtime.candidate_sha256.as_str()) {
+        bail!("candidate identity disagrees between frozen review and runtime metadata");
+    }
+    hashes.insert(MAP, &runtime.runtime_map_sha256);
+    hashes.insert(SIDECAR, &runtime.runtime_sidecar_sha256);
+
+    let mut protected = BTreeSet::new();
+    for (repository_path, expected_sha256) in hashes {
+        if expected_sha256.len() != 64
+            || !expected_sha256
+                .bytes()
+                .all(|value| value.is_ascii_hexdigit())
+        {
+            bail!("invalid frozen SHA-256 for {repository_path}");
+        }
+        let relative = repository_path
+            .strip_prefix("crates/nsb/data/")
+            .context("review bundle references a path outside crates/nsb/data")?;
+        let actual = nsb_data_tools::platform::checksum_io::sha256_file(&base.join(relative))?;
+        if actual != expected_sha256 {
+            bail!(
+                "frozen non-runtime Starlight checksum mismatch for {relative}: expected {expected_sha256}, actual {actual}"
+            );
+        }
+        protected.insert(relative.to_string());
+    }
+    if protected.len() != 4 {
+        bail!("expected exactly four frozen Starlight non-runtime files");
+    }
+    Ok(protected)
 }
 
 fn discover_assets(base: &Path) -> Result<BTreeSet<String>> {

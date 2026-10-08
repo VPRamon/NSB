@@ -72,11 +72,6 @@ The first-release `Leinert1998` model owns its bundled Leinert brightness
 table and bundled solar reference spectrum as implementation/provenance inputs.
 They are not independently replaceable through the stable application API.
 
-Earlier pre-release code exposed caller-defined `ZodiacalBrightnessGrid`,
-`ZodiacalBrightnessModel`, `ZodiacalLight`, and solar-spectrum replacement.
-Those paths did not provide a scientific admission contract, did not participate
-correctly in evaluator configuration/provenance, and created a second evaluation
-API. They are therefore not part of the first stable surface.
 
 A future custom grid, custom solar spectrum, alternative scientific model, or
 site-calibrated extinction path should first define validation, admission, and

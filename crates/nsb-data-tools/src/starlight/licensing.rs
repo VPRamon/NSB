@@ -1,18 +1,10 @@
-//! Versioned, fail-closed redistribution/licensing review contract (#88).
+//! Versioned, fail-closed redistribution/licensing review contract.
 //!
-//! This module parses the immutable artifact inventory
-//! (`docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml`)
-//! and the paired human decision record
-//! (`redistribution-review-decision-v1.json`), then enforces fail-closed
-//! admission rules for the promotion workflow (#102). It never grants
-//! approval itself: only a recorded `approved` or `approved_with_conditions`
-//! decision, with a named reviewer, a matching inventory checksum, matching
-//! per-artifact checksums, and authorized channels for every distributed
-//! artifact, can satisfy [`RedistributionReview::require_approved`].
-//!
-//! The human decision is recorded and owned exclusively by issue #103; this
-//! module cannot manufacture consent, only validate the shape and internal
-//! consistency of a decision that a human already recorded.
+//! The promotion workflow consumes an artifact inventory and an authorized
+//! human decision record supplied with the candidate evidence. NSB 0.1.0 does
+//! not check in or redistribute a Gaia-derived production Starlight candidate.
+//! This module validates the shape, checksums, channels, and conditions of any
+//! future promotion evidence; it never grants approval itself.
 
 use crate::platform::checksum_io;
 use crate::starlight::conditions::{

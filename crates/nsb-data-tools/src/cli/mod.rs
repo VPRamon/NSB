@@ -204,7 +204,7 @@ enum StarlightAction {
     Publish(CommonArgs),
     /// Independent validation pipeline for issue #102 (acquire references, run comparisons).
     Validation(StarlightValidationArgs),
-    /// Pack a frozen candidate-v5 map into a runtime-loadable HEALPix CSV (#102).
+    /// Pack a checksum-pinned candidate map into a runtime-loadable HEALPix CSV.
     Pack(PackArgs),
     /// Stage a provenance-complete runtime map without authorizing redistribution.
     StageRuntime(StageRuntimeArgs),
@@ -254,7 +254,7 @@ enum StarlightDiagnoseCommand {
     Baseline(StarlightDiagnoseBaselineArgs),
     /// Run Phases 1–6 diagnostic accounting and ablation on smoke partitions.
     Suite(StarlightDiagnoseSuiteArgs),
-    /// Export a sparse candidate-v5 CSV from merged workspace shards.
+    /// Export a sparse candidate CSV from merged workspace shards.
     ExportMap(StarlightDiagnoseExportMapArgs),
     /// Export a diagnostic combined-candidate measured-subcomponent map from frozen shards (#182 Experiment A).
     ///
@@ -290,7 +290,7 @@ struct StarlightDiagnoseSuiteArgs {
     commit: String,
     #[arg(long)]
     output_dir: PathBuf,
-    /// Override photometric artifact path (for ablation with legacy/miscalibrated models).
+    /// Override photometric artifact path for calibration ablation studies.
     #[arg(long)]
     photometric_artifact_path: Option<PathBuf>,
     #[arg(long)]
@@ -436,7 +436,7 @@ struct PromoteArgs {
 
 #[derive(Debug, Args)]
 struct PackArgs {
-    /// Sparse candidate-v5 HEALPix CSV. Bytes are never rewritten.
+    /// Sparse candidate HEALPix CSV. Bytes are never rewritten.
     #[arg(long)]
     candidate_map: PathBuf,
     /// Expected SHA-256 of the candidate file.

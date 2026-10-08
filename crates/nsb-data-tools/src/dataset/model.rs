@@ -4,7 +4,7 @@ use std::fmt;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-pub const RUN_SCHEMA_VERSION: u32 = 2;
+pub const RUN_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
 #[serde(rename_all = "kebab-case")]

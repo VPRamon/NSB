@@ -269,7 +269,7 @@ produce zero component output.
 At the geometric horizon a thin shell produces altitude-dependent factors
 (approximately 6.012, 6.097, and 6.185 at observer altitudes 0, 2.5, and 5 km).
 That dependence is expected from spherical ray geometry and differs from the
-observer-altitude-independent historical Van Rhijn formula. Cross-model and
+observer-altitude-independent classic Van Rhijn formula. Cross-model and
 resolution-convergence checks remain internal validation tests so the numerical
 integrator is not part of the public API contract.
 

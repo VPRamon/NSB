@@ -226,7 +226,7 @@ where `systematic_uncertainty_ph_m2_s` is itself
   semantics): additive `SpectralCoverageReport.systematic_correlation_scope`
   and `MergeReport.uncertainty_scale` fields.
 - `crate::starlight::map::accumulator::SHARD_SCHEMA_VERSION` and the
-  canonical map's `nsb-healpix-starlight-candidate-v5` schema are unchanged
+  canonical map's `nsb-healpix-starlight-candidate-v1` schema are unchanged
   by this contract — no per-source, per-pixel, or CSV-column representation
   changed.
 
@@ -237,7 +237,7 @@ residual and systematic floors as dimensionless
 `statistical_floor_log_ratio` / `systematic_floor_log_ratio`, converted to flux
 units by the local Jacobian `F_UV`. Absolute CALSPEC holdout RMSE values must
 not be copied into `statistical_floor_ph_m2_s` or `systematic_floor_ph_m2_s`.
-The current production artifact is `calspec-linear-log-ratio-v2` (SHA-256
+The current production artifact is `calspec-linear-log-ratio-v1` (SHA-256
 `5918a7960bf7b0eec5abee77987d66ef106940cc590434fc2805c82d7d602367`).
 Candidates that violate this contract fail the `uncertainty-scale-plausible`
 gate.
