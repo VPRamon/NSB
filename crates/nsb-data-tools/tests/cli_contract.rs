@@ -172,7 +172,10 @@ fn lifecycle_and_run_commands_fail_closed_on_missing_files() -> anyhow::Result<(
             Some(2),
             "run {operation} rejected valid arguments: {stderr}"
         );
-        assert!(!stderr.trim().is_empty(), "run {operation} must explain its failure");
+        assert!(
+            !stderr.trim().is_empty(),
+            "run {operation} must explain its failure"
+        );
     }
     assert!(!dir.path().join("missing.toml").exists());
     assert!(!dir.path().join("missing-run.json").exists());
