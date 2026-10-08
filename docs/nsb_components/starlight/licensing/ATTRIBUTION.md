@@ -96,15 +96,47 @@ redistribute the resulting map.
   4.0. Credit STScI/ReDCaT, Castelli and Kurucz, and the HLSP
   DOI 10.17909/t9-khb7-4049:
   <https://archive.stsci.edu/hlsp/reference-atlases>.
-- **SVO Hipparcos Hp Bessell (2000) response**: acknowledge the SVO Filter
-  Profile Service (Rodrigo et al. 2012, 2020), cite the original bandpass
-  source and identify `Hipparcos/Hipparcos.Hp_bes`. Its explicit license for
-  redistributing the entire curve has **not** been verified:
+- **SVO Hipparcos Hp Bessell (2000) response**: a maintainer-provided
+  reply from the SVO/FPS team (signed Enrique, reported 2026-10-08) explains
+  that, from their perspective, NSB users need to be informed that the
+  calculations used FPS and the Bessell (2000) curve, with the exact
+  acknowledgement and references recorded below. This is **not** a licence
+  for redistributing the original SVO response XML:
   <https://svo2.cab.inta-csic.es/theory/fps/>.
 
 These qualifications are unresolved rights questions, not invitations to
 remove the frozen scientific inputs, nor automatic authorization to change
 `redistribution-review-decision-v1.json` from `pending`.
+
+## SVO/FPS: exact acknowledgement and requested references
+
+Maintainer-provided reply from the SVO/FPS team (signed Enrique; reported on 2026-10-08). The reply states (translated
+scope, not a fabricated copyright licence): informing users of calculations
+performed using the FPS and the Bessell (2000) response is sufficient **on
+their part**, provided the requested credits are included. Keep the original
+correspondence with the maintainer for authorized review rather than
+publishing private email headers or contact details.
+
+**Requested acknowledgement (verbatim):**
+
+> This research has made use of the SVO Filter Profile Service "Carlos Rodrigo", funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
+
+SVO/FPS references requested in the reply:
+
+- Rodrigo, C., Cruz, P., Aguilar, J.F., et al. (2024):
+  <https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract>.
+- Rodrigo, C., Solano, E., Bayo, A. (2012):
+  <https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract>.
+- Rodrigo, C., Solano, E. (2020):
+  <https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract>.
+- Bessell (2000), Hipparcos Hp passband:
+  <https://ui.adsabs.harvard.edu/abs/2000PASP..112..961B/abstract>.
+
+The reference to Bessell (2000) is for the original filter passband. The SVO
+reply concerns **use of the service in calculations and communication to
+NSB users**; it does not explicitly grant redistribution of the original
+filter response table or waive unrelated upstream restrictions. Record the
+scope of any intended commercial/downstream uses in the #103 review.
 
 ## GaiaXPy (historical reference only)
 
