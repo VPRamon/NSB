@@ -55,3 +55,14 @@ The exact derived candidate and report are already tracked in the Git
 repository; their `git_repository` distribution status must be considered
 separately from the non-distributed crates.io/PyPI production assets.
 The issue #103 human redistribution review remains `pending`.
+
+## Derived-map rights analysis
+
+The channel-specific preliminary analysis, factual byte/provenance flow, and
+remaining legal questions are recorded in
+[`derived-map-rights-assessment-v1.md`](derived-map-rights-assessment-v1.md).
+
+The analysis distinguishes (1) access and offline computation from (2)
+redistribution of the XHIP table or SVO Hp transmission curve and (3)
+redistribution of the aggregate numerical HEALPix map. It is an evidence
+record, **not** an automatic human approval under #103.
