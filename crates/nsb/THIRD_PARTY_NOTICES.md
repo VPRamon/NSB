@@ -33,4 +33,30 @@ while issue https://github.com/VPRamon/NSB/issues/103 is pending.
 
 The Starlight source families and relevant attribution requirements are at:
 https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/ATTRIBUTION.md .
-Those notices are **not** a redistribution license for XHIP or SVO.
+Those notices are **not** a redistribution license for the original XHIP
+catalogue or SVO curve.
+
+### SVO/FPS attribution for Starlight calculations
+
+The maintainer supplied a reply from the SVO/FPS team (signed Enrique,
+reported 2026-10-08) that, for use of the SVO Filter Profile Service and
+Bessell (2000) Hipparcos Hp response in calculations, it is sufficient on
+their part to inform users and provide the acknowledgement and references
+below. We include these even though the pending Starlight map itself is
+excluded from this first-release crate.
+
+> This research has made use of the SVO Filter Profile Service "Carlos Rodrigo", funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
+
+SVO/FPS references requested in the reply:
+
+- Rodrigo, C., Cruz, P., Aguilar, J.F., et al. (2024):
+  <https://ui.adsabs.harvard.edu/abs/2024A%26A...689A..93R/abstract>.
+- Rodrigo, C., Solano, E., Bayo, A. (2012):
+  <https://ui.adsabs.harvard.edu/abs/2012ivoa.rept.1015R/abstract>.
+- Rodrigo, C., Solano, E. (2020):
+  <https://ui.adsabs.harvard.edu/abs/2020sea..confE.182R/abstract>.
+- Bessell (2000), Hipparcos Hp passband:
+  <https://ui.adsabs.harvard.edu/abs/2000PASP..112..961B/abstract>.
+
+This statement does not itself authorize distribution of the original
+SVO filter-transmission table, or remove other upstream constraints.
