@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use siderust::qtty;
 use siderust::qtty::area::SquareMeter;
 use siderust::qtty::length::Nanometer;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Noll et al. (2012) effective Rayleigh/Mie scattering for airglow.
 //!
 //! This stage models atmospheric scattering of emitted airglow along the

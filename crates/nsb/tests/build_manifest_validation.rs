@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Unit tests for build-time scientific asset validation helpers.
 //!
 //! These tests exercise the same pure functions used by `crates/nsb/build.rs`

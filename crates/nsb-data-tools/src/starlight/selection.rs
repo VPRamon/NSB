@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Versioned, fail-closed Gaia selection-function / faint-tail contract.
 //!
 //! Conditioned on HEALPix, G, and BP−RP. Missing colour follows

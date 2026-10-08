@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::scan::{
     above_threshold_periods, coalesce_periods, complement_periods, tt_mjd_period_to_utc,
     tt_mjd_to_utc_time, utc_period_to_tt_mjd,

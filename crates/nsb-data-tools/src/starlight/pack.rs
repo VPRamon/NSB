@@ -1,4 +1,6 @@
-//! Deterministic packing of an admitted Starlight candidate into a runtime HEALPix CSV.
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
+//! Deterministic packing of a frozen candidate-v5 map into a runtime HEALPix CSV.
 //!
 //! The candidate bytes are never rewritten. Omitted sparse pixels become zero
 //! radiance and zero uncertainty. B/V S10 diagnostics are not synthesized.

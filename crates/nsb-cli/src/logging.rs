@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use clap::ValueEnum;
 use log::{LevelFilter, Log, Metadata, Record, SetLoggerError};
 use std::env;

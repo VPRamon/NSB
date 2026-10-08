@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Source-level diagnostic accounting and ablation for issue #116.
 
 use super::baseline::load_smoke_partitions;

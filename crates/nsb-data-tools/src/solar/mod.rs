@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Solar-activity (F10.7) acquisition and local store maintenance.
 //!
 //! Network access lives here only. The `nsb` runtime resolves against pinned

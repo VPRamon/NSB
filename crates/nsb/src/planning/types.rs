@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use crate::components::airglow;
 use crate::evaluator::{ComponentMask, Observer, Target};
 use crate::units::angular::Degrees;

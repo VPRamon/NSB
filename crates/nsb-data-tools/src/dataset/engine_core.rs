@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::config::RunConfig;
 use super::execution::scheduler::{aggregate_states, Scheduler, SchedulerState, SlurmScheduler};
 use super::model::{

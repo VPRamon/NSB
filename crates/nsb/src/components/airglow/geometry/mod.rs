@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Airglow target and emitting-volume line-of-sight geometry.
 //!
 //! Two deliberately separate geometry models are supported:

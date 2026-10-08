@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Offline F10.7 resolver (no network I/O).
 //!
 //! NSB's established offline resolver produces a **monthly-averaged** F10.7

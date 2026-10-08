@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Dataset-oriented command-line interface.
 
 use crate::dataset::{self, DatasetName, Executor, Operation};

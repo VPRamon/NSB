@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::calibration::load_builtin_standard;
 use super::domain::{AirglowNightPhase, AirglowSeason};
 use super::extinction::{effective_airglow_airmass, noll_scattering_factors};

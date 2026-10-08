@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! GaiaSource partition ingest shared by production and diagnostic workers.
 
 use crate::starlight::healpix::IcrsSkyPosition;

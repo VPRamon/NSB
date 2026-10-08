@@ -1,4 +1,6 @@
-//! Versioned, fail-closed redistribution/licensing review contract.
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
+//! Versioned, fail-closed redistribution/licensing review contract (#88).
 //!
 //! The promotion workflow consumes an artifact inventory and an authorized
 //! human decision record supplied with the candidate evidence. NSB 0.1.0 does

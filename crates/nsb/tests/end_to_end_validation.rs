@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! End-to-end validation gates for the generic clear-sky NSB evaluator.
 //!
 //! These tests intentionally exercise the public `NsbEvaluator` API rather than

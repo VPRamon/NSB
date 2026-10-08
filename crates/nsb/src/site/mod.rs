@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Scientific site profiles, shared atmospheric assumptions, and calibration metadata.
 //!
 //! NSB deliberately separates observer location from scientific site profiles.

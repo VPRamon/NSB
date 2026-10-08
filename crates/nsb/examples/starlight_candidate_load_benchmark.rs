@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Timing harness for packed Starlight runtime maps.
 //!
 //! Architecture: candidate → `dataset starlight pack` → `.release.csv` →

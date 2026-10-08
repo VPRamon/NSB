@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Leinert (1998) zodiacal-light reference table and brightness-grid wrapper.
 //!
 //! This module contains the transcribed S10 data constants and wraps them with

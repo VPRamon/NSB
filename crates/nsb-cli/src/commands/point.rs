@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use crate::cli::{OutputFormat, PointArgs};
 use crate::output;
 use crate::parsing::{components, location, target, time};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::sources::{acquisition, inventory};
 use crate::dataset::{Artifact, DatasetName, DatasetPipeline, RunConfig, ValidationGate};
 use anyhow::{bail, Result};

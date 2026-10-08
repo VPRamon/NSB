@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Explicit photometric zero points and template band integration.
 
 use anyhow::{bail, Result};

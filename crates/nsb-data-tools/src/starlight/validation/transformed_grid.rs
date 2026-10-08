@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Reader for one reference's transformed comparison grid.
 //!
 //! Turning a heterogeneous published dataset into a HEALPix-nested grid of

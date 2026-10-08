@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Target-independent and target-specific preparation for window searches.
 
 use super::types::{PreparedThresholdQuery, SiteWindowContext, ThresholdQuery};

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Canonical Gaia DR3 XP continuous coefficient representation.
 //!
 //! Both official bulk ECSV rows and Gaia DataLink `XP_CONTINUOUS` CSV responses

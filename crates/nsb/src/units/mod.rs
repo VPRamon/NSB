@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! NSB quantity facade and domain-specific unit conventions.
 //!
 //! Code inside NSB should import physical quantities through this module rather

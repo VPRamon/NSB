@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use super::WindowOutput;
 use crate::parsing::location::ObservatoryOutput;
 use crate::parsing::time::format_utc;

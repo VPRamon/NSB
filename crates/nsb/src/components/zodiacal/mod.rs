@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Zodiacal-light scientific-model and atmospheric-propagation selection.
 //!
 //! Public callers select the celestial source model with [`ZodiacalModel`] and

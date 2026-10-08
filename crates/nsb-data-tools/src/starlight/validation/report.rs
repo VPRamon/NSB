@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Result, report, and artifact-manifest schemas emitted by `validation run`.
 
 use super::metrics::MetricsSummary;

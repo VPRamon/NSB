@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Machine-readable baseline reports for issue #116 smoke reproducibility.
 
 use super::{

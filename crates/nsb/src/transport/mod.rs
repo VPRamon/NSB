@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Atmospheric transport of spectral radiance.
 //!
 //! NSB-owned orchestration between source emission and instrument-independent

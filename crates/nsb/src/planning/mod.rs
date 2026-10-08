@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Observing-window planning and threshold search.
 //!
 //! This module answers when observing constraints and an NSB threshold hold. It

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Bundled offline F10.7 store (runtime-embedded, build-time checksum-verified).
 
 use super::store::F107Store;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Versioned F10.7 store (checksum-pinned scientific asset).
 
 use super::record::{F107Kind, F107Record, F107ValidationError};

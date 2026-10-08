@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! PALACE v1.0 continuum runtime data and validated loader.
 //!
 //! The bundled NSB product preserves the three PALACE continuum templates and

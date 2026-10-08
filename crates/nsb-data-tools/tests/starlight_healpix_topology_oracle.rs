@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! healpy cross-checks for reference HEALPix topology (ring2nest, neighbours).
 
 use nsb_data_tools::starlight::healpix::{nested_neighbours, ring_to_nested};

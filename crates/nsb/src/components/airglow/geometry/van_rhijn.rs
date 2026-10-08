@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Thin-shell / Van Rhijn emitting-volume geometry.
 //!
 //! Owns configuration, validation, and evaluation for the analytic Van Rhijn

@@ -1,4 +1,6 @@
-//! Starlight science-policy registry for the first public baseline.
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
+//! Versioned Starlight science-policy registry.
 //!
 //! Validation is fail-closed: reports must use a registered policy ID and match
 //! the corresponding rules and spectral contract exactly.

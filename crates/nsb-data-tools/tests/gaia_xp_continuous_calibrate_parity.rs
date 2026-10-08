@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Frozen GaiaXPy 2.1.4 parity gate for in-process XP continuous calibration.
 
 use nsb_data_tools::starlight::xp::calibrate::GaiaXpContinuousCalibrator;

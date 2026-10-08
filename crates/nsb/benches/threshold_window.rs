@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Criterion benchmarks for representative production and experimental paths.
 
 use chrono::{DateTime, Utc};

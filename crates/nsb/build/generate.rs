@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Deterministic Rust source generation for verified bundled scientific assets.
 
 use super::types::Asset;

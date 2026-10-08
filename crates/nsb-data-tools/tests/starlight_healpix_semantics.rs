@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 use nsb_data_tools::starlight::healpix::{
     gaia_source_id_equatorial_nested_pixel, galactic_nested_pixel_from_icrs_position,
     galactic_nested_to_ring, legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,

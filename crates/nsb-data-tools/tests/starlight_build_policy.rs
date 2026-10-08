@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Behavioral contract for build-time Starlight production selection.
 
 #[allow(dead_code)]

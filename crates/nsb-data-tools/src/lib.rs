@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Reproducible Rust pipelines for NSB runtime datasets.
 #![deny(unsafe_code)]
 

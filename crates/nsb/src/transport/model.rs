@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Transport model selection: identity and direct transmission.
 
 use super::direct::{validate_wavelength, DirectTransmission};

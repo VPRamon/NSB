@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Checksum-pinned independent reference registry for Starlight validation.
 //!
 //! No reference in this registry ships with an invented checksum. Entries

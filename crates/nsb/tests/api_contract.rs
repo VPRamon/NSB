@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Supported public API surface contracts: site inventory and error diagnostics.
 //!
 //! Evaluation behaviour lives in `query_api.rs` and `end_to_end_validation.rs`.

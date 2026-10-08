@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Legacy night/season domains retained for query-window partitioning and
 //! historical validation. PALACE runtime climatology uses month/hour bins.
 

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Criterion benchmarks for end-to-end Airglow evaluation.
 
 use chrono::{DateTime, Utc};

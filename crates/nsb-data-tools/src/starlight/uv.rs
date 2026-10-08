@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Versioned, fail-closed contract for the Starlight 300–336 nm correction.
 //!
 //! This module defines ingestion and evaluation contracts only. The repository

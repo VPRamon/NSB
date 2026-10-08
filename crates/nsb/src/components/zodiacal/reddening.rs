@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Zodiacal-light wavelength reddening model (Leinert et al. 1998).
 //!
 //! Zodiacal light is slightly redder than the solar spectrum because the

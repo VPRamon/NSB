@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Production processing for one immutable Gaia partition pair.
 
 pub(crate) mod gaia_source;

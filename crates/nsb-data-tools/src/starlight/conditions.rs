@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Machine-verifiable review conditions for `approved_with_conditions`.
 //!
 //! Free-form strings are accepted by the schema so existing templates parse,

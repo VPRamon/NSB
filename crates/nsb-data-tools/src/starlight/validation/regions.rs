@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Frozen, reproducible sky-region definitions for independent validation.
 //!
 //! Regions are described declaratively as formulas over NESTED HEALPix pixel

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Model-only transport metadata.
 //!
 //! Atmosphere/profile identity is intentionally absent: it belongs with the

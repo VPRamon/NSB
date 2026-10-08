@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Photometric XP-scale validation against the pinned production artifact.
 
 use nsb_data_tools::starlight::photometric::{

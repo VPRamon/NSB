@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Deterministic PALACE v1.0 continuum projection.
 //!
 //! Only the CC-BY-4.0 model-data tables are read. The GPL PALACE program is

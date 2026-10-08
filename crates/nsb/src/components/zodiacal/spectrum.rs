@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Zodiacal-light spectral computation.
 //!
 //! Builds the wavelength-resolved and integrated zodiacal photon radiance from:

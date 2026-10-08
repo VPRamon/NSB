@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// Copyright (C) 2026 Vallés Puig, Ramon
 //! Deterministic, dependency-free comparison metrics for independent validation.
 //!
 //! These helpers compare a candidate sample against an independently sourced
