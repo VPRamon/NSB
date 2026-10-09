@@ -218,8 +218,7 @@ prepared at evaluator construction rather than reparsed for every query.
 The Rust crate enables its `serde` feature by default. This forwards Serde
 support to Siderust and tempoch, so the `Observer`, `Target`, and UTC
 `Time` boundary types can be serialized. Applications that do not need
-upstream serialization can use `nsb = { version = "0.1.0",
-default-features = false }`. NSB's own persisted dataset formats remain
+upstream serialization can use `nsb = { version = "0.1.0", default-features = false }`. NSB's own persisted dataset formats remain
 available in either configuration.
 
 ## Observatory integration
