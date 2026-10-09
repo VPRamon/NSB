@@ -21,6 +21,23 @@ boundaries instead of duplicating coordinate, atmosphere, or time semantics.
 Applications that construct those upstream types directly should add the
 corresponding dependencies as needed.
 
+## Cargo features
+
+`serde` is enabled by default for backwards compatibility. It forwards
+serialization support to `siderust` (including its coordinate and quantity
+dependencies) and `tempoch`, covering the upstream `Observer`, `Target`,
+and UTC `Time` types used at NSB's public Rust boundary.
+
+To build without upstream Serde support:
+
+```toml
+nsb = { version = "0.1.0", default-features = false }
+```
+
+NSB's own internal TOML/JSON data formats remain available independently
+of this feature; `serde` does not imply that all NSB evaluator, configuration,
+or result structs implement Serde.
+
 ## Minimal Rust workflow
 
 ```rust,no_run
