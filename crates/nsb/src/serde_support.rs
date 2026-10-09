@@ -18,12 +18,17 @@ pub mod surface_brightness {
     use serde::{Deserialize, Deserializer, Serializer};
 
     /// Serialize a surface brightness as its underlying mag/arcsec² scalar.
-    pub fn serialize<S: Serializer>(value: &SurfaceBrightness, serializer: S) -> Result<S::Ok, S::Error> {
+    pub fn serialize<S: Serializer>(
+        value: &SurfaceBrightness,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
         serializer.serialize_f64(value.value())
     }
 
     /// Deserialize a numeric mag/arcsec² scalar as `SurfaceBrightness`.
-    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<SurfaceBrightness, D::Error> {
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<SurfaceBrightness, D::Error> {
         f64::deserialize(deserializer).map(SurfaceBrightness::new)
     }
 }
