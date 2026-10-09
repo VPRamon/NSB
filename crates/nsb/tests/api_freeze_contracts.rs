@@ -52,30 +52,37 @@ fn component_mask_all_aliases_frozen_default_not_every_future_bit() {
 }
 
 #[test]
-fn nsb_crate_only_exposes_the_supported_python_feature() {
+fn nsb_crate_only_exposes_supported_release_features() {
     let manifest: toml::Table = toml::from_str(include_str!("../Cargo.toml")).unwrap();
     let features = manifest
         .get("features")
         .and_then(toml::Value::as_table)
         .expect("nsb Cargo features table");
 
+    let names = features.keys().map(String::as_str).collect::<Vec<_>>();
     assert_eq!(
-        features.len(),
-        1,
+        names,
+        ["default", "python", "serde"],
         "first-release nsb must not expose benchmark/test-only Cargo features"
     );
-    let python = features
-        .get("python")
-        .and_then(toml::Value::as_array)
-        .expect("python feature");
-    assert_eq!(
-        python
+
+    let members = |feature: &str| {
+        features
+            .get(feature)
+            .and_then(toml::Value::as_array)
+            .unwrap_or_else(|| panic!("missing {feature} feature"))
             .iter()
-            .filter_map(toml::Value::as_str)
-            .collect::<Vec<_>>(),
+            .map(|value| value.as_str().expect("feature member must be a string"))
+            .collect::<Vec<_>>()
+    };
+
+    assert_eq!(members("default"), ["serde"]);
+    assert_eq!(members("serde"), ["siderust/serde", "tempoch/serde"]);
+    assert_eq!(
+        members("python"),
         ["dep:pyo3", "dep:siderust-py", "dep:tempoch-py"]
     );
-    assert!(!manifest.contains_key("window-search-diagnostics"));
+    assert!(!features.contains_key("window-search-diagnostics"));
 }
 
 #[test]
