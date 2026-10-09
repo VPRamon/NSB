@@ -59,7 +59,8 @@ fn nsb_crate_only_exposes_supported_release_features() {
         .and_then(toml::Value::as_table)
         .expect("nsb Cargo features table");
 
-    let names = features.keys().map(String::as_str).collect::<Vec<_>>();
+    let mut names = features.keys().map(String::as_str).collect::<Vec<_>>();
+    names.sort_unstable();
     assert_eq!(
         names,
         ["default", "python", "serde"],
