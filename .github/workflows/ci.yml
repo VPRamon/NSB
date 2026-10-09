@@ -52,6 +52,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Check workspace targets
         run: cargo check --workspace $CARGO_CI_TARGETS --all-features --locked
+      - name: Check NSB without default features
+        run: cargo check -p nsb --lib --no-default-features --locked
 
   clippy:
     name: Clippy (all features)

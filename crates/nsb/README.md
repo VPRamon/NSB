@@ -21,6 +21,48 @@ boundaries instead of duplicating coordinate, atmosphere, or time semantics.
 Applications that construct those upstream types directly should add the
 corresponding dependencies as needed.
 
+## Cargo features
+
+`serde` is enabled by default for backwards compatibility. It forwards
+serialization support to `siderust` (including its coordinate and quantity
+dependencies) and `tempoch`, covering the upstream `Observer`, `Target`,
+and UTC `Time` types used at NSB's public Rust boundary.
+
+To build without upstream Serde support:
+
+```toml
+nsb = { version = "0.1.0", default-features = false }
+```
+
+NSB's own internal TOML/JSON data formats remain available independently
+of this feature; `serde` does not imply that all NSB evaluator, configuration,
+or result structs implement Serde.
+
+QTTY defines `SurfaceBrightness` (mag/arcsec²), which NSB re-exports through
+`nsb::units::photometry`. This photometric newtype does not currently implement
+Serde's traits upstream. Under `nsb/serde`, the
+`nsb::serde_support::surface_brightness` field adapter lets applications
+deserialize or serialize it as a plain JSON number without a separate wire
+`f64` field or a duplicate physical type:
+
+```rust
+use nsb::units::photometry::SurfaceBrightness;
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
+struct NsbConstraintRequest {
+    #[serde(with = "nsb::serde_support::surface_brightness")]
+    minimum_nsb_in_mag_arcsec2: SurfaceBrightness,
+    #[serde(with = "nsb::serde_support::surface_brightness")]
+    maximum_nsb_in_mag_arcsec2: SurfaceBrightness,
+}
+```
+
+The JSON remains `{"minimum_nsb_in_mag_arcsec2":21.39,"maximum_nsb_in_mag_arcsec2":30.0}`.
+Application code must still validate finite, positive, ordered bounds before
+converting magnitudes into profile-dependent photon radiance. This adapter
+does not add validation to QTTY's type.
+
 ## Minimal Rust workflow
 
 ```rust,no_run
