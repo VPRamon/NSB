@@ -7,7 +7,7 @@
 use chrono::{DateTime, Utc};
 use nsb::{Observer, Target, DEG};
 use siderust::catalogs::observatories;
-use tempoch::{Time, J2000s, UTC};
+use tempoch::{J2000s, Time, UTC};
 
 #[test]
 fn serde_feature_serializes_upstream_observer_target_and_utc_time() {
