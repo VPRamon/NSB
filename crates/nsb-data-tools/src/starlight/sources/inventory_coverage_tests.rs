@@ -272,7 +272,7 @@ fn partition_reconciliation_handles_empty_and_mismatched_sets() -> Result<()> {
     assert_eq!(production_partition_ids(directory.path(), &[])?, None);
     let first = product();
     assert_eq!(
-        production_partition_ids(directory.path(), &[first.clone()])?,
+        production_partition_ids(directory.path(), std::slice::from_ref(&first))?,
         None
     );
 
@@ -283,7 +283,7 @@ fn partition_reconciliation_handles_empty_and_mismatched_sets() -> Result<()> {
         &parsed_inventory(),
     )?;
     assert_eq!(
-        production_partition_ids(directory.path(), &[first.clone()])?,
+        production_partition_ids(directory.path(), std::slice::from_ref(&first))?,
         Some(vec!["00-19".into(), "20-29".into()])
     );
 
