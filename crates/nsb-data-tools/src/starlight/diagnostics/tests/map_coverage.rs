@@ -29,12 +29,15 @@ fn map(nside: u32, pixels: &[(u32, CandidatePixel)]) -> CandidateMap {
 
 #[test]
 fn anomaly_report_summarizes_sparse_parents_and_even_pixel_medians() -> Result<()> {
-    let candidate = map(4, &[
-        (0, pixel(2.0, 1, 3)),
-        (1, pixel(8.0, 2, 1)),
-        (4, pixel(30.0, 1, 0)),
-        (8, pixel(0.0, 0, 4)),
-    ]);
+    let candidate = map(
+        4,
+        &[
+            (0, pixel(2.0, 1, 3)),
+            (1, pixel(8.0, 2, 1)),
+            (4, pixel(30.0, 1, 0)),
+            (8, pixel(0.0, 0, 4)),
+        ],
+    );
     let report = analyse_candidate_map(&candidate)?;
     assert_eq!(report.nside, 4);
     assert_eq!(report.parent_nside, 2);
@@ -69,7 +72,10 @@ fn anomaly_report_treats_zero_admissions_and_empty_maps_as_zero_medians() -> Res
     let candidate = map(4, &[(0, pixel(0.0, 0, 2)), (4, pixel(0.0, 0, 1))]);
     let report = analyse_candidate_map(&candidate)?;
     assert_eq!(report.parent_cells.len(), 2);
-    assert!(report.parent_cells.iter().all(|cell| cell.median_flux_per_admitted_source == 0.0));
+    assert!(report
+        .parent_cells
+        .iter()
+        .all(|cell| cell.median_flux_per_admitted_source == 0.0));
     assert_eq!(report.global_median_flux_per_admitted_source, 0.0);
     assert!(analyse_candidate_map(&map(2, &[(0, pixel(1.0, 1, 0))])).is_err());
     Ok(())
@@ -77,11 +83,14 @@ fn anomaly_report_treats_zero_admissions_and_empty_maps_as_zero_medians() -> Res
 
 #[test]
 fn anomaly_report_detects_strong_flux_outlier_against_multiple_parents() -> Result<()> {
-    let candidate = map(4, &[
-        (0, pixel(2.0, 1, 0)),
-        (4, pixel(3.0, 1, 0)),
-        (8, pixel(100.0, 1, 0)),
-    ]);
+    let candidate = map(
+        4,
+        &[
+            (0, pixel(2.0, 1, 0)),
+            (4, pixel(3.0, 1, 0)),
+            (8, pixel(100.0, 1, 0)),
+        ],
+    );
     let report = analyse_candidate_map(&candidate)?;
     assert_eq!(report.global_median_flux_per_admitted_source, 3.0);
     assert_eq!(report.anomalous_parents, vec![2]);
@@ -90,12 +99,15 @@ fn anomaly_report_detects_strong_flux_outlier_against_multiple_parents() -> Resu
 
 #[test]
 fn boundary_metrics_ignore_nonpositive_or_unadmitted_pixels() -> Result<()> {
-    let candidate = map(4, &[
-        (0, pixel(1.0, 1, 0)),
-        (1, pixel(0.0, 0, 1)),
-        (2, pixel(-2.0, 1, 0)),
-        (3, pixel(f64::NAN, 1, 0)),
-    ]);
+    let candidate = map(
+        4,
+        &[
+            (0, pixel(1.0, 1, 0)),
+            (1, pixel(0.0, 0, 1)),
+            (2, pixel(-2.0, 1, 0)),
+            (3, pixel(f64::NAN, 1, 0)),
+        ],
+    );
     let report = boundary_discontinuity_report(&candidate, 2)?;
     assert_eq!(report.parent_nside, 2);
     assert_eq!(report.median_internal_log_jump, 0.0);
@@ -127,7 +139,10 @@ fn candidate_csv_writer_round_trips_metadata_flux_and_checksum() -> Result<()> {
     assert_eq!(loaded.pixels.len(), 2);
     assert_eq!(loaded.pixels[&2], pixel(1.25, 1, 3));
     assert_eq!(loaded.pixels[&7], pixel(2.5, 2, 1));
-    assert_eq!(analyse_candidate_path(&path, 4, Some(&sha256))?.pixel_count, 2);
+    assert_eq!(
+        analyse_candidate_path(&path, 4, Some(&sha256))?.pixel_count,
+        2
+    );
     assert!(analyse_candidate_path(&path, 4, Some(&"0".repeat(64))).is_err());
     assert!(analyse_candidate_path(&path, 8, None).is_err());
     Ok(())
@@ -142,7 +157,10 @@ fn workspace_anomaly_export_and_shard_loading_fail_closed_on_missing_data() -> R
     assert!(load_production_shards(root).is_err());
 
     fs::create_dir_all(root.join("workers/part-a"))?;
-    assert!(analyse_workspace_shards(root).unwrap_err().to_string().contains("no shards"));
+    assert!(analyse_workspace_shards(root)
+        .unwrap_err()
+        .to_string()
+        .contains("no shards"));
     assert!(export_workspace_candidate_map(root, &root.join("map.csv")).is_err());
     assert!(load_production_shards(root).is_err());
 
@@ -159,10 +177,14 @@ fn production_shard_loader_prefers_outputs_and_skips_non_json_entries() -> Resul
     let root = directory.path();
     let output = root.join("outputs/shards");
     fs::create_dir_all(&output)?;
-    assert!(load_production_shards(root).unwrap_err().to_string().contains("no shards"));
+    assert!(load_production_shards(root)
+        .unwrap_err()
+        .to_string()
+        .contains("no shards"));
     fs::write(output.join("ignored.txt"), "ignored")?;
     assert!(load_production_shards(root).is_err());
-    let shard = PartitionShard::new_with_policy("part-a", 1, StarlightProductBand::Measured336To650, None)?;
+    let shard =
+        PartitionShard::new_with_policy("part-a", 1, StarlightProductBand::Measured336To650, None)?;
     shard.write(&output.join("part-a.json"))?;
     let loaded = load_production_shards(root)?;
     assert_eq!(loaded.len(), 1);
@@ -175,9 +197,16 @@ fn production_shard_loader_prefers_outputs_and_skips_non_json_entries() -> Resul
 #[test]
 fn source_commit_requires_manifest_evidence_for_caller_assertions() -> Result<()> {
     let directory = tempfile::tempdir()?;
-    assert_eq!(resolve_verified_source_commit(directory.path(), None)?, None);
-    assert!(resolve_verified_source_commit(directory.path(), Some("expected"))
-        .unwrap_err().to_string().contains("no RunManifest"));
+    assert_eq!(
+        resolve_verified_source_commit(directory.path(), None)?,
+        None
+    );
+    assert!(
+        resolve_verified_source_commit(directory.path(), Some("expected"))
+            .unwrap_err()
+            .to_string()
+            .contains("no RunManifest")
+    );
     let nested = directory.path().join("runs/subdir");
     fs::create_dir_all(&nested)?;
     fs::write(nested.join("other.txt"), "{}")?;
