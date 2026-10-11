@@ -22,7 +22,7 @@ and constitute a distinct distribution channel. They are not yet authorized
 as production assets; issue #103 remains the human redistribution gate.
 
 Provenance and exact source-family terms:
-[artifact inventory](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml)
+[artifact inventory](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml),
 [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md),
 and [scientific references](docs/nsb_components/starlight/licensing/SCIENTIFIC_REFERENCES.md).
 
