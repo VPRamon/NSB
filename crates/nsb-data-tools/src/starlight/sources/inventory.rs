@@ -455,3 +455,7 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "tests/inventory_coverage.rs"]
+mod coverage_tests;

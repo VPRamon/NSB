@@ -386,3 +386,7 @@ mod tests {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "tests/acquisition_coverage.rs"]
+mod coverage_tests;
