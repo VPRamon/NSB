@@ -12,6 +12,10 @@ This document does not itself authorize redistribution. It records the
 attribution text that must accompany any Starlight artifact, on any channel,
 once a channel is authorized.
 
+Full paper, catalogue and service citations (with DOI/ADS identifiers) are
+collected in [SCIENTIFIC_REFERENCES.md](SCIENTIFIC_REFERENCES.md). The
+bibliography supports attribution but cannot supply missing reuse rights.
+
 ## Gaia DR3
 
 > This work has made use of data from the European Space Agency (ESA)
@@ -87,11 +91,22 @@ redistribute the resulting map.
   <https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html>.
   The ESA 1997 grant alone must not be treated as an express grant for
   every element of the 2007 reduction.
+  Scientific citation: van Leeuwen (2007), *Validation of the new Hipparcos
+  reduction*, A&A **474**, 653–664,
+  [DOI 10.1051/0004-6361:20078357](https://doi.org/10.1051/0004-6361:20078357).
+  A licence clarification request was sent to the author on 2026-10-08;
+  this request is not a permission grant.
 - **XHIP (Anderson and Francis 2012, CDS V/137D)**: cite the original catalogue
   and CDS/VizieR (DOI 10.26093/cds/vizier). Its catalogue-specific grant to
-  redistribute XHIP bytes has **not** been verified. CDS's scientific-use
-  access conditions must not be mislabeled as CC BY 4.0:
+  redistribute XHIP bytes has **not** been verified. Cite Anderson &
+  Francis (2012), *XHIP: An Extended Hipparcos Compilation*,
+  *Astronomy Letters* **38**, 331,
+  [ADS 2012AstL...38..331A](https://ui.adsabs.harvard.edu/abs/2012AstL...38..331A/abstract).
+  CDS's scientific-use access conditions must not be mislabeled as CC BY 4.0:
   <https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/V/137D?format=html>.
+  Clarification was requested from CDS/VizieR on 2026-10-08, including
+  downstream commercial and non-commercial reuse; no right is inferred
+  from the unanswered request.
 - **Castelli–Kurucz 2004 atlas**: the MAST REFERENCE-ATLASES HLSP is CC BY
   4.0. Credit STScI/ReDCaT, Castelli and Kurucz, and the HLSP
   DOI 10.17909/t9-khb7-4049:
@@ -107,6 +122,18 @@ redistribute the resulting map.
 These qualifications are unresolved rights questions, not invitations to
 remove the frozen scientific inputs, nor automatic authorization to change
 `redistribution-review-decision-v1.json` from `pending`.
+
+## CDS/VizieR catalogue-service acknowledgement
+
+In addition to citing Anderson & Francis (2012), van Leeuwen (2007), and
+other original catalogue authors, acknowledge use of VizieR as recommended
+on its official [V/137D catalogue page](https://cdsarc.cds.unistra.fr/viz-bin/cat/V/137D):
+
+> This research has made use of the VizieR catalogue access tool, CDS,
+> Strasbourg, France (DOI: 10.26093/cds/vizier).
+
+This service acknowledgement does not resolve the source-specific XHIP or
+Hipparcos-2 redistribution rights under review in #103.
 
 ## SVO/FPS: exact acknowledgement and requested references
 
