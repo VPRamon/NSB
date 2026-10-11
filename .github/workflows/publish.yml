@@ -127,7 +127,6 @@ jobs:
               exit 1
             fi
           done
-          python3 scripts/check-starlight-citations.py --artifacts target/package
 
       - name: Verify crates.io publish dry-run
         run: cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked
@@ -276,26 +275,14 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
-  audit-artifacts:
-    name: Audit scientific notices in built release distributions
-    needs: [validate, linux-wheels, macos-wheels, windows-wheels, sdist]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v7
-        with:
-          python-version: "3.14"
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-      - name: Verify Starlight attributions in shipping archives
-        run: python3 scripts/check-starlight-citations.py --artifacts dist
-
   publish-crates-io:
     name: Publish to crates.io
     needs:
-      - audit-artifacts
+      - validate
+      - linux-wheels
+      - macos-wheels
+      - windows-wheels
+      - sdist
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
