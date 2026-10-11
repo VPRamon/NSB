@@ -77,6 +77,9 @@ mod evaluator;
 mod planning;
 #[cfg(feature = "python")]
 mod python;
+/// Serde field adapters for QTTY photometric types used by NSB consumers.
+#[cfg(feature = "serde")]
+pub mod serde_support;
 /// Site profiles and shared atmospheric assumptions.
 pub mod site;
 /// Offline F10.7 resolution used by airglow configuration.
