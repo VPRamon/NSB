@@ -65,14 +65,23 @@ fn parser_rejects_malformed_manifest_lines_and_empty_inventories() {
     no_count.expected_partitions = None;
     for (label, manifest) in [
         ("missing filename", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"),
-        ("extra fields", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa XpContinuous_00.csv.gz extra\n"),
-        ("invalid hex", "gggggggggggggggggggggggggggggggg XpContinuous_00.csv.gz\n"),
+        (
+            "extra fields",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa XpContinuous_00.csv.gz extra\n",
+        ),
+        (
+            "invalid hex",
+            "gggggggggggggggggggggggggggggggg XpContinuous_00.csv.gz\n",
+        ),
         ("short digest", "abc XpContinuous_00.csv.gz\n"),
         ("no entries", "\n # comment only\n"),
-        ("duplicate", concat!(
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa XpContinuous_00.csv.gz\n",
-            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb XpContinuous_00.csv.gz\n"
-        )),
+        (
+            "duplicate",
+            concat!(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa XpContinuous_00.csv.gz\n",
+                "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb XpContinuous_00.csv.gz\n"
+            ),
+        ),
     ] {
         assert!(
             parse_inventory(&no_count, manifest.as_bytes()).is_err(),
@@ -84,10 +93,20 @@ fn parser_rejects_malformed_manifest_lines_and_empty_inventories() {
 
 #[test]
 fn parser_rejects_invalid_product_identifiers_and_insecure_base_urls() {
-    for id in ["", "XP", "xp continuous", "../xp", "xp/continuous", "xp\u{00e9}"] {
+    for id in [
+        "",
+        "XP",
+        "xp continuous",
+        "../xp",
+        "xp/continuous",
+        "xp\u{00e9}",
+    ] {
         let mut config = product();
         config.id = id.into();
-        assert!(parse_inventory(&config, TWO_PARTITIONS.as_bytes()).is_err(), "{id:?}");
+        assert!(
+            parse_inventory(&config, TWO_PARTITIONS.as_bytes()).is_err(),
+            "{id:?}"
+        );
     }
     for base_url in ["http://cdn.example.test/data/", "file:///tmp/data/"] {
         let mut config = product();
@@ -126,12 +145,16 @@ fn parser_supports_sha256_and_enforces_algorithm_specific_digest_length() -> Res
     config.expected_partitions = Some(1);
     let manifest = format!("{} XpContinuous_00-19.csv.gz\n", "A".repeat(64));
     let inventory = parse_inventory(&config, manifest.as_bytes())?;
-    assert_eq!(inventory.official_checksum_algorithm, OfficialChecksumAlgorithm::Sha256);
+    assert_eq!(
+        inventory.official_checksum_algorithm,
+        OfficialChecksumAlgorithm::Sha256
+    );
     assert_eq!(inventory.entries[0].official_checksum, "a".repeat(64));
     assert!(parse_inventory(
         &config,
         b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa XpContinuous_00-19.csv.gz\n"
-    ).is_err());
+    )
+    .is_err());
     Ok(())
 }
 
@@ -158,7 +181,10 @@ fn load_inventory_rejects_version_and_configuration_drift() -> Result<()> {
     let mut wrong_schema = inventory.clone();
     wrong_schema.schema_version += 1;
     write_inventory(&path, &wrong_schema)?;
-    assert!(load_inventory(&path, &config).unwrap_err().to_string().contains("schema"));
+    assert!(load_inventory(&path, &config)
+        .unwrap_err()
+        .to_string()
+        .contains("schema"));
     write_inventory(&path, &inventory)?;
 
     let mut variants = Vec::new();
@@ -245,11 +271,17 @@ fn partition_reconciliation_handles_empty_and_mismatched_sets() -> Result<()> {
     let directory = tempfile::tempdir()?;
     assert_eq!(production_partition_ids(directory.path(), &[])?, None);
     let first = product();
-    assert_eq!(production_partition_ids(directory.path(), &[first.clone()])?, None);
+    assert_eq!(
+        production_partition_ids(directory.path(), &[first.clone()])?,
+        None
+    );
 
     let root = directory.path().join("inventories");
     fs::create_dir_all(&root)?;
-    write_inventory(&root.join("xp-continuous.inventory.json"), &parsed_inventory())?;
+    write_inventory(
+        &root.join("xp-continuous.inventory.json"),
+        &parsed_inventory(),
+    )?;
     assert_eq!(
         production_partition_ids(directory.path(), &[first.clone()])?,
         Some(vec!["00-19".into(), "20-29".into()])
@@ -265,11 +297,9 @@ fn partition_reconciliation_handles_empty_and_mismatched_sets() -> Result<()> {
     second.checksum_manifest_sha256 = checksum_io::sha256_bytes(second_manifest.as_bytes());
     let second_inventory = parse_inventory(&second, second_manifest.as_bytes())?;
     write_inventory(&root.join("gaia-source.inventory.json"), &second_inventory)?;
-    assert!(
-        production_partition_ids(directory.path(), &[first, second])
-            .unwrap_err()
-            .to_string()
-            .contains("different partition ranges")
-    );
+    assert!(production_partition_ids(directory.path(), &[first, second])
+        .unwrap_err()
+        .to_string()
+        .contains("different partition ranges"));
     Ok(())
 }
