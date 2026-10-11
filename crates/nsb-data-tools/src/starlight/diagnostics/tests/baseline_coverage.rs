@@ -11,7 +11,10 @@ fn smoke_partition_reader_trims_comments_and_preserves_partition_order() -> Resu
     let repo = tempfile::tempdir()?;
     let path = repo.path().join(SMOKE_PARTITIONS_PATH);
     fs::create_dir_all(path.parent().unwrap())?;
-    fs::write(&path, " # pinned partitions\n\n 00-19 \r\n# skipped\n20-29\n \n 30-39 \n")?;
+    fs::write(
+        &path,
+        " # pinned partitions\n\n 00-19 \r\n# skipped\n20-29\n \n 30-39 \n",
+    )?;
     assert_eq!(
         load_smoke_partitions(repo.path())?,
         vec!["00-19", "20-29", "30-39"]
@@ -24,10 +27,12 @@ fn smoke_partition_reader_trims_comments_and_preserves_partition_order() -> Resu
 #[test]
 fn baseline_shard_loader_fails_closed_on_missing_and_malformed_partitions() -> Result<()> {
     let directory = tempfile::tempdir()?;
-    assert!(load_workspace_shards(directory.path(), &[] )?.is_empty());
+    assert!(load_workspace_shards(directory.path(), &[])?.is_empty());
     let partitions = vec!["part-a".to_string()];
     assert!(load_workspace_shards(directory.path(), &partitions)
-        .unwrap_err().to_string().contains("read shard"));
+        .unwrap_err()
+        .to_string()
+        .contains("read shard"));
 
     let shard_path = directory.path().join("workers/part-a/shard.json");
     fs::create_dir_all(shard_path.parent().unwrap())?;
@@ -49,12 +54,24 @@ fn baseline_report_fails_on_missing_or_invalid_configuration() -> Result<()> {
     let config = directory.path().join("config.toml");
     let output = directory.path().join("baseline.json");
     assert!(write_baseline_report(
-        directory.path(), &config, &workspace, "commit", &output, &[],
-    ).is_err());
+        directory.path(),
+        &config,
+        &workspace,
+        "commit",
+        &output,
+        &[],
+    )
+    .is_err());
     fs::write(&config, b"not valid = = toml")?;
     assert!(write_baseline_report(
-        directory.path(), &config, &workspace, "commit", &output, &[],
-    ).is_err());
+        directory.path(),
+        &config,
+        &workspace,
+        "commit",
+        &output,
+        &[],
+    )
+    .is_err());
     assert!(!output.exists());
     Ok(())
 }
