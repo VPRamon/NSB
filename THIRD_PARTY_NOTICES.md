@@ -23,7 +23,8 @@ as production assets; issue #103 remains the human redistribution gate.
 
 Provenance and exact source-family terms:
 [artifact inventory](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml)
-and [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md).
+[attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md),
+and [scientific references](docs/nsb_components/starlight/licensing/SCIENTIFIC_REFERENCES.md).
 
 - **Gaia DR3 GaiaSource/XP:** ESA CC BY-NC 3.0 IGO; cite Gaia/DPAC.
 - **Original Hipparcos/Tycho (ESA):** CC BY-NC 3.0 IGO, Credit: ESA.
@@ -33,6 +34,15 @@ and [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md).
   remain offline inputs.
 - **Hipparcos-2 (van Leeuwen 2007, CDS I/311):** licence specific to the
   later re-reduction has not been independently verified.
+- **XHIP reference:** Anderson & Francis (2012), *XHIP: An Extended
+  Hipparcos Compilation*, *Astronomy Letters* **38**, 331,
+  [ADS 2012AstL...38..331A](https://ui.adsabs.harvard.edu/abs/2012AstL...38..331A/abstract).
+- **Hipparcos-2 reference:** van Leeuwen (2007), *Validation of the new
+  Hipparcos reduction*, A&A **474**, 653–664,
+  [DOI 10.1051/0004-6361:20078357](https://doi.org/10.1051/0004-6361:20078357).
+- **CDS/VizieR acknowledgement:** cite the original authors and credit the
+  catalogue access service, CDS, Strasbourg, France
+  (DOI [10.26093/cds/vizier](https://doi.org/10.26093/cds/vizier)).
 - **CALSPEC and Castelli-Kurucz CK04 REFERENCE-ATLASES HLSP:** CC BY 4.0;
   cite STScI/ReDCaT and DOI 10.17909/t9-khb7-4049.
 - **Cantat-Gaudin Gaia DR3 M10 selection dataset:** CC BY 4.0;
@@ -46,6 +56,9 @@ and [attributions](docs/nsb_components/starlight/licensing/ATTRIBUTION.md).
 
 No raw upstream catalogue, atlas, or filter curve is intended to be bundled in
 release packages. This notice cannot supply a missing upstream permission.
+
+Licensing clarifications for XHIP and Hipparcos-2 were requested on
+2026-10-08. Requests do not constitute permission; #103 remains pending.
 
 ### SVO/FPS acknowledgement for Starlight-derived calculations
 
