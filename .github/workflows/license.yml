@@ -17,3 +17,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify SPDX headers
         run: python3 scripts/check-license-headers.py
+      - name: Verify Starlight references and scientific-data notices
+        run: python3 scripts/check-starlight-citations.py
