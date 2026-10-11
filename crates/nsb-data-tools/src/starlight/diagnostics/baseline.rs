@@ -188,3 +188,7 @@ mod tests {
         assert!(err.to_string().contains("read smoke partition list"));
     }
 }
+
+#[cfg(test)]
+#[path = "tests/baseline_coverage.rs"]
+mod coverage_tests;

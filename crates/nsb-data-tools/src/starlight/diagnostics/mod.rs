@@ -1149,3 +1149,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "tests/map_coverage.rs"]
+mod coverage_tests;
