@@ -22,8 +22,6 @@ scientific calibration evidence.
 - [ ] NSB 0.1.0 packages contain no production Gaia-derived Starlight; keep the scientific candidate/report in the repository. Treat the existing Git repository as a separate distribution channel with its own legal assessment, not as undistributed data.
 - [ ] Verify all 34 Starlight source inputs have a defensible, cited provenance/rights classification; XHIP/SVO unverified grants and later Hipparcos-2/Tycho-2 scope cannot be silently represented as CC BY 4.0 or cleared by a CI string.
 - [ ] Before a release that includes the Starlight map, issue #103 records an authorized human decision and channel-specific restrictions. Do not approve automatically solely because source metadata is populated.
-- [ ] Before Starlight activation, verify XHIP (Anderson & Francis 2012), Hipparcos-2 (van Leeuwen 2007), Tycho-2, Gaia, CALSPEC/CK04, and SVO/Bessell references against [the bibliography](../nsb_components/starlight/licensing/SCIENTIFIC_REFERENCES.md), and include the required acknowledgements with every affected release artifact.
-- [ ] Inspect the final Rust `.crate` and Python wheel/sdist contents for the exact Starlight data and the corresponding notices. A link to a GitHub-only document must not substitute for notices required inside shipped distributions.
 - [ ] Runtime starlight header checks agree with the release CSV manifest, and `pack_starlight_asset --production` self-loads the emitted CSV/TOML pair through `ValidatedStarlightMap`.
 - [ ] Gaia production extraction diagnostics show zero rejected selected sources, zero XP chunk failures, and at least one accepted XP source.
 - [ ] Gaia map validation reports `radiance_field = integrated_ph_cm2_ns_sr` and passing integrated flux conservation.
