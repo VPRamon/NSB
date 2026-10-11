@@ -30,7 +30,9 @@ fn entry() -> SourceInventoryEntry {
     }
 }
 
-fn fixture(workspace: &Path) -> Result<(GaiaProductConfig, SourceInventoryEntry, AcquisitionReceipt)> {
+fn fixture(
+    workspace: &Path,
+) -> Result<(GaiaProductConfig, SourceInventoryEntry, AcquisitionReceipt)> {
     let product = product();
     let entry = entry();
     let inventories = workspace.join("inventories");
@@ -96,17 +98,15 @@ fn offline_resolution_rejects_unknown_products_partitions_and_missing_receipts()
             .to_string()
             .contains("absent")
     );
-    assert!(
-        acquire_partition(
-            directory.path(),
-            &products,
-            &AcquisitionConfig::default(),
-            "missing"
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("absent")
-    );
+    assert!(acquire_partition(
+        directory.path(),
+        &products,
+        &AcquisitionConfig::default(),
+        "missing"
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("absent"));
     fs::remove_file(directory.path().join("cache/receipts/product/00-01.json"))?;
     assert!(
         verified_object_for_partition(directory.path(), &products, "product", "00-01")
@@ -135,12 +135,10 @@ fn acquisition_rejects_zero_timeouts_or_retry_budget_before_network_access() -> 
             ..defaults.clone()
         },
     ] {
-        assert!(
-            acquire_partition(directory.path(), &[], &policy, "00-01")
-                .unwrap_err()
-                .to_string()
-                .contains("greater than zero")
-        );
+        assert!(acquire_partition(directory.path(), &[], &policy, "00-01")
+            .unwrap_err()
+            .to_string()
+            .contains("greater than zero"));
     }
     assert!(
         acquire_partition(directory.path(), &[product()], &defaults, "00-01").is_err(),
@@ -199,12 +197,10 @@ fn receipt_verification_rejects_bad_checksum_size_and_missing_object() -> Result
 
     let mut wrong_size = original.clone();
     wrong_size.bytes += 1;
-    assert!(
-        verify_receipt(&wrong_size, &product, &entry)
-            .unwrap_err()
-            .to_string()
-            .contains("size does not match")
-    );
+    assert!(verify_receipt(&wrong_size, &product, &entry)
+        .unwrap_err()
+        .to_string()
+        .contains("size does not match"));
 
     fs::remove_file(&original.object_path)?;
     assert!(verify_receipt(&original, &product, &entry).is_err());
@@ -252,23 +248,13 @@ fn content_addressed_cache_reuses_verified_objects_and_rejects_corruption() -> R
     let (product, entry, first) = fixture(directory.path())?;
     let partial = directory.path().join("second.part");
     fs::write(&partial, b"abc")?;
-    let second = commit_verified(
-        &directory.path().join("cache"),
-        &product,
-        &entry,
-        &partial,
-    )?;
+    let second = commit_verified(&directory.path().join("cache"), &product, &entry, &partial)?;
     assert_eq!(first, second);
     assert!(!partial.exists(), "duplicate partial must be removed");
     assert_eq!(fs::read(&second.object_path)?, b"abc");
 
     fs::write(&partial, b"abc")?;
     fs::write(&first.object_path, b"corrupted")?;
-    assert!(commit_verified(
-        &directory.path().join("cache"),
-        &product,
-        &entry,
-        &partial
-    ).is_err());
+    assert!(commit_verified(&directory.path().join("cache"), &product, &entry, &partial).is_err());
     Ok(())
 }
