@@ -572,3 +572,7 @@ pub(crate) fn load_selection(
     })
     .transpose()
 }
+
+#[cfg(test)]
+#[path = "tests/processor_coverage.rs"]
+mod coverage_tests;
