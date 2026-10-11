@@ -36,6 +36,20 @@ https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing
 Those notices are **not** a redistribution license for the original XHIP
 catalogue or SVO curve.
 
+Scientific source bibliography:
+https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/SCIENTIFIC_REFERENCES.md .
+
+For attribution to the creators of the Git-tracked Starlight-derived map,
+cite **Anderson & Francis (2012)**, *XHIP: An Extended Hipparcos
+Compilation*, *Astronomy Letters* **38**, 331
+(ADS 2012AstL...38..331A; CDS V/137D), and **van Leeuwen (2007)**,
+*Validation of the new Hipparcos reduction*, A&A **474**, 653–664
+(DOI 10.1051/0004-6361:20078357; CDS I/311).
+CDS/VizieR recommends acknowledging its catalogue access service,
+CDS, Strasbourg, France (DOI 10.26093/cds/vizier).
+These references do not authorize use or redistribution of catalogue
+content; the rights clarification requests of 2026-10-08 remain pending.
+
 ### SVO/FPS attribution for Starlight calculations
 
 The maintainer supplied a reply from the SVO/FPS team (signed Enrique,
