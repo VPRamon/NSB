@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
 """Check Starlight citations and required notices in shipping archives.
 
 This is a documentation/packaging consistency check, not a legal rights grant.
