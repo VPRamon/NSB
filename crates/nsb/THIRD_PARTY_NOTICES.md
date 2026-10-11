@@ -44,7 +44,7 @@ cite **Anderson & Francis (2012)**, *XHIP: An Extended Hipparcos
 Compilation*, *Astronomy Letters* **38**, 331
 (ADS 2012AstL...38..331A; CDS V/137D), and **van Leeuwen (2007)**,
 *Validation of the new Hipparcos reduction*, A&A **474**, 653–664
-(DOI 10.1051/0004-6361:20078357; CDS I/311).
+(DOI 10.1051/0004-6361:20078357; Hipparcos-2, CDS I/311).
 CDS/VizieR recommends acknowledging its catalogue access service,
 CDS, Strasbourg, France (DOI 10.26093/cds/vizier).
 These references do not authorize use or redistribution of catalogue
