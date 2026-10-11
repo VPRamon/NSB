@@ -45,7 +45,12 @@ fn outcome(pixel: u32, admitted: bool, branch: Option<&str>) -> SourceOutcome {
 fn accumulator_counts_admitted_xp_and_photometric_branches() {
     let source = source();
     let mut grid = DiagnosticAccumulator::default();
-    grid.record_outcome(1, &source, &outcome(0, true, Some("xp_continuous")), AblationStage::E);
+    grid.record_outcome(
+        1,
+        &source,
+        &outcome(0, true, Some("xp_continuous")),
+        AblationStage::E,
+    );
     let mut fallback = outcome(0, true, Some("photometric_g_only"));
     fallback.xp_available = false;
     fallback.selection_weight = 1.1;
@@ -54,11 +59,23 @@ fn accumulator_counts_admitted_xp_and_photometric_branches() {
     let cell = &grid.pixels[&0];
     assert_eq!((cell.observed, cell.admitted), (2, 2));
     assert_eq!((cell.xp_admitted, cell.photometric_admitted), (1, 1));
-    assert_eq!((cell.raw_flux_336_650_ph_m2_s, cell.raw_flux_300_650_ph_m2_s), (12.0, 20.0));
-    assert_eq!((cell.weighted_flux_300_650_ph_m2_s, cell.uv_flux_300_336_ph_m2_s), (60.0, 8.0));
+    assert_eq!(
+        (cell.raw_flux_336_650_ph_m2_s, cell.raw_flux_300_650_ph_m2_s),
+        (12.0, 20.0)
+    );
+    assert_eq!(
+        (
+            cell.weighted_flux_300_650_ph_m2_s,
+            cell.uv_flux_300_336_ph_m2_s
+        ),
+        (60.0, 8.0)
+    );
     assert_eq!(cell.sum_selection_weight, 4.1);
     assert_eq!(cell.sum_completeness, 0.5);
-    assert_eq!((cell.weight_gt_1_1, cell.weight_gt_2, cell.weight_capped), (1, 1, 1));
+    assert_eq!(
+        (cell.weight_gt_1_1, cell.weight_gt_2, cell.weight_capped),
+        (1, 1, 1)
+    );
     assert_eq!(cell.branch_counts["xp_continuous"], 1);
     assert_eq!(cell.branch_counts["photometric_g_only"], 1);
 }
@@ -88,7 +105,12 @@ fn diagnostic_candidate_maps_skip_excluded_pixels_and_preserve_counts() -> Resul
     let mut excluded = outcome(7, false, None);
     excluded.exclusion_reason = Some("excluded".into());
     grid.record_outcome(1, &source, &excluded, AblationStage::E);
-    grid.record_outcome(2, &source, &outcome(8, true, Some("xp_continuous")), AblationStage::E);
+    grid.record_outcome(
+        2,
+        &source,
+        &outcome(8, true, Some("xp_continuous")),
+        AblationStage::E,
+    );
     grid.record_outcome(3, &source, &outcome(8, false, None), AblationStage::E);
 
     let weighted = grid.to_candidate_map(128)?;
@@ -117,21 +139,29 @@ fn parent_summaries_aggregate_flux_exclusions_and_guard_zero_denominators() -> R
         sum_selection_weight: 6.0,
         ..Default::default()
     };
-    first.exclusion_counts.insert("invalid_uv_predictors".into(), 2);
+    first
+        .exclusion_counts
+        .insert("invalid_uv_predictors".into(), 2);
     grid.pixels.insert(13 * 4096, first);
-    grid.pixels.insert(13 * 4096 + 1, PixelDiagnosticCell {
-        observed: 3,
-        admitted: 1,
-        raw_flux_300_650_ph_m2_s: 10.0,
-        weighted_flux_300_650_ph_m2_s: 20.0,
-        xp_admitted: 1,
-        sum_selection_weight: 3.0,
-        ..Default::default()
-    });
+    grid.pixels.insert(
+        13 * 4096 + 1,
+        PixelDiagnosticCell {
+            observed: 3,
+            admitted: 1,
+            raw_flux_300_650_ph_m2_s: 10.0,
+            weighted_flux_300_650_ph_m2_s: 20.0,
+            xp_admitted: 1,
+            sum_selection_weight: 3.0,
+            ..Default::default()
+        },
+    );
     let summaries = summarize_parents(&grid, 2, &[13, 14])?;
     let populated = &summaries[0];
     assert_eq!((populated.parent, populated.parent_nside), (13, 2));
-    assert_eq!((populated.observed, populated.admitted, populated.excluded), (8, 3, 5));
+    assert_eq!(
+        (populated.observed, populated.admitted, populated.excluded),
+        (8, 3, 5)
+    );
     assert_eq!(populated.invalid_uv_predictors, 2);
     assert_eq!(populated.raw_flux_per_admitted, 10.0);
     assert_eq!(populated.weighted_flux_per_admitted, 20.0);
@@ -161,11 +191,25 @@ fn traces_are_limited_per_pixel_and_classified_by_parent() {
     assert_eq!(grid.traces[0].parent_nside2, 0);
     assert!(traced.contains(&0));
 
-    maybe_trace(&mut grid, 99, &source, &outcome(13 * 4096, true, None), 128, &mut traced);
+    maybe_trace(
+        &mut grid,
+        99,
+        &source,
+        &outcome(13 * 4096, true, None),
+        128,
+        &mut traced,
+    );
     assert_eq!(grid.traces.last().unwrap().trace_region, "anomalous_parent");
     assert_eq!(grid.traces.last().unwrap().parent_nside2, 13);
     let previous_count = grid.traces.len();
-    maybe_trace(&mut grid, 100, &source, &outcome(4 * 4096, true, None), 128, &mut traced);
+    maybe_trace(
+        &mut grid,
+        100,
+        &source,
+        &outcome(4 * 4096, true, None),
+        128,
+        &mut traced,
+    );
     assert_eq!(grid.traces.len(), previous_count);
 }
 
@@ -188,22 +232,32 @@ fn parent_summary(xp_fraction: f64, exclusion_fraction: f64, invalid_uv: u64) ->
 #[test]
 fn exclusion_gate_distinguishes_correlated_exclusions_and_uv_failures() {
     let control = [parent_summary(0.5, 0.1, 1)];
-    assert!(evaluate_exclusion_gate(&[parent_summary(0.5, 0.5, 1)], &control)
-        .starts_with("A_strong_spatial_correlation"));
-    assert!(evaluate_exclusion_gate(&[parent_summary(0.5, 0.1, 30)], &control)
-        .starts_with("A_strong_spatial_correlation"));
-    assert!(evaluate_exclusion_gate(&[parent_summary(0.5, 0.1, 1)], &control)
-        .starts_with("B_no_meaningful_spatial_correlation"));
+    assert!(
+        evaluate_exclusion_gate(&[parent_summary(0.5, 0.5, 1)], &control)
+            .starts_with("A_strong_spatial_correlation")
+    );
+    assert!(
+        evaluate_exclusion_gate(&[parent_summary(0.5, 0.1, 30)], &control)
+            .starts_with("A_strong_spatial_correlation")
+    );
+    assert!(
+        evaluate_exclusion_gate(&[parent_summary(0.5, 0.1, 1)], &control)
+            .starts_with("B_no_meaningful_spatial_correlation")
+    );
     assert!(evaluate_exclusion_gate(&[], &[]).starts_with("B_no_meaningful_spatial_correlation"));
 }
 
 #[test]
 fn branch_gate_detects_material_xp_population_differences() {
     let control = [parent_summary(0.5, 0.1, 0)];
-    assert!(evaluate_branch_gate(&[parent_summary(0.8, 0.1, 0)], &control)
-        .starts_with("A_branch_mix_differs"));
-    assert!(evaluate_branch_gate(&[parent_summary(0.52, 0.1, 0)], &control)
-        .starts_with("B_branch_mix_similar"));
+    assert!(
+        evaluate_branch_gate(&[parent_summary(0.8, 0.1, 0)], &control)
+            .starts_with("A_branch_mix_differs")
+    );
+    assert!(
+        evaluate_branch_gate(&[parent_summary(0.52, 0.1, 0)], &control)
+            .starts_with("B_branch_mix_similar")
+    );
     assert!(evaluate_branch_gate(&[], &[]).starts_with("B_branch_mix_similar"));
 }
 
@@ -237,10 +291,14 @@ fn unconfigured_corrections_are_optional_but_bad_pins_fail_closed() {
     assert!(load_uv(Some(&invalid)).is_err());
     assert!(load_photometric(Some(&invalid), None).is_err());
     assert!(load_selection(Some(&invalid)).is_err());
-    assert!(load_photometric(None, Some(PhotometricArtifactOverride {
-        path: invalid.artifact_path.clone(),
-        sha256: invalid.sha256.clone(),
-    })).is_err());
+    assert!(load_photometric(
+        None,
+        Some(PhotometricArtifactOverride {
+            path: invalid.artifact_path.clone(),
+            sha256: invalid.sha256.clone(),
+        })
+    )
+    .is_err());
 }
 
 #[test]
@@ -249,12 +307,24 @@ fn diagnostic_suite_rejects_missing_or_invalid_config_before_loading_sources() -
     let missing = directory.path().join("absent.toml");
     let output = directory.path().join("output");
     assert!(run_diagnostic_suite(
-        directory.path(), &missing, directory.path(), "commit", &output, None,
-    ).is_err());
+        directory.path(),
+        &missing,
+        directory.path(),
+        "commit",
+        &output,
+        None,
+    )
+    .is_err());
     let malformed = directory.path().join("invalid.toml");
     std::fs::write(&malformed, b"= bad TOML")?;
     assert!(run_diagnostic_suite(
-        directory.path(), &malformed, directory.path(), "commit", &output, None,
-    ).is_err());
+        directory.path(),
+        &malformed,
+        directory.path(),
+        "commit",
+        &output,
+        None,
+    )
+    .is_err());
     Ok(())
 }
