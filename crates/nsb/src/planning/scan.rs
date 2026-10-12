@@ -274,7 +274,7 @@ pub(crate) fn certified_tt_mjd_period_to_utc(
     query_window_tt: TimePeriod<ModifiedJulianDate>,
     query_window_utc: Period<UTC>,
 ) -> Result<Period<UTC>> {
-    use chrono::Timelike;
+    use chrono::{Datelike, Timelike};
     let result = tt_mjd_period_to_utc(window, query_window_tt, query_window_utc);
     let conversion_error = || {
         crate::NsbError::Unsupported(
@@ -286,7 +286,7 @@ pub(crate) fn certified_tt_mjd_period_to_utc(
         for _ in 0..64 {
             let civil = candidate.to_chrono().ok_or_else(conversion_error)?;
             // Python datetime cannot represent leap labels.
-            if civil.nanosecond() >= 1_000_000_000 {
+            if civil.nanosecond() >= 1_000_000_000 || !(1..=9999).contains(&civil.year()) {
                 return Err(conversion_error());
             }
             let micro = civil
@@ -362,6 +362,16 @@ mod tests {
                 assert!(converted.is_ok(), "{label}");
             }
         }
+        // Native/CLI civil dates may extend beyond Python's year range.
+        use chrono::TimeZone;
+        let civil = chrono::Utc.with_ymd_and_hms(10000, 1, 1, 0, 0, 0).unwrap();
+        let start = Time::<UTC>::from_chrono(civil);
+        let utc = Period::new(start, start + crate::units::Second::new(1.0));
+        let tt = utc_period_to_tt_mjd(utc);
+        assert!(matches!(
+            certified_tt_mjd_period_to_utc(tt, tt, utc),
+            Err(crate::NsbError::Unsupported(_))
+        ));
         // A fractional UTC start may export earlier when truncated by Python.
         // Such a result must either remain enclosed or fail explicitly.
         let start = Time::<UTC>::from_chrono("2026-01-14T01:00:00.000000999Z".parse().unwrap());
