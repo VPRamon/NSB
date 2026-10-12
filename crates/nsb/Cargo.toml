@@ -61,6 +61,7 @@ sha2 = "0.11"
 toml = "1.1.2"
 
 [dev-dependencies]
+cheby = "0.4.2"
 criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
 plotters = { version = "0.3", default-features = false, features = ["bitmap_backend", "bitmap_encoder", "ttf", "fontconfig-dlopen"] }
 

@@ -31,7 +31,9 @@ pub struct ThresholdQuery {
     pub threshold: BandPhotonRadiance,
     /// Components to compose.
     pub components: ComponentMask,
-    /// Coarse radiance scan step.
+    /// Coarse authoritative radiance scan step. Excursions wholly between
+    /// samples can be missed; this controls discrete discovery coverage, not
+    /// detected-crossing timestamp precision or continuous completeness.
     pub sample_step: Second,
     /// Optional maximum Sun altitude pre-filter.
     pub sun_altitude_ceiling: Option<Degrees>,
@@ -140,7 +142,8 @@ impl std::fmt::Debug for SiteWindowContext {
 pub struct ThresholdQueryResult {
     /// Threshold used by the search.
     pub threshold: BandPhotonRadiance,
-    /// UTC periods satisfying all filters and the threshold.
+    /// UTC periods satisfying the filters and the sampled threshold search.
+    /// Narrow excursions wholly between samples can remain undetected.
     pub periods: Vec<Period<UTC>>,
 }
 
