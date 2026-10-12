@@ -23,11 +23,12 @@ def test_point_fixture_matches_rust_public_contract(observer, direction, evaluat
     # The zodiacal reference includes the ICRS -> EquatorialMeanJ2000
     # frame-bias transform and the reviewed analytic solar-reference asset.
     # The Airglow reference is the PALACE v1 runtime contract for this query.
+    # Both use the Siderust 0.13 / Tempoch 0.9 geometry baseline.
     assert result.components[0].integrated_photons_cm2_ns_sr == pytest.approx(
-        0.07321785371696575, abs=1.0e-12
+        0.07321785379305516, abs=1.0e-12
     )
     assert result.components[1].integrated_photons_cm2_ns_sr == pytest.approx(
-        0.11991978681184148, abs=1.0e-12
+        0.11991978668126084, abs=1.0e-12
     )
 
 

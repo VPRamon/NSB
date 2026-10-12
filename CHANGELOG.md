@@ -2,6 +2,17 @@
 
 All notable changes to published NSB releases are recorded here.
 
+## Unreleased
+
+### Changed
+
+- Upgrade the Rust workspace to Siderust 0.13.0 and Tempoch 0.9.0, with
+  Siderust/Python interoperability crates at 0.3.0.
+- Require the Siderust Python distribution `>=0.3.0,<0.4` and update
+  dependency provenance metadata and compatibility documentation.
+- Refresh Paranal Zodiacal and Airglow numerical baselines for the upgraded
+  time/geometry dependencies, retaining existing regression tolerances.
+
 ## 0.1.0 - 2026-10-07
 
 First public NSB release.
