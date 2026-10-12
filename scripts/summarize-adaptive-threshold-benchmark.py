@@ -23,6 +23,9 @@ for row in rows:
         if legacy in row:
             row[f"{phase}_worker_elapsed_seconds"] = row.pop(legacy)
 output = Path(__file__).resolve().parents[1] / "docs" / "specifications"
+command_prefix = ""
+if all(row.get("synthetic_fit_depth") == 0 for row in rows):
+    command_prefix = "NSB_ADAPTIVE_FILTER=synthetic NSB_ADAPTIVE_SYNTHETIC_FIT_DEPTH=0 "
 (output / f"{stem}.jsonl").write_text(
     "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 lines = [
@@ -73,14 +76,14 @@ lines += [
     "are summed worker elapsed times, not CPU clocks or total wall time. "
     "Batch counters aggregate targets/windows; unresolved days are summed target-time. "
     "Counters and stage durations come from the final repetition. "
-    "Peak pending intervals track search-stack size, not all allocations. Whole-process "
+    "Peak pending intervals track work-queue size, not all allocations. Whole-process "
     "RSS should be collected separately with `/usr/bin/time -v`; no "
     "per-algorithm memory-improvement claim is made.\n\n",
     "Reproduce:\n\n```bash\n",
-    "RAYON_NUM_THREADS=2 /usr/bin/time -v scripts/benchmark-adaptive-threshold.sh "
+    command_prefix + "RAYON_NUM_THREADS=2 /usr/bin/time -v scripts/benchmark-adaptive-threshold.sh "
     "> /tmp/adaptive-benchmark.log\n",
     "python3 scripts/summarize-adaptive-threshold-benchmark.py "
-    "/tmp/adaptive-benchmark.log\n```\n",
+    f"/tmp/adaptive-benchmark.log {stem}\n```\n",
 ]
 (output / f"{stem}.md").write_text("".join(lines).replace("adaptive-threshold-benchmarks.jsonl", f"{stem}.jsonl"))
 print(f"wrote {len(rows)} benchmark scenarios")

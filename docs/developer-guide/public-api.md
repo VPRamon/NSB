@@ -23,7 +23,9 @@ under `crates/nsb/tests/`.
 The additive `NsbEvaluator::periods_below_threshold_certified` and
 `periods_below_threshold_certified_with_context` methods require complete
 interval classification and return an explicit error on unresolved time.
-They use no scan fallback. Current certificate support is restricted to cached
+They use no scan fallback. Exported UTC endpoints are checked in native,
+CLI and Python precision and may move inward by at most 0.1 s; unrepresentable
+boundaries fail explicitly. Current certificate support is restricted to cached
 Starlight, the empty sum and prepared Moon-down intervals; active dynamic
 components are not yet certified. Python provides the same methods, and CLI
 `window --certified` selects this contract. Existing sampled methods and

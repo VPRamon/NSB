@@ -25,7 +25,10 @@ The [adaptive threshold integration](adaptive-threshold-production-status.md)
 adds certificate fast paths and separate strict certified methods. Unsupported
 dynamic regions retain this discrete path; the strict methods instead fail
 explicitly. Dynamic-component envelopes are not yet validated, so `sample_step`
-cannot be removed from the normal compatibility search.
+cannot be removed from the normal compatibility search. The follow-up records
+[fresh core comparisons](adaptive-threshold-review-benchmarks.md) and
+[end-to-end CLI latency/RSS](adaptive-threshold-cli-benchmarks.md), with incomplete
+certified-only results explicitly separated from sampled schedules.
 
 Astronomical event finding belongs to Siderust:
 

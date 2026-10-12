@@ -25,7 +25,7 @@ to be classified. They never use a uniform scan fallback. Success contains
 only certified observing periods, ordered/coalesced and converted to UTC using
 the endpoint conversion with a strict containment guard. Native UTC,
 CLI nanosecond civil output, and Python microsecond-truncated civil output must
-all map back inside the closed TT certificate. Unrepresentable leap labels or
+all map back inside the closed TT certificate. Civil years outside Python’s 1–9999 range, unrepresentable leap labels or
 outward-rounded endpoints are adjusted inward on a microsecond grid when
 representable within 0.1 s. At most 64 candidates per endpoint are checked;
 if none passes, `Unsupported` is returned and no schedule is emitted. Classification
@@ -55,8 +55,12 @@ retain their sampled contract. No `nsb-service-ctao` changes are made.
 
 Every mask is covered by regression tests with both lunar models. Agreement
 with the previous scanner is regression evidence, not a completeness proof.
-Production `ALL` continues to omit unapproved bundled Starlight as before;
-tests explicitly configure the experimental fixture when selecting that bit.
+In this build, the frozen `ComponentMask::ALL` equals Zodiacal | Airglow |
+Moonlight (bits 13), not all defined bits. Its existing policy includes Starlight
+only when an admitted production map is bundled; otherwise Starlight is opt-in.
+All 16 masks are tested, including bits 15 (all four physical components), using
+an explicitly configured experimental Starlight fixture. The benchmark's `all`
+labels retain the frozen bits-13 meaning; Starlight has separate rows.
 
 ## Scientific and resource contracts
 
@@ -65,7 +69,9 @@ lower > threshold rejects. Providers must cover the authoritative floating-point
 outputs and defined evaluation, not only ideal formulas or sampled points.
 Starlight uses the exact cached scalar. Moon-down is conditional on the existing
 prepared inclusive Siderust visibility set, not an independent event-completeness
-proof. Touching a Moon-visible endpoint is never certified zero.
+proof. The existing Sun/target eligibility partitions are also authoritative
+inputs, not independently validated astronomical-event enclosures. Touching a
+Moon-visible endpoint is never certified zero.
 
 The provider now distinguishes a refinable enclosure, an inconclusive fixed
 enclosure, a known regime boundary needing subdivision, and an unsupported
@@ -142,7 +148,32 @@ lunar models. Its baseline remains the unchanged authoritative 600-second
 scanner; incomplete certified-only results are never speedup claims. Historical
 per-window-budget prototype data remain in the original 55-scenario artifacts.
 Fresh core measurements and end-to-end results are recorded separately with
-their source revision, repetitions and resource settings.
+their source revision, repetitions and resource settings. The core certified-only
+harness executes no uniform fallback: its `fallback_intervals` field counts
+retained unresolved regions, not completed fallback scans. The end-to-end
+compatibility cases do execute the existing scanner on such regions.
+
+### Recorded follow-up measurements
+
+- [Fresh 83-case core matrix and three-variant comparison](adaptive-threshold-review-benchmarks.md): one warmup and three timed repetitions per variant, two Rayon threads, shared site context, both lunar models. Nine complete classifications and 74 incomplete outcomes. The run took 58 min 4.18 s; observed test-process RSS was 13,056 KiB. Command-wide RSS is recorded separately and is not attributed to either algorithm.
+- [End-to-end CLI comparison](adaptive-threshold-cli-benchmarks.md): six scenarios, twenty alternating repetitions per binary, byte-identical outputs, observed p90 and per-child RSS. Four annual default-ALL cases retain the sampled contract; two one-hour Moon-down cases complete through the strict API.
+- [Bound-only synthetic comparison](adaptive-threshold-bounds-only-benchmarks.md): close-pair/tangent costs fall to 8.33/6.95 µs from fit-assisted 16.28/14.34 µs, with the same unresolved neighborhoods. The cheap uniform scan has different discovery coverage, so these are not equivalent-result speedups.
+
+For southern/northern annual 100-target Jones workloads, the fresh uniform
+medians are 207.43/185.65 s; certified-only discovery measures 3.96/3.71 s but
+leaves every eligible ALL interval unresolved. Historical prototype bound counts
+of 21,060,404/20,813,506 fall to 153,687/149,390. This verifies elimination of
+useless subdivision, **not** usable certified ALL performance. No material
+production speedup or full-component performance acceptance is established.
+
+Final local validation: 861 passed, zero failed, five ignored across 48 workspace
+suites; 35 tests pass against the rebuilt abi3 wheel. Fifteen release adaptive
+tests and the release UTC-projection regression pass. Formatting, full license
+check and all-feature Clippy pass. Public API compatibility passes with exactly
+two additions and no removed/changed items. The release benchmark is separately
+executed despite being ignored by the normal suite. All 17 executed GitHub
+checks pass on the implementation revision; the repository intentionally skips
+coverage for Draft PRs. The final pushed documentation head is also checked.
 
 ## API and remaining acceptance criteria
 
