@@ -398,6 +398,29 @@ fn invalid_values_and_model_errors_fail_closed() {
 }
 
 #[test]
+fn finite_exact_values_with_overflowing_fit_fall_back_without_acceptance() {
+    // Subtracting the finite threshold overflows, but authoritative values
+    // remain valid. A numerical approximation failure isn't a model error.
+    let result = discover(
+        &[window(60_000.0, 60_001.0)],
+        Radiance::new(-f64::MAX),
+        |_| Ok(Radiance::new(f64::MAX)),
+        |_| Ok(None),
+        Controls {
+            max_intervals: 4,
+            ..Controls::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(result.diagnostics.failed_fits, 1);
+    assert!(result.diagnostics.fallback_intervals > 0);
+    assert!(result
+        .regions
+        .iter()
+        .all(|r| matches!(r.state, State::Unresolved(_))));
+}
+
+#[test]
 fn known_jump_is_partitioned_and_equality_is_not_a_root_precision_claim() {
     let edge = 60_000.3;
     let windows = [window(60_000.0, edge), window(edge, 60_001.0)];

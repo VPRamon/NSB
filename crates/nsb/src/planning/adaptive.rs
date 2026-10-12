@@ -275,7 +275,7 @@ fn candidate_split<E: Fn(Mjd) -> Result<Radiance>>(
     }
     let mut predicted = Vec::new();
     match fit {
-        Ok(poly) => {
+        Ok(poly) if poly.coeffs().iter().all(|c| c.is_finite()) => {
             // No tail-norm/residual test is used as a coverage certificate.
             predicted = poly
                 .roots()
@@ -285,7 +285,7 @@ fn candidate_split<E: Fn(Mjd) -> Result<Radiance>>(
                 .collect();
             out.diagnostics.polynomial_candidates += predicted.len();
         }
-        Err(_) => out.diagnostics.failed_fits += 1,
+        Ok(_) | Err(_) => out.diagnostics.failed_fits += 1,
     }
     for t in [window.start, window.end] {
         if let Some(y) = sampler.evaluate(t)? {
