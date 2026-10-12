@@ -1062,3 +1062,61 @@ fn adaptive_adjacent_mjd_native_window_is_resolved_without_endpoint_rounding() {
     .unwrap();
     assert_eq!(periods, vec![w]);
 }
+
+#[test]
+fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
+    let evaluator =
+        super::adaptive_bench::evaluator_with_moon(true, false, MoonlightModel::Jones2013Spectral);
+    let mut q = query(12);
+    q.observer = siderust::coordinates::centers::Geodetic::new_raw(
+        crate::units::angular::Degrees::new(-17.892),
+        crate::units::angular::Degrees::new(28.762),
+        siderust::qtty::Meters::new(2200.0),
+    );
+    q.window.end = q.window.start + Seconds::new(7.0 * 86400.0);
+    let context = evaluator.prepare_site_window_context(&q).unwrap();
+    let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+    let actual: Vec<_> = evaluator
+        .periods_below_threshold_adaptive_with_context(&context, &q)
+        .unwrap()
+        .periods
+        .into_iter()
+        .map(scan::utc_period_to_tt_mjd)
+        .collect();
+    let fine = reference(&evaluator, &p, &q, 30.0);
+    let pair = actual
+        .windows(2)
+        .find(|pair| pair[0].end.raw().value() > 61046.96 && pair[1].start.raw().value() < 61046.97)
+        .unwrap();
+    let (left, right) = (pair[0].end, pair[1].start);
+    assert!((2.3..2.5).contains(&((right - left).value() * 86400.0)));
+    assert!(fine.iter().any(|w| w.start < left && w.end > right));
+    let local = Interval::new(
+        left - Days::new(1.0 / 86400.0),
+        right + Days::new(1.0 / 86400.0),
+    );
+    let above = scan::authoritative_above_threshold_periods(
+        local,
+        Days::new(0.001 / 86400.0),
+        &|t| threshold::evaluate_integrated(&evaluator, &p, t),
+        q.threshold,
+    )
+    .unwrap();
+    assert_eq!(above.len(), 1);
+    assert!((above[0].start - left).value().abs() * 86400.0 <= 0.101);
+    assert!((above[0].end - right).value().abs() * 86400.0 <= 0.101);
+    assert!(
+        threshold::evaluate_integrated(&evaluator, &p, left + (right - left) * 0.5).unwrap()
+            > q.threshold
+    );
+    let comparison = super::discovery_bench::compare(
+        &evaluator,
+        &context,
+        &q,
+        &actual,
+        &fine,
+        "PALACE/Jones 2.4 s",
+        false,
+    );
+    assert_eq!(comparison.fine_missed_excursions, 1);
+}

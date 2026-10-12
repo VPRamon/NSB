@@ -20,7 +20,7 @@ output.mkdir(exist_ok=True)
 (output / "production.jsonl").write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in rows))
 lines = [
     "# Complete adaptive schedule measurements\n\n",
-    "Same release binary, registry Siderust 0.14 / Tempoch 0.10 graph, two Rayon threads, "
+    "Same production engine revision for both methods, registry Siderust 0.14 / Tempoch 0.10 graph, two Rayon threads, "
     "three alternating timed repetitions after warmup. Both methods return usable native UTC schedules. "
     "The recorded core time includes target preparation, physical partitioning and UTC conversion; "
     "end-to-end time adds the measured shared site preparation once. It excludes process startup, "
@@ -33,9 +33,9 @@ lines = [
     "Compared against 600 s and 30 s (single target) / 120 s (batches) authoritative scanners. "
     "Those references are discrete evidence, not mathematical completeness proofs. Every "
     "validated coarse boundary witness is retained within 0.533 s; specifically verified "
-    "singleton jump artifacts are counted separately. Fine-reference period topology "
-    "and boundaries are checked before any row is emitted. The separate adversarial tests "
-    "resolve the approximately 53 ms Zodiacal event with a local 1 ms reference.\n\n",
+    "singleton jump artifacts are counted separately. Fine-reference topology differences require independent dense local validation "
+    "of every additional rejected gap; unexplained differences fail before any row is emitted. The separate adversarial tests "
+    "resolve the approximately 53 ms Zodiacal event and 2.4 s Airglow/Moonlight excursion with local 1 ms references.\n\n",
     "Three repetitions support medians and observed ranges, not statistical p95 estimates. "
     "Raw values, duration sums, exact evaluations, fits, subdivisions, root refinements, "
     "bracket widths, resource limits, peak pending work and process RSS high-water marks are "

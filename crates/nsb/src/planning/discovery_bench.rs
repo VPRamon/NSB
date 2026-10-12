@@ -98,6 +98,48 @@ fn run(
     (started.elapsed().as_secs_f64(), costs, output)
 }
 
+#[derive(Default)]
+pub(super) struct Comparison {
+    pub singleton_artifacts: usize,
+    pub fine_missed_excursions: usize,
+}
+
+/// Independently resolve a newly discovered gap in an otherwise accepted
+/// reference interval. A finer scan remains empirical, but must witness the
+/// excursion and agree with BOTH adaptive boundaries at the original tolerance.
+fn confirm_gap(
+    evaluator: &crate::NsbEvaluator,
+    prepared: &super::types::PreparedThresholdQuery,
+    q: &ThresholdQuery,
+    left: ModifiedJulianDate,
+    right: ModifiedJulianDate,
+) -> bool {
+    let width = (right - left).value();
+    if width <= 0.0 || width > 120.0 / 86400.0 {
+        return false;
+    }
+    let padding = width.min(1.0 / 86400.0);
+    let local = Interval::new(
+        left - siderust::qtty::Days::new(padding),
+        right + siderust::qtty::Days::new(padding),
+    );
+    let f = |t| threshold::evaluate_integrated(evaluator, prepared, t);
+    if f(left + siderust::qtty::Days::new(width * 0.5)).unwrap() <= q.threshold {
+        return false;
+    }
+    let step = (width / 100.0).min(0.01 / 86400.0).max(0.000001 / 86400.0);
+    let above = scan::authoritative_above_threshold_periods(
+        local,
+        siderust::qtty::Days::new(step),
+        &f,
+        q.threshold,
+    )
+    .unwrap();
+    above.len() == 1
+        && (above[0].start - left).value().abs() * 86400.0 <= 0.106
+        && (above[0].end - right).value().abs() * 86400.0 <= 0.106
+}
+
 #[allow(clippy::too_many_arguments)]
 pub(super) fn compare(
     evaluator: &crate::NsbEvaluator,
@@ -107,11 +149,12 @@ pub(super) fn compare(
     reference: &[Interval<ModifiedJulianDate>],
     label: &str,
     allow_new_events: bool,
-) -> usize {
+) -> Comparison {
     let p = prepare::prepare_target_threshold(evaluator, context, q).unwrap();
     let windows = filters::smooth_threshold_windows(&p);
     let mut used = vec![false; actual.len()];
     let mut artifacts = 0;
+    let mut fine_missed_excursions = 0;
     if allow_new_events {
         for r in reference {
             if r.length().value() * 86400.0 <= 0.432001 {
@@ -163,7 +206,10 @@ pub(super) fn compare(
                 artifacts += 1;
             }
         }
-        return artifacts;
+        return Comparison {
+            singleton_artifacts: artifacts,
+            fine_missed_excursions,
+        };
     }
     for r in reference {
         if let Some((i, _)) = actual.iter().enumerate().find(|(i, a)| {
@@ -172,6 +218,34 @@ pub(super) fn compare(
                 && (a.end.raw().value() - r.end.raw().value()).abs() * 86400.0 <= 0.533
         }) {
             used[i] = true;
+            continue;
+        }
+        // A reference scanner can bridge a real short rejected excursion.
+        // Reconcile one-to-many topology only after an independent dense local
+        // scan confirms every additional gap. Outer boundary tolerances remain
+        // unchanged; no arbitrary period-count or duration filter is admitted.
+        let pieces: Vec<_> = actual
+            .iter()
+            .enumerate()
+            .filter(|(i, a)| !used[*i] && a.end > r.start && a.start < r.end)
+            .collect();
+        if pieces.len() > 1
+            && (pieces[0].1.start - r.start).value().abs() * 86400.0 <= 0.533
+            && (pieces.last().unwrap().1.end - r.end).value().abs() * 86400.0 <= 0.533
+            && pieces
+                .windows(2)
+                .all(|pair| confirm_gap(evaluator, &p, q, pair[0].1.end, pair[1].1.start))
+        {
+            for pair in pieces.windows(2) {
+                println!(
+                    "CONFIRMED_FINE_MISS {}",
+                    serde_json::json!({"scenario":label,"start_tt_mjd":pair[0].1.end.raw().value(),"end_tt_mjd":pair[1].1.start.raw().value(),"duration_seconds":(pair[1].1.start-pair[0].1.end).value()*86400.0,"local_reference_max_step_seconds":0.01,"boundary_allowance_seconds":0.106})
+                );
+            }
+            fine_missed_excursions += pieces.len() - 1;
+            for (i, _) in pieces {
+                used[i] = true;
+            }
             continue;
         }
         // The legacy scanner places a midpoint into a sign-transition bracket.
@@ -191,13 +265,17 @@ pub(super) fn compare(
             artifacts += 1;
             continue;
         }
+        eprintln!("ADAPTIVE_PERIODS {label}: {actual:?}");
         panic!("unmatched reference period {label}: start={}, end={}, duration_s={}, at_start={at_start}, at_end={at_end}, endpoint_below={endpoint_below}, interior_above={interior_above}",r.start.raw().value(),r.end.raw().value(),r.length().value()*86400.0);
     }
     assert!(
         allow_new_events || used.iter().all(|x| *x),
         "additional adaptive periods need investigation: {label}"
     );
-    artifacts
+    Comparison {
+        singleton_artifacts: artifacts,
+        fine_missed_excursions,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -214,6 +292,21 @@ fn measure(
     let filter = std::env::var("NSB_DISCOVERY_FILTER").unwrap_or_default();
     if !label.contains(&filter) {
         return;
+    }
+    // Resume an expensive acceptance run without retiming already validated
+    // scenarios. The default still executes the complete matrix.
+    if let Ok(path) = std::env::var("NSB_DISCOVERY_COMPLETED") {
+        let completed = std::fs::read_to_string(path).unwrap();
+        if completed
+            .lines()
+            .filter_map(|line| {
+                line.strip_prefix("DISCOVERY_BENCH ")
+                    .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+            })
+            .any(|row| row["scenario"].as_str() == Some(label) && row["complete_usable"] == true)
+        {
+            return;
+        }
     }
     let evaluator = super::adaptive_bench::evaluator_with_moon(north, bits & 2 != 0, moon);
     let observer = if north {
@@ -292,8 +385,10 @@ fn measure(
     let mut coarse_disagreements = 0;
     let mut fine_artifacts = 0;
     let mut coarse_artifacts = 0;
+    let mut fine_missed_excursions = 0;
+    let mut fine_raw_count_disagreements = 0;
     for (i, query) in queries.iter().enumerate() {
-        fine_artifacts += compare(
+        let comparison = compare(
             &evaluator,
             &context,
             query,
@@ -302,6 +397,9 @@ fn measure(
             &format!("{label}, target {i}, fine"),
             false,
         );
+        fine_artifacts += comparison.singleton_artifacts;
+        fine_missed_excursions += comparison.fine_missed_excursions;
+        fine_raw_count_disagreements += usize::from(new.2[i].len() != fine.2[i].len());
         coarse_artifacts += compare(
             &evaluator,
             &context,
@@ -310,7 +408,8 @@ fn measure(
             &old.2[i],
             &format!("{label}, target {i}, coarse"),
             true,
-        );
+        )
+        .singleton_artifacts;
         coarse_disagreements += usize::from(new.2[i].len() != old.2[i].len());
     }
     let mut report = serde_json::json!({
@@ -321,6 +420,7 @@ fn measure(
     "accepted_periods":new.2.iter().map(Vec::len).sum::<usize>(),"fine_singleton_jump_artifacts":fine_artifacts,"coarse_singleton_jump_artifacts":coarse_artifacts
     });
     let extra = serde_json::json!({
+        "fine_missed_excursions":fine_missed_excursions,"fine_raw_count_disagreements":fine_raw_count_disagreements,
             "adaptive_end_to_end_seconds":new_times.iter().map(|t|t+preparation_seconds).collect::<Vec<_>>(),
             "scan_end_to_end_seconds":old_times.iter().map(|t|t+preparation_seconds).collect::<Vec<_>>(),
             "peak_pending_intervals":new.1.peak_pending,"peak_recursion_depth":new.1.peak_depth,

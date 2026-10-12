@@ -266,3 +266,55 @@ collapsed local interpolation nodes still fail explicitly. Native band tests
 also retain split coordinates when sampling exported boundaries; rounding a
 boundary back to one absolute float can itself step outside its accepted
 interval at a model jump. CLI/Python tests evaluate the actual exported values.
+
+## Default and release compatibility decision
+
+The existing `periods_below_threshold[_with_context]` methods, Python equivalents,
+`sample_step` field/builders and explicit sampled CLI mode retain the frozen
+0.1.0 discrete-resolution contract. Replacing that behavior changes the set and
+placement of returned periods and removes the meaning of caller-selected steps;
+an unchanged Rust signature alone does not make that behavior compatible.
+The closest compatible migration here is the complete, step-free adaptive API
+plus joint CLI bands. No production scanner is removed before that release
+boundary; the obsolete CLI interval-subtraction implementation is removed.
+
+The required Siderust update also changes public temporal **type identity** from
+Tempoch 0.9 to 0.10. The dependency graph contains exactly one compatible public
+time ecosystem, but downstream Rust consumers must upgrade direct Tempoch
+requirements and recompile. Snapshot and historical API checks pass because
+names/signatures remain unchanged; those tools do not prove cross-version type
+identity compatibility. The mandated dependency migration is explicit in this
+PR and must be included in release review.
+
+The frozen first-release contract needs an explicit release-policy decision
+before switching normal methods and removing the scanner (for example a 0.2
+migration, or an authorized reopening of the first-release freeze). This PR
+does not invent a new release version or silently relax the compatibility
+regressions. Keep it Draft until the acceptance evidence and that release
+boundary have been reviewed. This is independent of strict certification:
+active-model interval envelopes are still unavailable, and empirical adaptive
+success must never be described as a proof.
+
+The separate `nsb-service-ctao` migration must remove/deprecate its sampling
+parameters only after the selected NSB release adopts the new default. No
+service implementation or external schema is changed here.
+
+### A real short Airglow/Moonlight excursion
+
+The CTAO-N seven-day Airglow + Jones case starting 2026-01-03 exposed a
+2.4006-second rejected excursion immediately before a PALACE hour transition.
+The 30-second reference scanner joined the accepted time on both sides;
+adaptive discovery excluded the excursion. Authoritative midpoint values are
+above the 0.25 threshold, and an independent 1-millisecond local scan agrees
+with both adaptive accepted-side boundaries within 0.101 seconds. The permanent
+regression preserves this improvement alongside the 53-millisecond Zodiacal
+case. It is not an upstream dependency effect.
+
+The benchmark comparator permits a reference interval to correspond to multiple
+adaptive pieces only when a separate dense local scan confirms **every** added
+rejected gap and both boundaries. Local steps are at most 10 milliseconds and
+boundary disagreement must be at most 0.106 seconds, which is tighter than the
+unchanged 0.533-second global reference allowance. Raw count differences and
+confirmed missed reference excursions are reported separately; unexplained
+extra/missing periods still fail. This is empirical corroboration, not an
+interval proof or permission to ignore a topology mismatch.

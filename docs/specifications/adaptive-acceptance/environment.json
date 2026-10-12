@@ -12,8 +12,6 @@
     3
   ],
   "background_validation_affinity_cpus": [
-    8,
-    10,
     12,
     13,
     14,
@@ -25,5 +23,29 @@
     20,
     21
   ],
-  "measurement_note": "Two distinct performance cores; validation builds/tests run on separate cores. Shared LLC, memory and package power are not isolated. Three repetitions are descriptive only."
+  "measurement_note": "Two distinct performance cores; validation builds/tests run on separate cores. Shared LLC, memory and package power are not isolated. Three repetitions are descriptive only.",
+  "measurement_commit": "3c14f03",
+  "matrix_cpu_groups": {
+    "south/jones-2013-spectral": [
+      0,
+      3
+    ],
+    "south/krisciunas-schaefer-1991": [
+      0,
+      3
+    ],
+    "north/jones-2013-spectral": [
+      1,
+      6
+    ],
+    "north/krisciunas-schaefer-1991": [
+      8,
+      10
+    ]
+  },
+  "local_test_profile": {
+    "opt_level": 1,
+    "debug_assertions": true
+  },
+  "note": "Three independent benchmark prefixes run on disjoint pairs of performance cores. Shared package power, LLC and memory are not isolated; no portable speed guarantee or tail-confidence claim."
 }
