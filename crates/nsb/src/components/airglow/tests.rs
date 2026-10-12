@@ -694,9 +694,10 @@ fn regression_paranal_integrated_values_at_representative_zeniths() {
         .unwrap();
 
     // Pinned PALACE v1 continuum plus NSB Noll-scattering reference for this
-    // Paranal query geometry (CTAO-S planning atmosphere).
+    // Paranal query geometry (CTAO-S planning atmosphere), evaluated with
+    // Siderust 0.13 / Tempoch 0.9.
     assert!(
-        (model.integrated.value() - 0.110_457_872_525_372_98).abs() < 1e-10,
+        (model.integrated.value() - 0.110_457_872_401_343_15).abs() < 1e-10,
         "zenith reference changed: {}",
         model.integrated.value()
     );

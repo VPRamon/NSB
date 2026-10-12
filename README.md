@@ -79,7 +79,7 @@ From a repository checkout:
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2"
-python -m pip install "siderust>=0.2.2,<0.3"
+python -m pip install "siderust>=0.3.0,<0.4"
 maturin develop --locked
 ```
 

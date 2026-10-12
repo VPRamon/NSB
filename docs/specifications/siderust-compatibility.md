@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Siderust 0.12 compatibility baseline for the NSB 0.1 release.
+Status: Siderust 0.13 compatibility baseline for the next NSB release.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
@@ -10,26 +10,37 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.12.0 | crates.io | `crates.io:siderust:0.12.0` | 1.89 | First-release baseline |
+| 0.1.x | 0.13.0 | crates.io | `crates.io:siderust:0.13.0` | 1.89 | Siderust 0.13 migration |
 
-All three workspace crates pin the published Rust package at `0.12.0`.
+All three workspace crates pin the published Rust package at `0.13.0`.
 `crates/nsb` and `crates/nsb-cli` request the `atmosphere` and
 `photometry` features, while `crates/nsb-data-tools` uses its own feature set.
 The version/source identity is shared even though feature selection is not
 identical.
 
 `Cargo.lock` resolves the registry package to its published checksum.
+The workspace also uses Tempoch `0.9.0`, and both Python interoperability
+crates (`siderust-py` and `tempoch-py`) use `0.3.0`.
+
+### Numerical baseline
+
+Siderust 0.13 revises UTC/UT1 handling and Earth rotation, while Tempoch 0.9
+includes split-coordinate time precision fixes. The Paranal Zodiacal and
+Airglow regression values shift by approximately one part in a billion with
+this dependency graph. Their Rust and Python baselines have been updated
+without widening the existing tolerances; the independent scientific
+validation fixtures remain unchanged.
 
 ### Python package versioning
 
 The Python runtime dependency named `siderust` is the Siderust Python
-distribution and currently uses the independent `0.2.x` version line:
+distribution and currently uses the independent `0.3.x` version line:
 
 ```text
-nsb-rust -> siderust>=0.2.2,<0.3
+nsb-rust -> siderust>=0.3.0,<0.4
 ```
 
-This is not a mismatch with the Rust `siderust = "0.12.0"` dependency. The
+This is not a mismatch with the Rust `siderust = "0.13.0"` dependency. The
 Python extension uses `siderust-py` for cross-extension interoperability,
 while the Rust scientific implementation links the Rust crate shown in the
 matrix above.

@@ -12,8 +12,8 @@ use std::fs;
 use std::path::PathBuf;
 
 const CRATES_IO_REGISTRY_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
-const SIDERUST_0_12_0_CHECKSUM: &str =
-    "9401ba8b70cfe3abd8b8a70e8ad1d2fbd8508dc487c46f4fe9a3db8e7314a938";
+const SIDERUST_0_13_0_CHECKSUM: &str =
+    "1368a681d9065b55efcd6b59c683360cb5a52618f311c8208d366c16cd6dd13f";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -112,8 +112,8 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         "Cargo.lock must resolve Siderust from crates.io"
     );
     assert_eq!(
-        locked_checksum, SIDERUST_0_12_0_CHECKSUM,
-        "Cargo.lock must contain the published Siderust 0.12.0 checksum"
+        locked_checksum, SIDERUST_0_13_0_CHECKSUM,
+        "Cargo.lock must contain the published Siderust 0.13.0 checksum"
     );
     assert_eq!(
         SIDERUST_SOURCE,

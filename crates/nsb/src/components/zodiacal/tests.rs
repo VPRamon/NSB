@@ -397,18 +397,19 @@ fn regression_known_case_sgr_a_star_paranal() {
         .compute(time, observer, target)
         .expect("regression compute");
 
+    // Siderust 0.13 / Tempoch 0.9 geometry baseline; retain the strict tolerances.
     let integrated = out.integrated.value();
     assert!(
-        (integrated - 0.073_249_824_745_366_44).abs() <= 1.0e-12,
+        (integrated - 0.073_249_824_821_251_32).abs() <= 1.0e-12,
         "integrated={integrated:.17}"
     );
     assert!(
-        (out.b_flux_s10.value() - 61.915_204_290_146_7).abs() <= 1.0e-10,
+        (out.b_flux_s10.value() - 61.915_204_368_020_945).abs() <= 1.0e-10,
         "b={:.17}",
         out.b_flux_s10.value()
     );
     assert!(
-        (out.v_flux_s10.value() - 84.824_136_370_918).abs() <= 1.0e-10,
+        (out.v_flux_s10.value() - 84.824_136_449_870_89).abs() <= 1.0e-10,
         "v={:.17}",
         out.v_flux_s10.value()
     );
