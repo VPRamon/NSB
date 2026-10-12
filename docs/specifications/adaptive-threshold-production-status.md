@@ -23,7 +23,16 @@ The additive methods `NsbEvaluator::periods_below_threshold_certified` and
 `periods_below_threshold_certified_with_context` require every eligible region
 to be classified. They never use a uniform scan fallback. Success contains
 only certified observing periods, ordered/coalesced and converted to UTC using
-the existing endpoint-preserving conversion. An entirely unacceptable window
+the endpoint conversion with a strict containment guard. Native UTC,
+CLI nanosecond civil output, and Python microsecond-truncated civil output must
+all map back inside the closed TT certificate. Unrepresentable leap labels or
+outward-rounded endpoints are adjusted inward on a microsecond grid when
+representable within 0.1 s. At most 64 candidates per endpoint are checked;
+if none passes, `Unsupported` is returned and no schedule is emitted. Classification
+covers all eligible TT time; exported boundaries may omit at most 0.1 s per
+endpoint. This
+is a representation check against the prepared TT model, not a bound on
+astronomical time-scale or ephemeris errors. An entirely unacceptable window
 can legitimately return an empty result. Any unresolved eligible time instead
 returns `NsbError::Unsupported` with reason counts and budget flags.
 

@@ -28,20 +28,20 @@ output = Path(__file__).resolve().parents[1] / "docs" / "specifications"
 lines = [
     "# Adaptive threshold feasibility measurements\n\n",
     "Measured 2026-10-12 against main `a3f6752`. See "
-    "[methodology and limitations](adaptive-threshold-search.md). "
+    "[methodology and limitations](adaptive-threshold-production-status.md). "
     "Raw repetitions/counters are in "
     "[JSONL](adaptive-threshold-benchmarks.jsonl).\n\n",
     "The previous scanner has a discrete 600 s discovery contract. "
-    "The prototype has certified/incomplete semantics. "
+    "The measured discovery engine has certified/incomplete semantics. "
     "**A lower runtime for an incomplete answer is not a speedup for an "
     "equivalent observing-window result.** `ratio` is previous/prototype "
-    "wall time only. Values below 1 mean the prototype is slower.\n\n",
+    "wall time only. Values below 1 mean discovery is slower.\n\n",
     "Both paths use the same release binary, evaluator, input, reused context "
     "and two Rayon threads. Site preparation and final UTC conversion/output "
     "are excluded. Each has one warmup and three timed repetitions (synthetic "
     "cases batch 100 calls per repetition). Medians below are milliseconds. "
     "Three repetitions do not support a meaningful p95 estimate.\n\n",
-    "| Scenario | Previous median ms | Prototype median ms | Runtime ratio | "
+    "| Scenario | Previous median ms | Discovery median ms | Runtime ratio | "
     "Exact calls old/new | Bounds / fits / subdivisions | Unresolved regions | Outcome |\n",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |\n",
 ]

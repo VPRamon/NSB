@@ -5,8 +5,8 @@
 use super::adaptive::{discover, Controls, State};
 use super::bounds::prepared_bounds;
 use super::scan::{
-    authoritative_above_threshold_periods, coalesce_periods, complement_periods,
-    tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
+    authoritative_above_threshold_periods, certified_tt_mjd_period_to_utc, coalesce_periods,
+    complement_periods, tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
 };
 use super::types::{
     PreparedThresholdQuery, SiteWindowContext, ThresholdQuery, ThresholdQueryResult,
@@ -133,8 +133,14 @@ fn search_prepared(
         threshold: query.threshold,
         periods: darker_periods
             .into_iter()
-            .map(|p| tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
-            .collect(),
+            .map(|p| {
+                if require_certification {
+                    certified_tt_mjd_period_to_utc(p, prepared.tt_window, query.window)
+                } else {
+                    Ok(tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
+                }
+            })
+            .collect::<Result<Vec<_>>>()?,
     })
 }
 
@@ -191,6 +197,9 @@ impl NsbEvaluator {
     /// events). Active Zodiacal, Airglow and either active Moonlight model lack
     /// validated temporal envelopes and return [`crate::NsbError::Unsupported`].
     /// Resource or numerical uncertainty also prevents a successful result.
+    /// UTC endpoints must round-trip inside their TT certificates in native,
+    /// CLI and Python precision; boundaries may move inward by at most 0.1 s.
+    /// An unrepresentable boundary returns Unsupported.
     /// The existing sampled methods retain their discrete discovery contract.
     pub fn periods_below_threshold_certified(
         &self,

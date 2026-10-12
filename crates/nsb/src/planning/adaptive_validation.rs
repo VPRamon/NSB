@@ -735,10 +735,27 @@ fn production_planning_preserves_discrete_results_for_every_mask_and_lunar_model
             );
             if bits == 0 || bits == ComponentMask::STARLIGHT.bits() {
                 assert!(strict.is_ok());
-                assert_eq!(strict.unwrap().periods, actual.periods);
+                let strict = strict.unwrap();
+                assert_eq!(strict.periods.len(), actual.periods.len());
+                for (certified, sampled) in strict.periods.iter().zip(&actual.periods) {
+                    assert!(certified.start >= sampled.start);
+                    assert!(certified.end <= sampled.end);
+                    assert!((certified.start - sampled.start).value() <= 0.1);
+                    assert!((sampled.end - certified.end).value() <= 0.1);
+                }
             } else if !out.complete() {
                 assert!(matches!(strict, Err(NsbError::Unsupported(_))));
             }
         }
+        // No eligible target time is a complete empty result even when the
+        // selected dynamic models would be unsupported on a nonempty interval.
+        let mut invisible = base.clone();
+        invisible.target = Target::new(0.0 * DEG, 89.0 * DEG);
+        invisible.components = ComponentMask::ALL;
+        assert!(evaluator
+            .periods_below_threshold_certified(&invisible)
+            .unwrap()
+            .periods
+            .is_empty());
     }
 }

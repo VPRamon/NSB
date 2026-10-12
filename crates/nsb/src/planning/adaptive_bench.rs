@@ -3,7 +3,7 @@
 //! Ignored release-mode harness: internal measurements without a public feature.
 //! Run via scripts/benchmark-adaptive-threshold.sh. Emits JSONL to stdout.
 
-use super::adaptive::{discover, Controls, State};
+use super::adaptive::{discover, Controls, State, StopReason};
 use super::bounds::{prepared_bounds, BoundOutcome};
 use super::{filters, prepare, scan, threshold};
 use crate::components::starlight::{StarlightMap, StarlightProvenance};
@@ -42,6 +42,7 @@ struct Costs {
     unsupported: usize,
     exact_budget_exhausted: usize,
     fit_budget_limited: usize,
+    interval_budget_unresolved: usize,
 }
 
 fn run(
@@ -65,7 +66,7 @@ fn run(
                 |w| prepared_bounds(&prepared, w),
                 Controls {
                     max_intervals: 2_048,
-                    max_evaluations: 128,
+                    max_evaluations: 0,
                     fit_depth: 0,
                     ..Controls::default()
                 },
@@ -95,7 +96,11 @@ fn run(
                 match r.state {
                     State::CertifiedBelow => c.accepted += 1,
                     State::CertifiedAbove => c.rejected += 1,
-                    State::Unresolved(_) => c.unresolved_days += r.interval.length().value(),
+                    State::Unresolved(reason) => {
+                        c.unresolved_days += r.interval.length().value();
+                        c.interval_budget_unresolved +=
+                            usize::from(reason == StopReason::IntervalBudget);
+                    }
                 }
             }
             black_box(&out);
@@ -128,6 +133,7 @@ fn run(
             total.unsupported += c.unsupported;
             total.exact_budget_exhausted += c.exact_budget_exhausted;
             total.fit_budget_limited += c.fit_budget_limited;
+            total.interval_budget_unresolved += c.interval_budget_unresolved;
             total.exact += c.exact;
             total.bounds += c.bounds;
             total.fits += c.fits;
@@ -198,6 +204,25 @@ fn real_starlight_certificate_reuses_the_authoritative_cached_scalar() {
     assert!(result.complete());
     assert_eq!(result.regions[0].state, State::CertifiedBelow);
     assert_eq!(result.diagnostics.exact_evaluations, 0);
+    let mut strict_query = query.clone();
+    strict_query.threshold = enclosure.upper;
+    assert_eq!(
+        evaluator
+            .periods_below_threshold_certified(&strict_query)
+            .unwrap()
+            .periods,
+        vec![query.window]
+    );
+    assert!(enclosure.lower.value() > 0.0);
+    strict_query.threshold = Radiance::new(0.0);
+    assert!(
+        evaluator
+            .periods_below_threshold_certified(&strict_query)
+            .unwrap()
+            .periods
+            .is_empty(),
+        "a proven rejection is a valid empty schedule, unlike incomplete coverage"
+    );
     // A constant partial contribution cannot certify a selected dynamic sum.
     let mut dynamic = prepared;
     dynamic.components |= ComponentMask::ZODIACAL;
@@ -380,6 +405,7 @@ fn measure_with_moon(
             "unsupported_intervals": new.unsupported,
             "exact_budget_exhausted_queries": new.exact_budget_exhausted,
             "fit_budget_limited_queries": new.fit_budget_limited,
+            "interval_budget_unresolved": new.interval_budget_unresolved,
             "bound_computations": new.bounds, "fits": new.fits, "failed_fits": new.failed_fits,
             "polynomial_candidates": new.candidates, "subdivisions": new.subdivisions, "root_refinements": new.refinements,
             "fallback_intervals": new.fallbacks, "unresolved_intervals": new.unresolved,
@@ -559,6 +585,12 @@ fn synthetic_measure(label: &str, limit: f64) {
     let f = |t| quadratic(t, 0.301_234, 1.0, 0.0);
     let bound = |w| quadratic_bounds(w, 0.301_234, 1.0, 0.0);
     let threshold = Radiance::new(limit);
+    // A separate experiment can compare sound bound-only subdivision with
+    // fit assistance on the identical analytic signal and uncertainty contract.
+    let fit_depth = std::env::var("NSB_ADAPTIVE_SYNTHETIC_FIT_DEPTH")
+        .ok()
+        .map(|s| s.parse::<usize>().unwrap())
+        .unwrap_or(1);
     let mut old_times = Vec::new();
     let mut new_times = Vec::new();
     let mut old_count = 0;
@@ -579,7 +611,17 @@ fn synthetic_measure(label: &str, limit: f64) {
             for _ in 0..BATCH {
                 if adaptive {
                     last = Some(black_box(
-                        discover(&[w], threshold, f, bound, Controls::default()).unwrap(),
+                        discover(
+                            &[w],
+                            threshold,
+                            f,
+                            bound,
+                            Controls {
+                                fit_depth,
+                                ..Controls::default()
+                            },
+                        )
+                        .unwrap(),
                     ));
                 } else {
                     let count = Cell::new(0);
@@ -618,6 +660,7 @@ fn synthetic_measure(label: &str, limit: f64) {
         serde_json::json!({
             "scenario": label, "site": "analytic", "days": 1, "targets": 1, "threshold": limit,
             "repeats": repeats, "batch": BATCH, "preparation_seconds": 0.0,
+            "synthetic_fit_depth": fit_depth,
             "previous_seconds": old_times, "prototype_seconds": new_times,
             "previous_exact": old_count, "prototype_exact": d.exact_evaluations,
             "bound_computations": d.bound_computations, "fits": d.fits, "failed_fits": d.failed_fits,
