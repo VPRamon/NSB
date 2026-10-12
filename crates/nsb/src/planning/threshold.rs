@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Threshold search orchestration and integrated radiance sampling.
 
-use super::adaptive::{discover, Controls, State};
+use super::adaptive::{discover, Controls};
 use super::bounds::prepared_bounds;
 use super::scan::{
     authoritative_above_threshold_periods, certified_tt_mjd_period_to_utc, coalesce_periods,
@@ -83,39 +83,36 @@ fn search_prepared(
         max_evaluations: 0,
         ..Controls::default()
     };
-    let certificates = discover(
-        &super::filters::smooth_threshold_windows(&prepared),
-        query.threshold,
-        |t| evaluate_integrated(evaluator, &prepared, t),
-        |w| prepared_bounds(&prepared, w),
-        controls,
-    )?;
-    debug_assert!(certificates
+    let windows = super::filters::smooth_threshold_windows(&prepared);
+    let certificates = if require_certification {
+        Some(discover(
+            &windows,
+            query.threshold,
+            |t| evaluate_integrated(evaluator, &prepared, t),
+            |w| prepared_bounds(&prepared, w),
+            controls,
+        )?)
+    } else {
+        None
+    };
+    debug_assert!(certificates.as_ref().is_none_or(|certificates| certificates
         .brackets
         .iter()
         .all(
             |b| (b.left > query.threshold) != (b.right > query.threshold)
                 && (!b.tolerance_met || b.interval.length() <= controls.time_tolerance)
-        ));
-    let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = if require_certification
-        || certificates.complete()
+        )));
+    let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = if let Some(certificates) =
+        certificates
     {
         certificates.certified_periods()?
     } else {
-        // Compatibility path, with the EXISTING discrete discovery contract.
-        // This is not a complete certified search. Unsupported regions retain
-        // the legacy scan until dynamic envelopes and an explicit public
-        // incomplete-result contract can be introduced together.
-        certificates
-            .regions
+        // Frozen sampled contract: use the original physical windows so the
+        // grid phase is unchanged. Practical adaptive discovery has its own
+        // explicit API and never falls back through this branch.
+        windows
             .into_par_iter()
-            .map(|region| -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
-                match region.state {
-                    State::CertifiedBelow => return Ok(vec![region.interval]),
-                    State::CertifiedAbove => return Ok(Vec::new()),
-                    State::Unresolved(_) => {}
-                }
-                let window = region.interval;
+            .map(|window| -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
                 let exact_f =
                     |mjd_tt: ModifiedJulianDate| evaluate_integrated(evaluator, &prepared, mjd_tt);
                 let brighter =
@@ -172,6 +169,7 @@ pub fn periods_below_threshold_with_context(
     query: &ThresholdQuery,
 ) -> Result<ThresholdQueryResult> {
     super::prepare::validate_threshold(query)?;
+    super::prepare::validate_sample_step(query)?;
     super::prepare::validate_site_context(evaluator, context, query)?;
     let prepared = super::prepare::prepare_target_threshold(evaluator, context, query)?;
     search_prepared(evaluator, query, prepared, false)
@@ -189,6 +187,67 @@ fn periods_below_threshold_certified_with_context(
 }
 
 impl NsbEvaluator {
+    /// Physics-partitioned, step-free adaptive threshold discovery.
+    ///
+    /// Uses authoritative radiances for all probes and crossing refinement
+    /// (0.1 s brackets). Assumes the piecewise physical signal is resolved by
+    /// independently checked degree-4/8 fits and local extrema searches.
+    /// This is an empirically validated discovery contract, NOT a continuous
+    /// completeness certificate. Arbitrarily hidden sub-node excursions remain
+    /// possible. Resource/numerical failures return an error, never a partial
+    /// schedule. `sample_step` is ignored, including its legacy validation.
+    /// Existing sampled methods keep their frozen discrete contract.
+    pub fn periods_below_threshold_adaptive(
+        &self,
+        query: &ThresholdQuery,
+    ) -> Result<ThresholdQueryResult> {
+        let context = prepare_site_window_context(self, query)?;
+        self.periods_below_threshold_adaptive_with_context(&context, query)
+    }
+
+    /// Adaptive discovery reusing a compatible target-independent context.
+    /// See [`Self::periods_below_threshold_adaptive`] for the coverage contract.
+    pub fn periods_below_threshold_adaptive_with_context(
+        &self,
+        context: &SiteWindowContext,
+        query: &ThresholdQuery,
+    ) -> Result<ThresholdQueryResult> {
+        super::prepare::validate_threshold(query)?;
+        super::prepare::validate_site_context(self, context, query)?;
+        let prepared = super::prepare::prepare_target_threshold(self, context, query)?;
+        let windows = super::filters::adaptive_threshold_windows(&prepared)?;
+        if windows.len() > 25_000 {
+            return Err(crate::NsbError::Unsupported(
+                "adaptive initial physical interval budget (25000)".into(),
+            ));
+        }
+        let parts = windows
+            .into_par_iter()
+            .map(|w| {
+                super::discovery::search(
+                    w,
+                    query.threshold,
+                    |t| evaluate_integrated(self, &prepared, t),
+                    prepared_bounds(&prepared, w)?,
+                    super::discovery::Limits::default(),
+                )
+                .map(|r| {
+                    log::trace!("adaptive window: bounds={}, costs={:?}", r.1.bounds, r.1);
+                    r.0
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let mut periods: Vec<_> = parts.into_iter().flatten().collect();
+        coalesce_periods(&mut periods);
+        Ok(ThresholdQueryResult {
+            threshold: query.threshold,
+            periods: periods
+                .into_iter()
+                .map(|p| certified_tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
+                .collect::<Result<_>>()?,
+        })
+    }
+
     /// Return a complete, interval-certified schedule or an explicit error.
     ///
     /// This method never uses `sample_step` or a scan fallback for discovery.
@@ -197,8 +256,9 @@ impl NsbEvaluator {
     /// events). Active Zodiacal, Airglow and either active Moonlight model lack
     /// validated temporal envelopes and return [`crate::NsbError::Unsupported`].
     /// Resource or numerical uncertainty also prevents a successful result.
-    /// UTC endpoints must round-trip inside their TT certificates in native,
-    /// CLI and Python precision; boundaries may move inward by at most 0.1 s.
+    /// Native UTC endpoints must round-trip inside their TT certificates;
+    /// boundaries may move inward by at most 0.1 s. Output adapters own their
+    /// representation restrictions (including Python datetime's year range).
     /// An unrepresentable boundary returns Unsupported.
     /// The existing sampled methods retain their discrete discovery contract.
     pub fn periods_below_threshold_certified(

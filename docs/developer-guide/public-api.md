@@ -20,17 +20,19 @@ under `crates/nsb/tests/`.
 
 ## Recommended application path
 
-The additive `NsbEvaluator::periods_below_threshold_certified` and
-`periods_below_threshold_certified_with_context` methods require complete
-interval classification and return an explicit error on unresolved time.
-They use no scan fallback. Exported UTC endpoints are checked in native,
-CLI and Python precision and may move inward by at most 0.1 s; unrepresentable
-boundaries fail explicitly. Current certificate support is restricted to cached
-Starlight, the empty sum and prepared Moon-down intervals; active dynamic
-components are not yet certified. Python provides the same methods, and CLI
-`window --certified` selects this contract. Existing sampled methods and
-`sample_step` retain their compatibility contract. See
-[integration status and limitations](../specifications/adaptive-threshold-production-status.md).
+The additive `periods_below_threshold_adaptive` and context variant provide
+step-free discovery with the complete physical models, exact radiance validation,
+and a documented empirical model-resolution contract. They do not claim
+continuous-time certification. Python exposes the same methods; CLI selects
+this path with `window --adaptive`. Resource/numerical failures return an error
+without a partial schedule. Existing sampled methods keep their frozen contract.
+
+The separate `periods_below_threshold_certified` methods require sound interval
+classification for every eligible region, with no scan fallback. Certificates
+currently cover cached Starlight, the empty sum and prepared Moon-down intervals;
+active dynamic components remain unsupported by this strict contract. Native
+UTC conversion contracts inward; Python and CLI own their representation limits.
+See [scientific contracts, migration and limitations](../specifications/adaptive-threshold-production-status.md).
 
 Most callers should prefer the intended **core API**:
 

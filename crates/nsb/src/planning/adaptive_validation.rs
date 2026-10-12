@@ -322,7 +322,8 @@ fn budgets_and_machine_precision_never_widen_certificates() {
         .unwrap();
         assert_partition(&result, extent);
         assert!(!result.complete());
-        assert!(result.diagnostics.bound_computations <= controls.max_intervals);
+        assert_eq!(result.diagnostics.initial_classifications, 1);
+        assert!(result.diagnostics.refinement_bounds <= controls.max_intervals);
         assert!(result.diagnostics.exact_evaluations <= evaluations);
         assert!(result
             .regions
@@ -598,7 +599,8 @@ fn whole_query_budgets_preserve_later_bound_only_certificates() {
     assert_eq!(out.diagnostics.exact_evaluations, 11);
     assert!(out.diagnostics.exact_budget_exhausted);
     assert!(out.diagnostics.fit_budget_limited);
-    assert!(out.diagnostics.bound_computations <= 64);
+    assert_eq!(out.diagnostics.initial_classifications, windows.len());
+    assert!(out.diagnostics.refinement_bounds <= 64);
     assert!(out
         .regions
         .iter()
@@ -607,7 +609,7 @@ fn whole_query_budgets_preserve_later_bound_only_certificates() {
     assert!(out.brackets.iter().all(|b| !b.tolerance_met));
     assert!(out.certified_periods().is_err());
 
-    // The bound cap is global too: it does not reset for the second window.
+    // Initial physical intervals are all classified independently of the cap.
     let limited = discover(
         &windows,
         Radiance::new(1.0),
@@ -624,9 +626,33 @@ fn whole_query_budgets_preserve_later_bound_only_certificates() {
         },
     )
     .unwrap();
-    assert_eq!(limited.diagnostics.bound_computations, 1);
-    assert!(!limited.complete());
-    assert!(limited.certified_periods().is_err());
+    assert_eq!(limited.diagnostics.initial_classifications, windows.len());
+    assert_eq!(limited.diagnostics.refinement_bounds, 0);
+    assert!(limited.complete());
+    assert_eq!(limited.certified_periods().unwrap(), windows);
+
+    let roots: Vec<_> = (0..3000)
+        .map(|i| window(60_000.0 + i as f64, 60_001.0 + i as f64))
+        .collect();
+    let initial = discover(
+        &roots,
+        Radiance::new(1.0),
+        |_| panic!(),
+        |_| {
+            Ok(BoundOutcome::enclosure(
+                RadianceBounds::constant(Radiance::new(0.0))?,
+                false,
+            ))
+        },
+        Controls {
+            max_intervals: 0,
+            ..Controls::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(initial.diagnostics.initial_classifications, 3000);
+    assert_eq!(initial.diagnostics.refinement_bounds, 0);
+    assert!(initial.complete());
 }
 
 #[test]

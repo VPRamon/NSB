@@ -93,3 +93,27 @@ def test_rust_heavy_planning_detaches_from_python(observer, direction, evaluator
         thread.join()
 
     assert progressed.is_set()
+
+
+def test_adaptive_models_context_and_inward_datetime_precision(observer, direction, evaluator):
+    query = planning_query(observer, direction)
+    direct = evaluator.periods_below_threshold_adaptive(query)
+    context = evaluator.prepare_site_window_context(query)
+    assert direct.periods == evaluator.periods_below_threshold_adaptive_with_context(context, query).periods
+    assert len(direct.periods) == 1
+    assert direct.periods[0][0] >= query.start
+    assert direct.periods[0][1] <= query.end
+    assert direct.periods[0][0].tzinfo is timezone.utc
+
+
+def test_adaptive_supports_both_lunar_models(observer):
+    import siderust
+    direction = siderust.Direction(83.6331, 22.0145)
+    for model in (nsb.MoonlightModel.JONES2013_SPECTRAL, nsb.MoonlightModel.KRISCIUNAS_SCHAEFER1991):
+        evaluator = nsb.NsbEvaluator(nsb.NsbModelConfig.generic_clear_sky().with_moonlight_model(model))
+        query = nsb.ThresholdQuery(observer, direction,
+            datetime(2026, 1, 3, 1, tzinfo=timezone.utc),
+            datetime(2026, 1, 3, 6, tzinfo=timezone.utc), 1.0e6,
+            components=nsb.ComponentMask.ALL, sun_altitude_ceiling_deg=None,
+            target_altitude_floor_deg=20.0)
+        assert evaluator.periods_below_threshold_adaptive(query).periods

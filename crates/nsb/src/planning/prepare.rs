@@ -19,14 +19,18 @@ pub(crate) fn validate_threshold(query: &ThresholdQuery) -> Result<()> {
     if !query.threshold.is_finite() {
         return Err(NsbError::OutOfRange("threshold must be finite".to_string()));
     }
-    if !query.sample_step.is_finite() || query.sample_step <= Second::new(0.0) {
-        return Err(NsbError::OutOfRange(
-            "sample_step must be finite and greater than zero".to_string(),
-        ));
-    }
     if query.window.start > query.window.end {
         return Err(NsbError::OutOfRange(
             "query window start must not be after end".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_sample_step(query: &ThresholdQuery) -> Result<()> {
+    if !query.sample_step.is_finite() || query.sample_step <= Second::new(0.0) {
+        return Err(NsbError::OutOfRange(
+            "sample_step must be finite and greater than zero".to_string(),
         ));
     }
     Ok(())

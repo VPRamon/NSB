@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 pub(super) struct Controls {
     pub time_tolerance: Days,
     pub min_width: Days,
-    /// Enclosure-call cap shared by every physical interval in the query.
+    /// Refinement enclosure-call cap, in addition to initial classification.
     pub max_intervals: usize,
     /// Authoritative-call cap shared by fitting and refinement across the query.
     pub max_evaluations: usize,
@@ -78,6 +78,8 @@ pub(super) struct Bracket {
 
 #[derive(Debug, Default, Clone)]
 pub(super) struct Diagnostics {
+    pub initial_classifications: usize,
+    pub refinement_bounds: usize,
     pub exact_evaluations: usize,
     pub bound_computations: usize,
     pub fits: usize,
@@ -192,13 +194,18 @@ where
     out.diagnostics.peak_pending_intervals = pending.len();
 
     while let Some((window, depth)) = pending.pop_front() {
-        let state = if out.diagnostics.bound_computations >= controls.max_intervals {
+        let state = if depth > 0 && out.diagnostics.refinement_bounds >= controls.max_intervals {
             Some(State::Unresolved(StopReason::IntervalBudget))
         } else {
             let start = Instant::now();
             let enclosure = bounds(window)?;
             out.diagnostics.bounds_time += start.elapsed();
             out.diagnostics.bound_computations += 1;
+            if depth == 0 {
+                out.diagnostics.initial_classifications += 1;
+            } else {
+                out.diagnostics.refinement_bounds += 1;
+            }
             match enclosure {
                 BoundOutcome::Enclosure {
                     range: b,

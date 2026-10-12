@@ -24,6 +24,11 @@ mod adaptive_bench;
 #[cfg(test)]
 mod adaptive_validation;
 mod bounds;
+mod discovery;
+#[cfg(test)]
+mod discovery_bench;
+#[cfg(test)]
+mod discovery_tests;
 
 pub use types::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 

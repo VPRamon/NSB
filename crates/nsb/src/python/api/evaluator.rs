@@ -9,6 +9,53 @@ use crate::{NsbEvaluator, NsbModelConfig, PointQuery, SiteWindowContext, Thresho
 use super::errors::to_py_err;
 use super::results::{PyNsbResult, PyThresholdQueryResult};
 
+// Native Rust UTC has a wider range and precision than Python datetime. Keep
+// those restrictions at this boundary, including microsecond truncation.
+fn python_periods(
+    mut result: crate::ThresholdQueryResult,
+) -> crate::Result<crate::ThresholdQueryResult> {
+    use chrono::{Datelike, Timelike};
+    use tempoch::{Period, Time, UTC};
+    let error = || {
+        crate::NsbError::Unsupported(
+            "schedule boundary cannot be represented inward by Python datetime".into(),
+        )
+    };
+    for period in &mut result.periods {
+        let original = *period;
+        let endpoint = |value: Time<UTC>, start: bool| -> crate::Result<Time<UTC>> {
+            for i in 0..=1000 {
+                let candidate = value
+                    + crate::units::Second::new(if start { 1.0 } else { -1.0 } * i as f64 * 0.0001);
+                let civil = candidate.to_chrono().ok_or_else(error)?;
+                if !(1..=9999).contains(&civil.year()) || civil.nanosecond() >= 1_000_000_000 {
+                    return Err(error());
+                }
+                let civil = civil
+                    .with_nanosecond(civil.nanosecond() / 1000 * 1000)
+                    .ok_or_else(error)?;
+                let projected = Time::<UTC>::try_from_chrono(civil).map_err(|_| error())?;
+                if projected >= original.start
+                    && projected <= original.end
+                    && projected.to::<tempoch::TT>() >= original.start.to::<tempoch::TT>()
+                    && projected.to::<tempoch::TT>() <= original.end.to::<tempoch::TT>()
+                {
+                    return Ok(candidate);
+                }
+            }
+            Err(error())
+        };
+        *period = Period::new(
+            endpoint(original.start, true)?,
+            endpoint(original.end, false)?,
+        );
+        if period.start >= period.end {
+            return Err(error());
+        }
+    }
+    Ok(result)
+}
+
 #[pyclass(
     name = "SiteWindowContext",
     frozen,
@@ -32,6 +79,7 @@ impl NsbEvaluator {
     ) -> PyResult<PyThresholdQueryResult> {
         let query = query.clone();
         py.detach(|| self.periods_below_threshold_certified(&query))
+            .and_then(python_periods)
             .map(PyThresholdQueryResult::from_inner)
             .map_err(to_py_err)
     }
@@ -47,6 +95,37 @@ impl NsbEvaluator {
         let context = Arc::clone(&context.inner);
         let query = query.clone();
         py.detach(|| self.periods_below_threshold_certified_with_context(&context, &query))
+            .and_then(python_periods)
+            .map(PyThresholdQueryResult::from_inner)
+            .map_err(to_py_err)
+    }
+
+    /// Step-free adaptive discovery; empirical model-resolution assumptions,
+    /// not a continuous completeness certificate. Errors return no schedule.
+    #[pyo3(name = "periods_below_threshold_adaptive")]
+    fn py_periods_below_threshold_adaptive(
+        &self,
+        py: Python<'_>,
+        query: PyRef<'_, ThresholdQuery>,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let query = query.clone();
+        py.detach(|| self.periods_below_threshold_adaptive(&query))
+            .and_then(python_periods)
+            .map(PyThresholdQueryResult::from_inner)
+            .map_err(to_py_err)
+    }
+
+    #[pyo3(name = "periods_below_threshold_adaptive_with_context")]
+    fn py_periods_below_threshold_adaptive_with_context(
+        &self,
+        py: Python<'_>,
+        context: PyRef<'_, PySiteWindowContext>,
+        query: PyRef<'_, ThresholdQuery>,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let context = Arc::clone(&context.inner);
+        let query = query.clone();
+        py.detach(|| self.periods_below_threshold_adaptive_with_context(&context, &query))
+            .and_then(python_periods)
             .map(PyThresholdQueryResult::from_inner)
             .map_err(to_py_err)
     }

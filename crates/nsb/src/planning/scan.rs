@@ -267,66 +267,45 @@ pub(crate) fn tt_mjd_period_to_utc(
     Period::new(start, end)
 }
 
-/// Fail closed if native UTC or the CLI/Python civil projections escape a
-/// closed TT certificate. Do not silently round a certified boundary outward.
+/// Convert without expanding a closed TT interval. This checks native Rust
+/// time semantics; each language/output adapter owns its representation limits.
 pub(crate) fn certified_tt_mjd_period_to_utc(
     window: TimePeriod<ModifiedJulianDate>,
     query_window_tt: TimePeriod<ModifiedJulianDate>,
     query_window_utc: Period<UTC>,
 ) -> Result<Period<UTC>> {
-    use chrono::{Datelike, Timelike};
-    let result = tt_mjd_period_to_utc(window, query_window_tt, query_window_utc);
-    let conversion_error = || {
+    if window.start >= window.end {
+        return Err(crate::NsbError::Unsupported(
+            "empty TT interval cannot be exported".into(),
+        ));
+    }
+    let converted = tt_mjd_period_to_utc(window, query_window_tt, query_window_utc);
+    let error = || {
         crate::NsbError::Unsupported(
-        "certified UTC endpoint cannot be represented inside its TT enclosure in all Rust/CLI/Python projections".into(),
-    )
+            "UTC endpoint cannot be represented inside its TT interval".into(),
+        )
     };
-    let endpoint = |original: Time<UTC>, is_start: bool| -> Result<Time<UTC>> {
-        let mut candidate = original;
-        for _ in 0..64 {
-            let civil = candidate.to_chrono().ok_or_else(conversion_error)?;
-            // Python datetime cannot represent leap labels.
-            if civil.nanosecond() >= 1_000_000_000 || !(1..=9999).contains(&civil.year()) {
-                return Err(conversion_error());
+    let endpoint = |original: Time<UTC>, start: bool| -> Result<Time<UTC>> {
+        for i in 0..=1000 {
+            let candidate = original
+                + crate::units::Second::new(if start { 1.0 } else { -1.0 } * i as f64 * 0.0001);
+            let tt = utc_time_to_tt_mjd(candidate);
+            if tt >= window.start
+                && tt <= window.end
+                && candidate >= query_window_utc.start
+                && candidate <= query_window_utc.end
+            {
+                return Ok(candidate);
             }
-            let micro = civil
-                .with_nanosecond(civil.nanosecond() / 1_000 * 1_000)
-                .ok_or_else(conversion_error)?;
-            let projections = [
-                candidate,
-                Time::<UTC>::try_from_chrono(civil).map_err(|_| conversion_error())?,
-                Time::<UTC>::try_from_chrono(micro).map_err(|_| conversion_error())?,
-            ];
-            let inside = projections.iter().all(|&value| {
-                let tt = utc_time_to_tt_mjd(value);
-                tt >= window.start
-                    && tt <= window.end
-                    && value >= query_window_utc.start
-                    && value <= query_window_utc.end
-            });
-            if inside {
-                let shift = (candidate - original).value().abs();
-                if shift <= 0.1 {
-                    return Ok(candidate);
-                }
-                return Err(conversion_error());
-            }
-            // Try the next microsecond inward, then verify again. The bounded
-            // loop is a representation search, never evidence for a bound.
-            let next = micro
-                .checked_add_signed(chrono::Duration::microseconds(if is_start {
-                    1
-                } else {
-                    -1
-                }))
-                .ok_or_else(conversion_error)?;
-            candidate = Time::<UTC>::try_from_chrono(next).map_err(|_| conversion_error())?;
         }
-        Err(conversion_error())
+        Err(error())
     };
-    let result = Period::new(endpoint(result.start, true)?, endpoint(result.end, false)?);
+    let result = Period::new(
+        endpoint(converted.start, true)?,
+        endpoint(converted.end, false)?,
+    );
     if result.start >= result.end {
-        return Err(conversion_error());
+        return Err(error());
     }
     Ok(result)
 }
@@ -344,51 +323,26 @@ mod tests {
     }
 
     #[test]
-    fn certified_utc_conversion_checks_civil_and_microsecond_roundtrips() {
-        for label in [
-            "2026-01-14T01:00:00Z",
-            "2016-12-31T23:59:59Z",
-            "2017-01-01T00:00:00Z",
-        ] {
-            let start = Time::<UTC>::from_chrono(label.parse().unwrap());
-            let end = start + crate::units::Second::new(1.0);
-            let utc = Period::new(start, end);
-            let tt = utc_period_to_tt_mjd(utc);
-            let converted = certified_tt_mjd_period_to_utc(tt, tt, utc);
-            if label == "2016-12-31T23:59:59Z" {
-                // Its end is the leap label, which Python cannot represent.
-                assert!(matches!(converted, Err(crate::NsbError::Unsupported(_))));
-            } else {
-                assert!(converted.is_ok(), "{label}");
-            }
-        }
-        // Native/CLI civil dates may extend beyond Python's year range.
+    fn certified_native_utc_conversion_is_inward_and_has_no_python_year_limit() {
         use chrono::TimeZone;
-        let civil = chrono::Utc.with_ymd_and_hms(10000, 1, 1, 0, 0, 0).unwrap();
-        let start = Time::<UTC>::from_chrono(civil);
-        let utc = Period::new(start, start + crate::units::Second::new(1.0));
-        let tt = utc_period_to_tt_mjd(utc);
-        assert!(matches!(
-            certified_tt_mjd_period_to_utc(tt, tt, utc),
-            Err(crate::NsbError::Unsupported(_))
-        ));
-        // A fractional UTC start may export earlier when truncated by Python.
-        // Such a result must either remain enclosed or fail explicitly.
-        let start = Time::<UTC>::from_chrono("2026-01-14T01:00:00.000000999Z".parse().unwrap());
-        let utc = Period::new(start, start + crate::units::Second::new(1.0));
-        let tt = utc_period_to_tt_mjd(utc);
-        let converted = certified_tt_mjd_period_to_utc(tt, tt, utc).unwrap();
-        assert!(converted.start >= utc.start);
-        assert!(converted.end <= utc.end);
-        let civil = converted.start.to_chrono().unwrap();
-        use chrono::Timelike;
-        let micro = civil
-            .with_nanosecond(civil.nanosecond() / 1_000 * 1_000)
-            .unwrap();
-        assert!(utc_time_to_tt_mjd(Time::<UTC>::from_chrono(micro)) >= tt.start);
-        // A collapsed interval cannot silently become a successful empty one.
-        let point = TimePeriod::new(tt.start, tt.start);
-        assert!(certified_tt_mjd_period_to_utc(point, tt, utc).is_err());
+        for civil in [
+            "2026-01-14T01:00:00.000000999Z".parse().unwrap(),
+            "2016-12-31T23:59:59Z".parse().unwrap(),
+            "2017-01-01T00:00:00Z".parse().unwrap(),
+            chrono::Utc.with_ymd_and_hms(10000, 1, 1, 0, 0, 0).unwrap(),
+        ] {
+            let start = Time::<UTC>::from_chrono(civil);
+            let utc = Period::new(start, start + crate::units::Second::new(1.0));
+            let tt = utc_period_to_tt_mjd(utc);
+            let result = certified_tt_mjd_period_to_utc(tt, tt, utc).unwrap();
+            assert!(utc_time_to_tt_mjd(result.start) >= tt.start);
+            assert!(utc_time_to_tt_mjd(result.end) <= tt.end);
+            assert!(result.start >= utc.start && result.end <= utc.end);
+            assert!((result.start - utc.start).value() <= 0.1);
+            assert!((utc.end - result.end).value() <= 0.1);
+            let point = TimePeriod::new(tt.start, tt.start);
+            assert!(certified_tt_mjd_period_to_utc(point, tt, utc).is_err());
+        }
     }
 
     #[test]

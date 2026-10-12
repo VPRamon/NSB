@@ -29,6 +29,7 @@ def main():
     parser.add_argument("previous", type=Path, help="release CLI built before production changes")
     parser.add_argument("current", type=Path)
     parser.add_argument("--repeats", type=int, default=20)
+    parser.add_argument("--adaptive", action="store_true", help="measure practical adaptive schedules; compare determinism per variant, not byte equality between contracts")
     args = parser.parse_args()
     if args.repeats < 10:
         parser.error("at least ten repetitions are required for observed tail diagnostics")
@@ -52,21 +53,27 @@ def main():
                       arguments, ["--certified"]))
     with tempfile.TemporaryDirectory(prefix="nsb-235-cli-") as tmp:
         for label, contract, arguments, current_extra in cases:
+            if args.adaptive:
+                contract = "adaptive under resolved-model assumptions"
+                current_extra = ["--adaptive"]
             memory_file = Path(tmp) / "rss.txt"
             previous_warmup = invoke(binaries[0], arguments, memory_file)
             current_warmup = invoke(binaries[1], arguments + current_extra, memory_file)
-            assert previous_warmup[2] == current_warmup[2], f"output differs: {label}"
+            if not args.adaptive:
+                assert previous_warmup[2] == current_warmup[2], f"output differs: {label}"
+            digests = [previous_warmup[2], current_warmup[2]]
             times, memory = [[], []], [[], []]
             for repeat in range(args.repeats):
                 for variant in ([0, 1] if repeat % 2 == 0 else [1, 0]):
                     seconds, rss, digest = invoke(binaries[variant],
                         arguments + (current_extra if variant else []), memory_file)
-                    assert digest == previous_warmup[2], f"nondeterministic output: {label}"
+                    assert digest == digests[variant], f"nondeterministic output: {label}"
                     times[variant].append(seconds)
                     memory[variant].append(rss)
             result = {"scenario": label, "contract": contract, "arguments": arguments,
                       "current_extra": current_extra, "repeats": args.repeats,
                       "rayon_threads": 2, "output_sha256": previous_warmup[2],
+                      "current_output_sha256":current_warmup[2], "outputs_identical": digests[0] == digests[1],
                       "previous_binary_sha256": hashlib.sha256(binaries[0].read_bytes()).hexdigest(),
                       "current_binary_sha256": hashlib.sha256(binaries[1].read_bytes()).hexdigest()}
             for variant, name in enumerate(["previous", "current"]):

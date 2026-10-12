@@ -71,6 +71,8 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let search = |query: &ThresholdQuery| {
         if args.certified {
             evaluator.periods_below_threshold_certified_with_context(&context, query)
+        } else if args.adaptive {
+            evaluator.periods_below_threshold_adaptive_with_context(&context, query)
         } else {
             evaluator.periods_below_threshold_with_context(&context, query)
         }
@@ -86,6 +88,11 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         max_result.periods
     };
 
+    let periods = if args.certified || args.adaptive {
+        time::inward_periods(periods)?
+    } else {
+        periods
+    };
     let descriptions = evaluator.describe_components(observer, components)?;
     info!(
         "completed threshold window search: period_count={}, elapsed_ms={}",

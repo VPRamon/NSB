@@ -307,3 +307,57 @@ fn certified_window_returns_a_complete_constant_sum_without_a_step() {
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["periods"].as_array().unwrap().len(), 1);
 }
+
+#[test]
+fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_modes() {
+    let base = [
+        "--format",
+        "json",
+        "window",
+        "--start",
+        "2026-01-03T01:00:00.000000999Z",
+        "--end",
+        "2026-01-03T06:00:00.000000999Z",
+        "--site",
+        "PARANAL",
+        "--ra",
+        "83.6331",
+        "--dec",
+        "22.0145",
+        "--max-nsb",
+        "1000000",
+        "--components",
+        "all",
+        "--no-pre-filter",
+        "--adaptive",
+    ];
+    for moon in ["ks1991", "jones2013"] {
+        let output = Command::cargo_bin("nsb")
+            .unwrap()
+            .args(base)
+            .args(["--moonlight-model", moon])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+        let periods = value["periods"].as_array().unwrap();
+        assert_eq!(periods.len(), 1);
+        let start = chrono::DateTime::parse_from_rfc3339(periods[0]["start_utc"].as_str().unwrap())
+            .unwrap();
+        let end =
+            chrono::DateTime::parse_from_rfc3339(periods[0]["end_utc"].as_str().unwrap()).unwrap();
+        assert!(start >= chrono::DateTime::parse_from_rfc3339(base[4]).unwrap());
+        assert!(end <= chrono::DateTime::parse_from_rfc3339(base[6]).unwrap());
+    }
+    for extra in [vec!["--step", "600"], vec!["--certified"]] {
+        Command::cargo_bin("nsb")
+            .unwrap()
+            .args(base)
+            .args(extra)
+            .assert()
+            .failure()
+            .stdout(predicate::str::is_empty());
+    }
+}

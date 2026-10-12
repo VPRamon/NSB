@@ -223,6 +223,10 @@ pub struct WindowArgs {
     #[arg(long, conflicts_with = "step")]
     pub certified: bool,
 
+    /// Step-free adaptive discovery under empirical model-resolution assumptions (not certified).
+    #[arg(long, conflicts_with_all = ["step", "certified"])]
+    pub adaptive: bool,
+
     /// Disable Sun and target-altitude pre-filters.
     #[arg(long)]
     pub no_pre_filter: bool,

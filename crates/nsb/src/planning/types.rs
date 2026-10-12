@@ -32,7 +32,7 @@ pub struct ThresholdQuery {
     /// Components to compose.
     pub components: ComponentMask,
     /// Coarse authoritative scan step for the sampled compatibility methods.
-    /// The certified methods do not use this field for discovery. Excursions wholly between
+    /// Adaptive and certified methods ignore this field. Excursions wholly between
     /// samples can be missed; this controls discrete discovery coverage, not
     /// detected-crossing timestamp precision or continuous completeness.
     pub sample_step: Second,
@@ -145,7 +145,8 @@ pub struct ThresholdQueryResult {
     pub threshold: BandPhotonRadiance,
     /// UTC periods satisfying the filters and the selected search contract.
     /// Sampled methods can miss narrow excursions wholly between probes;
-    /// certified methods return an error unless all eligible time is classified.
+    /// adaptive methods assume the piecewise physical signal is numerically
+    /// resolved; certified methods require interval certificates for all time.
     pub periods: Vec<Period<UTC>>,
 }
 
