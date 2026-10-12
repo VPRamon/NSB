@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-//! Complete schedule benchmark; the historical certificate feasibility harness
-//! remains unchanged. Run the ignored test in release with two Rayon threads.
+//! Complete schedule benchmark and dependency reference exports.
+//! Run the ignored matrix in release with two Rayon threads.
 use super::{
     bounds::prepared_bounds,
     discovery::{self, Costs},
@@ -339,7 +339,7 @@ fn measure(
             return;
         }
     }
-    let evaluator = super::adaptive_bench::evaluator_with_moon(north, bits & 2 != 0, moon);
+    let evaluator = super::test_fixtures::evaluator_with_moon(north, bits & 2 != 0, moon);
     let observer = if north {
         siderust::coordinates::centers::Geodetic::new_raw(
             Degrees::new(-17.892),
@@ -559,7 +559,7 @@ fn dependency_upgrade_reference() {
             MoonlightModel::Jones2013Spectral,
             MoonlightModel::KrisciunasSchaefer1991,
         ] {
-            let evaluator = super::adaptive_bench::evaluator_with_moon(north, true, moon);
+            let evaluator = super::test_fixtures::evaluator_with_moon(north, true, moon);
             let observer = siderust::coordinates::centers::Geodetic::new_raw(
                 Degrees::new(if north { -17.892 } else { -70.31634444444444 }),
                 Degrees::new(if north { 28.762 } else { -24.683427777777776 }),

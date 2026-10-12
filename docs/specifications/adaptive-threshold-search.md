@@ -1,5 +1,11 @@
 # Adaptive threshold discovery: #234 feasibility spike
 
+Historical certificate-feasibility record. Its timing-only harness has been
+replaced by the [complete adaptive acceptance harness](adaptive-acceptance/README.md).
+The original experiment remains reproducible from its recorded historical commit;
+its incomplete active-model timings are not production adaptive performance evidence.
+
+
 **Historical record of the initial `7d98e64` / `fbd7955` milestone.**
 For the current production integration, strict API, review fixes and remaining
 blockers, see [production integration status](adaptive-threshold-production-status.md).

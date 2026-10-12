@@ -692,7 +692,7 @@ fn production_planning_preserves_discrete_results_for_every_mask_and_lunar_model
         MoonlightModel::KrisciunasSchaefer1991,
         MoonlightModel::Jones2013Spectral,
     ] {
-        let evaluator = super::adaptive_bench::evaluator_with_moon(false, true, moon);
+        let evaluator = super::test_fixtures::evaluator_with_moon(false, true, moon);
         for bits in 0..=15 {
             let query = base
                 .clone()

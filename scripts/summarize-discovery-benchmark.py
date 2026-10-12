@@ -34,13 +34,13 @@ lines = [
     "Those references are discrete evidence, not mathematical completeness proofs. Every "
     "validated coarse boundary witness is retained within 0.533 s; specifically verified "
     "singleton jump artifacts are counted separately. Fine-reference topology differences require independent dense local validation "
-    "of every additional rejected gap; unexplained differences fail before any row is emitted. The separate adversarial tests "
+    "of every additional rejected excursion (including physical-window edges); unexplained differences fail before any row is emitted. The separate adversarial tests "
     "resolve the approximately 53 ms Zodiacal event and 2.4 s Airglow/Moonlight excursion with local 1 ms references.\n\n",
     "Three repetitions support medians and observed ranges, not statistical p95 estimates. "
     "Raw values, duration sums, exact evaluations, fits, subdivisions, root refinements, "
     "bracket widths, resource limits, peak pending work and process RSS high-water marks are "
     "in [JSONL](production.jsonl); the [environment](environment.json) records hardware and compiler. "
-    "RSS is cumulative whole-process VmHWM, not a per-algorithm memory comparison.\n\n",
+    "RSS is cumulative whole-process VmHWM, not a per-algorithm memory comparison. Cache byte counts are active sample payload, excluding allocator/capacity overhead. Exact counts are integrated search probes; target/site preparation is included in time but not in those counts.\n\n",
     "| Scenario | Scan core ms | Adaptive core ms | Scan E2E ms | Adaptive E2E ms | Adaptive/scan E2E | Exact scan/adaptive | Fits / splits / roots |\n",
     "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n",
 ]

@@ -20,15 +20,19 @@ mod types;
 // Internal certificates and resource controls are not a supported public API.
 mod adaptive;
 #[cfg(test)]
-mod adaptive_bench;
-#[cfg(test)]
+#[path = "tests/adaptive_validation.rs"]
 mod adaptive_validation;
 mod bounds;
 mod discovery;
 #[cfg(test)]
+#[path = "tests/discovery_bench.rs"]
 mod discovery_bench;
 #[cfg(test)]
+#[path = "tests/discovery_tests.rs"]
 mod discovery_tests;
+#[cfg(test)]
+#[path = "tests/fixtures.rs"]
+mod test_fixtures;
 
 pub use types::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};
 

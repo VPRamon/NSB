@@ -1,5 +1,11 @@
 # Adaptive threshold review measurements
 
+Historical certificate-feasibility record. Its timing-only harness has been
+replaced by the [complete adaptive acceptance harness](adaptive-acceptance/README.md).
+The original experiment remains reproducible from its recorded historical commit;
+its incomplete active-model timings are not production adaptive performance evidence.
+
+
 Measured source: `99fcb62`, unchanged uniform model/scanner baseline from main `a3f6752`.
 [Environment, revision, lock hash and memory record](adaptive-threshold-review-environment.json).
 Subsequent `f032535` adds only Python civil-year limits to UTC export and its

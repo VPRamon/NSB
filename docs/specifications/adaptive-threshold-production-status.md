@@ -350,3 +350,14 @@ resolved edge excursions; unexplained boundary shifts continue to fail.
 
 Complete process timings, separate from the library matrix, are recorded in
 [production CLI measurements](adaptive-acceptance/cli-production.md).
+
+
+### Validation infrastructure cleanup
+
+The superseded certificate-feasibility timing harness is removed after replacement
+by the complete practical schedule matrix. Its cached-Starlight certificate test,
+shared physical fixtures and all scientific certificate/discovery regressions are
+retained. Historical reports retain their recorded commit references. Test-only
+modules now reside in the established `planning/tests/` layout with explicit
+`cfg(test)` module registration. They remain part of ordinary test execution;
+no coverage floor, LCOV exclusion or production API policy is changed.

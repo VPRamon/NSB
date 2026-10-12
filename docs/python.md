@@ -133,6 +133,27 @@ for start, end in result.periods:
 
 Returned periods are `(start, end)` tuples of timezone-aware UTC `datetime.datetime` values. NSB does not expose a bespoke Python `UtcPeriod` type.
 
+Step-free adaptive discovery uses the same query and context. Omit
+`sample_step_s` when constructing a new adaptive query; that legacy option does
+not control adaptive discovery:
+
+```python
+result = evaluator.periods_below_threshold_adaptive_with_context(context, query)
+band = evaluator.periods_in_band_adaptive_with_context(context, query, 0.10)
+```
+
+The band condition is inclusive: `0.10 <= NSB <= query.threshold`. Both levels
+share the same physical fits, exact probes and crossing brackets. Returned
+boundaries contract inward and are checked at Python microsecond precision.
+Numerical ambiguity or resource exhaustion raises an error without a partial
+schedule. Adaptive discovery is empirical under documented model-resolution
+assumptions; it does not certify every unvisited instant. The strict certified
+methods continue to require sound interval enclosures.
+
+The ordinary sampled methods keep the frozen 0.1 behavior, including the
+caller-selected step. Switching those defaults requires the documented release
+migration; Rust, Python and CLI make the same distinction.
+
 ## Time boundary
 
 Input datetimes must be timezone-aware. `tempoch-py` validates Python datetime

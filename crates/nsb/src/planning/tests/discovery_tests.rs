@@ -268,7 +268,7 @@ fn real_adaptive_all_masks_both_moon_models_match_fine_reference() {
         MoonlightModel::KrisciunasSchaefer1991,
         MoonlightModel::Jones2013Spectral,
     ] {
-        let evaluator = super::adaptive_bench::evaluator_with_moon(false, true, moon);
+        let evaluator = super::test_fixtures::evaluator_with_moon(false, true, moon);
         for bits in 0..=15 {
             let q = query(bits);
             let context = evaluator.prepare_site_window_context(&q).unwrap();
@@ -568,7 +568,7 @@ fn adaptive_moon_horizons_near_and_far_targets_without_visibility_filters() {
             MoonlightModel::KrisciunasSchaefer1991,
             MoonlightModel::Jones2013Spectral,
         ] {
-            let evaluator = super::adaptive_bench::evaluator_with_moon(north, false, moon);
+            let evaluator = super::test_fixtures::evaluator_with_moon(north, false, moon);
             let mut q = query(ComponentMask::ALL.bits());
             if north {
                 q.observer = siderust::coordinates::centers::Geodetic::new_raw(
@@ -943,7 +943,7 @@ fn real_joint_band_all_masks_both_moon_models_have_no_sampled_false_positives() 
             MoonlightModel::KrisciunasSchaefer1991,
             MoonlightModel::Jones2013Spectral,
         ] {
-            let evaluator = super::adaptive_bench::evaluator_with_moon(north, true, moon);
+            let evaluator = super::test_fixtures::evaluator_with_moon(north, true, moon);
             for bits in 0..=15 {
                 let mut q = query(bits);
                 if north {
@@ -1005,7 +1005,7 @@ fn adaptive_split_precision_midnight_does_not_fragment_moon_down_periods() {
         MoonlightModel::Jones2013Spectral,
         MoonlightModel::KrisciunasSchaefer1991,
     ] {
-        let evaluator = super::adaptive_bench::evaluator_with_moon(true, false, moon);
+        let evaluator = super::test_fixtures::evaluator_with_moon(true, false, moon);
         let mut q = query(ComponentMask::MOON.bits());
         q.observer = siderust::coordinates::centers::Geodetic::new_raw(
             crate::units::angular::Degrees::new(-17.892),
@@ -1066,7 +1066,7 @@ fn adaptive_adjacent_mjd_native_window_is_resolved_without_endpoint_rounding() {
 #[test]
 fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
     let evaluator =
-        super::adaptive_bench::evaluator_with_moon(true, false, MoonlightModel::Jones2013Spectral);
+        super::test_fixtures::evaluator_with_moon(true, false, MoonlightModel::Jones2013Spectral);
     let mut q = query(12);
     q.observer = siderust::coordinates::centers::Geodetic::new_raw(
         crate::units::angular::Degrees::new(-17.892),
@@ -1124,7 +1124,7 @@ fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
 #[test]
 fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
     let evaluator =
-        super::adaptive_bench::evaluator_with_moon(false, false, MoonlightModel::Jones2013Spectral);
+        super::test_fixtures::evaluator_with_moon(false, false, MoonlightModel::Jones2013Spectral);
     let mut q = query(ComponentMask::ALL.bits());
     q.target = Target::new(
         (83.6331_f64 + 36.0 * 137.507764).rem_euclid(360.0) * DEG,
@@ -1191,4 +1191,103 @@ fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
         false,
     );
     assert_eq!(comparison.fine_missed_excursions, 1);
+}
+
+/// Export observed boundary errors rather than just the acceptance allowance.
+/// The full normal tests retain their all-component assertions; this repeatable
+/// seven-day export is deliberately separate from timing measurements.
+#[test]
+#[ignore = "release physical boundary accuracy export"]
+fn physical_boundary_accuracy_reference() {
+    for north in [false, true] {
+        for moon in [
+            MoonlightModel::Jones2013Spectral,
+            MoonlightModel::KrisciunasSchaefer1991,
+        ] {
+            let evaluator = super::test_fixtures::evaluator_with_moon(north, true, moon);
+            for bits in 0..=15 {
+                let mut q = query(bits);
+                if north {
+                    q.observer = siderust::coordinates::centers::Geodetic::new_raw(
+                        crate::units::angular::Degrees::new(-17.892),
+                        crate::units::angular::Degrees::new(28.762),
+                        siderust::qtty::Meters::new(2200.0),
+                    );
+                } else {
+                    q.observer = siderust::coordinates::centers::Geodetic::new_raw(
+                        crate::units::angular::Degrees::new(-70.31634444444444),
+                        crate::units::angular::Degrees::new(-24.683427777777776),
+                        siderust::qtty::Meters::new(2184.6),
+                    );
+                }
+                q.window.start = Time::<UTC>::from_chrono(
+                    "2026-01-03T00:00:00Z"
+                        .parse::<chrono::DateTime<chrono::Utc>>()
+                        .unwrap(),
+                );
+                q.window.end = q.window.start + Seconds::new(7.0 * 86400.0);
+                let context = evaluator.prepare_site_window_context(&q).unwrap();
+                let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+                if bits & ComponentMask::STARLIGHT.bits() != 0
+                    && bits != ComponentMask::STARLIGHT.bits()
+                {
+                    q.threshold += p.starlight_integrated;
+                }
+                let actual: Vec<_> = evaluator
+                    .periods_below_threshold_adaptive_with_context(&context, &q)
+                    .unwrap()
+                    .periods
+                    .into_iter()
+                    .map(scan::utc_period_to_tt_mjd)
+                    .collect();
+                for interval in &actual {
+                    for time in [interval.start, interval.end] {
+                        assert!(
+                            threshold::evaluate_integrated(&evaluator, &p, time).unwrap()
+                                <= q.threshold
+                        );
+                    }
+                }
+                let fine = reference(&evaluator, &p, &q, 30.0);
+                let comparison = super::discovery_bench::compare(
+                    &evaluator,
+                    &context,
+                    &q,
+                    &actual,
+                    &fine,
+                    "physical accuracy export",
+                    false,
+                );
+                let mut errors = Vec::new();
+                let mut unpaired_reference_boundaries = 0;
+                for period in &fine {
+                    for (t, start) in [(period.start, true), (period.end, false)] {
+                        let nearest = actual
+                            .iter()
+                            .map(|a| {
+                                ((if start { a.start } else { a.end }) - t).value().abs() * 86400.0
+                            })
+                            .min_by(f64::total_cmp);
+                        if let Some(error) = nearest.filter(|e| *e <= 0.533) {
+                            errors.push(error);
+                        } else {
+                            unpaired_reference_boundaries += 1;
+                        }
+                    }
+                }
+                println!(
+                    "BOUNDARY_ACCURACY {}",
+                    serde_json::json!({
+                        "site":if north {"CTAO-N"} else {"CTAO-S"},"moonlight_model":moon.as_str(),"components_bits":bits,
+                        "start":"2026-01-03T00:00:00Z","days":7,"reference_step_seconds":30,
+                        "paired_boundary_errors_seconds":errors,"unpaired_reference_boundaries":unpaired_reference_boundaries,
+                        "confirmed_reference_missed_excursions":comparison.fine_missed_excursions,
+                        "reference_singleton_jump_artifacts":comparison.singleton_artifacts,
+                        "accepted_native_boundary_count":actual.len()*2,"rejected_native_boundary_count":0,
+                        "adaptive_periods":actual.len(),"reference_periods":fine.len()
+                    })
+                );
+            }
+        }
+    }
 }

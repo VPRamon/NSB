@@ -10,7 +10,7 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.14.0 | crates.io | `crates.io:siderust:0.14.0` | 1.89 | Siderust 0.14 migration |
+| Unreleased; release boundary pending | 0.14.0 | crates.io | `crates.io:siderust:0.14.0` | 1.89 | Siderust 0.14 migration |
 
 All three workspace crates require the published Rust package with `siderust = "0.14"`.
 The committed lockfile resolves 0.14.0.
