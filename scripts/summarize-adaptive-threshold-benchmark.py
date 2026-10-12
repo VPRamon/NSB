@@ -8,6 +8,9 @@ import statistics
 import sys
 
 source = Path(sys.argv[1]).read_text()
+stem = sys.argv[2] if len(sys.argv) > 2 else "adaptive-threshold-benchmarks"
+if Path(stem).name != stem:
+    raise SystemExit("output stem must be a filename, not a path")
 rows = [json.loads(line.split("ADAPTIVE_BENCH ", 1)[1])
         for line in source.splitlines() if "ADAPTIVE_BENCH " in line]
 if not rows or len({r["scenario"] for r in rows}) != len(rows):
@@ -20,7 +23,7 @@ for row in rows:
         if legacy in row:
             row[f"{phase}_worker_elapsed_seconds"] = row.pop(legacy)
 output = Path(__file__).resolve().parents[1] / "docs" / "specifications"
-(output / "adaptive-threshold-benchmarks.jsonl").write_text(
+(output / f"{stem}.jsonl").write_text(
     "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
 lines = [
     "# Adaptive threshold feasibility measurements\n\n",
@@ -79,5 +82,5 @@ lines += [
     "python3 scripts/summarize-adaptive-threshold-benchmark.py "
     "/tmp/adaptive-benchmark.log\n```\n",
 ]
-(output / "adaptive-threshold-benchmarks.md").write_text("".join(lines))
+(output / f"{stem}.md").write_text("".join(lines).replace("adaptive-threshold-benchmarks.jsonl", f"{stem}.jsonl"))
 print(f"wrote {len(rows)} benchmark scenarios")

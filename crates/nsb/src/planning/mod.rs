@@ -17,15 +17,12 @@ mod scan;
 mod threshold;
 mod types;
 
-// Feasibility spike for #234. Keep numerical controls and incomplete-result
-// semantics out of the supported API until component envelopes are available.
-#[cfg(test)]
+// Internal certificates and resource controls are not a supported public API.
 mod adaptive;
 #[cfg(test)]
 mod adaptive_bench;
 #[cfg(test)]
 mod adaptive_validation;
-#[cfg(test)]
 mod bounds;
 
 pub use types::{SiteWindowContext, ThresholdQuery, ThresholdQueryResult};

@@ -667,6 +667,8 @@ pub fn nsb::NsbEvaluator::new() -> nsb::Result<Self>
 pub fn nsb::NsbEvaluator::with_config(config: nsb::NsbModelConfig) -> nsb::Result<Self>
 impl nsb::NsbEvaluator
 pub fn nsb::NsbEvaluator::periods_below_threshold(&self, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
+pub fn nsb::NsbEvaluator::periods_below_threshold_certified(&self, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
+pub fn nsb::NsbEvaluator::periods_below_threshold_certified_with_context(&self, context: &nsb::SiteWindowContext, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
 pub fn nsb::NsbEvaluator::periods_below_threshold_with_context(&self, context: &nsb::SiteWindowContext, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::ThresholdQueryResult>
 pub fn nsb::NsbEvaluator::prepare_site_window_context(&self, query: &nsb::ThresholdQuery) -> nsb::Result<nsb::SiteWindowContext>
 #[non_exhaustive] pub struct nsb::NsbModelConfig

@@ -3,7 +3,7 @@
 //! Executable correctness and performance evidence for the internal #234 spike.
 
 use super::adaptive::{discover, Controls, Discovery, State};
-use super::bounds::{prepared_bounds, RadianceBounds};
+use super::bounds::{prepared_bounds, BoundOutcome, RadianceBounds};
 use super::scan::authoritative_above_threshold_periods;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{NsbError, Result};
@@ -46,11 +46,11 @@ impl Enclosure {
     fn add(self, x: f64) -> Self {
         Self((self.0 + x).next_down(), (self.1 + x).next_up())
     }
-    fn bounds(self) -> Result<Option<RadianceBounds>> {
-        Ok(Some(RadianceBounds::new(
-            Radiance::new(self.0),
-            Radiance::new(self.1),
-        )?))
+    fn bounds(self) -> Result<BoundOutcome> {
+        Ok(BoundOutcome::enclosure(
+            RadianceBounds::new(Radiance::new(self.0), Radiance::new(self.1))?,
+            true,
+        ))
     }
 }
 
@@ -59,7 +59,7 @@ pub(super) fn quadratic_bounds(
     center: f64,
     scale: f64,
     bias: f64,
-) -> Result<Option<RadianceBounds>> {
+) -> Result<BoundOutcome> {
     Enclosure(value(w.start), value(w.end))
         .subtract(60_000.0)
         .subtract(center)
@@ -165,13 +165,16 @@ fn hidden_narrow_spike_cannot_be_accepted_even_when_the_fit_misses_it() {
     };
     let b = |w: Interval<Mjd>| {
         if value(w.end) < center - radius || value(w.start) > center + radius {
-            Ok(Some(RadianceBounds::constant(Radiance::new(0.0))?))
+            Ok(BoundOutcome::enclosure(
+                RadianceBounds::constant(Radiance::new(0.0))?,
+                false,
+            ))
         } else {
             // Deliberately loose, but valid even at the two jumps.
-            Ok(Some(RadianceBounds::new(
-                Radiance::new(0.0),
-                Radiance::new(1.0),
-            )?))
+            Ok(BoundOutcome::enclosure(
+                RadianceBounds::new(Radiance::new(0.0), Radiance::new(1.0))?,
+                true,
+            ))
         }
     };
     // Disable fitting across this known discontinuous signal. A second run
@@ -199,7 +202,7 @@ fn hidden_narrow_spike_cannot_be_accepted_even_when_the_fit_misses_it() {
         &[extent],
         Radiance::new(0.5),
         f,
-        |_| Ok(None),
+        |_| Ok(BoundOutcome::NeedsSubdivision),
         Controls {
             max_intervals: 64,
             ..Controls::default()
@@ -276,7 +279,7 @@ fn tangent_and_near_flat_signals_retain_uncertainty() {
                 Radiance::new(1.0 - f64::EPSILON),
                 Radiance::new(1.0 + f64::EPSILON),
             )
-            .map(Some)
+            .map(|b| BoundOutcome::enclosure(b, true))
         },
         Controls {
             max_intervals: 32,
@@ -292,7 +295,7 @@ fn tangent_and_near_flat_signals_retain_uncertainty() {
         &[extent],
         Radiance::new(1.0),
         |_| panic!("constant certificate needs no probes"),
-        |_| RadianceBounds::constant(Radiance::new(1.0)).map(Some),
+        |_| RadianceBounds::constant(Radiance::new(1.0)).map(|b| BoundOutcome::enclosure(b, true)),
         Controls::default(),
     )
     .unwrap();
@@ -313,7 +316,7 @@ fn budgets_and_machine_precision_never_widen_certificates() {
             &[extent],
             Radiance::new(0.1),
             |t| quadratic(t, 0.3, 1.0, 0.0),
-            |_| Ok(None),
+            |_| Ok(BoundOutcome::NeedsSubdivision),
             controls,
         )
         .unwrap();
@@ -338,7 +341,7 @@ fn budgets_and_machine_precision_never_widen_certificates() {
         &[adjacent],
         Radiance::new(0.0),
         |_| Ok(Radiance::new(1.0)),
-        |_| Ok(None),
+        |_| Ok(BoundOutcome::NeedsSubdivision),
         Controls {
             min_width: Days::new(1.0e-20),
             fit_depth: 0,
@@ -358,7 +361,7 @@ fn invalid_values_and_model_errors_fail_closed() {
             &[extent],
             Radiance::new(0.0),
             |_| Ok(Radiance::new(y)),
-            |_| Ok(None),
+            |_| Ok(BoundOutcome::NeedsSubdivision),
             Controls::default()
         )
         .is_err());
@@ -368,7 +371,7 @@ fn invalid_values_and_model_errors_fail_closed() {
             &[extent],
             Radiance::new(0.0),
             |_| Err(NsbError::Unsupported("test model".into())),
-            |_| Ok(None),
+            |_| Ok(BoundOutcome::NeedsSubdivision),
             Controls::default()
         ),
         Err(NsbError::Unsupported(_))
@@ -377,10 +380,13 @@ fn invalid_values_and_model_errors_fail_closed() {
         &[extent],
         Radiance::new(0.0),
         |_| panic!(),
-        |_| Ok(Some(RadianceBounds {
-            lower: Radiance::new(2.0),
-            upper: Radiance::new(1.0)
-        })),
+        |_| Ok(BoundOutcome::enclosure(
+            RadianceBounds {
+                lower: Radiance::new(2.0),
+                upper: Radiance::new(1.0)
+            },
+            true
+        )),
         Controls::default()
     )
     .is_err());
@@ -405,7 +411,7 @@ fn finite_exact_values_with_overflowing_fit_fall_back_without_acceptance() {
         &[window(60_000.0, 60_001.0)],
         Radiance::new(-f64::MAX),
         |_| Ok(Radiance::new(f64::MAX)),
-        |_| Ok(None),
+        |_| Ok(BoundOutcome::NeedsSubdivision),
         Controls {
             max_intervals: 4,
             ..Controls::default()
@@ -428,7 +434,8 @@ fn known_jump_is_partitioned_and_equality_is_not_a_root_precision_claim() {
     let bounds = |w: Interval<Mjd>| {
         let lo = if value(w.start) < edge { 0.0 } else { 1.0 };
         let hi = if value(w.end) < edge { 0.0 } else { 1.0 };
-        RadianceBounds::new(Radiance::new(lo), Radiance::new(hi)).map(Some)
+        RadianceBounds::new(Radiance::new(lo), Radiance::new(hi))
+            .map(|b| BoundOutcome::enclosure(b, true))
     };
     let result = discover(&windows, Radiance::new(0.5), f, bounds, Controls::default()).unwrap();
     assert_partition(&result, window(60_000.0, 60_001.0));
@@ -497,9 +504,10 @@ fn real_prepared_moon_down_enclosure_respects_inclusive_boundaries() {
     let prepared = prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
     let visible = prepared.moon_visible_periods.as_ref().unwrap();
     let rise = visible[0].start;
-    assert!(prepared_bounds(&prepared, Interval::new(rise, rise))
-        .unwrap()
-        .is_none());
+    assert!(matches!(
+        prepared_bounds(&prepared, Interval::new(rise, rise)).unwrap(),
+        BoundOutcome::Unsupported
+    ));
     let exact = |t| super::threshold::evaluate_integrated(&evaluator, &prepared, t);
     let gap = visible.windows(2).find(|p| p[0].end < p[1].start).unwrap();
     let gap = Interval::new(gap[0].end, gap[1].start);
@@ -526,4 +534,211 @@ fn real_prepared_moon_down_enclosure_respects_inclusive_boundaries() {
     let tt = scan::utc_period_to_tt_mjd(query.window);
     let roundtrip = scan::tt_mjd_period_to_utc(tt, tt, query.window);
     assert_eq!(roundtrip, query.window);
+}
+
+#[test]
+fn unsupported_and_fixed_uncertainty_stop_without_point_search() {
+    use super::adaptive::StopReason;
+    for (provider, reason) in [
+        (BoundOutcome::Unsupported, StopReason::UnsupportedBounds),
+        (
+            BoundOutcome::enclosure(
+                RadianceBounds::new(Radiance::new(0.0), Radiance::new(2.0)).unwrap(),
+                false,
+            ),
+            StopReason::InconclusiveFixedBounds,
+        ),
+    ] {
+        let out = discover(
+            &[window(60_000.0, 60_365.0)],
+            Radiance::new(1.0),
+            |_| panic!("unsupported/fixed envelopes must not trigger probes"),
+            |_| Ok(provider),
+            Controls::default(),
+        )
+        .unwrap();
+        assert_eq!(out.regions[0].state, State::Unresolved(reason));
+        assert_eq!(out.regions.len(), 1);
+        assert_eq!(out.diagnostics.subdivisions, 0);
+        assert_eq!(out.diagnostics.bound_computations, 1);
+        assert!(
+            out.certified_periods().is_err(),
+            "uncertainty is never a valid empty schedule"
+        );
+    }
+}
+
+#[test]
+fn whole_query_budgets_preserve_later_bound_only_certificates() {
+    let windows = [window(60_000.0, 60_001.0), window(60_002.0, 60_003.0)];
+    let out = discover(
+        &windows,
+        // Wide enough for fitting nodes to supply opposite-side endpoints
+        // even when the reserved eleven probes exhaust the exact budget.
+        Radiance::new(0.01),
+        |t| quadratic(t, 0.3, 1.0, 0.0),
+        |w| {
+            if w.start == windows[1].start {
+                Ok(BoundOutcome::enclosure(
+                    RadianceBounds::constant(Radiance::new(0.0))?,
+                    false,
+                ))
+            } else {
+                quadratic_bounds(w, 0.3, 1.0, 0.0)
+            }
+        },
+        Controls {
+            max_evaluations: 11,
+            max_intervals: 64,
+            fit_depth: 3,
+            ..Controls::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(out.diagnostics.exact_evaluations, 11);
+    assert!(out.diagnostics.exact_budget_exhausted);
+    assert!(out.diagnostics.fit_budget_limited);
+    assert!(out.diagnostics.bound_computations <= 64);
+    assert!(out
+        .regions
+        .iter()
+        .any(|r| r.interval == windows[1] && r.state == State::CertifiedBelow));
+    assert!(!out.brackets.is_empty());
+    assert!(out.brackets.iter().all(|b| !b.tolerance_met));
+    assert!(out.certified_periods().is_err());
+
+    // The bound cap is global too: it does not reset for the second window.
+    let limited = discover(
+        &windows,
+        Radiance::new(1.0),
+        |_| panic!(),
+        |_| {
+            Ok(BoundOutcome::enclosure(
+                RadianceBounds::constant(Radiance::new(0.0))?,
+                false,
+            ))
+        },
+        Controls {
+            max_intervals: 1,
+            ..Controls::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(limited.diagnostics.bound_computations, 1);
+    assert!(!limited.complete());
+    assert!(limited.certified_periods().is_err());
+}
+
+#[test]
+fn bound_numerical_failure_is_not_unsupported_or_budget_exhaustion() {
+    let result = discover(
+        &[window(60_000.0, 60_001.0)],
+        Radiance::new(1.0),
+        |_| panic!(),
+        |_| {
+            Err(NsbError::Interpolation(
+                "invalid enclosure arithmetic".into(),
+            ))
+        },
+        Controls::default(),
+    );
+    assert!(matches!(result, Err(NsbError::Interpolation(_))));
+}
+
+#[test]
+fn production_planning_preserves_discrete_results_for_every_mask_and_lunar_model() {
+    use super::{filters, prepare, scan, threshold};
+    use crate::{ComponentMask, MoonlightModel, Target, ThresholdQuery, DEG};
+    use chrono::{DateTime, Utc};
+    use tempoch::{Period, Time, UTC};
+    let start = Time::<UTC>::from_chrono(
+        DateTime::parse_from_rfc3339("2026-01-14T01:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
+    );
+    let base = ThresholdQuery::new(
+        siderust::catalogs::observatories::EL_PARANAL.geodetic(),
+        Target::new(83.6331 * DEG, 22.0145 * DEG),
+        Period::new(start, start + siderust::qtty::Seconds::new(6.0 * 3_600.0)),
+        Radiance::new(0.25),
+    );
+    for moon in [
+        MoonlightModel::KrisciunasSchaefer1991,
+        MoonlightModel::Jones2013Spectral,
+    ] {
+        let evaluator = super::adaptive_bench::evaluator_with_moon(false, true, moon);
+        for bits in 0..=15 {
+            let query = base
+                .clone()
+                .with_components(ComponentMask::from_bits(bits).unwrap());
+            let context = evaluator.prepare_site_window_context(&query).unwrap();
+            let prepared = prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
+            let mut reference = Vec::new();
+            for w in filters::smooth_threshold_windows(&prepared) {
+                let brighter = authoritative_above_threshold_periods(
+                    w,
+                    Days::new(600.0 / 86_400.0),
+                    &|t| threshold::evaluate_integrated(&evaluator, &prepared, t),
+                    query.threshold,
+                )
+                .unwrap();
+                reference.extend(scan::complement_periods(w, &brighter));
+            }
+            scan::coalesce_periods(&mut reference);
+            let actual = evaluator
+                .periods_below_threshold_with_context(&context, &query)
+                .unwrap();
+            assert_eq!(
+                actual.periods.len(),
+                reference.len(),
+                "mask {bits}, model {moon:?}"
+            );
+            for (actual, expected) in actual.periods.iter().zip(reference) {
+                let expected =
+                    scan::tt_mjd_period_to_utc(expected, prepared.tt_window, query.window);
+                // Regression evidence for the compatibility path, not proof of
+                // continuous-time discovery. Both refine to about 0.864 s.
+                assert!(
+                    (actual.start - expected.start)
+                        .to::<crate::units::unit::Second>()
+                        .value()
+                        .abs()
+                        <= 2.0,
+                    "mask {bits}, model {moon:?}"
+                );
+                assert!(
+                    (actual.end - expected.end)
+                        .to::<crate::units::unit::Second>()
+                        .value()
+                        .abs()
+                        <= 2.0,
+                    "mask {bits}, model {moon:?}"
+                );
+            }
+            let out = discover(
+                &filters::smooth_threshold_windows(&prepared),
+                query.threshold,
+                |_| panic!("real certificates need no exact probes"),
+                |w| prepared_bounds(&prepared, w),
+                Controls {
+                    fit_depth: 0,
+                    max_evaluations: 0,
+                    ..Controls::default()
+                },
+            )
+            .unwrap();
+            let strict = evaluator.periods_below_threshold_certified_with_context(&context, &query);
+            assert_eq!(
+                strict.is_ok(),
+                out.complete(),
+                "mask {bits}, model {moon:?}"
+            );
+            if bits == 0 || bits == ComponentMask::STARLIGHT.bits() {
+                assert!(strict.is_ok());
+                assert_eq!(strict.unwrap().periods, actual.periods);
+            } else if !out.complete() {
+                assert!(matches!(strict, Err(NsbError::Unsupported(_))));
+            }
+        }
+    }
 }

@@ -36,6 +36,7 @@ serde = ["siderust/serde", "tempoch/serde"]
 python = ["dep:pyo3", "dep:siderust-py", "dep:tempoch-py"]
 
 [dependencies]
+cheby = "0.4.2"
 # qtty and optica are consumed through Siderust's public re-exports so NSB
 # cannot accidentally compile against a different instance of those API types.
 tempoch  = "0.9"
@@ -61,7 +62,6 @@ sha2 = "0.11"
 toml = "1.1.2"
 
 [dev-dependencies]
-cheby = "0.4.2"
 criterion = { version = "0.8", default-features = false, features = ["html_reports"] }
 plotters = { version = "0.3", default-features = false, features = ["bitmap_backend", "bitmap_encoder", "ttf", "fontconfig-dlopen"] }
 

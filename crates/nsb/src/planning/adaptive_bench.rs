@@ -4,7 +4,7 @@
 //! Run via scripts/benchmark-adaptive-threshold.sh. Emits JSONL to stdout.
 
 use super::adaptive::{discover, Controls, State};
-use super::bounds::prepared_bounds;
+use super::bounds::{prepared_bounds, BoundOutcome};
 use super::{filters, prepare, scan, threshold};
 use crate::components::starlight::{StarlightMap, StarlightProvenance};
 use crate::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
@@ -39,6 +39,9 @@ struct Costs {
     fits_seconds: f64,
     refinement_seconds: f64,
     peak_pending: usize,
+    unsupported: usize,
+    exact_budget_exhausted: usize,
+    fit_budget_limited: usize,
 }
 
 fn run(
@@ -52,60 +55,59 @@ fn run(
     for query in queries {
         // Same target preparation and Rayon orchestration as the public search.
         let prepared = prepare::prepare_target_threshold(evaluator, context, query).unwrap();
-        let costs: Vec<Costs> = filters::smooth_threshold_windows(&prepared)
-            .into_par_iter()
-            .map(|w| {
-                let exact = |t| threshold::evaluate_integrated(evaluator, &prepared, t);
-                if adaptive {
-                    let out = discover(
-                        &[w],
-                        query.threshold,
-                        exact,
-                        |w| prepared_bounds(&prepared, w),
-                        Controls {
-                            max_intervals: 128,
-                            max_evaluations: 128,
-                            // Dynamic branches aren't isolated yet. Measure
-                            // bound feasibility without fitting across jumps.
-                            fit_depth: 0,
-                            ..Controls::default()
-                        },
-                    )
-                    .unwrap();
-                    let d = &out.diagnostics;
-                    let mut c = Costs {
-                        exact: d.exact_evaluations,
-                        bounds: d.bound_computations,
-                        fits: d.fits,
-                        failed_fits: d.failed_fits,
-                        candidates: d.polynomial_candidates,
-                        subdivisions: d.subdivisions,
-                        refinements: d.root_refinements,
-                        fallbacks: d.fallback_intervals,
-                        unresolved: d.unresolved_intervals,
-                        bounds_seconds: d.bounds_time.as_secs_f64(),
-                        fits_seconds: d.fits_time.as_secs_f64(),
-                        refinement_seconds: d.refinement_time.as_secs_f64(),
-                        peak_pending: d.peak_pending_intervals,
-                        ..Costs::default()
-                    };
-                    for r in &out.regions {
-                        match r.state {
-                            State::CertifiedBelow => c.accepted += 1,
-                            State::CertifiedAbove => c.rejected += 1,
-                            State::Unresolved(_) => {
-                                c.unresolved_days +=
-                                    r.interval.end.raw().value() - r.interval.start.raw().value()
-                            }
-                        }
-                    }
-                    black_box(&out);
-                    c
-                } else {
+        let windows = filters::smooth_threshold_windows(&prepared);
+        let costs: Vec<Costs> = if adaptive {
+            // One cap for the entire target query, never reset per window.
+            let out = discover(
+                &windows,
+                query.threshold,
+                |t| threshold::evaluate_integrated(evaluator, &prepared, t),
+                |w| prepared_bounds(&prepared, w),
+                Controls {
+                    max_intervals: 2_048,
+                    max_evaluations: 128,
+                    fit_depth: 0,
+                    ..Controls::default()
+                },
+            )
+            .unwrap();
+            let d = &out.diagnostics;
+            let mut c = Costs {
+                exact: d.exact_evaluations,
+                bounds: d.bound_computations,
+                fits: d.fits,
+                failed_fits: d.failed_fits,
+                candidates: d.polynomial_candidates,
+                subdivisions: d.subdivisions,
+                refinements: d.root_refinements,
+                fallbacks: d.fallback_intervals,
+                unresolved: d.unresolved_intervals,
+                bounds_seconds: d.bounds_time.as_secs_f64(),
+                fits_seconds: d.fits_time.as_secs_f64(),
+                refinement_seconds: d.refinement_time.as_secs_f64(),
+                peak_pending: d.peak_pending_intervals,
+                unsupported: d.unsupported_intervals,
+                exact_budget_exhausted: usize::from(d.exact_budget_exhausted),
+                fit_budget_limited: usize::from(d.fit_budget_limited),
+                ..Costs::default()
+            };
+            for r in &out.regions {
+                match r.state {
+                    State::CertifiedBelow => c.accepted += 1,
+                    State::CertifiedAbove => c.rejected += 1,
+                    State::Unresolved(_) => c.unresolved_days += r.interval.length().value(),
+                }
+            }
+            black_box(&out);
+            vec![c]
+        } else {
+            windows
+                .into_par_iter()
+                .map(|w| {
                     let count = Cell::new(0);
                     let f = |t| {
                         count.set(count.get() + 1);
-                        exact(t)
+                        threshold::evaluate_integrated(evaluator, &prepared, t)
                     };
                     let brighter = scan::authoritative_above_threshold_periods(
                         w,
@@ -119,10 +121,13 @@ fn run(
                         exact: count.get(),
                         ..Costs::default()
                     }
-                }
-            })
-            .collect();
+                })
+                .collect()
+        };
         for c in costs {
+            total.unsupported += c.unsupported;
+            total.exact_budget_exhausted += c.exact_budget_exhausted;
+            total.fit_budget_limited += c.fit_budget_limited;
             total.exact += c.exact;
             total.bounds += c.bounds;
             total.fits += c.fits;
@@ -165,9 +170,12 @@ fn real_starlight_certificate_reuses_the_authoritative_cached_scalar() {
     let context = evaluator.prepare_site_window_context(&query).unwrap();
     let prepared = prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
     let exact = |t| threshold::evaluate_integrated(&evaluator, &prepared, t);
-    let enclosure = prepared_bounds(&prepared, prepared.tt_window)
-        .unwrap()
-        .unwrap();
+    let BoundOutcome::Enclosure {
+        range: enclosure, ..
+    } = prepared_bounds(&prepared, prepared.tt_window).unwrap()
+    else {
+        panic!("missing Starlight certificate")
+    };
     assert_eq!(enclosure.lower, enclosure.upper);
     for i in 0..=100 {
         let t = siderust::time::ModifiedJulianDate::new(
@@ -193,12 +201,21 @@ fn real_starlight_certificate_reuses_the_authoritative_cached_scalar() {
     // A constant partial contribution cannot certify a selected dynamic sum.
     let mut dynamic = prepared;
     dynamic.components |= ComponentMask::ZODIACAL;
-    assert!(prepared_bounds(&dynamic, dynamic.tt_window)
-        .unwrap()
-        .is_none());
+    assert!(matches!(
+        prepared_bounds(&dynamic, dynamic.tt_window).unwrap(),
+        BoundOutcome::Unsupported
+    ));
 }
 
 fn evaluator(north: bool, starlight: bool) -> NsbEvaluator {
+    evaluator_with_moon(north, starlight, crate::MoonlightModel::Jones2013Spectral)
+}
+
+pub(super) fn evaluator_with_moon(
+    north: bool,
+    starlight: bool,
+    moon: crate::MoonlightModel,
+) -> NsbEvaluator {
     struct North;
     impl SiteProfileTag for North {
         const NAME: &'static str = "ctao-north-planning";
@@ -247,7 +264,7 @@ fn evaluator(north: bool, starlight: bool) -> NsbEvaluator {
     } else {
         config
     };
-    NsbEvaluator::with_config(config).unwrap()
+    NsbEvaluator::with_config(config.with_moonlight_model(moon)).unwrap()
 }
 
 fn measure(
@@ -259,7 +276,30 @@ fn measure(
     threshold: f64,
     targets: usize,
 ) {
-    let evaluator = evaluator(north, components.contains(ComponentMask::STARLIGHT));
+    measure_with_moon(
+        label,
+        north,
+        start,
+        days,
+        components,
+        threshold,
+        targets,
+        crate::MoonlightModel::Jones2013Spectral,
+    );
+}
+
+#[allow(clippy::too_many_arguments)]
+fn measure_with_moon(
+    label: &str,
+    north: bool,
+    start: &str,
+    days: i64,
+    components: ComponentMask,
+    threshold: f64,
+    targets: usize,
+    moon: crate::MoonlightModel,
+) {
+    let evaluator = evaluator_with_moon(north, components.contains(ComponentMask::STARLIGHT), moon);
     let observer = if north {
         siderust::coordinates::centers::Geodetic::new_raw(
             Degrees::new(-17.892),
@@ -333,9 +373,13 @@ fn measure(
         serde_json::json!({
             "scenario": label, "site": if north { "CTAO-N" } else { "CTAO-S" }, "days": days, "targets": targets,
             "components_bits": components.bits(), "threshold": threshold, "repeats": repeats,
+            "moonlight_model": moon.as_str(),
             "preparation_seconds": preparation_seconds,
             "previous_seconds": old_times, "prototype_seconds": new_times,
             "previous_exact": old.exact, "prototype_exact": new.exact,
+            "unsupported_intervals": new.unsupported,
+            "exact_budget_exhausted_queries": new.exact_budget_exhausted,
+            "fit_budget_limited_queries": new.fit_budget_limited,
             "bound_computations": new.bounds, "fits": new.fits, "failed_fits": new.failed_fits,
             "polynomial_candidates": new.candidates, "subdivisions": new.subdivisions, "root_refinements": new.refinements,
             "fallback_intervals": new.fallbacks, "unresolved_intervals": new.unresolved,
@@ -430,6 +474,80 @@ fn adaptive_threshold_benchmark_matrix() {
                 threshold,
                 1,
             );
+        }
+        // The analytic lunar model is an independently supported path, not a
+        // numerical stand-in for Jones. Exercise its component and ALL sums.
+        for (name, mask) in [("moon", ComponentMask::MOON), ("all", ComponentMask::ALL)] {
+            for days in [1, 7, 30, 365] {
+                let label = format!("{site}/ks1991/{name}/{days}d");
+                if label.contains(&filter) {
+                    measure_with_moon(
+                        &label,
+                        north,
+                        "2026-01-01T00:00:00Z",
+                        days,
+                        mask,
+                        0.25,
+                        1,
+                        crate::MoonlightModel::KrisciunasSchaefer1991,
+                    );
+                }
+            }
+        }
+        for count in [10, 100] {
+            let label = format!("{site}/ks1991/all/year/{count}targets");
+            if label.contains(&filter) {
+                measure_with_moon(
+                    &label,
+                    north,
+                    "2026-01-01T00:00:00Z",
+                    365,
+                    ComponentMask::ALL,
+                    0.25,
+                    count,
+                    crate::MoonlightModel::KrisciunasSchaefer1991,
+                );
+            }
+        }
+        for (name, start, mask, limit) in [
+            (
+                "bright-moon",
+                "2023-09-29T00:00:00Z",
+                ComponentMask::MOON,
+                0.02,
+            ),
+            (
+                "moon-down",
+                "2023-09-15T00:00:00Z",
+                ComponentMask::MOON,
+                0.02,
+            ),
+            (
+                "near-threshold",
+                "2026-01-01T00:00:00Z",
+                ComponentMask::ALL,
+                0.205,
+            ),
+            (
+                "far-threshold",
+                "2026-01-01T00:00:00Z",
+                ComponentMask::ALL,
+                100.0,
+            ),
+        ] {
+            let label = format!("{site}/ks1991/{name}");
+            if label.contains(&filter) {
+                measure_with_moon(
+                    &label,
+                    north,
+                    start,
+                    30,
+                    mask,
+                    limit,
+                    1,
+                    crate::MoonlightModel::KrisciunasSchaefer1991,
+                );
+            }
         }
     }
 }

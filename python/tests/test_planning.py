@@ -5,6 +5,7 @@ import sys
 import threading
 
 import nsb
+import pytest
 
 
 def planning_query(observer, direction):
@@ -34,6 +35,31 @@ def test_threshold_search_filters_and_context_reuse(observer, direction, evaluat
     assert abs(start - datetime(2023, 9, 4, 1, 0, tzinfo=timezone.utc)) < tolerance
     assert abs(end - datetime(2023, 9, 4, 2, 0, tzinfo=timezone.utc)) < tolerance
     assert start.tzinfo is timezone.utc
+
+
+def test_certified_search_never_returns_an_incomplete_schedule(observer, direction, evaluator):
+    query = planning_query(observer, direction)
+    context = evaluator.prepare_site_window_context(query)
+    for call in (
+        lambda: evaluator.periods_below_threshold_certified(query),
+        lambda: evaluator.periods_below_threshold_certified_with_context(context, query),
+    ):
+        with pytest.raises(nsb.UnsupportedError, match="incomplete certified threshold search"):
+            call()
+
+
+def test_certified_empty_component_sum_needs_no_sampling_configuration(observer, direction, evaluator):
+    start = datetime(2023, 9, 4, 1, tzinfo=timezone.utc)
+    end = start + timedelta(hours=1)
+    query = nsb.ThresholdQuery(observer, direction, start, end, 0.0,
+        components=nsb.ComponentMask.ZODIACAL & nsb.ComponentMask.MOON, sun_altitude_ceiling_deg=None,
+        target_altitude_floor_deg=None)
+    result = evaluator.periods_below_threshold_certified(query)
+    context = evaluator.prepare_site_window_context(query)
+    assert result.periods == evaluator.periods_below_threshold_certified_with_context(context, query).periods
+    assert len(result.periods) == 1
+    assert abs(result.periods[0][0] - start) < timedelta(microseconds=50)
+    assert abs(result.periods[0][1] - end) < timedelta(microseconds=50)
 
 
 def test_rust_heavy_planning_detaches_from_python(observer, direction, evaluator):

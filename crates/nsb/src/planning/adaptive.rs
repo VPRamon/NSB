@@ -1,25 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-//! Bounded, proof-aware discovery prototype for #234; no public API changes.
+//! Internal certificate-driven threshold discovery with explicit uncertainty.
 //!
 //! Only an enclosure can accept/reject a closed interval. Chebyshev roots and
 //! exact sign brackets guide splitting; neither can certify their complement.
 //! Unsupported envelopes, contacts, jumps and budget exhaustion retain explicit
 //! uncertainty. In particular a small unresolved interval is never accepted.
 
-use super::bounds::RadianceBounds;
+use super::bounds::{BoundOutcome, RadianceBounds};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{NsbError, Result};
 use cheby::fit_dyn_from_fn;
 use siderust::qtty::Days;
 use siderust::time::{Interval, ModifiedJulianDate as Mjd};
+use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
 #[derive(Clone, Copy)]
 pub(super) struct Controls {
     pub time_tolerance: Days,
     pub min_width: Days,
+    /// Enclosure-call cap shared by every physical interval in the query.
     pub max_intervals: usize,
+    /// Authoritative-call cap shared by fitting and refinement across the query.
     pub max_evaluations: usize,
     pub max_depth: usize,
     /// Fits near the top only; deeper ambiguous regions use bisection.
@@ -52,6 +55,8 @@ pub(super) enum StopReason {
     Resolution,
     Depth,
     FloatingPoint,
+    UnsupportedBounds,
+    InconclusiveFixedBounds,
 }
 
 #[derive(Debug)]
@@ -87,6 +92,12 @@ pub(super) struct Diagnostics {
     pub fits_time: Duration,
     pub refinement_time: Duration,
     pub peak_pending_intervals: usize,
+    pub unsupported_intervals: usize,
+    /// True only when a requested exact probe could not run at the cap.
+    pub exact_budget_exhausted: bool,
+    /// A fit requires eleven reserved probes. Once unavailable, no later fit
+    /// is attempted, even if a few exact evaluations remain.
+    pub fit_budget_limited: bool,
 }
 
 #[derive(Debug, Default)]
@@ -103,6 +114,40 @@ impl Discovery {
     pub fn complete(&self) -> bool {
         self.diagnostics.unresolved_intervals == 0
     }
+
+    /// A strict consumer never converts uncertainty into a valid empty schedule.
+    pub fn certified_periods(&self) -> Result<Vec<Interval<Mjd>>> {
+        if !self.complete() {
+            let reasons = [
+                StopReason::UnsupportedBounds,
+                StopReason::InconclusiveFixedBounds,
+                StopReason::IntervalBudget,
+                StopReason::Resolution,
+                StopReason::Depth,
+                StopReason::FloatingPoint,
+            ]
+            .map(|reason| {
+                format!(
+                    "{reason:?}={}",
+                    self.regions
+                        .iter()
+                        .filter(|r| r.state == State::Unresolved(reason))
+                        .count()
+                )
+            })
+            .join(", ");
+            return Err(NsbError::Unsupported(format!(
+                "incomplete certified threshold search: {} unresolved intervals ({reasons}; exact_budget_exhausted={}, fit_budget_limited={})",
+                self.diagnostics.unresolved_intervals, self.diagnostics.exact_budget_exhausted, self.diagnostics.fit_budget_limited,
+            )));
+        }
+        Ok(self
+            .regions
+            .iter()
+            .filter(|r| r.state == State::CertifiedBelow)
+            .map(|r| r.interval)
+            .collect())
+    }
 }
 
 pub(super) fn discover<E, B>(
@@ -114,7 +159,7 @@ pub(super) fn discover<E, B>(
 ) -> Result<Discovery>
 where
     E: Fn(Mjd) -> Result<Radiance>,
-    B: Fn(Interval<Mjd>) -> Result<Option<RadianceBounds>>,
+    B: Fn(Interval<Mjd>) -> Result<BoundOutcome>,
 {
     if !threshold.is_finite()
         || !controls.time_tolerance.is_finite()
@@ -134,15 +179,19 @@ where
         ));
     }
     let mut out = Discovery::default();
-    let mut pending: Vec<_> = windows.iter().rev().map(|&w| (w, 0)).collect();
+    // Whole-query caps span all physical windows. Breadth-first processing
+    // gives every root window a cheap classification before deeper work.
+    let mut pending: VecDeque<_> = windows.iter().map(|&w| (w, 0)).collect();
     let mut sampler = Sampler {
         exact,
         limit: controls.max_evaluations,
         count: 0,
+        exhausted: false,
+        fit_budget_limited: false,
     };
     out.diagnostics.peak_pending_intervals = pending.len();
 
-    while let Some((window, depth)) = pending.pop() {
+    while let Some((window, depth)) = pending.pop_front() {
         let state = if out.diagnostics.bound_computations >= controls.max_intervals {
             Some(State::Unresolved(StopReason::IntervalBudget))
         } else {
@@ -151,18 +200,27 @@ where
             out.diagnostics.bounds_time += start.elapsed();
             out.diagnostics.bound_computations += 1;
             match enclosure {
-                Some(b) => {
+                BoundOutcome::Enclosure {
+                    range: b,
+                    refinable,
+                } => {
                     // Also validate providers constructed via field literals.
                     RadianceBounds::new(b.lower, b.upper)?;
                     if b.upper <= threshold {
                         Some(State::CertifiedBelow)
                     } else if b.lower > threshold {
                         Some(State::CertifiedAbove)
+                    } else if !refinable {
+                        Some(State::Unresolved(StopReason::InconclusiveFixedBounds))
                     } else {
                         None
                     }
                 }
-                None => None,
+                BoundOutcome::NeedsSubdivision => None,
+                BoundOutcome::Unsupported => {
+                    out.diagnostics.unsupported_intervals += 1;
+                    Some(State::Unresolved(StopReason::UnsupportedBounds))
+                }
             }
         };
         let width = window.end.raw().value() - window.start.raw().value();
@@ -203,12 +261,21 @@ where
             continue;
         }
         out.diagnostics.subdivisions += 1;
-        pending.push((Interval::new(mid, window.end), depth + 1));
-        pending.push((Interval::new(window.start, mid), depth + 1));
+        pending.push_back((Interval::new(window.start, mid), depth + 1));
+        pending.push_back((Interval::new(mid, window.end), depth + 1));
         out.diagnostics.peak_pending_intervals =
             out.diagnostics.peak_pending_intervals.max(pending.len());
     }
     out.diagnostics.exact_evaluations = sampler.count;
+    out.diagnostics.exact_budget_exhausted = sampler.exhausted;
+    out.diagnostics.fit_budget_limited = sampler.fit_budget_limited;
+    out.regions.sort_by(|a, b| {
+        a.interval
+            .start
+            .raw()
+            .value()
+            .total_cmp(&b.interval.start.raw().value())
+    });
     Ok(out)
 }
 
@@ -216,11 +283,14 @@ struct Sampler<E> {
     exact: E,
     limit: usize,
     count: usize,
+    exhausted: bool,
+    fit_budget_limited: bool,
 }
 
 impl<E: Fn(Mjd) -> Result<Radiance>> Sampler<E> {
     fn evaluate(&mut self, t: Mjd) -> Result<Option<Radiance>> {
         if self.count >= self.limit {
+            self.exhausted = true;
             return Ok(None);
         }
         self.count += 1;
@@ -242,7 +312,12 @@ fn candidate_split<E: Fn(Mjd) -> Result<Radiance>>(
     const DEGREE: usize = 8;
     // Reserve a whole fit and its two endpoints; budget exhaustion cannot
     // substitute fabricated values for unvisited nodes.
+    if sampler.fit_budget_limited {
+        return Ok(None);
+    }
     if sampler.limit.saturating_sub(sampler.count) < DEGREE + 3 {
+        sampler.fit_budget_limited = true;
+        sampler.exhausted |= sampler.count >= sampler.limit;
         return Ok(None);
     }
     let start = Instant::now();
@@ -295,6 +370,10 @@ fn candidate_split<E: Fn(Mjd) -> Result<Radiance>>(
     // Validate predictions with the full signal. A failed prediction cannot
     // suppress the enclosure-driven subdivision.
     for &t in &predicted {
+        if sampler.count >= sampler.limit {
+            sampler.exhausted = true;
+            break;
+        }
         if let Some(y) = sampler.evaluate(t)? {
             samples.push((t, y));
         }
@@ -311,6 +390,10 @@ fn candidate_split<E: Fn(Mjd) -> Result<Radiance>>(
         }
         out.diagnostics.root_refinements += 1;
         while hi.raw().value() - lo.raw().value() > controls.time_tolerance.value() {
+            if sampler.count >= sampler.limit {
+                sampler.exhausted = true;
+                break;
+            }
             let mid = Mjd::new(lo.raw().value() + (hi.raw().value() - lo.raw().value()) * 0.5);
             if mid <= lo || mid >= hi {
                 break;

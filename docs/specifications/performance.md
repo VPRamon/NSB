@@ -21,10 +21,11 @@ This is a discrete-resolution contract. An excursion narrower than
 `sample_step` that lies wholly between authoritative samples can be missed.
 Callers needing finer resolution must select a smaller step.
 
-The internal [adaptive threshold feasibility spike](adaptive-threshold-search.md)
-adds executable certificate-driven discovery and adversarial/performance
-experiments for #234. It does not replace this public path or remove
-`sample_step`: dynamic-component radiance enclosures are not yet validated.
+The [adaptive threshold integration](adaptive-threshold-production-status.md)
+adds certificate fast paths and separate strict certified methods. Unsupported
+dynamic regions retain this discrete path; the strict methods instead fail
+explicitly. Dynamic-component envelopes are not yet validated, so `sample_step`
+cannot be removed from the normal compatibility search.
 
 Astronomical event finding belongs to Siderust:
 

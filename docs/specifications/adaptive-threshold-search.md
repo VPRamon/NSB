@@ -1,5 +1,9 @@
 # Adaptive threshold discovery: #234 feasibility spike
 
+**Historical record of the initial `7d98e64` / `fbd7955` milestone.**
+For the current production integration, strict API, review fixes and remaining
+blockers, see [production integration status](adaptive-threshold-production-status.md).
+
 Status: internal executable prototype; **#234 remains open**. All new numerical
 code is compiled under `cfg(test)` inside the existing NSB crate. No production
 algorithm, physical model, public signature, CLI option or Python contract is

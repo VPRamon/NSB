@@ -31,7 +31,8 @@ pub struct ThresholdQuery {
     pub threshold: BandPhotonRadiance,
     /// Components to compose.
     pub components: ComponentMask,
-    /// Coarse authoritative radiance scan step. Excursions wholly between
+    /// Coarse authoritative scan step for the sampled compatibility methods.
+    /// The certified methods do not use this field for discovery. Excursions wholly between
     /// samples can be missed; this controls discrete discovery coverage, not
     /// detected-crossing timestamp precision or continuous completeness.
     pub sample_step: Second,
@@ -142,8 +143,9 @@ impl std::fmt::Debug for SiteWindowContext {
 pub struct ThresholdQueryResult {
     /// Threshold used by the search.
     pub threshold: BandPhotonRadiance,
-    /// UTC periods satisfying the filters and the sampled threshold search.
-    /// Narrow excursions wholly between samples can remain undetected.
+    /// UTC periods satisfying the filters and the selected search contract.
+    /// Sampled methods can miss narrow excursions wholly between probes;
+    /// certified methods return an error unless all eligible time is classified.
     pub periods: Vec<Period<UTC>>,
 }
 

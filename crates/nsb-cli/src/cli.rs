@@ -215,9 +215,13 @@ pub struct WindowArgs {
     #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
     pub target_altitude_min: f64,
 
-    /// Coarse threshold-search scan step in seconds.
+    /// Coarse discrete-search scan step in seconds (legacy mode).
     #[arg(long, default_value_t = 600.0)]
     pub step: f64,
+
+    /// Require complete interval certificates; fail on unsupported dynamic components or uncertainty.
+    #[arg(long, conflicts_with = "step")]
+    pub certified: bool,
 
     /// Disable Sun and target-altitude pre-filters.
     #[arg(long)]

@@ -242,3 +242,68 @@ fn window_rejects_non_finite_max_nsb() {
         .assert()
         .failure();
 }
+
+#[test]
+fn certified_window_fails_explicitly_without_a_dynamic_envelope() {
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "window",
+            "--start",
+            "2023-09-04T01:00:00Z",
+            "--end",
+            "2023-09-04T02:00:00Z",
+            "--site",
+            "PARANAL",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--max-nsb",
+            "1000000",
+            "--components",
+            "all",
+            "--no-pre-filter",
+            "--certified",
+        ])
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains(
+            "incomplete certified threshold search",
+        ));
+}
+
+#[test]
+fn certified_window_returns_a_complete_constant_sum_without_a_step() {
+    let output = Command::cargo_bin("nsb")
+        .unwrap()
+        .args([
+            "--format",
+            "json",
+            "window",
+            "--start",
+            "2023-09-04T01:00:00Z",
+            "--end",
+            "2023-09-04T02:00:00Z",
+            "--site",
+            "PARANAL",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--max-nsb",
+            "0",
+            "--components",
+            "",
+            "--no-pre-filter",
+            "--certified",
+        ])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    assert_eq!(value["periods"].as_array().unwrap().len(), 1);
+}

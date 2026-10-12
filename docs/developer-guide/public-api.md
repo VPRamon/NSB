@@ -20,6 +20,16 @@ under `crates/nsb/tests/`.
 
 ## Recommended application path
 
+The additive `NsbEvaluator::periods_below_threshold_certified` and
+`periods_below_threshold_certified_with_context` methods require complete
+interval classification and return an explicit error on unresolved time.
+They use no scan fallback. Current certificate support is restricted to cached
+Starlight, the empty sum and prepared Moon-down intervals; active dynamic
+components are not yet certified. Python provides the same methods, and CLI
+`window --certified` selects this contract. Existing sampled methods and
+`sample_step` retain their compatibility contract. See
+[integration status and limitations](../specifications/adaptive-threshold-production-status.md).
+
 Most callers should prefer the intended **core API**:
 
 1. Construct an [`NsbEvaluator`](../../crates/nsb/src/evaluator/core.rs) from

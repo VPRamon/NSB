@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-//! Internal feasibility enclosures, deliberately compiled only for tests.
+//! Closed-interval certificates for the authoritative prepared planning signal.
 
 use super::types::PreparedThresholdQuery;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
@@ -30,7 +30,31 @@ impl RadianceBounds {
     }
 }
 
-/// Only two proofs are admitted in this spike:
+/// The provider, rather than point samples, determines whether subdivision
+/// can improve a certificate. Errors propagate separately through `Result`.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum BoundOutcome {
+    /// A finite enclosure. Only providers with a tightening strategy set
+    /// `refinable`; an inconclusive fixed envelope must stop immediately.
+    Enclosure {
+        range: RadianceBounds,
+        refinable: bool,
+    },
+    /// Known regime boundaries prevent an enclosure at this scale. Splitting
+    /// can isolate a supported regime (for example a Moon-down interior).
+    NeedsSubdivision,
+    /// No temporal envelope exists here. More point probes or subdivisions
+    /// cannot manufacture one; retain the entire region as unresolved.
+    Unsupported,
+}
+
+impl BoundOutcome {
+    pub fn enclosure(range: RadianceBounds, refinable: bool) -> Self {
+        Self::Enclosure { range, refinable }
+    }
+}
+
+/// Only two proofs are currently admitted:
 /// - cached Starlight is exactly the same scalar added by evaluate_integrated;
 /// - the prepared evaluator skips Moonlight outside its closed visibility set.
 ///
@@ -41,21 +65,27 @@ impl RadianceBounds {
 pub(super) fn prepared_bounds(
     prepared: &PreparedThresholdQuery,
     window: Interval<ModifiedJulianDate>,
-) -> Result<Option<RadianceBounds>> {
+) -> Result<BoundOutcome> {
     let supported = ComponentMask::STARLIGHT | ComponentMask::MOON;
     if !prepared.components.difference(supported).is_empty() {
-        return Ok(None);
+        return Ok(BoundOutcome::Unsupported);
     }
     if prepared.components.contains(ComponentMask::MOON) {
         let Some(visible) = &prepared.moon_visible_periods else {
-            return Ok(None);
+            return Ok(BoundOutcome::Unsupported);
         };
         // Touching a boundary is an overlap: contains_time is inclusive.
         if visible
             .iter()
+            .any(|p| p.start <= window.start && window.end <= p.end)
+        {
+            return Ok(BoundOutcome::Unsupported);
+        }
+        if visible
+            .iter()
             .any(|p| p.start <= window.end && window.start <= p.end)
         {
-            return Ok(None);
+            return Ok(BoundOutcome::NeedsSubdivision);
         }
     }
     let value = if prepared.components.contains(ComponentMask::STARLIGHT) {
@@ -63,5 +93,8 @@ pub(super) fn prepared_bounds(
     } else {
         Radiance::new(0.0)
     };
-    Ok(Some(RadianceBounds::constant(value)?))
+    Ok(BoundOutcome::enclosure(
+        RadianceBounds::constant(value)?,
+        false,
+    ))
 }

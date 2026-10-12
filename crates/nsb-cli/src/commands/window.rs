@@ -68,12 +68,19 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
 
     info!("running max-threshold search");
     let context = evaluator.prepare_site_window_context(&base_query)?;
-    let max_result = evaluator.periods_below_threshold_with_context(&context, &base_query)?;
+    let search = |query: &ThresholdQuery| {
+        if args.certified {
+            evaluator.periods_below_threshold_certified_with_context(&context, query)
+        } else {
+            evaluator.periods_below_threshold_with_context(&context, query)
+        }
+    };
+    let max_result = search(&base_query)?;
     let periods = if let Some(min) = min {
         info!("running min-threshold exclusion search");
         let mut min_query = base_query.clone();
         min_query.threshold = min;
-        let below_min = evaluator.periods_below_threshold_with_context(&context, &min_query)?;
+        let below_min = search(&min_query)?;
         subtract_periods(&max_result.periods, &below_min.periods)
     } else {
         max_result.periods

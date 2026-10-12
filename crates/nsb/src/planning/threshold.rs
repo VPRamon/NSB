@@ -2,6 +2,8 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Threshold search orchestration and integrated radiance sampling.
 
+use super::adaptive::{discover, Controls, State};
+use super::bounds::prepared_bounds;
 use super::scan::{
     authoritative_above_threshold_periods, coalesce_periods, complement_periods,
     tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
@@ -71,12 +73,49 @@ fn search_prepared(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
     prepared: PreparedThresholdQuery,
+    require_certification: bool,
 ) -> Result<ThresholdQueryResult> {
     let step = query.sample_step.to::<Day>();
-    let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> =
-        super::filters::smooth_threshold_windows(&prepared)
+    let controls = Controls {
+        // Real-model jumps do not have smooth envelopes yet. Bounds may still
+        // isolate Moon-down interiors, without fitting across those jumps.
+        fit_depth: 0,
+        max_evaluations: 0,
+        ..Controls::default()
+    };
+    let certificates = discover(
+        &super::filters::smooth_threshold_windows(&prepared),
+        query.threshold,
+        |t| evaluate_integrated(evaluator, &prepared, t),
+        |w| prepared_bounds(&prepared, w),
+        controls,
+    )?;
+    debug_assert!(certificates
+        .brackets
+        .iter()
+        .all(
+            |b| (b.left > query.threshold) != (b.right > query.threshold)
+                && (!b.tolerance_met || b.interval.length() <= controls.time_tolerance)
+        ));
+    let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = if require_certification
+        || certificates.complete()
+    {
+        certificates.certified_periods()?
+    } else {
+        // Compatibility path, with the EXISTING discrete discovery contract.
+        // This is not a complete certified search. Unsupported regions retain
+        // the legacy scan until dynamic envelopes and an explicit public
+        // incomplete-result contract can be introduced together.
+        certificates
+            .regions
             .into_par_iter()
-            .map(|window| -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
+            .map(|region| -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
+                match region.state {
+                    State::CertifiedBelow => return Ok(vec![region.interval]),
+                    State::CertifiedAbove => return Ok(Vec::new()),
+                    State::Unresolved(_) => {}
+                }
+                let window = region.interval;
                 let exact_f =
                     |mjd_tt: ModifiedJulianDate| evaluate_integrated(evaluator, &prepared, mjd_tt);
                 let brighter =
@@ -86,7 +125,8 @@ fn search_prepared(
             .collect::<Result<Vec<_>>>()?
             .into_iter()
             .flatten()
-            .collect();
+            .collect()
+    };
     coalesce_periods(&mut darker_periods);
 
     Ok(ThresholdQueryResult {
@@ -128,10 +168,50 @@ pub fn periods_below_threshold_with_context(
     super::prepare::validate_threshold(query)?;
     super::prepare::validate_site_context(evaluator, context, query)?;
     let prepared = super::prepare::prepare_target_threshold(evaluator, context, query)?;
-    search_prepared(evaluator, query, prepared)
+    search_prepared(evaluator, query, prepared, false)
+}
+
+fn periods_below_threshold_certified_with_context(
+    evaluator: &NsbEvaluator,
+    context: &SiteWindowContext,
+    query: &ThresholdQuery,
+) -> Result<ThresholdQueryResult> {
+    super::prepare::validate_threshold(query)?;
+    super::prepare::validate_site_context(evaluator, context, query)?;
+    let prepared = super::prepare::prepare_target_threshold(evaluator, context, query)?;
+    search_prepared(evaluator, query, prepared, true)
 }
 
 impl NsbEvaluator {
+    /// Return a complete, interval-certified schedule or an explicit error.
+    ///
+    /// This method never uses `sample_step` or a scan fallback for discovery.
+    /// Currently certificates cover cached Starlight, the empty sum, and Moon
+    /// skipped outside the prepared visibility set (conditional on Siderust's
+    /// events). Active Zodiacal, Airglow and either active Moonlight model lack
+    /// validated temporal envelopes and return [`crate::NsbError::Unsupported`].
+    /// Resource or numerical uncertainty also prevents a successful result.
+    /// The existing sampled methods retain their discrete discovery contract.
+    pub fn periods_below_threshold_certified(
+        &self,
+        query: &ThresholdQuery,
+    ) -> Result<ThresholdQueryResult> {
+        let context = prepare_site_window_context(self, query)?;
+        periods_below_threshold_certified_with_context(self, &context, query)
+    }
+
+    /// Complete certified search with a compatible reusable site context.
+    ///
+    /// Has the same guarantees and current component limitations as
+    /// [`Self::periods_below_threshold_certified`]. Incomplete searches return
+    /// an error, never a partial or empty schedule presented as complete.
+    pub fn periods_below_threshold_certified_with_context(
+        &self,
+        context: &SiteWindowContext,
+        query: &ThresholdQuery,
+    ) -> Result<ThresholdQueryResult> {
+        periods_below_threshold_certified_with_context(self, context, query)
+    }
     /// Find filtered UTC periods whose integrated radiance is at or below the threshold.
     pub fn periods_below_threshold(&self, query: &ThresholdQuery) -> Result<ThresholdQueryResult> {
         periods_below_threshold(self, query)
