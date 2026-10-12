@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Siderust 0.13 compatibility baseline for the next NSB release.
+Status: Siderust 0.14 compatibility baseline for the next NSB release.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
@@ -10,37 +10,48 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1.x | 0.13.0 | crates.io | `crates.io:siderust:0.13.0` | 1.89 | Siderust 0.13 migration |
+| 0.1.x | 0.14.0 | crates.io | `crates.io:siderust:0.14.0` | 1.89 | Siderust 0.14 migration |
 
-All three workspace crates pin the published Rust package at `0.13.0`.
+All three workspace crates require the published Rust package with `siderust = "0.14"`.
+The committed lockfile resolves 0.14.0.
 `crates/nsb` and `crates/nsb-cli` request the `atmosphere` and
 `photometry` features, while `crates/nsb-data-tools` uses its own feature set.
 The version/source identity is shared even though feature selection is not
 identical.
 
 `Cargo.lock` resolves the registry package to its published checksum.
-The workspace also uses Tempoch `0.9.0`, and both Python interoperability
-crates (`siderust-py` and `tempoch-py`) use `0.3.0`.
+The workspace also uses Tempoch `0.10.0`, and both Python interoperability
+crates (`siderust-py` and `tempoch-py`) use `0.4.0`.
 
 ### Numerical baseline
 
-Siderust 0.13 revises UTC/UT1 handling and Earth rotation, while Tempoch 0.9
-includes split-coordinate time precision fixes. The Paranal Zodiacal and
-Airglow regression values shift by approximately one part in a billion with
-this dependency graph. Their Rust and Python baselines have been updated
-without widening the existing tolerances; the independent scientific
-validation fixtures remain unchanged.
+The migration resolves Siderust 0.14.0, Tempoch / tempoch-core 0.10.0,
+Principia 0.6.0, and siderust-py / tempoch-py 0.4.0 entirely from crates.io.
+Registry availability and Python 0.4.0 Linux/macOS/Windows wheels were checked
+on 2026-10-12. No Git patch or override is used. The Rust 1.89 gate remains.
+
+The dependency-only comparison keeps the legacy scanner on both sides:
+64 CTAO-N/S, both lunar models, all 16 masks, seven-day cases plus three
+UTC/TT/leap-boundary conversion cases. Physical-window endpoints, authoritative
+radiances, scanner UTC periods and temporal round trips are identical in all
+67 exported records. See [A](adaptive-acceptance/dependency-A.jsonl) and
+[B](adaptive-acceptance/dependency-B.jsonl); rerun the ignored
+`dependency_upgrade_reference` export before/after a dependency update.
+This is finite empirical evidence, not proof for every date/configuration.
+The B-versus-C search comparisons are recorded separately in the production
+adaptive report. No numerical tolerance or scientific model formula changed.
 
 ### Python package versioning
 
 The Python runtime dependency named `siderust` is the Siderust Python
-distribution and currently uses the independent `0.3.x` version line:
+distribution and currently uses the independent `0.4.x` version line:
 
 ```text
-nsb-rust -> siderust>=0.3.0,<0.4
+nsb-rust -> siderust>=0.4.0,<0.5
+         -> tempoch>=0.4.0,<0.5
 ```
 
-This is not a mismatch with the Rust `siderust = "0.13.0"` dependency. The
+This is not a mismatch with the Rust `siderust = "0.14"` dependency. The
 Python extension uses `siderust-py` for cross-extension interoperability,
 while the Rust scientific implementation links the Rust crate shown in the
 matrix above.

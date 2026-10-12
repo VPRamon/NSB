@@ -130,6 +130,77 @@ impl NsbEvaluator {
             .map_err(to_py_err)
     }
 
+    /// Inclusive min/max search with shared adaptive discovery and inward
+    /// conversion to Python datetime precision.
+    #[pyo3(name = "periods_in_band_adaptive")]
+    fn py_periods_in_band_adaptive(
+        &self,
+        py: Python<'_>,
+        query: PyRef<'_, ThresholdQuery>,
+        minimum: f64,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let query = query.clone();
+        py.detach(|| {
+            self.periods_in_band_adaptive(
+                &query,
+                crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(
+                    minimum,
+                ),
+            )
+        })
+        .and_then(python_periods)
+        .map(PyThresholdQueryResult::from_inner)
+        .map_err(to_py_err)
+    }
+
+    #[pyo3(name = "periods_in_band_adaptive_with_context")]
+    fn py_periods_in_band_adaptive_with_context(
+        &self,
+        py: Python<'_>,
+        context: PyRef<'_, PySiteWindowContext>,
+        query: PyRef<'_, ThresholdQuery>,
+        minimum: f64,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let context = Arc::clone(&context.inner);
+        let query = query.clone();
+        py.detach(|| {
+            self.periods_in_band_adaptive_with_context(
+                &context,
+                &query,
+                crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(
+                    minimum,
+                ),
+            )
+        })
+        .and_then(python_periods)
+        .map(PyThresholdQueryResult::from_inner)
+        .map_err(to_py_err)
+    }
+
+    #[pyo3(name = "periods_in_band_certified_with_context")]
+    fn py_periods_in_band_certified_with_context(
+        &self,
+        py: Python<'_>,
+        context: PyRef<'_, PySiteWindowContext>,
+        query: PyRef<'_, ThresholdQuery>,
+        minimum: f64,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let context = Arc::clone(&context.inner);
+        let query = query.clone();
+        py.detach(|| {
+            self.periods_in_band_certified_with_context(
+                &context,
+                &query,
+                crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(
+                    minimum,
+                ),
+            )
+        })
+        .and_then(python_periods)
+        .map(PyThresholdQueryResult::from_inner)
+        .map_err(to_py_err)
+    }
+
     #[new]
     #[pyo3(signature = (config=None))]
     fn py_new(py: Python<'_>, config: Option<PyRef<'_, NsbModelConfig>>) -> PyResult<Self> {

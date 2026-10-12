@@ -117,3 +117,42 @@ def test_adaptive_supports_both_lunar_models(observer):
             components=nsb.ComponentMask.ALL, sun_altitude_ceiling_deg=None,
             target_altitude_floor_deg=20.0)
         assert evaluator.periods_below_threshold_adaptive(query).periods
+
+
+def test_joint_band_checks_minimum_at_exported_datetime_boundaries(observer, direction, evaluator):
+    import siderust
+    start = datetime(2023, 9, 4, 0, tzinfo=timezone.utc)
+    end = start + timedelta(hours=6)
+    target = siderust.Direction(266.41683, -29.00781)
+    mask = nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW
+    values = [evaluator.evaluate(nsb.PointQuery(observer, start + timedelta(minutes=i * 10), target, components=mask)).integrated_photons_cm2_ns_sr for i in range(37)]
+    values.sort()
+    minimum, maximum = values[len(values)//3], values[2*len(values)//3]
+    query = nsb.ThresholdQuery(observer, target, start, end, maximum, components=mask,
+        sun_altitude_ceiling_deg=None, target_altitude_floor_deg=None)
+    context = evaluator.prepare_site_window_context(query)
+    out = evaluator.periods_in_band_adaptive_with_context(context, query, minimum)
+    assert out.periods == evaluator.periods_in_band_adaptive(query, minimum).periods
+    assert out.periods
+    for a, b in out.periods:
+        for i in range(101):
+            t = a + (b-a) * i / 100
+            value = evaluator.evaluate(nsb.PointQuery(observer, t, target, components=mask)).integrated_photons_cm2_ns_sr
+            assert minimum <= value <= maximum
+
+
+def test_joint_band_equality_and_certified_semantics(observer, direction, evaluator):
+    start = datetime(2023, 9, 4, 1, tzinfo=timezone.utc)
+    query = nsb.ThresholdQuery(observer, direction, start, start+timedelta(hours=1), 0.0,
+        components=nsb.ComponentMask.ZODIACAL & nsb.ComponentMask.MOON,
+        sun_altitude_ceiling_deg=None, target_altitude_floor_deg=None)
+    context = evaluator.prepare_site_window_context(query)
+    assert len(evaluator.periods_in_band_adaptive(query, 0.0).periods) == 1
+    assert len(evaluator.periods_in_band_certified_with_context(context, query, 0.0).periods) == 1
+    for minimum in (-1.0, float('nan'), 1.0):
+        with pytest.raises(nsb.OutOfRangeError):
+            evaluator.periods_in_band_adaptive(query, minimum)
+    dynamic = planning_query(observer, direction)
+    context = evaluator.prepare_site_window_context(dynamic)
+    with pytest.raises(nsb.UnsupportedError, match='certificate'):
+        evaluator.periods_in_band_certified_with_context(context, dynamic, 0.0)

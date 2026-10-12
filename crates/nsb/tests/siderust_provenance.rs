@@ -12,8 +12,8 @@ use std::fs;
 use std::path::PathBuf;
 
 const CRATES_IO_REGISTRY_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
-const SIDERUST_0_13_0_CHECKSUM: &str =
-    "1368a681d9065b55efcd6b59c683360cb5a52618f311c8208d366c16cd6dd13f";
+const SIDERUST_0_14_0_CHECKSUM: &str =
+    "cb7bbab289c846ac61a0640d1a36eb9c72106eb4bb9570937a23f5c8060eb7fc";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -100,11 +100,12 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         "workspace crates must declare the same Siderust version"
     );
     assert_eq!(
-        nsb_version, locked_version,
+        format!("{nsb_version}.0"),
+        locked_version,
         "Cargo.lock Siderust version must match the manifests"
     );
     assert_eq!(
-        SIDERUST_VERSION, nsb_version,
+        SIDERUST_VERSION, locked_version,
         "nsb::SIDERUST_VERSION must match the declared Siderust version"
     );
     assert_eq!(
@@ -112,12 +113,12 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         "Cargo.lock must resolve Siderust from crates.io"
     );
     assert_eq!(
-        locked_checksum, SIDERUST_0_13_0_CHECKSUM,
-        "Cargo.lock must contain the published Siderust 0.13.0 checksum"
+        locked_checksum, SIDERUST_0_14_0_CHECKSUM,
+        "Cargo.lock must contain the published Siderust 0.14.0 checksum"
     );
     assert_eq!(
         SIDERUST_SOURCE,
-        format!("crates.io:siderust:{nsb_version}"),
+        format!("crates.io:siderust:{locked_version}"),
         "nsb::SIDERUST_SOURCE must identify the crates.io package"
     );
 }

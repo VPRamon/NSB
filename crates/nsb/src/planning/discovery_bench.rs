@@ -4,7 +4,7 @@
 //! remains unchanged. Run the ignored test in release with two Rayon threads.
 use super::{
     bounds::prepared_bounds,
-    discovery::{self, Costs, Limits},
+    discovery::{self, Costs},
     filters, prepare, scan, threshold,
 };
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
@@ -32,19 +32,20 @@ fn run(
         } else {
             filters::smooth_threshold_windows(&p)
         };
-        let parts: Vec<_> = windows
-            .into_par_iter()
-            .map(|w| {
-                if adaptive {
-                    discovery::search(
-                        w,
-                        q.threshold,
-                        |t| threshold::evaluate_integrated(evaluator, &p, t),
-                        prepared_bounds(&p, w).unwrap(),
-                        Limits::default(),
-                    )
-                    .unwrap_or_else(|e| panic!("query {q:?}, window {w:?}: {e}"))
-                } else {
+        let parts: Vec<_> = if adaptive {
+            vec![discovery::search_windows(
+                &windows,
+                q.threshold,
+                None,
+                |t| threshold::evaluate_integrated(evaluator, &p, t),
+                |w| prepared_bounds(&p, w),
+                false,
+            )
+            .unwrap_or_else(|e| panic!("query {q:?}: {e}"))]
+        } else {
+            windows
+                .into_par_iter()
+                .map(|w| {
                     let count = Cell::new(0);
                     let f = |t| {
                         count.set(count.get() + 1);
@@ -64,9 +65,9 @@ fn run(
                             ..Costs::default()
                         },
                     )
-                }
-            })
-            .collect();
+                })
+                .collect()
+        };
         let mut periods = Vec::new();
         for (part, c) in parts {
             periods.extend(part);
@@ -78,9 +79,20 @@ fn run(
             costs.extrema += c.extrema;
             costs.certified += c.certified;
             costs.peak_samples = costs.peak_samples.max(c.peak_samples);
+            costs.peak_pending = costs.peak_pending.max(c.peak_pending);
+            costs.peak_depth = costs.peak_depth.max(c.peak_depth);
             costs.bracket_seconds += c.bracket_seconds;
         }
         scan::coalesce_periods(&mut periods);
+        // Exercise the native output projection too: these must be usable
+        // schedules, rather than unexportable internal crossing candidates.
+        for &period in &periods {
+            if adaptive {
+                scan::certified_tt_mjd_period_to_utc(period, p.tt_window, q.window).unwrap();
+            } else {
+                scan::tt_mjd_period_to_utc(period, p.tt_window, q.window);
+            }
+        }
         output.push(periods);
     }
     (started.elapsed().as_secs_f64(), costs, output)
@@ -233,7 +245,7 @@ fn measure(
     let prep = Instant::now();
     let context = evaluator.prepare_site_window_context(&seed).unwrap();
     let preparation_seconds = prep.elapsed().as_secs_f64();
-    let queries: Vec<_> = (0..targets)
+    let mut queries: Vec<_> = (0..targets)
         .map(|i| {
             let mut q = seed.clone();
             if i > 0 {
@@ -245,6 +257,12 @@ fn measure(
             q
         })
         .collect();
+    if bits & ComponentMask::STARLIGHT.bits() != 0 && bits != ComponentMask::STARLIGHT.bits() {
+        for q in &mut queries {
+            let p = prepare::prepare_target_threshold(&evaluator, &context, q).unwrap();
+            q.threshold += p.starlight_integrated;
+        }
+    }
     let repeats: usize = std::env::var("NSB_DISCOVERY_REPEATS")
         .ok()
         .map(|s| s.parse().unwrap())
@@ -295,16 +313,29 @@ fn measure(
         );
         coarse_disagreements += usize::from(new.2[i].len() != old.2[i].len());
     }
-    println!(
-        "DISCOVERY_BENCH {}",
-        serde_json::json!({
-            "scenario":label,"site":if north {"CTAO-N"}else{"CTAO-S"},"moonlight_model":moon.as_str(),"days":days,"components_bits":bits,"targets":targets,"threshold":threshold_value,"start":start_label,"repeats":repeats,
-            "preparation_seconds":preparation_seconds,"scan_seconds":old_times,"adaptive_seconds":new_times,"reference_seconds":fine.0,"reference_step_seconds":fine_step,
-            "scan_exact":old.1.exact,"adaptive_exact":new.1.exact,"reference_exact":fine.1.exact,"bounds":new.1.bounds,"fits":new.1.fits,"subdivisions":new.1.subdivisions,"root_refinements":new.1.refinements,"extrema":new.1.extrema,"certified_intervals":new.1.certified,"peak_samples_per_worker":new.1.peak_samples,
-            "fallbacks":0,"unresolved_seconds":0,"excluded_root_bracket_seconds":new.1.bracket_seconds,"complete_usable":true,"coarse_count_disagreements":coarse_disagreements,"fine_count_disagreements":0,"reference_boundary_tolerance_seconds":0.533,
-        "accepted_periods":new.2.iter().map(Vec::len).sum::<usize>(),"fine_singleton_jump_artifacts":fine_artifacts,"coarse_singleton_jump_artifacts":coarse_artifacts
-        })
-    );
+    let mut report = serde_json::json!({
+        "scenario":label,"site":if north {"CTAO-N"}else{"CTAO-S"},"moonlight_model":moon.as_str(),"days":days,"components_bits":bits,"targets":targets,"threshold":threshold_value,"start":start_label,"repeats":repeats,
+        "preparation_seconds":preparation_seconds,"scan_seconds":old_times,"adaptive_seconds":new_times,"reference_seconds":fine.0,"reference_step_seconds":fine_step,
+        "scan_exact":old.1.exact,"adaptive_exact":new.1.exact,"reference_exact":fine.1.exact,"bounds":new.1.bounds,"fits":new.1.fits,"subdivisions":new.1.subdivisions,"root_refinements":new.1.refinements,"extrema":new.1.extrema,"certified_intervals":new.1.certified,"peak_samples_per_worker":new.1.peak_samples,
+        "fallbacks":0,"unresolved_seconds":0,"excluded_root_bracket_seconds":new.1.bracket_seconds,"complete_usable":true,"coarse_count_disagreements":coarse_disagreements,"fine_count_disagreements":0,"reference_boundary_tolerance_seconds":0.533,
+    "accepted_periods":new.2.iter().map(Vec::len).sum::<usize>(),"fine_singleton_jump_artifacts":fine_artifacts,"coarse_singleton_jump_artifacts":coarse_artifacts
+    });
+    let extra = serde_json::json!({
+            "adaptive_end_to_end_seconds":new_times.iter().map(|t|t+preparation_seconds).collect::<Vec<_>>(),
+            "scan_end_to_end_seconds":old_times.iter().map(|t|t+preparation_seconds).collect::<Vec<_>>(),
+            "peak_pending_intervals":new.1.peak_pending,"peak_recursion_depth":new.1.peak_depth,
+            "peak_sample_cache_bytes_per_worker":new.1.peak_samples * std::mem::size_of::<(f64,f64)>(),
+            "process_peak_rss_kib":std::fs::read_to_string("/proc/self/status").ok().and_then(|s|s.lines().find(|l|l.starts_with("VmHWM:")).map(str::to_owned)),
+            "budget_exhaustions":0,
+            "accepted_duration_seconds":new.2.iter().flatten().map(|w|w.length().value()*86400.0).sum::<f64>(),
+            "scan_duration_seconds":old.2.iter().flatten().map(|w|w.length().value()*86400.0).sum::<f64>(),
+            "reference_duration_seconds":fine.2.iter().flatten().map(|w|w.length().value()*86400.0).sum::<f64>(),
+    });
+    report
+        .as_object_mut()
+        .unwrap()
+        .extend(extra.as_object().unwrap().clone());
+    println!("DISCOVERY_BENCH {report}");
 }
 
 #[test]
@@ -353,7 +384,7 @@ fn complete_adaptive_schedule_matrix() {
                     "2026-01-03T00:00:00Z",
                 );
             }
-            for days in [7, 30, 365] {
+            for days in [1, 7, 30, 365] {
                 for targets in [10, 100] {
                     measure(
                         &format!("{prefix}/batch/{days}d/{targets}"),
@@ -384,5 +415,83 @@ fn complete_adaptive_schedule_matrix() {
                 );
             }
         }
+    }
+}
+
+/// Run unchanged before/after the dependency update. Values and boundaries use
+/// the scanner in both runs, isolating astronomy/time changes from discovery.
+#[test]
+#[ignore = "dependency-upgrade scientific reference export"]
+fn dependency_upgrade_reference() {
+    for north in [false, true] {
+        for moon in [
+            MoonlightModel::Jones2013Spectral,
+            MoonlightModel::KrisciunasSchaefer1991,
+        ] {
+            let evaluator = super::adaptive_bench::evaluator_with_moon(north, true, moon);
+            let observer = siderust::coordinates::centers::Geodetic::new_raw(
+                Degrees::new(if north { -17.892 } else { -70.31634444444444 }),
+                Degrees::new(if north { 28.762 } else { -24.683427777777776 }),
+                Meters::new(if north { 2200.0 } else { 2184.6 }),
+            );
+            for bits in 0..=15 {
+                let start = Time::<UTC>::from_chrono(
+                    "2026-01-03T00:00:00Z"
+                        .parse::<chrono::DateTime<chrono::Utc>>()
+                        .unwrap(),
+                );
+                let q = ThresholdQuery::new(
+                    observer,
+                    Target::new(83.6331 * DEG, 22.0145 * DEG),
+                    Period::new(start, start + Seconds::new(7.0 * 86400.0)),
+                    Radiance::new(0.25),
+                )
+                .with_components(ComponentMask::from_bits(bits).unwrap())
+                .with_target_altitude_floor(Some(Degrees::new(20.0)));
+                let context = evaluator.prepare_site_window_context(&q).unwrap();
+                let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+                let windows = filters::smooth_threshold_windows(&p);
+                let values: Vec<_> = windows
+                    .iter()
+                    .flat_map(|w| {
+                        [0.0, 0.25, 0.5, 0.75, 1.0].map(|u| {
+                            let t = ModifiedJulianDate::new(
+                                w.start.raw().value() + w.length().value() * u,
+                            );
+                            (
+                                t.raw().value(),
+                                threshold::evaluate_integrated(&evaluator, &p, t)
+                                    .unwrap()
+                                    .value(),
+                            )
+                        })
+                    })
+                    .collect();
+                let result = evaluator
+                    .periods_below_threshold_with_context(&context, &q)
+                    .unwrap();
+                println!(
+                    "DEPENDENCY_REFERENCE {}",
+                    serde_json::json!({
+                        "site":if north {"N"} else {"S"},"moon":moon.as_str(),"bits":bits,
+                        "windows":windows.iter().map(|w| [w.start.raw().value(),w.end.raw().value()]).collect::<Vec<_>>(),
+                        "values":values,
+                        "periods":result.periods.iter().map(|w| [w.start.to_chrono().unwrap().to_rfc3339(),w.end.to_chrono().unwrap().to_rfc3339()]).collect::<Vec<_>>()
+                    })
+                );
+            }
+        }
+    }
+    for label in [
+        "2016-12-31T23:59:59Z",
+        "2017-01-01T00:00:00Z",
+        "2026-10-12T12:34:56.123456Z",
+    ] {
+        let t = Time::<UTC>::from_chrono(label.parse::<chrono::DateTime<chrono::Utc>>().unwrap());
+        let tt = scan::utc_time_to_tt_mjd(t);
+        println!(
+            "DEPENDENCY_TIME {}",
+            serde_json::json!({"utc":label,"tt_mjd":tt.raw().value(),"roundtrip":scan::tt_mjd_to_utc_time(tt).to_chrono().unwrap().to_rfc3339()})
+        );
     }
 }

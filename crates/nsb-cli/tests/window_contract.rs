@@ -215,7 +215,7 @@ fn window_min_nsb_band_excludes_periods_below_minimum() {
     assert_eq!(band_value["max_nsb_ph_cm2_ns_sr"], 1_000_000.0);
     assert!(
         band_value["periods"].as_array().unwrap().is_empty(),
-        "equal min/max band must exclude every below-max period via subtract_periods"
+        "equal min/max band must exclude every below-max period"
     );
 }
 
@@ -359,5 +359,89 @@ fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_m
             .assert()
             .failure()
             .stdout(predicate::str::is_empty());
+    }
+}
+
+#[test]
+fn joint_band_cli_millisecond_boundaries_satisfy_both_constraints() {
+    use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
+    use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
+    use tempoch::{Time, UTC};
+    let evaluator = NsbEvaluator::new().unwrap();
+    let observer = siderust::catalogs::observatories::EL_PARANAL.geodetic();
+    let target = Target::new(266.41683 * DEG, -29.00781 * DEG);
+    let mask = ComponentMask::ZODIACAL | ComponentMask::AIRGLOW;
+    let start = "2023-09-04T00:00:00Z"
+        .parse::<chrono::DateTime<chrono::Utc>>()
+        .unwrap();
+    let mut values: Vec<_> = (0..=36)
+        .map(|i| {
+            evaluator
+                .evaluate(
+                    &PointQuery::new(
+                        observer,
+                        Time::<UTC>::from_chrono(start + chrono::Duration::minutes(i * 10)),
+                        target,
+                    )
+                    .with_components(mask),
+                )
+                .unwrap()
+                .integrated
+                .value()
+        })
+        .collect();
+    values.sort_by(f64::total_cmp);
+    let minimum = values[values.len() / 3];
+    let maximum = values[values.len() * 2 / 3];
+    for adaptive in [false, true] {
+        let mut cmd = Command::cargo_bin("nsb").unwrap();
+        cmd.args([
+            "--format",
+            "json",
+            "window",
+            "--start",
+            "2023-09-04T00:00:00.000000999Z",
+            "--end",
+            "2023-09-04T06:00:00.000000999Z",
+            "--site",
+            "PARANAL",
+            "--ra",
+            "266.41683",
+            "--dec",
+            "-29.00781",
+            "--components",
+            "zodiacal,airglow",
+            "--no-pre-filter",
+            "--min-nsb",
+            &minimum.to_string(),
+            "--max-nsb",
+            &maximum.to_string(),
+        ]);
+        if adaptive {
+            cmd.arg("--adaptive");
+        }
+        let output = cmd.assert().success().get_output().stdout.clone();
+        let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+        let periods = value["periods"].as_array().unwrap();
+        assert!(!periods.is_empty());
+        for period in periods {
+            let a = chrono::DateTime::parse_from_rfc3339(period["start_utc"].as_str().unwrap())
+                .unwrap()
+                .with_timezone(&chrono::Utc);
+            let b = chrono::DateTime::parse_from_rfc3339(period["end_utc"].as_str().unwrap())
+                .unwrap()
+                .with_timezone(&chrono::Utc);
+            for i in 0..=100 {
+                let time = Time::<UTC>::from_chrono(a + (b - a) * i / 100);
+                let y = evaluator
+                    .evaluate(&PointQuery::new(observer, time, target).with_components(mask))
+                    .unwrap()
+                    .integrated;
+                assert!(
+                    y >= Radiance::new(minimum) && y <= Radiance::new(maximum),
+                    "displayed band violates constraint: {y}"
+                );
+            }
+        }
     }
 }

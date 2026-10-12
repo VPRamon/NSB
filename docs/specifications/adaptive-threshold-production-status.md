@@ -42,9 +42,11 @@ root counts are never promoted to certificates in the strict engine.
    otherwise this temporal regime is unsupported. Reddening's 90-degree edge
    is already in the 5-degree set. Fixed ecliptic latitude needs no time search.
 4. First try the admitted cached-scalar/Moon-down certificates. Otherwise fit a
-   degree-four Chebyshev interpolant on five Lobatto nodes, checked at two
-   interlaced nodes. Upgrade to degree eight and four independent validation
-   nodes when necessary, then subdivide on disagreement. Intervals longer than
+   degree-four Chebyshev interpolant on five Lobatto nodes, checked at **all four**
+   interlaced nodes and independent one-third/two-third interior nodes. Upgrade
+   to degree eight with four additional independent validation nodes when
+   necessary, then subdivide on disagreement. High-fit-only checks are lazy
+   to avoid spending those physical evaluations on resolved low fits. Intervals longer than
    six hours subdivide before fitting to resolve diurnal geometry. This is an
    initial model-resolution safeguard, not a fixed radiance scanning step.
 5. Probe polynomial roots **and derivative roots** with the authoritative NSB
@@ -118,13 +120,23 @@ experimental map; a synthetic map is not relabeled an admitted production map.
 
 ## Resource and representation limits
 
-Adaptive queries allow at most 25,000 initial physical intervals. Each has a
-separate bounded allowance of 4,096 authoritative evaluations, 256 fits and depth
-32. This scales work with physical coverage while preventing one difficult
-interval from consuming another interval's allowance. Caches and recursion are
-bounded per Rayon worker. These are operation limits, not hard wall-clock
-preemption of a physical evaluator call. Initial preparation keeps its existing
-Siderust resource semantics.
+Adaptive queries allow at most 25,000 initial physical intervals. Define physical
+complexity `C = sum(max(1, ceil(interval_days / 0.25)))`. The **whole query** may
+spend at most `min(2_000_000, 64*C + 65_536)` exact evaluations and
+`min(250_000, 8*C + 4_096)` polynomial fits. Saturating arithmetic avoids integer
+overflow for extreme extents. Initial classification is reserved by complexity;
+annual queries are not restricted to a fixed small number of initial probes.
+
+Windows run in deterministic batches of at most 64. Each batch divides the
+remaining budget equally, capped locally at 4,096 exact evaluations / 256 fits
+and depth 32. Unspent work is reclaimed for later batches. No racing atomic
+budget chooses which windows succeed; costs and schedules are independent of
+Rayon worker count. Any exhaustion aborts the entire query with an explicit
+error. No partial schedule escapes. Cache size and stack depth are bounded per
+worker; pending interval work is at most 64 plus worker stacks. Output memory
+is bounded by the initial windows and operation limits. These are operation
+limits, not hard wall-clock preemption of a physical evaluator call. Initial
+astronomical preparation keeps its existing Siderust resource semantics.
 
 Strict discovery separately counts all initial classifications and at most
 2,048 refinement-bound calls. Initial windows are never charged against that
@@ -168,3 +180,69 @@ Historical certificate-only measurements remain in
 They must not be cited as performance evidence for active adaptive search.
 Complete usable adaptive benchmark results and final acceptance status are
 recorded in the companion production benchmark report after measurement.
+
+
+## Aliasing investigation and two-threshold correction
+
+The original degree-four path checked only seven radiance nodes, with its two
+validation points close to the endpoints. A reproducible compact C-infinity
+pulse centered at 7,200 seconds in a six-hour interval is **visible to scan600
+but invisible to every original probe**. The original implementation returned
+one false-valid period; the new permanent regression requires two accepted
+periods separated by the exact physical excursion. Symmetric 14,400-second and
+omitted-interlaced-node cases are retained as additional regressions. The
+recorded pre-fix failure was `hidden pulse at 7200: left 1, right 2`.
+
+The fix checks all interlaced nodes, adds independent interior validation, and
+retains every evaluation for transition discovery. It introduces no global
+600-second grid or scan fallback. Increasing validation diversity fixes these
+specific aliases; it cannot rule out every possible compact pulse.
+
+A global derivative or curvature certificate would need outward bounds through
+astronomical transforms, spectral integration, extinction and each tabulated
+branch. The current scalar APIs do not expose those enclosures. Starlight has
+an exact scalar certificate; the time-varying components do not. Zodiacal cell,
+reddening and horizon branches and Airglow calendar/data jumps are partitioned;
+K&S scattering/airmass and Jones spectral interpolation remain the exact
+models. Their local geometry variation motivates checked fits and extrema
+isolation, but it is not a proven interpolation error bound. A finer uniform
+scan would give discrete coverage only and is deliberately not hidden inside
+the adaptive implementation. The physical corpus tests these resolution
+assumptions separately from the synthetic pulse regressions.
+
+`periods_in_band_adaptive(query, minimum)` and its context variant solve the
+inclusive condition `minimum <= NSB(t) <= query.threshold` on a **shared physical
+fit and cache**. Both threshold levels generate exact crossing brackets. Each
+bracket contracts toward its own accepted side; intersections exclude both
+uncertain interiors. Endpoints are checked against both levels before export.
+A band narrower than the combined crossing brackets may yield no positive
+period. Isolated equality never manufactures duration; a genuinely constant
+admitted value equal to both thresholds is accepted. Numerically ambiguous
+extremum equality fails explicitly as in the single-threshold API.
+
+CLI `--min-nsb` uses joint search even without `--adaptive`; `--step` remains
+accepted for compatibility but does not control band discovery. This is a
+correctness repair to the existing minimum constraint. CLI `--certified` with
+a minimum uses `periods_in_band_certified_with_context`: the entire band needs
+a sound enclosure, otherwise it fails. It never subtracts independently
+contracted schedules. Python exposes the same band methods and projects output
+inward at datetime precision. CLI tests validate the displayed millisecond
+boundaries with the authoritative physical evaluator.
+
+## Siderust 0.14 migration and acceptance artifacts
+
+The workspace uses registry Siderust 0.14.0, Tempoch / tempoch-core 0.10.0 and
+Principia 0.6.0. Optional Rust bridges and Python runtime distributions use 0.4.0.
+No incompatible duplicate public time/coordinate package is introduced, and no
+Git override is required. The dependency-only scanner comparisons A/B are
+identical across all 67 exported cases; see
+[Siderust compatibility](siderust-compatibility.md). Adaptive-versus-scanner
+comparisons use **the same 0.14 graph** and are reported independently.
+
+The production harness exercises native UTC exports, both CTAO sites, both
+lunar models, all masks, actual ALL, explicit four-component composition,
+1/7/30/365 days and 1/10/100 targets sharing a context. It emits a row only after
+600-second witnesses and fine-reference topology/boundaries have been checked.
+The report records overhead as well as improvements; incomplete searches are
+never benchmarked as faster usable schedules. The PR stays Draft while the
+full matrix and current-head CI are being evaluated.

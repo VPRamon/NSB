@@ -713,3 +713,280 @@ fn adaptive_airglow_configured_profile_and_outside_night_validation() {
     q.window.end = q.window.start + Seconds::new(3600.0);
     assert!(invalid.periods_below_threshold_adaptive(&q).is_err());
 }
+
+/// Compact, C-infinity pulse: original degree-four checks all see exact zero.
+/// The 600 s scanner witnesses the peak. This is a finite regression corpus,
+/// not a completeness theorem for arbitrary compactly supported functions.
+#[test]
+fn adaptive_retains_scan_witness_hidden_from_original_fit_nodes() {
+    let w: Interval<Mjd> = Interval::new(Mjd::new(60_000.0), Mjd::new(60_000.25));
+    for center in [7200.0, 14_400.0, 6_667.018_930_457] {
+        let f = |t| {
+            let x = (seconds(t) - center) / 200.0;
+            Ok(Radiance::new(if x.abs() < 1.0 {
+                (1.0 - 1.0 / (1.0 - x * x)).exp()
+            } else {
+                0.0
+            }))
+        };
+        // Reproduce the old node blindness explicitly, independently of search.
+        for i in [0, 1, 2, 4, 6, 7, 8] {
+            let x = (std::f64::consts::PI * i as f64 / 8.0).cos();
+            let t = Mjd::new(w.start.raw().value() + 0.25 * (x + 1.0) * 0.5);
+            assert_eq!(f(t).unwrap().value(), 0.0);
+        }
+        let old = scan::authoritative_above_threshold_periods(
+            w,
+            Days::new(600.0 / 86400.0),
+            &f,
+            Radiance::new(0.5),
+        )
+        .unwrap();
+        assert_eq!(old.len(), 1, "legacy witness at {center}");
+        let (out, _) = discovery::search(
+            w,
+            Radiance::new(0.5),
+            f,
+            BoundOutcome::Unsupported,
+            Limits::default(),
+        )
+        .unwrap();
+        assert_eq!(out.len(), 2, "hidden pulse at {center}");
+        assert!(seconds(out[0].end) < center && seconds(out[1].start) > center);
+    }
+}
+
+#[test]
+fn adaptive_joint_band_contracts_both_thresholds_inward() {
+    for decreasing in [false, true] {
+        let f = |t| {
+            Ok(Radiance::new(if decreasing {
+                600.0 - seconds(t)
+            } else {
+                seconds(t)
+            }))
+        };
+        for (minimum, maximum) in [(100.123456, 500.654321), (100.0, 100.02), (0.0, 600.0)] {
+            let (periods, _) = discovery::search_band(
+                extent(),
+                Radiance::new(maximum),
+                Some(Radiance::new(minimum)),
+                f,
+                BoundOutcome::Unsupported,
+                Limits::default(),
+            )
+            .unwrap();
+            // A band narrower than the crossing uncertainty may be omitted.
+            if maximum - minimum > 0.2 {
+                assert_eq!(periods.len(), 1);
+            }
+            for p in periods {
+                for t in [
+                    p.start,
+                    p.end,
+                    Mjd::new(p.start.raw().value() + p.length().value() * 0.5),
+                ] {
+                    let y = f(t).unwrap().value();
+                    assert!(
+                        y >= minimum && y <= maximum,
+                        "band [{minimum}, {maximum}] at {}: {y}",
+                        seconds(t)
+                    );
+                }
+                let expected_start = if decreasing { 600.0 - maximum } else { minimum };
+                let expected_end = if decreasing { 600.0 - minimum } else { maximum };
+                assert!((seconds(p.start) - expected_start).abs() <= 0.1);
+                assert!((seconds(p.end) - expected_end).abs() <= 0.1);
+            }
+        }
+    }
+    let (empty, _) = discovery::search_band(
+        extent(),
+        Radiance::new(200.0),
+        Some(Radiance::new(200.0)),
+        |t| Ok(Radiance::new(seconds(t))),
+        BoundOutcome::Unsupported,
+        Limits::default(),
+    )
+    .unwrap();
+    assert!(
+        empty.is_empty(),
+        "isolated equality must not create positive duration"
+    );
+    let (equal, _) = discovery::search_band(
+        extent(),
+        Radiance::new(0.5),
+        Some(Radiance::new(0.5)),
+        |_| Ok(Radiance::new(0.5)),
+        BoundOutcome::Unsupported,
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(equal, vec![extent()]);
+}
+
+#[test]
+fn adaptive_joint_band_multiple_crossings_tangencies_and_jumps() {
+    let f = |t| {
+        Ok(Radiance::new(
+            (seconds(t) * std::f64::consts::TAU / 300.0).sin(),
+        ))
+    };
+    let (out, _) = discovery::search_band(
+        extent(),
+        Radiance::new(0.6),
+        Some(Radiance::new(0.2)),
+        f,
+        BoundOutcome::Unsupported,
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(out.len(), 4);
+    for p in out {
+        for i in 0..=100 {
+            let y = f(Mjd::new(
+                p.start.raw().value() + p.length().value() * i as f64 / 100.0,
+            ))
+            .unwrap()
+            .value();
+            assert!((0.2..=0.6).contains(&y));
+        }
+    }
+    let tangent = |t| Ok(Radiance::new(0.5 + (seconds(t) - 271.25).powi(2) * 1e-5));
+    assert!(discovery::search_band(
+        extent(),
+        Radiance::new(5.0),
+        Some(Radiance::new(0.5)),
+        tangent,
+        BoundOutcome::Unsupported,
+        Limits::default()
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("extremum indistinguishable"));
+    // Physical discontinuities are partitioned first; include both one-sided
+    // values at the join and never manufacture duration around a singleton.
+    let jump = Mjd::new(60000.0 + 300.0 / 86400.0);
+    let windows = [
+        Interval::new(extent().start, jump),
+        Interval::new(jump, extent().end),
+    ];
+    let (out, _) = discovery::search_windows(
+        &windows,
+        Radiance::new(0.75),
+        Some(Radiance::new(0.25)),
+        |t| Ok(Radiance::new(if t < jump { 0.0 } else { 0.5 })),
+        |_| Ok(BoundOutcome::Unsupported),
+        false,
+    )
+    .unwrap();
+    assert_eq!(out.len(), 1);
+    assert!(out[0].start >= jump);
+}
+
+#[test]
+fn adaptive_query_budget_is_bounded_and_parallel_deterministic() {
+    let windows: Vec<Interval<Mjd>> = (0..3000)
+        .map(|i| {
+            Interval::new(
+                Mjd::new(60000.0 + i as f64 / 24.0),
+                Mjd::new(60000.0 + (i + 1) as f64 / 24.0),
+            )
+        })
+        .collect();
+    let run = |threads| {
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .unwrap()
+            .install(|| {
+                discovery::search_windows(
+                    &windows,
+                    Radiance::new(0.5),
+                    None,
+                    |_| Ok(Radiance::new(0.25)),
+                    |_| Ok(BoundOutcome::Unsupported),
+                    false,
+                )
+                .unwrap()
+            })
+    };
+    let a = run(1);
+    let b = run(2);
+    assert_eq!(a.0, b.0);
+    assert_eq!(a.1.exact, b.1.exact);
+    assert_eq!(a.1.fits, b.1.fits);
+    assert!(a.1.exact <= 64 * windows.len() + 65536);
+    assert!(a.1.peak_samples <= Limits::default().exact);
+    let many = vec![extent(); 25_001];
+    assert!(discovery::search_windows(
+        &many,
+        Radiance::new(0.5),
+        None,
+        |_| unreachable!(),
+        |_| unreachable!(),
+        false
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("initial physical interval budget"));
+}
+
+#[test]
+fn real_joint_band_all_masks_both_moon_models_have_no_sampled_false_positives() {
+    for north in [false, true] {
+        for moon in [
+            MoonlightModel::KrisciunasSchaefer1991,
+            MoonlightModel::Jones2013Spectral,
+        ] {
+            let evaluator = super::adaptive_bench::evaluator_with_moon(north, true, moon);
+            for bits in 0..=15 {
+                let mut q = query(bits);
+                if north {
+                    q.observer = siderust::coordinates::centers::Geodetic::new_raw(
+                        crate::units::angular::Degrees::new(-17.892),
+                        crate::units::angular::Degrees::new(28.762),
+                        siderust::qtty::Meters::new(2200.0),
+                    );
+                }
+                let context = evaluator.prepare_site_window_context(&q).unwrap();
+                let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+                let windows = filters::adaptive_threshold_windows(&p).unwrap();
+                let mut values = Vec::new();
+                for w in windows {
+                    for u in [0.1, 0.3, 0.5, 0.7, 0.9] {
+                        values.push(
+                            threshold::evaluate_integrated(
+                                &evaluator,
+                                &p,
+                                Mjd::new(w.start.raw().value() + w.length().value() * u),
+                            )
+                            .unwrap()
+                            .value(),
+                        );
+                    }
+                }
+                if values.is_empty() {
+                    continue;
+                }
+                values.sort_by(f64::total_cmp);
+                let min = Radiance::new(values[values.len() / 3]);
+                q.threshold = Radiance::new(values[values.len() * 2 / 3]);
+                let out = evaluator
+                    .periods_in_band_adaptive_with_context(&context, &q, min)
+                    .unwrap_or_else(|e| panic!("north {north} moon {moon:?} mask {bits}: {e}"));
+                for period in out.periods {
+                    let tt = scan::utc_period_to_tt_mjd(period);
+                    // Includes native UTC boundaries after inward TT projection.
+                    for i in 0..=100 {
+                        let t = Mjd::new(
+                            tt.start.raw().value() + tt.length().value() * i as f64 / 100.0,
+                        );
+                        let value = threshold::evaluate_integrated(&evaluator, &p, t).unwrap();
+                        assert!(value >= min && value <= q.threshold, "false-positive north {north} moon {moon:?} bits {bits}: {value} outside [{min}, {}]", q.threshold);
+                    }
+                }
+            }
+        }
+    }
+}

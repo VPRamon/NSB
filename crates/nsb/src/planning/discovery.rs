@@ -28,6 +28,8 @@ pub(super) struct Costs {
     pub extrema: usize,
     pub certified: usize,
     pub peak_samples: usize,
+    pub peak_pending: usize,
+    pub peak_depth: usize,
     pub bracket_seconds: f64,
 }
 
@@ -51,6 +53,7 @@ impl Default for Limits {
 struct Search<E> {
     exact: E,
     threshold: f64,
+    minimum: Option<f64>,
     limits: Limits,
     // One bounded cache per initial physical interval, also reused by roots.
     samples: Vec<(f64, f64)>,
@@ -99,6 +102,7 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
     }
 
     fn interval(&mut self, a: f64, b: f64, depth: usize) -> Result<()> {
+        self.costs.peak_depth = self.costs.peak_depth.max(depth);
         if b - a > MAX_SPAN {
             return self.split(a, b, depth);
         }
@@ -119,29 +123,39 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
         if times.windows(2).any(|p| p[0] <= p[1]) {
             return Err(incomplete("fitting nodes collapse at time precision"));
         }
-        let mut ys = [f64::NAN; 9];
+        // Never accept a low fit after checking only its endpoint-adjacent
+        // interlaced nodes: a compact excursion can alias those seven probes.
+        let mut ys = [0.0; 9];
         for (i, y) in ys.iter_mut().enumerate() {
-            if i % 2 == 0 || i == 1 || i == 7 {
-                *y = self.probe(times[i])?;
-            }
+            *y = self.probe(times[i])?;
         }
-        let mut scale = ys
+        let scale = ys
             .iter()
-            .fold(self.threshold.abs().max(1e-12), |s, y| s.max(y.abs()));
-        // Normalize before DCT/root solving, preventing overflow from finite
-        // radiances. This normalization never changes authoritative comparison.
-        let mut normalized: Vec<_> = ys
+            .fold(self.threshold.abs().max(1e-12), |s, y| s.max(y.abs()))
+            .max(self.minimum.unwrap_or(0.0).abs());
+        let normalized: Vec<_> = ys
             .iter()
             .map(|y| y / scale - self.threshold / scale)
             .collect();
         let low = lobatto(&normalized.iter().step_by(2).copied().collect::<Vec<_>>())?;
         self.costs.fits += 1;
-        let mut residual: f64 = [1, 7]
-            .into_iter()
-            .map(|i| {
-                (low.evaluate((std::f64::consts::PI * i as f64 / 8.0).cos()) - normalized[i]).abs()
-            })
-            .fold(0.0, f64::max);
+        // Two non-Lobatto interior checks complement ALL four interlaced
+        // checks of the low fit. Expensive high-fit validation is lazy.
+        let mut validation = Vec::with_capacity(6);
+        for x in [-1.0 / 3.0, 1.0 / 3.0] {
+            validation.push((x, self.probe(time(x))? / scale - self.threshold / scale));
+        }
+        let residual_at = |poly: &ChebySeriesDyn<f64>, validation: &[(f64, f64)]| {
+            validation
+                .iter()
+                .map(|&(x, y)| (poly.evaluate(x) - y).abs())
+                .chain((1..8).step_by(2).map(|i| {
+                    (poly.evaluate((std::f64::consts::PI * i as f64 / 8.0).cos()) - normalized[i])
+                        .abs()
+                }))
+                .fold(0.0, f64::max)
+        };
+        let mut residual = residual_at(&low, &validation);
         let poly = if residual <= 1e-5 {
             low
         } else {
@@ -149,21 +163,13 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
                 return Err(incomplete("polynomial fit budget"));
             }
             self.costs.fits += 1;
-            for i in [3, 5] {
-                ys[i] = self.probe(times[i])?;
-            }
-            scale = ys.iter().fold(scale, |s, y| s.max(y.abs()));
-            normalized = ys
-                .iter()
-                .map(|y| y / scale - self.threshold / scale)
-                .collect();
             let high = lobatto(&normalized)?;
-            residual = 0.0;
-            // Independent, non-Lobatto checks; empirical agreement only.
+            // Independent validation of the high fit cannot reuse its own
+            // interpolation nodes as evidence. Retain every probe for roots.
             for x in [-0.83, -0.31, 0.27, 0.79] {
-                let y = self.probe(time(x))? / scale - self.threshold / scale;
-                residual = residual.max((high.evaluate(x) - y).abs());
+                validation.push((x, self.probe(time(x))? / scale - self.threshold / scale));
             }
+            residual = residual_at(&high, &validation);
             if residual > 1e-5 {
                 return self.split(a, b, depth);
             }
@@ -177,6 +183,15 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
             .collect();
         probes.extend([a, b]);
         let mut candidates = poly.roots();
+        if let Some(minimum) = self.minimum {
+            // Same physical fit and cache, roots for both levels. Subtracting
+            // contracted below-minimum schedules would widen the band unsafely.
+            let mut coefficients = poly.coeffs().to_vec();
+            coefficients[0] += self.threshold / scale - minimum / scale;
+            let lower = ChebySeriesDyn::new(coefficients)
+                .map_err(|_| incomplete("lower threshold polynomial"))?;
+            candidates.extend(lower.roots());
+        }
         let mut extrema: Vec<_> = poly
             .derivative()
             .roots()
@@ -191,7 +206,11 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
             candidates.push(x);
             // Resolve grazing extrema with the exact model when their height
             // is close to threshold relative to the observed approximation error.
-            if (y / scale - self.threshold / scale).abs() <= (16.0 * residual).max(1e-8) {
+            let distance = (y / scale - self.threshold / scale).abs().min(
+                self.minimum
+                    .map_or(f64::INFINITY, |v| (y / scale - v / scale).abs()),
+            );
+            if distance <= (16.0 * residual).max(1e-8) {
                 let lo = time(if i == 0 {
                     -1.0
                 } else {
@@ -205,7 +224,10 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
                 let maximum = poly.evaluate_derivative((x - 1e-5).max(-1.0)) > 0.0;
                 let extremum = self.extremum(lo, hi, maximum)?;
                 let height = self.probe(extremum)? / scale - self.threshold / scale;
-                if height.abs() <= 128.0 * f64::EPSILON {
+                let lower_height = self.minimum.map_or(f64::INFINITY, |v| {
+                    height + self.threshold / scale - v / scale
+                });
+                if height.abs().min(lower_height.abs()) <= 128.0 * f64::EPSILON {
                     return Err(incomplete(
                         "extremum indistinguishable from threshold at radiance precision",
                     ));
@@ -235,15 +257,34 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
         for pair in probes.windows(2) {
             let (lo, hi) = (pair[0], pair[1]);
             let (yl, yr) = (self.probe(lo)?, self.probe(hi)?);
-            if (yl > self.threshold) != (yr > self.threshold) {
-                let accepted = self.crossing(lo, hi, yl)?;
-                if yl <= self.threshold {
-                    self.push(lo, accepted);
-                } else {
-                    self.push(accepted, hi);
+            let mut accepted_lo = lo;
+            let mut accepted_hi = hi;
+            for (level, lower) in [(Some(self.threshold), false), (self.minimum, true)] {
+                let Some(level) = level else { continue };
+                let rejected = |y: f64| if lower { y < level } else { y > level };
+                let (left, right) = (rejected(yl), rejected(yr));
+                if left && right {
+                    accepted_hi = accepted_lo;
+                    break;
                 }
-            } else if yl <= self.threshold {
-                self.push(lo, hi);
+                if left != right {
+                    let (l, r) = self.crossing(lo, hi, yl, level, lower)?;
+                    if left {
+                        accepted_lo = accepted_lo.max(r);
+                    } else {
+                        accepted_hi = accepted_hi.min(l);
+                    }
+                }
+            }
+            if accepted_lo < accepted_hi {
+                // Both threshold brackets contract toward their accepted side.
+                // Check the final endpoints before exposing a positive duration.
+                let left_value = self.probe(accepted_lo)?;
+                let right_value = self.probe(accepted_hi)?;
+                if !self.accepted(left_value) || !self.accepted(right_value) {
+                    return Err(incomplete("band endpoints outside accepted radiance"));
+                }
+                self.push(accepted_lo, accepted_hi);
             }
         }
         Ok(())
@@ -279,13 +320,25 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
         Ok(if (yl > yr) == maximum { l } else { r })
     }
 
-    fn crossing(&mut self, mut lo: f64, mut hi: f64, yl: f64) -> Result<f64> {
+    fn accepted(&self, value: f64) -> bool {
+        value <= self.threshold && self.minimum.is_none_or(|min| value >= min)
+    }
+
+    fn crossing(
+        &mut self,
+        mut lo: f64,
+        mut hi: f64,
+        yl: f64,
+        level: f64,
+        lower: bool,
+    ) -> Result<(f64, f64)> {
         self.costs.refinements += 1;
-        let above = yl > self.threshold;
+        let rejected = |y: f64| if lower { y < level } else { y > level };
+        let above = rejected(yl);
         let yr = self.probe(hi)?;
-        let scale = yl.abs().max(yr.abs()).max(self.threshold.abs()).max(1e-300);
-        let mut fl = yl / scale - self.threshold / scale;
-        let mut fr = yr / scale - self.threshold / scale;
+        let scale = yl.abs().max(yr.abs()).max(level.abs()).max(1e-300);
+        let mut fl = yl / scale - level / scale;
+        let mut fr = yr / scale - level / scale;
         let mut retained_left = 0;
         let mut retained_right = 0;
         let mut iteration = 0;
@@ -308,9 +361,9 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
                 return Err(incomplete("crossing floating-point limit"));
             }
             let y = self.probe(mid)?;
-            if (y > self.threshold) == above {
+            if rejected(y) == above {
                 lo = mid;
-                fl = y / scale - self.threshold / scale;
+                fl = y / scale - level / scale;
                 retained_right += 1;
                 retained_left = 0;
                 if retained_right > 1 {
@@ -318,7 +371,7 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
                 }
             } else {
                 hi = mid;
-                fr = y / scale - self.threshold / scale;
+                fr = y / scale - level / scale;
                 retained_left += 1;
                 retained_right = 0;
                 if retained_left > 1 {
@@ -329,7 +382,7 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
         }
         self.costs.bracket_seconds += (hi - lo) * 86400.0;
         // Export the known accepted side, never the middle of an uncertain bracket.
-        Ok(if above { hi } else { lo })
+        Ok((lo, hi))
     }
 
     fn push(&mut self, a: f64, b: f64) {
@@ -366,7 +419,19 @@ pub(super) fn search<E: Fn(Mjd) -> Result<Radiance>>(
     bounds: BoundOutcome,
     limits: Limits,
 ) -> Result<(Vec<Interval<Mjd>>, Costs)> {
-    if !threshold.is_finite()
+    search_band(window, threshold, None, exact, bounds, limits)
+}
+
+pub(super) fn search_band<E: Fn(Mjd) -> Result<Radiance>>(
+    window: Interval<Mjd>,
+    threshold: Radiance,
+    minimum: Option<Radiance>,
+    exact: E,
+    bounds: BoundOutcome,
+    limits: Limits,
+) -> Result<(Vec<Interval<Mjd>>, Costs)> {
+    if minimum.is_some_and(|v| !v.is_finite() || v > threshold)
+        || !threshold.is_finite()
         || !window.start.raw().value().is_finite()
         || !window.end.raw().value().is_finite()
         || window.start >= window.end
@@ -376,6 +441,7 @@ pub(super) fn search<E: Fn(Mjd) -> Result<Radiance>>(
     let mut search = Search {
         exact,
         threshold: threshold.value(),
+        minimum: minimum.map(|v| v.value()),
         limits,
         samples: Vec::new(),
         costs: Costs {
@@ -386,11 +452,11 @@ pub(super) fn search<E: Fn(Mjd) -> Result<Radiance>>(
     };
     if let BoundOutcome::Enclosure { range: b, .. } = bounds {
         RadianceBounds::new(b.lower, b.upper)?;
-        if b.upper <= threshold {
+        if b.upper <= threshold && minimum.is_none_or(|min| b.lower >= min) {
             search.costs.certified = 1;
             return Ok((vec![window], search.costs));
         }
-        if b.lower > threshold {
+        if b.lower > threshold || minimum.is_some_and(|min| b.upper < min) {
             search.costs.certified = 1;
             return Ok((Vec::new(), search.costs));
         }
@@ -398,4 +464,94 @@ pub(super) fn search<E: Fn(Mjd) -> Result<Radiance>>(
     search.interval(window.start.raw().value(), window.end.raw().value(), 0)?;
     coalesce_periods(&mut search.periods);
     Ok((search.periods, search.costs))
+}
+
+/// Deterministic batches reclaim unused local work without racing a global
+/// atomic counter. Limits cover the whole query; no successful partial result.
+/// A batch has at most 64 pending physical intervals, plus bounded worker stacks.
+pub(super) fn search_windows<E, B>(
+    windows: &[Interval<Mjd>],
+    maximum: Radiance,
+    minimum: Option<Radiance>,
+    exact: E,
+    bounds: B,
+    certified: bool,
+) -> Result<(Vec<Interval<Mjd>>, Costs)>
+where
+    E: Fn(Mjd) -> Result<Radiance> + Sync,
+    B: Fn(Interval<Mjd>) -> Result<BoundOutcome> + Sync,
+{
+    use rayon::prelude::*;
+    if windows.len() > 25_000 {
+        return Err(incomplete("initial physical interval budget (25000)"));
+    }
+    let complexity = windows
+        .iter()
+        .map(|w| (w.length().value() / MAX_SPAN).ceil().max(1.0) as usize)
+        .fold(0usize, usize::saturating_add);
+    // Initial classification is reserved separately from local refinements.
+    // Annual hourly partitions have ample initial work without allowing every
+    // interval to independently spend 4096 exact calls.
+    let mut remaining_exact = (complexity.saturating_mul(64).saturating_add(65_536)).min(2_000_000);
+    let mut remaining_fits = (complexity.saturating_mul(8).saturating_add(4_096)).min(250_000);
+    let mut total = Costs::default();
+    let mut periods = Vec::new();
+    for batch in windows.chunks(64) {
+        total.peak_pending = total.peak_pending.max(batch.len());
+        let limits = Limits {
+            exact: Limits::default().exact.min(remaining_exact / batch.len()),
+            fits: Limits::default().fits.min(remaining_fits / batch.len()),
+            ..Limits::default()
+        };
+        let parts = batch
+            .par_iter()
+            .map(|&window| {
+                let bound = bounds(window)?;
+                if certified {
+                    if let BoundOutcome::Enclosure { range, .. } = bound {
+                        RadianceBounds::new(range.lower, range.upper)?;
+                        let inside =
+                            range.upper <= maximum && minimum.is_none_or(|min| range.lower >= min);
+                        let outside =
+                            range.lower > maximum || minimum.is_some_and(|min| range.upper < min);
+                        if inside || outside {
+                            return Ok((
+                                if inside { vec![window] } else { Vec::new() },
+                                Costs {
+                                    bounds: 1,
+                                    certified: 1,
+                                    ..Costs::default()
+                                },
+                            ));
+                        }
+                    }
+                    return Err(incomplete(
+                        "no interval certificate for the complete radiance band",
+                    ));
+                }
+                if minimum.is_none() {
+                    search(window, maximum, &exact, bound, limits)
+                } else {
+                    search_band(window, maximum, minimum, &exact, bound, limits)
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
+        for (part, c) in parts {
+            remaining_exact -= c.exact;
+            remaining_fits -= c.fits;
+            total.exact += c.exact;
+            total.bounds += c.bounds;
+            total.fits += c.fits;
+            total.subdivisions += c.subdivisions;
+            total.refinements += c.refinements;
+            total.extrema += c.extrema;
+            total.certified += c.certified;
+            total.peak_samples = total.peak_samples.max(c.peak_samples);
+            total.peak_depth = total.peak_depth.max(c.peak_depth);
+            total.bracket_seconds += c.bracket_seconds;
+            periods.extend(part);
+        }
+    }
+    coalesce_periods(&mut periods);
+    Ok((periods, total))
 }

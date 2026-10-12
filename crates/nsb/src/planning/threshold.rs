@@ -191,7 +191,8 @@ impl NsbEvaluator {
     ///
     /// Uses authoritative radiances for all probes and crossing refinement
     /// (0.1 s brackets). Assumes the piecewise physical signal is resolved by
-    /// independently checked degree-4/8 fits and local extrema searches.
+    /// degree-4 fits checked at every interlaced and independent interior node,
+    /// upgraded degree-8 fits and local extrema searches.
     /// This is an empirically validated discovery contract, NOT a continuous
     /// completeness certificate. Arbitrarily hidden sub-node excursions remain
     /// possible. Resource/numerical failures return an error, never a partial
@@ -212,33 +213,67 @@ impl NsbEvaluator {
         context: &SiteWindowContext,
         query: &ThresholdQuery,
     ) -> Result<ThresholdQueryResult> {
+        self.search_radiance_band(context, query, None, false)
+    }
+
+    /// Step-free discovery of the inclusive band `minimum <= NSB <= query.threshold`.
+    /// Both thresholds share the physical fit, exact probes and uncertainty
+    /// brackets. Has the same empirical discovery limits as adaptive search.
+    pub fn periods_in_band_adaptive(
+        &self,
+        query: &ThresholdQuery,
+        minimum: BandPhotonRadiance,
+    ) -> Result<ThresholdQueryResult> {
+        let context = prepare_site_window_context(self, query)?;
+        self.periods_in_band_adaptive_with_context(&context, query, minimum)
+    }
+
+    /// Adaptive radiance band with reusable site/window state.
+    pub fn periods_in_band_adaptive_with_context(
+        &self,
+        context: &SiteWindowContext,
+        query: &ThresholdQuery,
+        minimum: BandPhotonRadiance,
+    ) -> Result<ThresholdQueryResult> {
+        self.search_radiance_band(context, query, Some(minimum), false)
+    }
+
+    /// Interval-certified inclusive band. Unsupported active-model enclosures
+    /// fail explicitly; adaptive evidence never substitutes for a certificate.
+    pub fn periods_in_band_certified_with_context(
+        &self,
+        context: &SiteWindowContext,
+        query: &ThresholdQuery,
+        minimum: BandPhotonRadiance,
+    ) -> Result<ThresholdQueryResult> {
+        self.search_radiance_band(context, query, Some(minimum), true)
+    }
+
+    fn search_radiance_band(
+        &self,
+        context: &SiteWindowContext,
+        query: &ThresholdQuery,
+        minimum: Option<BandPhotonRadiance>,
+        certified: bool,
+    ) -> Result<ThresholdQueryResult> {
         super::prepare::validate_threshold(query)?;
+        if minimum.is_some_and(|v| !v.is_finite() || v.value() < 0.0 || v > query.threshold) {
+            return Err(crate::NsbError::OutOfRange(
+                "invalid minimum radiance".into(),
+            ));
+        }
         super::prepare::validate_site_context(self, context, query)?;
         let prepared = super::prepare::prepare_target_threshold(self, context, query)?;
         let windows = super::filters::adaptive_threshold_windows(&prepared)?;
-        if windows.len() > 25_000 {
-            return Err(crate::NsbError::Unsupported(
-                "adaptive initial physical interval budget (25000)".into(),
-            ));
-        }
-        let parts = windows
-            .into_par_iter()
-            .map(|w| {
-                super::discovery::search(
-                    w,
-                    query.threshold,
-                    |t| evaluate_integrated(self, &prepared, t),
-                    prepared_bounds(&prepared, w)?,
-                    super::discovery::Limits::default(),
-                )
-                .map(|r| {
-                    log::trace!("adaptive window: bounds={}, costs={:?}", r.1.bounds, r.1);
-                    r.0
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
-        let mut periods: Vec<_> = parts.into_iter().flatten().collect();
-        coalesce_periods(&mut periods);
+        let (periods, costs) = super::discovery::search_windows(
+            &windows,
+            query.threshold,
+            minimum,
+            |t| evaluate_integrated(self, &prepared, t),
+            |w| prepared_bounds(&prepared, w),
+            certified,
+        )?;
+        log::trace!("adaptive query costs: {costs:?}");
         Ok(ThresholdQueryResult {
             threshold: query.threshold,
             periods: periods

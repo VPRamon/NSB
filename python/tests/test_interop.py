@@ -18,8 +18,8 @@ def test_distribution_declares_compatible_siderust_runtime_dependency():
 
     assert len(siderust_requirements) == 1
     requirement = siderust_requirements[0].replace(" ", "")
-    assert ">=0.3.0" in requirement
-    assert "<0.4" in requirement
+    assert ">=0.4.0" in requirement
+    assert "<0.5" in requirement
     assert metadata.version("siderust") == siderust.__version__
 
 
@@ -118,3 +118,14 @@ def test_threshold_naive_datetimes_are_rejected_as_nsb_input_errors(
         nsb.OutOfRangeError, match=rf"{naive_endpoint}:.*timezone-aware"
     ):
         nsb.ThresholdQuery(observer, direction, start, end, 1.0)
+
+
+def test_distribution_and_extension_share_tempoch_04_types(observer, direction):
+    import tempoch
+    requirements = metadata.requires("nsb-rust") or []
+    requirement = next(r.replace(" ", "") for r in requirements if r.startswith("tempoch"))
+    assert ">=0.4.0" in requirement and "<0.5" in requirement
+    assert metadata.version("tempoch").startswith("0.4.")
+    t = datetime(2026, 10, 12, 12, 34, 56, 123456, tzinfo=timezone.utc)
+    query = nsb.PointQuery(observer, t, direction)
+    assert abs(query.time - t) <= timedelta(microseconds=1)

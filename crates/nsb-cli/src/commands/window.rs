@@ -10,7 +10,7 @@ use nsb::units::angular::Degrees;
 use nsb::units::Second;
 use nsb::{NsbEvaluator, ThresholdQuery};
 use std::time::Instant;
-use tempoch::{Period, UTC};
+use tempoch::Period;
 
 pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let started = Instant::now();
@@ -66,29 +66,29 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         .with_sun_altitude_ceiling(sun_altitude_ceiling)
         .with_target_altitude_floor(target_altitude_floor);
 
-    info!("running max-threshold search");
     let context = evaluator.prepare_site_window_context(&base_query)?;
-    let search = |query: &ThresholdQuery| {
-        if args.certified {
-            evaluator.periods_below_threshold_certified_with_context(&context, query)
-        } else if args.adaptive {
-            evaluator.periods_below_threshold_adaptive_with_context(&context, query)
-        } else {
-            evaluator.periods_below_threshold_with_context(&context, query)
-        }
-    };
-    let max_result = search(&base_query)?;
     let periods = if let Some(min) = min {
-        info!("running min-threshold exclusion search");
-        let mut min_query = base_query.clone();
-        min_query.threshold = min;
-        let below_min = search(&min_query)?;
-        subtract_periods(&max_result.periods, &below_min.periods)
+        info!("running joint min/max radiance band search");
+        if args.certified {
+            evaluator.periods_in_band_certified_with_context(&context, &base_query, min)?
+        } else {
+            evaluator.periods_in_band_adaptive_with_context(&context, &base_query, min)?
+        }
+        .periods
+    } else if args.certified {
+        evaluator
+            .periods_below_threshold_certified_with_context(&context, &base_query)?
+            .periods
+    } else if args.adaptive {
+        evaluator
+            .periods_below_threshold_adaptive_with_context(&context, &base_query)?
+            .periods
     } else {
-        max_result.periods
+        evaluator
+            .periods_below_threshold_with_context(&context, &base_query)?
+            .periods
     };
-
-    let periods = if args.certified || args.adaptive {
+    let periods = if args.certified || args.adaptive || min.is_some() {
         time::inward_periods(periods)?
     } else {
         periods
@@ -112,35 +112,4 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
             periods: &periods,
         },
     )
-}
-
-fn subtract_periods(base: &[Period<UTC>], remove: &[Period<UTC>]) -> Vec<Period<UTC>> {
-    let mut out = Vec::new();
-    for period in base {
-        let mut fragments = vec![*period];
-        for cut in remove {
-            fragments = fragments
-                .into_iter()
-                .flat_map(|fragment| subtract_one(fragment, *cut))
-                .collect();
-        }
-        out.extend(fragments);
-    }
-    out
-}
-
-fn subtract_one(period: Period<UTC>, cut: Period<UTC>) -> Vec<Period<UTC>> {
-    if cut.end <= period.start || cut.start >= period.end {
-        return vec![period];
-    }
-    let mut out = Vec::new();
-    let left_end = cut.start.min(period.end);
-    if period.start < left_end {
-        out.push(Period::new(period.start, left_end));
-    }
-    let right_start = cut.end.max(period.start);
-    if right_start < period.end {
-        out.push(Period::new(right_start, period.end));
-    }
-    out
 }

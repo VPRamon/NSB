@@ -4,6 +4,15 @@ All notable changes to published NSB releases are recorded here.
 
 ## Unreleased
 
+- Upgrade to registry Siderust 0.14, Tempoch 0.10, Principia 0.6 and Python
+  interoperability/runtime packages 0.4; retain Rust 1.89.
+- Fix adaptive low-fit aliasing with all interlaced and independent interior
+  checks; retain exact physical refinement and strict certificate semantics.
+- Add inclusive joint min/max adaptive bands in Rust and Python. CLI minimum
+  constraints use this engine, replacing unsafe interval subtraction.
+- Bound adaptive work across the whole query using deterministic Rayon batches.
+
+
 ### Changed
 
 - Upgrade the Rust workspace to Siderust 0.13.0 and Tempoch 0.9.0, with

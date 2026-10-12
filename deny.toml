@@ -4,7 +4,7 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
-# Siderust 0.13.0 uses `paste`; RUSTSEC-2024-0436 is an unmaintained notice,
+# Siderust 0.14.0 uses `paste`; RUSTSEC-2024-0436 is an unmaintained notice,
 # not a vulnerability, and no compatible upstream replacement is available yet.
 # Criterion's plotting stack uses `ttf-parser`; RUSTSEC-2026-0192 is likewise
 # an unmaintained notice with no safe upgrade and affects dev-only tooling.

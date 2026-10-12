@@ -25,7 +25,9 @@ step-free discovery with the complete physical models, exact radiance validation
 and a documented empirical model-resolution contract. They do not claim
 continuous-time certification. Python exposes the same methods; CLI selects
 this path with `window --adaptive`. Resource/numerical failures return an error
-without a partial schedule. Existing sampled methods keep their frozen contract.
+without a partial schedule. Existing sampled methods keep their frozen contract. Inclusive band methods
+are additive; CLI minimum constraints use joint band discovery to avoid unsafe
+subtraction of independently contracted intervals.
 
 The separate `periods_below_threshold_certified` methods require sound interval
 classification for every eligible region, with no scan fallback. Certificates
