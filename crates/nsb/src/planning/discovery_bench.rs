@@ -229,20 +229,44 @@ pub(super) fn compare(
             .enumerate()
             .filter(|(i, a)| !used[*i] && a.end > r.start && a.start < r.end)
             .collect();
-        if pieces.len() > 1
-            && (pieces[0].1.start - r.start).value().abs() * 86400.0 <= 0.533
-            && (pieces.last().unwrap().1.end - r.end).value().abs() * 86400.0 <= 0.533
-            && pieces
-                .windows(2)
-                .all(|pair| confirm_gap(evaluator, &p, q, pair[0].1.end, pair[1].1.start))
-        {
+        let mut confirmed = Vec::new();
+        let compatible = if let (Some(first), Some(last)) = (pieces.first(), pieces.last()) {
+            let start_close = (first.1.start - r.start).value().abs() * 86400.0 <= 0.533;
+            let end_close = (last.1.end - r.end).value().abs() * 86400.0 <= 0.533;
+            let start_resolved = start_close
+                || (first.1.start > r.start
+                    && windows.iter().any(|w| w.start == r.start)
+                    && confirm_gap(evaluator, &p, q, r.start, first.1.start));
+            let end_resolved = end_close
+                || (last.1.end < r.end
+                    && windows.iter().any(|w| w.end == r.end)
+                    && confirm_gap(evaluator, &p, q, last.1.end, r.end));
+            if !start_close && start_resolved {
+                confirmed.push((r.start, first.1.start, "physical-start"));
+            }
             for pair in pieces.windows(2) {
+                confirmed.push((pair[0].1.end, pair[1].1.start, "interior"));
+            }
+            if !end_close && end_resolved {
+                confirmed.push((last.1.end, r.end, "physical-end"));
+            }
+            start_resolved
+                && end_resolved
+                && !confirmed.is_empty()
+                && pieces
+                    .windows(2)
+                    .all(|pair| confirm_gap(evaluator, &p, q, pair[0].1.end, pair[1].1.start))
+        } else {
+            false
+        };
+        if compatible {
+            for &(left, right, kind) in &confirmed {
                 println!(
                     "CONFIRMED_FINE_MISS {}",
-                    serde_json::json!({"scenario":label,"start_tt_mjd":pair[0].1.end.raw().value(),"end_tt_mjd":pair[1].1.start.raw().value(),"duration_seconds":(pair[1].1.start-pair[0].1.end).value()*86400.0,"local_reference_max_step_seconds":0.01,"boundary_allowance_seconds":0.106})
+                    serde_json::json!({"scenario":label,"kind":kind,"start_tt_mjd":left.raw().value(),"end_tt_mjd":right.raw().value(),"duration_seconds":(right-left).value()*86400.0,"local_reference_max_step_seconds":0.01,"boundary_allowance_seconds":0.106})
                 );
             }
-            fine_missed_excursions += pieces.len() - 1;
+            fine_missed_excursions += confirmed.len();
             for (i, _) in pieces {
                 used[i] = true;
             }
@@ -265,7 +289,13 @@ pub(super) fn compare(
             artifacts += 1;
             continue;
         }
-        eprintln!("ADAPTIVE_PERIODS {label}: {actual:?}");
+        eprintln!(
+            "ADAPTIVE_PERIODS {label}: {:?}",
+            actual
+                .iter()
+                .map(|w| [w.start.raw().value(), w.end.raw().value()])
+                .collect::<Vec<_>>()
+        );
         panic!("unmatched reference period {label}: start={}, end={}, duration_s={}, at_start={at_start}, at_end={at_end}, endpoint_below={endpoint_below}, interior_above={interior_above}",r.start.raw().value(),r.end.raw().value(),r.length().value()*86400.0);
     }
     assert!(
@@ -290,7 +320,8 @@ fn measure(
     start_label: &str,
 ) {
     let filter = std::env::var("NSB_DISCOVERY_FILTER").unwrap_or_default();
-    if !label.contains(&filter) {
+    let exclude = std::env::var("NSB_DISCOVERY_EXCLUDE").unwrap_or_default();
+    if !label.contains(&filter) || (!exclude.is_empty() && label.contains(&exclude)) {
         return;
     }
     // Resume an expensive acceptance run without retiming already validated

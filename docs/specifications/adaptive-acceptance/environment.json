@@ -16,8 +16,6 @@
     13,
     14,
     15,
-    16,
-    17,
     18,
     19,
     20,
@@ -43,9 +41,16 @@
       10
     ]
   },
-  "local_test_profile": {
+  "note": "Three independent benchmark prefixes run on disjoint pairs of performance cores. Shared package power, LLC and memory are not isolated; no portable speed guarantee or tail-confidence claim.",
+  "test_profile": {
     "opt_level": 1,
-    "debug_assertions": true
+    "debug_assertions": true,
+    "scope": "workspace default cargo test profile and CI"
   },
-  "note": "Three independent benchmark prefixes run on disjoint pairs of performance cores. Shared package power, LLC and memory are not isolated; no portable speed guarantee or tail-confidence claim."
+  "production_engine_commit": "3c14f03009f3eac2f54393276584e01de1a25b86",
+  "harness_note": "Completed rows were retained across a test-only comparator update at c8c6173. Both engines within every row use the same binary and dependency graph; production search code is unchanged from 3c14f03. Resumption skips only rows already emitted after reference validation.",
+  "cli_cpu_group": [
+    16,
+    17
+  ]
 }

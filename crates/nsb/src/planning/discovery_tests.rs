@@ -1120,3 +1120,75 @@ fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
     );
     assert_eq!(comparison.fine_missed_excursions, 1);
 }
+
+#[test]
+fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
+    let evaluator =
+        super::adaptive_bench::evaluator_with_moon(false, false, MoonlightModel::Jones2013Spectral);
+    let mut q = query(ComponentMask::ALL.bits());
+    q.target = Target::new(
+        (83.6331_f64 + 36.0 * 137.507764).rem_euclid(360.0) * DEG,
+        -5.0 * DEG,
+    );
+    q.observer = siderust::coordinates::centers::Geodetic::new_raw(
+        crate::units::angular::Degrees::new(-70.31634444444444),
+        crate::units::angular::Degrees::new(-24.683427777777776),
+        siderust::qtty::Meters::new(2184.6),
+    );
+    q.window.start = Time::<UTC>::from_chrono(
+        "2026-01-01T00:00:00Z"
+            .parse::<chrono::DateTime<chrono::Utc>>()
+            .unwrap(),
+    );
+    q.window.end = q.window.start + Seconds::new(30.0 * 86400.0);
+    let context = evaluator.prepare_site_window_context(&q).unwrap();
+    let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+    let actual: Vec<_> = evaluator
+        .periods_below_threshold_adaptive_with_context(&context, &q)
+        .unwrap()
+        .periods
+        .into_iter()
+        .map(scan::utc_period_to_tt_mjd)
+        .collect();
+    let fine = reference(&evaluator, &p, &q, 120.0);
+    let r = fine
+        .iter()
+        .find(|w| w.start.raw().value() > 61050.0 && w.start.raw().value() < 61050.1)
+        .unwrap();
+    let a = actual
+        .iter()
+        .find(|w| w.start.raw().value() > 61050.0 && w.start.raw().value() < 61050.1)
+        .unwrap();
+    let excess = (a.start - r.start).value() * 86400.0;
+    assert!((87.5..87.8).contains(&excess));
+    assert!(threshold::evaluate_integrated(&evaluator, &p, r.start).unwrap() < q.threshold);
+    for seconds in [0.001, 1.0, 30.0, 60.0, 85.0] {
+        assert!(
+            threshold::evaluate_integrated(&evaluator, &p, r.start + Seconds::new(seconds))
+                .unwrap()
+                > q.threshold
+        );
+    }
+    assert!(threshold::evaluate_integrated(&evaluator, &p, a.start).unwrap() <= q.threshold);
+    let f = |t| threshold::evaluate_integrated(&evaluator, &p, t);
+    let above = scan::authoritative_above_threshold_periods(
+        Interval::new(r.start - Seconds::new(1.0), a.start + Seconds::new(1.0)),
+        siderust::qtty::Days::new(0.01 / 86400.0),
+        &f,
+        q.threshold,
+    )
+    .unwrap();
+    assert_eq!(above.len(), 1);
+    assert!((above[0].start - r.start).value().abs() * 86400.0 < 0.106);
+    assert!((above[0].end - a.start).value().abs() * 86400.0 < 0.106);
+    let comparison = super::discovery_bench::compare(
+        &evaluator,
+        &context,
+        &q,
+        &actual,
+        &fine,
+        "twilight 87 s",
+        false,
+    );
+    assert_eq!(comparison.fine_missed_excursions, 1);
+}

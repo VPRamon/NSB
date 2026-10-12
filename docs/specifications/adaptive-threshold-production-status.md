@@ -154,8 +154,8 @@ These checks contain representation effects, not astronomical time-scale error.
 
 ## Migration and validation evidence
 
-Rust and Python add only `periods_below_threshold_adaptive` and its context
-variant. CLI adds `--adaptive`, conflicting with explicit `--step` and
+Rust and Python expose `periods_below_threshold_adaptive` and its context
+variant, plus the three shared-band methods described below. CLI adds `--adaptive`, conflicting with explicit `--step` and
 `--certified`. The example uses the adaptive API. The frozen sampled API,
 query builders and Python constructor remain compatible; explicit legacy
 sampling fields still receive their constructor's existing validation.
@@ -244,8 +244,8 @@ lunar models, all masks, actual ALL, explicit four-component composition,
 1/7/30/365 days and 1/10/100 targets sharing a context. It emits a row only after
 600-second witnesses and fine-reference topology/boundaries have been checked.
 The report records overhead as well as improvements; incomplete searches are
-never benchmarked as faster usable schedules. The PR stays Draft while the
-full matrix and current-head CI are being evaluated.
+never benchmarked as faster usable schedules. The PR stays Draft until the full matrix, current-head CI and the documented
+release-compatibility decision have been reviewed.
 
 
 ### Split-coordinate regression found by the full matrix
@@ -328,3 +328,25 @@ samples and assertions; no scientific tolerance or coverage is reduced. This
 keeps `cargo test --workspace --all-targets --locked` and CI practical without
 turning physical correctness tests into ignored release-only checks. Production
 benchmarks continue to use the release profile.
+
+### Twilight reference false positive
+
+CTAO-S, ALL, Jones, the 30-day batch's target 36 (RA 353.912604 degrees,
+Dec -5 degrees) exposed a longer discrete-reference error. At TT MJD
+61050.04434116678, PALACE's astronomical-night boundary has an accepted endpoint
+(radiance about 0.09253) followed immediately by about 0.25045. The radiance
+remains above the 0.25 threshold for approximately 87.6 seconds before crossing
+back below. Scan120 samples the accepted endpoint and a point after the crossing,
+so it falsely accepts that initial duration. Adaptive correctly contracts past
+the rejected time. A separate 10-millisecond local scan resolves both transitions
+within 0.106 seconds; the permanent regression checks the exact endpoint,
+multiple rejected interior values and the final accepted boundary.
+
+The comparator now also reconciles a shifted fine-reference edge only when it
+is an original physical-window endpoint and the entire added rejected excursion
+is independently resolved locally. This is distinct from the old <=0.432-second
+singleton midpoint artifacts. The same reference-miss counter records these
+resolved edge excursions; unexplained boundary shifts continue to fail.
+
+Complete process timings, separate from the library matrix, are recorded in
+[production CLI measurements](adaptive-acceptance/cli-production.md).

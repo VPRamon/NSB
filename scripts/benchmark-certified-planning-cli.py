@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Vallés Puig, Ramon
-"""Compare full CLI processes; discrete ALL and fully certified Moon-down cases."""
+"""Compare complete CLI processes: sampled compatibility, adaptive or certified."""
 import argparse
 import hashlib
 import json
@@ -26,7 +26,7 @@ def invoke(binary, arguments, memory_file):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("previous", type=Path, help="release CLI built before production changes")
+    parser.add_argument("previous", type=Path, help="baseline release CLI (same binary allowed with --adaptive)")
     parser.add_argument("current", type=Path)
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--adaptive", action="store_true", help="measure practical adaptive schedules; compare determinism per variant, not byte equality between contracts")
