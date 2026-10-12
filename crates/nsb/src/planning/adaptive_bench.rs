@@ -340,8 +340,8 @@ fn measure(
             "polynomial_candidates": new.candidates, "subdivisions": new.subdivisions, "root_refinements": new.refinements,
             "fallback_intervals": new.fallbacks, "unresolved_intervals": new.unresolved,
             "unresolved_days": new.unresolved_days, "certified_below": new.accepted, "certified_above": new.rejected,
-            "bounds_cpu_seconds": new.bounds_seconds, "fits_cpu_seconds": new.fits_seconds,
-            "refinement_cpu_seconds": new.refinement_seconds, "peak_pending_per_worker": new.peak_pending,
+            "bounds_worker_elapsed_seconds": new.bounds_seconds, "fits_worker_elapsed_seconds": new.fits_seconds,
+            "refinement_worker_elapsed_seconds": new.refinement_seconds, "peak_pending_per_worker": new.peak_pending,
             "prototype_complete": new.unresolved == 0,
             "comparable_certification": components == ComponentMask::STARLIGHT
         })
@@ -509,8 +509,8 @@ fn synthetic_measure(label: &str, limit: f64) {
             "unresolved_days": out.regions.iter().filter(|r| matches!(r.state, State::Unresolved(_))).map(|r| r.interval.length().value()).sum::<f64>(),
             "certified_below": out.regions.iter().filter(|r| r.state == State::CertifiedBelow).count(),
             "certified_above": out.regions.iter().filter(|r| r.state == State::CertifiedAbove).count(),
-            "bounds_cpu_seconds": d.bounds_time.as_secs_f64(), "fits_cpu_seconds": d.fits_time.as_secs_f64(),
-            "refinement_cpu_seconds": d.refinement_time.as_secs_f64(), "peak_pending_per_worker": d.peak_pending_intervals,
+            "bounds_worker_elapsed_seconds": d.bounds_time.as_secs_f64(), "fits_worker_elapsed_seconds": d.fits_time.as_secs_f64(),
+            "refinement_worker_elapsed_seconds": d.refinement_time.as_secs_f64(), "peak_pending_per_worker": d.peak_pending_intervals,
             "prototype_complete": out.complete(), "comparable_certification": out.complete()
         })
     );

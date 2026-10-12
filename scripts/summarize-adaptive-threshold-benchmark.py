@@ -10,6 +10,13 @@ rows = [json.loads(line.split("ADAPTIVE_BENCH ", 1)[1])
         for line in source.splitlines() if "ADAPTIVE_BENCH " in line]
 if not rows or len({r["scenario"] for r in rows}) != len(rows):
     raise SystemExit("expected non-empty, unique benchmark scenarios")
+for row in rows:
+    # The first experiment used a misleading JSON label for Instant durations.
+    # Normalize naming only: these are summed worker elapsed times, not CPU clocks.
+    for phase in ("bounds", "fits", "refinement"):
+        legacy = f"{phase}_cpu_seconds"
+        if legacy in row:
+            row[f"{phase}_worker_elapsed_seconds"] = row.pop(legacy)
 output = Path(__file__).resolve().parents[1] / "docs" / "specifications"
 (output / "adaptive-threshold-benchmarks.jsonl").write_text(
     "".join(json.dumps(row, sort_keys=True) + "\n" for row in rows))
@@ -58,8 +65,10 @@ lines += [
     "support replacing the production scanner.\n\n",
     "Additional per-query counters/times, unresolved duration, and site "
     "preparation cost are retained in JSONL. Bounds/fit/refinement timers "
-    "are summed worker CPU-stage time, not total wall time. Peak pending "
-    "intervals track search-stack size, not all allocations. Whole-process "
+    "are summed worker elapsed times, not CPU clocks or total wall time. "
+    "Batch counters aggregate targets/windows; unresolved days are summed target-time. "
+    "Counters and stage durations come from the final repetition. "
+    "Peak pending intervals track search-stack size, not all allocations. Whole-process "
     "RSS should be collected separately with `/usr/bin/time -v`; no "
     "per-algorithm memory-improvement claim is made.\n\n",
     "Reproduce:\n\n```bash\n",

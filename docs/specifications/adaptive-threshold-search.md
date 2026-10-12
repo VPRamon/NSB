@@ -32,7 +32,9 @@ Siderust 0.13.0's `event/search/crossings.rs`, `event/altitude/search.rs`, and
 source. Siderust uses Chebyshev candidates, precise refinement and local scan
 fallback; its fixed-star engine uses hour-angle predictions with precise
 validation. Its internal tail/residual heuristics are not an enclosure for an
-NSB sum. This spike reuses the same `cheby` 0.4.2 numerical dependency as a
+NSB sum. Those three files also match Siderust's current main at
+`9c4d9ce10f0ebbfbac030b5929d22f53f192fab8`, checked during this investigation.
+This spike reuses the same `cheby` 0.4.2 numerical dependency as a
 **dev-dependency**, and continues delegating all astronomical events to
 Siderust. No new dependency version is introduced into Cargo.lock.
 
@@ -158,6 +160,15 @@ The benchmark test is explicitly ignored in ordinary tests because it is a
 long performance experiment. It is executed separately in release mode; it
 does not replace or skip any existing scientific test.
 
+Validation on the implementation at `7d98e64`:
+
+- Baseline workspace/all-targets: 843 passed, 0 failed, 4 existing ignored tests.
+- Updated workspace/all-targets: 854 passed, 0 failed, 5 ignored tests (the extra
+  ignored test is the separately executed performance matrix).
+- All 11 new correctness tests passed in release mode.
+- Formatting, CI-convention all-feature Clippy, and the frozen public API
+  snapshot/historical SemVer gate passed. The API gate reported no item changes.
+
 ## Performance methodology and results
 
 The reproducible harness is `scripts/benchmark-adaptive-threshold.sh`. Optional
@@ -178,8 +189,16 @@ are excluded. The baseline invokes the unchanged authoritative 600 s scanner
 directly and counts its exact calls. These are threshold-core measurements,
 not a claim that the entire public CLI has that latency. Both variants warm
 up once; timed execution alternates their order. Three repetitions provide
-medians/ranges, not reliable p95 estimates. Bound/fit/refinement CPU timers sum
-across workers and are not additive wall-clock stages.
+medians/ranges, not reliable p95 estimates. Bound/fit/refinement elapsed timers
+sum across workers; they are not CPU clocks or additive wall-clock stages.
+Batch counters aggregate all targets and physical windows; `unresolved_days`
+is summed target-time and can exceed the calendar length of a multi-target query.
+Counters and stage durations describe the final repetition; only total search
+wall times are recorded for all three repetitions.
+The measured numerical implementation is `7d98e64`. The first harness labeled
+these `Instant` durations as `*_cpu_seconds`; the summary script normalizes
+only those JSON keys to `*_worker_elapsed_seconds`. No timing values or search
+behavior were changed for the recorded experiment.
 
 Per physical interval the experiment caps bound calls at 128 and exact calls
 at 128. These are **experimental budget choices**, not resolution/completeness
@@ -201,6 +220,33 @@ performance improvement**. Only constant Starlight comparisons have equivalent
 threshold classification coverage. Moon-only partial certification may omit
 otherwise usable observing time; `ALL`, Airglow and Zodiacal remain entirely
 unresolved in the prototype. No full-component speedup is claimed.
+
+The full matrix completed successfully: 55 scenarios, three timed repetitions
+per variant, 9 complete and 46 incomplete prototype outcomes. Selected medians:
+
+| Scenario | Previous | Prototype | Interpretation |
+| --- | ---: | ---: | --- |
+| Synthetic far | 2.55 µs | 0.33 µs | Complete constant-side classification with one bound and no exact calls. |
+| Synthetic close pair | 2.57 µs | 29.57 µs | 11.5× slower; 59 bounds, one fit, 29 splits; two unresolved crossing regions. The scan misses the dip. |
+| Synthetic tangent | 1.88 µs | 18.13 µs | 9.7× slower; 41 bounds, one fit, 20 splits; contact remains unresolved. |
+| CTAO-S Starlight, year | 189.13 ms | 190.57 ms | Complete; no material improvement despite eliminating 5,900 exact calls. |
+| CTAO-N Starlight, year | 14.29 ms | 14.19 ms | Complete; no material improvement despite eliminating 9,354 exact calls. |
+| CTAO-S ALL, year / 100 targets | 204.52 s | 4.33 s | Entire eligible target-time unresolved; not an equivalent answer. |
+| CTAO-N ALL, year / 100 targets | 177.05 s | 4.07 s | Entire eligible target-time unresolved; not an equivalent answer. |
+
+The complete northern one-day Starlight case is also slower (0.060 to 0.083 ms).
+Synthetic fitting/subdivision overhead exceeds the cost of these very cheap
+point functions; real constant-model target preparation dominates the annual
+cases. Unknown dynamic bounds consume millions of subdivisions without gaining
+coverage. Fewer exact calls therefore do not establish lower useful search cost.
+Bound-only versus fit-assisted strategy comparisons remain follow-up work.
+
+The full command took 30 min 5.93 s including compilation. `/usr/bin/time -v`
+reported 510,040 KiB maximum RSS for the command and its children, **including
+the compiler**, so that number is not a search-memory measurement. A lightweight
+Linux `/proc` monitor observed the test binary's lifetime `VmHWM` at 12,856 KiB.
+This covers the combined experiment and shared context, not separate old/new
+memory profiles; no per-algorithm memory improvement is established.
 
 ## Integration and migration decision
 
