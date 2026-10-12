@@ -2,3 +2,9 @@
 members = ["crates/nsb", "crates/nsb-cli", "crates/nsb-data-tools"]
 exclude = ["siderust"]
 resolver = "2"
+
+# Physical-model regressions exercise dense authoritative spectral evaluation.
+# Keep assertions enabled while making the normal test command practical.
+[profile.test]
+opt-level = 1
+debug-assertions = true

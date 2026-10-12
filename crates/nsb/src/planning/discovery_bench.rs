@@ -127,7 +127,7 @@ fn confirm_gap(
     if f(left + siderust::qtty::Days::new(width * 0.5)).unwrap() <= q.threshold {
         return false;
     }
-    let step = (width / 100.0).min(0.01 / 86400.0).max(0.000001 / 86400.0);
+    let step = (width / 100.0).clamp(0.000001 / 86400.0, 0.01 / 86400.0);
     let above = scan::authoritative_above_threshold_periods(
         local,
         siderust::qtty::Days::new(step),

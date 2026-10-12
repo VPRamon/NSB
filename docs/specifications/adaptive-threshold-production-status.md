@@ -318,3 +318,13 @@ unchanged 0.533-second global reference allowance. Raw count differences and
 confirmed missed reference excursions are reported separately; unexplained
 extra/missing periods still fail. This is empirical corroboration, not an
 interval proof or permission to ignore a topology mismatch.
+
+
+### Test execution profile
+
+The normal workspace test profile uses optimization level 1 with debug assertions
+enabled. Dense physical-model and representation regressions run all the same
+samples and assertions; no scientific tolerance or coverage is reduced. This
+keeps `cargo test --workspace --all-targets --locked` and CI practical without
+turning physical correctness tests into ignored release-only checks. Production
+benchmarks continue to use the release profile.
