@@ -246,3 +246,23 @@ lunar models, all masks, actual ALL, explicit four-component composition,
 The report records overhead as well as improvements; incomplete searches are
 never benchmarked as faster usable schedules. The PR stays Draft while the
 full matrix and current-head CI are being evaluated.
+
+
+### Split-coordinate regression found by the full matrix
+
+The CTAO-N 30-day Moon-only reference exposed a representation discrepancy in
+both lunar models. A fitted active-Moon period and a certified Moon-down period
+met at UTC midnight. Flattening the physical endpoint to one absolute MJD float
+lost its low split-coordinate part, leaving an artificial sub-microsecond gap
+and fragmenting one accepted eight-hour period into two. This was neither a
+missed physical excursion nor a dependency-upgrade radiance change.
+
+Adaptive coordinates now use days relative to each original physical start,
+retain both exact physical endpoints and construct probes through upstream
+quantity/time arithmetic. A permanent 30-day regression for both lunar models
+requires the unfragmented schedule and the same fine-reference boundaries.
+Adjacent representable MJD endpoints are now supported, while genuinely
+collapsed local interpolation nodes still fail explicitly. Native band tests
+also retain split coordinates when sampling exported boundaries; rounding a
+boundary back to one absolute float can itself step outside its accepted
+interval at a model jump. CLI/Python tests evaluate the actual exported values.

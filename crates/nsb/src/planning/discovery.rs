@@ -52,6 +52,7 @@ impl Default for Limits {
 
 struct Search<E> {
     exact: E,
+    window: Interval<Mjd>,
     threshold: f64,
     minimum: Option<f64>,
     limits: Limits,
@@ -68,6 +69,16 @@ fn incomplete(reason: &str) -> NsbError {
 }
 
 impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
+    fn time(&self, offset_days: f64) -> Mjd {
+        if offset_days == 0.0 {
+            self.window.start
+        } else if offset_days == self.window.length().value() {
+            self.window.end
+        } else {
+            self.window.start + siderust::qtty::Days::new(offset_days)
+        }
+    }
+
     fn probe(&mut self, t: f64) -> Result<f64> {
         match self.samples.binary_search_by(|p| p.0.total_cmp(&t)) {
             Ok(i) => Ok(self.samples[i].1),
@@ -75,7 +86,7 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
                 if self.costs.exact >= self.limits.exact {
                     return Err(incomplete("authoritative evaluation budget"));
                 }
-                let value = (self.exact)(Mjd::new(t))?.value();
+                let value = (self.exact)(self.time(t))?.value();
                 if !value.is_finite() {
                     return Err(NsbError::OutOfRange(
                         "non-finite authoritative radiance".into(),
@@ -387,7 +398,7 @@ impl<E: Fn(Mjd) -> Result<Radiance>> Search<E> {
 
     fn push(&mut self, a: f64, b: f64) {
         if a < b {
-            self.periods.push(Interval::new(Mjd::new(a), Mjd::new(b)));
+            self.periods.push(Interval::new(self.time(a), self.time(b)));
         }
     }
 }
@@ -440,6 +451,7 @@ pub(super) fn search_band<E: Fn(Mjd) -> Result<Radiance>>(
     }
     let mut search = Search {
         exact,
+        window,
         threshold: threshold.value(),
         minimum: minimum.map(|v| v.value()),
         limits,
@@ -461,7 +473,11 @@ pub(super) fn search_band<E: Fn(Mjd) -> Result<Radiance>>(
             return Ok((Vec::new(), search.costs));
         }
     }
-    search.interval(window.start.raw().value(), window.end.raw().value(), 0)?;
+    // A scalar absolute MJD loses the split coordinate's low part. In a
+    // mixture of certified and fitted pieces that created sub-microsecond
+    // artificial gaps at UTC midnight. Local offsets retain the original
+    // endpoints and the upstream time representation throughout the search.
+    search.interval(0.0, window.length().value(), 0)?;
     coalesce_periods(&mut search.periods);
     Ok((search.periods, search.costs))
 }

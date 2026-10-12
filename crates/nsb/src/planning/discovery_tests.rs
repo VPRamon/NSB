@@ -135,7 +135,11 @@ fn adaptive_extrema_flat_equality_and_multiple_events() {
 
 #[test]
 fn adaptive_errors_and_budget_exhaustion_return_no_partial_schedule() {
-    let adjacent = Interval::new(Mjd::new(60000.0), Mjd::new(60000.0_f64.next_up()));
+    // Relative time coordinates resolve adjacent absolute-MJD floats. Only
+    // genuinely collapsed local nodes must fail, rather than imposing the
+    // former absolute-MJD resolution on the higher-precision upstream type.
+    let origin = Mjd::new(0.0);
+    let adjacent = Interval::new(origin, origin + Days::new(f64::from_bits(1)));
     assert!(discovery::search(
         adjacent,
         Radiance::new(0.5),
@@ -979,9 +983,13 @@ fn real_joint_band_all_masks_both_moon_models_have_no_sampled_false_positives() 
                     let tt = scan::utc_period_to_tt_mjd(period);
                     // Includes native UTC boundaries after inward TT projection.
                     for i in 0..=100 {
-                        let t = Mjd::new(
-                            tt.start.raw().value() + tt.length().value() * i as f64 / 100.0,
-                        );
+                        let t = if i == 0 {
+                            tt.start
+                        } else if i == 100 {
+                            tt.end
+                        } else {
+                            tt.start + tt.length() * (i as f64 / 100.0)
+                        };
                         let value = threshold::evaluate_integrated(&evaluator, &p, t).unwrap();
                         assert!(value >= min && value <= q.threshold, "false-positive north {north} moon {moon:?} bits {bits}: {value} outside [{min}, {}]", q.threshold);
                     }
@@ -989,4 +997,68 @@ fn real_joint_band_all_masks_both_moon_models_have_no_sampled_false_positives() 
             }
         }
     }
+}
+
+#[test]
+fn adaptive_split_precision_midnight_does_not_fragment_moon_down_periods() {
+    for moon in [
+        MoonlightModel::Jones2013Spectral,
+        MoonlightModel::KrisciunasSchaefer1991,
+    ] {
+        let evaluator = super::adaptive_bench::evaluator_with_moon(true, false, moon);
+        let mut q = query(ComponentMask::MOON.bits());
+        q.observer = siderust::coordinates::centers::Geodetic::new_raw(
+            crate::units::angular::Degrees::new(-17.892),
+            crate::units::angular::Degrees::new(28.762),
+            siderust::qtty::Meters::new(2200.0),
+        );
+        q.window.start = Time::<UTC>::from_chrono(
+            "2026-01-01T00:00:00Z"
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .unwrap(),
+        );
+        q.window.end = q.window.start + Seconds::new(30.0 * 86400.0);
+        let context = evaluator.prepare_site_window_context(&q).unwrap();
+        let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+        let actual: Vec<_> = evaluator
+            .periods_below_threshold_adaptive_with_context(&context, &q)
+            .unwrap()
+            .periods
+            .into_iter()
+            .map(scan::utc_period_to_tt_mjd)
+            .collect();
+        let fine = reference(&evaluator, &p, &q, 30.0);
+        super::discovery_bench::compare(
+            &evaluator,
+            &context,
+            &q,
+            &actual,
+            &fine,
+            "split precision Moon midnight",
+            false,
+        );
+        // This accepted eight-hour period crosses UTC midnight and changes
+        // from a fitted active-Moon piece to an exact Moon-down certificate.
+        assert_eq!(
+            actual
+                .iter()
+                .filter(|w| w.end.raw().value() > 61060.9 && w.start.raw().value() < 61061.1)
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn adaptive_adjacent_mjd_native_window_is_resolved_without_endpoint_rounding() {
+    let w = Interval::new(Mjd::new(60000.0), Mjd::new(60000.0_f64.next_up()));
+    let (periods, _) = discovery::search(
+        w,
+        Radiance::new(0.5),
+        |_| Ok(Radiance::new(0.0)),
+        BoundOutcome::Unsupported,
+        Limits::default(),
+    )
+    .unwrap();
+    assert_eq!(periods, vec![w]);
 }
