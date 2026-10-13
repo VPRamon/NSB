@@ -101,6 +101,7 @@ impl ThresholdQuery {
 #[derive(Clone)]
 pub struct SiteWindowContext {
     pub(crate) evaluator_identity: Arc<()>,
+    pub(crate) astronomy: Arc<super::astronomy::AstronomyCache>,
     pub(crate) observer: Observer,
     pub(crate) window: Period<UTC>,
     pub(crate) components: ComponentMask,
@@ -149,6 +150,7 @@ pub struct ThresholdQueryResult {
 
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedThresholdQuery {
+    pub(crate) astronomy: Arc<super::astronomy::AstronomyCache>,
     pub(crate) observer: Observer,
     pub(crate) target: Target,
     pub(crate) components: ComponentMask,

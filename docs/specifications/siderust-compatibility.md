@@ -34,9 +34,10 @@ The dependency-only comparison keeps the legacy scanner on both sides:
 64 CTAO-N/S, both lunar models, all 16 masks, seven-day cases plus three
 UTC/TT/leap-boundary conversion cases. Physical-window endpoints, authoritative
 radiances, scanner UTC periods and temporal round trips are identical in all
-67 exported records. See [A](adaptive-acceptance/dependency-A.jsonl) and
-[B](adaptive-acceptance/dependency-B.jsonl); rerun the ignored
-`dependency_upgrade_reference` export before/after a dependency update.
+67 exported records. See [A](https://github.com/VPRamon/NSB/blob/954817f71f404f21fc9ff9fdd37c870506532c89/docs/specifications/adaptive-acceptance/dependency-A.jsonl) and
+[B](https://github.com/VPRamon/NSB/blob/954817f71f404f21fc9ff9fdd37c870506532c89/docs/specifications/adaptive-acceptance/dependency-B.jsonl); the ignored `dependency_upgrade_reference` export in that historical
+commit reproduces the comparison without retaining a full scanner facade in the
+current test tree.
 This is finite empirical evidence, not proof for every date/configuration.
 The B-versus-C search comparisons are recorded separately in the production
 adaptive report. No numerical tolerance or scientific model formula changed.

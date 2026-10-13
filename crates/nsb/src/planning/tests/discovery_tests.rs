@@ -222,7 +222,7 @@ pub(super) fn reference(
     step: f64,
 ) -> Vec<Interval<Mjd>> {
     let mut out = Vec::new();
-    for w in super::reference_scan::smooth_threshold_windows(prepared) {
+    for w in super::filters::threshold_windows(prepared, true) {
         let above = super::reference_scan::authoritative_above_threshold_periods(
             w,
             Days::new(step / 86400.0),
@@ -339,24 +339,6 @@ fn adaptive_context_step_independence_and_parallel_determinism() {
         .is_err());
     let empty = query(0).with_sample_step(Seconds::new(f64::NAN));
     assert!(evaluator.periods_below_threshold_certified(&empty).is_ok());
-}
-
-#[test]
-fn legacy_grid_phase_is_identical_after_certificate_integration() {
-    let evaluator = NsbEvaluator::new().unwrap();
-    let q = query(ComponentMask::MOON.bits()).with_sample_step(Seconds::new(917.0));
-    let context = evaluator.prepare_site_window_context(&q).unwrap();
-    let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
-    let expected: Vec<_> = reference(&evaluator, &p, &q, 917.0)
-        .into_iter()
-        .map(|w| scan::tt_mjd_period_to_utc(w, p.tt_window, q.window))
-        .collect();
-    assert_eq!(
-        super::reference_scan::sampled_schedule(&evaluator, &context, &q)
-            .unwrap()
-            .periods,
-        expected
-    );
 }
 
 #[test]
@@ -1401,7 +1383,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
         let expected = Interval::new(Mjd::new(left), Mjd::new(right));
         // Keep the original physical partition and grid phase: this reproduces
         // each annual scan120 miss without scanning the rest of the year.
-        let legacy: Vec<_> = super::reference_scan::smooth_threshold_windows(&p)
+        let legacy: Vec<_> = super::filters::threshold_windows(&p, true)
             .into_iter()
             .filter(|w| w.start < expected.end && w.end > expected.start)
             .collect();
@@ -1475,6 +1457,45 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
         assert!((dense[0].end - island.end).value().abs() * 86400.0 <= 0.106);
         for fraction in [0.0, 0.1, 0.5, 0.9, 1.0] {
             assert!(f(island.start + island.length() * fraction).unwrap() <= q.threshold);
+        }
+    }
+}
+
+#[test]
+fn cached_astronomy_matches_uncached_authoritative_components_bit_for_bit() {
+    for north in [false, true] {
+        for moon in [
+            MoonlightModel::Jones2013Spectral,
+            MoonlightModel::KrisciunasSchaefer1991,
+        ] {
+            let evaluator = super::test_fixtures::evaluator_with_moon(north, true, moon);
+            for bits in 0..16 {
+                let mut q = query(bits);
+                if north {
+                    q.observer = siderust::coordinates::centers::Geodetic::new_raw(
+                        siderust::qtty::Degrees::new(-17.892),
+                        siderust::qtty::Degrees::new(28.762),
+                        siderust::qtty::Meters::new(2200.0),
+                    );
+                }
+                let context = evaluator.prepare_site_window_context(&q).unwrap();
+                let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+                for u in [0.0, 0.01, 0.2, 0.5, 0.8, 0.99, 1.0] {
+                    let t = p.tt_window.start + p.tt_window.length() * u;
+                    let expected =
+                        super::reference_scan::evaluate_integrated(&evaluator, &p, t).unwrap();
+                    for _ in 0..2 {
+                        assert_eq!(
+                            threshold::evaluate_integrated(&evaluator, &p, t)
+                                .unwrap()
+                                .value()
+                                .to_bits(),
+                            expected.value().to_bits(),
+                            "site north={north}, model {moon:?}, mask {bits}, fraction {u}"
+                        );
+                    }
+                }
+            }
         }
     }
 }

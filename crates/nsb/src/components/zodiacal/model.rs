@@ -84,6 +84,20 @@ impl ZodiacalLight {
         self.evaluate_geometry(&geom, self.extinction)
     }
 
+    pub(crate) fn compute_with_longitude(
+        &self,
+        time: Time<UTC>,
+        location: Geodetic<ECEF>,
+        target: Target,
+        longitude: crate::units::angular::Radians,
+    ) -> Result<ZodiacalOutputs> {
+        let geom = geometry::compute_observed_with_longitude(time, location, target, longitude)?;
+        if is_below_horizon(&geom) {
+            return Ok(zero_outputs());
+        }
+        self.evaluate_geometry(&geom, self.extinction)
+    }
+
     fn evaluate_geometry(
         &self,
         geom: &geometry::ZodiacalGeometry,

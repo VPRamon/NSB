@@ -21,10 +21,12 @@ pub(crate) fn evaluate_integrated(
     let mut total = BandPhotonRadiance::new(0.0);
 
     if prepared.components.contains(ComponentMask::ZODIACAL) {
-        let out =
-            evaluator
-                .zodiacal()
-                .compute_observed(time, prepared.observer, prepared.target)?;
+        let out = evaluator.zodiacal().compute_with_longitude(
+            time,
+            prepared.observer,
+            prepared.target,
+            prepared.astronomy.solar(time),
+        )?;
         total += out.integrated;
     }
     if prepared.components.contains(ComponentMask::STARLIGHT) {
@@ -55,7 +57,13 @@ pub(crate) fn evaluate_integrated(
             .as_ref()
             .is_none_or(|periods| super::filters::contains_time(periods, mjd_tt));
         if moon_visible {
-            let out = evaluator.evaluate_moonlight(prepared.observer, time, prepared.target)?;
+            let sky = prepared.astronomy.moon(time, prepared.observer);
+            let out = evaluator.evaluate_moonlight_with_sky(
+                prepared.observer,
+                time,
+                prepared.target,
+                &sky,
+            )?;
             total += out.integrated;
         }
     }
@@ -91,7 +99,7 @@ pub fn periods_below_threshold_with_context(
     context: &SiteWindowContext,
     query: &ThresholdQuery,
 ) -> Result<ThresholdQueryResult> {
-    evaluator.periods_below_threshold_adaptive_with_context(context, query)
+    evaluator.search_radiance_band(context, query, None, false)
 }
 
 fn periods_below_threshold_certified_with_context(
@@ -118,8 +126,7 @@ impl NsbEvaluator {
         &self,
         query: &ThresholdQuery,
     ) -> Result<ThresholdQueryResult> {
-        let context = prepare_site_window_context(self, query)?;
-        self.periods_below_threshold_adaptive_with_context(&context, query)
+        self.periods_below_threshold(query)
     }
 
     /// Adaptive discovery reusing a compatible target-independent context.
@@ -129,7 +136,7 @@ impl NsbEvaluator {
         context: &SiteWindowContext,
         query: &ThresholdQuery,
     ) -> Result<ThresholdQueryResult> {
-        self.search_radiance_band(context, query, None, false)
+        periods_below_threshold_with_context(self, context, query)
     }
 
     /// Step-free discovery of the inclusive band `minimum <= NSB <= query.threshold`.

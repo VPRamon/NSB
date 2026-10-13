@@ -23,6 +23,10 @@ fn run(
     step: f64,
 ) -> (f64, Costs, Vec<Vec<Interval<ModifiedJulianDate>>>) {
     let started = Instant::now();
+    // Each measured schedule starts with an empty astronomical cache.
+    let mut fresh_context = context.clone();
+    fresh_context.astronomy = std::sync::Arc::default();
+    let context = &fresh_context;
     let mut costs = Costs::default();
     let mut output = Vec::new();
     for q in queries {
@@ -30,7 +34,7 @@ fn run(
         let windows = if adaptive {
             filters::adaptive_threshold_windows(&p).unwrap()
         } else {
-            super::reference_scan::smooth_threshold_windows(&p)
+            super::filters::threshold_windows(&p, true)
         };
         let parts: Vec<_> = if adaptive {
             vec![discovery::search_windows(
@@ -49,7 +53,7 @@ fn run(
                     let count = Cell::new(0);
                     let f = |t| {
                         count.set(count.get() + 1);
-                        threshold::evaluate_integrated(evaluator, &p, t)
+                        super::reference_scan::evaluate_integrated(evaluator, &p, t)
                     };
                     let above = super::reference_scan::authoritative_above_threshold_periods(
                         w,
@@ -196,7 +200,7 @@ pub(super) fn compare(
     allow_new_events: bool,
 ) -> Comparison {
     let p = prepare::prepare_target_threshold(evaluator, context, q).unwrap();
-    let windows = super::reference_scan::smooth_threshold_windows(&p);
+    let windows = super::filters::threshold_windows(&p, true);
     let mut used = vec![false; actual.len()];
     let mut artifacts = 0;
     let mut fine_missed_excursions = 0;
@@ -517,7 +521,7 @@ fn measure(
     }
     let mut report = serde_json::json!({
         "scenario":label,"site":if north {"CTAO-N"}else{"CTAO-S"},"moonlight_model":moon.as_str(),"days":days,"components_bits":bits,"targets":targets,"threshold":threshold_value,"start":start_label,"repeats":repeats,
-        "preparation_seconds":preparation_seconds,"scan_seconds":old_times,"adaptive_seconds":new_times,"reference_seconds":fine.0,"reference_step_seconds":fine_step,
+        "preparation_seconds":preparation_seconds,"cold_cache_each_schedule":true,"scan_seconds":old_times,"adaptive_seconds":new_times,"reference_seconds":fine.0,"reference_step_seconds":fine_step,
         "scan_exact":old.1.exact,"adaptive_exact":new.1.exact,"reference_exact":fine.1.exact,"bounds":new.1.bounds,"fits":new.1.fits,"subdivisions":new.1.subdivisions,"root_refinements":new.1.refinements,"extrema":new.1.extrema,"certified_intervals":new.1.certified,"peak_samples_per_worker":new.1.peak_samples,
         "fallbacks":0,"unresolved_seconds":0,"excluded_root_bracket_seconds":new.1.bracket_seconds,"complete_usable":true,"coarse_count_disagreements":coarse_disagreements,"fine_count_disagreements":0,"reference_boundary_tolerance_seconds":0.533,
     "accepted_periods":new.2.iter().map(Vec::len).sum::<usize>(),"fine_singleton_jump_artifacts":fine_artifacts,"coarse_singleton_jump_artifacts":coarse_artifacts
@@ -633,82 +637,5 @@ fn complete_adaptive_schedule_matrix() {
                 );
             }
         }
-    }
-}
-
-/// Run unchanged before/after the dependency update. Values and boundaries use
-/// the scanner in both runs, isolating astronomy/time changes from discovery.
-#[test]
-#[ignore = "dependency-upgrade scientific reference export"]
-fn dependency_upgrade_reference() {
-    for north in [false, true] {
-        for moon in [
-            MoonlightModel::Jones2013Spectral,
-            MoonlightModel::KrisciunasSchaefer1991,
-        ] {
-            let evaluator = super::test_fixtures::evaluator_with_moon(north, true, moon);
-            let observer = siderust::coordinates::centers::Geodetic::new_raw(
-                Degrees::new(if north { -17.892 } else { -70.31634444444444 }),
-                Degrees::new(if north { 28.762 } else { -24.683427777777776 }),
-                Meters::new(if north { 2200.0 } else { 2184.6 }),
-            );
-            for bits in 0..=15 {
-                let start = Time::<UTC>::from_chrono(
-                    "2026-01-03T00:00:00Z"
-                        .parse::<chrono::DateTime<chrono::Utc>>()
-                        .unwrap(),
-                );
-                let q = ThresholdQuery::new(
-                    observer,
-                    Target::new(83.6331 * DEG, 22.0145 * DEG),
-                    Period::new(start, start + Seconds::new(7.0 * 86400.0)),
-                    Radiance::new(0.25),
-                )
-                .with_components(ComponentMask::from_bits(bits).unwrap())
-                .with_target_altitude_floor(Some(Degrees::new(20.0)));
-                let context = evaluator.prepare_site_window_context(&q).unwrap();
-                let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
-                let windows = super::reference_scan::smooth_threshold_windows(&p);
-                let values: Vec<_> = windows
-                    .iter()
-                    .flat_map(|w| {
-                        [0.0, 0.25, 0.5, 0.75, 1.0].map(|u| {
-                            let t = ModifiedJulianDate::new(
-                                w.start.raw().value() + w.length().value() * u,
-                            );
-                            (
-                                t.raw().value(),
-                                threshold::evaluate_integrated(&evaluator, &p, t)
-                                    .unwrap()
-                                    .value(),
-                            )
-                        })
-                    })
-                    .collect();
-                let result =
-                    super::reference_scan::sampled_schedule(&evaluator, &context, &q).unwrap();
-                println!(
-                    "DEPENDENCY_REFERENCE {}",
-                    serde_json::json!({
-                        "site":if north {"N"} else {"S"},"moon":moon.as_str(),"bits":bits,
-                        "windows":windows.iter().map(|w| [w.start.raw().value(),w.end.raw().value()]).collect::<Vec<_>>(),
-                        "values":values,
-                        "periods":result.periods.iter().map(|w| [w.start.to_chrono().unwrap().to_rfc3339(),w.end.to_chrono().unwrap().to_rfc3339()]).collect::<Vec<_>>()
-                    })
-                );
-            }
-        }
-    }
-    for label in [
-        "2016-12-31T23:59:59Z",
-        "2017-01-01T00:00:00Z",
-        "2026-10-12T12:34:56.123456Z",
-    ] {
-        let t = Time::<UTC>::from_chrono(label.parse::<chrono::DateTime<chrono::Utc>>().unwrap());
-        let tt = scan::utc_time_to_tt_mjd(t);
-        println!(
-            "DEPENDENCY_TIME {}",
-            serde_json::json!({"utc":label,"tt_mjd":tt.raw().value(),"roundtrip":scan::tt_mjd_to_utc_time(tt).to_chrono().unwrap().to_rfc3339()})
-        );
     }
 }

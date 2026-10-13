@@ -38,7 +38,7 @@ classification for every eligible region, with no scan fallback. Certificates
 currently cover cached Starlight, the empty sum and prepared Moon-down intervals;
 active dynamic components remain unsupported by this strict contract. Native
 UTC conversion contracts inward; Python and CLI own their representation limits.
-See [scientific contracts, migration and limitations](../specifications/adaptive-threshold-production-status.md).
+See [scientific contracts, migration and limitations](../specifications/adaptive-search.md).
 
 Most callers should prefer the intended **core API**:
 

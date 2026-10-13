@@ -5,7 +5,7 @@
 //! On each physical regime we test a degree-four Chebyshev interpolant at
 //! interlaced nodes, upgrading to degree eight before subdivision. Roots AND
 //! extrema generate authoritative probes. This is a resolved-model assumption,
-//! not a bound on unvisited values. See adaptive-threshold-production-status.md.
+//! not a bound on unvisited values. See adaptive-search.md.
 
 use super::bounds::{BoundOutcome, RadianceBounds};
 use super::intervals::coalesce_periods;

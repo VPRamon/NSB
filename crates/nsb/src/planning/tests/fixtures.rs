@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Shared physical fixtures and cached-scalar certificate regression.
-use super::certification_reference::{discover, prepared_bounds, BoundOutcome, Controls, State};
+use super::bounds::{prepared_bounds, BoundOutcome};
+use super::discovery::{search, Limits};
 use super::{prepare, threshold};
 use crate::components::starlight::{StarlightMap, StarlightProvenance};
 use crate::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
@@ -51,17 +52,16 @@ fn real_starlight_certificate_reuses_the_authoritative_cached_scalar() {
             enclosure.lower.value().to_bits()
         );
     }
-    let result = discover(
-        &[prepared.tt_window],
+    let (periods, costs) = search(
+        prepared.tt_window,
         enclosure.upper,
         exact,
-        |w| prepared_bounds(&prepared, w),
-        Controls::default(),
+        prepared_bounds(&prepared, prepared.tt_window).unwrap(),
+        Limits::default(),
     )
     .unwrap();
-    assert!(result.complete());
-    assert_eq!(result.regions[0].state, State::CertifiedBelow);
-    assert_eq!(result.diagnostics.exact_evaluations, 0);
+    assert_eq!(periods, vec![prepared.tt_window]);
+    assert_eq!(costs.exact, 0);
     let mut strict_query = query.clone();
     strict_query.threshold = enclosure.upper;
     assert_eq!(

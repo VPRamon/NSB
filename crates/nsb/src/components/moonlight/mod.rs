@@ -126,24 +126,39 @@ pub(crate) struct MoonOutputs {
     pub(crate) v_flux_s10: radiometry::S10s,
 }
 
-fn lunar_geometry(
-    time: Time<UTC>,
-    location: Geodetic<ECEF>,
-    target: SphericalDirection<EquatorialMeanJ2000>,
-) -> MoonlightGeometry {
-    let jd = time.to::<TT>().to::<JD>();
-    let moon_geo_ecliptic = Vsop87Ephemeris::moon_geocentric(jd);
-    lunar_geometry_from_position(jd, location, target, moon_geo_ecliptic)
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct MoonlightSky {
+    direction: SphericalDirection<siderust::coordinates::frames::Horizontal>,
+    moon_zenith: Degrees,
+    phase: MoonPhaseGeometry,
+    distance: Kilometers,
 }
-
-fn lunar_geometry_from_position(
+impl MoonlightSky {
+    pub(crate) fn at(time: Time<UTC>, location: Geodetic<ECEF>) -> Self {
+        let jd = time.to::<TT>().to::<JD>();
+        lunar_sky_from_position(jd, location, Vsop87Ephemeris::moon_geocentric(jd))
+    }
+    fn geometry(
+        &self,
+        jd: siderust::time::JulianDate,
+        location: Geodetic<ECEF>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+    ) -> MoonlightGeometry {
+        let source = star_horizontal(target.ra(), target.dec(), &location, jd);
+        MoonlightGeometry {
+            source_zenith: Degrees::new(90.0) - source.alt(),
+            moon_zenith: self.moon_zenith,
+            separation: source.angular_separation(&self.direction),
+            phase: self.phase,
+            moon_distance: self.distance,
+        }
+    }
+}
+fn lunar_sky_from_position(
     jd: siderust::time::JulianDate,
     location: Geodetic<ECEF>,
-    target: SphericalDirection<EquatorialMeanJ2000>,
     moon_geo_ecliptic: cartesian::Position<Geocentric, EclipticMeanJ2000, Kilometer>,
-) -> MoonlightGeometry {
-    let source = star_horizontal(target.ra(), target.dec(), &location, jd);
-    let source_zenith = Degrees::new(90.0) - source.alt();
+) -> MoonlightSky {
     let moon_geo_equatorial: cartesian::Position<Geocentric, EquatorialMeanJ2000, Kilometer> =
         moon_geo_ecliptic.to_frame();
     let moon_topocentric =
@@ -151,14 +166,12 @@ fn lunar_geometry_from_position(
     let moon_pos = horizontal::equatorial_to_horizontal(&moon_topocentric, location, jd);
     let moon_dir = moon_pos.direction();
     let moon_zenith = Degrees::new(90.0) - moon_dir.alt();
-    let separation = source.angular_separation(&moon_dir);
     let phase = phase_from_position(jd, &moon_geo_ecliptic);
-    MoonlightGeometry {
-        source_zenith,
+    MoonlightSky {
+        direction: moon_dir,
         moon_zenith,
-        separation,
         phase,
-        moon_distance: moon_pos.distance.to::<Kilometer>(),
+        distance: moon_pos.distance.to::<Kilometer>(),
     }
 }
 
@@ -229,6 +242,25 @@ fn zero_outputs() -> MoonOutputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn lunar_geometry(
+        time: Time<UTC>,
+        location: Geodetic<ECEF>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+    ) -> MoonlightGeometry {
+        let jd = time.to::<TT>().to::<JD>();
+        let moon_geo_ecliptic = Vsop87Ephemeris::moon_geocentric(jd);
+        lunar_geometry_from_position(jd, location, target, moon_geo_ecliptic)
+    }
+
+    fn lunar_geometry_from_position(
+        jd: siderust::time::JulianDate,
+        location: Geodetic<ECEF>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+        moon_geo_ecliptic: cartesian::Position<Geocentric, EclipticMeanJ2000, Kilometer>,
+    ) -> MoonlightGeometry {
+        lunar_sky_from_position(jd, location, moon_geo_ecliptic).geometry(jd, location, target)
+    }
+
     use siderust::astro::apparent::CorrectionPolicy;
     use siderust::event::horizontal::star_horizontal_with_policy;
     use siderust::event::lunar::meeus_ch47::moon_position_meeus_ch47;

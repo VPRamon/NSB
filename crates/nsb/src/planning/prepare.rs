@@ -89,6 +89,7 @@ pub(crate) fn prepare_site_context(
         .transpose()?;
     Ok(SiteWindowContext {
         evaluator_identity: Arc::clone(evaluator.identity()),
+        astronomy: Arc::default(),
         observer: query.observer,
         window: query.window,
         components: query.components,
@@ -151,6 +152,7 @@ pub(crate) fn prepare_target_threshold(
     let candidate_windows =
         intersect_periods(context.sun_filter_periods.as_ref(), &target_visible_periods);
     let prepared = PreparedThresholdQuery {
+        astronomy: Arc::clone(&context.astronomy),
         observer: query.observer,
         target: query.target,
         components: query.components,

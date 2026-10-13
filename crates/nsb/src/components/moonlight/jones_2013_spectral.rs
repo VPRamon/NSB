@@ -31,7 +31,16 @@ impl Jones2013Spectral {
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
     ) -> Result<MoonOutputs> {
-        let geometry = lunar_geometry(time, self.location, target);
+        self.compute_with_sky(time, target, &MoonlightSky::at(time, self.location))
+    }
+
+    pub(crate) fn compute_with_sky(
+        &self,
+        time: Time<UTC>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+        sky: &MoonlightSky,
+    ) -> Result<MoonOutputs> {
+        let geometry = sky.geometry(time.to::<TT>().to::<JD>(), self.location, target);
         compute_jones_2013_spectral(
             &geometry,
             bundled_solar_spectrum(),

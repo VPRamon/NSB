@@ -156,7 +156,7 @@ fn threshold_airglow_splits_palace_hour_boundaries_for_coarse_scans() {
     let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
 
     assert!(!prepared.airglow_phase_periods.is_empty());
-    let windows = crate::planning::reference_scan::smooth_threshold_windows(&prepared);
+    let windows = crate::planning::filters::threshold_windows(&prepared, true);
     assert!(!windows.is_empty());
     let max_window_seconds = windows
         .iter()
