@@ -6,6 +6,12 @@ All notable changes to published NSB releases are recorded here.
 
 ### Changed
 
+- Make adaptive discovery the normal Rust/Python/CLI threshold search in the
+  0.1 line under explicit maintainer authorization. Retain public step fields,
+  builders and CLI arguments as ignored compatibility inputs; explicit adaptive
+  names remain aliases. Move the scanner and prior certificate-subdivision
+  implementation to independent test-only references.
+
 - Upgrade to registry Siderust 0.14, Tempoch 0.10, Principia 0.6 and Python
   interoperability/runtime packages 0.4; retain Rust 1.89.
 - Fix adaptive low-fit aliasing with all interlaced and independent interior

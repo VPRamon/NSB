@@ -12,17 +12,22 @@
 //! does not depend on planning.
 
 mod filters;
+mod intervals;
 mod prepare;
-mod scan;
+#[cfg(test)]
+#[path = "tests/reference_scan.rs"]
+mod reference_scan;
 mod threshold;
 mod types;
 
 // Internal certificates and resource controls are not a supported public API.
-mod adaptive;
 #[cfg(test)]
 #[path = "tests/adaptive_validation.rs"]
 mod adaptive_validation;
 mod bounds;
+#[cfg(test)]
+#[path = "tests/certification_reference.rs"]
+mod certification_reference;
 mod discovery;
 #[cfg(test)]
 #[path = "tests/discovery_bench.rs"]

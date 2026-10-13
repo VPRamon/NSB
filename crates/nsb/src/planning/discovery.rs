@@ -8,7 +8,7 @@
 //! not a bound on unvisited values. See adaptive-threshold-production-status.md.
 
 use super::bounds::{BoundOutcome, RadianceBounds};
-use super::scan::coalesce_periods;
+use super::intervals::coalesce_periods;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{NsbError, Result};
 use cheby::ChebySeriesDyn;
@@ -541,8 +541,8 @@ where
                             ));
                         }
                     }
-                    return Err(incomplete(
-                        "no interval certificate for the complete radiance band",
+                    return Err(crate::NsbError::Unsupported(
+                        "incomplete certified threshold search: no interval certificate for the complete radiance band; no partial schedule returned".into(),
                     ));
                 }
                 if minimum.is_none() {

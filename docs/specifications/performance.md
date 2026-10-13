@@ -11,21 +11,21 @@ validates its owner and invariant fields before every reuse.
 
 ## Correctness contract
 
-Every candidate interval is scanned with the authoritative integrated NSB model
-at the caller-selected `sample_step`; every bracketed threshold crossing is
-refined with that same model by the safeguarded secant/Illinois solver.
-Endpoint and midpoint agreement is not treated as proof about an unsampled
-interior.
+Normal Rust/Python threshold methods and CLI `window` use physics-partitioned,
+step-free adaptive discovery. Checked Chebyshev fits guide exact integrated NSB
+probes, extrema searches and crossing refinement. Crossing brackets are at most
+0.1 seconds and export their accepted sides. Inclusive bands share the search
+for both thresholds. Numerical ambiguity or exhaustion returns an error without
+a partial schedule. Legacy step inputs are retained but ignored.
 
-This is a discrete-resolution contract. An excursion narrower than
-`sample_step` that lies wholly between authoritative samples can be missed.
-Callers needing finer resolution must select a smaller step.
-
-The [adaptive threshold integration](adaptive-threshold-production-status.md)
-adds a practical step-free path for every physical model, alongside the separate
-strict certificate API and frozen sampled compatibility path. Historical
-certificate-only timings below do not measure complete active-model adaptive
-schedules. Use the production adaptive benchmark report for that comparison.
+This is an empirical model-resolution contract, not continuous-time proof.
+Strict certified methods use the same engine but accept only sound interval
+enclosures; active dynamic models remain unsupported by that stronger contract.
+See the [scientific assumptions](adaptive-threshold-production-status.md),
+[complete matrix](adaptive-acceptance/production.md) and
+[performance decision](adaptive-acceptance/performance-summary.md).
+The scanner is an independent test-only reference. Historical timings below
+predate the default migration and do not measure the current adaptive engine.
 
 Astronomical event finding belongs to Siderust:
 
@@ -37,7 +37,7 @@ Astronomical event finding belongs to Siderust:
   geometric horizon.
 
 NSB owns composition of these physical periods, Airglow phase semantics, exact
-component evaluation, radiance scanning, crossing refinement, result
+component evaluation, adaptive radiance discovery, crossing refinement, result
 coalescing, and context reuse.
 
 Production prepares independent Sun/Airglow and Moon state concurrently, then
@@ -56,10 +56,11 @@ coalescing are deterministic.
   transition dates bypass unsafe reuse.
 - A `SiteWindowContext` may be reused across many targets and thresholds when
   its invariant fields match.
-- Exact point evaluations may reuse ephemeris state, but approximations must
-  never prune intervals before authoritative sampling.
+- Exact point evaluations may reuse ephemeris state. Adaptive fits must be
+  validated with the authoritative evaluator and must never be promoted to
+  strict interval certificates.
 
-## Reference measurement
+## Historical scanner measurement
 
 Reference environment recorded for the 0.1.0 baseline:
 
@@ -114,6 +115,7 @@ Normal CI compiles and smoke-runs benchmark binaries through
 Criterion matrix.
 
 Performance changes must preserve exact component outputs, keep astronomical
-event ownership in Siderust, prevent approximation-based pruning, refine every
-reported bracket with authoritative values, and document the selected sampling
-resolution explicitly.
+event ownership in Siderust, refine reported brackets with authoritative values,
+and document model-resolution assumptions and empirical discrepancy checks.
+Current production comparisons use the same upgraded dependency graph and
+complete usable schedules, including annual 100-target workloads.

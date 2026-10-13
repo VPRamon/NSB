@@ -7,7 +7,7 @@
 //! Unsupported envelopes, contacts, jumps and budget exhaustion retain explicit
 //! uncertainty. In particular a small unresolved interval is never accepted.
 
-use super::bounds::{BoundOutcome, RadianceBounds};
+use super::bounds::RadianceBounds;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{NsbError, Result};
 use cheby::fit_dyn_from_fn;
@@ -15,6 +15,34 @@ use siderust::qtty::Days;
 use siderust::time::{Interval, ModifiedJulianDate as Mjd};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
+
+/// Independent oracle metadata; production has no refinement provider framework.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum BoundOutcome {
+    Enclosure {
+        range: RadianceBounds,
+        refinable: bool,
+    },
+    NeedsSubdivision,
+    Unsupported,
+}
+impl BoundOutcome {
+    pub fn test_enclosure(range: RadianceBounds, refinable: bool) -> Self {
+        Self::Enclosure { range, refinable }
+    }
+}
+pub(super) fn prepared_bounds(
+    prepared: &super::types::PreparedThresholdQuery,
+    window: Interval<Mjd>,
+) -> Result<BoundOutcome> {
+    Ok(match super::bounds::prepared_bounds(prepared, window)? {
+        super::bounds::BoundOutcome::Enclosure { range } => {
+            BoundOutcome::test_enclosure(range, false)
+        }
+        super::bounds::BoundOutcome::NeedsSubdivision => BoundOutcome::NeedsSubdivision,
+        super::bounds::BoundOutcome::Unsupported => BoundOutcome::Unsupported,
+    })
+}
 
 #[derive(Clone, Copy)]
 pub(super) struct Controls {

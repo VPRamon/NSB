@@ -97,13 +97,13 @@ metadata.
 | `planning::types` | Threshold queries/results and reusable `SiteWindowContext` |
 | `planning::prepare` | Site/window and target-specific preparation |
 | `planning::filters` | Candidate-window smoothing and airglow phase helpers |
-| `planning::scan` | Threshold sampling, crossing refinement, and UTC/TT conversion |
+| `planning::intervals` | Interval coalescing and inward UTC/TT conversion |
+| `planning::discovery` | Primary adaptive search; strict mode accepts only sound interval enclosures |
 | `planning::threshold` | Search orchestration and thin evaluator convenience wrappers |
-| `planning::diagnostics` | Feature-gated window-search diagnostics |
 
 `NsbModelConfig` selects immutable model choices when the evaluator is created.
 `PointQuery` carries per-query geometry, time, and component inputs. `ThresholdQuery`
-carries window, threshold, sampling, and observing-constraint inputs for planning.
+carries window, threshold and observing constraints; legacy sampling metadata is ignored.
 
 ### Window-search flow
 

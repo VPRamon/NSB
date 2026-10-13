@@ -3,7 +3,7 @@
 use super::{
     bounds::BoundOutcome,
     discovery::{self, Limits},
-    filters, prepare, scan, threshold,
+    filters, intervals as scan, prepare, threshold,
 };
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{ComponentMask, MoonlightModel, NsbEvaluator, Target, ThresholdQuery, DEG};
@@ -22,7 +22,7 @@ fn seconds(t: Mjd) -> f64 {
 fn adaptive_resolves_close_pair_that_600_second_scan_misses() {
     let w = extent();
     let f = |t| Ok(Radiance::new(1.0 - (seconds(t) - 271.25).powi(2) / 4.0));
-    let old = scan::authoritative_above_threshold_periods(
+    let old = super::reference_scan::authoritative_above_threshold_periods(
         w,
         Days::new(600.0 / 86400.0),
         &f,
@@ -55,14 +55,16 @@ fn adaptive_subdivision_finds_narrow_grazing_excursion_of_smooth_peak() {
         ))
     };
     let threshold = Radiance::new(0.9999);
-    assert!(scan::authoritative_above_threshold_periods(
-        extent(),
-        Days::new(600.0 / 86400.0),
-        &f,
-        threshold
-    )
-    .unwrap()
-    .is_empty());
+    assert!(
+        super::reference_scan::authoritative_above_threshold_periods(
+            extent(),
+            Days::new(600.0 / 86400.0),
+            &f,
+            threshold
+        )
+        .unwrap()
+        .is_empty()
+    );
     let (out, cost) = discovery::search(
         extent(),
         threshold,
@@ -220,15 +222,15 @@ pub(super) fn reference(
     step: f64,
 ) -> Vec<Interval<Mjd>> {
     let mut out = Vec::new();
-    for w in filters::smooth_threshold_windows(prepared) {
-        let above = scan::authoritative_above_threshold_periods(
+    for w in super::reference_scan::smooth_threshold_windows(prepared) {
+        let above = super::reference_scan::authoritative_above_threshold_periods(
             w,
             Days::new(step / 86400.0),
             &|t| threshold::evaluate_integrated(evaluator, prepared, t),
             query.threshold,
         )
         .unwrap();
-        out.extend(scan::complement_periods(w, &above));
+        out.extend(super::reference_scan::complement_periods(w, &above));
     }
     scan::coalesce_periods(&mut out);
     out
@@ -318,9 +320,17 @@ fn adaptive_context_step_independence_and_parallel_determinism() {
                 .install(|| evaluator.periods_below_threshold_adaptive_with_context(&context, &q))
                 .unwrap();
             assert_eq!(direct.periods, actual.periods);
-            if !step.is_finite() || step <= 0.0 {
-                assert!(evaluator.periods_below_threshold(&q).is_err());
-            }
+            assert_eq!(
+                evaluator.periods_below_threshold(&q).unwrap().periods,
+                direct.periods
+            );
+            assert_eq!(
+                evaluator
+                    .periods_below_threshold_with_context(&context, &q)
+                    .unwrap()
+                    .periods,
+                direct.periods
+            );
         }
     }
     let other = NsbEvaluator::new().unwrap();
@@ -342,7 +352,9 @@ fn legacy_grid_phase_is_identical_after_certificate_integration() {
         .map(|w| scan::tt_mjd_period_to_utc(w, p.tt_window, q.window))
         .collect();
     assert_eq!(
-        evaluator.periods_below_threshold(&q).unwrap().periods,
+        super::reference_scan::sampled_schedule(&evaluator, &context, &q)
+            .unwrap()
+            .periods,
         expected
     );
 }
@@ -518,7 +530,7 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
                         // the original near-extremum threshold, not a relaxed one.
                         let local =
                             Interval::new(Mjd::new(a - 1.0 / 86400.0), Mjd::new(b + 1.0 / 86400.0));
-                        let above = scan::authoritative_above_threshold_periods(
+                        let above = super::reference_scan::authoritative_above_threshold_periods(
                             local,
                             Days::new(0.001 / 86400.0),
                             &|t| threshold::evaluate_integrated(&evaluator, &p, t),
@@ -539,7 +551,7 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
                         );
                         fine = fine
                             .into_iter()
-                            .flat_map(|w| scan::complement_periods(w, &above))
+                            .flat_map(|w| super::reference_scan::complement_periods(w, &above))
                             .collect();
                         confirmed += 1;
                     }
@@ -739,7 +751,7 @@ fn adaptive_retains_scan_witness_hidden_from_original_fit_nodes() {
             let t = Mjd::new(w.start.raw().value() + 0.25 * (x + 1.0) * 0.5);
             assert_eq!(f(t).unwrap().value(), 0.0);
         }
-        let old = scan::authoritative_above_threshold_periods(
+        let old = super::reference_scan::authoritative_above_threshold_periods(
             w,
             Days::new(600.0 / 86400.0),
             &f,
@@ -1095,7 +1107,7 @@ fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
         left - Days::new(1.0 / 86400.0),
         right + Days::new(1.0 / 86400.0),
     );
-    let above = scan::authoritative_above_threshold_periods(
+    let above = super::reference_scan::authoritative_above_threshold_periods(
         local,
         Days::new(0.001 / 86400.0),
         &|t| threshold::evaluate_integrated(&evaluator, &p, t),
@@ -1171,7 +1183,7 @@ fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
     }
     assert!(threshold::evaluate_integrated(&evaluator, &p, a.start).unwrap() <= q.threshold);
     let f = |t| threshold::evaluate_integrated(&evaluator, &p, t);
-    let above = scan::authoritative_above_threshold_periods(
+    let above = super::reference_scan::authoritative_above_threshold_periods(
         Interval::new(r.start - Seconds::new(1.0), a.start + Seconds::new(1.0)),
         siderust::qtty::Days::new(0.01 / 86400.0),
         &f,
@@ -1334,5 +1346,135 @@ fn adaptive_parallel_errors_follow_physical_window_order() {
             error.to_string().contains("first physical window"),
             "{threads} workers selected {error}"
         );
+    }
+}
+
+#[test]
+fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
+    for (north, moon, index, left, right) in [
+        (
+            false,
+            MoonlightModel::KrisciunasSchaefer1991,
+            30usize,
+            61166.0434279834,
+            61166.04351064898,
+        ),
+        (
+            true,
+            MoonlightModel::KrisciunasSchaefer1991,
+            70,
+            61177.13371923397,
+            61177.13383313657,
+        ),
+        (
+            true,
+            MoonlightModel::Jones2013Spectral,
+            20,
+            61183.05034025325,
+            61183.05049980324,
+        ),
+    ] {
+        let evaluator = super::test_fixtures::evaluator_with_moon(north, false, moon);
+        let observer = siderust::coordinates::centers::Geodetic::new_raw(
+            siderust::qtty::Degrees::new(if north { -17.892 } else { -70.31634444444444 }),
+            siderust::qtty::Degrees::new(if north { 28.762 } else { -24.683427777777776 }),
+            siderust::qtty::Meters::new(if north { 2200.0 } else { 2184.6 }),
+        );
+        let start = Time::<UTC>::from_chrono(
+            "2026-01-01T00:00:00Z"
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .unwrap(),
+        );
+        let q = ThresholdQuery::new(
+            observer,
+            Target::new(
+                (83.6331 + index as f64 * 137.507764).rem_euclid(360.0) * DEG,
+                (-60.0 + (index % 25) as f64 * 5.0) * DEG,
+            ),
+            Period::new(start, start + Seconds::new(365.0 * 86400.0)),
+            Radiance::new(0.25),
+        )
+        .with_components(ComponentMask::ALL)
+        .with_target_altitude_floor(Some(siderust::qtty::Degrees::new(20.0)));
+        let context = evaluator.prepare_site_window_context(&q).unwrap();
+        let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+        let expected = Interval::new(Mjd::new(left), Mjd::new(right));
+        // Keep the original physical partition and grid phase: this reproduces
+        // each annual scan120 miss without scanning the rest of the year.
+        let legacy: Vec<_> = super::reference_scan::smooth_threshold_windows(&p)
+            .into_iter()
+            .filter(|w| w.start < expected.end && w.end > expected.start)
+            .collect();
+        assert!(!legacy.is_empty());
+        let f = |t| threshold::evaluate_integrated(&evaluator, &p, t);
+        let mut coarse = Vec::new();
+        for w in &legacy {
+            let above = super::reference_scan::authoritative_above_threshold_periods(
+                *w,
+                Seconds::new(120.0).to::<siderust::qtty::Day>(),
+                &f,
+                q.threshold,
+            )
+            .unwrap();
+            let below = super::reference_scan::complement_periods(*w, &above);
+            assert!(below
+                .iter()
+                .all(|a| a.end <= expected.start || a.start >= expected.end));
+            coarse.extend(below);
+        }
+        let extent = Interval::new(legacy.first().unwrap().start, legacy.last().unwrap().end);
+        let windows: Vec<_> = filters::adaptive_threshold_windows(&p)
+            .unwrap()
+            .into_iter()
+            .filter_map(|w| {
+                let intersection = Interval::new(w.start.max(extent.start), w.end.min(extent.end));
+                (intersection.start < intersection.end).then_some(intersection)
+            })
+            .collect();
+        let (actual, _) = discovery::search_windows(
+            &windows,
+            q.threshold,
+            None,
+            f,
+            |w| super::bounds::prepared_bounds(&p, w),
+            false,
+        )
+        .unwrap();
+        scan::coalesce_periods(&mut coarse);
+        let comparison = super::discovery_bench::compare(
+            &evaluator,
+            &context,
+            &q,
+            &actual,
+            &coarse,
+            "accepted island regression",
+            false,
+        );
+        assert_eq!(comparison.fine_missed_accepted_excursions, 1);
+        let island = actual
+            .iter()
+            .find(|a| {
+                (a.start - expected.start).value().abs() * 86400.0 <= 0.1
+                    && (a.end - expected.end).value().abs() * 86400.0 <= 0.1
+            })
+            .expect("adaptive must retain accepted island");
+        let local = Interval::new(
+            island.start - Seconds::new(1.0).to::<siderust::qtty::Day>(),
+            island.end + Seconds::new(1.0).to::<siderust::qtty::Day>(),
+        );
+        let above = super::reference_scan::authoritative_above_threshold_periods(
+            local,
+            Seconds::new(0.001).to::<siderust::qtty::Day>(),
+            &f,
+            q.threshold,
+        )
+        .unwrap();
+        let dense = super::reference_scan::complement_periods(local, &above);
+        assert_eq!(dense.len(), 1);
+        assert!((dense[0].start - island.start).value().abs() * 86400.0 <= 0.106);
+        assert!((dense[0].end - island.end).value().abs() * 86400.0 <= 0.106);
+        for fraction in [0.0, 0.1, 0.5, 0.9, 1.0] {
+            assert!(f(island.start + island.length() * fraction).unwrap() <= q.threshold);
+        }
     }
 }

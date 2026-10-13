@@ -347,7 +347,7 @@ fn threshold_query_empty_window_returns_no_periods() {
 }
 
 #[test]
-fn threshold_query_rejects_non_finite_threshold_and_non_positive_step() {
+fn threshold_query_rejects_non_finite_threshold_and_ignores_legacy_step() {
     let evaluator = NsbEvaluator::new().expect("evaluator");
     let start = parse_obstime("2023-09-04 01:00:00");
     let end = parse_obstime("2023-09-04 02:00:00");
@@ -384,37 +384,22 @@ fn threshold_query_rejects_non_finite_threshold_and_non_positive_step() {
         .expect_err("infinite threshold");
     assert!(infinity.to_string().contains("threshold must be finite"));
 
-    let step = evaluator
-        .periods_below_threshold(
-            &ThresholdQuery::new(
-                paranal(),
-                sgr_a_star(),
-                Period::new(start, end),
-                BandPhotonRadiance::new(0.2),
-            )
-            .with_components(default_components())
-            .with_sample_step(Second::new(0.0))
-            .with_sun_altitude_ceiling(None)
-            .with_target_altitude_floor(None),
-        )
-        .expect_err("zero sample step");
-    assert!(step.to_string().contains("sample_step"));
-
-    let infinite_step = evaluator
-        .periods_below_threshold(
-            &ThresholdQuery::new(
-                paranal(),
-                sgr_a_star(),
-                Period::new(start, end),
-                BandPhotonRadiance::new(0.2),
-            )
-            .with_components(default_components())
-            .with_sample_step(Second::new(f64::INFINITY))
-            .with_sun_altitude_ceiling(None)
-            .with_target_altitude_floor(None),
-        )
-        .expect_err("infinite sample step");
-    assert!(infinite_step.to_string().contains("sample_step"));
+    let query = ThresholdQuery::new(
+        paranal(),
+        sgr_a_star(),
+        Period::new(start, end),
+        BandPhotonRadiance::new(0.2),
+    )
+    .with_components(default_components())
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(None);
+    let expected = evaluator.periods_below_threshold_adaptive(&query).unwrap();
+    for step in [0.0, f64::INFINITY, f64::NAN, 1.0, 1e8] {
+        let actual = evaluator
+            .periods_below_threshold(&query.clone().with_sample_step(Second::new(step)))
+            .unwrap();
+        assert_eq!(actual.periods, expected.periods);
+    }
 }
 
 #[test]

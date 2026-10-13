@@ -30,16 +30,11 @@ impl RadianceBounds {
     }
 }
 
-/// The provider, rather than point samples, determines whether subdivision
-/// can improve a certificate. Errors propagate separately through `Result`.
+/// Sound whole-interval classification. Errors propagate through `Result`.
 #[derive(Debug, Clone, Copy)]
 pub(super) enum BoundOutcome {
-    /// A finite enclosure. Only providers with a tightening strategy set
-    /// `refinable`; an inconclusive fixed envelope must stop immediately.
-    Enclosure {
-        range: RadianceBounds,
-        refinable: bool,
-    },
+    /// A finite enclosure; inconclusive production bounds fail explicitly.
+    Enclosure { range: RadianceBounds },
     /// Known regime boundaries prevent an enclosure at this scale. Splitting
     /// can isolate a supported regime (for example a Moon-down interior).
     NeedsSubdivision,
@@ -49,8 +44,8 @@ pub(super) enum BoundOutcome {
 }
 
 impl BoundOutcome {
-    pub fn enclosure(range: RadianceBounds, refinable: bool) -> Self {
-        Self::Enclosure { range, refinable }
+    pub fn enclosure(range: RadianceBounds) -> Self {
+        Self::Enclosure { range }
     }
 }
 
@@ -93,8 +88,5 @@ pub(super) fn prepared_bounds(
     } else {
         Radiance::new(0.0)
     };
-    Ok(BoundOutcome::enclosure(
-        RadianceBounds::constant(value)?,
-        false,
-    ))
+    Ok(BoundOutcome::enclosure(RadianceBounds::constant(value)?))
 }

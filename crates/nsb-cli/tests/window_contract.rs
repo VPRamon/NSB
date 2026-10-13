@@ -329,7 +329,6 @@ fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_m
         "--components",
         "all",
         "--no-pre-filter",
-        "--adaptive",
     ];
     for moon in ["ks1991", "jones2013"] {
         let output = Command::cargo_bin("nsb")
@@ -344,6 +343,18 @@ fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_m
         let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
         let periods = value["periods"].as_array().unwrap();
         assert_eq!(periods.len(), 1);
+        let alias_output = Command::cargo_bin("nsb")
+            .unwrap()
+            .args(base)
+            .args(["--moonlight-model", moon, "--adaptive", "--step", "600"])
+            .assert()
+            .success()
+            .get_output()
+            .stdout
+            .clone();
+        let alias: serde_json::Value = serde_json::from_slice(&alias_output).unwrap();
+        assert_eq!(alias["periods"], value["periods"]);
+
         let start = chrono::DateTime::parse_from_rfc3339(periods[0]["start_utc"].as_str().unwrap())
             .unwrap();
         let end =
@@ -351,15 +362,19 @@ fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_m
         assert!(start >= chrono::DateTime::parse_from_rfc3339(base[4]).unwrap());
         assert!(end <= chrono::DateTime::parse_from_rfc3339(base[6]).unwrap());
     }
-    for extra in [vec!["--step", "600"], vec!["--certified"]] {
-        Command::cargo_bin("nsb")
-            .unwrap()
-            .args(base)
-            .args(extra)
-            .assert()
-            .failure()
-            .stdout(predicate::str::is_empty());
-    }
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(base)
+        .args(["--step", "600"])
+        .assert()
+        .success();
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(base)
+        .args(["--adaptive", "--certified"])
+        .assert()
+        .failure()
+        .stdout(predicate::str::is_empty());
 }
 
 #[test]

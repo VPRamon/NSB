@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-use super::scan::{
-    above_threshold_periods, coalesce_periods, complement_periods, tt_mjd_period_to_utc,
-    tt_mjd_to_utc_time, utc_period_to_tt_mjd,
+use super::intervals::{
+    coalesce_periods, tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
 };
+use super::reference_scan::{above_threshold_periods, complement_periods};
 use super::types::{ThresholdQuery, ThresholdQueryResult};
 use crate::error::Result;
 use crate::evaluator::{ComponentMask, NsbEvaluator, Observer, Target};
@@ -80,10 +80,10 @@ fn prepare_threshold(
     crate::planning::prepare::prepare_target_threshold(evaluator, &context, query)
 }
 
-fn scan_threshold_periods(
+fn scan_threshold_native(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
-) -> Result<ThresholdQueryResult> {
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
     crate::planning::prepare::validate_threshold(query)?;
     let tt_window = utc_period_to_tt_mjd(query.window);
     let prepared = prepare_threshold(evaluator, query, tt_window)?;
@@ -99,11 +99,19 @@ fn scan_threshold_periods(
     }
     coalesce_periods(&mut darker_periods);
 
+    Ok(darker_periods)
+}
+
+fn scan_threshold_periods(
+    evaluator: &NsbEvaluator,
+    query: &ThresholdQuery,
+) -> Result<ThresholdQueryResult> {
+    let tt_window = utc_period_to_tt_mjd(query.window);
     Ok(ThresholdQueryResult {
         threshold: query.threshold,
-        periods: darker_periods
+        periods: scan_threshold_native(evaluator, query)?
             .into_iter()
-            .map(|period| tt_mjd_period_to_utc(period, prepared.tt_window, query.window))
+            .map(|period| tt_mjd_period_to_utc(period, tt_window, query.window))
             .collect(),
     })
 }
@@ -148,7 +156,7 @@ fn threshold_airglow_splits_palace_hour_boundaries_for_coarse_scans() {
     let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
 
     assert!(!prepared.airglow_phase_periods.is_empty());
-    let windows = crate::planning::filters::smooth_threshold_windows(&prepared);
+    let windows = crate::planning::reference_scan::smooth_threshold_windows(&prepared);
     assert!(!windows.is_empty());
     let max_window_seconds = windows
         .iter()
@@ -222,15 +230,40 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
         // caller-selected production sampling step so it cannot skip it.
         let mut oracle_query = query.clone();
         oracle_query.sample_step = Second::new(10.0);
-        let scan = scan_threshold_periods(&evaluator, &oracle_query).unwrap();
-        assert_eq!(
-            authoritative.periods.len(),
-            scan.periods.len(),
-            "{fixture}: authoritative={:?}, scan={:?}",
-            authoritative.periods,
-            scan.periods
+        let reference = scan_threshold_native(&evaluator, &oracle_query).unwrap();
+        let context = evaluator.prepare_site_window_context(&query).unwrap();
+        let prepared =
+            super::prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
+        let windows = super::filters::adaptive_threshold_windows(&prepared).unwrap();
+        let (native, _) = super::discovery::search_windows(
+            &windows,
+            query.threshold,
+            None,
+            |t| super::threshold::evaluate_integrated(&evaluator, &prepared, t),
+            |w| super::bounds::prepared_bounds(&prepared, w),
+            false,
+        )
+        .unwrap();
+        let comparison = super::discovery_bench::compare(
+            &evaluator, &context, &query, &native, &reference, fixture, false,
         );
-        assert_periods_match_within_seconds(&authoritative, &scan, 2);
+        // Two accepted twilight singleton endpoints become false positive
+        // durations in the midpoint scanner. The comparator independently
+        // requires exact physical-boundary identity, an accepted endpoint,
+        // and rejected radiance at five interior fractions of each interval.
+        assert_eq!(
+            comparison.singleton_artifacts,
+            if fixture == "airglow-zodiacal" { 2 } else { 0 }
+        );
+        assert_eq!(comparison.fine_missed_excursions, 0);
+        let projected: Vec<_> = native
+            .into_iter()
+            .map(|w| {
+                super::intervals::inward_tt_mjd_period_to_utc(w, prepared.tt_window, query.window)
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(authoritative.periods, projected, "{fixture}");
     }
 }
 

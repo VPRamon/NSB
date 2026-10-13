@@ -98,8 +98,10 @@ def test_rust_heavy_planning_detaches_from_python(observer, direction, evaluator
 def test_adaptive_models_context_and_inward_datetime_precision(observer, direction, evaluator):
     query = planning_query(observer, direction)
     direct = evaluator.periods_below_threshold_adaptive(query)
+    assert direct.periods == evaluator.periods_below_threshold(query).periods
     context = evaluator.prepare_site_window_context(query)
     assert direct.periods == evaluator.periods_below_threshold_adaptive_with_context(context, query).periods
+    assert direct.periods == evaluator.periods_below_threshold_with_context(context, query).periods
     assert len(direct.periods) == 1
     assert direct.periods[0][0] >= query.start
     assert direct.periods[0][1] <= query.end

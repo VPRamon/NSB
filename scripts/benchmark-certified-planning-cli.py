@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 Vallés Puig, Ramon
-"""Compare complete CLI processes: sampled compatibility, adaptive or certified."""
+"""Compare complete CLI processes from an explicit baseline to adaptive or certified."""
 import argparse
 import hashlib
 import json
@@ -26,11 +26,15 @@ def invoke(binary, arguments, memory_file):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("previous", type=Path, help="baseline release CLI (same binary allowed with --adaptive)")
+    parser.add_argument("previous", type=Path, help="baseline release CLI (retain a pre-migration binary for scan comparisons)")
     parser.add_argument("current", type=Path)
     parser.add_argument("--repeats", type=int, default=20)
     parser.add_argument("--adaptive", action="store_true", help="measure practical adaptive schedules; compare determinism per variant, not byte equality between contracts")
+    parser.add_argument("--adaptive-default", action="store_true", help="measure the current normal adaptive default against the supplied scanner baseline")
     args = parser.parse_args()
+    if args.adaptive and args.adaptive_default:
+        parser.error("choose --adaptive or --adaptive-default")
+    adaptive = args.adaptive or args.adaptive_default
     if args.repeats < 10:
         parser.error("at least ten repetitions are required for observed tail diagnostics")
     binaries = [args.previous.resolve(), args.current.resolve()]
@@ -53,13 +57,13 @@ def main():
                       arguments, ["--certified"]))
     with tempfile.TemporaryDirectory(prefix="nsb-235-cli-") as tmp:
         for label, contract, arguments, current_extra in cases:
-            if args.adaptive:
+            if adaptive:
                 contract = "adaptive under resolved-model assumptions"
-                current_extra = ["--adaptive"]
+                current_extra = ["--adaptive"] if args.adaptive else []
             memory_file = Path(tmp) / "rss.txt"
             previous_warmup = invoke(binaries[0], arguments, memory_file)
             current_warmup = invoke(binaries[1], arguments + current_extra, memory_file)
-            if not args.adaptive:
+            if not adaptive:
                 assert previous_warmup[2] == current_warmup[2], f"output differs: {label}"
             digests = [previous_warmup[2], current_warmup[2]]
             times, memory = [[], []], [[], []]

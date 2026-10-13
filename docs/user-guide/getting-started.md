@@ -76,12 +76,13 @@ cargo run --locked -p nsb-cli -- \
   --dec 22.0145 \
   --max-nsb 0.25 \
   --sun-altitude-max -18 \
-  --target-altitude-min 20 \
-  --step 600
+  --target-altitude-min 20
 ```
 
-`--step` controls the coarse scan interval. Threshold crossings are refined by
-the search implementation; it is not simply a list of accepted coarse samples.
+Window search uses adaptive discovery by default, with exact physical radiance
+probes and inward crossing brackets. `--step` is an ignored compatibility option;
+`--adaptive` is an optional alias for the default. Empirical model-resolution
+assumptions apply; this is not continuous interval certification.
 Use `--no-pre-filter` only when the Sun and target-altitude filters must be
 disabled explicitly.
 

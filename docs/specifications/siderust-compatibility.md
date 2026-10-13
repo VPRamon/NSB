@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Siderust 0.14 compatibility baseline for the next NSB release.
+Status: Siderust 0.14 compatibility baseline for the authorized NSB 0.1 migration.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
@@ -10,7 +10,7 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| Unreleased; release boundary pending | 0.14.0 | crates.io | `crates.io:siderust:0.14.0` | 1.89 | Siderust 0.14 migration |
+| 0.1 line; maintainer-authorized migration | 0.14.0 | crates.io | `crates.io:siderust:0.14.0` | 1.89 | Siderust 0.14 migration |
 
 All three workspace crates require the published Rust package with `siderust = "0.14"`.
 The committed lockfile resolves 0.14.0.

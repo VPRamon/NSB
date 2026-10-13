@@ -79,20 +79,16 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
         evaluator
             .periods_below_threshold_certified_with_context(&context, &base_query)?
             .periods
-    } else if args.adaptive {
-        evaluator
-            .periods_below_threshold_adaptive_with_context(&context, &base_query)?
-            .periods
     } else {
         evaluator
             .periods_below_threshold_with_context(&context, &base_query)?
             .periods
     };
-    let periods = if args.certified || args.adaptive || min.is_some() {
-        time::inward_periods(periods)?
-    } else {
-        periods
-    };
+    // All usable search contracts export inward at displayed precision.
+    let periods = time::inward_periods(periods)?;
+    if args.adaptive {
+        log::trace!("adaptive compatibility flag: discovery is already the default");
+    }
     let descriptions = evaluator.describe_components(observer, components)?;
     info!(
         "completed threshold window search: period_count={}, elapsed_ms={}",

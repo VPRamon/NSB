@@ -4,19 +4,21 @@ PR [#235](https://github.com/VPRamon/NSB/pull/235), issue
 [#234](https://github.com/VPRamon/NSB/issues/234). This revision implements
 usable adaptive searches with every physical component and both lunar models.
 The former certificate-only experiments are historical evidence, not performance
-measurements of this algorithm. The PR remains Draft during acceptance testing.
+measurements of this algorithm. The complete 204-case finite acceptance matrix
+now passes; final release readiness is gated by the current PR-head CI checks.
 
-## Three distinct supported search contracts
+## Production search contracts
 
 | Interface | Discovery contract | Failure behavior |
 | --- | --- | --- |
-| `periods_below_threshold[_with_context]` | Frozen discrete scanner, with the caller's `sample_step` and original physical windows/grid phase. | Existing model errors propagate. Sub-step excursions can be missed. |
+| `periods_below_threshold[_with_context]` | Step-free adaptive discovery, identical to the explicit adaptive aliases below. `sample_step` is ignored. | Numerical ambiguity, model errors and resource exhaustion propagate without a partial schedule. |
 | `periods_below_threshold_adaptive[_with_context]` | Step-free, physics-partitioned adaptive discovery under the resolved-model assumptions below. Authoritative radiance probes and crossing refinement. | Numerical ambiguity or resource exhaustion returns `Unsupported`, without a partial schedule. |
 | `periods_below_threshold_certified[_with_context]` | Closed-interval classification by sound envelopes; no approximate acceptance or scan fallback. | Any unresolved eligible time returns `Unsupported`. |
 
-The new adaptive methods are normal compiled library functionality, also exposed
-in Python and CLI `window --adaptive`. They ignore `sample_step`. The legacy
-methods remain sampled during the frozen-API transition. Neither a polynomial
+Normal Rust/Python methods and CLI `window` now use adaptive discovery in 0.1.
+Explicit adaptive methods and `--adaptive` are aliases. Public step inputs remain
+accepted for source compatibility and are ignored. The legacy scanner exists
+only under `cfg(test)` for independent scientific comparisons. Neither a polynomial
 prediction nor a validated adaptive schedule is an interval certificate.
 
 A successful adaptive result is a usable schedule under its model-resolution
@@ -34,7 +36,7 @@ root counts are never promoted to certificates in the strict engine.
    issuance and retrieval instants, Moon visibility edges, and target horizon
    branches even when the caller clears visibility filters. PALACE's retained
    night-third identity does not change its radiance formula, so the adaptive
-   path avoids those redundant fits; the legacy grid remains unchanged.
+   path avoids those redundant fits; the test-only legacy reference grid remains unchanged.
 3. Partition Zodiacal solar-longitude table cells and corner-fill edges at
    5-degree offsets, folding points, and the 30-degree reddening transition.
    Use Siderust solar longitude with a bracketed scalar solve, not a replacement
@@ -138,10 +140,11 @@ is bounded by the initial windows and operation limits. These are operation
 limits, not hard wall-clock preemption of a physical evaluator call. Initial
 astronomical preparation keeps its existing Siderust resource semantics.
 
-Strict discovery separately counts all initial classifications and at most
-2,048 refinement-bound calls. Initial windows are never charged against that
-refinement allowance; annual queries with >2,048 physical windows are supported.
-Exact/fit limits, unsupported bounds and numerical errors remain distinct.
+Strict search uses the same partitioning, orchestration and bounded budgets.
+It accepts only sound whole-interval enclosures; it never falls through to an
+empirical fit. Unsupported or inconclusive envelopes return an explicit error.
+The earlier certificate-subdivision implementation remains a test-only oracle,
+not a second production engine.
 
 Native Rust UTC endpoints must round-trip inside the accepted TT interval and
 query UTC extent; bounded inward adjustments are <=0.1 s. Python applies its
@@ -154,17 +157,17 @@ These checks contain representation effects, not astronomical time-scale error.
 
 ## Migration and validation evidence
 
-Rust and Python expose `periods_below_threshold_adaptive` and its context
-variant, plus the three shared-band methods described below. CLI adds `--adaptive`, conflicting with explicit `--step` and
-`--certified`. The example uses the adaptive API. The frozen sampled API,
-query builders and Python constructor remain compatible; explicit legacy
-sampling fields still receive their constructor's existing validation.
-Rust physical-query/context validation is independent of legacy step validation.
+Rust and Python normal methods use adaptive discovery; explicit adaptive names
+remain aliases. CLI `window` defaults to the same engine; `--adaptive` is an
+optional alias, and `--step` is accepted but ignored. `--certified` selects the
+stronger interval contract. The public field, builder and Python constructor
+argument are retained. Python still validates its legacy constructor argument;
+Rust searches ignore the field even when zero or non-finite.
 
-Do not remove/deprecate `sample_step`, switch the existing method's discovery
-contract, or remove CTAO service parameters silently. A subsequent compatible
-release/migration decision must make the new contract explicit to consumers.
-`nsb-service-ctao` is unchanged by this PR.
+The maintainer explicitly authorized this behavior change in the 0.1 line on
+2026-10-13. Signature snapshots and historical SemVer checks remain active.
+`nsb-service-ctao` is unchanged; its separate migration should deprecate sampling
+parameters and align its Siderust/Tempoch dependencies.
 
 The committed tests cover analytical close pairs, a narrow grazing Gaussian,
 multiple extrema, flat/equality behavior, numerically ambiguous tangency,
@@ -178,8 +181,10 @@ Historical certificate-only measurements remain in
 [review benchmarks](adaptive-threshold-review-benchmarks.md) and
 [compatibility CLI measurements](adaptive-threshold-cli-benchmarks.md).
 They must not be cited as performance evidence for active adaptive search.
-Complete usable adaptive benchmark results and final acceptance status are
-recorded in the companion production benchmark report after measurement.
+Complete usable adaptive benchmark results and the default decision are in
+[the 204-case report](adaptive-acceptance/production.md),
+[performance analysis](adaptive-acceptance/performance-analysis.md) and
+[validation record](adaptive-acceptance/validation.md).
 
 
 ## Aliasing investigation and two-threshold correction
@@ -244,8 +249,8 @@ lunar models, all masks, actual ALL, explicit four-component composition,
 1/7/30/365 days and 1/10/100 targets sharing a context. It emits a row only after
 600-second witnesses and fine-reference topology/boundaries have been checked.
 The report records overhead as well as improvements; incomplete searches are
-never benchmarked as faster usable schedules. The PR stays Draft until the full matrix, current-head CI and the documented
-release-compatibility decision have been reviewed.
+never benchmarked as faster usable schedules. Production readiness requires the full matrix and current-head CI. The
+maintainer has explicitly authorized the 0.1 behavior migration.
 
 
 ### Split-coordinate regression found by the full matrix
@@ -269,35 +274,28 @@ interval at a model jump. CLI/Python tests evaluate the actual exported values.
 
 ## Default and release compatibility decision
 
-The existing `periods_below_threshold[_with_context]` methods, Python equivalents,
-`sample_step` field/builders and explicit sampled CLI mode retain the frozen
-0.1.0 discrete-resolution contract. Replacing that behavior changes the set and
-placement of returned periods and removes the meaning of caller-selected steps;
-an unchanged Rust signature alone does not make that behavior compatible.
-The closest compatible migration here is the complete, step-free adaptive API
-plus joint CLI bands. No production scanner is removed before that release
-boundary; the obsolete CLI interval-subtraction implementation is removed.
+The maintainer authorized reopening the behavior freeze and adopting adaptive
+search in the 0.1 line on 2026-10-13. Normal Rust/Python methods and CLI `window`
+therefore use the primary adaptive engine. Public signatures, step fields and
+builders remain; ignored step values cannot change the returned schedule.
+The old scan/refinement code is compiled only for independent tests and
+benchmarks. Strict certification uses the same production engine in a mode
+that accepts only sound enclosures. No service implementation is changed.
 
-The required Siderust update also changes public temporal **type identity** from
-Tempoch 0.9 to 0.10. The dependency graph contains exactly one compatible public
-time ecosystem, but downstream Rust consumers must upgrade direct Tempoch
-requirements and recompile. Snapshot and historical API checks pass because
-names/signatures remain unchanged; those tools do not prove cross-version type
-identity compatibility. The mandated dependency migration is explicit in this
-PR and must be included in release review.
+This is a behavioral migration: callers can receive additional narrow events,
+corrected discontinuity handling and inward boundary placement instead of
+midpoint estimates. It is not made compatible merely by unchanged signatures.
+API_FROZEN, snapshot checks and historical SemVer checks remain in place.
 
-The frozen first-release contract needs an explicit release-policy decision
-before switching normal methods and removing the scanner (for example a 0.2
-migration, or an authorized reopening of the first-release freeze). This PR
-does not invent a new release version or silently relax the compatibility
-regressions. Keep it Draft until the acceptance evidence and that release
-boundary have been reviewed. This is independent of strict certification:
-active-model interval envelopes are still unavailable, and empirical adaptive
-success must never be described as a proof.
+The required Siderust update changes public temporal type identity from Tempoch
+0.9 to 0.10. Downstream Rust consumers must align direct Tempoch requirements
+and recompile. Python uses the released Siderust/Tempoch 0.4 bindings. Signature
+checks cannot prove cross-version public dependency type identity. The version
+remains 0.1.0 under the explicit maintainer authorization.
 
-The separate `nsb-service-ctao` migration must remove/deprecate its sampling
-parameters only after the selected NSB release adopts the new default. No
-service implementation or external schema is changed here.
+Production readiness still requires the complete scientific/performance matrix
+and required checks. Empirical adaptive success is never a completeness proof;
+active-model strict interval envelopes remain unavailable.
 
 ### A real short Airglow/Moonlight excursion
 
@@ -371,3 +369,51 @@ behavior. Batches now collect indexed per-window results and propagate errors
 in physical-window order. Successful fitted schedules, model calls and budgets
 are unchanged; a failed query may finish its already bounded batch, and still
 returns no partial schedule.
+
+### Annual reference misses of accepted islands
+
+The annual 100-target comparisons also exposed accepted islands entirely missed
+by scan120: South target 30 (both lunar models), North K&S target 70 and North
+Jones target 20. Independent 1 ms local references resolve approximately
+7.199, 9.843 and 13.788 seconds respectively. Exact radiances are below 0.25
+inside and above outside; both adaptive boundaries agree within the unchanged
+0.106-second local allowance. The permanent regression preserves the original
+annual physical-window/grid phase while restricting evaluation to the relevant
+regime. [Recorded values](adaptive-acceptance/accepted-islands.json) retain the
+independent diagnoses.
+
+The fine comparator separately counts confirmed accepted islands and rejected
+gaps. An unmatched island is accepted as a reference miss only when it is
+disjoint from reference periods and a separate <=10 ms local scan, preserving
+eligibility constraints, confirms its entire topology and both boundaries.
+Other extra intervals still abort acceptance. Validation precedes expensive
+timed repetitions, and every timed schedule must reproduce its validated
+warmup exactly. This adds empirical comparison evidence, not a new certificate
+or a change to the production discovery algorithm.
+
+### Complete production acceptance and decision
+
+All 204 usable scenarios passed their coarse-witness and fine-reference checks,
+with zero unexplained discrepancies, exhausted budgets or timed-output mismatches.
+The matrix independently confirmed 105 rejected-excursion and 13 accepted-island
+reference misses, plus 12,317 fine / 12,391 coarse singleton midpoint artifacts.
+These are scenario occurrences, not deduplicated astronomical events.
+[Individual discrepancy records](adaptive-acceptance/confirmed-discrepancies.jsonl)
+retain target labels and local-reference requirements.
+
+Annual 100-target adaptive medians are 450–551 seconds versus 185–221 seconds
+for scan600, paired ratios 2.39–2.50 under the recorded limited core assignments.
+The physical-call ratios are 2.17–2.28; counters identify validation/root/extremum
+work rather than uncontrolled subdivision. Peak pending intervals are 64,
+recursion depth 6, active sample payload 9,024 bytes per worker, and cumulative
+whole-benchmark RSS about 24.1 MiB. Counts and durations aggregate target queries;
+budgets apply separately to each `ThresholdQuery`. Full CLI processes have
+annual single-target adaptive medians 10.93–14.78 seconds and paired ratios
+1.60–1.87, including construction, startup and I/O.
+
+This is an explicit accuracy/cost tradeoff, not a general speedup claim. Complete,
+bounded batches finishing in 7.5–9.2 minutes are accepted for offline annual
+planning, with independently established discovery improvements. Under the
+maintainer's authorization, adaptive therefore becomes the normal 0.1 engine;
+legacy scanner/certificate-subdivision code remains only as independent test
+references. Strict certification keeps its stronger enclosure contract.

@@ -112,7 +112,6 @@ Planning windows use ordinary timezone-aware Python datetimes at the boundary:
 
 ```python
 max_nsb_photons_cm2_ns_sr = 0.25
-sample_step_s = 600.0
 
 query = nsb.ThresholdQuery(
     ctao_south,
@@ -121,7 +120,6 @@ query = nsb.ThresholdQuery(
     datetime(2026, 9, 28, 4, 0, tzinfo=timezone.utc),
     max_nsb_photons_cm2_ns_sr,
     components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
-    sample_step_s=sample_step_s,
 )
 
 context = evaluator.prepare_site_window_context(query)
@@ -133,9 +131,10 @@ for start, end in result.periods:
 
 Returned periods are `(start, end)` tuples of timezone-aware UTC `datetime.datetime` values. NSB does not expose a bespoke Python `UtcPeriod` type.
 
-Step-free adaptive discovery uses the same query and context. Omit
-`sample_step_s` when constructing a new adaptive query; that legacy option does
-not control adaptive discovery:
+Normal planning methods use step-free adaptive discovery in NSB 0.1.
+`sample_step_s` remains an ignored compatibility input; its constructor still
+requires a finite positive value. Explicit adaptive method names are aliases
+for the same search. Inclusive bands use the shared two-threshold engine:
 
 ```python
 result = evaluator.periods_below_threshold_adaptive_with_context(context, query)
@@ -150,9 +149,9 @@ schedule. Adaptive discovery is empirical under documented model-resolution
 assumptions; it does not certify every unvisited instant. The strict certified
 methods continue to require sound interval enclosures.
 
-The ordinary sampled methods keep the frozen 0.1 behavior, including the
-caller-selected step. Switching those defaults requires the documented release
-migration; Rust, Python and CLI make the same distinction.
+The maintainer authorized the default migration in the 0.1 line. Normal Rust,
+Python and CLI planning now use the same adaptive engine. Legacy step arguments
+are retained and ignored; the scanner remains only as an independent test reference.
 
 ## Time boundary
 

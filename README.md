@@ -128,7 +128,6 @@ Search for periods below an NSB threshold:
 
 ```python
 max_nsb_photons_cm2_ns_sr = 0.25
-sample_step_s = 600.0
 
 query = nsb.ThresholdQuery(
     ctao_south,
@@ -136,7 +135,6 @@ query = nsb.ThresholdQuery(
     datetime(2026, 9, 27, 20, 0, tzinfo=timezone.utc),
     datetime(2026, 9, 28, 4, 0, tzinfo=timezone.utc),
     max_nsb_photons_cm2_ns_sr,
-    sample_step_s=sample_step_s,
 )
 
 context = evaluator.prepare_site_window_context(query)
@@ -176,14 +174,15 @@ cargo run --locked -p nsb-cli -- \
   --ra 266.41683 --dec -29.00781 \
   --max-nsb 0.25 \
   --sun-altitude-max -18 \
-  --target-altitude-min 20 \
-  --step 600
+  --target-altitude-min 20
 ```
 
-Window search evaluates the authoritative NSB model at the selected sampling
-resolution and refines bracketed threshold crossings with that same model. It
-does not claim continuous completeness between samples. Select a smaller
-`--step` when finer temporal resolution is required.
+Window search uses physics-partitioned adaptive discovery by default, with
+exact NSB evaluations and accepted-side crossing brackets of at most 0.1 seconds.
+It has an empirically validated model-resolution contract, not a continuous
+completeness certificate. `--step` is retained as an ignored compatibility option;
+`--adaptive` is an alias for the default. `--certified` requires rigorous interval
+bounds and currently rejects active dynamic components.
 
 See [Getting started](docs/user-guide/getting-started.md) for CLI options,
 component selection, site lookup, and output formats.

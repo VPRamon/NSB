@@ -7,7 +7,6 @@ use crate::components::airglow;
 use crate::error::{NsbError, Result};
 use crate::evaluator::{ComponentMask, NsbEvaluator};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use crate::units::Second;
 use siderust::bodies::Moon as MoonBody;
 use siderust::coordinates::spherical::direction;
 use siderust::event::altitude::{above_threshold as altitude_above_threshold, SearchOpts};
@@ -22,15 +21,6 @@ pub(crate) fn validate_threshold(query: &ThresholdQuery) -> Result<()> {
     if query.window.start > query.window.end {
         return Err(NsbError::OutOfRange(
             "query window start must not be after end".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-pub(crate) fn validate_sample_step(query: &ThresholdQuery) -> Result<()> {
-    if !query.sample_step.is_finite() || query.sample_step <= Second::new(0.0) {
-        return Err(NsbError::OutOfRange(
-            "sample_step must be finite and greater than zero".to_string(),
         ));
     }
     Ok(())

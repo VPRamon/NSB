@@ -246,6 +246,7 @@ impl NsbEvaluator {
         let query = query.clone();
         let result = py
             .detach(|| self.periods_below_threshold(&query))
+            .and_then(python_periods)
             .map_err(to_py_err)?;
         Ok(PyThresholdQueryResult::from_inner(result))
     }
@@ -261,6 +262,7 @@ impl NsbEvaluator {
         let query = query.clone();
         let result = py
             .detach(|| self.periods_below_threshold_with_context(&context, &query))
+            .and_then(python_periods)
             .map_err(to_py_err)?;
         Ok(PyThresholdQueryResult::from_inner(result))
     }

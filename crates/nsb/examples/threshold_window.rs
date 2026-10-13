@@ -20,7 +20,7 @@ fn main() -> nsb::Result<()> {
 
     // Practical adaptive discovery has a documented physical-model resolution
     // assumption. Use periods_below_threshold_certified for strict certificates.
-    let result = NsbEvaluator::new()?.periods_below_threshold_adaptive(&query)?;
+    let result = NsbEvaluator::new()?.periods_below_threshold(&query)?;
 
     println!(
         "threshold = {:.6e} ph/(cm² ns sr)",

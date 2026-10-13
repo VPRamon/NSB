@@ -2,21 +2,15 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Threshold search orchestration and integrated radiance sampling.
 
-use super::adaptive::{discover, Controls};
 use super::bounds::prepared_bounds;
-use super::scan::{
-    authoritative_above_threshold_periods, certified_tt_mjd_period_to_utc, coalesce_periods,
-    complement_periods, tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
-};
+use super::intervals::{inward_tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd};
 use super::types::{
     PreparedThresholdQuery, SiteWindowContext, ThresholdQuery, ThresholdQueryResult,
 };
 use crate::error::Result;
 use crate::evaluator::{ComponentMask, NsbEvaluator};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use rayon::prelude::*;
-use siderust::qtty::Day;
-use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
+use siderust::time::ModifiedJulianDate;
 
 pub(crate) fn evaluate_integrated(
     evaluator: &NsbEvaluator,
@@ -69,79 +63,8 @@ pub(crate) fn evaluate_integrated(
     Ok(total)
 }
 
-fn search_prepared(
-    evaluator: &NsbEvaluator,
-    query: &ThresholdQuery,
-    prepared: PreparedThresholdQuery,
-    require_certification: bool,
-) -> Result<ThresholdQueryResult> {
-    let step = query.sample_step.to::<Day>();
-    let controls = Controls {
-        // Real-model jumps do not have smooth envelopes yet. Bounds may still
-        // isolate Moon-down interiors, without fitting across those jumps.
-        fit_depth: 0,
-        max_evaluations: 0,
-        ..Controls::default()
-    };
-    let windows = super::filters::smooth_threshold_windows(&prepared);
-    let certificates = if require_certification {
-        Some(discover(
-            &windows,
-            query.threshold,
-            |t| evaluate_integrated(evaluator, &prepared, t),
-            |w| prepared_bounds(&prepared, w),
-            controls,
-        )?)
-    } else {
-        None
-    };
-    debug_assert!(certificates.as_ref().is_none_or(|certificates| certificates
-        .brackets
-        .iter()
-        .all(
-            |b| (b.left > query.threshold) != (b.right > query.threshold)
-                && (!b.tolerance_met || b.interval.length() <= controls.time_tolerance)
-        )));
-    let mut darker_periods: Vec<TimePeriod<ModifiedJulianDate>> = if let Some(certificates) =
-        certificates
-    {
-        certificates.certified_periods()?
-    } else {
-        // Frozen sampled contract: use the original physical windows so the
-        // grid phase is unchanged. Practical adaptive discovery has its own
-        // explicit API and never falls back through this branch.
-        windows
-            .into_par_iter()
-            .map(|window| -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
-                let exact_f =
-                    |mjd_tt: ModifiedJulianDate| evaluate_integrated(evaluator, &prepared, mjd_tt);
-                let brighter =
-                    authoritative_above_threshold_periods(window, step, &exact_f, query.threshold)?;
-                Ok(complement_periods(window, &brighter))
-            })
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .flatten()
-            .collect()
-    };
-    coalesce_periods(&mut darker_periods);
-
-    Ok(ThresholdQueryResult {
-        threshold: query.threshold,
-        periods: darker_periods
-            .into_iter()
-            .map(|p| {
-                if require_certification {
-                    certified_tt_mjd_period_to_utc(p, prepared.tt_window, query.window)
-                } else {
-                    Ok(tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
-                }
-            })
-            .collect::<Result<Vec<_>>>()?,
-    })
-}
-
-/// Find filtered UTC periods whose integrated radiance is at or below the threshold.
+/// Find filtered UTC periods with step-free adaptive discovery.
+/// See [`NsbEvaluator::periods_below_threshold_adaptive`] for the empirical contract.
 pub fn periods_below_threshold(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
@@ -168,11 +91,7 @@ pub fn periods_below_threshold_with_context(
     context: &SiteWindowContext,
     query: &ThresholdQuery,
 ) -> Result<ThresholdQueryResult> {
-    super::prepare::validate_threshold(query)?;
-    super::prepare::validate_sample_step(query)?;
-    super::prepare::validate_site_context(evaluator, context, query)?;
-    let prepared = super::prepare::prepare_target_threshold(evaluator, context, query)?;
-    search_prepared(evaluator, query, prepared, false)
+    evaluator.periods_below_threshold_adaptive_with_context(context, query)
 }
 
 fn periods_below_threshold_certified_with_context(
@@ -180,10 +99,7 @@ fn periods_below_threshold_certified_with_context(
     context: &SiteWindowContext,
     query: &ThresholdQuery,
 ) -> Result<ThresholdQueryResult> {
-    super::prepare::validate_threshold(query)?;
-    super::prepare::validate_site_context(evaluator, context, query)?;
-    let prepared = super::prepare::prepare_target_threshold(evaluator, context, query)?;
-    search_prepared(evaluator, query, prepared, true)
+    evaluator.search_radiance_band(context, query, None, true)
 }
 
 impl NsbEvaluator {
@@ -197,7 +113,7 @@ impl NsbEvaluator {
     /// completeness certificate. Arbitrarily hidden sub-node excursions remain
     /// possible. Resource/numerical failures return an error, never a partial
     /// schedule. `sample_step` is ignored, including its legacy validation.
-    /// Existing sampled methods keep their frozen discrete contract.
+    /// Normal threshold methods use this same engine.
     pub fn periods_below_threshold_adaptive(
         &self,
         query: &ThresholdQuery,
@@ -278,7 +194,7 @@ impl NsbEvaluator {
             threshold: query.threshold,
             periods: periods
                 .into_iter()
-                .map(|p| certified_tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
+                .map(|p| inward_tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
                 .collect::<Result<_>>()?,
         })
     }
@@ -295,7 +211,7 @@ impl NsbEvaluator {
     /// boundaries may move inward by at most 0.1 s. Output adapters own their
     /// representation restrictions (including Python datetime's year range).
     /// An unrepresentable boundary returns Unsupported.
-    /// The existing sampled methods retain their discrete discovery contract.
+    /// Normal threshold methods use empirical adaptive discovery instead.
     pub fn periods_below_threshold_certified(
         &self,
         query: &ThresholdQuery,
@@ -316,7 +232,8 @@ impl NsbEvaluator {
     ) -> Result<ThresholdQueryResult> {
         periods_below_threshold_certified_with_context(self, context, query)
     }
-    /// Find filtered UTC periods whose integrated radiance is at or below the threshold.
+    /// Find filtered UTC periods with step-free adaptive discovery.
+    /// See [`NsbEvaluator::periods_below_threshold_adaptive`] for the empirical contract.
     pub fn periods_below_threshold(&self, query: &ThresholdQuery) -> Result<ThresholdQueryResult> {
         periods_below_threshold(self, query)
     }

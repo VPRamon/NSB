@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Shared physical fixtures and cached-scalar certificate regression.
-use super::adaptive::{discover, Controls, State};
-use super::bounds::{prepared_bounds, BoundOutcome};
+use super::certification_reference::{discover, prepared_bounds, BoundOutcome, Controls, State};
 use super::{prepare, threshold};
 use crate::components::starlight::{StarlightMap, StarlightProvenance};
 use crate::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};

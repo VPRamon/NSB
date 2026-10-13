@@ -2,9 +2,11 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Executable correctness and performance evidence for the internal #234 spike.
 
-use super::adaptive::{discover, Controls, Discovery, State};
-use super::bounds::{prepared_bounds, BoundOutcome, RadianceBounds};
-use super::scan::authoritative_above_threshold_periods;
+use super::bounds::RadianceBounds;
+use super::certification_reference::{
+    discover, prepared_bounds, BoundOutcome, Controls, Discovery, State,
+};
+use super::reference_scan::authoritative_above_threshold_periods;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Radiance;
 use crate::{NsbError, Result};
 use siderust::qtty::Days;
@@ -47,7 +49,7 @@ impl Enclosure {
         Self((self.0 + x).next_down(), (self.1 + x).next_up())
     }
     fn bounds(self) -> Result<BoundOutcome> {
-        Ok(BoundOutcome::enclosure(
+        Ok(BoundOutcome::test_enclosure(
             RadianceBounds::new(Radiance::new(self.0), Radiance::new(self.1))?,
             true,
         ))
@@ -165,13 +167,13 @@ fn hidden_narrow_spike_cannot_be_accepted_even_when_the_fit_misses_it() {
     };
     let b = |w: Interval<Mjd>| {
         if value(w.end) < center - radius || value(w.start) > center + radius {
-            Ok(BoundOutcome::enclosure(
+            Ok(BoundOutcome::test_enclosure(
                 RadianceBounds::constant(Radiance::new(0.0))?,
                 false,
             ))
         } else {
             // Deliberately loose, but valid even at the two jumps.
-            Ok(BoundOutcome::enclosure(
+            Ok(BoundOutcome::test_enclosure(
                 RadianceBounds::new(Radiance::new(0.0), Radiance::new(1.0))?,
                 true,
             ))
@@ -279,7 +281,7 @@ fn tangent_and_near_flat_signals_retain_uncertainty() {
                 Radiance::new(1.0 - f64::EPSILON),
                 Radiance::new(1.0 + f64::EPSILON),
             )
-            .map(|b| BoundOutcome::enclosure(b, true))
+            .map(|b| BoundOutcome::test_enclosure(b, true))
         },
         Controls {
             max_intervals: 32,
@@ -295,7 +297,10 @@ fn tangent_and_near_flat_signals_retain_uncertainty() {
         &[extent],
         Radiance::new(1.0),
         |_| panic!("constant certificate needs no probes"),
-        |_| RadianceBounds::constant(Radiance::new(1.0)).map(|b| BoundOutcome::enclosure(b, true)),
+        |_| {
+            RadianceBounds::constant(Radiance::new(1.0))
+                .map(|b| BoundOutcome::test_enclosure(b, true))
+        },
         Controls::default(),
     )
     .unwrap();
@@ -381,7 +386,7 @@ fn invalid_values_and_model_errors_fail_closed() {
         &[extent],
         Radiance::new(0.0),
         |_| panic!(),
-        |_| Ok(BoundOutcome::enclosure(
+        |_| Ok(BoundOutcome::test_enclosure(
             RadianceBounds {
                 lower: Radiance::new(2.0),
                 upper: Radiance::new(1.0)
@@ -436,7 +441,7 @@ fn known_jump_is_partitioned_and_equality_is_not_a_root_precision_claim() {
         let lo = if value(w.start) < edge { 0.0 } else { 1.0 };
         let hi = if value(w.end) < edge { 0.0 } else { 1.0 };
         RadianceBounds::new(Radiance::new(lo), Radiance::new(hi))
-            .map(|b| BoundOutcome::enclosure(b, true))
+            .map(|b| BoundOutcome::test_enclosure(b, true))
     };
     let result = discover(&windows, Radiance::new(0.5), f, bounds, Controls::default()).unwrap();
     assert_partition(&result, window(60_000.0, 60_001.0));
@@ -482,7 +487,7 @@ fn seeded_quadratic_cases_preserve_analytic_coverage() {
 
 #[test]
 fn real_prepared_moon_down_enclosure_respects_inclusive_boundaries() {
-    use super::{prepare, scan, types::ThresholdQuery};
+    use super::{intervals as scan, prepare, types::ThresholdQuery};
     use crate::{ComponentMask, NsbEvaluator, Target, DEG};
     use chrono::{DateTime, Utc};
     use tempoch::{Period, Time, UTC};
@@ -539,11 +544,11 @@ fn real_prepared_moon_down_enclosure_respects_inclusive_boundaries() {
 
 #[test]
 fn unsupported_and_fixed_uncertainty_stop_without_point_search() {
-    use super::adaptive::StopReason;
+    use super::certification_reference::StopReason;
     for (provider, reason) in [
         (BoundOutcome::Unsupported, StopReason::UnsupportedBounds),
         (
-            BoundOutcome::enclosure(
+            BoundOutcome::test_enclosure(
                 RadianceBounds::new(Radiance::new(0.0), Radiance::new(2.0)).unwrap(),
                 false,
             ),
@@ -580,7 +585,7 @@ fn whole_query_budgets_preserve_later_bound_only_certificates() {
         |t| quadratic(t, 0.3, 1.0, 0.0),
         |w| {
             if w.start == windows[1].start {
-                Ok(BoundOutcome::enclosure(
+                Ok(BoundOutcome::test_enclosure(
                     RadianceBounds::constant(Radiance::new(0.0))?,
                     false,
                 ))
@@ -615,7 +620,7 @@ fn whole_query_budgets_preserve_later_bound_only_certificates() {
         Radiance::new(1.0),
         |_| panic!(),
         |_| {
-            Ok(BoundOutcome::enclosure(
+            Ok(BoundOutcome::test_enclosure(
                 RadianceBounds::constant(Radiance::new(0.0))?,
                 false,
             ))
@@ -639,7 +644,7 @@ fn whole_query_budgets_preserve_later_bound_only_certificates() {
         Radiance::new(1.0),
         |_| panic!(),
         |_| {
-            Ok(BoundOutcome::enclosure(
+            Ok(BoundOutcome::test_enclosure(
                 RadianceBounds::constant(Radiance::new(0.0))?,
                 false,
             ))
@@ -672,8 +677,8 @@ fn bound_numerical_failure_is_not_unsupported_or_budget_exhaustion() {
 }
 
 #[test]
-fn production_planning_preserves_discrete_results_for_every_mask_and_lunar_model() {
-    use super::{filters, prepare, scan, threshold};
+fn reference_scanner_preserves_discrete_results_and_default_is_adaptive_for_every_mask() {
+    use super::{intervals as scan, prepare, threshold};
     use crate::{ComponentMask, MoonlightModel, Target, ThresholdQuery, DEG};
     use chrono::{DateTime, Utc};
     use tempoch::{Period, Time, UTC};
@@ -700,7 +705,7 @@ fn production_planning_preserves_discrete_results_for_every_mask_and_lunar_model
             let context = evaluator.prepare_site_window_context(&query).unwrap();
             let prepared = prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
             let mut reference = Vec::new();
-            for w in filters::smooth_threshold_windows(&prepared) {
+            for w in super::reference_scan::smooth_threshold_windows(&prepared) {
                 let brighter = authoritative_above_threshold_periods(
                     w,
                     Days::new(600.0 / 86_400.0),
@@ -708,12 +713,21 @@ fn production_planning_preserves_discrete_results_for_every_mask_and_lunar_model
                     query.threshold,
                 )
                 .unwrap();
-                reference.extend(scan::complement_periods(w, &brighter));
+                reference.extend(super::reference_scan::complement_periods(w, &brighter));
             }
             scan::coalesce_periods(&mut reference);
-            let actual = evaluator
-                .periods_below_threshold_with_context(&context, &query)
-                .unwrap();
+            let actual =
+                super::reference_scan::sampled_schedule(&evaluator, &context, &query).unwrap();
+            assert_eq!(
+                evaluator
+                    .periods_below_threshold_with_context(&context, &query)
+                    .unwrap()
+                    .periods,
+                evaluator
+                    .periods_below_threshold_adaptive_with_context(&context, &query)
+                    .unwrap()
+                    .periods
+            );
             assert_eq!(
                 actual.periods.len(),
                 reference.len(),
@@ -742,7 +756,7 @@ fn production_planning_preserves_discrete_results_for_every_mask_and_lunar_model
                 );
             }
             let out = discover(
-                &filters::smooth_threshold_windows(&prepared),
+                &super::reference_scan::smooth_threshold_windows(&prepared),
                 query.threshold,
                 |_| panic!("real certificates need no exact probes"),
                 |w| prepared_bounds(&prepared, w),

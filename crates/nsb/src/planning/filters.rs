@@ -12,7 +12,7 @@ use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 pub(crate) fn adaptive_threshold_windows(
     prepared: &PreparedThresholdQuery,
 ) -> crate::Result<Vec<TimePeriod<ModifiedJulianDate>>> {
-    use super::scan::{tt_mjd_to_utc_time, utc_time_to_tt_mjd};
+    use super::intervals::{tt_mjd_to_utc_time, utc_time_to_tt_mjd};
     use chrono::Timelike;
     use siderust::coordinates::spherical::direction;
     use siderust::event::altitude::{above_threshold, SearchOpts};
@@ -160,13 +160,7 @@ pub(crate) fn contains_time(
         .any(|period| period.start <= time && time <= period.end)
 }
 
-pub(crate) fn smooth_threshold_windows(
-    prepared: &PreparedThresholdQuery,
-) -> Vec<TimePeriod<ModifiedJulianDate>> {
-    threshold_windows(prepared, true)
-}
-
-fn threshold_windows(
+pub(super) fn threshold_windows(
     prepared: &PreparedThresholdQuery,
     split_phase: bool,
 ) -> Vec<TimePeriod<ModifiedJulianDate>> {
