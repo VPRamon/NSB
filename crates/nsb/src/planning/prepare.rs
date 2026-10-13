@@ -31,6 +31,7 @@ pub(crate) fn prepare_site_context(
     query: &ThresholdQuery,
     tt_window: TimePeriod<ModifiedJulianDate>,
 ) -> Result<SiteWindowContext> {
+    let astronomy = Arc::new(super::astronomy::AstronomyCache::default());
     let uses_airglow = query.components.contains(ComponentMask::AIRGLOW);
     let uses_moon = query.components.contains(ComponentMask::MOON);
     let prepare_nights = || {
@@ -87,9 +88,10 @@ pub(crate) fn prepare_site_context(
             )
         })
         .transpose()?;
+    astronomy.validate_time_data()?;
     Ok(SiteWindowContext {
         evaluator_identity: Arc::clone(evaluator.identity()),
-        astronomy: Arc::default(),
+        astronomy,
         observer: query.observer,
         window: query.window,
         components: query.components,
@@ -124,7 +126,7 @@ pub(crate) fn validate_site_context(
                 .to_string(),
         ));
     }
-    Ok(())
+    context.astronomy.validate_time_data()
 }
 
 pub(crate) fn prepare_target_threshold(

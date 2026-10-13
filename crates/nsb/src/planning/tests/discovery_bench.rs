@@ -30,6 +30,7 @@ fn run(
     let mut costs = Costs::default();
     let mut output = Vec::new();
     for q in queries {
+        prepare::validate_site_context(evaluator, context, q).unwrap();
         let p = prepare::prepare_target_threshold(evaluator, context, q).unwrap();
         let windows = if adaptive {
             filters::adaptive_threshold_windows(&p).unwrap()
@@ -97,6 +98,7 @@ fn run(
                 scan::tt_mjd_period_to_utc(period, p.tt_window, q.window);
             }
         }
+        prepare::validate_site_context(evaluator, context, q).unwrap();
         output.push(periods);
     }
     (started.elapsed().as_secs_f64(), costs, output)

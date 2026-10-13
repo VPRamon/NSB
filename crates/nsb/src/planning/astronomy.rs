@@ -10,7 +10,7 @@ use tempoch::{Time, JD, TT, UTC};
 type Key = (u64, u64);
 // Each context owns at most this many entries per selected component. Once
 // full, new instants compute normally; eviction cannot affect the radiance.
-const CAPACITY: usize = 131_072;
+const CAPACITY: usize = 100_000;
 #[derive(Debug)]
 struct Cache<T>(RwLock<HashMap<Key, T>>);
 impl<T> Default for Cache<T> {
@@ -35,12 +35,29 @@ impl<T: Copy> Cache<T> {
         value
     }
 }
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub(crate) struct AstronomyCache {
+    time_data: tempoch::TimeDataStatus,
     solar: Cache<Radians>,
     moon: Cache<MoonlightSky>,
 }
+impl Default for AstronomyCache {
+    fn default() -> Self {
+        Self {
+            time_data: tempoch::time_data_status(),
+            solar: Cache::default(),
+            moon: Cache::default(),
+        }
+    }
+}
 impl AstronomyCache {
+    pub fn validate_time_data(&self) -> crate::Result<()> {
+        if self.time_data != tempoch::time_data_status() {
+            return Err(crate::NsbError::Unsupported("time-data bundle changed; prepare a new site window context; no partial schedule returned".into()));
+        }
+        Ok(())
+    }
+
     pub fn solar(&self, time: Time<UTC>) -> Radians {
         self.solar.get(time, || {
             Sun::ecliptic_longitude_geocentric(time.to::<TT>().to::<JD>())
@@ -80,5 +97,40 @@ mod tests {
         assert_eq!(cache.0.read().unwrap().len(), CAPACITY);
         // Saturation computes normally; it never substitutes another instant.
         assert_eq!(cache.get(a + Seconds::new(CAPACITY as f64 + 2.0), || 4), 4);
+    }
+    #[test]
+    fn reused_context_rejects_a_changed_time_data_snapshot() {
+        use crate::{ComponentMask, NsbError, NsbEvaluator, Target, ThresholdQuery, DEG};
+        use tempoch::{ActiveTimeDataSource, Period};
+        let evaluator = NsbEvaluator::new().unwrap();
+        let start = Time::<UTC>::from_chrono(
+            "2026-01-03T00:00:00Z"
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .unwrap(),
+        );
+        let observer = siderust::catalogs::observatories::EL_PARANAL.geodetic();
+        let query = ThresholdQuery::new(
+            observer,
+            Target::new(83.6331 * DEG, 22.0145 * DEG),
+            Period::new(start, start + Seconds::new(86400.0)),
+            crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(0.25),
+        )
+        .with_components(ComponentMask::MOON);
+        let mut context = evaluator.prepare_site_window_context(&query).unwrap();
+        context.astronomy.moon(start, observer);
+        let snapshot = &mut std::sync::Arc::get_mut(&mut context.astronomy)
+            .unwrap()
+            .time_data;
+        // Simulate the stale snapshot without mutating Tempoch's process-global
+        // bundle and contaminating other parallel scientific tests.
+        snapshot.source = if snapshot.source == ActiveTimeDataSource::Override {
+            ActiveTimeDataSource::Bundled
+        } else {
+            ActiveTimeDataSource::Override
+        };
+        assert!(
+            matches!(evaluator.periods_below_threshold_with_context(&context,&query),Err(NsbError::Unsupported(message)) if message.contains("time-data bundle changed"))
+        );
+        assert!(evaluator.periods_below_threshold(&query).is_ok());
     }
 }

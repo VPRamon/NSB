@@ -196,13 +196,15 @@ impl NsbEvaluator {
             |w| prepared_bounds(&prepared, w),
             certified,
         )?;
+        let periods = periods
+            .into_iter()
+            .map(|p| inward_tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
+            .collect::<Result<_>>()?;
+        super::prepare::validate_site_context(self, context, query)?;
         log::trace!("adaptive query costs: {costs:?}");
         Ok(ThresholdQueryResult {
             threshold: query.threshold,
-            periods: periods
-                .into_iter()
-                .map(|p| inward_tt_mjd_period_to_utc(p, prepared.tt_window, query.window))
-                .collect::<Result<_>>()?,
+            periods,
         })
     }
 

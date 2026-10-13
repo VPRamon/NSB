@@ -25,10 +25,11 @@ construction is excluded from library timings. Separate CLI process timings
 include construction, startup, formatting and I/O and require identical before/
 after adaptive CSV bytes.
 
-The host is an Intel Core Ultra 9 185H with 22 logical CPUs. All groups use two
-Rayon workers, with matching CPU affinity for A/B/C within each group: South
-Jones 0,3; North Jones 1,6; North K&S 8,10; South K&S 12,16. The first three pairs
-use performance cores; the last uses efficiency cores. Absolute cross-group
+The host is an Intel Core Ultra 9 185H with 22 logical CPUs. Workers and CPU affinity match A/B/C within each group: South Jones uses two
+workers on 0,3; North Jones two on 1,6; North K&S two on 8,10; South K&S four on
+12,13,16,17. The first three use performance cores; the last uses efficiency
+cores. South K&S retains its complete accepted four-worker A/B baseline from
+the identical preserved executable; the other A/B groups were retimed. Absolute cross-group
 latencies are not directly comparable. Groups share package power, memory and
 LLC; background validation uses other cores. Report medians and observed ranges,
 not a statistically reliable p95 from three samples. Process RSS is cumulative
@@ -70,8 +71,8 @@ Kernel `perf` events are unavailable on this host; timing instrumentation was
 removed from production after profiling.
 
 
-Exact probe attribution for that Jones workload is 133,056 interpolation,
-29,910 independent/interlaced validation, 29,504 endpoint, and 3,281
+Exact probe attribution for that Jones workload is 133,056 Lobatto-grid fit/interlaced-check,
+29,910 independent validation, 29,504 endpoint, and 3,281
 root/derivative/extremum/refinement evaluations. The local cache serves another
 559,238 probe requests. These counts are preserved by the optimization. Shared
 astronomy reduces 294,960 solar/lunar state requests to 54,951 computations;

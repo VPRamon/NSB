@@ -98,6 +98,8 @@ impl ThresholdQuery {
 /// and reuse it for queries that differ only in target, target-altitude floor,
 /// radiance threshold, or sampling step. The planning layer rejects contexts created
 /// by another evaluator or for incompatible site/window/component settings.
+/// Recreate the context after refreshing Tempoch time data. The active time-data
+/// bundle must remain fixed during a query; observed changes fail explicitly.
 #[derive(Clone)]
 pub struct SiteWindowContext {
     pub(crate) evaluator_identity: Arc<()>,

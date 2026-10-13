@@ -44,10 +44,12 @@ physical radiance is cached. The existing Siderust calculation computes each
 miss. Target directions and component radiances still evaluate at the requested
 instant. Caches belong to the context's validated evaluator/site/window identity.
 
-Each astronomical component cache admits at most 131,072 instants. Once full,
+Each astronomical component cache admits at most 100,000 instants. Once full,
 new instants compute normally. Ephemeris work occurs outside the lock; concurrent
 misses can duplicate work without changing outputs. Context clones share the
-cache. Memory and cold-context costs are reported in [performance](adaptive-performance.md).
+cache. Context preparation and query entry/exit check Tempoch time-data identity;
+a refreshed bundle requires a new context. Keep upstream time data fixed while
+a query runs. Memory and cold-context costs are reported in [performance](adaptive-performance.md).
 
 A query admits at most 25,000 physical windows. With
 `C = sum(max(1, ceil(window_days / 0.25)))`, query limits are
