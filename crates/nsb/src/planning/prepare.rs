@@ -8,7 +8,7 @@ use crate::error::{NsbError, Result};
 use crate::evaluator::{ComponentMask, NsbEvaluator};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
 use siderust::bodies::Moon as MoonBody;
-use siderust::coordinates::spherical::direction;
+use siderust::coordinates::{spherical::direction, transform::TransformFrame};
 use siderust::event::altitude::{above_threshold as altitude_above_threshold, SearchOpts};
 use siderust::qtty::Degrees;
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
@@ -31,7 +31,7 @@ pub(crate) fn prepare_site_context(
     query: &ThresholdQuery,
     tt_window: TimePeriod<ModifiedJulianDate>,
 ) -> Result<SiteWindowContext> {
-    let astronomy = Arc::new(super::astronomy::AstronomyCache::default());
+    let astronomy = Arc::new(super::astronomy::AstronomyCache::new(query.observer));
     let uses_airglow = query.components.contains(ComponentMask::AIRGLOW);
     let uses_moon = query.components.contains(ComponentMask::MOON);
     let prepare_nights = || {
@@ -140,7 +140,7 @@ pub(crate) fn prepare_target_threshold(
         BandPhotonRadiance::new(0.0)
     };
     let target_visible_periods = if let Some(target_min) = query.target_altitude_floor {
-        let target_dir = direction::ICRS::new(query.target.ra(), query.target.dec());
+        let target_dir: direction::ICRS = query.target.to_frame();
         altitude_above_threshold(
             &target_dir,
             &query.observer,

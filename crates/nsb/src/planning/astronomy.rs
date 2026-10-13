@@ -22,35 +22,40 @@ impl<T: Copy> Cache<T> {
     fn get(&self, time: Time<UTC>, compute: impl FnOnce() -> T) -> T {
         let (a, b) = time.to::<TT>().to::<JD>().raw_seconds_pair();
         let key = (a.value().to_bits(), b.value().to_bits());
-        if let Some(value) = self.0.read().expect("astronomy cache lock").get(&key) {
-            return *value;
+        if let Ok(cache) = self.0.read() {
+            if let Some(value) = cache.get(&key) {
+                return *value;
+            }
         }
         // Ephemerides run outside the lock; concurrent misses may duplicate
         // work but always compute the same authoritative state.
         let value = compute();
-        let mut cache = self.0.write().expect("astronomy cache lock");
-        if cache.len() < CAPACITY {
-            cache.entry(key).or_insert(value);
+        // The cache is optional: a poisoned lock bypasses reuse, never physics.
+        if let Ok(mut cache) = self.0.write() {
+            if cache.len() < CAPACITY {
+                cache.entry(key).or_insert(value);
+            }
         }
         value
     }
 }
 #[derive(Debug)]
 pub(crate) struct AstronomyCache {
+    observer: Observer,
     time_data: tempoch::TimeDataStatus,
     solar: Cache<Radians>,
     moon: Cache<MoonlightSky>,
 }
-impl Default for AstronomyCache {
-    fn default() -> Self {
+impl AstronomyCache {
+    pub fn new(observer: Observer) -> Self {
         Self {
+            observer,
             time_data: tempoch::time_data_status(),
             solar: Cache::default(),
             moon: Cache::default(),
         }
     }
-}
-impl AstronomyCache {
+
     pub fn validate_time_data(&self) -> crate::Result<()> {
         if self.time_data != tempoch::time_data_status() {
             return Err(crate::NsbError::Unsupported("time-data bundle changed; prepare a new site window context; no partial schedule returned".into()));
@@ -63,8 +68,9 @@ impl AstronomyCache {
             Sun::ecliptic_longitude_geocentric(time.to::<TT>().to::<JD>())
         })
     }
-    pub fn moon(&self, time: Time<UTC>, observer: Observer) -> MoonlightSky {
-        self.moon.get(time, || MoonlightSky::at(time, observer))
+    pub fn moon(&self, time: Time<UTC>) -> MoonlightSky {
+        self.moon
+            .get(time, || MoonlightSky::at(time, self.observer))
     }
 }
 
@@ -99,6 +105,24 @@ mod tests {
         assert_eq!(cache.get(a + Seconds::new(CAPACITY as f64 + 2.0), || 4), 4);
     }
     #[test]
+    fn poisoned_cache_bypasses_reuse_and_keeps_authoritative_computation() {
+        let cache = Cache::default();
+        let time = Time::<TT>::try_from_raw_j2000_seconds_split(
+            siderust::qtty::Seconds::new(800_000_000.0),
+            siderust::qtty::Seconds::new(0.0),
+        )
+        .unwrap()
+        .to::<UTC>();
+        assert_eq!(cache.get(time, || 1), 1);
+        let _ = std::panic::catch_unwind(|| {
+            let _guard = cache.0.write().unwrap();
+            panic!("simulate a failed cache write");
+        });
+        assert_eq!(cache.get(time, || 2), 2);
+        assert_eq!(cache.get(time, || 3), 3);
+    }
+
+    #[test]
     fn reused_context_rejects_a_changed_time_data_snapshot() {
         use crate::{ComponentMask, NsbError, NsbEvaluator, Target, ThresholdQuery, DEG};
         use tempoch::{ActiveTimeDataSource, Period};
@@ -117,7 +141,7 @@ mod tests {
         )
         .with_components(ComponentMask::MOON);
         let mut context = evaluator.prepare_site_window_context(&query).unwrap();
-        context.astronomy.moon(start, observer);
+        context.astronomy.moon(start);
         let snapshot = &mut std::sync::Arc::get_mut(&mut context.astronomy)
             .unwrap()
             .time_data;

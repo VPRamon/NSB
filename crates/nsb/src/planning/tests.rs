@@ -397,6 +397,15 @@ fn site_context_rejects_another_evaluator_or_incompatible_site_state() {
     assert!(evaluator
         .periods_below_threshold_with_context(&context, &incompatible)
         .is_err());
+    // A populated context cannot carry observer-dependent Moon state to a
+    // different site, even when all other query settings match.
+    context.astronomy.moon(query.window.start);
+    incompatible = query.clone();
+    incompatible.observer = high_arctic();
+    assert!(matches!(
+        evaluator.periods_below_threshold_with_context(&context, &incompatible),
+        Err(crate::NsbError::OutOfRange(_))
+    ));
 }
 
 #[test]
@@ -420,7 +429,8 @@ fn target_visibility_matches_precise_altitude_scan_across_regimes() {
         .with_target_altitude_floor(Some(Degrees::new(floor)));
         let tt_window = utc_period_to_tt_mjd(query.window);
         let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
-        let direction = direction::ICRS::new(target.ra(), target.dec());
+        let direction: direction::ICRS =
+            siderust::coordinates::transform::TransformFrame::to_frame(&target);
         let exact_altitude = |time: ModifiedJulianDate| -> Result<Degrees> {
             Ok(direction.altitude_at(&observer, time).to::<Degree>())
         };
@@ -453,7 +463,8 @@ fn grazing_target_excursion_between_four_hour_samples_is_not_pruned() {
         Meters::new(2_147.0),
     );
     let target = Target::new(0.0 * crate::DEG, 45.0 * crate::DEG);
-    let target_dir = direction::ICRS::new(target.ra(), target.dec());
+    let target_dir: direction::ICRS =
+        siderust::coordinates::transform::TransformFrame::to_frame(&target);
     let floor = Degrees::new(20.0);
     let day_start = tt_time(parse("2026-01-01T00:00:00Z"));
 
@@ -658,4 +669,93 @@ fn threshold_moon_context_skips_only_moon_down_samples() {
 
     assert!(checked_down, "test window should include Moon-down samples");
     assert!(checked_up, "test window should include Moon-up samples");
+}
+
+#[test]
+fn split_precision_partitions_keep_distinct_edges_and_interval_order() {
+    let evaluator = NsbEvaluator::new().unwrap();
+    let start = parse("2026-01-01T00:00:00Z");
+    let query = ThresholdQuery::new(
+        paranal(),
+        target_sgr_a(),
+        Period::new(start, start + Second::new(1.0)),
+        BandPhotonRadiance::new(0.0),
+    )
+    .with_components(ComponentMask::MOON)
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(None);
+    let tt = utc_period_to_tt_mjd(query.window);
+    let mut prepared = prepare_threshold(&evaluator, &query, tt).unwrap();
+    let a = tt.start + Second::new(1e-9).to::<Day>();
+    let b = tt.start + Second::new(3e-9).to::<Day>();
+    assert!(a < b);
+    assert_eq!(a.raw().value(), b.raw().value());
+    prepared.moon_visible_periods = Some(std::sync::Arc::from(vec![TimePeriod::new(a, b)]));
+    let windows = super::filters::threshold_windows(&prepared, false);
+    assert_eq!(
+        windows,
+        vec![
+            TimePeriod::new(tt.start, a),
+            TimePeriod::new(a, b),
+            TimePeriod::new(b, tt.end)
+        ]
+    );
+    let mut periods = vec![
+        TimePeriod::new(b, b + Second::new(1e-9).to::<Day>()),
+        TimePeriod::new(tt.start, a),
+    ];
+    coalesce_periods(&mut periods);
+    assert_eq!(periods.len(), 2);
+    assert_eq!(periods[0].start, tt.start);
+}
+
+#[test]
+fn target_eligibility_uses_the_upstream_frame_transformation() {
+    use siderust::coordinates::transform::TransformFrame;
+    let evaluator = NsbEvaluator::new().unwrap();
+    let start = parse("2026-01-01T00:00:00Z");
+    let target = target_sgr_a();
+    let query = ThresholdQuery::new(
+        paranal(),
+        target,
+        Period::new(start, start + Second::new(86400.0)),
+        BandPhotonRadiance::new(0.0),
+    )
+    .with_components(ComponentMask::empty())
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(Some(Degrees::new(20.0)));
+    let tt = utc_period_to_tt_mjd(query.window);
+    let prepared = prepare_threshold(&evaluator, &query, tt).unwrap();
+    let icrs: direction::ICRS = target.to_frame();
+    let expected = siderust_above_threshold(
+        &icrs,
+        &query.observer,
+        tt,
+        Degrees::new(20.0),
+        SearchOpts::default(),
+    );
+    assert_eq!(prepared.candidate_windows, expected);
+}
+
+#[test]
+fn native_search_can_partition_a_window_starting_in_a_leap_second() {
+    let evaluator = NsbEvaluator::new().unwrap();
+    let start = parse("2016-12-31T23:59:60Z");
+    let query = ThresholdQuery::new(
+        paranal(),
+        target_sgr_a(),
+        Period::new(start, start + Second::new(2.0)),
+        BandPhotonRadiance::new(1e6),
+    )
+    .with_components(ComponentMask::MOON)
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(None);
+    let result = evaluator.periods_below_threshold(&query).unwrap();
+    for period in result.periods {
+        assert!(
+            query.window.start <= period.start
+                && period.start < period.end
+                && period.end <= query.window.end
+        );
+    }
 }

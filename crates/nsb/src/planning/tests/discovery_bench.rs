@@ -25,7 +25,8 @@ fn run(
     let started = Instant::now();
     // Each measured schedule starts with an empty astronomical cache.
     let mut fresh_context = context.clone();
-    fresh_context.astronomy = std::sync::Arc::default();
+    fresh_context.astronomy =
+        std::sync::Arc::new(super::astronomy::AstronomyCache::new(context.observer));
     let context = &fresh_context;
     let mut costs = Costs::default();
     let mut output = Vec::new();

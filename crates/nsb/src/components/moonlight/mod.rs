@@ -18,8 +18,7 @@ use crate::site::{AtmosphericConditions, SiteProfileConfig};
 use crate::spectra::solar;
 use crate::units::angular::{Degree, Degrees, Radian, Radians};
 use crate::units::radiometry::{
-    self, spectral_radiance_to_photon_radiance_ns_nm,
-    PhotonsPerSquareCentimeterNanosecondSteradian, WattsPerSquareMeterSteradianNanometer,
+    self, spectral_radiance_to_photon_radiance_ns_nm, PhotonsPerSquareCentimeterNanosecondSteradian,
 };
 use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
@@ -36,7 +35,9 @@ use siderust::coordinates::transform::TransformFrame;
 use siderust::ephemeris::{Ephemeris, Vsop87Ephemeris};
 use siderust::event::horizontal;
 use siderust::event::horizontal::star_horizontal;
-use siderust::qtty::{AstronomicalUnit, IlluminationFractions, Kilometer, Kilometers, Nanometers};
+use siderust::qtty::{
+    AstronomicalUnit, AstronomicalUnits, IlluminationFractions, Kilometer, Kilometers, Nanometers,
+};
 use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
 use std::sync::OnceLock;
 use tempoch::{Time, JD, TT, UTC};
@@ -119,6 +120,23 @@ struct MoonlightGeometry {
     moon_distance: Kilometers,
 }
 
+impl MoonlightGeometry {
+    fn validate(&self) -> Result<()> {
+        if !self.separation.is_finite()
+            || !self.moon_zenith.is_finite()
+            || !self.source_zenith.is_finite()
+            || !self.phase.phase_angle.is_finite()
+            || !self.moon_distance.is_finite()
+            || self.moon_distance <= Kilometers::new(0.0)
+        {
+            return Err(crate::NsbError::OutOfRange(
+                "invalid Moonlight geometry".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct MoonOutputs {
     pub(crate) integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian,
@@ -175,15 +193,18 @@ fn lunar_sky_from_position(
     }
 }
 
+/// Geocentric J2000 Sun–Moon–Earth triangle, matching Siderust 0.14
+/// `moon_phase_geocentric`. Its public API cannot accept the Moon position
+/// already computed for topocentric geometry; repeating that ephemeris here
+/// would undo exact-state reuse. The Vincenty separation, law of cosines,
+/// eastward elongation and waxing convention follow that pinned implementation.
 fn phase_from_position(
     jd: siderust::time::JulianDate,
     moon: &cartesian::Position<Geocentric, EclipticMeanJ2000, Kilometer>,
 ) -> MoonPhaseGeometry {
-    const AU_KM: f64 = 149_597_870.7;
     let moon_spherical = moon.to_spherical();
     let moon_lon = moon_spherical.azimuth.to::<Radian>();
     let moon_lat = moon_spherical.polar.to::<Radian>();
-    let moon_distance_km = moon_spherical.distance.value();
 
     let earth: cartesian::Position<
         siderust::coordinates::centers::Heliocentric,
@@ -207,7 +228,9 @@ fn phase_from_position(
     let elongation_angle = cross.atan2(dot);
     let signed_elongation = delta_lon.rem_euclid(std::f64::consts::TAU);
 
-    let moon_distance_au = moon_distance_km / AU_KM;
+    // Same division as the upstream triangle kernel, with Qtty providing
+    // the exact AU scale rather than copying a physical conversion factor.
+    let moon_distance_au = moon_spherical.distance / AstronomicalUnits::new(1.0).to::<Kilometer>();
     let sun_moon_distance = (sun_distance_au * sun_distance_au
         + moon_distance_au * moon_distance_au
         - 2.0 * sun_distance_au * moon_distance_au * elongation_angle.cos())
@@ -242,6 +265,67 @@ fn zero_outputs() -> MoonOutputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn non_finite_lunar_states_are_errors_for_both_models() {
+        let time = Time::<UTC>::from_chrono("2026-01-14T01:00:00Z".parse().unwrap());
+        let observer = siderust::catalogs::observatories::EL_PARANAL.geodetic();
+        let target = crate::Target::new(Degrees::new(83.6331), Degrees::new(22.0145));
+        for model in [
+            MoonlightModel::Jones2013Spectral,
+            MoonlightModel::KrisciunasSchaefer1991,
+        ] {
+            let evaluator = crate::NsbEvaluator::with_config(
+                crate::NsbModelConfig::generic_clear_sky().with_moonlight_model(model),
+            )
+            .unwrap();
+            for field in 0..3 {
+                let mut sky = MoonlightSky::at(time, observer);
+                match field {
+                    0 => sky.phase.phase_angle = Radians::new(f64::NAN),
+                    1 => sky.distance = Kilometers::new(f64::INFINITY),
+                    _ => sky.moon_zenith = Degrees::new(f64::NAN),
+                }
+                assert!(
+                    matches!(
+                        evaluator.evaluate_moonlight_with_sky(observer, time, target, &sky),
+                        Err(crate::NsbError::OutOfRange(_))
+                    ),
+                    "{model:?} field {field}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn reused_geocentric_phase_matches_upstream_through_a_full_lunation() {
+        let start = Time::<UTC>::from_chrono("2026-01-01T00:00:00Z".parse().unwrap());
+        let mut phase_range = (f64::INFINITY, f64::NEG_INFINITY);
+        let mut waxing = [false; 2];
+        for hour in 0..=31 * 24 {
+            let jd = (start
+                + siderust::qtty::Hours::new(hour as f64).to::<siderust::qtty::unit::Second>())
+            .to::<TT>()
+            .to::<JD>();
+            let position = Vsop87Ephemeris::moon_geocentric(jd);
+            let actual = phase_from_position(jd, &position);
+            let expected = siderust::moon_phase_geocentric::<Vsop87Ephemeris>(jd);
+            assert!((actual.phase_angle - expected.phase_angle).abs() < Radians::new(1e-12));
+            assert!(
+                (actual.illuminated_fraction - expected.illuminated_fraction)
+                    .value()
+                    .abs()
+                    < 1e-12
+            );
+            assert_eq!(actual.elongation, expected.elongation);
+            assert_eq!(actual.waxing, expected.waxing);
+            phase_range.0 = phase_range.0.min(actual.phase_angle.value());
+            phase_range.1 = phase_range.1.max(actual.phase_angle.value());
+            waxing[usize::from(actual.waxing)] = true;
+        }
+        assert!(phase_range.0 < 0.1 && phase_range.1 > 3.0);
+        assert_eq!(waxing, [true, true]);
+    }
+
     fn lunar_geometry(
         time: Time<UTC>,
         location: Geodetic<ECEF>,

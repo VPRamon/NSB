@@ -24,7 +24,11 @@ pub(crate) fn coalesce_periods(periods: &mut Vec<TimePeriod<ModifiedJulianDate>>
         return;
     }
 
-    periods.sort_by(|lhs, rhs| lhs.start.raw().value().total_cmp(&rhs.start.raw().value()));
+    periods.sort_by(|lhs, rhs| {
+        lhs.start
+            .partial_cmp(&rhs.start)
+            .expect("finite TT instants")
+    });
     let mut out: Vec<TimePeriod<ModifiedJulianDate>> = Vec::with_capacity(periods.len());
     for period in periods.drain(..) {
         if let Some(last) = out.last_mut() {

@@ -57,7 +57,7 @@ pub(crate) fn evaluate_integrated(
             .as_ref()
             .is_none_or(|periods| super::filters::contains_time(periods, mjd_tt));
         if moon_visible {
-            let sky = prepared.astronomy.moon(time, prepared.observer);
+            let sky = prepared.astronomy.moon(time);
             let out = evaluator.evaluate_moonlight_with_sky(
                 prepared.observer,
                 time,

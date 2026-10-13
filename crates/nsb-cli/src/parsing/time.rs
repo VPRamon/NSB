@@ -7,7 +7,8 @@ use tempoch::{Time, UTC};
 pub fn parse_utc(input: &str) -> Result<Time<UTC>> {
     let dt = DateTime::parse_from_rfc3339(input)
         .with_context(|| format!("invalid UTC RFC3339 timestamp: {input:?}"))?;
-    Ok(Time::<UTC>::from_chrono(dt.with_timezone(&Utc)))
+    Time::<UTC>::try_from_chrono(dt.with_timezone(&Utc))
+        .with_context(|| format!("unsupported UTC timestamp: {input:?}"))
 }
 
 pub fn format_utc(time: Time<UTC>) -> String {
@@ -59,4 +60,14 @@ pub fn inward_periods(periods: Vec<tempoch::Period<UTC>>) -> Result<Vec<tempoch:
             Ok(result)
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn unsupported_utc_history_returns_a_parse_error() {
+        assert!(parse_utc("1950-01-01T00:00:00Z").is_err());
+        assert!(parse_utc("2016-12-31T23:59:60Z").is_ok());
+    }
 }

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-//! Candidate-window smoothing and airglow phase helpers for threshold search.
+//! Physical regime partitions and eligibility edges for numerical discovery.
 
 use super::types::PreparedThresholdQuery;
 use crate::components::airglow;
@@ -13,8 +13,7 @@ pub(crate) fn adaptive_threshold_windows(
     prepared: &PreparedThresholdQuery,
 ) -> crate::Result<Vec<TimePeriod<ModifiedJulianDate>>> {
     use super::intervals::{tt_mjd_to_utc_time, utc_time_to_tt_mjd};
-    use chrono::Timelike;
-    use siderust::coordinates::spherical::direction;
+    use siderust::coordinates::{spherical::direction, transform::TransformFrame};
     use siderust::event::altitude::{above_threshold, SearchOpts};
     let mut windows = threshold_windows(prepared, false);
     if prepared
@@ -26,8 +25,9 @@ pub(crate) fn adaptive_threshold_windows(
     }
     // Source and Moonlight have a physical horizon branch even if the caller
     // clears the visibility filter or requests a negative altitude floor.
+    let target_icrs: direction::ICRS = prepared.target.to_frame();
     let horizon = above_threshold(
-        &direction::ICRS::new(prepared.target.ra(), prepared.target.dec()),
+        &target_icrs,
         &prepared.observer,
         prepared.tt_window,
         crate::units::angular::Degrees::new(0.0),
@@ -45,11 +45,9 @@ pub(crate) fn adaptive_threshold_windows(
             crate::NsbError::Unsupported("adaptive calendar partition is not representable".into())
         })?;
     let mut day = start
-        .with_hour(0)
-        .and_then(|d| d.with_minute(0))
-        .and_then(|d| d.with_second(0))
-        .and_then(|d| d.with_nanosecond(0))
-        .unwrap();
+        .date_naive()
+        .and_time(chrono::NaiveTime::MIN)
+        .and_utc();
     while day < end {
         cuts.push(utc_time_to_tt_mjd(
             tempoch::Time::<tempoch::UTC>::from_chrono(day),
@@ -71,7 +69,7 @@ pub(crate) fn adaptive_threshold_windows(
     if prepared.components.contains(ComponentMask::ZODIACAL) {
         cuts.extend(zodiacal_boundaries(prepared)?);
     }
-    cuts.sort_by(|a, b| a.raw().value().total_cmp(&b.raw().value()));
+    cuts.sort_by(|a, b| a.partial_cmp(b).expect("finite TT instants"));
     cuts.dedup();
     let mut out = Vec::new();
     for window in windows.drain(..) {
@@ -109,16 +107,18 @@ fn zodiacal_boundaries(
             (lon + delta).rem_euclid(360.0),
         ]);
     }
-    let solar = |t: f64| {
+    // Root coordinates are elapsed TT days, never a flattened absolute MJD.
+    let origin = prepared.tt_window.start;
+    let solar = |offset_days: f64| {
         Sun::ecliptic_longitude_geocentric(
-            tempoch::Time::<tempoch::TT>::from(ModifiedJulianDate::new(t)).to::<tempoch::JD>(),
+            (origin + siderust::qtty::Days::new(offset_days)).to::<tempoch::JD>(),
         )
         .value()
         .to_degrees()
     };
     let mut out = Vec::new();
-    let mut a = prepared.tt_window.start.raw().value();
-    let end = prepared.tt_window.end.raw().value();
+    let mut a = 0.0;
+    let end = prepared.tt_window.length().value();
     while a < end {
         let b = (a + 1.0).min(end);
         let base = solar(a);
@@ -143,7 +143,7 @@ fn zodiacal_boundaries(
                         hi = mid;
                     }
                 }
-                out.push(ModifiedJulianDate::new(lo + (hi - lo) * 0.5));
+                out.push(origin + siderust::qtty::Days::new(lo + (hi - lo) * 0.5));
             }
         }
         a = b;
@@ -196,9 +196,8 @@ pub(super) fn threshold_windows(
             }
         }
 
-        boundaries.sort_by(|lhs, rhs| lhs.raw().value().total_cmp(&rhs.raw().value()));
-        boundaries
-            .dedup_by(|lhs, rhs| (lhs.raw().value() - rhs.raw().value()).abs() <= f64::EPSILON);
+        boundaries.sort_by(|lhs, rhs| lhs.partial_cmp(rhs).expect("finite TT instants"));
+        boundaries.dedup();
         for pair in boundaries.windows(2) {
             let start = pair[0];
             let end = pair[1];
