@@ -62,3 +62,11 @@ The workspace's normal test profile enables optimization level 1 and debug
 assertions. Every sample and assertion also runs under the required normal
 workspace test command. Synthetic Starlight fixtures used by tests/benchmarks
 are not admitted or packaged as production scientific assets.
+
+
+The matrix starts with each site's/model's annual 100-target workload, then
+executes the remaining 50 cases. Progress messages occur outside the timed
+search calls. Keep logs on persistent storage (for example
+`target/acceptance-pr235/`) rather than `/tmp` if runs may span a restart.
+Observed native UTC boundary errors and exact endpoint checks for the 64-case
+physical corpus are in [boundary accuracy](boundary-accuracy.md).

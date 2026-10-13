@@ -1,14 +1,14 @@
 # Validation record
 
-Measured on 2026-10-12. The production engine is commit `3c14f03`; subsequent
-commits add independent discrepancy regressions, benchmark comparison/reporting
-and the practical default test profile. The integrated physical component
+Recorded on 2026-10-12/13 (UTC); later checks are 2026-10-13 in Europe/Andorra. The successful discovery algorithm was established in commit `3c14f03`; subsequent
+commits add deterministic error selection, discrepancy regressions, benchmark
+comparison/reporting, test-layout cleanup and the practical default test profile. The integrated physical component
 formulas and spectral integration code are unchanged.
 
 | Gate | Result |
 | --- | --- |
 | `cargo test --workspace --all-targets --locked` | 883 passed, zero failures across 48 test binaries; seven explicitly ignored benchmark/tooling cases run separately where relevant. Default test profile: optimization 1, debug assertions enabled. |
-| Release `planning::discovery_tests` | 20 passed, zero failures. |
+| Release `planning::discovery_tests` | 21 passed, zero failures; the separate 64-case boundary export also passed. |
 | All-feature Clippy (`--workspace --lib --bins --tests --examples --locked -- -D warnings`) | Passed. |
 | Workspace library/binary check and NSB no-default-feature check | Passed locally and in CI. |
 | Rust 1.89 workspace check | Passed; local all-feature check also passed. |

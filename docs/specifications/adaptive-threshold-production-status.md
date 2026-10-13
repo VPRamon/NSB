@@ -361,3 +361,13 @@ retained. Historical reports retain their recorded commit references. Test-only
 modules now reside in the established `planning/tests/` layout with explicit
 `cfg(test)` module registration. They remain part of ordinary test execution;
 no coverage floor, LCOV exclusion or production API policy is changed.
+
+### Deterministic error selection
+
+Rayon's `Result` collector retains the first error observed by its workers.
+A delayed failure in the first physical window could therefore lose to a later
+window's error. A permanent one/two/four-worker regression reproduced that
+behavior. Batches now collect indexed per-window results and propagate errors
+in physical-window order. Successful fitted schedules, model calls and budgets
+are unchanged; a failed query may finish its already bounded batch, and still
+returns no partial schedule.

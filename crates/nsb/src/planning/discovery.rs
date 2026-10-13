@@ -551,8 +551,12 @@ where
                     search_band(window, maximum, minimum, &exact, bound, limits)
                 }
             })
-            .collect::<Result<Vec<_>>>()?;
-        for (part, c) in parts {
+            // Result's Rayon collector returns whichever error wins a mutex.
+            // Preserve indexed physical order, then select errors sequentially.
+            // All work in this batch remains bounded by its assigned limits.
+            .collect::<Vec<_>>();
+        for part in parts {
+            let (part, c) = part?;
             remaining_exact -= c.exact;
             remaining_fits -= c.fits;
             total.exact += c.exact;

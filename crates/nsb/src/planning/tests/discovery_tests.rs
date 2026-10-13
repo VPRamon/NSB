@@ -1291,3 +1291,48 @@ fn physical_boundary_accuracy_reference() {
         }
     }
 }
+
+#[test]
+fn adaptive_parallel_errors_follow_physical_window_order() {
+    let windows = [
+        Interval::new(Mjd::new(60000.0), Mjd::new(60000.01)),
+        Interval::new(Mjd::new(60001.0), Mjd::new(60001.01)),
+    ];
+    for threads in [1, 2, 4] {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build()
+            .unwrap();
+        let error = pool
+            .install(|| {
+                discovery::search_windows(
+                    &windows,
+                    Radiance::new(0.5),
+                    None,
+                    |time| {
+                        let first = time < Mjd::new(60000.5);
+                        if first {
+                            // The later physical window fails sooner. Error identity
+                            // must not depend on which Rayon worker wins a mutex.
+                            std::thread::sleep(std::time::Duration::from_millis(20));
+                        }
+                        Err(crate::NsbError::OutOfRange(
+                            if first {
+                                "first physical window"
+                            } else {
+                                "second physical window"
+                            }
+                            .into(),
+                        ))
+                    },
+                    |_| Ok(BoundOutcome::Unsupported),
+                    false,
+                )
+            })
+            .unwrap_err();
+        assert!(
+            error.to_string().contains("first physical window"),
+            "{threads} workers selected {error}"
+        );
+    }
+}

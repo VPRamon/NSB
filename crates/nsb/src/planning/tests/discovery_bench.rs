@@ -394,7 +394,9 @@ fn measure(
     assert!(repeats >= 3);
     let mut old_times = Vec::new();
     let mut new_times = Vec::new();
+    println!("DISCOVERY_PHASE {label}: scan warmup");
     let mut old = run(&evaluator, &context, &queries, false, 600.0);
+    println!("DISCOVERY_PHASE {label}: adaptive warmup");
     let mut new = run(&evaluator, &context, &queries, true, 600.0);
     for i in 0..repeats {
         for adaptive in if i % 2 == 0 {
@@ -403,15 +405,18 @@ fn measure(
             [true, false]
         } {
             if adaptive {
+                println!("DISCOVERY_PHASE {label}: adaptive repetition {}", i + 1);
                 new = run(&evaluator, &context, &queries, true, 600.0);
                 new_times.push(new.0);
             } else {
+                println!("DISCOVERY_PHASE {label}: scan repetition {}", i + 1);
                 old = run(&evaluator, &context, &queries, false, 600.0);
                 old_times.push(old.0);
             }
         }
     }
     let fine_step = if targets >= 10 { 120.0 } else { 30.0 };
+    println!("DISCOVERY_PHASE {label}: independent fine reference");
     let fine = run(&evaluator, &context, &queries, false, fine_step);
     let mut coarse_disagreements = 0;
     let mut fine_artifacts = 0;
@@ -482,6 +487,18 @@ fn complete_adaptive_schedule_matrix() {
                 if north { "north" } else { "south" },
                 moon.as_str()
             );
+            // Establish the largest required usable workload first. Timers
+            // still warm up each engine independently within every scenario.
+            measure(
+                &format!("{prefix}/batch/365d/100"),
+                north,
+                moon,
+                365,
+                ComponentMask::ALL.bits(),
+                100,
+                0.25,
+                "2026-01-01T00:00:00Z",
+            );
             for days in [1, 7, 30, 365] {
                 for (name, bits) in [
                     ("starlight", 2),
@@ -517,6 +534,9 @@ fn complete_adaptive_schedule_matrix() {
             }
             for days in [1, 7, 30, 365] {
                 for targets in [10, 100] {
+                    if days == 365 && targets == 100 {
+                        continue;
+                    }
                     measure(
                         &format!("{prefix}/batch/{days}d/{targets}"),
                         north,
