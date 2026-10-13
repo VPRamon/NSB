@@ -3,9 +3,10 @@
 The complete 204-case three-way matrix passes. Annual 100-target schedules are
 59–69% faster than the reviewed adaptive implementation and 0.76–1.00 times the
 original scan600 latency. Cold single-target searches remain substantially slower:
-the four annual CLI cases cost 1.55–1.79 times scan600. PR #235 remains Draft
-pending explicit maintainer acceptance of that remaining performance compromise.
-Authorization to change the default within 0.1 does not accept this tradeoff.
+the four annual CLI cases cost 1.55–1.79 times scan600. On 2026-10-13 the maintainer
+explicitly accepted this measured remaining performance compromise and authorized
+Ready for Review after final CI passes. The acceptance is separate from the
+authorization to change the default within 0.1.
 
 ## Measurement contract
 
@@ -168,8 +169,9 @@ reference, including the opposite-aliasing regression. Removing those probes
 would invalidate demonstrated coverage. No cheaper equivalent-coverage algorithm
 has been established in this pass; this is evidence for the cost, not a proof
 that the overhead is unavoidable. Adaptive remains empirical rather than
-universally complete. The maintainer must explicitly accept the substantial
-single-target compromise before the PR becomes ready.
+universally complete. The maintainer explicitly accepted this
+measured single-target compromise on 2026-10-13; the limitation remains part of
+the production contract.
 
 ## Release validation
 
@@ -185,7 +187,8 @@ bypassing policy. Siderust remains 0.14.0 with Tempoch 0.10.0 and Principia 0.6.
 
 Fresh coverage is workspace 88.36%, NSB 92.84%, and changed production 94.78%
 (926/977 executable lines), above unchanged 80/87/90% floors. Draft CI skips its
-conditional coverage job; local coverage supplies the measured gate. GitHub
+conditional coverage job; local coverage supplies the measured gate, and moving
+to Ready for Review triggers the CI coverage job. GitHub
 Actions also validates Linux/macOS/Windows abi3 wheels. See PR #235 for checks
 on the final evidence commit; no source changes follow these measurements.
 
