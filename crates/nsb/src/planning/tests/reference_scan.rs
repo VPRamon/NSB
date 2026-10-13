@@ -65,8 +65,6 @@ where
     Ok(periods)
 }
 
-pub(crate) use above_threshold_periods as authoritative_above_threshold_periods;
-
 pub(crate) fn complement_periods(
     window: TimePeriod<ModifiedJulianDate>,
     periods: &[TimePeriod<ModifiedJulianDate>],

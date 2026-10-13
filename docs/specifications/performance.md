@@ -24,3 +24,31 @@ enclosures; active dynamic models remain unsupported by that stronger contract.
 See the [adaptive search contract](adaptive-search.md),
 [scientific validation](adaptive-validation.md), and
 [production measurements](adaptive-performance.md).
+
+## Performance-neutral implementation rules
+
+- Bundled and external production Starlight maps use the same canonical
+  admission checks: sidecar validation, checksum/header verification, HEALPix
+  geometry validation, finite value/uncertainty validation, flux conservation,
+  and map diagnostics.
+- Airglow threshold evaluation may use allocation-free integrated scalar paths
+  only when equivalence tests cover the supported domain.
+- Resolved F10.7 values may be cached by stable UTC date; issue/retrieval
+  transition dates bypass unsafe reuse.
+- A `SiteWindowContext` may be reused across targets and thresholds when its
+  invariant fields match. Exact ephemeris reuse must preserve the original
+  instant and model state.
+- Astronomical event finding remains in Siderust. Adaptive fits require
+  authoritative validation and cannot substitute for interval certificates.
+
+## General benchmark commands
+
+```bash
+cargo bench -p nsb --bench threshold_window
+cargo bench -p nsb --bench airglow_geometry
+```
+
+Normal CI compiles and smoke-runs benchmark binaries through
+`cargo test --workspace --all-targets --locked`; the full adaptive acceptance
+matrix is an explicit release run. Current adaptive measurements replace the
+historical scanner timings retained in Git.

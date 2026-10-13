@@ -69,6 +69,29 @@ reducing scientific validation effort or introducing approximate ephemerides.
 Kernel `perf` events are unavailable on this host; timing instrumentation was
 removed from production after profiling.
 
+
+Exact probe attribution for that Jones workload is 133,056 interpolation,
+29,910 independent/interlaced validation, 29,504 endpoint, and 3,281
+root/derivative/extremum/refinement evaluations. The local cache serves another
+559,238 probe requests. These counts are preserved by the optimization. Shared
+astronomy reduces 294,960 solar/lunar state requests to 54,951 computations;
+K&S uses 52,578 computations for 294,876 state requests. Starlight remains a
+once-per-target preparation value, with no per-node physical recalculation.
+
+Instrumented cold-context execution on efficiency cores scales from 59.85 /
+49.50 seconds with one worker to 32.63 / 29.57 with two and 21.23 / 17.65 with
+four (Jones / K&S). Target preparation and physical partitioning remain serial
+between targets, limiting scaling. These diagnostic runs locate costs; the
+matched-worker release matrix supplies production comparisons.
+
+A glibc allocation interposer measured a cold annual South/Jones CLI process:
+scan600 made 584,088 allocation/reallocation calls requesting 319,308,636 bytes;
+adaptive before made 1,150,997 calls requesting 685,792,377 bytes; optimized
+adaptive made 1,151,025 calls requesting 690,085,129 bytes. Requested bytes are
+cumulative allocation traffic, not peak live memory. The 28 extra calls and
+4,292,752 extra requested bytes reflect context-cache storage. Before/after
+adaptive CSV bytes are identical. Per-scenario RSS is reported separately.
+
 ## Reproduction
 
 Preserve the release test executable from commit `954817f` before building the

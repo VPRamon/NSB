@@ -102,9 +102,7 @@ pub(crate) fn inward_tt_mjd_period_to_utc(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::planning::reference_scan::{
-        above_threshold_periods, authoritative_above_threshold_periods, CROSSING_TOLERANCE,
-    };
+    use crate::planning::reference_scan::{above_threshold_periods, CROSSING_TOLERANCE};
     use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
     use siderust::qtty::Days;
 
@@ -146,7 +144,7 @@ mod tests {
 
         let f =
             |time: ModifiedJulianDate| Ok(BandPhotonRadiance::new(time.raw().value() - 60_000.0));
-        let periods = authoritative_above_threshold_periods(window, step, &f, threshold).unwrap();
+        let periods = above_threshold_periods(window, step, &f, threshold).unwrap();
 
         assert_eq!(periods.len(), 1);
         assert!((periods[0].start.raw().value() - 60_000.5).abs() <= CROSSING_TOLERANCE.value());
@@ -168,16 +166,19 @@ mod tests {
             Ok(BandPhotonRadiance::new(value))
         };
 
-        let authoritative =
-            authoritative_above_threshold_periods(window, step, &exact, threshold).unwrap();
-        let exact_scan = above_threshold_periods(window, step, &exact, threshold).unwrap();
-
+        let actual = above_threshold_periods(window, step, &exact, threshold).unwrap();
         assert_eq!(
-            exact_scan.len(),
+            actual.len(),
             1,
-            "the exact oracle must resolve the bump"
+            "the independent oracle must resolve the bump"
         );
-        assert_eq!(authoritative, exact_scan);
+        let radius = (0.5_f64 / 2500.0).sqrt();
+        for (boundary, expected) in [
+            (actual[0].start, 60000.25 - radius),
+            (actual[0].end, 60000.25 + radius),
+        ] {
+            assert!((boundary.raw().value() - expected).abs() <= CROSSING_TOLERANCE.value());
+        }
     }
 
     #[test]
@@ -190,11 +191,9 @@ mod tests {
         };
 
         let below_max =
-            authoritative_above_threshold_periods(window, step, &f, BandPhotonRadiance::new(0.999))
-                .unwrap();
+            above_threshold_periods(window, step, &f, BandPhotonRadiance::new(0.999)).unwrap();
         let above_max =
-            authoritative_above_threshold_periods(window, step, &f, BandPhotonRadiance::new(1.001))
-                .unwrap();
+            above_threshold_periods(window, step, &f, BandPhotonRadiance::new(1.001)).unwrap();
 
         assert_eq!(below_max.len(), 1);
         assert!(below_max[0].start < ModifiedJulianDate::new(60_000.5));

@@ -22,7 +22,7 @@ fn seconds(t: Mjd) -> f64 {
 fn adaptive_resolves_close_pair_that_600_second_scan_misses() {
     let w = extent();
     let f = |t| Ok(Radiance::new(1.0 - (seconds(t) - 271.25).powi(2) / 4.0));
-    let old = super::reference_scan::authoritative_above_threshold_periods(
+    let old = super::reference_scan::above_threshold_periods(
         w,
         Days::new(600.0 / 86400.0),
         &f,
@@ -55,16 +55,14 @@ fn adaptive_subdivision_finds_narrow_grazing_excursion_of_smooth_peak() {
         ))
     };
     let threshold = Radiance::new(0.9999);
-    assert!(
-        super::reference_scan::authoritative_above_threshold_periods(
-            extent(),
-            Days::new(600.0 / 86400.0),
-            &f,
-            threshold
-        )
-        .unwrap()
-        .is_empty()
-    );
+    assert!(super::reference_scan::above_threshold_periods(
+        extent(),
+        Days::new(600.0 / 86400.0),
+        &f,
+        threshold
+    )
+    .unwrap()
+    .is_empty());
     let (out, cost) = discovery::search(
         extent(),
         threshold,
@@ -223,7 +221,7 @@ pub(super) fn reference(
 ) -> Vec<Interval<Mjd>> {
     let mut out = Vec::new();
     for w in super::filters::threshold_windows(prepared, true) {
-        let above = super::reference_scan::authoritative_above_threshold_periods(
+        let above = super::reference_scan::above_threshold_periods(
             w,
             Days::new(step / 86400.0),
             &|t| threshold::evaluate_integrated(evaluator, prepared, t),
@@ -512,7 +510,7 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
                         // the original near-extremum threshold, not a relaxed one.
                         let local =
                             Interval::new(Mjd::new(a - 1.0 / 86400.0), Mjd::new(b + 1.0 / 86400.0));
-                        let above = super::reference_scan::authoritative_above_threshold_periods(
+                        let above = super::reference_scan::above_threshold_periods(
                             local,
                             Days::new(0.001 / 86400.0),
                             &|t| threshold::evaluate_integrated(&evaluator, &p, t),
@@ -733,7 +731,7 @@ fn adaptive_retains_scan_witness_hidden_from_original_fit_nodes() {
             let t = Mjd::new(w.start.raw().value() + 0.25 * (x + 1.0) * 0.5);
             assert_eq!(f(t).unwrap().value(), 0.0);
         }
-        let old = super::reference_scan::authoritative_above_threshold_periods(
+        let old = super::reference_scan::above_threshold_periods(
             w,
             Days::new(600.0 / 86400.0),
             &f,
@@ -1089,7 +1087,7 @@ fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
         left - Days::new(1.0 / 86400.0),
         right + Days::new(1.0 / 86400.0),
     );
-    let above = super::reference_scan::authoritative_above_threshold_periods(
+    let above = super::reference_scan::above_threshold_periods(
         local,
         Days::new(0.001 / 86400.0),
         &|t| threshold::evaluate_integrated(&evaluator, &p, t),
@@ -1165,7 +1163,7 @@ fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
     }
     assert!(threshold::evaluate_integrated(&evaluator, &p, a.start).unwrap() <= q.threshold);
     let f = |t| threshold::evaluate_integrated(&evaluator, &p, t);
-    let above = super::reference_scan::authoritative_above_threshold_periods(
+    let above = super::reference_scan::above_threshold_periods(
         Interval::new(r.start - Seconds::new(1.0), a.start + Seconds::new(1.0)),
         siderust::qtty::Days::new(0.01 / 86400.0),
         &f,
@@ -1391,7 +1389,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
         let f = |t| threshold::evaluate_integrated(&evaluator, &p, t);
         let mut coarse = Vec::new();
         for w in &legacy {
-            let above = super::reference_scan::authoritative_above_threshold_periods(
+            let above = super::reference_scan::above_threshold_periods(
                 *w,
                 Seconds::new(120.0).to::<siderust::qtty::Day>(),
                 &f,
@@ -1444,7 +1442,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
             island.start - Seconds::new(1.0).to::<siderust::qtty::Day>(),
             island.end + Seconds::new(1.0).to::<siderust::qtty::Day>(),
         );
-        let above = super::reference_scan::authoritative_above_threshold_periods(
+        let above = super::reference_scan::above_threshold_periods(
             local,
             Seconds::new(0.001).to::<siderust::qtty::Day>(),
             &f,

@@ -55,7 +55,7 @@ fn run(
                         count.set(count.get() + 1);
                         super::reference_scan::evaluate_integrated(evaluator, &p, t)
                     };
-                    let above = super::reference_scan::authoritative_above_threshold_periods(
+                    let above = super::reference_scan::above_threshold_periods(
                         w,
                         siderust::qtty::Days::new(step / 86400.0),
                         &f,
@@ -133,7 +133,7 @@ fn confirm_gap(
         return false;
     }
     let step = (width / 100.0).clamp(0.000001 / 86400.0, 0.01 / 86400.0);
-    let above = super::reference_scan::authoritative_above_threshold_periods(
+    let above = super::reference_scan::above_threshold_periods(
         local,
         siderust::qtty::Days::new(step),
         &f,
@@ -179,8 +179,7 @@ fn confirm_accepted_island(
             continue;
         }
         let above =
-            super::reference_scan::authoritative_above_threshold_periods(w, step, &f, q.threshold)
-                .unwrap();
+            super::reference_scan::above_threshold_periods(w, step, &f, q.threshold).unwrap();
         accepted.extend(super::reference_scan::complement_periods(w, &above));
     }
     scan::coalesce_periods(&mut accepted);
