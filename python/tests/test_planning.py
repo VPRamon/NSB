@@ -158,3 +158,35 @@ def test_joint_band_equality_and_certified_semantics(observer, direction, evalua
     context = evaluator.prepare_site_window_context(dynamic)
     with pytest.raises(nsb.UnsupportedError, match='certificate'):
         evaluator.periods_in_band_certified_with_context(context, dynamic, 0.0)
+
+
+@pytest.mark.parametrize("start", [
+    datetime(2026, 1, 1, tzinfo=timezone.utc),
+    datetime(2026, 1, 1, 23, 59, 59, 999999, tzinfo=timezone.utc),
+    datetime(2016, 12, 31, 23, 59, 59, 999990, tzinfo=timezone.utc),
+    datetime(2017, 1, 1, tzinfo=timezone.utc),
+])
+@pytest.mark.parametrize("method", [
+    "periods_below_threshold", "periods_below_threshold_adaptive",
+    "periods_below_threshold_certified", "periods_below_threshold_with_context",
+    "periods_below_threshold_adaptive_with_context",
+    "periods_below_threshold_certified_with_context", "periods_in_band_adaptive",
+    "periods_in_band_adaptive_with_context", "periods_in_band_certified_with_context",
+])
+def test_every_search_variant_exports_nonempty_inward_microseconds(
+        observer, direction, evaluator, start, method):
+    # A constant empty sum isolates output precision from physical root finding.
+    end = start + timedelta(microseconds=3)
+    query = nsb.ThresholdQuery(observer, direction, start, end, 0.0,
+        components=nsb.ComponentMask.ZODIACAL & nsb.ComponentMask.MOON,
+        sun_altitude_ceiling_deg=None, target_altitude_floor_deg=None)
+    args = [query]
+    if "with_context" in method:
+        args.insert(0, evaluator.prepare_site_window_context(query))
+    if "in_band" in method:
+        args.append(0.0)
+    periods = getattr(evaluator, method)(*args).periods
+    assert len(periods) == 1
+    for a, b in periods:
+        assert start <= a < b <= end
+        assert a.tzinfo is timezone.utc and b.tzinfo is timezone.utc
