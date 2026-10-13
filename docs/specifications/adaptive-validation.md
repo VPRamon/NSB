@@ -17,8 +17,8 @@ certificates. Configured Starlight is a synthetic benchmark fixture, not a newly
 admitted production asset. Composed thresholds add the cached Starlight scalar
 so dynamic components still cross; pure Starlight retains the nominal threshold.
 
-All 204 final before/after comparisons preserve scientific outputs and discovery
-counters. The corpus includes 105 locally confirmed rejected excursions and 13
+The accepted 204-case optimization baseline preserves scientific outputs and
+discovery counters. The corpus includes 105 locally confirmed rejected excursions and 13
 accepted islands missed by the fine grid (scenario occurrences, not distinct
 astronomical events), with zero unexplained disagreements or unresolved output.
 
@@ -51,6 +51,13 @@ conditions do not permit a general duration filter or relaxed boundary tolerance
 - UTC midnight, adjacent split-time instants, Moon visibility inclusivity,
   accepted-side min/max bands, invalid model inputs, resource exhaustion and
   deterministic schedules/errors across Rayon worker counts.
+- Native endpoints separated below a scalar MJD ULP remain distinct physical
+  partitions and coalesce in precise temporal order; target eligibility matches
+  the upstream J2000-to-ICRS transformation.
+- Native leap-second windows, fallible CLI UTC history parsing, cache poisoning,
+  and incompatible observer reuse have focused regressions.
+- Invalid lunar states fail for both models; the reused geocentric phase kernel
+  matches all upstream phase fields hourly through a full lunation.
 - Exact cached/uncached component equality across both sites, both Moon models,
   all masks and repeated reads; distinct sub-microsecond keys and bounded capacity.
 - A context populated under an earlier Tempoch time-data identity is rejected
@@ -63,13 +70,34 @@ boundaries, maximum matched error 0.41529231 s, two independently confirmed
 reference misses, zero unpaired boundaries and zero rejected native endpoints.
 [Boundary records](adaptive-acceptance/boundary-accuracy.jsonl) and their
 [summary](adaptive-acceptance/boundary-accuracy-summary.json) retain the evidence.
-This is observed corpus accuracy, not a global error theorem.
+A fresh engineering-audit run retains all 716/712 counts, zero rejected/unpaired
+endpoints, and the same maximum error; ten error records change by at most
+0.000034662 s after the frame/precision corrections. The baseline goldens remain
+unchanged. This is observed corpus accuracy, not a global error theorem.
 
 The Siderust 0.13-to-0.14 migration produced 67 identical dependency-reference
 records (64 physical cases plus three temporal round trips). The immutable
 [0.13 export](https://github.com/VPRamon/NSB/blob/954817f71f404f21fc9ff9fdd37c870506532c89/docs/specifications/adaptive-acceptance/dependency-A.jsonl)
 and [0.14 export](https://github.com/VPRamon/NSB/blob/954817f71f404f21fc9ff9fdd37c870506532c89/docs/specifications/adaptive-acceptance/dependency-B.jsonl)
 remain accessible in Git instead of duplicating 1.3 MB in the final tree.
+
+Python result construction owns projection validation for all nine search
+variants. Rust tests inject native submicrosecond and subnanosecond endpoints,
+including an 800 ns collapse, and follow valid periods through the actual result
+getter and Tempoch Python interop. They cover inward rounding, UTC midnight,
+leap-second-adjacent instants, unsupported leap labels and years 0/10000.
+Installed-wheel tests exercise ordinary, adaptive, certified and joint-band
+outputs on four civil boundary windows, asserting `native_start <= start < end
+<= native_end` at exported precision.
+
+The near-extremum Zodiacal fixtures retain the exact reviewed radiance thresholds.
+Their four original authoritative medians are frozen in the test instead of being
+recomputed from implementation-dependent partition midpoints. The approximately
+53 ms excursion still requires independent 1 ms confirmation; no threshold or
+boundary tolerance is relaxed. Frame corrections intentionally alter eligibility
+edges (0.614 ms in the focused fixture); they do not change component radiance formulas.
+The engineering audit compares those changes with the accepted baseline and
+reruns the complete scientific corpus rather than replacing its goldens silently.
 
 ## Reproduction
 
