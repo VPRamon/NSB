@@ -22,6 +22,28 @@ discovery counters. The corpus includes 105 locally confirmed rejected excursion
 accepted islands missed by the fine grid (scenario occurrences, not distinct
 astronomical events), with zero unexplained disagreements or unresolved output.
 
+The final engineering audit reruns all 204 cases against that baseline. All
+complete, with the same 105/13 confirmed reference misses and no unexplained
+disagreements, unresolved time or budget exhaustion. Two hundred cases retain
+their period counts. Four North annual batch cases gain one occurrence each of
+the same physically accepted window after replacing the incorrect J2000-to-ICRS
+retag with an upstream frame transformation. For native J2000 target
+RA 51.17192°, Dec −35°, the restored 2026-10-21 period runs from
+02:32:57.548651114 to 04:42:01.325272099 UTC (7743.776621 s) in both lunar models.
+The permanent full-year regression independently checks target/Sun point
+altitudes and uncached authoritative radiance at one-second interior samples.
+This independent check matters because the fine matrix shares eligibility
+preparation. No physical formula or discovery tolerance changed. Upstream event
+enumeration remains part of the conditional discovery contract; this observed
+correction does not establish completeness for every possible annual geometry.
+
+The [engineering audit records](adaptive-acceptance/engineering-audit.json)
+preserve all native timing repetitions, counter and duration comparisons, final
+public CLI comparisons and the fresh boundary-corpus changes. Original accepted
+goldens remain unchanged. The recorded native executable uses the audited
+numerical core; subsequent finite-input guards and CLI adapters are checked
+through the final public CLI, installed wheels and CI.
+
 Every complete adaptive schedule is checked against independent authoritative
 30-second scans for single targets and 120-second scans for batches. Global
 matched-boundary tolerance remains 0.533 s: the reference's 0.432 s half bracket,

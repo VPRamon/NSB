@@ -173,24 +173,68 @@ universally complete. The maintainer explicitly accepted this
 measured single-target compromise on 2026-10-13; the limitation remains part of
 the production contract.
 
+## Final engineering audit against the accepted baseline
+
+The tables above retain the original optimization evidence. A separate complete
+204-case audit compares the accepted production baseline (reviewed `270bfb1`,
+production-identical to `169d5c7`) with the corrected numerical core at `a41444b`.
+The later `f797acc` public finite-input checks and CLI ICRS adapters leave those
+model/cache/discovery/interval modules byte-identical. Final public pipeline
+validation uses the latter source. The same host, compiler, locked graph,
+worker counts and affinity apply. Separate runs share package power and background
+load; small timing differences do not establish statistically significant gains.
+
+| Annual 100 targets | Accepted median (s) | Audit median (s) | Audit / accepted | Audit observed range (s) | Exact calls accepted / audit | Peak RSS (MiB) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| North Jones | 202.939 | 198.755 | 0.979 | 197.974–200.164 | 2,069,160 / 2,069,245 | 74.38 |
+| North K&S | 166.467 | 165.400 | 0.994 | 161.462–166.058 | 2,044,726 / 2,044,815 | 67.63 |
+| South Jones | 188.984 | 188.345 | 0.997 | 187.866–192.968 | 2,033,915 / 2,033,937 | 69.04 |
+| South K&S | 184.974 | 186.177 | 1.007 | 179.662–192.189 | 2,009,329 / 2,009,362 | 65.95 |
+
+All 204 schedules complete with zero unresolved time, budget exhaustion or
+unexplained fine-reference disagreements. The frame correction restores one
+independently validated northern window in four scenario occurrences; see
+[scientific validation](adaptive-validation.md). Counters therefore intentionally
+change: 412 additional exact evaluations across the matrix, 28 additional fits,
+four additional crossing refinements, and unchanged subdivision counts. The
+105 rejected excursions and 13 accepted islands missed by the fine grid remain.
+No discovery nodes or validation requirements were removed.
+
+Ten final public CLI cases each run ten alternating paired repetitions against
+the accepted adaptive executable, including annual/daily actual `ALL`, both sites
+and lunar models, and Moon-down hours. Annual after/baseline median ratios are
+1.006 South Jones, 1.005 South K&S, 1.002 North Jones and 1.009 North K&S;
+daily/hour ratios range from 0.990 to 1.017. Each executable is deterministic.
+The deliberate ICRS correction permits different baseline/current CSV bytes;
+period counts match, with at most 73 ms endpoint motion in these cases. Current
+CLI periods are independently checked against the final installed-wheel native
+query, must lie inward of its accepted periods, and pass authoritative radiance
+checks. Historical B/C byte equality above describes the earlier cache-only
+optimization, not this intentional coordinate correction. The previously accepted
+cold single-target scan600 compromise remains in force.
+
+The compact [engineering audit](adaptive-acceptance/engineering-audit.json)
+records executable/lock hashes, exact source scope, all 204 native comparisons,
+raw repetitions, counters, RSS, ten CLI comparisons and the 64-case boundary
+corpus. Original optimization evidence and boundary goldens remain unchanged.
+
 ## Release validation
 
-On final production source: workspace 875 passed, zero failed (six ignored
-manual benchmarks); all-feature suites 647 passed; release planning 46 passed
-(two ignored manual benchmarks). Installed abi3 wheels pass 40 Python tests each
-on Python 3.11 and 3.14. All six CLI benchmark cases complete ten repetitions per
-variant with identical B/C CSV bytes. Formatting, license headers, cfg boundaries,
-all-feature Clippy with warnings denied, workspace/no-default checks, Rust 1.89,
-Rustdoc with warnings denied, doctests, cargo-deny and clean package verification
-pass. Frozen public API snapshot and historical SemVer checks pass without
-bypassing policy. Siderust remains 0.14.0 with Tempoch 0.10.0 and Principia 0.6.0.
+The audited source passes the complete workspace and all-feature suites,
+release planning regressions, both lunar models and all-component integration.
+Final installed abi3 wheels pass 76 Python tests each on Python 3.11 and 3.14,
+including 36 search-variant/civil-boundary cases. Formatting, license headers,
+cfg boundaries, all-feature Clippy with warnings denied, workspace/no-default
+checks, Rust 1.89, Rustdoc with warnings denied, doctests, cargo-deny and clean
+package verification pass. Frozen public API snapshot and historical SemVer
+checks pass without bypassing policy. Siderust 0.14.0, Tempoch 0.10.0,
+Qtty 0.8.5 and Affn 0.11.0 remain in the unchanged locked graph.
 
-Fresh coverage is workspace 88.36%, NSB 92.84%, and changed production 94.78%
-(926/977 executable lines), above unchanged 80/87/90% floors. Draft CI skips its
-conditional coverage job; local coverage supplies the measured gate, and moving
-to Ready for Review triggers the CI coverage job. GitHub
-Actions also validates Linux/macOS/Windows abi3 wheels. See PR #235 for checks
-on the final evidence commit; no source changes follow these measurements.
+Ready-for-review CI runs the coverage gate and Linux/macOS/Windows abi3 wheel
+tests. The first complete correctness-fix CI measured workspace 88.26%, NSB
+92.37%, and changed production 93.70% (982/1048 executable lines), above the
+unchanged 80/87/90% floors. Later input/frame regressions add coverage; consult
+PR #235's final-head checks for the final measurement and platform results.
 
 ## Reproduction
 

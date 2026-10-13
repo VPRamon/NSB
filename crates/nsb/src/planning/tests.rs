@@ -802,3 +802,74 @@ fn invalid_geometry_and_filters_fail_before_eligibility_can_hide_them() {
         }
     }
 }
+
+#[test]
+fn corrected_frame_recovers_the_independently_validated_north_october_window() {
+    use siderust::coordinates::transform::TransformFrame;
+    let observer = Geodetic::<ECEF>::new_raw(
+        Degrees::new(-17.892),
+        Degrees::new(28.762),
+        Meters::new(2200.0),
+    );
+    let target = Target::new(Degrees::new(51.17192), Degrees::new(-35.0));
+    let icrs: direction::ICRS = target.to_frame();
+    let start = parse("2026-01-01T00:00:00Z");
+    let day_start = parse("2026-10-21T00:00:00Z");
+    let day_end = day_start + Second::new(86400.0);
+    for moon in [
+        crate::MoonlightModel::Jones2013Spectral,
+        crate::MoonlightModel::KrisciunasSchaefer1991,
+    ] {
+        let evaluator = super::test_fixtures::evaluator_with_moon(true, true, moon);
+        let mut q = ThresholdQuery::new(
+            observer,
+            target,
+            Period::new(start, start + Second::new(365.0 * 86400.0)),
+            BandPhotonRadiance::new(0.25),
+        )
+        .with_components(ComponentMask::from_bits(15).unwrap())
+        .with_target_altitude_floor(Some(Degrees::new(20.0)));
+        q.threshold += evaluator.evaluate_starlight(target).unwrap().integrated;
+        let context = evaluator.prepare_site_window_context(&q).unwrap();
+        let prepared = super::prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+        let out = evaluator
+            .periods_below_threshold_with_context(&context, &q)
+            .unwrap();
+        let periods: Vec<_> = out
+            .periods
+            .into_iter()
+            .filter(|w| day_start < w.end && w.start < day_end)
+            .collect();
+        assert_eq!(periods.len(), 1, "{moon:?}");
+        let period = periods[0];
+        let duration = (period.end - period.start).value();
+        assert!(
+            duration > 7700.0 && duration < 7800.0,
+            "{moon:?}: {period:?}, {duration}"
+        );
+        eprintln!(
+            "NORTH_OCTOBER_WINDOW {moon:?} {} {} {duration}",
+            period.start.to_chrono().unwrap(),
+            period.end.to_chrono().unwrap()
+        );
+        // Point samples are independent of the annual event enumeration. They
+        // establish that the added schedule is eligible and physically below
+        // threshold; the fine matrix alone shares the eligibility preparation.
+        for second in 1..duration.floor() as i64 {
+            let t = period.start + Second::new(second as f64);
+            let tt = super::intervals::utc_time_to_tt_mjd(t);
+            assert!(
+                icrs.altitude_at(&observer, tt)
+                    >= Degrees::new(20.0).to::<siderust::qtty::Radian>()
+            );
+            assert!(
+                siderust::bodies::Sun.altitude_at(&observer, tt)
+                    <= Degrees::new(-18.0).to::<siderust::qtty::Radian>()
+            );
+            assert!(
+                super::reference_scan::evaluate_integrated(&evaluator, &prepared, tt).unwrap()
+                    <= q.threshold
+            );
+        }
+    }
+}
