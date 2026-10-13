@@ -89,8 +89,8 @@ fn compute_jones_2013_spectral(
     let am_src = airmass::<KrisciunasSchaeferAirmass>(inp.source_zenith.to::<Radian>());
     let tau_scale = tau_scale.value();
 
-    let mut lam = Vec::new();
-    let mut density = Vec::new();
+    let mut lam = Vec::with_capacity(solar.len());
+    let mut density = Vec::with_capacity(solar.len());
     for (&lambda_nm, &solar_irradiance) in solar.xs_raw().iter().zip(solar.ys_raw()) {
         if !(WL_LOW.value()..=WL_HIGH.value()).contains(&lambda_nm) {
             continue;

@@ -87,8 +87,8 @@ fn zodiacal_samples(
     let solar_xs = solar.xs_raw();
     let solar_ys = solar.ys_raw();
 
-    let mut wavelengths_nm = Vec::new();
-    let mut photon_radiance = Vec::new();
+    let mut wavelengths_nm = Vec::with_capacity(solar_xs.len());
+    let mut photon_radiance = Vec::with_capacity(solar_xs.len());
     let (mut b_zl_um, mut v_zl_um) = (0.0_f64, 0.0_f64);
     let (mut b_dist, mut v_dist) = (
         Nanometers::new(f64::INFINITY),
