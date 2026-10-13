@@ -84,7 +84,7 @@ fn scan_threshold_native(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
 ) -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
-    crate::planning::prepare::validate_threshold(query)?;
+    crate::planning::prepare::validate_query(query)?;
     let tt_window = utc_period_to_tt_mjd(query.window);
     let prepared = prepare_threshold(evaluator, query, tt_window)?;
     let step = query.sample_step.to::<Day>();
@@ -757,5 +757,48 @@ fn native_search_can_partition_a_window_starting_in_a_leap_second() {
                 && period.start < period.end
                 && period.end <= query.window.end
         );
+    }
+}
+
+#[test]
+fn invalid_geometry_and_filters_fail_before_eligibility_can_hide_them() {
+    let evaluator = NsbEvaluator::new().unwrap();
+    let query = threshold_query(
+        paranal(),
+        target_sgr_a(),
+        "2026-01-01T00:00:00Z",
+        24,
+        ComponentMask::ZODIACAL,
+    )
+    .with_sun_altitude_ceiling(None);
+    for field in 0..7 {
+        let mut q = query.clone();
+        match field {
+            0 => q.target = Target::new(Degrees::new(f64::NAN), Degrees::new(0.0)),
+            1 => q.target = Target::new(Degrees::new(0.0), Degrees::new(f64::NAN)),
+            2 => q.observer.lon = Degrees::new(f64::NAN),
+            3 => q.observer.lat = Degrees::new(f64::NAN),
+            4 => q.observer.height = Meters::new(f64::INFINITY),
+            5 => q.sun_altitude_ceiling = Some(Degrees::new(f64::NAN)),
+            _ => q.target_altitude_floor = Some(Degrees::new(f64::INFINITY)),
+        }
+        assert!(
+            matches!(
+                evaluator.periods_below_threshold(&q),
+                Err(crate::NsbError::OutOfRange(_))
+            ),
+            "field {field}"
+        );
+        if field < 5 {
+            let point = crate::PointQuery::new(q.observer, q.window.start, q.target)
+                .with_components(ComponentMask::ZODIACAL);
+            assert!(
+                matches!(
+                    evaluator.evaluate(&point),
+                    Err(crate::NsbError::OutOfRange(_))
+                ),
+                "point field {field}"
+            );
+        }
     }
 }

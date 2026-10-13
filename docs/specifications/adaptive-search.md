@@ -33,7 +33,8 @@ factor. Scalars remain at interpolation, transcendental and empirical-calibratio
 boundaries with explicit units. SFU, S10 and nanolambert conventions are domain
 calibrations; they must not be treated as generic SI conversions.
 
-Rust targets are `Direction<EquatorialMeanJ2000>`. Planning transforms them through
+Rust targets are `Direction<EquatorialMeanJ2000>`. Python and CLI inputs are ICRS
+and transform into that native type. Planning transforms native targets through
 `TransformFrame` before calling Siderust's ICRS altitude-event provider; copying
 RA/Dec into a differently tagged direction would omit frame bias. Zodiacal
 geometry rotates targets into mean J2000 ecliptic axes shared by solar longitude.
@@ -131,6 +132,8 @@ the adapter never skips a leap second to satisfy its 0.1 s displacement limit.
 CLI uses inward milliseconds and fallible UTC parsing. Neither adapter restricts
 native Rust precision or imposes Python's year range on Rust.
 
+Public point/planning entry points reject non-finite observer/target coordinates
+and altitude filters before eligibility or zero shortcuts can hide invalid input.
 Non-finite lunar geometry/radiance returns `OutOfRange`, rather than masquerading
 as physical inactivity. Valid below-horizon zero contributions remain unchanged.
 Stale contexts, unsupported certificates, unrepresentable output and unresolved

@@ -29,6 +29,8 @@ fn default_point_json_reports_schema_versions_and_components() {
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
     assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
+    assert!((value["target"]["ra_deg"].as_f64().unwrap() - 83.0).abs() < 1e-10);
+    assert!((value["target"]["dec_deg"].as_f64().unwrap() - 22.0).abs() < 1e-10);
     assert_eq!(value["version"]["model_version"], "nsb-model-v1");
     assert_eq!(value["version"]["siderust_version"], "0.14.0");
     assert_eq!(

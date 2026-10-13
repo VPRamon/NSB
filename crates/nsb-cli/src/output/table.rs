@@ -7,6 +7,7 @@ use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as Ban
 use nsb::{NsbResult, Target};
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use siderust::coordinates::{spherical::direction, transform::TransformFrame};
 use tempoch::{Period, Time, UTC};
 
 pub fn write_point(
@@ -15,6 +16,7 @@ pub fn write_point(
     target: Target,
     result: &NsbResult,
 ) -> Result<()> {
+    let target: direction::ICRS = target.to_frame();
     println!("time_utc: {}", format_utc(time));
     println!(
         "observer: lon={:.6} deg lat={:.6} deg height={:.1} m",

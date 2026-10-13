@@ -14,7 +14,19 @@ use siderust::qtty::Degrees;
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
 use std::sync::Arc;
 
-pub(crate) fn validate_threshold(query: &ThresholdQuery) -> Result<()> {
+pub(crate) fn validate_query(query: &ThresholdQuery) -> Result<()> {
+    crate::evaluator::validate_geometry(query.observer, query.target)?;
+    if query
+        .sun_altitude_ceiling
+        .is_some_and(|angle| !angle.is_finite())
+        || query
+            .target_altitude_floor
+            .is_some_and(|angle| !angle.is_finite())
+    {
+        return Err(NsbError::OutOfRange(
+            "altitude filters must be finite".into(),
+        ));
+    }
     if !query.threshold.is_finite() {
         return Err(NsbError::OutOfRange("threshold must be finite".to_string()));
     }

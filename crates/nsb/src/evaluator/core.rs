@@ -129,6 +129,7 @@ impl NsbEvaluator {
 
     /// Evaluate selected components for one point query.
     pub fn evaluate(&self, query: &PointQuery) -> Result<NsbResult> {
+        super::validate_geometry(query.observer, query.target)?;
         let prepared = PreparedPointQuery {
             observer: query.observer,
             target: query.target,

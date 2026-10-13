@@ -86,7 +86,7 @@ pub fn prepare_site_window_context(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
 ) -> Result<SiteWindowContext> {
-    super::prepare::validate_threshold(query)?;
+    super::prepare::validate_query(query)?;
 
     let tt_window = utc_period_to_tt_mjd(query.window);
     let context = super::prepare::prepare_site_context(evaluator, query, tt_window)?;
@@ -179,7 +179,7 @@ impl NsbEvaluator {
         minimum: Option<BandPhotonRadiance>,
         certified: bool,
     ) -> Result<ThresholdQueryResult> {
-        super::prepare::validate_threshold(query)?;
+        super::prepare::validate_query(query)?;
         if minimum.is_some_and(|v| !v.is_finite() || v.value() < 0.0 || v > query.threshold) {
             return Err(crate::NsbError::OutOfRange(
                 "invalid minimum radiance".into(),

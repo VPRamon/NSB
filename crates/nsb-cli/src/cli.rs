@@ -68,11 +68,11 @@ pub struct ObserverArgs {
 
 #[derive(Debug, Args)]
 pub struct TargetArgs {
-    /// Target right ascension in degrees, ICRS/J2000.
+    /// Target right ascension in degrees, ICRS.
     #[arg(long, allow_hyphen_values = true)]
     pub ra: f64,
 
-    /// Target declination in degrees, ICRS/J2000.
+    /// Target declination in degrees, ICRS.
     #[arg(long, allow_hyphen_values = true)]
     pub dec: f64,
 }

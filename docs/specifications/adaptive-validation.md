@@ -56,6 +56,9 @@ conditions do not permit a general duration filter or relaxed boundary tolerance
   the upstream J2000-to-ICRS transformation.
 - Native leap-second windows, fallible CLI UTC history parsing, cache poisoning,
   and incompatible observer reuse have focused regressions.
+- Invalid point/planning coordinates and filters fail before eligibility can
+  turn them into an apparently valid empty schedule. CLI ICRS coordinates round
+  trip through the native target frame with the actual frame bias applied.
 - Invalid lunar states fail for both models; the reused geocentric phase kernel
   matches all upstream phase fields hourly through a full lunation.
 - Exact cached/uncached component equality across both sites, both Moon models,

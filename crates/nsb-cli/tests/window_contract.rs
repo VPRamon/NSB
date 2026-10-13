@@ -384,7 +384,8 @@ fn joint_band_cli_millisecond_boundaries_satisfy_both_constraints() {
     use tempoch::{Time, UTC};
     let evaluator = NsbEvaluator::new().unwrap();
     let observer = siderust::catalogs::observatories::EL_PARANAL.geodetic();
-    let target = Target::new(266.41683 * DEG, -29.00781 * DEG);
+    use siderust::coordinates::{spherical::direction, transform::TransformFrame};
+    let target: Target = direction::ICRS::new(266.41683 * DEG, -29.00781 * DEG).to_frame();
     let mask = ComponentMask::ZODIACAL | ComponentMask::AIRGLOW;
     let start = "2023-09-04T00:00:00Z"
         .parse::<chrono::DateTime<chrono::Utc>>()

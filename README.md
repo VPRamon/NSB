@@ -192,11 +192,12 @@ component selection, site lookup, and output formats.
 ```rust,no_run
 use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
 use siderust::catalogs::observatories;
+use siderust::coordinates::{spherical::direction, transform::TransformFrame};
 
 # fn evaluate(time: tempoch::Time<tempoch::UTC>) -> nsb::Result<()> {
 let evaluator = NsbEvaluator::new()?;
 // Sagittarius A* in ICRS coordinates.
-let sgr_a_star = Target::new(266.41683 * DEG, -29.00781 * DEG);
+let sgr_a_star: Target = direction::ICRS::new(266.41683 * DEG, -29.00781 * DEG).to_frame();
 
 let query = PointQuery::new(
     observatories::EL_PARANAL.geodetic(),
