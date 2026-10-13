@@ -17,6 +17,11 @@ certificates. Configured Starlight is a synthetic benchmark fixture, not a newly
 admitted production asset. Composed thresholds add the cached Starlight scalar
 so dynamic components still cross; pure Starlight retains the nominal threshold.
 
+All 204 final before/after comparisons preserve scientific outputs and discovery
+counters. The corpus includes 105 locally confirmed rejected excursions and 13
+accepted islands missed by the fine grid (scenario occurrences, not distinct
+astronomical events), with zero unexplained disagreements or unresolved output.
+
 Every complete adaptive schedule is checked against independent authoritative
 30-second scans for single targets and 120-second scans for batches. Global
 matched-boundary tolerance remains 0.533 s: the reference's 0.432 s half bracket,
@@ -48,6 +53,9 @@ conditions do not permit a general duration filter or relaxed boundary tolerance
   deterministic schedules/errors across Rayon worker counts.
 - Exact cached/uncached component equality across both sites, both Moon models,
   all masks and repeated reads; distinct sub-microsecond keys and bounded capacity.
+- A context populated under an earlier Tempoch time-data identity is rejected
+  through the public API; preparing a fresh context restores valid evaluation.
+  This regression simulates stale identity without mutating global time data.
 
 The 64-case seven-day boundary corpus validates all masks, sites and Moon models.
 Its verified baseline has 716 accepted native UTC endpoints, 712 paired fine
