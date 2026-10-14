@@ -96,6 +96,11 @@ fn complete_baseline_report_roundtrips_a_synthetic_sparse_workspace() -> Result<
     ] {
         let mut shard = PartitionShard::new(name, 2)?;
         shard.exclusion_reasons.insert(reason.into(), excluded);
+        shard.pixels.insert(0, crate::starlight::map::accumulator::PixelAccumulator {
+            observed_sources: excluded,
+            excluded_sources: excluded,
+            ..Default::default()
+        });
         let shard_path = workspace.join("workers").join(name).join("shard.json");
         shard.write(&shard_path)?;
     }
@@ -110,7 +115,7 @@ fn complete_baseline_report_roundtrips_a_synthetic_sparse_workspace() -> Result<
     assert_eq!(report.full_sky_anomalous_parents_reference, vec![13, 24]);
     assert_eq!(report.flux_metrics.total_flux_ph_m2_s, 0.0);
     assert_eq!(report.flux_metrics.admitted_sources, 0);
-    assert_eq!(report.flux_metrics.excluded_sources, 0);
+    assert_eq!(report.flux_metrics.excluded_sources, 5);
     assert_eq!(report.global_exclusion_reasons["invalid-spectrum"], 5);
     assert_eq!(
         report.config_sha256,
