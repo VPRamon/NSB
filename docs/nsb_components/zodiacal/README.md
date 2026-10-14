@@ -113,3 +113,7 @@ prediction.
 - Noll et al. (2012), *A&A* 543, A92: atmospheric-extinction approximation.
 - [Runtime component overview](../../user-guide/components.md)
 - [Scientific metadata](../../specifications/scientific-metadata.md)
+
+See the [Noll equation correction](noll-equation-correction.md) for the
+500 nm brightness normalization, species optical depths, valid domain, and
+why effective propagation can enhance faint fields.

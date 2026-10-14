@@ -11,19 +11,23 @@
 //!
 //! The default approximation follows Noll et al. (2012), using piecewise-linear
 //! fits to the extinction coefficients as a function of the base-10 logarithm
-//! of the zodiacal surface brightness (in W m⁻² sr⁻¹ µm⁻¹ at the relevant
-//! wavelength). The resulting transmission is
+//! of the 500 nm zodiacal surface brightness in units of
+//! 10⁻⁸ W m⁻² sr⁻¹ µm⁻¹ (Noll Eqs. 19–20). The resulting transmission is
 //!
 //! ```text
 //! T(λ, z) = exp(−τ_eff)
 //! ```
 //!
-//! where `τ_eff = τ₀(λ) · (f_ext_R + f_ext_M) · X(z)` and `X(z)` is the
+//! where `τ_eff = (f_ext_R τ_R(λ) + f_ext_M τ_M(λ)) · X(z)` and `X(z)` is the
 //! airmass at zenith distance `z` computed with the Young (1994) formula.
 //!
 //! **Limitations.** The approximation is not site-calibrated. It uses a
-//! fixed aerosol model inherited from the SkyCalc parametric sky background
-//! model (Noll et al. 2012). For scientific observations requiring precise
+//! fixed Paranal-like molecular column (744 hPa local pressure) and the
+//! Noll Eq. 4 aerosol law. The brightness factors always use the source at
+//! 500 nm, independently of the wavelength being transported. Negative
+//! effective factors represent net in-scattering and may give T > 1.
+//! Fits primarily cover night (solar zenith >=108°), target zenith <=50°
+//! (up to 70° for high brightness); other geometries are extrapolations. For scientific observations requiring precise
 //! throughput prediction, a site-specific atmosphere profile should be used.
 //!
 //! # Advanced extensibility
@@ -37,6 +41,7 @@
 //! # Reference
 //! Noll et al. (2012), *A&A* 543, A92.
 
+use crate::site::{atmosphere::rayleigh_optical_depth_local_pressure, AtmosphericConditions};
 use crate::units::angular::{Degrees, Radian};
 use crate::units::dimensionless::Transmittances;
 use crate::units::radiometry::WattsPerSquareMeterSteradianNanometer;
@@ -86,26 +91,32 @@ impl ZodiacalExtinction {
 
     pub(crate) fn transmission_for_spectral_radiance(
         &self,
-        spectral_radiance: WattsPerSquareMeterSteradianNanometer,
+        reference_500: WattsPerSquareMeterSteradianNanometer,
         wavelength: Nanometers,
         zenith: Degrees,
     ) -> Transmittances {
         match self {
             Self::None => Transmittances::new(1.0),
-            Self::Noll2012Approx => noll2012_transmission(spectral_radiance, wavelength, zenith),
+            Self::Noll2012Approx => noll2012_transmission(reference_500, wavelength, zenith),
         }
     }
 }
 
 fn noll2012_transmission(
-    spectral_radiance: WattsPerSquareMeterSteradianNanometer,
+    reference_500: WattsPerSquareMeterSteradianNanometer,
     wavelength: Nanometers,
     zenith: Degrees,
 ) -> Transmittances {
-    let zl_value_w_m2_sr_um = spectral_radiance
+    // A caller-defined absent source stays zero. The logarithmic empirical
+    // fit is undefined at zero; use a neutral multiplier for that boundary.
+    if reference_500.value() == 0.0 {
+        return Transmittances::new(1.0);
+    }
+    let zl_value_w_m2_sr_um = reference_500
         .to::<WattPerSquareMeterSteradianMicrometer>()
         .value();
-    let dex = zl_value_w_m2_sr_um.log10();
+    // I0 is the dimensionless numerical value in Noll Fig. 7 units.
+    let dex = (zl_value_w_m2_sr_um / 1.0e-8).log10();
     let fext_m = if dex <= 2.255 {
         1.309 * dex - 2.598
     } else {
@@ -123,8 +134,13 @@ fn noll2012_transmission(
     } else {
         0.013 * lam_um.powf(-1.38)
     };
-    let tau0 = (10f64).powf(-0.4 * kaer).ln();
+    // Noll Eq. 1: positive optical depth τ = 0.4 ln(10) k.
+    // Molecular and aerosol factors apply to their own optical depths.
+    let tau_m = 0.4 * std::f64::consts::LN_10 * kaer;
+    let tau_r =
+        rayleigh_optical_depth_local_pressure(wavelength, AtmosphericConditions::paranal_average())
+            .value();
     let am = airmass::<Young1994>(zenith.to::<Radian>());
-    let tau_eff = tau0 * (fext_r + fext_m) * am.value();
+    let tau_eff = (tau_r * fext_r + tau_m * fext_m) * am.value();
     Transmittances::new((-tau_eff).exp())
 }

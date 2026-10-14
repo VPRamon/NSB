@@ -65,7 +65,8 @@ pub(super) fn compute_outputs_with_s10(
 ) -> Result<ZodiacalOutputs> {
     let k = spectral_scale_from_s10(s10_500, solar)?;
     let zenith = geom.zenith.unwrap_or(Degrees::new(0.0));
-    let (spectrum, b_zl_um, v_zl_um) = zodiacal_samples(geom, solar, extinction, k, zenith)?;
+    let (spectrum, b_zl_um, v_zl_um) =
+        zodiacal_samples(geom, solar, extinction, k, zenith, s10_500)?;
 
     let integrated = integrate_photon_spectrum(&spectrum);
     let (b_flux, v_flux) = interpolate_bv(&spectrum, b_zl_um, v_zl_um);
@@ -83,6 +84,7 @@ fn zodiacal_samples(
     extinction: ZodiacalExtinction,
     scale: f64,
     zenith: Degrees,
+    s10_500: S10,
 ) -> Result<(ZodiacalPhotonSpectrum, f64, f64)> {
     let solar_xs = solar.xs_raw();
     let solar_ys = solar.ys_raw();
@@ -104,7 +106,11 @@ fn zodiacal_samples(
         let solar_irradiance = SolarSpectralIrradiance::new(solar_flux);
         let f_sun_sr = solar_irradiance_to_mean_radiance(solar_irradiance);
         let zl = f_sun_sr * scale * reddening_factor(geom.beta, geom.delta_lambda, lambda_nm);
-        let trans = extinction.transmission_for_spectral_radiance(zl, wavelength, zenith);
+        let trans = extinction.transmission_for_spectral_radiance(
+            S10_TO_W_M2_SR_NM * s10_500.value(),
+            wavelength,
+            zenith,
+        );
         let zl_ext = zl * trans.value();
         let zl_ext_um = zl_ext
             .to::<crate::units::WattPerSquareMeterSteradianMicrometer>()
