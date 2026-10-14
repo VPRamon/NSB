@@ -428,8 +428,8 @@ release = "nsb-healpix-starlight-binary-v1"
 license = "Gaia CC BY-NC 3.0 IGO and source-specific restrictions retained; distribution requires the authoritative #103 decision"
 sha256 = "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784"
 distribution_class = "generated_derived_output"
-distributed = false
-channels = []
+distributed = true
+channels = ["git_repository"]
 planned_channels = [
     "git_repository",
     "crates_io",
@@ -437,7 +437,7 @@ planned_channels = [
     "pypi_sdist",
     "github_release",
 ]
-lifecycle = "production_registered"
+lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
 notes = "Reproducible with stage-runtime --output-csv <path>.bin. Payload is generated locally, not committed or packaged pending authorization. Compact sidecar SHA-256 b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Intended future channels: crates.io, PyPI wheel/sdist and GitHub release, only after channel-specific approval."
 
@@ -449,8 +449,8 @@ release = "nsb-starlight-runtime-manifest-v2"
 license = "Scientific source terms and attribution retained; #103 channel-specific decision required for the pair"
 sha256 = "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b"
 distribution_class = "generated_derived_output"
-distributed = false
-channels = []
+distributed = true
+channels = ["git_repository"]
 planned_channels = [
     "git_repository",
     "crates_io",
@@ -458,6 +458,6 @@ planned_channels = [
     "pypi_sdist",
     "github_release",
 ]
-lifecycle = "production_registered"
+lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
 notes = "No payload shipped while pending. Promotion requires explicit decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."
