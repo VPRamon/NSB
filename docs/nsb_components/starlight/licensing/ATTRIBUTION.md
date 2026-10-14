@@ -94,8 +94,19 @@ redistribute the resulting map.
   Scientific citation: van Leeuwen (2007), *Validation of the new Hipparcos
   reduction*, A&A **474**, 653–664,
   [DOI 10.1051/0004-6361:20078357](https://doi.org/10.1051/0004-6361:20078357).
-  A licence clarification request was sent to the author on 2026-10-08;
-  this request is not a permission grant.
+  The maintainer sent a licence clarification request on 2026-10-08.
+  In a direct reply supplied to the maintainer (reported 2026-10-14),
+  Floor van Leeuwen stated that his 2007 reduction is based on ESA's
+  Hipparcos data and is "publicly available"; he requested citations to
+  **both** *Hipparcos, the New Reduction of the Raw Data* (Astrophysics
+  and Space Science Library **350**, 2007) and *Validation of the new
+  Hipparcos reduction* (A&A **474**, 653–664, 2007).
+  This resolves the question of the author's position on public
+  availability and required acknowledgements. The reply does **not**
+  explicitly name a licence for I/311 or grant worldwide downstream
+  commercial redistribution of derivative maps. Do not infer those
+  rights or automatically relicense I/311 as CC BY-NC. Preserve the
+  original correspondence privately for review under #103.
 - **XHIP (Anderson and Francis 2012, CDS V/137D)**: cite the original catalogue
   and CDS/VizieR (DOI 10.26093/cds/vizier). Its catalogue-specific grant to
   redistribute XHIP bytes has **not** been verified. Cite Anderson &

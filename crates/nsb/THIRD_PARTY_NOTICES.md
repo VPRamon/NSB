@@ -44,11 +44,19 @@ cite **Anderson & Francis (2012)**, *XHIP: An Extended Hipparcos
 Compilation*, *Astronomy Letters* **38**, 331
 (ADS 2012AstL...38..331A; CDS V/137D), and **van Leeuwen (2007)**,
 *Validation of the new Hipparcos reduction*, A&A **474**, 653–664
-(DOI 10.1051/0004-6361:20078357; Hipparcos-2, CDS I/311).
+(DOI 10.1051/0004-6361:20078357; Hipparcos-2, CDS I/311);
+also cite his book *Hipparcos, the New Reduction of the Raw Data*,
+Astrophysics and Space Science Library **350** (2007),
+DOI 10.1007/978-1-4020-6342-8.
+The author confirmed public availability of the 2007 reduction to
+the maintainer (reply reported 2026-10-14), while not specifying
+a distinct licence or commercial/downstream derived-map redistribution right.
 CDS/VizieR recommends acknowledging its catalogue access service,
 CDS, Strasbourg, France (DOI 10.26093/cds/vizier).
-These references do not authorize use or redistribution of catalogue
-content; the rights clarification requests of 2026-10-08 remain pending.
+These references do not authorize unrestricted redistribution of catalogue
+content. The XHIP clarification requested on 2026-10-08 remains pending;
+Hipparcos-2 source availability/attribution was clarified by its author,
+but Starlight derived-map rights remain subject to issue #103.
 
 ### SVO/FPS attribution for Starlight calculations
 

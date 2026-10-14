@@ -58,11 +58,16 @@ database rights, commercial use, or downstream redistribution rights.
   [Springer DOI 10.1007/978-1-4020-6342-8](https://doi.org/10.1007/978-1-4020-6342-8).
 - Catalogue: [CDS/VizieR I/311](https://cdsarc.cds.unistra.fr/viz-bin/cat/I/311);
   [catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html).
-- **Rights status:** a catalogue-specific redistribution grant for the 2007
-  re-reduction has not been verified. Do **not** infer it from the distinct
-  licence for ESA's original 1997 Hipparcos catalogue. Clarification was
-  requested from the new reduction's author on **2026-10-08**; no permission
-  is implied by that request.
+- **Rights status (author clarification received):** Floor van Leeuwen
+  confirmed in correspondence supplied by the maintainer (reported
+  **2026-10-14**) that his 2007 reduction builds on the ESA Hipparcos data
+  and is **publicly available**. He specifically asks users to cite **both**
+  2007 publications immediately above. The request was sent on
+  **2026-10-08**; the original reply should be kept privately as evidence.
+  This confirms source availability and scholarly attribution, **not**
+  a source-specific licence identifier or an explicit grant for
+  worldwide commercial/downstream redistribution of derived maps. The
+  original ESA Hipparcos licence must not be silently assigned to I/311.
 
 ### Tycho-2
 
