@@ -55,3 +55,11 @@ At phase 85.5 deg, separation 97.523 deg, Moon/target zenith 36/60 deg,
 with the published Siderust source. This is a model correction, not an observed
 accuracy estimate. Scalar snapshots at the mean lunar distance are unchanged
 by the separate upstream distance fix.
+
+The native artifact's normalization admission gate uses trapezoidal quadrature
+of P(theta)*sin(theta), with maximum relative error 7.371e-5. Integrating the
+runtime's piecewise-linear P(theta) instead gives a maximum 1.685e-4 deviation
+from unit normalization after division by 4*pi (about 0.017%). A separate
+independent closed-form cell integral verifies the runtime quadrature. This
+small interpolation approximation is retained; it cannot explain the large
+cross-model residuals. The unit-convention audit does not renormalize the data.

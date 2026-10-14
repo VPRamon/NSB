@@ -263,6 +263,14 @@ mod tests {
         let four_pi = 4.0 * std::f64::consts::PI;
         let n = 18_000;
         let dtheta = std::f64::consts::PI / n as f64;
+        let native_angles: Vec<f64> = include_str!("../../../data/moonlight_mie_nsb_v1.dat")
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.trim().is_empty())
+            .nth(2)
+            .unwrap()
+            .split_whitespace()
+            .map(|v| v.parse::<f64>().unwrap().to_radians())
+            .collect();
         for wave in [350.0, 551.0, 650.0] {
             let mut rayleigh_integral = 0.0;
             let mut mie_integral = 0.0;
@@ -281,8 +289,25 @@ mod tests {
                 );
             }
             assert!((rayleigh_integral - 1.0).abs() < 1e-7);
-            // Published artifact admission permits its documented grid-quadrature error.
-            assert!((mie_integral - 1.0).abs() < 1e-4);
+            // The admission gate applies trapezoidal quadrature to P*sin(theta)
+            // at native nodes. That differs from integrating the runtime's
+            // piecewise-linear P(theta) exactly: preserve both distinctions.
+            let mut admitted = 0.0;
+            let mut exact_interpolated = 0.0;
+            for pair in native_angles.windows(2) {
+                let (t0, t1) = (pair[0], pair[1]);
+                let p0 = mie_grid().lookup(Degrees::new(t0.to_degrees()), Nanometers::new(wave));
+                let p1 = mie_grid().lookup(Degrees::new(t1.to_degrees()), Nanometers::new(wave));
+                admitted += 0.25 * (t1 - t0) * (p0 * t0.sin() + p1 * t1.sin());
+                // Exact cell integral of [average + slope*(theta-mid)] sin(theta).
+                let mid = (t0 + t1) / 2.0;
+                let half = (t1 - t0) / 2.0;
+                let slope = (p1 - p0) / (t1 - t0);
+                exact_interpolated += 0.5 * (p0 + p1) * mid.sin() * half.sin()
+                    + slope * mid.cos() * (half.sin() - half * half.cos());
+            }
+            assert!((admitted - 1.0).abs() < 1e-4);
+            assert!((mie_integral / exact_interpolated - 1.0).abs() < 1e-7);
         }
     }
 
