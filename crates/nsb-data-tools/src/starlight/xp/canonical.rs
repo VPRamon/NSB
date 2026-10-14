@@ -729,7 +729,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn canonical_equivalence_diagnostics_detect_each_changed_field() {
         let reference = sample_record();
@@ -829,21 +828,25 @@ mod tests {
         assert!(stream.next_record().unwrap().is_none());
 
         let wanted = ["43".to_string(), "absent".to_string()]
-            .into_iter().collect();
+            .into_iter()
+            .collect();
         let found = find_bulk_sources(&gz_path, &wanted).unwrap();
         assert_eq!(found.len(), 1);
         assert_eq!(found["43"].source_id, "43");
-        assert_eq!(find_bulk_source(&gz_path, "42").unwrap().unwrap().source_id, "42");
+        assert_eq!(
+            find_bulk_source(&gz_path, "42").unwrap().unwrap().source_id,
+            "42"
+        );
         assert!(find_bulk_source(&gz_path, "99").unwrap().is_none());
-        assert!(find_bulk_sources(
-            &dir.path().join("missing.csv.gz"), &Default::default(),
-        ).unwrap().is_empty());
+        assert!(
+            find_bulk_sources(&dir.path().join("missing.csv.gz"), &Default::default(),)
+                .unwrap()
+                .is_empty()
+        );
 
         let mut invalid = first.clone();
         invalid.bp_coefficients.clear();
-        assert!(write_gaiaxpy_datalink_csv_batch(
-            &csv_path, &[first, invalid]
-        ).is_err());
+        assert!(write_gaiaxpy_datalink_csv_batch(&csv_path, &[first, invalid]).is_err());
     }
 
     #[test]
