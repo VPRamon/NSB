@@ -1131,7 +1131,11 @@ reference_distance = \"1 AU\"\n",
         mark_failed(&path, &anyhow::anyhow!("synthetic failure"));
         let failed = read_manifest(&path).unwrap();
         assert!(matches!(failed.status, RunStatus::Failed));
-        assert!(failed.error.as_deref().unwrap().contains("synthetic failure"));
+        assert!(failed
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("synthetic failure"));
         let mut invalid = failed;
         invalid.schema_version += 1;
         write_manifest(&path, &invalid).unwrap();
@@ -1229,14 +1233,12 @@ reference_distance = \"1 AU\"\n",
         .is_err());
     }
 
-
     #[test]
     fn local_solar_dataset_runs_update_build_validate_and_publish_offline() {
         let tmp = tempfile::tempdir().unwrap();
-        let config_source = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("config/solar-spectrum.toml");
-        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("data/solar-planck-v1.toml");
+        let config_source =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("config/solar-spectrum.toml");
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/solar-planck-v1.toml");
         let workspace = tmp.path().join("workspace");
         let repository = tmp.path().join("isolated-repository");
         let data_root = repository.join("crates/nsb/data");
@@ -1249,10 +1251,8 @@ reference_distance = \"1 AU\"\n",
 
         let mut document: toml::Value =
             toml::from_str(&fs::read_to_string(config_source).unwrap()).unwrap();
-        document["workspace"]["root"] =
-            toml::Value::String(workspace.display().to_string());
-        document["sources"][0]["path"] =
-            toml::Value::String(source.display().to_string());
+        document["workspace"]["root"] = toml::Value::String(workspace.display().to_string());
+        document["sources"][0]["path"] = toml::Value::String(source.display().to_string());
         document["publish"]["repository_root"] =
             toml::Value::String(repository.display().to_string());
         let config_path = tmp.path().join("solar-config.toml");
@@ -1277,7 +1277,10 @@ reference_distance = \"1 AU\"\n",
         let output = workspace.join("outputs/solar_spectrum.dat");
         assert!(output.is_file());
         assert!(data_root.join("solar_spectrum.dat").is_file());
-        assert_eq!(fs::read(&output).unwrap(), fs::read(data_root.join("solar_spectrum.dat")).unwrap());
+        assert_eq!(
+            fs::read(&output).unwrap(),
+            fs::read(data_root.join("solar_spectrum.dat")).unwrap()
+        );
         let report: ValidationReport = read_json(&workspace.join("validation.json")).unwrap();
         assert!(report.passed);
         assert_eq!(report.artifacts.len(), 1);
