@@ -1113,7 +1113,6 @@ mod tests {
         }
     }
 
-
     fn tiny_rt_workspace() -> (tempfile::TempDir, RunConfig) {
         let temp = tempfile::tempdir().unwrap();
         let mut config = RunConfig::load(
@@ -1123,9 +1122,10 @@ mod tests {
         config.workspace.root = temp.path().join("workspace");
         let sources = config.workspace.root.join("sources");
         fs::create_dir_all(&sources).unwrap();
-        let mut rt: toml::Value =
-            toml::from_str(include_str!("../../config/moonlight-multiscatter-nsb-v1.toml"))
-                .unwrap();
+        let mut rt: toml::Value = toml::from_str(include_str!(
+            "../../config/moonlight-multiscatter-nsb-v1.toml"
+        ))
+        .unwrap();
         let table = rt.as_table_mut().unwrap();
         table.insert("wavelength_end_nm".into(), toml::Value::Integer(300));
         table.insert(
@@ -1141,11 +1141,17 @@ mod tests {
         let rt_text = toml::to_string(&rt).unwrap();
         let rt_path = sources.join(RT_CONFIG);
         fs::write(&rt_path, rt_text.as_bytes()).unwrap();
-        let rt_source = config.sources.iter_mut().find(|s| s.name == RT_CONFIG).unwrap();
+        let rt_source = config
+            .sources
+            .iter_mut()
+            .find(|s| s.name == RT_CONFIG)
+            .unwrap();
         rt_source.path = Some(rt_path);
         rt_source.sha256 = crate::platform::checksum_io::sha256_bytes(rt_text.as_bytes());
         fs::copy(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../nsb/data").join(MIE_INPUT),
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../nsb/data")
+                .join(MIE_INPUT),
             sources.join(MIE_INPUT),
         )
         .unwrap();
@@ -1185,21 +1191,39 @@ mod tests {
         let stored: PartitionResult =
             serde_json::from_slice(&fs::read(&artifacts[0].path).unwrap()).unwrap();
         let rt = read_rt_workspace(&config).unwrap();
-        validate_partition(&stored, "w0300", &source_sha(&config, RT_CONFIG).unwrap(), &rt).unwrap();
+        validate_partition(
+            &stored,
+            "w0300",
+            &source_sha(&config, RT_CONFIG).unwrap(),
+            &rt,
+        )
+        .unwrap();
         assert_eq!(stored.cells.len(), 2);
         assert_eq!(stored.cells[0].separation_deg, 0);
         assert_eq!(stored.cells[1].separation_deg, 180);
-        assert!(stored.cells.iter().all(|cell|
-            cell.double_to_single.is_finite() && cell.standard_error.is_finite()
-                && (1.0..=10.0).contains(&cell.correction)
-        ));
+        assert!(stored
+            .cells
+            .iter()
+            .all(|cell| cell.double_to_single.is_finite()
+                && cell.standard_error.is_finite()
+                && (1.0..=10.0).contains(&cell.correction)));
 
         let mut mutated = stored.clone();
         mutated.cells[0].standard_error = -1.0;
-        assert!(validate_partition(&mutated, "w0300",
-            &source_sha(&config, RT_CONFIG).unwrap(), &rt).is_err());
-        assert!(validate_partition(&stored, "w0310",
-            &source_sha(&config, RT_CONFIG).unwrap(), &rt).is_err());
+        assert!(validate_partition(
+            &mutated,
+            "w0300",
+            &source_sha(&config, RT_CONFIG).unwrap(),
+            &rt
+        )
+        .is_err());
+        assert!(validate_partition(
+            &stored,
+            "w0310",
+            &source_sha(&config, RT_CONFIG).unwrap(),
+            &rt
+        )
+        .is_err());
 
         verify_partition_checksum(&artifacts[0].path, "w0300").unwrap();
         fs::write(&artifacts[0].path, b"corrupt").unwrap();
@@ -1232,7 +1256,10 @@ mod tests {
             "1 2\n0.300\n0 180\n1 1\n2 2\n",
             "one two\n",
         ] {
-            assert!(parse_phase_grid(grid).is_err(), "accepted invalid grid: {grid}");
+            assert!(
+                parse_phase_grid(grid).is_err(),
+                "accepted invalid grid: {grid}"
+            );
         }
         let grid = parse_phase_grid("# comment\n1 2\n0.300\n0 180\n1 2\n").unwrap();
         assert_eq!(grid.wavelengths_nm, vec![300.0]);
@@ -1248,13 +1275,26 @@ mod tests {
         let (first, second) = symmetric_geometry(0.0, 0.0).unwrap();
         assert_eq!(dot(first, second), 1.0);
         assert!(symmetric_geometry(0.0, 10.0).is_err());
-        let grid = parse_phase_grid(include_str!("../../../nsb/data/moonlight_mie_nsb_v1.dat")).unwrap();
+        let grid =
+            parse_phase_grid(include_str!("../../../nsb/data/moonlight_mie_nsb_v1.dat")).unwrap();
         let sampler = PhaseSampler::new(&grid.angles_rad, &grid.rows[0]).unwrap();
-        let mut rt: RtConfig =
-            toml::from_str(include_str!("../../config/moonlight-multiscatter-nsb-v1.toml"))
-                .unwrap();
-        assert!(simulate_ratio(&rt, &sampler, 300,
-            Vec3 { x: 0.0, y: 0.0, z: -1.0 }, second, 1).is_err());
+        let mut rt: RtConfig = toml::from_str(include_str!(
+            "../../config/moonlight-multiscatter-nsb-v1.toml"
+        ))
+        .unwrap();
+        assert!(simulate_ratio(
+            &rt,
+            &sampler,
+            300,
+            Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: -1.0
+            },
+            second,
+            1
+        )
+        .is_err());
         rt.photons_per_replicate = 0;
         assert!(validate_rt(&rt).is_err());
         rt.photons_per_replicate = 1024;
