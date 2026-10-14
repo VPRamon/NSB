@@ -100,6 +100,28 @@ jobs:
                   f"redistribution terms:\n{details}"
               )
 
+      - name: Verify production Starlight against the human review
+        shell: bash
+        run: |
+          set -euo pipefail
+          if python -c 'import tomllib; from pathlib import Path; m=tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text()); exit(0 if any(a.get("runtime_embedded") and "starlight" in a["path"] for a in m["assets"]) else 1)'; then
+            cargo run -p nsb-data-tools --locked -- dataset starlight promote \
+              --repository-root . \
+              --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+              --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
+              --output /tmp/starlight-production.toml
+            python - <<'PYCODE'
+          import tomllib
+          from pathlib import Path
+          expected = tomllib.loads(Path("/tmp/starlight-production.toml").read_text())["assets"]
+          registry = {a["path"]: a for a in tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text())["assets"]}
+          for asset in expected:
+              actual = registry[asset["path"]]
+              assert actual["runtime_embedded"] and actual["calibration_status"] == "production"
+              assert actual["sha256"] == asset["sha256"] and actual["schema"] == asset["schema"]
+          PYCODE
+          fi
+
       - name: Verify crates.io package
         shell: bash
         run: |
@@ -127,6 +149,25 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Verify packaged scientific assets
+        shell: python
+        run: |
+          import hashlib
+          import tarfile
+          import tomllib
+          from pathlib import Path
+          archive = next(Path("target/package").glob("nsb-*.crate"))
+          with tarfile.open(archive) as bundle:
+              members = {m.name.split("/", 1)[1]: m for m in bundle.getmembers() if "/" in m.name}
+              registry = tomllib.loads(bundle.extractfile(members["data/manifest.toml"]).read().decode())
+              approved = {a["path"]: a for a in registry["assets"] if a.get("runtime_embedded")}
+              for path, asset in approved.items():
+                  payload = bundle.extractfile(members["data/" + path]).read()
+                  assert hashlib.sha256(payload).hexdigest() == asset["sha256"], path
+              for path in members:
+                  if path.startswith("data/") and "starlight" in path:
+                      assert path[5:] in approved, f"unregistered Starlight payload: {path}"
 
       - name: Verify crates.io publish dry-run
         run: cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked
@@ -163,6 +204,20 @@ jobs:
             --compatibility pypi
             --out dist
 
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Verify installed wheel independently of the checkout
+        shell: bash
+        run: |
+          python -m pip install dist/*.whl pytest
+          python -c 'import zipfile, pathlib; w=next(pathlib.Path("dist").glob("*.whl")); assert any(n.endswith("THIRD_PARTY_NOTICES.md") for n in zipfile.ZipFile(w).namelist())'
+          mkdir -p /tmp/nsb-wheel-tests
+          cp python/tests/conftest.py python/tests/test_evaluation.py /tmp/nsb-wheel-tests/
+          cd /tmp/nsb-wheel-tests
+          python -m pytest -q
+
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-linux-${{ matrix.arch }}
@@ -197,6 +252,20 @@ jobs:
             --compatibility pypi
             --out dist
 
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Verify installed wheel independently of the checkout
+        shell: bash
+        run: |
+          python -m pip install dist/*.whl pytest
+          python -c 'import zipfile, pathlib; w=next(pathlib.Path("dist").glob("*.whl")); assert any(n.endswith("THIRD_PARTY_NOTICES.md") for n in zipfile.ZipFile(w).namelist())'
+          mkdir -p /tmp/nsb-wheel-tests
+          cp python/tests/conftest.py python/tests/test_evaluation.py /tmp/nsb-wheel-tests/
+          cd /tmp/nsb-wheel-tests
+          python -m pytest -q
+
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-macos-${{ matrix.arch }}
@@ -222,6 +291,20 @@ jobs:
             --locked
             --compatibility pypi
             --out dist
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Verify installed wheel independently of the checkout
+        shell: bash
+        run: |
+          python -m pip install dist/*.whl pytest
+          python -c 'import zipfile, pathlib; w=next(pathlib.Path("dist").glob("*.whl")); assert any(n.endswith("THIRD_PARTY_NOTICES.md") for n in zipfile.ZipFile(w).namelist())'
+          mkdir -p /tmp/nsb-wheel-tests
+          cp python/tests/conftest.py python/tests/test_evaluation.py /tmp/nsb-wheel-tests/
+          cd /tmp/nsb-wheel-tests
+          python -m pytest -q
 
       - uses: actions/upload-artifact@v4
         with:
@@ -250,6 +333,7 @@ jobs:
         run: |
           from pathlib import Path
           import tarfile
+          import tomllib
 
           bundles = list(Path("dist").glob("*.tar.gz"))
           if len(bundles) != 1:
@@ -266,8 +350,17 @@ jobs:
                   for member in archive.getmembers()
                   if Path(member.name).name in forbidden
               })
+              registry = tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text())
+              approved = {a["path"] for a in registry["assets"] if a.get("runtime_embedded")}
+              for member in archive.getmembers():
+                  if "/data/" in member.name and "starlight" in Path(member.name).name:
+                      if Path(member.name).name not in approved:
+                          leaked.append(member.name)
           if leaked:
               raise SystemExit(f"unapproved Starlight payload in sdist: {leaked}")
+
+      - name: Verify source distribution builds a wheel
+        run: python -m pip wheel --no-deps --wheel-dir /tmp/nsb-sdist-wheels dist/*.tar.gz
 
       - uses: actions/upload-artifact@v4
         with:

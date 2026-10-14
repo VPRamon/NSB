@@ -188,3 +188,69 @@ own assessment and notices.
 - [CDS/VizieR licence information](https://cds.unistra.fr/vizier-org/licences_vizier.html)
 - [SVO Filter Profile Service](https://svo2.cab.inta-csic.es/theory/fps/)
 - [MAST Reference Atlases](https://archive.stsci.edu/hlsp/reference-atlases)
+
+## 7. Compact release recommendation (2026-10-14)
+
+The compact representation preserves the same radiances, uncertainties and
+provenance. It creates no additional redistribution permission. Recommended
+#103 decision: **defer package activation**, while reviewing conditional
+noncommercial distribution of the exact derived product. Do not offer general
+commercial data reuse under AGPL. The minimum next human action is to resolve
+XHIP derived-output/database-right scope and the Gaia/Tycho noncommercial
+channel/use scope, verify the retained Hipparcos and SVO correspondence, then
+record an actual channel-specific decision against the updated bundle. If the
+review finds a permission necessary, obtain that permission before approval.
+The code changes need no permission to redistribute upstream catalogues, which
+remain excluded; this does not settle rights in the numerical product.
+
+| Channel | Recommendation now | Condition for the compact map |
+| --- | --- | --- |
+| Existing public Git candidate/evidence | Retain provenance; human review must cover this existing publication | Do not interpret its availability as permission for new channels |
+| crates.io `.crate` | No Starlight payload while pending | Actual #103 authorization of embedded derived data, with notices and accurate NC scope |
+| PyPI wheels and sdist | Same boundary as Rust | Same approved product and notices; build from the same revision |
+| GitHub Release or Zenodo | No new map upload | Explicit authorization naming the channel and product hashes |
+| Downstream commercial use | No unrestricted grant established | Separate rights analysis/permission where required by source terms |
+
+Primary-source checks during this change: ESA's [Gaia licence page](https://www.cosmos.esa.int/web/gaia-users/license)
+continues to designate BY-NC 3.0 IGO and refers commercial use to ESA archive
+terms; [CC legal code](https://creativecommons.org/licenses/by-nc/3.0/igo/legalcode)
+does not supply unrestricted commercial reuse. [MAST REFERENCE-ATLASES](https://archive.stsci.edu/hlsp/reference-atlases)
+explicitly lists CK04 and CALSPEC products and CC BY 4.0, requesting source
+papers and DOI 10.17909/t9-khb7-4049. The [XHIP ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/V/137D?format=html)
+identifies the compilation and scientific fields but did not establish a
+specific redistribution grant. This is evidence of an unresolved grant, not
+proof that mathematical outputs infringe.
+
+### Source-to-package assessment
+
+The source-specific versions, URLs, original author names and hashes remain in
+`artifact-inventory-v1.toml`, `SCIENTIFIC_REFERENCES.md`, and the asset registry;
+the following table states the actual intended redistribution scope.
+
+| Source/product | Original bytes in runtime packages? | Derived bytes? | Terms, citations and remaining question |
+| --- | --- | --- | --- |
+| Gaia DR3 GaiaSource/XP, ESA/DPAC | No | Frozen integrated map, only after approval | BY-NC 3.0 IGO; ESA/DPAC acknowledgement and Gaia mission/DR3 references; channel/commercial scope unresolved |
+| Tycho-2 I/259, Høg et al. 2000 | No | Bright-star processing contribution | CDS source designation BY-NC 3.0 IGO; Høg citations; aggregate NC scope needs review |
+| Hipparcos-2 I/311, van Leeuwen 2007 | No | Bright-star contribution | Author-confirmed availability; cite both 2007 book and validation paper; commercial/derived-map grant not explicit |
+| XHIP V/137D, Anderson & Francis 2012 | No | Spectral-class selections used to calculate flux | Cite Anderson & Francis and CDS; catalogue-specific grant and substantiality assessment remain unresolved |
+| SVO Hp_bes / Bessell 2000 | No curve/XML | Calculated scalar integrals | Maintainer-reported FPS correspondence supports calculation results with exact acknowledgement and four requested references; original-curve redistribution not authorized here |
+| CK04 HLSP v2, Castelli & Kurucz; CALSPEC alpha_lyr_stis_012, STScI | No spectra | Integrated model flux and calibration | MAST CC BY 4.0, retain attribution, licence link, source papers, DOI and indication of transformation; exact input hashes in sidecar |
+| Cantat-Gaudin Gaia DR3 M10 selection product | No original table | Selection-weighted map | CC BY 4.0; existing dataset DOI/citation and change description retained |
+| PALACE v1.0, Noll et al. 2024 | No original FITS or GPL program | Embedded continuum/climatology table | Zenodo 14064023 data CC BY 4.0; retain author credit, DOI, licence and transformation notice; model remains a climatology |
+| NOAA/NWS SWPC F10.7 snapshot | Selected published product values | Normalized offline store | Federal-work public-domain basis applies to those products; retain NOAA/DRAO lineage, no blanket waiver for unrelated contributed works |
+| Solar reference v1 | No third-party spectrum | NSB Planck calculation | NSB AGPL terms, physical constants/provenance in registry; do not call it an observed spectrum |
+| Moonlight Mie and multiple-scatter LUT v1 | No historical ESO tables | NSB numerical calculations | NSB terms and Jones 2013/model citations; reconstruction/approximation maturity retained |
+| Atmospheric/zodiacal reference equations | No copied catalogue | Evaluated published models | Existing Noll/Jones/Leinert references and Siderust dependency notices; no new upstream dataset introduced |
+
+### nsb2 precedent
+
+Reviewed [stars.py](https://github.com/GerritRo/nsb2/blob/main/nsb2/emitter/stars.py),
+its packaged `anderson2012_xhip_suppl.dat`, BSD-3-Clause software licence, and
+[Zenodo Gaia product 15396676](https://zenodo.org/records/15396676).
+nsb2 separates bright-source and faint HEALPix paths at G=15, uses photometric
+spectral templates and XHIP bright-star supplementation, and requests Gaia
+acknowledgements. Its Gaia products and SVO responses use first-use network
+retrieval. This supplies scientific precedent, not a grant from Gaia/XHIP
+rights holders. NSB copies none of its code/data and retains its offline
+embedded XP-derived map architecture. Neither BSD software terms nor another
+project's Zenodo metadata settle NSB's exact upstream and derived-product rights.

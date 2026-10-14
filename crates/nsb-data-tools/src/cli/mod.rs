@@ -463,7 +463,7 @@ struct StageRuntimeArgs {
     /// Repository root used to resolve the candidate map.
     #[arg(long)]
     repository_root: PathBuf,
-    /// Output packed runtime CSV path.
+    /// Output runtime map path; .bin selects the lossless compact format.
     #[arg(long)]
     output_csv: PathBuf,
     /// Output schema-v2 runtime provenance sidecar.

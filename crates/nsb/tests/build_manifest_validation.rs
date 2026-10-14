@@ -405,3 +405,25 @@ fn tempfile_dir() -> PathBuf {
     fs::create_dir_all(&dir).unwrap();
     dir
 }
+
+#[test]
+fn compact_production_pair_is_embedded_as_bytes() {
+    let mut assets = valid_required_set();
+    let mut map = production_map("starlight_nside128.compact.release.bin", &"0".repeat(64));
+    map.schema = "nsb-healpix-starlight-binary-v1".into();
+    assets.push(map);
+    assets.push(production_sidecar(
+        "starlight_nside128.compact.manifest.toml",
+        &"0".repeat(64),
+    ));
+    let manifest = Manifest {
+        schema_version: EXPECTED_MANIFEST_SCHEMA_VERSION,
+        assets,
+    };
+    validate_manifest_structure(&manifest).unwrap();
+    let pair = select_production_starlight(&manifest).unwrap().unwrap();
+    let generated =
+        generate_bundled_assets_rs(1, &verified_runtime_embedded_assets(&manifest), Some(pair));
+    assert!(generated.contains("include_bytes!"));
+    assert!(generated.contains("starlight_nside128.compact.release.bin"));
+}

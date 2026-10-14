@@ -8,6 +8,7 @@
 //! remain the advanced API for constructing, admitting, and inspecting products.
 //! The concrete directional evaluator and component-only output are internal.
 
+mod compact;
 mod map;
 mod model;
 mod output;

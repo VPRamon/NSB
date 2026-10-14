@@ -60,7 +60,7 @@ pub fn generate_bundled_assets_rs(
             .unwrap();
             writeln!(
                 out,
-                "pub(crate) const BUNDLED_PRODUCTION_STARLIGHT_MAP: &str = include_str!(concat!(env!(\"CARGO_MANIFEST_DIR\"), {:?}));",
+                "pub(crate) const BUNDLED_PRODUCTION_STARLIGHT_MAP: &[u8] = include_bytes!(concat!(env!(\"CARGO_MANIFEST_DIR\"), {:?}));",
                 format!("/data/{}", map.path)
             )
             .unwrap();

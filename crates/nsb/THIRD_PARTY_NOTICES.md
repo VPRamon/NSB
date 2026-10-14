@@ -21,14 +21,14 @@ provide full source identifiers and SHA-256s.
   scientific models; relevant model citations and scientific assumptions are
   documented in the repository's model and validation documentation.
 
-## Not included in the crate
+## Starlight status before human authorization
 
 The frozen Gaia-derived Starlight candidate, staged runtime map, runtime
-provenance sidecar, and merge report **are not distributed by this crate**.
+provenance sidecar, and merge report **are not distributed by this crate while #103 is pending**.
 They remain tracked in the Git repository for scientific reproducibility,
 where attribution and a separate redistribution assessment are required.
 
-The Starlight production runtime is intentionally disabled for version 0.1.0
+The Starlight production runtime is intentionally disabled
 while issue https://github.com/VPRamon/NSB/issues/103 is pending.
 
 The Starlight source families and relevant attribution requirements are at:
@@ -82,3 +82,14 @@ SVO/FPS references requested in the reply:
 
 This statement does not itself authorize distribution of the original
 SVO filter-transmission table, or remove other upstream constraints.
+
+## Compact Starlight transport and approval boundary
+
+The binary format preserves the frozen Gaia-derived radiances and all available
+uncertainties; changing representation does not change data rights. While #103
+is pending, no compact Starlight payload is shipped. After actual authorization,
+production packages may embed only the checksum-approved compact map and
+sidecar. The software remains AGPL-3.0-only; Gaia/Tycho noncommercial conditions
+and all source-specific attribution remain separate. Package availability does
+not promise unrestricted commercial reuse of the scientific data. See the
+[source-specific channel assessment](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md).

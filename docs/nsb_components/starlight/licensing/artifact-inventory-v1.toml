@@ -456,3 +456,15 @@ notes = """
 Path: docs/nsb_components/starlight/production-runs/combined-300-650-validation.json.
 Records the UV-v2 candidate/report checksums. Human scientific review is #103.
 """
+[[artifacts]]
+id = "compact-runtime-map-v1"
+category = "generated-derived-output"
+source = "Lossless little-endian f64 encoding of frozen starlight_nside128.release.csv (70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b); all four fields, uncertainties and metadata preserved"
+release = "nsb-healpix-starlight-binary-v1"
+license = "Same unresolved derived-map rights as the frozen candidate; Gaia CC BY-NC 3.0 IGO restrictions retained; #103 authorization required"
+sha256 = "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784"
+distribution_class = "generated_derived_output"
+distributed = false
+channels = []
+tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
+notes = "Reproducible with stage-runtime --output-csv <path>.bin. Payload is generated locally, not committed or packaged pending authorization. Compact sidecar SHA-256 b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Intended future channels: crates.io, PyPI wheel/sdist and GitHub release, only after channel-specific approval."

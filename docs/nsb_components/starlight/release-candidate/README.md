@@ -83,3 +83,133 @@ validation. Malformed or incomplete v2 provenance is rejected.
 - #207 — final combined-band candidate and bright-star supplement.
 - #103 — the remaining human/legal redistribution decision.
 - #102 — technical packing, validation, and promotion automation.
+
+## Compact runtime transport (binary v1)
+
+`nsb-healpix-starlight-binary-v1` encodes the existing packed runtime CSV,
+without regenerating the astrophysical map. Layout, in order:
+
+| Bytes | Meaning |
+| --- | --- |
+| 8 | ASCII `NSBSTL01` (magic and format version) |
+| 4 | Little-endian u32 length of the following UTF-8 header |
+| variable | All CSV metadata, sorted by key, as `# key=value\n` lines |
+| `12 * nside² * 32` | Dense pixels in the header's RING or NESTED order; four little-endian IEEE-754 f64 values per pixel |
+| 32 | SHA-256 of every preceding byte, raw digest |
+
+Fields are integrated radiance, statistical, systematic, and total uncertainty,
+all in photons cm⁻² ns⁻¹ sr⁻¹. Coordinates and solid angle come from HEALPix.
+No S10 values are synthesized: their absence remains explicit in the header.
+This version supports the existing packed CSV's complete uncertainty triplet;
+missing uncertainty fields are rejected rather than silently zero-filled.
+Other map schemas remain available through the existing external map APIs.
+
+There is no native struct serialization, padding, compression dependency,
+quantization, reduced precision, or host endianness assumption. Unknown magic,
+truncated/extra pixels, invalid lengths, checksum failures, nonfinite/negative
+values and invalid uncertainty triplets fail closed. The external sidecar also
+pins the SHA-256 of the complete binary including its internal digest. Its
+only changed scientific-manifest field is `map_sha256`. Original header schema
+labels identify the source CSV contract; the binary magic and registry schema
+identify the transport. Original candidate and runtime CSV/sidecar hashes are
+preserved as the frozen scientific evidence.
+
+Reproduce locally (staging does **not** authorize distribution):
+
+```bash
+cargo run -p nsb-data-tools --locked -- dataset starlight stage-runtime \
+  --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+  --repository-root . \
+  --output-csv /tmp/starlight_nside128.compact.release.bin \
+  --output-sidecar /tmp/starlight_nside128.compact.manifest.toml
+cargo test -p nsb-data-tools compact_runtime_matches --locked -- --nocapture
+```
+
+`runtime-assets-v1.toml` now pins these compact bytes in `[compact]`; it remains
+inside the human decision's checksum-pinned review bundle. The compact files
+are deliberately **not committed or shipped while #103 is pending**. After
+actual authorization, the existing `promote --apply` command reproduces the
+frozen CSV and sidecar, verifies their existing pins and every prior scientific
+and legal gate, converts them, verifies compact pins, and installs/registers
+`starlight_nside128.compact.release.bin` and
+`starlight_nside128.compact.manifest.toml`. Do not hand-edit registry status.
+The original CSV/report exclusions remain applicable to repository evidence;
+the approved binary pair is eligible for packaging. Release CI reruns promotion
+without applying it and compares the production registry to its results.
+
+The build embeds map bytes and the sidecar. Admission runs once per process
+through `OnceLock`; evaluators share the immutable map through `Arc`. Failure
+is cached as an error, never as substitute data. The existing build-dependent
+`ComponentMask::DEFAULT`/`ALL` includes all four components upon production
+registration. Python uses that same Rust configuration and compiled asset;
+wheels carry notices without a second data copy. Prior to approval, defaults
+still contain three components and explicitly selecting missing bundled
+Starlight returns an error. This PR does not claim four-component default
+release readiness before approval.
+
+### Equivalence and performance
+
+On Linux x86_64, Rust 1.97.1, normal test profile (`opt-level=1`), one local
+measurement including checksum verification and scientific admission:
+
+| Metric | Frozen runtime CSV | Compact binary |
+| --- | ---: | ---: |
+| Asset bytes | 18,568,693 | 6,294,180 |
+| Owned pixel storage | 15,728,640 bytes | 15,728,640 bytes |
+| File admission | 187.8 ms | 72.0 ms |
+| 100,000 identical directional lookups | 3.335 ms | 3.332 ms |
+
+These are measurements, not cross-platform performance guarantees. Retained
+pixel memory is unchanged (80 bytes per pixel), while embedded transport drops
+by 66.1%; CSV parsing temporaries disappear. Peak RSS is not equivalent to
+pixel allocation and must not be inferred from this table. The shared cache
+eliminates repeated admission and pixel allocation across bundled evaluators.
+
+All 196,608 pixels and 786,432 f64 fields compare bit-for-bit, including all
+uncertainties. The Rust test also compares complete diagnostics (flux
+conservation, plane/pole and longitude-wrap), deterministic bytes and evaluates
+the sum of all four components using validated external admission. An
+independent Python `struct.pack('<d', float(csv_field))` comparison agrees for
+every field. Frozen candidate SHA-256 remains
+`7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d`.
+
+A separate release-mode process measurement (`/usr/bin/time`, same files;
+filesystem read + checksum + admission) used 52,108 KiB peak RSS for CSV and
+39,864 KiB for compact input, with 234 ms and 97 ms admission respectively.
+RSS includes parsing temporaries and allocator behavior; this is a local
+measurement under concurrent build load, not a promised memory ceiling.
+
+A local transport-only checkout, explicitly without recording human approval,
+verified Cargo packaging/build with the compact pair and exercised the bundled
+four-component default. Its `.crate` was **6,385,561 bytes (6.09 MiB)**, leaving
+3.91 MiB below the project's 10 MiB ceiling. This rehearsal artifact is not a
+publication candidate. The earlier ~17.1 MiB packaging attempt included CSV
+overhead/duplicate data (reported baseline); it is not a controlled comparison
+against the current pending package, which excludes all Starlight payloads.
+The frozen CSVs and upstream catalogues remain excluded after promotion.
+
+Source-distribution testing found that maturin prunes unrelated workspace
+members while retaining the workspace Cargo.lock. Cargo must normalize that
+lockfile before building the library-only sdist. `locked=true` is therefore
+not imposed globally by pyproject.toml; release wheel commands explicitly use
+`--locked`, and sdist verification builds the extracted archive with the normal
+PEP 517 backend. This preserves retained dependency pins while allowing removal
+of unrelated workspace packages. The binary encoding itself is deterministic.
+
+### Historical preregistration recovery
+
+The #226 baseline reset (`c59db10`) changed the working preregistration's
+candidate path/schema from the frozen v5 evidence to a generic v1 admission
+input, leaving the validation artifact manifest's old hash and byte count.
+All numerical tolerances, references, regions, frozen maps and validation
+reports are unchanged. To preserve the evidence used before that reset,
+`validation/results/frozen-preregistration-v1.toml` is recovered byte-for-byte
+from `c59db10^` (3,698 bytes, SHA-256
+`5002cc27aaaae68e4b2f93ee1f0ff9d2cc7b4dbb03d3d90648f609491a48e23d`).
+Only the artifact manifest's path changes to this historical snapshot; its
+original hash/length remain intact. Historical candidate-checksum commentary
+inside that snapshot remains historical; the final #207 candidate is pinned
+separately by the unchanged map and cross-validation evidence. The current
+working preregistration remains available for future generic validation runs.
+The new transitive test verifies the complete review bundle, rather than
+replacing a stale scientific evidence hash with the current working document.

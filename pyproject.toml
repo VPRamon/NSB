@@ -22,4 +22,10 @@ manifest-path = "crates/nsb/Cargo.toml"
 module-name = "nsb"
 bindings = "pyo3"
 features = ["python"]
-locked = true
+# Release wheels use --locked in CI. Cargo must prune the workspace lockfile
+# when maturin builds the library-only sdist; retained dependency pins are reused.
+
+# Notices accompany binary wheels as well as the Rust source distribution.
+include = [
+    { path = "crates/nsb/THIRD_PARTY_NOTICES.md", format = ["sdist", "wheel"] },
+]

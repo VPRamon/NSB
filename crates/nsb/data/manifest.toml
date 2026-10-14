@@ -114,3 +114,17 @@ validation_report = "docs/nsb_components/airglow/f107-resolver.md#bundled-asset-
 calibration_status = "planning-proxy"
 runtime_embedded = true
 
+
+# Frozen scientific evidence only. Promotion requires this identity but the
+# candidate is excluded from Cargo packages and never embedded at build time.
+[[assets]]
+path = "starlight_nside128.csv"
+schema = "nsb-healpix-starlight-candidate-v5"
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+source = "Gaia DR3 XP and checksum-pinned bright-star supplement; combined 300-650 nm candidate"
+license = "Gaia CC BY-NC 3.0 IGO; derived-product redistribution pending human review #103"
+generator = "Frozen #207 production pipeline; see release-candidate-v1.toml"
+generation_command = "See checksum-pinned merge_report.json and release-candidate-v1.toml"
+validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
+calibration_status = "candidate"
+runtime_embedded = false

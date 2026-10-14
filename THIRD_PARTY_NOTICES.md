@@ -119,3 +119,14 @@ ESO correction-table bytes and no third-party solver or dataset bytes.
 ## Reporting a missing or incorrect notice
 
 Open an issue identifying the affected bundled asset or dependency.
+
+## Compact Starlight transport and approval boundary
+
+The binary format preserves the frozen Gaia-derived radiances and all available
+uncertainties; changing representation does not change data rights. While #103
+is pending, no compact Starlight payload is shipped. After actual authorization,
+production packages may embed only the checksum-approved compact map and
+sidecar. The software remains AGPL-3.0-only; Gaia/Tycho noncommercial conditions
+and all source-specific attribution remain separate. Package availability does
+not promise unrestricted commercial reuse of the scientific data. See the
+[source-specific channel assessment](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md).

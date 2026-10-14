@@ -211,3 +211,11 @@ or by direct link:
 See [`THIRD_PARTY_NOTICES.md`](../../../../THIRD_PARTY_NOTICES.md) at the
 repository root for the consolidated, project-wide third-party notice this
 wording feeds into.
+
+## Compact transport
+
+The compact binary encodes the same frozen integrated product, including every
+available uncertainty. All acknowledgements and source restrictions above
+continue to apply. Software AGPL terms do not replace Gaia/Tycho data terms.
+The compact map is not shipped while #103 is pending. The source/channel
+recommendation is in [derived-map-rights-assessment-v1.md](derived-map-rights-assessment-v1.md#7-compact-release-recommendation-2026-10-14).

@@ -367,6 +367,23 @@ pub struct RuntimeStageOutcome {
 /// not register the outputs as production assets. Promotion remains the only
 /// operation that can apply registry changes after the legal decision passes.
 pub fn stage_runtime_assets(inputs: &RuntimeStageInputs) -> Result<RuntimeStageOutcome> {
+    if inputs.output_csv.extension().is_some_and(|e| e == "bin") {
+        let staging = tempfile::tempdir()?;
+        let csv = staging.path().join("map.csv");
+        let sidecar = staging.path().join("map.toml");
+        let staged = stage_runtime_assets(&RuntimeStageInputs {
+            output_csv: csv.clone(),
+            output_sidecar: sidecar.clone(),
+            ..inputs.clone()
+        })?;
+        let (runtime_map_sha256, runtime_sidecar_sha256) =
+            compact_runtime(&csv, &sidecar, &inputs.output_csv, &inputs.output_sidecar)?;
+        return Ok(RuntimeStageOutcome {
+            candidate_sha256: staged.candidate_sha256,
+            runtime_map_sha256,
+            runtime_sidecar_sha256,
+        });
+    }
     let release = ReleaseCandidateManifest::load(&inputs.release_candidate)?;
     let candidate = verified_runtime_candidate(&inputs.repository_root, &release)?;
     if candidate.status != CandidateStatus::Pinned {
@@ -536,7 +553,49 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
 
     require_packed_runtime_header(&staged_map)?;
 
-    let dest_map = data_dir.join(format!("{stem}.release.csv"));
+    let identity: RuntimeAssetsIdentity = toml::from_str(&fs::read_to_string(
+        inputs.repository_root.join(RUNTIME_ASSETS_RELATIVE_PATH),
+    )?)?;
+    let (
+        staged_map,
+        staged_runtime_sidecar,
+        runtime_map_sha256,
+        runtime_sidecar_sha256,
+        production_stem,
+        binary,
+    ) = if let Some(compact) = identity.compact {
+        let binary_map = staging.join(format!("{stem}.compact.release.bin"));
+        let binary_sidecar = staging.join(format!("{stem}.compact.manifest.toml"));
+        let (map_sha, sidecar_sha) = compact_runtime(
+            &staged_map,
+            &staged_runtime_sidecar,
+            &binary_map,
+            &binary_sidecar,
+        )?;
+        if map_sha != compact.map_sha256 || sidecar_sha != compact.sidecar_sha256 {
+            bail!("compact runtime identity differs from human-review bundle pins");
+        }
+        (
+            binary_map,
+            binary_sidecar,
+            map_sha,
+            sidecar_sha,
+            format!("{stem}.compact"),
+            true,
+        )
+    } else {
+        (
+            staged_map,
+            staged_runtime_sidecar,
+            pack_outcome.runtime_map_sha256.clone(),
+            runtime_sidecar_sha256,
+            stem.to_string(),
+            false,
+        )
+    };
+    let stem = production_stem.as_str();
+    let extension = if binary { "bin" } else { "csv" };
+    let dest_map = data_dir.join(format!("{stem}.release.{extension}"));
     let dest_sidecar = data_dir.join(format!("{stem}.manifest.toml"));
     let mut applied = false;
     let (runtime_map_path, runtime_sidecar_path) = if inputs.apply {
@@ -548,9 +607,10 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         apply_production_registry(
             &data_dir.join("manifest.toml"),
             &runtime_candidate,
-            &pack_outcome.runtime_map_sha256,
+            &runtime_map_sha256,
             &runtime_sidecar_sha256,
             stem,
+            binary,
         )?;
         applied = true;
         // Staging can be cleaned up after install.
@@ -564,8 +624,10 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
 
     let draft = render_production_manifest_draft(
         &runtime_candidate,
-        &pack_outcome.runtime_map_sha256,
+        &runtime_map_sha256,
         &runtime_sidecar_sha256,
+        stem,
+        binary,
     );
     let written_to = match &inputs.output {
         Some(output) => {
@@ -592,7 +654,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
     Ok(PromotionOutcome {
         draft_manifest_fragment: draft,
         written_to,
-        runtime_map_sha256: pack_outcome.runtime_map_sha256,
+        runtime_map_sha256,
         runtime_sidecar_sha256,
         runtime_map_path,
         runtime_sidecar_path,
@@ -925,6 +987,57 @@ struct RuntimeAssetsIdentity {
     runtime_map_sha256: String,
     runtime_sidecar_path: String,
     runtime_sidecar_sha256: String,
+    #[serde(default)]
+    compact: Option<CompactRuntimeIdentity>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompactRuntimeIdentity {
+    map_sha256: String,
+    sidecar_sha256: String,
+}
+
+/// Convert the already admitted CSV and sidecar, keeping every science and
+/// provenance field. Only the sidecar's transport checksum changes.
+fn compact_runtime(
+    csv: &Path,
+    sidecar: &Path,
+    output: &Path,
+    output_sidecar: &Path,
+) -> Result<(String, String)> {
+    let raw = fs::read_to_string(csv)?;
+    let original_manifest = fs::read_to_string(sidecar)?;
+    let original = nsb::components::starlight::ValidatedStarlightMap::from_bytes_and_manifest(
+        raw.as_bytes(),
+        &original_manifest,
+    )?;
+    let bytes = nsb::components::starlight::StarlightMap::compact_csv(
+        &raw,
+        original.map().provenance().clone(),
+    )?;
+    let map_sha = checksum_io::sha256_bytes(&bytes);
+    let old_sha = checksum_io::sha256_bytes(raw.as_bytes());
+    let manifest = original_manifest.replace(
+        &format!("map_sha256 = \"sha256:{old_sha}\""),
+        &format!("map_sha256 = \"sha256:{map_sha}\""),
+    );
+    let decoded = nsb::components::starlight::ValidatedStarlightMap::from_bytes_and_manifest(
+        &bytes, &manifest,
+    )?;
+    if decoded.map().pixels() != original.map().pixels()
+        || decoded.diagnostics() != original.diagnostics()
+    {
+        bail!("compact Starlight conversion changed pixels or scientific diagnostics");
+    }
+    for path in [output, output_sidecar] {
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            fs::create_dir_all(parent)?;
+        }
+    }
+    fs::write(output, &bytes)?;
+    fs::write(output_sidecar, &manifest)?;
+    Ok((map_sha, checksum_io::sha256_bytes(manifest.as_bytes())))
 }
 
 fn verify_runtime_assets_identity(
@@ -996,7 +1109,15 @@ fn require_packed_runtime_header(map_path: &Path) -> Result<()> {
 
 pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, String> {
     let map_resolution = format!("HEALPix nside={} ordering=ring", candidate.nside);
-    let version = format!("starlight-runtime-v1-from-{}", candidate.candidate_sha256);
+    let version = format!(
+        "{}-from-{}",
+        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+            "uv-v2-packed"
+        } else {
+            "starlight-runtime-v1"
+        },
+        candidate.candidate_sha256
+    );
     let mut headers = BTreeMap::from([
         ("dataset_name".into(), "NSB Gaia DR3 Starlight packed runtime map".into()),
         ("version".into(), version),
@@ -1047,7 +1168,7 @@ pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMa
         ("smoothing".into(), "none".into()),
         (
             "generated_by".into(),
-            format!("nsb-data dataset starlight promote ({})", pack::PACKER_ID),
+            format!("nsb-data dataset starlight promote ({})", pack::packer_id(&candidate.map_schema)),
         ),
         (
             "generation_command".into(),
@@ -1171,7 +1292,7 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         candidate.generation_date_utc,
         candidate.gaia_release,
         candidate.band,
-        pack::PACKER_ID,
+        pack::packer_id(&candidate.map_schema),
         all_sky_flux_sum_ph_m2_s * 1.0e-13,
         candidate.candidate_sha256,
         candidate.nside,
@@ -1181,8 +1302,13 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         candidate.gaia_release,
         candidate.candidate_sha256,
         candidate.band,
-        pack::PACKER_ID,
+        pack::packer_id(&candidate.map_schema),
     );
+    if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+        body = body
+            .replacen("schema_version = 1", "schema_version = 2", 1)
+            .replace("starlight-runtime-v1-from-", "uv-v2-packed-from-");
+    }
     if let Some(supplement) = &candidate.bright_star_supplement {
         for (key, value) in [
             ("bright_star_artifact_sha256", &supplement.artifact_sha256),
@@ -1234,6 +1360,7 @@ fn apply_production_registry(
     runtime_map_sha256: &str,
     runtime_sidecar_sha256: &str,
     stem: &str,
+    binary: bool,
 ) -> Result<()> {
     let raw = fs::read_to_string(manifest_path)
         .with_context(|| format!("read asset registry {}", manifest_path.display()))?;
@@ -1243,7 +1370,7 @@ fn apply_production_registry(
     let assets = doc["assets"]
         .as_array_of_tables_mut()
         .context("asset registry has no [[assets]] tables")?;
-    let release_path = format!("{stem}.release.csv");
+    let release_path = format!("{stem}.release.{}", if binary { "bin" } else { "csv" });
     let sidecar_path = format!("{stem}.manifest.toml");
     assets.retain(|table| {
         table.get("path").and_then(|item| item.as_str()) != Some(release_path.as_str())
@@ -1251,14 +1378,22 @@ fn apply_production_registry(
     });
     assets.push(registry_asset_table(
         &release_path,
-        PRODUCTION_MAP_SCHEMA,
+        if binary {
+            "nsb-healpix-starlight-binary-v1"
+        } else {
+            PRODUCTION_MAP_SCHEMA
+        },
         runtime_map_sha256,
         candidate,
         true,
     ));
     assets.push(registry_asset_table(
         &sidecar_path,
-        PRODUCTION_MANIFEST_SCHEMA,
+        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+            "nsb-starlight-runtime-manifest-v2"
+        } else {
+            PRODUCTION_MANIFEST_SCHEMA
+        },
         runtime_sidecar_sha256,
         candidate,
         true,
@@ -1326,12 +1461,10 @@ fn render_production_manifest_draft(
     candidate: &CandidateSection,
     map_sha256: &str,
     sidecar_sha256: &str,
+    stem: &str,
+    binary: bool,
 ) -> String {
-    let stem = Path::new(&candidate.map_path)
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("starlight");
-    let release_path = format!("{stem}.release.csv");
+    let release_path = format!("{stem}.release.{}", if binary { "bin" } else { "csv" });
     let sidecar_path = format!("{stem}.manifest.toml");
 
     let mut out = String::new();
@@ -1340,7 +1473,16 @@ fn render_production_manifest_draft(
     out.push_str("# packed runtime map and sidecar. Issue #103 owns the human decisions.\n\n");
     writeln!(out, "[[assets]]").unwrap();
     writeln!(out, "path = {release_path:?}").unwrap();
-    writeln!(out, "schema = {PRODUCTION_MAP_SCHEMA:?}").unwrap();
+    writeln!(
+        out,
+        "schema = {:?}",
+        if binary {
+            "nsb-healpix-starlight-binary-v1"
+        } else {
+            PRODUCTION_MAP_SCHEMA
+        }
+    )
+    .unwrap();
     writeln!(out, "sha256 = {map_sha256:?}").unwrap();
     writeln!(out, "gaia_release = {:?}", candidate.gaia_release).unwrap();
     writeln!(out, "band = {:?}", candidate.band).unwrap();
@@ -1352,7 +1494,16 @@ fn render_production_manifest_draft(
     out.push('\n');
     writeln!(out, "[[assets]]").unwrap();
     writeln!(out, "path = {sidecar_path:?}").unwrap();
-    writeln!(out, "schema = {PRODUCTION_MANIFEST_SCHEMA:?}").unwrap();
+    writeln!(
+        out,
+        "schema = {:?}",
+        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+            "nsb-starlight-runtime-manifest-v2"
+        } else {
+            PRODUCTION_MANIFEST_SCHEMA
+        }
+    )
+    .unwrap();
     writeln!(out, "sha256 = {sidecar_sha256:?}").unwrap();
     writeln!(out, "calibration_status = \"production\"").unwrap();
     writeln!(out, "runtime_embedded = true").unwrap();
@@ -1782,6 +1933,111 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             output,
             apply: false,
         }
+    }
+
+    #[test]
+    fn compact_runtime_matches_frozen_production_pixels_and_diagnostics() -> Result<()> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let release = ReleaseCandidateManifest::load(
+            &root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
+        )?;
+        verify_runtime_assets_identity(&root, &release)?;
+        crate::starlight::conditions::verify_review_bundle_evidence(
+            &root,
+            Path::new(crate::starlight::conditions::REVIEW_BUNDLE_PATH),
+        )?;
+        let temp = tempfile::tempdir()?;
+        let binary = temp.path().join("map.bin");
+        let sidecar = temp.path().join("map.toml");
+        let csv = root.join("crates/nsb/data/starlight_nside128.release.csv");
+        let csv_sidecar = root.join("crates/nsb/data/starlight_nside128.manifest.toml");
+        let first = compact_runtime(&csv, &csv_sidecar, &binary, &sidecar)?;
+        use nsb::components::starlight::{StarlightProduct, ValidatedStarlightMap};
+        let start = std::time::Instant::now();
+        let reference = ValidatedStarlightMap::from_files(&csv, &csv_sidecar)?;
+        let csv_time = start.elapsed();
+        let start = std::time::Instant::now();
+        let decoded = ValidatedStarlightMap::from_files(&binary, &sidecar)?;
+        let binary_time = start.elapsed();
+        for (a, b) in reference.map().pixels().iter().zip(decoded.map().pixels()) {
+            for (a, b) in [
+                (a.integrated, b.integrated),
+                (
+                    a.statistical_uncertainty.unwrap(),
+                    b.statistical_uncertainty.unwrap(),
+                ),
+                (
+                    a.systematic_uncertainty.unwrap(),
+                    b.systematic_uncertainty.unwrap(),
+                ),
+                (a.total_uncertainty.unwrap(), b.total_uncertainty.unwrap()),
+            ] {
+                assert_eq!(a.value().to_bits(), b.value().to_bits());
+            }
+        }
+        let direction = siderust::coordinates::spherical::Direction::<
+            siderust::coordinates::frames::Galactic,
+        >::new(nsb::DEG * 45.0, nsb::DEG * 0.0)
+        .to_cartesian();
+        let lookup = |map: &nsb::components::starlight::StarlightMap| {
+            let start = std::time::Instant::now();
+            for _ in 0..100_000 {
+                std::hint::black_box(map.pixel_at(std::hint::black_box(direction)));
+            }
+            start.elapsed()
+        };
+        eprintln!("frozen production: pixels={} heap_pixel_bytes={} csv_bytes={} compact_bytes={} csv_admission={csv_time:?} compact_admission={binary_time:?} csv_100k_lookup={:?} compact_100k_lookup={:?}",
+            decoded.map().pixels().len(), std::mem::size_of_val(decoded.map().pixels()), fs::metadata(&csv)?.len(), fs::metadata(&binary)?.len(), lookup(reference.map()), lookup(decoded.map()));
+        let evaluator = nsb::NsbEvaluator::with_config(
+            nsb::NsbModelConfig::generic_clear_sky()
+                .with_starlight_product(StarlightProduct::validated_external(decoded)),
+        )?;
+        let time = tempoch::Time::<tempoch::UTC>::from_chrono(
+            chrono::DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")?
+                .with_timezone(&chrono::Utc),
+        );
+        let result = evaluator.evaluate(
+            &nsb::PointQuery::new(
+                siderust::catalogs::observatories::EL_PARANAL.geodetic(),
+                time,
+                nsb::Target::new(nsb::DEG * 266.41683, nsb::DEG * -29.00781),
+            )
+            .with_components(nsb::ComponentMask::ALL | nsb::ComponentMask::STARLIGHT),
+        )?;
+        assert_eq!(result.components.len(), 4);
+        assert!(
+            result
+                .components
+                .iter()
+                .find(|c| c.name == "starlight")
+                .unwrap()
+                .integrated
+                .value()
+                > 0.0
+        );
+        let sum: f64 = result.components.iter().map(|c| c.integrated.value()).sum();
+        assert_eq!(sum, result.integrated.value());
+        let bytes = fs::read(&binary)?;
+        let identity: RuntimeAssetsIdentity = toml::from_str(&fs::read_to_string(
+            root.join(RUNTIME_ASSETS_RELATIVE_PATH),
+        )?)?;
+        let compact = identity
+            .compact
+            .context("production evidence must pin compact transport")?;
+        assert_eq!(first.0, compact.map_sha256);
+        assert_eq!(first.1, compact.sidecar_sha256);
+        let mut corrupt = bytes.clone();
+        corrupt[100] ^= 1;
+        assert!(ValidatedStarlightMap::from_bytes_and_manifest(
+            &corrupt,
+            &fs::read_to_string(&sidecar)?
+        )
+        .is_err());
+        let second = compact_runtime(&csv, &csv_sidecar, &binary, &sidecar)?;
+        assert_eq!(first, second);
+        assert_eq!(bytes, fs::read(&binary)?);
+        assert!(bytes.len() < 6_400_000);
+        Ok(())
     }
 
     #[test]
