@@ -31,6 +31,8 @@ jobs:
         run: |
           python3 scripts/check-cfg-test-boundaries.py
           bash scripts/test-cfg-test-boundaries.sh
+      - name: Verify first-release public schema baseline
+        run: python3 scripts/check-first-release-schemas.py
       - name: Install Rustfmt
         uses: dtolnay/rust-toolchain@stable
         with:
