@@ -6,6 +6,10 @@ All notable changes to published NSB releases are recorded here.
 
 ### Changed
 
+- Activate the conditionally approved, lossless compact Starlight map for offline
+  four-component Rust/Python defaults. Preserve source-specific scientific data
+  terms, notices and Gaia noncommercial restrictions separately from AGPL code.
+
 - Require released Siderust 0.14.1 throughout the workspace and use its typed
   lunar spectral irradiance API, including the inverse-square source correction.
 - Keep optical depths, airmasses, phase densities, extinction coefficients,

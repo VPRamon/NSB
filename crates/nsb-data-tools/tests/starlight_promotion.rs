@@ -45,6 +45,25 @@ fn fixture() -> Result<tempfile::TempDir> {
         fs::create_dir_all(path.parent().unwrap())?;
         fs::copy(root.join("crates/nsb/data").join(name), path)?;
     }
+    // Start this negative/transition fixture from the immutable preapproval
+    // state even when the real checkout already contains the promoted pair.
+    let registry = fixture.path().join("crates/nsb/data/manifest.toml");
+    let mut baseline: toml_edit::DocumentMut = fs::read_to_string(&registry)?.parse()?;
+    baseline["assets"]
+        .as_array_of_tables_mut()
+        .context("asset tables")?
+        .retain(|table| {
+            !matches!(
+                table.get("path").and_then(|item| item.as_str()),
+                Some("starlight_nside128.compact.release.bin")
+                    | Some("starlight_nside128.compact.manifest.toml")
+            )
+        });
+    fs::write(&registry, baseline.to_string())?;
+    fs::copy(
+        fixture.path().join(LIC).join("approval-inventory-v1.toml"),
+        fixture.path().join(LIC).join("artifact-inventory-v1.toml"),
+    )?;
     fs::create_dir_all(fixture.path().join("crates/nsb"))?;
     fs::copy(
         root.join("crates/nsb/THIRD_PARTY_NOTICES.md"),

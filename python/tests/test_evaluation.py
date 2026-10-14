@@ -63,13 +63,10 @@ def test_config_component_selection_and_automatic_airglow(observer, direction, p
 def test_default_components_and_embedded_starlight(observer, direction, point_time):
     result = nsb.NsbEvaluator().evaluate(nsb.PointQuery(observer, point_time, direction))
     names = {component.name for component in result.components}
-    assert {"zodiacal", "airglow", "moon"} <= names
-    bundled = nsb.ComponentMask.ALL.contains(nsb.ComponentMask.STARLIGHT)
-    assert ("starlight" in names) == bundled
-    if bundled:
-        assert len(result.components) == 4
-        starlight = next(c for c in result.components if c.name == "starlight")
-        assert starlight.integrated_photons_cm2_ns_sr > 0
+    assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15
+    assert names == {"starlight", "airglow", "moon", "zodiacal"}
+    starlight = next(c for c in result.components if c.name == "starlight")
+    assert starlight.integrated_photons_cm2_ns_sr > 0
     assert result.integrated_photons_cm2_ns_sr == pytest.approx(
         sum(c.integrated_photons_cm2_ns_sr for c in result.components), rel=1e-12
     )

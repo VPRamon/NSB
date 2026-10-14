@@ -2,7 +2,8 @@
 
 **Date:** 2026-10-14<br>
 **Release candidate:** `7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d` (SHA-256)  
-**Human release decision:** `pending` in issue [#103](https://github.com/VPRamon/NSB/issues/103).  
+**Project publication authorization:** explicitly given by the maintainer; see §13.<br>
+**Product-rights decision:** `approved_with_conditions`; explicit maintainer acceptance of §§9–10 recorded in §13.<br>
 **Purpose:** assess the **specific derived numerical output**, not claim ownership or
 new licensing rights over the upstream source files.
 
@@ -170,12 +171,11 @@ frozen HEALPix map under all commercial and noncommercial channels. In
 particular, the 55 published supplement *records* do not quantify all offline
 use of XHIP, and the ESA Gaia noncommercial clause is a distinct review item.
 
-**Release action now:** complete the compact four-component release preparation
-and obtain the specific #103 human decision against the evidence in sections
-8–11. Pending packages exclude the compact payload; this is an authorization
-boundary, not a recommendation to abandon Starlight or publish a three-component
-release. Preserve the scientific bytes and pending decision until that review.
-The already-Git-distributed candidate also needs the explicit channel assessment.
+**Release action now:** the maintainer has explicitly accepted the two bounded
+findings in §§9–10 for this noncommercial publication (§13). Record that actual
+conditional decision, promote the exact compact pair, and verify the production
+packages. This is a project interpretation, not a new third-party licence or a
+qualified legal opinion. Original catalogues/curves remain outside package scope.
 
 ### Primary references
 
@@ -191,24 +191,20 @@ The already-Git-distributed candidate also needs the explicit channel assessment
 ## 7. Compact release recommendation (2026-10-14)
 
 The compact representation preserves the same radiances, uncertainties and
-provenance. It creates no additional redistribution permission. Recommended
-#103 decision: **defer package activation**, while reviewing conditional
-noncommercial distribution of the exact derived product. Do not offer general
-commercial data reuse under AGPL. The minimum next human action is to resolve
-XHIP derived-output/database-right scope and the Gaia/Tycho noncommercial
-channel/use scope, verify the retained Hipparcos and SVO correspondence, then
-record an actual channel-specific decision against the updated bundle. If the
-review finds a permission necessary, obtain that permission before approval.
-The code changes need no permission to redistribute upstream catalogues, which
-remain excluded; this does not settle rights in the numerical product.
+provenance. It creates no additional redistribution permission. The maintainer
+has accepted the calculated-map and independent-data classifications (§13), so
+conditional noncommercial distribution is authorized for the exact compact pair
+on the pinned GitHub source/release, crates.io and PyPI channels. Retain all source
+terms and notices; do not offer general commercial data reuse under AGPL.
 
-| Channel | Recommendation now | Condition for the compact map |
+| Channel | Accepted scope | Remaining operational action |
 | --- | --- | --- |
-| Existing public Git candidate/evidence | Retain provenance; human review must cover this existing publication | Do not interpret its availability as permission for new channels |
-| crates.io `.crate` | No Starlight payload while pending | Actual #103 authorization of embedded derived data, with notices and accurate NC scope |
-| PyPI wheels and sdist | Same boundary as Rust | Same approved product and notices; build from the same revision |
-| GitHub Release or Zenodo | No new map upload | Explicit authorization naming the channel and product hashes |
-| Downstream commercial use | No unrestricted grant established | Separate rights analysis/permission where required by source terms |
+| Git repository | Existing frozen evidence plus exact approved compact pair | Push production artifacts, then record actual Git publication |
+| crates.io `.crate` | Compact pair and notices under source-specific terms | Verify exact production package; separate final publication authorization |
+| PyPI wheels and sdist | Same approved product and notices | Test installed wheel and sdist-built wheel offline |
+| GitHub Release | Exact compact product under the same conditions | Separate final tag/release authorization |
+| Zenodo | Not a planned compact channel in this decision | Obtain a channel-specific project decision before a new upload |
+| Downstream commercial data use | No unrestricted grant established | Assess applicable source rights/permission for that use |
 
 Primary-source checks during this change: ESA's [Gaia licence page](https://www.cosmos.esa.int/web/gaia-users/license)
 continues to designate BY-NC 3.0 IGO and refers commercial use to ESA archive
@@ -289,8 +285,9 @@ scientific publication has a defensible noncommercial purpose and may rely on
 the Gaia grant for reproduction/adaptation/distribution, subject to its actual
 facts and conditions. A commercial hosting provider's existence does not by
 itself classify the maintainer's purpose, nor does zero price prove that purpose.
-The reviewer should confirm that the release is not primarily directed toward
-commercial advantage, paid services or indirect financial gain. Preserve NC
+The maintainer has explicitly confirmed the noncommercial publication facts
+and authorized proceeding under the source conditions (§13). Those purpose
+facts need no further confirmation. Preserve NC
 terms where the underlying protected rights apply; do not promise commercial
 reuse. A future downstream commercial application must assess its own rights.
 No ESA reply is a prerequisite to an otherwise compliant noncommercial release.
@@ -407,10 +404,10 @@ investment and substantial updates matter.
 (A); the map-only, factual-output rationale for not needing a new XHIP licence
 is substantial technical evidence (B), rather than merely an unanswered email.
 Whether this particular high-impact selection/model output is legally a protected
-reutilization remains **D: a specific legal interpretation for qualified human
-review**, not **E: an established missing permission**. Recommend adoption of
-the map-only rationale for the stated noncommercial channels if the reviewer
-accepts the copyright/database/contract analysis. Do not request universal
+reutilization is **D: a specific legal interpretation**, not **E: an established
+missing permission**. The maintainer has expressly adopted the map-only rationale
+for the stated noncommercial channels (§13). That project finding does not
+assert a binding judgment or waive an actually applicable protected right. Do not request universal
 commercial rights or call the release prohibited without an identified right.
 If the reviewer determines that protected content is reused beyond the existing
 scientific grant, ask CDS to identify the relevant holder and obtain that narrow
@@ -425,20 +422,29 @@ separate, independent works. §§5(c), 7 and 10 also mean that an actually combi
 covered work cannot be placed under an additional general noncommercial rule.
 The [GNU FAQ](https://www.gnu.org/licenses/gpl-faq.en.html#MereAggregation)
 is interpretive guidance, not a court judgment or a licence from ESA/CDS.
+Its same-executable guidance is material counterevidence: it classifies software
+modules included in one executable as a combined program. That passage addresses
+programs/modules, so applying it to an independently generated numerical input
+requires a further classification; it does not expressly decide this map's case.
+The alternative argument relies on the data's independent origin, generic format
+and absence of program expression, not merely on separate licence notices.
+Neither that argument nor `include_bytes!` alone establishes the §5 aggregate
+exception. The maintainer expressly adopted this application of the exception (§13),
+beyond the earlier general acceptance of separate licences.
 
 | Architecture | Compatibility finding |
 | --- | --- |
 | AGPL evaluator plus independent local scientific file | Separately identifiable code/data can retain distinct terms as an aggregate, provided the data is not itself an adaptation of the program. Functional use alone does not automatically transfer the code licence to data. |
 | Crate/wheel with identifiable data resource | Same substantive test; shipping two licence files is not sufficient by itself. Attribution, actual independence, data grants and recipient rights matter. |
-| `include_bytes!` scientific blob in the compiled library | Container count alone does not decide copyright scope. This versioned, checksum-addressed map is generic scientific input readable independently of NSB, generated from catalogues rather than copied program expression. That supports separate identity even inside one binary, **but the aggregate/combined-work conclusion requires review**, especially with AGPL dependencies. |
+| `include_bytes!` scientific blob in the compiled library | Container count alone does not decide copyright scope. This versioned, checksum-addressed map is generic scientific input readable independently of NSB, generated from catalogues rather than copied program expression. That supports separate identity even inside one binary, **the maintainer has accepted the aggregate classification after reviewing the same-executable counterargument (§13)**. This is a bounded project finding, not an upstream waiver. |
 | Map legally held to be part of one AGPL-covered adaptation/combined work | NC constraints cannot simply be added to that covered work. Change the distribution arrangement or obtain compatible rights; do not redefine AGPL as a noncommercial software licence. |
 
-**Proposed interpretation for sign-off:** the evaluator code is AGPL-3.0-only;
+**Interpretation accepted by the maintainer (§13):** the evaluator code is AGPL-3.0-only;
 the independent map retains the upstream data-rights boundary. The compact
 format, separate checksum/provenance contract and advanced external-map loader
 support that interpretation. This is not an assertion that `include_bytes!`
-automatically makes incompatible licences compatible. The reviewer should
-explicitly accept this classification. FSF's public compliance contact is an
+automatically makes incompatible licences compatible. The maintainer explicitly accepted this classification at
+2026-10-14T19:50:19Z. FSF's public compliance contact is an
 optional route for this narrow question, not an automatic extra permission gate.
 
 If that classification is rejected, a separate installed local resource is the
@@ -456,13 +462,12 @@ a redistributed binary; a code-only commercial redistribution must actually
 exclude those bytes or have permission. No data restriction is imposed on the
 code licence itself.
 
-## 11. Proposed channel-specific decision for the authorized reviewer
+## 11. Accepted channel-specific decision and conditions
 
-**Proposal only; not the authoritative JSON decision and not human approval.**
-Recommended disposition: `approved_with_conditions` for noncommercial scientific
-publication on **GitHub source/releases, crates.io, PyPI wheels and sdists**,
-*if the reviewer accepts the two interpretations in §§9–10*. Retain the real
-JSON as `pending` until that action occurs.
+Disposition: `approved_with_conditions` for noncommercial scientific publication
+on **GitHub source/releases, crates.io, PyPI wheels and sdists**. The maintainer
+expressly accepted the two interpretations in §§9–10 (§13); the authoritative
+JSON records the actual identity, role, timestamp, pins and restrictions.
 
 1. Scope exactly the frozen #207 product, compact map and sidecar hashes pinned
    by the current review bundle. Original catalogues, response curves, spectral
@@ -470,11 +475,11 @@ JSON as `pending` until that action occurs.
 2. Preserve Gaia's licence URI, ESA/DPAC credits, change descriptions, the direct
    original-licensor offer and applicable NC restrictions; make no unrestricted
    commercial data grant or ESA/CDS endorsement claim.
-3. Confirm the stated noncommercial purpose on the actual publication facts.
+3. Apply the already authorized noncommercial publication scope (§13).
    No individual Gaia/Tycho permission is needed for covered public-licence acts.
-4. Adopt or reject, with reasons and jurisdiction, the map-only XHIP and separate
-   code/data aggregate interpretations. Verify the existing SVO/Hipparcos
-   correspondence privately; do not demand an unsolicited universal commercial
+4. Apply the accepted map-only XHIP and separate code/data aggregate findings
+   under the EU framework discussed above, without inferring national domicile.
+   Retain the maintainer-provided SVO/Hipparcos correspondence privately; do not demand an unsolicited universal commercial
    grant. Obtain a new narrow permission only if a relevant protected act is
    actually identified outside existing grants/limitations.
 5. Keep the complete source notices/contact routes in all distributions. Run
@@ -488,8 +493,8 @@ its verifier: record scope in the supported restrictions/pinned-artifact fields
 and use supported repository-file/asset checksum conditions. The human's actual
 identity/role/date must be entered only by the authorized process.
 
-**Readiness classification:** approval-ready analysis and implementation,
-requiring a bounded human legal/redistribution sign-off. There is currently no
+**Readiness classification:** rights findings and project approval recorded;
+release readiness now depends on actual production activation and validation. There is currently no
 proven third-party refusal or established missing universal permission. Full
 upstream regeneration still has the disclosed historical UV-training snapshot
 limitation; exact frozen-output reproduction/equivalence is separately verified.
@@ -525,3 +530,68 @@ is represented only by the maintainer-reported scope above.
 | <https://creativecommons.org/licenses/by-nc/3.0/igo/legalcode.en> | 2026-10-14 | `f0cce843f2c2496cfc17fcbd753c0022d7696395f4c5d4f7d28341f64c8bcde7` |
 | <https://oceanservice.noaa.gov/about/faq.html> | 2026-10-14 | `fc463ed03a8393ca60d56aa269b1c5139eb946cc6e1aea30b38fb909f6c641cd` |
 | <https://library.noaa.gov/blogs/news-research-highlights/question-of-the-quarter-noaacopyright> | 2026-10-14 | `990fb5c112becd045c8654f03f5c962acfb5c53d43bdc728ce0e733b295f07df` |
+
+## 13. Explicit project authorization and accepted findings
+
+**Recorded 2026-10-14T19:47:36Z.** The maintainer's direct instruction in this
+Codex conversation explicitly authorizes preparing and proceeding with the
+noncommercial scientific release, including production activation once the
+rights gates are satisfied, committing/pushing to existing PR #238, and updating
+#103/#239. It expressly withholds automatic merge, tag and registry publication.
+The instruction confirms free scientific distribution without monetization or
+company exploitation, authority over NSB publication policy, acceptance of
+separate AGPL code/scientific-data terms and applicable NC limits, preservation
+of notices, an embedded-data preference, and no known additional contracts.
+These facts and this project authorization are established, not outstanding.
+
+Traceable instruction evidence: the user-supplied `Pasted text.txt` beginning
+“You are continuing your work on the NSB Starlight release”, SHA-256
+`9a0df9c04a585bd425e02c2bb50bdf18269c355116dd2ed8b20451f0b88f5054`.
+The original is retained in the conversation attachment; the private local path
+is deliberately not a required public build input. GitHub's authenticated
+`GET /user` returned `VPRamon` (ID `74069811`, profile name
+`Vallés Puig, Ramon`); `GET /repos/VPRamon/NSB` returned owner `VPRamon` and
+admin/maintain/push permissions. This confirms the available publication account
+and role, not a third-party rights grant, legal qualification or signature.
+Agent-posted GitHub reports of this instruction must be labelled as reports;
+they are not independent human acceptance of a disputed interpretation.
+
+**Additional direct human acceptance, recorded 2026-10-14T19:50:19Z:** the
+maintainer answered the two-finding question in this conversation with
+“Accept both findings for this noncommercial release”. The question explicitly
+identified full-table XHIP ingestion, 55 influencing stars, the GNU FAQ
+same-executable guidance and EU database rules, and distinguished a project
+legal-risk finding from third-party permissions. The accepted findings are:
+
+1. **XHIP output:** the integrated radiance/uncertainty map does not publicly
+   reutilize a substantial protected part of XHIP's catalogue contents, despite
+   full-table scientific ingestion and the 55 influencing bright stars. The
+   relevant reasons are the new CK04/Hp integrations and changed informational
+   product; absence of raw rows and small counts alone are insufficient.
+   Directmedia C-304/07, including paragraph 47, prevents treating transformation
+   or noncommercial purpose alone as a defence to protected transfer. The
+   published CDS scientific-use permission supports computation; its application
+   to this particular public output is the bounded finding now accepted.
+2. **Embedded data:** this independently generated numerical map remains a
+   separate scientific work/input under the source data terms when compiled
+   into the AGPL library, rather than becoming part of an AGPL-covered combined
+   work. Account for the GNU FAQ's software-module guidance above. If rejected,
+   authorize the already requested separate local packaged resource design,
+   preserving offline use and all scientific bytes; that alternative does not
+   resolve finding 1.
+
+The current evidence establishes **no specific third-party refusal or missing
+permission**. These findings support conditional publication of the specified
+new numerical product under the existing source terms and the accepted
+map-only/independent-data rationale. No new individual XHIP or universal
+commercial permission is required by that finding. The maintainer is recorded
+as the actual project release decision-maker, not as qualified legal counsel.
+This acceptance cannot waive an actual protected right or replace a grant if
+one is later shown necessary. It does not authorize source-table/curve uploads,
+commercial data reuse, automatic merge, tags or registry publication.
+
+The authoritative decision is `approved_with_conditions`, not the synthetic
+test template. Its notes identify this direct conversation acceptance; the
+public #103/#239 reports are agent-posted records of it. The final review bundle
+is frozen before activation; promotion and actual publication update only the
+verified current inventory, without repinning this accepted evidence.

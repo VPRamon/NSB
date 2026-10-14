@@ -19,7 +19,7 @@ site calibration are separate axes.
 | Jones 2013 moonlight | Generic/planning | Spectral computation and deterministic regression cases | Planning only |
 | KS91 moonlight | Published reference | Approximate Johnson-V analytic benchmark | Reference-model use |
 | CTAO-N and CTAO-S | Planning preset | Explicit pressure/aerosol/airglow assumptions selected by application-layer `SiteProfileTag` markers (for example `nsb-cli`), independently of observatory identity | No calibrated-site claim |
-| Bundled Starlight | Authorization-dependent | Absent while #103 is pending; approved compact 300–650 nm map admitted through the production registry after scientific and rights gates | Only the exact sidecar/evidence-supported domain after authorization; registration is not new calibration |
+| Bundled Starlight | Approved compact production product | Exact 300–650 nm map and sidecar admitted through the production registry under #103 conditional approval | Only the sidecar/evidence-supported domain; registration is not new calibration |
 | Validated external starlight | Production for the sidecar-declared domain | Runtime integrity, schema, HEALPix, flux evidence, contrast/seam, calibrated photometry, and independent-comparison contract | Yes, only as justified by the reviewed external evidence |
 | Caller experimental starlight map | Experimental | Map schema/value checks | No production claim |
 | B/V S10 and magnitudes | Proxy diagnostic | 445/551 nm central-wavelength convention | No passband-photometry claim |

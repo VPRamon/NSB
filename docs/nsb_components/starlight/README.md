@@ -33,19 +33,13 @@ map must not be treated as monochromatic radiance.
 
 ## Pending, registered and published configurations
 
-While the authoritative #103 decision is pending, bundled production Starlight
-is absent and the default mask contains the other three components. Explicit
-selection of missing bundled Starlight fails. The frozen scientific candidate
-is tracked as nonembedded evidence, excluded from runtime packages. This is a
-current authorization boundary, not a permanent version restriction.
-
-After a valid human decision, the existing promotion command deterministically
-reproduces and admits the compact map/sidecar, updates the production registry
-and current inventory, and enables `ALL`, `DEFAULT` and `NsbEvaluator::new()`
-with all four components. Python uses the same Rust assets and defaults.
-Evaluation needs neither the source checkout nor a network connection.
-`validated_external` and explicitly experimental map APIs remain available;
-there is no synthetic bundled fallback.
+The authoritative #103 decision is `approved_with_conditions`. The approved
+compact map and sidecar are production-registered and embedded, enabling
+`ALL`, `DEFAULT` and `NsbEvaluator::new()` with all four components in Rust
+and Python. Evaluation needs neither the source checkout nor a network
+connection. The frozen scientific candidate remains nonembedded evidence,
+excluded from runtime packages. There is no synthetic bundled fallback.
+`validated_external` and explicitly experimental map APIs remain available.
 
 Production registration does not claim an upload. The immutable approval
 inventory records planned channels; the current inventory records registration

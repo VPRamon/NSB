@@ -1126,10 +1126,10 @@ mod tests {
     }
 
     #[test]
-    fn real_repository_inventory_and_pending_template_load_and_stay_pending() {
+    fn real_repository_approval_and_unsigned_template_have_distinct_authority() {
         // Exercises the actual checked-in files as an integration smoke test:
-        // the pending template must load cleanly but must never satisfy the
-        // fail-closed promotion gate.
+        // the real human decision authorizes its exact candidate, while the
+        // unsigned template must never satisfy the fail-closed gate.
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let repository_root = manifest_dir
             .parent()
@@ -1145,8 +1145,19 @@ mod tests {
             return;
         }
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        assert_eq!(review.decision().decision, RedistributionDecision::Pending);
+        assert_eq!(
+            review.decision().decision,
+            RedistributionDecision::ApprovedWithConditions
+        );
+        review
+            .require_approved(&review.decision().candidate_sha256)
+            .unwrap();
         assert!(review.require_approved(&"c".repeat(64)).is_err());
+        let template = RedistributionReview::load(
+            &inventory_path,
+            &repository_root.join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-template-v1.json"),
+        );
+        assert!(template.is_err(), "unsigned template must not authorize");
     }
 
     #[test]

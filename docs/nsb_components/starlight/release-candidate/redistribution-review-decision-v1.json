@@ -1,13 +1,72 @@
 {
   "schema_version": 1,
-  "decision": "pending",
-  "reviewer_name": null,
-  "reviewer_role": null,
-  "reviewed_at_utc": null,
+  "decision": "approved_with_conditions",
+  "reviewer_name": "Vall\u00e9s Puig, Ramon (VPRamon; GitHub user ID 74069811)",
+  "reviewer_role": "NSB repository owner and authorized project release decision-maker; not a qualified legal opinion",
+  "reviewed_at_utc": "2026-10-14T19:50:19Z",
   "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
   "inventory_sha256": "db544fdd3fa9ee43f5eb2aebdb8bbf029131b59277f93a1c6e39b5f012d5b965",
-  "review_bundle_sha256": "83fac0a714783836389283707bc57d15d5793c53e1e892481d58ffdff45c372b",
-  "pinned_artifacts": [],
+  "review_bundle_sha256": "78b792a8d42c26ac30f58da49d1dd23003d8aff04ab3c5d4534ea192bf439864",
+  "pinned_artifacts": [
+    {
+      "id": "starlight-candidate-map-nside128",
+      "sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-merge-report",
+      "sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-manifest-toml",
+      "sha256": "9892080ccdbbdd625de798578e7915f3a4d2a2223bd389945dbfbd8f8dcf4b6b",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-external-manifest-sidecar-contract",
+      "sha256": "af08fdbe04d8e8ad6aa9e8e96a768413c3490a83c31b800e7b47026487842123",
+      "approved_channels": [
+        "documentation",
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-combined-300-650-validation-report",
+      "sha256": "97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "compact-runtime-map-v1",
+      "sha256": "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784",
+      "approved_channels": [
+        "crates_io",
+        "git_repository",
+        "github_release",
+        "pypi_sdist",
+        "pypi_wheel"
+      ]
+    },
+    {
+      "id": "compact-runtime-sidecar-v1",
+      "sha256": "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b",
+      "approved_channels": [
+        "crates_io",
+        "git_repository",
+        "github_release",
+        "pypi_sdist",
+        "pypi_wheel"
+      ]
+    }
+  ],
   "conditions": [
     {
       "id": "review-bundle-v1",
@@ -15,10 +74,15 @@
       "verifier": {
         "type": "repository_file_sha256",
         "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
-        "sha256": "83fac0a714783836389283707bc57d15d5793c53e1e892481d58ffdff45c372b"
+        "sha256": "78b792a8d42c26ac30f58da49d1dd23003d8aff04ab3c5d4534ea192bf439864"
       }
     }
   ],
-  "restrictions": [],
-  "notes": "Template only, owned by issue #103. This is the single authoritative redistribution decision record consumed by both promotion and licensing checks. Keep candidate_sha256, inventory_sha256, review_bundle_sha256, and the review-bundle-v1 condition pinned to the same frozen evidence unless a new review bundle is deliberately published. Additional approved_with_conditions entries must be structured machine-verifiable conditions; free-text conditions block automatic promotion. Do not fill reviewer_name/reviewer_role/reviewed_at_utc or change decision away from pending outside the #103 human process. Licensing evidence updated for Hipparcos-2, Tycho-2, XHIP, CK04, SVO and CALSPEC without modifying scientific dataset bytes. Unknown upstream grants are not invented; #103 human approval still required. Tycho-2 source license newly verified via the official CDS I/259 catalogue page (CC BY-NC 3.0 IGO); XHIP source redistribution, SVO original curve, and final map #103 approval remain pending. Hipparcos-2 public availability and required citations were confirmed by Floor van Leeuwen in correspondence supplied by the maintainer (reported 2026-10-14); the email does not expressly grant commercial/downstream derived-map redistribution or name an I/311 source-specific licence. SVO/FPS team email supplied by maintainer (reported 2026-10-08, signed Enrique) states that informing NSB users and giving the exact FPS/Bessell acknowledgement and four references is sufficient on their part for calculations; this is not blanket permission to reproduce the original SVO curve. Exact notice wording is in ATTRIBUTION.md and package notices. Human derived-map authorization remains pending."
+  "restrictions": [
+    "Noncommercial scientific publication of the exact combined 300\u2013650 nm HEALPix product only; retain applicable Gaia CC BY-NC 3.0 IGO and source-specific terms, licence URIs, credits and modifications. No unrestricted commercial data grant or endorsement.",
+    "Authorized scope is the pinned compact pair and channels. Original catalogues, SVO transmission curves, spectral files and per-star diagnostics are excluded from runtime packages.",
+    "The maintainer expressly accepts the pinned rights assessment conclusions: the new integrated map does not publicly reutilize a substantial protected part of XHIP, and the independently generated numerical map retains separate scientific-data terms when embedded in the AGPL library. EU database and GNU same-executable counterarguments were disclosed. No third-party right is waived or invented; retain maintainer-provided SVO/Hipparcos correspondence. No national domicile is inferred from account or timezone.",
+    "Production registration does not claim publication. Mutable publication metadata must be derived and verified against the unchanged approval snapshot, decision and exact product."
+  ],
+  "notes": "Actual project approval, not a template. Direct user instruction in the Codex conversation (attachment SHA-256 9a0df9c04a585bd425e02c2bb50bdf18269c355116dd2ed8b20451f0b88f5054) authorizes noncommercial scientific publication. In reply to the explicit two-finding question the maintainer answered: Accept both findings for this noncommercial release. Acceptance recorded at 2026-10-14T19:50:19Z; account verified via GitHub GET /user and repository owner/admin/maintain/push permissions. The pinned rights assessment section 13 preserves the question scope, reasons and evidence. Agent-posted #103/#239 reports record this conversation acceptance and are not independent signatures. This is project-level approval, not qualified legal advice or a third-party grant. Scope covers exact pinned artifacts and approved channels only; no automatic merge, tag, crates.io or PyPI publication is authorized."
 }

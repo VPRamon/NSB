@@ -2,8 +2,9 @@
 
 Status: Current redistribution policy for Starlight data products.
 
-While #103 is pending, NSB packages exclude production Starlight. Authorized
-promotion enables the compact four-component configuration. Raw
+The maintainer has approved the exact compact Starlight product with conditions
+and accepted the XHIP calculated-output and independent embedded-data findings.
+Production promotion enables the offline four-component configuration. Raw
 Gaia, Hipparcos, Tycho, CALSPEC, CK04, and other upstream catalogue/reference
 bytes are not bundled by the runtime package.
 
@@ -56,8 +57,8 @@ runtime asset.
   2026-10-14). Cite both van Leeuwen (2007) book and A&A paper.
   The exact catalogue licence and worldwide commercial/downstream
   derivative-map redistribution rights were not expressly granted.
-  Treat source availability/attribution as clarified, while the #103
-  final derived-map licensing decision remains pending.
+  Treat source availability/attribution as clarified, under the accepted #103
+  calculated-output finding; no new unrestricted commercial grant is implied.
 - **XHIP V/137D:** CDS/VizieR research access/citation conditions;
   no catalogue-specific redistributable CC or SPDX grant verified.
 - **SVO Hp_bes:** the maintainer supplied an SVO/FPS team reply confirming
@@ -75,7 +76,8 @@ files and checksum pins are preserved.
 The exact derived candidate and report are already tracked in the Git
 repository; their `git_repository` distribution status must be considered
 separately from the non-distributed crates.io/PyPI production assets.
-The issue #103 human redistribution review remains `pending`.
+The authoritative issue #103 decision is `approved_with_conditions`; the actual
+maintainer acceptance and account verification are recorded in the assessment.
 
 ## Derived-map rights analysis
 
@@ -95,12 +97,15 @@ Scientific inputs/products retain their own rights. Gaia's public BY-NC 3.0 IGO
 grant permits compliant noncommercial adaptations and redistribution; it does
 not require an individual permission for every scientific reuse. CC BY 4.0
 inputs permit commercial reuse with their attribution/notice conditions.
-Neither licence grants rights that its licensor does not hold. Current release
-packages still exclude Starlight while the bounded #103 decision is pending.
+Neither licence grants rights that its licensor does not hold. The approved compact Starlight pair is included through production promotion
+and retains this data-rights boundary.
 
-For the intended noncommercial release, the remaining human questions are the
-specific XHIP output/database-right interpretation and the AGPL/independent-data
-classification, not an unbounded demand for universal commercial permissions.
+The maintainer has explicitly authorized the noncommercial publication scope;
+[the authorization record](derived-map-rights-assessment-v1.md#13-explicit-project-authorization-and-accepted-findings)
+identifies the direct instruction and authenticated account. That scope requires
+no renewed confirmation. The maintainer also explicitly accepted the specific
+XHIP output/database-right and AGPL/independent embedded-data interpretations.
+This is a project decision, not a third-party permission or qualified opinion.
 See [the measured audit and proposed decision](derived-map-rights-assessment-v1.md#8-actual-noncommercial-publication-scope-and-public-grants).
 
 ## Verified rights-enquiry contact directory
