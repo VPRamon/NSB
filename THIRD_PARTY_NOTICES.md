@@ -18,9 +18,9 @@ product scope; populated provenance and credits alone do not authorize a release
 
 The compact Starlight map and v1 sidecar remain embedded for offline
 Rust/Python equivalence checks. The pre-release schema reset changes their
-provenance and checksums; the active #103 decision is pending renewed
-checksum-specific authorization before release. Original conditional approval,
-maintainer identity and acceptance are preserved in the approval archive.
+provenance and checksums; the active #103 decision now approves the exact
+regenerated v1 checksums with conditions. Original conditional approval,
+maintainer identity and prior accepted hashes remain preserved in the archive.
 The frozen candidate/report remain Git scientific evidence and are excluded
 from runtime packages. Source-specific terms and restrictions are unchanged.
 
