@@ -37,7 +37,7 @@ scientific calibration evidence.
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
 - [ ] Scheduled/manual benchmarks compile and performance changes are summarized.
 - [ ] `CHANGELOG.md` and version constants are updated.
-- [ ] Review the first-release v1 schemas and regenerated hashes using existing checks; renew checksum-specific Starlight authorization (see [reset record](../nsb_components/starlight/release-candidate/schema-reset-v1.md)).
+- [ ] Review the first-release v1 schemas and regenerated hashes using existing checks; confirm the recorded checksum-specific Starlight v1 authorization and current hosted CI evidence (see [reset record](../nsb_components/starlight/release-candidate/schema-reset-v1.md)).
 - [ ] The first-release API freeze is active: `crates/nsb/api/API_FROZEN` exists, `crates/nsb/api/public-api.txt` is current, and `scripts/check-public-api.sh` passes. Do not tag a public release while the API gate reports pre-freeze mode.
 - [ ] The release tag is exactly `v<crates/nsb/Cargo.toml version>`; tagged releases build all Python wheels and the sdist before publishing.
 - [ ] `CARGO_REGISTRY_TOKEN` is configured for crates.io and the `pypi` GitHub environment is configured for PyPI Trusted Publishing/OIDC.
