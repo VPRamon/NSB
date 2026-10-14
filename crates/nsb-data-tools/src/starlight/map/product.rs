@@ -2423,6 +2423,17 @@ mod tests {
         assert!(report.bright_star_supplement.is_none());
         assert!(report.bright_star_replacement.is_none());
         validate_report(&temp.path().join("outputs/merge_report.json")).unwrap();
+        let scientific_gates = scientific_gates(temp.path(), 1).unwrap();
+        assert_eq!(scientific_gates.len(), 10);
+        assert!(scientific_gates.iter().any(|gate| {
+            gate.name == "canonical-map-integrity" && gate.passed
+        }));
+        assert!(scientific_gates.iter().any(|gate| {
+            gate.name == "population-accounting" && gate.passed
+        }));
+        assert!(scientific_gates.iter().any(|gate| {
+            gate.name == "deterministic-independent-partial-merge" && gate.passed
+        }));
     }
 
     #[test]
