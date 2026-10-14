@@ -26,17 +26,28 @@ pub(crate) struct Starlight {
 impl Starlight {
     /// Load the bundled production Gaia DR3 XP-derived starlight map.
     ///
-    /// This succeeds only when a release CSV and runtime manifest are both
+    /// This succeeds only when a release map and runtime manifest are both
     /// registered in `crates/nsb/data/manifest.toml`, checksum-verified by the
     /// build script, embedded as static bytes, and admitted by
     /// [`ValidatedStarlightMap`](super::ValidatedStarlightMap).
     #[cfg(nsb_bundled_production_starlight)]
     pub(crate) fn bundled_production_model() -> Result<Self> {
-        let validated = ValidatedStarlightMap::from_bytes_and_manifest(
-            BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
-            BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
-        )?;
-        Ok(Self::with_shared_map(validated.shared_map()))
+        static MAP: std::sync::OnceLock<std::result::Result<Arc<StarlightMap>, String>> =
+            std::sync::OnceLock::new();
+        let map = MAP.get_or_init(|| {
+            ValidatedStarlightMap::from_bytes_and_manifest(
+                BUNDLED_PRODUCTION_STARLIGHT_MAP,
+                BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
+            )
+            .map(|validated| validated.shared_map())
+            .map_err(|err| err.to_string())
+        });
+        match map {
+            Ok(map) => Ok(Self::with_shared_map(Arc::clone(map))),
+            Err(message) => Err(NsbError::InvalidMap {
+                message: message.clone(),
+            }),
+        }
     }
 
     /// Report a missing bundled production starlight asset.
@@ -79,7 +90,7 @@ fn missing_bundled_production_asset() -> NsbError {
         file: "data/manifest.toml",
         message: concat!(
             "bundled production starlight asset is not registered; generate and commit ",
-            "the Gaia DR3 XP nside=128 release CSV and runtime manifest, then register both ",
+            "the Gaia DR3 XP nside=128 compact release map and runtime manifest, then register both ",
             "as runtime_embedded production assets"
         )
         .to_string(),

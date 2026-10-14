@@ -3,8 +3,8 @@
 //! Versioned, fail-closed redistribution/licensing review contract (#88).
 //!
 //! The promotion workflow consumes an artifact inventory and an authorized
-//! human decision record supplied with the candidate evidence. NSB 0.1.0 does
-//! not check in or redistribute a Gaia-derived production Starlight candidate.
+//! human decision record supplied with the candidate evidence. Production
+//! registration and publication are derived from the immutable approval snapshot.
 //! This module validates the shape, checksums, channels, and conditions of any
 //! future promotion evidence; it never grants approval itself.
 
@@ -37,6 +37,25 @@ pub enum DistributionClass {
     DocumentationReference,
 }
 
+/// Lifecycle of a derived runtime product. Approval itself lives in the decision,
+/// not in mutable publication metadata.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArtifactLifecycle {
+    Candidate,
+    Staged,
+    ProductionRegistered,
+    Published,
+}
+
+pub(crate) const COMPACT_IDS: [&str; 2] = ["compact-runtime-map-v1", "compact-runtime-sidecar-v1"];
+pub(crate) const REQUIRED_RUNTIME_CHANNELS: [&str; 4] =
+    ["git_repository", "crates_io", "pypi_wheel", "pypi_sdist"];
+pub(crate) const CURRENT_INVENTORY: &str =
+    "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml";
+pub(crate) const APPROVAL_INVENTORY: &str =
+    "docs/nsb_components/starlight/licensing/approval-inventory-v2.toml";
+
 /// One immutable inventory entry.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,6 +75,11 @@ pub struct InventoryArtifact {
     pub distributed: bool,
     #[serde(default)]
     pub channels: Vec<String>,
+    /// Future publication scope, frozen before review. Not evidence of upload.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub planned_channels: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lifecycle: Option<ArtifactLifecycle>,
     #[serde(default)]
     pub tracking_issue: Option<String>,
     pub notes: String,
@@ -180,11 +204,7 @@ impl InventoryArtifact {
                     self.id
                 );
             }
-            if matches!(
-                self.distribution_class,
-                DistributionClass::RepositoryEmbedded | DistributionClass::GeneratedDerivedOutput
-            ) && self.sha256.is_none()
-            {
+            if self.sha256.is_none() {
                 bail!(
                     "distributed artifact {} requires a pinned sha256 for its class {:?}",
                     self.id,
@@ -197,6 +217,34 @@ impl InventoryArtifact {
                 self.id,
                 self.channels
             );
+        }
+        if !self.planned_channels.is_empty() && (self.sha256.is_none() || self.lifecycle.is_none())
+        {
+            bail!(
+                "planned artifact {} requires checksum and lifecycle",
+                self.id
+            );
+        }
+        let mut planned = BTreeSet::new();
+        for channel in &self.planned_channels {
+            require_text("planned artifact channel", channel)?;
+            if !planned.insert(channel.as_str()) {
+                bail!("artifact {} repeats planned channel {}", self.id, channel);
+            }
+        }
+        if let Some(lifecycle) = self.lifecycle {
+            if self.planned_channels.is_empty() {
+                bail!("lifecycle artifact {} requires planned channels", self.id);
+            }
+            if self.distributed != (lifecycle == ArtifactLifecycle::Published) {
+                bail!(
+                    "artifact {} lifecycle disagrees with actual distribution",
+                    self.id
+                );
+            }
+            if self.channels.iter().any(|c| !planned.contains(c.as_str())) {
+                bail!("artifact {} uses an unplanned publication channel", self.id);
+            }
         }
         let mut channels = BTreeSet::new();
         for channel in &self.channels {
@@ -355,6 +403,18 @@ impl RedistributionReview {
             );
         }
 
+        for pinned in &self.decision.pinned_artifacts {
+            let artifact = self
+                .inventory
+                .find(&pinned.id)
+                .with_context(|| format!("decision pins unknown artifact {}", pinned.id))?;
+            if artifact.sha256.as_deref() != Some(pinned.sha256.as_str()) {
+                bail!(
+                    "redistribution decision checksum mismatch for {}",
+                    pinned.id
+                );
+            }
+        }
         for artifact in self.inventory.distributed() {
             let pinned = self
                 .decision
@@ -397,6 +457,125 @@ impl RedistributionReview {
             }
         }
         Ok(())
+    }
+
+    /// Check authorization of a staged product on its intended future channels,
+    /// even while its inventory entry correctly says `distributed = false`.
+    pub(crate) fn require_staged_channels(
+        &self,
+        id: &str,
+        sha256: &str,
+        channels: &[&str],
+    ) -> Result<()> {
+        let artifact = self
+            .inventory
+            .find(id)
+            .with_context(|| format!("staged runtime artifact {id} is missing from inventory"))?;
+        if artifact.sha256.as_deref() != Some(sha256) {
+            bail!("staged runtime inventory checksum mismatch for {id}");
+        }
+        let pinned = self
+            .decision
+            .pinned_artifacts
+            .iter()
+            .find(|p| p.id == id)
+            .with_context(|| {
+                format!("redistribution decision does not pin staged runtime artifact {id}")
+            })?;
+        if pinned.sha256 != sha256 {
+            bail!("staged runtime decision checksum mismatch for {id}");
+        }
+        for channel in &artifact.planned_channels {
+            if !pinned.approved_channels.contains(channel) {
+                bail!("redistribution decision does not authorize channel {channel} for staged runtime artifact {id}");
+            }
+        }
+        for channel in channels {
+            if !pinned.approved_channels.iter().any(|c| c == channel) {
+                bail!("redistribution decision does not authorize channel {channel} for staged runtime artifact {id}");
+            }
+        }
+        Ok(())
+    }
+
+    /// Derive the only allowed mutable inventory from the frozen approval.
+    /// Registration is not publication: actual channels are recorded separately,
+    /// after uploads, and never broaden the reviewer's intended scope.
+    pub(crate) fn production_inventory(
+        &self,
+        registry_sha256: &str,
+        published_channels: &[String],
+    ) -> Result<ArtifactInventory> {
+        let mut inventory = self.inventory.clone();
+        for id in COMPACT_IDS {
+            let artifact = inventory
+                .artifacts
+                .iter_mut()
+                .find(|a| a.id == id)
+                .with_context(|| format!("compact approval inventory is missing {id}"))?;
+            if artifact.lifecycle != Some(ArtifactLifecycle::Staged) || artifact.distributed {
+                bail!("compact approval snapshot must describe staged, undistributed artifacts");
+            }
+            let sha = artifact
+                .sha256
+                .as_deref()
+                .context("compact approval needs checksum")?;
+            self.require_staged_channels(id, sha, &REQUIRED_RUNTIME_CHANNELS)?;
+            if REQUIRED_RUNTIME_CHANNELS
+                .iter()
+                .any(|c| !artifact.planned_channels.iter().any(|p| p == c))
+            {
+                bail!("compact approval inventory does not plan all required runtime channels");
+            }
+            if published_channels
+                .iter()
+                .any(|c| !artifact.planned_channels.contains(c))
+            {
+                bail!("publication channel is outside the immutable approved plan for {id}");
+            }
+            artifact.channels = published_channels.to_vec();
+            artifact.channels.sort();
+            artifact.channels.dedup();
+            artifact.distributed = !artifact.channels.is_empty();
+            artifact.lifecycle = Some(if artifact.distributed {
+                ArtifactLifecycle::Published
+            } else {
+                ArtifactLifecycle::ProductionRegistered
+            });
+        }
+        if let Some(registry) = inventory
+            .artifacts
+            .iter_mut()
+            .find(|a| a.id == "starlight-manifest-toml")
+        {
+            registry.sha256 = Some(registry_sha256.into());
+        }
+        inventory.validate()?;
+        Ok(inventory)
+    }
+
+    pub(crate) fn verify_current_inventory(
+        &self,
+        path: &Path,
+        registered: bool,
+        registry_sha256: &str,
+    ) -> Result<Vec<String>> {
+        let current: ArtifactInventory = toml::from_str(&fs::read_to_string(path)?)?;
+        current.validate()?;
+        let channels = current
+            .find(COMPACT_IDS[0])
+            .context("current inventory lacks compact map")?
+            .channels
+            .clone();
+        let expected = if registered {
+            self.production_inventory(registry_sha256, &channels)?
+        } else {
+            self.inventory.clone()
+        };
+        if current != expected {
+            bail!("current publication inventory disagrees with immutable approval or production registry");
+        }
+        Ok(channels)
     }
 
     pub fn verify_conditions(&self, evidence: &ConditionEvidence<'_>) -> Result<()> {
@@ -503,6 +682,8 @@ mod tests {
             } else {
                 Vec::new()
             },
+            planned_channels: Vec::new(),
+            lifecycle: None,
             tracking_issue: None,
             notes: "synthetic-test-notes: fixture data only, not a real artifact".to_string(),
         }
@@ -597,6 +778,52 @@ mod tests {
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
         review.require_approved(&"c".repeat(64)).unwrap();
+    }
+
+    #[test]
+    fn staged_channels_require_inventory_identity_and_explicit_future_approval() {
+        let dir = TempDir::new().unwrap();
+        let mut inventory = synthetic_inventory();
+        inventory.artifacts[0].sha256 = Some("b".repeat(64));
+        let (path, sha) = write_inventory(&dir, &inventory);
+        let decision = write_decision(&dir, &approved_decision(&sha));
+        let mut review = RedistributionReview::load(&path, &decision).unwrap();
+        assert!(review
+            .require_staged_channels("absent", &"b".repeat(64), &[])
+            .is_err());
+        let id = "synthetic-upstream-input";
+        assert!(review
+            .require_staged_channels(id, &"a".repeat(64), &[])
+            .is_err());
+        assert!(review
+            .require_staged_channels(id, &"b".repeat(64), &[])
+            .is_err());
+        review
+            .decision
+            .pinned_artifacts
+            .push(PinnedArtifactApproval {
+                id: id.into(),
+                sha256: "a".repeat(64),
+                approved_channels: vec!["git_repository".into()],
+            });
+        assert!(review
+            .require_staged_channels(id, &"b".repeat(64), &[])
+            .is_err());
+        review.decision.pinned_artifacts.last_mut().unwrap().sha256 = "b".repeat(64);
+        assert!(review
+            .require_staged_channels(id, &"b".repeat(64), &["crates_io"])
+            .is_err());
+        review
+            .decision
+            .pinned_artifacts
+            .last_mut()
+            .unwrap()
+            .approved_channels
+            .push("crates_io".into());
+        review
+            .require_staged_channels(id, &"b".repeat(64), &["git_repository", "crates_io"])
+            .unwrap();
+        assert!(!review.inventory.artifacts[0].distributed);
     }
 
     #[test]
@@ -805,17 +1032,110 @@ mod tests {
     }
 
     #[test]
-    fn real_repository_inventory_and_pending_template_load_and_stay_pending() {
+    fn documentation_reference_uses_the_same_distributed_checksum_rule() {
+        let mut artifact = synthetic_artifact("documentation-contract", true, None);
+        artifact.distribution_class = DistributionClass::DocumentationReference;
+        assert!(artifact.validate().is_err());
+        artifact.sha256 = Some("a".repeat(64));
+        artifact.validate().unwrap();
+    }
+
+    #[test]
+    fn actual_inventory_accepts_complete_fixture_approvals_and_rejects_bad_pins() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let dir = TempDir::new().unwrap();
+        let inventory: ArtifactInventory =
+            toml::from_str(&fs::read_to_string(root.join(APPROVAL_INVENTORY)).unwrap()).unwrap();
+        let (path, sha) = write_inventory(&dir, &inventory);
+        let mut decision = approved_decision(&sha);
+        decision.pinned_artifacts = inventory
+            .artifacts
+            .iter()
+            .filter(|a| a.distributed || !a.planned_channels.is_empty())
+            .map(|a| PinnedArtifactApproval {
+                id: a.id.clone(),
+                sha256: a.sha256.clone().unwrap(),
+                approved_channels: a
+                    .channels
+                    .iter()
+                    .chain(&a.planned_channels)
+                    .cloned()
+                    .collect(),
+            })
+            .collect();
+        for disposition in [
+            RedistributionDecision::Approved,
+            RedistributionDecision::ApprovedWithConditions,
+        ] {
+            let mut valid = decision.clone();
+            valid.decision = disposition;
+            if disposition == RedistributionDecision::ApprovedWithConditions {
+                valid.conditions = vec![crate::starlight::conditions::ReviewCondition::FreeText(
+                    "fixture shape only; promotion separately verifies conditions".into(),
+                )];
+            }
+            let decision_path = write_decision(&dir, &valid);
+            let review = RedistributionReview::load(&path, &decision_path).unwrap();
+            review.require_approved(&"c".repeat(64)).unwrap();
+        }
+        let doc = "starlight-external-manifest-sidecar-contract";
+        let doc_index = decision
+            .pinned_artifacts
+            .iter()
+            .position(|a| a.id == doc)
+            .unwrap();
+        for case in 0..4 {
+            let mut invalid = decision.clone();
+            match case {
+                0 => {
+                    invalid.pinned_artifacts.remove(doc_index);
+                }
+                1 => invalid.pinned_artifacts[doc_index].sha256 = "0".repeat(64),
+                2 => {
+                    invalid.pinned_artifacts[doc_index].id =
+                        "different-documentation-identity".into()
+                }
+                _ => {
+                    invalid.pinned_artifacts[doc_index].approved_channels = vec!["crates_io".into()]
+                }
+            }
+            let decision_path = write_decision(&dir, &invalid);
+            assert!(RedistributionReview::load(&path, &decision_path)
+                .unwrap()
+                .require_approved(&"c".repeat(64))
+                .is_err());
+        }
+        let mut missing_digest = inventory.clone();
+        missing_digest
+            .artifacts
+            .iter_mut()
+            .find(|a| a.id == doc)
+            .unwrap()
+            .sha256 = None;
+        assert!(missing_digest.validate().is_err());
+        assert_eq!(
+            inventory.find(doc).unwrap().sha256.as_deref(),
+            Some(
+                checksum_io::sha256_file(
+                    &root.join("docs/nsb_components/starlight/external-manifest.md")
+                )
+                .unwrap()
+                .as_str()
+            )
+        );
+    }
+
+    #[test]
+    fn real_repository_approval_and_unsigned_template_have_distinct_authority() {
         // Exercises the actual checked-in files as an integration smoke test:
-        // the pending template must load cleanly but must never satisfy the
-        // fail-closed promotion gate.
+        // the real human decision authorizes its exact candidate, while the
+        // unsigned template must never satisfy the fail-closed gate.
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let repository_root = manifest_dir
             .parent()
             .and_then(Path::parent)
             .expect("crate lives two levels below the repository root");
-        let inventory_path = repository_root
-            .join("docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml");
+        let inventory_path = repository_root.join(APPROVAL_INVENTORY);
         let decision_path = repository_root
             .join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json");
         if !inventory_path.exists() || !decision_path.exists() {
@@ -825,8 +1145,25 @@ mod tests {
             return;
         }
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
-        assert_eq!(review.decision().decision, RedistributionDecision::Pending);
+        assert_eq!(
+            review.decision().decision,
+            RedistributionDecision::ApprovedWithConditions
+        );
+        review
+            .require_approved(&review.decision().candidate_sha256)
+            .unwrap();
         assert!(review.require_approved(&"c".repeat(64)).is_err());
+        let template = RedistributionReview::load(
+            &inventory_path,
+            &repository_root.join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-template-v1.json"),
+        )
+        .unwrap();
+        assert!(
+            template
+                .require_approved(&review.decision().candidate_sha256)
+                .is_err(),
+            "unsigned template must not authorize"
+        );
     }
 
     #[test]

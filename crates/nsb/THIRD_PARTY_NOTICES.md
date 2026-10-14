@@ -21,15 +21,18 @@ provide full source identifiers and SHA-256s.
   scientific models; relevant model citations and scientific assumptions are
   documented in the repository's model and validation documentation.
 
-## Not included in the crate
+## Conditionally approved embedded Starlight
 
-The frozen Gaia-derived Starlight candidate, staged runtime map, runtime
-provenance sidecar, and merge report **are not distributed by this crate**.
-They remain tracked in the Git repository for scientific reproducibility,
-where attribution and a separate redistribution assessment are required.
+The compact Starlight map and v2 provenance sidecar are embedded in this crate
+under the actual #103 decision `approved_with_conditions`. The maintainer
+accepted the XHIP calculated-output/database-right and independent embedded-data
+interpretations for noncommercial scientific publication at
+2026-10-14T19:50:19Z. This is a project rights/risk finding, not qualified legal
+advice or a new grant from XHIP, ESA, CDS or another third party.
 
-The Starlight production runtime is intentionally disabled for version 0.1.0
-while issue https://github.com/VPRamon/NSB/issues/103 is pending.
+The frozen candidate and merge report remain Git evidence and are excluded from
+the crate; production contains the exact approved compact pair. No original
+catalogue, filter response, spectral file or per-star diagnostic is included.
 
 The Starlight source families and relevant attribution requirements are at:
 https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/ATTRIBUTION.md .
@@ -54,9 +57,10 @@ a distinct licence or commercial/downstream derived-map redistribution right.
 CDS/VizieR recommends acknowledging its catalogue access service,
 CDS, Strasbourg, France (DOI 10.26093/cds/vizier).
 These references do not authorize unrestricted redistribution of catalogue
-content. The XHIP clarification requested on 2026-10-08 remains pending;
-Hipparcos-2 source availability/attribution was clarified by its author,
-but Starlight derived-map rights remain subject to issue #103.
+content. No new XHIP clarification has been recorded since the 2026-10-08
+enquiry; the maintainer accepted the new integrated-map interpretation under
+#103 without treating an unanswered enquiry as a missing source grant.
+Hipparcos-2 source availability/attribution was clarified by its author.
 
 ### SVO/FPS attribution for Starlight calculations
 
@@ -64,8 +68,7 @@ The maintainer supplied a reply from the SVO/FPS team (signed Enrique,
 reported 2026-10-08) that, for use of the SVO Filter Profile Service and
 Bessell (2000) Hipparcos Hp response in calculations, it is sufficient on
 their part to inform users and provide the acknowledgement and references
-below. We include these even though the pending Starlight map itself is
-excluded from this first-release crate.
+below. These notices accompany the conditionally approved embedded map.
 
 > This research has made use of the SVO Filter Profile Service "Carlos Rodrigo", funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
 
@@ -82,3 +85,104 @@ SVO/FPS references requested in the reply:
 
 This statement does not itself authorize distribution of the original
 SVO filter-transmission table, or remove other upstream constraints.
+
+## Compact Starlight transport and approval boundary
+
+The binary format preserves the frozen Gaia-derived radiances and all available
+uncertainties; changing representation does not change data rights. Production
+packages embed the exact checksum-approved compact map and sidecar under the
+actual conditional #103 authorization. The software remains AGPL-3.0-only; Gaia/Tycho noncommercial conditions
+and all source-specific attribution remain separate. Package availability does
+not promise unrestricted commercial reuse of the scientific data. See the
+[source-specific channel assessment](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md).
+
+## Gaia, catalogue and spectral-model credits
+
+> This work has made use of data from the European Space Agency (ESA)
+> mission Gaia (<https://www.cosmos.esa.int/gaia>), processed by the Gaia
+> Data Processing and Analysis Consortium (DPAC,
+> <https://www.cosmos.esa.int/web/gaia/dpac/consortium>). Funding for the
+> DPAC has been provided by national institutions, in particular the
+> institutions participating in the Gaia Multilateral Agreement.
+
+Gaia DR3/XP source terms: [CC BY-NC 3.0 IGO](https://creativecommons.org/licenses/by-nc/3.0/igo/),
+[ESA licence](https://www.cosmos.esa.int/web/gaia-users/license).
+The map spatially aggregates integrated 300–650 nm photon flux, with calibrated
+UV completion and bright-star supplementation; it is a transformed output,
+not the original catalogue. Cite De Angeli et al. (2023),
+[XP processing](https://doi.org/10.1051/0004-6361/202243680), and Montegriffo
+et al. (2023), [XP calibration](https://doi.org/10.1051/0004-6361/202243880),
+with the [Gaia DR3 documentation](https://gea.esac.esa.int/archive/documentation/GDR3/).
+
+Tycho-2: Credit ESA; Høg et al. (2000), *The Tycho-2 catalogue of the 2.5 million
+brightest stars*, A&A 355, L27–L30, [ADS](https://ui.adsabs.harvard.edu/abs/2000A%26A...355L..27H/abstract).
+[CDS I/259](https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259) designates
+CC BY-NC 3.0 IGO. Original catalogue bytes are not included.
+
+CK04: Castelli & Kurucz (2004). CALSPEC: STScI/ReDCaT spectrophotometric
+standards; Bohlin, Gordon & Tremblay (2014), [PASP 126, 711](https://doi.org/10.1086/677655).
+[MAST REFERENCE-ATLASES](https://archive.stsci.edu/hlsp/reference-atlases),
+DOI [10.17909/t9-khb7-4049](https://doi.org/10.17909/t9-khb7-4049),
+licenses its HLSP data under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+NSB integrates selected CK04 models, scales bright stars using CALSPEC Vega
+and Hp photometry, and calibrates UV completion using CALSPEC; original
+spectra are not shipped. The bright-star zero point is pinned as
+`alpha_lyr_stis_012`; the older UV-training snapshot remains incompletely pinned.
+
+Selection weights: Cantat-Gaudin et al. (2023),
+[dataset 10.5281/zenodo.8063930](https://doi.org/10.5281/zenodo.8063930),
+CC BY 4.0; [associated paper](https://doi.org/10.1051/0004-6361/202244784).
+The source selection table is not included; its use is recorded in the
+frozen candidate provenance. None of these notices grants missing rights
+in XHIP, Hipparcos-2 or the final derived map; #103 remains authoritative.
+
+## Rights enquiries and concerns
+
+The [scientific-data guide and verified contact directory](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/README.md)
+identifies the providers, public contact channels, evidence and verification dates.
+Report a concern through [NSB issues](https://github.com/VPRamon/NSB/issues),
+identifying the asset, package/version, asserted right and relevant evidence.
+The maintainer reviews the evidence with the provider, corrects notices or
+artifacts, and suspends affected distribution when warranted; corrections are
+communicated in the issue and release notes. This procedure does not itself
+confer permission. Gaia noncommercial restrictions continue to apply to the
+embedded data even when a user selects an external map at runtime. AGPL code
+rights remain distinct. The maintainer expressly accepted the combined binary's independent-data
+classification and XHIP map-only treatment in #103, after disclosure of GNU
+same-executable guidance and EU database rules. The new integrated numerical
+output, not absence of raw rows alone, supports the adopted interpretation.
+It does not waive a protected third-party right or promise commercial data use.
+Tycho-2 fields in the frozen pipeline are diagnostic only; no Tycho photometric
+value changes its radiances or uncertainty values.
+
+Public contact routes verified 2026-10-14 (custodians are not necessarily sole
+rights holders): ESA licensing `data.licences@esa.int` ([archive terms](https://www.cosmos.esa.int/web/esdc/terms-and-conditions));
+Gaia technical support `gaia-helpdesk@esa.int` ([official announcement](https://www.cosmos.esa.int/web/gaia/newsletter/contents));
+CDS/XHIP/Tycho `cds-question@unistra.fr` ([CDS](https://cds.unistra.fr/about/contact/));
+Hipparcos-2 [van Leeuwen's institutional directory](https://www.ast.cam.ac.uk/people/floor.van-leeuwen);
+SVO `svo-support@cab.inta-csic.es` ([FPS](https://svo2.cab.inta-csic.es/theory/fps/));
+STScI `archive@stsci.edu` ([MAST](https://archive.stsci.edu/hlsp/reference-atlases));
+PALACE [paper correspondence](https://gmd.copernicus.org/articles/18/4353/2025/);
+selection weights [Cantat-Gaudin's record/ORCID](https://zenodo.org/records/8063930);
+F10.7 [NOAA SWPC contact](https://www.spaceweather.gov/content/contact-us).
+No additional individual permission is required for acts already covered by an
+applicable public grant. Names identify credited creators, not proof of sole
+legal ownership. The guide records existing correspondence and the limited
+interpretations accepted by the maintainer and their limits.
+
+
+## Exact approved Starlight provenance
+
+- Frozen combined 300–650 nm candidate SHA-256:
+  `7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d`.
+- Embedded compact map SHA-256:
+  `ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784`.
+- Compact v2 sidecar SHA-256:
+  `b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b`.
+
+The map preserves all 196,608 HEALPix pixels and their radiance/uncertainty f64
+values. Gaia CC BY-NC 3.0 IGO and every applicable source-specific term remain
+in force; NSB code stays AGPL-3.0-only. An external map override does not remove
+restricted bytes from an already distributed binary. Source credits and public
+contact routes above remain applicable. No new commercial-data licence,
+original-catalogue permission or endorsement is asserted.

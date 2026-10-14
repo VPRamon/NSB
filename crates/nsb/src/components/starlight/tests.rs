@@ -122,12 +122,14 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
         );
         assert!(model.map().pixels().len() > 12);
 
-        let map_meta = crate::data::bundled::bundled_asset("starlight_nside128.release.csv")
-            .expect("production map metadata");
-        let sidecar_meta = crate::data::bundled::bundled_asset("starlight_nside128.manifest.toml")
-            .expect("production sidecar metadata");
-        assert_eq!(map_meta.schema, "nsb-healpix-starlight-v1");
-        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v1");
+        let map_meta =
+            crate::data::bundled::bundled_asset("starlight_nside128.compact.release.bin")
+                .expect("production map metadata");
+        let sidecar_meta =
+            crate::data::bundled::bundled_asset("starlight_nside128.compact.manifest.toml")
+                .expect("production sidecar metadata");
+        assert_eq!(map_meta.schema, "nsb-healpix-starlight-binary-v1");
+        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v2");
         assert_eq!(map_meta.calibration_status, "production");
         assert_eq!(sidecar_meta.calibration_status, "production");
         assert!(!map_meta.sha256.is_empty());
@@ -150,10 +152,11 @@ fn bundled_production_starlight_pins_issue_207_candidate_lineage() {
         sidecar.contains(ISSUE_207_CANDIDATE_SHA256),
         "bundled production sidecar must pin the issue #207 Combined300To650 candidate"
     );
-    let map = crate::data::bundled::bundled_asset("starlight_nside128.release.csv")
+    let map = crate::data::bundled::bundled_asset("starlight_nside128.compact.release.bin")
         .expect("production map metadata");
-    let sidecar_meta = crate::data::bundled::bundled_asset("starlight_nside128.manifest.toml")
-        .expect("production sidecar metadata");
+    let sidecar_meta =
+        crate::data::bundled::bundled_asset("starlight_nside128.compact.manifest.toml")
+            .expect("production sidecar metadata");
     assert_eq!(map.sha256.len(), 64);
     assert_eq!(sidecar_meta.sha256.len(), 64);
     assert_ne!(map.sha256, ISSUE_207_CANDIDATE_SHA256);
@@ -176,9 +179,9 @@ fn bundled_production_starlight_pins_issue_207_candidate_lineage() {
 
 #[cfg(nsb_bundled_production_starlight)]
 #[test]
-fn bundled_production_model_is_the_canonical_admitted_csv_map() {
+fn bundled_production_model_is_the_canonical_admitted_compact_map() {
     let canonical = ValidatedStarlightMap::from_bytes_and_manifest(
-        crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MAP.as_bytes(),
+        crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MAP,
         crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST,
     )
     .unwrap();

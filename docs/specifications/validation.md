@@ -103,13 +103,15 @@ These checks establish a fail-closed evidence contract; they do not make an
 unreviewed caller claim true. Scientific users remain responsible for reviewing
 the referenced catalogue license, calibration, and comparison report.
 
-## Bundled Starlight in 0.1.0
+## Bundled Starlight admission
 
-NSB 0.1.0 does not register or ship a Gaia-derived production Starlight map.
-Candidate-specific generation and validation evidence stays outside the release
-tree until a candidate has passed scientific, provenance, and redistribution
-review. A future bundled product must enter through an explicit release change
-that registers the runtime map and sidecar together.
+While #103 is pending, no Gaia-derived production Starlight is registered or
+shipped. An authorized four-component release uses the compact binary and v2
+sidecar with the same frozen scientific validation.
+The immutable candidate and review evidence remain in Git for reproducibility
+and are excluded from runtime packages. Authorized promotion registers the
+compact map and v2 sidecar together; the release workflow verifies that actual
+configuration and its channels before publication.
 
 ## Missing external campaigns
 

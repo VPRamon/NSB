@@ -166,6 +166,9 @@ pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::spectra
 pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::uv_completion_model_id: alloc::string::String
 pub struct nsb::components::starlight::StarlightMap
 impl nsb::components::starlight::StarlightMap
+pub fn nsb::components::starlight::StarlightMap::compact_csv(raw: &str, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<alloc::vec::Vec<u8>>
+pub fn nsb::components::starlight::StarlightMap::from_compact_bytes(bytes: &[u8], provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
+impl nsb::components::starlight::StarlightMap
 pub fn nsb::components::starlight::StarlightMap::from_csv_path(path: impl core::convert::AsRef<std::path::Path>, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
 pub fn nsb::components::starlight::StarlightMap::from_csv_str(raw: &str, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
 pub fn nsb::components::starlight::StarlightMap::from_healpix(grid: siderust::healpix::grid::HealpixGrid, pixels: alloc::vec::Vec<nsb::components::starlight::StarlightPixel>, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>

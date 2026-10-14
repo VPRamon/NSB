@@ -140,11 +140,20 @@ impl ValidatedStarlightMap {
             )));
         }
 
-        let raw = std::str::from_utf8(map_bytes)
-            .map_err(|err| invalid(format!("starlight map is not UTF-8: {err}")))?;
+        let compact = map_bytes.starts_with(super::compact::MAGIC);
+        let raw = if compact {
+            super::compact::parts(map_bytes)?.0
+        } else {
+            std::str::from_utf8(map_bytes)
+                .map_err(|err| invalid(format!("starlight map is not UTF-8: {err}")))?
+        };
         manifest.validate_headers(&parse_header_metadata(raw))?;
         let provenance = manifest.provenance(actual_checksum);
-        let map = StarlightMap::from_csv_str(raw, provenance)?;
+        let map = if compact {
+            StarlightMap::from_compact_bytes(map_bytes, provenance)?
+        } else {
+            StarlightMap::from_csv_str(raw, provenance)?
+        };
         let diagnostics = map.validate_production_diagnostics(
             manifest.input_integrated_flux_sum,
             manifest.integrated_flux_conservation_tolerance,
@@ -173,9 +182,9 @@ impl ValidatedStarlightMap {
 
 impl ExternalManifest {
     fn validate_contract(&self) -> Result<()> {
-        if self.schema_version != MANIFEST_SCHEMA_VERSION {
+        if ![MANIFEST_SCHEMA_VERSION, 2].contains(&self.schema_version) {
             return Err(invalid(format!(
-                "unsupported external starlight manifest schema {}; expected {MANIFEST_SCHEMA_VERSION}",
+                "unsupported external starlight manifest schema {}; expected 1 or 2",
                 self.schema_version
             )));
         }

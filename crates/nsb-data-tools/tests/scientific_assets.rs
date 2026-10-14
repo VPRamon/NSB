@@ -35,19 +35,57 @@ fn repository_scientific_asset_registry_verify() -> Result<()> {
 }
 
 #[test]
-fn first_release_registry_excludes_unapproved_starlight_products() -> Result<()> {
+fn production_starlight_requires_verified_human_promotion() -> Result<()> {
     let raw = fs::read_to_string(repository_manifest_path())?;
     let manifest: Manifest = toml::from_str(&raw)?;
-    let starlight = manifest
+    let starlight: Vec<_> = manifest
         .assets
         .iter()
-        .filter(|asset| asset.path.contains("starlight") || asset.schema.contains("starlight"))
-        .map(|asset| asset.path.as_str())
-        .collect::<Vec<_>>();
-    if !starlight.is_empty() {
-        bail!(
-            "first public release must not register unapproved Starlight products: {starlight:?}"
-        );
+        .filter(|a| {
+            a.runtime_embedded && (a.path.contains("starlight") || a.schema.contains("starlight"))
+        })
+        .collect();
+    let repository = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    use nsb_data_tools::starlight::promotion::{run_promotion, PromotionInputs};
+    let inputs = PromotionInputs {
+        release_candidate: repository.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
+        redistribution_decision: repository.join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"),
+        repository_root: repository,
+        output: None, apply: false, published_channels: Vec::new(),
+    };
+    if starlight.is_empty() {
+        let decision: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&inputs.redistribution_decision)?)?;
+        if decision["decision"] == "pending" {
+            let error = run_promotion(&inputs).unwrap_err();
+            if !error
+                .to_string()
+                .contains("redistribution review decision is pending")
+            {
+                bail!("unexpected pre-approval promotion failure: {error:#}");
+            }
+        }
+        return Ok(());
+    }
+    let outcome = run_promotion(&inputs)?;
+    if starlight.len() != 2 {
+        bail!("expected exactly the approved Starlight map/sidecar pair");
+    }
+    for (path, sha) in [
+        (outcome.runtime_map_path, outcome.runtime_map_sha256),
+        (outcome.runtime_sidecar_path, outcome.runtime_sidecar_sha256),
+    ] {
+        let name = path
+            .file_name()
+            .context("runtime asset has no filename")?
+            .to_string_lossy();
+        let asset = starlight
+            .iter()
+            .find(|a| a.path == name)
+            .context("approved product missing from registry")?;
+        if asset.sha256 != sha || asset.calibration_status != "production" {
+            bail!("production registry does not match approved promotion: {name}");
+        }
     }
     Ok(())
 }
@@ -92,7 +130,11 @@ fn verify(manifest_path: &Path) -> Result<()> {
     // independently pinned review bundle/runtime identity before excluding
     // them from the registered production asset set.
     let frozen = verify_frozen_non_runtime_starlight(base)?;
-    if !registered.is_disjoint(&frozen) {
+    if manifest
+        .assets
+        .iter()
+        .any(|a| a.runtime_embedded && frozen.contains(&a.path))
+    {
         bail!("frozen non-production Starlight is incorrectly registered as runtime data");
     }
     let discovered = discover_assets(base)?;
@@ -237,7 +279,7 @@ struct FrozenRuntimeAssets {
 fn verify_frozen_non_runtime_starlight(base: &Path) -> Result<BTreeSet<String>> {
     let repository = base.join("../../..");
     let review: FrozenReviewBundle = toml::from_str(&fs::read_to_string(
-        repository.join("docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml"),
+        repository.join("docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml"),
     )?)?;
     let runtime: FrozenRuntimeAssets = toml::from_str(&fs::read_to_string(
         repository.join("docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"),

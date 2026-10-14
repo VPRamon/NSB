@@ -725,6 +725,7 @@ fn starlight_runtime_admission_cli_fails_closed_without_signed_inputs() -> anyho
                 repository_root: root.to_path_buf(),
                 output: Some(root.join("draft.toml")),
                 apply,
+                published_channels: Vec::new(),
             }),
         })
         .is_err());

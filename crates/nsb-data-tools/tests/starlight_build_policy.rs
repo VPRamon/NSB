@@ -18,7 +18,7 @@ use validate::{
 };
 
 #[test]
-fn first_release_manifest_has_no_starlight_assets() {
+fn repository_starlight_selection_respects_pending_authorization() {
     let manifest_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nsb/data/manifest.toml");
     let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nsb/data");
     let raw = fs::read_to_string(&manifest_path).expect("read repository manifest");
@@ -27,15 +27,21 @@ fn first_release_manifest_has_no_starlight_assets() {
     validate_manifest_structure(&manifest).expect("structure");
     validate_runtime_embedded_files(&data_dir, &manifest).expect("embedded checksums");
 
-    assert!(
-        select_production_starlight(&manifest)
-            .expect("policy")
-            .is_none(),
-        "NSB 0.1.0 must not activate bundled production Starlight"
-    );
-
+    let selected = select_production_starlight(&manifest).expect("policy");
+    let decision_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json");
+    let decision: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(decision_path).unwrap()).unwrap();
+    if decision["decision"] == "pending" {
+        assert!(
+            selected.is_none(),
+            "pending human review must not activate bundled Starlight"
+        );
+    }
+    // Candidate registration is evidence only; it must remain unembedded.
     assert!(manifest
         .assets
         .iter()
-        .all(|asset| !asset.path.contains("starlight") && !asset.schema.contains("starlight")));
+        .filter(|a| a.path == "starlight_nside128.csv")
+        .all(|a| !a.runtime_embedded && a.calibration_status == "candidate"));
 }

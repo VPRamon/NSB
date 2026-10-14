@@ -64,17 +64,19 @@ pub struct Asset {
 }
 
 impl Asset {
-    /// Return whether this entry is a fully valid production Starlight release CSV.
+    /// Return whether this entry is a valid production Starlight map transport.
     pub fn is_valid_production_starlight_map(&self) -> bool {
-        self.schema == STARLIGHT_MAP_SCHEMA
+        ((self.schema == STARLIGHT_MAP_SCHEMA && self.path.ends_with(".release.csv"))
+            || (self.schema == "nsb-healpix-starlight-binary-v1"
+                && self.path.ends_with(".release.bin")))
             && self.calibration_status.eq_ignore_ascii_case("production")
             && self.runtime_embedded
-            && self.path.ends_with(".release.csv")
     }
 
     /// Return whether this entry is a fully valid production Starlight sidecar.
     pub fn is_valid_production_starlight_manifest(&self) -> bool {
-        self.schema == STARLIGHT_MANIFEST_SCHEMA
+        (self.schema == STARLIGHT_MANIFEST_SCHEMA
+            || self.schema == "nsb-starlight-runtime-manifest-v2")
             && self.calibration_status.eq_ignore_ascii_case("production")
             && self.runtime_embedded
             && self.path.ends_with(".manifest.toml")
@@ -87,13 +89,17 @@ impl Asset {
     /// Any entry that claims production or runtime embedding still fails closed
     /// unless it forms a valid production pair.
     pub fn is_starlight_release_map_claim(&self) -> bool {
-        (self.path.ends_with(".release.csv") || self.schema == STARLIGHT_MAP_SCHEMA)
+        (self.path.ends_with(".release.csv")
+            || self.path.ends_with(".release.bin")
+            || self.schema == STARLIGHT_MAP_SCHEMA
+            || self.schema == "nsb-healpix-starlight-binary-v1")
             && (self.runtime_embedded || self.calibration_status.eq_ignore_ascii_case("production"))
     }
 
     /// Return whether this entry makes an active Starlight production-sidecar claim.
     pub fn is_starlight_release_manifest_claim(&self) -> bool {
         (self.schema == STARLIGHT_MANIFEST_SCHEMA
+            || self.schema == "nsb-starlight-runtime-manifest-v2"
             || (self.path.ends_with(".manifest.toml")
                 && starlight_release_stem(&self.path).is_some()))
             && (self.runtime_embedded || self.calibration_status.eq_ignore_ascii_case("production"))
@@ -108,6 +114,7 @@ impl Asset {
 /// Extract the release stem from a Starlight release map or sidecar path.
 pub fn starlight_release_stem(path: &str) -> Option<&str> {
     path.strip_suffix(".release.csv")
+        .or_else(|| path.strip_suffix(".release.bin"))
         .or_else(|| path.strip_suffix(".manifest.toml"))
 }
 

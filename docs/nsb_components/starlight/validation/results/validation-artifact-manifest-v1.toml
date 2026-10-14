@@ -1,9 +1,13 @@
+# Historical preregistration bytes recovered from c59db10^ after #226 changed
+# the working preregistration to a generic first-release input. Thresholds are
+# identical; preserve the original scientific evidence identity, not new pins
+# over a changed candidate contract. See release-candidate/README.md.
 schema_version = 1
 generated_at_unix_seconds = 1788174212
 
 [[artifacts]]
 name = "preregistration-v1.toml"
-path = "docs/nsb_components/starlight/validation/preregistration-v1.toml"
+path = "docs/nsb_components/starlight/validation/results/frozen-preregistration-v1.toml"
 sha256 = "5002cc27aaaae68e4b2f93ee1f0ff9d2cc7b4dbb03d3d90648f609491a48e23d"
 bytes = 3698
 

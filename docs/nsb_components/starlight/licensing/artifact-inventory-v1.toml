@@ -1,42 +1,4 @@
-# Starlight redistribution artifact inventory (schema v1)
-#
-# Technical scope of #88 (parent tracker #103). This inventory lists every
-# input, generated artifact, sidecar, manifest, and report that participates
-# in the Starlight 300-650 nm candidate so a fail-closed reviewer, and later
-# `nsb-data starlight licensing check` (see the Rust contract in
-# crates/nsb-data-tools/src/starlight/licensing.rs), can enumerate exactly
-# what is distributed today, on which channel, and under which licence.
-#
-# This file records facts only. It does not grant redistribution approval.
-# The human decision is recorded separately in
-# redistribution-review-decision-v1.json and stays owned by #103.
-#
-# Field semantics:
-#   id                    stable identifier, referenced by the decision file
-#   category              free-text classification (upstream bulk product,
-#                         upstream reference dataset, generated derived
-#                         output, manifest, report, ...)
-#   source                origin/provenance description
-#   release               upstream release, artifact version, or candidate tag
-#   license               source grant or explicit NOT-VERIFIED terms; must not
-#                         manufacture upstream permissions from a URL
-#   license_url           optional canonical licence reference
-#   sha256                optional pinned digest of the exact artifact bytes;
-#                         required when distribution_class is
-#                         repository_embedded or generated_derived_output and
-#                         distributed = true
-#   superseded_by_sha256  optional digest of a replacement artifact that has
-#                         not yet been integrated into a published candidate
-#   distribution_class    one of: download_only, repository_embedded,
-#                         generated_derived_output, documentation_reference
-#   distributed           whether NSB currently ships these bytes on any channel
-#   channels              non-empty when distributed = true, e.g. git_repository
-#   tracking_issue        optional GitHub issue that owns an open gap
-#   notes                 free-text redistribution-relevant commentary
-
 schema_version = 1
-
-# --- Upstream catalogue bulk products (acquired, never redistributed) ------
 
 [[artifacts]]
 id = "gaia-source-bulk"
@@ -107,8 +69,6 @@ Acquisition-manifest digest pinned by starlight-production-300-650.ladon.toml.
 This is not the derived candidate SHA-256. Bytes are not redistributed.
 """
 
-# --- Upstream reference datasets used only for offline training -----------
-
 [[artifacts]]
 id = "calspec-reference-spectra"
 category = "upstream-reference-spectra"
@@ -151,10 +111,6 @@ distributed = false. Merge report population_correction.applied = true with
 policy gaia-dr3-selection-function-cantat-gaudin-v1.
 """
 
-# --- Bright-star upstream inputs (34 checksum-pinned files in candidate) ----
-# The entries below classify SOURCE FAMILY rights, not raw files distributed
-# by NSB. Individual input URLs/checksums live in release-candidate-v1.toml.
-
 [[artifacts]]
 id = "hipparcos2-bright-star-input"
 category = "upstream-bright-star-catalogue"
@@ -179,8 +135,9 @@ licence for I/311 or expressly grant worldwide commercial and downstream
 distribution of NSB's HEALPix derived map. Public availability, scholarly
 attribution, and derived-map commercial redistribution are distinct rights
 questions. The source table is an offline-only input; the author reply is
-retained privately for #103 review; global Starlight redistribution decision
-remains pending.
+retained privately for #103 review; global Starlight authorization is recorded in the separate decision; it was
+pending when the original v1 snapshot was prepared; the exact compact output
+is now conditionally approved under the canonical #103 decision.
 """
 
 [[artifacts]]
@@ -200,6 +157,8 @@ explicitly states CC-BY-NC-3.0 IGO. This is source-specific grant evidence for
 the 20 pinned tyc2.dat.00..19 shards, not merely an analogy to ESA Tycho-1.
 Credit the Tycho-2 authors and ESA and comply with non-commercial terms
 where applicable. Preserve all 20 raw inputs and hashes outside packages.
+Frozen pipeline audit: BT/VT and errors are diagnostic only because all admitted
+Hipparcos records use Hp. They do not alter map radiance or uncertainty.
 This does not independently approve redistribution of the complete NSB map.
 """
 
@@ -220,6 +179,13 @@ licence for the XHIP compilation. The catalog is downloaded offline as a
 spectral-classification lookup; no original XHIP table is included in the
 runtime crate. Review whether protected extraction/arrangement persists in
 the derived HEALPix map before approving repository/registry redistribution.
+Verified 2026-10-14: 117955 unique main.dat rows read; 73840 contain Tc/Lc;
+480 Hipparcos records satisfy Hp <= 4; 55 final supplement records admitted,
+zero replacements. Tc/Lc choose templates, RV supports admission checks, and
+SpType is diagnostic only. No source rows appear in runtime maps. Inference
+with auxiliary inputs cannot be categorically excluded. This is a bounded
+legal interpretation (D), not an established missing permission (E); see the
+source-to-output audit and database-law analysis in the rights assessment.
 """
 
 [[artifacts]]
@@ -261,8 +227,6 @@ itself or settle unrestricted commercial redistribution or all third-party
 rights. The original response XML stays offline and is not bundled. Keep the
 original correspondence privately as source evidence for the #103 reviewer.
 """
-
-# --- Generated calibration artifacts (NSB-trained, checksum-pinned) -------
 
 [[artifacts]]
 id = "starlight-photometric-inference-artifact"
@@ -336,10 +300,8 @@ Technical package lives under docs/nsb_components/starlight/validation/.
 Run reports are in validation/results/. All three acquired references are
 marked not-admissible as starlight-only TOA 300-650 nm grids (Toller
 ISL+DGL+EBL; Leinert Gaussian parameters unpublished; GAMBONS mixed sky).
-Scientific sign-off remains #103.
+Scientific evidence is verified separately; #103 records the actual conditional rights decision.
 """
-
-# --- Currently distributed repository-embedded artifacts -------------------
 
 [[artifacts]]
 id = "starlight-candidate-map-nside128"
@@ -360,14 +322,14 @@ approval of redistribution on GitHub, crates.io, PyPI, or releases.
 calibration_status = candidate,
 runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
-redistribution decision remains pending in #103. The invalidated #93 digest
+redistribution decision is owned by #103 (conditionally approved; original v1 snapshot preceded approval). The invalidated #93 digest
 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
 historical only.
 
-The packed RING production-admission runtime CSV is generated by
-`nsb-data dataset starlight pack`/`promote` (not git-embedded until #103).
-SHA-256
-c777917b7c9aceab5d3e0e25bb6ab0e0b75ee21357097c2ca4abe6a097a2243b.
+The frozen packed RING CSV is a staging/scientific comparison reference,
+SHA-256 70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b.
+The approved runtime package product is the separately pinned compact pair;
+conversion does not alter the scientific values or confer redistribution rights.
 """
 
 [[artifacts]]
@@ -375,7 +337,7 @@ id = "starlight-packed-runtime-map-nside128"
 category = "generated-derived-output"
 source = "Packed RING runtime map derived from starlight-candidate-map-nside128 by nsb-data dataset starlight pack/promote"
 release = "nsb-healpix-starlight-v2 packed from UV-v2 candidate; production admission headers"
-license = "NSB-derived runtime map; Gaia DR3 CC BY-NC 3.0 IGO where applicable; CK04 CC BY 4.0; other source rights pending review #103"
+license = "NSB-derived runtime map; Gaia DR3 CC BY-NC 3.0 IGO where applicable; CK04 CC BY 4.0; other source-specific rights and authoritative #103 distribution decision apply"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
 sha256 = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
 distribution_class = "generated_derived_output"
@@ -403,10 +365,8 @@ tracking_issue = "#103"
 notes = """
 Path: crates/nsb/data/merge_report.json. calibration_status = candidate,
 runtime_embedded = false. Checksum-linked to starlight-candidate-map-nside128
-UV v2. Human redistribution decision remains pending in #103.
+UV v2. The human redistribution decision is owned by #103.
 """
-
-# --- Manifests, sidecars, and reports --------------------------------------
 
 [[artifacts]]
 id = "starlight-manifest-toml"
@@ -414,15 +374,15 @@ category = "manifest"
 source = "NSB-authored checksum/provenance registry for bundled runtime assets"
 release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); contains no third-party bytes, only metadata describing third-party inputs"
-sha256 = "7c0e894ce036ee2cb51036f14b93983c86c371d9c6a05da256d743b090c56f74"
+sha256 = "51c37947a413ea3c4c42b4c4688ba7d3486771a1d3213c3dfac65e28b042452d"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
 notes = """
-Path: crates/nsb/data/manifest.toml. This is a living registry updated by
-`nsb-data dataset <name> publish`; the pinned digest above reflects its state
-when this inventory was authored and will drift on every publish. Treat this
-entry's sha256 as informational provenance, not a promotion gate input.
+Path: crates/nsb/data/manifest.toml. In the immutable approval snapshot this
+pins the baseline registry. Promotion may only add the approved compact pair;
+the derived current inventory records the resulting registry digest. The
+snapshot and decision remain byte-for-byte unchanged after authorization.
 """
 
 [[artifacts]]
@@ -431,9 +391,13 @@ category = "sidecar-contract-documentation"
 source = "NSB-authored validated external-manifest sidecar schema for caller-provided production Starlight maps"
 release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing)"
+sha256 = "af08fdbe04d8e8ad6aa9e8e96a768413c3490a83c31b800e7b47026487842123"
 distribution_class = "documentation_reference"
 distributed = true
-channels = ["git_repository", "documentation"]
+channels = [
+    "git_repository",
+    "documentation",
+]
 notes = """
 Path: docs/nsb_components/starlight/external-manifest.md. Documents the
 sidecar fields (source_catalogue_license, map_sha256, validation_report,
@@ -454,5 +418,47 @@ channels = ["git_repository"]
 tracking_issue = "#103"
 notes = """
 Path: docs/nsb_components/starlight/production-runs/combined-300-650-validation.json.
-Records the UV-v2 candidate/report checksums. Human scientific review is #103.
+Records the UV-v2 candidate/report checksums. Scientific readiness is machine-verified; #103 owns the human redistribution review.
 """
+
+[[artifacts]]
+id = "compact-runtime-map-v1"
+category = "generated-derived-output"
+source = "Lossless little-endian f64 encoding of frozen starlight_nside128.release.csv (70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b); all four fields, uncertainties and metadata preserved"
+release = "nsb-healpix-starlight-binary-v1"
+license = "Gaia CC BY-NC 3.0 IGO and source-specific restrictions retained; distribution requires the authoritative #103 decision"
+sha256 = "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784"
+distribution_class = "generated_derived_output"
+distributed = true
+channels = ["git_repository"]
+planned_channels = [
+    "git_repository",
+    "crates_io",
+    "pypi_wheel",
+    "pypi_sdist",
+    "github_release",
+]
+lifecycle = "published"
+tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
+notes = "Reproducible with stage-runtime --output-csv <path>.bin. The exact compact pair is conditionally approved under #103; the staged approval plan is distinct from current production/publication state. Compact sidecar SHA-256 b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Approved planned channels include Git, crates.io, PyPI wheel/sdist and GitHub release; only the current inventory records actual publication."
+
+[[artifacts]]
+id = "compact-runtime-sidecar-v1"
+category = "generated-provenance-sidecar"
+source = "Frozen runtime manifest with only map_sha256 changed to identify the compact representation"
+release = "nsb-starlight-runtime-manifest-v2"
+license = "Scientific source terms and attribution retained; #103 channel-specific decision required for the pair"
+sha256 = "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b"
+distribution_class = "generated_derived_output"
+distributed = true
+channels = ["git_repository"]
+planned_channels = [
+    "git_repository",
+    "crates_io",
+    "pypi_wheel",
+    "pypi_sdist",
+    "github_release",
+]
+lifecycle = "published"
+tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
+notes = "Conditional approval and production activation are recorded; promotion requires exact decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."

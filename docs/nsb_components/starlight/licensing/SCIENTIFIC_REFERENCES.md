@@ -136,3 +136,11 @@ Git-hosted distribution is therefore a distinct channel from crates.io/PyPI.
 The planned package release must retain human review via #103 and its
 [redistribution decision](../release-candidate/redistribution-review-decision-v1.json).
 Do not infer automatic approval from bibliographic completeness.
+
+## Cross-implementation precedent
+
+Gerrit Roellinghoff, *nsb2 Stellar Dataset: repackaged Gaia DR3 subset*,
+[Zenodo record 15396676](https://zenodo.org/records/15396676), and the
+[nsb2 stellar implementation](https://github.com/GerritRo/nsb2/blob/main/nsb2/emitter/stars.py).
+Used as scientific/technical comparison context, not as a redistribution
+permission. No nsb2 code or data is copied into NSB's compact representation.

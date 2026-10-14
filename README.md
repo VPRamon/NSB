@@ -331,3 +331,22 @@ See [Stable CLI schemas](docs/specifications/cli-schemas.md) and the
 NSB source is licensed under AGPL-3.0-only; see [`LICENSE`](LICENSE).
 Third-party dependencies and scientific assets retain their own license and
 attribution requirements.
+
+## Scientific data and licensing
+
+NSB **code** is AGPL-3.0-only; that does not make all scientific data AGPL.
+PALACE and selected reference products use CC BY 4.0, NOAA products have their
+applicable federal-work/data conditions, and Gaia-derived Starlight retains
+applicable **CC BY-NC 3.0 IGO** terms. The code may be used commercially under
+AGPL's obligations; commercial use of protected bundled data may need separate
+rights. Credits do not imply endorsement by ESA, DPAC, CDS or the authors.
+
+The approved compact Starlight map is embedded for fully offline evaluation.
+`ALL`, `DEFAULT` and the standard Rust/Python evaluator include Starlight,
+Airglow, Moonlight and Zodiacal Light. The maintainer accepted the pinned
+calculated-output and independent-data findings under #103; source-specific
+licences and noncommercial data restrictions remain applicable.
+
+See the [source terms, attribution, public contact directory and concern procedure](docs/nsb_components/starlight/licensing/README.md)
+and the distributed `THIRD_PARTY_NOTICES.md`. Cite the original scientific
+sources, preserve their notices and assess the data terms for your actual use.

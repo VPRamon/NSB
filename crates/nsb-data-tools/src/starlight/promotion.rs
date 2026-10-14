@@ -13,7 +13,9 @@
 
 use crate::platform::checksum_io;
 use crate::starlight::conditions::ConditionEvidence;
-use crate::starlight::licensing::RedistributionReview;
+use crate::starlight::licensing::{
+    RedistributionReview, APPROVAL_INVENTORY, CURRENT_INVENTORY, REQUIRED_RUNTIME_CHANNELS,
+};
 use crate::starlight::pack::{
     self, PackInputs, GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256, XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256,
 };
@@ -327,6 +329,9 @@ pub struct PromotionInputs {
     /// When true, write packed runtime assets and append production registry
     /// entries. Candidate map bytes are never rewritten.
     pub apply: bool,
+    /// Record channels only after actual publication; requires an already
+    /// registered product and --apply. This never uploads or grants rights.
+    pub published_channels: Vec<String>,
 }
 
 /// Result of a successful [`run_promotion`] call.
@@ -367,6 +372,23 @@ pub struct RuntimeStageOutcome {
 /// not register the outputs as production assets. Promotion remains the only
 /// operation that can apply registry changes after the legal decision passes.
 pub fn stage_runtime_assets(inputs: &RuntimeStageInputs) -> Result<RuntimeStageOutcome> {
+    if inputs.output_csv.extension().is_some_and(|e| e == "bin") {
+        let staging = tempfile::tempdir()?;
+        let csv = staging.path().join("map.csv");
+        let sidecar = staging.path().join("map.toml");
+        let staged = stage_runtime_assets(&RuntimeStageInputs {
+            output_csv: csv.clone(),
+            output_sidecar: sidecar.clone(),
+            ..inputs.clone()
+        })?;
+        let (runtime_map_sha256, runtime_sidecar_sha256) =
+            compact_runtime(&csv, &sidecar, &inputs.output_csv, &inputs.output_sidecar)?;
+        return Ok(RuntimeStageOutcome {
+            candidate_sha256: staged.candidate_sha256,
+            runtime_map_sha256,
+            runtime_sidecar_sha256,
+        });
+    }
     let release = ReleaseCandidateManifest::load(&inputs.release_candidate)?;
     let candidate = verified_runtime_candidate(&inputs.repository_root, &release)?;
     if candidate.status != CandidateStatus::Pinned {
@@ -415,6 +437,9 @@ pub fn stage_runtime_assets(inputs: &RuntimeStageInputs) -> Result<RuntimeStageO
 /// packed runtime SHA that does not match the RC pin. Candidate map bytes are
 /// never rewritten.
 pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
+    if !inputs.published_channels.is_empty() && !inputs.apply {
+        bail!("recording publication channels requires --apply");
+    }
     let candidate = ReleaseCandidateManifest::load(&inputs.release_candidate)?;
 
     let map_path = inputs.repository_root.join(&candidate.candidate.map_path);
@@ -536,8 +561,96 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
 
     require_packed_runtime_header(&staged_map)?;
 
-    let dest_map = data_dir.join(format!("{stem}.release.csv"));
+    let identity: RuntimeAssetsIdentity = toml::from_str(&fs::read_to_string(
+        inputs.repository_root.join(RUNTIME_ASSETS_RELATIVE_PATH),
+    )?)?;
+    let (
+        staged_map,
+        staged_runtime_sidecar,
+        runtime_map_sha256,
+        runtime_sidecar_sha256,
+        production_stem,
+        binary,
+    ) = if let Some(compact) = identity.compact {
+        let binary_map = staging.join(format!("{stem}.compact.release.bin"));
+        let binary_sidecar = staging.join(format!("{stem}.compact.manifest.toml"));
+        let (map_sha, sidecar_sha) = compact_runtime(
+            &staged_map,
+            &staged_runtime_sidecar,
+            &binary_map,
+            &binary_sidecar,
+        )?;
+        if map_sha != compact.map_sha256 || sidecar_sha != compact.sidecar_sha256 {
+            bail!("compact runtime identity differs from human-review bundle pins");
+        }
+        let channels = REQUIRED_RUNTIME_CHANNELS;
+        licensing.require_staged_channels("compact-runtime-map-v1", &map_sha, &channels)?;
+        licensing.require_staged_channels("compact-runtime-sidecar-v1", &sidecar_sha, &channels)?;
+        (
+            binary_map,
+            binary_sidecar,
+            map_sha,
+            sidecar_sha,
+            format!("{stem}.compact"),
+            true,
+        )
+    } else {
+        (
+            staged_map,
+            staged_runtime_sidecar,
+            pack_outcome.runtime_map_sha256.clone(),
+            runtime_sidecar_sha256,
+            stem.to_string(),
+            false,
+        )
+    };
+    let stem = production_stem.as_str();
+    let extension = if binary { "bin" } else { "csv" };
+    let dest_map = data_dir.join(format!("{stem}.release.{extension}"));
     let dest_sidecar = data_dir.join(format!("{stem}.manifest.toml"));
+    // Frozen approval bytes are never rewritten. The current inventory is a
+    // deterministic projection, with registration separate from actual uploads.
+    let registry_path = data_dir.join("manifest.toml");
+    let raw_registry = fs::read_to_string(&registry_path)?;
+    let proposed_registry = production_registry_text(
+        &raw_registry,
+        &runtime_candidate,
+        &runtime_map_sha256,
+        &runtime_sidecar_sha256,
+        stem,
+        binary,
+    )?;
+    let mut next_inventory = None;
+    if binary {
+        if candidate.review_artifacts.inventory_path != APPROVAL_INVENTORY {
+            bail!("compact promotion requires a distinct immutable approval inventory snapshot");
+        }
+        let registered = verify_registered_pair(
+            &raw_registry,
+            &proposed_registry,
+            &dest_map,
+            &dest_sidecar,
+            &runtime_map_sha256,
+            &runtime_sidecar_sha256,
+            &licensing,
+        )?;
+        let mut channels = licensing.verify_current_inventory(
+            &inputs.repository_root.join(CURRENT_INVENTORY),
+            registered,
+            &checksum_io::sha256_bytes(raw_registry.as_bytes()),
+        )?;
+        if !registered && !inputs.published_channels.is_empty() {
+            bail!("cannot record publication before production registration");
+        }
+        channels.extend(inputs.published_channels.iter().cloned());
+        let inventory = licensing.production_inventory(
+            &checksum_io::sha256_bytes(proposed_registry.as_bytes()),
+            &channels,
+        )?;
+        next_inventory = Some(toml::to_string_pretty(&inventory)?);
+    } else if !inputs.published_channels.is_empty() {
+        bail!("publication-channel recording requires the compact production product");
+    }
     let mut applied = false;
     let (runtime_map_path, runtime_sidecar_path) = if inputs.apply {
         fs::copy(&staged_map, &dest_map)
@@ -545,13 +658,10 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         fs::copy(&staged_runtime_sidecar, &dest_sidecar).with_context(|| {
             format!("install packed runtime sidecar {}", dest_sidecar.display())
         })?;
-        apply_production_registry(
-            &data_dir.join("manifest.toml"),
-            &runtime_candidate,
-            &pack_outcome.runtime_map_sha256,
-            &runtime_sidecar_sha256,
-            stem,
-        )?;
+        fs::write(&registry_path, &proposed_registry)?;
+        if let Some(inventory) = next_inventory {
+            fs::write(inputs.repository_root.join(CURRENT_INVENTORY), inventory)?;
+        }
         applied = true;
         // Staging can be cleaned up after install.
         drop(staging_dir);
@@ -564,8 +674,10 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
 
     let draft = render_production_manifest_draft(
         &runtime_candidate,
-        &pack_outcome.runtime_map_sha256,
+        &runtime_map_sha256,
         &runtime_sidecar_sha256,
+        stem,
+        binary,
     );
     let written_to = match &inputs.output {
         Some(output) => {
@@ -592,7 +704,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
     Ok(PromotionOutcome {
         draft_manifest_fragment: draft,
         written_to,
-        runtime_map_sha256: pack_outcome.runtime_map_sha256,
+        runtime_map_sha256,
         runtime_sidecar_sha256,
         runtime_map_path,
         runtime_sidecar_path,
@@ -901,7 +1013,7 @@ fn verify_licensing_redistribution_review(
 }
 
 const REVIEW_BUNDLE_RELATIVE_PATH: &str =
-    "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
+    "docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml";
 const RUNTIME_ASSETS_RELATIVE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
 
@@ -914,7 +1026,10 @@ fn verify_review_bundle_pin(repository_root: &Path, expected_sha256: &str) -> Re
             "human review bundle checksum mismatch: redistribution decision pins {expected_sha256}, actual file is {actual}"
         );
     }
-    Ok(())
+    crate::starlight::conditions::verify_review_bundle_evidence(
+        repository_root,
+        Path::new(REVIEW_BUNDLE_RELATIVE_PATH),
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -925,6 +1040,57 @@ struct RuntimeAssetsIdentity {
     runtime_map_sha256: String,
     runtime_sidecar_path: String,
     runtime_sidecar_sha256: String,
+    #[serde(default)]
+    compact: Option<CompactRuntimeIdentity>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CompactRuntimeIdentity {
+    map_sha256: String,
+    sidecar_sha256: String,
+}
+
+/// Convert the already admitted CSV and sidecar, keeping every science and
+/// provenance field. Only the sidecar's transport checksum changes.
+fn compact_runtime(
+    csv: &Path,
+    sidecar: &Path,
+    output: &Path,
+    output_sidecar: &Path,
+) -> Result<(String, String)> {
+    let raw = fs::read_to_string(csv)?;
+    let original_manifest = fs::read_to_string(sidecar)?;
+    let original = nsb::components::starlight::ValidatedStarlightMap::from_bytes_and_manifest(
+        raw.as_bytes(),
+        &original_manifest,
+    )?;
+    let bytes = nsb::components::starlight::StarlightMap::compact_csv(
+        &raw,
+        original.map().provenance().clone(),
+    )?;
+    let map_sha = checksum_io::sha256_bytes(&bytes);
+    let old_sha = checksum_io::sha256_bytes(raw.as_bytes());
+    let manifest = original_manifest.replace(
+        &format!("map_sha256 = \"sha256:{old_sha}\""),
+        &format!("map_sha256 = \"sha256:{map_sha}\""),
+    );
+    let decoded = nsb::components::starlight::ValidatedStarlightMap::from_bytes_and_manifest(
+        &bytes, &manifest,
+    )?;
+    if decoded.map().pixels() != original.map().pixels()
+        || decoded.diagnostics() != original.diagnostics()
+    {
+        bail!("compact Starlight conversion changed pixels or scientific diagnostics");
+    }
+    for path in [output, output_sidecar] {
+        if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+            fs::create_dir_all(parent)?;
+        }
+    }
+    fs::write(output, &bytes)?;
+    fs::write(output_sidecar, &manifest)?;
+    Ok((map_sha, checksum_io::sha256_bytes(manifest.as_bytes())))
 }
 
 fn verify_runtime_assets_identity(
@@ -996,7 +1162,15 @@ fn require_packed_runtime_header(map_path: &Path) -> Result<()> {
 
 pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, String> {
     let map_resolution = format!("HEALPix nside={} ordering=ring", candidate.nside);
-    let version = format!("starlight-runtime-v1-from-{}", candidate.candidate_sha256);
+    let version = format!(
+        "{}-from-{}",
+        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+            "uv-v2-packed"
+        } else {
+            "starlight-runtime-v1"
+        },
+        candidate.candidate_sha256
+    );
     let mut headers = BTreeMap::from([
         ("dataset_name".into(), "NSB Gaia DR3 Starlight packed runtime map".into()),
         ("version".into(), version),
@@ -1047,7 +1221,7 @@ pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMa
         ("smoothing".into(), "none".into()),
         (
             "generated_by".into(),
-            format!("nsb-data dataset starlight promote ({})", pack::PACKER_ID),
+            format!("nsb-data dataset starlight promote ({})", pack::packer_id(&candidate.map_schema)),
         ),
         (
             "generation_command".into(),
@@ -1171,7 +1345,7 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         candidate.generation_date_utc,
         candidate.gaia_release,
         candidate.band,
-        pack::PACKER_ID,
+        pack::packer_id(&candidate.map_schema),
         all_sky_flux_sum_ph_m2_s * 1.0e-13,
         candidate.candidate_sha256,
         candidate.nside,
@@ -1181,8 +1355,13 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         candidate.gaia_release,
         candidate.candidate_sha256,
         candidate.band,
-        pack::PACKER_ID,
+        pack::packer_id(&candidate.map_schema),
     );
+    if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+        body = body
+            .replacen("schema_version = 1", "schema_version = 2", 1)
+            .replace("starlight-runtime-v1-from-", "uv-v2-packed-from-");
+    }
     if let Some(supplement) = &candidate.bright_star_supplement {
         for (key, value) in [
             ("bright_star_artifact_sha256", &supplement.artifact_sha256),
@@ -1228,22 +1407,19 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
     fs::write(path, body).with_context(|| format!("write production sidecar {}", path.display()))
 }
 
-fn apply_production_registry(
-    manifest_path: &Path,
+fn production_registry_text(
+    raw: &str,
     candidate: &CandidateSection,
     runtime_map_sha256: &str,
     runtime_sidecar_sha256: &str,
     stem: &str,
-) -> Result<()> {
-    let raw = fs::read_to_string(manifest_path)
-        .with_context(|| format!("read asset registry {}", manifest_path.display()))?;
-    let mut doc: toml_edit::DocumentMut = raw
-        .parse()
-        .with_context(|| format!("parse asset registry {}", manifest_path.display()))?;
+    binary: bool,
+) -> Result<String> {
+    let mut doc: toml_edit::DocumentMut = raw.parse().context("parse asset registry")?;
     let assets = doc["assets"]
         .as_array_of_tables_mut()
         .context("asset registry has no [[assets]] tables")?;
-    let release_path = format!("{stem}.release.csv");
+    let release_path = format!("{stem}.release.{}", if binary { "bin" } else { "csv" });
     let sidecar_path = format!("{stem}.manifest.toml");
     assets.retain(|table| {
         table.get("path").and_then(|item| item.as_str()) != Some(release_path.as_str())
@@ -1251,20 +1427,86 @@ fn apply_production_registry(
     });
     assets.push(registry_asset_table(
         &release_path,
-        PRODUCTION_MAP_SCHEMA,
+        if binary {
+            "nsb-healpix-starlight-binary-v1"
+        } else {
+            PRODUCTION_MAP_SCHEMA
+        },
         runtime_map_sha256,
         candidate,
         true,
     ));
     assets.push(registry_asset_table(
         &sidecar_path,
-        PRODUCTION_MANIFEST_SCHEMA,
+        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+            "nsb-starlight-runtime-manifest-v2"
+        } else {
+            PRODUCTION_MANIFEST_SCHEMA
+        },
         runtime_sidecar_sha256,
         candidate,
         true,
     ));
-    fs::write(manifest_path, doc.to_string())
-        .with_context(|| format!("write asset registry {}", manifest_path.display()))
+    Ok(doc.to_string())
+}
+
+/// Verify both the installed pair and every registry field before allowing a
+/// repeat transition. A partial/tampered installation is not silently repaired.
+fn verify_registered_pair(
+    current: &str,
+    proposed: &str,
+    map: &Path,
+    sidecar: &Path,
+    map_sha: &str,
+    sidecar_sha: &str,
+    licensing: &RedistributionReview,
+) -> Result<bool> {
+    let mut base: toml_edit::DocumentMut = current.parse()?;
+    let assets = base["assets"]
+        .as_array_of_tables_mut()
+        .context("missing asset registry")?;
+    let names = [
+        map.file_name().unwrap().to_str().unwrap(),
+        sidecar.file_name().unwrap().to_str().unwrap(),
+    ];
+    let mut installed = 0;
+    for table in assets.iter() {
+        let path = table
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        if names.contains(&path) {
+            installed += 1;
+        } else if path.contains("starlight")
+            && table.get("runtime_embedded").and_then(|v| v.as_bool()) == Some(true)
+        {
+            bail!("unauthorized extra Starlight runtime asset {path}");
+        }
+    }
+    if installed != 0 && (installed != 2 || current != proposed) {
+        bail!("partial or inconsistent production registry");
+    }
+    if installed == 0 && (map.exists() || sidecar.exists()) {
+        bail!("unregistered compact production payload present");
+    }
+    if installed == 2 {
+        if checksum_io::sha256_file(map)? != map_sha
+            || checksum_io::sha256_file(sidecar)? != sidecar_sha
+        {
+            bail!("installed compact product checksum mismatch");
+        }
+        assets.retain(|t| {
+            !names.contains(&t.get("path").and_then(|v| v.as_str()).unwrap_or_default())
+        });
+    }
+    if let Some(registry) = licensing.inventory().find("starlight-manifest-toml") {
+        if registry.sha256.as_deref()
+            != Some(checksum_io::sha256_bytes(base.to_string().as_bytes()).as_str())
+        {
+            bail!("base registry differs from the immutable approval snapshot");
+        }
+    }
+    Ok(installed == 2)
 }
 
 fn registry_source(candidate: &CandidateSection) -> String {
@@ -1326,12 +1568,10 @@ fn render_production_manifest_draft(
     candidate: &CandidateSection,
     map_sha256: &str,
     sidecar_sha256: &str,
+    stem: &str,
+    binary: bool,
 ) -> String {
-    let stem = Path::new(&candidate.map_path)
-        .file_stem()
-        .and_then(|value| value.to_str())
-        .unwrap_or("starlight");
-    let release_path = format!("{stem}.release.csv");
+    let release_path = format!("{stem}.release.{}", if binary { "bin" } else { "csv" });
     let sidecar_path = format!("{stem}.manifest.toml");
 
     let mut out = String::new();
@@ -1340,7 +1580,16 @@ fn render_production_manifest_draft(
     out.push_str("# packed runtime map and sidecar. Issue #103 owns the human decisions.\n\n");
     writeln!(out, "[[assets]]").unwrap();
     writeln!(out, "path = {release_path:?}").unwrap();
-    writeln!(out, "schema = {PRODUCTION_MAP_SCHEMA:?}").unwrap();
+    writeln!(
+        out,
+        "schema = {:?}",
+        if binary {
+            "nsb-healpix-starlight-binary-v1"
+        } else {
+            PRODUCTION_MAP_SCHEMA
+        }
+    )
+    .unwrap();
     writeln!(out, "sha256 = {map_sha256:?}").unwrap();
     writeln!(out, "gaia_release = {:?}", candidate.gaia_release).unwrap();
     writeln!(out, "band = {:?}", candidate.band).unwrap();
@@ -1352,7 +1601,16 @@ fn render_production_manifest_draft(
     out.push('\n');
     writeln!(out, "[[assets]]").unwrap();
     writeln!(out, "path = {sidecar_path:?}").unwrap();
-    writeln!(out, "schema = {PRODUCTION_MANIFEST_SCHEMA:?}").unwrap();
+    writeln!(
+        out,
+        "schema = {:?}",
+        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
+            "nsb-starlight-runtime-manifest-v2"
+        } else {
+            PRODUCTION_MANIFEST_SCHEMA
+        }
+    )
+    .unwrap();
     writeln!(out, "sha256 = {sidecar_sha256:?}").unwrap();
     writeln!(out, "calibration_status = \"production\"").unwrap();
     writeln!(out, "runtime_embedded = true").unwrap();
@@ -1406,7 +1664,7 @@ mod tests {
         "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# ordering=nested\n",
         "# representation=sparse\n",
-        "# nside=1\n",
+        "# nside=8\n",
         "# flux_unit=ph_m-2_s-1\n",
         "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n",
         "0,1.0,0.1,0.2,0.25,5,1\n",
@@ -1487,7 +1745,7 @@ map_path = "crates/nsb/data/starlight_nside128.csv"
 map_schema = "nsb-healpix-starlight-candidate-v1"
 band = "synthetic test-only combined band"
 units = "ph_m-2_s-1"
-nside = 1
+nside = 8
 ordering = "nested"
 gaia_release = "Gaia DR3 (synthetic test fixture)"
 generation_date_utc = "2026-10-06T07:02:23Z"
@@ -1618,10 +1876,14 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
 
         let release_candidate_dir = root.join("docs/nsb_components/starlight/release-candidate");
         fs::create_dir_all(&release_candidate_dir).unwrap();
-        let review_bundle_path = release_candidate_dir.join("review-bundle-v1.toml");
+        let review_bundle_path = release_candidate_dir.join("review-bundle-v2.toml");
         fs::write(
             &review_bundle_path,
-            "schema_version = 1\nschema = \"synthetic-review-bundle\"\n",
+            format!("schema_version = 1\nschema = \"nsb-starlight-review-bundle-v1\"\n\n[[artifacts]]\nid = \"validation_artifact_manifest\"\npath = \"synthetic-validation-artifacts.toml\"\nsha256 = \"{}\"\n", {
+                let manifest = format!("schema_version = 1\ngenerated_at_unix_seconds = 0\n[[artifacts]]\nname = \"synthetic candidate\"\npath = \"crates/nsb/data/starlight_nside128.csv\"\nsha256 = \"{sha}\"\nbytes = {}\n", SYNTHETIC_CANDIDATE.len());
+                fs::write(root.join("synthetic-validation-artifacts.toml"), &manifest).unwrap();
+                checksum_io::sha256_bytes(manifest.as_bytes())
+            }),
         )
         .unwrap();
         let review_bundle_sha256 = checksum_io::sha256_file(&review_bundle_path).unwrap();
@@ -1671,7 +1933,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             map_schema: "nsb-healpix-starlight-candidate-v1".to_string(),
             band: "synthetic test-only combined band".to_string(),
             units: "ph_m-2_s-1".to_string(),
-            nside: 1,
+            nside: 8,
             ordering: "nested".to_string(),
             gaia_release: "Gaia DR3 (synthetic test fixture)".to_string(),
             generation_date_utc: "2026-10-06T07:02:23Z".to_string(),
@@ -1682,7 +1944,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             r#"{{
   "canonical_map": {{
     "schema": "nsb-healpix-starlight-candidate-v1",
-    "nside": 1,
+    "nside": 8,
     "ordering": "nested",
     "flux_unit": "ph_m-2_s-1",
     "sha256": "{sha}"
@@ -1700,7 +1962,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
         let pack_outcome = pack::pack_candidate_map(&PackInputs {
             candidate_map: data_dir.join("starlight_nside128.csv"),
             expected_candidate_sha256: sha.clone(),
-            expected_nside: 1,
+            expected_nside: 8,
             output_csv: staged_map.clone(),
             output_sidecar: staged_pack_sidecar,
             provenance_headers: runtime_admission_headers(&synthetic_candidate),
@@ -1781,7 +2043,226 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             repository_root: repo.root.clone(),
             output,
             apply: false,
+            published_channels: Vec::new(),
         }
+    }
+
+    #[test]
+    fn compact_runtime_matches_frozen_production_pixels_and_diagnostics() -> Result<()> {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let release = ReleaseCandidateManifest::load(
+            &root.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
+        )?;
+        verify_runtime_assets_identity(&root, &release)?;
+        crate::starlight::conditions::verify_review_bundle_evidence(
+            &root,
+            Path::new(crate::starlight::conditions::REVIEW_BUNDLE_PATH),
+        )?;
+        let temp = tempfile::tempdir()?;
+        let binary = temp.path().join("map.bin");
+        let sidecar = temp.path().join("map.toml");
+        let csv = root.join("crates/nsb/data/starlight_nside128.release.csv");
+        let csv_sidecar = root.join("crates/nsb/data/starlight_nside128.manifest.toml");
+        let staged = stage_runtime_assets(&RuntimeStageInputs {
+            repository_root: root.clone(),
+            release_candidate: root
+                .join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
+            output_csv: temp.path().join("staged/map.bin"),
+            output_sidecar: temp.path().join("staged/sidecar.toml"),
+        })?;
+        let first = compact_runtime(&csv, &csv_sidecar, &binary, &sidecar)?;
+        assert_eq!(first.0, staged.runtime_map_sha256);
+        assert_eq!(first.1, staged.runtime_sidecar_sha256);
+        use nsb::components::starlight::{StarlightProduct, ValidatedStarlightMap};
+        let start = std::time::Instant::now();
+        let reference = ValidatedStarlightMap::from_files(&csv, &csv_sidecar)?;
+        let csv_time = start.elapsed();
+        let start = std::time::Instant::now();
+        let decoded = ValidatedStarlightMap::from_files(&binary, &sidecar)?;
+        let binary_time = start.elapsed();
+        for (a, b) in reference.map().pixels().iter().zip(decoded.map().pixels()) {
+            for (a, b) in [
+                (a.integrated, b.integrated),
+                (
+                    a.statistical_uncertainty.unwrap(),
+                    b.statistical_uncertainty.unwrap(),
+                ),
+                (
+                    a.systematic_uncertainty.unwrap(),
+                    b.systematic_uncertainty.unwrap(),
+                ),
+                (a.total_uncertainty.unwrap(), b.total_uncertainty.unwrap()),
+            ] {
+                assert_eq!(a.value().to_bits(), b.value().to_bits());
+            }
+        }
+        let direction = siderust::coordinates::spherical::Direction::<
+            siderust::coordinates::frames::Galactic,
+        >::new(nsb::DEG * 45.0, nsb::DEG * 0.0)
+        .to_cartesian();
+        let lookup = |map: &nsb::components::starlight::StarlightMap| {
+            let start = std::time::Instant::now();
+            for _ in 0..100_000 {
+                std::hint::black_box(map.pixel_at(std::hint::black_box(direction)));
+            }
+            start.elapsed()
+        };
+        eprintln!("frozen production: pixels={} heap_pixel_bytes={} csv_bytes={} compact_bytes={} csv_admission={csv_time:?} compact_admission={binary_time:?} csv_100k_lookup={:?} compact_100k_lookup={:?}",
+            decoded.map().pixels().len(), std::mem::size_of_val(decoded.map().pixels()), fs::metadata(&csv)?.len(), fs::metadata(&binary)?.len(), lookup(reference.map()), lookup(decoded.map()));
+        let evaluator = nsb::NsbEvaluator::with_config(
+            nsb::NsbModelConfig::generic_clear_sky()
+                .with_starlight_product(StarlightProduct::validated_external(decoded)),
+        )?;
+        let time = tempoch::Time::<tempoch::UTC>::from_chrono(
+            chrono::DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")?
+                .with_timezone(&chrono::Utc),
+        );
+        let result = evaluator.evaluate(
+            &nsb::PointQuery::new(
+                siderust::catalogs::observatories::EL_PARANAL.geodetic(),
+                time,
+                nsb::Target::new(nsb::DEG * 266.41683, nsb::DEG * -29.00781),
+            )
+            .with_components(nsb::ComponentMask::ALL | nsb::ComponentMask::STARLIGHT),
+        )?;
+        assert_eq!(result.components.len(), 4);
+        assert!(
+            result
+                .components
+                .iter()
+                .find(|c| c.name == "starlight")
+                .unwrap()
+                .integrated
+                .value()
+                > 0.0
+        );
+        let sum: f64 = result.components.iter().map(|c| c.integrated.value()).sum();
+        assert_eq!(sum, result.integrated.value());
+        let bytes = fs::read(&binary)?;
+        let identity: RuntimeAssetsIdentity = toml::from_str(&fs::read_to_string(
+            root.join(RUNTIME_ASSETS_RELATIVE_PATH),
+        )?)?;
+        let compact = identity
+            .compact
+            .context("production evidence must pin compact transport")?;
+        assert_eq!(first.0, compact.map_sha256);
+        assert_eq!(first.1, compact.sidecar_sha256);
+        let mut corrupt = bytes.clone();
+        corrupt[100] ^= 1;
+        assert!(ValidatedStarlightMap::from_bytes_and_manifest(
+            &corrupt,
+            &fs::read_to_string(&sidecar)?
+        )
+        .is_err());
+        let second = compact_runtime(&csv, &csv_sidecar, &binary, &sidecar)?;
+        assert_eq!(first, second);
+        assert_eq!(bytes, fs::read(&binary)?);
+        assert!(bytes.len() < 6_400_000);
+        Ok(())
+    }
+
+    #[test]
+    fn compact_fixture_promotion_applies_exact_pair_and_rejects_pin_drift() -> Result<()> {
+        let repo = valid_synthetic_repo();
+        let binary = repo.root.join("fixture/map.bin");
+        let sidecar = repo.root.join("fixture/map.toml");
+        let staged = stage_runtime_assets(&RuntimeStageInputs {
+            repository_root: repo.root.clone(),
+            release_candidate: repo.release_candidate.clone(),
+            output_csv: binary,
+            output_sidecar: sidecar,
+        })?;
+        let identity_path = repo.root.join(RUNTIME_ASSETS_RELATIVE_PATH);
+        let original = fs::read_to_string(&identity_path)?;
+        let identity = format!(
+            "{original}\n[compact]\nmap_sha256 = {:?}\nsidecar_sha256 = {:?}\n",
+            staged.runtime_map_sha256, staged.runtime_sidecar_sha256
+        );
+        fs::write(&identity_path, &identity)?;
+        let inventory_path = repo
+            .root
+            .join("docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml");
+        let old_inventory = checksum_io::sha256_file(&inventory_path)?;
+        let mut inventory = fs::read_to_string(&inventory_path)?;
+        let mut decision: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&repo.redistribution_decision)?)?;
+        for (id, sha) in [
+            ("compact-runtime-map-v1", &staged.runtime_map_sha256),
+            ("compact-runtime-sidecar-v1", &staged.runtime_sidecar_sha256),
+        ] {
+            inventory.push_str(&format!("\n[[artifacts]]\nid = {id:?}\ncategory = \"synthetic-test-only\"\nsource = \"synthetic fixture\"\nrelease = \"fixture-v1\"\nlicense = \"synthetic-test-license\"\nsha256 = {sha:?}\ndistribution_class = \"generated_derived_output\"\ndistributed = false\nchannels = []\nplanned_channels = [\"git_repository\", \"crates_io\", \"pypi_wheel\", \"pypi_sdist\"]\nlifecycle = \"staged\"\nnotes = \"Synthetic technical fixture; no real permission\"\n"));
+            decision["pinned_artifacts"].as_array_mut().unwrap().push(serde_json::json!({
+                "id": id, "sha256": sha, "approved_channels": ["git_repository", "crates_io", "pypi_wheel", "pypi_sdist"]
+            }));
+        }
+        fs::write(&inventory_path, &inventory)?;
+        fs::write(repo.root.join(APPROVAL_INVENTORY), &inventory)?;
+        let new_inventory = checksum_io::sha256_file(&inventory_path)?;
+        fs::write(
+            &repo.release_candidate,
+            fs::read_to_string(&repo.release_candidate)?
+                .replace(&old_inventory, &new_inventory)
+                .replace(CURRENT_INVENTORY, APPROVAL_INVENTORY),
+        )?;
+        decision["inventory_sha256"] = new_inventory.into();
+        fs::write(
+            &repo.redistribution_decision,
+            serde_json::to_vec_pretty(&decision)?,
+        )?;
+        let mut promotion = inputs(&repo, None);
+        promotion.apply = true;
+        let outcome = run_promotion(&promotion)?;
+        assert!(outcome.applied);
+        assert!(outcome
+            .runtime_map_path
+            .ends_with("starlight_nside128.compact.release.bin"));
+        assert_eq!(outcome.runtime_map_sha256, staged.runtime_map_sha256);
+        assert_eq!(
+            outcome.runtime_sidecar_sha256,
+            staged.runtime_sidecar_sha256
+        );
+        let map = nsb::components::starlight::ValidatedStarlightMap::from_files(
+            &outcome.runtime_map_path,
+            &outcome.runtime_sidecar_path,
+        )?;
+        assert_eq!(map.map().pixels().len(), 768);
+        assert!(map.diagnostics().flux_conservation_recomputed);
+        let registry = fs::read_to_string(repo.root.join("crates/nsb/data/manifest.toml"))?;
+        assert!(registry.contains("nsb-healpix-starlight-binary-v1"));
+        assert!(registry.contains("runtime_embedded = true"));
+        let approved_decision = decision.clone();
+        let map_pin = decision["pinned_artifacts"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|p| p["id"] == "compact-runtime-map-v1")
+            .unwrap();
+        map_pin["approved_channels"] = serde_json::json!(["git_repository"]);
+        fs::write(
+            &repo.redistribution_decision,
+            serde_json::to_vec_pretty(&decision)?,
+        )?;
+        assert!(run_promotion(&inputs(&repo, None))
+            .unwrap_err()
+            .to_string()
+            .contains("does not authorize channel crates_io"));
+        fs::write(
+            &repo.redistribution_decision,
+            serde_json::to_vec_pretty(&approved_decision)?,
+        )?;
+        // The reviewer here is the existing explicitly synthetic fixture, not
+        // authorization of the real #207 product or the repository decision.
+        for checksum in [staged.runtime_map_sha256, staged.runtime_sidecar_sha256] {
+            fs::write(&identity_path, identity.replace(&checksum, &"0".repeat(64)))?;
+            let error = run_promotion(&inputs(&repo, None)).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("compact runtime identity differs"),
+                "{error:#}"
+            );
+        }
+        Ok(())
     }
 
     #[test]
@@ -2280,7 +2761,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             map_schema: "nsb-healpix-starlight-candidate-v1".into(),
             band: "synthetic combined band".into(),
             units: "ph_m-2_s-1".into(),
-            nside: 1,
+            nside: 8,
             ordering: "nested".into(),
             gaia_release: "Gaia DR3".into(),
             generation_date_utc: "2026-10-06T07:02:23Z".into(),
