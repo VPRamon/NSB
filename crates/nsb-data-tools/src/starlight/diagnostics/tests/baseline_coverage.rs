@@ -75,3 +75,47 @@ fn baseline_report_fails_on_missing_or_invalid_configuration() -> Result<()> {
     assert!(!output.exists());
     Ok(())
 }
+
+
+#[test]
+fn complete_baseline_report_roundtrips_a_synthetic_sparse_workspace() -> Result<()> {
+    let directory = tempfile::tempdir()?;
+    let repo = directory.path().join("repository");
+    let partitions_path = repo.join(SMOKE_PARTITIONS_PATH);
+    fs::create_dir_all(partitions_path.parent().unwrap())?;
+    fs::write(&partitions_path, b"00-19\n20-29\n")?;
+    let config = directory.path().join("starlight.toml");
+    fs::write(
+        &config,
+        include_str!("../../../../config/starlight-production.toml"),
+    )?;
+    let workspace = directory.path().join("workspace");
+    for (name, reason, excluded) in [
+        ("00-19", "invalid-spectrum", 2_u64),
+        ("20-29", "invalid-spectrum", 3_u64),
+    ] {
+        let mut shard = PartitionShard::new(name, 2)?;
+        shard.exclusion_reasons.insert(reason.into(), excluded);
+        let shard_path = workspace.join("workers").join(name).join("shard.json");
+        shard.write(&shard_path)?;
+    }
+    let output = directory.path().join("reports/phase0.json");
+    let report = write_baseline_report(
+        &repo, &config, &workspace, "synthetic-commit", &output, &[13, 24],
+    )?;
+    assert_eq!(report.phase, "phase0_baseline");
+    assert_eq!(report.commit, "synthetic-commit");
+    assert_eq!(report.partition_count, 2);
+    assert_eq!(report.partitions, ["00-19", "20-29"]);
+    assert_eq!(report.full_sky_anomalous_parents_reference, vec![13, 24]);
+    assert_eq!(report.flux_metrics.total_flux_ph_m2_s, 0.0);
+    assert_eq!(report.flux_metrics.admitted_sources, 0);
+    assert_eq!(report.flux_metrics.excluded_sources, 0);
+    assert_eq!(report.global_exclusion_reasons["invalid-spectrum"], 5);
+    assert_eq!(
+        report.config_sha256,
+        crate::platform::checksum_io::sha256_file(&config)?,
+    );
+    assert_eq!(serde_json::from_slice::<BaselineReport>(&fs::read(output)?)?, report);
+    Ok(())
+}
