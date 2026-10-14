@@ -108,5 +108,14 @@ fallback.
 - Documentation describes the current public contracts and supported workflows;
   active requirements belong in their authoritative specification.
 - Rust public APIs are documented in rustdoc.
+- Keep this tree focused on living contracts, operational procedures and
+  durable scientific provenance/validation evidence. Completed migration
+  plans, PR-specific decision narratives and one-off performance logs should
+  remain in Git/PR history instead of being maintained as current guidance.
+- Do not commit raw benchmark logs, host profiles or generated audit dumps
+  under `docs/`. Keep reproducible commands and concise findings, linking to
+  an immutable historical commit when old measurements matter. Preserve
+  checksum-pinned scientific data, release approval/licensing evidence and
+  validation fixtures required by code, CI or external audit.
 - Pages should state status, audience, scope, and important non-goals whenever
   misuse would affect scientific interpretation.

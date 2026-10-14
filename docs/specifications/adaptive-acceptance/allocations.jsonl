@@ -1,3 +1,0 @@
-{"binary_sha256": "fbc19c51337b4335f0a605b5a3c20242b0917a0e47e3de23a4e577018e2c154c", "calls": 584088, "output_sha256": "4040359c64038abaa81c32452f85f4287c9d8fae05d1b1b4e18b23c70c749e9c", "requested_bytes": 319308636, "variant": "scan600"}
-{"binary_sha256": "07a9b52cc3970e6212511d0a072dbb40ad69e7109f4b82e6ee6ee63a4f9d02e2", "calls": 1150997, "output_sha256": "cbf865b513f1e61ca9d014bf9a87149a614772b625d216dff904e712da2aab05", "requested_bytes": 685792377, "variant": "before"}
-{"binary_sha256": "dc539fcec822ebccfd8116b43719a436a749be41c04c5fa17e0dd6725d6ae4c2", "calls": 700117, "output_sha256": "cbf865b513f1e61ca9d014bf9a87149a614772b625d216dff904e712da2aab05", "requested_bytes": 230138921, "variant": "after"}

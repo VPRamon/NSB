@@ -1,6 +1,6 @@
 # Siderust compatibility
 
-Status: Siderust 0.14 compatibility baseline for the authorized NSB 0.1 migration.
+Status: Current dependency compatibility and update policy.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
@@ -23,34 +23,23 @@ identical.
 The workspace also uses Tempoch `0.10.0`, and both Python interoperability
 crates (`siderust-py` and `tempoch-py`) use `0.4.0`.
 
-### Scientific patch follow-up
+### Scientific update boundaries
 
-Siderust 0.14.1 corrects lunar inverse-square dilution and observer-local
-Rayleigh profile columns. NSB uses the explicitly typed lunar irradiance API.
-This changes physical radiances; it is not a numerical-invariance update.
-See [typed boundaries](../typed-radiometric-boundaries.md) and
-[planning fixture migration](../planning-fixture-migration.md) for the independent
-limits and reference checks. All workspace manifests, provenance constants,
-CLI/Python expectations and checksum assertions identify the released patch.
+Siderust 0.14.1 supplies the typed lunar irradiance API and corrected
+inverse-square source dilution and observer-local Rayleigh columns. NSB
+preserves dimensional boundaries for optical depth, phase functions,
+irradiance-to-radiance conversion, spectral densities, and integrated
+photon radiance. The Jones scattering column and Noll zodiacal equations
+retain their scientific tests and limitations in the component
+[Moonlight](../nsb_components/moonlight/scattering-column-correction.md)
+and [Zodiacal](../nsb_components/zodiacal/noll-equation-correction.md)
+references.
 
-### Historical 0.14.0 numerical baseline
-
-The migration resolves Siderust 0.14.0, Tempoch / tempoch-core 0.10.0,
-Principia 0.6.0, and siderust-py / tempoch-py 0.4.0 entirely from crates.io.
-Registry availability and Python 0.4.0 Linux/macOS/Windows wheels were checked
-on 2026-10-12. No Git patch or override is used. The Rust 1.89 gate remains.
-
-The dependency-only comparison keeps the legacy scanner on both sides:
-64 CTAO-N/S, both lunar models, all 16 masks, seven-day cases plus three
-UTC/TT/leap-boundary conversion cases. Physical-window endpoints, authoritative
-radiances, scanner UTC periods and temporal round trips are identical in all
-67 exported records. See [A](https://github.com/VPRamon/NSB/blob/954817f71f404f21fc9ff9fdd37c870506532c89/docs/specifications/adaptive-acceptance/dependency-A.jsonl) and
-[B](https://github.com/VPRamon/NSB/blob/954817f71f404f21fc9ff9fdd37c870506532c89/docs/specifications/adaptive-acceptance/dependency-B.jsonl); the ignored `dependency_upgrade_reference` export in that historical
-commit reproduces the comparison without retaining a full scanner facade in the
-current test tree.
-This is finite empirical evidence, not proof for every date/configuration.
-The B-versus-C search comparisons are recorded separately in the production
-adaptive report. No numerical tolerance or scientific model formula changed.
+A dependency bump is not assumed to preserve radiances or observing windows:
+rerun the independent physical-boundary and planning regression suites.
+Completed migration logs, before/after snapshots and fixture-reconstruction
+notes are historical material and belong in Git history, not in this
+current compatibility policy.
 
 ### Python package versioning
 
