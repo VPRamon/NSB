@@ -1430,7 +1430,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
             Period::new(start, start + Seconds::new(365.0 * 86400.0)),
             Radiance::new(level),
         )
-        .with_components((ComponentMask::ZODIACAL | ComponentMask::AIRGLOW | ComponentMask::MOON))
+        .with_components(ComponentMask::ZODIACAL | ComponentMask::AIRGLOW | ComponentMask::MOON)
         .with_target_altitude_floor(Some(siderust::qtty::Degrees::new(20.0)));
         let context = evaluator.prepare_site_window_context(&q).unwrap();
         let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();

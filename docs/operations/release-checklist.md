@@ -43,3 +43,30 @@ scientific calibration evidence.
 - [ ] The tag-triggered release workflow publishes `nsb` to crates.io and `nsb-rust` to PyPI from the same commit.
 - [ ] PR body lists fully resolved issues and issues left open with evidence-based reasons.
 - [ ] Release tag is created only after all blocking boxes are satisfied.
+
+## Starlight production preparation — 2026-10-14
+
+- [x] Actual maintainer decision is `approved_with_conditions`, with authenticated
+  `VPRamon` identity and explicit acceptance recorded at `2026-10-14T19:50:19Z`.
+  See the [decision](../nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json)
+  and [accepted findings](../nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md#13-explicit-project-authorization-and-accepted-findings).
+- [x] Promote the exact approved compact binary and v2 sidecar; register both as
+  production and embedded. Preserve the frozen candidate, radiances, uncertainties
+  and source terms. The immutable approval snapshot remains unchanged.
+- [x] Push the approved pair to PR #238, then record actual Git publication in
+  the current inventory without repinning the decision or review bundle.
+- [x] Actual Rust production evaluation requires all four default components,
+  positive Starlight and an exact component sum.
+- [x] Test the installed production wheel and sdist-built wheel outside the source
+  checkout, including Rust/Python parity and unconditional four-component defaults.
+  Each passes 78 tests; both contain the exact approved embedded map and notices.
+- [x] Cargo package and publish dry-run succeed below the 10 MiB crate limit.
+- [ ] Review the final PR #238 hosted acceptance gates before merge/tag. Validation
+  results, package sizes and exact revision are recorded in the PR description.
+- [ ] Obtain the maintainer's separate final merge/tag/registry-publication
+  authorization. This preparation does not create a tag or upload to registries.
+
+The frozen candidate registry entry preserves its historical preapproval text;
+production authority is the canonical decision and the two admitted production
+entries. Do not edit that baseline entry and silently invalidate its approved
+snapshot hash. Existing source and model maturity limitations still apply.
