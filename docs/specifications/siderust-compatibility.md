@@ -10,10 +10,10 @@ Non-goals: This document does not claim a Git revision for registry dependencies
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1 line; maintainer-authorized migration | 0.14.0 | crates.io | `crates.io:siderust:0.14.0` | 1.89 | Siderust 0.14 migration |
+| 0.1 line; scientific corrections | 0.14.1 | crates.io | `crates.io:siderust:0.14.1` | 1.89 | Typed lunar irradiance and local pressure corrections |
 
-All three workspace crates require the published Rust package with `siderust = "0.14"`.
-The committed lockfile resolves 0.14.0.
+All three workspace crates require the published Rust package with `siderust = "0.14.1"`.
+The committed lockfile resolves 0.14.1.
 `crates/nsb` and `crates/nsb-cli` request the `atmosphere` and
 `photometry` features, while `crates/nsb-data-tools` uses its own feature set.
 The version/source identity is shared even though feature selection is not
@@ -23,7 +23,17 @@ identical.
 The workspace also uses Tempoch `0.10.0`, and both Python interoperability
 crates (`siderust-py` and `tempoch-py`) use `0.4.0`.
 
-### Numerical baseline
+### Scientific patch follow-up
+
+Siderust 0.14.1 corrects lunar inverse-square dilution and observer-local
+Rayleigh profile columns. NSB uses the explicitly typed lunar irradiance API.
+This changes physical radiances; it is not a numerical-invariance update.
+See [typed boundaries](../typed-radiometric-boundaries.md) and
+[planning fixture migration](../planning-fixture-migration.md) for the independent
+limits and reference checks. All workspace manifests, provenance constants,
+CLI/Python expectations and checksum assertions identify the released patch.
+
+### Historical 0.14.0 numerical baseline
 
 The migration resolves Siderust 0.14.0, Tempoch / tempoch-core 0.10.0,
 Principia 0.6.0, and siderust-py / tempoch-py 0.4.0 entirely from crates.io.
@@ -52,7 +62,7 @@ nsb-rust -> siderust>=0.4.0,<0.5
          -> tempoch>=0.4.0,<0.5
 ```
 
-This is not a mismatch with the Rust `siderust = "0.14"` dependency. The
+This is not a mismatch with the Rust `siderust = "0.14.1"` dependency. The
 Python extension uses `siderust-py` for cross-extension interoperability,
 while the Rust scientific implementation links the Rust crate shown in the
 matrix above.

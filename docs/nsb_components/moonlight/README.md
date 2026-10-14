@@ -85,3 +85,7 @@ independent SkyCalc agreement or dedicated CTAO aerosol calibration.
 - [NSB Mie phase-grid reconstruction and validation](mie-phase-validation.md)
 - [CTAO site profiles](../../specifications/ctao-site-profiles.md)
 - [Validation matrix](../../specifications/validation.md)
+
+The [scattering-column correction](scattering-column-correction.md) documents
+the midpoint approximation, physical thin limit, local-pressure convention,
+and remaining fixed-atmosphere multiple-scattering limitation.

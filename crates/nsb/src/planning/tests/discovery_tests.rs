@@ -221,7 +221,7 @@ pub(super) fn reference(
 ) -> Vec<Interval<Mjd>> {
     let mut out = Vec::new();
     for w in super::filters::threshold_windows(prepared, true) {
-        let above = super::reference_scan::above_threshold_periods(
+        let above = super::reference_scan::above_threshold_periods_precise(
             w,
             Days::new(step / 86400.0),
             &|t| threshold::evaluate_integrated(evaluator, prepared, t),
@@ -445,13 +445,13 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
     )
     .value()
     .to_degrees();
-    // Freeze the reviewed thresholds so this scientific regression does not
-    // change when partition midpoint coordinates gain precision. These are
-    // the original authoritative medians, not regenerated expected results.
+    // Frozen physical fixtures. The beta=24 threshold was migrated after the
+    // Noll correction using independent local extremum sampling; a 1 ms scan
+    // below must still witness the short excursion and both boundaries.
     for (beta, delta, frozen_threshold, short_excursions) in [
         (5.0, 20.0, Some(0.9904286588014837), 0),
         (17.0, 25.0, Some(0.6621254733958847), 0),
-        (24.0, 20.0, Some(0.5272271858264319), 1),
+        (24.0, 20.0, Some(1.472712454699566), 1),
         (30.0, 30.0, None, 0),
         (0.0, 90.0, Some(0.07658000509545837), 0),
         (89.0, 180.0, None, 0),
@@ -508,9 +508,9 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
                     let a = pair[0].end.raw().value();
                     let b = pair[1].start.raw().value();
                     if (b - a) * 86400.0 < 1.0 {
-                        // The 10 s reference misses a real ~53 ms excursion.
+                        // The 10 s reference misses a real sub-second excursion.
                         // Resolve it independently on a local 1 ms grid. Keep
-                        // the original near-extremum threshold, not a relaxed one.
+                        // the independently reconstructed near-extremum threshold.
                         let local =
                             Interval::new(Mjd::new(a - 1.0 / 86400.0), Mjd::new(b + 1.0 / 86400.0));
                         let above = super::reference_scan::above_threshold_periods(
@@ -523,8 +523,16 @@ fn adaptive_zodiacal_corner_cells_and_reddening_boundaries_match_fine_scan() {
                         assert_eq!(
                             above.len(),
                             1,
-                            "beta {beta}, delta {delta}, threshold {}",
-                            q.threshold.value()
+                            "beta {beta}, delta {delta}, threshold {}, intervals {:?}",
+                            q.threshold.value(),
+                            above
+                                .iter()
+                                .map(|w| (
+                                    w.start.raw().value(),
+                                    w.end.raw().value(),
+                                    (w.end - w.start).value() * 86400.0
+                                ))
+                                .collect::<Vec<_>>()
                         );
                         assert!((above[0].start.raw().value() - a).abs() * 86400.0 <= 0.1);
                         assert!((above[0].end.raw().value() - b).abs() * 86400.0 <= 0.1);
@@ -1064,7 +1072,7 @@ fn adaptive_adjacent_mjd_native_window_is_resolved_without_endpoint_rounding() {
 }
 
 #[test]
-fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
+fn adaptive_airglow_moon_resolves_two_second_accepted_island_missed_by_scan30() {
     let evaluator =
         super::test_fixtures::evaluator_with_moon(true, false, MoonlightModel::Jones2013Spectral);
     let mut q = query(12);
@@ -1074,6 +1082,10 @@ fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
         siderust::qtty::Meters::new(2200.0),
     );
     q.window.end = q.window.start + Seconds::new(7.0 * 86400.0);
+    // Corrected first-order scattering replaces the old local maximum with a
+    // minimum. Independently sampled trough +/-1.2 s defines this new fixture;
+    // preserve the narrow-event challenge with its accepted/rejected dual.
+    q.threshold = Radiance::new(0.7348273339030783);
     let context = evaluator.prepare_site_window_context(&q).unwrap();
     let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
     let actual: Vec<_> = evaluator
@@ -1084,41 +1096,42 @@ fn adaptive_airglow_moon_resolves_two_second_excursion_missed_by_scan30() {
         .map(scan::utc_period_to_tt_mjd)
         .collect();
     let fine = reference(&evaluator, &p, &q, 30.0);
-    let pair = actual
-        .windows(2)
-        .find(|pair| pair[0].end.raw().value() > 61046.96 && pair[1].start.raw().value() < 61046.97)
-        .unwrap();
-    let (left, right) = (pair[0].end, pair[1].start);
+    let island = actual
+        .iter()
+        .find(|w| w.start.raw().value() > 61046.922 && w.end.raw().value() < 61046.923)
+        .expect("corrected physical trough must be discovered");
+    let (left, right) = (island.start, island.end);
     assert!((2.3..2.5).contains(&((right - left).value() * 86400.0)));
-    assert!(fine.iter().any(|w| w.start < left && w.end > right));
-    let local = Interval::new(
-        left - Days::new(1.0 / 86400.0),
-        right + Days::new(1.0 / 86400.0),
-    );
-    let above = super::reference_scan::above_threshold_periods(
+    assert!(fine.iter().all(|w| w.end <= left || w.start >= right));
+    let local = Interval::new(left - Seconds::new(1.0), right + Seconds::new(1.0));
+    let above = super::reference_scan::above_threshold_periods_precise(
         local,
         Days::new(0.001 / 86400.0),
         &|t| threshold::evaluate_integrated(&evaluator, &p, t),
         q.threshold,
     )
     .unwrap();
-    assert_eq!(above.len(), 1);
-    assert!((above[0].start - left).value().abs() * 86400.0 <= 0.101);
-    assert!((above[0].end - right).value().abs() * 86400.0 <= 0.101);
-    assert!(
-        threshold::evaluate_integrated(&evaluator, &p, left + (right - left) * 0.5).unwrap()
-            > q.threshold
-    );
+    let below = super::reference_scan::complement_periods(local, &above);
+    assert_eq!(below.len(), 1);
+    assert!((below[0].start - left).value().abs() * 86400.0 <= 0.101);
+    assert!((below[0].end - right).value().abs() * 86400.0 <= 0.101);
+    for fraction in [0.0, 0.1, 0.5, 0.9, 1.0] {
+        assert!(
+            threshold::evaluate_integrated(&evaluator, &p, left + (right - left) * fraction)
+                .unwrap()
+                <= q.threshold
+        );
+    }
     let comparison = super::discovery_bench::compare(
         &evaluator,
         &context,
         &q,
         &actual,
         &fine,
-        "PALACE/Jones 2.4 s",
+        "PALACE/Jones 2.4 s accepted island",
         false,
     );
-    assert_eq!(comparison.fine_missed_excursions, 1);
+    assert_eq!(comparison.fine_missed_accepted_excursions, 1);
 }
 
 #[test]
@@ -1141,6 +1154,9 @@ fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
             .unwrap(),
     );
     q.window.end = q.window.start + Seconds::new(30.0 * 86400.0);
+    // The corrected curves move the independently witnessed twilight jump to
+    // January 14. Freeze the radiance at 87.6 s after that night boundary.
+    q.threshold = Radiance::new(0.44952273599635584);
     let context = evaluator.prepare_site_window_context(&q).unwrap();
     let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
     let actual: Vec<_> = evaluator
@@ -1150,17 +1166,35 @@ fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
         .into_iter()
         .map(scan::utc_period_to_tt_mjd)
         .collect();
-    let fine = reference(&evaluator, &p, &q, 120.0);
+    // Deliberately retain the legacy endpoint/root convention here: the test
+    // reproduces the old scan120 false positive, not the new precise scanner.
+    let mut fine = Vec::new();
+    for w in filters::threshold_windows(&p, true) {
+        let above = super::reference_scan::above_threshold_periods(
+            w,
+            Days::new(120.0 / 86400.0),
+            &|t| threshold::evaluate_integrated(&evaluator, &p, t),
+            q.threshold,
+        )
+        .unwrap();
+        fine.extend(super::reference_scan::complement_periods(w, &above));
+    }
+    scan::coalesce_periods(&mut fine);
     let r = fine
         .iter()
-        .find(|w| w.start.raw().value() > 61050.0 && w.start.raw().value() < 61050.1)
+        .find(|w| w.start.raw().value() > 61054.0 && w.start.raw().value() < 61054.1)
         .unwrap();
     let a = actual
         .iter()
-        .find(|w| w.start.raw().value() > 61050.0 && w.start.raw().value() < 61050.1)
+        .find(|w| w.start.raw().value() > 61054.0 && w.start.raw().value() < 61054.1)
         .unwrap();
     let excess = (a.start - r.start).value() * 86400.0;
-    assert!((87.5..87.8).contains(&excess));
+    assert!(
+        (87.5..87.8).contains(&excess),
+        "excess {excess}, reference {:?}, adaptive {:?}",
+        (r.start.raw().value(), r.end.raw().value()),
+        (a.start.raw().value(), a.end.raw().value())
+    );
     assert!(threshold::evaluate_integrated(&evaluator, &p, r.start).unwrap() < q.threshold);
     for seconds in [0.001, 1.0, 30.0, 60.0, 85.0] {
         assert!(
@@ -1339,27 +1373,34 @@ fn adaptive_parallel_errors_follow_physical_window_order() {
 
 #[test]
 fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
-    for (north, moon, index, left, right) in [
+    // Independent samples eight seconds before the physical regime edge set
+    // the corrected radiance thresholds. The original 0.25 fixtures no longer
+    // contain these islands after Noll/Jones corrections. All coarse-miss,
+    // eligibility, millisecond-reference and accepted-side checks remain.
+    for (north, moon, index, left, right, level) in [
         (
             false,
             MoonlightModel::KrisciunasSchaefer1991,
             30usize,
-            61166.0434279834,
-            61166.04351064898,
+            61166.04341806797,
+            61166.04351066056,
+            0.327_394_798_939_822_4,
         ),
         (
             true,
             MoonlightModel::KrisciunasSchaefer1991,
             70,
-            61177.13371923397,
-            61177.13383313657,
+            61177.13374055555,
+            61177.13383314815,
+            0.334_941_602_217_590_6,
         ),
         (
             true,
             MoonlightModel::Jones2013Spectral,
             20,
-            61183.05034025325,
-            61183.05049980324,
+            61183.05040722222,
+            61183.05049981482,
+            0.511_879_413_273_921_7,
         ),
     ] {
         let evaluator = super::test_fixtures::evaluator_with_moon(north, false, moon);
@@ -1380,7 +1421,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
                 (-60.0 + (index % 25) as f64 * 5.0) * DEG,
             ),
             Period::new(start, start + Seconds::new(365.0 * 86400.0)),
-            Radiance::new(0.25),
+            Radiance::new(level),
         )
         .with_components(ComponentMask::ALL)
         .with_target_altitude_floor(Some(siderust::qtty::Degrees::new(20.0)));

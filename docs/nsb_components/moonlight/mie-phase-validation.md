@@ -62,8 +62,17 @@ g(lambda) = (1 / 4pi) integral P_M cos(theta) dOmega
 
 This matches the Jones single-scattering equation, which applies `P/(4 pi)`.
 The generated rows use the analytic coefficient normalization; validation
-independently checks the resulting grid with a piecewise-linear solid-angle
-integral, making generator, artifact, and runtime convention unambiguous.
+independently checks the resulting grid using trapezoidal quadrature of
+`P(theta) sin(theta)` at the native angle nodes. This is not the exact
+solid-angle integral of the runtime piecewise-linear `P(theta)` interpolant.
+The latter has a measured maximum relative normalization deviation of
+`1.685e-4` (about 0.017%); see `scattering-column-correction.md`.
+
+The runtime Rayleigh phase integrates to one. The inherited aerosol coefficient
+`JONES_MIE_WEIGHT = 0.05` was defined against the raw 4-pi-normalized Mie table.
+With `p_M = P_M/(4*pi)`, its equivalent empirical weight is `4*pi*0.05`,
+about 0.6283. Making this convention explicit preserves the coefficient product;
+it neither retunes the model nor changes the admitted data.
 
 ## Numerical grid and integration
 

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-//! Compact discrete reference: original grid phase and 0.864 s Illinois roots.
-//! Used only to independently validate discovery and measure the scan600 baseline.
+//! Discrete references with the original grid phase. Legacy mode retains
+//! 0.864 s Illinois roots for historical scan600 comparisons; precise mode
+//! uses millisecond roots and one-sided physical partition endpoints.
 use super::intervals::tt_mjd_to_utc_time;
 use super::types::PreparedThresholdQuery;
 use crate::error::Result;
@@ -24,13 +25,44 @@ where
     V: Unit,
     F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
 {
+    above_threshold_periods_impl(window, step, f, threshold, CROSSING_TOLERANCE, false)
+}
+
+/// Independent fine reference: millisecond roots and one-sided values at
+/// physical partition edges. A lone accepted endpoint is not a time interval.
+pub(crate) fn above_threshold_periods_precise<V, F>(
+    window: TimePeriod<ModifiedJulianDate>,
+    step: Days,
+    f: &F,
+    threshold: Quantity<V>,
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
+    above_threshold_periods_impl(window, step, f, threshold, Days::new(0.001 / 86400.0), true)
+}
+
+fn above_threshold_periods_impl<V, F>(
+    window: TimePeriod<ModifiedJulianDate>,
+    step: Days,
+    f: &F,
+    threshold: Quantity<V>,
+    tolerance: Days,
+    one_sided: bool,
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>>
+where
+    V: Unit,
+    F: Fn(ModifiedJulianDate) -> Result<Quantity<V>>,
+{
     if window.start >= window.end || step <= Days::new(0.0) {
         return Ok(Vec::new());
     }
 
     let mut periods = Vec::new();
     let mut t0 = window.start;
-    let mut y0 = f(t0)?;
+    let inset = Days::new((0.000001 / 86400.0_f64).min(window.length().value() * 0.25));
+    let mut y0 = f(if one_sided { t0 + inset } else { t0 })?;
     let mut above0 = y0 > threshold;
     let mut open_start = above0.then_some(window.start);
 
@@ -40,10 +72,14 @@ where
             break;
         }
 
-        let y1 = f(t1)?;
+        let y1 = f(if one_sided && t1 == window.end {
+            t1 - inset
+        } else {
+            t1
+        })?;
         let above1 = y1 > threshold;
         if above0 != above1 {
-            let crossing = refine_threshold_crossing(t0, y0, t1, y1, f, threshold)?;
+            let crossing = refine_threshold_crossing(t0, y0, t1, y1, f, threshold, tolerance)?;
             if above0 {
                 if let Some(start) = open_start.take() {
                     push_non_empty_period(&mut periods, start, crossing);
@@ -93,6 +129,7 @@ fn refine_threshold_crossing<V, F>(
     y_hi: Quantity<V>,
     f: &F,
     threshold: Quantity<V>,
+    tolerance: Days,
 ) -> Result<ModifiedJulianDate>
 where
     V: Unit,
@@ -104,8 +141,12 @@ where
     let lo_above = f_lo > 0.0;
     debug_assert_ne!(lo_above, f_hi > 0.0);
     let mut retained = [0usize; 2];
-    for _ in 0..MAX_CROSSING_REFINEMENTS {
-        if (hi.raw() - lo.raw()).abs() <= CROSSING_TOLERANCE {
+    for _ in 0..if tolerance == CROSSING_TOLERANCE {
+        MAX_CROSSING_REFINEMENTS
+    } else {
+        48
+    } {
+        if (hi.raw() - lo.raw()).abs() <= tolerance {
             break;
         }
 
@@ -211,4 +252,44 @@ pub(crate) fn evaluate_integrated(
     }
 
     Ok(total)
+}
+
+#[test]
+fn precise_reference_does_not_expand_an_isolated_endpoint_into_a_window() {
+    let start = ModifiedJulianDate::new(60000.0);
+    let window = TimePeriod::new(start, start + siderust::qtty::Seconds::new(30.0));
+    let f = |time| {
+        Ok(BandPhotonRadiance::new(if time == start {
+            0.0
+        } else {
+            1.0
+        }))
+    };
+    let above = above_threshold_periods_precise(
+        window,
+        Days::new(30.0 / 86400.0),
+        &f,
+        BandPhotonRadiance::new(0.5),
+    )
+    .unwrap();
+    assert_eq!(above, vec![window]);
+    assert!(complement_periods(window, &above).is_empty());
+}
+
+#[test]
+fn precise_reference_resolves_a_known_crossing_to_one_millisecond() {
+    let start = ModifiedJulianDate::new(60000.0);
+    let window = TimePeriod::new(start, start + siderust::qtty::Seconds::new(60.0));
+    let f =
+        |time: ModifiedJulianDate| Ok(BandPhotonRadiance::new((time - start).value() * 86400.0));
+    let above = above_threshold_periods_precise(
+        window,
+        Days::new(30.0 / 86400.0),
+        &f,
+        BandPhotonRadiance::new(33.123),
+    )
+    .unwrap();
+    assert_eq!(above.len(), 1);
+    assert!(((above[0].start - start).value() * 86400.0 - 33.123).abs() <= 0.001);
+    assert_eq!(above[0].end, window.end);
 }

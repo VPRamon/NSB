@@ -88,8 +88,9 @@ The wavelength colour correction follows Leinert et al. (1998), Eq. (22):
 it is normalized at 500 nm, uses the published 220–500 nm and 500–2500 nm
 branches, and is linear in `log10(lambda / 500 nm)`. The release-band
 reconstruction is independently checked against the 400/500 nm spectral ratio
-from Leinert Table 19. Because NSB uses the modern TSIS-1 HSRS v2 solar
-reference rather than the historical solar spectrum behind that compilation,
+from Leinert Table 19. Because NSB uses its bundled 5772 K analytic Planck solar reference
+(`nsb-planck-solar-reference`, NSB analytic solar reference v1), rather than
+the historical solar spectrum behind that compilation,
 the Table 19 check is a tolerance validation rather than an exact regression.
 
 The v0.1.0 Leinert path does not apply the Earth–Sun-distance `r^-2.3`
@@ -113,3 +114,7 @@ prediction.
 - Noll et al. (2012), *A&A* 543, A92: atmospheric-extinction approximation.
 - [Runtime component overview](../../user-guide/components.md)
 - [Scientific metadata](../../specifications/scientific-metadata.md)
+
+See the [Noll equation correction](noll-equation-correction.md) for the
+500 nm brightness normalization, species optical depths, valid domain, and
+why effective propagation can enhance faint fields.

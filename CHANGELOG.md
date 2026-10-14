@@ -6,6 +6,15 @@ All notable changes to published NSB releases are recorded here.
 
 ### Changed
 
+- Require released Siderust 0.14.1 throughout the workspace and use its typed
+  lunar spectral irradiance API, including the inverse-square source correction.
+- Keep optical depths, airmasses, phase densities, extinction coefficients,
+  zodiacal wavelengths and fallback radiances typed through the corrected kernels.
+- Correct first-order Jones scattering and local Rayleigh pressure handling,
+  and the Noll zodiacal brightness units, optical-depth sign and species terms.
+- Migrate planning inputs using independent millisecond references and add a
+  precise test scanner that does not expand isolated endpoints into intervals.
+
 - Make adaptive discovery the normal Rust/Python/CLI threshold search in the
   0.1 line under explicit maintainer authorization. Retain public step fields,
   builders and CLI arguments as ignored compatibility inputs; explicit adaptive

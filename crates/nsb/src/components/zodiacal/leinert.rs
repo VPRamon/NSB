@@ -2,7 +2,10 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 //! Leinert (1998) zodiacal-light reference table and brightness-grid wrapper.
 //!
-//! This module contains the transcribed S10 data constants and wraps them with
+//! This module contains the inherited historical 5-degree S10 grid attributed
+//! to Leinert/Levasseur-Regourd and Dumont, not a literal transcription of the
+//! coarser updated Leinert (1998) Table 16. Its full data lineage is unresolved.
+//! It wraps the preserved constants with
 //! a typed, thread-safe [`Leinert1998Grid`] that performs bilinear
 //! interpolation and applies the documented corner extrapolation patches.
 //!

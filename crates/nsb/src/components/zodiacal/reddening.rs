@@ -24,7 +24,9 @@
 //! # Reference
 //! Leinert et al. (1998), *A&AS* 127, 1–99, §8.4.2, Eq. (22).
 
-use crate::units::angular::Radians;
+use crate::units::angular::{Degree, Degrees, Radians};
+use crate::units::length::Nanometers;
+use crate::units::ScaleFactors;
 
 /// Wavelength-dependent reddening factor `f(lambda, epsilon)` where `epsilon` is the
 /// elongation angle (angular distance from the Sun).
@@ -37,34 +39,44 @@ use crate::units::angular::Radians;
 ///
 /// - `beta`: ecliptic latitude in radians.
 /// - `delta_lambda`: `|lambda_target - lambda_sun|` folded to `[0, pi]` in radians.
-/// - `lambda_nm`: wavelength in nanometres.
+/// - `wavelength`: wavelength in nanometres.
 ///
 /// # Returns
 ///
 /// A multiplicative colour-correction factor to be applied to the solar-spectrum
-/// scaled zodiacal radiance at wavelength `lambda_nm`.
-pub(super) fn reddening_factor(beta: Radians, delta_lambda: Radians, lambda_nm: f64) -> f64 {
+/// scaled zodiacal radiance at wavelength `wavelength`.
+pub(super) fn reddening_factor(
+    beta: Radians,
+    delta_lambda: Radians,
+    wavelength: Nanometers,
+) -> ScaleFactors {
     let cos_elong = (delta_lambda.cos() * beta.cos()).clamp(-1.0, 1.0);
-    let elong_deg = cos_elong.acos().to_degrees();
+    let elongation = ScaleFactors::new(cos_elong).acos_angle().to::<Degree>();
 
-    let (slope_30, slope_90) = if (220.0..=500.0).contains(&lambda_nm) {
-        (1.2, 0.9)
-    } else if (500.0..=2500.0).contains(&lambda_nm) {
-        (0.8, 0.6)
-    } else {
-        return 1.0;
-    };
+    let (slope_30, slope_90) =
+        if (Nanometers::new(220.0)..=Nanometers::new(500.0)).contains(&wavelength) {
+            (1.2, 0.9)
+        } else if (Nanometers::new(500.0)..=Nanometers::new(2500.0)).contains(&wavelength) {
+            (0.8, 0.6)
+        } else {
+            return ScaleFactors::new(1.0);
+        };
 
-    let elong_fraction = ((elong_deg - 30.0) / 60.0).clamp(0.0, 1.0);
+    let elong_fraction = ((elongation - Degrees::new(30.0)) / Degrees::new(60.0)).clamp(0.0, 1.0);
     let slope = slope_30 + (slope_90 - slope_30) * elong_fraction;
-    let log_ratio = (lambda_nm / 500.0).log10();
+    let log_ratio = (wavelength / Nanometers::new(500.0)).log10();
 
-    1.0 + slope * log_ratio
+    ScaleFactors::new(1.0 + slope * log_ratio)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Published scalar reference tuples are kept unchanged at this test adapter.
+    fn reddening_factor(beta: Radians, delta_lambda: Radians, wavelength_nm: f64) -> f64 {
+        super::reddening_factor(beta, delta_lambda, Nanometers::new(wavelength_nm)).value()
+    }
 
     const ABS_TOL: f64 = 1.0e-12;
 

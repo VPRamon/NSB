@@ -825,7 +825,10 @@ fn corrected_frame_recovers_the_independently_validated_north_october_window() {
             observer,
             target,
             Period::new(start, start + Second::new(365.0 * 86400.0)),
-            BandPhotonRadiance::new(0.25),
+            // The corrected zodiacal/Moon curves require 0.35 rather than the
+            // historical 0.25. Independent per-second geometry and uncached
+            // radiance checks below still validate the same ~7744 s window.
+            BandPhotonRadiance::new(0.35),
         )
         .with_components(ComponentMask::from_bits(15).unwrap())
         .with_target_altitude_floor(Some(Degrees::new(20.0)));

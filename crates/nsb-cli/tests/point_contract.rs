@@ -32,10 +32,10 @@ fn default_point_json_reports_schema_versions_and_components() {
     assert!((value["target"]["ra_deg"].as_f64().unwrap() - 83.0).abs() < 1e-10);
     assert!((value["target"]["dec_deg"].as_f64().unwrap() - 22.0).abs() < 1e-10);
     assert_eq!(value["version"]["model_version"], "nsb-model-v1");
-    assert_eq!(value["version"]["siderust_version"], "0.14.0");
+    assert_eq!(value["version"]["siderust_version"], "0.14.1");
     assert_eq!(
         value["version"]["siderust_source"],
-        "crates.io:siderust:0.14.0"
+        "crates.io:siderust:0.14.1"
     );
     assert_eq!(value["model"]["preset"], "ctao-south-planning");
     assert_eq!(value["model"]["moonlight_model"], "jones-2013-spectral");

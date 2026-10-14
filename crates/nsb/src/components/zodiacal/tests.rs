@@ -197,33 +197,76 @@ fn leinert_lookup_rejects_non_finite_inputs() {
 }
 
 #[test]
-fn noll2012_extinction_matches_numeric_reference_value() {
-    let transmission = ZodiacalExtinction::Noll2012Approx
-        .transmission_for_spectral_radiance(
-            crate::units::Quantity::<crate::units::WattPerSquareMeterSteradianMicrometer>::new(1.0)
-                .to::<crate::units::unit::WattPerSquareMeterSteradianNanometer>(),
-            Nanometers::new(500.0),
-            Degrees::new(0.0),
-        )
-        .value();
-    let expected = 0.848_018_546_292_333;
-    assert!(
-        (transmission - expected).abs() <= 1.0e-12,
-        "Noll-style extinction reference changed: got {transmission}, expected {expected}"
-    );
-    assert_eq!(
-        ZodiacalExtinction::None
-            .transmission_for_spectral_radiance(
+fn noll2012_extinction_matches_published_equations() {
+    // Noll 2012 Eqs. 1, 4, 18–20. Reference intensity is always at 500 nm.
+    // Independently compute molecular depth from the Bodhaine rational law,
+    // rather than calling the production atmospheric helper in this oracle.
+    for (i0, fr, fm) in [
+        (100.0, 1.407 * 2.0 - 2.692, 1.309 * 2.0 - 2.598),
+        (
+            10_f64.powf(2.25),
+            0.527 * 2.25 - 0.715,
+            1.309 * 2.25 - 2.598,
+        ),
+        (10_f64.powf(2.5), 0.527 * 2.5 - 0.715, 0.468 * 2.5 - 0.702),
+        (
+            60.0,
+            1.407 * 60_f64.log10() - 2.692,
+            1.309 * 60_f64.log10() - 2.598,
+        ),
+    ] {
+        for wave in [350.0, 500.0, 650.0] {
+            let lam: f64 = wave / 1000.0;
+            let l2 = lam * lam;
+            let tr = 744.0 / 1013.25 * 0.0021520 * (1.0455996 - 341.29061 / l2 - 0.90230850 * l2)
+                / (1.0 + 0.0027059889 / l2 - 85.968563 * l2);
+            let k = if wave < 400.0 {
+                0.05
+            } else {
+                0.013 * lam.powf(-1.38)
+            };
+            let tm = (10_f64.powf(0.4 * k)).ln();
+            let x0 = (1.002432 + 0.148386 + 0.0096467) / (1.0 + 0.149864 + 0.0102963 + 0.000303978);
+            let expected = (-(fr * tr + fm * tm) * x0).exp();
+            let input =
                 crate::units::Quantity::<crate::units::WattPerSquareMeterSteradianMicrometer>::new(
-                    1.0
+                    i0 * 1e-8,
                 )
-                .to::<crate::units::unit::WattPerSquareMeterSteradianNanometer>(),
-                Nanometers::new(500.0),
-                Degrees::new(60.0),
-            )
-            .value(),
-        1.0
-    );
+                .to::<crate::units::unit::WattPerSquareMeterSteradianNanometer>();
+            let actual = ZodiacalExtinction::Noll2012Approx
+                .transmission_for_spectral_radiance(input, Nanometers::new(wave), Degrees::new(0.0))
+                .value();
+            assert!(
+                (actual - expected).abs() < 1e-13,
+                "I0={i0}, wavelength={wave}"
+            );
+            if i0 == 60.0 {
+                assert!(actual > 1.0, "faint-field in-scattering");
+            }
+            if i0 == 100.0 {
+                assert!(actual < 1.0, "positive extinction");
+            }
+            let inclined = ZodiacalExtinction::Noll2012Approx
+                .transmission_for_spectral_radiance(
+                    input,
+                    Nanometers::new(wave),
+                    Degrees::new(50.0),
+                )
+                .value();
+            // Airmass must amplify either extinction or net in-scattering.
+            assert!((inclined - 1.0).abs() > (actual - 1.0).abs());
+            assert_eq!(
+                ZodiacalExtinction::None
+                    .transmission_for_spectral_radiance(
+                        input,
+                        Nanometers::new(wave),
+                        Degrees::new(50.0),
+                    )
+                    .value(),
+                1.0
+            );
+        }
+    }
 }
 
 #[test]
@@ -397,59 +440,140 @@ fn regression_known_case_sgr_a_star_paranal() {
         .compute(time, observer, target)
         .expect("regression compute");
 
-    // Siderust 0.13 / Tempoch 0.9 geometry baseline; retain the strict tolerances.
+    // Regenerated after correcting Noll units, sign, species depths and the
+    // fixed 500 nm fit argument. See noll-equation-correction.md for old values.
     let integrated = out.integrated.value();
     assert!(
-        (integrated - 0.073_249_824_821_251_32).abs() <= 1.0e-12,
+        (integrated - 0.139_361_113_489_048).abs() <= 1.0e-12,
         "integrated={integrated:.17}"
     );
     assert!(
-        (out.b_flux_s10.value() - 61.915_204_368_020_945).abs() <= 1.0e-10,
+        (out.b_flux_s10.value() - 132.444_535_079_010_7).abs() <= 1.0e-10,
         "b={:.17}",
         out.b_flux_s10.value()
     );
     assert!(
-        (out.v_flux_s10.value() - 84.824_136_449_870_89).abs() <= 1.0e-10,
+        (out.v_flux_s10.value() - 153.843_362_422_185_9).abs() <= 1.0e-10,
         "v={:.17}",
         out.v_flux_s10.value()
     );
-    assert!(((integrated / 0.062_772_202_918_743_08) - 1.0).abs() < 0.18);
-    assert!(((out.b_flux_s10.value() / 65.028_954_088_309_32) - 1.0).abs() < 0.12);
-    assert!(((out.v_flux_s10.value() / 75.428_008_018_252_03) - 1.0).abs() < 0.18);
+    // Preserve the historical solar-only impact assertions under their original
+    // propagation; comparing that TSIS baseline to corrected transport would
+    // conflate a physical-equation fix with a change of solar spectrum.
+    let geom = super::geometry::compute_observed(time, observer, target).unwrap();
+    let legacy = legacy_solar_impact_outputs(&geom);
+    assert!(((legacy.0 / 0.062_772_202_918_743_08) - 1.0).abs() < 0.18);
+    assert!(((legacy.1 / 65.028_954_088_309_32) - 1.0).abs() < 0.12);
+    assert!(((legacy.2 / 75.428_008_018_252_03) - 1.0).abs() < 0.18);
 }
 
 #[test]
 fn analytic_solar_reference_validation_geometry_stays_within_tsis_impact_bounds() {
     use super::geometry::ZodiacalGeometry;
-    use super::spectrum::compute_outputs;
-
     // Offline baseline from the former TSIS-derived runtime
     // solar_spectrum.dat SHA-256
     // 71da8c3c5e2204dea0fde06329ef89bcec63a22980ed640bad54402cac5fee02.
     // The old bytes are intentionally not required by this test.
     const TSIS_BASELINE: (f64, f64, f64) =
         (0.056_968_993_257_1, 58.708_789_926_3, 68.565_285_636_9);
-    let solar = crate::spectra::solar::load().expect("bundled analytic solar spectrum");
     let geometry = ZodiacalGeometry {
         beta: Radians::new(0.3),
         delta_lambda: Radians::new(1.5),
         zenith: Some(Degrees::new(30.0)),
     };
-    let output = compute_outputs(&geometry, &solar, ZodiacalExtinction::Noll2012Approx)
-        .expect("validation geometry");
+    let output = legacy_solar_impact_outputs(&geometry);
 
     assert!(
-        ((output.integrated.value() / TSIS_BASELINE.0) - 1.0).abs() < 0.18,
+        ((output.0 / TSIS_BASELINE.0) - 1.0).abs() < 0.18,
         "integrated impact exceeded 18%"
     );
     assert!(
-        ((output.b_flux_s10.value() / TSIS_BASELINE.1) - 1.0).abs() < 0.12,
+        ((output.1 / TSIS_BASELINE.1) - 1.0).abs() < 0.12,
         "B diagnostic impact exceeded 12%"
     );
     assert!(
-        ((output.v_flux_s10.value() / TSIS_BASELINE.2) - 1.0).abs() < 0.18,
+        ((output.2 / TSIS_BASELINE.2) - 1.0).abs() < 0.18,
         "V diagnostic impact exceeded 18%"
     );
+}
+
+#[test]
+fn zero_custom_zodiacal_source_remains_finite_with_effective_extinction() {
+    let geom = super::geometry::ZodiacalGeometry {
+        beta: Radians::new(0.3),
+        delta_lambda: Radians::new(1.5),
+        zenith: Some(Degrees::new(30.0)),
+    };
+    let solar = crate::spectra::solar::load().unwrap();
+    let out = super::spectrum::compute_outputs_with_s10(
+        &geom,
+        &solar,
+        ZodiacalExtinction::Noll2012Approx,
+        crate::units::radiometry::S10s::new(0.0),
+    )
+    .unwrap();
+    assert_eq!(out.integrated.value(), 0.0);
+    assert_eq!(out.b_flux_s10.value(), 0.0);
+    assert_eq!(out.v_flux_s10.value(), 0.0);
+}
+
+// Test-only counterfactual: retain the solar-reference impact checks with the
+// historical propagation held fixed. This must never be used in production.
+// The legacy equation is intentionally wrong physics; its historical fixtures
+// measure only the Planck-versus-TSIS substitution under that fixed equation.
+fn legacy_solar_impact_outputs(geom: &super::geometry::ZodiacalGeometry) -> (f64, f64, f64) {
+    let solar = crate::spectra::solar::load().unwrap();
+    let s10 = Leinert1998Grid::lookup_s10(geom.beta, geom.delta_lambda)
+        .unwrap()
+        .value();
+    let solar500 = solar.interp_at(Nanometers::new(500.0)).value();
+    let z = geom
+        .zenith
+        .unwrap_or(Degrees::new(0.0))
+        .value()
+        .to_radians();
+    let c = z.cos();
+    let x = (1.002432 * c * c + 0.148386 * c + 0.0096467)
+        / (c * c * c + 0.149864 * c * c + 0.0102963 * c + 0.000303978);
+    let mut nodes = Vec::new();
+    let mut bv = [0.0; 2];
+    for (&w, &sun) in solar.xs_raw().iter().zip(solar.ys_raw()) {
+        if !(300.0..=650.0).contains(&w) {
+            continue;
+        }
+        let source = s10 * 1.28e-11 * sun / solar500
+            * super::reddening::reddening_factor(geom.beta, geom.delta_lambda, Nanometers::new(w))
+                .value();
+        let dex = (source * 1000.0).log10();
+        let fr = if dex <= 2.244 {
+            1.407 * dex - 2.692
+        } else {
+            0.527 * dex - 0.715
+        };
+        let fm = if dex <= 2.255 {
+            1.309 * dex - 2.598
+        } else {
+            0.468 * dex - 0.702
+        };
+        let k = if w < 400.0 {
+            0.05
+        } else {
+            0.013 * (w / 1000.0).powf(-1.38)
+        };
+        let value = source * (0.4 * std::f64::consts::LN_10 * k * (fr + fm) * x).exp();
+        if w == 445.0 {
+            bv[0] = value / 1.28e-11;
+        }
+        if w == 551.0 {
+            bv[1] = value / 1.28e-11;
+        }
+        nodes.push((w, value * w * 1e-9 / 1.986445857148968e-25 * 1e-13));
+    }
+    let integrated = nodes
+        .windows(2)
+        .map(|w| (w[1].0 - w[0].0) * (w[0].1 + w[1].1) / 2.0)
+        .sum();
+    (integrated, bv[0], bv[1])
 }
 
 fn sgr_a_star() -> Target {
