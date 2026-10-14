@@ -1156,7 +1156,7 @@ reference_distance = \"1 AU\"\n",
         let path = temp.path().join("nested/partition.lease");
         let lease = Lease::acquire(&path, 3600).unwrap();
         assert!(path.exists());
-        assert!(Lease::acquire(&path, 3600).unwrap_err().to_string().contains("already held"));
+        assert!(Lease::acquire(&path, 3600).err().unwrap().to_string().contains("already held"));
         drop(lease);
         assert!(!path.exists());
 
