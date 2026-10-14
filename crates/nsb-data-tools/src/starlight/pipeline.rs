@@ -352,7 +352,6 @@ lease_timeout_seconds = 60
         }
     }
 
-
     #[test]
     fn starlight_pipeline_entry_points_handle_missing_configuration() {
         let config = base_config(None);
@@ -366,7 +365,10 @@ lease_timeout_seconds = 60
             PIPELINE.expected_outputs_for(&config),
             vec!["starlight_nside128.csv", "merge_report.json"]
         );
-        assert_eq!(PIPELINE.output_name("arbitrary.dat").unwrap(), "arbitrary.dat");
+        assert_eq!(
+            PIPELINE.output_name("arbitrary.dat").unwrap(),
+            "arbitrary.dat"
+        );
         assert!(PIPELINE.available_partitions(&config).is_err());
         assert!(PIPELINE.build(&config, &[]).unwrap().is_none());
         assert!(PIPELINE.finalize(&config).unwrap().is_none());
@@ -380,10 +382,18 @@ lease_timeout_seconds = 60
         let path = tmp.path().join("legacy-map.csv");
         assert!(PIPELINE.validate_artifact("legacy-map.csv", &path).is_err());
         fs::write(&path, "# map_type=healpix\n# nside=4\n1,2\n2,3\n").unwrap();
-        let err = PIPELINE.validate_artifact("legacy-map.csv", &path).unwrap_err();
+        let err = PIPELINE
+            .validate_artifact("legacy-map.csv", &path)
+            .unwrap_err();
         assert!(err.to_string().contains("coordinate_frame"));
-        fs::write(&path, "# map_type=healpix\n# coordinate_frame=galactic\n# nside=4\n1,2\n").unwrap();
-        let err = PIPELINE.validate_artifact("legacy-map.csv", &path).unwrap_err();
+        fs::write(
+            &path,
+            "# map_type=healpix\n# coordinate_frame=galactic\n# nside=4\n1,2\n",
+        )
+        .unwrap();
+        let err = PIPELINE
+            .validate_artifact("legacy-map.csv", &path)
+            .unwrap_err();
         assert!(err.to_string().contains("no map rows"));
         fs::write(
             &path,
@@ -391,8 +401,12 @@ lease_timeout_seconds = 60
         )
         .unwrap();
         PIPELINE.validate_artifact("legacy-map.csv", &path).unwrap();
-        assert!(PIPELINE.validate_artifact("merge_report.json", &path).is_err());
-        assert!(PIPELINE.validate_artifact("starlight_nside4.csv", &path).is_err());
+        assert!(PIPELINE
+            .validate_artifact("merge_report.json", &path)
+            .is_err());
+        assert!(PIPELINE
+            .validate_artifact("starlight_nside4.csv", &path)
+            .is_err());
     }
 
     #[test]
@@ -400,23 +414,37 @@ lease_timeout_seconds = 60
         let original = measured_config();
         let mut config = original.clone();
         config.gaia_products[0].id.clear();
-        assert!(PIPELINE.validate_config(&base_config(Some(config))).is_err());
+        assert!(PIPELINE
+            .validate_config(&base_config(Some(config)))
+            .is_err());
         let mut config = original.clone();
         config.gaia_products[0].checksum_manifest_sha256 = "X".repeat(64);
-        assert!(PIPELINE.validate_config(&base_config(Some(config))).is_err());
+        assert!(PIPELINE
+            .validate_config(&base_config(Some(config)))
+            .is_err());
         let mut config = original.clone();
         config.gaia_products[0].base_url = "http://insecure.test".into();
-        assert!(PIPELINE.validate_config(&base_config(Some(config))).is_err());
+        assert!(PIPELINE
+            .validate_config(&base_config(Some(config)))
+            .is_err());
         let mut config = original.clone();
         config.gaia_products[0].checksum_manifest_url = "file:///wrong".into();
-        assert!(PIPELINE.validate_config(&base_config(Some(config))).is_err());
+        assert!(PIPELINE
+            .validate_config(&base_config(Some(config)))
+            .is_err());
         let mut config = original.clone();
         config.acquisition.connect_timeout_seconds = 0;
-        assert!(PIPELINE.validate_config(&base_config(Some(config))).is_err());
+        assert!(PIPELINE
+            .validate_config(&base_config(Some(config)))
+            .is_err());
         let mut config = original.clone();
         config.acquisition.request_timeout_seconds = 0;
-        assert!(PIPELINE.validate_config(&base_config(Some(config))).is_err());
-        PIPELINE.validate_config(&base_config(Some(original))).unwrap();
+        assert!(PIPELINE
+            .validate_config(&base_config(Some(config)))
+            .is_err());
+        PIPELINE
+            .validate_config(&base_config(Some(original)))
+            .unwrap();
     }
 
     #[test]
