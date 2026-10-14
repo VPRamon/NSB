@@ -1384,7 +1384,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
             30usize,
             61166.04341806797,
             61166.04351066056,
-            0.32739479893982237,
+            0.327_394_798_939_822_4,
         ),
         (
             true,
@@ -1392,7 +1392,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
             70,
             61177.13374055555,
             61177.13383314815,
-            0.33494160221759062,
+            0.334_941_602_217_590_6,
         ),
         (
             true,
@@ -1400,7 +1400,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
             20,
             61183.05040722222,
             61183.05049981482,
-            0.51187941327392172,
+            0.511_879_413_273_921_7,
         ),
     ] {
         let evaluator = super::test_fixtures::evaluator_with_moon(north, false, moon);
