@@ -31,34 +31,46 @@ admitted HEALPix product is treated as top-of-atmosphere sky radiance.
 Wavelength-resolved transport belongs with spectral products; a band-integrated
 map must not be treated as monochromatic radiance.
 
-## First-release boundary
+## Pending, registered and published configurations
 
-NSB 0.1.0 does **not** ship a Gaia-derived production Starlight map. No
-candidate map, merge report, staged runtime map, or candidate review bundle is
-kept in the first-release data registry.
+While the authoritative #103 decision is pending, bundled production Starlight
+is absent and the default mask contains the other three components. Explicit
+selection of missing bundled Starlight fails. The frozen scientific candidate
+is tracked as nonembedded evidence, excluded from runtime packages. This is a
+current authorization boundary, not a permanent version restriction.
 
-This is deliberate. A production Starlight product must first satisfy the
-current generation and validation contracts, complete redistribution/licensing
-review, and then be admitted by an explicit release change.
+After a valid human decision, the existing promotion command deterministically
+reproduces and admits the compact map/sidecar, updates the production registry
+and current inventory, and enables `ALL`, `DEFAULT` and `NsbEvaluator::new()`
+with all four components. Python uses the same Rust assets and defaults.
+Evaluation needs neither the source checkout nor a network connection.
+`validated_external` and explicitly experimental map APIs remain available;
+there is no synthetic bundled fallback.
 
-Consequently:
+Production registration does not claim an upload. The immutable approval
+inventory records planned channels; the current inventory records registration
+and, after publication, the channels actually used. See the
+[activation and publication procedure](release-candidate/README.md#approval-and-publication-lifecycle).
+Published release facts are established from the tagged registry, checksums,
+notices and successful distribution checks.
 
-- `ComponentMask::ALL` does not silently substitute an unapproved Starlight map;
-- `StarlightProduct::validated_external` can consume a caller-supplied product
-  only when its map and sidecar pass the fail-closed admission contract;
-- `StarlightProduct::with_experimental_map` remains available for explicit
-  experimental use without promoting that map to production.
+## Producing and admitting a map
 
-## Producing a map
+The frozen combined 300–650 nm scientific product uses candidate-v5,
+196,608 Galactic HEALPix pixels and checksum-pinned validation/provenance.
+Its packed CSV is a scientific comparison reference. Production uses
+`nsb-healpix-starlight-binary-v1` and a
+`nsb-starlight-runtime-manifest-v2` sidecar: all radiances and uncertainty f64
+values are lossless, with declared RING/NESTED ordering, units and SHA-256.
+The [format and evidence contract](release-candidate/README.md#compact-runtime-transport-binary-v1)
+describes the exact encoding and admission checks. Older CSV/external contracts
+remain supported but are not the compact release product.
 
-The `nsb-data` tooling supports reproducible acquisition, source joining,
-photometric/UV correction, bright-star supplementation, sparse Galactic HEALPix
-accumulation, deterministic merging, validation, packing, and promotion.
-
-Generated candidates remain outside the release registry until all admission
-requirements pass. The first public candidate format is
-`nsb-healpix-starlight-candidate-v1`; the first production runtime formats are
-`nsb-healpix-starlight-v1` and `nsb-starlight-runtime-manifest-v1`.
+Production requires technical/independent scientific evidence and the separate
+human redistribution decision. Software is AGPL-3.0-only; protected Gaia data
+retain BY-NC conditions and all source-specific notices. No software licence
+waives those restrictions. Only the exact approved compact pair may enter the
+Git/crates.io/PyPI channels named in the decision.
 
 ## Related documentation
 

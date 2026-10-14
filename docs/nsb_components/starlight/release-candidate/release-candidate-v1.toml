@@ -325,8 +325,8 @@ redistribution_review_status = "pending"
 promotion_eligible = false
 
 [review_artifacts]
-inventory_path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
-inventory_sha256 = "6a50cf300d37ff5d2b50b6f021ffc2abe8ffe9c0839bfe738417a4989e89c9b5"
+inventory_path = "docs/nsb_components/starlight/licensing/approval-inventory-v1.toml"
+inventory_sha256 = "db544fdd3fa9ee43f5eb2aebdb8bbf029131b59277f93a1c6e39b5f012d5b965"
 gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
 gates_report_sha256 = "66d37d3124d8e5447a97e6799f3542b51c588e2c06c1b4a9f3044ccc1d1e1976"
 merge_report_path = "crates/nsb/data/merge_report.json"

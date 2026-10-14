@@ -74,7 +74,7 @@ technical gates never implies redistribution approval.
 
 `StarlightModel::BundledProductionGaiaDr3` and `ComponentMask::ALL` remain
 fail-closed. The build only enables bundled production Starlight when a
-registered `nsb-healpix-starlight-v2` map and
+registered `nsb-healpix-starlight-binary-v1` map (or supported external CSV) and
 `nsb-starlight-runtime-manifest-v2` sidecar pass checksum and provenance
 validation. Malformed or incomplete v2 provenance is rejected.
 
@@ -225,3 +225,70 @@ Git artifacts cannot authorize future package distribution. A GitHub release
 asset additionally needs approval for that publication channel. The proposed
 conditions in the rights assessment are review material; they do not change
 the authoritative pending JSON or identify a reviewer.
+
+## Approval and publication lifecycle
+
+The sole authoritative decision remains
+`redistribution-review-decision-v1.json`. The separate
+`redistribution-review-decision-template-v1.json` is **TEMPLATE ONLY**: it shows
+`approved_with_conditions`, all exact required pins and planned channels, but
+leaves reviewer name/role/time null and therefore cannot authorize promotion.
+It is derived from the evidence and deliberately not included in the bundle
+that its own fields reference, avoiding a hash cycle. Never automatically copy
+it over the real pending decision. An authorized reviewer must actually accept
+the documented purpose, scope, source conditions, XHIP map-only interpretation
+and AGPL/independent embedded-data interpretation before recording a decision.
+
+| Stage | Immutable approval inventory | Current publication inventory |
+|---|---|---|
+| Candidate/staged | Frozen exact map/sidecar identities, `lifecycle = "staged"`, planned channels, no claimed upload | Same staged state |
+| Approved | Same bytes; authorization lives in the human decision | Staged until installed |
+| Production registered | Same approved bytes and bundle/decision pins | `production_registered`, actual channels empty; updated registry digest |
+| Published | Same approved bytes and decision | `published`, `distributed = true`, only actual channels in `channels` |
+
+`licensing/approval-inventory-v1.toml` is the immutable approval snapshot, pinned
+by the release candidate, review bundle and decision. `artifact-inventory-v1.toml`
+is the current state and is **not** an input to that checksum cycle. Initially
+both inventories describe the same assets. Promotion derives the current state
+from the snapshot; only the two compact lifecycle/current-channel fields and
+the deterministic production-registry digest may change. Source licences,
+notices, planned channels and scientific identities remain exactly as approved.
+Both validators require SHA-256 for **every distributed artifact**, including
+the real external-manifest documentation file. The bundle pins that file too.
+
+The baseline registry digest in the approval snapshot is verified after removing
+only the two deterministic production entries. Repeat promotion checks all
+registry fields, installed bytes and the current inventory before writing;
+partial, tampered or unauthorized states fail closed. Approved conditions and
+all nested bundle evidence are verified for both approval dispositions.
+Registration itself is not represented as publication. Recording actual channels
+is an operator/workflow assertion after successful upload, not permission to
+upload and not a change to human authorization.
+
+After the actual human decision, from the repository root:
+
+```bash
+cargo run -p nsb-data-tools --locked -- dataset starlight promote \
+  --repository-root . \
+  --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+  --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
+  --apply
+```
+
+Commit the exact compact pair, updated runtime registry and current inventory,
+run the production/scientific/package checks, and push the authorized Git
+publication. **After that push**, rerun the same command with
+`--published-channel git_repository`, commit the resulting current inventory and
+push it. This records the already-published scientific bytes without changing
+the approval snapshot or requiring a second authorization. Repeat recording is
+idempotent. Do not record crates.io/PyPI/GitHub-release channels before uploads.
+
+The tag workflow requires the real approved production pair and verified current
+inventory, checks its package hashes/notices and installed four-component tests,
+then publishes only after maintainer authorization. After successful crates.io
+and PyPI jobs, it records `crates_io`, `pypi_wheel`, `pypi_sdist` in a downloadable
+publication-inventory artifact. Retain/commit that current inventory (or rerun
+the same command with those repeated `--published-channel` flags). Record
+`github_release` only if map-containing release artifacts were actually uploaded.
+Never repin the immutable snapshot, review bundle or human decision merely
+because publication metadata changed.

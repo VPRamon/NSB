@@ -51,7 +51,7 @@ fn production_starlight_requires_verified_human_promotion() -> Result<()> {
         release_candidate: repository.join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
         redistribution_decision: repository.join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"),
         repository_root: repository,
-        output: None, apply: false,
+        output: None, apply: false, published_channels: Vec::new(),
     };
     if starlight.is_empty() {
         let decision: serde_json::Value =

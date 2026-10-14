@@ -16,7 +16,8 @@ decision remains the sole authorization gate.
 
 ## Starlight (integrated starlight component)
 
-NSB 0.1.0 does not bundle a production Starlight map in crates.io/PyPI.
+While the authoritative #103 decision is pending, NSB packages exclude the
+production Starlight map. Authorized promotion admits the exact compact pair.
 The frozen candidate and its merge report **are present in the Git repository**
 and constitute a distinct distribution channel. They are not yet authorized
 as production assets; issue #103 remains the human redistribution gate.

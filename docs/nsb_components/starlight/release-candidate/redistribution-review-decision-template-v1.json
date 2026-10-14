@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "decision": "approved_with_conditions",
+  "reviewer_name": null,
+  "reviewer_role": null,
+  "reviewed_at_utc": null,
+  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+  "inventory_sha256": "db544fdd3fa9ee43f5eb2aebdb8bbf029131b59277f93a1c6e39b5f012d5b965",
+  "review_bundle_sha256": "83fac0a714783836389283707bc57d15d5793c53e1e892481d58ffdff45c372b",
+  "pinned_artifacts": [
+    {
+      "id": "starlight-candidate-map-nside128",
+      "sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-merge-report",
+      "sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-manifest-toml",
+      "sha256": "9892080ccdbbdd625de798578e7915f3a4d2a2223bd389945dbfbd8f8dcf4b6b",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-external-manifest-sidecar-contract",
+      "sha256": "af08fdbe04d8e8ad6aa9e8e96a768413c3490a83c31b800e7b47026487842123",
+      "approved_channels": [
+        "documentation",
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-combined-300-650-validation-report",
+      "sha256": "97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "compact-runtime-map-v1",
+      "sha256": "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784",
+      "approved_channels": [
+        "crates_io",
+        "git_repository",
+        "github_release",
+        "pypi_sdist",
+        "pypi_wheel"
+      ]
+    },
+    {
+      "id": "compact-runtime-sidecar-v1",
+      "sha256": "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b",
+      "approved_channels": [
+        "crates_io",
+        "git_repository",
+        "github_release",
+        "pypi_sdist",
+        "pypi_wheel"
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "id": "review-bundle-v1",
+      "description": "Pin the immutable Starlight #103 human-review evidence bundle.",
+      "verifier": {
+        "type": "repository_file_sha256",
+        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
+        "sha256": "83fac0a714783836389283707bc57d15d5793c53e1e892481d58ffdff45c372b"
+      }
+    }
+  ],
+  "restrictions": [
+    "Noncommercial scientific publication of the exact combined 300\u2013650 nm HEALPix product only; retain applicable Gaia CC BY-NC 3.0 IGO and source-specific terms, licence URIs, credits and modifications. No unrestricted commercial data grant or endorsement.",
+    "Authorized scope is the pinned compact pair and channels. Original catalogues, SVO transmission curves, spectral files and per-star diagnostics are excluded from runtime packages.",
+    "The actual reviewer must record acceptance, with applicable jurisdiction and publication facts, of the XHIP calculated-map/database-right and AGPL independent-data aggregate interpretations documented in the pinned rights assessment; verify retained correspondence. This template makes neither finding.",
+    "Production registration does not claim publication. Mutable publication metadata must be derived and verified against the unchanged approval snapshot, decision and exact product."
+  ],
+  "notes": "TEMPLATE ONLY \u2014 not the authoritative decision and not authorization. Reviewer name, role and timestamp deliberately null. The authorized human must complete the real #103 procedure; do not activate this file automatically. No source rights are invented."
+}

@@ -233,7 +233,9 @@ Only after all gates pass may the registry use
 authorized #103 redistribution decision and the follow-up production activation
 land, the combined 300--650 nm candidate remains `candidate`, stays out of the
 published packages, and Starlight remains outside `ComponentMask::ALL`. This
-redistribution gate does not block the `0.1.0` MVP release.
+redistribution gate was deliberately separate from the historical MVP boundary.
+The four-component release requires the actual decision and compact production
+pair; see the current release checklist.
 
 ## Primary references
 

@@ -104,13 +104,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if python -c 'import tomllib; from pathlib import Path; m=tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text()); exit(0 if any(a.get("runtime_embedded") and "starlight" in a["path"] for a in m["assets"]) else 1)'; then
-            cargo run -p nsb-data-tools --locked -- dataset starlight promote \
-              --repository-root . \
-              --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
-              --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
-              --output /tmp/starlight-production.toml
-            python - <<'PYCODE'
+          cargo run -p nsb-data-tools --locked -- dataset starlight promote \
+            --repository-root . \
+            --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+            --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
+            --output /tmp/starlight-production.toml
+          python - <<'PYCODE'
           import tomllib
           from pathlib import Path
           expected = tomllib.loads(Path("/tmp/starlight-production.toml").read_text())["assets"]
@@ -120,7 +119,14 @@ jobs:
               assert actual["runtime_embedded"] and actual["calibration_status"] == "production"
               assert actual["sha256"] == asset["sha256"] and actual["schema"] == asset["schema"]
           PYCODE
-          fi
+          python - <<'PYCODE'
+          import tomllib
+          from pathlib import Path
+          inventory = tomllib.loads(Path("docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml").read_text())
+          for artifact in inventory["artifacts"]:
+              if artifact["id"] in {"compact-runtime-map-v1", "compact-runtime-sidecar-v1"}:
+                  assert artifact["lifecycle"] == "published" and "git_repository" in artifact["channels"], "record actual Git publication before tagging"
+          PYCODE
 
       - name: Verify crates.io package
         shell: bash
@@ -170,8 +176,10 @@ jobs:
                   payload = bundle.extractfile(members["data/" + path]).read()
                   assert hashlib.sha256(payload).hexdigest() == asset["sha256"], path
               for path in members:
-                  if path.startswith("data/") and "starlight" in path:
-                      assert path[5:] in approved, f"unregistered Starlight payload: {path}"
+                  if path.startswith("data/") and path != "data/manifest.toml":
+                      assert path[5:] in approved, f"unregistered scientific payload: {path}"
+              for path in ["LICENSE", "THIRD_PARTY_NOTICES.md", "data/manifest.toml"]:
+                  assert bundle.extractfile(members[path]).read() == (Path("crates/nsb") / path).read_bytes(), path
 
       - name: Verify crates.io publish dry-run
         run: cargo publish --manifest-path crates/nsb/Cargo.toml --dry-run --locked
@@ -215,7 +223,8 @@ jobs:
       - name: Verify installed wheel independently of the checkout
         shell: bash
         run: |
-          python -m pip install dist/*.whl pytest
+          python -m pip install --force-reinstall dist/*.whl pytest
+          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15'
           python -c 'import zipfile, pathlib; w=next(pathlib.Path("dist").glob("*.whl")); assert any(n.endswith("THIRD_PARTY_NOTICES.md") for n in zipfile.ZipFile(w).namelist())'
           mkdir -p /tmp/nsb-wheel-tests
           cp python/tests/conftest.py python/tests/test_evaluation.py /tmp/nsb-wheel-tests/
@@ -263,7 +272,8 @@ jobs:
       - name: Verify installed wheel independently of the checkout
         shell: bash
         run: |
-          python -m pip install dist/*.whl pytest
+          python -m pip install --force-reinstall dist/*.whl pytest
+          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15'
           python -c 'import zipfile, pathlib; w=next(pathlib.Path("dist").glob("*.whl")); assert any(n.endswith("THIRD_PARTY_NOTICES.md") for n in zipfile.ZipFile(w).namelist())'
           mkdir -p /tmp/nsb-wheel-tests
           cp python/tests/conftest.py python/tests/test_evaluation.py /tmp/nsb-wheel-tests/
@@ -303,7 +313,8 @@ jobs:
       - name: Verify installed wheel independently of the checkout
         shell: bash
         run: |
-          python -m pip install dist/*.whl pytest
+          python -m pip install --force-reinstall dist/*.whl pytest
+          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15'
           python -c 'import zipfile, pathlib; w=next(pathlib.Path("dist").glob("*.whl")); assert any(n.endswith("THIRD_PARTY_NOTICES.md") for n in zipfile.ZipFile(w).namelist())'
           mkdir -p /tmp/nsb-wheel-tests
           cp python/tests/conftest.py python/tests/test_evaluation.py /tmp/nsb-wheel-tests/
@@ -357,14 +368,32 @@ jobs:
               registry = tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text())
               approved = {a["path"] for a in registry["assets"] if a.get("runtime_embedded")}
               for member in archive.getmembers():
-                  if "/data/" in member.name and "starlight" in Path(member.name).name:
-                      if Path(member.name).name not in approved:
+                  if "/crates/nsb/data/" in member.name and member.isfile():
+                      name = Path(member.name).name
+                      if name != "manifest.toml" and name not in approved:
                           leaked.append(member.name)
+                      if name in approved:
+                          import hashlib
+                          asset = next(a for a in registry["assets"] if a["path"] == name)
+                          assert hashlib.sha256(archive.extractfile(member).read()).hexdigest() == asset["sha256"]
+              for relative in ["LICENSE", "THIRD_PARTY_NOTICES.md", "data/manifest.toml"]:
+                  member = next(m for m in archive.getmembers() if m.name.endswith("/crates/nsb/" + relative))
+                  assert archive.extractfile(member).read() == (Path("crates/nsb") / relative).read_bytes()
           if leaked:
               raise SystemExit(f"unapproved Starlight payload in sdist: {leaked}")
 
       - name: Verify source distribution builds a wheel
         run: python -m pip wheel --no-deps --wheel-dir /tmp/nsb-sdist-wheels dist/*.tar.gz
+
+      - name: Verify installed wheel rebuilt from the approved source distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install /tmp/nsb-sdist-wheels/nsb*.whl pytest
+          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15'
+          cp -r python/tests /tmp/nsb-sdist-tests
+          cd /tmp/nsb-sdist-tests
+          python -m pytest -q
 
       - uses: actions/upload-artifact@v4
         with:
@@ -418,3 +447,30 @@ jobs:
 
       - name: Publish nsb-rust
         uses: pypa/gh-action-pypi-publish@v1.14.2
+
+  record-publication:
+    name: Record successful scientific-data publication
+    needs: publish-pypi
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Derive actual publication inventory without changing approval
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo run -p nsb-data-tools --locked -- dataset starlight promote \
+            --repository-root . \
+            --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
+            --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
+            --apply --published-channel crates_io --published-channel pypi_wheel --published-channel pypi_sdist
+          git diff --exit-code -- docs/nsb_components/starlight/licensing/approval-inventory-v1.toml \
+            docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml \
+            docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: publication-inventory
+          path: docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml
+          if-no-files-found: error

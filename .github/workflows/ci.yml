@@ -144,56 +144,58 @@ jobs:
           set -euo pipefail
           fixture="${RUNNER_TEMP}/nsb-embedded-fixture"
           mkdir -p "$fixture"
-          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset starlight stage-runtime \
-            --repository-root . \
-            --release-candidate docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml \
-            --output-csv "$fixture/starlight_nside128.compact.release.bin" \
-            --output-sidecar "$fixture/starlight_nside128.compact.manifest.toml"
           python - <<'PYCODE'
-          import hashlib
+          import json
           import os
           import shutil
           from pathlib import Path
           root = Path(os.environ["RUNNER_TEMP"]) / "nsb-embedded-fixture"
           shutil.copytree("crates/nsb", root / "crates/nsb")
+          shutil.copytree("docs/nsb_components/starlight", root / "docs/nsb_components/starlight")
           shutil.copy2("Cargo.lock", root / "Cargo.lock")
           shutil.copy2("pyproject.toml", root / "pyproject.toml")
           (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/nsb"]\nresolver = "2"\n')
-          for name, schema in [
-              ("starlight_nside128.compact.release.bin", "nsb-healpix-starlight-binary-v1"),
-              ("starlight_nside128.compact.manifest.toml", "nsb-starlight-runtime-manifest-v2"),
-          ]:
-              payload = root / name
-              shutil.copy2(payload, root / "crates/nsb/data" / name)
-              fields = dict(path=name, schema=schema, sha256=hashlib.sha256(payload.read_bytes()).hexdigest(),
-                  source="ISOLATED TEST FIXTURE ONLY; no redistribution authorization",
-                  license="Gaia CC BY-NC 3.0 IGO; actual #103 decision remains pending",
-                  generator="stage-runtime", generation_command="isolated CI fixture",
-                  validation_report="transport test only", calibration_status="production")
-              with (root / "crates/nsb/data/manifest.toml").open("a") as manifest:
-                  manifest.write("\n[[assets]]\n" + "\n".join(f'{k} = "{v}"' for k, v in fields.items()) + "\nruntime_embedded = true\n")
-          # No decision file or reviewer identity is created or modified. The
-          # temporary technical registration must never enter release artifacts.
+          # Explicit synthetic authorization exists only in this isolated test
+          # repository. Neither it nor its payload is a published release.
+          rc = root / "docs/nsb_components/starlight/release-candidate"
+          decision = json.loads((rc / "redistribution-review-decision-template-v1.json").read_text())
+          decision.update(reviewer_name="Synthetic CI fixture; no real authorization",
+              reviewer_role="Temporary integration test", reviewed_at_utc="2026-01-01T00:00:00Z")
+          (rc / "redistribution-review-decision-v1.json").write_text(json.dumps(decision, indent=2) + "\n")
           (root / "crates/nsb/tests/embedded_fixture.rs").write_text('''
           use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
           use nsb::components::starlight::StarlightProduct;
+          use siderust::coordinates::transform::TransformFrame;
           #[test]
           fn embedded_default_has_all_four_components_without_skipping() {
               assert!(StarlightProduct::bundled_production_available());
               assert_eq!(ComponentMask::ALL.bits(), 15);
+              assert_eq!(ComponentMask::DEFAULT.bits(), 15);
               let time = tempoch::Time::<tempoch::UTC>::from_chrono(
                   chrono::DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z").unwrap().with_timezone(&chrono::Utc));
+              let target: Target = siderust::coordinates::spherical::direction::ICRS::new(266.41683 * DEG, -29.00781 * DEG).to_frame();
               let result = NsbEvaluator::new().unwrap().evaluate(&PointQuery::new(
-                  siderust::catalogs::observatories::EL_PARANAL.geodetic(), time,
-                  Target::new(266.41683 * DEG, -29.00781 * DEG))).unwrap();
+                  siderust::coordinates::centers::Geodetic::new_raw(
+                      siderust::qtty::Degrees::new(-70.31634444444444),
+                      siderust::qtty::Degrees::new(-24.683427777777776),
+                      siderust::qtty::Meters::new(2184.6)), time,
+                  target)).unwrap();
               assert_eq!(result.components.len(), 4);
               assert!(result.components.iter().find(|c| c.name == "starlight").unwrap().integrated.value() > 0.0);
               assert_eq!(result.integrated.value(), result.components.iter().map(|c| c.integrated.value()).sum::<f64>());
+              let values = serde_json::json!({"total": result.integrated.value(),
+                  "components": result.components.iter().map(|c| (c.name.to_string(), c.integrated.value())).collect::<std::collections::BTreeMap<_, _>>()});
+              std::fs::write(std::env::var("NSB_FIXTURE_RESULT").unwrap(), serde_json::to_vec(&values).unwrap()).unwrap();
           }
           ''')
           PYCODE
+          cargo run --locked -p nsb-data-tools --bin nsb-data -- dataset starlight promote \
+            --repository-root "$fixture" \
+            --release-candidate "$fixture/docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml" \
+            --redistribution-decision "$fixture/docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json" \
+            --apply
           cargo metadata --manifest-path "$fixture/Cargo.toml" --offline --format-version 1 > /dev/null
-          cargo test --manifest-path "$fixture/Cargo.toml" -p nsb --test embedded_fixture \
+          NSB_FIXTURE_RESULT="$fixture/rust-result.json" cargo test --manifest-path "$fixture/Cargo.toml" -p nsb --test embedded_fixture \
             --locked --offline --target-dir "$PWD/target"
           cargo package --manifest-path "$fixture/crates/nsb/Cargo.toml" --locked --target-dir "$PWD/target"
           test "$(stat -c '%s' target/package/nsb-0.1.0.crate)" -lt "$((10 * 1024 * 1024))"
@@ -210,10 +212,27 @@ jobs:
           python -m pip install maturin==1.15.0 pytest
           python -m maturin build --release --locked \
             --manifest-path "$fixture/crates/nsb/Cargo.toml" --target-dir "$PWD/target" --out "$fixture/wheels"
-          python -m pip install "$fixture"/wheels/*.whl
-          cp -r python/tests "$fixture/wheel-tests"
+          python -m pip install --force-reinstall "$fixture"/wheels/*.whl
+          mkdir -p "$fixture/wheel-tests"
+          cp -r python/tests/. "$fixture/wheel-tests"
+          cp "$fixture/rust-result.json" "$fixture/wheel-tests/rust-result.json"
+          cat > "$fixture/wheel-tests/test_embedded_parity.py" <<'PYCODE'
+          import json
+          from pathlib import Path
+          import nsb
+          import pytest
+          def test_embedded_four_component_rust_python_parity(observer, direction, point_time):
+              result = nsb.NsbEvaluator().evaluate(nsb.PointQuery(observer, point_time, direction))
+              reference = json.loads(Path("rust-result.json").read_text())
+              assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15
+              assert len(result.components) == 4
+              assert result.integrated_photons_cm2_ns_sr == pytest.approx(reference["total"], rel=1e-12, abs=1e-12)
+              for component in result.components:
+                  assert component.integrated_photons_cm2_ns_sr == pytest.approx(reference["components"][component.name], rel=1e-12, abs=1e-12)
+              assert next(c for c in result.components if c.name == "starlight").integrated_photons_cm2_ns_sr > 0
+          PYCODE
           cd "$fixture/wheel-tests"
-          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == 15'
+          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15'
           python -m pytest -q
           cd "$fixture"
           python -m maturin sdist --manifest-path "$fixture/crates/nsb/Cargo.toml" --out "$fixture/sdist"
@@ -226,7 +245,7 @@ jobs:
               assert any(n.endswith("/crates/nsb/THIRD_PARTY_NOTICES.md") for n in names)
               assert any(n.endswith("/crates/nsb/LICENSE") for n in names)
               assert any(n.endswith("/starlight_nside128.compact.release.bin") for n in names)
-              assert not any(n.endswith("/starlight_nside128.csv") or n.endswith("/merge_report.json") for n in names)
+              assert not any(n.endswith("/starlight_nside128.csv") or n.endswith("/merge_report.json") or "redistribution-review-decision" in n for n in names)
               source.extractall("sdist-build", filter="data")
           PYCODE
           cd "$fixture"/sdist-build/*
@@ -234,7 +253,7 @@ jobs:
             --target-dir "$fixture/sdist-target" --out "$fixture/sdist-wheels"
           python -m pip install --force-reinstall "$fixture"/sdist-wheels/*.whl
           cd "$fixture/wheel-tests"
-          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == 15'
+          python -c 'import nsb; assert nsb.ComponentMask.ALL.bits == nsb.ComponentMask.DEFAULT.bits == 15'
           python -m pytest -q
 
   doctests:

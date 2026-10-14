@@ -13,7 +13,9 @@
 
 use crate::platform::checksum_io;
 use crate::starlight::conditions::ConditionEvidence;
-use crate::starlight::licensing::RedistributionReview;
+use crate::starlight::licensing::{
+    RedistributionReview, APPROVAL_INVENTORY, CURRENT_INVENTORY, REQUIRED_RUNTIME_CHANNELS,
+};
 use crate::starlight::pack::{
     self, PackInputs, GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256, XP_CONTINUOUS_CHECKSUM_MANIFEST_SHA256,
 };
@@ -327,6 +329,9 @@ pub struct PromotionInputs {
     /// When true, write packed runtime assets and append production registry
     /// entries. Candidate map bytes are never rewritten.
     pub apply: bool,
+    /// Record channels only after actual publication; requires an already
+    /// registered product and --apply. This never uploads or grants rights.
+    pub published_channels: Vec<String>,
 }
 
 /// Result of a successful [`run_promotion`] call.
@@ -432,6 +437,9 @@ pub fn stage_runtime_assets(inputs: &RuntimeStageInputs) -> Result<RuntimeStageO
 /// packed runtime SHA that does not match the RC pin. Candidate map bytes are
 /// never rewritten.
 pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
+    if !inputs.published_channels.is_empty() && !inputs.apply {
+        bail!("recording publication channels requires --apply");
+    }
     let candidate = ReleaseCandidateManifest::load(&inputs.release_candidate)?;
 
     let map_path = inputs.repository_root.join(&candidate.candidate.map_path);
@@ -575,7 +583,7 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         if map_sha != compact.map_sha256 || sidecar_sha != compact.sidecar_sha256 {
             bail!("compact runtime identity differs from human-review bundle pins");
         }
-        let channels = ["git_repository", "crates_io", "pypi_wheel", "pypi_sdist"];
+        let channels = REQUIRED_RUNTIME_CHANNELS;
         licensing.require_staged_channels("compact-runtime-map-v1", &map_sha, &channels)?;
         licensing.require_staged_channels("compact-runtime-sidecar-v1", &sidecar_sha, &channels)?;
         (
@@ -600,6 +608,49 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
     let extension = if binary { "bin" } else { "csv" };
     let dest_map = data_dir.join(format!("{stem}.release.{extension}"));
     let dest_sidecar = data_dir.join(format!("{stem}.manifest.toml"));
+    // Frozen approval bytes are never rewritten. The current inventory is a
+    // deterministic projection, with registration separate from actual uploads.
+    let registry_path = data_dir.join("manifest.toml");
+    let raw_registry = fs::read_to_string(&registry_path)?;
+    let proposed_registry = production_registry_text(
+        &raw_registry,
+        &runtime_candidate,
+        &runtime_map_sha256,
+        &runtime_sidecar_sha256,
+        stem,
+        binary,
+    )?;
+    let mut next_inventory = None;
+    if binary {
+        if candidate.review_artifacts.inventory_path != APPROVAL_INVENTORY {
+            bail!("compact promotion requires a distinct immutable approval inventory snapshot");
+        }
+        let registered = verify_registered_pair(
+            &raw_registry,
+            &proposed_registry,
+            &dest_map,
+            &dest_sidecar,
+            &runtime_map_sha256,
+            &runtime_sidecar_sha256,
+            &licensing,
+        )?;
+        let mut channels = licensing.verify_current_inventory(
+            &inputs.repository_root.join(CURRENT_INVENTORY),
+            registered,
+            &checksum_io::sha256_bytes(raw_registry.as_bytes()),
+        )?;
+        if !registered && !inputs.published_channels.is_empty() {
+            bail!("cannot record publication before production registration");
+        }
+        channels.extend(inputs.published_channels.iter().cloned());
+        let inventory = licensing.production_inventory(
+            &checksum_io::sha256_bytes(proposed_registry.as_bytes()),
+            &channels,
+        )?;
+        next_inventory = Some(toml::to_string_pretty(&inventory)?);
+    } else if !inputs.published_channels.is_empty() {
+        bail!("publication-channel recording requires the compact production product");
+    }
     let mut applied = false;
     let (runtime_map_path, runtime_sidecar_path) = if inputs.apply {
         fs::copy(&staged_map, &dest_map)
@@ -607,14 +658,10 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         fs::copy(&staged_runtime_sidecar, &dest_sidecar).with_context(|| {
             format!("install packed runtime sidecar {}", dest_sidecar.display())
         })?;
-        apply_production_registry(
-            &data_dir.join("manifest.toml"),
-            &runtime_candidate,
-            &runtime_map_sha256,
-            &runtime_sidecar_sha256,
-            stem,
-            binary,
-        )?;
+        fs::write(&registry_path, &proposed_registry)?;
+        if let Some(inventory) = next_inventory {
+            fs::write(inputs.repository_root.join(CURRENT_INVENTORY), inventory)?;
+        }
         applied = true;
         // Staging can be cleaned up after install.
         drop(staging_dir);
@@ -979,7 +1026,10 @@ fn verify_review_bundle_pin(repository_root: &Path, expected_sha256: &str) -> Re
             "human review bundle checksum mismatch: redistribution decision pins {expected_sha256}, actual file is {actual}"
         );
     }
-    Ok(())
+    crate::starlight::conditions::verify_review_bundle_evidence(
+        repository_root,
+        Path::new(REVIEW_BUNDLE_RELATIVE_PATH),
+    )
 }
 
 #[derive(Debug, Deserialize)]
@@ -1357,19 +1407,15 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
     fs::write(path, body).with_context(|| format!("write production sidecar {}", path.display()))
 }
 
-fn apply_production_registry(
-    manifest_path: &Path,
+fn production_registry_text(
+    raw: &str,
     candidate: &CandidateSection,
     runtime_map_sha256: &str,
     runtime_sidecar_sha256: &str,
     stem: &str,
     binary: bool,
-) -> Result<()> {
-    let raw = fs::read_to_string(manifest_path)
-        .with_context(|| format!("read asset registry {}", manifest_path.display()))?;
-    let mut doc: toml_edit::DocumentMut = raw
-        .parse()
-        .with_context(|| format!("parse asset registry {}", manifest_path.display()))?;
+) -> Result<String> {
+    let mut doc: toml_edit::DocumentMut = raw.parse().context("parse asset registry")?;
     let assets = doc["assets"]
         .as_array_of_tables_mut()
         .context("asset registry has no [[assets]] tables")?;
@@ -1401,8 +1447,66 @@ fn apply_production_registry(
         candidate,
         true,
     ));
-    fs::write(manifest_path, doc.to_string())
-        .with_context(|| format!("write asset registry {}", manifest_path.display()))
+    Ok(doc.to_string())
+}
+
+/// Verify both the installed pair and every registry field before allowing a
+/// repeat transition. A partial/tampered installation is not silently repaired.
+fn verify_registered_pair(
+    current: &str,
+    proposed: &str,
+    map: &Path,
+    sidecar: &Path,
+    map_sha: &str,
+    sidecar_sha: &str,
+    licensing: &RedistributionReview,
+) -> Result<bool> {
+    let mut base: toml_edit::DocumentMut = current.parse()?;
+    let assets = base["assets"]
+        .as_array_of_tables_mut()
+        .context("missing asset registry")?;
+    let names = [
+        map.file_name().unwrap().to_str().unwrap(),
+        sidecar.file_name().unwrap().to_str().unwrap(),
+    ];
+    let mut installed = 0;
+    for table in assets.iter() {
+        let path = table
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        if names.contains(&path) {
+            installed += 1;
+        } else if path.contains("starlight")
+            && table.get("runtime_embedded").and_then(|v| v.as_bool()) == Some(true)
+        {
+            bail!("unauthorized extra Starlight runtime asset {path}");
+        }
+    }
+    if installed != 0 && (installed != 2 || current != proposed) {
+        bail!("partial or inconsistent production registry");
+    }
+    if installed == 0 && (map.exists() || sidecar.exists()) {
+        bail!("unregistered compact production payload present");
+    }
+    if installed == 2 {
+        if checksum_io::sha256_file(map)? != map_sha
+            || checksum_io::sha256_file(sidecar)? != sidecar_sha
+        {
+            bail!("installed compact product checksum mismatch");
+        }
+        assets.retain(|t| {
+            !names.contains(&t.get("path").and_then(|v| v.as_str()).unwrap_or_default())
+        });
+    }
+    if let Some(registry) = licensing.inventory().find("starlight-manifest-toml") {
+        if registry.sha256.as_deref()
+            != Some(checksum_io::sha256_bytes(base.to_string().as_bytes()).as_str())
+        {
+            bail!("base registry differs from the immutable approval snapshot");
+        }
+    }
+    Ok(installed == 2)
 }
 
 fn registry_source(candidate: &CandidateSection) -> String {
@@ -1775,7 +1879,11 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
         let review_bundle_path = release_candidate_dir.join("review-bundle-v1.toml");
         fs::write(
             &review_bundle_path,
-            "schema_version = 1\nschema = \"synthetic-review-bundle\"\n",
+            format!("schema_version = 1\nschema = \"nsb-starlight-review-bundle-v1\"\n\n[[artifacts]]\nid = \"validation_artifact_manifest\"\npath = \"synthetic-validation-artifacts.toml\"\nsha256 = \"{}\"\n", {
+                let manifest = format!("schema_version = 1\ngenerated_at_unix_seconds = 0\n[[artifacts]]\nname = \"synthetic candidate\"\npath = \"crates/nsb/data/starlight_nside128.csv\"\nsha256 = \"{sha}\"\nbytes = {}\n", SYNTHETIC_CANDIDATE.len());
+                fs::write(root.join("synthetic-validation-artifacts.toml"), &manifest).unwrap();
+                checksum_io::sha256_bytes(manifest.as_bytes())
+            }),
         )
         .unwrap();
         let review_bundle_sha256 = checksum_io::sha256_file(&review_bundle_path).unwrap();
@@ -1935,6 +2043,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             repository_root: repo.root.clone(),
             output,
             apply: false,
+            published_channels: Vec::new(),
         }
     }
 
@@ -2081,16 +2190,19 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             ("compact-runtime-map-v1", &staged.runtime_map_sha256),
             ("compact-runtime-sidecar-v1", &staged.runtime_sidecar_sha256),
         ] {
-            inventory.push_str(&format!("\n[[artifacts]]\nid = {id:?}\ncategory = \"synthetic-test-only\"\nsource = \"synthetic fixture\"\nrelease = \"fixture-v1\"\nlicense = \"synthetic-test-license\"\nsha256 = {sha:?}\ndistribution_class = \"generated_derived_output\"\ndistributed = false\nchannels = []\nnotes = \"Synthetic technical fixture; no real permission\"\n"));
+            inventory.push_str(&format!("\n[[artifacts]]\nid = {id:?}\ncategory = \"synthetic-test-only\"\nsource = \"synthetic fixture\"\nrelease = \"fixture-v1\"\nlicense = \"synthetic-test-license\"\nsha256 = {sha:?}\ndistribution_class = \"generated_derived_output\"\ndistributed = false\nchannels = []\nplanned_channels = [\"git_repository\", \"crates_io\", \"pypi_wheel\", \"pypi_sdist\"]\nlifecycle = \"staged\"\nnotes = \"Synthetic technical fixture; no real permission\"\n"));
             decision["pinned_artifacts"].as_array_mut().unwrap().push(serde_json::json!({
                 "id": id, "sha256": sha, "approved_channels": ["git_repository", "crates_io", "pypi_wheel", "pypi_sdist"]
             }));
         }
         fs::write(&inventory_path, &inventory)?;
+        fs::write(repo.root.join(APPROVAL_INVENTORY), &inventory)?;
         let new_inventory = checksum_io::sha256_file(&inventory_path)?;
         fs::write(
             &repo.release_candidate,
-            fs::read_to_string(&repo.release_candidate)?.replace(&old_inventory, &new_inventory),
+            fs::read_to_string(&repo.release_candidate)?
+                .replace(&old_inventory, &new_inventory)
+                .replace(CURRENT_INVENTORY, APPROVAL_INVENTORY),
         )?;
         decision["inventory_sha256"] = new_inventory.into();
         fs::write(

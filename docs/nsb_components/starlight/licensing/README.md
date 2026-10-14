@@ -2,7 +2,8 @@
 
 Status: Current redistribution policy for Starlight data products.
 
-NSB 0.1.0 does not redistribute a Gaia-derived production Starlight map. Raw
+While #103 is pending, NSB packages exclude production Starlight. Authorized
+promotion enables the compact four-component configuration. Raw
 Gaia, Hipparcos, Tycho, CALSPEC, CK04, and other upstream catalogue/reference
 bytes are not bundled by the runtime package.
 
@@ -16,7 +17,7 @@ project-wide [THIRD_PARTY_NOTICES.md](../../../../THIRD_PARTY_NOTICES.md).
 candidate promotion must provide:
 
 - an inventory of every distributed and referenced artifact;
-- exact SHA-256 identities for distributed derived outputs;
+- exact SHA-256 identities for every distributed artifact, including documentation;
 - source/release/licence information for upstream inputs;
 - the intended distribution channels;
 - an authorized human redistribution decision; and
@@ -26,7 +27,14 @@ The Rust implementation validates those records but cannot grant
 redistribution approval itself. Approval belongs to an authorized human
 reviewer.
 
-## First-release rule
+The [lifecycle procedure](../release-candidate/README.md#approval-and-publication-lifecycle)
+freezes `approval-inventory-v1.toml` before review and derives the separate current
+`artifact-inventory-v1.toml` afterward. Planned channels are not actual uploads.
+A schema-compatible, deliberately non-authorizing decision template includes
+all pins/channels and null reviewer fields. Neither promotion nor publication
+metadata silently changes the frozen evidence or grants a second permission.
+
+## Admission rule
 
 Until a Gaia-derived product has completed that process, it remains external to
 the NSB release. Generating or validating a candidate does not make it a bundled

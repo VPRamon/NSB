@@ -65,7 +65,7 @@ reported 2026-10-08) that, for use of the SVO Filter Profile Service and
 Bessell (2000) Hipparcos Hp response in calculations, it is sufficient on
 their part to inform users and provide the acknowledgement and references
 below. We include these even though the pending Starlight map itself is
-excluded from this first-release crate.
+excluded while #103 is pending.
 
 > This research has made use of the SVO Filter Profile Service "Carlos Rodrigo", funded by MCIN/AEI/10.13039/501100011033/ through grant PID2023-146210NB-I00
 

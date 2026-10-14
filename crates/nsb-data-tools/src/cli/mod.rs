@@ -431,9 +431,13 @@ struct PromoteArgs {
     /// Optional path to write the draft production manifest fragment.
     #[arg(long)]
     output: Option<PathBuf>,
-    /// Write packed runtime assets and production registry entries.
+    /// Write packed runtime assets, production registry and current inventory.
     #[arg(long, default_value_t = false)]
     apply: bool,
+    /// Record an already completed publication (repeat for each channel).
+    /// Requires an already installed product; never uploads or grants rights.
+    #[arg(long = "published-channel", requires = "apply")]
+    published_channels: Vec<String>,
 }
 
 #[derive(Debug, Args)]
@@ -1025,6 +1029,7 @@ fn promote(args: PromoteArgs) -> Result<()> {
         repository_root: args.repository_root,
         output: args.output,
         apply: args.apply,
+        published_channels: args.published_channels,
     };
     let outcome = crate::starlight::promotion::run_promotion(&inputs)?;
     match &outcome.written_to {
