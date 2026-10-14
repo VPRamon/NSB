@@ -22,7 +22,16 @@ impl KrisciunasSchaefer1991 {
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
     ) -> Result<MoonOutputs> {
-        let geometry = lunar_geometry(time, self.location, target);
+        self.compute_with_sky(time, target, &MoonlightSky::at(time, self.location))
+    }
+
+    pub(crate) fn compute_with_sky(
+        &self,
+        time: Time<UTC>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+        sky: &MoonlightSky,
+    ) -> Result<MoonOutputs> {
+        let geometry = sky.geometry(time.to::<TT>().to::<JD>(), self.location, target);
         compute_krisciunas_schaefer_1991(&geometry, self.k_ext)
     }
 }
@@ -31,12 +40,11 @@ pub(super) fn compute_krisciunas_schaefer_1991(
     inp: &MoonlightGeometry,
     k_ext: MagnitudesPerAirmass,
 ) -> Result<MoonOutputs> {
-    if !inp.moon_zenith.is_finite()
-        || !inp.source_zenith.is_finite()
-        || !inp.separation.is_finite()
-        || !k_ext.is_finite()
-    {
-        return Ok(zero_outputs());
+    inp.validate()?;
+    if !k_ext.is_finite() {
+        return Err(crate::NsbError::OutOfRange(
+            "non-finite Moonlight extinction".into(),
+        ));
     }
     if inp.moon_zenith >= Degrees::new(90.0)
         || inp.source_zenith >= Degrees::new(90.0)
@@ -53,16 +61,21 @@ pub(super) fn compute_krisciunas_schaefer_1991(
         k_ext,
     );
 
-    if !b_nl.is_finite() || b_nl <= Nanolamberts::new(0.0) {
+    if !b_nl.is_finite() {
+        return Err(crate::NsbError::OutOfRange(
+            "non-finite K&S lunar brightness".into(),
+        ));
+    }
+    if b_nl <= Nanolamberts::new(0.0) {
         return Ok(zero_outputs());
     }
 
     let v_mag_arcsec2 = v_mag_per_arcsec2_from_nl(b_nl);
     let v_s10 = 10f64.powf(0.4 * (NSB_S10_ZP.value() - v_mag_arcsec2.value()));
-    let integrated = S10_V_TO_INTEGRATED_PH.value() * v_s10;
+    let integrated = S10_V_TO_INTEGRATED_PH * v_s10;
 
     Ok(MoonOutputs {
-        integrated: radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(integrated),
+        integrated,
         b_flux_s10: radiometry::S10s::new(v_s10),
         v_flux_s10: radiometry::S10s::new(v_s10),
     })

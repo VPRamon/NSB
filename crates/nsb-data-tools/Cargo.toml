@@ -26,11 +26,11 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
-siderust = { version = "0.13.0" }
+siderust = { version = "0.14" }
 toml = "1.1.2"
 toml_edit = "0.23"
 tempfile = "3"
-tempoch = "0.9"
+tempoch = "0.10"
 zip = { version = "2.4", default-features = false, features = ["deflate"] }
 
 [package.metadata.cargo-machete]

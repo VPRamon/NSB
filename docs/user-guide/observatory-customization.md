@@ -178,7 +178,7 @@ Supported adjustments include:
 - airglow F10.7 solar radio flux;
 - moonlight implementation;
 - zodiacal extinction choice;
-- threshold-search constraints and sampling step;
+- threshold-search constraints (adaptive discovery requires no sampling step);
 - output format and logging level.
 
 These options change a model input or implementation choice. They do not create

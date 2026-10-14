@@ -18,6 +18,8 @@ fn main() -> nsb::Result<()> {
     )
     .with_components(ComponentMask::ZODIACAL | ComponentMask::AIRGLOW);
 
+    // Practical adaptive discovery has a documented physical-model resolution
+    // assumption. Use periods_below_threshold_certified for strict certificates.
     let result = NsbEvaluator::new()?.periods_below_threshold(&query)?;
 
     println!(

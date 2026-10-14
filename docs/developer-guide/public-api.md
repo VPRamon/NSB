@@ -1,6 +1,7 @@
 # Public API policy (crate `nsb`)
 
-Status: First-release API is **frozen** for `0.1.0`.
+Status: Public signatures remain **frozen** for `0.1.0`. The maintainer explicitly
+reopened the threshold-search behavior freeze for PR #235 on 2026-10-13.
 `crates/nsb/api/public-api.txt` records the reviewed baseline and
 `crates/nsb/api/API_FROZEN` activates snapshot and SemVer enforcement.
 Audience: Library consumers, contributors, and release maintainers.
@@ -19,6 +20,25 @@ and site-profile maturity invariants) are covered by dedicated regression tests
 under `crates/nsb/tests/`.
 
 ## Recommended application path
+
+The normal `periods_below_threshold` and context variant now provide
+step-free adaptive discovery with the complete physical models, exact radiance validation,
+and a documented empirical model-resolution contract. They do not claim
+continuous-time certification. Python exposes the same behavior; CLI `window` uses it by default.
+The explicit adaptive methods and `--adaptive` remain compatibility aliases. Resource/numerical failures return an error
+without a partial schedule. The public `sample_step` field/builders and CLI `--step` remain accepted but
+no longer control discovery. The old scanner is test-only. This is an explicitly
+authorized behavioral migration in the 0.1 line; signature snapshots and
+historical SemVer checks remain enforced. Inclusive band methods
+are additive; CLI minimum constraints use joint band discovery to avoid unsafe
+subtraction of independently contracted intervals.
+
+The separate `periods_below_threshold_certified` methods require sound interval
+classification for every eligible region, with no scan fallback. Certificates
+currently cover cached Starlight, the empty sum and prepared Moon-down intervals;
+active dynamic components remain unsupported by this strict contract. Native
+UTC conversion contracts inward; Python and CLI own their representation limits.
+See [scientific contracts, migration and limitations](../specifications/adaptive-search.md).
 
 Most callers should prefer the intended **core API**:
 
@@ -341,7 +361,10 @@ git add crates/nsb/api/API_FROZEN crates/nsb/api/public-api.txt
 ```
 
 Breaking changes are not permitted on the 0.1.0 frozen baseline without an
-explicit release-version decision.
+explicit release-version decision or maintainer authorization. PR #235 has an
+explicit 2026-10-13 authorization for adaptive default behavior and the mandatory
+Siderust/Tempoch public dependency migration within the 0.1 line. This exception
+does not remove signature snapshot or historical SemVer enforcement.
 
 ## Related issues
 

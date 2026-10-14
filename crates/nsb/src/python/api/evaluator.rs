@@ -22,6 +22,131 @@ pub(in crate::python) struct PySiteWindowContext {
 
 #[pymethods]
 impl NsbEvaluator {
+    /// Complete interval-certified search; unsupported or incomplete coverage
+    /// raises UnsupportedError. No uniform-scan fallback is used.
+    #[pyo3(name = "periods_below_threshold_certified")]
+    fn py_periods_below_threshold_certified(
+        &self,
+        py: Python<'_>,
+        query: PyRef<'_, ThresholdQuery>,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let query = query.clone();
+        py.detach(|| self.periods_below_threshold_certified(&query))
+            .and_then(PyThresholdQueryResult::try_from_inner)
+            .map_err(to_py_err)
+    }
+
+    /// Complete certified search reusing a compatible site context.
+    #[pyo3(name = "periods_below_threshold_certified_with_context")]
+    fn py_periods_below_threshold_certified_with_context(
+        &self,
+        py: Python<'_>,
+        context: PyRef<'_, PySiteWindowContext>,
+        query: PyRef<'_, ThresholdQuery>,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let context = Arc::clone(&context.inner);
+        let query = query.clone();
+        py.detach(|| self.periods_below_threshold_certified_with_context(&context, &query))
+            .and_then(PyThresholdQueryResult::try_from_inner)
+            .map_err(to_py_err)
+    }
+
+    /// Step-free adaptive discovery; empirical model-resolution assumptions,
+    /// not a continuous completeness certificate. Errors return no schedule.
+    #[pyo3(name = "periods_below_threshold_adaptive")]
+    fn py_periods_below_threshold_adaptive(
+        &self,
+        py: Python<'_>,
+        query: PyRef<'_, ThresholdQuery>,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let query = query.clone();
+        py.detach(|| self.periods_below_threshold_adaptive(&query))
+            .and_then(PyThresholdQueryResult::try_from_inner)
+            .map_err(to_py_err)
+    }
+
+    #[pyo3(name = "periods_below_threshold_adaptive_with_context")]
+    fn py_periods_below_threshold_adaptive_with_context(
+        &self,
+        py: Python<'_>,
+        context: PyRef<'_, PySiteWindowContext>,
+        query: PyRef<'_, ThresholdQuery>,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let context = Arc::clone(&context.inner);
+        let query = query.clone();
+        py.detach(|| self.periods_below_threshold_adaptive_with_context(&context, &query))
+            .and_then(PyThresholdQueryResult::try_from_inner)
+            .map_err(to_py_err)
+    }
+
+    /// Inclusive min/max search with shared adaptive discovery and inward
+    /// conversion to Python datetime precision.
+    #[pyo3(name = "periods_in_band_adaptive")]
+    fn py_periods_in_band_adaptive(
+        &self,
+        py: Python<'_>,
+        query: PyRef<'_, ThresholdQuery>,
+        minimum: f64,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let query = query.clone();
+        py.detach(|| {
+            self.periods_in_band_adaptive(
+                &query,
+                crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(
+                    minimum,
+                ),
+            )
+        })
+        .and_then(PyThresholdQueryResult::try_from_inner)
+        .map_err(to_py_err)
+    }
+
+    #[pyo3(name = "periods_in_band_adaptive_with_context")]
+    fn py_periods_in_band_adaptive_with_context(
+        &self,
+        py: Python<'_>,
+        context: PyRef<'_, PySiteWindowContext>,
+        query: PyRef<'_, ThresholdQuery>,
+        minimum: f64,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let context = Arc::clone(&context.inner);
+        let query = query.clone();
+        py.detach(|| {
+            self.periods_in_band_adaptive_with_context(
+                &context,
+                &query,
+                crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(
+                    minimum,
+                ),
+            )
+        })
+        .and_then(PyThresholdQueryResult::try_from_inner)
+        .map_err(to_py_err)
+    }
+
+    #[pyo3(name = "periods_in_band_certified_with_context")]
+    fn py_periods_in_band_certified_with_context(
+        &self,
+        py: Python<'_>,
+        context: PyRef<'_, PySiteWindowContext>,
+        query: PyRef<'_, ThresholdQuery>,
+        minimum: f64,
+    ) -> PyResult<PyThresholdQueryResult> {
+        let context = Arc::clone(&context.inner);
+        let query = query.clone();
+        py.detach(|| {
+            self.periods_in_band_certified_with_context(
+                &context,
+                &query,
+                crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(
+                    minimum,
+                ),
+            )
+        })
+        .and_then(PyThresholdQueryResult::try_from_inner)
+        .map_err(to_py_err)
+    }
+
     #[new]
     #[pyo3(signature = (config=None))]
     fn py_new(py: Python<'_>, config: Option<PyRef<'_, NsbModelConfig>>) -> PyResult<Self> {
@@ -65,10 +190,9 @@ impl NsbEvaluator {
         query: PyRef<'_, ThresholdQuery>,
     ) -> PyResult<PyThresholdQueryResult> {
         let query = query.clone();
-        let result = py
-            .detach(|| self.periods_below_threshold(&query))
-            .map_err(to_py_err)?;
-        Ok(PyThresholdQueryResult::from_inner(result))
+        py.detach(|| self.periods_below_threshold(&query))
+            .and_then(PyThresholdQueryResult::try_from_inner)
+            .map_err(to_py_err)
     }
 
     #[pyo3(name = "periods_below_threshold_with_context")]
@@ -80,9 +204,8 @@ impl NsbEvaluator {
     ) -> PyResult<PyThresholdQueryResult> {
         let context = Arc::clone(&context.inner);
         let query = query.clone();
-        let result = py
-            .detach(|| self.periods_below_threshold_with_context(&context, &query))
-            .map_err(to_py_err)?;
-        Ok(PyThresholdQueryResult::from_inner(result))
+        py.detach(|| self.periods_below_threshold_with_context(&context, &query))
+            .and_then(PyThresholdQueryResult::try_from_inner)
+            .map_err(to_py_err)
     }
 }

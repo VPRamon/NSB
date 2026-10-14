@@ -409,7 +409,7 @@ jobs:
             additional-python: "3.14"
             additional-venv-python: ./.wheel-venv-314/bin/python
           - os: macos-14
-            # siderust 0.2.2 has macOS arm64 wheels for CPython 3.11+, but not 3.10.
+            # Exercise macOS interoperability with an installed CPython 3.11 wheel.
             python-version: "3.11"
             manylinux: "off"
             container: "off"

@@ -21,8 +21,8 @@ Python 3.10 or newer is supported.
 python -m pip install nsb-rust
 ```
 
-The distribution declares `siderust>=0.3.0,<0.4` as its runtime dependency,
-so pip installs the canonical Python Siderust package automatically. The Rust
+The distribution declares `siderust>=0.4.0,<0.5` and `tempoch>=0.4.0,<0.5`
+as runtime dependencies, so pip installs the matching canonical upstream packages. The Rust
 crate version used internally is a separate version line; see
 [Siderust compatibility](specifications/siderust-compatibility.md).
 
@@ -112,7 +112,6 @@ Planning windows use ordinary timezone-aware Python datetimes at the boundary:
 
 ```python
 max_nsb_photons_cm2_ns_sr = 0.25
-sample_step_s = 600.0
 
 query = nsb.ThresholdQuery(
     ctao_south,
@@ -121,7 +120,6 @@ query = nsb.ThresholdQuery(
     datetime(2026, 9, 28, 4, 0, tzinfo=timezone.utc),
     max_nsb_photons_cm2_ns_sr,
     components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
-    sample_step_s=sample_step_s,
 )
 
 context = evaluator.prepare_site_window_context(query)
@@ -132,6 +130,28 @@ for start, end in result.periods:
 ```
 
 Returned periods are `(start, end)` tuples of timezone-aware UTC `datetime.datetime` values. NSB does not expose a bespoke Python `UtcPeriod` type.
+
+Normal planning methods use step-free adaptive discovery in NSB 0.1.
+`sample_step_s` remains an ignored compatibility input; its constructor still
+requires a finite positive value. Explicit adaptive method names are aliases
+for the same search. Inclusive bands use the shared two-threshold engine:
+
+```python
+result = evaluator.periods_below_threshold_adaptive_with_context(context, query)
+band = evaluator.periods_in_band_adaptive_with_context(context, query, 0.10)
+```
+
+The band condition is inclusive: `0.10 <= NSB <= query.threshold`. Both levels
+share the same physical fits, exact probes and crossing brackets. Returned
+boundaries contract inward and are checked at Python microsecond precision.
+Numerical ambiguity or resource exhaustion raises an error without a partial
+schedule. Adaptive discovery is empirical under documented model-resolution
+assumptions; it does not certify every unvisited instant. The strict certified
+methods continue to require sound interval enclosures.
+
+The maintainer authorized the default migration in the 0.1 line. Normal Rust,
+Python and CLI planning now use the same adaptive engine. Legacy step arguments
+are retained and ignored; the scanner remains only as an independent test reference.
 
 ## Time boundary
 
@@ -158,7 +178,7 @@ Evaluator construction, point evaluation, and planning operations detach from th
 python -m venv .venv
 . .venv/bin/activate
 python -m pip install -U pip "maturin>=1.9,<2" pytest
-python -m pip install "siderust>=0.3.0,<0.4"
+python -m pip install "siderust>=0.4.0,<0.5"
 maturin develop --locked
 python -m pytest python/tests
 ```
@@ -175,10 +195,12 @@ The NSB binding uses PyO3's CPython stable ABI with a Python 3.10 floor
 (`abi3-py310`). Python support and the `siderust-py` / `tempoch-py` Rust bridge
 dependencies remain feature-gated, so normal Rust builds do not enable PyO3.
 
-The `nsb-rust` distribution declares `siderust>=0.3.0,<0.4` as its only runtime
-dependency. Wheel CI installs the exact freshly built NSB wheel by path and lets
-pip resolve the released canonical Siderust wheel from PyPI, so an existing
-`nsb-rust` release cannot be selected accidentally. The Python `tempoch`
-distribution is not required: NSB exposes ordinary `datetime.datetime` values,
-while the Rust-side `tempoch-py` interop crate performs the conversions inside
-the NSB extension.
+The installed wheel tests resolve released Siderust and Tempoch 0.4 wheels
+from PyPI. The Rust extension links siderust-py / tempoch-py 0.4 against
+Siderust 0.14 and Tempoch 0.10. CLI, Rust and Python band searches use the
+same joint algorithm; `periods_in_band_adaptive(query, minimum)` accepts
+`minimum <= NSB <= query.threshold`, with both crossing brackets contracted
+inward. The context variant shares preparation. The certified band variant
+requires a sound enclosure of the whole band and fails for unsupported models.
+Ordinary Python timestamps remain timezone-aware `datetime` values, with
+inward projection checked at microsecond precision.

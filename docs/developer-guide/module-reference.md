@@ -61,9 +61,9 @@ SemVer policy, and the snapshot gate are documented in
 | `planning::types` | Threshold queries/results and reusable `SiteWindowContext` |
 | `planning::prepare` | Site/window and target-specific preparation |
 | `planning::filters` | Candidate-window smoothing and airglow phase helpers |
-| `planning::scan` | Threshold sampling, crossing refinement, and UTC/TT conversion |
+| `planning::intervals` | Interval coalescing and inward UTC/TT conversion |
+| `planning::discovery` | Primary adaptive search; strict mode accepts only sound interval enclosures |
 | `planning::threshold` | Search orchestration and thin evaluator convenience wrappers |
-| `planning::diagnostics` | Feature-gated window-search diagnostics |
 
 ## `nsb-cli` modules
 

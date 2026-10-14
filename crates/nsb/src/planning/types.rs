@@ -31,7 +31,8 @@ pub struct ThresholdQuery {
     pub threshold: BandPhotonRadiance,
     /// Components to compose.
     pub components: ComponentMask,
-    /// Coarse radiance scan step.
+    /// Legacy sampling metadata retained for source compatibility.
+    /// All runtime searches are adaptive or certified and ignore this field.
     pub sample_step: Second,
     /// Optional maximum Sun altitude pre-filter.
     pub sun_altitude_ceiling: Option<Degrees>,
@@ -40,7 +41,7 @@ pub struct ThresholdQuery {
 }
 
 impl ThresholdQuery {
-    /// Default ten-minute coarse scan step.
+    /// Compatibility default for the unused legacy sampling field.
     pub const DEFAULT_SAMPLE_STEP: Second = Second::new(600.0);
     /// Default astronomical-night Sun-altitude ceiling.
     pub const DEFAULT_SUN_ALTITUDE_CEILING: Degrees = Degrees::new(-18.0);
@@ -72,7 +73,7 @@ impl ThresholdQuery {
         self
     }
 
-    /// Replace the coarse radiance scan step.
+    /// Retain legacy sampling metadata; this does not control runtime discovery.
     pub fn with_sample_step(mut self, sample_step: Second) -> Self {
         self.sample_step = sample_step;
         self
@@ -97,9 +98,12 @@ impl ThresholdQuery {
 /// and reuse it for queries that differ only in target, target-altitude floor,
 /// radiance threshold, or sampling step. The planning layer rejects contexts created
 /// by another evaluator or for incompatible site/window/component settings.
+/// Recreate the context after refreshing Tempoch time data. The active time-data
+/// bundle must remain fixed during a query; observed changes fail explicitly.
 #[derive(Clone)]
 pub struct SiteWindowContext {
     pub(crate) evaluator_identity: Arc<()>,
+    pub(crate) astronomy: Arc<super::astronomy::AstronomyCache>,
     pub(crate) observer: Observer,
     pub(crate) window: Period<UTC>,
     pub(crate) components: ComponentMask,
@@ -140,12 +144,15 @@ impl std::fmt::Debug for SiteWindowContext {
 pub struct ThresholdQueryResult {
     /// Threshold used by the search.
     pub threshold: BandPhotonRadiance,
-    /// UTC periods satisfying all filters and the threshold.
+    /// UTC periods satisfying the filters and the selected search contract.
+    /// Adaptive methods assume the piecewise physical signal is numerically
+    /// resolved; certified methods require interval certificates for all time.
     pub periods: Vec<Period<UTC>>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedThresholdQuery {
+    pub(crate) astronomy: Arc<super::astronomy::AstronomyCache>,
     pub(crate) observer: Observer,
     pub(crate) target: Target,
     pub(crate) components: ComponentMask,

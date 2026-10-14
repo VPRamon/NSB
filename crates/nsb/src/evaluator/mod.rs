@@ -15,6 +15,7 @@ pub use core::NsbEvaluator;
 pub use metadata::{
     BandDiagnostic, ComponentCalibrationStatus as CalibrationStatus, NsbComponentMetadata,
 };
+pub(crate) use types::validate_geometry;
 pub use types::{
     ComponentMask, NsbComponent, NsbComponentDescriptor, NsbModelConfig, NsbResult, Observer,
     PointQuery, Target,

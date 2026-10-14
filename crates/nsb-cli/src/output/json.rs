@@ -17,6 +17,7 @@ use nsb::{
 use serde::Serialize;
 use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
+use siderust::coordinates::{spherical::direction, transform::TransformFrame};
 use tempoch::{Period, Time, UTC};
 
 #[derive(Serialize)]
@@ -222,6 +223,7 @@ pub fn write_point(
     config: &NsbModelConfig,
     result: &NsbResult,
 ) -> Result<()> {
+    let target: direction::ICRS = target.to_frame();
     let payload = PointJson {
         schema_version: "nsb-cli-point-json-v1",
         version: version_json(),

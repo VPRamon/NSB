@@ -6,10 +6,23 @@ All notable changes to published NSB releases are recorded here.
 
 ### Changed
 
-- Upgrade the Rust workspace to Siderust 0.13.0 and Tempoch 0.9.0, with
-  Siderust/Python interoperability crates at 0.3.0.
-- Require the Siderust Python distribution `>=0.3.0,<0.4` and update
-  dependency provenance metadata and compatibility documentation.
+- Make adaptive discovery the normal Rust/Python/CLI threshold search in the
+  0.1 line under explicit maintainer authorization. Retain public step fields,
+  builders and CLI arguments as ignored compatibility inputs; explicit adaptive
+  names remain aliases. Move the scanner and prior certificate-subdivision
+  implementation to independent test-only references.
+
+- Upgrade to registry Siderust 0.14, Tempoch 0.10, Principia 0.6 and Python
+  interoperability/runtime packages 0.4; retain Rust 1.89.
+- Fix adaptive low-fit aliasing with all interlaced and independent interior
+  checks; retain exact physical refinement and strict certificate semantics.
+- Add inclusive joint min/max adaptive bands in Rust and Python. CLI minimum
+  constraints use this engine, replacing unsafe interval subtraction.
+- Bound adaptive work across the whole query using deterministic Rayon batches.
+- Preserve split temporal endpoints when joining fitted and certified regimes,
+  fixing artificial UTC-midnight fragmentation.
+- Add independently resolved Zodiacal, PALACE/Moonlight and twilight discovery
+  regressions, complete schedule benchmarks and compatible installed-wheel tests.
 - Refresh Paranal Zodiacal and Airglow numerical baselines for the upgraded
   time/geometry dependencies, retaining existing regression tolerances.
 

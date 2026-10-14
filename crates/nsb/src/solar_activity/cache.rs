@@ -17,20 +17,31 @@ pub(crate) struct SolarActivityValueCache {
     source: SolarActivitySource,
     values: Arc<RwLock<HashMap<NaiveDate, SolarFluxUnits>>>,
     volatile_dates: HashSet<NaiveDate>,
+    transitions: Arc<[Time<UTC>]>,
 }
 
 impl SolarActivityValueCache {
     pub(crate) fn new(source: &SolarActivitySource) -> crate::Result<Self> {
-        let volatile_dates = match source {
-            SolarActivitySource::Explicit(_) => HashSet::new(),
-            SolarActivitySource::Dataset(store) => transition_dates(store),
-            SolarActivitySource::Automatic => transition_dates(bundled_f107_store()?),
+        let store = match source {
+            SolarActivitySource::Explicit(_) => None,
+            SolarActivitySource::Dataset(store) => Some(store.as_ref()),
+            SolarActivitySource::Automatic => Some(bundled_f107_store()?),
         };
+        let transitions: Vec<_> = store.into_iter().flat_map(transition_instants).collect();
+        let volatile_dates = transitions
+            .iter()
+            .filter_map(|t| t.to_chrono().map(|dt| dt.date_naive()))
+            .collect();
         Ok(Self {
             source: source.clone(),
             values: Arc::new(RwLock::new(HashMap::new())),
             volatile_dates,
+            transitions: transitions.into(),
         })
+    }
+
+    pub(crate) fn transitions(&self) -> &[Time<UTC>] {
+        &self.transitions
     }
 
     pub(crate) fn value_at(&self, time: Time<UTC>) -> crate::Result<SolarFluxUnits> {
@@ -59,7 +70,7 @@ impl SolarActivityValueCache {
     }
 }
 
-fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
+fn transition_instants(store: &F107Store) -> Vec<Time<UTC>> {
     store
         .records
         .iter()
@@ -70,8 +81,9 @@ fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
             ]
         })
         .flatten()
+        .chain(store.retrieved_at_utc.as_deref())
         .filter_map(|value| DateTime::parse_from_rfc3339(value).ok())
-        .map(|date_time| date_time.with_timezone(&chrono::Utc).date_naive())
+        .map(|date_time| Time::<UTC>::from_chrono(date_time.with_timezone(&chrono::Utc)))
         .collect()
 }
 
@@ -79,6 +91,13 @@ fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
 mod tests {
     use super::*;
     use chrono::{Duration, TimeZone, Utc};
+
+    fn transition_dates(store: &F107Store) -> HashSet<NaiveDate> {
+        transition_instants(store)
+            .iter()
+            .map(|t| t.to_chrono().unwrap().date_naive())
+            .collect()
+    }
 
     #[test]
     fn transition_dates_are_normalized_to_utc() {

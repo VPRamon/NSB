@@ -7,22 +7,28 @@ use crate::components::airglow;
 use crate::error::{NsbError, Result};
 use crate::evaluator::{ComponentMask, NsbEvaluator};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use crate::units::Second;
 use siderust::bodies::Moon as MoonBody;
-use siderust::coordinates::spherical::direction;
+use siderust::coordinates::{spherical::direction, transform::TransformFrame};
 use siderust::event::altitude::{above_threshold as altitude_above_threshold, SearchOpts};
 use siderust::qtty::Degrees;
 use siderust::time::{intersect_periods, Interval as TimePeriod, ModifiedJulianDate};
 use std::sync::Arc;
 
-pub(crate) fn validate_threshold(query: &ThresholdQuery) -> Result<()> {
+pub(crate) fn validate_query(query: &ThresholdQuery) -> Result<()> {
+    crate::evaluator::validate_geometry(query.observer, query.target)?;
+    if query
+        .sun_altitude_ceiling
+        .is_some_and(|angle| !angle.is_finite())
+        || query
+            .target_altitude_floor
+            .is_some_and(|angle| !angle.is_finite())
+    {
+        return Err(NsbError::OutOfRange(
+            "altitude filters must be finite".into(),
+        ));
+    }
     if !query.threshold.is_finite() {
         return Err(NsbError::OutOfRange("threshold must be finite".to_string()));
-    }
-    if !query.sample_step.is_finite() || query.sample_step <= Second::new(0.0) {
-        return Err(NsbError::OutOfRange(
-            "sample_step must be finite and greater than zero".to_string(),
-        ));
     }
     if query.window.start > query.window.end {
         return Err(NsbError::OutOfRange(
@@ -37,6 +43,7 @@ pub(crate) fn prepare_site_context(
     query: &ThresholdQuery,
     tt_window: TimePeriod<ModifiedJulianDate>,
 ) -> Result<SiteWindowContext> {
+    let astronomy = Arc::new(super::astronomy::AstronomyCache::new(query.observer));
     let uses_airglow = query.components.contains(ComponentMask::AIRGLOW);
     let uses_moon = query.components.contains(ComponentMask::MOON);
     let prepare_nights = || {
@@ -93,8 +100,10 @@ pub(crate) fn prepare_site_context(
             )
         })
         .transpose()?;
+    astronomy.validate_time_data()?;
     Ok(SiteWindowContext {
         evaluator_identity: Arc::clone(evaluator.identity()),
+        astronomy,
         observer: query.observer,
         window: query.window,
         components: query.components,
@@ -129,7 +138,7 @@ pub(crate) fn validate_site_context(
                 .to_string(),
         ));
     }
-    Ok(())
+    context.astronomy.validate_time_data()
 }
 
 pub(crate) fn prepare_target_threshold(
@@ -143,7 +152,7 @@ pub(crate) fn prepare_target_threshold(
         BandPhotonRadiance::new(0.0)
     };
     let target_visible_periods = if let Some(target_min) = query.target_altitude_floor {
-        let target_dir = direction::ICRS::new(query.target.ra(), query.target.dec());
+        let target_dir: direction::ICRS = query.target.to_frame();
         altitude_above_threshold(
             &target_dir,
             &query.observer,
@@ -157,6 +166,7 @@ pub(crate) fn prepare_target_threshold(
     let candidate_windows =
         intersect_periods(context.sun_filter_periods.as_ref(), &target_visible_periods);
     let prepared = PreparedThresholdQuery {
+        astronomy: Arc::clone(&context.astronomy),
         observer: query.observer,
         target: query.target,
         components: query.components,

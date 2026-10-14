@@ -31,7 +31,16 @@ impl Jones2013Spectral {
         time: Time<UTC>,
         target: SphericalDirection<EquatorialMeanJ2000>,
     ) -> Result<MoonOutputs> {
-        let geometry = lunar_geometry(time, self.location, target);
+        self.compute_with_sky(time, target, &MoonlightSky::at(time, self.location))
+    }
+
+    pub(crate) fn compute_with_sky(
+        &self,
+        time: Time<UTC>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+        sky: &MoonlightSky,
+    ) -> Result<MoonOutputs> {
+        let geometry = sky.geometry(time.to::<TT>().to::<JD>(), self.location, target);
         compute_jones_2013_spectral(
             &geometry,
             bundled_solar_spectrum(),
@@ -56,18 +65,15 @@ fn compute_jones_2013_spectral(
     tau_scale: ScaleFactors,
     profile: AtmosphereProfile,
 ) -> Result<MoonOutputs> {
-    if !inp.moon_zenith.is_finite()
-        || !inp.source_zenith.is_finite()
-        || !inp.separation.is_finite()
-        || !tau_scale.is_finite()
-        || !inp.moon_distance.is_finite()
-    {
-        return Ok(zero_outputs());
+    inp.validate()?;
+    if !tau_scale.is_finite() {
+        return Err(crate::NsbError::OutOfRange(
+            "non-finite Jones optical-depth scale".into(),
+        ));
     }
     if inp.moon_zenith >= Degrees::new(90.0)
         || inp.source_zenith >= Degrees::new(90.0)
         || inp.separation <= Degrees::new(0.0)
-        || inp.moon_distance <= Kilometers::new(0.0)
     {
         return Ok(zero_outputs());
     }
@@ -80,8 +86,8 @@ fn compute_jones_2013_spectral(
     let am_src = airmass::<KrisciunasSchaeferAirmass>(inp.source_zenith.to::<Radian>());
     let tau_scale = tau_scale.value();
 
-    let mut lam = Vec::new();
-    let mut density = Vec::new();
+    let mut lam = Vec::with_capacity(solar.len());
+    let mut density = Vec::with_capacity(solar.len());
     for (&lambda_nm, &solar_irradiance) in solar.xs_raw().iter().zip(solar.ys_raw()) {
         if !(WL_LOW.value()..=WL_HIGH.value()).contains(&lambda_nm) {
             continue;
@@ -93,13 +99,15 @@ fn compute_jones_2013_spectral(
             inp.phase.phase_angle,
             inp.moon_distance,
         );
-        if !lunar_radiance.value().is_finite() || lunar_radiance.value() <= 0.0 {
+        if !lunar_radiance.is_finite() {
+            return Err(crate::NsbError::OutOfRange(
+                "non-finite reflected lunar radiance".into(),
+            ));
+        }
+        if lunar_radiance.value() <= 0.0 {
             continue;
         }
-        let lunar_ph = spectral_radiance_to_photon_radiance_ns_nm(
-            WattsPerSquareMeterSteradianNanometer::new(lunar_radiance.value()),
-            wavelength,
-        );
+        let lunar_ph = spectral_radiance_to_photon_radiance_ns_nm(lunar_radiance, wavelength);
         let tau_r = rayleigh_optical_depth_bodhaine99(
             wavelength,
             profile.surface_pressure,
@@ -118,7 +126,12 @@ fn compute_jones_2013_spectral(
         let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon_v + am_src_v)).exp();
         let source_path = 1.0 - (-(tau_r + tau_m) * am_src_v).exp();
         let value = (lunar_ph * scatter * transmission * source_path.max(0.0) * multi).value();
-        if value.is_finite() && value > 0.0 {
+        if !value.is_finite() {
+            return Err(crate::NsbError::OutOfRange(
+                "non-finite scattered lunar radiance".into(),
+            ));
+        }
+        if value > 0.0 {
             lam.push(lambda_nm);
             density.push(value);
         }

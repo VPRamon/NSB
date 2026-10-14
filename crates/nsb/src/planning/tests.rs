@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-use super::scan::{
-    above_threshold_periods, coalesce_periods, complement_periods, tt_mjd_period_to_utc,
-    tt_mjd_to_utc_time, utc_period_to_tt_mjd,
+use super::intervals::{
+    coalesce_periods, tt_mjd_period_to_utc, tt_mjd_to_utc_time, utc_period_to_tt_mjd,
 };
+use super::reference_scan::{above_threshold_periods, complement_periods};
 use super::types::{ThresholdQuery, ThresholdQueryResult};
 use crate::error::Result;
 use crate::evaluator::{ComponentMask, NsbEvaluator, Observer, Target};
@@ -80,11 +80,11 @@ fn prepare_threshold(
     crate::planning::prepare::prepare_target_threshold(evaluator, &context, query)
 }
 
-fn scan_threshold_periods(
+fn scan_threshold_native(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
-) -> Result<ThresholdQueryResult> {
-    crate::planning::prepare::validate_threshold(query)?;
+) -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
+    crate::planning::prepare::validate_query(query)?;
     let tt_window = utc_period_to_tt_mjd(query.window);
     let prepared = prepare_threshold(evaluator, query, tt_window)?;
     let step = query.sample_step.to::<Day>();
@@ -99,11 +99,19 @@ fn scan_threshold_periods(
     }
     coalesce_periods(&mut darker_periods);
 
+    Ok(darker_periods)
+}
+
+fn scan_threshold_periods(
+    evaluator: &NsbEvaluator,
+    query: &ThresholdQuery,
+) -> Result<ThresholdQueryResult> {
+    let tt_window = utc_period_to_tt_mjd(query.window);
     Ok(ThresholdQueryResult {
         threshold: query.threshold,
-        periods: darker_periods
+        periods: scan_threshold_native(evaluator, query)?
             .into_iter()
-            .map(|period| tt_mjd_period_to_utc(period, prepared.tt_window, query.window))
+            .map(|period| tt_mjd_period_to_utc(period, tt_window, query.window))
             .collect(),
     })
 }
@@ -148,7 +156,7 @@ fn threshold_airglow_splits_palace_hour_boundaries_for_coarse_scans() {
     let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
 
     assert!(!prepared.airglow_phase_periods.is_empty());
-    let windows = crate::planning::filters::smooth_threshold_windows(&prepared);
+    let windows = crate::planning::filters::threshold_windows(&prepared, true);
     assert!(!windows.is_empty());
     let max_window_seconds = windows
         .iter()
@@ -222,15 +230,40 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
         // caller-selected production sampling step so it cannot skip it.
         let mut oracle_query = query.clone();
         oracle_query.sample_step = Second::new(10.0);
-        let scan = scan_threshold_periods(&evaluator, &oracle_query).unwrap();
-        assert_eq!(
-            authoritative.periods.len(),
-            scan.periods.len(),
-            "{fixture}: authoritative={:?}, scan={:?}",
-            authoritative.periods,
-            scan.periods
+        let reference = scan_threshold_native(&evaluator, &oracle_query).unwrap();
+        let context = evaluator.prepare_site_window_context(&query).unwrap();
+        let prepared =
+            super::prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
+        let windows = super::filters::adaptive_threshold_windows(&prepared).unwrap();
+        let (native, _) = super::discovery::search_windows(
+            &windows,
+            query.threshold,
+            None,
+            |t| super::threshold::evaluate_integrated(&evaluator, &prepared, t),
+            |w| super::bounds::prepared_bounds(&prepared, w),
+            false,
+        )
+        .unwrap();
+        let comparison = super::discovery_bench::compare(
+            &evaluator, &context, &query, &native, &reference, fixture, false,
         );
-        assert_periods_match_within_seconds(&authoritative, &scan, 2);
+        // Two accepted twilight singleton endpoints become false positive
+        // durations in the midpoint scanner. The comparator independently
+        // requires exact physical-boundary identity, an accepted endpoint,
+        // and rejected radiance at five interior fractions of each interval.
+        assert_eq!(
+            comparison.singleton_artifacts,
+            if fixture == "airglow-zodiacal" { 2 } else { 0 }
+        );
+        assert_eq!(comparison.fine_missed_excursions, 0);
+        let projected: Vec<_> = native
+            .into_iter()
+            .map(|w| {
+                super::intervals::inward_tt_mjd_period_to_utc(w, prepared.tt_window, query.window)
+                    .unwrap()
+            })
+            .collect();
+        assert_eq!(authoritative.periods, projected, "{fixture}");
     }
 }
 
@@ -364,6 +397,15 @@ fn site_context_rejects_another_evaluator_or_incompatible_site_state() {
     assert!(evaluator
         .periods_below_threshold_with_context(&context, &incompatible)
         .is_err());
+    // A populated context cannot carry observer-dependent Moon state to a
+    // different site, even when all other query settings match.
+    context.astronomy.moon(query.window.start);
+    incompatible = query.clone();
+    incompatible.observer = high_arctic();
+    assert!(matches!(
+        evaluator.periods_below_threshold_with_context(&context, &incompatible),
+        Err(crate::NsbError::OutOfRange(_))
+    ));
 }
 
 #[test]
@@ -387,7 +429,8 @@ fn target_visibility_matches_precise_altitude_scan_across_regimes() {
         .with_target_altitude_floor(Some(Degrees::new(floor)));
         let tt_window = utc_period_to_tt_mjd(query.window);
         let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
-        let direction = direction::ICRS::new(target.ra(), target.dec());
+        let direction: direction::ICRS =
+            siderust::coordinates::transform::TransformFrame::to_frame(&target);
         let exact_altitude = |time: ModifiedJulianDate| -> Result<Degrees> {
             Ok(direction.altitude_at(&observer, time).to::<Degree>())
         };
@@ -420,7 +463,8 @@ fn grazing_target_excursion_between_four_hour_samples_is_not_pruned() {
         Meters::new(2_147.0),
     );
     let target = Target::new(0.0 * crate::DEG, 45.0 * crate::DEG);
-    let target_dir = direction::ICRS::new(target.ra(), target.dec());
+    let target_dir: direction::ICRS =
+        siderust::coordinates::transform::TransformFrame::to_frame(&target);
     let floor = Degrees::new(20.0);
     let day_start = tt_time(parse("2026-01-01T00:00:00Z"));
 
@@ -625,4 +669,207 @@ fn threshold_moon_context_skips_only_moon_down_samples() {
 
     assert!(checked_down, "test window should include Moon-down samples");
     assert!(checked_up, "test window should include Moon-up samples");
+}
+
+#[test]
+fn split_precision_partitions_keep_distinct_edges_and_interval_order() {
+    let evaluator = NsbEvaluator::new().unwrap();
+    let start = parse("2026-01-01T00:00:00Z");
+    let query = ThresholdQuery::new(
+        paranal(),
+        target_sgr_a(),
+        Period::new(start, start + Second::new(1.0)),
+        BandPhotonRadiance::new(0.0),
+    )
+    .with_components(ComponentMask::MOON)
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(None);
+    let tt = utc_period_to_tt_mjd(query.window);
+    let mut prepared = prepare_threshold(&evaluator, &query, tt).unwrap();
+    let a = tt.start + Second::new(1e-9).to::<Day>();
+    let b = tt.start + Second::new(3e-9).to::<Day>();
+    assert!(a < b);
+    assert_eq!(a.raw().value(), b.raw().value());
+    prepared.moon_visible_periods = Some(std::sync::Arc::from(vec![TimePeriod::new(a, b)]));
+    let windows = super::filters::threshold_windows(&prepared, false);
+    assert_eq!(
+        windows,
+        vec![
+            TimePeriod::new(tt.start, a),
+            TimePeriod::new(a, b),
+            TimePeriod::new(b, tt.end)
+        ]
+    );
+    let mut periods = vec![
+        TimePeriod::new(b, b + Second::new(1e-9).to::<Day>()),
+        TimePeriod::new(tt.start, a),
+    ];
+    coalesce_periods(&mut periods);
+    assert_eq!(periods.len(), 2);
+    assert_eq!(periods[0].start, tt.start);
+}
+
+#[test]
+fn target_eligibility_uses_the_upstream_frame_transformation() {
+    use siderust::coordinates::transform::TransformFrame;
+    let evaluator = NsbEvaluator::new().unwrap();
+    let start = parse("2026-01-01T00:00:00Z");
+    let target = target_sgr_a();
+    let query = ThresholdQuery::new(
+        paranal(),
+        target,
+        Period::new(start, start + Second::new(86400.0)),
+        BandPhotonRadiance::new(0.0),
+    )
+    .with_components(ComponentMask::empty())
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(Some(Degrees::new(20.0)));
+    let tt = utc_period_to_tt_mjd(query.window);
+    let prepared = prepare_threshold(&evaluator, &query, tt).unwrap();
+    let icrs: direction::ICRS = target.to_frame();
+    let expected = siderust_above_threshold(
+        &icrs,
+        &query.observer,
+        tt,
+        Degrees::new(20.0),
+        SearchOpts::default(),
+    );
+    assert_eq!(prepared.candidate_windows, expected);
+}
+
+#[test]
+fn native_search_can_partition_a_window_starting_in_a_leap_second() {
+    let evaluator = NsbEvaluator::new().unwrap();
+    let start = parse("2016-12-31T23:59:60Z");
+    let query = ThresholdQuery::new(
+        paranal(),
+        target_sgr_a(),
+        Period::new(start, start + Second::new(2.0)),
+        BandPhotonRadiance::new(1e6),
+    )
+    .with_components(ComponentMask::MOON)
+    .with_sun_altitude_ceiling(None)
+    .with_target_altitude_floor(None);
+    let result = evaluator.periods_below_threshold(&query).unwrap();
+    for period in result.periods {
+        assert!(
+            query.window.start <= period.start
+                && period.start < period.end
+                && period.end <= query.window.end
+        );
+    }
+}
+
+#[test]
+fn invalid_geometry_and_filters_fail_before_eligibility_can_hide_them() {
+    let evaluator = NsbEvaluator::new().unwrap();
+    let query = threshold_query(
+        paranal(),
+        target_sgr_a(),
+        "2026-01-01T00:00:00Z",
+        24,
+        ComponentMask::ZODIACAL,
+    )
+    .with_sun_altitude_ceiling(None);
+    for field in 0..7 {
+        let mut q = query.clone();
+        match field {
+            0 => q.target = Target::new(Degrees::new(f64::NAN), Degrees::new(0.0)),
+            1 => q.target = Target::new(Degrees::new(0.0), Degrees::new(f64::NAN)),
+            2 => q.observer.lon = Degrees::new(f64::NAN),
+            3 => q.observer.lat = Degrees::new(f64::NAN),
+            4 => q.observer.height = Meters::new(f64::INFINITY),
+            5 => q.sun_altitude_ceiling = Some(Degrees::new(f64::NAN)),
+            _ => q.target_altitude_floor = Some(Degrees::new(f64::INFINITY)),
+        }
+        assert!(
+            matches!(
+                evaluator.periods_below_threshold(&q),
+                Err(crate::NsbError::OutOfRange(_))
+            ),
+            "field {field}"
+        );
+        if field < 5 {
+            let point = crate::PointQuery::new(q.observer, q.window.start, q.target)
+                .with_components(ComponentMask::ZODIACAL);
+            assert!(
+                matches!(
+                    evaluator.evaluate(&point),
+                    Err(crate::NsbError::OutOfRange(_))
+                ),
+                "point field {field}"
+            );
+        }
+    }
+}
+
+#[test]
+fn corrected_frame_recovers_the_independently_validated_north_october_window() {
+    use siderust::coordinates::transform::TransformFrame;
+    let observer = Geodetic::<ECEF>::new_raw(
+        Degrees::new(-17.892),
+        Degrees::new(28.762),
+        Meters::new(2200.0),
+    );
+    let target = Target::new(Degrees::new(51.17192), Degrees::new(-35.0));
+    let icrs: direction::ICRS = target.to_frame();
+    let start = parse("2026-01-01T00:00:00Z");
+    let day_start = parse("2026-10-21T00:00:00Z");
+    let day_end = day_start + Second::new(86400.0);
+    for moon in [
+        crate::MoonlightModel::Jones2013Spectral,
+        crate::MoonlightModel::KrisciunasSchaefer1991,
+    ] {
+        let evaluator = super::test_fixtures::evaluator_with_moon(true, true, moon);
+        let mut q = ThresholdQuery::new(
+            observer,
+            target,
+            Period::new(start, start + Second::new(365.0 * 86400.0)),
+            BandPhotonRadiance::new(0.25),
+        )
+        .with_components(ComponentMask::from_bits(15).unwrap())
+        .with_target_altitude_floor(Some(Degrees::new(20.0)));
+        q.threshold += evaluator.evaluate_starlight(target).unwrap().integrated;
+        let context = evaluator.prepare_site_window_context(&q).unwrap();
+        let prepared = super::prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
+        let out = evaluator
+            .periods_below_threshold_with_context(&context, &q)
+            .unwrap();
+        let periods: Vec<_> = out
+            .periods
+            .into_iter()
+            .filter(|w| day_start < w.end && w.start < day_end)
+            .collect();
+        assert_eq!(periods.len(), 1, "{moon:?}");
+        let period = periods[0];
+        let duration = (period.end - period.start).value();
+        assert!(
+            duration > 7700.0 && duration < 7800.0,
+            "{moon:?}: {period:?}, {duration}"
+        );
+        eprintln!(
+            "NORTH_OCTOBER_WINDOW {moon:?} {} {} {duration}",
+            period.start.to_chrono().unwrap(),
+            period.end.to_chrono().unwrap()
+        );
+        // Point samples are independent of the annual event enumeration. They
+        // establish that the added schedule is eligible and physically below
+        // threshold; the fine matrix alone shares the eligibility preparation.
+        for second in 1..duration.floor() as i64 {
+            let t = period.start + Second::new(second as f64);
+            let tt = super::intervals::utc_time_to_tt_mjd(t);
+            assert!(
+                icrs.altitude_at(&observer, tt)
+                    >= Degrees::new(20.0).to::<siderust::qtty::Radian>()
+            );
+            assert!(
+                siderust::bodies::Sun.altitude_at(&observer, tt)
+                    <= Degrees::new(-18.0).to::<siderust::qtty::Radian>()
+            );
+            assert!(
+                super::reference_scan::evaluate_integrated(&evaluator, &prepared, tt).unwrap()
+                    <= q.threshold
+            );
+        }
+    }
 }

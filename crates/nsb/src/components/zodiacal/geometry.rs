@@ -59,8 +59,22 @@ pub(super) fn compute_observed(
     location: Geodetic<ECEF>,
     target: Target,
 ) -> Result<ZodiacalGeometry> {
+    compute_observed_with_longitude(
+        time,
+        location,
+        target,
+        SunBody::ecliptic_longitude_geocentric(to_jd(time)),
+    )
+}
+
+pub(super) fn compute_observed_with_longitude(
+    time: Time<UTC>,
+    location: Geodetic<ECEF>,
+    target: Target,
+    longitude: Radians,
+) -> Result<ZodiacalGeometry> {
     let jd = to_jd(time);
-    let (beta, delta_lambda) = ecliptic_geometry(target, jd)?;
+    let (beta, delta_lambda) = ecliptic_geometry_with_longitude(target, longitude)?;
     let hz = star_horizontal(target.ra(), target.dec(), &location, jd);
     let alt = hz.alt();
     let zenith = Degrees::new(90.0) - alt;
@@ -71,11 +85,13 @@ pub(super) fn compute_observed(
     })
 }
 
-fn ecliptic_geometry(target: Target, jd: JulianDate) -> Result<(Radians, Radians)> {
+fn ecliptic_geometry_with_longitude(
+    target: Target,
+    lambda_sun: Radians,
+) -> Result<(Radians, Radians)> {
     let ecl: SphericalDirection<EclipticMeanJ2000> = target.to_frame();
     let beta = ecl.lat().to::<Radian>();
     let ecliptic_lon = ecl.lon().to::<Radian>();
-    let lambda_sun = SunBody::ecliptic_longitude_geocentric(jd);
     let delta_lambda = ecliptic_lon.abs_separation(lambda_sun);
     if !beta.is_finite() {
         return Err(NsbError::OutOfRange(format!(
@@ -106,7 +122,8 @@ pub(super) mod test_support {
         target: Target,
     ) -> Result<ZodiacalGeometry> {
         let jd = to_jd(time);
-        let (beta, delta_lambda) = ecliptic_geometry(target, jd)?;
+        let (beta, delta_lambda) =
+            ecliptic_geometry_with_longitude(target, SunBody::ecliptic_longitude_geocentric(jd))?;
         Ok(ZodiacalGeometry {
             beta,
             delta_lambda,

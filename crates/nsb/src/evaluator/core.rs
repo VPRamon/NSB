@@ -129,6 +129,7 @@ impl NsbEvaluator {
 
     /// Evaluate selected components for one point query.
     pub fn evaluate(&self, query: &PointQuery) -> Result<NsbResult> {
+        super::validate_geometry(query.observer, query.target)?;
         let prepared = PreparedPointQuery {
             observer: query.observer,
             target: query.target,
@@ -195,6 +196,25 @@ impl NsbEvaluator {
             )
         })?;
         model.compute(target)
+    }
+
+    pub(crate) fn evaluate_moonlight_with_sky(
+        &self,
+        observer: Observer,
+        time: Time<UTC>,
+        target: Target,
+        sky: &moonlight::MoonlightSky,
+    ) -> Result<moonlight::MoonOutputs> {
+        match self.config.moonlight_model() {
+            MoonlightModel::KrisciunasSchaefer1991 => {
+                moonlight::KrisciunasSchaefer1991::published_reference(observer)
+                    .compute_with_sky(time, target, sky)
+            }
+            MoonlightModel::Jones2013Spectral => {
+                moonlight::Jones2013Spectral::for_site_profile(observer, self.config.site_profile())
+                    .compute_with_sky(time, target, sky)
+            }
+        }
     }
 
     pub(crate) fn evaluate_moonlight(

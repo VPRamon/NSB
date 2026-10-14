@@ -193,15 +193,13 @@ pub(crate) fn airglow_phase_periods_for_window(
             continue;
         }
 
-        let start = night.period.start.raw().value();
-        let end = night.period.end.raw().value();
-        let duration = end - start;
-        if !duration.is_finite() || duration <= 0.0 {
+        let duration = night.period.length();
+        if !duration.is_finite() || duration <= Days::new(0.0) {
             continue;
         }
 
-        let first = ModifiedJulianDate::new(start + duration / 3.0);
-        let second = ModifiedJulianDate::new(start + duration * 2.0 / 3.0);
+        let first = night.period.start + duration / 3.0;
+        let second = night.period.start + duration * 2.0 / 3.0;
         for (period, phase) in [
             (
                 TimePeriod::new(night.period.start, first),
@@ -257,18 +255,17 @@ fn night_phase_from_night(
         return Some(AirglowNightPhase::FullNight);
     }
 
-    let duration_days = night.period.end.raw().value() - night.period.start.raw().value();
-    if !duration_days.is_finite() || duration_days <= 0.0 {
+    let duration = night.period.length();
+    if !duration.is_finite() || duration <= Days::new(0.0) {
         return None;
     }
 
-    let start = night.period.start.raw().value();
-    let first = start + duration_days / 3.0;
-    let second = start + duration_days * 2.0 / 3.0;
+    let first = night.period.start + duration / 3.0;
+    let second = night.period.start + duration * 2.0 / 3.0;
 
-    Some(if time_tt.raw().value() < first {
+    Some(if time_tt < first {
         AirglowNightPhase::FirstThird
-    } else if time_tt.raw().value() < second {
+    } else if time_tt < second {
         AirglowNightPhase::MiddleThird
     } else {
         AirglowNightPhase::LastThird
@@ -282,10 +279,7 @@ fn astronomical_night_containing(
     let mut radius = INITIAL_NIGHT_SEARCH_RADIUS;
 
     loop {
-        let search_window = TimePeriod::new(
-            ModifiedJulianDate::new(time_tt.raw().value() - radius.value()),
-            ModifiedJulianDate::new(time_tt.raw().value() + radius.value()),
-        );
+        let search_window = TimePeriod::new(time_tt - radius, time_tt + radius);
 
         let night = sun_below_threshold_periods(search_window, location, ASTRONOMICAL_TWILIGHT)
             .into_iter()
@@ -322,10 +316,7 @@ fn expand_window(
     window: TimePeriod<ModifiedJulianDate>,
     radius: Days,
 ) -> TimePeriod<ModifiedJulianDate> {
-    TimePeriod::new(
-        ModifiedJulianDate::new(window.start.raw().value() - radius.value()),
-        ModifiedJulianDate::new(window.end.raw().value() + radius.value()),
-    )
+    TimePeriod::new(window.start - radius, window.end + radius)
 }
 
 fn intersect_period(

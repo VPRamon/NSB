@@ -1,0 +1,12 @@
+{
+  "cases": 64,
+  "paired_boundaries": 712,
+  "maximum_matched_error_seconds": 0.41529230976084364,
+  "median_matched_error_seconds": 0.0,
+  "nonzero_matched_boundary_count": 116,
+  "accepted_native_boundaries": 716,
+  "rejected_native_boundaries": 0,
+  "confirmed_reference_missed_excursions": 2,
+  "reference_singleton_jump_artifacts": 0,
+  "unpaired_reference_boundaries": 0
+}

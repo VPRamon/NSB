@@ -67,8 +67,25 @@ bitflags::bitflags! {
 
 /// Ground observer in the ECEF geodetic frame.
 pub type Observer = Geodetic<ECEF>;
-/// ICRS/J2000 equatorial target direction.
+/// Mean equator/equinox J2000 target direction.
+/// Convert ICRS inputs with Siderust's `TransformFrame`.
 pub type Target = SphericalDirection<EquatorialMeanJ2000>;
+
+// Quantity/frame types carry dimensions and axes, but their constructors can
+// still contain non-finite scalars. Check before eligibility or zero shortcuts.
+pub(crate) fn validate_geometry(observer: Observer, target: Target) -> crate::Result<()> {
+    if !observer.lon.is_finite()
+        || !observer.lat.is_finite()
+        || !observer.height.is_finite()
+        || !target.ra().is_finite()
+        || !target.dec().is_finite()
+    {
+        return Err(crate::NsbError::OutOfRange(
+            "observer and target coordinates must be finite".into(),
+        ));
+    }
+    Ok(())
+}
 
 #[cfg_attr(
     feature = "python",
