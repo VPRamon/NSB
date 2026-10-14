@@ -329,14 +329,13 @@ fn diagnostic_suite_rejects_missing_or_invalid_config_before_loading_sources() -
     Ok(())
 }
 
-
 #[test]
-fn empty_offline_diagnostic_run_produces_all_ablation_stages_and_fails_scientifically() -> Result<()> {
+fn empty_offline_diagnostic_run_produces_all_ablation_stages_and_fails_scientifically() -> Result<()>
+{
     let directory = tempfile::tempdir()?;
     let repository = directory.path().join("repo");
-    let partitions = repository.join(
-        crate::starlight::diagnostics::baseline::SMOKE_PARTITIONS_PATH,
-    );
+    let partitions =
+        repository.join(crate::starlight::diagnostics::baseline::SMOKE_PARTITIONS_PATH);
     std::fs::create_dir_all(partitions.parent().unwrap())?;
     std::fs::write(&partitions, "# deliberately empty diagnostic control\n")?;
     let config = directory.path().join("config.toml");
@@ -356,8 +355,14 @@ fn empty_offline_diagnostic_run_produces_all_ablation_stages_and_fails_scientifi
     )?;
     assert!(report.partitions.is_empty());
     assert_eq!(report.ablation_stages.len(), AblationStage::all().len());
-    assert_eq!(report.phase2_parent_summaries.len(), TRACE_PARENTS_SMOKE.len());
-    assert_eq!(report.phase2_control_parent_summaries.len(), CONTROL_PARENTS.len());
+    assert_eq!(
+        report.phase2_parent_summaries.len(),
+        TRACE_PARENTS_SMOKE.len()
+    );
+    assert_eq!(
+        report.phase2_control_parent_summaries.len(),
+        CONTROL_PARENTS.len()
+    );
     assert!(report.source_traces.is_empty());
     assert!(report.phase2_exclusion_gate.starts_with("B_no_meaningful"));
     assert!(report.phase3_branch_gate.starts_with("B_branch_mix"));
