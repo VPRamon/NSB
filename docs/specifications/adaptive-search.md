@@ -1,9 +1,11 @@
 # Adaptive NSB search contract
 
 Normal Rust, Python and CLI threshold searches use one adaptive engine. It
-supports every component mask, actual `ALL` (bits 13), and explicit Starlight +
-Zodiacal + Airglow + Moonlight (bits 15), with both Jones spectral and K&S lunar
-models. Starlight requires a configured admitted or explicitly experimental map.
+supports every component mask with both Jones spectral and K&S lunar
+models. In the current production build, `DEFAULT`/`ALL` includes the four
+components (bits 15) because an approved Starlight map is bundled. A build
+without an admitted bundled map retains the three-component default (bits 13);
+explicit Starlight selection requires an admitted or experimental map.
 Model formulas, spectral integration, atmospheric treatment and Siderust
 astronomical event calculations retain their scientific meaning.
 
@@ -102,7 +104,9 @@ inside all upstream calls and cannot establish isolation across an update follow
 by restoration between checks. Concurrent searches require the same fixed-data
 condition. Python result validation and its lazy datetime getter additionally
 share one immutable upstream `TimeContext` for consistent civil representation.
-Memory and cold-context costs are reported in [performance](adaptive-performance.md).
+Historical memory and cold-context costs are
+[archived with the original performance study](https://github.com/VPRamon/NSB/blob/421cf9db5ab08ffe158120193fa8af40f2ea642b/docs/specifications/adaptive-performance.md).
+Rebenchmark the current build before making performance claims.
 
 A query admits at most 25,000 physical windows. With
 `C = sum(max(1, ceil(window_days / 0.25)))`, query limits are

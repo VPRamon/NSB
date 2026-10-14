@@ -37,7 +37,7 @@ Integrated starlight is unresolved catalogue-star flux mapped in Galactic
 coordinates.
 
 `ALL` is the complete production-safe default. In a tree without a registered
-bundled production starlight CSV/TOML pair, it is the three-component planning
+bundled production Starlight binary/manifest pair, it is the three-component planning
 model. When the Gaia DR3 XP-derived production pair is registered and embedded,
 `ALL` includes starlight. Experimental starlight remains excluded from `ALL`; the
 frozen Gaia DR3 release candidate is not production-embedded until #103 signs

@@ -21,9 +21,12 @@ a partial schedule. Legacy step inputs are retained but ignored.
 This is an empirical model-resolution contract, not continuous-time proof.
 Strict certified methods use the same engine but accept only sound interval
 enclosures; active dynamic models remain unsupported by that stronger contract.
-See the [adaptive search contract](adaptive-search.md),
-[scientific validation](adaptive-validation.md), and
-[production measurements](adaptive-performance.md).
+See the [adaptive search contract](adaptive-search.md) and
+[scientific validation](adaptive-validation.md). The 2026-10-13
+three-way timing study and 204-scenario engineering audit are
+[archived at a fixed commit](https://github.com/VPRamon/NSB/blob/421cf9db5ab08ffe158120193fa8af40f2ea642b/docs/specifications/adaptive-performance.md);
+they describe their historical binaries and dependency graph, not the
+performance of every future release.
 
 ## Performance-neutral implementation rules
 
@@ -50,5 +53,7 @@ cargo bench -p nsb --bench airglow_geometry
 
 Normal CI compiles and smoke-runs benchmark binaries through
 `cargo test --workspace --all-targets --locked`; the full adaptive acceptance
-matrix is an explicit release run. Current adaptive measurements replace the
-historical scanner timings retained in Git.
+matrix is an explicit release run. Do not use historical scanner/adaptive timing results as current
+performance assertions or automated pass/fail budgets. Record fresh
+measurements for performance-sensitive changes, with the toolchain,
+workload, dependency graph and hardware stated explicitly.
