@@ -139,6 +139,10 @@ jobs:
             exit 1
           fi
           contents="$(tar -tzf "$crate")"
+          if ! grep -Fq "/LICENSE" <<<"$contents"; then
+            echo "crate omits the AGPL licence text" >&2
+            exit 1
+          fi
           if ! grep -Fq "/THIRD_PARTY_NOTICES.md" <<<"$contents"; then
             echo "crate omits scientific-data notices" >&2
             exit 1
