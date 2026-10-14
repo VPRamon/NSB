@@ -1059,7 +1059,6 @@ reference_distance = \"1 AU\"\n",
         (temp, config_path)
     }
 
-
     fn test_manifest(root: &Path) -> RunManifest {
         RunManifest {
             schema_version: RUN_SCHEMA_VERSION,
@@ -1103,20 +1102,32 @@ reference_distance = \"1 AU\"\n",
         assert_eq!(partition_progress(&manifest).unwrap(), (0, 0));
         status(&path).unwrap();
         let mismatch = initialize_manifest(
-            &config_path, &config, &plan, &path, "different", &sha, "revision",
-        ).unwrap_err();
+            &config_path,
+            &config,
+            &plan,
+            &path,
+            "different",
+            &sha,
+            "revision",
+        )
+        .unwrap_err();
         assert!(mismatch.to_string().contains("persisted run identity"));
 
         let data = temp.path().join("asset.dat");
         fs::write(&data, b"verified").unwrap();
-        manifest.artifacts.push(artifact("asset.dat", &data).unwrap());
+        manifest
+            .artifacts
+            .push(artifact("asset.dat", &data).unwrap());
         manifest.status = RunStatus::Complete;
         write_manifest(&path, &manifest).unwrap();
         assert!(completed_manifest_is_valid(&path).unwrap());
         fs::write(&data, b"tampered").unwrap();
         assert!(!completed_manifest_is_valid(&path).unwrap());
         update_status(&path, RunStatus::Running).unwrap();
-        assert!(matches!(read_manifest(&path).unwrap().status, RunStatus::Running));
+        assert!(matches!(
+            read_manifest(&path).unwrap().status,
+            RunStatus::Running
+        ));
         mark_failed(&path, &anyhow::anyhow!("synthetic failure"));
         let failed = read_manifest(&path).unwrap();
         assert!(matches!(failed.status, RunStatus::Failed));
@@ -1124,7 +1135,10 @@ reference_distance = \"1 AU\"\n",
         let mut invalid = failed;
         invalid.schema_version += 1;
         write_manifest(&path, &invalid).unwrap();
-        assert!(read_manifest(&path).unwrap_err().to_string().contains("unsupported run manifest schema"));
+        assert!(read_manifest(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported run manifest schema"));
     }
 
     #[test]
@@ -1136,9 +1150,15 @@ reference_distance = \"1 AU\"\n",
         let main = temp.path().join("run.json");
         write_manifest(&main, &manifest).unwrap();
         assert_eq!(partition_progress(&manifest).unwrap(), (0, 2));
-        let worker_a = manifest.resolved_workspace.join("workers/part-a/runs/build.json");
-        let worker_b = manifest.resolved_workspace.join("workers/part-b/runs/build.json");
-        assert!(!worker_is_complete(&manifest.resolved_workspace, "part-a", Operation::Build).unwrap());
+        let worker_a = manifest
+            .resolved_workspace
+            .join("workers/part-a/runs/build.json");
+        let worker_b = manifest
+            .resolved_workspace
+            .join("workers/part-b/runs/build.json");
+        assert!(
+            !worker_is_complete(&manifest.resolved_workspace, "part-a", Operation::Build).unwrap()
+        );
         let mut worker = manifest.clone();
         worker.status = RunStatus::Complete;
         worker.partitions.clear();
@@ -1156,7 +1176,11 @@ reference_distance = \"1 AU\"\n",
         let path = temp.path().join("nested/partition.lease");
         let lease = Lease::acquire(&path, 3600).unwrap();
         assert!(path.exists());
-        assert!(Lease::acquire(&path, 3600).err().unwrap().to_string().contains("already held"));
+        assert!(Lease::acquire(&path, 3600)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("already held"));
         drop(lease);
         assert!(!path.exists());
 
@@ -1193,13 +1217,16 @@ reference_distance = \"1 AU\"\n",
         copy_atomic(&source, &destination).unwrap();
         assert_eq!(fs::read(&destination).unwrap(), b"some bytes");
         assert!(copy_atomic(&temp.path().join("missing.txt"), &destination).is_err());
-        let mut document = "schema_version = 1\n".parse::<toml_edit::DocumentMut>().unwrap();
+        let mut document = "schema_version = 1\n"
+            .parse::<toml_edit::DocumentMut>()
+            .unwrap();
         assert!(update_manifest_checksum(
             &mut document,
             DatasetName::SolarSpectrum,
             "not-registered.dat",
             &"0".repeat(64),
-        ).is_err());
+        )
+        .is_err());
     }
 
     #[test]
