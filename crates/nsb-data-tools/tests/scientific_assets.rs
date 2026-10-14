@@ -279,7 +279,7 @@ struct FrozenRuntimeAssets {
 fn verify_frozen_non_runtime_starlight(base: &Path) -> Result<BTreeSet<String>> {
     let repository = base.join("../../..");
     let review: FrozenReviewBundle = toml::from_str(&fs::read_to_string(
-        repository.join("docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml"),
+        repository.join("docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml"),
     )?)?;
     let runtime: FrozenRuntimeAssets = toml::from_str(&fs::read_to_string(
         repository.join("docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"),

@@ -7,47 +7,47 @@ schema = "nsb-starlight-review-bundle-v1"
 [[artifacts]]
 id = "candidate_map"
 path = "crates/nsb/data/starlight_nside128.csv"
-sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+sha256 = "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526"
 
 [[artifacts]]
 id = "merge_report"
 path = "crates/nsb/data/merge_report.json"
-sha256 = "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
+sha256 = "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c"
 
 [[artifacts]]
 id = "release_candidate_gates"
 path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
-sha256 = "66d37d3124d8e5447a97e6799f3542b51c588e2c06c1b4a9f3044ccc1d1e1976"
+sha256 = "75639a3eea9b38a660a692c633094ec67f0f1013338d6c97e46fa8c2a6d04853"
 
 [[artifacts]]
 id = "redistribution_inventory"
 path = "docs/nsb_components/starlight/licensing/approval-inventory-v1.toml"
-sha256 = "db544fdd3fa9ee43f5eb2aebdb8bbf029131b59277f93a1c6e39b5f012d5b965"
+sha256 = "de3f919b0b393a41c904ed965a89662f9553e5cf2ec884be00a3b5f68d7ec4b9"
 
 [[artifacts]]
 id = "validation_artifact_manifest"
 path = "docs/nsb_components/starlight/validation/results/validation-artifact-manifest-v1.toml"
-sha256 = "7cedc4e5d2a71fe9c0c48fc665abeced4a10e7d6d1c0475844e8807dd27b57d1"
+sha256 = "f6b66f22e7ace2253af84a9105ef5e26d66ce6f79c19553f92211e570ef74820"
 
 [[artifacts]]
 id = "runtime_assets_identity"
 path = "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"
-sha256 = "d095f16a23e944945ebf3bfe2670f7f34e5a8b227065c6b62066591117818a75"
+sha256 = "abbb00181d810bb6a86856e24bafe29b61e0b609ce7b5de971163edfc2dd7ff2"
 
 [[artifacts]]
 id = "release_candidate_manifest"
 path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
-sha256 = "57a773240657a0332c65f696dae44a6fb8749c0700a29792d442380c23b6117b"
+sha256 = "0a3aa75506adb9e6ad5003b9657cfaeb7cb0ac530ac1f4f59745763c8c4850b0"
 
 [[artifacts]]
 id = "redistribution_decision_contract_doc"
 path = "docs/nsb_components/starlight/release-candidate/README.md"
-sha256 = "c40588011000fe71500421f373a446de34de9d89afe5945be1750604b9f1c6a7"
+sha256 = "c01db8bf8b48c43093351d680823fd8426be0a44927ae37f7cfe1f1265f49b58"
 
 [[artifacts]]
 id = "derived_map_rights_assessment"
 path = "docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md"
-sha256 = "c75017afb3f8b085ee8b649a45729efc9332d3e758a2d070ca93f7e8a871927d"
+sha256 = "1f77298fdfc50dc108a53692882e7b449c9d66bca99120c54ba708c2da3e76d8"
 
 [[artifacts]]
 id = "starlight_attribution"
@@ -62,7 +62,7 @@ sha256 = "25d50d7d0991b7147479df5d861009acf249471231b86964c0c67dcd7fabc5c0"
 [[artifacts]]
 id = "packaged_scientific_notices"
 path = "crates/nsb/THIRD_PARTY_NOTICES.md"
-sha256 = "6878ed40e729dec0b69a210fc3d9ee37d6d273fcf01bf43760094b457f2541e7"
+sha256 = "6a07db7296bb85ea650c6ed20389940d061ffe436669869a2f4b775c776f37cf"
 
 [[artifacts]]
 id = "rights_contact_guide"
@@ -73,3 +73,28 @@ sha256 = "967cc813ff8afb1d8cfa030702fa2357c8d918a27d1bb81c15169dd1f02069b1"
 id = "external_manifest_contract"
 path = "docs/nsb_components/starlight/external-manifest.md"
 sha256 = "af08fdbe04d8e8ad6aa9e8e96a768413c3490a83c31b800e7b47026487842123"
+
+[[artifacts]]
+id = "documentary_notice_amendment"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/notice-amendment-v2.md"
+sha256 = "cef64bfd4b9cefe4689c0464a2a24cee3feec4d24db9527509ce09c9c36d0dfa"
+
+[[artifacts]]
+id = "prior_accepted_decision"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/decision-20261014T195019Z.json"
+sha256 = "1f741f70facfd1b3cc47d92be156f436a49f0ead9609b9ff9a3fd2f6dfed83f5"
+
+[[artifacts]]
+id = "prior_approval_inventory"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/pre-v1-reset/licensing/approval-inventory-v1.toml"
+sha256 = "db544fdd3fa9ee43f5eb2aebdb8bbf029131b59277f93a1c6e39b5f012d5b965"
+
+[[artifacts]]
+id = "prior_review_bundle"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/pre-v1-reset/release-candidate/review-bundle-v1.toml"
+sha256 = "78b792a8d42c26ac30f58da49d1dd23003d8aff04ab3c5d4534ea192bf439864"
+
+[[artifacts]]
+id = "prior_release_candidate"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/release-candidate-20261014T195019Z.toml"
+sha256 = "57a773240657a0332c65f696dae44a6fb8749c0700a29792d442380c23b6117b"

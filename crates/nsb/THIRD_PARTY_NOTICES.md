@@ -21,7 +21,7 @@ provide full source identifiers and SHA-256s.
   scientific models; relevant model citations and scientific assumptions are
   documented in the repository's model and validation documentation.
 
-## Conditionally approved embedded Starlight
+## Previous conditional Starlight approval and retained source terms
 
 The compact Starlight map and v2 provenance sidecar are embedded in this crate
 under the actual #103 decision `approved_with_conditions`. The maintainer
@@ -171,14 +171,14 @@ legal ownership. The guide records existing correspondence and the limited
 interpretations accepted by the maintainer and their limits.
 
 
-## Exact approved Starlight provenance
+## Regenerated Starlight provenance awaiting renewed approval
 
 - Frozen combined 300–650 nm candidate SHA-256:
-  `7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d`.
+  `e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526`.
 - Embedded compact map SHA-256:
-  `ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784`.
+  `11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f`.
 - Compact v2 sidecar SHA-256:
-  `b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b`.
+  `1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8`.
 
 The map preserves all 196,608 HEALPix pixels and their radiance/uncertainty f64
 values. Gaia CC BY-NC 3.0 IGO and every applicable source-specific term remain

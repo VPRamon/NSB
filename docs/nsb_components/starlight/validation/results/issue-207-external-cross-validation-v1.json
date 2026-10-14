@@ -2,7 +2,7 @@
   "schema_version": 1,
   "validation_id": "issue-207-nsb2-cross-implementation-v1",
   "status": "passed",
-  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+  "candidate_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
   "scientific_scope": "Cross-implementation validation of Galactic direct stellar photon radiance over 300-650 nm. This is validation evidence, not astrophysical ground truth; both implementations share Gaia ancestry.",
   "validator": {
     "repository": "VPRamon/nsb-validation",
@@ -68,5 +68,6 @@
     "new_reference_selected_top_0_1_percent_flux_ratio": 0.630346426354146,
     "interpretation": "The explicit bright-star supplement removes the spatial-correlation collapse and most extreme-tail defect. The remaining smooth approximately 19 percent deficit is consistent with the already isolated XP/Pickles, population, and faint-map model differences."
   },
-  "passed": true
+  "passed": true,
+  "schema_reset_note": "Pre-0.1.0 format/provenance reset only. Numerical data and results are unchanged. Referenced external/CI runs evaluated the original bytes preserved in approval-history/pre-v1-reset; no new external validation or hosted CI run is claimed. Renew checksum-bound evidence before release; see release-candidate/schema-reset-v1.md."
 }

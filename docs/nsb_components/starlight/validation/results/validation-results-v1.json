@@ -6,8 +6,8 @@
   "references_sha256": "2842212da4064492129da07f20abc7b783d1d07dd8730a1c5032ce152fadcb5c",
   "regions_sha256": "03d673170877485a58fa6e81e4959a051b9df3a48635c8e449d71e55bf5a97dc",
   "candidate_map_path": "crates/nsb/data/starlight_nside128.csv",
-  "candidate_map_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
-  "candidate_map_pinned_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+  "candidate_map_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
+  "candidate_map_pinned_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
   "band_nm": [
     300,
     650

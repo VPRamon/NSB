@@ -4,8 +4,8 @@
 - Generated (unix seconds): 1791227050
 - Band: 300-650 nm (ph_m-2_s-1)
 - Candidate map: `crates/nsb/data/starlight_nside128.csv`
-- Candidate map SHA-256: `7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d`
-- Pinned checksum verified against: `7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d`
+- Candidate map SHA-256: `e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526`
+- Pinned checksum verified against: `e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526`
 
 ## Scientific production gate
 

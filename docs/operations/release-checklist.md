@@ -19,12 +19,12 @@ scientific calibration evidence.
 - [ ] Every data file has source, license, checksum, schema, generator, command, validation report, maturity, and storage metadata where applicable.
 - [ ] Every `runtime_embedded = true` asset has explicit redistribution terms; release automation fails closed for missing, unresolved, pending, or unrecorded terms.
 - [ ] The packaged Airglow runtime contains `airglow_palace_v1.dat` with the manifest checksum; PALACE attribution and CC BY 4.0 data terms remain in `THIRD_PARTY_NOTICES.md`.
-- [ ] For the four-component release, #103 contains the actual authorized decision; the exact compact binary and v2 sidecar are production-registered and `ALL`/`DEFAULT` evaluate all four components in Rust and installed Python. Pending development packages exclude Starlight and are not this release configuration.
+- [ ] For the four-component release, #103 contains the actual authorized decision; the exact compact binary and v1 sidecar are production-registered and `ALL`/`DEFAULT` evaluate all four components in Rust and installed Python. Pending development packages exclude Starlight and are not this release configuration.
 - [ ] The immutable approval inventory and review bundle still match the decision. The current inventory is the verified deterministic production/publication projection, with approved planned channels distinguished from actual published channels; no approved hashes were silently repinned.
 - [ ] Record actual Git publication after pushing the approved product, then commit that metadata before tagging. After registry publication, retain the workflow's publication-inventory artifact and commit the updated current inventory. Use the [lifecycle procedure](../nsb_components/starlight/release-candidate/README.md#approval-and-publication-lifecycle).
 - [ ] Verify all 34 Starlight source inputs have a defensible, cited provenance/rights classification; XHIP/SVO unverified grants and later Hipparcos-2/Tycho-2 scope cannot be silently represented as CC BY 4.0 or cleared by a CI string.
 - [ ] Before a release that includes the Starlight map, issue #103 records an authorized human decision and channel-specific restrictions. Do not approve automatically solely because source metadata is populated.
-- [ ] Compact Starlight admission agrees with the approved binary/v2-sidecar hashes and self-loads through `ValidatedStarlightMap`; exact equivalence with the frozen runtime CSV is preserved.
+- [ ] Compact Starlight admission agrees with the approved binary/v1-sidecar hashes and self-loads through `ValidatedStarlightMap`; exact equivalence with the frozen runtime CSV is preserved.
 - [ ] Gaia production extraction diagnostics show zero rejected selected sources, zero XP chunk failures, and at least one accepted XP source.
 - [ ] Gaia map validation reports `radiance_field = integrated_ph_cm2_ns_sr` and passing integrated flux conservation.
 - [ ] Validated external starlight rejects incomplete provenance, checksum/header drift, proxy photometry, incomplete HEALPix maps, failed diagnostics, and missing independent-comparison evidence.
@@ -37,7 +37,7 @@ scientific calibration evidence.
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
 - [ ] Scheduled/manual benchmarks compile and performance changes are summarized.
 - [ ] `CHANGELOG.md` and version constants are updated.
-- [ ] The first-release CLI/model schema baseline is verified with `python3 scripts/check-first-release-schemas.py`; scientific Starlight candidate/runtime versions and checksum-pinned approval evidence are preserved, not cosmetically reset (see [schema versioning](../specifications/schema-versioning.md)).
+- [ ] Review the first-release v1 schemas and regenerated hashes using existing checks; renew checksum-specific Starlight authorization (see [reset record](../nsb_components/starlight/release-candidate/schema-reset-v1.md)).
 - [ ] The first-release API freeze is active: `crates/nsb/api/API_FROZEN` exists, `crates/nsb/api/public-api.txt` is current, and `scripts/check-public-api.sh` passes. Do not tag a public release while the API gate reports pre-freeze mode.
 - [ ] The release tag is exactly `v<crates/nsb/Cargo.toml version>`; tagged releases build all Python wheels and the sdist before publishing.
 - [ ] `CARGO_REGISTRY_TOKEN` is configured for crates.io and the `pypi` GitHub environment is configured for PyPI Trusted Publishing/OIDC.
@@ -47,11 +47,16 @@ scientific calibration evidence.
 
 ## Starlight production preparation — 2026-10-14
 
+Historical results below concern the original approved hashes. The v1 schema
+reset preserves the runtime configuration and makes the active decision pending;
+repeat approval, promotion and four-component package checks before release.
+
+
 - [x] Actual maintainer decision is `approved_with_conditions`, with authenticated
   `VPRamon` identity and explicit acceptance recorded at `2026-10-14T19:50:19Z`.
-  See the [decision](../nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json)
+  See the [original decision](../nsb_components/starlight/release-candidate/approval-history/pre-v1-reset/release-candidate/redistribution-review-decision-v1.json)
   and [accepted findings](../nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md#13-explicit-project-authorization-and-accepted-findings).
-- [x] Promote the exact approved compact binary and v2 sidecar; register both as
+- [x] Promote the exact approved compact binary and v1 sidecar; register both as
   production and embedded. Preserve the frozen candidate, radiances, uncertainties
   and source terms. The immutable approval snapshot remains unchanged.
 - [x] Push the approved pair to PR #238, then record actual Git publication in

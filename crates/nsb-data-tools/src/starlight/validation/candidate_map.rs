@@ -84,7 +84,7 @@ pub fn load(
         .get("schema")
         .with_context(|| format!("{} has no schema header", path.display()))?
         .clone();
-    if schema != EXPECTED_MAP_SCHEMA && schema != "nsb-healpix-starlight-candidate-v5" {
+    if schema != EXPECTED_MAP_SCHEMA {
         bail!(
             "{} declares unsupported schema {schema}, expected {EXPECTED_MAP_SCHEMA}",
             path.display()

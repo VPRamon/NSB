@@ -129,7 +129,7 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
             crate::data::bundled::bundled_asset("starlight_nside128.compact.manifest.toml")
                 .expect("production sidecar metadata");
         assert_eq!(map_meta.schema, "nsb-healpix-starlight-binary-v1");
-        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v2");
+        assert_eq!(sidecar_meta.schema, "nsb-starlight-runtime-manifest-v1");
         assert_eq!(map_meta.calibration_status, "production");
         assert_eq!(sidecar_meta.calibration_status, "production");
         assert!(!map_meta.sha256.is_empty());
@@ -146,7 +146,7 @@ fn bundled_production_model_is_available_only_with_registered_release_assets() {
 #[test]
 fn bundled_production_starlight_pins_issue_207_candidate_lineage() {
     const ISSUE_207_CANDIDATE_SHA256: &str =
-        "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d";
+        "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526";
     let sidecar = crate::data::bundled::BUNDLED_PRODUCTION_STARLIGHT_MANIFEST;
     assert!(
         sidecar.contains(ISSUE_207_CANDIDATE_SHA256),

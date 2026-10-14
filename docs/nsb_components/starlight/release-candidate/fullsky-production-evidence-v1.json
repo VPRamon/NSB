@@ -4,8 +4,8 @@
   "workspace": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-issue207-bright-stars",
   "partitions_built": 3386,
   "photometric_artifact_sha256": "02a6e5c98458351fb13ec7623cffa019a760bdf2e68cca64b80f9c5d7fe4f4f2",
-  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
-  "merge_report_sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
+  "candidate_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
+  "merge_report_sha256": "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c",
   "runtime_map_sha256": "d42e7d9c2583b089e6d12f20b2e2ad8693b1f41ec42b2d766b0d7462a2d0d485",
   "runtime_sidecar_sha256": "f91e8c7442dca03332f9b07236c262b7b997ed4d1ab19dbf98ca8a2bb06627ce",
   "anomalous_nside2_parents": [],
@@ -27,5 +27,6 @@
   "gaia_partitions_reused": 3386,
   "gaia_partitions_recomputed": 0,
   "partitions_failed": 0,
-  "issue": 207
+  "issue": 207,
+  "schema_reset_note": "Historical full-sky metrics carried forward with unchanged scientific values. The original run/approval applies to archived pre-reset bytes. New hashes require renewed checksum-specific evidence and authorization; no new external run or human acceptance is claimed."
 }

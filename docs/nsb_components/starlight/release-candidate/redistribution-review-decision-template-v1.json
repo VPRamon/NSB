@@ -4,27 +4,27 @@
   "reviewer_name": null,
   "reviewer_role": null,
   "reviewed_at_utc": null,
-  "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
-  "inventory_sha256": "2f083e7e91935ba2fa37752cf67d02f81973f9e9e4a6886de427718af3ac1cf2",
-  "review_bundle_sha256": "2fa075af6c31cf7f35ed3143fbe10dae7a12a2ffd36cf67348d8d9e5fdd138f8",
+  "candidate_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
+  "inventory_sha256": "de3f919b0b393a41c904ed965a89662f9553e5cf2ec884be00a3b5f68d7ec4b9",
+  "review_bundle_sha256": "def5533e71470693d62fc24ae346717fd81efa1adb322ae74031df43067d2002",
   "pinned_artifacts": [
     {
       "id": "starlight-candidate-map-nside128",
-      "sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+      "sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
       "approved_channels": [
         "git_repository"
       ]
     },
     {
       "id": "starlight-merge-report",
-      "sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
+      "sha256": "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c",
       "approved_channels": [
         "git_repository"
       ]
     },
     {
       "id": "starlight-manifest-toml",
-      "sha256": "eab188f160f97d3581c88b0b42ff5d95c9134dbd875e20414921ffedab0db56f",
+      "sha256": "56db0ac1a7781a803c0ae53c4055ef83db9b13781b6a6c865e155fd0f4eba6d8",
       "approved_channels": [
         "git_repository"
       ]
@@ -39,14 +39,14 @@
     },
     {
       "id": "starlight-combined-300-650-validation-report",
-      "sha256": "97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399",
+      "sha256": "8bc73d91606a8bd2933709b29e84e8e71c10dd744faaa3ce8b8135e3a09e20db",
       "approved_channels": [
         "git_repository"
       ]
     },
     {
       "id": "compact-runtime-map-v1",
-      "sha256": "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784",
+      "sha256": "11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f",
       "approved_channels": [
         "crates_io",
         "git_repository",
@@ -57,7 +57,7 @@
     },
     {
       "id": "compact-runtime-sidecar-v1",
-      "sha256": "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b",
+      "sha256": "1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8",
       "approved_channels": [
         "crates_io",
         "git_repository",
@@ -69,12 +69,12 @@
   ],
   "conditions": [
     {
-      "id": "review-bundle-v2",
+      "id": "review-bundle-v1",
       "description": "Pin the explicit documentary-amended Starlight #103 review revision, preserving original human approval and v1 evidence.",
       "verifier": {
         "type": "repository_file_sha256",
-        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml",
-        "sha256": "2fa075af6c31cf7f35ed3143fbe10dae7a12a2ffd36cf67348d8d9e5fdd138f8"
+        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
+        "sha256": "def5533e71470693d62fc24ae346717fd81efa1adb322ae74031df43067d2002"
       }
     }
   ],

@@ -371,13 +371,13 @@ runtime_embedded = true
 
 [[assets]]
 path = "starlight_nside128.csv"
-schema = "nsb-healpix-starlight-candidate-v2"
+schema = "nsb-healpix-starlight-candidate-v1"
 calibration_status = "candidate"
 runtime_embedded = false
 
 [[assets]]
 path = "merge_report.json"
-schema = "nsb-starlight-merge-report-v3"
+schema = "nsb-starlight-merge-report-v1"
 calibration_status = "candidate"
 runtime_embedded = false
 "#;
@@ -506,13 +506,13 @@ runtime_embedded = true
 
 [[assets]]
 path = "starlight_nside128.csv"
-schema = "nsb-healpix-starlight-candidate-v2"
+schema = "nsb-healpix-starlight-candidate-v1"
 calibration_status = "candidate"
 runtime_embedded = false
 
 [[assets]]
 path = "merge_report.json"
-schema = "nsb-starlight-merge-report-v3"
+schema = "nsb-starlight-merge-report-v1"
 calibration_status = "candidate"
 runtime_embedded = false
 "#
@@ -537,7 +537,7 @@ runtime_embedded = false
 
 [[assets]]
 path = "starlight_nside128.csv"
-schema = "nsb-healpix-starlight-candidate-v2"
+schema = "nsb-healpix-starlight-candidate-v1"
 calibration_status = "production"
 runtime_embedded = true
 "#

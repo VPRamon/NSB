@@ -75,8 +75,7 @@ impl Asset {
 
     /// Return whether this entry is a fully valid production Starlight sidecar.
     pub fn is_valid_production_starlight_manifest(&self) -> bool {
-        (self.schema == STARLIGHT_MANIFEST_SCHEMA
-            || self.schema == "nsb-starlight-runtime-manifest-v2")
+        self.schema == STARLIGHT_MANIFEST_SCHEMA
             && self.calibration_status.eq_ignore_ascii_case("production")
             && self.runtime_embedded
             && self.path.ends_with(".manifest.toml")
@@ -99,7 +98,6 @@ impl Asset {
     /// Return whether this entry makes an active Starlight production-sidecar claim.
     pub fn is_starlight_release_manifest_claim(&self) -> bool {
         (self.schema == STARLIGHT_MANIFEST_SCHEMA
-            || self.schema == "nsb-starlight-runtime-manifest-v2"
             || (self.path.ends_with(".manifest.toml")
                 && starlight_release_stem(&self.path).is_some()))
             && (self.runtime_embedded || self.calibration_status.eq_ignore_ascii_case("production"))

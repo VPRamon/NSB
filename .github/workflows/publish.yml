@@ -29,9 +29,6 @@ jobs:
         with:
           python-version: "3.14"
 
-      - name: Verify first-release public schema baseline
-        run: python3 scripts/check-first-release-schemas.py
-
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install nightly rustdoc toolchain

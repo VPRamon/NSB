@@ -54,7 +54,7 @@ pub(crate) const REQUIRED_RUNTIME_CHANNELS: [&str; 4] =
 pub(crate) const CURRENT_INVENTORY: &str =
     "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml";
 pub(crate) const APPROVAL_INVENTORY: &str =
-    "docs/nsb_components/starlight/licensing/approval-inventory-v2.toml";
+    "docs/nsb_components/starlight/licensing/approval-inventory-v1.toml";
 
 /// One immutable inventory entry.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

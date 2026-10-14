@@ -61,7 +61,7 @@ fn fixture() -> Result<tempfile::TempDir> {
         });
     fs::write(&registry, baseline.to_string())?;
     fs::copy(
-        fixture.path().join(LIC).join("approval-inventory-v2.toml"),
+        fixture.path().join(LIC).join("approval-inventory-v1.toml"),
         fixture.path().join(LIC).join("artifact-inventory-v1.toml"),
     )?;
     fs::create_dir_all(fixture.path().join("crates/nsb"))?;
@@ -120,8 +120,8 @@ fn real_frozen_evidence_promotes_with_isolated_authorization_and_records_publica
     approved["reviewed_at_utc"] = "2026-01-01T00:00:00Z".into();
     fs::write(&decision_path, serde_json::to_vec_pretty(&approved)?)?;
     let immutable = [
-        root.join(LIC).join("approval-inventory-v2.toml"),
-        root.join(RC).join("review-bundle-v2.toml"),
+        root.join(LIC).join("approval-inventory-v1.toml"),
+        root.join(RC).join("review-bundle-v1.toml"),
         root.join("crates/nsb/data/starlight_nside128.csv"),
         decision_path.clone(),
     ];
@@ -166,7 +166,7 @@ fn real_frozen_evidence_promotes_with_isolated_authorization_and_records_publica
     fs::write(&decision_path, serde_json::to_vec_pretty(&unconditional)?)?;
     succeeds(root, &[])?;
     let bundle: toml::Value = toml::from_str(&fs::read_to_string(
-        root.join(RC).join("review-bundle-v2.toml"),
+        root.join(RC).join("review-bundle-v1.toml"),
     )?)?;
     for artifact in bundle["artifacts"].as_array().unwrap() {
         let path = root.join(artifact["path"].as_str().unwrap());

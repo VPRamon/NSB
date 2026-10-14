@@ -182,9 +182,9 @@ impl ValidatedStarlightMap {
 
 impl ExternalManifest {
     fn validate_contract(&self) -> Result<()> {
-        if ![MANIFEST_SCHEMA_VERSION, 2].contains(&self.schema_version) {
+        if self.schema_version != MANIFEST_SCHEMA_VERSION {
             return Err(invalid(format!(
-                "unsupported external starlight manifest schema {}; expected 1 or 2",
+                "unsupported external starlight manifest schema {}; expected 1",
                 self.schema_version
             )));
         }

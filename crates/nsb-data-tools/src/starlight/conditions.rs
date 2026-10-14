@@ -15,7 +15,7 @@ use std::path::{Component, Path, PathBuf};
 
 /// Canonical immutable evidence bundle pinned by the human decisions in #103.
 pub const REVIEW_BUNDLE_PATH: &str =
-    "docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml";
+    "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const REVIEW_BUNDLE_SCHEMA_VERSION: u32 = 1;
 const REVIEW_BUNDLE_SCHEMA: &str = "nsb-starlight-review-bundle-v1";
 const VALIDATION_ARTIFACT_MANIFEST_ID: &str = "validation_artifact_manifest";

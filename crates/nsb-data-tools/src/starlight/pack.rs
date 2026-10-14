@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-//! Deterministic packing of a frozen candidate-v5 map into a runtime HEALPix CSV.
+//! Deterministic packing of a checksum-pinned candidate-v1 map into a runtime HEALPix CSV.
 //!
 //! The candidate bytes are never rewritten. Omitted sparse pixels become zero
 //! radiance and zero uncertainty. B/V S10 diagnostics are not synthesized.
@@ -17,16 +17,6 @@ use std::path::PathBuf;
 
 /// Packer identity recorded in the runtime sidecar.
 pub const PACKER_ID: &str = "starlight-runtime-pack-v1";
-/// Frozen candidate-v5 transport identity used by the #207 runtime evidence.
-pub const PACKER_V5_ID: &str = "candidate-v5-to-healpix-v2-packed-v1";
-
-pub(crate) fn packer_id(schema: &str) -> &'static str {
-    if schema == "nsb-healpix-starlight-candidate-v5" {
-        PACKER_V5_ID
-    } else {
-        PACKER_ID
-    }
-}
 /// Gaia DR3 GaiaSource `_MD5SUM.txt` acquisition-manifest SHA-256.
 pub const GAIA_SOURCE_CHECKSUM_MANIFEST_SHA256: &str =
     "9ec782f9c83b29885924c7d47bba18d70c86b8cbefbc408b19090b6a76e8e369";
@@ -123,7 +113,7 @@ pub fn pack_candidate_map(inputs: &PackInputs) -> Result<PackOutcome> {
     let sidecar = PackSidecar {
         schema_version: PACK_SIDECAR_SCHEMA_VERSION,
         schema: PACK_SIDECAR_SCHEMA.to_string(),
-        packer_id: packer_id(&candidate.schema).to_string(),
+        packer_id: PACKER_ID.to_string(),
         unit_conversion_id: UNIT_CONVERSION_ID.to_string(),
         source_candidate_sha256: candidate.sha256.clone(),
         runtime_map_sha256: runtime_map_sha256.clone(),
@@ -166,15 +156,9 @@ fn render_packed_csv(
     let mut sum_in = 0.0;
     let mut sum_out = 0.0;
     let mut out = String::new();
-    out.push_str(
-        if candidate.schema == "nsb-healpix-starlight-candidate-v5" {
-            "# schema=nsb-healpix-starlight-v2\n"
-        } else {
-            "# schema=nsb-healpix-starlight-v1\n"
-        },
-    );
+    out.push_str("# schema=nsb-healpix-starlight-v1\n");
     out.push_str("# packer_id=");
-    out.push_str(packer_id(&candidate.schema));
+    out.push_str(PACKER_ID);
     out.push('\n');
     out.push_str("# unit_conversion_id=");
     out.push_str(UNIT_CONVERSION_ID);

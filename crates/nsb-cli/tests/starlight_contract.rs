@@ -91,10 +91,10 @@ fn validated_external_starlight_is_labelled_in_window_json() {
 }
 
 #[test]
-fn starlight_uncertainties_use_first_public_json_and_csv_schemas() {
+fn starlight_uncertainties_are_serialized_in_json_and_csv() {
     let dir = tempfile::tempdir().unwrap();
-    let map_path = dir.path().join("starlight-v2.csv");
-    let manifest_path = dir.path().join("starlight-v2.toml");
+    let map_path = dir.path().join("starlight.csv");
+    let manifest_path = dir.path().join("starlight.toml");
     write_validated_uncertainty_fixture(&map_path, &manifest_path);
     let common_args = [
         "point",
@@ -127,7 +127,6 @@ fn starlight_uncertainties_use_first_public_json_and_csv_schemas() {
         .stdout
         .clone();
     let value: serde_json::Value = serde_json::from_slice(&json_output).unwrap();
-    assert_eq!(value["schema_version"], "nsb-cli-point-json-v1");
     let component = &value["components"][0];
     let statistical = component["statistical_uncertainty_ph_cm2_ns_sr"]
         .as_f64()

@@ -119,10 +119,10 @@ runtime_embedded = true
 # candidate is excluded from Cargo packages and never embedded at build time.
 [[assets]]
 path = "starlight_nside128.csv"
-schema = "nsb-healpix-starlight-candidate-v5"
-sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+schema = "nsb-healpix-starlight-candidate-v1"
+sha256 = "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526"
 source = "Gaia DR3 XP and checksum-pinned bright-star supplement; combined 300-650 nm candidate"
-license = "Gaia CC BY-NC 3.0 IGO; nonembedded scientific evidence; exact compact derived product conditionally approved under #103"
+license = "Gaia CC BY-NC 3.0 IGO; nonembedded scientific evidence; regenerated compact product pending renewed checksum-specific approval under #103"
 generator = "Frozen #207 production pipeline; see release-candidate-v1.toml"
 generation_command = "See checksum-pinned merge_report.json and release-candidate-v1.toml"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"
@@ -132,7 +132,7 @@ runtime_embedded = false
 [[assets]]
 path = "starlight_nside128.compact.release.bin"
 schema = "nsb-healpix-starlight-binary-v1"
-sha256 = "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784"
+sha256 = "11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"
@@ -146,8 +146,8 @@ runtime_embedded = true
 
 [[assets]]
 path = "starlight_nside128.compact.manifest.toml"
-schema = "nsb-starlight-runtime-manifest-v2"
-sha256 = "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b"
+schema = "nsb-starlight-runtime-manifest-v1"
+sha256 = "1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8"
 gaia_release = "Gaia DR3"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_cm2_ns_sr"

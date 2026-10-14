@@ -29,7 +29,7 @@ redistribution approval itself. Approval belongs to an authorized human
 reviewer.
 
 The [lifecycle procedure](../release-candidate/README.md#approval-and-publication-lifecycle)
-freezes `approval-inventory-v2.toml` before review and derives the separate current
+freezes `approval-inventory-v1.toml` before review and derives the separate current
 `artifact-inventory-v1.toml` afterward. Planned channels are not actual uploads.
 A schema-compatible, deliberately non-authorizing decision template includes
 all pins/channels and null reviewer fields. Neither promotion nor publication

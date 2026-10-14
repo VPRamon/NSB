@@ -1,3 +1,5 @@
+# Regenerated review inputs; no authorization for the new hashes.
+# Original approval snapshots: release-candidate/approval-history/pre-v1-reset/.
 schema_version = 1
 
 [[artifacts]]
@@ -310,7 +312,7 @@ source = "Derived from Gaia DR3 GaiaSource + XP continuous bulk products via the
 release = "2026-10-06 combined 300-650 nm, checksum-pinned candidate"
 license = "NSB-derived numerical map; upstream Gaia DR3 CC BY-NC 3.0 IGO where applicable; CK04 CC BY 4.0; XHIP and SVO redistribution rights not independently verified"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+sha256 = "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -322,13 +324,13 @@ approval of redistribution on GitHub, crates.io, PyPI, or releases.
 calibration_status = candidate,
 runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
-redistribution decision is owned by #103 (conditionally approved; original v1 snapshot preceded approval). The invalidated #93 digest
+redistribution decision is owned by #103 (pending renewed checksum-specific approval; original decision archived). The invalidated #93 digest
 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
 historical only.
 
 The frozen packed RING CSV is a staging/scientific comparison reference,
-SHA-256 70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b.
-The approved runtime package product is the separately pinned compact pair;
+SHA-256 d649def4ca3c36036177f35816f3defc57e365d3f341c22a4f0dbf79051367e8.
+The proposed runtime package product is the separately pinned compact pair;
 conversion does not alter the scientific values or confer redistribution rights.
 """
 
@@ -336,10 +338,10 @@ conversion does not alter the scientific values or confer redistribution rights.
 id = "starlight-packed-runtime-map-nside128"
 category = "generated-derived-output"
 source = "Packed RING runtime map derived from starlight-candidate-map-nside128 by nsb-data dataset starlight pack/promote"
-release = "nsb-healpix-starlight-v2 packed from UV-v2 candidate; production admission headers"
+release = "nsb-healpix-starlight-v1 packed from UV-v2 candidate; production admission headers"
 license = "NSB-derived runtime map; Gaia DR3 CC BY-NC 3.0 IGO where applicable; CK04 CC BY 4.0; other source-specific rights and authoritative #103 distribution decision apply"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
+sha256 = "d649def4ca3c36036177f35816f3defc57e365d3f341c22a4f0dbf79051367e8"
 distribution_class = "generated_derived_output"
 distributed = false
 channels = []
@@ -354,10 +356,10 @@ the candidate SHA-256. Human redistribution approval remains #103.
 id = "starlight-merge-report"
 category = "generated-derived-output"
 source = "NSB-generated deterministic merge/provenance report for starlight-candidate-map-nside128"
-release = "schema nsb-starlight-merge-report-v5; UV v2 Ladon rebuild"
+release = "schema nsb-starlight-merge-report-v1; UV v2 Ladon rebuild"
 license = "NSB-generated scientific provenance/report; Gaia DR3 CC BY-NC 3.0 IGO applies where protected upstream content is reproduced"
 license_url = "https://www.cosmos.esa.int/web/gaia-users/license"
-sha256 = "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
+sha256 = "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -374,7 +376,7 @@ category = "manifest"
 source = "NSB-authored checksum/provenance registry for bundled runtime assets"
 release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); contains no third-party bytes, only metadata describing third-party inputs"
-sha256 = "51c37947a413ea3c4c42b4c4688ba7d3486771a1d3213c3dfac65e28b042452d"
+sha256 = "8d2fb1b86832a033115ab2aa48ac138c82ec21e5dd809f67621c664a1e87b7ad"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -409,9 +411,9 @@ externally supplied, must carry. No third-party bytes are contained.
 id = "starlight-combined-300-650-validation-report"
 category = "report"
 source = "NSB-generated validation gate report for the candidate build"
-release = "schema_version = 2"
+release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); reports only aggregate diagnostics, no raw third-party catalogue bytes"
-sha256 = "97440a56716dffb95db154f8828597e7305b4289a1357b5538e8457e1e527399"
+sha256 = "8bc73d91606a8bd2933709b29e84e8e71c10dd744faaa3ce8b8135e3a09e20db"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -424,10 +426,10 @@ Records the UV-v2 candidate/report checksums. Scientific readiness is machine-ve
 [[artifacts]]
 id = "compact-runtime-map-v1"
 category = "generated-derived-output"
-source = "Lossless little-endian f64 encoding of frozen starlight_nside128.release.csv (70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b); all four fields, uncertainties and metadata preserved"
+source = "Lossless little-endian f64 encoding of frozen starlight_nside128.release.csv (d649def4ca3c36036177f35816f3defc57e365d3f341c22a4f0dbf79051367e8); all four fields, uncertainties and metadata preserved"
 release = "nsb-healpix-starlight-binary-v1"
 license = "Gaia CC BY-NC 3.0 IGO and source-specific restrictions retained; distribution requires the authoritative #103 decision"
-sha256 = "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784"
+sha256 = "11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f"
 distribution_class = "generated_derived_output"
 distributed = true
 channels = ["git_repository"]
@@ -440,15 +442,15 @@ planned_channels = [
 ]
 lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
-notes = "Reproducible with stage-runtime --output-csv <path>.bin. The exact compact pair is conditionally approved under #103; the staged approval plan is distinct from current production/publication state. Compact sidecar SHA-256 b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Approved planned channels include Git, crates.io, PyPI wheel/sdist and GitHub release; only the current inventory records actual publication."
+notes = "Reproducible with stage-runtime --output-csv <path>.bin. The exact regenerated compact pair awaits renewed authorization under #103; the staged approval plan is distinct from current production/publication state. Compact sidecar SHA-256 1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Proposed planned channels include Git, crates.io, PyPI wheel/sdist and GitHub release; only the current inventory records actual publication."
 
 [[artifacts]]
 id = "compact-runtime-sidecar-v1"
 category = "generated-provenance-sidecar"
 source = "Frozen runtime manifest with only map_sha256 changed to identify the compact representation"
-release = "nsb-starlight-runtime-manifest-v2"
+release = "nsb-starlight-runtime-manifest-v1"
 license = "Scientific source terms and attribution retained; #103 channel-specific decision required for the pair"
-sha256 = "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b"
+sha256 = "1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8"
 distribution_class = "generated_derived_output"
 distributed = true
 channels = ["git_repository"]
@@ -461,4 +463,4 @@ planned_channels = [
 ]
 lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
-notes = "Conditional approval and production activation are recorded; promotion requires exact decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."
+notes = "Renewed checksum-specific approval is pending; promotion requires exact decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."

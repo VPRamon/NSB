@@ -470,7 +470,7 @@ struct StageRuntimeArgs {
     /// Output runtime map path; .bin selects the lossless compact format.
     #[arg(long)]
     output_csv: PathBuf,
-    /// Output schema-v2 runtime provenance sidecar.
+    /// Output schema-v1 runtime provenance sidecar.
     #[arg(long)]
     output_sidecar: PathBuf,
 }
