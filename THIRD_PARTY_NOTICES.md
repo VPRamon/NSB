@@ -32,14 +32,21 @@ and [scientific references](docs/nsb_components/starlight/licensing/SCIENTIFIC_R
   declares CC BY-NC 3.0 IGO; see
   <https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259>. All 20 Tycho-2 shards
   remain offline inputs.
-- **Hipparcos-2 (van Leeuwen 2007, CDS I/311):** licence specific to the
-  later re-reduction has not been independently verified.
+- **Hipparcos-2 (van Leeuwen 2007, CDS I/311):** Floor van Leeuwen
+  confirmed to the maintainer (reply reported 2026-10-14) that the 2007
+  reduction is based on ESA Hipparcos data and publicly available; he
+  requests citations to both his 2007 book and A&A article. An explicit
+  I/311 licence or blanket commercial/downstream map redistribution grant
+  was not supplied.
 - **XHIP reference:** Anderson & Francis (2012), *XHIP: An Extended
   Hipparcos Compilation*, *Astronomy Letters* **38**, 331,
   [ADS 2012AstL...38..331A](https://ui.adsabs.harvard.edu/abs/2012AstL...38..331A/abstract).
 - **Hipparcos-2 reference:** van Leeuwen (2007), *Validation of the new
   Hipparcos reduction*, A&A **474**, 653–664,
   [DOI 10.1051/0004-6361:20078357](https://doi.org/10.1051/0004-6361:20078357).
+  Also cite van Leeuwen (2007), *Hipparcos, the New Reduction of the Raw
+  Data*, Astrophysics and Space Science Library **350**,
+  [DOI 10.1007/978-1-4020-6342-8](https://doi.org/10.1007/978-1-4020-6342-8).
 - **CDS/VizieR acknowledgement:** cite the original authors and credit the
   catalogue access service, CDS, Strasbourg, France
   (DOI [10.26093/cds/vizier](https://doi.org/10.26093/cds/vizier)).
@@ -58,7 +65,11 @@ No raw upstream catalogue, atlas, or filter curve is intended to be bundled in
 release packages. This notice cannot supply a missing upstream permission.
 
 Licensing clarifications for XHIP and Hipparcos-2 were requested on
-2026-10-08. Requests do not constitute permission; #103 remains pending.
+2026-10-08. Hipparcos-2's author has since confirmed public availability
+and requested citations to his two works (reply reported 2026-10-14);
+XHIP is still awaiting source-specific clarification. Neither a request
+nor a statement of availability is a blanket redistribution grant;
+#103 remains pending.
 
 ### SVO/FPS acknowledgement for Starlight-derived calculations
 

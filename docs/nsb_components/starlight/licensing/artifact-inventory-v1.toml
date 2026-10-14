@@ -160,17 +160,27 @@ id = "hipparcos2-bright-star-input"
 category = "upstream-bright-star-catalogue"
 source = "CDS I/311, van Leeuwen new Hipparcos reduction; hip2.dat.gz"
 release = "I/311 corrected 2008-09-16"
-license = "ESA original Hipparcos catalogue CC BY-NC 3.0 IGO; application to independent Hipparcos-2 (I/311) revision not explicitly verified"
-license_url = "https://www.cosmos.esa.int/web/hipparcos/catalogues"
+license = "AUTHOR_CONFIRMED_PUBLIC_AVAILABILITY: Floor van Leeuwen (reply reported 2026-10-14) confirms Hipparcos 2007 reduction is publicly available based on ESA Hipparcos data; exact I/311 licence and downstream commercial/derived-map grant not expressly stated"
 distribution_class = "download_only"
 distributed = false
 channels = []
 tracking_issue = "#103"
 notes = """
-ESA expressly licenses its original Hipparcos/Tycho catalogues under CC BY-NC
-3.0 IGO with Credit: ESA. I/311 is a later reduction, so ESA's page alone does
-not prove that every independently added element has that grant. Raw data
-remain offline; preserve the correction and attribution requirement.
+The maintainer requested I/311 licence and derived-map redistribution
+clarification from Floor van Leeuwen on 2026-10-08. In his direct reply
+provided to the maintainer (reported 2026-10-14), he confirms his 2007
+reduction is based on ESA Hipparcos data and is publicly available. He asks
+to cite both 2007 works: Hipparcos, the New Reduction of the Raw Data (ASSL
+350), and Validation of the new Hipparcos reduction (A&A 474, 653-664).
+The catalogue ReadMe is https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html.
+ESA's original Hipparcos terms (https://www.cosmos.esa.int/web/hipparcos/catalogues)
+are CC BY-NC 3.0 IGO, but the author did not specify a separate CC/SPDX
+licence for I/311 or expressly grant worldwide commercial and downstream
+distribution of NSB's HEALPix derived map. Public availability, scholarly
+attribution, and derived-map commercial redistribution are distinct rights
+questions. The source table is an offline-only input; the author reply is
+retained privately for #103 review; global Starlight redistribution decision
+remains pending.
 """
 
 [[artifacts]]

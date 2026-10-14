@@ -92,10 +92,23 @@ older ESA Hipparcos/Tycho catalogue terms:
 | Upstream source | Primary source evidence | Current rights classification |
 | --- | --- | --- |
 | Tycho-2, CDS `I/259` | [Official CDS catalogue record](https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259) explicitly declares CC BY-NC 3.0 IGO | **Verified source licence**, including the 20 pinned Tycho-2 segments; attribution and noncommercial restrictions apply where relevant |
-| Hipparcos-2, CDS `I/311` | [Official van Leeuwen catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html) gives provenance and references but no explicit reuse/redistribution licence | **Not yet source-licensed for the exact reduction** |
+| Hipparcos-2, CDS `I/311` | [Official van Leeuwen catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/I/311?format=html) plus author reply reported by the maintainer on 2026-10-14: the 2007 reduction uses ESA Hipparcos data and is "publicly available"; author requests book + A&A 2007 citations | **Public availability and attribution confirmed directly by the author**; no explicit I/311 licence or general commercial/downstream derived-map grant established |
 | XHIP, CDS `V/137D` | [Official Anderson–Francis catalogue ReadMe](https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/V/137D?format=html) identifies the authors and multiple upstream catalogues but no express redistribution licence | **No explicit source grant verified**; cite source/CDS, review derived-map rights or request written permission |
 | SVO `Hipparcos/Hipparcos.Hp_bes` | Maintainer-provided SVO/FPS team email (signed Enrique, reported 2026-10-08) states that informing NSB users of the SVO FPS and Bessell (2000) usage and including specific credits/references is sufficient **on SVO's part** | **Acknowledgement conditions for computed results documented**; no express grant for republishing the original curve. Preserve original reply privately as review evidence. |
 | Gaia DR3 | [ESA Gaia data licensing](https://www.cosmos.esa.int/web/gaia-users/license) | CC BY-NC 3.0 IGO, subject to downstream scope and restrictions |
+
+**Hipparcos-2 correspondence update (reported 2026-10-14).**
+The maintainer's 2026-10-08 request asked whether derived HEALPix maps could
+be publicly redistributed and whether commercial or noncommercial downstream
+use was restricted. Floor van Leeuwen's reply points to the ESA origins,
+confirms that the 2007 reduction is publicly available, and requests two
+specific scientific citations. This is positive first-party evidence for
+availability and attribution. It does not explicitly answer the commercial
+and downstream-redistribution questions or establish that the original ESA
+licence covers all rights in the 2007 reduction. Retain the full email in
+private project records; avoid publishing signatures or contact headers.
+Do not label Hipparcos-2 as wholly uncontacted, nor as an unrestricted
+redistribution permission.
 
 The exact acknowledgement and FPS/Bessell citations requested by SVO are
 reproduced in [ATTRIBUTION.md](ATTRIBUTION.md#svofps-exact-acknowledgement-and-requested-references)

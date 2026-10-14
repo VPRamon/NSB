@@ -43,8 +43,13 @@ runtime asset.
 - **Tycho-2 (CDS I/259):** CDS's record for Tycho-2 explicitly declares
   CC BY-NC 3.0 IGO; source family verified for the 20 frozen shards
   (<https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259>).
-- **Hipparcos-2 (CDS I/311):** 2007 re-reduction has no verified
-  source-specific reuse/redistribution grant in the ReadMe; still pending.
+- **Hipparcos-2 (CDS I/311):** **author-confirmed publicly available**
+  (Floor van Leeuwen correspondence supplied by the maintainer, reported
+  2026-10-14). Cite both van Leeuwen (2007) book and A&A paper.
+  The exact catalogue licence and worldwide commercial/downstream
+  derivative-map redistribution rights were not expressly granted.
+  Treat source availability/attribution as clarified, while the #103
+  final derived-map licensing decision remains pending.
 - **XHIP V/137D:** CDS/VizieR research access/citation conditions;
   no catalogue-specific redistributable CC or SPDX grant verified.
 - **SVO Hp_bes:** the maintainer supplied an SVO/FPS team reply confirming
