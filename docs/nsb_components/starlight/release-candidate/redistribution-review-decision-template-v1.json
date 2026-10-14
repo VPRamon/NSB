@@ -6,7 +6,7 @@
   "reviewed_at_utc": null,
   "candidate_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
   "inventory_sha256": "de3f919b0b393a41c904ed965a89662f9553e5cf2ec884be00a3b5f68d7ec4b9",
-  "review_bundle_sha256": "5753bed374ac6537bddb10baa7f85f03c47e692f2be9dc17f54b5095f32bd8d2",
+  "review_bundle_sha256": "d0f75ca8092ff200b22747fbf16d74f7a90837fdc6b7ff9e2f009234a1a4b25c",
   "pinned_artifacts": [
     {
       "id": "starlight-candidate-map-nside128",
@@ -70,19 +70,19 @@
   "conditions": [
     {
       "id": "review-bundle-v1",
-      "description": "Pin the explicit documentary-amended Starlight #103 review revision, preserving original human approval and v1 evidence.",
+      "description": "Pin the regenerated first-public-release Starlight v1 review bundle; this unsigned template grants no approval.",
       "verifier": {
         "type": "repository_file_sha256",
         "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
-        "sha256": "5753bed374ac6537bddb10baa7f85f03c47e692f2be9dc17f54b5095f32bd8d2"
+        "sha256": "d0f75ca8092ff200b22747fbf16d74f7a90837fdc6b7ff9e2f009234a1a4b25c"
       }
     }
   ],
   "restrictions": [
-    "Noncommercial scientific publication of the exact combined 300\u2013650 nm HEALPix product only; retain applicable Gaia CC BY-NC 3.0 IGO and source-specific terms, licence URIs, credits and modifications. No unrestricted commercial data grant or endorsement.",
+    "Noncommercial scientific publication of the exact combined 300–650 nm HEALPix product only; retain applicable Gaia CC BY-NC 3.0 IGO and source-specific terms, licence URIs, credits and modifications. No unrestricted commercial data grant or endorsement.",
     "Authorized scope is the pinned compact pair and channels. Original catalogues, SVO transmission curves, spectral files and per-star diagnostics are excluded from runtime packages.",
     "The maintainer expressly accepts the pinned rights assessment conclusions: the new integrated map does not publicly reutilize a substantial protected part of XHIP, and the independently generated numerical map retains separate scientific-data terms when embedded in the AGPL library. EU database and GNU same-executable counterarguments were disclosed. No third-party right is waived or invented; retain maintainer-provided SVO/Hipparcos correspondence. No national domicile is inferred from account or timezone.",
     "Production registration does not claim publication. Mutable publication metadata must be derived and verified against the unchanged approval snapshot, decision and exact product."
   ],
-  "notes": "TEMPLATE ONLY, not authorization. Active v2 documentary evidence pins; original human approval is recorded only in the canonical decision. Null reviewer fields cannot authorize promotion."
+  "notes": "TEMPLATE ONLY; the active v1 review bundle, candidate, inventory and regenerated runtime identities are pinned. Null reviewer fields cannot authorize promotion. The canonical signed-off decision is in redistribution-review-decision-v1.json."
 }
