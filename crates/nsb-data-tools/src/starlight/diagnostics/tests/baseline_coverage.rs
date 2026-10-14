@@ -76,7 +76,6 @@ fn baseline_report_fails_on_missing_or_invalid_configuration() -> Result<()> {
     Ok(())
 }
 
-
 #[test]
 fn complete_baseline_report_roundtrips_a_synthetic_sparse_workspace() -> Result<()> {
     let directory = tempfile::tempdir()?;
@@ -94,19 +93,27 @@ fn complete_baseline_report_roundtrips_a_synthetic_sparse_workspace() -> Result<
         ("00-19", "invalid-spectrum", 2_u64),
         ("20-29", "invalid-spectrum", 3_u64),
     ] {
-        let mut shard = PartitionShard::new(name, 2)?;
+        let mut shard = PartitionShard::new(name, 4)?;
         shard.exclusion_reasons.insert(reason.into(), excluded);
-        shard.pixels.insert(0, crate::starlight::map::accumulator::PixelAccumulator {
-            observed_sources: excluded,
-            excluded_sources: excluded,
-            ..Default::default()
-        });
+        shard.pixels.insert(
+            0,
+            crate::starlight::map::accumulator::PixelAccumulator {
+                observed_sources: excluded,
+                excluded_sources: excluded,
+                ..Default::default()
+            },
+        );
         let shard_path = workspace.join("workers").join(name).join("shard.json");
         shard.write(&shard_path)?;
     }
     let output = directory.path().join("reports/phase0.json");
     let report = write_baseline_report(
-        &repo, &config, &workspace, "synthetic-commit", &output, &[13, 24],
+        &repo,
+        &config,
+        &workspace,
+        "synthetic-commit",
+        &output,
+        &[13, 24],
     )?;
     assert_eq!(report.phase, "phase0_baseline");
     assert_eq!(report.commit, "synthetic-commit");
@@ -121,6 +128,9 @@ fn complete_baseline_report_roundtrips_a_synthetic_sparse_workspace() -> Result<
         report.config_sha256,
         crate::platform::checksum_io::sha256_file(&config)?,
     );
-    assert_eq!(serde_json::from_slice::<BaselineReport>(&fs::read(output)?)?, report);
+    assert_eq!(
+        serde_json::from_slice::<BaselineReport>(&fs::read(output)?)?,
+        report
+    );
     Ok(())
 }
