@@ -136,7 +136,6 @@ fn shell_quote(path: &Path) -> String {
 mod tests {
     use super::*;
 
-
     use super::super::config::{ExecutionConfig, SlurmConfig, WorkspaceConfig};
     use super::super::model::{DatasetName, Executor, Operation, RunManifest, RUN_SCHEMA_VERSION};
     use std::sync::Mutex;
@@ -147,7 +146,10 @@ mod tests {
     }
 
     impl Scheduler for RecordingScheduler {
-        fn submit_array(&self, request: &ArrayRequest) -> Result<super::super::execution::scheduler::JobSubmission> {
+        fn submit_array(
+            &self,
+            request: &ArrayRequest,
+        ) -> Result<super::super::execution::scheduler::JobSubmission> {
             let mut requests = self.requests.lock().unwrap();
             requests.push(request.clone());
             Ok(super::super::execution::scheduler::JobSubmission {
@@ -165,7 +167,9 @@ mod tests {
         let config = RunConfig {
             schema_version: 1,
             dataset: DatasetName::Starlight,
-            workspace: WorkspaceConfig { root: temp.path().join("work") },
+            workspace: WorkspaceConfig {
+                root: temp.path().join("work"),
+            },
             execution: ExecutionConfig {
                 slurm: Some(SlurmConfig {
                     partition: Some("compute".into()),
@@ -187,26 +191,32 @@ mod tests {
             operation: Operation::Build,
             executor: Executor::Slurm,
             partitions: ["p1", "p2", "p3", "p4", "p5"]
-                .into_iter().map(str::to_string).collect(),
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
         };
         let manifest_path = temp.path().join("manifest.json");
-        write_manifest(&manifest_path, &RunManifest {
-            schema_version: RUN_SCHEMA_VERSION,
-            run_id: "test-run".into(),
-            dataset: plan.dataset,
-            operation: plan.operation,
-            executor: plan.executor,
-            status: RunStatus::Planned,
-            config_path: temp.path().join("config.toml"),
-            config_sha256: "0".repeat(64),
-            software_commit: "test".into(),
-            resolved_workspace: config.workspace.root.clone(),
-            partitions: plan.partitions.clone(),
-            artifacts: vec![],
-            validation_report: None,
-            slurm_job_id: None,
-            error: None,
-        }).unwrap();
+        write_manifest(
+            &manifest_path,
+            &RunManifest {
+                schema_version: RUN_SCHEMA_VERSION,
+                run_id: "test-run".into(),
+                dataset: plan.dataset,
+                operation: plan.operation,
+                executor: plan.executor,
+                status: RunStatus::Planned,
+                config_path: temp.path().join("config.toml"),
+                config_sha256: "0".repeat(64),
+                software_commit: "test".into(),
+                resolved_workspace: config.workspace.root.clone(),
+                partitions: plan.partitions.clone(),
+                artifacts: vec![],
+                validation_report: None,
+                slurm_job_id: None,
+                error: None,
+            },
+        )
+        .unwrap();
         (temp, config, plan, manifest_path)
     }
 
@@ -219,8 +229,13 @@ mod tests {
 
         let requests = scheduler.requests.lock().unwrap();
         assert_eq!(requests.len(), 3);
-        assert_eq!(requests.iter().map(|request| request.indices.clone())
-            .collect::<Vec<_>>(), vec![vec![0, 1], vec![0, 1], vec![0]]);
+        assert_eq!(
+            requests
+                .iter()
+                .map(|request| request.indices.clone())
+                .collect::<Vec<_>>(),
+            vec![vec![0, 1], vec![0, 1], vec![0]]
+        );
         for (index, request) in requests.iter().enumerate() {
             assert_eq!(request.job_name, "nsb-starlight-build");
             assert_eq!(request.max_parallel, 2);
@@ -228,12 +243,21 @@ mod tests {
             assert_eq!(request.account.as_deref(), Some("astronomy"));
             assert_eq!(request.time_limit.as_deref(), Some("00:30:00"));
             assert_eq!(request.memory.as_deref(), Some("4G"));
-            let path = config.workspace.root.join(format!("slurm-partitions-{index:03}.json"));
-            let array: PartitionArray = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+            let path = config
+                .workspace
+                .root
+                .join(format!("slurm-partitions-{index:03}.json"));
+            let array: PartitionArray =
+                serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
             assert_eq!(array.schema_version, ARRAY_SCHEMA_VERSION);
-            assert_eq!(array.partitions, plan.partitions[index * 2..(index * 2 + 2).min(5)]);
+            assert_eq!(
+                array.partitions,
+                plan.partitions[index * 2..(index * 2 + 2).min(5)]
+            );
             assert!(request.wrapped_command.contains("_worker --config "));
-            assert!(request.wrapped_command.contains("config '\"'\"'quoted'\"'\"'.toml"));
+            assert!(request
+                .wrapped_command
+                .contains("config '\"'\"'quoted'\"'\"'.toml"));
             assert!(request.wrapped_command.contains(&shell_quote(&path)));
         }
         let manifest = read_manifest(&manifest_path).unwrap();
@@ -247,14 +271,25 @@ mod tests {
         let scheduler = RecordingScheduler::default();
         let config_path = temp.path().join("run.toml");
         plan.partitions.clear();
-        assert!(submit_with(&scheduler, &config_path, &config, &plan, &manifest_path)
-            .unwrap_err().to_string().contains("requires partitioned"));
+        assert!(
+            submit_with(&scheduler, &config_path, &config, &plan, &manifest_path)
+                .unwrap_err()
+                .to_string()
+                .contains("requires partitioned")
+        );
         plan.partitions.push("p1".into());
         config.execution.slurm = None;
-        assert!(submit_with(&scheduler, &config_path, &config, &plan, &manifest_path)
-            .unwrap_err().to_string().contains("execution.slurm is required"));
+        assert!(
+            submit_with(&scheduler, &config_path, &config, &plan, &manifest_path)
+                .unwrap_err()
+                .to_string()
+                .contains("execution.slurm is required")
+        );
         assert!(scheduler.requests.lock().unwrap().is_empty());
-        assert!(matches!(read_manifest(&manifest_path).unwrap().status, RunStatus::Planned));
+        assert!(matches!(
+            read_manifest(&manifest_path).unwrap().status,
+            RunStatus::Planned
+        ));
     }
 
     #[test]
@@ -268,8 +303,15 @@ mod tests {
         let path = temp.path().join("array.json");
         assert!(partition_from_array(&path).is_err());
         std::fs::write(&path, r#"{"schema_version":99,"partitions":["p1"]}"#).unwrap();
-        assert!(partition_from_array(&path).unwrap_err().to_string().contains("unsupported partition-array schema"));
-        std::fs::write(&path, r#"{"schema_version":1,"partitions":["p1"],"surprise":true}"#).unwrap();
+        assert!(partition_from_array(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported partition-array schema"));
+        std::fs::write(
+            &path,
+            r#"{"schema_version":1,"partitions":["p1"],"surprise":true}"#,
+        )
+        .unwrap();
         assert!(partition_from_array(&path).is_err());
     }
 
@@ -284,11 +326,20 @@ mod tests {
         std::env::set_var("SLURM_ARRAY_TASK_ID", "1");
         assert_eq!(partition_from_array(&path).unwrap(), "p2");
         std::env::set_var("SLURM_ARRAY_TASK_ID", "2");
-        assert!(partition_from_array(&path).unwrap_err().to_string().contains("outside partition manifest"));
+        assert!(partition_from_array(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("outside partition manifest"));
         std::env::set_var("SLURM_ARRAY_TASK_ID", "invalid");
-        assert!(partition_from_array(&path).unwrap_err().to_string().contains("not a valid index"));
+        assert!(partition_from_array(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("not a valid index"));
         std::env::remove_var("SLURM_ARRAY_TASK_ID");
-        assert!(partition_from_array(&path).unwrap_err().to_string().contains("SLURM_ARRAY_TASK_ID is required"));
+        assert!(partition_from_array(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("SLURM_ARRAY_TASK_ID is required"));
         if let Some(value) = original {
             std::env::set_var("SLURM_ARRAY_TASK_ID", value);
         }
