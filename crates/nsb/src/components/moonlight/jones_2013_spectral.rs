@@ -336,7 +336,7 @@ mod tests {
         }
     }
 
-    /// Regression pins for the analytic solar spectrum and corrected scattering column.
+    /// Regression pins for the bundled analytic Planck solar reference.
     ///
     /// The expected tuples pin the independently generated NSB Mie phase grid
     /// with the current analytic solar reference.

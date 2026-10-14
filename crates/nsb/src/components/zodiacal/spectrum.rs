@@ -239,7 +239,7 @@ mod tests {
         // radiance at epsilon=90 deg in the ecliptic as 2.2e-6 at 400 nm and
         // 2.6e-6 W m^-2 sr^-1 um^-1 at 500 nm.
         //
-        // NSB uses a modern TSIS-1 HSRS v2 solar spectrum rather than the solar
+        // NSB uses a 5772 K analytic Planck solar spectrum rather than the solar
         // reference underlying the 1998 compilation, so this is intentionally
         // a tolerance check rather than an exact-value regression.
         let solar = crate::spectra::solar::load().expect("load solar reference spectrum");
