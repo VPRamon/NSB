@@ -62,7 +62,7 @@ sha256 = "25d50d7d0991b7147479df5d861009acf249471231b86964c0c67dcd7fabc5c0"
 [[artifacts]]
 id = "packaged_scientific_notices"
 path = "crates/nsb/THIRD_PARTY_NOTICES.md"
-sha256 = "09e8c597442c240b8394d373b7a7e01c4b80144aeca90007db8e5f65fe14b788"
+sha256 = "c7f8871e5a254d01b0b32a41f7ecacf9910f07d1adacb8fa1f5651b68080aefa"
 
 [[artifacts]]
 id = "rights_contact_guide"
