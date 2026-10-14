@@ -1,8 +1,8 @@
-> Current reset state: the regenerated v1 artifacts await authorization. The active
-> decision is pending renewed checksum-specific authorization. Original approvals
-> and external/CI evidence are preserved in `approval-history/pre-v1-reset/`.
-> See [schema-reset-v1.md](schema-reset-v1.md); historical activation results
-> below apply to the former hashes only.
+> Current reset state: the maintainer has explicitly approved the regenerated
+> Starlight v1 artifacts with conditions and exact checksum pins in the active
+> decision. Original approvals and external/CI evidence remain preserved under
+> `approval-history/pre-v1-reset/`. See [schema-reset-v1.md](schema-reset-v1.md):
+> historical test runs relate to the pre-reset bytes, not to new executions.
 
 # Starlight release-candidate bundle and promotion mechanism (#102)
 
@@ -19,7 +19,7 @@ issue #103 and is not approved by this bundle.
 | File | Role |
 |---|---|
 | `release-candidate-v1.toml` | Frozen candidate identity, deterministic RFC3339 generation timestamp, checksum pin for the canonical merge report, complete bright-star provenance copied from that report, technical status, external-validation pin, and runtime identities. |
-| `redistribution-review-decision-v1.json` | The active redistribution decision; pending renewed checksum-specific authorization. |
+| `redistribution-review-decision-v1.json` | The current maintainer approval of exact v1 hashes and approved distribution channels, with conditions. |
 | `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v1 provenance sidecar identities. |
 | `review-bundle-v1.toml` | Immutable release evidence pinned by the redistribution decision. |
 
@@ -217,8 +217,8 @@ Promotion of compact assets requires decision pins for both
 `compact-runtime-map-v1` and `compact-runtime-sidecar-v1`, matching the hashes
 in `runtime-assets-v1.toml`, with `git_repository`, `crates_io`, `pypi_wheel`
 and `pypi_sdist` in each pin's `approved_channels`. The immutable approval plan
-uses staged entries; the current inventory now records actual Git publication. Approval only for existing
-Git artifacts cannot authorize future package distribution. A GitHub release
+uses staged entries; the current inventory separately records actual publication, not merely approval.
+Approval for Git artifacts alone cannot authorize future package distribution. A GitHub release
 asset additionally needs approval for that publication channel. The actual
 canonical decision records the maintainer, acceptance time, restrictions and
 all five approved channels. The rights assessment explains the accepted findings.
@@ -245,8 +245,8 @@ in the [amendment history](approval-history/notice-amendment-v2.md).
 | Production registered | Same approved bytes and bundle/decision pins | `production_registered`, actual channels empty; updated registry digest |
 | Published | Same approved bytes and decision | `published`, `distributed = true`, only actual channels in `channels` |
 
-`licensing/approval-inventory-v1.toml` is the regenerated review input awaiting authorization, pinned
-by the release candidate, review bundle and decision. `artifact-inventory-v1.toml`
+`licensing/approval-inventory-v1.toml` is the regenerated, now approved immutable
+review snapshot pinned by the release candidate, review bundle and decision. `artifact-inventory-v1.toml`
 is the current state and is **not** an input to that checksum cycle. Initially
 both inventories describe the same assets. Promotion derives the current state
 from the snapshot; only the two compact lifecycle/current-channel fields and
