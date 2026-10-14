@@ -25,7 +25,7 @@ Rust interval semantics.
 
 ## Upstream quantities and geometry
 
-The lockfile resolves Siderust 0.14.0, Tempoch/core 0.10.0, Qtty/core 0.8.5 and
+The lockfile resolves Siderust 0.14.1, Tempoch/core 0.10.0, Qtty/core 0.8.6 and
 Affn 0.11.0. NSB consumes quantity/coordinate types through Siderust re-exports,
 without adding another Qtty or Affn dependency. Wavelength densities and integrated
 photon radiance have distinct types; Optica integration supplies the wavelength
