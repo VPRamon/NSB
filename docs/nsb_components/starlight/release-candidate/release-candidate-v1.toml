@@ -15,7 +15,7 @@ Merge report SHA-256
 60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c.
 Bright-star combined artifact dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017.
 Scientific readiness is established by checksum-pinned external validation;
-redistribution review remains pending (#103). Packed runtime assets are checksum-staged
+redistribution is now conditionally approved for the regenerated hashes (#103). Packed runtime assets are checksum-staged
 as candidate/non-embedded bytes; only `promote --apply` may register them as bundled
 production after the redistribution decision passes.
 """
