@@ -14,7 +14,10 @@
 
 use crate::error::{NsbError, Result};
 use crate::spectra::solar::SolarSpectrum;
-use crate::units::{s10_for_spectral_photon_radiance, SolarSpectralIrradiance, S10_TO_W_M2_SR_NM};
+use crate::units::{
+    s10_for_spectral_photon_radiance, unit, Per, Quantity, ScaleFactors, SolarSpectralIrradiance,
+    SolarSpectralIrradianceUnit, WattPerSquareMeterSteradianMicrometer, S10_TO_W_M2_SR_NM,
+};
 use siderust::optica::data::Provenance;
 use siderust::optica::grid::OutOfRange;
 use siderust::optica::spectrum::{Interpolation, SampledSpectrum};
@@ -40,6 +43,8 @@ pub(super) const WL_HIGH: Nanometers = Nanometers::new(650.0);
 pub(super) const B_FILTER: Nanometers = Nanometers::new(445.0);
 pub(super) const V_FILTER: Nanometers = Nanometers::new(551.0);
 const S10_SCALE_WAVELENGTH: Nanometers = Nanometers::new(500.0);
+
+type FallbackRadiance = Quantity<WattPerSquareMeterSteradianMicrometer>;
 
 type ZodiacalPhotonSpectrum = SampledSpectrum<Nanometer, SpectralBandPhotonRadianceUnit>;
 
@@ -82,16 +87,16 @@ fn zodiacal_samples(
     geom: &ZodiacalGeometry,
     solar: &SolarSpectrum,
     extinction: ZodiacalExtinction,
-    scale: f64,
+    scale: ScaleFactors,
     zenith: Degrees,
     s10_500: S10,
-) -> Result<(ZodiacalPhotonSpectrum, f64, f64)> {
+) -> Result<(ZodiacalPhotonSpectrum, FallbackRadiance, FallbackRadiance)> {
     let solar_xs = solar.xs_raw();
     let solar_ys = solar.ys_raw();
 
     let mut wavelengths_nm = Vec::with_capacity(solar_xs.len());
     let mut photon_radiance = Vec::with_capacity(solar_xs.len());
-    let (mut b_zl_um, mut v_zl_um) = (0.0_f64, 0.0_f64);
+    let (mut b_zl_um, mut v_zl_um) = (FallbackRadiance::new(0.0), FallbackRadiance::new(0.0));
     let (mut b_dist, mut v_dist) = (
         Nanometers::new(f64::INFINITY),
         Nanometers::new(f64::INFINITY),
@@ -105,16 +110,16 @@ fn zodiacal_samples(
 
         let solar_irradiance = SolarSpectralIrradiance::new(solar_flux);
         let f_sun_sr = solar_irradiance_to_mean_radiance(solar_irradiance);
-        let zl = f_sun_sr * scale * reddening_factor(geom.beta, geom.delta_lambda, lambda_nm);
+        let zl = f_sun_sr
+            * scale.value()
+            * reddening_factor(geom.beta, geom.delta_lambda, wavelength).value();
         let trans = extinction.transmission_for_spectral_radiance(
             S10_TO_W_M2_SR_NM * s10_500.value(),
             wavelength,
             zenith,
         );
         let zl_ext = zl * trans.value();
-        let zl_ext_um = zl_ext
-            .to::<crate::units::WattPerSquareMeterSteradianMicrometer>()
-            .value();
+        let zl_ext_um = zl_ext.to::<WattPerSquareMeterSteradianMicrometer>();
 
         let b_delta = (wavelength - B_FILTER).abs();
         if b_delta < b_dist {
@@ -167,10 +172,14 @@ fn integrate_photon_spectrum(spectrum: &ZodiacalPhotonSpectrum) -> BandPhotonRad
 fn solar_irradiance_to_mean_radiance(
     irradiance: SolarSpectralIrradiance,
 ) -> WattsPerSquareMeterSteradianNanometer {
-    WattsPerSquareMeterSteradianNanometer::new(irradiance.value() / std::f64::consts::PI)
+    let projected_solid_angle = Quantity::<unit::Steradian>::new(std::f64::consts::PI);
+    // Structural division recovers radiance with compile-time dimensions.
+    irradiance
+        / projected_solid_angle
+            .to::<Per<SolarSpectralIrradianceUnit, unit::WattPerSquareMeterSteradianNanometer>>()
 }
 
-fn spectral_scale_from_s10(s10_500: S10, solar: &SolarSpectrum) -> Result<f64> {
+fn spectral_scale_from_s10(s10_500: S10, solar: &SolarSpectrum) -> Result<ScaleFactors> {
     if !s10_500.is_finite() || s10_500.value() < 0.0 {
         return Err(NsbError::OutOfRange(format!(
             "zodiacal 500 nm S10 brightness must be finite and non-negative, got {}",
@@ -186,10 +195,14 @@ fn spectral_scale_from_s10(s10_500: S10, solar: &SolarSpectrum) -> Result<f64> {
             message: "non-positive flux at 500 nm".into(),
         });
     }
-    Ok(target_500 / f_sun_500_sr)
+    Ok(target_500.ratio_to(f_sun_500_sr))
 }
 
-fn interpolate_bv(spectrum: &ZodiacalPhotonSpectrum, b_zl_um: f64, v_zl_um: f64) -> (S10, S10) {
+fn interpolate_bv(
+    spectrum: &ZodiacalPhotonSpectrum,
+    b_zl_um: FallbackRadiance,
+    v_zl_um: FallbackRadiance,
+) -> (S10, S10) {
     let b_s10 = interp_linear_or_nearest(spectrum, B_FILTER, b_zl_um);
     let v_s10 = interp_linear_or_nearest(spectrum, V_FILTER, v_zl_um);
     (b_s10, v_s10)
@@ -198,7 +211,7 @@ fn interpolate_bv(spectrum: &ZodiacalPhotonSpectrum, b_zl_um: f64, v_zl_um: f64)
 fn interp_linear_or_nearest(
     spectrum: &ZodiacalPhotonSpectrum,
     target: Nanometers,
-    fallback_zl_um: f64,
+    fallback_zl_um: FallbackRadiance,
 ) -> S10 {
     if spectrum.contains(target) {
         if let Ok(density) = spectrum.try_interp_at(target) {
@@ -206,13 +219,34 @@ fn interp_linear_or_nearest(
         }
     }
 
-    S10::new(fallback_zl_um / LEINERT_S10_TO_W_M2_SR_UM.value())
+    S10::new(fallback_zl_um / LEINERT_S10_TO_W_M2_SR_UM)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::units::radiometry::PhotonPerSquareCentimeterNanosecondSteradianNanometer;
+
+    #[test]
+    fn bv_fallback_preserves_physical_radiance_units() {
+        // Neither diagnostic wavelength is sampled: exercise the fallback
+        // boundary with physical radiances corresponding to 7 and 11 S10.
+        let spectrum = ZodiacalPhotonSpectrum::from_raw(
+            vec![350.0, 360.0],
+            vec![1.0, 1.0],
+            Interpolation::Linear,
+            OutOfRange::ClampToEndpoints,
+            None,
+        )
+        .unwrap();
+        let (b, v) = interpolate_bv(
+            &spectrum,
+            LEINERT_S10_TO_W_M2_SR_UM * 7.0,
+            LEINERT_S10_TO_W_M2_SR_UM * 11.0,
+        );
+        assert!((b.value() - 7.0).abs() < 1e-12);
+        assert!((v.value() - 11.0).abs() < 1e-12);
+    }
 
     #[test]
     fn typed_zodiacal_spectrum_integrates_to_band_photon_radiance() {
@@ -248,7 +282,8 @@ mod tests {
 
         let beta = crate::units::angular::Radians::new(0.0);
         let elong_90 = crate::units::angular::Radians::new(90.0_f64.to_radians());
-        let reconstructed_ratio = (solar_400 / solar_500) * reddening_factor(beta, elong_90, 400.0);
+        let reconstructed_ratio = (solar_400 / solar_500)
+            * reddening_factor(beta, elong_90, Nanometers::new(400.0)).value();
         let published_ratio = 2.2e-6 / 2.6e-6;
         let relative_error = (reconstructed_ratio - published_ratio).abs() / published_ratio;
 

@@ -25,10 +25,11 @@ was defined against P_M; with normalized p_M its equivalent weight is
 w_eff=4*pi*0.05, about 0.6283. The code now expresses this normalization
 explicitly, preserving the inherited product and all calibration choices.
 Dividing by 4*pi while keeping a normalized-phase weight of 0.05 would
-retune the model, rather than merely correct its units. Siderust's historical lunar helper
-returns the numerical beam irradiance despite carrying a radiance marker.
-The kernel converts this beam to sky radiance once, before photon conversion.
-The upstream source dilution/unit correction is tracked separately.
+retune the model, rather than merely correct its units. Siderust's historical
+lunar helper returned numerical beam irradiance despite carrying a radiance
+marker. NSB now requires released Siderust 0.14.1 and uses its explicitly typed
+irradiance API, including the inverse-square source correction. The typed kernel
+converts this beam to sky radiance once, before photon conversion.
 
 The Jones path also now uses the shared local-pressure Rayleigh helper, as do
 airglow and direct transport. Local pressure already describes the molecular

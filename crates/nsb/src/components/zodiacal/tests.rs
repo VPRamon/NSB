@@ -542,7 +542,8 @@ fn legacy_solar_impact_outputs(geom: &super::geometry::ZodiacalGeometry) -> (f64
             continue;
         }
         let source = s10 * 1.28e-11 * sun / solar500
-            * super::reddening::reddening_factor(geom.beta, geom.delta_lambda, w);
+            * super::reddening::reddening_factor(geom.beta, geom.delta_lambda, Nanometers::new(w))
+                .value();
         let dex = (source * 1000.0).log10();
         let fr = if dex <= 2.244 {
             1.407 * dex - 2.692

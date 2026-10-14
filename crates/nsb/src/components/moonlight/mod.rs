@@ -38,7 +38,7 @@ use siderust::event::horizontal::star_horizontal;
 use siderust::qtty::{
     AstronomicalUnit, AstronomicalUnits, IlluminationFractions, Kilometer, Kilometers, Nanometers,
 };
-use siderust::{reflected_lunar_spectral_radiance_jones2013, MoonPhaseGeometry};
+use siderust::{reflected_lunar_spectral_irradiance_jones2013, MoonPhaseGeometry};
 use std::sync::OnceLock;
 use tempoch::{Time, JD, TT, UTC};
 

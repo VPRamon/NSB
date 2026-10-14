@@ -2,13 +2,21 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::*;
 use crate::spectra::solar::SolarSpectrum;
+use crate::units::dimensionless::{Airmasses, OpticalDepths, Transmittance};
 use crate::units::length::Nanometer;
 use crate::units::radiometry::{
     PhotonPerSquareCentimeterNanosecondSteradian as BandPhotonRadianceUnit,
     PhotonPerSquareCentimeterNanosecondSteradianNanometer as SpectralBandPhotonRadianceUnit,
 };
 use crate::units::s10_for_spectral_photon_radiance;
-use crate::units::ScaleFactors;
+use crate::units::{
+    Per, Quantity, ScaleFactors, SolarSpectralIrradiance, SolarSpectralIrradianceUnit,
+};
+
+// The upstream Rayleigh helper uses a dimensionless phase marker. At the
+// radiometric boundary its unit-integral phase density is per steradian.
+type PhaseDensity =
+    Quantity<Per<radiometry::WattPerSquareMeterSteradianNanometer, SolarSpectralIrradianceUnit>>;
 use siderust::optica::grid::OutOfRange;
 use siderust::optica::spectrum::{Interpolation, SampledSpectrum};
 
@@ -84,7 +92,6 @@ fn compute_jones_2013_spectral(
     let correction = correction_grid();
     let am_moon = airmass::<KrisciunasSchaeferAirmass>(inp.moon_zenith.to::<Radian>());
     let am_src = airmass::<KrisciunasSchaeferAirmass>(inp.source_zenith.to::<Radian>());
-    let tau_scale = tau_scale.value();
 
     let mut lam = Vec::with_capacity(solar.len());
     let mut density = Vec::with_capacity(solar.len());
@@ -93,44 +100,38 @@ fn compute_jones_2013_spectral(
             continue;
         }
         let wavelength = Nanometers::new(lambda_nm);
-        let lunar_radiance = reflected_lunar_spectral_radiance_jones2013(
-            solar_irradiance,
-            wavelength,
-            inp.phase.phase_angle,
-            inp.moon_distance,
-        );
-        if !lunar_radiance.is_finite() {
+        let lunar_irradiance: SolarSpectralIrradiance =
+            reflected_lunar_spectral_irradiance_jones2013(
+                solar_irradiance,
+                wavelength,
+                inp.phase.phase_angle,
+                inp.moon_distance,
+            );
+        if !lunar_irradiance.is_finite() {
             return Err(crate::NsbError::OutOfRange(
-                "non-finite reflected lunar radiance".into(),
+                "non-finite reflected lunar irradiance".into(),
             ));
         }
-        if lunar_radiance.value() <= 0.0 {
+        if lunar_irradiance.value() <= 0.0 {
             continue;
         }
         let tau_r = crate::site::atmosphere::rayleigh_optical_depth_local_pressure(
             wavelength,
             AtmosphericConditions::from_profile_without_altitude(profile),
-        )
-        .value()
-            * tau_scale;
-        let tau_m = mie_optical_depth(&mie_params, wavelength).value() * tau_scale;
-        let phase_r = rayleigh_phase(inp.separation.to::<Radian>()).value();
-        let phase_m = mie.lookup(inp.separation, wavelength);
-        let multi = correction.lookup(inp.separation, wavelength);
-        let am_moon_v = am_moon.value();
-        let am_src_v = am_src.value();
-        // The legacy Siderust API carries a radiance marker, but the numeric
-        // source is disc-integrated beam irradiance (W m^-2 nm^-1).
+        ) * tau_scale.value();
+        let tau_m = mie_optical_depth(&mie_params, wavelength) * tau_scale.value();
+        let phase_r = PhaseDensity::new(rayleigh_phase(inp.separation.to::<Radian>()).value());
+        let phase_m = ScaleFactors::new(mie.lookup(inp.separation, wavelength));
+        let multi = ScaleFactors::new(correction.lookup(inp.separation, wavelength));
+        // Siderust returns disc-integrated beam irradiance (W m^-2 nm^-1).
         // Rayleigh is normalized to one; the Mie table integrates to 4π.
         // The kernel makes that normalization explicit while preserving the
         // empirical coefficient defined against the original Mie convention.
         // It converts irradiance to sky radiance once, without another lunar
         // solid-angle conversion.
         let kernel =
-            single_scattering_midpoint_kernel(tau_r, tau_m, phase_r, phase_m, am_moon_v, am_src_v);
-        let sky_radiance = radiometry::WattsPerSquareMeterSteradianNanometer::new(
-            lunar_radiance.value() * kernel * multi,
-        );
+            single_scattering_midpoint_kernel(tau_r, tau_m, phase_r, phase_m, am_moon, am_src);
+        let sky_radiance = (lunar_irradiance * kernel) * multi.value();
         let value = spectral_radiance_to_photon_radiance_ns_nm(sky_radiance, wavelength).value();
         if !value.is_finite() {
             return Err(crate::NsbError::OutOfRange(
@@ -185,19 +186,25 @@ fn compute_jones_2013_spectral(
 /// This approximation is exact for equal airmasses and has relative quadrature
 /// error O([τ (X_moon-X_target)]²). It is not Jones's full spherical solver.
 fn single_scattering_midpoint_kernel(
-    tau_r: f64,
-    tau_m: f64,
-    phase_r: f64,
-    phase_m: f64,
-    am_moon: f64,
-    am_target: f64,
-) -> f64 {
+    tau_r: OpticalDepths,
+    tau_m: OpticalDepths,
+    phase_r: PhaseDensity,
+    phase_m: ScaleFactors,
+    am_moon: Airmasses,
+    am_target: Airmasses,
+) -> PhaseDensity {
     let four_pi = 4.0 * std::f64::consts::PI;
-    let mie_per_sr = phase_m / four_pi;
+    let mie_per_sr = PhaseDensity::new(phase_m.value() / four_pi);
     let effective_mie_weight = JONES_MIE_WEIGHT * four_pi;
-    let scatter = (tau_r * phase_r + tau_m * effective_mie_weight * mie_per_sr).max(0.0);
-    let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon + am_target)).exp();
-    scatter * am_target * transmission
+    // qtty 0.8's named dimensionless units do not implement cross-unit Mul.
+    // Erase only these dimensionless multipliers, keeping the physical phase
+    // density typed. Irradiance * PhaseDensity cancels structurally to radiance.
+    let scatter = (phase_r * tau_r.value() + mie_per_sr * (tau_m.value() * effective_mie_weight))
+        .max(PhaseDensity::new(0.0));
+    let slant_depth =
+        OpticalDepths::new((tau_r + tau_m).value() * 0.5 * (am_moon + am_target).value());
+    let transmission = (-slant_depth).exp().to::<Transmittance>();
+    scatter * am_target.value() * transmission.value()
 }
 
 fn mie_grid() -> &'static ScatterGrid {
@@ -220,6 +227,21 @@ fn bundled_solar_spectrum() -> &'static SolarSpectrum {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Scalar inputs keep the independent quadrature reference transparent;
+    // the production kernel accepts and returns qtty quantities only.
+    fn scalar_kernel(tr: f64, tm: f64, pr: f64, pm: f64, xm: f64, xt: f64) -> f64 {
+        single_scattering_midpoint_kernel(
+            OpticalDepths::new(tr),
+            OpticalDepths::new(tm),
+            PhaseDensity::new(pr),
+            ScaleFactors::new(pm),
+            Airmasses::new(xm),
+            Airmasses::new(xt),
+        )
+        .value()
+    }
+
     fn make_phase(alpha_deg: f64) -> MoonPhaseGeometry {
         use siderust::qtty::{IlluminationFractions, Radians};
         MoonPhaseGeometry {
@@ -332,7 +354,7 @@ mod tests {
                             .sum::<f64>()
                             / n as f64;
                         let expected = xt * (tr * pr + 0.05 * tm * pm) * integral;
-                        let actual = single_scattering_midpoint_kernel(tr, tm, pr, pm, xm, xt);
+                        let actual = scalar_kernel(tr, tm, pr, pm, xm, xt);
                         let tolerance = if xm == xt { 1e-12 } else { 0.001 };
                         assert!((actual / expected - 1.0).abs() < tolerance);
                     }
@@ -343,14 +365,9 @@ mod tests {
 
     #[test]
     fn single_scattering_zero_and_first_order_limits() {
-        assert_eq!(
-            single_scattering_midpoint_kernel(0.0, 0.0, 0.1, 0.2, 1.0, 2.0),
-            0.0
-        );
+        assert_eq!(scalar_kernel(0.0, 0.0, 0.1, 0.2, 1.0, 2.0), 0.0);
         for (tr, tm) in [(0.1, 0.0), (0.0, 0.05), (0.08, 0.05)] {
-            let evaluate = |scale| {
-                single_scattering_midpoint_kernel(scale * tr, scale * tm, 0.1, 0.2, 1.5, 2.0)
-            };
+            let evaluate = |scale| scalar_kernel(scale * tr, scale * tm, 0.1, 0.2, 1.5, 2.0);
             let expected_first_order = 2.0 * (tr * 0.1 + 0.05 * tm * 0.2);
             assert!((evaluate(1e-10) / 1e-10 / expected_first_order - 1.0).abs() < 1e-10);
             let slope = (evaluate(1e-7) / evaluate(1e-6)).ln() / 0.1_f64.ln();
@@ -368,9 +385,32 @@ mod tests {
         for wave in [350.0, 551.0, 650.0] {
             let f = correction_grid().lookup(Degrees::new(60.0), Nanometers::new(wave));
             assert!(f.is_finite() && f >= 1.0);
-            let a = single_scattering_midpoint_kernel(1e-9, 0.0, 0.1, 0.0, 1.0, 1.0);
-            let b = single_scattering_midpoint_kernel(1e-10, 0.0, 0.1, 0.0, 1.0, 1.0);
+            let a = scalar_kernel(1e-9, 0.0, 0.1, 0.0, 1.0, 1.0);
+            let b = scalar_kernel(1e-10, 0.0, 0.1, 0.0, 1.0, 1.0);
             assert!(((b * f) / (a * f) - 0.1).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn scattered_moonlight_retains_inverse_square_source_distance() {
+        let evaluate = |distance| {
+            compute_jones_2013_spectral(
+                &geometry(60.0, 50.0, 30.0, 45.0, distance),
+                bundled_solar_spectrum(),
+                ScaleFactors::new(1.0),
+                paranal_like_profile(),
+            )
+            .unwrap()
+        };
+        let reference = evaluate(384_400.0);
+        let nearer = evaluate(350_000.0);
+        let expected = (Kilometers::new(384_400.0) / Kilometers::new(350_000.0)).powi(2);
+        for (close, far) in [
+            (nearer.integrated.value(), reference.integrated.value()),
+            (nearer.b_flux_s10.value(), reference.b_flux_s10.value()),
+            (nearer.v_flux_s10.value(), reference.v_flux_s10.value()),
+        ] {
+            assert!((close / far / expected - 1.0).abs() < 1e-12);
         }
     }
 

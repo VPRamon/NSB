@@ -43,10 +43,11 @@
 
 use crate::site::{atmosphere::rayleigh_optical_depth_local_pressure, AtmosphericConditions};
 use crate::units::angular::{Degrees, Radian};
-use crate::units::dimensionless::Transmittances;
+use crate::units::dimensionless::{OpticalDepths, Transmittance, Transmittances};
 use crate::units::radiometry::WattsPerSquareMeterSteradianNanometer;
-use crate::units::unit;
-use crate::units::WattPerSquareMeterSteradianMicrometer;
+use crate::units::{
+    MagnitudesPerAirmass, Quantity, ScaleFactors, WattPerSquareMeterSteradianMicrometer,
+};
 use siderust::atmosphere::{airmass, Young1994};
 use siderust::qtty::Nanometers;
 
@@ -112,11 +113,12 @@ fn noll2012_transmission(
     if reference_500.value() == 0.0 {
         return Transmittances::new(1.0);
     }
-    let zl_value_w_m2_sr_um = reference_500
-        .to::<WattPerSquareMeterSteradianMicrometer>()
-        .value();
-    // I0 is the dimensionless numerical value in Noll Fig. 7 units.
-    let dex = (zl_value_w_m2_sr_um / 1.0e-8).log10();
+    const NOLL_BRIGHTNESS_UNIT: Quantity<WattPerSquareMeterSteradianMicrometer> =
+        Quantity::new(1.0e-8);
+    // Same-unit division cancels radiance before taking the logarithm.
+    let normalized_brightness =
+        reference_500.to::<WattPerSquareMeterSteradianMicrometer>() / NOLL_BRIGHTNESS_UNIT;
+    let dex = normalized_brightness.log10();
     let fext_m = if dex <= 2.255 {
         1.309 * dex - 2.598
     } else {
@@ -128,19 +130,18 @@ fn noll2012_transmission(
         0.527 * dex - 0.715
     };
 
-    let lam_um = wavelength.to::<unit::Micrometer>().value();
-    let kaer = if lam_um < 0.4 {
-        0.05
+    let wavelength_ratio = ScaleFactors::new(wavelength / Nanometers::new(1000.0));
+    let kaer = if wavelength < Nanometers::new(400.0) {
+        MagnitudesPerAirmass::new(0.05)
     } else {
-        0.013 * lam_um.powf(-1.38)
+        MagnitudesPerAirmass::new(0.013 * wavelength_ratio.powf(ScaleFactors::new(-1.38)).value())
     };
     // Noll Eq. 1: positive optical depth τ = 0.4 ln(10) k.
     // Molecular and aerosol factors apply to their own optical depths.
-    let tau_m = 0.4 * std::f64::consts::LN_10 * kaer;
+    let tau_m = OpticalDepths::new(0.4 * std::f64::consts::LN_10 * kaer.value());
     let tau_r =
-        rayleigh_optical_depth_local_pressure(wavelength, AtmosphericConditions::paranal_average())
-            .value();
+        rayleigh_optical_depth_local_pressure(wavelength, AtmosphericConditions::paranal_average());
     let am = airmass::<Young1994>(zenith.to::<Radian>());
     let tau_eff = (tau_r * fext_r + tau_m * fext_m) * am.value();
-    Transmittances::new((-tau_eff).exp())
+    (-tau_eff).exp().to::<Transmittance>()
 }
