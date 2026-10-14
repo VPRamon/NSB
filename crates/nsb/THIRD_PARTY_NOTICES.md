@@ -23,9 +23,10 @@ provide full source identifiers and SHA-256s.
 
 ## Previous conditional Starlight approval and retained source terms
 
-The previous compact Starlight pair was authorized by the #103 decision
-`approved_with_conditions`. The regenerated v1 pair remains embedded for
-equivalence checks and awaits renewed checksum-specific release authorization.
+The previous compact Starlight pair was authorized by the historical #103
+decision. The regenerated v1 pair is now separately approved by the maintainer
+with the same noncommercial/source-specific conditions and exact new SHA-256
+pins. Earlier approvals and evidence remain archived.
 For the previous product, the maintainer
 accepted the XHIP calculated-output/database-right and independent embedded-data
 interpretations for noncommercial scientific publication at
