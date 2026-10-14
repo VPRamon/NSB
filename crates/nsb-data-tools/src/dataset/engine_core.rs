@@ -1059,6 +1059,149 @@ reference_distance = \"1 AU\"\n",
         (temp, config_path)
     }
 
+
+    fn test_manifest(root: &Path) -> RunManifest {
+        RunManifest {
+            schema_version: RUN_SCHEMA_VERSION,
+            run_id: "unit-test-run".into(),
+            dataset: DatasetName::SolarSpectrum,
+            operation: Operation::Build,
+            executor: Executor::Local,
+            status: RunStatus::Planned,
+            config_path: root.join("config.toml"),
+            config_sha256: "0".repeat(64),
+            software_commit: "test-revision".into(),
+            resolved_workspace: root.join("workspace"),
+            partitions: vec![],
+            artifacts: vec![],
+            validation_report: None,
+            slurm_job_id: None,
+            error: None,
+        }
+    }
+
+    #[test]
+    fn run_manifest_identity_status_and_checksum_fail_closed() {
+        let (temp, config_path) = write_non_partitioned_config();
+        let config = RunConfig::load(&config_path).unwrap();
+        let plan = BuildPlan {
+            dataset: DatasetName::SolarSpectrum,
+            operation: Operation::Build,
+            executor: Executor::Local,
+            partitions: vec![],
+        };
+        let sha = sha256_file(&config_path).unwrap();
+        let id = run_id(&plan, &sha, "revision").unwrap();
+        assert_eq!(id, run_id(&plan, &sha, "revision").unwrap());
+        assert_ne!(id, run_id(&plan, &sha, "another-revision").unwrap());
+        let path = manifest_path(&config, &id);
+        initialize_manifest(&config_path, &config, &plan, &path, &id, &sha, "revision").unwrap();
+        initialize_manifest(&config_path, &config, &plan, &path, &id, &sha, "revision").unwrap();
+        let mut manifest = read_manifest(&path).unwrap();
+        assert_eq!(manifest.run_id, id);
+        assert!(!completed_manifest_is_valid(&path).unwrap());
+        assert_eq!(partition_progress(&manifest).unwrap(), (0, 0));
+        status(&path).unwrap();
+        let mismatch = initialize_manifest(
+            &config_path, &config, &plan, &path, "different", &sha, "revision",
+        ).unwrap_err();
+        assert!(mismatch.to_string().contains("persisted run identity"));
+
+        let data = temp.path().join("asset.dat");
+        fs::write(&data, b"verified").unwrap();
+        manifest.artifacts.push(artifact("asset.dat", &data).unwrap());
+        manifest.status = RunStatus::Complete;
+        write_manifest(&path, &manifest).unwrap();
+        assert!(completed_manifest_is_valid(&path).unwrap());
+        fs::write(&data, b"tampered").unwrap();
+        assert!(!completed_manifest_is_valid(&path).unwrap());
+        update_status(&path, RunStatus::Running).unwrap();
+        assert!(matches!(read_manifest(&path).unwrap().status, RunStatus::Running));
+        mark_failed(&path, &anyhow::anyhow!("synthetic failure"));
+        let failed = read_manifest(&path).unwrap();
+        assert!(matches!(failed.status, RunStatus::Failed));
+        assert!(failed.error.unwrap().contains("synthetic failure"));
+        let mut invalid = failed;
+        invalid.schema_version += 1;
+        write_manifest(&path, &invalid).unwrap();
+        assert!(read_manifest(&path).unwrap_err().to_string().contains("unsupported run manifest schema"));
+    }
+
+    #[test]
+    fn distributed_partition_progress_and_resume_respect_completed_worker_manifests() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut manifest = test_manifest(temp.path());
+        manifest.executor = Executor::Slurm;
+        manifest.partitions = vec!["part-a".into(), "part-b".into()];
+        let main = temp.path().join("run.json");
+        write_manifest(&main, &manifest).unwrap();
+        assert_eq!(partition_progress(&manifest).unwrap(), (0, 2));
+        let worker_a = manifest.resolved_workspace.join("workers/part-a/runs/build.json");
+        let worker_b = manifest.resolved_workspace.join("workers/part-b/runs/build.json");
+        assert!(!worker_is_complete(&manifest.resolved_workspace, "part-a", Operation::Build).unwrap());
+        let mut worker = manifest.clone();
+        worker.status = RunStatus::Complete;
+        worker.partitions.clear();
+        write_manifest(&worker_a, &worker).unwrap();
+        assert_eq!(partition_progress(&manifest).unwrap(), (1, 1));
+        write_manifest(&worker_b, &worker).unwrap();
+        assert_eq!(partition_progress(&manifest).unwrap(), (2, 0));
+        status(&main).unwrap();
+        resume(&main).unwrap();
+    }
+
+    #[test]
+    fn leases_detect_live_owners_and_recover_only_stale_local_owners() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("nested/partition.lease");
+        let lease = Lease::acquire(&path, 3600).unwrap();
+        assert!(path.exists());
+        assert!(Lease::acquire(&path, 3600).unwrap_err().to_string().contains("already held"));
+        drop(lease);
+        assert!(!path.exists());
+
+        let previous = LeaseRecord {
+            schema_version: 1,
+            hostname: current_hostname(),
+            pid: u32::MAX,
+            created_unix_seconds: 0,
+            slurm_job_id: None,
+        };
+        assert!(lease_can_be_recovered(&previous, 60).unwrap());
+        write_json(&path, &previous).unwrap();
+        let recovered = Lease::acquire(&path, 60).unwrap();
+        assert!(path.exists());
+        drop(recovered);
+
+        let mut foreign = previous;
+        foreign.hostname = "host-not-this-runner".into();
+        assert!(!lease_can_be_recovered(&foreign, 60).unwrap());
+        foreign.schema_version = 9;
+        assert!(lease_can_be_recovered(&foreign, 60).is_err());
+        write_json(&path, &foreign).unwrap();
+        assert!(Lease::acquire(&path, 60).is_err());
+        fs::write(&path, b"{not valid json").unwrap();
+        assert!(Lease::acquire(&path, 60).is_err());
+    }
+
+    #[test]
+    fn atomic_file_copy_and_manifest_error_paths_are_preserved() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("source.txt");
+        let destination = temp.path().join("nested/output.txt");
+        fs::write(&source, b"some bytes").unwrap();
+        copy_atomic(&source, &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"some bytes");
+        assert!(copy_atomic(&temp.path().join("missing.txt"), &destination).is_err());
+        let mut document = "schema_version = 1\n".parse::<toml_edit::DocumentMut>().unwrap();
+        assert!(update_manifest_checksum(
+            &mut document,
+            DatasetName::SolarSpectrum,
+            "not-registered.dat",
+            &"0".repeat(64),
+        ).is_err());
+    }
+
     #[test]
     fn slurm_rejects_non_partitioned_dataset() {
         let (_temp, config_path) = write_non_partitioned_config();
