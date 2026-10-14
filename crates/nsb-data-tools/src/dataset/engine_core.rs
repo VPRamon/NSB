@@ -1301,7 +1301,6 @@ reference_distance = \"1 AU\"\n",
         .unwrap();
     }
 
-
     #[test]
     fn reconcile_worker_shards_copies_verified_artifacts_and_rejects_corruption() {
         use crate::starlight::map::accumulator::PartitionShard;
@@ -1314,9 +1313,15 @@ reference_distance = \"1 AU\"\n",
         config.workspace.root = temp.path().join("workspace");
         let workers = config.workspace.root.join("workers");
         let first = workers.join("gaia-source-a/shard.json");
-        PartitionShard::new("gaia-source-a", 4).unwrap().write(&first).unwrap();
+        PartitionShard::new("gaia-source-a", 4)
+            .unwrap()
+            .write(&first)
+            .unwrap();
         let second = workers.join("gaia-source-b/shard.json");
-        PartitionShard::new("gaia-source-b", 4).unwrap().write(&second).unwrap();
+        PartitionShard::new("gaia-source-b", 4)
+            .unwrap()
+            .write(&second)
+            .unwrap();
         let second_index = workers.join("gaia-source-b/outputs/artifacts.json");
         write_json(
             &second_index,
@@ -1327,52 +1332,85 @@ reference_distance = \"1 AU\"\n",
         atomic_write(&stale, b"stale-data").unwrap();
         reconcile_workers(&config).unwrap();
         assert!(!stale.exists());
-        let indexed: Vec<Artifact> = read_json(
-            &config.workspace.root.join("outputs/artifacts.json")
-        ).unwrap();
+        let indexed: Vec<Artifact> =
+            read_json(&config.workspace.root.join("outputs/artifacts.json")).unwrap();
         assert_eq!(indexed.len(), 2);
         for partition in ["gaia-source-a", "gaia-source-b"] {
             let original = workers.join(partition).join("shard.json");
-            let copied = config.workspace.root.join("outputs/shards").join(format!("{partition}.json"));
+            let copied = config
+                .workspace
+                .root
+                .join("outputs/shards")
+                .join(format!("{partition}.json"));
             assert_eq!(fs::read(original).unwrap(), fs::read(copied).unwrap());
         }
         let mut corrupted: Vec<Artifact> = read_json(&second_index).unwrap();
         corrupted[0].sha256 = "f".repeat(64);
         write_json(&second_index, &corrupted).unwrap();
-        assert!(reconcile_workers(&config).unwrap_err().to_string().contains("failed reconciliation"));
+        assert!(reconcile_workers(&config)
+            .unwrap_err()
+            .to_string()
+            .contains("failed reconciliation"));
         corrupted[0].sha256 = sha256_file(&second).unwrap();
         corrupted[0].name = "shards/unexpected.json".into();
         write_json(&second_index, &corrupted).unwrap();
-        assert!(reconcile_workers(&config).unwrap_err().to_string().contains("did not emit exactly"));
+        assert!(reconcile_workers(&config)
+            .unwrap_err()
+            .to_string()
+            .contains("did not emit exactly"));
     }
 
     #[test]
     fn starlight_publishing_registers_candidate_assets_but_guards_production() {
         let mut document = "schema_version = 1\n[[assets]]\npath = \"existing.dat\"\n"
-            .parse::<toml_edit::DocumentMut>().unwrap();
+            .parse::<toml_edit::DocumentMut>()
+            .unwrap();
         let checksum = "a".repeat(64);
         update_manifest_checksum(
-            &mut document, DatasetName::Starlight, "starlight_nside128.csv", &checksum,
-        ).unwrap();
+            &mut document,
+            DatasetName::Starlight,
+            "starlight_nside128.csv",
+            &checksum,
+        )
+        .unwrap();
         let assets = document["assets"].as_array_of_tables().unwrap();
-        let map = assets.iter().find(|x| x["path"].as_str() == Some("starlight_nside128.csv")).unwrap();
+        let map = assets
+            .iter()
+            .find(|x| x["path"].as_str() == Some("starlight_nside128.csv"))
+            .unwrap();
         assert_eq!(map["sha256"].as_str(), Some(checksum.as_str()));
         assert_eq!(map["calibration_status"].as_str(), Some("candidate"));
         assert_eq!(map["runtime_embedded"].as_bool(), Some(false));
         assert_eq!(map["header"]["nside"].as_str(), Some("128"));
 
         let mut protected = document.clone();
-        let asset = protected["assets"].as_array_of_tables_mut().unwrap().iter_mut()
-            .find(|x| x["path"].as_str() == Some("starlight_nside128.csv")).unwrap();
+        let asset = protected["assets"]
+            .as_array_of_tables_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|x| x["path"].as_str() == Some("starlight_nside128.csv"))
+            .unwrap();
         asset["calibration_status"] = toml_edit::value("production");
         assert!(update_manifest_checksum(
-            &mut protected, DatasetName::Starlight,
-            "starlight_nside128.csv", &"b".repeat(64),
-        ).unwrap_err().to_string().contains("cannot replace a production"));
+            &mut protected,
+            DatasetName::Starlight,
+            "starlight_nside128.csv",
+            &"b".repeat(64),
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("cannot replace a production"));
         update_manifest_checksum(
-            &mut document, DatasetName::Starlight, "merge_report.json", &"c".repeat(64),
-        ).unwrap();
-        assert!(document["assets"].as_array_of_tables().unwrap().iter()
+            &mut document,
+            DatasetName::Starlight,
+            "merge_report.json",
+            &"c".repeat(64),
+        )
+        .unwrap();
+        assert!(document["assets"]
+            .as_array_of_tables()
+            .unwrap()
+            .iter()
             .any(|asset| asset["path"].as_str() == Some("merge_report.json")));
     }
 
