@@ -858,7 +858,7 @@ mod tests {
         let bytes = std::fs::read(&path).unwrap();
         assert!(parse_datalink_gaiaxpy_csv(&bytes, "99").is_err());
         let mut doubled = bytes.clone();
-        doubled.extend_from_slice(&bytes[bytes.iter().position(|b| *b == b'\\n').unwrap() + 1..]);
+        doubled.extend_from_slice(&bytes[bytes.iter().position(|b| *b == b'\n').unwrap() + 1..]);
         assert!(parse_datalink_gaiaxpy_csv(&doubled, "42").is_err());
     }
 
