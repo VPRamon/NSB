@@ -1,19 +1,88 @@
 {
   "schema_version": 1,
-  "decision": "pending",
-  "reviewer_name": null,
-  "reviewer_role": null,
-  "reviewed_at_utc": null,
+  "decision": "approved_with_conditions",
+  "reviewer_name": "Vallés Puig, Ramon (VPRamon; GitHub user ID 74069811)",
+  "reviewer_role": "NSB repository owner and authorized project release decision-maker; scoped project approval, not a new third-party rights grant or qualified legal opinion",
+  "reviewed_at_utc": "2026-10-14T21:17:15Z",
   "candidate_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
   "inventory_sha256": "de3f919b0b393a41c904ed965a89662f9553e5cf2ec884be00a3b5f68d7ec4b9",
   "review_bundle_sha256": "5753bed374ac6537bddb10baa7f85f03c47e692f2be9dc17f54b5095f32bd8d2",
-  "pinned_artifacts": [],
-  "conditions": [],
+  "pinned_artifacts": [
+    {
+      "id": "starlight-candidate-map-nside128",
+      "sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-merge-report",
+      "sha256": "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-manifest-toml",
+      "sha256": "56db0ac1a7781a803c0ae53c4055ef83db9b13781b6a6c865e155fd0f4eba6d8",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-external-manifest-sidecar-contract",
+      "sha256": "af08fdbe04d8e8ad6aa9e8e96a768413c3490a83c31b800e7b47026487842123",
+      "approved_channels": [
+        "documentation",
+        "git_repository"
+      ]
+    },
+    {
+      "id": "starlight-combined-300-650-validation-report",
+      "sha256": "8bc73d91606a8bd2933709b29e84e8e71c10dd744faaa3ce8b8135e3a09e20db",
+      "approved_channels": [
+        "git_repository"
+      ]
+    },
+    {
+      "id": "compact-runtime-map-v1",
+      "sha256": "11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f",
+      "approved_channels": [
+        "crates_io",
+        "git_repository",
+        "github_release",
+        "pypi_sdist",
+        "pypi_wheel"
+      ]
+    },
+    {
+      "id": "compact-runtime-sidecar-v1",
+      "sha256": "1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8",
+      "approved_channels": [
+        "crates_io",
+        "git_repository",
+        "github_release",
+        "pypi_sdist",
+        "pypi_wheel"
+      ]
+    }
+  ],
+  "conditions": [
+    {
+      "id": "review-bundle-v1",
+      "description": "Pin the regenerated first-public-release Starlight v1 review bundle, while retaining the previous approval and historical input/evidence records separately in the pre-v1-reset archive.",
+      "verifier": {
+        "type": "repository_file_sha256",
+        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
+        "sha256": "5753bed374ac6537bddb10baa7f85f03c47e692f2be9dc17f54b5095f32bd8d2"
+      }
+    }
+  ],
   "restrictions": [
-    "Noncommercial scientific publication of the exact combined 300\u2013650 nm HEALPix product only; retain applicable Gaia CC BY-NC 3.0 IGO and source-specific terms, licence URIs, credits and modifications. No unrestricted commercial data grant or endorsement.",
+    "Noncommercial scientific publication of the exact combined 300–650 nm HEALPix product only; retain applicable Gaia CC BY-NC 3.0 IGO and source-specific terms, licence URIs, credits and modifications. No unrestricted commercial data grant or endorsement.",
     "Authorized scope is the pinned compact pair and channels. Original catalogues, SVO transmission curves, spectral files and per-star diagnostics are excluded from runtime packages.",
     "The maintainer expressly accepts the pinned rights assessment conclusions: the new integrated map does not publicly reutilize a substantial protected part of XHIP, and the independently generated numerical map retains separate scientific-data terms when embedded in the AGPL library. EU database and GNU same-executable counterarguments were disclosed. No third-party right is waived or invented; retain maintainer-provided SVO/Hipparcos correspondence. No national domicile is inferred from account or timezone.",
     "Production registration does not claim publication. Mutable publication metadata must be derived and verified against the unchanged approval snapshot, decision and exact product."
   ],
-  "notes": "Pending renewed checksum-specific authorization after the pre-0.1.0 schema reset. The previous approved decision is preserved byte-for-byte in approval-history/pre-v1-reset/release-candidate/redistribution-review-decision-v1.json. Its human identity, timestamp, accepted findings and channels must not be transferred automatically to the regenerated artifacts. See schema-reset-v1.md."
+  "notes": "Renewed approval for the exact checksum-pinned NSB-owned v1-format Starlight products in PR #240, based on the maintainer's express instruction in this conversation on 2026-10-14: 'dado que el contenido en si no ha cambiado, lo podemos aprovar. haz los cambios en el pr y deja la ci verde'. The maintainer accepts the version reset because the science/numerical content is unchanged; this new approval covers the regenerated hashes and the listed channels under the same noncommercial scientific/source-specific restrictions as the previously accepted #103 decision. The old decision and its distinct historical hashes remain archived at release-candidate/approval-history/pre-v1-reset/. This is a newly recorded project-level authorization for the v1 outputs, not a copied historical signature, an independent third-party licence, a new external validation run, or a claim that registry publication already occurred. Review-bundle-v1 and inventory-v1 pin these exact bytes; do not re-pin them after approval without renewing the decision."
 }
