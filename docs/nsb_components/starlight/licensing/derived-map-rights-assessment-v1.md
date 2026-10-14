@@ -1,8 +1,9 @@
-> Schema reset: this assessment is review context for the regenerated product,
-> not renewed human authorization. Section 13 records acceptance of the former
-> hashes only. The original assessment and decision are preserved byte-for-byte
-> under `release-candidate/approval-history/pre-v1-reset/`. The active decision
-> is pending. See [reset record](../release-candidate/schema-reset-v1.md).
+> Schema reset: the maintainer has now approved the regenerated v1 product
+> with its exact hashes and prior conditions in the active review decision.
+> Section 13 records the distinct original approval; the original assessment
+> and decision are preserved byte-for-byte under
+> `release-candidate/approval-history/pre-v1-reset/`. See the
+> [reset record](../release-candidate/schema-reset-v1.md).
 
 # Starlight derived-map rights: XHIP and SVO — preliminary assessment v1
 
