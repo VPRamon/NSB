@@ -136,7 +136,8 @@ distribution of NSB's HEALPix derived map. Public availability, scholarly
 attribution, and derived-map commercial redistribution are distinct rights
 questions. The source table is an offline-only input; the author reply is
 retained privately for #103 review; global Starlight authorization is recorded in the separate decision; it was
-pending when this approval snapshot was prepared.
+pending when the original v1 snapshot was prepared; the exact compact output
+is now conditionally approved under the canonical #103 decision.
 """
 
 [[artifacts]]
@@ -299,7 +300,7 @@ Technical package lives under docs/nsb_components/starlight/validation/.
 Run reports are in validation/results/. All three acquired references are
 marked not-admissible as starlight-only TOA 300-650 nm grids (Toller
 ISL+DGL+EBL; Leinert Gaussian parameters unpublished; GAMBONS mixed sky).
-Scientific sign-off remains #103.
+Scientific evidence is verified separately; #103 records the actual conditional rights decision.
 """
 
 [[artifacts]]
@@ -321,7 +322,7 @@ approval of redistribution on GitHub, crates.io, PyPI, or releases.
 calibration_status = candidate,
 runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
-redistribution decision is owned by #103 (pending at snapshot preparation). The invalidated #93 digest
+redistribution decision is owned by #103 (conditionally approved; original v1 snapshot preceded approval). The invalidated #93 digest
 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
 historical only.
 
@@ -373,7 +374,7 @@ category = "manifest"
 source = "NSB-authored checksum/provenance registry for bundled runtime assets"
 release = "schema_version = 1"
 license = "NSB source licence (AGPL-3.0-only, see README.md#Licensing); contains no third-party bytes, only metadata describing third-party inputs"
-sha256 = "28cb3283a8d7c436fa99dab15f7803e3a9b2e4899258cf5893d695ea88a01690"
+sha256 = "51c37947a413ea3c4c42b4c4688ba7d3486771a1d3213c3dfac65e28b042452d"
 distribution_class = "repository_embedded"
 distributed = true
 channels = ["git_repository"]
@@ -439,7 +440,7 @@ planned_channels = [
 ]
 lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
-notes = "Reproducible with stage-runtime --output-csv <path>.bin. Payload is generated locally, not committed or packaged pending authorization. Compact sidecar SHA-256 b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Intended future channels: crates.io, PyPI wheel/sdist and GitHub release, only after channel-specific approval."
+notes = "Reproducible with stage-runtime --output-csv <path>.bin. The exact compact pair is conditionally approved under #103; the staged approval plan is distinct from current production/publication state. Compact sidecar SHA-256 b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Approved planned channels include Git, crates.io, PyPI wheel/sdist and GitHub release; only the current inventory records actual publication."
 
 [[artifacts]]
 id = "compact-runtime-sidecar-v1"
@@ -460,4 +461,4 @@ planned_channels = [
 ]
 lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
-notes = "No payload shipped while pending. Promotion requires explicit decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."
+notes = "Conditional approval and production activation are recorded; promotion requires exact decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."

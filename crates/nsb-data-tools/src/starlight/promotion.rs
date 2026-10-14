@@ -1013,7 +1013,7 @@ fn verify_licensing_redistribution_review(
 }
 
 const REVIEW_BUNDLE_RELATIVE_PATH: &str =
-    "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
+    "docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml";
 const RUNTIME_ASSETS_RELATIVE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
 
@@ -1876,7 +1876,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
 
         let release_candidate_dir = root.join("docs/nsb_components/starlight/release-candidate");
         fs::create_dir_all(&release_candidate_dir).unwrap();
-        let review_bundle_path = release_candidate_dir.join("review-bundle-v1.toml");
+        let review_bundle_path = release_candidate_dir.join("review-bundle-v2.toml");
         fs::write(
             &review_bundle_path,
             format!("schema_version = 1\nschema = \"nsb-starlight-review-bundle-v1\"\n\n[[artifacts]]\nid = \"validation_artifact_manifest\"\npath = \"synthetic-validation-artifacts.toml\"\nsha256 = \"{}\"\n", {

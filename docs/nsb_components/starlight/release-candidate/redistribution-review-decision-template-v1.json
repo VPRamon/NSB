@@ -5,8 +5,8 @@
   "reviewer_role": null,
   "reviewed_at_utc": null,
   "candidate_sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
-  "inventory_sha256": "db544fdd3fa9ee43f5eb2aebdb8bbf029131b59277f93a1c6e39b5f012d5b965",
-  "review_bundle_sha256": "78b792a8d42c26ac30f58da49d1dd23003d8aff04ab3c5d4534ea192bf439864",
+  "inventory_sha256": "2f083e7e91935ba2fa37752cf67d02f81973f9e9e4a6886de427718af3ac1cf2",
+  "review_bundle_sha256": "2fa075af6c31cf7f35ed3143fbe10dae7a12a2ffd36cf67348d8d9e5fdd138f8",
   "pinned_artifacts": [
     {
       "id": "starlight-candidate-map-nside128",
@@ -24,7 +24,7 @@
     },
     {
       "id": "starlight-manifest-toml",
-      "sha256": "9892080ccdbbdd625de798578e7915f3a4d2a2223bd389945dbfbd8f8dcf4b6b",
+      "sha256": "eab188f160f97d3581c88b0b42ff5d95c9134dbd875e20414921ffedab0db56f",
       "approved_channels": [
         "git_repository"
       ]
@@ -69,20 +69,20 @@
   ],
   "conditions": [
     {
-      "id": "review-bundle-v1",
-      "description": "Pin the immutable Starlight #103 human-review evidence bundle.",
+      "id": "review-bundle-v2",
+      "description": "Pin the explicit documentary-amended Starlight #103 review revision, preserving original human approval and v1 evidence.",
       "verifier": {
         "type": "repository_file_sha256",
-        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml",
-        "sha256": "78b792a8d42c26ac30f58da49d1dd23003d8aff04ab3c5d4534ea192bf439864"
+        "path": "docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml",
+        "sha256": "2fa075af6c31cf7f35ed3143fbe10dae7a12a2ffd36cf67348d8d9e5fdd138f8"
       }
     }
   ],
   "restrictions": [
     "Noncommercial scientific publication of the exact combined 300\u2013650 nm HEALPix product only; retain applicable Gaia CC BY-NC 3.0 IGO and source-specific terms, licence URIs, credits and modifications. No unrestricted commercial data grant or endorsement.",
     "Authorized scope is the pinned compact pair and channels. Original catalogues, SVO transmission curves, spectral files and per-star diagnostics are excluded from runtime packages.",
-    "The actual reviewer must record acceptance, with applicable jurisdiction and publication facts, of the XHIP calculated-map/database-right and AGPL independent-data aggregate interpretations documented in the pinned rights assessment; verify retained correspondence. This template makes neither finding.",
+    "The maintainer expressly accepts the pinned rights assessment conclusions: the new integrated map does not publicly reutilize a substantial protected part of XHIP, and the independently generated numerical map retains separate scientific-data terms when embedded in the AGPL library. EU database and GNU same-executable counterarguments were disclosed. No third-party right is waived or invented; retain maintainer-provided SVO/Hipparcos correspondence. No national domicile is inferred from account or timezone.",
     "Production registration does not claim publication. Mutable publication metadata must be derived and verified against the unchanged approval snapshot, decision and exact product."
   ],
-  "notes": "TEMPLATE ONLY \u2014 not the authoritative decision and not authorization. Reviewer name, role and timestamp deliberately null. The authorized human must complete the real #103 procedure; do not activate this file automatically. No source rights are invented."
+  "notes": "TEMPLATE ONLY, not authorization. Active v2 documentary evidence pins; original human approval is recorded only in the canonical decision. Null reviewer fields cannot authorize promotion."
 }

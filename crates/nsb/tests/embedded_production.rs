@@ -53,3 +53,31 @@ fn approved_production_has_all_four_components_offline() {
         std::fs::write(path, serde_json::to_vec(&values).unwrap()).unwrap();
     }
 }
+
+#[test]
+fn production_notice_matches_conditional_embedded_distribution() {
+    let notice = include_str!("../THIRD_PARTY_NOTICES.md");
+    for obsolete in [
+        "#103 is pending",
+        "#103 remains pending",
+        "runtime is intentionally disabled",
+        "no compact Starlight payload is shipped",
+    ] {
+        assert!(
+            !notice.contains(obsolete),
+            "obsolete shipped status: {obsolete}"
+        );
+    }
+    for required in [
+        "approved_with_conditions",
+        "CC BY-NC 3.0 IGO",
+        "AGPL-3.0-only",
+        "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784",
+        "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b",
+    ] {
+        assert!(
+            notice.contains(required),
+            "missing shipped condition: {required}"
+        );
+    }
+}

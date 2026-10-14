@@ -66,7 +66,7 @@ scientific calibration evidence.
 - [ ] Obtain the maintainer's separate final merge/tag/registry-publication
   authorization. This preparation does not create a tag or upload to registries.
 
-The frozen candidate registry entry preserves its historical preapproval text;
-production authority is the canonical decision and the two admitted production
-entries. Do not edit that baseline entry and silently invalidate its approved
-snapshot hash. Existing source and model maturity limitations still apply.
+The explicit v2 documentary amendment corrects obsolete preapproval notice and
+registry text while preserving the accepted v1 evidence unchanged. Production
+authority is the canonical scoped decision and two admitted production entries;
+the active v2 baseline is pinned before its current inventory is verified. Existing source and model maturity limitations still apply.

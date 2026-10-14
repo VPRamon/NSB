@@ -13,9 +13,9 @@ issue #103 and is not approved by this bundle.
 | File | Role |
 |---|---|
 | `release-candidate-v1.toml` | Frozen candidate identity, deterministic RFC3339 generation timestamp, checksum pin for the canonical merge report, complete bright-star provenance copied from that report, technical status, external-validation pin, and runtime identities. |
-| `redistribution-review-decision-v1.json` | The sole authoritative human redistribution decision. It remains `pending`. |
+| `redistribution-review-decision-v1.json` | The sole authoritative human redistribution decision, now `approved_with_conditions`. |
 | `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v2 provenance sidecar identities. |
-| `review-bundle-v1.toml` | Immutable release evidence pinned by the redistribution decision. |
+| `review-bundle-v2.toml` | Immutable release evidence pinned by the redistribution decision. |
 
 The release-candidate gate table contains `validation_status`,
 `redistribution_review_status`, and the report-only `promotion_eligible` field.
@@ -127,8 +127,8 @@ cargo test -p nsb-data-tools compact_runtime_matches --locked -- --nocapture
 
 `runtime-assets-v1.toml` now pins these compact bytes in `[compact]`; it remains
 inside the human decision's checksum-pinned review bundle. The compact files
-are deliberately **not committed or shipped while #103 is pending**. After
-actual authorization, the existing `promote --apply` command reproduces the
+are now conditionally approved, production-registered and committed. The
+existing `promote --apply` command reproduces the
 frozen CSV and sidecar, verifies their existing pins and every prior scientific
 and legal gate, converts them, verifies compact pins, and installs/registers
 `starlight_nside128.compact.release.bin` and
@@ -185,7 +185,7 @@ four-component default. Its `.crate` was **6,385,561 bytes (6.09 MiB)**, leaving
 3.91 MiB below the project's 10 MiB ceiling. This rehearsal artifact is not a
 publication candidate. The earlier ~17.1 MiB packaging attempt included CSV
 overhead/duplicate data (reported baseline); it is not a controlled comparison
-against the current pending package, which excludes all Starlight payloads.
+against a historical preapproval package that excluded all Starlight payloads.
 The frozen CSVs and upstream catalogues remain excluded after promotion.
 
 Source-distribution testing found that maturin prunes unrelated workspace
@@ -219,12 +219,12 @@ replacing a stale scientific evidence hash with the current working document.
 Promotion of compact assets requires decision pins for both
 `compact-runtime-map-v1` and `compact-runtime-sidecar-v1`, matching the hashes
 in `runtime-assets-v1.toml`, with `git_repository`, `crates_io`, `pypi_wheel`
-and `pypi_sdist` in each pin's `approved_channels`. These inventory entries
-remain `distributed = false` until actual admission. Approval only for existing
+and `pypi_sdist` in each pin's `approved_channels`. The immutable approval plan
+uses staged entries; the current inventory now records actual Git publication. Approval only for existing
 Git artifacts cannot authorize future package distribution. A GitHub release
-asset additionally needs approval for that publication channel. The proposed
-conditions in the rights assessment are review material; they do not change
-the authoritative pending JSON or identify a reviewer.
+asset additionally needs approval for that publication channel. The actual
+canonical decision records the maintainer, acceptance time, restrictions and
+all five approved channels. The rights assessment explains the accepted findings.
 
 ## Approval and publication lifecycle
 
@@ -235,9 +235,11 @@ The sole authoritative decision remains
 leaves reviewer name/role/time null and therefore cannot authorize promotion.
 It is derived from the evidence and deliberately not included in the bundle
 that its own fields reference, avoiding a hash cycle. Never automatically copy
-it over the real pending decision. An authorized reviewer must actually accept
+it over the actual authoritative decision. The maintainer has expressly accepted
 the documented purpose, scope, source conditions, XHIP map-only interpretation
-and AGPL/independent embedded-data interpretation before recording a decision.
+and independent embedded-data finding. V2 is the explicit documentary correction
+of stale notices; the original v1 evidence and decision are preserved unchanged
+in the [amendment history](approval-history/notice-amendment-v2.md).
 
 | Stage | Immutable approval inventory | Current publication inventory |
 |---|---|---|
@@ -246,7 +248,7 @@ and AGPL/independent embedded-data interpretation before recording a decision.
 | Production registered | Same approved bytes and bundle/decision pins | `production_registered`, actual channels empty; updated registry digest |
 | Published | Same approved bytes and decision | `published`, `distributed = true`, only actual channels in `channels` |
 
-`licensing/approval-inventory-v1.toml` is the immutable approval snapshot, pinned
+`licensing/approval-inventory-v2.toml` is the immutable approval snapshot, pinned
 by the release candidate, review bundle and decision. `artifact-inventory-v1.toml`
 is the current state and is **not** an input to that checksum cycle. Initially
 both inventories describe the same assets. Promotion derives the current state

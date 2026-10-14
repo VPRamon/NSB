@@ -1,8 +1,8 @@
 schema_version = 1
 
-# This registry covers bundled bytes only. Production starlight is intentionally
-# external until a catalogue-derived asset has cleared redistribution and
-# independent validation; its mandatory sidecar schema is documented in
+# This registry identifies bundled runtime products and nonembedded evidence.
+# The exact compact Starlight pair is conditionally approved under #103 and
+# independently validated; its mandatory sidecar schema is documented in
 # docs/nsb_components/starlight/external-manifest.md.
 
 [[assets]]
@@ -122,7 +122,7 @@ path = "starlight_nside128.csv"
 schema = "nsb-healpix-starlight-candidate-v5"
 sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
 source = "Gaia DR3 XP and checksum-pinned bright-star supplement; combined 300-650 nm candidate"
-license = "Gaia CC BY-NC 3.0 IGO; derived-product redistribution pending human review #103"
+license = "Gaia CC BY-NC 3.0 IGO; nonembedded scientific evidence; exact compact derived product conditionally approved under #103"
 generator = "Frozen #207 production pipeline; see release-candidate-v1.toml"
 generation_command = "See checksum-pinned merge_report.json and release-candidate-v1.toml"
 validation_report = "docs/nsb_components/starlight/production-runs/combined-300-650-validation.json"

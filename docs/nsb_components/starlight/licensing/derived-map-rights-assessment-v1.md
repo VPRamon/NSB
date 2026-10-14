@@ -595,3 +595,15 @@ test template. Its notes identify this direct conversation acceptance; the
 public #103/#239 reports are agent-posted records of it. The final review bundle
 is frozen before activation; promotion and actual publication update only the
 verified current inventory, without repinning this accepted evidence.
+
+
+## 14. Documentary notice amendment, 2026-10-14
+
+The explicit [v2 amendment record](../release-candidate/approval-history/notice-amendment-v2.md)
+preserves the originally accepted v1 inventory, bundle, decision and Git revision.
+It corrects obsolete pending/absent statements in shipped notices and registry/
+inventory descriptions under the maintainer's existing release-preparation
+instruction. Active v2 evidence supersedes the earlier review revision without
+changing scientific bytes, accepted findings, source restrictions or channels.
+The actual human identity and acceptance time remain those recorded in §13;
+no new human signature or legal grant is inferred from these documentary fixes.

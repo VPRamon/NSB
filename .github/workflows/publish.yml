@@ -467,7 +467,10 @@ jobs:
             --redistribution-decision docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json \
             --apply --published-channel crates_io --published-channel pypi_wheel --published-channel pypi_sdist
           git diff --exit-code -- docs/nsb_components/starlight/licensing/approval-inventory-v1.toml \
+            docs/nsb_components/starlight/licensing/approval-inventory-v2.toml \
             docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml \
+            docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml \
+            docs/nsb_components/starlight/release-candidate/approval-history \
             docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json
       - uses: actions/upload-artifact@v4
         with:

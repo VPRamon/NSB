@@ -1,0 +1,100 @@
+schema_version = 1
+schema = "nsb-starlight-review-bundle-v1"
+
+# Immutable technical/scientific evidence bundle pinned by the redistribution
+# decision in issue #103. Promotion verifies every listed checksum.
+
+[[artifacts]]
+id = "candidate_map"
+path = "crates/nsb/data/starlight_nside128.csv"
+sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+
+[[artifacts]]
+id = "merge_report"
+path = "crates/nsb/data/merge_report.json"
+sha256 = "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
+
+[[artifacts]]
+id = "release_candidate_gates"
+path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
+sha256 = "66d37d3124d8e5447a97e6799f3542b51c588e2c06c1b4a9f3044ccc1d1e1976"
+
+[[artifacts]]
+id = "redistribution_inventory"
+path = "docs/nsb_components/starlight/licensing/approval-inventory-v2.toml"
+sha256 = "2f083e7e91935ba2fa37752cf67d02f81973f9e9e4a6886de427718af3ac1cf2"
+
+[[artifacts]]
+id = "validation_artifact_manifest"
+path = "docs/nsb_components/starlight/validation/results/validation-artifact-manifest-v1.toml"
+sha256 = "7cedc4e5d2a71fe9c0c48fc665abeced4a10e7d6d1c0475844e8807dd27b57d1"
+
+[[artifacts]]
+id = "runtime_assets_identity"
+path = "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml"
+sha256 = "d095f16a23e944945ebf3bfe2670f7f34e5a8b227065c6b62066591117818a75"
+
+[[artifacts]]
+id = "release_candidate_manifest"
+path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
+sha256 = "c9075d84335e4c039501184525fd8cfe0131c238a243609c2519b73d42d24bb4"
+
+[[artifacts]]
+id = "redistribution_decision_contract_doc"
+path = "docs/nsb_components/starlight/release-candidate/README.md"
+sha256 = "81ff59dee066fc05688648bfb2220fee4e6a3ce08788d8da1ab6f9e133ef152a"
+
+[[artifacts]]
+id = "derived_map_rights_assessment"
+path = "docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md"
+sha256 = "ab8287cc43c833ccb27b29c4b8c0ac18d81a00c7e3af3f0d9125b0784a8afa58"
+
+[[artifacts]]
+id = "starlight_attribution"
+path = "docs/nsb_components/starlight/licensing/ATTRIBUTION.md"
+sha256 = "e4653883c0c335e46057bffd2cb5068aaff9f8d95fad3ec3fb091b1464e4bf90"
+
+[[artifacts]]
+id = "scientific_references"
+path = "docs/nsb_components/starlight/licensing/SCIENTIFIC_REFERENCES.md"
+sha256 = "25d50d7d0991b7147479df5d861009acf249471231b86964c0c67dcd7fabc5c0"
+
+[[artifacts]]
+id = "packaged_scientific_notices"
+path = "crates/nsb/THIRD_PARTY_NOTICES.md"
+sha256 = "1d62c885f73bf18e32a79554e0360bfafc0eecc351ef93dbcd5007459b66a067"
+
+[[artifacts]]
+id = "rights_contact_guide"
+path = "docs/nsb_components/starlight/licensing/README.md"
+sha256 = "8377cdfc5d200fa040cb3c810ad4409b82cb4002e4dcc351f0ac9150db402fc0"
+
+[[artifacts]]
+id = "external_manifest_contract"
+path = "docs/nsb_components/starlight/external-manifest.md"
+sha256 = "af08fdbe04d8e8ad6aa9e8e96a768413c3490a83c31b800e7b47026487842123"
+
+[[artifacts]]
+id = "documentary_notice_amendment"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/notice-amendment-v2.md"
+sha256 = "cef64bfd4b9cefe4689c0464a2a24cee3feec4d24db9527509ce09c9c36d0dfa"
+
+[[artifacts]]
+id = "prior_accepted_decision"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/decision-20261014T195019Z.json"
+sha256 = "1f741f70facfd1b3cc47d92be156f436a49f0ead9609b9ff9a3fd2f6dfed83f5"
+
+[[artifacts]]
+id = "prior_approval_inventory"
+path = "docs/nsb_components/starlight/licensing/approval-inventory-v1.toml"
+sha256 = "db544fdd3fa9ee43f5eb2aebdb8bbf029131b59277f93a1c6e39b5f012d5b965"
+
+[[artifacts]]
+id = "prior_review_bundle"
+path = "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml"
+sha256 = "78b792a8d42c26ac30f58da49d1dd23003d8aff04ab3c5d4534ea192bf439864"
+
+[[artifacts]]
+id = "prior_release_candidate"
+path = "docs/nsb_components/starlight/release-candidate/approval-history/release-candidate-20261014T195019Z.toml"
+sha256 = "57a773240657a0332c65f696dae44a6fb8749c0700a29792d442380c23b6117b"
