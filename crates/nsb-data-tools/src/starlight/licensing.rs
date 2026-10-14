@@ -1156,8 +1156,14 @@ mod tests {
         let template = RedistributionReview::load(
             &inventory_path,
             &repository_root.join("docs/nsb_components/starlight/release-candidate/redistribution-review-decision-template-v1.json"),
+        )
+        .unwrap();
+        assert!(
+            template
+                .require_approved(&review.decision().candidate_sha256)
+                .is_err(),
+            "unsigned template must not authorize"
         );
-        assert!(template.is_err(), "unsigned template must not authorize");
     }
 
     #[test]
