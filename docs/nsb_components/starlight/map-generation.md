@@ -35,10 +35,15 @@ starlight_nside{canonical_nside}.csv
 merge_report.json
 ```
 
-The first public candidate schema is
+The generic first-public-release schema for **new candidate runs** is
 `nsb-healpix-starlight-candidate-v1`. It is sparse, strictly pixel-sorted,
 uses Galactic NESTED HEALPix indexing, stores integrated photon flux per pixel,
 and defines omitted pixels as zero flux and zero source counts.
+
+The distinct, already-frozen 300–650 nm Starlight candidate retains
+`nsb-healpix-starlight-candidate-v5`: its exact bytes, checksums and scientific
+validation evidence predate this public-baseline reset. It must not be relabelled
+as `v1` without regenerating and reapproving the product.
 
 Changing the map resolution, scientific policy, calibration artifact,
 source-selection contract, or input checksums creates a new candidate and
@@ -46,17 +51,23 @@ requires fresh validation and admission evidence.
 
 ## Runtime packing
 
-An admitted candidate can be packed to the runtime RING representation with
-the `starlight-runtime-pack-v1` packer. Packing is deterministic and preserves
-the candidate checksum in provenance. Promotion emits the first public runtime
-schemas:
+An admitted generic `candidate-v1` can be packed to RING with the
+`starlight-runtime-pack-v1` packer. Packing is deterministic and preserves the
+candidate checksum in provenance. Its baseline outputs are
+`nsb-healpix-starlight-v1` and `nsb-starlight-runtime-manifest-v1`.
 
-- `nsb-healpix-starlight-v1`
-- `nsb-starlight-runtime-manifest-v1`
+The approved frozen `candidate-v5` follows its separately validated path:
+`nsb-healpix-starlight-v2` (packed runtime CSV) and
+`nsb-starlight-runtime-manifest-v2` (provenance sidecar). The production package
+embeds the approved compact `nsb-healpix-starlight-binary-v1` representation
+with its corresponding v2 provenance, not the original candidate/CSV/report.
+This existing scientific evidence is checksum-pinned and must not be relabelled
+for a cosmetic first-release reset.
 
-Generated candidates and packed runtime assets remain outside the NSB 0.1.0
-release registry until redistribution and production admission are explicitly
-approved.
+New candidate products remain outside the release registry unless they pass
+independent scientific validation, redistribution approval, and production
+admission. See the [release-candidate lifecycle](release-candidate/README.md)
+and [schema versioning policy](../../specifications/schema-versioning.md).
 
 ## Inspection
 
