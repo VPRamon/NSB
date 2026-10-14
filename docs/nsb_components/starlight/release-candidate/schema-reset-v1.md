@@ -51,18 +51,21 @@ The merge report changes only format identifiers/numeric schema versions
 and the canonical-map checksum; scientific values, model and input metadata
 are identical. Validation manifests include updated hashes and byte counts.
 
-## Evidence and authorization requiring renewal
+## Renewed authorization and evidence status
 
 - `redistribution-review-decision-v1.json`: the previous
   `approved_with_conditions` decision authorized the original exact hashes,
-  inventory and bundle. The active decision is **pending**, with no reviewer,
-  acceptance time, approved artifact pins or conditions copied to the new
-  product. The original identity, timestamp, restrictions and acceptance remain
-  intact in the archive. Issue #103 needs explicit authorization of the new
-  candidate/report, inventory/bundle, compact pair and publication channels.
+  inventory and bundle. The active decision is now **`approved_with_conditions`** after the
+  maintainer expressly approved the regenerated v1 bytes on 2026-10-14,
+  considering the scientific content unchanged. The new decision records its
+  own reviewer, acceptance time, exact regenerated artifact pins and
+  unchanged noncommercial/source restrictions. The original identity, timestamp, restrictions and acceptance remain
+  intact in the archive. The active decision now authorizes the new candidate/report,
+  inventory/bundle, compact pair and specifically listed publication channels.
+  This does not itself claim registry or GitHub Release publication.
 - `approval-inventory-v1.toml`, the current artifact inventory and
-  `review-bundle-v1.toml`: regenerated technical review
-  inputs, not approvals. Renew their checksum-bound review. Original documentary revisions remain archived with their former hashes.
+  `review-bundle-v1.toml`: regenerated and checksum-pinned technical review
+  inputs; human authorization lives only in the active decision. Original documentary revisions remain archived with their former hashes.
 - `release-candidate-gates-v1.json`: its recorded hosted CI run evaluated the
   former revision. Updated metadata does not establish a new hosted run;
   execute the existing CI gates on this PR's new head before release.
@@ -72,14 +75,15 @@ are identical. Validation manifests include updated hashes and byte counts.
   commits and external result hashes remain original. Updated product pins
   are a documented format-only carry-forward, not a claim of rerunning the
   external validator. Renew checksum-bound validation evidence before release.
-- The rights assessment's recorded acceptance and the archived notices apply
-  to the previous product. Current notices retain the source terms and flag
-  the pending renewal; no new legal or maintainer acceptance is asserted.
+- The assessment retains the original authorization evidence and distinguishes
+  the newly recorded v1 maintainer acceptance. Updated notices retain source
+  terms, exclusions and noncommercial restrictions; this does not create an
+  upstream licence or independent legal opinion.
 
 The embedded registry and four-component runtime defaults remain configured
-for scientific equivalence checks. That technical configuration does not grant
-permission to release replacement bytes. Existing promotion/release admission
-rejects the pending decision. The existing
-`production_starlight_requires_verified_human_promotion` test must remain
-blocked until the renewed decision is supplied; do not weaken or skip it.
+for scientific equivalence checks. The renewed decision authorizes the exact
+new bytes within its source-specific restrictions, but does not claim that any
+registries were published. Existing promotion/release admission must continue
+to reject pending, unsigned or tampered decisions and maintain its tests;
+do not weaken or skip those safeguards.
 No new version-specific tests, scripts or workflow gates are introduced.
