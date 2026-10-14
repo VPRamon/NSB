@@ -1120,7 +1120,7 @@ reference_distance = \"1 AU\"\n",
         mark_failed(&path, &anyhow::anyhow!("synthetic failure"));
         let failed = read_manifest(&path).unwrap();
         assert!(matches!(failed.status, RunStatus::Failed));
-        assert!(failed.error.unwrap().contains("synthetic failure"));
+        assert!(failed.error.as_deref().unwrap().contains("synthetic failure"));
         let mut invalid = failed;
         invalid.schema_version += 1;
         write_manifest(&path, &invalid).unwrap();
