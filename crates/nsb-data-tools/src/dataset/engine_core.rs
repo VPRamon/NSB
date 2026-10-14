@@ -1229,6 +1229,75 @@ reference_distance = \"1 AU\"\n",
         .is_err());
     }
 
+
+    #[test]
+    fn local_solar_dataset_runs_update_build_validate_and_publish_offline() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config_source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("config/solar-spectrum.toml");
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data/solar-planck-v1.toml");
+        let workspace = tmp.path().join("workspace");
+        let repository = tmp.path().join("isolated-repository");
+        let data_root = repository.join("crates/nsb/data");
+        fs::create_dir_all(&data_root).unwrap();
+        fs::write(
+            data_root.join("manifest.toml"),
+            "schema_version = 1\n[[assets]]\npath = \"solar_spectrum.dat\"\n",
+        )
+        .unwrap();
+
+        let mut document: toml::Value =
+            toml::from_str(&fs::read_to_string(config_source).unwrap()).unwrap();
+        document["workspace"]["root"] =
+            toml::Value::String(workspace.display().to_string());
+        document["sources"][0]["path"] =
+            toml::Value::String(source.display().to_string());
+        document["publish"]["repository_root"] =
+            toml::Value::String(repository.display().to_string());
+        let config_path = tmp.path().join("solar-config.toml");
+        fs::write(&config_path, toml::to_string(&document).unwrap()).unwrap();
+
+        for operation in [
+            Operation::Update,
+            Operation::Build,
+            Operation::Validate,
+            Operation::Publish,
+        ] {
+            execute(
+                &config_path,
+                DatasetName::SolarSpectrum,
+                operation,
+                None,
+                Some(1),
+                &[],
+            )
+            .unwrap();
+        }
+        let output = workspace.join("outputs/solar_spectrum.dat");
+        assert!(output.is_file());
+        assert!(data_root.join("solar_spectrum.dat").is_file());
+        assert_eq!(fs::read(&output).unwrap(), fs::read(data_root.join("solar_spectrum.dat")).unwrap());
+        let report: ValidationReport = read_json(&workspace.join("validation.json")).unwrap();
+        assert!(report.passed);
+        assert_eq!(report.artifacts.len(), 1);
+        assert!(report.gates.iter().all(|gate| gate.passed));
+        let published = fs::read_to_string(data_root.join("manifest.toml")).unwrap();
+        assert!(published.contains("solar_spectrum.dat"));
+        assert!(published.contains("solar-spectrum build"));
+
+        // Repeating a completed operation must validate the previous manifest.
+        execute(
+            &config_path,
+            DatasetName::SolarSpectrum,
+            Operation::Build,
+            None,
+            None,
+            &[],
+        )
+        .unwrap();
+    }
+
     #[test]
     fn slurm_rejects_non_partitioned_dataset() {
         let (_temp, config_path) = write_non_partitioned_config();
