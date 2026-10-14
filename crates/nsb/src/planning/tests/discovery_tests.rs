@@ -1136,9 +1136,13 @@ fn adaptive_airglow_moon_resolves_two_second_accepted_island_missed_by_scan30() 
 
 #[test]
 fn adaptive_rejects_eighty_seven_second_twilight_scan120_false_positive() {
+    // These independent radiance/time references were established for the
+    // three named components before production Starlight activation. Freeze
+    // that physical composition; four-component defaults have separate tests.
     let evaluator =
         super::test_fixtures::evaluator_with_moon(false, false, MoonlightModel::Jones2013Spectral);
-    let mut q = query(ComponentMask::ALL.bits());
+    let mut q =
+        query((ComponentMask::ZODIACAL | ComponentMask::AIRGLOW | ComponentMask::MOON).bits());
     q.target = Target::new(
         (83.6331_f64 + 36.0 * 137.507764).rem_euclid(360.0) * DEG,
         -5.0 * DEG,
@@ -1373,6 +1377,9 @@ fn adaptive_parallel_errors_follow_physical_window_order() {
 
 #[test]
 fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
+    // These independent radiance/time references were established for the
+    // three named components before production Starlight activation. Freeze
+    // that physical composition; four-component defaults have separate tests.
     // Independent samples eight seconds before the physical regime edge set
     // the corrected radiance thresholds. The original 0.25 fixtures no longer
     // contain these islands after Noll/Jones corrections. All coarse-miss,
@@ -1423,7 +1430,7 @@ fn adaptive_accepted_islands_missed_by_scan120_have_millisecond_references() {
             Period::new(start, start + Seconds::new(365.0 * 86400.0)),
             Radiance::new(level),
         )
-        .with_components(ComponentMask::ALL)
+        .with_components((ComponentMask::ZODIACAL | ComponentMask::AIRGLOW | ComponentMask::MOON))
         .with_target_altitude_floor(Some(siderust::qtty::Degrees::new(20.0)));
         let context = evaluator.prepare_site_window_context(&q).unwrap();
         let p = prepare::prepare_target_threshold(&evaluator, &context, &q).unwrap();
