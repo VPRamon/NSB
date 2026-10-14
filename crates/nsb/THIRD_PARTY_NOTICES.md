@@ -23,15 +23,17 @@ provide full source identifiers and SHA-256s.
 
 ## Previous conditional Starlight approval and retained source terms
 
-The compact Starlight map and v2 provenance sidecar are embedded in this crate
-under the actual #103 decision `approved_with_conditions`. The maintainer
+The previous compact Starlight pair was authorized by the #103 decision
+`approved_with_conditions`. The regenerated v1 pair remains embedded for
+equivalence checks and awaits renewed checksum-specific release authorization.
+For the previous product, the maintainer
 accepted the XHIP calculated-output/database-right and independent embedded-data
 interpretations for noncommercial scientific publication at
 2026-10-14T19:50:19Z. This is a project rights/risk finding, not qualified legal
 advice or a new grant from XHIP, ESA, CDS or another third party.
 
 The frozen candidate and merge report remain Git evidence and are excluded from
-the crate; production contains the exact approved compact pair. No original
+the crate; the runtime contains the regenerated compact pair. No original
 catalogue, filter response, spectral file or per-star diagnostic is included.
 
 The Starlight source families and relevant attribution requirements are at:

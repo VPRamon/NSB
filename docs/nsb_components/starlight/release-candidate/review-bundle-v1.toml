@@ -42,7 +42,7 @@ sha256 = "0a3aa75506adb9e6ad5003b9657cfaeb7cb0ac530ac1f4f59745763c8c4850b0"
 [[artifacts]]
 id = "redistribution_decision_contract_doc"
 path = "docs/nsb_components/starlight/release-candidate/README.md"
-sha256 = "c01db8bf8b48c43093351d680823fd8426be0a44927ae37f7cfe1f1265f49b58"
+sha256 = "af009a4a49b5693e55e23acf3836cacbe3285b1865495f5a45b062ddc7e31858"
 
 [[artifacts]]
 id = "derived_map_rights_assessment"
@@ -62,12 +62,12 @@ sha256 = "25d50d7d0991b7147479df5d861009acf249471231b86964c0c67dcd7fabc5c0"
 [[artifacts]]
 id = "packaged_scientific_notices"
 path = "crates/nsb/THIRD_PARTY_NOTICES.md"
-sha256 = "6a07db7296bb85ea650c6ed20389940d061ffe436669869a2f4b775c776f37cf"
+sha256 = "457b1a8739416966d064c5d89eae9840a7c7c6bcb13041a12d553a2a4c020ada"
 
 [[artifacts]]
 id = "rights_contact_guide"
 path = "docs/nsb_components/starlight/licensing/README.md"
-sha256 = "967cc813ff8afb1d8cfa030702fa2357c8d918a27d1bb81c15169dd1f02069b1"
+sha256 = "699470457c2a38a608d61c9a855352105b0880e1bc6ed5969d17c1079829d5a9"
 
 [[artifacts]]
 id = "external_manifest_contract"

@@ -76,8 +76,10 @@ files and checksum pins are preserved.
 The exact derived candidate and report are already tracked in the Git
 repository; their `git_repository` distribution status must be considered
 separately from the non-distributed crates.io/PyPI production assets.
-The authoritative issue #103 decision is `approved_with_conditions`; the actual
-maintainer acceptance and account verification are recorded in the assessment.
+The active issue #103 decision is pending renewed checksum-specific
+authorization after the v1 schema reset. Original conditional approval,
+maintainer acceptance and account verification are preserved in the approval
+archive; they are not authorization of the new hashes.
 
 ## Derived-map rights analysis
 
@@ -102,8 +104,8 @@ and retains this data-rights boundary.
 
 The maintainer has explicitly authorized the noncommercial publication scope;
 [the authorization record](derived-map-rights-assessment-v1.md#13-explicit-project-authorization-and-accepted-findings)
-identifies the direct instruction and authenticated account. That scope requires
-no renewed confirmation. The maintainer also explicitly accepted the specific
+identifies the direct instruction and authenticated account. The source restrictions and findings remain recorded, but the regenerated
+product hashes require renewed authorization before release. The maintainer also explicitly accepted the specific
 XHIP output/database-right and AGPL/independent embedded-data interpretations.
 This is a project decision, not a third-party permission or qualified opinion.
 See [the measured audit and proposed decision](derived-map-rights-assessment-v1.md#8-actual-noncommercial-publication-scope-and-public-grants).

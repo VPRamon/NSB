@@ -16,12 +16,13 @@ product scope; populated provenance and credits alone do not authorize a release
 
 ## Starlight (integrated starlight component)
 
-The exact compact Starlight map and v2 sidecar are conditionally approved and
-embedded for offline Rust/Python evaluation under #103 `approved_with_conditions`.
-The maintainer accepted the XHIP calculated-output and independent embedded-data
-interpretations at 2026-10-14T19:50:19Z. This is a project finding, not qualified
-legal advice or an upstream grant. The frozen candidate/report remain Git
-scientific evidence and are excluded from runtime packages.
+The compact Starlight map and v1 sidecar remain embedded for offline
+Rust/Python equivalence checks. The pre-release schema reset changes their
+provenance and checksums; the active #103 decision is pending renewed
+checksum-specific authorization before release. Original conditional approval,
+maintainer identity and acceptance are preserved in the approval archive.
+The frozen candidate/report remain Git scientific evidence and are excluded
+from runtime packages. Source-specific terms and restrictions are unchanged.
 
 Provenance and exact source-family terms:
 [artifact inventory](docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml),

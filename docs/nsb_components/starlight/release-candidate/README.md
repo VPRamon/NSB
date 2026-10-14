@@ -19,7 +19,7 @@ issue #103 and is not approved by this bundle.
 | File | Role |
 |---|---|
 | `release-candidate-v1.toml` | Frozen candidate identity, deterministic RFC3339 generation timestamp, checksum pin for the canonical merge report, complete bright-star provenance copied from that report, technical status, external-validation pin, and runtime identities. |
-| `redistribution-review-decision-v1.json` | The sole authoritative human redistribution decision, now `approved_with_conditions`. |
+| `redistribution-review-decision-v1.json` | The active redistribution decision; pending renewed checksum-specific authorization. |
 | `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v1 provenance sidecar identities. |
 | `review-bundle-v1.toml` | Immutable release evidence pinned by the redistribution decision. |
 

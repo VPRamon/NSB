@@ -6,7 +6,7 @@
   "reviewed_at_utc": null,
   "candidate_sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
   "inventory_sha256": "de3f919b0b393a41c904ed965a89662f9553e5cf2ec884be00a3b5f68d7ec4b9",
-  "review_bundle_sha256": "def5533e71470693d62fc24ae346717fd81efa1adb322ae74031df43067d2002",
+  "review_bundle_sha256": "5753bed374ac6537bddb10baa7f85f03c47e692f2be9dc17f54b5095f32bd8d2",
   "pinned_artifacts": [],
   "conditions": [],
   "restrictions": [
