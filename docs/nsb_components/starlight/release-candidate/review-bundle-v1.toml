@@ -22,7 +22,7 @@ sha256 = "75639a3eea9b38a660a692c633094ec67f0f1013338d6c97e46fa8c2a6d04853"
 [[artifacts]]
 id = "redistribution_inventory"
 path = "docs/nsb_components/starlight/licensing/approval-inventory-v1.toml"
-sha256 = "de3f919b0b393a41c904ed965a89662f9553e5cf2ec884be00a3b5f68d7ec4b9"
+sha256 = "45d07a67b4fb48e45131c75cc2d8828d203f37cc5da96b6525c819ca1f1b6ce9"
 
 [[artifacts]]
 id = "validation_artifact_manifest"
@@ -37,17 +37,17 @@ sha256 = "abbb00181d810bb6a86856e24bafe29b61e0b609ce7b5de971163edfc2dd7ff2"
 [[artifacts]]
 id = "release_candidate_manifest"
 path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
-sha256 = "0a3aa75506adb9e6ad5003b9657cfaeb7cb0ac530ac1f4f59745763c8c4850b0"
+sha256 = "e73b2bbc354941aada21a6b19beda2022f484577530ac2dd62207d7c8b0f7136"
 
 [[artifacts]]
 id = "redistribution_decision_contract_doc"
 path = "docs/nsb_components/starlight/release-candidate/README.md"
-sha256 = "af009a4a49b5693e55e23acf3836cacbe3285b1865495f5a45b062ddc7e31858"
+sha256 = "fa12508b91181867fa6f216ff5055771086a071294a21d83bff57c783d4bfdac"
 
 [[artifacts]]
 id = "derived_map_rights_assessment"
 path = "docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md"
-sha256 = "1f77298fdfc50dc108a53692882e7b449c9d66bca99120c54ba708c2da3e76d8"
+sha256 = "e096605eeca639f5552e136a6686c8d41cf1b8570cfa32610336d1cb5c169723"
 
 [[artifacts]]
 id = "starlight_attribution"
@@ -62,12 +62,12 @@ sha256 = "25d50d7d0991b7147479df5d861009acf249471231b86964c0c67dcd7fabc5c0"
 [[artifacts]]
 id = "packaged_scientific_notices"
 path = "crates/nsb/THIRD_PARTY_NOTICES.md"
-sha256 = "457b1a8739416966d064c5d89eae9840a7c7c6bcb13041a12d553a2a4c020ada"
+sha256 = "09e8c597442c240b8394d373b7a7e01c4b80144aeca90007db8e5f65fe14b788"
 
 [[artifacts]]
 id = "rights_contact_guide"
 path = "docs/nsb_components/starlight/licensing/README.md"
-sha256 = "699470457c2a38a608d61c9a855352105b0880e1bc6ed5969d17c1079829d5a9"
+sha256 = "3b4d6ac296896ed94f08722682347bb630ffe6f14233f2df2ef017430a00975b"
 
 [[artifacts]]
 id = "external_manifest_contract"
