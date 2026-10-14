@@ -24,8 +24,8 @@ use crate::units::MagnitudesPerAirmass;
 use crate::NSB_S10_ZP;
 use scattering::ScatterGrid;
 use siderust::atmosphere::{
-    airmass, mie_optical_depth, rayleigh_optical_depth_bodhaine99, rayleigh_phase,
-    AtmosphereProfile, KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass,
+    airmass, mie_optical_depth, rayleigh_phase, AtmosphereProfile,
+    KrisciunasSchaefer1991 as KrisciunasSchaeferAirmass,
 };
 use siderust::coordinates::cartesian;
 use siderust::coordinates::centers::{Geocentric, Geodetic};

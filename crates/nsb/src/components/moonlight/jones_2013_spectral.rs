@@ -107,12 +107,9 @@ fn compute_jones_2013_spectral(
         if lunar_radiance.value() <= 0.0 {
             continue;
         }
-        let lunar_ph = spectral_radiance_to_photon_radiance_ns_nm(lunar_radiance, wavelength);
-        let tau_r = rayleigh_optical_depth_bodhaine99(
+        let tau_r = crate::site::atmosphere::rayleigh_optical_depth_local_pressure(
             wavelength,
-            profile.surface_pressure,
-            profile.observer_altitude,
-            profile.rayleigh_scale_height,
+            AtmosphericConditions::from_profile_without_altitude(profile),
         )
         .value()
             * tau_scale;
@@ -122,10 +119,17 @@ fn compute_jones_2013_spectral(
         let multi = correction.lookup(inp.separation, wavelength);
         let am_moon_v = am_moon.value();
         let am_src_v = am_src.value();
-        let scatter = (tau_r * phase_r + tau_m * JONES_MIE_WEIGHT * phase_m).max(0.0);
-        let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon_v + am_src_v)).exp();
-        let source_path = 1.0 - (-(tau_r + tau_m) * am_src_v).exp();
-        let value = (lunar_ph * scatter * transmission * source_path.max(0.0) * multi).value();
+        // The legacy Siderust API carries a radiance marker, but the numeric
+        // source is disc-integrated beam irradiance (W m^-2 nm^-1). Each phase
+        // function here integrates to one and has physical units sr^-1.
+        // The scattering kernel converts irradiance to sky radiance once;
+        // there is no second lunar solid-angle or 1/(4π) conversion.
+        let kernel =
+            single_scattering_midpoint_kernel(tau_r, tau_m, phase_r, phase_m, am_moon_v, am_src_v);
+        let sky_radiance = radiometry::WattsPerSquareMeterSteradianNanometer::new(
+            lunar_radiance.value() * kernel * multi,
+        );
+        let value = spectral_radiance_to_photon_radiance_ns_nm(sky_radiance, wavelength).value();
         if !value.is_finite() {
             return Err(crate::NsbError::OutOfRange(
                 "non-finite scattered lunar radiance".into(),
@@ -162,6 +166,30 @@ fn compute_jones_2013_spectral(
         b_flux_s10: s10_for_spectral_photon_radiance(b_density, B_FILTER),
         v_flux_s10: s10_for_spectral_photon_radiance(v_density, V_FILTER),
     })
+}
+
+/// Component-specific midpoint reduction of Jones Eq. (6).
+///
+/// Let u be the fraction of vertical optical depth below a scattering point.
+/// For a shared vertical species profile, the line-of-sight integral is
+/// X_target (τ_R p_R + w_M τ_M p_M) ∫₀¹
+/// exp[-τ (X_moon (1-u) + X_target u)] du.
+/// Evaluating the integrand at u=1/2 retains this implementation's symmetric
+/// mean-path approximation. The column is already in τ_R and τ_M; multiplying
+/// again by (1-exp(-τ X_target)) incorrectly makes the thin limit quadratic.
+/// This approximation is exact for equal airmasses and has relative quadrature
+/// error O([τ (X_moon-X_target)]²). It is not Jones's full spherical solver.
+fn single_scattering_midpoint_kernel(
+    tau_r: f64,
+    tau_m: f64,
+    phase_r: f64,
+    phase_m: f64,
+    am_moon: f64,
+    am_target: f64,
+) -> f64 {
+    let scatter = (tau_r * phase_r + tau_m * JONES_MIE_WEIGHT * phase_m).max(0.0);
+    let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon + am_target)).exp();
+    scatter * am_target * transmission
 }
 
 fn mie_grid() -> &'static ScatterGrid {
@@ -222,7 +250,93 @@ mod tests {
         }
     }
 
-    /// Regression pins and TSIS-runtime impact bounds for representative geometries.
+    #[test]
+    fn single_scattering_matches_independent_column_integral() {
+        for (tr, tm) in [(0.1, 0.0), (0.0, 0.05), (0.08, 0.05)] {
+            for separation in [10.0_f64, 60.0, 120.0] {
+                let pr = 3.0 / (16.0 * std::f64::consts::PI)
+                    * (1.0 + separation.to_radians().cos().powi(2));
+                for wavelength in [350.0, 551.0, 650.0] {
+                    let pm =
+                        mie_grid().lookup(Degrees::new(separation), Nanometers::new(wavelength));
+                    for (xm, xt) in [(1.0, 1.0), (2.0, 2.0), (1.1, 2.0)] {
+                        // Independent composite midpoint quadrature of the full
+                        // shared-profile slab integral; no production path helper.
+                        let n = 10_000;
+                        let integral: f64 = (0..n)
+                            .map(|i| {
+                                let u = (i as f64 + 0.5) / n as f64;
+                                (-(tr + tm) * (xm * (1.0 - u) + xt * u)).exp()
+                            })
+                            .sum::<f64>()
+                            / n as f64;
+                        let expected = xt * (tr * pr + 0.05 * tm * pm) * integral;
+                        let actual = single_scattering_midpoint_kernel(tr, tm, pr, pm, xm, xt);
+                        let tolerance = if xm == xt { 1e-12 } else { 0.001 };
+                        assert!((actual / expected - 1.0).abs() < tolerance);
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn single_scattering_zero_and_first_order_limits() {
+        assert_eq!(
+            single_scattering_midpoint_kernel(0.0, 0.0, 0.1, 0.2, 1.0, 2.0),
+            0.0
+        );
+        for (tr, tm) in [(0.1, 0.0), (0.0, 0.05), (0.08, 0.05)] {
+            let evaluate = |scale| {
+                single_scattering_midpoint_kernel(scale * tr, scale * tm, 0.1, 0.2, 1.5, 2.0)
+            };
+            let expected_first_order = 2.0 * (tr * 0.1 + 0.05 * tm * 0.2);
+            assert!((evaluate(1e-10) / 1e-10 / expected_first_order - 1.0).abs() < 1e-10);
+            let slope = (evaluate(1e-7) / evaluate(1e-6)).ln() / 0.1_f64.ln();
+            assert!((slope - 1.0).abs() < 1e-6);
+            assert!(evaluate(0.02) > evaluate(0.01));
+            assert!(evaluate(1e-300).is_finite() && evaluate(1e-300) > 0.0);
+        }
+    }
+
+    #[test]
+    fn tabulated_multiple_scattering_preserves_the_measured_thin_exponent() {
+        // Fixed-atmosphere LUT is a finite multiplier, not another scattering
+        // probability. It does not become unity for arbitrary scaled atmospheres;
+        // the absolute thin coefficient of the LUT is outside its admitted domain.
+        for wave in [350.0, 551.0, 650.0] {
+            let f = correction_grid().lookup(Degrees::new(60.0), Nanometers::new(wave));
+            assert!(f.is_finite() && f >= 1.0);
+            let a = single_scattering_midpoint_kernel(1e-9, 0.0, 0.1, 0.0, 1.0, 1.0);
+            let b = single_scattering_midpoint_kernel(1e-10, 0.0, 0.1, 0.0, 1.0, 1.0);
+            assert!(((b * f) / (a * f) - 0.1).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn local_pressure_column_is_independent_of_redundant_altitude() {
+        let inp = geometry(60.0, 50.0, 30.0, 45.0, 384_400.0);
+        let profile = paranal_like_profile();
+        let mut same_column = profile;
+        same_column.observer_altitude = Kilometers::new(0.0);
+        for scale in [1.0, 0.01] {
+            let evaluate = |p| {
+                compute_jones_2013_spectral(
+                    &inp,
+                    bundled_solar_spectrum(),
+                    ScaleFactors::new(scale),
+                    p,
+                )
+                .unwrap()
+            };
+            let a = evaluate(profile);
+            let b = evaluate(same_column);
+            assert_eq!(a.integrated, b.integrated);
+            assert_eq!(a.v_flux_s10, b.v_flux_s10);
+        }
+    }
+
+    /// Regression pins for the analytic solar spectrum and corrected scattering column.
     ///
     /// The expected tuples pin the independently generated NSB Mie phase grid
     /// with the current analytic solar reference.
@@ -236,11 +350,7 @@ mod tests {
                 36.0,
                 60.0,
                 384_400.0,
-                (
-                    0.084_757_058_295_834_28,
-                    68.561_054_704_220_35,
-                    19.464_547_939_217_48,
-                ),
+                (0.48493586510203146, 540.0488857780191, 270.8486175836127),
             ),
             (
                 85.5,
@@ -248,11 +358,7 @@ mod tests {
                 36.0,
                 40.0,
                 384_400.0,
-                (
-                    0.221_611_869_688_389_17,
-                    243.750_870_433_800_3,
-                    105.025_839_181_321_26,
-                ),
+                (1.3357191157875907, 1512.4224354010262, 1159.7436633500593),
             ),
             (
                 85.5,
@@ -260,14 +366,11 @@ mod tests {
                 62.0,
                 15.0,
                 384_400.0,
-                (
-                    0.065_531_998_882_438_27,
-                    62.291_193_614_982_27,
-                    20.813_897_921_040_137,
-                ),
+                (0.3624570994319541, 426.66239109431285, 255.45461658939527),
             ),
         ];
         let profile = paranal_like_profile();
+        let mut worst: f64 = 0.0;
         for (phase, sep, z_moon, z_src, dist, expected) in cases {
             let out = compute_jones_2013_spectral(
                 &geometry(phase, sep, z_moon, z_src, dist),
@@ -287,12 +390,10 @@ mod tests {
                 (actuals.2, expected.2),
             ] {
                 let rel = (actual - expected).abs() / expected.max(1.0e-12);
-                assert!(
-                    rel <= REL_TOL,
-                    "geometry phase={phase} sep={sep}: actual={actual} expected={expected} rel={rel}"
-                );
+                worst = worst.max(rel);
                 assert!(actual > 0.0);
             }
         }
+        assert!(worst <= REL_TOL, "maximum snapshot change {worst}");
     }
 }
