@@ -47,7 +47,7 @@ sha256 = "760be09b2ef0308ad345a616c8c821288aade6664099c9f7710d9a6bdcec05eb"
 [[artifacts]]
 id = "derived_map_rights_assessment"
 path = "docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md"
-sha256 = "59cb01e72f6c86bcebe3283c718c0d7901c7e7fe942f93603bc26f45611b7617"
+sha256 = "f990a2bb30210ca55ffb44935d3fd42aac1395c81ae166da231b02b57dc17b26"
 
 [[artifacts]]
 id = "starlight_attribution"
@@ -62,4 +62,4 @@ sha256 = "25d50d7d0991b7147479df5d861009acf249471231b86964c0c67dcd7fabc5c0"
 [[artifacts]]
 id = "packaged_scientific_notices"
 path = "crates/nsb/THIRD_PARTY_NOTICES.md"
-sha256 = "4b584998f9d22e7f1bce393c309e53af2c5a196b145d590e7e4624391f23b0da"
+sha256 = "c7fd5eae5486d722a21be2813b9c877796c86546de08cd4a6361065aa38c26ef"

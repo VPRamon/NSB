@@ -254,3 +254,9 @@ retrieval. This supplies scientific precedent, not a grant from Gaia/XHIP
 rights holders. NSB copies none of its code/data and retains its offline
 embedded XP-derived map architecture. Neither BSD software terms nor another
 project's Zenodo metadata settle NSB's exact upstream and derived-product rights.
+
+The bright-star CALSPEC zero-point file is checksum-pinned, while the older
+UV-training snapshot is not fully pinned (see the bibliography/inventory).
+This limits full upstream regeneration; the frozen output, calibration model
+and representation conversion remain checksum-locked. It must remain visible
+in release review rather than being described as complete upstream provenance.

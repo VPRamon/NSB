@@ -93,3 +93,43 @@ sidecar. The software remains AGPL-3.0-only; Gaia/Tycho noncommercial conditions
 and all source-specific attribution remain separate. Package availability does
 not promise unrestricted commercial reuse of the scientific data. See the
 [source-specific channel assessment](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md).
+
+## Gaia, catalogue and spectral-model credits
+
+> This work has made use of data from the European Space Agency (ESA)
+> mission Gaia (<https://www.cosmos.esa.int/gaia>), processed by the Gaia
+> Data Processing and Analysis Consortium (DPAC,
+> <https://www.cosmos.esa.int/web/gaia/dpac/consortium>). Funding for the
+> DPAC has been provided by national institutions, in particular the
+> institutions participating in the Gaia Multilateral Agreement.
+
+Gaia DR3/XP source terms: [CC BY-NC 3.0 IGO](https://creativecommons.org/licenses/by-nc/3.0/igo/),
+[ESA licence](https://www.cosmos.esa.int/web/gaia-users/license).
+The map spatially aggregates integrated 300–650 nm photon flux, with calibrated
+UV completion and bright-star supplementation; it is a transformed output,
+not the original catalogue. Cite De Angeli et al. (2023),
+[XP processing](https://doi.org/10.1051/0004-6361/202243680), and Montegriffo
+et al. (2023), [XP calibration](https://doi.org/10.1051/0004-6361/202243880),
+with the [Gaia DR3 documentation](https://gea.esac.esa.int/archive/documentation/GDR3/).
+
+Tycho-2: Credit ESA; Høg et al. (2000), *The Tycho-2 catalogue of the 2.5 million
+brightest stars*, A&A 355, L27–L30, [ADS](https://ui.adsabs.harvard.edu/abs/2000A%26A...355L..27H/abstract).
+[CDS I/259](https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259) designates
+CC BY-NC 3.0 IGO. Original catalogue bytes are not included.
+
+CK04: Castelli & Kurucz (2004). CALSPEC: STScI/ReDCaT spectrophotometric
+standards; Bohlin, Gordon & Tremblay (2014), [PASP 126, 711](https://doi.org/10.1086/677655).
+[MAST REFERENCE-ATLASES](https://archive.stsci.edu/hlsp/reference-atlases),
+DOI [10.17909/t9-khb7-4049](https://doi.org/10.17909/t9-khb7-4049),
+licenses its HLSP data under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+NSB integrates selected CK04 models, scales bright stars using CALSPEC Vega
+and Hp photometry, and calibrates UV completion using CALSPEC; original
+spectra are not shipped. The bright-star zero point is pinned as
+`alpha_lyr_stis_012`; the older UV-training snapshot remains incompletely pinned.
+
+Selection weights: Cantat-Gaudin et al. (2023),
+[dataset 10.5281/zenodo.8063930](https://doi.org/10.5281/zenodo.8063930),
+CC BY 4.0; [associated paper](https://doi.org/10.1051/0004-6361/202244784).
+The source selection table is not included; its use is recorded in the
+frozen candidate provenance. None of these notices grants missing rights
+in XHIP, Hipparcos-2 or the final derived map; #103 remains authoritative.
