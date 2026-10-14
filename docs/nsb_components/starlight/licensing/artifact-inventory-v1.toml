@@ -1,4 +1,4 @@
-# Regenerated review inputs; no authorization for the new hashes.
+# Regenerated review snapshot; the separate active decision records v1 checksum approval.
 # Original approval snapshots: release-candidate/approval-history/pre-v1-reset/.
 schema_version = 1
 
@@ -324,7 +324,7 @@ approval of redistribution on GitHub, crates.io, PyPI, or releases.
 calibration_status = candidate,
 runtime_embedded = false. UV model calspec-linear-log-ratio-v2. Relative
 pixel uncertainty p50 = 0.243 (uncertainty-scale-plausible passed). Human
-redistribution decision is owned by #103 (pending renewed checksum-specific approval; original decision archived). The invalidated #93 digest
+redistribution decision is owned by #103 (renewed checksum-specific approval recorded in the active decision; original decision archived). The invalidated #93 digest
 7b37593971d74e15c360165e49a5dce8ff60fecc49bae569e0980b055281319a is
 historical only.
 
@@ -442,7 +442,7 @@ planned_channels = [
 ]
 lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
-notes = "Reproducible with stage-runtime --output-csv <path>.bin. The exact regenerated compact pair awaits renewed authorization under #103; the staged approval plan is distinct from current production/publication state. Compact sidecar SHA-256 1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Proposed planned channels include Git, crates.io, PyPI wheel/sdist and GitHub release; only the current inventory records actual publication."
+notes = "Reproducible with stage-runtime --output-csv <path>.bin. The exact regenerated compact pair has renewed checksum-specific authorization under #103; the staged approval plan is distinct from current production/publication state. Compact sidecar SHA-256 1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Proposed planned channels include Git, crates.io, PyPI wheel/sdist and GitHub release; only the current inventory records actual publication."
 
 [[artifacts]]
 id = "compact-runtime-sidecar-v1"
@@ -463,4 +463,4 @@ planned_channels = [
 ]
 lifecycle = "published"
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
-notes = "Renewed checksum-specific approval is pending; promotion requires exact decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."
+notes = "Renewed checksum-specific approval is recorded in the active decision; promotion requires exact decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."
