@@ -22,7 +22,7 @@ sha256 = "66d37d3124d8e5447a97e6799f3542b51c588e2c06c1b4a9f3044ccc1d1e1976"
 [[artifacts]]
 id = "redistribution_inventory"
 path = "docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml"
-sha256 = "0c635652b12ab44b0afe3e395b68bd455492e58143861e60221a29b6cd67085b"
+sha256 = "6a50cf300d37ff5d2b50b6f021ffc2abe8ffe9c0839bfe738417a4989e89c9b5"
 
 [[artifacts]]
 id = "validation_artifact_manifest"
@@ -37,22 +37,22 @@ sha256 = "d095f16a23e944945ebf3bfe2670f7f34e5a8b227065c6b62066591117818a75"
 [[artifacts]]
 id = "release_candidate_manifest"
 path = "docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"
-sha256 = "62696521cec5b57d72078b68afff599ce246f4435343055eee1832efe7b53f9c"
+sha256 = "25c64e1944ab1028489053b58f54eb74cdaaac7befc0f6b3565f5183223a1fb7"
 
 [[artifacts]]
 id = "redistribution_decision_contract_doc"
 path = "docs/nsb_components/starlight/release-candidate/README.md"
-sha256 = "760be09b2ef0308ad345a616c8c821288aade6664099c9f7710d9a6bdcec05eb"
+sha256 = "aba0879ff903a956afc8a37ded899f363a60b148648a406ffeeea61b5fedd751"
 
 [[artifacts]]
 id = "derived_map_rights_assessment"
 path = "docs/nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md"
-sha256 = "f990a2bb30210ca55ffb44935d3fd42aac1395c81ae166da231b02b57dc17b26"
+sha256 = "63946e695d69f2e72b1393067fbca160ea8b443611a17fba7284910d2543a202"
 
 [[artifacts]]
 id = "starlight_attribution"
 path = "docs/nsb_components/starlight/licensing/ATTRIBUTION.md"
-sha256 = "7ea9eb6155533bfcd27cf42a7030ac694182d886d432bf5dc1e78cc870e56b21"
+sha256 = "e4653883c0c335e46057bffd2cb5068aaff9f8d95fad3ec3fb091b1464e4bf90"
 
 [[artifacts]]
 id = "scientific_references"
@@ -62,4 +62,9 @@ sha256 = "25d50d7d0991b7147479df5d861009acf249471231b86964c0c67dcd7fabc5c0"
 [[artifacts]]
 id = "packaged_scientific_notices"
 path = "crates/nsb/THIRD_PARTY_NOTICES.md"
-sha256 = "c7fd5eae5486d722a21be2813b9c877796c86546de08cd4a6361065aa38c26ef"
+sha256 = "273eec1a7a87efe80c847ec859dd7bef27fc620f0124eee113c3cf31ea02a91d"
+
+[[artifacts]]
+id = "rights_contact_guide"
+path = "docs/nsb_components/starlight/licensing/README.md"
+sha256 = "1d2cbfef49b7fd4f0feebe3f906515770a03c27499b645559242db131bfc3828"

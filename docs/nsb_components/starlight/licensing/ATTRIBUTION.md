@@ -43,8 +43,7 @@ Primary references:
 
 ## Cantat-Gaudin Gaia DR3 selection function
 
-> Cantat-Gaudin, T., et al. 2023, "Considerations on the Gaia DR3
-> selection function of the astrophysical parameters catalogue",
+> Cantat-Gaudin, T., et al. 2023, "An empirical model of the Gaia DR3 selection function",
 > Astronomy & Astrophysics, DOI `10.1051/0004-6361/202244784`.
 
 The original dataset at <https://zenodo.org/records/8063930> is published

@@ -575,6 +575,9 @@ pub fn run_promotion(inputs: &PromotionInputs) -> Result<PromotionOutcome> {
         if map_sha != compact.map_sha256 || sidecar_sha != compact.sidecar_sha256 {
             bail!("compact runtime identity differs from human-review bundle pins");
         }
+        let channels = ["git_repository", "crates_io", "pypi_wheel", "pypi_sdist"];
+        licensing.require_staged_channels("compact-runtime-map-v1", &map_sha, &channels)?;
+        licensing.require_staged_channels("compact-runtime-sidecar-v1", &sidecar_sha, &channels)?;
         (
             binary_map,
             binary_sidecar,
@@ -1557,7 +1560,7 @@ mod tests {
         "# schema=nsb-healpix-starlight-candidate-v1\n",
         "# ordering=nested\n",
         "# representation=sparse\n",
-        "# nside=1\n",
+        "# nside=8\n",
         "# flux_unit=ph_m-2_s-1\n",
         "pixel,flux_ph_m2_s,statistical_uncertainty_ph_m2_s,systematic_uncertainty_ph_m2_s,total_uncertainty_ph_m2_s,admitted_sources,excluded_sources\n",
         "0,1.0,0.1,0.2,0.25,5,1\n",
@@ -1638,7 +1641,7 @@ map_path = "crates/nsb/data/starlight_nside128.csv"
 map_schema = "nsb-healpix-starlight-candidate-v1"
 band = "synthetic test-only combined band"
 units = "ph_m-2_s-1"
-nside = 1
+nside = 8
 ordering = "nested"
 gaia_release = "Gaia DR3 (synthetic test fixture)"
 generation_date_utc = "2026-10-06T07:02:23Z"
@@ -1822,7 +1825,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             map_schema: "nsb-healpix-starlight-candidate-v1".to_string(),
             band: "synthetic test-only combined band".to_string(),
             units: "ph_m-2_s-1".to_string(),
-            nside: 1,
+            nside: 8,
             ordering: "nested".to_string(),
             gaia_release: "Gaia DR3 (synthetic test fixture)".to_string(),
             generation_date_utc: "2026-10-06T07:02:23Z".to_string(),
@@ -1833,7 +1836,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
             r#"{{
   "canonical_map": {{
     "schema": "nsb-healpix-starlight-candidate-v1",
-    "nside": 1,
+    "nside": 8,
     "ordering": "nested",
     "flux_unit": "ph_m-2_s-1",
     "sha256": "{sha}"
@@ -1851,7 +1854,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
         let pack_outcome = pack::pack_candidate_map(&PackInputs {
             candidate_map: data_dir.join("starlight_nside128.csv"),
             expected_candidate_sha256: sha.clone(),
-            expected_nside: 1,
+            expected_nside: 8,
             output_csv: staged_map.clone(),
             output_sidecar: staged_pack_sidecar,
             provenance_headers: runtime_admission_headers(&synthetic_candidate),
@@ -1951,7 +1954,16 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         let sidecar = temp.path().join("map.toml");
         let csv = root.join("crates/nsb/data/starlight_nside128.release.csv");
         let csv_sidecar = root.join("crates/nsb/data/starlight_nside128.manifest.toml");
+        let staged = stage_runtime_assets(&RuntimeStageInputs {
+            repository_root: root.clone(),
+            release_candidate: root
+                .join("docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml"),
+            output_csv: temp.path().join("staged/map.bin"),
+            output_sidecar: temp.path().join("staged/sidecar.toml"),
+        })?;
         let first = compact_runtime(&csv, &csv_sidecar, &binary, &sidecar)?;
+        assert_eq!(first.0, staged.runtime_map_sha256);
+        assert_eq!(first.1, staged.runtime_sidecar_sha256);
         use nsb::components::starlight::{StarlightProduct, ValidatedStarlightMap};
         let start = std::time::Instant::now();
         let reference = ValidatedStarlightMap::from_files(&csv, &csv_sidecar)?;
@@ -2037,6 +2049,107 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
         assert_eq!(first, second);
         assert_eq!(bytes, fs::read(&binary)?);
         assert!(bytes.len() < 6_400_000);
+        Ok(())
+    }
+
+    #[test]
+    fn compact_fixture_promotion_applies_exact_pair_and_rejects_pin_drift() -> Result<()> {
+        let repo = valid_synthetic_repo();
+        let binary = repo.root.join("fixture/map.bin");
+        let sidecar = repo.root.join("fixture/map.toml");
+        let staged = stage_runtime_assets(&RuntimeStageInputs {
+            repository_root: repo.root.clone(),
+            release_candidate: repo.release_candidate.clone(),
+            output_csv: binary,
+            output_sidecar: sidecar,
+        })?;
+        let identity_path = repo.root.join(RUNTIME_ASSETS_RELATIVE_PATH);
+        let original = fs::read_to_string(&identity_path)?;
+        let identity = format!(
+            "{original}\n[compact]\nmap_sha256 = {:?}\nsidecar_sha256 = {:?}\n",
+            staged.runtime_map_sha256, staged.runtime_sidecar_sha256
+        );
+        fs::write(&identity_path, &identity)?;
+        let inventory_path = repo
+            .root
+            .join("docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml");
+        let old_inventory = checksum_io::sha256_file(&inventory_path)?;
+        let mut inventory = fs::read_to_string(&inventory_path)?;
+        let mut decision: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&repo.redistribution_decision)?)?;
+        for (id, sha) in [
+            ("compact-runtime-map-v1", &staged.runtime_map_sha256),
+            ("compact-runtime-sidecar-v1", &staged.runtime_sidecar_sha256),
+        ] {
+            inventory.push_str(&format!("\n[[artifacts]]\nid = {id:?}\ncategory = \"synthetic-test-only\"\nsource = \"synthetic fixture\"\nrelease = \"fixture-v1\"\nlicense = \"synthetic-test-license\"\nsha256 = {sha:?}\ndistribution_class = \"generated_derived_output\"\ndistributed = false\nchannels = []\nnotes = \"Synthetic technical fixture; no real permission\"\n"));
+            decision["pinned_artifacts"].as_array_mut().unwrap().push(serde_json::json!({
+                "id": id, "sha256": sha, "approved_channels": ["git_repository", "crates_io", "pypi_wheel", "pypi_sdist"]
+            }));
+        }
+        fs::write(&inventory_path, &inventory)?;
+        let new_inventory = checksum_io::sha256_file(&inventory_path)?;
+        fs::write(
+            &repo.release_candidate,
+            fs::read_to_string(&repo.release_candidate)?.replace(&old_inventory, &new_inventory),
+        )?;
+        decision["inventory_sha256"] = new_inventory.into();
+        fs::write(
+            &repo.redistribution_decision,
+            serde_json::to_vec_pretty(&decision)?,
+        )?;
+        let mut promotion = inputs(&repo, None);
+        promotion.apply = true;
+        let outcome = run_promotion(&promotion)?;
+        assert!(outcome.applied);
+        assert!(outcome
+            .runtime_map_path
+            .ends_with("starlight_nside128.compact.release.bin"));
+        assert_eq!(outcome.runtime_map_sha256, staged.runtime_map_sha256);
+        assert_eq!(
+            outcome.runtime_sidecar_sha256,
+            staged.runtime_sidecar_sha256
+        );
+        let map = nsb::components::starlight::ValidatedStarlightMap::from_files(
+            &outcome.runtime_map_path,
+            &outcome.runtime_sidecar_path,
+        )?;
+        assert_eq!(map.map().pixels().len(), 768);
+        assert!(map.diagnostics().flux_conservation_recomputed);
+        let registry = fs::read_to_string(repo.root.join("crates/nsb/data/manifest.toml"))?;
+        assert!(registry.contains("nsb-healpix-starlight-binary-v1"));
+        assert!(registry.contains("runtime_embedded = true"));
+        let approved_decision = decision.clone();
+        let map_pin = decision["pinned_artifacts"]
+            .as_array_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|p| p["id"] == "compact-runtime-map-v1")
+            .unwrap();
+        map_pin["approved_channels"] = serde_json::json!(["git_repository"]);
+        fs::write(
+            &repo.redistribution_decision,
+            serde_json::to_vec_pretty(&decision)?,
+        )?;
+        assert!(run_promotion(&inputs(&repo, None))
+            .unwrap_err()
+            .to_string()
+            .contains("does not authorize channel crates_io"));
+        fs::write(
+            &repo.redistribution_decision,
+            serde_json::to_vec_pretty(&approved_decision)?,
+        )?;
+        // The reviewer here is the existing explicitly synthetic fixture, not
+        // authorization of the real #207 product or the repository decision.
+        for checksum in [staged.runtime_map_sha256, staged.runtime_sidecar_sha256] {
+            fs::write(&identity_path, identity.replace(&checksum, &"0".repeat(64)))?;
+            let error = run_promotion(&inputs(&repo, None)).unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("compact runtime identity differs"),
+                "{error:#}"
+            );
+        }
         Ok(())
     }
 
@@ -2536,7 +2649,7 @@ runtime_sidecar_sha256 = "{runtime_sidecar_sha256}"
             map_schema: "nsb-healpix-starlight-candidate-v1".into(),
             band: "synthetic combined band".into(),
             units: "ph_m-2_s-1".into(),
-            nside: 1,
+            nside: 8,
             ordering: "nested".into(),
             gaia_release: "Gaia DR3".into(),
             generation_date_utc: "2026-10-06T07:02:23Z".into(),

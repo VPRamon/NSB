@@ -1,6 +1,6 @@
 # Starlight derived-map rights: XHIP and SVO — preliminary assessment v1
 
-**Date:** 2026-10-08  
+**Date:** 2026-10-14<br>
 **Release candidate:** `7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d` (SHA-256)  
 **Human release decision:** `pending` in issue [#103](https://github.com/VPRamon/NSB/issues/103).  
 **Purpose:** assess the **specific derived numerical output**, not claim ownership or
@@ -170,13 +170,12 @@ frozen HEALPix map under all commercial and noncommercial channels. In
 particular, the 55 published supplement *records* do not quantify all offline
 use of XHIP, and the ESA Gaia noncommercial clause is a distinct review item.
 
-**Release action now:** package NSB 0.1.0 **without** the frozen Starlight
-candidate, report, sidecar and staged map; retain the exact scientific bytes
-and their verification pins in the Git repository. Do **not** change
-`redistribution-review-decision-v1.json` from `pending`, grant upstream
-licenses, activate `runtime_embedded=true`, or tag the release before CI
-and public API freeze pass. The already-Git-distributed bytes warrant their
-own assessment and notices.
+**Release action now:** complete the compact four-component release preparation
+and obtain the specific #103 human decision against the evidence in sections
+8–11. Pending packages exclude the compact payload; this is an authorization
+boundary, not a recommendation to abandon Starlight or publish a three-component
+release. Preserve the scientific bytes and pending decision until that review.
+The already-Git-distributed candidate also needs the explicit channel assessment.
 
 ### Primary references
 
@@ -229,8 +228,8 @@ the following table states the actual intended redistribution scope.
 
 | Source/product | Original bytes in runtime packages? | Derived bytes? | Terms, citations and remaining question |
 | --- | --- | --- | --- |
-| Gaia DR3 GaiaSource/XP, ESA/DPAC | No | Frozen integrated map, only after approval | BY-NC 3.0 IGO; ESA/DPAC acknowledgement and Gaia mission/DR3 references; channel/commercial scope unresolved |
-| Tycho-2 I/259, Høg et al. 2000 | No | Bright-star processing contribution | CDS source designation BY-NC 3.0 IGO; Høg citations; aggregate NC scope needs review |
+| Gaia DR3 GaiaSource/XP, ESA/DPAC | No | Frozen integrated map, only after approval | BY-NC 3.0 IGO; ESA/DPAC acknowledgement and Gaia mission/DR3 references; compliant NC grant established, actual purpose and combined-work classification require review |
+| Tycho-2 I/259, Høg et al. 2000 | No | Diagnostics only in this frozen pipeline | CDS source designation BY-NC 3.0 IGO; Høg citations retained; no Tycho photometry alters final radiances/uncertainties |
 | Hipparcos-2 I/311, van Leeuwen 2007 | No | Bright-star contribution | Author-confirmed availability; cite both 2007 book and validation paper; commercial/derived-map grant not explicit |
 | XHIP V/137D, Anderson & Francis 2012 | No | Spectral-class selections used to calculate flux | Cite Anderson & Francis and CDS; catalogue-specific grant and substantiality assessment remain unresolved |
 | SVO Hp_bes / Bessell 2000 | No curve/XML | Calculated scalar integrals | Maintainer-reported FPS correspondence supports calculation results with exact acknowledgement and four requested references; original-curve redistribution not authorized here |
@@ -260,3 +259,269 @@ UV-training snapshot is not fully pinned (see the bibliography/inventory).
 This limits full upstream regeneration; the frozen output, calibration model
 and representation conversion remain checksum-locked. It must remain visible
 in release review rather than being described as complete upstream provenance.
+
+## 8. Actual noncommercial publication scope and public grants
+
+**Research update: 2026-10-14.** The maintainer states that NSB is a scientific
+research project, freely distributed without planned monetization. The intended
+channels are public GitHub source/releases, crates.io, and PyPI wheels/sdists.
+This is not a request for an unrestricted commercial licence.
+
+[CC BY-NC 3.0 IGO legal code](https://creativecommons.org/licenses/by-nc/3.0/igo/legalcode.en)
+§3(a–b) already grants reproduction, distribution, collections and adaptations;
+§3 also permits technically necessary format changes. §4(b) limits exercise of
+those rights by purpose (commercial advantage/private monetary compensation).
+§§4(a,c) require the licence link, preserved notices, attribution and identification
+of changes; §8(a–b) preserves the original licensor's direct offer downstream.
+§2 leaves copyright-free uses unaffected. **Additional individual permission is
+not required for acts already within this public grant.** The licence does not
+turn uncopyrightable numerical facts into copyrighted works.
+
+ESA's [Gaia licence](https://www.cosmos.esa.int/web/gaia-users/license) expressly
+adopts this licence. Its [archive terms](https://www.cosmos.esa.int/web/esdc/terms-and-conditions)
+require attribution and route commercial applications, including indirect
+financial gain, to `data.licences@esa.int`; they specify French law and an ICC
+arbitration arrangement. They do not say that every noncommercial adaptation
+needs an individual approval. The designated credit is ESA/Gaia DPAC.
+
+**Conclusion A (public licence), with a stated inference:** the described free
+scientific publication has a defensible noncommercial purpose and may rely on
+the Gaia grant for reproduction/adaptation/distribution, subject to its actual
+facts and conditions. A commercial hosting provider's existence does not by
+itself classify the maintainer's purpose, nor does zero price prove that purpose.
+The reviewer should confirm that the release is not primarily directed toward
+commercial advantage, paid services or indirect financial gain. Preserve NC
+terms where the underlying protected rights apply; do not promise commercial
+reuse. A future downstream commercial application must assess its own rights.
+No ESA reply is a prerequisite to an otherwise compliant noncommercial release.
+
+Tycho-2 [I/259](https://cdsarc.cds.unistra.fr/viz-bin/cat/I/259) has the same
+source licence designation, independently of Tycho-1. More specifically, this
+NSB pipeline requires finite Hipparcos Hp photometry for **every** input record.
+`admits_hp_or_vt(Some(hp), vt)` uses Hp and never takes its missing-Hp Tycho
+fallback. Tycho BT/VT, errors and IDs are retained in external diagnostics;
+they do not enter `reconstruct_spectral_estimates`, the astrometric matching,
+or the final radiance/uncertainty fields. **Conclusion B:** no Tycho photometric
+records are reproduced in the current runtime map, and no extra Tycho commercial
+permission is justified merely by its presence in the offline input inventory.
+Retain Høg/ESA/CDS credits for its actual use; do not generalize this finding to
+a future model using Tycho photometry. Gaia independently supplies the NC boundary.
+
+## 9. XHIP source-to-output audit
+
+The audit downloaded the public upstream files into temporary local research
+storage, verified their **exact frozen** compressed SHA-256s, and counted fixed-width
+records. No raw file or record subset is added to the repository/package.
+
+| Evidence | Verified result |
+| --- | --- |
+| XHIP `V/137D/main.dat.gz` | 11,163,196 bytes; SHA-256 `8b6a7efb5b3ebf985de2072ace9f2d47849f369c345e2de9a1e3fe822594771b` |
+| XHIP rows read by `ingest_xhip` | **117,955**, with 117,955 unique HIP IDs; all rows are parsed into the in-memory map |
+| Hipparcos-2 `I/311/hip2.dat.gz` | 8,977,907 bytes; SHA-256 `8e624f843d4254a9b7c2e8dda8e3158dbe825bf98f6bf3dbbae7f0d0b73d6858`; 117,955 rows |
+| HIP identity cross-check | The two complete ID sets are identical |
+| Nonmissing XHIP Tc/Lc pairs | **73,840** rows; available for the reconstruction model's assignment lookup |
+| Nonmissing XHIP radial velocities | **46,392** rows |
+| Hp ≤ 4 population | **480** Hipparcos records, all with an XHIP match; **477** have Tc/Lc; **479** have positive parallax and a nonmissing RV |
+| Final merged supplement | **55 distinct admitted supplement records**, zero primary replacements, from the frozen merge accounting; classification selection and modelling affect at most 55 spatial pixels |
+
+### Fields and computation
+
+`catalogue.rs::ingest_xhip` reads **only `main.dat`**, not `photo.dat` or
+`biblio.dat`. Fixed-width fields (one-based inclusive byte columns): HIP 1–6,
+SpType 237–262, Tc 264–266, Lc 268, RV 270–276 and its error 278–283.
+The parser validates RV/error finiteness; the RV error is not subsequently
+used in the current calculation. It does **not** use XHIP photometry, positions,
+parallaxes, proper motions or a copied XHIP spectral-flux table.
+
+- `build_run.rs` ingests the **whole** XHIP table. Reconstruction loops over all
+  117,955 Hipparcos records and consults matching XHIP Tc/Lc, selecting a
+  checksum-pinned CK04 template where the model has an assignment. Counts of
+  available Tc/Lc are not a count of successfully assigned templates; the
+  original external spectral-model/diagnostics artifact is not available in this
+  checkout, so that intermediate count is not invented.
+- `reconstruction.rs` scales the selected template using **Hipparcos Hp** and
+  the SVO response/CALSPEC Vega scale, then integrates 300–336 and 336–650 nm.
+  Statistical errors come from Hp error; systematic components include template
+  mismatch, class mapping and the shared zero point. This is computed model
+  radiance, not a transcription of XHIP measurements.
+- `builder.rs` applies the Hp ≤ 4 cut. XHIP RV is used for a 2D/3D perspective
+  sensitivity check on identity/membership (479 available bright cases), while
+  stored directions use the Hipparcos 2D propagation. RV values are not emitted
+  into the runtime map. SpType strings are copied to **external diagnostics**,
+  not to the runtime product. Intermediate source records contain HIP IDs and
+  propagated coordinates; those intermediate records are **not** approved for
+  runtime redistribution by this assessment.
+- The frozen merger admits 55 supplement records. HEALPix accumulation combines
+  them with Gaia into integrated flux and complete uncertainties. The runtime
+  product publishes four f64 scalars per pixel and provenance about input files,
+  without HIP identifiers, Tc/Lc, RV, SpType, catalogue row order or original
+  database arrangement. The exact number of distinct affected pixels and the
+  supplement's total-flux share require the external per-star artifact; the
+  public merge report establishes the bound and record count, not those values.
+
+### Recoverability and significance
+
+The map is not an original-record subset and cannot by itself reproduce the
+117,955-row table or its selection/arrangement. The transformation is many-to-one.
+However, **non-invertibility is not proved against arbitrary auxiliary information**:
+a person with independent Hipparcos positions/magnitudes, Gaia-only subtraction
+and the template library might infer classifications for an isolated dominant
+bright star. The four output fields therefore must not be advertised as having
+zero possible informational overlap. All 55 selected stars are scientifically
+important bright-end complements; 55/117,955 alone does not settle qualitative
+substantiality. No raw records or intermediate source diagnostics may be added
+to runtime packages on the strength of this map-only reasoning.
+
+### Applicable rights and conclusion
+
+[CDS/VizieR usage rules](https://cds.unistra.fr/vizier-org/licences_vizier.html)
+expressly allow scientific-context use with author/publication/publisher
+citations, distinguish commercial uses, and refer source copyrights to the
+catalogue ReadMe/origin. This supports the scientific ingestion/calculation;
+an unanswered clarification does not revoke that published use permission.
+It is not a newly invented CC licence for the XHIP database.
+
+[Directive 96/9/EC](https://eur-lex.europa.eu/legal-content/EN-DE/ALL/?uri=CELEX:31996L0009)
+Arts. 3(1–2) distinguish original selection/arrangement from contents; Arts.
+7(1–2,5), 8 and 9 distinguish protected extraction/reutilization, lawful-user
+insubstantial use and research exceptions. The research exception is not an
+unlimited worldwide right to publish a source database. In particular:
+
+- [Football Dataco, C-604/10](https://eur-lex.europa.eu/legal-content/en/ALL/?uri=CELEX:62010CJ0604), paras. 29–39: database copyright concerns original structure,
+  not an automatic monopoly over factual contents or mere labour.
+- [BHB, C-203/02](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:62002CJ0203): obtaining/verifying/presenting investment and qualitative as well as
+  quantitative substantiality matter; investment creating data is distinct.
+- [Directmedia, C-304/07](https://eur-lex.europa.eu/legal-content/EN/ALL/?uri=CELEX:62007CJ0304_SUM): assessment/transformation is not by itself a defence if protected
+  contents have actually been transferred; raw-byte copying is not required.
+- [Ryanair, C-30/14](https://eur-lex.europa.eu/legal-content/EN/SUM/?uri=CELEX:62014CJ0030): absence of copyright/database protection does not automatically
+  invalidate applicable contractual restrictions.
+
+EU/France are relevant to the CDS/ESA sources; Spain's [TRLPI Arts. 133–135](https://www.boe.es/buscar/act.php?id=BOE-A-1996-8930)
+illustrate national implementation. The publisher's jurisdiction is not inferred
+from the maintainer's name or timezone. The authorized reviewer must identify
+applicable jurisdiction and any contractual obligations. A 2012 release date
+is not proof that a database right has expired: publication timing, qualifying
+investment and substantial updates matter.
+
+**Conclusion:** scientific calculation is supported by published CDS terms
+(A); the map-only, factual-output rationale for not needing a new XHIP licence
+is substantial technical evidence (B), rather than merely an unanswered email.
+Whether this particular high-impact selection/model output is legally a protected
+reutilization remains **D: a specific legal interpretation for qualified human
+review**, not **E: an established missing permission**. Recommend adoption of
+the map-only rationale for the stated noncommercial channels if the reviewer
+accepts the copyright/database/contract analysis. Do not request universal
+commercial rights or call the release prohibited without an identified right.
+If the reviewer determines that protected content is reused beyond the existing
+scientific grant, ask CDS to identify the relevant holder and obtain that narrow
+map/channel permission; no such refusal or necessity has been established here.
+
+## 10. AGPL code and separately identifiable scientific data
+
+[AGPL-3.0](https://www.gnu.org/licenses/agpl-3.0.en.html) §§0–2 limit coverage
+to the licensed program/copyright-based modifications; §2 conditions output
+coverage on whether output is a covered work. §5 permits aggregates with
+separate, independent works. §§5(c), 7 and 10 also mean that an actually combined
+covered work cannot be placed under an additional general noncommercial rule.
+The [GNU FAQ](https://www.gnu.org/licenses/gpl-faq.en.html#MereAggregation)
+is interpretive guidance, not a court judgment or a licence from ESA/CDS.
+
+| Architecture | Compatibility finding |
+| --- | --- |
+| AGPL evaluator plus independent local scientific file | Separately identifiable code/data can retain distinct terms as an aggregate, provided the data is not itself an adaptation of the program. Functional use alone does not automatically transfer the code licence to data. |
+| Crate/wheel with identifiable data resource | Same substantive test; shipping two licence files is not sufficient by itself. Attribution, actual independence, data grants and recipient rights matter. |
+| `include_bytes!` scientific blob in the compiled library | Container count alone does not decide copyright scope. This versioned, checksum-addressed map is generic scientific input readable independently of NSB, generated from catalogues rather than copied program expression. That supports separate identity even inside one binary, **but the aggregate/combined-work conclusion requires review**, especially with AGPL dependencies. |
+| Map legally held to be part of one AGPL-covered adaptation/combined work | NC constraints cannot simply be added to that covered work. Change the distribution arrangement or obtain compatible rights; do not redefine AGPL as a noncommercial software licence. |
+
+**Proposed interpretation for sign-off:** the evaluator code is AGPL-3.0-only;
+the independent map retains the upstream data-rights boundary. The compact
+format, separate checksum/provenance contract and advanced external-map loader
+support that interpretation. This is not an assertion that `include_bytes!`
+automatically makes incompatible licences compatible. The reviewer should
+explicitly accept this classification. FSF's public compliance contact is an
+optional route for this narrow question, not an automatic extra permission gate.
+
+If that classification is rejected, a separate installed local resource is the
+preferred fallback, preserving all bytes/checksums and offline evaluation. A
+Rust library cannot safely assume that Cargo's source checkout is present at
+application runtime; such a change needs an actual installation/resource-location
+contract and wheel resource handling. Merely replacing `include_bytes!` with a
+compile-time absolute path would fail the requested offline installed-package
+contract and is not implemented as a cosmetic legal workaround.
+
+Commercial use of **the code** is permitted under AGPL's obligations. Commercial
+exercise of rights in the protected Gaia data needs the applicable data licence
+or permission. Overriding a map at runtime does not remove restricted bytes from
+a redistributed binary; a code-only commercial redistribution must actually
+exclude those bytes or have permission. No data restriction is imposed on the
+code licence itself.
+
+## 11. Proposed channel-specific decision for the authorized reviewer
+
+**Proposal only; not the authoritative JSON decision and not human approval.**
+Recommended disposition: `approved_with_conditions` for noncommercial scientific
+publication on **GitHub source/releases, crates.io, PyPI wheels and sdists**,
+*if the reviewer accepts the two interpretations in §§9–10*. Retain the real
+JSON as `pending` until that action occurs.
+
+1. Scope exactly the frozen #207 product, compact map and sidecar hashes pinned
+   by the current review bundle. Original catalogues, response curves, spectral
+   files and per-star diagnostics are outside the approved package scope.
+2. Preserve Gaia's licence URI, ESA/DPAC credits, change descriptions, the direct
+   original-licensor offer and applicable NC restrictions; make no unrestricted
+   commercial data grant or ESA/CDS endorsement claim.
+3. Confirm the stated noncommercial purpose on the actual publication facts.
+   No individual Gaia/Tycho permission is needed for covered public-licence acts.
+4. Adopt or reject, with reasons and jurisdiction, the map-only XHIP and separate
+   code/data aggregate interpretations. Verify the existing SVO/Hipparcos
+   correspondence privately; do not demand an unsolicited universal commercial
+   grant. Obtain a new narrow permission only if a relevant protected act is
+   actually identified outside existing grants/limitations.
+5. Keep the complete source notices/contact routes in all distributions. Run
+   promotion and release validation against the exact approved revision and
+   assets before publication. Public licences still govern users' actual uses;
+   this project decision cannot waive third-party rights.
+
+The existing machine-verifiable review-bundle checksum condition pins these
+facts and notices. Do not insert free-text conditions in the JSON and then bypass
+its verifier: record scope in the supported restrictions/pinned-artifact fields
+and use supported repository-file/asset checksum conditions. The human's actual
+identity/role/date must be entered only by the authorized process.
+
+**Readiness classification:** approval-ready analysis and implementation,
+requiring a bounded human legal/redistribution sign-off. There is currently no
+proven third-party refusal or established missing universal permission. Full
+upstream regeneration still has the disclosed historical UV-training snapshot
+limitation; exact frozen-output reproduction/equivalence is separately verified.
+
+## 12. Primary-source retrieval ledger (2026-10-14)
+
+The following SHA-256 values identify the HTTP response bodies examined, not
+immutable upstream licences or permission letters. Dynamic pages may change.
+Failed requests and empty anti-bot responses are excluded. The legal provisions
+and case-law pinpoint references are cited in section 9; an empty HTTP response
+is not evidence that those provisions were retrieved. Private correspondence
+is represented only by the maintainer-reported scope above.
+
+| Primary URL | Retrieved | Response SHA-256 |
+|---|---|---|
+| <https://www.cosmos.esa.int/web/gaia-users/license> | 2026-10-14 | `532d59346479c2ca1e174912f5f6bb46c3f1336bca039288dfaf199879682fb9` |
+| <https://www.cosmos.esa.int/web/esdc/terms-and-conditions> | 2026-10-14 | `f1b843e9243c3e848eea92038cee10615988e172d33d48eeb849463a9c9f3031` |
+| <https://cds.unistra.fr/vizier-org/licences_vizier.html> | 2026-10-14 | `f6bab16f7060f41c98958f0044fa3a526eeeeacdd23cb2fa7a529016d2b29e9f` |
+| <https://cdsarc.cds.unistra.fr/viz-bin/ReadMe/V/137D?format=html> | 2026-10-14 | `198226adb40ea17950813d39929e46a440d3d03c4c36f313b1cec3d3785359cf` |
+| <https://svo2.cab.inta-csic.es/theory/fps/> | 2026-10-14 | `eb5143b7370ef53775927f2e4e1fad7aab61a854dbdb035b38be563db9e4efbf` |
+| <https://archive.stsci.edu/hlsp/reference-atlases> | 2026-10-14 | `dcdba17ad52a062099a13c517e59309b56e067948584124cce82ee60a06b3bc6` |
+| <https://zenodo.org/records/14064023> | 2026-10-14 | `7bbee4bd5c3882b483b7376437647f425903c3227fe8be7f9370d74a931f99db` |
+| <https://www.spaceweather.gov/content/contact-us> | 2026-10-14 | `32d3c0df19021addcf9ac210871ea5f84123e6c72e234fc70335c6c0f00c2571` |
+| <https://www.gnu.org/licenses/agpl-3.0.en.html> | 2026-10-14 | `12217a17b18a1713adc27443b85d3e7bd66106a64c79c2b8d44159c91391e56b` |
+| <https://www.gnu.org/licenses/gpl-faq.en.html> | 2026-10-14 | `5053fe23f1da3b76245b17c416640cde37ce21b8175effc0c6619d6673a25d2e` |
+| <https://raw.githubusercontent.com/GerritRo/nsb2/main/pyproject.toml> | 2026-10-14 | `45363fb68dc1b6d059b33cba9ccd0bc86e8467f5c0c08e0a161b1cfb9a2269f9` |
+| <https://zenodo.org/records/15396676> | 2026-10-14 | `f30bb4c359d2696691dad9bc4a85ad459be5f4304bc6b40a9acdf7bc6e34c418` |
+| <https://cds.unistra.fr/about/contact/> | 2026-10-14 | `1947edd8c784adb159fba9aaece15309284d9d5c40cb1eed8b40ec38e08acadd` |
+| <https://www.ast.cam.ac.uk/people/floor.van-leeuwen> | 2026-10-14 | `0167e02d9f8c9d315507c37c49d4dac25be1612049717e448305fb7faadc0153` |
+| <https://www.cosmos.esa.int/web/gaia/newsletter/contents> | 2026-10-14 | `3ff7f27196d8ac6736dd082c3471321a336eb57d192d0970666cfedd62703324` |
+| <https://gmd.copernicus.org/articles/18/4353/2025/> | 2026-10-14 | `36881da057e9ec8b10aa51bbd411aecd7826f8526b1d409b1c1b87b3e99d1504` |
+| <https://zenodo.org/records/8063930> | 2026-10-14 | `58cf5f7e4ade365cceaeef2834f68521ed49ddb972b198bfc36905d6db9d6549` |
+| <https://creativecommons.org/licenses/by-nc/3.0/igo/legalcode.en> | 2026-10-14 | `f0cce843f2c2496cfc17fcbd753c0022d7696395f4c5d4f7d28341f64c8bcde7` |
+| <https://oceanservice.noaa.gov/about/faq.html> | 2026-10-14 | `fc463ed03a8393ca60d56aa269b1c5139eb946cc6e1aea30b38fb909f6c641cd` |
+| <https://library.noaa.gov/blogs/news-research-highlights/question-of-the-quarter-noaacopyright> | 2026-10-14 | `990fb5c112becd045c8654f03f5c962acfb5c53d43bdc728ce0e733b295f07df` |

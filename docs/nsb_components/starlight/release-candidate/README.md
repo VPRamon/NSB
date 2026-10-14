@@ -213,3 +213,15 @@ separately by the unchanged map and cross-validation evidence. The current
 working preregistration remains available for future generic validation runs.
 The new transitive test verifies the complete review bundle, rather than
 replacing a stale scientific evidence hash with the current working document.
+
+### Explicit compact channel approval
+
+Promotion of compact assets requires decision pins for both
+`compact-runtime-map-v1` and `compact-runtime-sidecar-v1`, matching the hashes
+in `runtime-assets-v1.toml`, with `git_repository`, `crates_io`, `pypi_wheel`
+and `pypi_sdist` in each pin's `approved_channels`. These inventory entries
+remain `distributed = false` until actual admission. Approval only for existing
+Git artifacts cannot authorize future package distribution. A GitHub release
+asset additionally needs approval for that publication channel. The proposed
+conditions in the rights assessment are review material; they do not change
+the authoritative pending JSON or identify a reviewer.

@@ -133,3 +133,34 @@ CC BY 4.0; [associated paper](https://doi.org/10.1051/0004-6361/202244784).
 The source selection table is not included; its use is recorded in the
 frozen candidate provenance. None of these notices grants missing rights
 in XHIP, Hipparcos-2 or the final derived map; #103 remains authoritative.
+
+## Rights enquiries and concerns
+
+The [scientific-data guide and verified contact directory](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/README.md)
+identifies the providers, public contact channels, evidence and verification dates.
+Report a concern through [NSB issues](https://github.com/VPRamon/NSB/issues),
+identifying the asset, package/version, asserted right and relevant evidence.
+The maintainer reviews the evidence with the provider, corrects notices or
+artifacts, and suspends affected distribution when warranted; corrections are
+communicated in the issue and release notes. This procedure does not itself
+confer permission. Gaia noncommercial restrictions continue to apply to the
+embedded data even when a user selects an external map at runtime. AGPL code
+rights remain distinct. The combined binary's aggregate interpretation and
+XHIP's map-only treatment require the specific human review recorded in #103.
+Tycho-2 fields in the frozen pipeline are diagnostic only; no Tycho photometric
+value changes its radiances or uncertainty values.
+
+Public contact routes verified 2026-10-14 (custodians are not necessarily sole
+rights holders): ESA licensing `data.licences@esa.int` ([archive terms](https://www.cosmos.esa.int/web/esdc/terms-and-conditions));
+Gaia technical support `gaia-helpdesk@esa.int` ([official announcement](https://www.cosmos.esa.int/web/gaia/newsletter/contents));
+CDS/XHIP/Tycho `cds-question@unistra.fr` ([CDS](https://cds.unistra.fr/about/contact/));
+Hipparcos-2 [van Leeuwen's institutional directory](https://www.ast.cam.ac.uk/people/floor.van-leeuwen);
+SVO `svo-support@cab.inta-csic.es` ([FPS](https://svo2.cab.inta-csic.es/theory/fps/));
+STScI `archive@stsci.edu` ([MAST](https://archive.stsci.edu/hlsp/reference-atlases));
+PALACE [paper correspondence](https://gmd.copernicus.org/articles/18/4353/2025/);
+selection weights [Cantat-Gaudin's record/ORCID](https://zenodo.org/records/8063930);
+F10.7 [NOAA SWPC contact](https://www.spaceweather.gov/content/contact-us).
+No additional individual permission is required for acts already covered by an
+applicable public grant. Names identify credited creators, not proof of sole
+legal ownership. The guide records existing correspondence and the limited
+questions still requiring interpretation.

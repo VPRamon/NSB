@@ -127,3 +127,21 @@ belong to `nsb-data-tools`; the runtime library performs no catalogue downloads.
 AGPL-3.0-only. Scientific assets and third-party dependencies retain their own
 licensing and attribution requirements; see the [notices included in this
 crate](THIRD_PARTY_NOTICES.md) and the repository asset manifests.
+
+## Scientific data and licensing
+
+NSB **code** is AGPL-3.0-only; that does not make all scientific data AGPL.
+PALACE and selected reference products use CC BY 4.0, NOAA products have their
+applicable federal-work/data conditions, and Gaia-derived Starlight retains
+applicable **CC BY-NC 3.0 IGO** terms. The code may be used commercially under
+AGPL's obligations; commercial use of protected bundled data may need separate
+rights. Credits do not imply endorsement by ESA, DPAC, CDS or the authors.
+
+The compact Starlight release architecture is implemented and tested offline,
+but bundled production activation remains gated by the actual #103 human
+review. Before that approval, the standard default has three components;
+authorized promotion makes the four-component default available in Rust/Python.
+
+See the [source terms, attribution, public contact directory and concern procedure](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/README.md)
+and the distributed `THIRD_PARTY_NOTICES.md`. Cite the original scientific
+sources, preserve their notices and assess the data terms for your actual use.

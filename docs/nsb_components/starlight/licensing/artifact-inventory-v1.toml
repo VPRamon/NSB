@@ -200,6 +200,8 @@ explicitly states CC-BY-NC-3.0 IGO. This is source-specific grant evidence for
 the 20 pinned tyc2.dat.00..19 shards, not merely an analogy to ESA Tycho-1.
 Credit the Tycho-2 authors and ESA and comply with non-commercial terms
 where applicable. Preserve all 20 raw inputs and hashes outside packages.
+Frozen pipeline audit: BT/VT and errors are diagnostic only because all admitted
+Hipparcos records use Hp. They do not alter map radiance or uncertainty.
 This does not independently approve redistribution of the complete NSB map.
 """
 
@@ -220,6 +222,13 @@ licence for the XHIP compilation. The catalog is downloaded offline as a
 spectral-classification lookup; no original XHIP table is included in the
 runtime crate. Review whether protected extraction/arrangement persists in
 the derived HEALPix map before approving repository/registry redistribution.
+Verified 2026-10-14: 117955 unique main.dat rows read; 73840 contain Tc/Lc;
+480 Hipparcos records satisfy Hp <= 4; 55 final supplement records admitted,
+zero replacements. Tc/Lc choose templates, RV supports admission checks, and
+SpType is diagnostic only. No source rows appear in runtime maps. Inference
+with auxiliary inputs cannot be categorically excluded. This is a bounded
+legal interpretation (D), not an established missing permission (E); see the
+source-to-output audit and database-law analysis in the rights assessment.
 """
 
 [[artifacts]]
@@ -468,3 +477,16 @@ distributed = false
 channels = []
 tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
 notes = "Reproducible with stage-runtime --output-csv <path>.bin. Payload is generated locally, not committed or packaged pending authorization. Compact sidecar SHA-256 b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b. Review-bundle runtime-assets identity pins both. No new grant is inferred from representation conversion. Intended future channels: crates.io, PyPI wheel/sdist and GitHub release, only after channel-specific approval."
+
+[[artifacts]]
+id = "compact-runtime-sidecar-v1"
+category = "generated-provenance-sidecar"
+source = "Frozen runtime manifest with only map_sha256 changed to identify the compact representation"
+release = "nsb-starlight-runtime-manifest-v2"
+license = "Scientific source terms and attribution retained; #103 channel-specific decision required for the pair"
+sha256 = "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b"
+distribution_class = "generated_derived_output"
+distributed = false
+channels = []
+tracking_issue = "https://github.com/VPRamon/NSB/issues/103"
+notes = "No payload shipped while pending. Promotion requires explicit decision pins for this sidecar and compact-runtime-map-v1 on git_repository, crates_io, pypi_wheel and pypi_sdist. Public-law/source-specific conclusions and contacts are documented in the rights assessment and licensing README; this entry is not human approval."

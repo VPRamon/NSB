@@ -399,6 +399,40 @@ impl RedistributionReview {
         Ok(())
     }
 
+    /// Check authorization of a staged product on its intended future channels,
+    /// even while its inventory entry correctly says `distributed = false`.
+    pub(crate) fn require_staged_channels(
+        &self,
+        id: &str,
+        sha256: &str,
+        channels: &[&str],
+    ) -> Result<()> {
+        let artifact = self
+            .inventory
+            .find(id)
+            .with_context(|| format!("staged runtime artifact {id} is missing from inventory"))?;
+        if artifact.sha256.as_deref() != Some(sha256) {
+            bail!("staged runtime inventory checksum mismatch for {id}");
+        }
+        let pinned = self
+            .decision
+            .pinned_artifacts
+            .iter()
+            .find(|p| p.id == id)
+            .with_context(|| {
+                format!("redistribution decision does not pin staged runtime artifact {id}")
+            })?;
+        if pinned.sha256 != sha256 {
+            bail!("staged runtime decision checksum mismatch for {id}");
+        }
+        for channel in channels {
+            if !pinned.approved_channels.iter().any(|c| c == channel) {
+                bail!("redistribution decision does not authorize channel {channel} for staged runtime artifact {id}");
+            }
+        }
+        Ok(())
+    }
+
     pub fn verify_conditions(&self, evidence: &ConditionEvidence<'_>) -> Result<()> {
         if self.decision.conditions.is_empty() {
             return Ok(());
@@ -597,6 +631,52 @@ mod tests {
 
         let review = RedistributionReview::load(&inventory_path, &decision_path).unwrap();
         review.require_approved(&"c".repeat(64)).unwrap();
+    }
+
+    #[test]
+    fn staged_channels_require_inventory_identity_and_explicit_future_approval() {
+        let dir = TempDir::new().unwrap();
+        let mut inventory = synthetic_inventory();
+        inventory.artifacts[0].sha256 = Some("b".repeat(64));
+        let (path, sha) = write_inventory(&dir, &inventory);
+        let decision = write_decision(&dir, &approved_decision(&sha));
+        let mut review = RedistributionReview::load(&path, &decision).unwrap();
+        assert!(review
+            .require_staged_channels("absent", &"b".repeat(64), &[])
+            .is_err());
+        let id = "synthetic-upstream-input";
+        assert!(review
+            .require_staged_channels(id, &"a".repeat(64), &[])
+            .is_err());
+        assert!(review
+            .require_staged_channels(id, &"b".repeat(64), &[])
+            .is_err());
+        review
+            .decision
+            .pinned_artifacts
+            .push(PinnedArtifactApproval {
+                id: id.into(),
+                sha256: "a".repeat(64),
+                approved_channels: vec!["git_repository".into()],
+            });
+        assert!(review
+            .require_staged_channels(id, &"b".repeat(64), &[])
+            .is_err());
+        review.decision.pinned_artifacts.last_mut().unwrap().sha256 = "b".repeat(64);
+        assert!(review
+            .require_staged_channels(id, &"b".repeat(64), &["crates_io"])
+            .is_err());
+        review
+            .decision
+            .pinned_artifacts
+            .last_mut()
+            .unwrap()
+            .approved_channels
+            .push("crates_io".into());
+        review
+            .require_staged_channels(id, &"b".repeat(64), &["git_repository", "crates_io"])
+            .unwrap();
+        assert!(!review.inventory.artifacts[0].distributed);
     }
 
     #[test]
