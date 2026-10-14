@@ -9,8 +9,10 @@ const CSV: &str = include_str!("data/starlight_fixture_map.csv");
 
 #[test]
 fn compact_roundtrip_is_exact_and_deterministic_in_both_orderings() {
-    for ordering in ["ring", "nested"] {
-        let csv = CSV.replace("ordering=ring", &format!("ordering={ordering}"));
+    for ordering in ["ring", "nested", "RING", "NESTED"] {
+        let csv = CSV
+            .replace("ordering=ring", &format!("ordering={ordering}"))
+            .replace("coordinate_frame=galactic", "coordinate_frame=Galactic");
         let original = StarlightMap::from_csv_str(&csv, starlight_test_provenance()).unwrap();
         let first = StarlightMap::compact_csv(&csv, starlight_test_provenance()).unwrap();
         assert_eq!(
@@ -106,4 +108,58 @@ fn approved_bundled_default_evaluates_all_four_components() {
             .value()
             > 0.0
     );
+}
+
+#[test]
+fn compact_rejects_semantic_corruption_even_with_valid_internal_checksum() {
+    fn resign(bytes: &mut [u8]) {
+        let end = bytes.len() - 32;
+        let digest = sha256(&bytes[..end]);
+        bytes[end..].copy_from_slice(&digest);
+    }
+    let original = StarlightMap::compact_csv(CSV, starlight_test_provenance()).unwrap();
+    let length = u32::from_le_bytes(original[8..12].try_into().unwrap()) as usize;
+    let header = std::str::from_utf8(&original[12..12 + length]).unwrap();
+    for (from, to) in [
+        (
+            "# coordinate_frame=galactic",
+            "# coordinate_frame=equatorial",
+        ),
+        (
+            "# s10_diagnostics=not_provided",
+            "# s10_diagnostics=provided",
+        ),
+        ("# nside=1", "# nside=invalid"),
+        ("# nside=1", "# nside=0"),
+        ("# nside=1", "# nside=3"),
+        ("# nside=1", "# nside=2"),
+        ("# nside=1\n", ""),
+        ("# ordering=ring", "# ordering=unknown"),
+    ] {
+        let altered = header.replace(from, to);
+        assert_ne!(header, altered);
+        let mut bytes = original[..8].to_vec();
+        bytes.extend_from_slice(&(altered.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(altered.as_bytes());
+        bytes.extend_from_slice(&original[12 + length..]);
+        resign(&mut bytes);
+        assert!(StarlightMap::from_compact_bytes(&bytes, starlight_test_provenance()).is_err());
+    }
+    for (field, value) in [
+        (0, f64::NAN),
+        (0, f64::INFINITY),
+        (0, -1.0),
+        (1, 999.0),
+        (2, -1.0),
+    ] {
+        let mut bytes = original.clone();
+        let offset = 12 + length + field * 8;
+        bytes[offset..offset + 8].copy_from_slice(&value.to_le_bytes());
+        resign(&mut bytes);
+        assert!(StarlightMap::from_compact_bytes(&bytes, starlight_test_provenance()).is_err());
+    }
+    let mut invalid_utf8 = original;
+    invalid_utf8[12] = 255;
+    resign(&mut invalid_utf8);
+    assert!(StarlightMap::from_compact_bytes(&invalid_utf8, starlight_test_provenance()).is_err());
 }

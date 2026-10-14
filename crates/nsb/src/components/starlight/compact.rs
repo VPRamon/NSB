@@ -81,7 +81,9 @@ impl StarlightMap {
                 .map(String::as_str)
                 .ok_or_else(|| invalid(format!("compact Starlight missing {key}")))
         };
-        if get("coordinate_frame")? != "galactic" || get("s10_diagnostics")? != "not_provided" {
+        if !get("coordinate_frame")?.eq_ignore_ascii_case("galactic")
+            || get("s10_diagnostics")? != "not_provided"
+        {
             return Err(invalid(
                 "compact Starlight requires Galactic frame and absent S10 diagnostics",
             ));
@@ -89,7 +91,7 @@ impl StarlightMap {
         let nside = get("nside")?
             .parse::<u32>()
             .map_err(|_| invalid("invalid compact nside"))?;
-        let ordering = match get("ordering")? {
+        let ordering = match get("ordering")?.to_ascii_lowercase().as_str() {
             "ring" => HealpixOrdering::Ring,
             "nested" => HealpixOrdering::Nested,
             _ => return Err(invalid("invalid compact HEALPix ordering")),
@@ -105,11 +107,15 @@ impl StarlightMap {
             return Err(invalid("compact Starlight pixel count/length mismatch"));
         }
         let pixels = payload
-            .chunks_exact(32)
+            .as_chunks::<32>()
+            .0
+            .iter()
             .map(|row| {
                 let mut fields = row
-                    .chunks_exact(8)
-                    .map(|v| Radiance::new(f64::from_le_bytes(v.try_into().unwrap())));
+                    .as_chunks::<8>()
+                    .0
+                    .iter()
+                    .map(|v| Radiance::new(f64::from_le_bytes(*v)));
                 StarlightPixel::new(fields.next().unwrap(), S10s::new(0.0), S10s::new(0.0))
                     .without_s10_diagnostics()
                     .with_uncertainties(
