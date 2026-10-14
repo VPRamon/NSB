@@ -100,6 +100,10 @@ const V_FILTER: Nanometers = Nanometers::new(551.0);
 
 /// Empirical aerosol-scattering weight applied to the Jones 2013 Mie phase term.
 ///
+/// The coefficient is defined against a Mie table whose integral is 4π,
+/// whereas the Rayleigh helper integrates to one. Written with a unit-integral
+/// Mie phase function, the equivalent empirical weight is 4π * 0.05 ≈ 0.6283.
+/// Normalizing the phase table must preserve that product, not retune it.
 /// This is not a physical constant. It is a calibration knob that compensates
 /// for the bundled Mie phase grid and the simplified single-scattering path used
 /// by this implementation. Site-calibrated profiles should be validated against

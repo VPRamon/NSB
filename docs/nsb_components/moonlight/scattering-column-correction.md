@@ -11,15 +11,21 @@ https://doi.org/10.1051/0004-6361/201322433
 For a shared vertical optical-depth coordinate u (0 at the observer, 1 at the
 atmosphere top), the plane-parallel reduction is
 
-    I_lambda = E_moon,lambda X_target (tau_R p_R + w_M tau_M p_M)
+    I_lambda = E_moon,lambda X_target (tau_R p_R + w_eff tau_M p_M)
                integral_0^1 exp[-tau (X_moon (1-u) + X_target u)] du.
 
 The existing symmetric mean-path transmission is a midpoint approximation to
 this integral. Its column multiplier is X_target, not another probability.
 At equal airmasses it is exact for the shared-profile slab. With unequal
 airmasses its relative quadrature error is order [tau (X_moon-X_target)]^2.
-Unit-integral phase functions have physical units sr^-1; no additional 4*pi
-normalization belongs in this expression. Siderust's historical lunar helper
+Rayleigh p_R integrates to one. The admitted Mie table P_M integrates to
+4*pi (see its header and mie-phase-validation.md), so p_M=P_M/(4*pi)
+is the phase function per steradian. The original empirical coefficient 0.05
+was defined against P_M; with normalized p_M its equivalent weight is
+w_eff=4*pi*0.05, about 0.6283. The code now expresses this normalization
+explicitly, preserving the inherited product and all calibration choices.
+Dividing by 4*pi while keeping a normalized-phase weight of 0.05 would
+retune the model, rather than merely correct its units. Siderust's historical lunar helper
 returns the numerical beam irradiance despite carrying a radiance marker.
 The kernel converts this beam to sky radiance once, before photon conversion.
 The upstream source dilution/unit correction is tracked separately.

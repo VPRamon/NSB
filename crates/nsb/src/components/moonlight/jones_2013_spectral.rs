@@ -120,10 +120,12 @@ fn compute_jones_2013_spectral(
         let am_moon_v = am_moon.value();
         let am_src_v = am_src.value();
         // The legacy Siderust API carries a radiance marker, but the numeric
-        // source is disc-integrated beam irradiance (W m^-2 nm^-1). Each phase
-        // function here integrates to one and has physical units sr^-1.
-        // The scattering kernel converts irradiance to sky radiance once;
-        // there is no second lunar solid-angle or 1/(4π) conversion.
+        // source is disc-integrated beam irradiance (W m^-2 nm^-1).
+        // Rayleigh is normalized to one; the Mie table integrates to 4π.
+        // The kernel makes that normalization explicit while preserving the
+        // empirical coefficient defined against the original Mie convention.
+        // It converts irradiance to sky radiance once, without another lunar
+        // solid-angle conversion.
         let kernel =
             single_scattering_midpoint_kernel(tau_r, tau_m, phase_r, phase_m, am_moon_v, am_src_v);
         let sky_radiance = radiometry::WattsPerSquareMeterSteradianNanometer::new(
@@ -172,11 +174,14 @@ fn compute_jones_2013_spectral(
 ///
 /// Let u be the fraction of vertical optical depth below a scattering point.
 /// For a shared vertical species profile, the line-of-sight integral is
-/// X_target (τ_R p_R + w_M τ_M p_M) ∫₀¹
+/// X_target (τ_R p_R + w_eff τ_M p_M) ∫₀¹
 /// exp[-τ (X_moon (1-u) + X_target u)] du.
 /// Evaluating the integrand at u=1/2 retains this implementation's symmetric
 /// mean-path approximation. The column is already in τ_R and τ_M; multiplying
 /// again by (1-exp(-τ X_target)) incorrectly makes the thin limit quadratic.
+/// Rayleigh p_R integrates to one, whereas the input Mie table P_M integrates
+/// to 4π. Internally p_M=P_M/(4π) and w_eff=4π*JONES_MIE_WEIGHT; their product
+/// preserves the inherited empirical coefficient without retuning it.
 /// This approximation is exact for equal airmasses and has relative quadrature
 /// error O([τ (X_moon-X_target)]²). It is not Jones's full spherical solver.
 fn single_scattering_midpoint_kernel(
@@ -187,7 +192,10 @@ fn single_scattering_midpoint_kernel(
     am_moon: f64,
     am_target: f64,
 ) -> f64 {
-    let scatter = (tau_r * phase_r + tau_m * JONES_MIE_WEIGHT * phase_m).max(0.0);
+    let four_pi = 4.0 * std::f64::consts::PI;
+    let mie_per_sr = phase_m / four_pi;
+    let effective_mie_weight = JONES_MIE_WEIGHT * four_pi;
+    let scatter = (tau_r * phase_r + tau_m * effective_mie_weight * mie_per_sr).max(0.0);
     let transmission = (-(tau_r + tau_m) * 0.5 * (am_moon + am_target)).exp();
     scatter * am_target * transmission
 }
@@ -247,6 +255,34 @@ mod tests {
             observer_altitude: Kilometers::new(2.635),
             rayleigh_scale_height: conditions.rayleigh_scale_height,
             mie_params: conditions.mie_params,
+        }
+    }
+
+    #[test]
+    fn rayleigh_and_mie_phase_conventions_are_explicit() {
+        let four_pi = 4.0 * std::f64::consts::PI;
+        let n = 18_000;
+        let dtheta = std::f64::consts::PI / n as f64;
+        for wave in [350.0, 551.0, 650.0] {
+            let mut rayleigh_integral = 0.0;
+            let mut mie_integral = 0.0;
+            for i in 0..n {
+                let theta = (i as f64 + 0.5) * dtheta;
+                let domega = 2.0 * std::f64::consts::PI * theta.sin() * dtheta;
+                rayleigh_integral += rayleigh_phase(Radians::new(theta)).value() * domega;
+                let raw_mie =
+                    mie_grid().lookup(Degrees::new(theta.to_degrees()), Nanometers::new(wave));
+                mie_integral += raw_mie / four_pi * domega;
+                // Normalization must not silently retune the empirical model.
+                let normalized_weighted = JONES_MIE_WEIGHT * four_pi * (raw_mie / four_pi);
+                assert!(
+                    (normalized_weighted - JONES_MIE_WEIGHT * raw_mie).abs()
+                        <= 1e-14 * (1.0 + normalized_weighted.abs())
+                );
+            }
+            assert!((rayleigh_integral - 1.0).abs() < 1e-7);
+            // Published artifact admission permits its documented grid-quadrature error.
+            assert!((mie_integral - 1.0).abs() < 1e-4);
         }
     }
 
