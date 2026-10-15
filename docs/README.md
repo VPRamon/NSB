@@ -55,7 +55,6 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 - [Maintainer guide](maintainer-guide/README.md)
 - [Reproducible dataset workflow](maintainer-guide/datasets.md)
 - [Data-product pipeline architecture](specifications/data-product-pipeline.md)
-- [Release checklist](operations/release-checklist.md)
 
 ## Scientific interpretation and contracts
 

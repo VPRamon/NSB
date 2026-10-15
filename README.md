@@ -182,8 +182,7 @@ The source of truth for the version is
 package version from that same manifest. The
 [tag-triggered release workflow](.github/workflows/publish.yml) builds and
 checks the Rust crate, Python wheels and source distribution before uploading
-anything. Maintainers should follow the
-[release checklist](docs/operations/release-checklist.md) before pushing a tag.
+anything.
 The CLI remains a source-installed workspace application in `0.1.0`.
 
 ## License and scientific data
