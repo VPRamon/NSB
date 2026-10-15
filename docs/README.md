@@ -69,7 +69,6 @@ the same Rust evaluator and uses canonical `siderust.Observer` and
 | [CTAO site-profile specification](specifications/ctao-site-profiles.md) | Exact assumptions and limitations of CTAO planning presets |
 | [Jones 2013 moonlight](nsb_components/moonlight/jones2013-validation.md) | Spectral moonlight implementation and validation boundaries |
 | [CLI schema specification](specifications/cli-schemas.md) | Stable JSON and CSV output contracts |
-| [Schema versioning policy](specifications/schema-versioning.md) | First-release public v1 baseline and immutable scientific-evidence exceptions |
 
 ## Starlight data products
 
