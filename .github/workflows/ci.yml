@@ -215,10 +215,11 @@ jobs:
             --release-candidate "$fixture/docs/nsb_components/starlight/release-candidate/release-candidate-v1.toml" \
             --redistribution-decision "$fixture/docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json" \
             --apply
-          # The isolated nsb workspace has dependencies not necessarily cached by the
-          # preceding nsb-data-tools tests. Fetch its locked graph before offline checks.
-          cargo fetch --locked --manifest-path "$fixture/Cargo.toml"
-          cargo metadata --manifest-path "$fixture/Cargo.toml" --offline --format-version 1 > /dev/null
+          # The fixture contains only nsb, so the original workspace lockfile needs
+          # reconciling. Do that in the temporary fixture and fetch missing crates
+          # before requiring an immutable, offline dependency graph for the tests.
+          cargo fetch --manifest-path "$fixture/Cargo.toml"
+          cargo metadata --manifest-path "$fixture/Cargo.toml" --locked --offline --format-version 1 > /dev/null
           NSB_FIXTURE_RESULT="$fixture/rust-result.json" cargo test --manifest-path "$fixture/Cargo.toml" -p nsb --test embedded_fixture \
             --locked --offline --target-dir "$PWD/target"
           cargo package --manifest-path "$fixture/crates/nsb/Cargo.toml" --locked --target-dir "$PWD/target"
