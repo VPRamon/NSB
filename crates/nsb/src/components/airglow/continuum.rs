@@ -111,6 +111,17 @@ pub(crate) fn integrate_attenuated_continuum(
     altitude: Degrees,
     ctx: &AirglowEvaluationContext,
 ) -> Result<SpectralContinuumIntegrals> {
+    integrate_attenuated_continuum_band(continuum, time, altitude, ctx, 300.0, 650.0)
+}
+
+pub(crate) fn integrate_attenuated_continuum_band(
+    continuum: &AirglowContinuum,
+    time: Time<UTC>,
+    altitude: Degrees,
+    ctx: &AirglowEvaluationContext,
+    lower: f64,
+    upper: f64,
+) -> Result<SpectralContinuumIntegrals> {
     let (month, time_bin) = palace_climatology_coordinates(time, ctx.location)
         .ok_or_else(|| NsbError::Unsupported("time cannot be represented for PALACE".into()))?;
     let zenith = Degrees::new((90.0 - altitude.value()).clamp(0.0, 90.0));
@@ -135,13 +146,7 @@ pub(crate) fn integrate_attenuated_continuum(
     }
 
     let integrate = |values: &[f64; SAMPLE_COUNT]| {
-        values
-            .windows(2)
-            .zip(wavelengths.windows(2))
-            .map(|(value, wavelength)| {
-                0.5 * (value[0] + value[1]) * (wavelength[1] - wavelength[0])
-            })
-            .sum::<f64>()
+        crate::band::integrate_linear(wavelengths, values, lower, upper)
             * RAYLEIGH_PER_NM_TO_BAND_SPECTRAL
             * total_scale
     };
