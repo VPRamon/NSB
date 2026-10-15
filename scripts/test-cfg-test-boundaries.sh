@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CHECK="$ROOT/scripts/check-cfg-test-boundaries.py"
+CHECK="$ROOT/scripts/check-cfg-test-boundaries.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -13,12 +13,12 @@ write_source() {
 }
 
 expect_pass() {
-  python3 "$CHECK" --root "$TMP" >/dev/null
+  bash "$CHECK" --root "$TMP" >/dev/null
 }
 
 expect_fail() {
   local output status=0
-  output="$(python3 "$CHECK" --root "$TMP" 2>&1)" || status=$?
+  output="$(bash "$CHECK" --root "$TMP" 2>&1)" || status=$?
   [[ "$status" -eq 1 ]] || {
     printf 'expected failure, got status %s\n%s\n' "$status" "$output" >&2
     exit 1

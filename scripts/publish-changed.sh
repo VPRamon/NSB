@@ -36,15 +36,15 @@ export CARGO_REGISTRY_TOKEN
 
 MANIFEST="$ROOT/crates/nsb/Cargo.toml"
 
-crate_name() {
-  cargo metadata --locked --no-deps --format-version 1 --manifest-path "$1" \
-    | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["name"])'
-}
-
-crate_version() {
-  cargo metadata --locked --no-deps --format-version 1 --manifest-path "$1" \
-    | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])'
-}
+# Cargo already knows the package identity; no embedded Python is required.
+name="nsb"
+pkg_id="$(cargo pkgid --locked --manifest-path "$MANIFEST" -p "$name")"
+version="${pkg_id##*#}"
+version="${version##*@}"
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.+-]+)?$ ]]; then
+  echo "error: unable to resolve $name version from cargo pkgid: $pkg_id" >&2
+  exit 1
+fi
 
 already_on_crates_io() {
   local name="$1"
@@ -75,8 +75,6 @@ if [[ -n "$publication_status" ]]; then
   exit 1
 fi
 
-name="$(crate_name "$MANIFEST")"
-version="$(crate_version "$MANIFEST")"
 
 if [[ -n "${GITHUB_REF_NAME:-}" ]]; then
   expected_tag="v$version"

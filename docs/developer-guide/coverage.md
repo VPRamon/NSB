@@ -87,7 +87,7 @@ a substitute for the contract taxonomy in [Testing and mutation policy](testing.
 
 ## Diff-coverage semantics
 
-The diff gate:
+The diff gate (and its `#[cfg(test)]` boundaries, checked by the Bash CI guard):
 
 - diffs `*.rs` from `git merge-base <base> HEAD` to `HEAD` (`<base>` is the PR
   base SHA in GitHub Actions, otherwise `origin/main`);
