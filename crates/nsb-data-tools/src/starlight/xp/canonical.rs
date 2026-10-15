@@ -730,6 +730,142 @@ mod tests {
     }
 
     #[test]
+    fn canonical_equivalence_diagnostics_detect_each_changed_field() {
+        let reference = sample_record();
+        let same = reference.max_abs_diff(&reference);
+        assert!(same.passes_equivalence_gates());
+        assert_eq!(same.max_abs_bp_coefficient_diff, 0.0);
+        let mut changed = reference.clone();
+        changed.bp_coefficients[1] += 0.01;
+        changed.rp_coefficients[0] += 0.02;
+        changed.bp_coefficient_errors[2] += 0.03;
+        changed.rp_coefficient_errors[1] += 0.04;
+        changed.bp_coefficient_correlations[0] += 0.05;
+        changed.rp_coefficient_correlations[2] += 0.06;
+        changed.bp_standard_deviation += 0.07;
+        changed.rp_standard_deviation += 0.08;
+        let difference = reference.max_abs_diff(&changed);
+        assert!(!difference.passes_equivalence_gates());
+        assert!((difference.max_abs_bp_coefficient_diff - 0.01).abs() < 1e-12);
+        assert!((difference.max_abs_rp_coefficient_diff - 0.02).abs() < 1e-12);
+        assert!((difference.max_abs_bp_error_diff - 0.03).abs() < 1e-12);
+        assert!((difference.max_abs_rp_error_diff - 0.04).abs() < 1e-12);
+        assert!((difference.max_abs_bp_correlation_diff - 0.05).abs() < 1e-12);
+        assert!((difference.max_abs_rp_correlation_diff - 0.06).abs() < 1e-12);
+        assert!((difference.bp_standard_deviation_diff - 0.07).abs() < 1e-12);
+        assert!((difference.rp_standard_deviation_diff - 0.08).abs() < 1e-12);
+        assert!(max_abs_slice_diff(&[1.0], &[]).is_infinite());
+        assert!(max_abs_slice_diff(&[], &[]).is_finite());
+        assert_eq!(packed_correlation_len(0), 0);
+    }
+
+    #[test]
+    fn canonical_record_validation_rejects_corrupt_coefficients_and_provenance() {
+        let original = sample_record();
+        let mut record = original.clone();
+        record.schema_version += 1;
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.source_id = "   ".into();
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.source_id = "not-numeric".into();
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.bp_coefficients.pop();
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.rp_coefficient_errors.pop();
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.bp_coefficient_correlations.pop();
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.bp_standard_deviation = f64::INFINITY;
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.rp_coefficient_errors[0] = -0.1;
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.rp_coefficients[0] = f64::NAN;
+        assert!(record.validate().is_err());
+        record = original.clone();
+        record.rp_coefficient_correlations[1] = 1.5;
+        assert!(record.validate().is_err());
+        original.validate().unwrap();
+    }
+
+    #[test]
+    fn batch_csv_and_gzipped_bulk_stream_roundtrip_with_missing_and_invalid_sources() {
+        use flate2::write::GzEncoder;
+        use flate2::Compression;
+        use std::io::Write;
+
+        let dir = tempfile::tempdir().unwrap();
+        let csv_path = dir.path().join("nested/catalogue.csv");
+        let first = sample_record();
+        let mut second = first.clone();
+        second.source_id = "43".into();
+        assert!(write_gaiaxpy_datalink_csv_batch(&csv_path, &[]).is_err());
+        write_gaiaxpy_datalink_csv_batch(&csv_path, &[first.clone(), second.clone()]).unwrap();
+
+        let content = std::fs::read(&csv_path).unwrap();
+        let gz_path = dir.path().join("bulk.csv.gz");
+        let mut writer = GzEncoder::new(Vec::new(), Compression::default());
+        writer.write_all(&content).unwrap();
+        std::fs::write(&gz_path, writer.finish().unwrap()).unwrap();
+
+        let mut stream = stream_bulk_ecsv_gz(&gz_path).unwrap();
+        assert_eq!(stream.path(), gz_path.as_path());
+        assert!(stream.header_map().contains_key("source_id"));
+        let a = stream.next_record().unwrap().unwrap();
+        assert_eq!(a.source_id, "42");
+        assert_eq!(a.source_format, XpContinuousSourceFormat::BulkEcsv);
+        assert!(a.source_checksum.is_none());
+        let b = stream.next_record().unwrap().unwrap();
+        assert_eq!(b.source_id, "43");
+        assert!(stream.next_record().unwrap().is_none());
+        assert!(stream.next_record().unwrap().is_none());
+
+        let wanted = ["43".to_string(), "absent".to_string()]
+            .into_iter()
+            .collect();
+        let found = find_bulk_sources(&gz_path, &wanted).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found["43"].source_id, "43");
+        assert_eq!(
+            find_bulk_source(&gz_path, "42").unwrap().unwrap().source_id,
+            "42"
+        );
+        assert!(find_bulk_source(&gz_path, "99").unwrap().is_none());
+        assert!(
+            find_bulk_sources(&dir.path().join("missing.csv.gz"), &Default::default(),)
+                .unwrap()
+                .is_empty()
+        );
+
+        let mut invalid = first.clone();
+        invalid.bp_coefficients.clear();
+        assert!(write_gaiaxpy_datalink_csv_batch(&csv_path, &[first, invalid]).is_err());
+    }
+
+    #[test]
+    fn datalink_requires_exactly_one_record_and_rejects_error_pages() {
+        assert!(parse_datalink_gaiaxpy_csv(b"", "42").is_err());
+        assert!(parse_datalink_gaiaxpy_csv(b"<html>server error</html>", "42").is_err());
+        assert!(parse_datalink_gaiaxpy_csv(b"SERVICE ERROR", "42").is_err());
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("one.csv");
+        let record = sample_record();
+        write_gaiaxpy_datalink_csv(&path, &record).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+        assert!(parse_datalink_gaiaxpy_csv(&bytes, "99").is_err());
+        let mut doubled = bytes.clone();
+        doubled.extend_from_slice(&bytes[bytes.iter().position(|b| *b == b'\n').unwrap() + 1..]);
+        assert!(parse_datalink_gaiaxpy_csv(&doubled, "42").is_err());
+    }
+
+    #[test]
     fn packed_correlation_length_matches_gaia_convention() {
         assert_eq!(packed_correlation_len(55), 1485);
         assert_eq!(packed_correlation_len(3), 3);

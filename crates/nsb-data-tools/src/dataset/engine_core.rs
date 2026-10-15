@@ -1059,6 +1059,361 @@ reference_distance = \"1 AU\"\n",
         (temp, config_path)
     }
 
+    fn test_manifest(root: &Path) -> RunManifest {
+        RunManifest {
+            schema_version: RUN_SCHEMA_VERSION,
+            run_id: "unit-test-run".into(),
+            dataset: DatasetName::SolarSpectrum,
+            operation: Operation::Build,
+            executor: Executor::Local,
+            status: RunStatus::Planned,
+            config_path: root.join("config.toml"),
+            config_sha256: "0".repeat(64),
+            software_commit: "test-revision".into(),
+            resolved_workspace: root.join("workspace"),
+            partitions: vec![],
+            artifacts: vec![],
+            validation_report: None,
+            slurm_job_id: None,
+            error: None,
+        }
+    }
+
+    #[test]
+    fn run_manifest_identity_status_and_checksum_fail_closed() {
+        let (temp, config_path) = write_non_partitioned_config();
+        let config = RunConfig::load(&config_path).unwrap();
+        let plan = BuildPlan {
+            dataset: DatasetName::SolarSpectrum,
+            operation: Operation::Build,
+            executor: Executor::Local,
+            partitions: vec![],
+        };
+        let sha = sha256_file(&config_path).unwrap();
+        let id = run_id(&plan, &sha, "revision").unwrap();
+        assert_eq!(id, run_id(&plan, &sha, "revision").unwrap());
+        assert_ne!(id, run_id(&plan, &sha, "another-revision").unwrap());
+        let path = manifest_path(&config, &id);
+        initialize_manifest(&config_path, &config, &plan, &path, &id, &sha, "revision").unwrap();
+        initialize_manifest(&config_path, &config, &plan, &path, &id, &sha, "revision").unwrap();
+        let mut manifest = read_manifest(&path).unwrap();
+        assert_eq!(manifest.run_id, id);
+        assert!(!completed_manifest_is_valid(&path).unwrap());
+        assert_eq!(partition_progress(&manifest).unwrap(), (0, 0));
+        status(&path).unwrap();
+        let mismatch = initialize_manifest(
+            &config_path,
+            &config,
+            &plan,
+            &path,
+            "different",
+            &sha,
+            "revision",
+        )
+        .unwrap_err();
+        assert!(mismatch.to_string().contains("persisted run identity"));
+
+        let data = temp.path().join("asset.dat");
+        fs::write(&data, b"verified").unwrap();
+        manifest
+            .artifacts
+            .push(artifact("asset.dat", &data).unwrap());
+        manifest.status = RunStatus::Complete;
+        write_manifest(&path, &manifest).unwrap();
+        assert!(completed_manifest_is_valid(&path).unwrap());
+        fs::write(&data, b"tampered").unwrap();
+        assert!(!completed_manifest_is_valid(&path).unwrap());
+        update_status(&path, RunStatus::Running).unwrap();
+        assert!(matches!(
+            read_manifest(&path).unwrap().status,
+            RunStatus::Running
+        ));
+        mark_failed(&path, &anyhow::anyhow!("synthetic failure"));
+        let failed = read_manifest(&path).unwrap();
+        assert!(matches!(failed.status, RunStatus::Failed));
+        assert!(failed
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("synthetic failure"));
+        let mut invalid = failed;
+        invalid.schema_version += 1;
+        write_manifest(&path, &invalid).unwrap();
+        assert!(read_manifest(&path)
+            .unwrap_err()
+            .to_string()
+            .contains("unsupported run manifest schema"));
+    }
+
+    #[test]
+    fn distributed_partition_progress_and_resume_respect_completed_worker_manifests() {
+        let temp = tempfile::tempdir().unwrap();
+        let mut manifest = test_manifest(temp.path());
+        manifest.executor = Executor::Slurm;
+        manifest.partitions = vec!["part-a".into(), "part-b".into()];
+        let main = temp.path().join("run.json");
+        write_manifest(&main, &manifest).unwrap();
+        assert_eq!(partition_progress(&manifest).unwrap(), (0, 2));
+        let worker_a = manifest
+            .resolved_workspace
+            .join("workers/part-a/runs/build.json");
+        let worker_b = manifest
+            .resolved_workspace
+            .join("workers/part-b/runs/build.json");
+        assert!(
+            !worker_is_complete(&manifest.resolved_workspace, "part-a", Operation::Build).unwrap()
+        );
+        let mut worker = manifest.clone();
+        worker.status = RunStatus::Complete;
+        worker.partitions.clear();
+        write_manifest(&worker_a, &worker).unwrap();
+        assert_eq!(partition_progress(&manifest).unwrap(), (1, 1));
+        write_manifest(&worker_b, &worker).unwrap();
+        assert_eq!(partition_progress(&manifest).unwrap(), (2, 0));
+        status(&main).unwrap();
+        resume(&main).unwrap();
+    }
+
+    #[test]
+    fn leases_detect_live_owners_and_recover_only_stale_local_owners() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("nested/partition.lease");
+        let lease = Lease::acquire(&path, 3600).unwrap();
+        assert!(path.exists());
+        assert!(Lease::acquire(&path, 3600)
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("already held"));
+        drop(lease);
+        assert!(!path.exists());
+
+        let previous = LeaseRecord {
+            schema_version: 1,
+            hostname: current_hostname(),
+            pid: u32::MAX,
+            created_unix_seconds: 0,
+            slurm_job_id: None,
+        };
+        assert!(lease_can_be_recovered(&previous, 60).unwrap());
+        write_json(&path, &previous).unwrap();
+        let recovered = Lease::acquire(&path, 60).unwrap();
+        assert!(path.exists());
+        drop(recovered);
+
+        let mut foreign = previous;
+        foreign.hostname = "host-not-this-runner".into();
+        assert!(!lease_can_be_recovered(&foreign, 60).unwrap());
+        foreign.schema_version = 9;
+        assert!(lease_can_be_recovered(&foreign, 60).is_err());
+        write_json(&path, &foreign).unwrap();
+        assert!(Lease::acquire(&path, 60).is_err());
+        fs::write(&path, b"{not valid json").unwrap();
+        assert!(Lease::acquire(&path, 60).is_err());
+    }
+
+    #[test]
+    fn atomic_file_copy_and_manifest_error_paths_are_preserved() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("source.txt");
+        let destination = temp.path().join("nested/output.txt");
+        fs::write(&source, b"some bytes").unwrap();
+        copy_atomic(&source, &destination).unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"some bytes");
+        assert!(copy_atomic(&temp.path().join("missing.txt"), &destination).is_err());
+        let mut document = "schema_version = 1\n"
+            .parse::<toml_edit::DocumentMut>()
+            .unwrap();
+        assert!(update_manifest_checksum(
+            &mut document,
+            DatasetName::SolarSpectrum,
+            "not-registered.dat",
+            &"0".repeat(64),
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn local_solar_dataset_runs_update_build_validate_and_publish_offline() {
+        let tmp = tempfile::tempdir().unwrap();
+        let config_source =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("config/solar-spectrum.toml");
+        let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("data/solar-planck-v1.toml");
+        let workspace = tmp.path().join("workspace");
+        let repository = tmp.path().join("isolated-repository");
+        let data_root = repository.join("crates/nsb/data");
+        fs::create_dir_all(&data_root).unwrap();
+        fs::write(
+            data_root.join("manifest.toml"),
+            "schema_version = 1\n[[assets]]\npath = \"solar_spectrum.dat\"\n",
+        )
+        .unwrap();
+
+        let mut document: toml::Value =
+            toml::from_str(&fs::read_to_string(config_source).unwrap()).unwrap();
+        document["workspace"]["root"] = toml::Value::String(workspace.display().to_string());
+        document["sources"][0]["path"] = toml::Value::String(source.display().to_string());
+        document["publish"]["repository_root"] =
+            toml::Value::String(repository.display().to_string());
+        let config_path = tmp.path().join("solar-config.toml");
+        fs::write(&config_path, toml::to_string(&document).unwrap()).unwrap();
+
+        for operation in [
+            Operation::Update,
+            Operation::Build,
+            Operation::Validate,
+            Operation::Publish,
+        ] {
+            execute(
+                &config_path,
+                DatasetName::SolarSpectrum,
+                operation,
+                None,
+                Some(1),
+                &[],
+            )
+            .unwrap();
+        }
+        let output = workspace.join("outputs/solar_spectrum.dat");
+        assert!(output.is_file());
+        assert!(data_root.join("solar_spectrum.dat").is_file());
+        assert_eq!(
+            fs::read(&output).unwrap(),
+            fs::read(data_root.join("solar_spectrum.dat")).unwrap()
+        );
+        let report: ValidationReport = read_json(&workspace.join("validation.json")).unwrap();
+        assert!(report.passed);
+        assert_eq!(report.artifacts.len(), 1);
+        assert!(report.gates.iter().all(|gate| gate.passed));
+        let published = fs::read_to_string(data_root.join("manifest.toml")).unwrap();
+        assert!(published.contains("solar_spectrum.dat"));
+        assert!(published.contains("solar-spectrum build"));
+
+        // Repeating a completed operation must validate the previous manifest.
+        execute(
+            &config_path,
+            DatasetName::SolarSpectrum,
+            Operation::Build,
+            None,
+            None,
+            &[],
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn reconcile_worker_shards_copies_verified_artifacts_and_rejects_corruption() {
+        use crate::starlight::map::accumulator::PartitionShard;
+
+        let temp = tempfile::tempdir().unwrap();
+        let mut config = RunConfig::load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("config/starlight-production.toml"),
+        )
+        .unwrap();
+        config.workspace.root = temp.path().join("workspace");
+        let workers = config.workspace.root.join("workers");
+        let first = workers.join("gaia-source-a/shard.json");
+        PartitionShard::new("gaia-source-a", 4)
+            .unwrap()
+            .write(&first)
+            .unwrap();
+        let second = workers.join("gaia-source-b/shard.json");
+        PartitionShard::new("gaia-source-b", 4)
+            .unwrap()
+            .write(&second)
+            .unwrap();
+        let second_index = workers.join("gaia-source-b/outputs/artifacts.json");
+        write_json(
+            &second_index,
+            &vec![artifact("shards/gaia-source-b.json", &second).unwrap()],
+        )
+        .unwrap();
+        let stale = config.workspace.root.join("outputs/shards/obsolete.json");
+        atomic_write(&stale, b"stale-data").unwrap();
+        reconcile_workers(&config).unwrap();
+        assert!(!stale.exists());
+        let indexed: Vec<Artifact> =
+            read_json(&config.workspace.root.join("outputs/artifacts.json")).unwrap();
+        assert_eq!(indexed.len(), 2);
+        for partition in ["gaia-source-a", "gaia-source-b"] {
+            let original = workers.join(partition).join("shard.json");
+            let copied = config
+                .workspace
+                .root
+                .join("outputs/shards")
+                .join(format!("{partition}.json"));
+            assert_eq!(fs::read(original).unwrap(), fs::read(copied).unwrap());
+        }
+        let mut corrupted: Vec<Artifact> = read_json(&second_index).unwrap();
+        corrupted[0].sha256 = "f".repeat(64);
+        write_json(&second_index, &corrupted).unwrap();
+        assert!(reconcile_workers(&config)
+            .unwrap_err()
+            .to_string()
+            .contains("failed reconciliation"));
+        corrupted[0].sha256 = sha256_file(&second).unwrap();
+        corrupted[0].name = "shards/unexpected.json".into();
+        write_json(&second_index, &corrupted).unwrap();
+        assert!(reconcile_workers(&config)
+            .unwrap_err()
+            .to_string()
+            .contains("did not emit exactly"));
+    }
+
+    #[test]
+    fn starlight_publishing_registers_candidate_assets_but_guards_production() {
+        let mut document = "schema_version = 1\n[[assets]]\npath = \"existing.dat\"\n"
+            .parse::<toml_edit::DocumentMut>()
+            .unwrap();
+        let checksum = "a".repeat(64);
+        update_manifest_checksum(
+            &mut document,
+            DatasetName::Starlight,
+            "starlight_nside128.csv",
+            &checksum,
+        )
+        .unwrap();
+        let assets = document["assets"].as_array_of_tables().unwrap();
+        let map = assets
+            .iter()
+            .find(|x| x["path"].as_str() == Some("starlight_nside128.csv"))
+            .unwrap();
+        assert_eq!(map["sha256"].as_str(), Some(checksum.as_str()));
+        assert_eq!(map["calibration_status"].as_str(), Some("candidate"));
+        assert_eq!(map["runtime_embedded"].as_bool(), Some(false));
+        assert_eq!(map["header"]["nside"].as_str(), Some("128"));
+
+        let mut protected = document.clone();
+        let asset = protected["assets"]
+            .as_array_of_tables_mut()
+            .unwrap()
+            .iter_mut()
+            .find(|x| x["path"].as_str() == Some("starlight_nside128.csv"))
+            .unwrap();
+        asset["calibration_status"] = toml_edit::value("production");
+        assert!(update_manifest_checksum(
+            &mut protected,
+            DatasetName::Starlight,
+            "starlight_nside128.csv",
+            &"b".repeat(64),
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("cannot replace a production"));
+        update_manifest_checksum(
+            &mut document,
+            DatasetName::Starlight,
+            "merge_report.json",
+            &"c".repeat(64),
+        )
+        .unwrap();
+        assert!(document["assets"]
+            .as_array_of_tables()
+            .unwrap()
+            .iter()
+            .any(|asset| asset["path"].as_str() == Some("merge_report.json")));
+    }
+
     #[test]
     fn slurm_rejects_non_partitioned_dataset() {
         let (_temp, config_path) = write_non_partitioned_config();

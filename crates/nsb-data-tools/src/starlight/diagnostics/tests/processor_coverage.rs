@@ -328,3 +328,51 @@ fn diagnostic_suite_rejects_missing_or_invalid_config_before_loading_sources() -
     .is_err());
     Ok(())
 }
+
+#[test]
+fn empty_offline_diagnostic_run_produces_all_ablation_stages_and_fails_scientifically() -> Result<()>
+{
+    let directory = tempfile::tempdir()?;
+    let repository = directory.path().join("repo");
+    let partitions =
+        repository.join(crate::starlight::diagnostics::baseline::SMOKE_PARTITIONS_PATH);
+    std::fs::create_dir_all(partitions.parent().unwrap())?;
+    std::fs::write(&partitions, "# deliberately empty diagnostic control\n")?;
+    let config = directory.path().join("config.toml");
+    std::fs::write(
+        &config,
+        include_str!("../../../../config/starlight-production.toml"),
+    )?;
+    let workspace = directory.path().join("workspace");
+    let output = directory.path().join("results");
+    let report = run_diagnostic_suite(
+        &repository,
+        &config,
+        &workspace,
+        "synthetic-no-data",
+        &output,
+        None,
+    )?;
+    assert!(report.partitions.is_empty());
+    assert_eq!(report.ablation_stages.len(), AblationStage::all().len());
+    assert_eq!(
+        report.phase2_parent_summaries.len(),
+        TRACE_PARENTS_SMOKE.len()
+    );
+    assert_eq!(
+        report.phase2_control_parent_summaries.len(),
+        CONTROL_PARENTS.len()
+    );
+    assert!(report.source_traces.is_empty());
+    assert!(report.phase2_exclusion_gate.starts_with("B_no_meaningful"));
+    assert!(report.phase3_branch_gate.starts_with("B_branch_mix"));
+    assert_eq!(
+        report.phase4_weighting_gate,
+        "B_selection_weighting_not_primary_patch_driver_on_smoke",
+    );
+    let json: DiagnosticSuiteReport =
+        serde_json::from_slice(&std::fs::read(output.join("diagnostic-suite.json"))?)?;
+    assert_eq!(json.commit, "synthetic-no-data");
+    assert_eq!(json.ablation_stages.len(), report.ablation_stages.len());
+    Ok(())
+}

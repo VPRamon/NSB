@@ -1113,6 +1113,197 @@ mod tests {
         }
     }
 
+    fn tiny_rt_workspace() -> (tempfile::TempDir, RunConfig) {
+        let temp = tempfile::tempdir().unwrap();
+        let mut config = RunConfig::load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("config/moonlight-scattering.toml"),
+        )
+        .unwrap();
+        config.workspace.root = temp.path().join("workspace");
+        let sources = config.workspace.root.join("sources");
+        fs::create_dir_all(&sources).unwrap();
+        let mut rt: toml::Value = toml::from_str(include_str!(
+            "../../config/moonlight-multiscatter-nsb-v1.toml"
+        ))
+        .unwrap();
+        let table = rt.as_table_mut().unwrap();
+        table.insert("wavelength_end_nm".into(), toml::Value::Integer(300));
+        table.insert(
+            "separation_deg".into(),
+            toml::Value::Array(vec![toml::Value::Integer(0), toml::Value::Integer(180)]),
+        );
+        table.insert("photons_per_replicate".into(), toml::Value::Integer(1024));
+        table.insert("replicates".into(), toml::Value::Integer(2));
+        table.insert(
+            "geometry_zenith_floor_deg".into(),
+            toml::Value::Array(vec![toml::Value::Float(30.0)]),
+        );
+        let rt_text = toml::to_string(&rt).unwrap();
+        let rt_path = sources.join(RT_CONFIG);
+        fs::write(&rt_path, rt_text.as_bytes()).unwrap();
+        let rt_source = config
+            .sources
+            .iter_mut()
+            .find(|s| s.name == RT_CONFIG)
+            .unwrap();
+        rt_source.path = Some(rt_path);
+        rt_source.sha256 = crate::platform::checksum_io::sha256_bytes(rt_text.as_bytes());
+        fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../nsb/data")
+                .join(MIE_INPUT),
+            sources.join(MIE_INPUT),
+        )
+        .unwrap();
+        (temp, config)
+    }
+
+    #[test]
+    fn admitted_moonlight_config_and_partitions_have_valid_provenance() {
+        let config = RunConfig::load(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("config/moonlight-scattering.toml"),
+        )
+        .unwrap();
+        validate_config(&config).unwrap();
+        let all = partitions(&config).unwrap();
+        assert_eq!(all.len(), 36);
+        assert_eq!(all.first().map(String::as_str), Some("w0300"));
+        assert_eq!(all.last().map(String::as_str), Some("w0650"));
+        assert!(parse_partition("0300").is_err());
+        assert!(parse_partition("wxyz").is_err());
+        assert_eq!(parse_partition("w0300").unwrap(), 300);
+        let mut wrong_order = config.clone();
+        wrong_order.sources.reverse();
+        assert!(validate_config(&wrong_order).is_err());
+        let mut wrong_identity = config.clone();
+        wrong_identity.sources[1].sha256 = "0".repeat(64);
+        assert!(validate_config(&wrong_identity).is_err());
+    }
+
+    #[test]
+    fn fast_small_monte_carlo_build_emits_verified_partition() {
+        let (_temp, config) = tiny_rt_workspace();
+        let parts = partitions(&config).unwrap();
+        assert_eq!(parts, vec!["w0300"]);
+        let artifacts = build(&config, &[]).unwrap();
+        assert_eq!(artifacts.len(), 1);
+        assert_eq!(artifacts[0].name, "partitions/w0300.json");
+        let stored: PartitionResult =
+            serde_json::from_slice(&fs::read(&artifacts[0].path).unwrap()).unwrap();
+        let rt = read_rt_workspace(&config).unwrap();
+        validate_partition(
+            &stored,
+            "w0300",
+            &source_sha(&config, RT_CONFIG).unwrap(),
+            &rt,
+        )
+        .unwrap();
+        assert_eq!(stored.cells.len(), 2);
+        assert_eq!(stored.cells[0].separation_deg, 0);
+        assert_eq!(stored.cells[1].separation_deg, 180);
+        assert!(stored
+            .cells
+            .iter()
+            .all(|cell| cell.double_to_single.is_finite()
+                && cell.standard_error.is_finite()
+                && (1.0..=10.0).contains(&cell.correction)));
+
+        let mut mutated = stored.clone();
+        mutated.cells[0].standard_error = -1.0;
+        assert!(validate_partition(
+            &mutated,
+            "w0300",
+            &source_sha(&config, RT_CONFIG).unwrap(),
+            &rt
+        )
+        .is_err());
+        assert!(validate_partition(
+            &stored,
+            "w0310",
+            &source_sha(&config, RT_CONFIG).unwrap(),
+            &rt
+        )
+        .is_err());
+
+        verify_partition_checksum(&artifacts[0].path, "w0300").unwrap();
+        fs::write(&artifacts[0].path, b"corrupt").unwrap();
+        assert!(verify_partition_checksum(&artifacts[0].path, "w0300").is_err());
+        assert!(finalize(&config).is_err());
+    }
+
+    #[test]
+    fn multiple_scatter_artifact_validation_rejects_malformed_science_grids() {
+        let admitted = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../nsb/data/moonlight_multiscatter_nsb_v1.dat");
+        validate_artifact(OUTPUT, &admitted).unwrap();
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("invalid.dat");
+        fs::write(&path, "1 2\n0.300\n0 180\n1.1 1.2\n").unwrap();
+        assert!(validate_artifact(OUTPUT, &path).is_err());
+        fs::write(&path, "36 2\n").unwrap();
+        assert!(validate_artifact(OUTPUT, &path).is_err());
+        assert!(validate_artifact("not-a-moonlight-artifact", &path).is_err());
+    }
+
+    #[test]
+    fn malformed_phase_grids_fail_closed_and_interpolation_clamps() {
+        for grid in [
+            "",
+            "1 1\n0.300\n0\n1\n",
+            "1 2\n0.300\n0\n1 1\n",
+            "1 2\n0.300\n0 180\n1\n",
+            "1 2\n0.300\n0 180\n1 -1\n",
+            "1 2\n0.300\n0 180\n1 1\n2 2\n",
+            "one two\n",
+        ] {
+            assert!(
+                parse_phase_grid(grid).is_err(),
+                "accepted invalid grid: {grid}"
+            );
+        }
+        let grid = parse_phase_grid("# comment\n1 2\n0.300\n0 180\n1 2\n").unwrap();
+        assert_eq!(grid.wavelengths_nm, vec![300.0]);
+        assert_eq!(interpolate(&[0.0, 1.0], &[4.0, 8.0], -1.0), 4.0);
+        assert_eq!(interpolate(&[0.0, 1.0], &[4.0, 8.0], 2.0), 8.0);
+        assert_eq!(interpolate(&[0.0, 1.0], &[4.0, 8.0], 0.25), 5.0);
+        assert!(PhaseSampler::new(&[0.0], &[1.0]).is_err());
+        assert!(PhaseSampler::new(&[0.0, PI], &[0.0, 0.0]).is_err());
+    }
+
+    #[test]
+    fn scattering_geometry_sampling_and_rt_invalid_inputs_are_rejected() {
+        let (first, second) = symmetric_geometry(0.0, 0.0).unwrap();
+        assert_eq!(dot(first, second), 1.0);
+        assert!(symmetric_geometry(0.0, 10.0).is_err());
+        let grid =
+            parse_phase_grid(include_str!("../../../nsb/data/moonlight_mie_nsb_v1.dat")).unwrap();
+        let sampler = PhaseSampler::new(&grid.angles_rad, &grid.rows[0]).unwrap();
+        let mut rt: RtConfig = toml::from_str(include_str!(
+            "../../config/moonlight-multiscatter-nsb-v1.toml"
+        ))
+        .unwrap();
+        assert!(simulate_ratio(
+            &rt,
+            &sampler,
+            300,
+            Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: -1.0
+            },
+            second,
+            1
+        )
+        .is_err());
+        rt.photons_per_replicate = 0;
+        assert!(validate_rt(&rt).is_err());
+        rt.photons_per_replicate = 1024;
+        rt.ratio_cap = 1.0;
+        assert!(validate_rt(&rt).is_err());
+        rt.ratio_cap = 0.9;
+        validate_rt(&rt).unwrap();
+    }
+
     #[test]
     #[ignore = "production convergence evidence; run explicitly when changing sampling"]
     fn production_photon_count_convergence() {
