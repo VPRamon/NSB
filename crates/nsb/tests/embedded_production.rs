@@ -72,8 +72,8 @@ fn production_notice_matches_conditional_embedded_distribution() {
         "approved_with_conditions",
         "CC BY-NC 3.0 IGO",
         "AGPL-3.0-only",
-        "ffd4642ca95a4efdc0e4b512838d7130fca11952a4f023d66a1ca8553a702784",
-        "b1b528ed6afe3fbc9f515efe66e0c0120b0bb90398d7eb91e0b175cf5f43681b",
+        "11479bd0b6838d06df884b76dd74575bbc42d424ec85defecf847257c0f64d7f",
+        "1fdaa3536520f74dd88a1ade37419234667de1cbb978b4539b4b8988b28a0cb8",
     ] {
         assert!(
             notice.contains(required),

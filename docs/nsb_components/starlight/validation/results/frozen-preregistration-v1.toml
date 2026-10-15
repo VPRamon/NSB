@@ -41,7 +41,7 @@ redistribution/licensing decision only.
 # Pinned relative to the repository root. `nsb-data-tools/src/starlight/validation/preregistration.rs`
 # rejects any preregistration that points at a different path.
 map_path = "crates/nsb/data/starlight_nside128.csv"
-map_schema = "nsb-healpix-starlight-candidate-v5"
+map_schema = "nsb-healpix-starlight-candidate-v1"
 # As of the UV v2 Ladon rebuild, `crates/nsb/data/manifest.toml` pins
 # sha256 = "76191c8b682d96adfc3a017f44f3fcfd0bec5dcb9a958d31668250b8a0ba396a"
 # for `starlight_nside128.csv`. Issue #94's invalidated checksum

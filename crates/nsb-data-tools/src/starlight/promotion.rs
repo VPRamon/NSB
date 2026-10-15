@@ -1013,7 +1013,7 @@ fn verify_licensing_redistribution_review(
 }
 
 const REVIEW_BUNDLE_RELATIVE_PATH: &str =
-    "docs/nsb_components/starlight/release-candidate/review-bundle-v2.toml";
+    "docs/nsb_components/starlight/release-candidate/review-bundle-v1.toml";
 const RUNTIME_ASSETS_RELATIVE_PATH: &str =
     "docs/nsb_components/starlight/release-candidate/runtime-assets-v1.toml";
 
@@ -1162,15 +1162,7 @@ fn require_packed_runtime_header(map_path: &Path) -> Result<()> {
 
 pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMap<String, String> {
     let map_resolution = format!("HEALPix nside={} ordering=ring", candidate.nside);
-    let version = format!(
-        "{}-from-{}",
-        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
-            "uv-v2-packed"
-        } else {
-            "starlight-runtime-v1"
-        },
-        candidate.candidate_sha256
-    );
+    let version = format!("starlight-runtime-v1-from-{}", candidate.candidate_sha256);
     let mut headers = BTreeMap::from([
         ("dataset_name".into(), "NSB Gaia DR3 Starlight packed runtime map".into()),
         ("version".into(), version),
@@ -1221,7 +1213,7 @@ pub(crate) fn runtime_admission_headers(candidate: &CandidateSection) -> BTreeMa
         ("smoothing".into(), "none".into()),
         (
             "generated_by".into(),
-            format!("nsb-data dataset starlight promote ({})", pack::packer_id(&candidate.map_schema)),
+            format!("nsb-data dataset starlight promote ({})", pack::PACKER_ID),
         ),
         (
             "generation_command".into(),
@@ -1345,7 +1337,7 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         candidate.generation_date_utc,
         candidate.gaia_release,
         candidate.band,
-        pack::packer_id(&candidate.map_schema),
+        pack::PACKER_ID,
         all_sky_flux_sum_ph_m2_s * 1.0e-13,
         candidate.candidate_sha256,
         candidate.nside,
@@ -1355,13 +1347,8 @@ independent_comparison = "nsb-validation@193ff6f16cd0f0af5d7c0608ad3ed6d02f8800a
         candidate.gaia_release,
         candidate.candidate_sha256,
         candidate.band,
-        pack::packer_id(&candidate.map_schema),
+        pack::PACKER_ID,
     );
-    if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
-        body = body
-            .replacen("schema_version = 1", "schema_version = 2", 1)
-            .replace("starlight-runtime-v1-from-", "uv-v2-packed-from-");
-    }
     if let Some(supplement) = &candidate.bright_star_supplement {
         for (key, value) in [
             ("bright_star_artifact_sha256", &supplement.artifact_sha256),
@@ -1438,11 +1425,7 @@ fn production_registry_text(
     ));
     assets.push(registry_asset_table(
         &sidecar_path,
-        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
-            "nsb-starlight-runtime-manifest-v2"
-        } else {
-            PRODUCTION_MANIFEST_SCHEMA
-        },
+        PRODUCTION_MANIFEST_SCHEMA,
         runtime_sidecar_sha256,
         candidate,
         true,
@@ -1601,16 +1584,7 @@ fn render_production_manifest_draft(
     out.push('\n');
     writeln!(out, "[[assets]]").unwrap();
     writeln!(out, "path = {sidecar_path:?}").unwrap();
-    writeln!(
-        out,
-        "schema = {:?}",
-        if candidate.map_schema == "nsb-healpix-starlight-candidate-v5" {
-            "nsb-starlight-runtime-manifest-v2"
-        } else {
-            PRODUCTION_MANIFEST_SCHEMA
-        }
-    )
-    .unwrap();
+    writeln!(out, "schema = {:?}", PRODUCTION_MANIFEST_SCHEMA).unwrap();
     writeln!(out, "sha256 = {sidecar_sha256:?}").unwrap();
     writeln!(out, "calibration_status = \"production\"").unwrap();
     writeln!(out, "runtime_embedded = true").unwrap();
@@ -1876,7 +1850,7 @@ notes = "synthetic-test-notes: fixture data only, not a real artifact"
 
         let release_candidate_dir = root.join("docs/nsb_components/starlight/release-candidate");
         fs::create_dir_all(&release_candidate_dir).unwrap();
-        let review_bundle_path = release_candidate_dir.join("review-bundle-v2.toml");
+        let review_bundle_path = release_candidate_dir.join("review-bundle-v1.toml");
         fs::write(
             &review_bundle_path,
             format!("schema_version = 1\nschema = \"nsb-starlight-review-bundle-v1\"\n\n[[artifacts]]\nid = \"validation_artifact_manifest\"\npath = \"synthetic-validation-artifacts.toml\"\nsha256 = \"{}\"\n", {

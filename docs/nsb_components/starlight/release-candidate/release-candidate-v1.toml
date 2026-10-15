@@ -10,21 +10,21 @@ notes = """
 UV v2 + XP-anchored photometric candidate regenerated on Ladon workspace
 starlight-production-300-650-issue207-bright-stars for issue #207 (Combined300To650
 bright-star supplement with corrected cross-band covariance). Map SHA-256
-7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d.
+e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526.
 Merge report SHA-256
-37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720.
+60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c.
 Bright-star combined artifact dda54aa31544672d8c5dae3601b2c62a89f0a3499ebb2c937cef0f333d126017.
 Scientific readiness is established by checksum-pinned external validation;
-redistribution review remains pending (#103). Packed runtime assets are checksum-staged
+redistribution is now conditionally approved for the regenerated hashes (#103). Packed runtime assets are checksum-staged
 as candidate/non-embedded bytes; only `promote --apply` may register them as bundled
 production after the redistribution decision passes.
 """
 
 [candidate]
 status = "pinned"
-candidate_sha256 = "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+candidate_sha256 = "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526"
 map_path = "crates/nsb/data/starlight_nside128.csv"
-map_schema = "nsb-healpix-starlight-candidate-v5"
+map_schema = "nsb-healpix-starlight-candidate-v1"
 band = "300-650 nm combined integrated photon radiance (corrected 300-336 nm UV + measured 336-650 nm)"
 units = "ph_m-2_s-1"
 nside = 128
@@ -325,18 +325,18 @@ redistribution_review_status = "pending"
 promotion_eligible = false
 
 [review_artifacts]
-inventory_path = "docs/nsb_components/starlight/licensing/approval-inventory-v2.toml"
-inventory_sha256 = "2f083e7e91935ba2fa37752cf67d02f81973f9e9e4a6886de427718af3ac1cf2"
+inventory_path = "docs/nsb_components/starlight/licensing/approval-inventory-v1.toml"
+inventory_sha256 = "45d07a67b4fb48e45131c75cc2d8828d203f37cc5da96b6525c819ca1f1b6ce9"
 gates_report_path = "docs/nsb_components/starlight/production-runs/release-candidate-gates-v1.json"
-gates_report_sha256 = "66d37d3124d8e5447a97e6799f3542b51c588e2c06c1b4a9f3044ccc1d1e1976"
+gates_report_sha256 = "75639a3eea9b38a660a692c633094ec67f0f1013338d6c97e46fa8c2a6d04853"
 merge_report_path = "crates/nsb/data/merge_report.json"
-merge_report_sha256 = "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
+merge_report_sha256 = "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c"
 external_validation_path = "docs/nsb_components/starlight/validation/results/issue-207-external-cross-validation-v1.json"
-external_validation_sha256 = "13a9ef6d7bc85a9cfd888b563afd378d21063ece775a3f6165b4d388809de993"
+external_validation_sha256 = "15b65c4f731930e4a236ae114c8249d45afb32b6721e58d4b3dac2079a0a5ba7"
 licensing_decision_path = "docs/nsb_components/starlight/release-candidate/redistribution-review-decision-v1.json"
 # Packed RING runtime CSV and sidecar are checksum-staged in the repository as
 # candidate/non-embedded assets. SHA-256 pins are verified again by promotion.
 runtime_map_path = "crates/nsb/data/starlight_nside128.release.csv"
-runtime_map_sha256 = "70069d81b02c48a588cce35bbf4bef2a12546d2885994e3eb43c66a66d734f6b"
+runtime_map_sha256 = "d649def4ca3c36036177f35816f3defc57e365d3f341c22a4f0dbf79051367e8"
 runtime_sidecar_path = "crates/nsb/data/starlight_nside128.manifest.toml"
-runtime_sidecar_sha256 = "b8d362b166ef15fedf6fc0b6875710d859cb11facc1507d43f119310053b17cd"
+runtime_sidecar_sha256 = "9cd78ea9c0729fdc5c694aef2fccbc7c2dd7c01c8fa0ed0a079c4dc49b97a67d"

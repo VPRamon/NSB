@@ -1,12 +1,12 @@
 {
-  "schema_version": 2,
+  "schema_version": 1,
   "dataset": "starlight",
   "passed": true,
   "gates": [
     {
       "name": "checksum:merge_report.json",
       "passed": true,
-      "detail": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720"
+      "detail": "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c"
     },
     {
       "name": "format:merge_report.json",
@@ -16,7 +16,7 @@
     {
       "name": "checksum:starlight_nside128.csv",
       "passed": true,
-      "detail": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+      "detail": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526"
     },
     {
       "name": "format:starlight_nside128.csv",
@@ -26,7 +26,7 @@
     {
       "name": "canonical-map-integrity",
       "passed": true,
-      "detail": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d"
+      "detail": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526"
     },
     {
       "name": "canonical-map-cardinality",
@@ -61,7 +61,7 @@
     {
       "name": "uncertainty-budget-total-column",
       "passed": true,
-      "detail": "schema=nsb-healpix-starlight-candidate-v5; total_uncertainty_column=true"
+      "detail": "schema=nsb-healpix-starlight-candidate-v1; total_uncertainty_column=true"
     },
     {
       "name": "uncertainty-interval-coverage-declared",
@@ -83,14 +83,15 @@
     {
       "name": "merge_report.json",
       "path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-issue207-bright-stars/outputs/merge_report.json",
-      "sha256": "37ca25a4c684fba4818c54bea24652631e6b1cbde3f11d478b3cc13f11a96720",
+      "sha256": "60a18ca8b92b6587ce23ffff718b115a22e38e67c2c6c952bc568dbfb7b0063c",
       "bytes": 91638
     },
     {
       "name": "starlight_nside128.csv",
       "path": "/mnt/beegfs/valles/nsb-data/starlight-production-300-650-issue207-bright-stars/outputs/starlight_nside128.csv",
-      "sha256": "7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d",
+      "sha256": "e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526",
       "bytes": 20241161
     }
-  ]
+  ],
+  "schema_reset_note": "Pre-0.1.0 format/provenance reset only. Numerical data and results are unchanged. Referenced external/CI runs evaluated the original bytes preserved in approval-history/pre-v1-reset; no new external validation or hosted CI run is claimed. Renew checksum-bound evidence before release; see release-candidate/schema-reset-v1.md."
 }

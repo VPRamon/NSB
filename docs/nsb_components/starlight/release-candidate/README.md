@@ -1,3 +1,9 @@
+> Current reset state: the maintainer has explicitly approved the regenerated
+> Starlight v1 artifacts with conditions and exact checksum pins in the active
+> decision. Original approvals and external/CI evidence remain preserved under
+> `approval-history/pre-v1-reset/`. See [schema-reset-v1.md](schema-reset-v1.md):
+> historical test runs relate to the pre-reset bytes, not to new executions.
+
 # Starlight release-candidate bundle and promotion mechanism (#102)
 
 Status: Current fail-closed bundle for the frozen combined 300–650 nm candidate.
@@ -13,9 +19,9 @@ issue #103 and is not approved by this bundle.
 | File | Role |
 |---|---|
 | `release-candidate-v1.toml` | Frozen candidate identity, deterministic RFC3339 generation timestamp, checksum pin for the canonical merge report, complete bright-star provenance copied from that report, technical status, external-validation pin, and runtime identities. |
-| `redistribution-review-decision-v1.json` | The sole authoritative human redistribution decision, now `approved_with_conditions`. |
-| `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v2 provenance sidecar identities. |
-| `review-bundle-v2.toml` | Immutable release evidence pinned by the redistribution decision. |
+| `redistribution-review-decision-v1.json` | The current maintainer approval of exact v1 hashes and approved distribution channels, with conditions. |
+| `runtime-assets-v1.toml` | Deterministic packed runtime map and schema-v1 provenance sidecar identities. |
+| `review-bundle-v1.toml` | Immutable release evidence pinned by the redistribution decision. |
 
 The release-candidate gate table contains `validation_status`,
 `redistribution_review_status`, and the report-only `promotion_eligible` field.
@@ -39,7 +45,7 @@ report, requires the release-candidate bright-star structure to match the
 canonical merge-report provenance exactly, validates the frozen RFC3339
 generation timestamp, packs NESTED candidate pixels into the RING runtime
 format, and writes the complete 34-input bright-star provenance into the
-schema-v2 sidecar. Gaia and Hipparcos/XHIP/CK04 UV routes remain distinct. It
+schema-v1 sidecar. Gaia and Hipparcos/XHIP/CK04 UV routes remain distinct. It
 does not inspect or change the redistribution decision and does not mutate the
 asset registry. Repeated staging from the same frozen evidence is byte-identical.
 
@@ -61,7 +67,7 @@ Promotion fails closed unless all of the following agree:
 2. The technical validation and a real frozen green GitHub Actions run.
 3. The checksum-pinned external validation using the registered validator and
    `nsb2` reference commits.
-4. The deterministic runtime map and schema-v2 sidecar checksums.
+4. The deterministic runtime map and schema-v1 sidecar checksums.
 5. The immutable review bundle and an authorized redistribution decision with
    reviewer identity, timestamp, candidate pin, inventory pin, and structured
    machine-verifiable conditions.
@@ -75,8 +81,8 @@ technical gates never implies redistribution approval.
 `StarlightModel::BundledProductionGaiaDr3` and `ComponentMask::ALL` remain
 fail-closed. The build only enables bundled production Starlight when a
 registered `nsb-healpix-starlight-binary-v1` map (or supported external CSV) and
-`nsb-starlight-runtime-manifest-v2` sidecar pass checksum and provenance
-validation. Malformed or incomplete v2 provenance is rejected.
+`nsb-starlight-runtime-manifest-v1` sidecar pass checksum and provenance
+validation. Malformed or incomplete v1 provenance is rejected.
 
 ## Related issues
 
@@ -171,7 +177,7 @@ conservation, plane/pole and longitude-wrap), deterministic bytes and evaluates
 the sum of all four components using validated external admission. An
 independent Python `struct.pack('<d', float(csv_field))` comparison agrees for
 every field. Frozen candidate SHA-256 remains
-`7e903ff289e76d07c018933b8f97fcf264cead73999912ff63f34b9d1e01b37d`.
+`e8d31d0a04a18314e3273ffc9e2ad449014adca8710b11bda2f3b6cf2c811526`.
 
 A separate release-mode process measurement (`/usr/bin/time`, same files;
 filesystem read + checksum + admission) used 52,108 KiB peak RSS for CSV and
@@ -198,21 +204,12 @@ of unrelated workspace packages. The binary encoding itself is deterministic.
 
 ### Historical preregistration recovery
 
-The #226 baseline reset (`c59db10`) changed the working preregistration's
-candidate path/schema from the frozen v5 evidence to a generic v1 admission
-input, leaving the validation artifact manifest's old hash and byte count.
-All numerical tolerances, references, regions, frozen maps and validation
-reports are unchanged. To preserve the evidence used before that reset,
-`validation/results/frozen-preregistration-v1.toml` is recovered byte-for-byte
-from `c59db10^` (3,698 bytes, SHA-256
-`5002cc27aaaae68e4b2f93ee1f0ff9d2cc7b4dbb03d3d90648f609491a48e23d`).
-Only the artifact manifest's path changes to this historical snapshot; its
-original hash/length remain intact. Historical candidate-checksum commentary
-inside that snapshot remains historical; the final #207 candidate is pinned
-separately by the unchanged map and cross-validation evidence. The current
-working preregistration remains available for future generic validation runs.
-The new transitive test verifies the complete review bundle, rather than
-replacing a stale scientific evidence hash with the current working document.
+The original preregistration recovered for #226 is preserved byte-for-byte in
+`approval-history/pre-v1-reset/validation/results/frozen-preregistration-v1.toml`.
+The active `validation/results/frozen-preregistration-v1.toml` now uses the v1
+candidate identifier. All numerical tolerances, references and regions are
+unchanged; the validation artifact manifest records the regenerated hash and
+byte count. Historical approval and run records refer to the archived bytes.
 
 ### Explicit compact channel approval
 
@@ -220,8 +217,8 @@ Promotion of compact assets requires decision pins for both
 `compact-runtime-map-v1` and `compact-runtime-sidecar-v1`, matching the hashes
 in `runtime-assets-v1.toml`, with `git_repository`, `crates_io`, `pypi_wheel`
 and `pypi_sdist` in each pin's `approved_channels`. The immutable approval plan
-uses staged entries; the current inventory now records actual Git publication. Approval only for existing
-Git artifacts cannot authorize future package distribution. A GitHub release
+uses staged entries; the current inventory separately records actual publication, not merely approval.
+Approval for Git artifacts alone cannot authorize future package distribution. A GitHub release
 asset additionally needs approval for that publication channel. The actual
 canonical decision records the maintainer, acceptance time, restrictions and
 all five approved channels. The rights assessment explains the accepted findings.
@@ -235,7 +232,7 @@ The sole authoritative decision remains
 leaves reviewer name/role/time null and therefore cannot authorize promotion.
 It is derived from the evidence and deliberately not included in the bundle
 that its own fields reference, avoiding a hash cycle. Never automatically copy
-it over the actual authoritative decision. The maintainer has expressly accepted
+it over the actual authoritative decision. For the previous hashes, the maintainer expressly accepted
 the documented purpose, scope, source conditions, XHIP map-only interpretation
 and independent embedded-data finding. V2 is the explicit documentary correction
 of stale notices; the original v1 evidence and decision are preserved unchanged
@@ -248,8 +245,8 @@ in the [amendment history](approval-history/notice-amendment-v2.md).
 | Production registered | Same approved bytes and bundle/decision pins | `production_registered`, actual channels empty; updated registry digest |
 | Published | Same approved bytes and decision | `published`, `distributed = true`, only actual channels in `channels` |
 
-`licensing/approval-inventory-v2.toml` is the immutable approval snapshot, pinned
-by the release candidate, review bundle and decision. `artifact-inventory-v1.toml`
+`licensing/approval-inventory-v1.toml` is the regenerated, now approved immutable
+review snapshot pinned by the release candidate, review bundle and decision. `artifact-inventory-v1.toml`
 is the current state and is **not** an input to that checksum cycle. Initially
 both inventories describe the same assets. Promotion derives the current state
 from the snapshot; only the two compact lifecycle/current-channel fields and

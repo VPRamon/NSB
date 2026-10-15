@@ -29,7 +29,7 @@ redistribution approval itself. Approval belongs to an authorized human
 reviewer.
 
 The [lifecycle procedure](../release-candidate/README.md#approval-and-publication-lifecycle)
-freezes `approval-inventory-v2.toml` before review and derives the separate current
+freezes `approval-inventory-v1.toml` before review and derives the separate current
 `artifact-inventory-v1.toml` afterward. Planned channels are not actual uploads.
 A schema-compatible, deliberately non-authorizing decision template includes
 all pins/channels and null reviewer fields. Neither promotion nor publication
@@ -76,8 +76,11 @@ files and checksum pins are preserved.
 The exact derived candidate and report are already tracked in the Git
 repository; their `git_repository` distribution status must be considered
 separately from the non-distributed crates.io/PyPI production assets.
-The authoritative issue #103 decision is `approved_with_conditions`; the actual
-maintainer acceptance and account verification are recorded in the assessment.
+The active issue #103 decision is now `approved_with_conditions` for the exact
+regenerated v1 checksums, based on the maintainer's renewed approval of the
+unchanged scientific content. The old approval, distinct hashes and supporting
+evidence remain preserved in the pre-reset approval archive. This is not a
+new grant of rights from any upstream catalogue owner.
 
 ## Derived-map rights analysis
 
@@ -102,8 +105,9 @@ and retains this data-rights boundary.
 
 The maintainer has explicitly authorized the noncommercial publication scope;
 [the authorization record](derived-map-rights-assessment-v1.md#13-explicit-project-authorization-and-accepted-findings)
-identifies the direct instruction and authenticated account. That scope requires
-no renewed confirmation. The maintainer also explicitly accepted the specific
+identifies the direct instruction and authenticated account. The source restrictions and findings remain recorded, but the regenerated
+product hashes were separately approved for the v1 reset; the archived
+previous approval does not itself authorize replacement bytes. The maintainer also explicitly accepted the specific
 XHIP output/database-right and AGPL/independent embedded-data interpretations.
 This is a project decision, not a third-party permission or qualified opinion.
 See [the measured audit and proposed decision](derived-map-rights-assessment-v1.md#8-actual-noncommercial-publication-scope-and-public-grants).

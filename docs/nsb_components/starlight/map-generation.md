@@ -35,10 +35,12 @@ starlight_nside{canonical_nside}.csv
 merge_report.json
 ```
 
-The first public candidate schema is
-`nsb-healpix-starlight-candidate-v1`. It is sparse, strictly pixel-sorted,
-uses Galactic NESTED HEALPix indexing, stores integrated photon flux per pixel,
-and defines omitted pixels as zero flux and zero source counts.
+The first-release candidate schema is `nsb-healpix-starlight-candidate-v1`.
+It is sparse, strictly pixel-sorted, uses Galactic NESTED HEALPix indexing,
+stores integrated photon flux per pixel, and defines omitted pixels as zero
+flux and zero source counts. The combined 300–650 nm product uses this same
+contract; the pre-release reset preserves all scientific values and input/model
+identities while regenerating checksums.
 
 Changing the map resolution, scientific policy, calibration artifact,
 source-selection contract, or input checksums creates a new candidate and
@@ -46,17 +48,17 @@ requires fresh validation and admission evidence.
 
 ## Runtime packing
 
-An admitted candidate can be packed to the runtime RING representation with
-the `starlight-runtime-pack-v1` packer. Packing is deterministic and preserves
-the candidate checksum in provenance. Promotion emits the first public runtime
-schemas:
+A checksum-pinned `candidate-v1` is packed to RING with the
+`starlight-runtime-pack-v1` packer. Deterministic outputs use
+`nsb-healpix-starlight-v1` and `nsb-starlight-runtime-manifest-v1` with
+`schema_version = 1`. The lossless compact representation uses
+`nsb-healpix-starlight-binary-v1` with the same v1 provenance contract.
+See the [reset record](release-candidate/schema-reset-v1.md) for the checksum
+migration and the renewed authorization required before production admission.
 
-- `nsb-healpix-starlight-v1`
-- `nsb-starlight-runtime-manifest-v1`
-
-Generated candidates and packed runtime assets remain outside the NSB 0.1.0
-release registry until redistribution and production admission are explicitly
-approved.
+New candidate products remain outside the release registry unless they pass
+independent scientific validation, redistribution approval, and production
+admission. See the [release-candidate lifecycle](release-candidate/README.md).
 
 ## Inspection
 

@@ -33,13 +33,12 @@ map must not be treated as monochromatic radiance.
 
 ## Pending, registered and published configurations
 
-The authoritative #103 decision is `approved_with_conditions`. The approved
-compact map and sidecar are production-registered and embedded, enabling
-`ALL`, `DEFAULT` and `NsbEvaluator::new()` with all four components in Rust
-and Python. Evaluation needs neither the source checkout nor a network
-connection. The frozen scientific candidate remains nonembedded evidence,
-excluded from runtime packages. There is no synthetic bundled fallback.
+The pre-release schema reset changes checksum-pinned provenance. The active
+#103 decision is pending renewed authorization, so release admission remains blocked. The existing embedded runtime registry
+and four-component offline Rust/Python defaults are preserved for equivalence
+checks; registration does not renew the authorization of replacement bytes.
 `validated_external` and explicitly experimental map APIs remain available.
+See the [reset record](release-candidate/schema-reset-v1.md).
 
 Production registration does not claim an upload. The immutable approval
 inventory records planned channels; the current inventory records registration
@@ -50,11 +49,11 @@ notices and successful distribution checks.
 
 ## Producing and admitting a map
 
-The frozen combined 300–650 nm scientific product uses candidate-v5,
+The frozen combined 300–650 nm scientific product uses candidate-v1,
 196,608 Galactic HEALPix pixels and checksum-pinned validation/provenance.
 Its packed CSV is a scientific comparison reference. Production uses
 `nsb-healpix-starlight-binary-v1` and a
-`nsb-starlight-runtime-manifest-v2` sidecar: all radiances and uncertainty f64
+`nsb-starlight-runtime-manifest-v1` sidecar: all radiances and uncertainty f64
 values are lossless, with declared RING/NESTED ordering, units and SHA-256.
 The [format and evidence contract](release-candidate/README.md#compact-runtime-transport-binary-v1)
 describes the exact encoding and admission checks. Older CSV/external contracts

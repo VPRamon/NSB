@@ -91,10 +91,10 @@ fn validated_external_starlight_is_labelled_in_window_json() {
 }
 
 #[test]
-fn starlight_uncertainties_are_serialized_in_json_and_csv_v4() {
+fn starlight_uncertainties_are_serialized_in_json_and_csv() {
     let dir = tempfile::tempdir().unwrap();
-    let map_path = dir.path().join("starlight-v2.csv");
-    let manifest_path = dir.path().join("starlight-v2.toml");
+    let map_path = dir.path().join("starlight.csv");
+    let manifest_path = dir.path().join("starlight.toml");
     write_validated_uncertainty_fixture(&map_path, &manifest_path);
     let common_args = [
         "point",
