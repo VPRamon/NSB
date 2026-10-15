@@ -4,6 +4,20 @@ on:
   push:
     tags:
       - "v[0-9]*"
+  workflow_dispatch:
+    inputs:
+      recovery_tag:
+        description: "Existing release tag (for example v0.1.0)"
+        required: true
+        type: string
+      wheels_run_id:
+        description: "Original release run that successfully published the five wheels"
+        required: true
+        type: string
+      sdist_run_id:
+        description: "Later release run containing the validated, repaired sdist"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -18,6 +32,7 @@ env:
 jobs:
   validate:
     name: Validate release
+    if: github.event_name == 'push'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -469,13 +484,151 @@ jobs:
       - name: Publish nsb-py
         uses: pypa/gh-action-pypi-publish@v1.14.2
 
+  recovery-validate:
+    name: Validate partial PyPI recovery inputs
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.recovery_tag }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Verify the two release runs and source compatibility
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.recovery_tag }}
+          WHEELS_RUN: ${{ inputs.wheels_run_id }}
+          SDIST_RUN: ${{ inputs.sdist_run_id }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/main" ]] || { echo "::error::Dispatch recovery from main"; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Invalid tag"; exit 1; }
+          [[ "$WHEELS_RUN" =~ ^[0-9]+$ && "$SDIST_RUN" =~ ^[0-9]+$ ]] || { echo "::error::Invalid run IDs"; exit 1; }
+          [[ "$WHEELS_RUN" != "$SDIST_RUN" ]] || { echo "::error::Two distinct runs are required"; exit 1; }
+
+          for run_id in "$WHEELS_RUN" "$SDIST_RUN"; do
+            metadata="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run_id")"
+            RUN_METADATA="$metadata" python - <<'PYCODE'
+          import json
+          import os
+          run = json.loads(os.environ["RUN_METADATA"])
+          assert run["event"] == "push", "release artifacts must come from a push event"
+          assert run["head_branch"] == os.environ["RELEASE_TAG"], "release tag mismatch"
+          assert run["path"] == ".github/workflows/publish.yml", "unexpected workflow"
+          PYCODE
+          done
+
+          wheels_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WHEELS_RUN" --jq .head_sha)"
+          sdist_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SDIST_RUN" --jq .head_sha)"
+          [[ "$sdist_sha" == "$(git rev-parse HEAD)" ]] || { echo "::error::The source run does not match the current tag"; exit 1; }
+          git merge-base --is-ancestor "$wheels_sha" "$sdist_sha" || { echo "::error::The original wheel commit is not an ancestor"; exit 1; }
+
+          # A repaired sdist is only safe to combine with already-published wheels
+          # when no library, data, or dependency-lock changes have occurred.
+          while IFS= read -r changed; do
+            case "$changed" in
+              .github/workflows/ci.yml|.github/workflows/publish.yml|pyproject.toml|scripts/check-pypi-sdist-license.py) ;;
+              *) echo "::error::Runtime/source change since wheel publication: $changed"; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$wheels_sha" "$sdist_sha")
+
+      - name: Download original published wheels
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.wheels_run_id }}
+          pattern: wheels-*
+          merge-multiple: true
+          path: original-wheels
+          github-token: ${{ github.token }}
+
+      - name: Download repaired source distribution
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.sdist_run_id }}
+          name: sdist
+          path: dist
+          github-token: ${{ github.token }}
+
+      - name: Validate PyPI state, original wheel hashes, and repaired sdist
+        env:
+          RELEASE_TAG: ${{ inputs.recovery_tag }}
+        run: |
+          python scripts/check-pypi-sdist-license.py dist/*.tar.gz
+          python - <<'PYCODE'
+          import hashlib
+          import json
+          import os
+          from email.parser import BytesParser
+          from pathlib import Path
+          import tarfile
+          from urllib.request import urlopen
+
+          version = os.environ["RELEASE_TAG"].removeprefix("v")
+          sdist = Path("dist") / f"nsb_py-{version}.tar.gz"
+          assert sdist.is_file() and len(list(Path("dist").glob("*"))) == 1
+          with tarfile.open(sdist, "r:gz") as archive:
+              metadata = BytesParser().parsebytes(
+                  archive.extractfile(f"nsb_py-{version}/PKG-INFO").read(), headersonly=True
+              )
+              assert metadata["Name"] == "nsb-py" and metadata["Version"] == version
+
+          wheels = sorted(Path("original-wheels").glob("*.whl"))
+          assert len(wheels) == 5, f"expected five original wheels, got {wheels}"
+          with urlopen(f"https://pypi.org/pypi/nsb-py/{version}/json", timeout=30) as response:
+              published = {
+                  file["filename"]: file
+                  for file in json.load(response)["urls"]
+              }
+          assert sdist.name not in published, "sdist is already published on PyPI"
+          for wheel in wheels:
+              assert wheel.name.startswith(f"nsb_py-{version}-")
+              assert wheel.name in published, f"wheel is not already on PyPI: {wheel.name}"
+              actual = hashlib.sha256(wheel.read_bytes()).hexdigest()
+              expected = published[wheel.name]["digests"]["sha256"]
+              assert actual == expected, f"wheel differs from already-published file: {wheel.name}"
+          print("Recovery verified: original wheels match PyPI; only the repaired sdist is missing.")
+          PYCODE
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: recovery-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  recover-pypi-sdist:
+    name: Publish only the missing PyPI sdist
+    if: github.event_name == 'workflow_dispatch'
+    needs: recovery-validate
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: recovery-sdist
+          path: dist
+
+      - name: Publish the repaired sdist (no wheels)
+        uses: pypa/gh-action-pypi-publish@v1.14.2
+
   record-publication:
     name: Record successful scientific-data publication
-    needs: publish-pypi
+    needs: [publish-pypi, recover-pypi-sdist]
+    if: ${{ always() && ((github.event_name == 'push' && needs.publish-pypi.result == 'success') || (github.event_name == 'workflow_dispatch' && needs.recover-pypi-sdist.result == 'success')) }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.recovery_tag || github.ref }}
           lfs: false
       - uses: dtolnay/rust-toolchain@stable
       - name: Derive actual publication inventory without changing approval
@@ -505,18 +658,38 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
     steps:
-      - name: Download distribution artifacts
+      - name: Download built distributions for a normal release
+        if: github.event_name == 'push'
         uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
+
+      - name: Download the original PyPI wheels for recovery
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.wheels_run_id }}
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+          github-token: ${{ github.token }}
+
+      - name: Download only the repaired sdist for recovery
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          name: recovery-sdist
+          path: dist
 
       - name: Create GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.recovery_tag || github.ref_name }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -527,7 +700,7 @@ jobs:
             exit 1
           fi
 
-          tag="$GITHUB_REF_NAME"
+          tag="$RELEASE_TAG"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "::notice::GitHub Release $tag already exists; skipping creation"
             exit 0
