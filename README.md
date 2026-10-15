@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/VPRamon/NSB/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VPRamon/NSB/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/nsb.svg?label=crates.io)](https://crates.io/crates/nsb)
-[![PyPI](https://img.shields.io/pypi/v/nsb-rust.svg?label=PyPI)](https://pypi.org/project/nsb-rust/)
+[![PyPI](https://img.shields.io/pypi/v/nsb-py.svg?label=PyPI)](https://pypi.org/project/nsb-py/)
 [![docs.rs](https://docs.rs/nsb/badge.svg)](https://docs.rs/nsb)
 [![Rust 1.89+](https://img.shields.io/badge/Rust-1.89%2B-orange.svg)](https://www.rust-lang.org/)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
@@ -34,14 +34,14 @@ Choose the interface that fits your workflow:
 
 | Interface | Installation | Requirements |
 | --- | --- | --- |
-| **Python** | `python -m pip install nsb-rust` | Python 3.10+ |
+| **Python** | `python -m pip install nsb-py` | Python 3.10+ |
 | **Rust** | `cargo add nsb` | Rust 1.89+ |
 | **CLI** | Build from the repository (below) | Rust 1.89+ |
 
 For reproducible applications, pin the first release with
-`cargo add nsb@0.1.0` or `python -m pip install nsb-rust==0.1.0`.
+`cargo add nsb@0.1.0` or `python -m pip install nsb-py==0.1.0`.
 
-The PyPI **distribution** is `nsb-rust`, but its **import** is `nsb`.
+The PyPI **distribution** is `nsb-py`, but its **import** is `nsb`.
 The crates.io **library** is `nsb`. The executable is also named `nsb`,
 but its workspace crate, `nsb-cli`, is **not** separately published to crates.io.
 

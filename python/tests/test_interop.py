@@ -9,7 +9,7 @@ import siderust
 
 
 def test_distribution_declares_compatible_siderust_runtime_dependency():
-    requirements = metadata.requires("nsb-rust") or []
+    requirements = metadata.requires("nsb-py") or []
     siderust_requirements = [
         requirement
         for requirement in requirements
@@ -122,7 +122,7 @@ def test_threshold_naive_datetimes_are_rejected_as_nsb_input_errors(
 
 def test_distribution_and_extension_share_tempoch_04_types(observer, direction):
     import tempoch
-    requirements = metadata.requires("nsb-rust") or []
+    requirements = metadata.requires("nsb-py") or []
     requirement = next(r.replace(" ", "") for r in requirements if r.startswith("tempoch"))
     assert ">=0.4.0" in requirement and "<0.5" in requirement
     assert metadata.version("tempoch").startswith("0.4.")

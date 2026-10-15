@@ -46,7 +46,7 @@ after the `v0.1.0` workflow completes.
 - Typed Rust `nsb` runtime for point night-sky-background evaluation and
   threshold-window planning over the 300–650 nm integrated photon-radiance
   contract.
-- `nsb-rust` Python distribution (Python 3.10+, import name `nsb`) using
+- `nsb-py` Python distribution (Python 3.10+, import name `nsb`) using
   PyO3 `abi3-py310` wheels and canonical Siderust observer/direction types.
 - `nsb-cli` application with point/window evaluation, observatory lookup,
   table/JSON/CSV output, configuration, and structured logging.
@@ -72,11 +72,11 @@ after the `v0.1.0` workflow completes.
   manual benchmarks, and public API snapshot tooling.
 - Tag-driven release workflow for `vMAJOR.MINOR.PATCH` that validates package
   metadata, builds Python wheels and an sdist, publishes `nsb` to crates.io,
-  and publishes `nsb-rust` to PyPI using Trusted Publishing/OIDC.
+  and publishes `nsb-py` to PyPI using Trusted Publishing/OIDC.
 
 ### Distribution
 
-- Version `0.1.0` is shared by the publishable `nsb` crate, `nsb-rust` wheels
+- Version `0.1.0` is shared by the publishable `nsb` crate, `nsb-py` wheels
   and sdist; `nsb-cli` and `nsb-data-tools` remain unpublished workspace crates.
 - A `v0.1.0` tag on the reviewed commit triggers validation, all five Python
   platform wheels, the Python sdist, crates.io publication and then PyPI

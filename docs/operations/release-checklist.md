@@ -41,7 +41,7 @@ scientific calibration evidence.
 - [ ] The first-release API freeze is active: `crates/nsb/api/API_FROZEN` exists, `crates/nsb/api/public-api.txt` is current, and `scripts/check-public-api.sh` passes. Do not tag a public release while the API gate reports pre-freeze mode.
 - [ ] The release tag is exactly `v<crates/nsb/Cargo.toml version>`; tagged releases build all Python wheels and the sdist before publishing.
 - [ ] `CARGO_REGISTRY_TOKEN` is configured for crates.io and the `pypi` GitHub environment is configured for PyPI Trusted Publishing/OIDC.
-- [ ] The tag-triggered release workflow publishes `nsb` to crates.io and `nsb-rust` to PyPI from the same commit.
+- [ ] The tag-triggered release workflow publishes `nsb` to crates.io and `nsb-py` to PyPI from the same commit.
 - [ ] Release tag is created only after all blocking boxes are satisfied.
 
 ## Tagging the first public release
@@ -52,7 +52,7 @@ unmerged PR branch or an older commit is not the approved release.
 
 1. Confirm a crates.io token with publish permission is stored as the GitHub
    Actions secret `CARGO_REGISTRY_TOKEN`. For PyPI, configure the repository's
-   `pypi` environment and the `nsb-rust` Trusted Publisher for the
+   `pypi` environment and the `nsb-py` Trusted Publisher for the
    `.github/workflows/publish.yml` workflow. First-time PyPI publication may
    require a pending publisher configured before the project exists.
 2. From a clean local checkout of the intended release commit, run:
@@ -71,10 +71,9 @@ unmerged PR branch or an older commit is not the approved release.
    GitHub Actions. Its tag validation, scientific tests, crate package/dry-run,
    five platform wheels and sdist must all succeed **before** publishing.
    The crate publishes first; PyPI receives the verified artifacts afterwards.
-4. Verify `nsb` version `0.1.0` on crates.io/docs.rs and `nsb-rust` version
+4. Verify `nsb` version `0.1.0` on crates.io/docs.rs and `nsb-py` version
    `0.1.0` on PyPI. Retain the workflow's `publication-inventory` artifact,
-   reconcile the published scientific inventory, and optionally create the
-   GitHub Release from the existing tag (the workflow does not create one).
+   reconcile the published scientific inventory, and verify the workflow-created GitHub Release and attached distribution artifacts.
 
 Never replace an existing `v0.1.0` tag to retry a failed upload. Use the
 partial-publication recovery procedure below and inspect actual registry
@@ -83,11 +82,28 @@ of repository secrets, environment protection rules, Trusted Publisher
 registration, or the maintainer's final release authorization.
 ## Partial publication recovery
 
+For `v0.1.0`, crates.io publication of `nsb` succeeded, while the initial PyPI
+upload failed because its artifacts were named `nsb-rust` but the pending
+Trusted Publisher was registered as `nsb-py`. A later PR can change the Python
+package metadata and generated artifacts, but **rerunning the failed Actions
+run cannot pick up that fix**: it uses the original tagged commit, workflow,
+and wheel/sdist artifacts. Likewise, the current tag-only workflow has no
+`workflow_dispatch` recovery path. Do not force-move or replace the public tag
+and do not expect `gh run rerun --failed` to repair this name mismatch.
+
+Recover by preparing a new, reviewed versioned release commit and tag, or by
+explicitly authorizing a separate, audited Python-only recovery for `nsb-py`
+`0.1.0` from a new source commit. For the latter, record that the Python
+artifact does **not** correspond to the original `v0.1.0` tagged tree, and
+verify the new artifacts, provenance and external registry state before
+publishing. The existing workflow cannot do this automatically.
+
 Do not retag or change scientific approval identities after a partial upload.
 Inspect the failed job and the actual registry versions and checksums first.
 `publish-changed.sh` skips a crates.io version already present; this is only an
 idempotency check and does not attest that its bytes match the tagged artifact.
-For a crates.io success followed by a PyPI failure, rerun failed jobs using the
+For a crates.io success followed by a PyPI failure **with unchanged,
+correctly named distribution metadata**, rerun failed jobs using the
 original verified wheel/sdist artifacts. If PyPI accepted only some files,
 reconcile each accepted filename and digest before uploading the missing files;
 the workflow deliberately does not silently skip conflicting existing files.

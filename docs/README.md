@@ -24,7 +24,7 @@ Runtime evaluation never downloads catalogues or executes data-generation tools.
 Scientific assets are prepared offline, validated, checksum-pinned, and admitted
 through explicit runtime-manifest contracts.
 
-The Python distribution is named `nsb-rust` and imports as `nsb`. It wraps
+The Python distribution is named `nsb-py` and imports as `nsb`. It wraps
 the same Rust evaluator and uses canonical `siderust.Observer` and
 `siderust.Direction` objects rather than maintaining parallel astronomy types.
 

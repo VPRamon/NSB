@@ -33,7 +33,7 @@ site-calibrated. Always inspect component maturity and provenance in the output.
 
 | Interface | Use it when | Main entry point |
 | --- | --- | --- |
-| `nsb-rust` Python package | You need the NSB evaluator/planner from Python while using canonical Siderust coordinate types. | [Python bindings](../python.md) |
+| `nsb-py` Python package | You need the NSB evaluator/planner from Python while using canonical Siderust coordinate types. | [Python bindings](../python.md) |
 | `nsb-cli` | You need interactive evaluation, scripts, tables, JSON, or CSV. | [Getting started](getting-started.md) |
 | `nsb` Rust crate | You are integrating NSB into a Rust application or scheduler. | [Getting started: Rust API](getting-started.md#rust-library) |
 | `nsb-data-tools` | You maintain scientific assets or build new starlight products. | [Maintainer guide](../maintainer-guide/README.md) |
