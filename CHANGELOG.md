@@ -1,8 +1,10 @@
 # Changelog
 
-Changes for the upcoming first public NSB release are recorded here.
+This file describes the first public release candidate. Version `0.1.0` is
+prepared for publication; availability on crates.io and PyPI is confirmed only
+after the `v0.1.0` workflow completes.
 
-## 0.1.0 — Unreleased
+## [0.1.0] 15/10/2026
 
 ### Changed
 
@@ -25,7 +27,7 @@ Changes for the upcoming first public NSB release are recorded here.
   available. Move the scanner and prior certificate-subdivision
   implementation to independent test-only references.
 
-- Upgrade to registry Siderust 0.14, Tempoch 0.10, Principia 0.6 and Python
+- Upgrade to registry Siderust 0.14.1, Tempoch 0.10, Principia 0.6 and Python
   interoperability/runtime packages 0.4; retain Rust 1.89.
 - Fix adaptive low-fit aliasing with all interlaced and independent interior
   checks; retain exact physical refinement and strict certificate semantics.
@@ -71,6 +73,16 @@ Changes for the upcoming first public NSB release are recorded here.
 - Tag-driven release workflow for `vMAJOR.MINOR.PATCH` that validates package
   metadata, builds Python wheels and an sdist, publishes `nsb` to crates.io,
   and publishes `nsb-rust` to PyPI using Trusted Publishing/OIDC.
+
+### Distribution
+
+- Version `0.1.0` is shared by the publishable `nsb` crate, `nsb-rust` wheels
+  and sdist; `nsb-cli` and `nsb-data-tools` remain unpublished workspace crates.
+- A `v0.1.0` tag on the reviewed commit triggers validation, all five Python
+  platform wheels, the Python sdist, crates.io publication and then PyPI
+  Trusted Publishing. Neither registry upload occurs before validation.
+- The public Rust API snapshot is frozen and checked in CI; release metadata
+  and cross-package versions are verified before and after tagging.
 
 ### Release boundaries
 
