@@ -21,8 +21,7 @@ cargo deny check
 ```
 
 Coverage floors in [`coverage-policy.toml`](../../coverage-policy.toml) are
-blocking on `main`. See [Coverage policy](../developer-guide/coverage.md) and
-the [release checklist](../operations/release-checklist.md).
+blocking on `main`. See [Coverage policy](../developer-guide/coverage.md).
 
 Runtime assets are authoritative in `crates/nsb/data/manifest.toml`. Dataset
 configuration and run manifests provide generation identity; scientific
