@@ -62,7 +62,7 @@ def main() -> None:
 
     project = python["project"]
     maturin = python["tool"]["maturin"]
-    require(project["name"] == "nsb-rust", "PyPI project must be nsb-rust")
+    require(project["name"] == "nsb-py", "PyPI project must be nsb-py")
     require("version" in project["dynamic"] and "version" not in project,
             "Python version must be derived from Cargo, not duplicated")
     require(project["requires-python"] == ">=3.10",
@@ -89,8 +89,8 @@ def main() -> None:
                       changelog) is not None,
             f"CHANGELOG.md needs a {version} release section")
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    for entry in ("crates.io/crates/nsb", "pypi.org/project/nsb-rust/",
-                  "cargo add nsb", "pip install nsb-rust"):
+    for entry in ("crates.io/crates/nsb", "pypi.org/project/nsb-py/",
+                  "cargo add nsb", "pip install nsb-py"):
         require(entry in readme, f"README missing distribution guidance: {entry}")
 
     require((ROOT / "crates/nsb/api/API_FROZEN").is_file()
@@ -105,7 +105,7 @@ def main() -> None:
         require(args.tag == f"v{version}",
                 f"tag {args.tag!r} does not match package version v{version}")
 
-    print(f"release metadata OK: nsb {version}, nsb-rust {version}, "
+    print(f"release metadata OK: nsb {version}, nsb-py {version}, "
           "workspace tools in sync; public API frozen")
 
 

@@ -7,7 +7,7 @@ errors, and local development.
 
 NSB exposes a deliberately small Python API for NSB evaluation and planning. The Rust crate in `crates/nsb` remains the scientific implementation and the authoritative public model contract.
 
-The Python distribution is named **`nsb-rust`**; the import remains:
+The Python distribution is named **`nsb-py`**; the import remains:
 
 ```python
 import nsb
@@ -18,7 +18,7 @@ Python 3.10 or newer is supported.
 ## Installation
 
 ```bash
-python -m pip install nsb-rust
+python -m pip install nsb-py
 ```
 
 The distribution declares `siderust>=0.4.0,<0.5` and `tempoch>=0.4.0,<0.5`
@@ -186,7 +186,7 @@ To validate an installed wheel:
 
 ```bash
 maturin build --release --locked --out dist
-python -m pip install --force-reinstall --only-binary=:all: dist/nsb_rust-*.whl
+python -m pip install --force-reinstall --only-binary=:all: dist/nsb_py-*.whl
 python -m pytest python/tests
 ```
 

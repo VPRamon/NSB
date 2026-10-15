@@ -448,7 +448,7 @@ jobs:
                   f"{len(wheels)} wheels and {len(sdists)} sdists"
               )
           for wheel in wheels:
-              if not wheel.name.startswith(f"nsb_rust-{expected}-"):
+              if not wheel.name.startswith(f"nsb_py-{expected}-"):
                   raise SystemExit(f"unexpected wheel filename: {wheel.name}")
               with ZipFile(wheel) as archive:
                   metadata_files = [
@@ -458,12 +458,12 @@ jobs:
                   if len(metadata_files) != 1:
                       raise SystemExit(f"missing or ambiguous wheel metadata: {wheel.name}")
                   metadata = BytesParser().parsebytes(archive.read(metadata_files[0]))
-                  if metadata["Name"] != "nsb-rust" or metadata["Version"] != expected:
+                  if metadata["Name"] != "nsb-py" or metadata["Version"] != expected:
                       raise SystemExit(f"wrong wheel metadata: {wheel.name}")
-          if sdists[0].name != f"nsb_rust-{expected}.tar.gz":
+          if sdists[0].name != f"nsb_py-{expected}.tar.gz":
               raise SystemExit(f"unexpected sdist filename: {sdists[0].name}")
 
-      - name: Publish nsb-rust
+      - name: Publish nsb-py
         uses: pypa/gh-action-pypi-publish@v1.14.2
 
   record-publication:

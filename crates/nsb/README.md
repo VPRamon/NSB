@@ -114,7 +114,7 @@ operational claims.
 - Scientific model: <https://github.com/VPRamon/NSB/blob/main/docs/specifications/scientific-model.md>
 - Model maturity: <https://github.com/VPRamon/NSB/blob/main/docs/specifications/model-maturity.md>
 - Validation matrix: <https://github.com/VPRamon/NSB/blob/main/docs/specifications/validation.md>
-- Python distribution: `nsb-rust` on PyPI, imported as `nsb`
+- Python distribution: `nsb-py` on PyPI, imported as `nsb`
 - CLI: sibling workspace crate `nsb-cli` (binary name `nsb`; not separately
   published in `0.1.0`)
 

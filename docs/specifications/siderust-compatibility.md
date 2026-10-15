@@ -47,7 +47,7 @@ The Python runtime dependency named `siderust` is the Siderust Python
 distribution and currently uses the independent `0.4.x` version line:
 
 ```text
-nsb-rust -> siderust>=0.4.0,<0.5
+nsb-py -> siderust>=0.4.0,<0.5
          -> tempoch>=0.4.0,<0.5
 ```
 

@@ -27,7 +27,7 @@ For library installation in your own project, see the
 ## Python
 
 The [Python quickstart](../README.md#python) shows a complete point evaluation
-using `nsb-rust` (import `nsb`) and `siderust`. Continue with the
+using `nsb-py` (import `nsb`) and `siderust`. Continue with the
 [Python guide](../docs/python.md) for threshold-window planning, model
 selection, errors and units.
 
