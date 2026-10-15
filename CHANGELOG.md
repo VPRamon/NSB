@@ -4,7 +4,7 @@ This file describes the first public release candidate. Version `0.1.0` is
 prepared for publication; availability on crates.io and PyPI is confirmed only
 after the `v0.1.0` workflow completes.
 
-## 0.1.0 [15/10/2026]
+## [0.1.0] 15/10/2026
 
 ### Changed
 
