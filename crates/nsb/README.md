@@ -11,7 +11,7 @@ starlight product when one is available.
 ## Installation
 
 ```bash
-cargo add nsb@0.1.0
+cargo add nsb@0.1.1
 ```
 
 The minimum supported Rust version is 1.89.
@@ -31,7 +31,7 @@ and UTC `Time` types used at NSB's public Rust boundary.
 To build without upstream Serde support:
 
 ```toml
-nsb = { version = "0.1.0", default-features = false }
+nsb = { version = "0.1.1", default-features = false }
 ```
 
 NSB's own internal TOML/JSON data formats remain available independently
@@ -116,7 +116,7 @@ operational claims.
 - Validation matrix: <https://github.com/VPRamon/NSB/blob/main/docs/specifications/validation.md>
 - Python distribution: `nsb-py` on PyPI, imported as `nsb`
 - CLI: sibling workspace crate `nsb-cli` (binary name `nsb`; not separately
-  published in `0.1.0`)
+  published in `0.1.1`)
 
 The CLI owns command-line parsing, named-site lookup, and stable JSON/CSV
 rendering. Offline catalogue acquisition and scientific data-product generation

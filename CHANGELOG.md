@@ -1,8 +1,18 @@
 # Changelog
 
-This file describes the first public release candidate. Version `0.1.0` is
-prepared for publication; availability on crates.io and PyPI is confirmed only
-after the `v0.1.0` workflow completes.
+Release availability on crates.io and PyPI is confirmed only after the
+tag-triggered publication workflow succeeds.
+
+## [0.1.1] 15/10/2026
+
+### Changed
+
+- Prepare the next coordinated `nsb` / `nsb-py` release by synchronizing
+  the Rust workspace versions, lockfile and Python distribution metadata.
+- Expose crates.io and PyPI publication as GitHub environment deployments with
+  links to their package pages, including the PyPI sdist recovery job.
+- Make the CI crate-size check independent of the release version.
+- Preserve the frozen Rust API and scientific runtime behavior from `0.1.0`.
 
 ## [0.1.0] 15/10/2026
 
