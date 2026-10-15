@@ -482,3 +482,42 @@ jobs:
           name: publication-inventory
           path: docs/nsb_components/starlight/licensing/artifact-inventory-v1.toml
           if-no-files-found: error
+
+  publish-github-release:
+    name: Publish GitHub Release
+    needs: record-publication
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download distribution artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          wheels=(dist/*.whl)
+          sdists=(dist/*.tar.gz)
+          if (( ${#wheels[@]} == 0 || ${#sdists[@]} == 0 )); then
+            echo "::error::Expected both wheel and source distribution artifacts"
+            exit 1
+          fi
+
+          tag="$GITHUB_REF_NAME"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "::notice::GitHub Release $tag already exists; skipping creation"
+            exit 0
+          fi
+
+          gh release create "$tag" "${wheels[@]}" "${sdists[@]}" \
+            --verify-tag \
+            --generate-notes \
+            --title "$tag"
