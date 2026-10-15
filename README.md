@@ -69,7 +69,7 @@ import nsb
 import siderust
 
 observer = siderust.Observer(
-    lon_deg=-70.31634444444444, lat_deg=-24.683427777777776, height_m=2184.6
+    lon_deg=-70.31634, lat_deg=-24.683427, height_m=2184.6
 )
 target = siderust.Direction(ra_deg=266.41683, dec_deg=-29.00781)
 
