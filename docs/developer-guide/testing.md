@@ -62,7 +62,7 @@ module privacy over adding test-only accessors to production types.
 Independent reference algorithms and synthetic fixtures that exist only to validate the real
 implementation belong in those test modules. If a helper is a genuine implementation concept,
 keep it as normal private production code and exercise the same helper from production and tests.
-CI enforces this rule with `scripts/check-cfg-test-boundaries.py`.
+CI enforces this rule with the small Bash check `scripts/check-cfg-test-boundaries.sh`.
 
 ## When to add which kind of test
 

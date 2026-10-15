@@ -134,7 +134,9 @@ reruns the complete scientific corpus rather than replacing its goldens silently
 cargo test --release --locked -p nsb --lib planning::discovery_tests
 cargo test --release --locked -p nsb --lib planning::strict_tests
 cargo test --release --locked -p nsb --lib physical_boundary_accuracy_reference -- --ignored --nocapture
-scripts/benchmark-adaptive-threshold.sh target/adaptive-matrix.log
+CARGO_BUILD_JOBS=2 RAYON_NUM_THREADS=2 NSB_DISCOVERY_REPEATS=3 \
+  cargo test --release --locked -p nsb --lib complete_adaptive_schedule_matrix \
+  -- --ignored --nocapture --test-threads=1 | tee target/adaptive-matrix.log
 ```
 
 Run native Rust, installed-wheel Python and CLI suites as well; their inward
