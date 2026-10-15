@@ -9,8 +9,10 @@ the Rust API.
 NSB 0.1.0 establishes the initial public schema baseline. Schema identifiers
 start at v1 and change only when fields are removed, renamed, retyped, or their
 scientific meaning changes. Fields may be added compatibly to JSON.
-See the [first-release schema versioning policy](schema-versioning.md) for the
-separate handling of immutable scientific evidence and third-party versions.
+Scientific-evidence snapshots retain their original identifiers and hashes;
+third-party version identifiers remain independent. The
+[Starlight first-release reset record](../nsb_components/starlight/release-candidate/schema-reset-v1.md)
+documents one such migration and its renewed authorization.
 
 ## Point JSON v1
 
