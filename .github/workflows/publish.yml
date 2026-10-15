@@ -329,6 +329,9 @@ jobs:
           maturin-version: ${{ env.MATURIN_VERSION }}
           args: --out dist
 
+      - name: Verify PEP 639 license files before publication
+        run: python scripts/check-pypi-sdist-license.py dist/*.tar.gz
+
       - name: Reject unapproved Starlight in the Python source distribution
         shell: python
         run: |
