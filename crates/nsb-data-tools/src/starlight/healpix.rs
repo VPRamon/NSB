@@ -215,14 +215,6 @@ pub fn gaia_source_id_galactic_nested_pixel(source_id: u64, target_nside: u32) -
     galactic_nested_pixel_from_direction(target_nside, galactic_direction)
 }
 
-/// Legacy generator bug: equatorial `source_id` bit-shift used as a Galactic pixel.
-pub fn legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(
-    source_id: u64,
-    target_nside: u32,
-) -> Result<u32> {
-    gaia_source_id_equatorial_nested_pixel(source_id, target_nside)
-}
-
 /// Assign a Galactic direction to a nested pixel at `nside`.
 pub fn galactic_nested_pixel_from_direction(
     nside: u32,
@@ -452,8 +444,7 @@ mod tests {
             let second = galactic_nested_pixel_from_icrs_position(ra, dec, 128)?;
             assert_eq!(first, second, "{label} must be deterministic");
             let legacy_source_id = ((first as u64) << GAIA_SOURCE_ID_HEALPIX_SHIFT) | 7;
-            let legacy =
-                legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(legacy_source_id, 128)?;
+            let legacy = gaia_source_id_equatorial_nested_pixel(legacy_source_id, 128)?;
             assert_ne!(
                 first, legacy,
                 "{label} must not equal legacy equatorial bit-shift pixel"

@@ -132,8 +132,6 @@ fn window_without_airglow_reports_not_selected_selection() {
             "-29.00781",
             "--max-nsb",
             "1000000",
-            "--step",
-            "3600",
             "--no-pre-filter",
             "--components",
             "moon",

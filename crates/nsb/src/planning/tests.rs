@@ -65,7 +65,6 @@ fn threshold_query(
         window: Period::new(start, end),
         threshold: BandPhotonRadiance::new(0.21),
         components,
-        sample_step: Second::new(1_800.0),
         sun_altitude_ceiling: Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING),
         target_altitude_floor: Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR),
     }
@@ -83,11 +82,12 @@ fn prepare_threshold(
 fn scan_threshold_native(
     evaluator: &NsbEvaluator,
     query: &ThresholdQuery,
+    step: Second,
 ) -> Result<Vec<TimePeriod<ModifiedJulianDate>>> {
     crate::planning::prepare::validate_query(query)?;
     let tt_window = utc_period_to_tt_mjd(query.window);
     let prepared = prepare_threshold(evaluator, query, tt_window)?;
-    let step = query.sample_step.to::<Day>();
+    let step = step.to::<Day>();
     let f = |mjd_tt: ModifiedJulianDate| -> Result<BandPhotonRadiance> {
         crate::planning::threshold::evaluate_integrated(evaluator, &prepared, mjd_tt)
     };
@@ -109,7 +109,7 @@ fn scan_threshold_periods(
     let tt_window = utc_period_to_tt_mjd(query.window);
     Ok(ThresholdQueryResult {
         threshold: query.threshold,
-        periods: scan_threshold_native(evaluator, query)?
+        periods: scan_threshold_native(evaluator, query, Second::new(1_800.0))?
             .into_iter()
             .map(|period| tt_mjd_period_to_utc(period, tt_window, query.window))
             .collect(),
@@ -150,7 +150,6 @@ fn threshold_airglow_splits_palace_hour_boundaries_for_coarse_scans() {
         12,
         ComponentMask::AIRGLOW,
     );
-    query.sample_step = Second::new(7_200.0);
     query.target_altitude_floor = None;
     let tt_window = utc_period_to_tt_mjd(query.window);
     let prepared = prepare_threshold(&evaluator, &query, tt_window).unwrap();
@@ -182,7 +181,6 @@ fn authoritative_threshold_search_matches_scan_oracle_for_representative_window(
         BandPhotonRadiance::new(0.21),
     )
     .with_components(ComponentMask::ZODIACAL)
-    .with_sample_step(Second::new(1_800.0))
     .with_sun_altitude_ceiling(None)
     .with_target_altitude_floor(None);
 
@@ -223,14 +221,11 @@ fn authoritative_search_matches_exact_scan_across_components_and_year_boundary()
     ] {
         let mut query = threshold_query(paranal(), target, start, hours, components);
         query.threshold = BandPhotonRadiance::new(threshold);
-        query.sample_step = Second::new(600.0);
         let authoritative = evaluator.periods_below_threshold(&query).unwrap();
         // The corrected zodiacal model exposes a sub-second crossing at a
         // PALACE boundary; keep the independent oracle finer than the
-        // caller-selected production sampling step so it cannot skip it.
-        let mut oracle_query = query.clone();
-        oracle_query.sample_step = Second::new(10.0);
-        let reference = scan_threshold_native(&evaluator, &oracle_query).unwrap();
+        // coarse test scanner so it cannot skip it.
+        let reference = scan_threshold_native(&evaluator, &query, Second::new(10.0)).unwrap();
         let context = evaluator.prepare_site_window_context(&query).unwrap();
         let prepared =
             super::prepare::prepare_target_threshold(&evaluator, &context, &query).unwrap();
@@ -279,7 +274,6 @@ fn moon_rise_and_set_threshold_boundaries_match_exact_scan() {
         BandPhotonRadiance::new(0.0),
     )
     .with_components(ComponentMask::MOON)
-    .with_sample_step(Second::new(1_800.0))
     .with_sun_altitude_ceiling(None)
     .with_target_altitude_floor(None);
 

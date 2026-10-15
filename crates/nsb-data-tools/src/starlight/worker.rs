@@ -846,8 +846,7 @@ mod tests {
     fn production_partition_accumulates_source_in_galactic_pixel_not_legacy_source_id_pixel(
     ) -> Result<()> {
         use crate::starlight::healpix::{
-            galactic_nested_pixel_from_icrs_position,
-            legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,
+            gaia_source_id_equatorial_nested_pixel, galactic_nested_pixel_from_icrs_position,
             test_support::fixture_icrs_from_source_id,
         };
 
@@ -856,8 +855,7 @@ mod tests {
         let icrs = fixture_icrs_from_source_id(source_id);
         let expected_galactic =
             galactic_nested_pixel_from_icrs_position(icrs.ra_deg, icrs.dec_deg, CANONICAL_NSIDE)?;
-        let legacy_pixel =
-            legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(source_id, CANONICAL_NSIDE)?;
+        let legacy_pixel = gaia_source_id_equatorial_nested_pixel(source_id, CANONICAL_NSIDE)?;
         assert_ne!(
             expected_galactic, legacy_pixel,
             "fixture must separate production Galactic pixel from legacy source_id pixel"

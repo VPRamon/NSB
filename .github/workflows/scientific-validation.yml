@@ -8,8 +8,6 @@ on:
         required: false
         default: false
         type: boolean
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -39,7 +37,7 @@ jobs:
         run: |
           cargo test --locked -p nsb full_moon_reference_geometry_matches_published_brightness
           cargo test --locked -p nsb components::starlight::validated
-          cargo test --locked -p nsb-data-tools --lib starlight::map::build_starlight_map::tests
+          cargo test --locked -p nsb-data-tools --lib starlight::map::
           cargo test --locked -p nsb-cli --test cli_smoke validated_external_starlight_is_production_labelled_in_json
           cargo test --locked -p nsb --test end_to_end_validation
           cargo test --locked -p nsb --test jones2013_validation

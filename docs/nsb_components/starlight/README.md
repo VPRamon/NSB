@@ -31,14 +31,18 @@ admitted HEALPix product is treated as top-of-atmosphere sky radiance.
 Wavelength-resolved transport belongs with spectral products; a band-integrated
 map must not be treated as monochromatic radiance.
 
-## Pending, registered and published configurations
+## Approved, registered and published configurations
 
-The pre-release schema reset changes checksum-pinned provenance. The active
-#103 decision is pending renewed authorization, so release admission remains blocked. The existing embedded runtime registry
-and four-component offline Rust/Python defaults are preserved for equivalence
-checks; registration does not renew the authorization of replacement bytes.
+The active [redistribution decision](release-candidate/redistribution-review-decision-v1.json)
+is `approved_with_conditions` for the exact regenerated v1 artifact hashes.
+The approved compact binary and provenance sidecar are registered for offline
+four-component Rust/Python defaults. Approval remains scoped to the recorded
+channels, Gaia noncommercial restrictions and source-specific attribution; it
+is separate from the AGPL code license and does not establish publication.
 `validated_external` and explicitly experimental map APIs remain available.
-See the [reset record](release-candidate/schema-reset-v1.md).
+See the [reset record](release-candidate/schema-reset-v1.md) for the recorded
+byte equivalence and the checksum-bound external evidence still required before
+release.
 
 Production registration does not claim an upload. The immutable approval
 inventory records planned channels; the current inventory records registration
@@ -73,3 +77,13 @@ Git/crates.io/PyPI channels named in the decision.
 - [External Starlight manifest](external-manifest.md)
 - [Redistribution and attribution](licensing/README.md)
 - [Atmospheric transport](../../specifications/atmospheric-transport.md)
+
+## Historical validation evidence
+
+The pinned candidate gates and validation reports are historical evidence.
+Their references to `performance-v1.json`, `documentation-wording-audit-v1.md`,
+`starlight-final-promotion.yml` and the retired CSV benchmark describe earlier
+runs, not current tools. Retrieve those inputs from the
+[pre-reset revision](https://github.com/VPRamon/NSB/tree/3b3a59ca33e1396d6cf879226efc5cb232cd315e).
+Current publication checks live in `publish.yml`; numerical validation and
+compact runtime performance remain covered by the maintained tests/benchmarks.

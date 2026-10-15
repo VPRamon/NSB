@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::calibration::load_builtin_standard;
-use super::domain::{AirglowNightPhase, AirglowSeason};
+use super::domain::AirglowNightPhase;
 use super::extinction::{effective_airglow_airmass, noll_scattering_factors};
 use super::units::DEFAULT_SOLAR_RADIO_FLUX;
 use super::*;
@@ -177,19 +177,23 @@ fn scale_changes_result() {
 }
 
 #[test]
-fn season_changes_with_longitude_near_month_boundary() {
-    // The Airglow season uses local-solar month derived from longitude; pick a
+fn palace_month_changes_with_longitude_near_month_boundary() {
+    // PALACE uses local-solar month derived from longitude; pick a
     // time where the observer-local month crosses the March/April boundary.
     let time = t("2023-03-31T18:00:00Z");
     let east = Geodetic::new_raw(Degrees::new(179.0), Degrees::new(0.0), Meters::new(0.0));
     let west = Geodetic::new_raw(Degrees::new(-179.0), Degrees::new(0.0), Meters::new(0.0));
 
-    let east_season = super::temporal::season(time, east);
-    let west_season = super::temporal::season(time, west);
+    let east_season = super::temporal::palace_climatology_coordinates(time, east)
+        .unwrap()
+        .0;
+    let west_season = super::temporal::palace_climatology_coordinates(time, west)
+        .unwrap()
+        .0;
 
     assert_ne!(east_season, west_season);
-    assert_eq!(west_season, AirglowSeason::FebMar);
-    assert_eq!(east_season, AirglowSeason::AprMay);
+    assert_eq!(west_season, 3);
+    assert_eq!(east_season, 4);
 }
 
 #[test]

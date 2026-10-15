@@ -27,7 +27,7 @@ for arg in "$@"; do
   esac
 done
 
-if [[ -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
+if [[ "$DRY_RUN" -eq 0 && -z "${CARGO_REGISTRY_TOKEN:-}" ]]; then
   echo "error: CARGO_REGISTRY_TOKEN must be set to publish to crates.io" >&2
   exit 1
 fi
@@ -37,12 +37,12 @@ export CARGO_REGISTRY_TOKEN
 MANIFEST="$ROOT/crates/nsb/Cargo.toml"
 
 crate_name() {
-  cargo metadata --no-deps --format-version 1 --manifest-path "$1" \
+  cargo metadata --locked --no-deps --format-version 1 --manifest-path "$1" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["name"])'
 }
 
 crate_version() {
-  cargo metadata --no-deps --format-version 1 --manifest-path "$1" \
+  cargo metadata --locked --no-deps --format-version 1 --manifest-path "$1" \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["packages"][0]["version"])'
 }
 
@@ -69,6 +69,12 @@ already_on_crates_io() {
   esac
 }
 
+publication_status="$(git status --porcelain --untracked-files=normal)"
+if [[ -n "$publication_status" ]]; then
+  echo "error: publication requires a clean committed checkout" >&2
+  exit 1
+fi
+
 name="$(crate_name "$MANIFEST")"
 version="$(crate_version "$MANIFEST")"
 
@@ -92,9 +98,9 @@ fi
 
 echo "publish $name $version from $MANIFEST"
 if [[ "$DRY_RUN" -eq 1 ]]; then
-  cargo publish --manifest-path "$MANIFEST" --dry-run --allow-dirty
+  cargo publish --manifest-path "$MANIFEST" --dry-run --locked
 else
-  cargo publish --manifest-path "$MANIFEST" --allow-dirty
+  cargo publish --manifest-path "$MANIFEST" --locked
 fi
 
 echo "publish-changed: done"

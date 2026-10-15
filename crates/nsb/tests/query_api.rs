@@ -8,7 +8,6 @@ use common::{ctao_north_planning, ctao_south_planning};
 use nsb::components::starlight::StarlightMap;
 use nsb::solar_activity::{bundled_f107_store, SolarActivitySource};
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use nsb::units::Second;
 use nsb::{
     CalibrationStatus, ComponentCalibrationStatus, ComponentMask, MoonlightModel, NsbEvaluator,
     NsbModelConfig, PointQuery, StarlightProduct, Target, ThresholdQuery, DEG,
@@ -290,7 +289,6 @@ fn threshold_query_returns_full_window_for_large_threshold() {
                 BandPhotonRadiance::new(1.0e6),
             )
             .with_components(default_components())
-            .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
             .with_sun_altitude_ceiling(None)
             .with_target_altitude_floor(None),
         )
@@ -315,7 +313,6 @@ fn threshold_query_returns_no_periods_when_threshold_is_unreachable() {
                 BandPhotonRadiance::new(0.0),
             )
             .with_components(default_components())
-            .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
             .with_sun_altitude_ceiling(None)
             .with_target_altitude_floor(None),
         )
@@ -337,7 +334,6 @@ fn threshold_query_empty_window_returns_no_periods() {
                 BandPhotonRadiance::new(1.0e6),
             )
             .with_components(default_components())
-            .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
             .with_sun_altitude_ceiling(None)
             .with_target_altitude_floor(None),
         )
@@ -361,7 +357,6 @@ fn threshold_query_rejects_non_finite_threshold_and_ignores_legacy_step() {
                 BandPhotonRadiance::new(f64::NAN),
             )
             .with_components(default_components())
-            .with_sample_step(Second::new(600.0))
             .with_sun_altitude_ceiling(None)
             .with_target_altitude_floor(None),
         )
@@ -377,7 +372,6 @@ fn threshold_query_rejects_non_finite_threshold_and_ignores_legacy_step() {
                 BandPhotonRadiance::new(f64::INFINITY),
             )
             .with_components(default_components())
-            .with_sample_step(Second::new(600.0))
             .with_sun_altitude_ceiling(None)
             .with_target_altitude_floor(None),
         )
@@ -394,12 +388,8 @@ fn threshold_query_rejects_non_finite_threshold_and_ignores_legacy_step() {
     .with_sun_altitude_ceiling(None)
     .with_target_altitude_floor(None);
     let expected = evaluator.periods_below_threshold_adaptive(&query).unwrap();
-    for step in [0.0, f64::INFINITY, f64::NAN, 1.0, 1e8] {
-        let actual = evaluator
-            .periods_below_threshold(&query.clone().with_sample_step(Second::new(step)))
-            .unwrap();
-        assert_eq!(actual.periods, expected.periods);
-    }
+    let actual = evaluator.periods_below_threshold(&query).unwrap();
+    assert_eq!(actual.periods, expected.periods);
 }
 
 #[test]
@@ -417,7 +407,6 @@ fn threshold_query_rejects_inverted_window() {
                 BandPhotonRadiance::new(1.0e6),
             )
             .with_components(default_components())
-            .with_sample_step(Second::new(600.0))
             .with_sun_altitude_ceiling(None)
             .with_target_altitude_floor(None),
         )
@@ -437,7 +426,6 @@ fn threshold_query_new_applies_production_safe_defaults() {
     );
 
     assert_eq!(query.components, ComponentMask::ALL);
-    assert_eq!(query.sample_step, ThresholdQuery::DEFAULT_SAMPLE_STEP);
     assert_eq!(
         query.sun_altitude_ceiling,
         Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING)
@@ -502,7 +490,6 @@ fn threshold_query_fails_closed_on_selected_component_error() {
             BandPhotonRadiance::new(1.0e6),
         )
         .with_components(ComponentMask::ZODIACAL)
-        .with_sample_step(Second::new(600.0))
         .with_sun_altitude_ceiling(None)
         .with_target_altitude_floor(None),
     );

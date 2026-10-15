@@ -16,7 +16,6 @@ def planning_query(observer, direction):
         datetime(2023, 9, 4, 2, 0, tzinfo=timezone.utc),
         1.0e6,
         components=nsb.ComponentMask.ZODIACAL | nsb.ComponentMask.AIRGLOW,
-        sample_step_s=600.0,
         sun_altitude_ceiling_deg=None,
         target_altitude_floor_deg=None,
     )
@@ -70,7 +69,6 @@ def test_rust_heavy_planning_detaches_from_python(observer, direction, evaluator
         datetime(2023, 9, 5, 6, 0, tzinfo=timezone.utc),
         1.0e6,
         components=nsb.ComponentMask.AIRGLOW,
-        sample_step_s=60.0,
         sun_altitude_ceiling_deg=None,
         target_altitude_floor_deg=None,
     )

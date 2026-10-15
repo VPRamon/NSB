@@ -62,8 +62,6 @@ fn validated_external_starlight_is_labelled_in_window_json() {
             "22.0",
             "--max-nsb",
             "1000000",
-            "--step",
-            "3600",
             "--no-pre-filter",
             "--components",
             "starlight",

@@ -744,19 +744,16 @@ pub const nsb::SolarFluxUnit::SYMBOL: &'static str
 #[non_exhaustive] pub struct nsb::ThresholdQuery
 pub nsb::ThresholdQuery::components: nsb::ComponentMask
 pub nsb::ThresholdQuery::observer: nsb::Observer
-pub nsb::ThresholdQuery::sample_step: qtty::Second
 pub nsb::ThresholdQuery::sun_altitude_ceiling: core::option::Option<qtty_core::units::angular::Degrees>
 pub nsb::ThresholdQuery::target: nsb::Target
 pub nsb::ThresholdQuery::target_altitude_floor: core::option::Option<qtty_core::units::angular::Degrees>
 pub nsb::ThresholdQuery::threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
 pub nsb::ThresholdQuery::window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>
 impl nsb::ThresholdQuery
-pub const nsb::ThresholdQuery::DEFAULT_SAMPLE_STEP: qtty::Second
 pub const nsb::ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING: qtty_core::units::angular::Degrees
 pub const nsb::ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR: qtty_core::units::angular::Degrees
 pub fn nsb::ThresholdQuery::new(observer: nsb::Observer, target: nsb::Target, window: tempoch_core::period::Period<tempoch_core::model::scale::UTC>, threshold: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian) -> Self
 pub fn nsb::ThresholdQuery::with_components(self, components: nsb::ComponentMask) -> Self
-pub fn nsb::ThresholdQuery::with_sample_step(self, sample_step: qtty::Second) -> Self
 pub fn nsb::ThresholdQuery::with_sun_altitude_ceiling(self, sun_altitude_ceiling: core::option::Option<qtty_core::units::angular::Degrees>) -> Self
 pub fn nsb::ThresholdQuery::with_target_altitude_floor(self, target_altitude_floor: core::option::Option<qtty_core::units::angular::Degrees>) -> Self
 #[non_exhaustive] pub struct nsb::ThresholdQueryResult

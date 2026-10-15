@@ -160,15 +160,13 @@ Active Zodiacal, Airglow and either Moon model lack validated temporal envelopes
 and return `Unsupported`; sampling never substitutes for proof. No second
 certificate search engine is maintained.
 
-## Public compatibility
+## Public search interfaces
 
-The maintainer authorized the default behavior change within NSB 0.1. Frozen
-signatures remain intact: `sample_step`, its builder, CLI `--step`, and explicit
-adaptive aliases are retained for source/command compatibility. Step values do
-not control discovery. Python retains its legacy finite-positive constructor
-validation. CLI `--adaptive` remains a compatibility alias for normal behavior.
-Applications should use normal threshold methods. Removing these inputs requires
-an explicit future API migration; API checks remain enabled. Strict certified
-methods remain distinct because their guarantee differs from empirical search.
+Normal threshold methods and the explicit adaptive methods use the same search.
+The first-release API has no sampling-step parameter; adaptive resolution is
+selected internally. CLI `window` uses adaptive discovery by default. Strict
+certified methods and CLI `--certified` remain distinct because their guarantee
+differs from empirical search. The public API freeze records this reviewed
+pre-release cleanup; subsequent breaking changes still fail the SemVer gate.
 
 See [scientific validation](adaptive-validation.md) for evidence and reproduction.

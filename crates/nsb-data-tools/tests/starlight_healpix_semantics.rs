@@ -2,8 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use nsb_data_tools::starlight::healpix::{
     gaia_source_id_equatorial_nested_pixel, galactic_nested_pixel_from_icrs_position,
-    galactic_nested_to_ring, legacy_equatorial_bitshift_mislabelled_as_galactic_pixel,
-    IcrsSkyPosition,
+    galactic_nested_to_ring, IcrsSkyPosition,
 };
 
 const NSIDE: u32 = 128;
@@ -65,10 +64,7 @@ fn gaia_source_id_equatorial_and_galactic_pixels_are_not_interchangeable() {
     let position = IcrsSkyPosition::new(123.45, -12.34).unwrap();
     let galactic =
         galactic_nested_pixel_from_icrs_position(position.ra_deg, position.dec_deg, NSIDE).unwrap();
-    let encoded_equatorial =
-        legacy_equatorial_bitshift_mislabelled_as_galactic_pixel(source_id, NSIDE).unwrap();
     assert_ne!(equatorial, galactic);
-    assert_ne!(encoded_equatorial, galactic);
 }
 
 #[test]

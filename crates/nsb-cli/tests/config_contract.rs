@@ -11,7 +11,7 @@ fn config_init_contract_is_stable() {
         .success()
         .stdout(predicate::str::contains("site = \"CTAO-S\""))
         .stdout(predicate::str::contains("starlight = false"))
-        .stdout(predicate::str::contains("sample_step_seconds = 600.0"));
+        .stdout(predicate::str::contains("sun_altitude_max_deg = -18.0"));
 }
 
 #[test]
@@ -58,4 +58,23 @@ fn config_validate_rejects_missing_file() {
         .assert()
         .failure()
         .stderr(predicate::str::contains("failed to read config file"));
+}
+
+#[test]
+fn config_validate_rejects_removed_sampling_constraint() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("legacy.toml");
+    std::fs::write(
+        &path,
+        "[constraints]\nsun_altitude_max_deg = -18.0\ntarget_altitude_min_deg = 0.0\nsample_step_seconds = 600.0\n",
+    )
+    .unwrap();
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["config", "validate", path.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "unknown field `sample_step_seconds`",
+        ));
 }

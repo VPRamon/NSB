@@ -25,11 +25,12 @@ The normal `periods_below_threshold` and context variant now provide
 step-free adaptive discovery with the complete physical models, exact radiance validation,
 and a documented empirical model-resolution contract. They do not claim
 continuous-time certification. Python exposes the same behavior; CLI `window` uses it by default.
-The explicit adaptive methods and `--adaptive` remain compatibility aliases. Resource/numerical failures return an error
-without a partial schedule. The public `sample_step` field/builders and CLI `--step` remain accepted but
-no longer control discovery. The old scanner is test-only. This is an explicitly
-authorized behavioral migration in the 0.1 line; signature snapshots and
-historical SemVer checks remain enforced. Inclusive band methods
+Explicit adaptive methods evaluate the same search. Resource/numerical failures
+return an error without a partial schedule. The independent scanner is test-only.
+The unused Rust/Python sampling parameters and redundant CLI flags have been
+removed before the first release. Snapshot and historical SemVer checks remain
+enforced, with the exact three Rust removals admitted only against the pinned
+pre-cleanup snapshot (see [API lifecycle](../../crates/nsb/api/README.md)). Inclusive band methods
 are additive; CLI minimum constraints use joint band discovery to avoid unsafe
 subtraction of independently contracted intervals.
 
