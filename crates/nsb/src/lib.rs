@@ -68,6 +68,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+mod band;
 /// Advanced component models used to construct or inspect individual contributors.
 pub mod components;
 /// Runtime scientific data and build-verified bundled metadata.
