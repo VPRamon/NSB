@@ -58,8 +58,7 @@ migration and the renewed authorization required before production admission.
 
 New candidate products remain outside the release registry unless they pass
 independent scientific validation, redistribution approval, and production
-admission. See the [release-candidate lifecycle](release-candidate/README.md)
-and [schema versioning policy](../../specifications/schema-versioning.md).
+admission. See the [release-candidate lifecycle](release-candidate/README.md).
 
 ## Inspection
 
