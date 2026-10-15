@@ -27,7 +27,7 @@ installed as stand-alone upstream files in the intended Rust/Python package.
   CK04 spectral template for a Hipparcos star. The source is not a pixel-by-pixel
   output catalogue. The builder does *not* merely copy rows into the map.
 - **SVO `Hipparcos/Hipparcos.Hp_bes` (Bessell 2000):**
-  `crates/nsb-data-tools/tools/build_starlight_bright_star_spectral_model.py` parses wavelength/
+  `scripts/build_starlight_bright_star_spectral_model.py` parses wavelength/
   throughput samples and constructs a locally pinned spectral calibration.
   `reconstruction.rs` uses that response and CALSPEC Vega to scale CK04
   templates from the Hp magnitude and integrates photon flux over 300–336 and
