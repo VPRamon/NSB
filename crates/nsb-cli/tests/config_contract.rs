@@ -59,3 +59,22 @@ fn config_validate_rejects_missing_file() {
         .failure()
         .stderr(predicate::str::contains("failed to read config file"));
 }
+
+#[test]
+fn config_validate_rejects_removed_sampling_constraint() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("legacy.toml");
+    std::fs::write(
+        &path,
+        "[constraints]\nsun_altitude_max_deg = -18.0\ntarget_altitude_min_deg = 0.0\nsample_step_seconds = 600.0\n",
+    )
+    .unwrap();
+    Command::cargo_bin("nsb")
+        .unwrap()
+        .args(["config", "validate", path.to_str().unwrap()])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "unknown field `sample_step_seconds`",
+        ));
+}

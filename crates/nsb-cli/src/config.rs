@@ -35,6 +35,7 @@ pub struct ComponentsConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConstraintsConfig {
     pub sun_altitude_max_deg: f64,
     pub target_altitude_min_deg: f64,

@@ -6,8 +6,8 @@ FIXTURE="$(mktemp -d)"
 trap 'rm -rf "$FIXTURE"' EXIT
 mkdir -p "$FIXTURE/scripts" "$FIXTURE/crates/nsb/api" "$FIXTURE/bin"
 cp "$ROOT/scripts/check-public-api.sh" "$FIXTURE/scripts/"
-cp "$ROOT/crates/nsb/api/public-api.txt" "$FIXTURE/generated"
 git -C "$ROOT" show e97f3672196b030b72002e4652bcb59d772bcad1:crates/nsb/api/public-api.txt > "$FIXTURE/crates/nsb/api/public-api.txt"
+grep -vE 'nsb::ThresholdQuery::(sample_step|DEFAULT_SAMPLE_STEP|with_sample_step)'   "$FIXTURE/crates/nsb/api/public-api.txt" > "$FIXTURE/generated"
 # The old baseline is an immutable test input, not the checkout snapshot.
 cd "$FIXTURE"
 git init -q
