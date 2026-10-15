@@ -44,6 +44,33 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Reject tag-push release when PyPI already contains this version
+        shell: python
+        run: |
+          import json
+          import os
+          from urllib.error import HTTPError
+          from urllib.request import urlopen
+
+          version = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          endpoint = f"https://pypi.org/pypi/nsb-py/{version}/json"
+          try:
+              with urlopen(endpoint, timeout=30) as response:
+                  uploads = json.load(response)["urls"]
+          except HTTPError as error:
+              if error.code != 404:
+                  raise
+              uploads = []
+
+          if uploads:
+              filenames = ", ".join(sorted(item["filename"] for item in uploads))
+              raise SystemExit(
+                  f"PyPI already contains nsb-py=={version}: {filenames}. "
+                  "Do not move or push the same release tag again. "
+                  "For a partially published release, run the manual "
+                  "'Release' workflow_dispatch recovery on main instead."
+              )
+
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install nightly rustdoc toolchain
@@ -526,17 +553,28 @@ jobs:
 
           wheels_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WHEELS_RUN" --jq .head_sha)"
           sdist_sha="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SDIST_RUN" --jq .head_sha)"
-          [[ "$sdist_sha" == "$(git rev-parse HEAD)" ]] || { echo "::error::The source run does not match the current tag"; exit 1; }
-          git merge-base --is-ancestor "$wheels_sha" "$sdist_sha" || { echo "::error::The original wheel commit is not an ancestor"; exit 1; }
+          current_tag_sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$wheels_sha" "$sdist_sha" || { echo "::error::The original wheel commit is not an ancestor of the repaired sdist"; exit 1; }
+          git merge-base --is-ancestor "$sdist_sha" "$current_tag_sha" || { echo "::error::The sdist run is not an ancestor of the current tag"; exit 1; }
 
-          # A repaired sdist is only safe to combine with already-published wheels
-          # when no library, data, or dependency-lock changes have occurred.
+          # The original wheels and repaired sdist can differ only in packaging
+          # metadata or CI; binaries, scientific assets, and dependencies must match.
           while IFS= read -r changed; do
             case "$changed" in
               .github/workflows/ci.yml|.github/workflows/publish.yml|pyproject.toml|scripts/check-pypi-sdist-license.py) ;;
               *) echo "::error::Runtime/source change since wheel publication: $changed"; exit 1 ;;
             esac
           done < <(git diff --name-only "$wheels_sha" "$sdist_sha")
+
+          # PR #253 added the manual recovery job after the already-validated
+          # sdist was built. A subsequent tag move must not force us to rebuild
+          # that sdist; allow only release workflow changes after that run.
+          while IFS= read -r changed; do
+            case "$changed" in
+              .github/workflows/publish.yml) ;;
+              *) echo "::error::Change after repaired sdist run: $changed"; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$sdist_sha" "$current_tag_sha")
 
       - name: Download original published wheels
         uses: actions/download-artifact@v4
