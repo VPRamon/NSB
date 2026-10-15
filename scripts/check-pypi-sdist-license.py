@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Vallés Puig, Ramon
 """Reject sdists whose PEP 639 License-File metadata PyPI would reject."""
 
 from email.parser import BytesParser
