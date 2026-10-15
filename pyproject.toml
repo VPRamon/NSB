@@ -31,7 +31,10 @@ features = ["python"]
 # Release wheels use --locked in CI. Cargo must prune the workspace lockfile
 # when maturin builds the library-only sdist; retained dependency pins are reused.
 
-# Notices accompany binary wheels as well as the Rust source distribution.
+# PEP 639 requires the root LICENSE declared in PKG-INFO to be inside the sdist.
+# Maturin does not automatically pull it in from outside crates/nsb.
+# Scientific-data notices accompany source and binary distributions.
 include = [
+    { path = "LICENSE", format = "sdist" },
     { path = "crates/nsb/THIRD_PARTY_NOTICES.md", format = ["sdist", "wheel"] },
 ]
