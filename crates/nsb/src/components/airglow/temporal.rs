@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
-use super::domain::{AirglowNightPhase, AirglowSeason};
+use super::domain::AirglowNightPhase;
 use crate::units::angular::Degrees;
 use chrono::{Datelike, Timelike};
 use siderust::bodies::Sun as SunBody;
@@ -27,27 +27,6 @@ pub(crate) struct AirglowPhasePeriod {
     pub(crate) period: TimePeriod<ModifiedJulianDate>,
     #[cfg_attr(not(debug_assertions), allow(dead_code))]
     pub(crate) phase: AirglowNightPhase,
-}
-
-/// Return the empirical Airglow season for the observer's local-solar month.
-///
-/// `FullYear` preserves the existing aggregate fallback when the UTC instant
-/// cannot be represented by `chrono`; normal month mappings always select one
-/// of the six named double-month seasons.
-#[allow(dead_code)]
-pub(crate) fn season(time: Time<UTC>, location: Geodetic<ECEF>) -> AirglowSeason {
-    let Some(dt) = observer_local_mean_solar_datetime(time, location) else {
-        return AirglowSeason::FullYear;
-    };
-    match dt.month() {
-        12 | 1 => AirglowSeason::DecJan,
-        2 | 3 => AirglowSeason::FebMar,
-        4 | 5 => AirglowSeason::AprMay,
-        6 | 7 => AirglowSeason::JunJul,
-        8 | 9 => AirglowSeason::AugSep,
-        10 | 11 => AirglowSeason::OctNov,
-        _ => AirglowSeason::FullYear,
-    }
 }
 
 /// PALACE month and one-hour local-mean-solar-time bin for the planning proxy.
@@ -425,27 +404,6 @@ mod tests {
                 end_error_seconds <= 1.0,
                 "solar end error {end_error_seconds}s"
             );
-        }
-    }
-
-    #[test]
-    fn season_maps_all_named_double_months() {
-        let location = equator();
-        for (month, expected) in [
-            (12, AirglowSeason::DecJan),
-            (1, AirglowSeason::DecJan),
-            (2, AirglowSeason::FebMar),
-            (3, AirglowSeason::FebMar),
-            (4, AirglowSeason::AprMay),
-            (5, AirglowSeason::AprMay),
-            (6, AirglowSeason::JunJul),
-            (7, AirglowSeason::JunJul),
-            (8, AirglowSeason::AugSep),
-            (9, AirglowSeason::AugSep),
-            (10, AirglowSeason::OctNov),
-            (11, AirglowSeason::OctNov),
-        ] {
-            assert_eq!(season(utc(2023, month, 15), location), expected);
         }
     }
 

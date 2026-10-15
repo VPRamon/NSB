@@ -8,7 +8,6 @@ use nsb::components::starlight::StarlightMap;
 use nsb::components::starlight::StarlightProvenance;
 use nsb::site::{AtmosphericConditions, SiteProfile, SiteProfileTag};
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use nsb::units::Second;
 use nsb::{
     ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
     ThresholdQuery, DEG,
@@ -351,7 +350,6 @@ fn bench_site_context_and_multi_target(c: &mut Criterion) {
                 seed.threshold,
             )
             .with_components(seed.components)
-            .with_sample_step(seed.sample_step)
             .with_sun_altitude_ceiling(seed.sun_altitude_ceiling)
             .with_target_altitude_floor(seed.target_altitude_floor)
         })
@@ -407,7 +405,6 @@ fn window_case(
             BandPhotonRadiance::new(threshold),
         )
         .with_components(components)
-        .with_sample_step(Second::new(600.0))
         .with_sun_altitude_ceiling(Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING))
         .with_target_altitude_floor(Some(siderust::qtty::Degrees::new(20.0))),
     }
@@ -424,7 +421,6 @@ fn smoke_test() {
         BandPhotonRadiance::new(0.21),
     )
     .with_components(ComponentMask::ALL)
-    .with_sample_step(Second::new(3_600.0))
     .with_sun_altitude_ceiling(Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING))
     .with_target_altitude_floor(Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR));
     evaluator

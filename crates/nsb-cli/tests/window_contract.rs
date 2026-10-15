@@ -25,8 +25,6 @@ fn window_json_v1_contains_audit_metadata() {
             "-29.00781",
             "--max-nsb",
             "1000000",
-            "--step",
-            "3600",
             "--no-pre-filter",
         ])
         .assert()
@@ -162,8 +160,6 @@ fn window_min_nsb_band_excludes_periods_below_minimum() {
             "1000000",
             "--components",
             "zodiacal,airglow",
-            "--step",
-            "3600",
             "--no-pre-filter",
         ])
         .assert()
@@ -201,8 +197,6 @@ fn window_min_nsb_band_excludes_periods_below_minimum() {
             "1000000",
             "--components",
             "zodiacal,airglow",
-            "--step",
-            "3600",
             "--no-pre-filter",
         ])
         .assert()
@@ -309,7 +303,7 @@ fn certified_window_returns_a_complete_constant_sum_without_a_step() {
 }
 
 #[test]
-fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_modes() {
+fn adaptive_window_supports_active_models_and_rejects_removed_options() {
     let base = [
         "--format",
         "json",
@@ -343,18 +337,6 @@ fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_m
         let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
         let periods = value["periods"].as_array().unwrap();
         assert_eq!(periods.len(), 1);
-        let alias_output = Command::cargo_bin("nsb")
-            .unwrap()
-            .args(base)
-            .args(["--moonlight-model", moon, "--adaptive", "--step", "600"])
-            .assert()
-            .success()
-            .get_output()
-            .stdout
-            .clone();
-        let alias: serde_json::Value = serde_json::from_slice(&alias_output).unwrap();
-        assert_eq!(alias["periods"], value["periods"]);
-
         let start = chrono::DateTime::parse_from_rfc3339(periods[0]["start_utc"].as_str().unwrap())
             .unwrap();
         let end =
@@ -362,19 +344,16 @@ fn adaptive_window_supports_active_models_without_step_and_rejects_conflicting_m
         assert!(start >= chrono::DateTime::parse_from_rfc3339(base[4]).unwrap());
         assert!(end <= chrono::DateTime::parse_from_rfc3339(base[6]).unwrap());
     }
-    Command::cargo_bin("nsb")
-        .unwrap()
-        .args(base)
-        .args(["--step", "600"])
-        .assert()
-        .success();
-    Command::cargo_bin("nsb")
-        .unwrap()
-        .args(base)
-        .args(["--adaptive", "--certified"])
-        .assert()
-        .failure()
-        .stdout(predicate::str::is_empty());
+    for removed in ["--step", "--adaptive"] {
+        Command::cargo_bin("nsb")
+            .unwrap()
+            .args(base)
+            .arg(removed)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains("unexpected argument"))
+            .stdout(predicate::str::is_empty());
+    }
 }
 
 #[test]
@@ -409,55 +388,50 @@ fn joint_band_cli_millisecond_boundaries_satisfy_both_constraints() {
     values.sort_by(f64::total_cmp);
     let minimum = values[values.len() / 3];
     let maximum = values[values.len() * 2 / 3];
-    for adaptive in [false, true] {
-        let mut cmd = Command::cargo_bin("nsb").unwrap();
-        cmd.args([
-            "--format",
-            "json",
-            "window",
-            "--start",
-            "2023-09-04T00:00:00.000000999Z",
-            "--end",
-            "2023-09-04T06:00:00.000000999Z",
-            "--site",
-            "PARANAL",
-            "--ra",
-            "266.41683",
-            "--dec",
-            "-29.00781",
-            "--components",
-            "zodiacal,airglow",
-            "--no-pre-filter",
-            "--min-nsb",
-            &minimum.to_string(),
-            "--max-nsb",
-            &maximum.to_string(),
-        ]);
-        if adaptive {
-            cmd.arg("--adaptive");
-        }
-        let output = cmd.assert().success().get_output().stdout.clone();
-        let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
-        let periods = value["periods"].as_array().unwrap();
-        assert!(!periods.is_empty());
-        for period in periods {
-            let a = chrono::DateTime::parse_from_rfc3339(period["start_utc"].as_str().unwrap())
+    let mut cmd = Command::cargo_bin("nsb").unwrap();
+    cmd.args([
+        "--format",
+        "json",
+        "window",
+        "--start",
+        "2023-09-04T00:00:00.000000999Z",
+        "--end",
+        "2023-09-04T06:00:00.000000999Z",
+        "--site",
+        "PARANAL",
+        "--ra",
+        "266.41683",
+        "--dec",
+        "-29.00781",
+        "--components",
+        "zodiacal,airglow",
+        "--no-pre-filter",
+        "--min-nsb",
+        &minimum.to_string(),
+        "--max-nsb",
+        &maximum.to_string(),
+    ]);
+    let output = cmd.assert().success().get_output().stdout.clone();
+    let value: serde_json::Value = serde_json::from_slice(&output).unwrap();
+    let periods = value["periods"].as_array().unwrap();
+    assert!(!periods.is_empty());
+    for period in periods {
+        let a = chrono::DateTime::parse_from_rfc3339(period["start_utc"].as_str().unwrap())
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        let b = chrono::DateTime::parse_from_rfc3339(period["end_utc"].as_str().unwrap())
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        for i in 0..=100 {
+            let time = Time::<UTC>::from_chrono(a + (b - a) * i / 100);
+            let y = evaluator
+                .evaluate(&PointQuery::new(observer, time, target).with_components(mask))
                 .unwrap()
-                .with_timezone(&chrono::Utc);
-            let b = chrono::DateTime::parse_from_rfc3339(period["end_utc"].as_str().unwrap())
-                .unwrap()
-                .with_timezone(&chrono::Utc);
-            for i in 0..=100 {
-                let time = Time::<UTC>::from_chrono(a + (b - a) * i / 100);
-                let y = evaluator
-                    .evaluate(&PointQuery::new(observer, time, target).with_components(mask))
-                    .unwrap()
-                    .integrated;
-                assert!(
-                    y >= Radiance::new(minimum) && y <= Radiance::new(maximum),
-                    "displayed band violates constraint: {y}"
-                );
-            }
+                .integrated;
+            assert!(
+                y >= Radiance::new(minimum) && y <= Radiance::new(maximum),
+                "displayed band violates constraint: {y}"
+            );
         }
     }
 }

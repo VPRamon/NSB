@@ -302,7 +302,7 @@ fn real_adaptive_all_masks_both_moon_models_match_fine_reference() {
 }
 
 #[test]
-fn adaptive_context_step_independence_and_parallel_determinism() {
+fn adaptive_context_and_parallel_determinism() {
     let evaluator = NsbEvaluator::new().unwrap();
     let q = query(ComponentMask::ALL.bits());
     let context = evaluator.prepare_site_window_context(&q).unwrap();
@@ -312,30 +312,27 @@ fn adaptive_context_step_independence_and_parallel_determinism() {
             .num_threads(threads)
             .build()
             .unwrap();
-        for step in [f64::NAN, 0.0, -1.0, 1.0, 1e8] {
-            let q = q.clone().with_sample_step(Seconds::new(step));
-            let actual = pool
-                .install(|| evaluator.periods_below_threshold_adaptive_with_context(&context, &q))
-                .unwrap();
-            assert_eq!(direct.periods, actual.periods);
-            assert_eq!(
-                evaluator.periods_below_threshold(&q).unwrap().periods,
-                direct.periods
-            );
-            assert_eq!(
-                evaluator
-                    .periods_below_threshold_with_context(&context, &q)
-                    .unwrap()
-                    .periods,
-                direct.periods
-            );
-        }
+        let actual = pool
+            .install(|| evaluator.periods_below_threshold_adaptive_with_context(&context, &q))
+            .unwrap();
+        assert_eq!(direct.periods, actual.periods);
+        assert_eq!(
+            evaluator.periods_below_threshold(&q).unwrap().periods,
+            direct.periods
+        );
+        assert_eq!(
+            evaluator
+                .periods_below_threshold_with_context(&context, &q)
+                .unwrap()
+                .periods,
+            direct.periods
+        );
     }
     let other = NsbEvaluator::new().unwrap();
     assert!(other
         .periods_below_threshold_adaptive_with_context(&context, &q)
         .is_err());
-    let empty = query(0).with_sample_step(Seconds::new(f64::NAN));
+    let empty = query(0);
     assert!(evaluator.periods_below_threshold_certified(&empty).is_ok());
 }
 

@@ -2,7 +2,6 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use crate::units::angular::Degrees;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use crate::units::Second;
 use pyo3::prelude::*;
 use siderust::coordinates::spherical::direction;
 use siderust::coordinates::transform::TransformFrame;
@@ -91,7 +90,6 @@ impl ThresholdQuery {
         threshold_photons_cm2_ns_sr,
         *,
         components=None,
-        sample_step_s=600.0,
         sun_altitude_ceiling_deg=Some(-18.0),
         target_altitude_floor_deg=Some(0.0)
     ))]
@@ -103,7 +101,6 @@ impl ThresholdQuery {
         end: &Bound<'_, PyAny>,
         threshold_photons_cm2_ns_sr: f64,
         components: Option<ComponentMask>,
-        sample_step_s: f64,
         sun_altitude_ceiling_deg: Option<f64>,
         target_altitude_floor_deg: Option<f64>,
     ) -> PyResult<Self> {
@@ -112,10 +109,6 @@ impl ThresholdQuery {
             return Err(invalid_input(
                 "threshold_photons_cm2_ns_sr must be non-negative",
             ));
-        }
-        finite("sample_step_s", sample_step_s)?;
-        if sample_step_s <= 0.0 {
-            return Err(invalid_input("sample_step_s must be positive"));
         }
         if let Some(value) = sun_altitude_ceiling_deg {
             finite("sun_altitude_ceiling_deg", value)?;
@@ -136,7 +129,6 @@ impl ThresholdQuery {
             window,
             BandPhotonRadiance::new(threshold_photons_cm2_ns_sr),
         )
-        .with_sample_step(Second::new(sample_step_s))
         .with_sun_altitude_ceiling(sun_altitude_ceiling_deg.map(Degrees::new))
         .with_target_altitude_floor(target_altitude_floor_deg.map(Degrees::new));
         if let Some(components) = components {
@@ -175,11 +167,6 @@ impl ThresholdQuery {
     #[getter(components)]
     fn py_components(&self) -> ComponentMask {
         self.components
-    }
-
-    #[getter(sample_step_s)]
-    fn py_sample_step_s(&self) -> f64 {
-        self.sample_step.value()
     }
 
     #[getter(sun_altitude_ceiling_deg)]

@@ -180,8 +180,7 @@ cargo run --locked -p nsb-cli -- \
 Window search uses physics-partitioned adaptive discovery by default, with
 exact NSB evaluations and accepted-side crossing brackets of at most 0.1 seconds.
 It has an empirically validated model-resolution contract, not a continuous
-completeness certificate. `--step` is retained as an ignored compatibility option;
-`--adaptive` is an alias for the default. `--certified` requires rigorous interval
+completeness certificate. `--certified` requires rigorous interval
 bounds and currently rejects active dynamic components.
 
 See [Getting started](docs/user-guide/getting-started.md) for CLI options,

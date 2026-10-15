@@ -215,17 +215,9 @@ pub struct WindowArgs {
     #[arg(long, default_value_t = 0.0, allow_hyphen_values = true)]
     pub target_altitude_min: f64,
 
-    /// Compatibility argument retained for 0.1 callers; adaptive search ignores it.
-    #[arg(long, default_value_t = 600.0)]
-    pub step: f64,
-
     /// Require complete interval certificates; fail on unsupported dynamic components or uncertainty.
     #[arg(long)]
     pub certified: bool,
-
-    /// Compatibility flag: step-free adaptive discovery is already the default.
-    #[arg(long, conflicts_with = "certified")]
-    pub adaptive: bool,
 
     /// Disable Sun and target-altitude pre-filters.
     #[arg(long)]

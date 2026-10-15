@@ -4,7 +4,6 @@ use crate::components::airglow;
 use crate::evaluator::{ComponentMask, Observer, Target};
 use crate::units::angular::Degrees;
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use crate::units::Second;
 use siderust::time::{Interval as TimePeriod, ModifiedJulianDate};
 use std::sync::Arc;
 use tempoch::{Period, UTC};
@@ -31,9 +30,6 @@ pub struct ThresholdQuery {
     pub threshold: BandPhotonRadiance,
     /// Components to compose.
     pub components: ComponentMask,
-    /// Legacy sampling metadata retained for source compatibility.
-    /// All runtime searches are adaptive or certified and ignore this field.
-    pub sample_step: Second,
     /// Optional maximum Sun altitude pre-filter.
     pub sun_altitude_ceiling: Option<Degrees>,
     /// Optional minimum target altitude pre-filter.
@@ -41,8 +37,6 @@ pub struct ThresholdQuery {
 }
 
 impl ThresholdQuery {
-    /// Compatibility default for the unused legacy sampling field.
-    pub const DEFAULT_SAMPLE_STEP: Second = Second::new(600.0);
     /// Default astronomical-night Sun-altitude ceiling.
     pub const DEFAULT_SUN_ALTITUDE_CEILING: Degrees = Degrees::new(-18.0);
     /// Default target-above-horizon altitude floor.
@@ -61,7 +55,6 @@ impl ThresholdQuery {
             window,
             threshold,
             components: ComponentMask::ALL,
-            sample_step: Self::DEFAULT_SAMPLE_STEP,
             sun_altitude_ceiling: Some(Self::DEFAULT_SUN_ALTITUDE_CEILING),
             target_altitude_floor: Some(Self::DEFAULT_TARGET_ALTITUDE_FLOOR),
         }
@@ -70,12 +63,6 @@ impl ThresholdQuery {
     /// Restrict or expand the composed contributors.
     pub fn with_components(mut self, components: ComponentMask) -> Self {
         self.components = components;
-        self
-    }
-
-    /// Retain legacy sampling metadata; this does not control runtime discovery.
-    pub fn with_sample_step(mut self, sample_step: Second) -> Self {
-        self.sample_step = sample_step;
         self
     }
 
@@ -96,7 +83,7 @@ impl ThresholdQuery {
 ///
 /// Create this with [`NsbEvaluator::prepare_site_window_context`](crate::NsbEvaluator::prepare_site_window_context)
 /// and reuse it for queries that differ only in target, target-altitude floor,
-/// radiance threshold, or sampling step. The planning layer rejects contexts created
+/// or radiance threshold. The planning layer rejects contexts created
 /// by another evaluator or for incompatible site/window/component settings.
 /// Recreate the context after refreshing Tempoch time data. The active time-data
 /// bundle must remain fixed during a query; observed changes fail explicitly.

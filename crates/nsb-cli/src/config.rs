@@ -38,7 +38,6 @@ pub struct ComponentsConfig {
 pub struct ConstraintsConfig {
     pub sun_altitude_max_deg: f64,
     pub target_altitude_min_deg: f64,
-    pub sample_step_seconds: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,7 +73,6 @@ impl Default for CliConfig {
             constraints: Some(ConstraintsConfig {
                 sun_altitude_max_deg: -18.0,
                 target_altitude_min_deg: 0.0,
-                sample_step_seconds: 600.0,
             }),
             nsb: Some(NsbBoundsConfig {
                 min_ph_cm2_ns_sr: None,

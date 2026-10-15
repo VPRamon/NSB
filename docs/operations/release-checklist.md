@@ -35,44 +35,28 @@ scientific calibration evidence.
 - [ ] Format, check, Clippy, unit tests, integration tests, doctests, docs, release build, MSRV, `cargo deny`, all canonical examples, and the aggregate `CI success` gate pass.
 - [ ] Coverage gates in [`coverage-policy.toml`](../../coverage-policy.toml) pass on `main`: workspace and `nsb` line floors are blocking (LCOV line data; fail-closed if `nsb` is missing), and the HTML/JSON/LCOV artifacts remain available. Do not lower a floor merely to make a PR pass. See [Coverage policy](../developer-guide/coverage.md).
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
-- [ ] Scheduled/manual benchmarks compile and performance changes are summarized.
+- [ ] Manual benchmarks compile and performance changes are summarized.
 - [ ] `CHANGELOG.md` and version constants are updated.
 - [ ] Review the first-release v1 schemas and regenerated hashes using existing checks; confirm the recorded checksum-specific Starlight v1 authorization and current hosted CI evidence (see [reset record](../nsb_components/starlight/release-candidate/schema-reset-v1.md)).
 - [ ] The first-release API freeze is active: `crates/nsb/api/API_FROZEN` exists, `crates/nsb/api/public-api.txt` is current, and `scripts/check-public-api.sh` passes. Do not tag a public release while the API gate reports pre-freeze mode.
 - [ ] The release tag is exactly `v<crates/nsb/Cargo.toml version>`; tagged releases build all Python wheels and the sdist before publishing.
 - [ ] `CARGO_REGISTRY_TOKEN` is configured for crates.io and the `pypi` GitHub environment is configured for PyPI Trusted Publishing/OIDC.
 - [ ] The tag-triggered release workflow publishes `nsb` to crates.io and `nsb-rust` to PyPI from the same commit.
-- [ ] PR body lists fully resolved issues and issues left open with evidence-based reasons.
 - [ ] Release tag is created only after all blocking boxes are satisfied.
 
-## Starlight production preparation — 2026-10-14
+## Partial publication recovery
 
-Historical results below concern the original approved hashes. The v1 schema
-reset preserves the runtime configuration and makes the active decision pending;
-repeat approval, promotion and four-component package checks before release.
-
-
-- [x] Actual maintainer decision is `approved_with_conditions`, with authenticated
-  `VPRamon` identity and explicit acceptance recorded at `2026-10-14T19:50:19Z`.
-  See the [original decision](../nsb_components/starlight/release-candidate/approval-history/pre-v1-reset/release-candidate/redistribution-review-decision-v1.json)
-  and [accepted findings](../nsb_components/starlight/licensing/derived-map-rights-assessment-v1.md#13-explicit-project-authorization-and-accepted-findings).
-- [x] Promote the exact approved compact binary and v1 sidecar; register both as
-  production and embedded. Preserve the frozen candidate, radiances, uncertainties
-  and source terms. The immutable approval snapshot remains unchanged.
-- [x] Push the approved pair to PR #238, then record actual Git publication in
-  the current inventory without repinning the decision or review bundle.
-- [x] Actual Rust production evaluation requires all four default components,
-  positive Starlight and an exact component sum.
-- [x] Test the installed production wheel and sdist-built wheel outside the source
-  checkout, including Rust/Python parity and unconditional four-component defaults.
-  Each passes 78 tests; both contain the exact approved embedded map and notices.
-- [x] Cargo package and publish dry-run succeed below the 10 MiB crate limit.
-- [ ] Review the final PR #238 hosted acceptance gates before merge/tag. Validation
-  results, package sizes and exact revision are recorded in the PR description.
-- [ ] Obtain the maintainer's separate final merge/tag/registry-publication
-  authorization. This preparation does not create a tag or upload to registries.
-
-The explicit v2 documentary amendment corrects obsolete preapproval notice and
-registry text while preserving the accepted v1 evidence unchanged. Production
-authority is the canonical scoped decision and two admitted production entries;
-the active v2 baseline is pinned before its current inventory is verified. Existing source and model maturity limitations still apply.
+Do not retag or change scientific approval identities after a partial upload.
+Inspect the failed job and the actual registry versions and checksums first.
+`publish-changed.sh` skips a crates.io version already present; this is only an
+idempotency check and does not attest that its bytes match the tagged artifact.
+For a crates.io success followed by a PyPI failure, rerun failed jobs using the
+original verified wheel/sdist artifacts. If PyPI accepted only some files,
+reconcile each accepted filename and digest before uploading the missing files;
+the workflow deliberately does not silently skip conflicting existing files.
+The final inventory job runs only after both registries succeed. Retain its
+`publication-inventory` artifact and commit the verified current inventory in a
+follow-up change without modifying the immutable approval inventory or bundle.
+Registry credentials, OIDC configuration, final authorization and renewed
+checksum-bound external scientific evidence require maintainer action before
+release. No checklist completion alone authorizes publication.

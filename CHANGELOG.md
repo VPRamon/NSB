@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to published NSB releases are recorded here.
+Changes for the upcoming first public NSB release are recorded here.
 
-## Unreleased
+## 0.1.0 — Unreleased
 
 ### Changed
 
@@ -20,9 +20,9 @@ All notable changes to published NSB releases are recorded here.
   precise test scanner that does not expand isolated endpoints into intervals.
 
 - Make adaptive discovery the normal Rust/Python/CLI threshold search in the
-  0.1 line under explicit maintainer authorization. Retain public step fields,
-  builders and CLI arguments as ignored compatibility inputs; explicit adaptive
-  names remain aliases. Move the scanner and prior certificate-subdivision
+  first release. Remove ignored Rust sampling fields/builders, Python sampling
+  parameters and CLI step/adaptive flags; explicit adaptive methods remain
+  available. Move the scanner and prior certificate-subdivision
   implementation to independent test-only references.
 
 - Upgrade to registry Siderust 0.14, Tempoch 0.10, Principia 0.6 and Python
@@ -38,10 +38,6 @@ All notable changes to published NSB releases are recorded here.
   regressions, complete schedule benchmarks and compatible installed-wheel tests.
 - Refresh Paranal Zodiacal and Airglow numerical baselines for the upgraded
   time/geometry dependencies, retaining existing regression tolerances.
-
-## 0.1.0 - 2026-10-07
-
-First public NSB release.
 
 ### Added
 
@@ -65,11 +61,13 @@ First public NSB release.
   separate HO2, FeO-like, unresolved O2, month, local-time, solar-activity, and
   residual-variability semantics.
 - Scientifically reviewed Starlight candidate workflow with checksum-pinned
-  technical validation and fail-closed production admission. Candidate/runtime
-  bytes are not redistributed or activated by the 0.1.0 package.
+  technical validation and fail-closed production admission. The exact
+  conditionally approved compact map and provenance sidecar are bundled for
+  offline four-component defaults, subject to source-specific data terms.
+  Repository-only candidate CSVs and reports are excluded from packages.
 - Versioned scientific-asset manifests, checksum/header verification,
   independent scientific fixtures, end-to-end tests, coverage policy,
-  scheduled/manual benchmarks, and public API snapshot tooling.
+  manual benchmarks, and public API snapshot tooling.
 - Tag-driven release workflow for `vMAJOR.MINOR.PATCH` that validates package
   metadata, builds Python wheels and an sdist, publishes `nsb` to crates.io,
   and publishes `nsb-rust` to PyPI using Trusted Publishing/OIDC.

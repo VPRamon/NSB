@@ -80,8 +80,7 @@ cargo run --locked -p nsb-cli -- \
 ```
 
 Window search uses adaptive discovery by default, with exact physical radiance
-probes and inward crossing brackets. `--step` is an ignored compatibility option;
-`--adaptive` is an optional alias for the default. Empirical model-resolution
+probes and inward crossing brackets. Empirical model-resolution
 assumptions apply; this is not continuous interval certification.
 Use `--no-pre-filter` only when the Sun and target-altitude filters must be
 disabled explicitly.

@@ -7,7 +7,6 @@ use crate::parsing::{components, location, radiance, target, time};
 use anyhow::Result;
 use log::{debug, info};
 use nsb::units::angular::Degrees;
-use nsb::units::Second;
 use nsb::{NsbEvaluator, ThresholdQuery};
 use std::time::Instant;
 use tempoch::Period;
@@ -15,12 +14,11 @@ use tempoch::Period;
 pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     let started = Instant::now();
     info!(
-        "starting threshold window search: start={}, end={}, min_nsb={:?}, max_nsb={}, step_seconds={}, components={}, format={format:?}",
+        "starting threshold window search: start={}, end={}, min_nsb={:?}, max_nsb={}, components={}, format={format:?}",
         args.start,
         args.end,
         args.min_nsb,
         args.max_nsb,
-        args.step,
         args.model.components
     );
 
@@ -62,7 +60,6 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
 
     let base_query = ThresholdQuery::new(observer, target, Period::new(start, end), max)
         .with_components(components)
-        .with_sample_step(Second::new(args.step))
         .with_sun_altitude_ceiling(sun_altitude_ceiling)
         .with_target_altitude_floor(target_altitude_floor);
 
@@ -86,9 +83,6 @@ pub fn run(args: WindowArgs, format: OutputFormat) -> Result<()> {
     };
     // All usable search contracts export inward at displayed precision.
     let periods = time::inward_periods(periods)?;
-    if args.adaptive {
-        log::trace!("adaptive compatibility flag: discovery is already the default");
-    }
     let descriptions = evaluator.describe_components(observer, components)?;
     info!(
         "completed threshold window search: period_count={}, elapsed_ms={}",

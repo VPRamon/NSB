@@ -14,7 +14,6 @@ use common::starlight_test_provenance;
 use chrono::{DateTime, Duration, Utc};
 use nsb::components::starlight::StarlightMap;
 use nsb::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance;
-use nsb::units::Second;
 use nsb::{
     ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery, StarlightProduct, Target,
     ThresholdQuery, DEG,
@@ -275,7 +274,6 @@ fn threshold_windows_match_independent_sampled_curve() {
         .periods_below_threshold(
             &ThresholdQuery::new(observer, target, Period::new(start, end), threshold)
                 .with_components(ComponentMask::AIRGLOW)
-                .with_sample_step(Second::new(3_600.0))
                 .with_sun_altitude_ceiling(None)
                 .with_target_altitude_floor(None),
         )
@@ -318,7 +316,6 @@ fn unrestrictive_threshold_windows_match_independent_observability_intervals() {
         BandPhotonRadiance::new(1.0e12),
     )
     .with_components(ComponentMask::AIRGLOW)
-    .with_sample_step(ThresholdQuery::DEFAULT_SAMPLE_STEP)
     .with_sun_altitude_ceiling(Some(ThresholdQuery::DEFAULT_SUN_ALTITUDE_CEILING))
     .with_target_altitude_floor(Some(ThresholdQuery::DEFAULT_TARGET_ALTITUDE_FLOOR));
 

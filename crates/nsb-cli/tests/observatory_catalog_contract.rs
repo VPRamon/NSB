@@ -292,8 +292,6 @@ fn point_and_window_accept_composed_site_aliases() {
             "10",
             "--components",
             "zodiacal",
-            "--step",
-            "1800",
             "--no-pre-filter",
         ])
         .assert()

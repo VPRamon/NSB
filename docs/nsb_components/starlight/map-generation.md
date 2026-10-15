@@ -54,24 +54,11 @@ A checksum-pinned `candidate-v1` is packed to RING with the
 `schema_version = 1`. The lossless compact representation uses
 `nsb-healpix-starlight-binary-v1` with the same v1 provenance contract.
 See the [reset record](release-candidate/schema-reset-v1.md) for the checksum
-migration and the renewed authorization required before production admission.
+migration and the exact renewed conditional authorization.
 
 New candidate products remain outside the release registry unless they pass
 independent scientific validation, redistribution approval, and production
 admission. See the [release-candidate lifecycle](release-candidate/README.md).
-
-## Inspection
-
-A generated map can be visualized with the Rust example by supplying its path
-explicitly:
-
-```bash
-cargo run --release --locked -p nsb --example starlight_heatmap -- \
-  --map /path/to/starlight_nside128.csv \
-  --output starlight_heatmap.png
-```
-
-The example validates the map contract before plotting.
 
 Operational recovery and cluster execution are documented in the
 [dataset maintainer guide](../../maintainer-guide/datasets.md).

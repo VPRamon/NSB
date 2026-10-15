@@ -73,7 +73,7 @@ generate() {
 reject_forbidden_public_api() {
   local api_file="$1"
   local pattern
-  pattern='WindowSearchDiagnostics|periods_below_threshold_diagnosed|prepare_and_search_diagnosed|StarlightProvenance::test_fixture|StarlightMap::pixel_lon_lat_deg|MagnitudesPerAirmass|SolarSpectralIrradiance|pub struct Starlight \{|pub struct StarlightOutputs \{|pub struct ZodiacalLight|pub struct ZodiacalOutputs|SiteCalibrationAsset|CalibratedSiteId|AirglowCalibrationEvidence|pub mod atmosphere|nsb::error::|GlobalClimatology|TEMPORARY_AUTOMATIC_FALLBACK_REASON|PHYSICAL_ZERO_OUTSIDE_ASTRONOMICAL_NIGHT|AirglowSelectionReport|SiteCalibrationStatus'
+  pattern='WindowSearchDiagnostics|periods_below_threshold_diagnosed|prepare_and_search_diagnosed|StarlightProvenance::test_fixture|StarlightMap::pixel_lon_lat_deg|MagnitudesPerAirmass|SolarSpectralIrradiance|pub struct Starlight \{|pub struct StarlightOutputs \{|pub struct ZodiacalLight|pub struct ZodiacalOutputs|SiteCalibrationAsset|CalibratedSiteId|AirglowCalibrationEvidence|pub mod atmosphere|nsb::error::|GlobalClimatology|TEMPORARY_AUTOMATIC_FALLBACK_REASON|PHYSICAL_ZERO_OUTSIDE_ASTRONOMICAL_NIGHT|AirglowSelectionReport|SiteCalibrationStatus|ThresholdQuery::sample_step|ThresholdQuery::DEFAULT_SAMPLE_STEP|ThresholdQuery::with_sample_step'
   if grep -E "$pattern" "$api_file" >/dev/null; then
     echo "forbidden public API detected:" >&2
     grep -nE "$pattern" "$api_file" >&2 || true
@@ -140,6 +140,18 @@ fi
 if ! git cat-file -e "${BASE_SHA}:${SNAPSHOT}" 2>/dev/null; then
   echo "frozen base $BASE_SHA lacks $SNAPSHOT" >&2
   exit 1
+fi
+
+# Authorized pre-0.1.0 cleanup: admit only the exact reviewed snapshot pair.
+# These hashes differ solely by ThresholdQuery's three ignored sampling APIs.
+# Snapshot equality and historical-base validation above still apply. Every
+# other pair (including later removals) goes through the normal SemVer check.
+base_snapshot_sha="$(git show "${BASE_SHA}:${SNAPSHOT}" | sha256sum | cut -d' ' -f1)"
+head_snapshot_sha="$(sha256sum "$GENERATED" | cut -d' ' -f1)"
+if [[ "$base_snapshot_sha" == "7c472ac6b5d26835bde12fa7ebdcf630ab5131b38a157ff1e039b4ca53ef03e7" &&
+      "$head_snapshot_sha" == "277b6605a13583e3685899209fc04825dbf09fb05f1989bd89ad3ffe8ea17c47" ]]; then
+  echo "public API policy: frozen (exact pre-release sampling API rebaseline)"
+  exit 0
 fi
 
 echo "SemVer gate: cargo public-api diff ${BASE_SHA}..HEAD --deny=removed --deny=changed"

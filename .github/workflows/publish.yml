@@ -128,6 +128,11 @@ jobs:
                   assert artifact["lifecycle"] == "published" and "git_repository" in artifact["channels"], "record actual Git publication before tagging"
           PYCODE
 
+      - name: Verify scientific assets and regression matrices before publication
+        run: |
+          cargo test --workspace --all-targets --locked
+          cargo test --workspace --doc --all-features --locked
+
       - name: Verify crates.io package
         shell: bash
         run: |

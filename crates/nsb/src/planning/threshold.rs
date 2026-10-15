@@ -120,7 +120,7 @@ impl NsbEvaluator {
     /// This is an empirically validated discovery contract, NOT a continuous
     /// completeness certificate. Arbitrarily hidden sub-node excursions remain
     /// possible. Resource/numerical failures return an error, never a partial
-    /// schedule. `sample_step` is ignored, including its legacy validation.
+    /// schedule. Discovery uses adaptive physical-model resolution.
     /// Normal threshold methods use this same engine.
     pub fn periods_below_threshold_adaptive(
         &self,
@@ -210,7 +210,7 @@ impl NsbEvaluator {
 
     /// Return a complete, interval-certified schedule or an explicit error.
     ///
-    /// This method never uses `sample_step` or a scan fallback for discovery.
+    /// This method never uses a scan fallback for discovery.
     /// Currently certificates cover cached Starlight, the empty sum, and Moon
     /// skipped outside the prepared visibility set (conditional on Siderust's
     /// events). Active Zodiacal, Airglow and either active Moonlight model lack
