@@ -175,6 +175,7 @@ jobs:
           shutil.copytree("docs/nsb_components/starlight", root / "docs/nsb_components/starlight")
           shutil.copy2("Cargo.lock", root / "Cargo.lock")
           shutil.copy2("pyproject.toml", root / "pyproject.toml")
+          shutil.copy2("LICENSE", root / "LICENSE")
           (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/nsb"]\nresolver = "2"\n')
           # Explicit synthetic authorization exists only in this isolated test
           # repository. Neither it nor its payload is a published release.
@@ -261,6 +262,7 @@ jobs:
           python -m pytest -q
           cd "$fixture"
           python -m maturin sdist --manifest-path "$fixture/crates/nsb/Cargo.toml" --out "$fixture/sdist"
+          python "$GITHUB_WORKSPACE/scripts/check-pypi-sdist-license.py" "$fixture"/sdist/*.tar.gz
           python - <<'PYCODE'
           import tarfile
           from pathlib import Path
