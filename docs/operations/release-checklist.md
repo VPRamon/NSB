@@ -36,7 +36,7 @@ scientific calibration evidence.
 - [ ] Coverage gates in [`coverage-policy.toml`](../../coverage-policy.toml) pass on `main`: workspace and `nsb` line floors are blocking (LCOV line data; fail-closed if `nsb` is missing), and the HTML/JSON/LCOV artifacts remain available. Do not lower a floor merely to make a PR pass. See [Coverage policy](../developer-guide/coverage.md).
 - [ ] Binary distribution plan satisfies AGPL dependency obligations and asset licenses.
 - [ ] Manual benchmarks compile and performance changes are summarized.
-- [ ] `CHANGELOG.md` and version constants are updated.
+- [ ] `CHANGELOG.md` and version constants are updated; `python3 scripts/check-release-metadata.py --tag v0.1.0` passes on the exact tagged commit.
 - [ ] Review the first-release v1 schemas and regenerated hashes using existing checks; confirm the recorded checksum-specific Starlight v1 authorization and current hosted CI evidence (see [reset record](../nsb_components/starlight/release-candidate/schema-reset-v1.md)).
 - [ ] The first-release API freeze is active: `crates/nsb/api/API_FROZEN` exists, `crates/nsb/api/public-api.txt` is current, and `scripts/check-public-api.sh` passes. Do not tag a public release while the API gate reports pre-freeze mode.
 - [ ] The release tag is exactly `v<crates/nsb/Cargo.toml version>`; tagged releases build all Python wheels and the sdist before publishing.
@@ -44,6 +44,43 @@ scientific calibration evidence.
 - [ ] The tag-triggered release workflow publishes `nsb` to crates.io and `nsb-rust` to PyPI from the same commit.
 - [ ] Release tag is created only after all blocking boxes are satisfied.
 
+## Tagging the first public release
+
+Run these steps **only after this preparation PR is merged** and the exact
+release commit has green CI and any required scientific review. A tag on the
+unmerged PR branch or an older commit is not the approved release.
+
+1. Confirm a crates.io token with publish permission is stored as the GitHub
+   Actions secret `CARGO_REGISTRY_TOKEN`. For PyPI, configure the repository's
+   `pypi` environment and the `nsb-rust` Trusted Publisher for the
+   `.github/workflows/publish.yml` workflow. First-time PyPI publication may
+   require a pending publisher configured before the project exists.
+2. From a clean local checkout of the intended release commit, run:
+
+   ```bash
+   git fetch origin main --tags
+   git switch main
+   git pull --ff-only origin main
+   git status --short
+   python3 scripts/check-release-metadata.py --tag v0.1.0
+   git tag -a v0.1.0 -m 'NSB v0.1.0'
+   git push origin v0.1.0
+   ```
+
+3. Follow the [Release workflow](../../.github/workflows/publish.yml) in
+   GitHub Actions. Its tag validation, scientific tests, crate package/dry-run,
+   five platform wheels and sdist must all succeed **before** publishing.
+   The crate publishes first; PyPI receives the verified artifacts afterwards.
+4. Verify `nsb` version `0.1.0` on crates.io/docs.rs and `nsb-rust` version
+   `0.1.0` on PyPI. Retain the workflow's `publication-inventory` artifact,
+   reconcile the published scientific inventory, and optionally create the
+   GitHub Release from the existing tag (the workflow does not create one).
+
+Never replace an existing `v0.1.0` tag to retry a failed upload. Use the
+partial-publication recovery procedure below and inspect actual registry
+artifacts before any retry. Automation cannot verify the presence or validity
+of repository secrets, environment protection rules, Trusted Publisher
+registration, or the maintainer's final release authorization.
 ## Partial publication recovery
 
 Do not retag or change scientific approval identities after a partial upload.

@@ -27,6 +27,19 @@ jobs:
       - name: Verify SPDX headers
         run: bash scripts/check-license-headers.sh
 
+  release_metadata:
+    name: Release metadata preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Check Rust, Python, workspace versions and release inputs
+        run: python scripts/check-release-metadata.py
+
   format:
     name: Format
     runs-on: ubuntu-latest

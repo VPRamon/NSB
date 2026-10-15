@@ -26,6 +26,10 @@ engine from **Rust**, **Python**, or the **command line**.
 
 ## Install
 
+NSB's first public release is **`0.1.0`**. The registry installation commands
+below become available after the `v0.1.0` release workflow succeeds on both
+crates.io and PyPI; until then, use a source checkout.
+
 Choose the interface that fits your workflow:
 
 | Interface | Installation | Requirements |
@@ -33,6 +37,9 @@ Choose the interface that fits your workflow:
 | **Python** | `python -m pip install nsb-rust` | Python 3.10+ |
 | **Rust** | `cargo add nsb` | Rust 1.89+ |
 | **CLI** | Build from the repository (below) | Rust 1.89+ |
+
+For reproducible applications, pin the first release with
+`cargo add nsb@0.1.0` or `python -m pip install nsb-rust==0.1.0`.
 
 The PyPI **distribution** is `nsb-rust`, but its **import** is `nsb`.
 The crates.io **library** is `nsb`. The executable is also named `nsb`,
@@ -167,6 +174,17 @@ For scientific use, review [model maturity](docs/specifications/model-maturity.m
 | [Scientific model](docs/specifications/scientific-model.md) | Physical contributions and modeling assumptions |
 | [CLI output schemas](docs/specifications/cli-schemas.md) | Versioned JSON/CSV for automation |
 | [Documentation hub](docs/README.md) | Full user, developer and maintainer documentation |
+
+## Releases
+
+The source of truth for the version is
+[`crates/nsb/Cargo.toml`](crates/nsb/Cargo.toml); Maturin derives the Python
+package version from that same manifest. The
+[tag-triggered release workflow](.github/workflows/publish.yml) builds and
+checks the Rust crate, Python wheels and source distribution before uploading
+anything. Maintainers should follow the
+[release checklist](docs/operations/release-checklist.md) before pushing a tag.
+The CLI remains a source-installed workspace application in `0.1.0`.
 
 ## License and scientific data
 

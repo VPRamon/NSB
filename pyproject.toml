@@ -1,13 +1,19 @@
 [build-system]
-requires = ["maturin>=1.9,<2.0"]
+requires = ["maturin==1.15.0"]
 build-backend = "maturin"
 
 [project]
 name = "nsb-rust"
+# Inherit the authoritative 0.1.0 version and metadata from crates/nsb/Cargo.toml.
 dynamic = ["version", "description", "readme", "authors", "license", "keywords", "urls"]
 requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Astronomy",

@@ -47,35 +47,16 @@ jobs:
           base="$(git rev-parse "${GITHUB_SHA}^")"
           scripts/check-public-api.sh --base "$base"
 
-      - name: Verify tag, package metadata, and redistribution gates
+      - name: Verify release tag and cross-package metadata
+        run: python scripts/check-release-metadata.py --tag "$GITHUB_REF_NAME"
+
+      - name: Verify runtime-embedded asset redistribution terms
         shell: python
         run: |
-          import os
-          import re
           import tomllib
           from pathlib import Path
 
-          tag = os.environ["GITHUB_REF_NAME"]
-          if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
-              raise SystemExit(f"release tag must be vMAJOR.MINOR.PATCH, got {tag!r}")
-
-          cargo = tomllib.loads(Path("crates/nsb/Cargo.toml").read_text())
-          pyproject = tomllib.loads(Path("pyproject.toml").read_text())
           manifest = tomllib.loads(Path("crates/nsb/data/manifest.toml").read_text())
-
-          crate = cargo["package"]
-          version = crate["version"]
-          if crate["name"] != "nsb":
-              raise SystemExit(f"expected crates.io package 'nsb', got {crate['name']!r}")
-          if pyproject["project"]["name"] != "nsb-rust":
-              raise SystemExit(
-                  f"expected PyPI project 'nsb-rust', got {pyproject['project']['name']!r}"
-              )
-          if tag != f"v{version}":
-              raise SystemExit(
-                  f"tag {tag!r} does not match crates/nsb/Cargo.toml version v{version}"
-              )
-
           blocked = []
           for asset in manifest.get("assets", []):
               if not asset.get("runtime_embedded", False):
@@ -449,6 +430,38 @@ jobs:
 
       - name: Show release artifacts
         run: ls -lah dist
+
+      - name: Verify package versions in all release artifacts
+        shell: python
+        run: |
+          import os
+          from email.parser import BytesParser
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          expected = os.environ["GITHUB_REF_NAME"].removeprefix("v")
+          wheels = sorted(Path("dist").glob("*.whl"))
+          sdists = sorted(Path("dist").glob("*.tar.gz"))
+          if len(wheels) != 5 or len(sdists) != 1:
+              raise SystemExit(
+                  f"expected exactly five wheels and one sdist, got "
+                  f"{len(wheels)} wheels and {len(sdists)} sdists"
+              )
+          for wheel in wheels:
+              if not wheel.name.startswith(f"nsb_rust-{expected}-"):
+                  raise SystemExit(f"unexpected wheel filename: {wheel.name}")
+              with ZipFile(wheel) as archive:
+                  metadata_files = [
+                      name for name in archive.namelist()
+                      if name.endswith(".dist-info/METADATA")
+                  ]
+                  if len(metadata_files) != 1:
+                      raise SystemExit(f"missing or ambiguous wheel metadata: {wheel.name}")
+                  metadata = BytesParser().parsebytes(archive.read(metadata_files[0]))
+                  if metadata["Name"] != "nsb-rust" or metadata["Version"] != expected:
+                      raise SystemExit(f"wrong wheel metadata: {wheel.name}")
+          if sdists[0].name != f"nsb_rust-{expected}.tar.gz":
+              raise SystemExit(f"unexpected sdist filename: {sdists[0].name}")
 
       - name: Publish nsb-rust
         uses: pypa/gh-action-pypi-publish@v1.14.2
