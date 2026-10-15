@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "nsb-py"
-# Inherit the authoritative 0.1.0 version and metadata from crates/nsb/Cargo.toml.
+# Inherit the authoritative release version and metadata from crates/nsb/Cargo.toml.
 dynamic = ["version", "description", "readme", "authors", "license", "keywords", "urls"]
 requires-python = ">=3.10"
 classifiers = [

@@ -26,9 +26,9 @@ engine from **Rust**, **Python**, or the **command line**.
 
 ## Install
 
-NSB's first public release is **`0.1.0`**. The registry installation commands
-below become available after the `v0.1.0` release workflow succeeds on both
-crates.io and PyPI; until then, use a source checkout.
+NSB is preparing **`0.1.1`** for release. Registry installation is available
+once a version has been published to crates.io and PyPI; until then, build
+from source.
 
 Choose the interface that fits your workflow:
 
@@ -38,8 +38,8 @@ Choose the interface that fits your workflow:
 | **Rust** | `cargo add nsb` | Rust 1.89+ |
 | **CLI** | Build from the repository (below) | Rust 1.89+ |
 
-For reproducible applications, pin the first release with
-`cargo add nsb@0.1.0` or `python -m pip install nsb-py==0.1.0`.
+For reproducible applications, pin the `0.1.1` release with
+`cargo add nsb@0.1.1` or `python -m pip install nsb-py==0.1.1`.
 
 The PyPI **distribution** is `nsb-py`, but its **import** is `nsb`.
 The crates.io **library** is `nsb`. The executable is also named `nsb`,
@@ -183,7 +183,7 @@ package version from that same manifest. The
 [tag-triggered release workflow](.github/workflows/publish.yml) builds and
 checks the Rust crate, Python wheels and source distribution before uploading
 anything.
-The CLI remains a source-installed workspace application in `0.1.0`.
+The CLI remains a source-installed workspace application in `0.1.1`.
 
 ## License and scientific data
 

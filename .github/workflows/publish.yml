@@ -441,6 +441,9 @@ jobs:
       - windows-wheels
       - sdist
     runs-on: ubuntu-24.04
+    environment:
+      name: crates-io
+      url: https://crates.io/crates/nsb
     steps:
       - uses: actions/checkout@v4
         with:
@@ -464,6 +467,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment:
       name: pypi
+      url: https://pypi.org/project/nsb-py/
     permissions:
       contents: read
       id-token: write
@@ -646,6 +650,7 @@ jobs:
     runs-on: ubuntu-24.04
     environment:
       name: pypi
+      url: https://pypi.org/project/nsb-py/
     permissions:
       contents: read
       id-token: write
