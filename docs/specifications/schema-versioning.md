@@ -8,9 +8,9 @@ promise. Readers and writers use the current contract directly.
 Package SemVer, scientific model identities, input releases and external
 dependencies are independent. Preserve Gaia DR3, CK04 v2, PALACE v1.0,
 `calspec-linear-log-ratio-v2`, all input hashes and dependency versions.
-All active review inventories and bundles also start at v1. Original v1/v2
-review snapshots are preserved under approval-history for audit only; historical
-records retain the exact identifiers and hashes that were authorized.
+All active review inventories and bundles also start at v1. Prior approval
+snapshots needed by checksum validation remain in the approval history; other
+pre-reset evidence is available from the historical Git revision.
 
 Changing format/provenance identifiers changes bytes and SHA-256 even when
 scientific values are identical. Regenerate deterministic runtime artifacts and

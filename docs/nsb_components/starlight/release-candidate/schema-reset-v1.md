@@ -4,15 +4,17 @@ All active NSB-owned formats start at v1. Candidate-v5, merge-report-v5,
 runtime CSV v2 and runtime manifest v2 (including numeric `schema_version`)
 are reset together. The merge report and nested scientific-policy format
 versions also start at 1. Scientific model identities, inputs, thresholds,
-source releases and dependency versions are unchanged. Active review inventories and bundles are consolidated to v1; original
-documentary revisions are preserved only in the approval archive. Unsupported-version
-examples in negative tests remain deliberately unsupported.
+source releases and dependency versions are unchanged. Active review inventories
+and bundles are consolidated to v1. Unsupported-version examples in negative
+tests remain deliberately unsupported.
 
-The original approval snapshots, decision and relevant external/CI evidence
-are preserved byte-for-byte in [approval-history/pre-v1-reset](approval-history/pre-v1-reset/).
-Other original files can be recovered from PR #240's prior head
-`3b3a59ca33e1396d6cf879226efc5cb232cd315e`. Historical records retain their
-original identifiers and hashes; they are not current product references.
+The checksum-pinned prior approval snapshots, original rights assessment,
+previous decision and preregistration remain byte-for-byte in
+[pre-reset approval history](approval-history/pre-v1-reset/).
+Other historical notices, validation records and CI evidence can be retrieved
+from [the pre-reset Git revision](https://github.com/VPRamon/NSB/tree/3b3a59ca33e1396d6cf879226efc5cb232cd315e),
+without duplicating them in the current tree. Historical records retain their
+original identifiers and SHA-256 hashes; they are not current product references.
 
 ## Exact artifact identities
 
