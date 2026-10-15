@@ -1,351 +1,186 @@
 # NSB
 
 [![CI](https://github.com/VPRamon/NSB/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/VPRamon/NSB/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/nsb.svg?label=crates.io)](https://crates.io/crates/nsb)
+[![PyPI](https://img.shields.io/pypi/v/nsb-rust.svg?label=PyPI)](https://pypi.org/project/nsb-rust/)
+[![docs.rs](https://docs.rs/nsb/badge.svg)](https://docs.rs/nsb)
+[![Rust 1.89+](https://img.shields.io/badge/Rust-1.89%2B-orange.svg)](https://www.rust-lang.org/)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue.svg)](LICENSE)
-[![Rust: 1.89+](https://img.shields.io/badge/rust-1.89%2B-orange.svg)](https://www.rust-lang.org/)
-[![Python: 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
-Night-sky background evaluation and observation planning for ground-based
-astronomy.
+**Night-sky background evaluation and observation planning for ground-based astronomy.**
 
-NSB evaluates the optical night-sky background for a specified observatory,
-UTC time, and target direction. It can also search a time range for periods that
-satisfy an NSB threshold together with Sun and target-altitude constraints.
+NSB estimates the optical night-sky background at an observatory, UTC time,
+and target direction. It also finds observing windows that satisfy sky-brightness,
+Sun-altitude, and target-altitude constraints. Use the same Rust-powered scientific
+engine from **Rust**, **Python**, or the **command line**.
 
-The runtime composes selected contributions from zodiacal light, airglow,
-scattered moonlight, and integrated starlight where an admitted starlight
-product is available. Results report integrated photon radiance over 300 to
-650 nm in `ph cm^-2 ns^-1 sr^-1` and retain scientific metadata needed to
-interpret the calculation.
+<p align="center">
+  <a href="https://github.com/VPRamon/NSB/pull/212#issuecomment-6014811662">
+    <img src="https://github.com/user-attachments/assets/485394ae-8629-4851-ba57-50daadb436a1" width="860" alt="Diagnostic all-sky integrated starlight heatmap in Galactic Mollweide projection">
+  </a>
+</p>
+<p align="center"><sub>
+  Diagnostic Galactic starlight heatmap from <a href="https://github.com/VPRamon/NSB/pull/212">PR #212</a>.
+  This visualizes a starlight data product, <strong>not</strong> a total NSB prediction.
+</sub></p>
 
-NSB is available through Python, Rust, and a command-line interface.
+## Install
 
-## Installation
+Choose the interface that fits your workflow:
 
-Python users install the `nsb-rust` distribution (the import name is `nsb`):
+| Interface | Installation | Requirements |
+| --- | --- | --- |
+| **Python** | `python -m pip install nsb-rust` | Python 3.10+ |
+| **Rust** | `cargo add nsb` | Rust 1.89+ |
+| **CLI** | Build from the repository (below) | Rust 1.89+ |
 
-```bash
-python -m pip install nsb-rust
-```
+The PyPI **distribution** is `nsb-rust`, but its **import** is `nsb`.
+The crates.io **library** is `nsb`. The executable is also named `nsb`,
+but its workspace crate, `nsb-cli`, is **not** separately published to crates.io.
 
-Rust applications use the published library crate:
-
-```bash
-cargo add nsb@0.1.0
-```
-
-The public Rust API intentionally uses Siderust and tempoch domain types at
-some boundaries. Applications that construct those types directly may also
-depend on the corresponding upstream crates.
-
-The `nsb-cli` crate is workspace-only in `0.1.0` (`publish = false`). Install
-the `nsb` executable from a repository checkout with:
+Install the CLI from the repository:
 
 ```bash
+git clone https://github.com/VPRamon/NSB.git
+cd NSB
 cargo install --path crates/nsb-cli --locked
+nsb --help
 ```
 
-`nsb-data-tools` is maintainer tooling and is not part of the public runtime
-distribution.
-
-## What NSB does
-
-| Capability | Support |
-| --- | --- |
-| Point NSB evaluation | Python, Rust, CLI |
-| Observing-window search | Python, Rust, CLI |
-| Zodiacal light, airglow, and scattered moonlight | Runtime components |
-| Integrated starlight | Validated bundled or external products, with explicit maturity rules |
-| Arbitrary observatory coordinates | Supported |
-| Named observatory catalogs | CLI through Siderust `ObservatoryCatalog` |
-| Machine-readable output | Versioned JSON and CSV schemas |
-| Scientific audit metadata | Provenance, maturity, validated domain, model identity, uncertainty where available |
-| Offline evaluation | No runtime catalog downloads or data-generation tools |
-
-## Python quickstart
-
-The Python distribution is named `nsb-rust`; the import name is `nsb`.
-Python 3.10 or newer is supported.
-
-Install the released package and its canonical Siderust dependency with:
+The Rust example below also uses Siderust, Tempoch and Chrono at the API
+boundary; add the matching dependencies to your application:
 
 ```bash
-python -m pip install nsb-rust
+cargo add nsb siderust@0.14.1 tempoch@0.10 chrono@0.4
 ```
 
-From a repository checkout:
+## Quickstart
 
-```bash
-python -m venv .venv
-. .venv/bin/activate
-python -m pip install -U pip "maturin>=1.9,<2"
-python -m pip install "siderust>=0.4.0,<0.5"
-maturin develop --locked
-```
+All examples use **Sagittarius A\*** (RA 266.41683°, Dec −29.00781°).
+Point evaluations return integrated photon radiance over **300–650 nm**
+in `ph cm^-2 ns^-1 sr^-1`.
 
-Evaluate one target:
+### Python
 
 ```python
 from datetime import datetime, timezone
+
 import nsb
 import siderust
 
-# CTAO South WGS84 coordinates from the bundled observatory catalog.
-ctao_south = siderust.Observer(
-    lon_deg=-70.31634444444444,
-    lat_deg=-24.683427777777776,
-    height_m=2184.6,
+observer = siderust.Observer(
+    lon_deg=-70.31634, lat_deg=-24.683427, height_m=2184.6
 )
-# Sagittarius A* in ICRS coordinates.
-sgr_a_star = siderust.Direction(
-    ra_deg=266.41683,
-    dec_deg=-29.00781,
-)
+target = siderust.Direction(ra_deg=266.41683, dec_deg=-29.00781)
 
-config = (
-    nsb.NsbModelConfig.generic_clear_sky()
-    .with_site_profile(nsb.SiteProfile.CTA_SOUTH)
-)
-evaluator = nsb.NsbEvaluator(config)
-
+evaluator = nsb.NsbEvaluator()
 result = evaluator.evaluate(
-    nsb.PointQuery(
-        ctao_south,
-        datetime(2026, 9, 27, 22, 0, tzinfo=timezone.utc),
-        sgr_a_star,
-    )
+    nsb.PointQuery(observer, datetime(2026, 6, 18, 23, tzinfo=timezone.utc), target)
 )
-
-print(result.integrated_photons_cm2_ns_sr)
-for component in result.components:
-    print(component.name, component.integrated_photons_cm2_ns_sr)
+print(f"NSB: {result.integrated_photons_cm2_ns_sr:.3e} ph/(cm² ns sr)")
 ```
 
-The CTAO selector above is a planning preset exposed by the Python application
-layer. It is not a claim that CTAO South is site-calibrated.
+This example uses CTAO South's coordinates with the **generic clear-sky**
+model, not a site-calibrated CTAO model. Python input times must be
+timezone-aware. For component breakdowns, planning and site profiles, see the
+[Python guide](docs/python.md).
 
-Search for periods below an NSB threshold:
+### Rust
 
-```python
-max_nsb_photons_cm2_ns_sr = 0.25
+```rust
+use chrono::{DateTime, Utc};
+use nsb::{NsbEvaluator, PointQuery, Target, DEG};
+use siderust::catalogs::observatories;
+use tempoch::{Time, UTC};
 
-query = nsb.ThresholdQuery(
-    ctao_south,
-    sgr_a_star,
-    datetime(2026, 9, 27, 20, 0, tzinfo=timezone.utc),
-    datetime(2026, 9, 28, 4, 0, tzinfo=timezone.utc),
-    max_nsb_photons_cm2_ns_sr,
-)
+fn main() -> nsb::Result<()> {
+    let utc = DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
 
-context = evaluator.prepare_site_window_context(query)
-result = evaluator.periods_below_threshold_with_context(context, query)
+    let query = PointQuery::new(
+        observatories::EL_PARANAL.geodetic(),
+        Time::<UTC>::from_chrono(utc),
+        Target::new(266.41683 * DEG, -29.00781 * DEG),
+    );
 
-for start, end in result.periods:
-    print(start, end)
+    let result = NsbEvaluator::new()?.evaluate(&query)?;
+    println!("NSB: {:.3e} ph/(cm² ns sr)", result.integrated.value());
+    Ok(())
+}
 ```
 
-Python datetime inputs must be timezone-aware. See
-[Python bindings](docs/python.md) for the complete API, units, errors, and
-development workflow.
-
-## CLI
-
-Evaluate Sagittarius A* from CTAO South:
+The equivalent, CI-compiled example can be run from a checkout:
 
 ```bash
-cargo run --locked -p nsb-cli -- \
-  --format json point \
+cargo run --locked -p nsb --example point_query
+```
+
+See [more Rust examples](examples/README.md) and the [Rust API documentation](https://docs.rs/nsb).
+NSB uses Siderust and Tempoch types at its public Rust boundaries.
+
+### CLI
+
+After installing the executable above, evaluate the same target from CTAO South:
+
+```bash
+nsb --format table point \
   --time 2026-06-18T23:00:00Z \
-  --site CTAO-S \
-  --site-profile cta-south \
+  --site CTAO-S --site-profile cta-south \
   --ra 266.41683 --dec -29.00781
 ```
 
-Find periods for Sagittarius A* with integrated NSB at or below
-`0.25 ph cm^-2 ns^-1 sr^-1`:
+Use `--format json` or `--format csv` for machine-readable output.
+For observing-window searches (`nsb window`), named observatories and advanced
+options, follow the [CLI getting-started guide](docs/user-guide/getting-started.md).
 
-```bash
-cargo run --locked -p nsb-cli -- \
-  --format csv window \
-  --start 2026-06-18T20:00:00Z \
-  --end 2026-06-19T06:00:00Z \
-  --site CTAO-S \
-  --site-profile cta-south \
-  --ra 266.41683 --dec -29.00781 \
-  --max-nsb 0.25 \
-  --sun-altitude-max -18 \
-  --target-altitude-min 20
-```
+## What can NSB do?
 
-Window search uses physics-partitioned adaptive discovery by default, with
-exact NSB evaluations and accepted-side crossing brackets of at most 0.1 seconds.
-It has an empirically validated model-resolution contract, not a continuous
-completeness certificate. `--certified` requires rigorous interval
-bounds and currently rejects active dynamic components.
-
-See [Getting started](docs/user-guide/getting-started.md) for CLI options,
-component selection, site lookup, and output formats.
-
-## Rust
-
-```rust,no_run
-use nsb::{ComponentMask, NsbEvaluator, PointQuery, Target, DEG};
-use siderust::catalogs::observatories;
-use siderust::coordinates::{spherical::direction, transform::TransformFrame};
-
-# fn evaluate(time: tempoch::Time<tempoch::UTC>) -> nsb::Result<()> {
-let evaluator = NsbEvaluator::new()?;
-// Sagittarius A* in ICRS coordinates.
-let sgr_a_star: Target = direction::ICRS::new(266.41683 * DEG, -29.00781 * DEG).to_frame();
-
-let query = PointQuery::new(
-    observatories::EL_PARANAL.geodetic(),
-    time,
-    sgr_a_star,
-)
-.with_components(ComponentMask::ALL);
-
-let result = evaluator.evaluate(&query)?;
-println!("{}", result.integrated);
-# Ok(())
-# }
-```
-
-Construct and reuse an evaluator. Immutable model data and runtime assets are
-prepared at evaluator construction rather than reparsed for every query.
-
-The Rust crate enables its `serde` feature by default. This forwards Serde
-support to Siderust and tempoch, so the `Observer`, `Target`, and UTC
-`Time` boundary types can be serialized. Applications that do not need
-upstream serialization can use `nsb = { version = "0.1.0", default-features = false }`. NSB's own persisted dataset formats remain
-available in either configuration.
-
-## Observatory integration
-
-NSB separates the physical observatory location from the scientific assumptions
-used to model the sky.
-
-| Concern | Selected by |
+| Capability | What you get |
 | --- | --- |
-| Observatory location | Named catalog entry or explicit longitude, latitude, and height |
-| Scientific assumptions | Site profile and model configuration |
+| **Evaluate sky background** | Integrated radiance and per-component contributions for a target, site and UTC instant |
+| **Plan observing windows** | Periods satisfying an NSB threshold and optional Sun/target-altitude limits |
+| **Choose sky models** | Zodiacal light, airglow, scattered moonlight and admitted integrated starlight products |
+| **Integrate with pipelines** | Stable, versioned CLI JSON/CSV schemas and reusable library APIs |
+| **Inspect scientific provenance** | Model identity, component maturity, validated domain and uncertainty where available |
+| **Run offline** | Local deterministic evaluation for fixed inputs and admitted scientific assets |
 
-Adding an observatory to a catalog establishes its location. It does not make
-the NSB model calibrated for that site.
+NSB deliberately distinguishes **observatory coordinates** from **scientific
+site assumptions**. Generic clear-sky and CTAO planning presets are **not
+site-calibrated predictions**. Starlight inclusion follows validation and
+admission rules; an experimental candidate is never silently substituted.
+Reported B/V magnitude and S10 values are central-wavelength diagnostics,
+not validated Johnson B/V passband integrations.
 
-The CLI can use Siderust's bundled observatories, NSB catalog extensions, an
-external Siderust-format catalog, or explicit coordinates. Without an explicit
-site profile, arbitrary coordinates and named observatories use generic
-clear-sky assumptions.
+For scientific use, review [model maturity](docs/specifications/model-maturity.md),
+[validation](docs/specifications/validation.md) and
+[scientific metadata](docs/specifications/scientific-metadata.md).
 
-The CLI and Python interfaces expose CTAO North and South planning presets.
-These are planning assumptions, not calibrated site products.
+## Documentation and examples
 
-See [Observatory configuration and customisation](docs/user-guide/observatory-customization.md)
-for custom observatories, catalog precedence, external starlight, and the
-requirements for adding a calibrated profile.
-
-## Scientific model and maturity
-
-```text
-observer + time + target
-          |
-          v
-  zodiacal light
-  airglow
-  scattered moonlight
-  admitted starlight
-          |
-          v
-    integrated NSB
-          |
-          +-> point evaluation
-          +-> window planning
-```
-
-The current scientific roles are:
-
-| Component | Current role |
+| Start here | Covers |
 | --- | --- |
-| Zodiacal light | Generic clear-sky planning model |
-| Airglow | Generic model or explicit planning preset |
-| Jones 2013 moonlight | Generic model or explicit planning preset |
-| KS91 moonlight | Published reference and alternate model |
-| Integrated starlight | Production only for a validated, admitted product and its declared domain |
+| [Examples index](examples/README.md) | Runnable Rust examples, Python and CLI guides |
+| [Python bindings](docs/python.md) | Installation, point evaluation, window planning and API types |
+| [Getting started](docs/user-guide/getting-started.md) | CLI usage, site selection and first Rust workflows |
+| [Observatory configuration](docs/user-guide/observatory-customization.md) | Named sites, custom coordinates and site profiles |
+| [Scientific model](docs/specifications/scientific-model.md) | Physical contributions and modeling assumptions |
+| [CLI output schemas](docs/specifications/cli-schemas.md) | Versioned JSON/CSV for automation |
+| [Documentation hub](docs/README.md) | Full user, developer and maintainer documentation |
 
-`ComponentMask::ALL`, `ComponentMask::DEFAULT`, and CLI
-`--components all` use the same production-safe composition. Production
-starlight is included only when a validated bundled product has been admitted.
-Experimental starlight is never silently substituted.
+## License and scientific data
 
-B/V magnitude and S10 fields are central-wavelength diagnostics, not validated
-Johnson B/V passband integrations.
+NSB **source code** is licensed under
+[AGPL-3.0-only](LICENSE). Scientific datasets and third-party dependencies
+retain their own licensing and attribution requirements; the code license
+does **not** grant rights to all underlying data.
 
-Scientific maturity is part of the result contract. NSB exposes component
-identity, provenance, calibration status, validated domain, uncertainty where
-available, selected model information, and runtime asset checksums.
+Some reference products are CC BY 4.0, NOAA data follows its applicable
+conditions, and Gaia-derived starlight retains applicable **CC BY-NC 3.0 IGO**
+terms. Commercial use of protected scientific data may require separate
+permissions. Credits do not imply endorsement by ESA, DPAC, CDS or the
+scientific authors.
 
-Software correctness and site calibration are separate concerns. The current
-generic components and CTAO planning profiles must not be interpreted as
-site-calibrated products. The bundled Gaia DR3 starlight candidate also remains
-outside the production default until its scientific and redistribution review
-gates are satisfied.
-
-Read [Scientific model](docs/specifications/scientific-model.md),
-[Model maturity](docs/specifications/model-maturity.md),
-[Scientific metadata](docs/specifications/scientific-metadata.md), and the
-[Validation matrix](docs/specifications/validation.md) before using results for
-scientific claims.
-
-## Reproducibility and automation
-
-Runtime evaluation is local and deterministic for fixed inputs and admitted
-assets. Scientific data products are generated and reviewed offline.
-
-The CLI exposes versioned JSON and CSV contracts for schedulers, pipelines, and
-archived analyses. Output retains model and asset identity so downstream systems
-can preserve the provenance of a calculation.
-
-See [Stable CLI schemas](docs/specifications/cli-schemas.md) and the
-[Performance contract](docs/specifications/performance.md).
-
-## Documentation
-
-| Topic | Document |
-| --- | --- |
-| Python | [Python bindings](docs/python.md) |
-| First CLI and Rust workflows | [Getting started](docs/user-guide/getting-started.md) |
-| User guide | [User documentation](docs/user-guide/README.md) |
-| Observatory integration | [Observatory configuration](docs/user-guide/observatory-customization.md) |
-| Runtime components | [Component guide](docs/user-guide/components.md) |
-| Scientific model | [Concepts and implementation](docs/specifications/scientific-model.md) |
-| Maturity and validation | [Model maturity](docs/specifications/model-maturity.md), [Validation matrix](docs/specifications/validation.md) |
-| Machine-readable output | [CLI schemas](docs/specifications/cli-schemas.md) |
-| Architecture | [Architecture and modules](docs/developer-guide/architecture.md) |
-| Scientific data | [Dataset workflow](docs/maintainer-guide/datasets.md) |
-| Full index | [Documentation hub](docs/README.md) |
-
-## License
-
-NSB source is licensed under AGPL-3.0-only; see [`LICENSE`](LICENSE).
-Third-party dependencies and scientific assets retain their own license and
-attribution requirements.
-
-## Scientific data and licensing
-
-NSB **code** is AGPL-3.0-only; that does not make all scientific data AGPL.
-PALACE and selected reference products use CC BY 4.0, NOAA products have their
-applicable federal-work/data conditions, and Gaia-derived Starlight retains
-applicable **CC BY-NC 3.0 IGO** terms. The code may be used commercially under
-AGPL's obligations; commercial use of protected bundled data may need separate
-rights. Credits do not imply endorsement by ESA, DPAC, CDS or the authors.
-
-The approved compact Starlight map is embedded for fully offline evaluation.
-`ALL`, `DEFAULT` and the standard Rust/Python evaluator include Starlight,
-Airglow, Moonlight and Zodiacal Light. The maintainer accepted the pinned
-calculated-output and independent-data findings under #103; source-specific
-licences and noncommercial data restrictions remain applicable.
-
-See the [source terms, attribution, public contact directory and concern procedure](docs/nsb_components/starlight/licensing/README.md)
-and the distributed `THIRD_PARTY_NOTICES.md`. Cite the original scientific
-sources, preserve their notices and assess the data terms for your actual use.
+Read the [Starlight source terms and attribution](docs/nsb_components/starlight/licensing/README.md)
+and [third-party notices](THIRD_PARTY_NOTICES.md) before redistributing data
+or using model outputs for scientific claims.
