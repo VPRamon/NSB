@@ -672,6 +672,7 @@ mod tests {
             acquisition: Default::default(),
             map: crate::starlight::config::StarlightMapConfig { canonical_nside: 1 },
             product_band: StarlightProductBand::Measured360To570,
+            spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
             selection_function: None,
