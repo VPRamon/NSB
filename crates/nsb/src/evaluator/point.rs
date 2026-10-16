@@ -23,6 +23,9 @@ pub(crate) fn evaluate(
     let mut components = Vec::new();
     let mut total = BandPhotonRadiance::new(0.0);
     let (mut b_total, mut v_total) = (S10::new(0.0), S10::new(0.0));
+    // The summed 300–650 nm radiance can be available even when B/V
+    // diagnostics are missing. Never present a partial B/V sum as complete.
+    let mut bv_complete = true;
 
     if query.components.contains(ComponentMask::ZODIACAL) {
         let out = evaluator
@@ -49,6 +52,7 @@ pub(crate) fn evaluate(
     if query.components.contains(ComponentMask::STARLIGHT) {
         let out = evaluator.evaluate_starlight(query.target)?;
         total += out.integrated;
+        bv_complete &= out.s10_diagnostics_provided;
         b_total += out.b_flux_s10;
         v_total += out.v_flux_s10;
         components.push(NsbComponent {
@@ -116,15 +120,33 @@ pub(crate) fn evaluate(
 
     Ok(NsbResult {
         integrated: total,
-        b_mag: s10_to_surface_brightness(
-            b_total.max(S10::new(f64::MIN_POSITIVE)),
-            NSB_S10_ZP.value(),
-        ),
-        v_mag: s10_to_surface_brightness(
-            v_total.max(S10::new(f64::MIN_POSITIVE)),
-            NSB_S10_ZP.value(),
-        ),
+        // SurfaceBrightness is frozen as a non-optional type. A NaN marks
+        // absent B/V diagnostics explicitly instead of silently reporting
+        // the other components' partial photometry.
+        b_mag: if bv_complete {
+            s10_to_surface_brightness(
+                b_total.max(S10::new(f64::MIN_POSITIVE)),
+                NSB_S10_ZP.value(),
+            )
+        } else {
+            crate::units::photometry::SurfaceBrightness::new(f64::NAN)
+        },
+        v_mag: if bv_complete {
+            s10_to_surface_brightness(
+                v_total.max(S10::new(f64::MIN_POSITIVE)),
+                NSB_S10_ZP.value(),
+            )
+        } else {
+            crate::units::photometry::SurfaceBrightness::new(f64::NAN)
+        },
         components,
-        band_diagnostic: super::BandDiagnostic::MONOCHROMATIC_S10_PROXY,
+        band_diagnostic: if bv_complete {
+            super::BandDiagnostic::MONOCHROMATIC_S10_PROXY
+        } else {
+            super::BandDiagnostic {
+                convention: "monochromatic-central-wavelength-s10-proxy-incomplete",
+                ..super::BandDiagnostic::MONOCHROMATIC_S10_PROXY
+            }
+        },
     })
 }
