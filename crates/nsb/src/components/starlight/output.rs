@@ -76,10 +76,6 @@ impl StarlightOutputs {
         values_are_valid && self.has_valid_uncertainties()
     }
 
-    pub(crate) fn has_uncertainties(self) -> bool {
-        self.statistical_uncertainty.is_some()
-    }
-
     fn has_valid_uncertainties(self) -> bool {
         match (
             self.statistical_uncertainty,
