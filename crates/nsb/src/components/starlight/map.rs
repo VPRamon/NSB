@@ -186,19 +186,17 @@ impl StarlightMap {
         provenance.map_checksum = Some(spectral.sha256.clone());
         provenance.calibration_status = Some(spectral.maturity.clone());
         let pixels = spectral
-            .pixels
-            .iter()
-            .map(|p| {
+            .integrated_pixels()
+            .map(|(radiance, statistical_sigma)| {
                 let mut pixel = StarlightPixel::new(
-                    BandPhotonRadiance::new(p.radiance.iter().sum()),
+                    BandPhotonRadiance::new(radiance),
                     S10s::new(0.0),
                     S10s::new(0.0),
                 )
                 .without_s10_diagnostics();
-                // Do not discard Gaia XP's full-band measured statistical sigma.
-                // Total/systematic sigma remain unknown, not zero.
-                pixel.statistical_uncertainty =
-                    p.integrated_statistical_sigma.map(BandPhotonRadiance::new);
+                // Measured full-band covariance is retained; absent
+                // systematic/total errors must remain absent.
+                pixel.statistical_uncertainty = statistical_sigma.map(BandPhotonRadiance::new);
                 pixel
             })
             .collect();
