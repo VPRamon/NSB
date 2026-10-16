@@ -457,3 +457,29 @@ fn incomplete_starlight_bv_is_visible_in_evaluator_result() {
         "monochromatic-central-wavelength-s10-proxy-incomplete"
     );
 }
+
+#[test]
+fn uncertainty_schema_rejects_mixing_full_and_statistical_only_pixels() {
+    let grid = HealpixGrid::new(Nside::new(1).unwrap(), HealpixOrdering::Ring).unwrap();
+    let full = StarlightPixel::new(BandPhotonRadiance::new(1.0), S10s::new(0.0), S10s::new(0.0))
+        .without_s10_diagnostics()
+        .with_uncertainties(
+            BandPhotonRadiance::new(0.1),
+            BandPhotonRadiance::new(0.2),
+            BandPhotonRadiance::new(0.25),
+        );
+    let mut pixels = vec![full; 12];
+    pixels[3].systematic_uncertainty = None;
+    pixels[3].total_uncertainty = None;
+    let result = StarlightMap::from_healpix(grid, pixels, fixture_provenance());
+    assert!(matches!(result, Err(crate::NsbError::InvalidMap { .. })));
+}
+
+#[test]
+fn try_pixel_at_matches_legacy_lookup_for_finite_directions() {
+    let map = fixture_map();
+    for (lon, lat) in [(0.0, 0.0), (45.0, 30.0), (359.0, -40.0)] {
+        let direction = galactic_direction(lon, lat);
+        assert_eq!(map.try_pixel_at(direction).unwrap(), map.pixel_at(direction));
+    }
+}
