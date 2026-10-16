@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::errors::{invalid_input, to_py_err};
-use crate::units::angular::Degrees;
 use crate::components::starlight::StarlightMap;
+use crate::units::angular::Degrees;
 use pyo3::prelude::*;
 use siderust::coordinates::{cartesian::Direction, frames::Galactic, spherical};
 
