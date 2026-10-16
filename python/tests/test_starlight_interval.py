@@ -63,3 +63,49 @@ def test_external_interval_identity_and_direct_transport(tmp_path):
         product.direct_pixel_bounds(0.0, 0.0, 30.0, 790.0, aerosol_tau550=-0.1)
     with pytest.raises(nsb.UnsupportedError):
         product.direct_pixel_bounds(0.0, 0.0, 30.0, 790.0, aerosol_power=1.0)
+
+
+def load_candidate(tmp_path, candidate):
+    path = tmp_path / "candidate.json"
+    data = json.dumps(candidate).encode()
+    path.write_bytes(data)
+    return nsb.StarlightIntervalMap.load(str(path), hashlib.sha256(data).hexdigest())
+
+
+@pytest.mark.parametrize(
+    "channel", ["radiance", "statistical_sigma", "integrated_statistical_sigma"]
+)
+def test_empty_pixel_requires_zero_radiance_and_uncertainty(tmp_path, channel):
+    candidate = fixture()
+    candidate["pixels"][0] = {
+        "pixel": 0, "sources": 0, "radiance": [0.0] * 7,
+        "statistical_sigma": [0.0] * 7, "integrated_statistical_sigma": 0.0,
+    }
+    candidate["admitted_sources"] = 11
+    candidate["excluded_sources"] = {"no_band_calibrated_non_xp_inference": 1}
+    assert load_candidate(tmp_path, candidate).admitted_sources == 11
+
+    if channel == "integrated_statistical_sigma":
+        candidate["pixels"][0][channel] = 0.5
+    else:
+        candidate["pixels"][0][channel][0] = 0.5
+    with pytest.raises(nsb.InvalidMapError):
+        load_candidate(tmp_path, candidate)
+
+
+@pytest.mark.parametrize(
+    "field", [
+        "non_xp_inference", "selection_correction",
+        "bright_star_supplement", "systematic_uncertainty",
+    ]
+)
+def test_explicit_null_provenance_required_in_python(tmp_path, field):
+    candidate = fixture()
+    del candidate[field]
+    with pytest.raises(nsb.InvalidMapError):
+        load_candidate(tmp_path, candidate)
+
+    candidate = fixture()
+    candidate[field] = {"unsupported": True}
+    with pytest.raises(nsb.InvalidMapError):
+        load_candidate(tmp_path, candidate)
