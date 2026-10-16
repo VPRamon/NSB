@@ -139,6 +139,10 @@ pub struct NsbComponent {
     pub b_flux_s10: S10,
     /// V-reference S10 diagnostic.
     pub v_flux_s10: S10,
+    /// Whether the B/V S10 values are actual available diagnostics.
+    ///
+    /// When false, the numeric S10 fields are placeholders, not physical zero.
+    pub bv_diagnostics_available: bool,
     /// Relative one-sigma uncertainty when defined.
     pub relative_uncertainty: Option<f64>,
     /// Statistical one-sigma uncertainty of the integrated photon radiance.
