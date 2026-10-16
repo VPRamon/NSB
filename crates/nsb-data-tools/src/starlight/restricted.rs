@@ -48,6 +48,7 @@ fn edges_for(config: &StarlightConfig) -> Result<Vec<u16>> {
 }
 
 const BIN_EDGES_NM: [u16; 8] = [360, 390, 420, 450, 480, 510, 540, 570];
+#[cfg(test)]
 const BINS: usize = BIN_EDGES_NM.len() - 1;
 
 // Construct Gaia XP calibration functionals from explicit, ordered band edges.
