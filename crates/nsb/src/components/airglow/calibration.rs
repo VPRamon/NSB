@@ -459,6 +459,30 @@ mod tests {
     }
 
     #[test]
+    fn prepared_palace_sampling_preserves_legacy_arithmetic_bit_for_bit() {
+        let model = load_builtin_standard().unwrap();
+        for (month, bin, solar) in [(1, 2, 100.0), (7, 9, 160.0), (12, 12, 67.0)] {
+            let prepared = model.prepare_sample(month, bin, solar).unwrap();
+            let cell = model.climatology[(month as usize - 1) * 12 + bin - 1];
+            for sample in 0..SAMPLE_COUNT {
+                let (new_mean, new_sigma) = model.sample_prepared(sample, &prepared).unwrap();
+                let mut old_mean = 0.0;
+                let mut old_sigma = 0.0;
+                for (component, variability) in model.components.iter().zip(cell.components) {
+                    let scale = variability.relative_mean
+                        * (1.0 + 0.01 * variability.solar_slope_per_100_sfu
+                            * (solar - model.reference_solar_flux_sfu));
+                    let template = component.spectrum_rayleigh_per_nm[sample];
+                    old_mean += template * scale;
+                    old_sigma += template * variability.relative_mean * variability.residual_sigma;
+                }
+                assert_eq!(new_mean.to_bits(), old_mean.to_bits(), "mean {sample}");
+                assert_eq!(new_sigma.to_bits(), old_sigma.to_bits(), "sigma {sample}");
+            }
+        }
+    }
+
+    #[test]
     fn malformed_and_negative_data_fail_closed() {
         assert!(RAW
             .replace("wavelength_unit nm", "wavelength_unit um")
