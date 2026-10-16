@@ -5,10 +5,10 @@ use super::output::StarlightOutputs;
 use super::provenance::StarlightProvenance;
 use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
-use crate::units::angular::Degrees;
-use crate::units::length::Nanometers;
 use crate::site::AtmosphericConditions;
 use crate::transport::DirectPathGeometry;
+use crate::units::angular::Degrees;
+use crate::units::length::Nanometers;
 use crate::units::radiometry::{
     PhotonsPerSquareCentimeterNanosecondSteradian as BandPhotonRadiance, S10s,
 };
@@ -142,9 +142,12 @@ impl StarlightMap {
         }
 
         let map = HealpixMap::new(grid, validated).map_err(|err| invalid_map(err.to_string()))?;
-        Ok(Self { provenance, map, spectral: None })
+        Ok(Self {
+            provenance,
+            map,
+            spectral: None,
+        })
     }
-
 
     /// Parse a SHA-256-pinned spectral map in a supported versioned JSON format.
     ///
@@ -163,21 +166,33 @@ impl StarlightMap {
             spectral.source_catalogue.clone(),
             spectral.source_license.clone(),
             "see source selection",
-            format!("{}-{} nm native spectral bins", spectral.band_nm[0], spectral.band_nm[1]),
-            format!("HEALPix nside={} ordering={:?}", spectral.grid.nside().get(), spectral.grid.ordering()),
+            format!(
+                "{}-{} nm native spectral bins",
+                spectral.band_nm[0], spectral.band_nm[1]
+            ),
+            format!(
+                "HEALPix nside={} ordering={:?}",
+                spectral.grid.nside().get(),
+                spectral.grid.ordering()
+            ),
             Some(spectral.sha256.clone()),
         );
         let mut provenance = provenance;
         provenance.source_selection = Some(spectral.source_selection.clone());
         provenance.map_checksum = Some(spectral.sha256.clone());
         provenance.calibration_status = Some(spectral.maturity.clone());
-        let pixels = spectral.pixels.iter().map(|p| {
-            StarlightPixel::new(
-                BandPhotonRadiance::new(p.radiance.iter().sum()),
-                S10s::new(0.0),
-                S10s::new(0.0),
-            ).without_s10_diagnostics()
-        }).collect();
+        let pixels = spectral
+            .pixels
+            .iter()
+            .map(|p| {
+                StarlightPixel::new(
+                    BandPhotonRadiance::new(p.radiance.iter().sum()),
+                    S10s::new(0.0),
+                    S10s::new(0.0),
+                )
+                .without_s10_diagnostics()
+            })
+            .collect();
         let mut map = Self::from_healpix(spectral.grid, pixels, provenance)?;
         map.spectral = Some(Arc::new(spectral));
         Ok(map)
@@ -197,7 +212,9 @@ impl StarlightMap {
 
     /// Edges of native integrated spectral bins in vacuum nm.
     pub fn bin_edges_nm(&self) -> &[u16] {
-        self.spectral.as_ref().map_or(&[300, 650], |s| s.edges_nm.as_slice())
+        self.spectral
+            .as_ref()
+            .map_or(&[300, 650], |s| s.edges_nm.as_slice())
     }
 
     /// Exact external map SHA-256 where recorded.
@@ -265,9 +282,15 @@ impl StarlightMap {
         geometry: DirectPathGeometry,
         atmosphere: AtmosphericConditions,
     ) -> Result<DirectStarlightBounds> {
-        self.spectral.as_ref().ok_or_else(|| NsbError::Unsupported(
-            "integrated-only Starlight maps lack wavelength-resolved transmission data".into()
-        ))?.direct_pixel_bounds(direction, geometry, atmosphere)
+        self.spectral
+            .as_ref()
+            .ok_or_else(|| {
+                NsbError::Unsupported(
+                    "integrated-only Starlight maps lack wavelength-resolved transmission data"
+                        .into(),
+                )
+            })?
+            .direct_pixel_bounds(direction, geometry, atmosphere)
     }
 
     /// Parse Packed HEALPix CSV text and merge header provenance.
