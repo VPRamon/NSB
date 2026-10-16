@@ -49,6 +49,11 @@ impl NsbEvaluator {
                 Some(starlight::Starlight::bundled_production_model()?)
             }
             Some(starlight::StarlightProduct::ExperimentalMap(map)) => {
+                if map.band_nm() != [300, 650] {
+                    return Err(crate::NsbError::Unsupported(
+                        "Starlight map does not cover the default NSB 300–650 nm band".into(),
+                    ));
+                }
                 Some(starlight::Starlight::with_shared_map(Arc::clone(map)))
             }
             Some(starlight::StarlightProduct::ValidatedExternalMap(map)) => {
