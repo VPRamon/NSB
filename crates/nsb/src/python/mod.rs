@@ -16,8 +16,7 @@ use crate::{
 };
 use api::{
     add_exceptions, install_component_mask_constants, PyNsbComponent, PyNsbComponentMetadata,
-    PyNsbResult, PySiteProfile, PySiteWindowContext, PyStarlightMap,
-    PyThresholdQueryResult,
+    PyNsbResult, PySiteProfile, PySiteWindowContext, PyStarlightMap, PyThresholdQueryResult,
 };
 
 #[pymodule]
