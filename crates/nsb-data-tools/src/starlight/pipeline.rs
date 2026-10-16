@@ -220,7 +220,7 @@ impl DatasetPipeline for StarlightPipeline {
         }
         if name == super::restricted::MAP_NAME {
             let sha256 = crate::platform::checksum_io::sha256_file(path)?;
-            nsb::StarlightIntervalMap::from_json_file(path, &sha256)?;
+            nsb::StarlightMap::from_json_file(path, &sha256)?;
             return Ok(());
         }
         if name == super::restricted::REPORT_NAME {
