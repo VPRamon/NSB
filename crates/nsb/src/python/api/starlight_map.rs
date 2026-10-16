@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::errors::{invalid_input, to_py_err};
 use crate::units::angular::Degrees;
-use crate::StarlightMap;
+use crate::components::starlight::StarlightMap;
 use pyo3::prelude::*;
 use siderust::coordinates::{cartesian::Direction, frames::Galactic, spherical};
 
