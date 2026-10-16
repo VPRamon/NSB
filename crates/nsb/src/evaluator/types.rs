@@ -167,9 +167,11 @@ pub struct NsbComponentDescriptor {
 pub struct NsbResult {
     /// Sum of selected integrated radiances.
     pub integrated: BandPhotonRadiance,
-    /// B-reference surface-brightness diagnostic.
+    /// B-reference surface-brightness diagnostic. NaN when any selected
+    /// component lacks a measured B/V diagnostic; see band_diagnostic.
     pub b_mag: SurfaceBrightness,
-    /// V-reference surface-brightness diagnostic.
+    /// V-reference surface-brightness diagnostic. NaN when diagnostics
+    /// are incomplete, never a partial sum masked as complete.
     pub v_mag: SurfaceBrightness,
     /// Individual selected contributions.
     pub components: Vec<NsbComponent>,
