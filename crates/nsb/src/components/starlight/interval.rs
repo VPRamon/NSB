@@ -402,10 +402,16 @@ impl SpectralMap {
                 .ok_or_else(|| invalid("source count overflow"))?;
             radiance.extend(pixel.radiance);
             if let Some(out) = &mut statistical_sigma {
-                out.extend(pixel.statistical_sigma.expect("uniform validated channel schema"));
+                out.extend(
+                    pixel.statistical_sigma
+                        .expect("uniform validated channel schema"),
+                );
             }
             if let Some(out) = &mut integrated_statistical_sigma {
-                out.push(pixel.integrated_statistical_sigma.expect("uniform validated channel schema"));
+                out.push(
+                    pixel.integrated_statistical_sigma
+                        .expect("uniform validated channel schema"),
+                );
             }
         }
         let excluded = excluded_sources
@@ -437,8 +443,11 @@ impl SpectralMap {
     }
 
     fn pixel_index(&self, direction: Direction<Galactic>) -> Result<usize> {
-        let index = self.grid.direction_to_pixel(direction)
-            .map_err(|e| invalid(e.to_string()))?.get();
+        let index = self
+            .grid
+            .direction_to_pixel(direction)
+            .map_err(|e| invalid(e.to_string()))?
+            .get();
         let slot = usize::try_from(index)
             .map_err(|_| invalid("spectral pixel index exceeds address space"))?;
         if slot >= self.radiance.len() / self.bins() {
@@ -449,9 +458,15 @@ impl SpectralMap {
 
     /// Full-band samples for constructing the immutable legacy API view.
     pub(super) fn integrated_pixels(&self) -> impl Iterator<Item = (f64, Option<f64>)> + '_ {
-        self.radiance.chunks_exact(self.bins()).enumerate().map(|(i, band)| {
-            (band.iter().sum(), self.integrated_statistical_sigma.as_ref().map(|s| s[i]))
-        })
+        self.radiance
+            .chunks_exact(self.bins())
+            .enumerate()
+            .map(|(i, band)| {
+                (
+                    band.iter().sum(),
+                    self.integrated_statistical_sigma.as_ref().map(|s| s[i]),
+                )
+            })
     }
 
     pub(super) fn top_of_atmosphere_pixel(
