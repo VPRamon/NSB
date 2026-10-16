@@ -541,4 +541,46 @@ mod tests {
             assert!(calibration_bands(&edges).is_err(), "{edges:?}");
         }
     }
+    #[test]
+    fn generic_product_config_selects_variable_bins_without_changing_v1() {
+        let old: StarlightConfig = toml::from_str(
+            "product_band = 'measured-360-570'"
+        ).unwrap();
+        assert_eq!(edges_for(&old).unwrap(), BIN_EDGES_NM.to_vec());
+        assert!(validate_config(&old).is_ok());
+
+        let generic: StarlightConfig = toml::from_str(
+            "product_band = 'measured-xp-binned'\nspectral_bin_edges_nm = [350, 365, 410, 570]"
+        ).unwrap();
+        assert_eq!(edges_for(&generic).unwrap(), vec![350, 365, 410, 570]);
+        assert!(validate_config(&generic).is_ok());
+
+        let missing: StarlightConfig = toml::from_str(
+            "product_band = 'measured-xp-binned'"
+        ).unwrap();
+        assert!(validate_config(&missing).is_err());
+
+        let invalid: StarlightConfig = toml::from_str(
+            "product_band = 'measured-xp-binned'\nspectral_bin_edges_nm = [360, 390, 390]"
+        ).unwrap();
+        assert!(validate_config(&invalid).is_err());
+
+        let legacy_changed: StarlightConfig = toml::from_str(
+            "product_band = 'measured-360-570'\nspectral_bin_edges_nm = [360, 570]"
+        ).unwrap();
+        assert!(validate_config(&legacy_changed).is_err());
+    }
+
+    #[test]
+    fn dynamic_seven_bin_zero_accumulators_serialize_like_frozen_legacy_arrays() {
+        let dynamic = Pixel::new(BINS);
+        let legacy = std::array::from_fn::<StableSum, BINS, _>(|_| StableSum::default());
+        assert_eq!(
+            serde_json::to_value(&dynamic.flux_ph_m2_s).unwrap(),
+            serde_json::to_value(legacy).unwrap()
+        );
+        assert_eq!(dynamic.variance_ph_m2_s_squared.len(), BINS);
+        assert_eq!(dynamic.sources, 0);
+    }
+
 }
