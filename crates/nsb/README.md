@@ -103,9 +103,19 @@ crate exposes generic typed site profiles; CTAO North/South planning presets
 belong to application layers and are not site-calibration claims.
 
 B/V magnitude and S10 outputs are central-wavelength diagnostics, not validated
-Johnson B/V passband integrations. Consult component maturity, provenance,
+Johnson B/V passband integrations. Each Rust/Python NsbComponent exposes
+`bv_diagnostics_available`; when any selected component lacks B/V, the
+frozen non-optional NsbResult B/V magnitude fields return NaN and the Rust
+band-diagnostic convention ends in `-incomplete`. Missing is never silently
+added as physical zero. Consult component maturity, provenance,
 validated-domain, uncertainty, and asset metadata before making scientific or
 operational claims.
+
+A checksum-pinned spectral StarlightMap is a top-of-atmosphere diagnostic.
+Its exact stored-bin integrals and statistical-only sigma can be inspected
+without pretending they are observer-level NSB; NsbEvaluator::evaluate rejects
+spectral-only maps until scientifically validated atmospheric transport exists.
+The original integrated-production map path is unchanged.
 
 ## Interfaces and documentation
 
