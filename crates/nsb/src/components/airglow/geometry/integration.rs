@@ -147,7 +147,7 @@ mod tests {
     use crate::error::NsbError;
     use siderust::coordinates::centers::Geodetic;
     use siderust::coordinates::frames::ECEF;
-    use siderust::qtty::{Degrees, Kilometers, Meters, Nanometers};
+    use siderust::qtty::{Degrees, Kilometers, Meters, Nanometers, Radians};
 
     fn observer(height_m: f64) -> Geodetic<ECEF> {
         Geodetic::new_raw(
@@ -221,7 +221,7 @@ mod tests {
             let numerical = super::integrate_profile_los(
                 samples,
                 observer_height,
-                Degrees::new(0.0).to::<siderust::qtty::unit::Radian>(),
+                Radians::new(0.0),
                 64,
             );
             assert!(
