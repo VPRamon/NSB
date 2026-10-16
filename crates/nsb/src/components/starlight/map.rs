@@ -107,7 +107,7 @@ impl StarlightPixel {
             || self.systematic_uncertainty.is_some() != self.total_uncertainty.is_some()
         {
             return Err(invalid_map(
-                "pixel radiance and any provided uncertainties must be finite and non-negative; systematic and total must occur together and total must dominate both",
+                "pixel radiance and any provided uncertainty triplet must be finite and non-negative; systematic and total must occur together and total >= statistical and total >= systematic",
             ));
         }
         Ok(())
@@ -133,11 +133,19 @@ impl StarlightMap {
             return Err(invalid_map("starlight map must contain at least one pixel"));
         }
 
-        let has_uncertainties = pixels[0].output().has_uncertainties();
+        let uncertainty_schema = (
+            pixels[0].statistical_uncertainty.is_some(),
+            pixels[0].systematic_uncertainty.is_some(),
+            pixels[0].total_uncertainty.is_some(),
+        );
         let mut validated = Vec::with_capacity(pixels.len());
         for pixel in pixels {
             pixel.validate()?;
-            if pixel.output().has_uncertainties() != has_uncertainties {
+            if (
+                pixel.statistical_uncertainty.is_some(),
+                pixel.systematic_uncertainty.is_some(),
+                pixel.total_uncertainty.is_some(),
+            ) != uncertainty_schema {
                 return Err(invalid_map(
                     "all starlight pixels must use the same uncertainty schema",
                 ));
