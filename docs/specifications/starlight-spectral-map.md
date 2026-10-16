@@ -94,11 +94,14 @@ conditions. The envelope does **not** include stellar in-scattering, DESI
 source-mask/instrument response or missing bright-star/photometric
 completion. No observational accuracy improvement is claimed.
 
-A spectral-only map can be selected explicitly in `StarlightProduct`
-and queried through `NsbEvaluator::integrate_band` for complete supported
-bins inside the evaluator's existing 300–650 nm domain. The evaluator's
-legacy full-band `evaluate` rejects spectral maps lacking the entire
-300–650 nm native band instead of silently relabeling their radiance.
+A spectral-only map can be selected explicitly in `StarlightProduct`,
+but its **TOA** native-band integrals are queried through
+`StarlightMap::integrate_band`. `NsbEvaluator::integrate_band` continues
+to reject Starlight, because adding a TOA pixel mean to a ground-level
+component total without atmospheric/instrumental transport would be
+physically misleading. The evaluator's legacy full-band `evaluate`
+rejects spectral maps lacking the entire 300–650 nm native band rather
+than silently relabeling their radiance.
 
 ## Examples
 
