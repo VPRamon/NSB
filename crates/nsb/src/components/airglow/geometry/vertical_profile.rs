@@ -17,7 +17,7 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{
     unit::{Kilometer, Radian},
-    Degrees, Kilometers, Nanometers, Radians,
+    Degrees, Kilometers, Nanometers,
 };
 use std::sync::Arc;
 use thiserror::Error;
