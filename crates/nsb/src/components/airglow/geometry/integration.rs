@@ -19,41 +19,13 @@ use siderust::bodies::solar_system::EARTH;
 use siderust::qtty::{Kilometers, Radians, SquareKilometers};
 
 /// Current implementation identifier for the reference spherical LOS integrator.
-pub(crate) const VERTICAL_PROFILE_INTEGRATOR_VERSION: &str = "spherical-los-simpson-v2";
+pub(crate) const VERTICAL_PROFILE_INTEGRATOR_VERSION: &str = "spherical-los-simpson-v1";
 /// Mean spherical Earth radius used by the reference vertical-profile integrator.
 ///
-/// Shares Siderust's mean Earth radius used by the Van Rhijn model.
+/// Same mean Earth radius as Siderust's Van Rhijn implementation.
 pub(crate) const AIRGLOW_MEAN_EARTH_RADIUS_KM: Kilometers = EARTH.radius;
 /// Production reference resolution per profile interval (must be even).
 pub(crate) const VERTICAL_PROFILE_REFERENCE_SUBSTEPS: usize = 64;
-
-/// Integrate the visible part of a piecewise-linear profile at the zenith.
-///
-/// Trapezoidal integration is exact here, including when the observer lies
-/// partway through a profile interval. No numerical quadrature is needed.
-pub(super) fn integrate_vertical_profile(
-    samples: ValidatedProfileSamples<'_>,
-    observer_height: Kilometers,
-) -> f64 {
-    let altitudes = samples.altitudes_km();
-    let emissivity = samples.relative_emissivity();
-    let mut total = 0.0;
-
-    for (heights, values) in altitudes.windows(2).zip(emissivity.windows(2)) {
-        let (h0, h1) = (heights[0], heights[1]);
-        let low = h0.max(observer_height);
-        if low >= h1 {
-            continue;
-        }
-
-        let fraction = (low - h0) / (h1 - h0);
-        let j_low = values[0] + fraction * (values[1] - values[0]);
-        // Normalized emissivity is currently an untyped f64 with implicit km^-1.
-        total += (h1 - low).value() * (j_low + values[1]) * 0.5;
-    }
-
-    total
-}
 
 /// Integrate `j(h(s)) ds` over every profile interval using composite Simpson.
 ///
@@ -83,14 +55,13 @@ pub(super) fn integrate_profile_los(
     debug_assert!(altitudes.len() >= 2);
 
     let r0 = AIRGLOW_MEAN_EARTH_RADIUS_KM + observer_height;
-    let projected_radius = r0 * zenith.cos().max(0.0);
     let sin_z = zenith.sin();
+    let projected_radius = r0 * zenith.cos().max(0.0);
     let impact_sq = (r0 * r0) * (sin_z * sin_z);
     let mut total = 0.0;
 
-    for index in 0..altitudes.len() - 1 {
-        let bin_low = altitudes[index];
-        let bin_high = altitudes[index + 1];
+    for (heights, emissivities) in altitudes.windows(2).zip(relative_emissivity.windows(2)) {
+        let (bin_low, bin_high) = (heights[0], heights[1]);
         let low = bin_low.max(observer_height);
         if low >= bin_high {
             continue;
@@ -98,18 +69,16 @@ pub(super) fn integrate_profile_los(
         let s_low = distance_to_altitude(low, projected_radius, impact_sq);
         let s_high = distance_to_altitude(bin_high, projected_radius, impact_sq);
         let ds = (s_high - s_low) / substeps as f64;
-        let bin_width = bin_high - bin_low;
-        let j_low = relative_emissivity[index];
-        let j_delta = relative_emissivity[index + 1] - j_low;
+        let width = bin_high - bin_low;
+        let delta_emissivity = emissivities[1] - emissivities[0];
         let mut weighted = 0.0;
         for step in 0..=substeps {
             let s = s_low + ds * step as f64;
-            let along_ray = s + projected_radius;
-            let altitude =
-                (along_ray * along_ray + impact_sq).sqrt() - AIRGLOW_MEAN_EARTH_RADIUS_KM;
+            let radial = s + projected_radius;
+            let altitude = (radial * radial + impact_sq).sqrt() - AIRGLOW_MEAN_EARTH_RADIUS_KM;
             // Same-unit length division yields a dimensionless scalar in qtty.
-            let fraction = ((altitude - bin_low) / bin_width).clamp(0.0, 1.0);
-            let emissivity = j_low + fraction * j_delta;
+            let fraction = ((altitude - bin_low) / width).clamp(0.0, 1.0);
+            let emissivity = emissivities[0] + fraction * delta_emissivity;
             let weight = if step == 0 || step == substeps {
                 1.0
             } else if step % 2 == 0 {
@@ -147,7 +116,7 @@ mod tests {
     use crate::error::NsbError;
     use siderust::coordinates::centers::Geodetic;
     use siderust::coordinates::frames::ECEF;
-    use siderust::qtty::{Degrees, Kilometers, Meters, Nanometers, Radians};
+    use siderust::qtty::{Degrees, Kilometers, Meters, Nanometers};
 
     fn observer(height_m: f64) -> Geodetic<ECEF> {
         Geodetic::new_raw(
@@ -178,57 +147,6 @@ mod tests {
             },
         })
         .unwrap()
-    }
-
-    #[test]
-    fn vertical_integral_exactly_clips_partial_profile_intervals() {
-        let profile = profile(
-            "clipped-piecewise-linear",
-            &[0.0, 1.0, 3.0, 5.0],
-            &[0.0, 1.0, 1.0, 0.0],
-        );
-        // The unnormalized area is 7/2. At h=0.5, the removed
-        // triangle has area 1/8; at h=2, the remaining area is 2.
-        for (observer_km, expected) in [
-            (-1.0, 1.0),
-            (0.5, 27.0 / 28.0),
-            (2.0, 4.0 / 7.0),
-            (3.0, 2.0 / 7.0),
-            (5.0, 0.0),
-        ] {
-            let actual = super::integrate_vertical_profile(
-                profile.samples(),
-                Kilometers::new(observer_km),
-            );
-            assert!(
-                (actual - expected).abs() < 1.0e-12,
-                "observer={observer_km} km: expected {expected}, got {actual}"
-            );
-        }
-    }
-
-    #[test]
-    fn exact_vertical_matches_zenith_quadrature() {
-        let profile = profile(
-            "zenith-reference",
-            &[75.0, 82.0, 94.0, 110.0],
-            &[0.0, 0.8, 1.0, 0.0],
-        );
-        for height in [0.0, 80.0, 90.0, 100.0] {
-            let samples = profile.samples();
-            let observer_height = Kilometers::new(height);
-            let exact = super::integrate_vertical_profile(samples, observer_height);
-            let numerical = super::integrate_profile_los(
-                samples,
-                observer_height,
-                Radians::new(0.0),
-                64,
-            );
-            assert!(
-                (exact - numerical).abs() < 1.0e-10,
-                "observer={height} km: exact {exact}, numerical {numerical}"
-            );
-        }
     }
 
     #[test]
