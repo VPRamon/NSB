@@ -1996,7 +1996,7 @@ fn canonical_merge_bytes(shard: &PartitionShard) -> Result<Vec<u8>> {
     bytes.extend_from_slice(b"nsb-starlight-complete-merge-v1\0");
     bytes.extend_from_slice(&shard.nside.to_be_bytes());
     bytes.push(match shard.product_band {
-        crate::starlight::config::StarlightProductBand::Measured360To570 => {
+        crate::starlight::config::StarlightProductBand::Measured360To570 | crate::starlight::config::StarlightProductBand::MeasuredXpBinned => {
             bail!("interval products require band-neutral shards")
         }
         crate::starlight::config::StarlightProductBand::Measured336To650 => 0,
