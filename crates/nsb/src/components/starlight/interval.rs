@@ -406,7 +406,10 @@ mod tests {
 
         let mut nonzero_integrated_sigma = empty;
         nonzero_integrated_sigma["pixels"][0]["integrated_statistical_sigma"] = 0.5.into();
-        assert!(load(nonzero_integrated_sigma).is_err(), "empty pixel integrated sigma");
+        assert!(
+            load(nonzero_integrated_sigma).is_err(),
+            "empty pixel integrated sigma"
+        );
     }
 
     #[test]
