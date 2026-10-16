@@ -49,6 +49,19 @@ struct PalaceClimatologyCell {
     components: [PalaceVariability; COMPONENT_COUNT],
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PalaceSampleCoefficients {
+    mean_scale: f64,
+    residual_relative_mean: f64,
+    residual_sigma: f64,
+}
+
+/// Time/F10.7 coefficients that remain fixed across all 351 wavelengths.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PreparedPalaceSample {
+    coefficients: [PalaceSampleCoefficients; COMPONENT_COUNT],
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct AirglowContinuum {
     wavelengths_nm: [f64; SAMPLE_COUNT],
@@ -64,26 +77,27 @@ impl AirglowContinuum {
         &self.wavelengths_nm
     }
 
-    /// PALACE continuum mean and residual one-sigma variability in R/nm.
-    pub(crate) fn sample(
+    /// Compute time/F10.7 scales once, before the wavelength loop.
+    pub(crate) fn prepare_sample(
         &self,
-        sample: usize,
         month: u32,
         local_time_bin: usize,
         solar_flux_sfu: f64,
-    ) -> Result<(f64, f64)> {
-        if sample >= SAMPLE_COUNT
-            || !(1..=12).contains(&month)
-            || !(1..=12).contains(&local_time_bin)
-        {
+    ) -> Result<PreparedPalaceSample> {
+        if !(1..=12).contains(&month) || !(1..=12).contains(&local_time_bin) {
             return Err(data_error(
                 "PALACE sample/month/time index is out of range".into(),
             ));
         }
         let cell = self.climatology[(month as usize - 1) * 12 + local_time_bin - 1];
-        let mut mean = 0.0;
-        let mut sigma = 0.0;
-        for (component, variability) in self.components.iter().zip(cell.components) {
+        let mut coefficients = [PalaceSampleCoefficients {
+            mean_scale: 0.0,
+            residual_relative_mean: 0.0,
+            residual_sigma: 0.0,
+        }; COMPONENT_COUNT];
+        for (i, (component, variability)) in self.components
+            .iter().zip(cell.components).enumerate()
+        {
             let scale = variability.relative_mean
                 * (1.0
                     + 0.01
@@ -95,15 +109,53 @@ impl AirglowContinuum {
                     component.name
                 )));
             }
+            coefficients[i] = PalaceSampleCoefficients {
+                mean_scale: scale,
+                residual_relative_mean: variability.relative_mean,
+                residual_sigma: variability.residual_sigma,
+            };
+        }
+        Ok(PreparedPalaceSample { coefficients })
+    }
+
+    /// Evaluate one spectral sample using prevalidated, immutable coefficients.
+    pub(crate) fn sample_prepared(
+        &self,
+        sample: usize,
+        prepared: &PreparedPalaceSample,
+    ) -> Result<(f64, f64)> {
+        if sample >= SAMPLE_COUNT {
+            return Err(data_error(
+                "PALACE sample/month/time index is out of range".into(),
+            ));
+        }
+        let mut mean = 0.0;
+        let mut sigma = 0.0;
+        for (component, factors) in self.components.iter().zip(prepared.coefficients) {
             let template = component.spectrum_rayleigh_per_nm[sample];
-            mean += template * scale;
-            // PALACE Eq. (2): sigma_f = f0 * sigma_f,0. The residual
-            // variability has no explicit solar-activity term. PALACE then
-            // linearly sums overlapping emission deviations as a conservative
-            // maximum-variability estimate.
-            sigma += template * variability.relative_mean * variability.residual_sigma;
+            mean += template * factors.mean_scale;
+            // Preserve the historical multiplication order for the
+            // conservative PALACE residual-variability estimate.
+            sigma += template * factors.residual_relative_mean * factors.residual_sigma;
         }
         Ok((mean, sigma))
+    }
+
+    /// PALACE continuum mean and residual one-sigma variability in R/nm.
+    pub(crate) fn sample(
+        &self,
+        sample: usize,
+        month: u32,
+        local_time_bin: usize,
+        solar_flux_sfu: f64,
+    ) -> Result<(f64, f64)> {
+        if sample >= SAMPLE_COUNT {
+            return Err(data_error(
+                "PALACE sample/month/time index is out of range".into(),
+            ));
+        }
+        let prepared = self.prepare_sample(month, local_time_bin, solar_flux_sfu)?;
+        self.sample_prepared(sample, &prepared)
     }
 
     pub(crate) fn representative_emission_height_km(&self) -> Kilometers {
