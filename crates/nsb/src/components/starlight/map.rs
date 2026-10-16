@@ -256,7 +256,7 @@ impl StarlightMap {
         if let Some(spectral) = &self.spectral {
             return spectral.top_of_atmosphere_pixel(direction);
         }
-        let p = self.pixel_at(direction);
+        let p = self.try_pixel_at(direction)?;
         Ok((p.integrated, p.statistical_uncertainty))
     }
 
@@ -337,12 +337,29 @@ impl StarlightMap {
     /// transforms [`crate::Target`] values and returns the shared
     /// [`crate::NsbComponent`] result contract through [`crate::NsbEvaluator`].
     pub fn pixel_at(&self, direction: CartesianDirection<Galactic>) -> StarlightPixel {
+        self.try_pixel_at(direction)
+            .expect("pixel_at requires a finite Galactic direction")
+    }
+
+    /// Fallible nearest-neighbor lookup for arbitrary caller-supplied directions.
+    ///
+    /// Unlike the frozen legacy pixel_at method, this never panics on an
+    /// invalid direction or an out-of-range HEALPix index.
+    pub fn try_pixel_at(
+        &self,
+        direction: CartesianDirection<Galactic>,
+    ) -> Result<StarlightPixel> {
         let index = self
             .map
             .grid()
             .direction_to_pixel(direction)
-            .expect("validated HEALPix lookup direction is finite");
-        self.map.values()[usize::try_from(index.get()).expect("pixel index fits usize")]
+            .map_err(|err| invalid_map(err.to_string()))?;
+        let slot = usize::try_from(index.get())
+            .map_err(|_| invalid_map("HEALPix index exceeds address space"))?;
+        self.map.values()
+            .get(slot)
+            .copied()
+            .ok_or_else(|| invalid_map("HEALPix pixel index out of range"))
     }
 
     pub(crate) fn lookup(&self, direction: CartesianDirection<Galactic>) -> StarlightOutputs {
