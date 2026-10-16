@@ -93,17 +93,21 @@ impl StarlightPixel {
             (Some(statistical), Some(systematic), Some(total)) => {
                 output.with_uncertainties(statistical, systematic, total)
             }
+            (Some(statistical), None, None) => {
+                output.statistical_uncertainty = Some(statistical);
+                output
+            }
             _ => output,
         }
     }
 
     fn validate(self) -> Result<()> {
         if !self.output().is_finite_non_negative()
-            || self.statistical_uncertainty.is_some() != self.systematic_uncertainty.is_some()
-            || self.statistical_uncertainty.is_some() != self.total_uncertainty.is_some()
+            // A statistical-only XP product must not invent systematic/total sigma.
+            || self.systematic_uncertainty.is_some() != self.total_uncertainty.is_some()
         {
             return Err(invalid_map(
-                "pixel radiance, S10 values, and any uncertainty triplet must be finite, non-negative, complete, and satisfy total >= statistical and total >= systematic",
+                "pixel radiance and any provided uncertainties must be finite and non-negative; systematic and total must occur together and total must dominate both",
             ));
         }
         Ok(())
@@ -185,12 +189,17 @@ impl StarlightMap {
             .pixels
             .iter()
             .map(|p| {
-                StarlightPixel::new(
+                let mut pixel = StarlightPixel::new(
                     BandPhotonRadiance::new(p.radiance.iter().sum()),
                     S10s::new(0.0),
                     S10s::new(0.0),
                 )
-                .without_s10_diagnostics()
+                .without_s10_diagnostics();
+                // Do not discard Gaia XP's full-band measured statistical sigma.
+                // Total/systematic sigma remain unknown, not zero.
+                pixel.statistical_uncertainty =
+                    p.integrated_statistical_sigma.map(BandPhotonRadiance::new);
+                pixel
             })
             .collect();
         let mut map = Self::from_healpix(spectral.grid, pixels, provenance)?;
@@ -313,6 +322,11 @@ impl StarlightMap {
     pub fn from_csv_path(path: impl AsRef<Path>, provenance: StarlightProvenance) -> Result<Self> {
         let raw = std::fs::read_to_string(path)?;
         Self::from_csv_str(&raw, provenance)
+    }
+
+    /// Whether this map contains a spectral-only TOA product.
+    pub(crate) fn is_spectral(&self) -> bool {
+        self.spectral.is_some()
     }
 
     /// Return the stored sample nearest a Galactic direction.
