@@ -671,7 +671,7 @@ mod tests {
             gaia_products: products,
             acquisition: Default::default(),
             map: crate::starlight::config::StarlightMapConfig { canonical_nside: 1 },
-            product_band: StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned,
+            product_band: StarlightProductBand::Measured360To570,
             spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
@@ -684,9 +684,9 @@ mod tests {
         artifact_store::atomic_write(&reconciled, &fs::read(&interval[0].path)?)?;
         let maps = crate::starlight::restricted::finalize(workspace, &config, &[partition.into()])?;
         let candidate = nsb::components::starlight::StarlightMap::from_json_file(&maps[0].path, &maps[0].sha256)?;
-        assert_eq!(candidate.admitted_sources(), 1);
+        assert_eq!(candidate.admitted_sources(), Some(1));
         assert_eq!(candidate.band_nm(), [360, 570]);
-        assert!(crate::starlight::restricted::gates(workspace)?
+        assert!(crate::starlight::restricted::gates(workspace, false)?
             .iter()
             .all(|g| g.passed));
         let first = fs::read(&maps[0].path)?;
