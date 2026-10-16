@@ -51,10 +51,10 @@ impl DatasetPipeline for StarlightPipeline {
                 ];
             }
             if matches!(
-            starlight.product_band,
-            super::config::StarlightProductBand::Measured360To570
-                | super::config::StarlightProductBand::MeasuredXpBinned
-        ) {
+                starlight.product_band,
+                super::config::StarlightProductBand::Measured360To570
+                    | super::config::StarlightProductBand::MeasuredXpBinned
+            ) {
                 return vec![
                     super::restricted::MAP_NAME.into(),
                     super::restricted::REPORT_NAME.into(),
@@ -243,15 +243,12 @@ impl DatasetPipeline for StarlightPipeline {
         if name == super::ingestion_audit::NAME {
             return super::ingestion_audit::validate(path);
         }
-        if name == super::restricted::MAP_NAME
-            || name == super::restricted::GENERIC_MAP_NAME
-        {
+        if name == super::restricted::MAP_NAME || name == super::restricted::GENERIC_MAP_NAME {
             let sha256 = crate::platform::checksum_io::sha256_file(path)?;
             nsb::components::starlight::StarlightMap::from_json_file(path, &sha256)?;
             return Ok(());
         }
-        if name == super::restricted::REPORT_NAME
-            || name == super::restricted::GENERIC_REPORT_NAME
+        if name == super::restricted::REPORT_NAME || name == super::restricted::GENERIC_REPORT_NAME
         {
             let value: serde_json::Value = serde_json::from_slice(&fs::read(path)?)?;
             let schema = if name == super::restricted::GENERIC_REPORT_NAME {
