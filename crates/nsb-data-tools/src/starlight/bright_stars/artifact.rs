@@ -27,7 +27,7 @@ pub fn artifact_compatible_with_product_band(
 ) -> bool {
     use crate::starlight::config::StarlightProductBand;
     match product_band {
-        StarlightProductBand::Measured360To570 => false,
+        StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned => false,
         StarlightProductBand::Measured336To650 => {
             artifact_product_band == BRIGHT_STAR_PRODUCT_BAND_ID
         }
