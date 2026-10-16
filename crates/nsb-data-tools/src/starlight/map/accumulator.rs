@@ -481,7 +481,7 @@ impl PartitionShard {
         use crate::starlight::uv::SystematicCorrelation;
 
         match self.product_band {
-            StarlightProductBand::Measured360To570 => {
+            StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned => {
                 bail!("interval products require band-neutral shards")
             }
             StarlightProductBand::Measured336To650 => {
@@ -598,14 +598,14 @@ impl PartitionShard {
         flux: SourceFluxComponents,
     ) -> Result<()> {
         let selected_flux = match self.product_band {
-            StarlightProductBand::Measured360To570 => {
+            StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned => {
                 bail!("interval products require band-neutral shards")
             }
             StarlightProductBand::Measured336To650 => flux.flux_336_650_ph_m2_s,
             StarlightProductBand::Combined300To650 => flux.flux_300_650_ph_m2_s,
         };
         let selected_statistical = match self.product_band {
-            StarlightProductBand::Measured360To570 => {
+            StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned => {
                 bail!("interval products require band-neutral shards")
             }
             StarlightProductBand::Measured336To650 => flux.statistical_uncertainty_336_650_ph_m2_s,
