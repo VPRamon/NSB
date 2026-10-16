@@ -14,7 +14,6 @@ use anyhow::{bail, Context, Result};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 const RUN_MANIFEST: &str = "run.json";
 const VALIDATION_REPORT: &str = "validation.json";
@@ -732,14 +731,7 @@ fn initialize_manifest(
 }
 
 fn software_commit() -> String {
-    Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .ok()
-        .filter(|output| output.status.success())
-        .and_then(|output| String::from_utf8(output.stdout).ok())
-        .map(|commit| commit.trim().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
+    env!("NSB_DATA_TOOLS_COMMIT").to_string()
 }
 
 fn manifest_path(config: &RunConfig, run_id: &str) -> PathBuf {

@@ -65,3 +65,28 @@ A conservative propagated sigma allows arbitrary unknown cross-bin covariance.
 Calibration systematics remain unavailable. This operation excludes molecular
 absorption and atmospheric in-scattering and is still a pixel-average operator.
 It cannot be automatically added to a source-masked sky-fiber prediction.
+
+## Calibration investigations
+
+The `bright_star_interval_audit` Rust example reuses the actual pinned CK04/Hp
+spectral model and original source diagnostics to re-integrate 360–570 nm.
+It verifies reproduction of each old measured-band flux and nonnegative subset
+fluxes. Its output retains all duplicate/ambiguous classifications and is not
+merged into the XP candidate. Wavelength-convention admission and Gaia
+replacement reconciliation remain requirements before population completion.
+
+`crates/nsb-data-tools/scripts/fit_interval_photometry.py` is an offline research
+fit using the worker's fixed `source_id % 4093 == 0` XP sample. It normalizes the
+exact Pogson G brightness scale, fits cubic colour models and evaluates disjoint
+NSIDE=64 sky-region validation/test sets. It accepts no DESI data. Its artifact
+is explicitly **research-only**, with held-out errors and covariance; the runtime
+rejects it. G-only colour inference, faint-population transfer, XP selection bias
+and catalogue-correlated uncertainties still require scientific admission.
+
+Dataset binaries now record their **compiled** Git source identity independent
+of their launch directory. Dirty source builds carry a `-dirty` suffix. Earlier
+binaries queried Git in the caller's directory and could record `unknown`; old
+run manifests must remain unchanged. For such runs, preserve an external receipt
+with the observed clean source commit, exact executable SHA-256, fixture and lock
+hashes, configuration hash and compile/execution job IDs. This is an explicit
+provenance limitation, not permission to rewrite historical evidence.
