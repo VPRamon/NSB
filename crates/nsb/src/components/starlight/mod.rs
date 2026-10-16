@@ -20,7 +20,7 @@
 
 mod compact;
 mod interval;
-pub use interval::{DirectStarlightBounds, StarlightIntervalMap};
+pub use interval::DirectStarlightBounds;
 mod map;
 mod model;
 mod output;
