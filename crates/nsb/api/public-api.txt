@@ -191,6 +191,7 @@ pub fn nsb::components::starlight::StarlightMap::pixels(&self) -> &[nsb::compone
 pub fn nsb::components::starlight::StarlightMap::provenance(&self) -> &nsb::components::starlight::StarlightProvenance
 pub fn nsb::components::starlight::StarlightMap::sha256(&self) -> core::option::Option<&str>
 pub fn nsb::components::starlight::StarlightMap::top_of_atmosphere_pixel(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::Result<(qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian, core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>)>
+pub fn nsb::components::starlight::StarlightMap::try_pixel_at(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::Result<nsb::components::starlight::StarlightPixel>
 impl nsb::components::starlight::StarlightMap
 pub fn nsb::components::starlight::StarlightMap::compact_csv(raw: &str, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<alloc::vec::Vec<u8>>
 pub fn nsb::components::starlight::StarlightMap::from_compact_bytes(bytes: &[u8], provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
