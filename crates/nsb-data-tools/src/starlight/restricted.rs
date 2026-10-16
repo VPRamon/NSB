@@ -31,9 +31,10 @@ fn is_generic(config: &StarlightConfig) -> bool {
 
 fn edges_for(config: &StarlightConfig) -> Result<Vec<u16>> {
     let edges = if is_generic(config) {
-        config.spectral_bin_edges_nm.as_deref().ok_or_else(|| {
-            anyhow::anyhow!("measured-xp-binned requires spectral_bin_edges_nm")
-        })?
+        config
+            .spectral_bin_edges_nm
+            .as_deref()
+            .ok_or_else(|| anyhow::anyhow!("measured-xp-binned requires spectral_bin_edges_nm"))?
     } else {
         if config.spectral_bin_edges_nm.is_some() {
             bail!("legacy XP candidate must preserve its original 360-570 nm bins");
@@ -240,7 +241,10 @@ pub(crate) fn build(
                     "flux_ph_m2_s":flux,"variance":covariance.iter().enumerate().map(|(i,r)|r[i]).collect::<Vec<_>>()
                 }));
             }
-            let p = shard.pixels.entry(pixel).or_insert_with(|| Pixel::new(bins));
+            let p = shard
+                .pixels
+                .entry(pixel)
+                .or_insert_with(|| Pixel::new(bins));
             for i in 0..bins {
                 p.flux_ph_m2_s[i].add(flux[i + 1])?;
                 p.variance_ph_m2_s_squared[i].add(covariance[i + 1][i + 1])?;
@@ -287,7 +291,8 @@ fn validate_shard(shard: &Shard) -> Result<()> {
     }
     let npix = gaia_nested_npix(shard.nside)?;
     for (&index, p) in &shard.pixels {
-        if u64::from(index) >= npix || p.sources == 0
+        if u64::from(index) >= npix
+            || p.sources == 0
             || p.flux_ph_m2_s.len() != edges.len() - 1
             || p.variance_ph_m2_s_squared.len() != edges.len() - 1
         {
@@ -367,7 +372,9 @@ pub(crate) fn finalize(
     for index in 0..npix {
         let nested =
             super::healpix_topology::reference_ring2nest(config.map.canonical_nside, index)?;
-        let p = merged.remove(&(nested as u32)).unwrap_or_else(|| Pixel::new(bins));
+        let p = merged
+            .remove(&(nested as u32))
+            .unwrap_or_else(|| Pixel::new(bins));
         admitted += p.sources;
         for f in &p.flux_ph_m2_s {
             map_flux.merge(f)?;
@@ -431,9 +438,17 @@ pub(crate) fn finalize(
         })
     };
     let (map_name, report_name, report_schema) = if is_generic(config) {
-        (GENERIC_MAP_NAME, GENERIC_REPORT_NAME, "nsb-starlight-spectral-validation-v2")
+        (
+            GENERIC_MAP_NAME,
+            GENERIC_REPORT_NAME,
+            "nsb-starlight-spectral-validation-v2",
+        )
     } else {
-        (MAP_NAME, REPORT_NAME, "nsb-starlight-interval-validation-v1")
+        (
+            MAP_NAME,
+            REPORT_NAME,
+            "nsb-starlight-interval-validation-v1",
+        )
     };
     let map_path = root.join("outputs").join(map_name);
     atomic_write(&map_path, &serde_json::to_vec(&map)?)?;
@@ -455,9 +470,17 @@ pub(crate) fn finalize(
 
 pub(crate) fn gates(root: &Path, generic: bool) -> Result<Vec<ValidationGate>> {
     let (map_name, report_name, schema) = if generic {
-        (GENERIC_MAP_NAME, GENERIC_REPORT_NAME, "nsb-starlight-spectral-validation-v2")
+        (
+            GENERIC_MAP_NAME,
+            GENERIC_REPORT_NAME,
+            "nsb-starlight-spectral-validation-v2",
+        )
     } else {
-        (MAP_NAME, REPORT_NAME, "nsb-starlight-interval-validation-v1")
+        (
+            MAP_NAME,
+            REPORT_NAME,
+            "nsb-starlight-interval-validation-v1",
+        )
     };
     let report: serde_json::Value =
         serde_json::from_slice(&fs::read(root.join("outputs").join(report_name))?)?;
