@@ -59,8 +59,10 @@ impl NsbEvaluator {
             use siderust::coordinates::transform::TransformFrame;
             let galactic: siderust::coordinates::spherical::direction::Galactic =
                 query.target.to_frame();
-            total += model.map()
-                .integrate_band(galactic.to_cartesian(), lower, upper)?.0;
+            total += model
+                .map()
+                .integrate_band(galactic.to_cartesian(), lower, upper)?
+                .0;
         }
         if query.components.contains(ComponentMask::MOON)
             && self
@@ -257,20 +259,27 @@ mod tests {
             })).collect::<Vec<_>>()
         });
         let bytes = serde_json::to_vec(&value).unwrap();
-        let sha: String = Sha256::digest(&bytes).iter()
-            .map(|byte| format!("{byte:02x}")).collect();
+        let sha: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
         let map = StarlightMap::from_json_bytes(&bytes, &sha).unwrap();
         assert_eq!(map.band_nm(), [360, 420]);
         let config = NsbModelConfig::generic_clear_sky()
             .with_starlight_product(StarlightProduct::with_experimental_map(map));
         let evaluator = NsbEvaluator::with_config(config).unwrap();
         let q = query(ComponentMask::STARLIGHT, "2023-09-15T05:00:00Z");
-        let observed = evaluator.integrate_band(&q,
-            Nanometers::new(360.0), Nanometers::new(420.0)).unwrap();
+        let observed = evaluator
+            .integrate_band(&q, Nanometers::new(360.0), Nanometers::new(420.0))
+            .unwrap();
         assert_eq!(observed.value(), 3.0);
-        assert!(matches!(evaluator.evaluate(&q), Err(NsbError::Unsupported(_))));
-        assert!(matches!(evaluator.integrate_band(&q,
-            Nanometers::new(375.0), Nanometers::new(420.0)),
-            Err(NsbError::Unsupported(_))));
+        assert!(matches!(
+            evaluator.evaluate(&q),
+            Err(NsbError::Unsupported(_))
+        ));
+        assert!(matches!(
+            evaluator.integrate_band(&q, Nanometers::new(375.0), Nanometers::new(420.0)),
+            Err(NsbError::Unsupported(_))
+        ));
     }
 }
