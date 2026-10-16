@@ -16,7 +16,7 @@ use crate::{
 };
 use api::{
     add_exceptions, install_component_mask_constants, PyNsbComponent, PyNsbComponentMetadata,
-    PyNsbResult, PySiteProfile, PySiteWindowContext, PyStarlightIntervalMap,
+    PyNsbResult, PySiteProfile, PySiteWindowContext, PyStarlightMap,
     PyThresholdQueryResult,
 };
 
@@ -42,7 +42,7 @@ fn python_module(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<PyThresholdQueryResult>()?;
     module.add_class::<PySiteWindowContext>()?;
     module.add_class::<NsbEvaluator>()?;
-    module.add_class::<PyStarlightIntervalMap>()?;
+    module.add_class::<PyStarlightMap>()?;
 
     module.add("__version__", env!("CARGO_PKG_VERSION"))?;
     module.add("MODEL_VERSION", crate::MODEL_VERSION)?;
