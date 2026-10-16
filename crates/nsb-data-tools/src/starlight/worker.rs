@@ -370,6 +370,9 @@ pub(crate) fn bright_star_supplement_shard(
     }
     let provenance = artifact.supplement_provenance(verified_artifact_sha256)?;
     let mut shard = match product_band {
+        StarlightProductBand::Measured360To570 => {
+            bail!("interval products require band-neutral supplements")
+        }
         StarlightProductBand::Measured336To650 => {
             let mut shard = PartitionShard::new_with_policy(
                 "bright-star-supplement",

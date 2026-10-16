@@ -73,6 +73,9 @@ pub enum StarlightProductBand {
     /// Independently corrected UV plus the unchanged Gaia integral.
     #[serde(rename = "combined-300-650")]
     Combined300To650,
+    /// Experimental directly integrated XP interval (not a production asset).
+    #[serde(rename = "measured-360-570")]
+    Measured360To570,
 }
 
 /// Location and immutable identity of a checksum-pinned calibration artifact.

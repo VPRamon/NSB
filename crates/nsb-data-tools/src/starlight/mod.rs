@@ -14,6 +14,7 @@ pub mod pack;
 pub mod photometric;
 mod pipeline;
 pub mod promotion;
+mod restricted;
 pub mod selection;
 pub mod sources;
 pub mod uncertainty;
