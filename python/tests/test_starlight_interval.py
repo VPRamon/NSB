@@ -109,3 +109,67 @@ def test_explicit_null_provenance_required_in_python(tmp_path, field):
     candidate[field] = {"unsupported": True}
     with pytest.raises(nsb.InvalidMapError):
         load_candidate(tmp_path, candidate)
+
+
+@pytest.mark.parametrize(
+    "edges", [[350, 570], [350, 410, 470, 570], list(range(350, 551, 20))]
+)
+def test_generic_starlight_map_supports_arbitrary_bins_without_new_python_types(
+    tmp_path, edges
+):
+    bins = len(edges) - 1
+    candidate = {
+        "schema": "nsb-starlight-spectral-map-v2",
+        "product_id": "synthetic-variable-bins",
+        "band_nm": [edges[0], edges[-1]],
+        "bin_edges_nm": edges,
+        "nside": 1, "ordering": "ring",
+        "coordinate_frame": "galactic", "domain": "top-of-atmosphere",
+        "units": "photon/(cm2 ns sr)", "wavelength_convention": "vacuum",
+        "maturity": "experimental",
+        "provenance": {
+            "source_catalogue": "synthetic",
+            "source_license": "test-only",
+            "source_selection": "all",
+            "generation_method": "test fixture",
+            "limitations": ["not scientific data"],
+        },
+        "catalogue_rows": 12, "admitted_sources": 12,
+        "excluded_sources": {},
+        "pixels": [
+            {"pixel": i, "sources": 1, "radiance": [1.0] * bins,
+             "statistical_sigma": [0.1] * bins,
+             "integrated_statistical_sigma": 0.5}
+            for i in range(12)
+        ],
+    }
+    product = load_candidate(tmp_path, candidate)
+    assert product.bin_edges_nm == edges
+    assert list(product.band_nm) == [edges[0], edges[-1]]
+    assert product.top_of_atmosphere_pixel(0.0, 0.0) == (float(bins), 0.5)
+    assert product.integrate_band(0.0, 0.0, edges[0], edges[-1]) == (
+        float(bins), 0.5
+    )
+    if bins > 2:
+        assert product.integrate_band(0.0, 0.0, edges[0], edges[2]) == (
+            2.0, None
+        )
+    with pytest.raises(nsb.UnsupportedError):
+        product.integrate_band(0.0, 0.0, edges[0] + 1, edges[-1])
+    with pytest.raises(nsb.UnsupportedError):
+        product.integrate_band(0.0, 0.0, edges[0], edges[-1] + 1)
+
+    candidate["pixels"] = [
+        {"pixel": i, "sources": 1, "radiance": [1.0] * bins}
+        for i in range(12)
+    ]
+    without_sigma = load_candidate(tmp_path, candidate)
+    assert without_sigma.top_of_atmosphere_pixel(0.0, 0.0) == (
+        float(bins), None
+    )
+    with pytest.raises(nsb.UnsupportedError):
+        without_sigma.direct_pixel_bounds(0.0, 0.0, 30.0, 790.0)
+
+    candidate["maturity"] = "production"
+    with pytest.raises(nsb.InvalidMapError):
+        load_candidate(tmp_path, candidate)
