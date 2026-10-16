@@ -130,11 +130,12 @@ pub(crate) fn integrate_attenuated_continuum_band(
     let scattering = noll_airglow_scattering_geometry(zenith);
     let wavelengths = continuum.wavelengths_nm();
 
+    let coefficients =
+        continuum.prepare_sample(month, time_bin, ctx.solar_radio_flux.value())?;
     let mut means = [0.0; SAMPLE_COUNT];
     let mut sigmas = [0.0; SAMPLE_COUNT];
     for index in 0..SAMPLE_COUNT {
-        let (mean, sigma) =
-            continuum.sample(index, month, time_bin, ctx.solar_radio_flux.value())?;
+        let (mean, sigma) = continuum.sample_prepared(index, &coefficients)?;
         let transmission = spectral_airglow_scattering_transmission_with_geometry(
             Nanometers::new(wavelengths[index]),
             ctx.atmosphere,
