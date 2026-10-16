@@ -5,7 +5,7 @@
 //! Separate band-neutral shard fields prevent legacy 336–650 diagnostic columns
 //! from acquiring a second meaning. Acquisition, joins, admission geometry,
 //! exact accumulation, SLURM and checkpoint receipts reuse the production engine.
-use super::config::StarlightConfig;
+use super::config::{StarlightConfig, StarlightProductBand};
 use super::healpix::{gaia_nested_npix, galactic_nested_pixel_from_icrs_position};
 use super::map::accumulator::StableSum;
 use super::sources::acquisition;
@@ -22,6 +22,31 @@ use std::path::Path;
 
 pub const MAP_NAME: &str = "starlight_360_570_candidate.json";
 pub const REPORT_NAME: &str = "starlight_360_570_validation.json";
+pub const GENERIC_MAP_NAME: &str = "starlight_spectral_candidate.json";
+pub const GENERIC_REPORT_NAME: &str = "starlight_spectral_validation.json";
+
+fn is_generic(config: &StarlightConfig) -> bool {
+    config.product_band == StarlightProductBand::MeasuredXpBinned
+}
+
+fn edges_for(config: &StarlightConfig) -> Result<Vec<u16>> {
+    let edges = if is_generic(config) {
+        config.spectral_bin_edges_nm.as_deref().ok_or_else(|| {
+            anyhow::anyhow!("measured-xp-binned requires spectral_bin_edges_nm")
+        })?
+    } else {
+        if config.spectral_bin_edges_nm.is_some() {
+            bail!("legacy XP candidate must preserve its original 360-570 nm bins");
+        }
+        &BIN_EDGES_NM
+    };
+    if edges.len() > 1025 {
+        bail!("too many Starlight spectral bins");
+    }
+    calibration_bands(edges)?;
+    Ok(edges.to_vec())
+}
+
 const BIN_EDGES_NM: [u16; 8] = [360, 390, 420, 450, 480, 510, 540, 570];
 const BINS: usize = BIN_EDGES_NM.len() - 1;
 
@@ -41,13 +66,24 @@ fn calibration_bands(edges: &[u16]) -> Result<Vec<[f64; 2]>> {
     Ok(bands)
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Pixel {
-    flux_ph_m2_s: [StableSum; BINS],
-    variance_ph_m2_s_squared: [StableSum; BINS],
+    flux_ph_m2_s: Vec<StableSum>,
+    variance_ph_m2_s_squared: Vec<StableSum>,
     integrated_variance_ph_m2_s_squared: StableSum,
     sources: u64,
+}
+
+impl Pixel {
+    fn new(bins: usize) -> Self {
+        Self {
+            flux_ph_m2_s: (0..bins).map(|_| StableSum::default()).collect(),
+            variance_ph_m2_s_squared: (0..bins).map(|_| StableSum::default()).collect(),
+            integrated_variance_ph_m2_s_squared: StableSum::default(),
+            sources: 0,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,6 +91,8 @@ struct Pixel {
 struct Shard {
     schema: String,
     band_nm: [u16; 2],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bin_edges_nm: Option<Vec<u16>>,
     partition: String,
     nside: u32,
     input_sha256: BTreeMap<String, String>,
@@ -78,6 +116,7 @@ fn artifact(path: &Path, name: &str) -> Result<Artifact> {
 
 /// Old-band calibration products may not enter the interval candidate.
 pub(crate) fn validate_config(config: &StarlightConfig) -> Result<()> {
+    edges_for(config)?;
     if config.ultraviolet_correction.is_some()
         || config.photometric_inference.is_some()
         || config.selection_function.is_some()
@@ -108,7 +147,9 @@ pub(crate) fn build(
     let fixture = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
     let design_sha256 = checksum_io::sha256_file(&fixture)?;
     let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&fixture)?;
-    let bands = calibration_bands(&BIN_EDGES_NM)?;
+    let edges = edges_for(config)?;
+    let bins = edges.len() - 1;
+    let bands = calibration_bands(&edges)?;
     let integrator = calibrator.bp_integrator(&bands)?;
     let mut artifacts = Vec::new();
     for partition in partitions {
@@ -124,8 +165,13 @@ pub(crate) fn build(
         }
         let gaia = load_gaia_sources(&inputs["gaia-source"], &[])?;
         let mut shard = Shard {
-            schema: "nsb-starlight-interval-shard-v1".into(),
-            band_nm: [360, 570],
+            schema: if is_generic(config) {
+                "nsb-starlight-spectral-shard-v2".into()
+            } else {
+                "nsb-starlight-interval-shard-v1".into()
+            },
+            band_nm: [edges[0], *edges.last().unwrap()],
+            bin_edges_nm: is_generic(config).then(|| edges.clone()),
             partition: partition.clone(),
             nside: config.map.canonical_nside,
             input_sha256: inputs
@@ -193,8 +239,8 @@ pub(crate) fn build(
                     "flux_ph_m2_s":flux,"variance":covariance.iter().enumerate().map(|(i,r)|r[i]).collect::<Vec<_>>()
                 }));
             }
-            let p = shard.pixels.entry(pixel).or_default();
-            for i in 0..BINS {
+            let p = shard.pixels.entry(pixel).or_insert_with(|| Pixel::new(bins));
+            for i in 0..bins {
                 p.flux_ph_m2_s[i].add(flux[i + 1])?;
                 p.variance_ph_m2_s_squared[i].add(covariance[i + 1][i + 1])?;
             }
@@ -222,8 +268,17 @@ pub(crate) fn build(
 }
 
 fn validate_shard(shard: &Shard) -> Result<()> {
-    if shard.schema != "nsb-starlight-interval-shard-v1" || shard.band_nm != [360, 570] {
-        bail!("interval shard band/schema mismatch");
+    let edges = shard.bin_edges_nm.as_deref().unwrap_or(&BIN_EDGES_NM);
+    let expected_schema = if shard.bin_edges_nm.is_some() {
+        "nsb-starlight-spectral-shard-v2"
+    } else {
+        "nsb-starlight-interval-shard-v1"
+    };
+    if shard.schema != expected_schema
+        || shard.band_nm != [edges[0], *edges.last().unwrap()]
+        || calibration_bands(edges).is_err()
+    {
+        bail!("spectral shard band/schema mismatch");
     }
     let admitted: u64 = shard.pixels.values().map(|p| p.sources).sum();
     if admitted + shard.excluded.values().sum::<u64>() != shard.catalogue_rows {
@@ -231,8 +286,11 @@ fn validate_shard(shard: &Shard) -> Result<()> {
     }
     let npix = gaia_nested_npix(shard.nside)?;
     for (&index, p) in &shard.pixels {
-        if u64::from(index) >= npix || p.sources == 0 {
-            bail!("invalid interval pixel");
+        if u64::from(index) >= npix || p.sources == 0
+            || p.flux_ph_m2_s.len() != edges.len() - 1
+            || p.variance_ph_m2_s_squared.len() != edges.len() - 1
+        {
+            bail!("invalid spectral pixel shape");
         }
         for sum in p
             .flux_ph_m2_s
@@ -254,6 +312,8 @@ pub(crate) fn finalize(
     partitions: &[String],
 ) -> Result<Vec<Artifact>> {
     validate_config(config)?;
+    let edges = edges_for(config)?;
+    let bins = edges.len() - 1;
     let mut merged: BTreeMap<u32, Pixel> = BTreeMap::new();
     let mut identities = BTreeMap::new();
     let mut excluded: BTreeMap<String, u64> = BTreeMap::new();
@@ -268,8 +328,12 @@ pub(crate) fn finalize(
             .join(format!("{partition}.json"));
         let shard: Shard = serde_json::from_slice(&fs::read(&path)?)?;
         validate_shard(&shard)?;
-        if shard.partition != *partition || shard.nside != config.map.canonical_nside {
-            bail!("interval partition identity mismatch");
+        if shard.partition != *partition
+            || shard.nside != config.map.canonical_nside
+            || shard.band_nm != [edges[0], *edges.last().unwrap()]
+            || shard.bin_edges_nm != is_generic(config).then(|| edges.clone())
+        {
+            bail!("spectral partition identity mismatch");
         }
         if design.as_ref().is_some_and(|d| d != &shard.design_sha256) {
             bail!("mixed XP calibration designs");
@@ -283,8 +347,8 @@ pub(crate) fn finalize(
             *excluded.entry(reason).or_default() += n;
         }
         for (index, p) in shard.pixels {
-            let m = merged.entry(index).or_default();
-            for i in 0..BINS {
+            let m = merged.entry(index).or_insert_with(|| Pixel::new(bins));
+            for i in 0..bins {
                 source_flux.merge(&p.flux_ph_m2_s[i])?;
                 m.flux_ph_m2_s[i].merge(&p.flux_ph_m2_s[i])?;
                 m.variance_ph_m2_s_squared[i].merge(&p.variance_ph_m2_s_squared[i])?;
@@ -302,7 +366,7 @@ pub(crate) fn finalize(
     for index in 0..npix {
         let nested =
             super::healpix_topology::reference_ring2nest(config.map.canonical_nside, index)?;
-        let p = merged.remove(&(nested as u32)).unwrap_or_default();
+        let p = merged.remove(&(nested as u32)).unwrap_or_else(|| Pixel::new(bins));
         admitted += p.sources;
         for f in &p.flux_ph_m2_s {
             map_flux.merge(f)?;
