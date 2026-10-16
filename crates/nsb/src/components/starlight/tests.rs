@@ -454,6 +454,7 @@ fn incomplete_starlight_bv_is_visible_in_evaluator_result() {
     assert!(result.integrated.value() > 0.0);
     assert!(result.b_mag.value().is_nan());
     assert!(result.v_mag.value().is_nan());
+    assert!(!result.components[0].bv_diagnostics_available);
     assert_eq!(
         result.band_diagnostic.convention,
         "monochromatic-central-wavelength-s10-proxy-incomplete"
