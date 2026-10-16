@@ -6,9 +6,7 @@
 //! TOML persistence lives in [`super::vertical_profile_io`]; spherical LOS
 //! integration lives in [`super::integration`].
 
-use super::integration::{
-    integrate_profile_los, integrate_vertical_profile, VERTICAL_PROFILE_REFERENCE_SUBSTEPS,
-};
+use super::integration::{integrate_profile_los, VERTICAL_PROFILE_REFERENCE_SUBSTEPS};
 use crate::error::{NsbError, Result};
 use crate::units::ScaleFactors;
 use serde::{Deserialize, Serialize};
@@ -17,7 +15,7 @@ use siderust::coordinates::centers::Geodetic;
 use siderust::coordinates::frames::ECEF;
 use siderust::qtty::{
     unit::{Kilometer, Radian},
-    Degrees, Kilometers, Nanometers,
+    Degrees, Kilometers, Nanometers, Radians,
 };
 use std::sync::Arc;
 use thiserror::Error;
@@ -363,7 +361,12 @@ impl VerticalEmissionProfile {
             )));
         }
         let samples = self.samples();
-        let vertical = integrate_vertical_profile(samples, observer_height);
+        let vertical = integrate_profile_los(
+            samples,
+            observer_height,
+            Radians::new(0.0),
+            substeps_per_interval,
+        );
         if !vertical.is_finite() || vertical <= 0.0 {
             return Err(NsbError::Unsupported(format!(
                 "vertical profile {} contains no visible emission above observer altitude {} km; its vertical normalization is invalid",
