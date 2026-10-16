@@ -131,6 +131,8 @@ pub(super) struct SpectralMap {
     pub(super) sha256: String,
     pub(super) product_id: String,
     pub(super) source_catalogue: String,
+    pub(super) source_license: String,
+    pub(super) source_selection: String,
     pub(super) maturity: String,
     pub(super) band_nm: [u16; 2],
     pub(super) edges_nm: Vec<u16>,
@@ -206,6 +208,8 @@ impl SpectralMap {
                     sha256,
                     d.product_id,
                     "Gaia DR3 XP".into(),
+                    "CC BY-NC 3.0 IGO".into(),
+                    d.population_policy,
                     d.maturity,
                     d.band_nm,
                     d.bin_edges_nm.to_vec(),
@@ -248,6 +252,8 @@ impl SpectralMap {
                     sha256,
                     d.product_id,
                     d.provenance.source_catalogue,
+                    d.provenance.source_license,
+                    d.provenance.source_selection,
                     d.maturity,
                     d.band_nm,
                     d.bin_edges_nm,
@@ -268,6 +274,8 @@ impl SpectralMap {
         sha256: String,
         product_id: String,
         source_catalogue: String,
+        source_license: String,
+        source_selection: String,
         maturity: String,
         band_nm: [u16; 2],
         edges_nm: Vec<u16>,
@@ -334,7 +342,8 @@ impl SpectralMap {
         }
         Ok(Self {
             grid, sha256, product_id, source_catalogue,
-            maturity, band_nm, edges_nm, admitted_sources, pixels,
+            source_license, source_selection, maturity, band_nm,
+            edges_nm, admitted_sources, pixels,
         })
     }
 
