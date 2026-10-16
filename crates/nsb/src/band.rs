@@ -28,8 +28,9 @@ impl NsbEvaluator {
     ///
     /// Units: photons cm^-2 ns^-1 sr^-1. Bounds must lie within 300–650 nm.
     /// This preserves the selected models, atmospheric propagation, solar activity
-    /// and maturity. It does not add missing emission lines or starlight spectra.
-    /// Starlight is unsupported because its integrated map has no recoverable SED.
+    /// and maturity. It does not add missing emission lines or invent spectra.
+    /// Explicit spectral Starlight maps provide native TOA pixel-band integrals;
+    /// legacy integrated Starlight maps cannot reconstruct arbitrary sub-bands.
     /// Moonlight is supported only when its existing evaluator returns physical zero;
     /// nonzero lunar spectra and KS91 band reconstruction remain unsupported.
     /// This is not FORS, Johnson, AB, Vega or other calibrated passband photometry.
@@ -50,12 +51,17 @@ impl NsbEvaluator {
                 "band requires 300 <= lower < upper <= 650 nm".into(),
             ));
         }
-        if query.components.contains(ComponentMask::STARLIGHT) {
-            return Err(NsbError::Unsupported(
-                "starlight has no wavelength-resolved product".into(),
-            ));
-        }
         let mut total = Radiance::new(0.0);
+        if query.components.contains(ComponentMask::STARLIGHT) {
+            let model = self.starlight().ok_or_else(|| {
+                NsbError::Unsupported("starlight requires a configured map".into())
+            })?;
+            use siderust::coordinates::transform::TransformFrame;
+            let galactic: siderust::coordinates::spherical::direction::Galactic =
+                query.target.to_frame();
+            total += model.map()
+                .integrate_band(galactic.to_cartesian(), lower, upper)?.0;
+        }
         if query.components.contains(ComponentMask::MOON)
             && self
                 .evaluate_moonlight(query.observer, query.time, query.target)?
