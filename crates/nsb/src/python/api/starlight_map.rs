@@ -52,7 +52,9 @@ impl PyStarlightMap {
     }
     #[getter]
     fn admitted_sources(&self) -> u64 {
-        self.inner.admitted_sources().expect("required map population")
+        self.inner
+            .admitted_sources()
+            .expect("required map population")
     }
     #[getter]
     fn bin_edges_nm(&self) -> Vec<u16> {
@@ -69,13 +71,20 @@ impl PyStarlightMap {
 
     /// Integrate a band exactly when both endpoints match native bin edges.
     fn integrate_band(
-        &self, l_deg: f64, b_deg: f64, lower_nm: f64, upper_nm: f64,
+        &self,
+        l_deg: f64,
+        b_deg: f64,
+        lower_nm: f64,
+        upper_nm: f64,
     ) -> PyResult<(f64, Option<f64>)> {
-        let (radiance, sigma) = self.inner.integrate_band(
-            direction(l_deg, b_deg)?,
-            crate::units::length::Nanometers::new(lower_nm),
-            crate::units::length::Nanometers::new(upper_nm),
-        ).map_err(to_py_err)?;
+        let (radiance, sigma) = self
+            .inner
+            .integrate_band(
+                direction(l_deg, b_deg)?,
+                crate::units::length::Nanometers::new(lower_nm),
+                crate::units::length::Nanometers::new(upper_nm),
+            )
+            .map_err(to_py_err)?;
         Ok((radiance.value(), sigma.map(|s| s.value())))
     }
 
