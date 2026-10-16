@@ -389,7 +389,6 @@ fn mixed_uncertainty_schema_is_rejected() {
     assert!(err.to_string().contains("same uncertainty schema"));
 }
 
-
 #[test]
 fn xp_statistical_only_sigma_survives_public_pixel_adapter() {
     use sha2::{Digest, Sha256};
@@ -428,7 +427,10 @@ fn xp_statistical_only_sigma_survives_public_pixel_adapter() {
     assert!(output.relative_uncertainty().is_none());
     assert!(!output.s10_diagnostics_provided);
     let model = Starlight::with_shared_map(std::sync::Arc::new(map));
-    assert!(matches!(model.compute(target(0.0, 0.0)), Err(crate::NsbError::Unsupported(_))));
+    assert!(matches!(
+        model.compute(target(0.0, 0.0)),
+        Err(crate::NsbError::Unsupported(_))
+    ));
 }
 
 #[test]
@@ -479,7 +481,9 @@ fn uncertainty_schema_rejects_mixing_full_and_statistical_only_pixels() {
 fn try_pixel_at_matches_legacy_lookup_for_finite_directions() {
     let map = fixture_map();
     for (lon, lat) in [(0.0, 0.0), (45.0, 30.0), (359.0, -40.0)] {
-        let direction = galactic_direction(lon, lat);
-        assert_eq!(map.try_pixel_at(direction).unwrap(), map.pixel_at(direction));
+        assert_eq!(
+            map.try_pixel_at(galactic_direction(lon, lat)).unwrap(),
+            map.pixel_at(galactic_direction(lon, lat))
+        );
     }
 }
