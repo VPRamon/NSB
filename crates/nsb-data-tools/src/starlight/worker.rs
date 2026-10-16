@@ -698,6 +698,38 @@ mod tests {
             crate::starlight::restricted::finalize(workspace, &config, &["missing".into()])
                 .is_err()
         );
+        // Exercise the real lifecycle dispatch as well as the numerical helper.
+        use crate::dataset::DatasetPipeline;
+        let mut run_config = crate::dataset::RunConfig::load(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("config/starlight-360-570-candidate.toml"),
+        )?;
+        run_config.workspace.root = workspace.to_path_buf();
+        run_config.starlight = Some(config.clone());
+        let pipeline = &crate::starlight::PIPELINE;
+        pipeline.validate_config(&run_config)?;
+        assert_eq!(pipeline.expected_outputs_for(&run_config).len(), 2);
+        assert_eq!(
+            pipeline
+                .build(&run_config, &[partition.into()])?
+                .unwrap()
+                .len(),
+            1
+        );
+        let packed = pipeline.finalize(&run_config)?.unwrap();
+        for artifact in &packed {
+            pipeline.validate_artifact(&artifact.name, &artifact.path)?;
+        }
+        assert!(pipeline
+            .validation_gates(&run_config, &packed)?
+            .iter()
+            .all(|g| g.passed));
+        let original_report = fs::read(&packed[1].path)?;
+        fs::write(&packed[1].path, "{}")?;
+        assert!(pipeline
+            .validate_artifact(&packed[1].name, &packed[1].path)
+            .is_err());
+        fs::write(&packed[1].path, original_report)?;
         let mut bad = config;
         bad.photometric_inference = Some(crate::starlight::config::ArtifactPinConfig {
             artifact_path: "wrong-band.json".into(),
