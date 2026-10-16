@@ -323,10 +323,12 @@ pub(crate) fn finalize(
         "all_sky_pixels":npix,"limitations":["XP-only population, no non-XP or missing bright-star completion", "No completeness correction", "Calibration systematic uncertainty unquantified", "TOA pixel average does not represent DESI source-masked fiber radiance"]});
     let report_path = root.join("outputs").join(REPORT_NAME);
     atomic_write(&report_path, &serde_json::to_vec_pretty(&report)?)?;
-    Ok(vec![
+    let artifacts = vec![
         artifact(&map_path, MAP_NAME)?,
         artifact(&report_path, REPORT_NAME)?,
-    ])
+    ];
+    super::worker::write_artifact_index(root, &artifacts)?;
+    Ok(artifacts)
 }
 
 pub(crate) fn gates(root: &Path) -> Result<Vec<ValidationGate>> {

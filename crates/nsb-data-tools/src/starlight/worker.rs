@@ -724,6 +724,24 @@ mod tests {
             .validation_gates(&run_config, &packed)?
             .iter()
             .all(|g| g.passed));
+        let lifecycle_config = workspace.join("interval-lifecycle.toml");
+        fs::write(&lifecycle_config, toml::to_string(&run_config)?)?;
+        crate::dataset::execute(
+            &lifecycle_config,
+            crate::dataset::DatasetName::Starlight,
+            crate::dataset::Operation::Validate,
+            Some(crate::dataset::Executor::Local),
+            Some(1),
+            &[],
+        )?;
+        let validated: crate::dataset::ValidationReport =
+            serde_json::from_slice(&fs::read(workspace.join("validation.json"))?)?;
+        assert!(validated.passed);
+        assert_eq!(
+            validated.artifacts.len(),
+            2,
+            "final products must replace the shard artifact index"
+        );
         let original_report = fs::read(&packed[1].path)?;
         fs::write(&packed[1].path, "{}")?;
         assert!(pipeline
