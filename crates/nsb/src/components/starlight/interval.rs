@@ -157,7 +157,11 @@ pub(super) struct SpectralMap {
     pub(super) band_nm: [u16; 2],
     pub(super) edges_nm: Vec<u16>,
     pub(super) admitted_sources: u64,
-    pub(super) pixels: Vec<SpectralPixel>,
+    // Contiguous pixel-major channels avoid two Vec heap allocations per
+    // HEALPix pixel, while retaining the exact source and sigma contracts.
+    pub(super) radiance: Vec<f64>,
+    pub(super) statistical_sigma: Option<Vec<f64>>,
+    pub(super) integrated_statistical_sigma: Option<Vec<f64>>,
 }
 
 impl SpectralMap {
@@ -360,7 +364,10 @@ impl SpectralMap {
         }
         let bins = edges_nm.len() - 1;
         let mut admitted = 0_u64;
-        let mut pixels = Vec::with_capacity(indexed_pixels.len());
+        let pixel_count = indexed_pixels.len();
+        let mut radiance = Vec::with_capacity(pixel_count * bins);
+        let mut statistical_sigma: Option<Vec<f64>> = None;
+        let mut integrated_statistical_sigma: Option<Vec<f64>> = None;
         let mut sigma_channels = None;
         for (i, (index, pixel)) in indexed_pixels.into_iter().enumerate() {
             let has_sigma = pixel.statistical_sigma.is_some();
@@ -381,11 +388,25 @@ impl SpectralMap {
             {
                 return Err(invalid("invalid or misordered starlight spectral pixel"));
             }
+            if sigma_channels.is_none() {
+                if channels.0 {
+                    statistical_sigma = Some(Vec::with_capacity(pixel_count * bins));
+                }
+                if channels.1 {
+                    integrated_statistical_sigma = Some(Vec::with_capacity(pixel_count));
+                }
+            }
             sigma_channels = Some(channels);
             admitted = admitted
                 .checked_add(pixel.sources)
                 .ok_or_else(|| invalid("source count overflow"))?;
-            pixels.push(pixel);
+            radiance.extend(pixel.radiance);
+            if let Some(out) = &mut statistical_sigma {
+                out.extend(pixel.statistical_sigma.expect("uniform validated channel schema"));
+            }
+            if let Some(out) = &mut integrated_statistical_sigma {
+                out.push(pixel.integrated_statistical_sigma.expect("uniform validated channel schema"));
+            }
         }
         let excluded = excluded_sources
             .values()
@@ -405,29 +426,44 @@ impl SpectralMap {
             band_nm,
             edges_nm,
             admitted_sources,
-            pixels,
+            radiance,
+            statistical_sigma,
+            integrated_statistical_sigma,
         })
     }
 
-    pub(super) fn pixel(&self, direction: Direction<Galactic>) -> Result<&SpectralPixel> {
-        let index = self
-            .grid
-            .direction_to_pixel(direction)
-            .map_err(|e| invalid(e.to_string()))?
-            .get();
-        self.pixels
-            .get(index as usize)
-            .ok_or_else(|| invalid("starlight spectral pixel index"))
+    fn bins(&self) -> usize {
+        self.edges_nm.len() - 1
+    }
+
+    fn pixel_index(&self, direction: Direction<Galactic>) -> Result<usize> {
+        let index = self.grid.direction_to_pixel(direction)
+            .map_err(|e| invalid(e.to_string()))?.get();
+        let slot = usize::try_from(index)
+            .map_err(|_| invalid("spectral pixel index exceeds address space"))?;
+        if slot >= self.radiance.len() / self.bins() {
+            return Err(invalid("starlight spectral pixel index"));
+        }
+        Ok(slot)
+    }
+
+    /// Full-band samples for constructing the immutable legacy API view.
+    pub(super) fn integrated_pixels(&self) -> impl Iterator<Item = (f64, Option<f64>)> + '_ {
+        self.radiance.chunks_exact(self.bins()).enumerate().map(|(i, band)| {
+            (band.iter().sum(), self.integrated_statistical_sigma.as_ref().map(|s| s[i]))
+        })
     }
 
     pub(super) fn top_of_atmosphere_pixel(
         &self,
         direction: Direction<Galactic>,
     ) -> Result<(Radiance, Option<Radiance>)> {
-        let p = self.pixel(direction)?;
+        let index = self.pixel_index(direction)?;
+        let bins = self.bins();
+        let radiance = &self.radiance[index * bins..(index + 1) * bins];
         Ok((
-            Radiance::new(p.radiance.iter().sum()),
-            p.integrated_statistical_sigma.map(Radiance::new),
+            Radiance::new(radiance.iter().sum()),
+            self.integrated_statistical_sigma.as_ref().map(|s| Radiance::new(s[index])),
         ))
     }
 
@@ -466,17 +502,18 @@ impl SpectralMap {
                     "exact Starlight integration requires stored bin edges".into(),
                 )
             })?;
-        let p = self.pixel(direction)?;
+        let pixel = self.pixel_index(direction)?;
+        let base = pixel * self.bins();
         let sigma = if start == 0 && end == self.edges_nm.len() - 1 {
-            p.integrated_statistical_sigma
+            self.integrated_statistical_sigma.as_ref().map(|s| s[pixel])
         } else if end == start + 1 {
-            p.statistical_sigma.as_ref().map(|s| s[start])
+            self.statistical_sigma.as_ref().map(|s| s[base + start])
         } else {
             // Full covariance for this union is not packed.
             None
         };
         Ok((
-            Radiance::new(p.radiance[start..end].iter().sum()),
+            Radiance::new(self.radiance[base + start..base + end].iter().sum()),
             sigma.map(Radiance::new),
         ))
     }
@@ -494,12 +531,15 @@ impl SpectralMap {
                     .into(),
             ));
         }
-        let p = self.pixel(direction)?;
-        let sigma = p.statistical_sigma.as_ref().ok_or_else(|| {
+        let pixel = self.pixel_index(direction)?;
+        let base = pixel * self.bins();
+        let radiance = &self.radiance[base..base + self.bins()];
+        let sigma = self.statistical_sigma.as_ref().ok_or_else(|| {
             NsbError::Unsupported(
                 "direct Starlight statistical envelope requires measured per-bin sigma".into(),
             )
         })?;
+        let sigma = &sigma[base..base + self.bins()];
         let model = DirectTransmission::rayleigh_mie_young1994();
         let mut lower = 0.0;
         let mut upper = 0.0;
@@ -514,8 +554,8 @@ impl SpectralMap {
             if !lo.is_finite() || !hi.is_finite() || lo > hi || lo < 0.0 || hi > 1.0 {
                 return Err(invalid("invalid direct transmission envelope"));
             }
-            lower += p.radiance[i] * lo;
-            upper += p.radiance[i] * hi;
+            lower += radiance[i] * lo;
+            upper += radiance[i] * hi;
             uncertainty += sigma[i] * hi;
         }
         Ok(DirectStarlightBounds {
