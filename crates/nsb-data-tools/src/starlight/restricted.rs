@@ -383,6 +383,7 @@ pub(crate) fn finalize(
     {
         bail!("interval conservation/population validation failed");
     }
+    let processed_partitions = identities.len();
     // The archived seven-bin v1 serialization is unchanged. New bins use v2.
     let map = if is_generic(config) {
         serde_json::json!({
@@ -437,8 +438,7 @@ pub(crate) fn finalize(
     atomic_write(&map_path, &serde_json::to_vec(&map)?)?;
     let report = serde_json::json!({"schema":report_schema,
         "map_sha256":checksum_io::sha256_file(&map_path)?, "expected_partitions":partitions.len(),
-        "processed_partitions":map["provenance"]["gaia"]["input_partitions"].as_object()
-            .map_or_else(|| map["input_partitions"].as_object().map_or(0, |x| x.len()), |x| x.len()),
+        "processed_partitions":processed_partitions,
         "population_accounting":true,"exact_flux_conservation":true,
         "total_flux_ph_m2_s":source_flux.value(),"admitted_sources":admitted,
         "all_sky_pixels":npix,"limitations":["XP-only population, no non-XP or missing bright-star completion", "No completeness correction", "Calibration systematic uncertainty unquantified", "TOA pixel average does not represent DESI source-masked fiber radiance"]});
