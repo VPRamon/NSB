@@ -4,7 +4,8 @@
 //! Source files and outputs remain private; this example contains no catalogue records.
 use anyhow::{bail, Context, Result};
 use nsb_data_tools::platform::checksum_io;
-use nsb_data_tools::starlight::xp::{parse_datalink_gaiaxpy_csv, GaiaXpContinuousCalibrator};
+use nsb_data_tools::starlight::xp::canonical::parse_datalink_gaiaxpy_csv;
+use nsb_data_tools::starlight::xp::GaiaXpContinuousCalibrator;
 use serde::Deserialize;
 use std::path::Path;
 
