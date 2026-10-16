@@ -419,7 +419,17 @@ pub fn stream_bulk_ecsv_gz(path: &Path) -> Result<BulkEcsvStream> {
         csv_reader,
         row_buffer: StringRecord::new(),
         finished: false,
+        raw_rows: 0,
+        rejected_records: Vec::new(),
     })
+}
+
+/// Explicit raw-row rejection evidence for optional catalogue integrity audits.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RejectedXpRecord {
+    pub source_id: Option<String>,
+    pub reason: String,
 }
 
 pub struct BulkEcsvStream {
@@ -428,6 +438,8 @@ pub struct BulkEcsvStream {
     csv_reader: BulkEcsvCsvReader,
     row_buffer: StringRecord,
     finished: bool,
+    raw_rows: u64,
+    rejected_records: Vec<RejectedXpRecord>,
 }
 
 impl BulkEcsvStream {
@@ -437,6 +449,16 @@ impl BulkEcsvStream {
 
     pub fn header_map(&self) -> &HashMap<String, usize> {
         &self.header_map
+    }
+
+    /// Nonempty raw records read, including records rejected by canonical validation.
+    pub fn raw_rows(&self) -> u64 {
+        self.raw_rows
+    }
+
+    /// Invalid canonical records excluded by the legacy iterator, with identities.
+    pub fn rejected_records(&self) -> &[RejectedXpRecord] {
+        &self.rejected_records
     }
 
     pub fn next_record(&mut self) -> Result<Option<CanonicalXpContinuousRecord>> {
@@ -456,12 +478,23 @@ impl BulkEcsvStream {
             if self.row_buffer.is_empty() {
                 continue;
             }
+            self.raw_rows += 1;
             match parse_bulk_ecsv_record(&self.row_buffer, &self.header_map, Some(&self.path)) {
                 Ok(mut parsed) => {
                     parsed.source_checksum = None;
                     return Ok(Some(parsed));
                 }
-                Err(_) => continue,
+                Err(error) => {
+                    self.rejected_records.push(RejectedXpRecord {
+                        source_id: self
+                            .header_map
+                            .get("source_id")
+                            .and_then(|index| self.row_buffer.get(*index))
+                            .map(str::to_owned),
+                        reason: format!("{error:#}"),
+                    });
+                    continue;
+                }
             }
         }
     }
@@ -826,6 +859,43 @@ mod tests {
         assert_eq!(b.source_id, "43");
         assert!(stream.next_record().unwrap().is_none());
         assert!(stream.next_record().unwrap().is_none());
+
+        assert_eq!(stream.raw_rows(), 2);
+        assert!(stream.rejected_records().is_empty());
+        // A malformed raw record remains excluded by the legacy iterator, but
+        // the new integrity audit must preserve its identity and rejection reason.
+        let mut reader = csv::Reader::from_reader(content.as_slice());
+        let headers = reader.headers().unwrap().clone();
+        let index = headers
+            .iter()
+            .position(|h| h == "rp_standard_deviation")
+            .unwrap();
+        let mut output = csv::Writer::from_writer(Vec::new());
+        output.write_record(&headers).unwrap();
+        for record in reader.records() {
+            let record = record.unwrap();
+            let mut fields: Vec<String> = record.iter().map(str::to_owned).collect();
+            if fields[0] == "43" {
+                fields[index] = "0".into();
+            }
+            output.write_record(fields).unwrap();
+        }
+        let mut writer = GzEncoder::new(Vec::new(), Compression::default());
+        writer.write_all(&output.into_inner().unwrap()).unwrap();
+        let invalid_path = dir.path().join("one-invalid.csv.gz");
+        std::fs::write(&invalid_path, writer.finish().unwrap()).unwrap();
+        let mut invalid = stream_bulk_ecsv_gz(&invalid_path).unwrap();
+        assert_eq!(invalid.next_record().unwrap().unwrap().source_id, "42");
+        assert!(invalid.next_record().unwrap().is_none());
+        assert_eq!(invalid.raw_rows(), 2);
+        assert_eq!(invalid.rejected_records().len(), 1);
+        assert_eq!(
+            invalid.rejected_records()[0].source_id.as_deref(),
+            Some("43")
+        );
+        assert!(invalid.rejected_records()[0]
+            .reason
+            .contains("rp_standard_deviation"));
 
         let wanted = ["43".to_string(), "absent".to_string()]
             .into_iter()

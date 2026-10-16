@@ -31,6 +31,13 @@ impl DatasetPipeline for StarlightPipeline {
     }
 
     fn expected_outputs_for(&self, config: &RunConfig) -> Vec<String> {
+        if config
+            .starlight
+            .as_ref()
+            .is_some_and(|s| s.ingestion_audit.is_some())
+        {
+            return vec![super::ingestion_audit::NAME.into()];
+        }
         let canonical_nside = config
             .starlight
             .as_ref()
@@ -81,6 +88,13 @@ impl DatasetPipeline for StarlightPipeline {
         let Some(starlight) = &config.starlight else {
             return Ok(None);
         };
+        if starlight.ingestion_audit.is_some() {
+            return Ok(Some(super::ingestion_audit::build(
+                &config.workspace.root,
+                starlight,
+                partitions,
+            )?));
+        }
         if starlight.product_band == super::config::StarlightProductBand::Measured360To570 {
             let artifacts =
                 super::restricted::build(&config.workspace.root, starlight, partitions)?;
@@ -110,6 +124,13 @@ impl DatasetPipeline for StarlightPipeline {
         let expected = self
             .available_partitions(config)?
             .ok_or_else(|| anyhow::anyhow!("Starlight inventories are missing"))?;
+        if starlight.ingestion_audit.is_some() {
+            return Ok(Some(super::ingestion_audit::finalize(
+                &config.workspace.root,
+                starlight,
+                &expected,
+            )?));
+        }
         if starlight.product_band == super::config::StarlightProductBand::Measured360To570 {
             return Ok(Some(super::restricted::finalize(
                 &config.workspace.root,
@@ -184,6 +205,9 @@ impl DatasetPipeline for StarlightPipeline {
         let Some(starlight) = &config.starlight else {
             return Ok(Vec::new());
         };
+        if starlight.ingestion_audit.is_some() {
+            return super::ingestion_audit::gates(&config.workspace.root);
+        }
         if starlight.product_band == super::config::StarlightProductBand::Measured360To570 {
             return super::restricted::gates(&config.workspace.root);
         }
@@ -191,6 +215,9 @@ impl DatasetPipeline for StarlightPipeline {
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
+        if name == super::ingestion_audit::NAME {
+            return super::ingestion_audit::validate(path);
+        }
         if name == super::restricted::MAP_NAME {
             let sha256 = crate::platform::checksum_io::sha256_file(path)?;
             nsb::StarlightIntervalMap::from_json_file(path, &sha256)?;
@@ -238,6 +265,13 @@ impl DatasetPipeline for StarlightPipeline {
             return Ok(());
         };
         super::config::validate_canonical_nside(starlight.map.canonical_nside)?;
+        if let Some(audit) = &starlight.ingestion_audit {
+            if audit.expected_rows == 0
+                || starlight.product_band != super::config::StarlightProductBand::Measured360To570
+            {
+                bail!("XP ingestion audit requires a positive declared row count and the explicit interval candidate configuration");
+            }
+        }
         if starlight.product_band == super::config::StarlightProductBand::Measured360To570 {
             super::restricted::validate_config(starlight)?;
         }
@@ -388,6 +422,7 @@ lease_timeout_seconds = 60
             photometric_inference: None,
             selection_function: None,
             bright_star_supplement: None,
+            ingestion_audit: None,
         }
     }
 

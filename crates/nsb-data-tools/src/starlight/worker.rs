@@ -676,6 +676,7 @@ mod tests {
             photometric_inference: None,
             selection_function: None,
             bright_star_supplement: None,
+            ingestion_audit: None,
         };
         let interval =
             crate::starlight::restricted::build(workspace, &config, &[partition.into()])?;
@@ -748,6 +749,49 @@ mod tests {
             .validate_artifact(&packed[1].name, &packed[1].path)
             .is_err());
         fs::write(&packed[1].path, original_report)?;
+        let mut audit_config = run_config.clone();
+        audit_config.starlight.as_mut().unwrap().ingestion_audit =
+            Some(crate::starlight::config::XpIngestionAuditConfig { expected_rows: 1 });
+        pipeline.validate_config(&audit_config)?;
+        assert_eq!(
+            pipeline.expected_outputs_for(&audit_config),
+            ["gaia_xp_ingestion_audit.json"]
+        );
+        pipeline.build(&audit_config, &[partition.into()])?;
+        let audit_path = workspace.join("ingestion-audit.toml");
+        fs::write(&audit_path, toml::to_string(&audit_config)?)?;
+        crate::dataset::execute(
+            &audit_path,
+            crate::dataset::DatasetName::Starlight,
+            crate::dataset::Operation::Validate,
+            Some(crate::dataset::Executor::Local),
+            Some(1),
+            &[],
+        )?;
+        let audit: serde_json::Value = serde_json::from_slice(&fs::read(
+            workspace.join("outputs/gaia_xp_ingestion_audit.json"),
+        )?)?;
+        assert_eq!(audit["raw_rows"], 1);
+        assert_eq!(audit["canonical_rows"], 1);
+        assert_eq!(audit["rejected_rows"], 0);
+        audit_config
+            .starlight
+            .as_mut()
+            .unwrap()
+            .ingestion_audit
+            .as_mut()
+            .unwrap()
+            .expected_rows = 2;
+        fs::write(&audit_path, toml::to_string(&audit_config)?)?;
+        assert!(crate::dataset::execute(
+            &audit_path,
+            crate::dataset::DatasetName::Starlight,
+            crate::dataset::Operation::Validate,
+            Some(crate::dataset::Executor::Local),
+            Some(1),
+            &[]
+        )
+        .is_err());
         let mut bad = config;
         bad.photometric_inference = Some(crate::starlight::config::ArtifactPinConfig {
             artifact_path: "wrong-band.json".into(),

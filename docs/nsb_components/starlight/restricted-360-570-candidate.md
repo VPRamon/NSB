@@ -90,3 +90,19 @@ run manifests must remain unchanged. For such runs, preserve an external receipt
 with the observed clean source commit, exact executable SHA-256, fixture and lock
 hashes, configuration hash and compile/execution job IDs. This is an explicit
 provenance limitation, not permission to rewrite historical evidence.
+
+## Raw XP ingestion audit
+
+The map's `xp_rows` counts successfully parsed **canonical** spectra, not raw
+bulk records. The full candidate returned 219,197,642 canonical rows, one below
+the published archive count of 219,197,643. Until reconciled, this difference
+remains an explicit provenance limitation. GaiaSource population accounting
+is separate and covers all 1,811,709,771 input rows.
+
+An optional `[starlight.ingestion_audit]` table with
+`expected_rows = 219197643` runs raw-to-canonical reconciliation through the
+ordinary checksum-verified partition executor. Use a **new workspace root**
+with the same verified cache and inventories. It emits an audit, not a radiance
+map: raw/canonical counts, rejected source identities and reasons, input and
+shard checksums. The reference-count gate fails on a mismatch. Normal source
+admission and map values are unchanged; historical manifests are not rewritten.

@@ -38,6 +38,17 @@ pub struct StarlightConfig {
     /// the NSB repository (#103 redistribution gate).
     #[serde(default)]
     pub bright_star_supplement: Option<ArtifactPinConfig>,
+    /// Optional source-ingestion audit through the existing partition lifecycle.
+    /// Does not generate a radiance map or alter normal worker outputs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ingestion_audit: Option<XpIngestionAuditConfig>,
+}
+
+/// Preregistered reference count for a full XP canonical-ingestion audit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct XpIngestionAuditConfig {
+    pub expected_rows: u64,
 }
 
 /// Network policy for resumable official-source acquisition.

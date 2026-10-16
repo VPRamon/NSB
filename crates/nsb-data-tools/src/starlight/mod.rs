@@ -8,6 +8,7 @@ pub mod config;
 pub mod diagnostics;
 pub mod healpix;
 pub mod healpix_topology;
+mod ingestion_audit;
 pub mod licensing;
 pub mod map;
 pub mod pack;
