@@ -15,7 +15,9 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 fn invalid(message: impl Into<String>) -> NsbError {
-    NsbError::InvalidMap { message: message.into() }
+    NsbError::InvalidMap {
+        message: message.into(),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -179,8 +181,8 @@ impl SpectralMap {
             serde_json::from_slice(bytes).map_err(|e| invalid(e.to_string()))?;
         match value.get("schema").and_then(serde_json::Value::as_str) {
             Some("nsb-starlight-interval-map-v1") => {
-                let d: Document = serde_json::from_value(value)
-                    .map_err(|e| invalid(e.to_string()))?;
+                let d: Document =
+                    serde_json::from_value(value).map_err(|e| invalid(e.to_string()))?;
                 if d.schema != "nsb-starlight-interval-map-v1"
                     || d.product_id != "starlight-gaia-dr3-xp-360-570-v1"
                     || d.band_nm != [360, 570]
@@ -213,15 +215,21 @@ impl SpectralMap {
                         }
                     }
                 }
-                let pixels = d.pixels.into_iter().map(|p| (
-                    p.pixel,
-                    SpectralPixel {
-                        sources: p.sources,
-                        radiance: p.radiance.to_vec(),
-                        statistical_sigma: Some(p.statistical_sigma.to_vec()),
-                        integrated_statistical_sigma: Some(p.integrated_statistical_sigma),
-                    },
-                )).collect();
+                let pixels = d
+                    .pixels
+                    .into_iter()
+                    .map(|p| {
+                        (
+                            p.pixel,
+                            SpectralPixel {
+                                sources: p.sources,
+                                radiance: p.radiance.to_vec(),
+                                statistical_sigma: Some(p.statistical_sigma.to_vec()),
+                                integrated_statistical_sigma: Some(p.integrated_statistical_sigma),
+                            },
+                        )
+                    })
+                    .collect();
                 Self::validated(
                     sha256,
                     d.product_id,
@@ -240,8 +248,8 @@ impl SpectralMap {
                 )
             }
             Some("nsb-starlight-spectral-map-v2") => {
-                let d: GenericDocument = serde_json::from_value(value)
-                    .map_err(|e| invalid(e.to_string()))?;
+                let d: GenericDocument =
+                    serde_json::from_value(value).map_err(|e| invalid(e.to_string()))?;
                 if d.schema != "nsb-starlight-spectral-map-v2"
                     || d.product_id.trim().is_empty()
                     || d.coordinate_frame != "galactic"
@@ -326,7 +334,9 @@ impl SpectralMap {
             || !nside.is_power_of_two()
             || nside > 4096
         {
-            return Err(invalid("invalid starlight spectral bins or HEALPix resolution"));
+            return Err(invalid(
+                "invalid starlight spectral bins or HEALPix resolution",
+            ));
         }
         let ordering = match ordering {
             "ring" => HealpixOrdering::Ring,
@@ -336,7 +346,8 @@ impl SpectralMap {
         let grid = HealpixGrid::new(
             Nside::new(nside).map_err(|e| invalid(e.to_string()))?,
             ordering,
-        ).map_err(|e| invalid(e.to_string()))?;
+        )
+        .map_err(|e| invalid(e.to_string()))?;
         let npix = 12_u64 * u64::from(nside).pow(2);
         if indexed_pixels.len() as u64 != npix {
             return Err(invalid("incomplete starlight pixel coverage"));
@@ -350,9 +361,14 @@ impl SpectralMap {
             let channels = (has_sigma, pixel.integrated_statistical_sigma.is_some());
             if index != i as u64
                 || pixel.radiance.len() != bins
-                || pixel.statistical_sigma.as_ref().is_some_and(|s| s.len() != bins)
+                || pixel
+                    .statistical_sigma
+                    .as_ref()
+                    .is_some_and(|s| s.len() != bins)
                 || sigma_channels.is_some_and(|expected| expected != channels)
-                || pixel.radiance.iter()
+                || pixel
+                    .radiance
+                    .iter()
                     .chain(pixel.statistical_sigma.as_deref().unwrap_or(&[]))
                     .chain(pixel.integrated_statistical_sigma.iter())
                     .any(|x| !x.is_finite() || *x < 0.0 || (pixel.sources == 0 && *x != 0.0))
@@ -360,34 +376,47 @@ impl SpectralMap {
                 return Err(invalid("invalid or misordered starlight spectral pixel"));
             }
             sigma_channels = Some(channels);
-            admitted = admitted.checked_add(pixel.sources)
+            admitted = admitted
+                .checked_add(pixel.sources)
                 .ok_or_else(|| invalid("source count overflow"))?;
             pixels.push(pixel);
         }
-        let excluded = excluded_sources.values()
+        let excluded = excluded_sources
+            .values()
             .try_fold(0_u64, |sum, n| sum.checked_add(*n))
             .ok_or_else(|| invalid("exclusion count overflow"))?;
-        if admitted != admitted_sources
-            || admitted.checked_add(excluded) != Some(catalogue_rows)
-        {
+        if admitted != admitted_sources || admitted.checked_add(excluded) != Some(catalogue_rows) {
             return Err(invalid("starlight population accounting mismatch"));
         }
         Ok(Self {
-            grid, sha256, product_id, source_catalogue,
-            source_license, source_selection, maturity, band_nm,
-            edges_nm, admitted_sources, pixels,
+            grid,
+            sha256,
+            product_id,
+            source_catalogue,
+            source_license,
+            source_selection,
+            maturity,
+            band_nm,
+            edges_nm,
+            admitted_sources,
+            pixels,
         })
     }
 
     pub(super) fn pixel(&self, direction: Direction<Galactic>) -> Result<&SpectralPixel> {
-        let index = self.grid.direction_to_pixel(direction)
-            .map_err(|e| invalid(e.to_string()))?.get();
-        self.pixels.get(index as usize)
+        let index = self
+            .grid
+            .direction_to_pixel(direction)
+            .map_err(|e| invalid(e.to_string()))?
+            .get();
+        self.pixels
+            .get(index as usize)
             .ok_or_else(|| invalid("starlight spectral pixel index"))
     }
 
     pub(super) fn top_of_atmosphere_pixel(
-        &self, direction: Direction<Galactic>
+        &self,
+        direction: Direction<Galactic>,
     ) -> Result<(Radiance, Option<Radiance>)> {
         let p = self.pixel(direction)?;
         Ok((
@@ -397,19 +426,40 @@ impl SpectralMap {
     }
 
     pub(super) fn integrate_band(
-        &self, direction: Direction<Galactic>, low: Nanometers, high: Nanometers
+        &self,
+        direction: Direction<Galactic>,
+        low: Nanometers,
+        high: Nanometers,
     ) -> Result<(Radiance, Option<Radiance>)> {
         let (a, b) = (low.value(), high.value());
-        if !a.is_finite() || !b.is_finite() || a >= b
+        if !a.is_finite()
+            || !b.is_finite()
+            || a >= b
             || a < f64::from(self.edges_nm[0])
             || b > f64::from(*self.edges_nm.last().unwrap())
         {
-            return Err(NsbError::Unsupported("requested band outside starlight spectral coverage".into()));
+            return Err(NsbError::Unsupported(
+                "requested band outside starlight spectral coverage".into(),
+            ));
         }
-        let start = self.edges_nm.iter().position(|e| f64::from(*e) == a)
-            .ok_or_else(|| NsbError::Unsupported("exact Starlight integration requires stored bin edges".into()))?;
-        let end = self.edges_nm.iter().position(|e| f64::from(*e) == b)
-            .ok_or_else(|| NsbError::Unsupported("exact Starlight integration requires stored bin edges".into()))?;
+        let start = self
+            .edges_nm
+            .iter()
+            .position(|e| f64::from(*e) == a)
+            .ok_or_else(|| {
+                NsbError::Unsupported(
+                    "exact Starlight integration requires stored bin edges".into(),
+                )
+            })?;
+        let end = self
+            .edges_nm
+            .iter()
+            .position(|e| f64::from(*e) == b)
+            .ok_or_else(|| {
+                NsbError::Unsupported(
+                    "exact Starlight integration requires stored bin edges".into(),
+                )
+            })?;
         let p = self.pixel(direction)?;
         let sigma = if start == 0 && end == self.edges_nm.len() - 1 {
             p.integrated_statistical_sigma
@@ -419,30 +469,42 @@ impl SpectralMap {
             // Full covariance for this union is not packed.
             None
         };
-        Ok((Radiance::new(p.radiance[start..end].iter().sum()), sigma.map(Radiance::new)))
+        Ok((
+            Radiance::new(p.radiance[start..end].iter().sum()),
+            sigma.map(Radiance::new),
+        ))
     }
 
     pub(super) fn direct_pixel_bounds(
-        &self, direction: Direction<Galactic>,
-        geometry: DirectPathGeometry, atmosphere: AtmosphericConditions,
+        &self,
+        direction: Direction<Galactic>,
+        geometry: DirectPathGeometry,
+        atmosphere: AtmosphericConditions,
     ) -> Result<DirectStarlightBounds> {
         atmosphere.validate()?;
         if atmosphere.mie_params.alpha > 0.0 {
             return Err(NsbError::Unsupported(
-                "interval transmission envelope requires nonpositive aerosol power-law exponent".into(),
+                "interval transmission envelope requires nonpositive aerosol power-law exponent"
+                    .into(),
             ));
         }
         let p = self.pixel(direction)?;
-        let sigma = p.statistical_sigma.as_ref().ok_or_else(|| NsbError::Unsupported(
-            "direct Starlight statistical envelope requires measured per-bin sigma".into()
-        ))?;
+        let sigma = p.statistical_sigma.as_ref().ok_or_else(|| {
+            NsbError::Unsupported(
+                "direct Starlight statistical envelope requires measured per-bin sigma".into(),
+            )
+        })?;
         let model = DirectTransmission::rayleigh_mie_young1994();
         let mut lower = 0.0;
         let mut upper = 0.0;
         let mut uncertainty = 0.0;
         for (i, window) in self.edges_nm.windows(2).enumerate() {
-            let lo = model.transmission(Nanometers::new(f64::from(window[0])), geometry, atmosphere)?.value();
-            let hi = model.transmission(Nanometers::new(f64::from(window[1])), geometry, atmosphere)?.value();
+            let lo = model
+                .transmission(Nanometers::new(f64::from(window[0])), geometry, atmosphere)?
+                .value();
+            let hi = model
+                .transmission(Nanometers::new(f64::from(window[1])), geometry, atmosphere)?
+                .value();
             if !lo.is_finite() || !hi.is_finite() || lo > hi || lo < 0.0 || hi > 1.0 {
                 return Err(invalid("invalid direct transmission envelope"));
             }
@@ -461,7 +523,8 @@ impl SpectralMap {
 
 fn is_sha256(s: &str) -> bool {
     s.len() == 64
-        && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        && s.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
 #[cfg(test)]
@@ -624,8 +687,11 @@ mod tests {
 
     #[test]
     fn generic_schema_accepts_different_bin_counts_and_reports_covariance_limits() {
-        for edges in [vec![350, 570], vec![350, 410, 470, 570],
-                      (0..=10).map(|i| 350 + i * 20).collect::<Vec<_>>()] {
+        for edges in [
+            vec![350, 570],
+            vec![350, 410, 470, 570],
+            (0..=10).map(|i| 350 + i * 20).collect::<Vec<_>>(),
+        ] {
             let bins = edges.len() - 1;
             let payload = serde_json::json!({
                 "schema":"nsb-starlight-spectral-map-v2",
@@ -653,20 +719,33 @@ mod tests {
             let map = load(payload).unwrap();
             assert_eq!(map.edges_nm.len(), bins + 1);
             let d = direction();
-            let full = map.integrate_band(d,
-                Nanometers::new(f64::from(map.edges_nm[0])),
-                Nanometers::new(f64::from(*map.edges_nm.last().unwrap()))).unwrap();
+            let full = map
+                .integrate_band(
+                    d,
+                    Nanometers::new(f64::from(map.edges_nm[0])),
+                    Nanometers::new(f64::from(*map.edges_nm.last().unwrap())),
+                )
+                .unwrap();
             assert_eq!(full.0.value(), bins as f64);
             assert_eq!(full.1.unwrap().value(), 0.5);
             if bins > 2 {
-                let interior = map.integrate_band(d,
-                    Nanometers::new(f64::from(map.edges_nm[0])),
-                    Nanometers::new(f64::from(map.edges_nm[2]))).unwrap();
+                let interior = map
+                    .integrate_band(
+                        d,
+                        Nanometers::new(f64::from(map.edges_nm[0])),
+                        Nanometers::new(f64::from(map.edges_nm[2])),
+                    )
+                    .unwrap();
                 assert_eq!(interior.0.value(), 2.0);
                 assert!(interior.1.is_none(), "cross-bin covariance not packed");
             }
-            assert!(map.integrate_band(d, Nanometers::new(351.0),
-                Nanometers::new(f64::from(*map.edges_nm.last().unwrap()))).is_err());
+            assert!(map
+                .integrate_band(
+                    d,
+                    Nanometers::new(351.0),
+                    Nanometers::new(f64::from(*map.edges_nm.last().unwrap()))
+                )
+                .is_err());
         }
     }
 }
