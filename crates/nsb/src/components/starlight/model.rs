@@ -66,6 +66,12 @@ impl Starlight {
 
     /// Transform a target to Galactic coordinates and evaluate the map.
     pub(crate) fn compute(&self, target: Target) -> Result<StarlightOutputs> {
+        // Existing full-band evaluation must never relabel a native sub-band.
+        if self.map.band_nm() != [300, 650] {
+            return Err(NsbError::Unsupported(
+                "selected Starlight map cannot supply default 300–650 nm radiance".into(),
+            ));
+        }
         if !self.scale.is_finite() || self.scale < ScaleFactors::new(0.0) {
             return Err(NsbError::OutOfRange(
                 "starlight scale must be finite and non-negative".to_string(),
