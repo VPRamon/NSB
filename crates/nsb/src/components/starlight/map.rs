@@ -266,7 +266,7 @@ impl StarlightMap {
         }
         if low.value() != 300.0 || high.value() != 650.0 {
             return Err(NsbError::Unsupported(
-                "integrated-only Starlight maps cannot reconstruct a sub-band".into(),
+                "integrated-only starlight maps cannot reconstruct a sub-band".into(),
             ));
         }
         self.top_of_atmosphere_pixel(direction)
