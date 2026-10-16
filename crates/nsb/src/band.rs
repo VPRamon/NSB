@@ -228,4 +228,49 @@ mod tests {
             0.0
         );
     }
+
+    #[test]
+    fn experimental_spectral_starlight_uses_exact_band_without_default_relabeling() {
+        use crate::components::starlight::StarlightMap;
+        use crate::{NsbModelConfig, StarlightProduct};
+        use sha2::{Digest, Sha256};
+
+        let value = serde_json::json!({
+            "schema":"nsb-starlight-spectral-map-v2",
+            "product_id":"synthetic-starlight-2bins",
+            "band_nm":[360,420],"bin_edges_nm":[360,390,420],
+            "nside":1,"ordering":"ring","coordinate_frame":"galactic",
+            "domain":"top-of-atmosphere","units":"photon/(cm2 ns sr)",
+            "wavelength_convention":"vacuum","maturity":"experimental",
+            "provenance":{
+                "source_catalogue":"test-only",
+                "source_license":"test-only",
+                "source_selection":"synthetic",
+                "generation_method":"unit test",
+                "limitations":["not a physical sky model"]
+            },
+            "catalogue_rows":12,"admitted_sources":12,"excluded_sources":{},
+            "pixels":(0..12).map(|i| serde_json::json!({
+                "pixel":i,"sources":1,"radiance":[1.0,2.0],
+                "statistical_sigma":[0.1,0.2],
+                "integrated_statistical_sigma":0.25
+            })).collect::<Vec<_>>()
+        });
+        let bytes = serde_json::to_vec(&value).unwrap();
+        let sha: String = Sha256::digest(&bytes).iter()
+            .map(|byte| format!("{byte:02x}")).collect();
+        let map = StarlightMap::from_json_bytes(&bytes, &sha).unwrap();
+        assert_eq!(map.band_nm(), [360, 420]);
+        let config = NsbModelConfig::generic_clear_sky()
+            .with_starlight_product(StarlightProduct::with_experimental_map(map));
+        let evaluator = NsbEvaluator::with_config(config).unwrap();
+        let q = query(ComponentMask::STARLIGHT, "2023-09-15T05:00:00Z");
+        let observed = evaluator.integrate_band(&q,
+            Nanometers::new(360.0), Nanometers::new(420.0)).unwrap();
+        assert_eq!(observed.value(), 3.0);
+        assert!(matches!(evaluator.evaluate(&q), Err(NsbError::Unsupported(_))));
+        assert!(matches!(evaluator.integrate_band(&q,
+            Nanometers::new(375.0), Nanometers::new(420.0)),
+            Err(NsbError::Unsupported(_))));
+    }
 }
