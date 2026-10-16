@@ -90,13 +90,16 @@ impl AirglowContinuum {
             ));
         }
         let cell = self.climatology[(month as usize - 1) * 12 + local_time_bin - 1];
-        let mut coefficients = [PalaceSampleCoefficients {
-            mean_scale: 0.0,
-            residual_relative_mean: 0.0,
-            residual_sigma: 0.0,
-        }; COMPONENT_COUNT];
-        for (i, (component, variability)) in self.components
-            .iter().zip(cell.components).enumerate()
+        let mut coefficients = [
+            PalaceSampleCoefficients {
+                mean_scale: 0.0,
+                residual_relative_mean: 0.0,
+                residual_sigma: 0.0,
+            };
+            COMPONENT_COUNT
+        ];
+        for (i, (component, variability)) in
+            self.components.iter().zip(cell.components).enumerate()
         {
             let scale = variability.relative_mean
                 * (1.0
