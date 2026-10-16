@@ -683,7 +683,7 @@ mod tests {
             crate::starlight::restricted::build(workspace, &config, &[partition.into()])?;
         artifact_store::atomic_write(&reconciled, &fs::read(&interval[0].path)?)?;
         let maps = crate::starlight::restricted::finalize(workspace, &config, &[partition.into()])?;
-        let candidate = nsb::StarlightMap::from_json_file(&maps[0].path, &maps[0].sha256)?;
+        let candidate = nsb::components::starlight::StarlightMap::from_json_file(&maps[0].path, &maps[0].sha256)?;
         assert_eq!(candidate.admitted_sources(), 1);
         assert_eq!(candidate.band_nm(), [360, 570]);
         assert!(crate::starlight::restricted::gates(workspace)?
