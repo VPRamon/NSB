@@ -418,6 +418,7 @@ lease_timeout_seconds = 60
             acquisition: AcquisitionConfig::default(),
             map: StarlightMapConfig::default(),
             product_band: StarlightProductBand::Measured336To650,
+            spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
             selection_function: None,
