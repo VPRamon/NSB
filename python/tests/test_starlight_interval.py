@@ -37,7 +37,7 @@ def test_external_interval_identity_and_direct_transport(tmp_path):
     data = json.dumps(fixture()).encode()
     path.write_bytes(data)
     sha = hashlib.sha256(data).hexdigest()
-    product = nsb.StarlightIntervalMap.load(str(path), sha)
+    product = nsb.StarlightMap.load(str(path), sha)
     assert product.sha256 == sha
     assert list(product.band_nm) == [360, 570]
     assert product.nside == 1
@@ -48,7 +48,7 @@ def test_external_interval_identity_and_direct_transport(tmp_path):
     assert 0 < low < mid < high < 7.0
     assert sigma > 0
     with pytest.raises(nsb.InvalidMapError):
-        nsb.StarlightIntervalMap.load(str(path), "0" * 64)
+        nsb.StarlightMap.load(str(path), "0" * 64)
     with pytest.raises(nsb.OutOfRangeError):
         product.direct_pixel_bounds(0.0, 0.0, -1.0, 790.0)
     with pytest.raises(nsb.OutOfRangeError):
@@ -69,7 +69,7 @@ def load_candidate(tmp_path, candidate):
     path = tmp_path / "candidate.json"
     data = json.dumps(candidate).encode()
     path.write_bytes(data)
-    return nsb.StarlightIntervalMap.load(str(path), hashlib.sha256(data).hexdigest())
+    return nsb.StarlightMap.load(str(path), hashlib.sha256(data).hexdigest())
 
 
 @pytest.mark.parametrize(
