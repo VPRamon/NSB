@@ -663,6 +663,7 @@ impl nsb::site::SiteProfileTag for nsb::site::GenericClearSky
 pub const nsb::site::GenericClearSky::NAME: &'static str
 #[non_exhaustive] pub struct nsb::NsbComponent
 pub nsb::NsbComponent::b_flux_s10: qtty_core::units::radiometry::S10s
+pub nsb::NsbComponent::bv_diagnostics_available: bool
 pub nsb::NsbComponent::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
 pub nsb::NsbComponent::metadata: nsb::NsbComponentMetadata
 pub nsb::NsbComponent::name: &'static str
