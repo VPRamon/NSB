@@ -665,6 +665,45 @@ mod tests {
                 .join(format!("starlight_nside{canonical_nside}.csv")),
             canonical_nside,
         )?;
+        // Exercise the interval lifecycle with the same checksum-verified inputs.
+        // No production data are involved: this is an isolated temporary fixture.
+        let config = crate::starlight::config::StarlightConfig {
+            gaia_products: products,
+            acquisition: Default::default(),
+            map: crate::starlight::config::StarlightMapConfig { canonical_nside: 1 },
+            product_band: StarlightProductBand::Measured360To570,
+            ultraviolet_correction: None,
+            photometric_inference: None,
+            selection_function: None,
+            bright_star_supplement: None,
+        };
+        let interval =
+            crate::starlight::restricted::build(workspace, &config, &[partition.into()])?;
+        artifact_store::atomic_write(&reconciled, &fs::read(&interval[0].path)?)?;
+        let maps = crate::starlight::restricted::finalize(workspace, &config, &[partition.into()])?;
+        let candidate = nsb::StarlightIntervalMap::from_json_file(&maps[0].path, &maps[0].sha256)?;
+        assert_eq!(candidate.admitted_sources(), 1);
+        assert_eq!(candidate.band_nm(), [360, 570]);
+        assert!(crate::starlight::restricted::gates(workspace)?
+            .iter()
+            .all(|g| g.passed));
+        let first = fs::read(&maps[0].path)?;
+        crate::starlight::restricted::finalize(workspace, &config, &[partition.into()])?;
+        assert_eq!(
+            first,
+            fs::read(&maps[0].path)?,
+            "repeated interval merge must be byte identical"
+        );
+        assert!(
+            crate::starlight::restricted::finalize(workspace, &config, &["missing".into()])
+                .is_err()
+        );
+        let mut bad = config;
+        bad.photometric_inference = Some(crate::starlight::config::ArtifactPinConfig {
+            artifact_path: "wrong-band.json".into(),
+            sha256: "a".repeat(64),
+        });
+        assert!(crate::starlight::restricted::build(workspace, &bad, &[partition.into()]).is_err());
         Ok(())
     }
 

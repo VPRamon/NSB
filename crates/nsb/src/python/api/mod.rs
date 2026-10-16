@@ -7,6 +7,8 @@
 //! delegated to `siderust-py` and `tempoch-py`.
 
 mod config;
+mod starlight_interval;
+pub(in crate::python) use starlight_interval::PyStarlightIntervalMap;
 mod errors;
 mod evaluator;
 mod queries;

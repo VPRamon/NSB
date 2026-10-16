@@ -284,7 +284,9 @@ pub(crate) fn finalize(
     let mut map_flux = StableSum::default();
     let mut admitted = 0_u64;
     for index in 0..npix {
-        let p = merged.remove(&(index as u32)).unwrap_or_default();
+        let nested =
+            super::healpix_topology::reference_ring2nest(config.map.canonical_nside, index)?;
+        let p = merged.remove(&(nested as u32)).unwrap_or_default();
         admitted += p.sources;
         for f in &p.flux_ph_m2_s {
             map_flux.merge(f)?;
@@ -304,7 +306,7 @@ pub(crate) fn finalize(
     let map = serde_json::json!({
         "schema":"nsb-starlight-interval-map-v1", "product_id":"starlight-gaia-dr3-xp-360-570-v1",
         "band_nm":[360,570], "bin_edges_nm":[360,390,420,450,480,510,540,570],
-        "nside":config.map.canonical_nside,"ordering":"nested","coordinate_frame":"galactic",
+        "nside":config.map.canonical_nside,"ordering":"ring","coordinate_frame":"galactic",
         "domain":"top-of-atmosphere","units":"photon/(cm2 ns sr)","wavelength_convention":"vacuum",
         "maturity":"experimental", "population_policy":"gaia-dr3-quality-xp-only-positive-subbands-v1",
         "non_xp_inference":null,"selection_correction":null,"bright_star_supplement":null,

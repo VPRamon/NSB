@@ -43,3 +43,25 @@ must be resolved separately.
 No default asset, manifest, production admission, licensing authorization or
 redistribution policy is changed. Raw inputs and generated scientific products
 remain outside Git in the project-owned BeeGFS workspace.
+
+The packed candidate uses **RING** ordering after the existing independently
+tested integer NESTED-to-RING permutation; workers remain Galactic NESTED.
+`StarlightIntervalMap::from_json_file(path, sha256)` verifies bytes, the exact
+band, physical units, coordinate frame, population accounting, uncertainty
+contract and complete pixel coverage. It does not grant production admission.
+Python exposes the same explicit product through `nsb.StarlightIntervalMap`.
+
+`top_of_atmosphere_pixel` returns the coarse pixel mean and its integrated
+statistical sigma. `direct_pixel_bounds` applies NSB's shared Rayleigh/Mie
+Beer–Lambert transport with Young (1994) airmass. For nonnegative physical
+spectra, each bin integral multiplied by its minimum/maximum transmission
+bounds the direct integral without an arbitrary stellar colour. The default
+Siderust Mie parameter uses a **negative power-law exponent**; positive
+exponents are rejected by this monotonic-envelope implementation. Local
+pressure must already reflect altitude, avoiding double pressure scaling.
+The returned midpoint is a numerical envelope midpoint; half its width is an
+absolute spectral-shape approximation bound, separate from statistical errors.
+A conservative propagated sigma allows arbitrary unknown cross-bin covariance.
+Calibration systematics remain unavailable. This operation excludes molecular
+absorption and atmospheric in-scattering and is still a pixel-average operator.
+It cannot be automatically added to a source-masked sky-fiber prediction.

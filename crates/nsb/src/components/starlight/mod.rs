@@ -19,6 +19,8 @@
 //! [data-rights guide](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/README.md).
 
 mod compact;
+mod interval;
+pub use interval::{DirectStarlightBounds, StarlightIntervalMap};
 mod map;
 mod model;
 mod output;

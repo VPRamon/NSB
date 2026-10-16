@@ -191,10 +191,15 @@ impl DatasetPipeline for StarlightPipeline {
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
-        if name == super::restricted::MAP_NAME || name == super::restricted::REPORT_NAME {
+        if name == super::restricted::MAP_NAME {
+            let sha256 = crate::platform::checksum_io::sha256_file(path)?;
+            nsb::StarlightIntervalMap::from_json_file(path, &sha256)?;
+            return Ok(());
+        }
+        if name == super::restricted::REPORT_NAME {
             let value: serde_json::Value = serde_json::from_slice(&fs::read(path)?)?;
-            if value["schema"].as_str().is_none() {
-                bail!("missing interval product schema");
+            if value["schema"] != "nsb-starlight-interval-validation-v1" {
+                bail!("invalid interval validation schema");
             }
             return Ok(());
         }
