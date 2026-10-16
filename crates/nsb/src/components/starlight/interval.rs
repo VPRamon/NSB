@@ -466,10 +466,10 @@ mod tests {
     #[test]
     fn typed_pixel_lookup_and_direct_envelope_preserve_units_and_identity() {
         let map = load(fixture()).unwrap();
-        assert_eq!(map.band_nm(), [360, 570]);
-        assert_eq!(map.nside(), 1);
-        assert_eq!(map.admitted_sources(), 12);
-        assert_eq!(map.maturity(), "experimental");
+        assert_eq!(map.band_nm, [360, 570]);
+        assert_eq!(map.grid.nside().get(), 1);
+        assert_eq!(map.admitted_sources, 12);
+        assert_eq!(map.maturity.as_str(), "experimental");
         let (toa, sigma) = map.top_of_atmosphere_pixel(direction()).unwrap();
         assert_eq!(toa.value(), 35.0);
         assert_eq!(sigma.unwrap().value(), 0.3);
