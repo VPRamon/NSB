@@ -144,7 +144,8 @@ impl AirglowContinuum {
         Ok((mean, sigma))
     }
 
-    /// PALACE continuum mean and residual one-sigma variability in R/nm.
+    /// Legacy single-wavelength entry point retained for reference tests.
+    #[cfg(test)]
     pub(crate) fn sample(
         &self,
         sample: usize,
