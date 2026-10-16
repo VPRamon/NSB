@@ -263,8 +263,11 @@ mod tests {
         let galactic = spherical::Direction::<siderust::coordinates::frames::Galactic>::new(
             crate::units::angular::Degrees::new(0.0),
             crate::units::angular::Degrees::new(0.0),
-        ).to_cartesian();
-        let native = map.integrate_band(galactic, Nanometers::new(360.0), Nanometers::new(420.0)).unwrap();
+        )
+        .to_cartesian();
+        let native = map
+            .integrate_band(galactic, Nanometers::new(360.0), Nanometers::new(420.0))
+            .unwrap();
         assert_eq!(native.0.value(), 3.0);
         let config = NsbModelConfig::generic_clear_sky()
             .with_starlight_product(StarlightProduct::with_experimental_map(map));
