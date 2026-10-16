@@ -152,6 +152,10 @@ impl StarlightMap {
     /// this API. Checksum verification is not scientific production admission.
     pub fn from_json_bytes(bytes: &[u8], expected_sha256: &str) -> Result<Self> {
         let spectral = SpectralMap::from_json_bytes(bytes, expected_sha256)?;
+        Self::from_spectral(spectral)
+    }
+
+    fn from_spectral(spectral: SpectralMap) -> Result<Self> {
         let provenance = StarlightProvenance::new(
             spectral.product_id.clone(),
             "spectral-map",
@@ -181,8 +185,7 @@ impl StarlightMap {
 
     /// Load a checksum-pinned external Starlight spectral map from disk.
     pub fn from_json_file(path: &Path, expected_sha256: &str) -> Result<Self> {
-        let bytes = std::fs::read(path)?;
-        Self::from_json_bytes(&bytes, expected_sha256)
+        Self::from_spectral(SpectralMap::from_json_file(path, expected_sha256)?)
     }
 
     /// Band of the map's native integrated radiance, in vacuum nm.
