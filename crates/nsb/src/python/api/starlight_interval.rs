@@ -65,19 +65,24 @@ impl PyStarlightIntervalMap {
     /// Direct pixel envelope using generic aerosols and explicit local pressure.
     /// Returns midpoint, lower, upper, conservative statistical sigma bound.
     /// Does not represent a source-masked fiber or include in-scattering.
+    #[pyo3(signature = (l_deg, b_deg, zenith_deg, pressure_hpa, aerosol_tau550=0.03, aerosol_power=-1.38))]
     fn direct_pixel_bounds(
         &self,
         l_deg: f64,
         b_deg: f64,
         zenith_deg: f64,
         pressure_hpa: f64,
+        aerosol_tau550: f64,
+        aerosol_power: f64,
     ) -> PyResult<(f64, f64, f64, f64)> {
         let geometry = crate::transport::DirectPathGeometry::new(Degrees::new(zenith_deg))
             .map_err(to_py_err)?;
-        let atmosphere = crate::site::AtmosphericConditions::clear_sky_with_pressure(
+        let mut atmosphere = crate::site::AtmosphericConditions::clear_sky_with_pressure(
             siderust::qtty::Hectopascals::new(pressure_hpa),
         )
         .map_err(to_py_err)?;
+        atmosphere.mie_params.tau0 = siderust::qtty::OpticalDepths::new(aerosol_tau550);
+        atmosphere.mie_params.alpha = aerosol_power;
         let b = self
             .inner
             .direct_pixel_bounds(direction(l_deg, b_deg)?, geometry, atmosphere)

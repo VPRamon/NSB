@@ -55,3 +55,11 @@ def test_external_interval_identity_and_direct_transport(tmp_path):
         product.direct_pixel_bounds(0.0, 0.0, 30.0, -1.0)
     with pytest.raises(nsb.OutOfRangeError):
         product.top_of_atmosphere_pixel(360.0, 0.0)
+
+    clearer = product.direct_pixel_bounds(0.0, 0.0, 30.0, 790.0, aerosol_tau550=0.01)[0]
+    hazier = product.direct_pixel_bounds(0.0, 0.0, 30.0, 790.0, aerosol_tau550=0.1)[0]
+    assert hazier < mid < clearer
+    with pytest.raises(nsb.OutOfRangeError):
+        product.direct_pixel_bounds(0.0, 0.0, 30.0, 790.0, aerosol_tau550=-0.1)
+    with pytest.raises(nsb.UnsupportedError):
+        product.direct_pixel_bounds(0.0, 0.0, 30.0, 790.0, aerosol_power=1.0)
