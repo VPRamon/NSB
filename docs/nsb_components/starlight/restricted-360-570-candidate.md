@@ -94,10 +94,15 @@ provenance limitation, not permission to rewrite historical evidence.
 ## Raw XP ingestion audit
 
 The map's `xp_rows` counts successfully parsed **canonical** spectra, not raw
-bulk records. The full candidate returned 219,197,642 canonical rows, one below
-the published archive count of 219,197,643. Until reconciled, this difference
-remains an explicit provenance limitation. GaiaSource population accounting
-is separate and covers all 1,811,709,771 input rows.
+bulk records. The completed 3,386-partition raw audit reconciles all 219,197,643
+published records with 219,197,642 canonical rows and one excluded RP-only row.
+Inspection of the original checksum-verified record confirms its BP parameter
+count, coefficients, errors, covariance and basis metadata are null; its RP
+representation has 55 coefficients. That row cannot supply the required BP
+360–570 nm integral. It is excluded by the existing canonical policy, not lost
+through a missing partition. Individual source identity and raw inspection
+remain in the private audit. GaiaSource population accounting is separate and
+covers all 1,811,709,771 input rows.
 
 An optional `[starlight.ingestion_audit]` table with
 `expected_rows = 219197643` runs raw-to-canonical reconciliation through the
