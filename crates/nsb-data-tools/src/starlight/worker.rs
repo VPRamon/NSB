@@ -370,7 +370,7 @@ pub(crate) fn bright_star_supplement_shard(
     }
     let provenance = artifact.supplement_provenance(verified_artifact_sha256)?;
     let mut shard = match product_band {
-        StarlightProductBand::Measured360To570 => {
+        StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned => {
             bail!("interval products require band-neutral supplements")
         }
         StarlightProductBand::Measured336To650 => {
@@ -671,7 +671,7 @@ mod tests {
             gaia_products: products,
             acquisition: Default::default(),
             map: crate::starlight::config::StarlightMapConfig { canonical_nside: 1 },
-            product_band: StarlightProductBand::Measured360To570,
+            product_band: StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned,
             spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
