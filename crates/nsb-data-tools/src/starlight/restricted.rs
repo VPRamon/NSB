@@ -383,41 +383,88 @@ pub(crate) fn finalize(
     {
         bail!("interval conservation/population validation failed");
     }
-    let map = serde_json::json!({
-        "schema":"nsb-starlight-interval-map-v1", "product_id":"starlight-gaia-dr3-xp-360-570-v1",
-        "band_nm":[360,570], "bin_edges_nm":[360,390,420,450,480,510,540,570],
-        "nside":config.map.canonical_nside,"ordering":"ring","coordinate_frame":"galactic",
-        "domain":"top-of-atmosphere","units":"photon/(cm2 ns sr)","wavelength_convention":"vacuum",
-        "maturity":"experimental", "population_policy":"gaia-dr3-quality-xp-only-positive-subbands-v1",
-        "non_xp_inference":null,"selection_correction":null,"bright_star_supplement":null,
-        "systematic_uncertainty":null,"statistical_covariance":"full BP coefficient covariance; source-independent; bin cross covariance not packed",
-        "design_sha256":design,"input_partitions":identities,"catalogue_rows":rows,"xp_rows":xp_rows,
-        "unmatched_xp_rows":unmatched,"admitted_sources":admitted,"excluded_sources":excluded,"pixels":pixels,
-    });
-    let map_path = root.join("outputs").join(MAP_NAME);
+    // The archived seven-bin v1 serialization is unchanged. New bins use v2.
+    let map = if is_generic(config) {
+        serde_json::json!({
+            "schema":"nsb-starlight-spectral-map-v2",
+            "product_id":format!("starlight-gaia-dr3-xp-{}-{}-{}bins-v2",
+                edges[0], edges[edges.len()-1], bins),
+            "band_nm":[edges[0], edges[edges.len()-1]], "bin_edges_nm":edges,
+            "nside":config.map.canonical_nside,"ordering":"ring","coordinate_frame":"galactic",
+            "domain":"top-of-atmosphere","units":"photon/(cm2 ns sr)",
+            "wavelength_convention":"vacuum","maturity":"experimental",
+            "provenance":{
+                "source_catalogue":"Gaia DR3 XP",
+                "source_license":"CC BY-NC 3.0 IGO",
+                "source_selection":"gaia-dr3-quality-xp-only-positive-subbands-v1",
+                "generation_method":"Gaia XP BP full-coefficient-covariance calibrated integration",
+                "limitations":[
+                    "XP-only; non-XP population and missing bright stars are not completed",
+                    "No selection completeness correction",
+                    "Cross-bin statistical covariance is not packed",
+                    "Calibration systematic uncertainty remains unknown",
+                    "Direct TOA pixel means cannot represent DESI source-masked fiber response"
+                ],
+                "gaia":{
+                    "design_sha256":design,
+                    "input_partitions":identities,
+                    "xp_rows":xp_rows,
+                    "unmatched_xp_rows":unmatched
+                }
+            },
+            "catalogue_rows":rows,"admitted_sources":admitted,
+            "excluded_sources":excluded,"pixels":pixels
+        })
+    } else {
+        serde_json::json!({
+            "schema":"nsb-starlight-interval-map-v1", "product_id":"starlight-gaia-dr3-xp-360-570-v1",
+            "band_nm":[360,570], "bin_edges_nm":[360,390,420,450,480,510,540,570],
+            "nside":config.map.canonical_nside,"ordering":"ring","coordinate_frame":"galactic",
+            "domain":"top-of-atmosphere","units":"photon/(cm2 ns sr)","wavelength_convention":"vacuum",
+            "maturity":"experimental", "population_policy":"gaia-dr3-quality-xp-only-positive-subbands-v1",
+            "non_xp_inference":null,"selection_correction":null,"bright_star_supplement":null,
+            "systematic_uncertainty":null,"statistical_covariance":"full BP coefficient covariance; source-independent; bin cross covariance not packed",
+            "design_sha256":design,"input_partitions":identities,"catalogue_rows":rows,"xp_rows":xp_rows,
+            "unmatched_xp_rows":unmatched,"admitted_sources":admitted,"excluded_sources":excluded,"pixels":pixels,
+        })
+    };
+    let (map_name, report_name, report_schema) = if is_generic(config) {
+        (GENERIC_MAP_NAME, GENERIC_REPORT_NAME, "nsb-starlight-spectral-validation-v2")
+    } else {
+        (MAP_NAME, REPORT_NAME, "nsb-starlight-interval-validation-v1")
+    };
+    let map_path = root.join("outputs").join(map_name);
     atomic_write(&map_path, &serde_json::to_vec(&map)?)?;
-    let report = serde_json::json!({"schema":"nsb-starlight-interval-validation-v1",
+    let report = serde_json::json!({"schema":report_schema,
         "map_sha256":checksum_io::sha256_file(&map_path)?, "expected_partitions":partitions.len(),
-        "processed_partitions":identities.len(),"population_accounting":true,"exact_flux_conservation":true,
+        "processed_partitions":map["provenance"]["gaia"]["input_partitions"].as_object()
+            .map_or_else(|| map["input_partitions"].as_object().map_or(0, |x| x.len()), |x| x.len()),
+        "population_accounting":true,"exact_flux_conservation":true,
         "total_flux_ph_m2_s":source_flux.value(),"admitted_sources":admitted,
         "all_sky_pixels":npix,"limitations":["XP-only population, no non-XP or missing bright-star completion", "No completeness correction", "Calibration systematic uncertainty unquantified", "TOA pixel average does not represent DESI source-masked fiber radiance"]});
-    let report_path = root.join("outputs").join(REPORT_NAME);
+    let report_path = root.join("outputs").join(report_name);
     atomic_write(&report_path, &serde_json::to_vec_pretty(&report)?)?;
     let artifacts = vec![
-        artifact(&map_path, MAP_NAME)?,
-        artifact(&report_path, REPORT_NAME)?,
+        artifact(&map_path, map_name)?,
+        artifact(&report_path, report_name)?,
     ];
     super::worker::write_artifact_index(root, &artifacts)?;
     Ok(artifacts)
 }
 
-pub(crate) fn gates(root: &Path) -> Result<Vec<ValidationGate>> {
+pub(crate) fn gates(root: &Path, generic: bool) -> Result<Vec<ValidationGate>> {
+    let (map_name, report_name, schema) = if generic {
+        (GENERIC_MAP_NAME, GENERIC_REPORT_NAME, "nsb-starlight-spectral-validation-v2")
+    } else {
+        (MAP_NAME, REPORT_NAME, "nsb-starlight-interval-validation-v1")
+    };
     let report: serde_json::Value =
-        serde_json::from_slice(&fs::read(root.join("outputs").join(REPORT_NAME))?)?;
-    let actual = checksum_io::sha256_file(&root.join("outputs").join(MAP_NAME))?;
+        serde_json::from_slice(&fs::read(root.join("outputs").join(report_name))?)?;
+    let actual = checksum_io::sha256_file(&root.join("outputs").join(map_name))?;
     Ok(vec![ValidationGate {
         name: "interval-map-identity-and-conservation".into(),
-        passed: report["map_sha256"].as_str() == Some(&actual)
+        passed: report["schema"] == schema
+            && report["map_sha256"].as_str() == Some(&actual)
             && report["exact_flux_conservation"] == true
             && report["population_accounting"] == true
             && report["processed_partitions"] == report["expected_partitions"],
