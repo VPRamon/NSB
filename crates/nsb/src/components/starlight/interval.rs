@@ -279,15 +279,21 @@ impl SpectralMap {
                         return Err(invalid("invalid Gaia provenance in generic Starlight map"));
                     }
                 }
-                let pixels = d.pixels.into_iter().map(|p| (
-                    p.pixel,
-                    SpectralPixel {
-                        sources: p.sources,
-                        radiance: p.radiance,
-                        statistical_sigma: p.statistical_sigma,
-                        integrated_statistical_sigma: p.integrated_statistical_sigma,
-                    },
-                )).collect();
+                let pixels = d
+                    .pixels
+                    .into_iter()
+                    .map(|p| {
+                        (
+                            p.pixel,
+                            SpectralPixel {
+                                sources: p.sources,
+                                radiance: p.radiance,
+                                statistical_sigma: p.statistical_sigma,
+                                integrated_statistical_sigma: p.integrated_statistical_sigma,
+                            },
+                        )
+                    })
+                    .collect();
                 Self::validated(
                     sha256,
                     d.product_id,
