@@ -779,6 +779,10 @@ mod tests {
             });
             let map = load(payload).unwrap();
             assert_eq!(map.edges_nm.len(), bins + 1);
+            // Channels are dense and pixel-major, independent of bin count.
+            assert_eq!(map.radiance.len(), 12 * bins);
+            assert_eq!(map.statistical_sigma.as_ref().unwrap().len(), 12 * bins);
+            assert_eq!(map.integrated_statistical_sigma.as_ref().unwrap().len(), 12);
             let d = direction();
             let full = map
                 .integrate_band(
