@@ -22,7 +22,24 @@ use std::path::Path;
 
 pub const MAP_NAME: &str = "starlight_360_570_candidate.json";
 pub const REPORT_NAME: &str = "starlight_360_570_validation.json";
-const BINS: usize = 7;
+const BIN_EDGES_NM: [u16; 8] = [360, 390, 420, 450, 480, 510, 540, 570];
+const BINS: usize = BIN_EDGES_NM.len() - 1;
+
+// Construct Gaia XP calibration functionals from explicit, ordered band edges.
+// Existing v1 output continues to use its frozen seven-bin definition.
+fn calibration_bands(edges: &[u16]) -> Result<Vec<[f64; 2]>> {
+    if edges.len() < 2 || edges[0] == 0 || edges.windows(2).any(|pair| pair[0] >= pair[1]) {
+        bail!("Starlight spectral bin edges must be positive and strictly increasing");
+    }
+    let mut bands = Vec::with_capacity(edges.len());
+    bands.push([f64::from(edges[0]), f64::from(edges[edges.len() - 1])]);
+    bands.extend(
+        edges
+            .windows(2)
+            .map(|pair| [f64::from(pair[0]), f64::from(pair[1])]),
+    );
+    Ok(bands)
+}
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -91,8 +108,7 @@ pub(crate) fn build(
     let fixture = GaiaXpContinuousCalibrator::resolve_design_fixture_path(None, None);
     let design_sha256 = checksum_io::sha256_file(&fixture)?;
     let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(&fixture)?;
-    let mut bands = vec![[360.0, 570.0]];
-    bands.extend((0..BINS).map(|i| [360.0 + i as f64 * 30.0, 390.0 + i as f64 * 30.0]));
+    let bands = calibration_bands(&BIN_EDGES_NM)?;
     let integrator = calibrator.bp_integrator(&bands)?;
     let mut artifacts = Vec::new();
     for partition in partitions {
@@ -343,4 +359,51 @@ pub(crate) fn gates(root: &Path) -> Result<Vec<ValidationGate>> {
             && report["processed_partitions"] == report["expected_partitions"],
         detail: "Experimental XP-only map; scientific omissions remain explicit".into(),
     }])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frozen_xp_bands_keep_the_exact_legacy_functionals() {
+        let bands = calibration_bands(&BIN_EDGES_NM).unwrap();
+        assert_eq!(bands.len(), BINS + 1);
+        assert_eq!(bands[0], [360.0, 570.0]);
+        for (index, pair) in bands[1..].iter().enumerate() {
+            let start = 360.0 + index as f64 * 30.0;
+            assert_eq!(*pair, [start, start + 30.0]);
+        }
+    }
+
+    #[test]
+    fn calibration_functionals_support_variable_bin_counts_and_widths() {
+        assert_eq!(
+            calibration_bands(&[350, 365, 410, 570]).unwrap(),
+            vec![
+                [350.0, 570.0],
+                [350.0, 365.0],
+                [365.0, 410.0],
+                [410.0, 570.0],
+            ]
+        );
+        let ten_bins: Vec<u16> = (0..=10).map(|index| 360 + index * 20).collect();
+        assert_eq!(calibration_bands(&ten_bins).unwrap().len(), 11);
+        assert_eq!(calibration_bands(&[410, 430]).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn calibration_functionals_reject_invalid_edges() {
+        for edges in [
+            vec![],
+            vec![360],
+            vec![0, 360],
+            vec![360, 360],
+            vec![390, 360],
+            vec![360, 390, 390],
+            vec![360, 390, 385],
+        ] {
+            assert!(calibration_bands(&edges).is_err(), "{edges:?}");
+        }
+    }
 }
