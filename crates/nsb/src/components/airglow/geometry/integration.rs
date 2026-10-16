@@ -105,8 +105,8 @@ pub(super) fn integrate_profile_los(
         for step in 0..=substeps {
             let s = s_low + ds * step as f64;
             let along_ray = s + projected_radius;
-            let altitude = (along_ray * along_ray + impact_sq).sqrt()
-                - AIRGLOW_MEAN_EARTH_RADIUS_KM;
+            let altitude =
+                (along_ray * along_ray + impact_sq).sqrt() - AIRGLOW_MEAN_EARTH_RADIUS_KM;
             // Same-unit length division yields a dimensionless scalar in qtty.
             let fraction = ((altitude - bin_low) / bin_width).clamp(0.0, 1.0);
             let emissivity = j_low + fraction * j_delta;
@@ -203,6 +203,30 @@ mod tests {
             assert!(
                 (actual - expected).abs() < 1.0e-12,
                 "observer={observer_km} km: expected {expected}, got {actual}"
+            );
+        }
+    }
+
+    #[test]
+    fn exact_vertical_matches_zenith_quadrature() {
+        let profile = profile(
+            "zenith-reference",
+            &[75.0, 82.0, 94.0, 110.0],
+            &[0.0, 0.8, 1.0, 0.0],
+        );
+        for height in [0.0, 80.0, 90.0, 100.0] {
+            let samples = profile.samples();
+            let observer_height = Kilometers::new(height);
+            let exact = super::integrate_vertical_profile(samples, observer_height);
+            let numerical = super::integrate_profile_los(
+                samples,
+                observer_height,
+                Degrees::new(0.0).to::<siderust::qtty::unit::Radian>(),
+                64,
+            );
+            assert!(
+                (exact - numerical).abs() < 1.0e-10,
+                "observer={height} km: exact {exact}, numerical {numerical}"
             );
         }
     }
