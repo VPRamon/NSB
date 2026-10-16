@@ -362,7 +362,8 @@ impl StarlightMap {
             .map_err(|err| invalid_map(err.to_string()))?;
         let slot = usize::try_from(index.get())
             .map_err(|_| invalid_map("HEALPix index exceeds address space"))?;
-        self.map.values()
+        self.map
+            .values()
             .get(slot)
             .copied()
             .ok_or_else(|| invalid_map("HEALPix pixel index out of range"))
