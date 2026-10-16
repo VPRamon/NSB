@@ -87,6 +87,24 @@ struct GenericProvenance {
     source_selection: String,
     generation_method: String,
     limitations: Vec<String>,
+    #[serde(default)]
+    gaia: Option<GaiaAuditProvenance>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GaiaAuditProvenance {
+    design_sha256: String,
+    input_partitions: BTreeMap<String, GaiaInputIdentity>,
+    xp_rows: u64,
+    unmatched_xp_rows: u64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GaiaInputIdentity {
+    shard_sha256: String,
+    inputs: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -238,6 +256,20 @@ impl SpectralMap {
                     || d.provenance.limitations.is_empty()
                 {
                     return Err(invalid("invalid generic starlight provenance or units"));
+                }
+                if let Some(gaia) = &d.provenance.gaia {
+                    if !is_sha256(&gaia.design_sha256)
+                        || gaia.input_partitions.is_empty()
+                        || gaia.unmatched_xp_rows > gaia.xp_rows
+                        || gaia.input_partitions.values().any(|input| {
+                            !is_sha256(&input.shard_sha256)
+                                || ["gaia-source", "xp-continuous"].iter().any(|key| {
+                                    !input.inputs.get(*key).is_some_and(|sha| is_sha256(sha))
+                                })
+                        })
+                    {
+                        return Err(invalid("invalid Gaia provenance in generic Starlight map"));
+                    }
                 }
                 let pixels = d.pixels.into_iter().map(|p| (
                     p.pixel,
