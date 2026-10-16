@@ -22,6 +22,10 @@ pub struct StarlightConfig {
     /// Spectral product requested from each source.
     #[serde(default)]
     pub product_band: StarlightProductBand,
+    /// Explicit variable-width bin edges for measured XP spectral products.
+    /// Absent for all legacy product formats, preserving their byte identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spectral_bin_edges_nm: Option<Vec<u16>>,
     /// Optional checksum-pinned 300–336 nm correction.
     #[serde(default)]
     pub ultraviolet_correction: Option<UvCorrectionConfig>,
@@ -87,6 +91,9 @@ pub enum StarlightProductBand {
     /// Experimental directly integrated XP interval (not a production asset).
     #[serde(rename = "measured-360-570")]
     Measured360To570,
+    /// Generic XP-only experimental product with configured spectral bin edges.
+    #[serde(rename = "measured-xp-binned")]
+    MeasuredXpBinned,
 }
 
 /// Location and immutable identity of a checksum-pinned calibration artifact.
