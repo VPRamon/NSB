@@ -45,10 +45,11 @@ struct Document {
     wavelength_convention: String,
     maturity: String,
     population_policy: String,
-    non_xp_inference: Option<serde_json::Value>,
-    selection_correction: Option<serde_json::Value>,
-    bright_star_supplement: Option<serde_json::Value>,
-    systematic_uncertainty: Option<serde_json::Value>,
+    // Required explicit null declarations; missing fields must not imply absence.
+    non_xp_inference: serde_json::Value,
+    selection_correction: serde_json::Value,
+    bright_star_supplement: serde_json::Value,
+    systematic_uncertainty: serde_json::Value,
     statistical_covariance: String,
     design_sha256: String,
     input_partitions: BTreeMap<String, serde_json::Value>,
@@ -115,8 +116,8 @@ impl StarlightIntervalMap {
             || d.ordering != "ring" || d.coordinate_frame != "galactic" || d.domain != "top-of-atmosphere"
             || d.units != "photon/(cm2 ns sr)" || d.wavelength_convention != "vacuum" || d.maturity != "experimental"
             || d.population_policy != "gaia-dr3-quality-xp-only-positive-subbands-v1"
-            || d.non_xp_inference.is_some() || d.selection_correction.is_some() || d.bright_star_supplement.is_some()
-            || d.systematic_uncertainty.is_some() || !is_sha256(&d.design_sha256)
+            || !d.non_xp_inference.is_null() || !d.selection_correction.is_null() || !d.bright_star_supplement.is_null()
+            || !d.systematic_uncertainty.is_null() || !is_sha256(&d.design_sha256)
             || d.statistical_covariance != "full BP coefficient covariance; source-independent; bin cross covariance not packed"
             || d.input_partitions.is_empty() || d.unmatched_xp_rows > d.xp_rows
         { return Err(invalid("unsupported interval product provenance")); }
@@ -147,8 +148,7 @@ impl StarlightIntervalMap {
                     .iter()
                     .chain(&p.statistical_sigma)
                     .chain(std::iter::once(&p.integrated_statistical_sigma))
-                    .any(|x| !x.is_finite() || *x < 0.0)
-                || (p.sources == 0 && p.radiance.iter().any(|x| *x != 0.0))
+                    .any(|x| !x.is_finite() || *x < 0.0 || (p.sources == 0 && *x != 0.0))
             {
                 return Err(invalid("invalid or misordered interval pixel"));
             }
@@ -377,5 +377,59 @@ mod tests {
         let mut changed = v;
         changed["input_partitions"]["fixture"]["inputs"]["gaia-source"] = "bad".into();
         assert!(load(changed).is_err());
+    }
+
+    fn empty_pixel_fixture() -> serde_json::Value {
+        let mut v = fixture();
+        v["pixels"][0]["sources"] = 0.into();
+        v["pixels"][0]["radiance"] = serde_json::json!(vec![0.0; 7]);
+        v["pixels"][0]["statistical_sigma"] = serde_json::json!(vec![0.0; 7]);
+        v["pixels"][0]["integrated_statistical_sigma"] = 0.into();
+        v["admitted_sources"] = 11.into();
+        v["excluded_sources"]["no_band_calibrated_non_xp_inference"] = 3.into();
+        v
+    }
+
+    #[test]
+    fn empty_pixel_channels_must_all_be_zero() {
+        let empty = empty_pixel_fixture();
+        assert!(load(empty.clone()).is_ok());
+        assert!(load(fixture()).is_ok(), "nonempty pixels remain valid");
+
+        let mut nonzero_radiance = empty.clone();
+        nonzero_radiance["pixels"][0]["radiance"][0] = 0.5.into();
+        assert!(load(nonzero_radiance).is_err(), "empty pixel radiance");
+
+        let mut nonzero_sigma = empty.clone();
+        nonzero_sigma["pixels"][0]["statistical_sigma"][0] = 0.5.into();
+        assert!(load(nonzero_sigma).is_err(), "empty pixel per-bin sigma");
+
+        let mut nonzero_integrated_sigma = empty;
+        nonzero_integrated_sigma["pixels"][0]["integrated_statistical_sigma"] = 0.5.into();
+        assert!(load(nonzero_integrated_sigma).is_err(), "empty pixel integrated sigma");
+    }
+
+    #[test]
+    fn experimental_provenance_requires_explicit_null_fields() {
+        let valid = fixture();
+        assert!(load(valid.clone()).is_ok());
+        for key in [
+            "non_xp_inference",
+            "selection_correction",
+            "bright_star_supplement",
+            "systematic_uncertainty",
+        ] {
+            let mut missing = valid.clone();
+            missing.as_object_mut().unwrap().remove(key);
+            assert!(load(missing).is_err(), "missing {key} must fail");
+
+            let mut non_null = valid.clone();
+            non_null[key] = serde_json::json!({"unexpected": true});
+            assert!(load(non_null).is_err(), "non-null {key} must fail");
+        }
+
+        let mut extended = valid;
+        extended["unexpected_provenance"] = true.into();
+        assert!(load(extended).is_err(), "unknown fields must fail");
     }
 }
