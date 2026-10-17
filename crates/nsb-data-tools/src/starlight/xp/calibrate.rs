@@ -60,10 +60,19 @@ struct DesignFixture {
 impl GaiaXpContinuousCalibrator {
     /// Load and validate a frozen GaiaXPy design-matrix fixture.
     pub fn from_design_fixture(path: &Path) -> Result<Self> {
-        let text = fs::read_to_string(path)
+        let bytes = fs::read(path)
             .with_context(|| format!("read GaiaXPy design fixture {}", path.display()))?;
-        let fixture: DesignFixture = serde_json::from_str(&text)
-            .with_context(|| format!("parse GaiaXPy design fixture {}", path.display()))?;
+        Self::from_design_bytes(&bytes)
+            .with_context(|| format!("parse GaiaXPy design fixture {}", path.display()))
+    }
+
+    /// Parse and validate an in-memory frozen GaiaXPy design fixture.
+    ///
+    /// Callers with checksum-pinned inputs can pass the exact verified bytes,
+    /// avoiding a second path read between integrity checks and calibration.
+    pub fn from_design_bytes(bytes: &[u8]) -> Result<Self> {
+        let fixture: DesignFixture =
+            serde_json::from_slice(bytes).context("parse GaiaXPy design fixture bytes")?;
         if fixture.schema_version != 1 {
             bail!(
                 "unsupported design fixture schema {}",
@@ -626,6 +635,52 @@ mod interval_tests {
         }
         let record = serde_json::from_value(value).unwrap();
         (calibrator, record)
+    }
+
+    #[test]
+    fn design_byte_constructor_preserves_calibration_and_validation() {
+        let (from_path, record) = inputs();
+        let bytes = fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json"),
+        )
+        .unwrap();
+        let from_bytes = GaiaXpContinuousCalibrator::from_design_bytes(&bytes).unwrap();
+        assert_eq!(
+            from_path.calibrate_record(&record).unwrap(),
+            from_bytes.calibrate_record(&record).unwrap()
+        );
+        let bands = [[360.0, 570.0], [360.0, 390.0], [390.0, 570.0]];
+        assert_eq!(
+            from_path
+                .bp_integrator(&bands)
+                .unwrap()
+                .integrate(&record)
+                .unwrap(),
+            from_bytes
+                .bp_integrator(&bands)
+                .unwrap()
+                .integrate(&record)
+                .unwrap(),
+        );
+        assert!(GaiaXpContinuousCalibrator::from_design_bytes(b"not JSON").is_err());
+        let invalid_path = tempfile::NamedTempFile::new().unwrap();
+        fs::write(invalid_path.path(), b"not JSON").unwrap();
+        let error =
+            GaiaXpContinuousCalibrator::from_design_fixture(invalid_path.path()).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains(&invalid_path.path().display().to_string()));
+        let missing_path = invalid_path.path().to_path_buf();
+        drop(invalid_path);
+        assert!(GaiaXpContinuousCalibrator::from_design_fixture(&missing_path).is_err());
+
+        let mut invalid: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        invalid["schema_version"] = 2.into();
+        assert!(GaiaXpContinuousCalibrator::from_design_bytes(
+            &serde_json::to_vec(&invalid).unwrap()
+        )
+        .is_err());
     }
 
     #[test]
