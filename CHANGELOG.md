@@ -7,17 +7,33 @@ tag-triggered publication workflow succeeds.
 
 ### Added
 
+- One validated `StarlightMap` Rust/Python API for versioned spectral products
+  with configurable bins, explicit capabilities, checksum-verified loading and
+  optional statistical uncertainty channels (#257).
+
 - Typed Rust and Python restricted-band integration for supported component
   spectra within 300–650 nm, including interpolated interval boundaries and
   explicit errors for unsupported spectral contributions (#254).
 
 ### Changed
 
+- Reject unsupported NESTED spectral-map lookup and ground-level evaluation of
+  top-of-atmosphere spectral products explicitly. Preserve the frozen Gaia XP
+  map, legacy integrated products and existing production assets (#257).
+
 - Reuse the upstream Optica clipped trapezoidal integration kernel for Airglow
   band integration, preserving existing physical models and full-band results
   (#254).
 
 ### Fixed
+
+- Represent missing Starlight B/V photometry as unavailable instead of physical
+  zero; retain supplied full-band statistical uncertainty without inventing
+  systematic uncertainty or cross-bin covariance (#257).
+- Refresh compiled scientific provenance after relevant workspace source, data,
+  Cargo-input and Git-state changes, including incremental rebuilds (#257).
+- Reject empty shard edges, source-count overflows and inconsistent source
+  accounting before scientific-product publication (#257).
 
 - Release the Python GIL during restricted-band evaluation (#254).
 
