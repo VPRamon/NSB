@@ -3,6 +3,24 @@
 Release availability on crates.io and PyPI is confirmed only after the
 tag-triggered publication workflow succeeds.
 
+## [Unreleased]
+
+### Added
+
+- Typed Rust and Python restricted-band integration for supported component
+  spectra within 300–650 nm, including interpolated interval boundaries and
+  explicit errors for unsupported spectral contributions (#254).
+
+### Changed
+
+- Reuse the upstream Optica clipped trapezoidal integration kernel for Airglow
+  band integration, preserving existing physical models and full-band results
+  (#254).
+
+### Fixed
+
+- Release the Python GIL during restricted-band evaluation (#254).
+
 ## [0.1.1] 15/10/2026
 
 ### Changed
