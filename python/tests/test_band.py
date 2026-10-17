@@ -45,3 +45,26 @@ def test_invalid_domain_errors(lower, upper):
 def test_integrated_starlight_cannot_be_reconstructed():
     with pytest.raises(nsb.UnsupportedError, match="starlight"):
         nsb.NsbEvaluator().integrate_band(query(nsb.ComponentMask.STARLIGHT), 360, 570)
+
+
+@pytest.mark.parametrize("lower,upper", [(float("-inf"), 500), (400, float("inf"))])
+def test_nonfinite_bounds_are_rejected(lower, upper):
+    with pytest.raises(nsb.NsbError):
+        nsb.NsbEvaluator().integrate_band(query(), lower, upper)
+
+
+def test_empty_and_physical_zero_moon_remain_zero():
+    evaluator = nsb.NsbEvaluator()
+    for mask in [nsb.ComponentMask.ZODIACAL & nsb.ComponentMask.AIRGLOW, nsb.ComponentMask.MOON]:
+        assert evaluator.integrate_band(query(mask), 360, 570) == 0
+
+
+def test_nonzero_moon_has_no_invented_spectrum():
+    q = nsb.PointQuery(
+        siderust.Observer(lon_deg=-70.4045, lat_deg=-24.6272, height_m=2635),
+        datetime(2023, 9, 29, 3, tzinfo=timezone.utc),
+        siderust.Direction(ra_deg=10, dec_deg=-20),
+        components=nsb.ComponentMask.MOON,
+    )
+    with pytest.raises(nsb.UnsupportedError, match="moonlight"):
+        nsb.NsbEvaluator().integrate_band(q, 360, 570)
