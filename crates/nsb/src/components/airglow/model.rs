@@ -149,6 +149,36 @@ impl Airglow {
         )
     }
 
+    pub(crate) fn compute_band(
+        &self,
+        time: Time<UTC>,
+        target: SphericalDirection<EquatorialMeanJ2000>,
+        lower: f64,
+        upper: f64,
+    ) -> Result<BandPhotonRadiance> {
+        let altitude = target_altitude(time, self.location, target);
+        let ctx = AirglowEvaluationContext {
+            location: self.location,
+            atmosphere: self.atmosphere,
+            geometry: self.geometry.clone(),
+            solar_radio_flux: self.solar_radio_flux,
+            user_scale: self.scale,
+        };
+        super::continuum::validate_airglow_inputs(altitude, &ctx)?;
+        if super::temporal::night_phase(time, self.location).is_none() {
+            return Ok(BandPhotonRadiance::new(0.0));
+        }
+        Ok(super::continuum::integrate_attenuated_continuum_band(
+            &self.continuum,
+            time,
+            altitude,
+            &ctx,
+            lower,
+            upper,
+        )?
+        .integrated)
+    }
+
     pub(crate) fn compute_integrated_with_night_phase(
         &self,
         time: Time<UTC>,

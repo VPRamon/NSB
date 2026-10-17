@@ -22,6 +22,28 @@ pub(in crate::python) struct PySiteWindowContext {
 
 #[pymethods]
 impl NsbEvaluator {
+    /// Existing component integral in photons/(cm2 ns sr), restricted to 300–650 nm.
+    /// Raises UnsupportedError for starlight or nonzero moonlight; never fills gaps.
+    #[pyo3(name = "integrate_band")]
+    fn py_integrate_band(
+        &self,
+        py: Python<'_>,
+        query: PyRef<'_, PointQuery>,
+        lower_nm: f64,
+        upper_nm: f64,
+    ) -> PyResult<f64> {
+        let query = query.clone();
+        py.detach(|| {
+            self.integrate_band(
+                &query,
+                crate::units::length::Nanometers::new(lower_nm),
+                crate::units::length::Nanometers::new(upper_nm),
+            )
+        })
+        .map(|value| value.value())
+        .map_err(to_py_err)
+    }
+
     /// Complete interval-certified search; unsupported or incomplete coverage
     /// raises UnsupportedError. No uniform-scan fallback is used.
     #[pyo3(name = "periods_below_threshold_certified")]

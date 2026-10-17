@@ -83,6 +83,28 @@ pub(super) fn compute_outputs_with_s10(
     })
 }
 
+pub(super) fn compute_band(
+    geom: &ZodiacalGeometry,
+    solar: &SolarSpectrum,
+    extinction: ZodiacalExtinction,
+    lower: Nanometers,
+    upper: Nanometers,
+) -> Result<BandPhotonRadiance> {
+    let s10 = Leinert1998Grid::lookup_s10(geom.beta, geom.delta_lambda)?;
+    let k = spectral_scale_from_s10(s10, solar)?;
+    let (spectrum, _, _) = zodiacal_samples(
+        geom,
+        solar,
+        extinction,
+        k,
+        geom.zenith.unwrap_or(Degrees::new(0.0)),
+        s10,
+    )?;
+    Ok(spectrum
+        .integrate_range(lower, upper)
+        .to::<BandPhotonRadianceUnit>())
+}
+
 fn zodiacal_samples(
     geom: &ZodiacalGeometry,
     solar: &SolarSpectrum,

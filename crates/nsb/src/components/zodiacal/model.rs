@@ -84,6 +84,23 @@ impl ZodiacalLight {
         self.evaluate_geometry(&geom, self.extinction)
     }
 
+    pub(crate) fn compute_band(
+        &self,
+        time: Time<UTC>,
+        location: Geodetic<ECEF>,
+        target: Target,
+        lower: crate::units::length::Nanometers,
+        upper: crate::units::length::Nanometers,
+    ) -> Result<crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian> {
+        let geom = geometry::compute_observed(time, location, target)?;
+        if is_below_horizon(&geom) {
+            return Ok(
+                crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian::new(0.0),
+            );
+        }
+        zl_spectrum::compute_band(&geom, &self.solar_spectrum, self.extinction, lower, upper)
+    }
+
     pub(crate) fn compute_with_longitude(
         &self,
         time: Time<UTC>,
