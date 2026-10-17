@@ -157,7 +157,11 @@ pub(super) struct SpectralMap {
     pub(super) band_nm: [u16; 2],
     pub(super) edges_nm: Vec<u16>,
     pub(super) admitted_sources: u64,
-    pub(super) pixels: Vec<SpectralPixel>,
+    // Contiguous pixel-major channels avoid two Vec heap allocations per
+    // HEALPix pixel, while retaining the exact source and sigma contracts.
+    pub(super) radiance: Vec<f64>,
+    pub(super) statistical_sigma: Option<Vec<f64>>,
+    pub(super) integrated_statistical_sigma: Option<Vec<f64>>,
 }
 
 impl SpectralMap {
@@ -346,7 +350,14 @@ impl SpectralMap {
         }
         let ordering = match ordering {
             "ring" => HealpixOrdering::Ring,
-            "nested" => HealpixOrdering::Nested,
+            // The locked Siderust API represents NESTED grids but its
+            // direction lookup currently implements RING only. Reject at load
+            // time instead of accepting a product that cannot be queried.
+            "nested" => {
+                return Err(invalid(
+                    "NESTED spectral lookup requires upstream Siderust support",
+                ))
+            }
             _ => return Err(invalid("unsupported starlight pixel ordering")),
         };
         let grid = HealpixGrid::new(
@@ -360,7 +371,10 @@ impl SpectralMap {
         }
         let bins = edges_nm.len() - 1;
         let mut admitted = 0_u64;
-        let mut pixels = Vec::with_capacity(indexed_pixels.len());
+        let pixel_count = indexed_pixels.len();
+        let mut radiance = Vec::with_capacity(pixel_count * bins);
+        let mut statistical_sigma: Option<Vec<f64>> = None;
+        let mut integrated_statistical_sigma: Option<Vec<f64>> = None;
         let mut sigma_channels = None;
         for (i, (index, pixel)) in indexed_pixels.into_iter().enumerate() {
             let has_sigma = pixel.statistical_sigma.is_some();
@@ -381,11 +395,33 @@ impl SpectralMap {
             {
                 return Err(invalid("invalid or misordered starlight spectral pixel"));
             }
+            if sigma_channels.is_none() {
+                if channels.0 {
+                    statistical_sigma = Some(Vec::with_capacity(pixel_count * bins));
+                }
+                if channels.1 {
+                    integrated_statistical_sigma = Some(Vec::with_capacity(pixel_count));
+                }
+            }
             sigma_channels = Some(channels);
             admitted = admitted
                 .checked_add(pixel.sources)
                 .ok_or_else(|| invalid("source count overflow"))?;
-            pixels.push(pixel);
+            radiance.extend(pixel.radiance);
+            if let Some(out) = &mut statistical_sigma {
+                out.extend(
+                    pixel
+                        .statistical_sigma
+                        .expect("uniform validated channel schema"),
+                );
+            }
+            if let Some(out) = &mut integrated_statistical_sigma {
+                out.push(
+                    pixel
+                        .integrated_statistical_sigma
+                        .expect("uniform validated channel schema"),
+                );
+            }
         }
         let excluded = excluded_sources
             .values()
@@ -405,29 +441,55 @@ impl SpectralMap {
             band_nm,
             edges_nm,
             admitted_sources,
-            pixels,
+            radiance,
+            statistical_sigma,
+            integrated_statistical_sigma,
         })
     }
 
-    pub(super) fn pixel(&self, direction: Direction<Galactic>) -> Result<&SpectralPixel> {
+    fn bins(&self) -> usize {
+        self.edges_nm.len() - 1
+    }
+
+    fn pixel_index(&self, direction: Direction<Galactic>) -> Result<usize> {
         let index = self
             .grid
             .direction_to_pixel(direction)
             .map_err(|e| invalid(e.to_string()))?
             .get();
-        self.pixels
-            .get(index as usize)
-            .ok_or_else(|| invalid("starlight spectral pixel index"))
+        let slot = usize::try_from(index)
+            .map_err(|_| invalid("spectral pixel index exceeds address space"))?;
+        if slot >= self.radiance.len() / self.bins() {
+            return Err(invalid("starlight spectral pixel index"));
+        }
+        Ok(slot)
+    }
+
+    /// Full-band samples for constructing the immutable legacy API view.
+    pub(super) fn integrated_pixels(&self) -> impl Iterator<Item = (f64, Option<f64>)> + '_ {
+        self.radiance
+            .chunks_exact(self.bins())
+            .enumerate()
+            .map(|(i, band)| {
+                (
+                    band.iter().sum(),
+                    self.integrated_statistical_sigma.as_ref().map(|s| s[i]),
+                )
+            })
     }
 
     pub(super) fn top_of_atmosphere_pixel(
         &self,
         direction: Direction<Galactic>,
     ) -> Result<(Radiance, Option<Radiance>)> {
-        let p = self.pixel(direction)?;
+        let index = self.pixel_index(direction)?;
+        let bins = self.bins();
+        let radiance = &self.radiance[index * bins..(index + 1) * bins];
         Ok((
-            Radiance::new(p.radiance.iter().sum()),
-            p.integrated_statistical_sigma.map(Radiance::new),
+            Radiance::new(radiance.iter().sum()),
+            self.integrated_statistical_sigma
+                .as_ref()
+                .map(|s| Radiance::new(s[index])),
         ))
     }
 
@@ -466,17 +528,18 @@ impl SpectralMap {
                     "exact Starlight integration requires stored bin edges".into(),
                 )
             })?;
-        let p = self.pixel(direction)?;
+        let pixel = self.pixel_index(direction)?;
+        let base = pixel * self.bins();
         let sigma = if start == 0 && end == self.edges_nm.len() - 1 {
-            p.integrated_statistical_sigma
+            self.integrated_statistical_sigma.as_ref().map(|s| s[pixel])
         } else if end == start + 1 {
-            p.statistical_sigma.as_ref().map(|s| s[start])
+            self.statistical_sigma.as_ref().map(|s| s[base + start])
         } else {
             // Full covariance for this union is not packed.
             None
         };
         Ok((
-            Radiance::new(p.radiance[start..end].iter().sum()),
+            Radiance::new(self.radiance[base + start..base + end].iter().sum()),
             sigma.map(Radiance::new),
         ))
     }
@@ -494,12 +557,15 @@ impl SpectralMap {
                     .into(),
             ));
         }
-        let p = self.pixel(direction)?;
-        let sigma = p.statistical_sigma.as_ref().ok_or_else(|| {
+        let pixel = self.pixel_index(direction)?;
+        let base = pixel * self.bins();
+        let radiance = &self.radiance[base..base + self.bins()];
+        let sigma = self.statistical_sigma.as_ref().ok_or_else(|| {
             NsbError::Unsupported(
                 "direct Starlight statistical envelope requires measured per-bin sigma".into(),
             )
         })?;
+        let sigma = &sigma[base..base + self.bins()];
         let model = DirectTransmission::rayleigh_mie_young1994();
         let mut lower = 0.0;
         let mut upper = 0.0;
@@ -514,8 +580,8 @@ impl SpectralMap {
             if !lo.is_finite() || !hi.is_finite() || lo > hi || lo < 0.0 || hi > 1.0 {
                 return Err(invalid("invalid direct transmission envelope"));
             }
-            lower += p.radiance[i] * lo;
-            upper += p.radiance[i] * hi;
+            lower += radiance[i] * lo;
+            upper += radiance[i] * hi;
             uncertainty += sigma[i] * hi;
         }
         Ok(DirectStarlightBounds {
@@ -691,6 +757,33 @@ mod tests {
         assert!(load(extended).is_err(), "unknown fields must fail");
     }
 
+    fn generic_fixture(edges: Vec<u16>, nside: u32, ordering: &str) -> serde_json::Value {
+        let bins = edges.len() - 1;
+        serde_json::json!({
+            "schema":"nsb-starlight-spectral-map-v2",
+            "product_id":"synthetic-arbitrary-bin-test",
+            "band_nm":[edges[0], *edges.last().unwrap()],
+            "bin_edges_nm":edges,
+            "nside":nside, "ordering":ordering,
+            "coordinate_frame":"galactic", "domain":"top-of-atmosphere",
+            "units":"photon/(cm2 ns sr)", "wavelength_convention":"vacuum",
+            "maturity":"experimental",
+            "provenance":{
+                "source_catalogue":"synthetic",
+                "source_license":"test-only",
+                "source_selection":"test-all",
+                "generation_method":"synthetic-bin-fixture",
+                "limitations":["test-only"]
+            },
+            "catalogue_rows":12*nside*nside, "admitted_sources":12*nside*nside, "excluded_sources":{},
+            "pixels":(0..12*nside*nside).map(|i| serde_json::json!({
+                "pixel":i,"sources":1,"radiance":vec![1.0;bins],
+                "statistical_sigma":vec![0.1;bins],
+                "integrated_statistical_sigma":0.5
+            })).collect::<Vec<_>>()
+        })
+    }
+
     #[test]
     fn generic_schema_accepts_different_bin_counts_and_reports_covariance_limits() {
         for edges in [
@@ -699,31 +792,13 @@ mod tests {
             (0..=10).map(|i| 350 + i * 20).collect::<Vec<_>>(),
         ] {
             let bins = edges.len() - 1;
-            let payload = serde_json::json!({
-                "schema":"nsb-starlight-spectral-map-v2",
-                "product_id":"synthetic-arbitrary-bin-test",
-                "band_nm":[edges[0], *edges.last().unwrap()],
-                "bin_edges_nm":edges,
-                "nside":1, "ordering":"ring",
-                "coordinate_frame":"galactic", "domain":"top-of-atmosphere",
-                "units":"photon/(cm2 ns sr)", "wavelength_convention":"vacuum",
-                "maturity":"experimental",
-                "provenance":{
-                    "source_catalogue":"synthetic",
-                    "source_license":"test-only",
-                    "source_selection":"test-all",
-                    "generation_method":"synthetic-bin-fixture",
-                    "limitations":["test-only"]
-                },
-                "catalogue_rows":12, "admitted_sources":12, "excluded_sources":{},
-                "pixels":(0..12).map(|i| serde_json::json!({
-                    "pixel":i,"sources":1,"radiance":vec![1.0;bins],
-                    "statistical_sigma":vec![0.1;bins],
-                    "integrated_statistical_sigma":0.5
-                })).collect::<Vec<_>>()
-            });
+            let payload = generic_fixture(edges, 1, "ring");
             let map = load(payload).unwrap();
             assert_eq!(map.edges_nm.len(), bins + 1);
+            // Channels are dense and pixel-major, independent of bin count.
+            assert_eq!(map.radiance.len(), 12 * bins);
+            assert_eq!(map.statistical_sigma.as_ref().unwrap().len(), 12 * bins);
+            assert_eq!(map.integrated_statistical_sigma.as_ref().unwrap().len(), 12);
             let d = direction();
             let full = map
                 .integrate_band(
@@ -753,5 +828,111 @@ mod tests {
                 )
                 .is_err());
         }
+    }
+
+    #[test]
+    fn generic_uncertainty_channels_geometry_and_flux_conservation() {
+        for bins in [1, 3, 7, 12] {
+            let edges = (0..=bins).map(|i| 350 + i * 15).collect::<Vec<u16>>();
+            for nside in [1, 2, 4] {
+                for ordering in ["ring", "nested"] {
+                    for (per_bin, full_band) in
+                        [(false, false), (true, false), (false, true), (true, true)]
+                    {
+                        let mut value = generic_fixture(edges.clone(), nside, ordering);
+                        for pixel in value["pixels"].as_array_mut().unwrap() {
+                            if !per_bin {
+                                pixel.as_object_mut().unwrap().remove("statistical_sigma");
+                            }
+                            if !full_band {
+                                pixel
+                                    .as_object_mut()
+                                    .unwrap()
+                                    .remove("integrated_statistical_sigma");
+                            }
+                        }
+                        if ordering == "nested" {
+                            assert!(load(value).unwrap_err().to_string().contains("NESTED"));
+                            continue;
+                        }
+                        let map = load(value).unwrap();
+                        let (flux, sigma) = map.top_of_atmosphere_pixel(direction()).unwrap();
+                        assert_eq!(flux.value(), f64::from(bins));
+                        assert_eq!(sigma.map(|s| s.value()), full_band.then_some(0.5));
+                        let mut sum = 0.0;
+                        for edge in edges.windows(2) {
+                            let (flux, sigma) = map
+                                .integrate_band(
+                                    direction(),
+                                    Nanometers::new(f64::from(edge[0])),
+                                    Nanometers::new(f64::from(edge[1])),
+                                )
+                                .unwrap();
+                            sum += flux.value();
+                            // A single-bin map's full-band covariance channel takes precedence.
+                            let expected = if bins == 1 {
+                                full_band.then_some(0.5)
+                            } else {
+                                per_bin.then_some(0.1)
+                            };
+                            assert_eq!(sigma.map(|s| s.value()), expected);
+                        }
+                        assert_eq!(sum, f64::from(bins));
+                        if !per_bin {
+                            assert!(map
+                                .direct_pixel_bounds(
+                                    direction(),
+                                    DirectPathGeometry::new(Degrees::new(0.0)).unwrap(),
+                                    AtmosphericConditions::clear_sky_with_pressure(
+                                        siderust::qtty::Hectopascals::new(790.0)
+                                    )
+                                    .unwrap()
+                                )
+                                .is_err());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn generic_invalid_semantics_fail_closed() {
+        let valid = generic_fixture(vec![350, 410, 470, 570], 1, "ring");
+        for (field, bad) in [
+            (
+                "schema",
+                serde_json::json!("nsb-starlight-spectral-map-v99"),
+            ),
+            ("bin_edges_nm", serde_json::json!([350, 410, 410, 570])),
+            ("band_nm", serde_json::json!([300, 650])),
+            ("nside", serde_json::json!(3)),
+            ("ordering", serde_json::json!("unknown")),
+            ("coordinate_frame", serde_json::json!("icrs")),
+            ("domain", serde_json::json!("ground-level")),
+            ("units", serde_json::json!("watt/(m2 sr)")),
+            ("maturity", serde_json::json!("production")),
+        ] {
+            let mut bad_value = valid.clone();
+            bad_value[field] = bad;
+            assert!(load(bad_value).is_err(), "accepted invalid {field}");
+        }
+        for field in ["statistical_sigma", "integrated_statistical_sigma"] {
+            let mut mixed = valid.clone();
+            mixed["pixels"][0].as_object_mut().unwrap().remove(field);
+            assert!(load(mixed).is_err(), "accepted mixed {field}");
+        }
+        let mut missing = valid.clone();
+        missing["pixels"].as_array_mut().unwrap().pop();
+        assert!(load(missing).is_err());
+        let mut duplicate = valid.clone();
+        duplicate["pixels"][1]["pixel"] = 0.into();
+        assert!(load(duplicate).is_err());
+        let mut negative = valid.clone();
+        negative["pixels"][0]["radiance"][0] = (-1.0).into();
+        assert!(load(negative).is_err());
+        let mut account = valid;
+        account["admitted_sources"] = 11.into();
+        assert!(load(account).is_err());
     }
 }

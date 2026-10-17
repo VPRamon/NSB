@@ -388,3 +388,103 @@ fn mixed_uncertainty_schema_is_rejected() {
     let err = StarlightMap::from_healpix(grid, pixels, fixture_provenance()).unwrap_err();
     assert!(err.to_string().contains("same uncertainty schema"));
 }
+
+#[test]
+fn xp_statistical_only_sigma_survives_public_pixel_adapter() {
+    use sha2::{Digest, Sha256};
+    let payload = serde_json::json!({
+        "schema": "nsb-starlight-spectral-map-v2",
+        "product_id": "synthetic-xp-statistical-only",
+        "band_nm": [360, 420], "bin_edges_nm": [360, 390, 420],
+        "nside": 1, "ordering": "ring", "coordinate_frame": "galactic",
+        "domain": "top-of-atmosphere", "units": "photon/(cm2 ns sr)",
+        "wavelength_convention": "vacuum", "maturity": "experimental",
+        "provenance": {
+            "source_catalogue": "synthetic", "source_license": "test-only",
+            "source_selection": "all", "generation_method": "test",
+            "limitations": ["not science"]
+        },
+        "catalogue_rows": 12, "admitted_sources": 12,
+        "excluded_sources": {},
+        "pixels": (0..12).map(|i| serde_json::json!({
+            "pixel": i, "sources": 1,
+            "radiance": [1.0, 2.0],
+            "statistical_sigma": [0.2, 0.4],
+            "integrated_statistical_sigma": 0.5
+        })).collect::<Vec<_>>()
+    });
+    let bytes = serde_json::to_vec(&payload).unwrap();
+    let hash = Sha256::digest(&bytes);
+    let expected = hash.iter().map(|b| format!("{b:02x}")).collect::<String>();
+    let map = StarlightMap::from_json_bytes(&bytes, &expected).unwrap();
+    let pixel = map.try_pixel_at(galactic_direction(0.0, 0.0)).unwrap();
+    assert_eq!(pixel.integrated.value(), 3.0);
+    assert_eq!(pixel.statistical_uncertainty.unwrap().value(), 0.5);
+    assert!(pixel.systematic_uncertainty.is_none());
+    assert!(pixel.total_uncertainty.is_none());
+    let output = map.lookup(galactic_direction(0.0, 0.0));
+    assert_eq!(output.statistical_uncertainty.unwrap().value(), 0.5);
+    assert!(output.relative_uncertainty().is_none());
+    assert!(!output.s10_diagnostics_provided);
+    let model = Starlight::with_shared_map(std::sync::Arc::new(map));
+    assert!(matches!(
+        model.compute(target(0.0, 0.0)),
+        Err(crate::NsbError::Unsupported(_))
+    ));
+}
+
+#[test]
+fn incomplete_starlight_bv_is_visible_in_evaluator_result() {
+    use crate::{ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery};
+    use chrono::{DateTime, Utc};
+    use tempoch::{Time, UTC};
+    let map = fixture_map();
+    let config = NsbModelConfig::generic_clear_sky()
+        .with_starlight_product(StarlightProduct::with_experimental_map(map));
+    let evaluator = NsbEvaluator::with_config(config).unwrap();
+    let time = Time::<UTC>::from_chrono(
+        DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+            .unwrap()
+            .with_timezone(&Utc),
+    );
+    let observer = siderust::catalogs::observatories::EL_PARANAL.geodetic();
+    let query = PointQuery::new(observer, time, target(266.4051, -28.936175))
+        .with_components(ComponentMask::STARLIGHT);
+    let result = evaluator.evaluate(&query).unwrap();
+    assert!(result.integrated.value() > 0.0);
+    assert!(result.b_mag.value().is_nan());
+    assert!(result.v_mag.value().is_nan());
+    assert!(!result.components[0].bv_diagnostics_available);
+    assert_eq!(
+        result.band_diagnostic.convention,
+        "monochromatic-central-wavelength-s10-proxy-incomplete"
+    );
+}
+
+#[test]
+fn uncertainty_schema_rejects_mixing_full_and_statistical_only_pixels() {
+    let grid = HealpixGrid::new(Nside::new(1).unwrap(), HealpixOrdering::Ring).unwrap();
+    let full = StarlightPixel::new(BandPhotonRadiance::new(1.0), S10s::new(0.0), S10s::new(0.0))
+        .without_s10_diagnostics()
+        .with_uncertainties(
+            BandPhotonRadiance::new(0.1),
+            BandPhotonRadiance::new(0.2),
+            BandPhotonRadiance::new(0.25),
+        );
+    let mut pixels = vec![full; 12];
+    pixels[3].systematic_uncertainty = None;
+    pixels[3].total_uncertainty = None;
+    let result = StarlightMap::from_healpix(grid, pixels, fixture_provenance());
+    assert!(matches!(result, Err(crate::NsbError::InvalidMap { .. })));
+}
+
+#[test]
+fn try_pixel_at_matches_legacy_lookup_for_finite_directions() {
+    let map = fixture_map();
+    for (lon, lat) in [(0.0, 0.0), (45.0, 30.0), (359.0, -40.0)] {
+        assert_eq!(
+            map.try_pixel_at(galactic_direction(lon, lat)).unwrap(),
+            map.pixel_at(galactic_direction(lon, lat))
+        );
+    }
+}

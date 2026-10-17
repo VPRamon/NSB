@@ -7,20 +7,7 @@ use crate::{ComponentMask, NsbError, NsbEvaluator, PointQuery, Result};
 use std::sync::Arc;
 
 pub(crate) fn integrate_linear(x: &[f64], y: &[f64], lower: f64, upper: f64) -> f64 {
-    x.windows(2)
-        .zip(y.windows(2))
-        .map(|(x, y)| {
-            let a = lower.max(x[0]);
-            let b = upper.min(x[1]);
-            if b <= a {
-                return 0.0;
-            }
-            let slope = (y[1] - y[0]) / (x[1] - x[0]);
-            let ya = y[0] + slope * (a - x[0]);
-            let yb = y[0] + slope * (b - x[0]);
-            0.5 * (ya + yb) * (b - a)
-        })
-        .sum()
+    siderust::optica::spectrum::integrate::trapz_range(x, y, lower, upper)
 }
 
 impl NsbEvaluator {
@@ -29,8 +16,9 @@ impl NsbEvaluator {
     /// Units: photons cm^-2 ns^-1 sr^-1. Bounds must lie within 300–650 nm.
     /// This preserves the selected models, atmospheric propagation, solar activity
     /// and maturity. It does not add missing emission lines or invent spectra.
-    /// Explicit spectral Starlight maps provide native TOA pixel-band integrals;
-    /// legacy integrated Starlight maps cannot reconstruct arbitrary sub-bands.
+    /// Starlight maps can expose native TOA pixel-band integrals, but those
+    /// cannot be added to ground-level component totals without a validated
+    /// atmospheric/instrumental transport model. Query them on StarlightMap.
     /// Moonlight is supported only when its existing evaluator returns physical zero;
     /// nonzero lunar spectra and KS91 band reconstruction remain unsupported.
     /// This is not FORS, Johnson, AB, Vega or other calibrated passband photometry.
@@ -51,19 +39,12 @@ impl NsbEvaluator {
                 "band requires 300 <= lower < upper <= 650 nm".into(),
             ));
         }
-        let mut total = Radiance::new(0.0);
         if query.components.contains(ComponentMask::STARLIGHT) {
-            let model = self.starlight().ok_or_else(|| {
-                NsbError::Unsupported("starlight requires a configured map".into())
-            })?;
-            use siderust::coordinates::transform::TransformFrame;
-            let galactic: siderust::coordinates::spherical::direction::Galactic =
-                query.target.to_frame();
-            total += model
-                .map()
-                .integrate_band(galactic.to_cartesian(), lower, upper)?
-                .0;
+            return Err(NsbError::Unsupported(
+                "starlight TOA maps cannot be added to ground-level restricted-band NSB without validated atmospheric transport".into(),
+            ));
         }
+        let mut total = Radiance::new(0.0);
         if query.components.contains(ComponentMask::MOON)
             && self
                 .evaluate_moonlight(query.observer, query.time, query.target)?
@@ -113,6 +94,24 @@ mod tests {
             7.5
         );
     }
+    #[test]
+    fn clipped_integrals_match_independent_polynomial_oracle_at_boundaries() {
+        let xs = [300.0, 350.0, 470.0, 650.0];
+        let ys = xs.map(|x| 2.0 * x + 3.0);
+        for (a, b) in [
+            (300.0, 650.0),
+            (350.0, 470.0),
+            (350.25, 469.75),
+            (300.0, 300.000001),
+            (649.999999, 650.0),
+        ] {
+            // Average endpoint height times width is an independent exact oracle.
+            let expected = (a + b + 3.0) * (b - a);
+            let actual = integrate_linear(&xs, &ys, a, b);
+            assert!((actual - expected).abs() <= 1e-12 * expected);
+        }
+    }
+
     fn query(components: ComponentMask, utc: &str) -> PointQuery {
         use chrono::{DateTime, Utc};
         let time = tempoch::Time::<tempoch::UTC>::from_chrono(
@@ -265,14 +264,24 @@ mod tests {
             .collect();
         let map = StarlightMap::from_json_bytes(&bytes, &sha).unwrap();
         assert_eq!(map.band_nm(), [360, 420]);
+        use siderust::coordinates::spherical;
+        let galactic = spherical::Direction::<siderust::coordinates::frames::Galactic>::new(
+            crate::units::angular::Degrees::new(0.0),
+            crate::units::angular::Degrees::new(0.0),
+        )
+        .to_cartesian();
+        let native = map
+            .integrate_band(galactic, Nanometers::new(360.0), Nanometers::new(420.0))
+            .unwrap();
+        assert_eq!(native.0.value(), 3.0);
         let config = NsbModelConfig::generic_clear_sky()
             .with_starlight_product(StarlightProduct::with_experimental_map(map));
         let evaluator = NsbEvaluator::with_config(config).unwrap();
         let q = query(ComponentMask::STARLIGHT, "2023-09-15T05:00:00Z");
-        let observed = evaluator
-            .integrate_band(&q, Nanometers::new(360.0), Nanometers::new(420.0))
-            .unwrap();
-        assert_eq!(observed.value(), 3.0);
+        assert!(matches!(
+            evaluator.integrate_band(&q, Nanometers::new(360.0), Nanometers::new(420.0)),
+            Err(NsbError::Unsupported(_))
+        ));
         assert!(matches!(
             evaluator.evaluate(&q),
             Err(NsbError::Unsupported(_))

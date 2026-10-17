@@ -76,10 +76,6 @@ impl StarlightOutputs {
         values_are_valid && self.has_valid_uncertainties()
     }
 
-    pub(crate) fn has_uncertainties(self) -> bool {
-        self.statistical_uncertainty.is_some()
-    }
-
     fn has_valid_uncertainties(self) -> bool {
         match (
             self.statistical_uncertainty,
@@ -87,6 +83,11 @@ impl StarlightOutputs {
             self.total_uncertainty,
         ) {
             (None, None, None) => true,
+            // The XP spectral contract measures statistical covariance but
+            // does not claim unavailable systematic or total uncertainties.
+            (Some(statistical), None, None) => {
+                statistical.is_finite() && statistical.value() >= 0.0
+            }
             (Some(statistical), Some(systematic), Some(total)) => {
                 statistical.is_finite()
                     && systematic.is_finite()

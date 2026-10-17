@@ -139,6 +139,10 @@ pub struct NsbComponent {
     pub b_flux_s10: S10,
     /// V-reference S10 diagnostic.
     pub v_flux_s10: S10,
+    /// Whether the B/V S10 values are actual available diagnostics.
+    ///
+    /// When false, the numeric S10 fields are placeholders, not physical zero.
+    pub bv_diagnostics_available: bool,
     /// Relative one-sigma uncertainty when defined.
     pub relative_uncertainty: Option<f64>,
     /// Statistical one-sigma uncertainty of the integrated photon radiance.
@@ -167,9 +171,11 @@ pub struct NsbComponentDescriptor {
 pub struct NsbResult {
     /// Sum of selected integrated radiances.
     pub integrated: BandPhotonRadiance,
-    /// B-reference surface-brightness diagnostic.
+    /// B-reference surface-brightness diagnostic. NaN when any selected
+    /// component lacks a measured B/V diagnostic; see band_diagnostic.
     pub b_mag: SurfaceBrightness,
-    /// V-reference surface-brightness diagnostic.
+    /// V-reference surface-brightness diagnostic. NaN when diagnostics
+    /// are incomplete, never a partial sum masked as complete.
     pub v_mag: SurfaceBrightness,
     /// Individual selected contributions.
     pub components: Vec<NsbComponent>,

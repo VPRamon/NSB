@@ -112,7 +112,15 @@ fn compute_jones_2013_spectral(
                 "non-finite reflected lunar irradiance".into(),
             ));
         }
-        if lunar_irradiance.value() <= 0.0 {
+        if lunar_irradiance.value() < 0.0 {
+            return Err(crate::NsbError::OutOfRange(
+                "negative reflected lunar irradiance".into(),
+            ));
+        }
+        if lunar_irradiance.value() == 0.0 {
+            // Zero is a real spectral sample, not a gap to interpolate across.
+            lam.push(lambda_nm);
+            density.push(0.0);
             continue;
         }
         let tau_r = crate::site::atmosphere::rayleigh_optical_depth_local_pressure(
@@ -138,10 +146,13 @@ fn compute_jones_2013_spectral(
                 "non-finite scattered lunar radiance".into(),
             ));
         }
-        if value > 0.0 {
-            lam.push(lambda_nm);
-            density.push(value);
+        if value < 0.0 {
+            return Err(crate::NsbError::OutOfRange(
+                "negative scattered lunar radiance".into(),
+            ));
         }
+        lam.push(lambda_nm);
+        density.push(value);
     }
 
     if lam.len() < 2 {

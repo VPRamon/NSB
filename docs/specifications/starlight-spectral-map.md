@@ -39,7 +39,7 @@ The v2 `nsb-starlight-spectral-map-v2` JSON document contains the
 following **required** fields:
 
 - `schema`, nonempty `product_id`, `band_nm` and `bin_edges_nm`.
-- HEALPix `nside`, `ordering` (`ring` or `nested`), `coordinate_frame`
+- HEALPix `nside`, `ordering` (`ring`; NESTED lookup is unavailable in locked Siderust 0.14.1), `coordinate_frame`
   (`galactic`); `domain` (`top-of-atmosphere`).
 - `units` (`photon/(cm2 ns sr)`), `wavelength_convention` (`vacuum`),
   `maturity` (`experimental`).
@@ -94,11 +94,14 @@ conditions. The envelope does **not** include stellar in-scattering, DESI
 source-mask/instrument response or missing bright-star/photometric
 completion. No observational accuracy improvement is claimed.
 
-A spectral-only map can be selected explicitly in `StarlightProduct`
-and queried through `NsbEvaluator::integrate_band` for complete supported
-bins inside the evaluator's existing 300–650 nm domain. The evaluator's
-legacy full-band `evaluate` rejects spectral maps lacking the entire
-300–650 nm native band instead of silently relabeling their radiance.
+A spectral-only map can be selected explicitly in `StarlightProduct`,
+but its **TOA** native-band integrals are queried through
+`StarlightMap::integrate_band`. `NsbEvaluator::integrate_band` continues
+to reject Starlight, because adding a TOA pixel mean to a ground-level
+component total without atmospheric/instrumental transport would be
+physically misleading. The evaluator's legacy full-band `evaluate`
+rejects every TOA spectral map, including one spanning 300–650 nm.
+Band coincidence alone does not provide ground-level atmospheric transport.
 
 ## Examples
 
@@ -126,3 +129,14 @@ radiance, sigma = starlight.integrate_band(120.0, 30.0, 360.0, 390.0)
 
 Scientific source auditing and the historical 300–650 nm production asset
 are unchanged.
+
+
+## Compiled provenance
+
+The data-tool build script watches workspace crates (including embedded data and
+build scripts), Cargo manifests/lockfile and `.cargo` configuration, plus Git HEAD,
+its symbolic ref, the index and packed refs when present. A change in a linked
+workspace crate refreshes the embedded identity without `cargo clean`. Dirty or
+unverifiable source is never labelled as a clean commit. Reports and `target/`
+are not watched build inputs. Cargo's incremental tracking is verified using a
+small isolated workspace, detached HEAD and linked worktree.

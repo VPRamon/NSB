@@ -93,17 +93,21 @@ impl StarlightPixel {
             (Some(statistical), Some(systematic), Some(total)) => {
                 output.with_uncertainties(statistical, systematic, total)
             }
+            (Some(statistical), None, None) => {
+                output.statistical_uncertainty = Some(statistical);
+                output
+            }
             _ => output,
         }
     }
 
     fn validate(self) -> Result<()> {
         if !self.output().is_finite_non_negative()
-            || self.statistical_uncertainty.is_some() != self.systematic_uncertainty.is_some()
-            || self.statistical_uncertainty.is_some() != self.total_uncertainty.is_some()
+            // A statistical-only XP product must not invent systematic/total sigma.
+            || self.systematic_uncertainty.is_some() != self.total_uncertainty.is_some()
         {
             return Err(invalid_map(
-                "pixel radiance, S10 values, and any uncertainty triplet must be finite, non-negative, complete, and satisfy total >= statistical and total >= systematic",
+                "pixel radiance and any provided uncertainty triplet must be finite and non-negative; systematic and total must occur together and total >= statistical and total >= systematic",
             ));
         }
         Ok(())
@@ -129,11 +133,20 @@ impl StarlightMap {
             return Err(invalid_map("starlight map must contain at least one pixel"));
         }
 
-        let has_uncertainties = pixels[0].output().has_uncertainties();
+        let uncertainty_schema = (
+            pixels[0].statistical_uncertainty.is_some(),
+            pixels[0].systematic_uncertainty.is_some(),
+            pixels[0].total_uncertainty.is_some(),
+        );
         let mut validated = Vec::with_capacity(pixels.len());
         for pixel in pixels {
             pixel.validate()?;
-            if pixel.output().has_uncertainties() != has_uncertainties {
+            if (
+                pixel.statistical_uncertainty.is_some(),
+                pixel.systematic_uncertainty.is_some(),
+                pixel.total_uncertainty.is_some(),
+            ) != uncertainty_schema
+            {
                 return Err(invalid_map(
                     "all starlight pixels must use the same uncertainty schema",
                 ));
@@ -182,15 +195,18 @@ impl StarlightMap {
         provenance.map_checksum = Some(spectral.sha256.clone());
         provenance.calibration_status = Some(spectral.maturity.clone());
         let pixels = spectral
-            .pixels
-            .iter()
-            .map(|p| {
-                StarlightPixel::new(
-                    BandPhotonRadiance::new(p.radiance.iter().sum()),
+            .integrated_pixels()
+            .map(|(radiance, statistical_sigma)| {
+                let mut pixel = StarlightPixel::new(
+                    BandPhotonRadiance::new(radiance),
                     S10s::new(0.0),
                     S10s::new(0.0),
                 )
-                .without_s10_diagnostics()
+                .without_s10_diagnostics();
+                // Measured full-band covariance is retained; absent
+                // systematic/total errors must remain absent.
+                pixel.statistical_uncertainty = statistical_sigma.map(BandPhotonRadiance::new);
+                pixel
             })
             .collect();
         let mut map = Self::from_healpix(spectral.grid, pixels, provenance)?;
@@ -247,7 +263,7 @@ impl StarlightMap {
         if let Some(spectral) = &self.spectral {
             return spectral.top_of_atmosphere_pixel(direction);
         }
-        let p = self.pixel_at(direction);
+        let p = self.try_pixel_at(direction)?;
         Ok((p.integrated, p.statistical_uncertainty))
     }
 
@@ -266,7 +282,7 @@ impl StarlightMap {
         }
         if low.value() != 300.0 || high.value() != 650.0 {
             return Err(NsbError::Unsupported(
-                "integrated-only Starlight maps cannot reconstruct a sub-band".into(),
+                "integrated-only starlight maps cannot reconstruct a sub-band".into(),
             ));
         }
         self.top_of_atmosphere_pixel(direction)
@@ -315,6 +331,11 @@ impl StarlightMap {
         Self::from_csv_str(&raw, provenance)
     }
 
+    /// Whether this map contains a spectral-only TOA product.
+    pub(crate) fn is_spectral(&self) -> bool {
+        self.spectral.is_some()
+    }
+
     /// Return the stored sample nearest a Galactic direction.
     ///
     /// Spectral-map samples refer to the map's native band (see [`Self::band_nm`]),
@@ -323,12 +344,27 @@ impl StarlightMap {
     /// transforms [`crate::Target`] values and returns the shared
     /// [`crate::NsbComponent`] result contract through [`crate::NsbEvaluator`].
     pub fn pixel_at(&self, direction: CartesianDirection<Galactic>) -> StarlightPixel {
+        self.try_pixel_at(direction)
+            .expect("pixel_at requires a finite Galactic direction")
+    }
+
+    /// Fallible nearest-neighbor lookup for arbitrary caller-supplied directions.
+    ///
+    /// Unlike the frozen legacy pixel_at method, this never panics on an
+    /// invalid direction or an out-of-range HEALPix index.
+    pub fn try_pixel_at(&self, direction: CartesianDirection<Galactic>) -> Result<StarlightPixel> {
         let index = self
             .map
             .grid()
             .direction_to_pixel(direction)
-            .expect("validated HEALPix lookup direction is finite");
-        self.map.values()[usize::try_from(index.get()).expect("pixel index fits usize")]
+            .map_err(|err| invalid_map(err.to_string()))?;
+        let slot = usize::try_from(index.get())
+            .map_err(|_| invalid_map("HEALPix index exceeds address space"))?;
+        self.map
+            .values()
+            .get(slot)
+            .copied()
+            .ok_or_else(|| invalid_map("HEALPix pixel index out of range"))
     }
 
     pub(crate) fn lookup(&self, direction: CartesianDirection<Galactic>) -> StarlightOutputs {
