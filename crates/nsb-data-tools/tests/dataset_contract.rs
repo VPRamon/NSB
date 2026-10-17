@@ -231,16 +231,12 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
         .path()
         .join("run.json");
     let manifest: serde_json::Value = serde_json::from_slice(&fs::read(run).unwrap()).unwrap();
-    let source = Command::new("git")
-        .current_dir(crate_root())
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .unwrap();
-    let source = String::from_utf8(source.stdout).unwrap();
-    assert!(manifest["software_commit"]
-        .as_str()
-        .unwrap()
-        .starts_with(source.trim()));
+    // Compare with compiled provenance, not the checkout at test execution.
+    // A binary remains tied to its build when HEAD advances afterwards.
+    assert_eq!(
+        manifest["software_commit"].as_str().unwrap(),
+        env!("NSB_DATA_TOOLS_COMMIT")
+    );
     let copied_source = temporary.path().join("work/sources/solar-planck-v1.toml");
     let original_source = fs::read_to_string(&copied_source).unwrap();
     fs::write(
