@@ -549,7 +549,8 @@ mod tests {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("tests/fixtures/gaiaxpy_oracle/record-01.json"),
         )?)?;
-        let source_id = oracle["source_id"].as_str().context("oracle source_id")?;
+        // Exercise the deterministic source-id research sample with synthetic input.
+        let source_id = "4093";
         let gaia_only_source_id = "999";
 
         let gaia_bytes = gzip_bytes(
@@ -681,6 +682,22 @@ mod tests {
         };
         let interval =
             crate::starlight::restricted::build(workspace, &config, &[partition.into()])?;
+        let interval_shard: Value = serde_json::from_slice(&fs::read(&interval[0].path)?)?;
+        assert_eq!(
+            interval_shard["training_samples"].as_array().unwrap().len(),
+            1
+        );
+        assert_eq!(
+            interval_shard["training_samples"][0]["source_id"],
+            source_id
+        );
+        assert_eq!(
+            interval_shard["training_samples"][0]["variance"]
+                .as_array()
+                .unwrap()
+                .len(),
+            8
+        );
         artifact_store::atomic_write(&reconciled, &fs::read(&interval[0].path)?)?;
         let maps = crate::starlight::restricted::finalize(workspace, &config, &[partition.into()])?;
         let candidate = nsb::components::starlight::StarlightMap::from_json_file(
