@@ -554,3 +554,26 @@ fn try_pixel_at_matches_legacy_lookup_for_finite_directions() {
         );
     }
 }
+
+#[test]
+fn statistical_only_scaling_preserves_unknown_systematics_and_missing_photometry() {
+    let grid = HealpixGrid::ring(Nside::new(1).unwrap()).unwrap();
+    let mut pixel =
+        StarlightPixel::new(BandPhotonRadiance::new(4.0), S10s::new(0.0), S10s::new(0.0))
+            .without_s10_diagnostics();
+    pixel.statistical_uncertainty = Some(BandPhotonRadiance::new(0.5));
+    let map = StarlightMap::from_healpix(grid, vec![pixel; 12], fixture_provenance()).unwrap();
+    let measured = map.lookup(galactic_direction(0.0, 0.0));
+    for factor in [0.0, 0.5, 2.0] {
+        let scaled =
+            super::photometry::scale_outputs(measured, crate::units::ScaleFactors::new(factor));
+        assert_eq!(scaled.integrated.value(), 4.0 * factor);
+        assert_eq!(
+            scaled.statistical_uncertainty.unwrap().value(),
+            0.5 * factor
+        );
+        assert!(scaled.systematic_uncertainty.is_none() && scaled.total_uncertainty.is_none());
+        assert!(scaled.relative_uncertainty().is_none());
+        assert!(!scaled.s10_diagnostics_provided);
+    }
+}
