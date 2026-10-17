@@ -270,8 +270,12 @@ coefficients, phases and ray primitives. Start with analytic/synthetic angular f
 quadrature. No full HEALPix integration in #190.
 
 Future higher orders replace incident zero-order radiation in the source term
-with the previous scattering-order field. The boundary/medium and contribution
-semantics stay the same. `higher_order=None` means **uncomputed**, not physical
+with the previous scattering-order field. That later source integral covers
+**all 4pi directions**, including upward scattered radiation, with top/bottom
+escape and the declared surface boundary; the first-order TOA-only hemisphere
+restriction does not apply to higher orders. The boundary/medium and contribution
+semantics stay the same. Conceptually ground radiance is direct + single +
+higher-order radiance, with each contribution independently identified. `higher_order=None` means **uncomputed**, not physical
 zero. An explicitly labelled `direct + single` partial result is allowed;
 `total_ground` is unavailable until all requested contributions are computed.
 Airglow and pre-scattered Moonlight need different volume/boundary contracts.
