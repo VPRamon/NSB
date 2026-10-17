@@ -140,24 +140,6 @@ impl AirglowContinuum {
         Ok((mean, sigma))
     }
 
-    /// Legacy single-wavelength entry point retained for reference tests.
-    #[cfg(test)]
-    pub(crate) fn sample(
-        &self,
-        sample: usize,
-        month: u32,
-        local_time_bin: usize,
-        solar_flux_sfu: f64,
-    ) -> Result<(f64, f64)> {
-        if sample >= SAMPLE_COUNT {
-            return Err(data_error(
-                "PALACE sample/month/time index is out of range".into(),
-            ));
-        }
-        let prepared = self.prepare_sample(month, local_time_bin, solar_flux_sfu)?;
-        self.sample_prepared(sample, &prepared)
-    }
-
     pub(crate) fn representative_emission_height_km(&self) -> Kilometers {
         // The current public geometry API is scalar. The middle continuum-layer
         // height is explicit here; all three source heights remain in the schema.
@@ -381,6 +363,25 @@ fn data_error(message: String) -> NsbError {
 mod tests {
     use super::*;
     use siderust::checksum::{sha256, to_hex};
+
+    impl AirglowContinuum {
+        /// Legacy single-wavelength entry point retained for reference tests.
+        pub(crate) fn sample(
+            &self,
+            sample: usize,
+            month: u32,
+            local_time_bin: usize,
+            solar_flux_sfu: f64,
+        ) -> Result<(f64, f64)> {
+            if sample >= SAMPLE_COUNT {
+                return Err(data_error(
+                    "PALACE sample/month/time index is out of range".into(),
+                ));
+            }
+            let prepared = self.prepare_sample(month, local_time_bin, solar_flux_sfu)?;
+            self.sample_prepared(sample, &prepared)
+        }
+    }
 
     #[test]
     fn bundled_product_checksum_and_schema_match_manifest() {

@@ -277,14 +277,23 @@ fn validate_shard(shard: &Shard) -> Result<()> {
     } else {
         "nsb-starlight-interval-shard-v1"
     };
-    if shard.schema != expected_schema
+    if calibration_bands(edges).is_err()
+        || shard.schema != expected_schema
         || shard.band_nm != [edges[0], *edges.last().unwrap()]
-        || calibration_bands(edges).is_err()
     {
         bail!("spectral shard band/schema mismatch");
     }
-    let admitted: u64 = shard.pixels.values().map(|p| p.sources).sum();
-    if admitted + shard.excluded.values().sum::<u64>() != shard.catalogue_rows {
+    let admitted = shard
+        .pixels
+        .values()
+        .try_fold(0_u64, |sum, p| sum.checked_add(p.sources))
+        .context("spectral source count overflow")?;
+    let excluded = shard
+        .excluded
+        .values()
+        .try_fold(0_u64, |sum, n| sum.checked_add(*n))
+        .context("spectral exclusion count overflow")?;
+    if admitted.checked_add(excluded) != Some(shard.catalogue_rows) {
         bail!("interval population accounting failed");
     }
     let npix = gaia_nested_npix(shard.nside)?;
@@ -579,5 +588,145 @@ mod tests {
         );
         assert_eq!(dynamic.variance_ph_m2_s_squared.len(), BINS);
         assert_eq!(dynamic.sources, 0);
+    }
+
+    fn synthetic_shard(generic: bool, partition: &str) -> Shard {
+        let edges = if generic {
+            vec![360, 390, 450, 570]
+        } else {
+            BIN_EDGES_NM.to_vec()
+        };
+        let mut pixel = Pixel::new(edges.len() - 1);
+        for value in &mut pixel.flux_ph_m2_s {
+            value.add(2.0).unwrap();
+        }
+        for value in &mut pixel.variance_ph_m2_s_squared {
+            value.add(0.25).unwrap();
+        }
+        pixel.integrated_variance_ph_m2_s_squared.add(1.0).unwrap();
+        pixel.sources = 1;
+        Shard {
+            schema: if generic {
+                "nsb-starlight-spectral-shard-v2"
+            } else {
+                "nsb-starlight-interval-shard-v1"
+            }
+            .into(),
+            band_nm: [360, 570],
+            bin_edges_nm: generic.then_some(edges),
+            partition: partition.into(),
+            nside: 1,
+            input_sha256: [
+                ("gaia-source".into(), "a".repeat(64)),
+                ("xp-continuous".into(), "b".repeat(64)),
+            ]
+            .into(),
+            design_sha256: "c".repeat(64),
+            catalogue_rows: 2,
+            xp_rows: 1,
+            unmatched_xp_rows: 0,
+            excluded: [("no_band_calibrated_non_xp_inference".into(), 1)].into(),
+            pixels: [(0, pixel)].into(),
+            training_samples: vec![],
+        }
+    }
+
+    #[test]
+    fn finalization_preserves_synthetic_flux_covariance_and_versioned_identity() {
+        use nsb::components::starlight::StarlightMap;
+        for generic in [false, true] {
+            let root = tempfile::tempdir().unwrap();
+            let mut config: StarlightConfig =
+                toml::from_str("product_band = 'measured-360-570'").unwrap();
+            if generic {
+                config.product_band = StarlightProductBand::MeasuredXpBinned;
+                config.spectral_bin_edges_nm = Some(vec![360, 390, 450, 570]);
+            }
+            config.map.canonical_nside = 1;
+            let dir = root.path().join("outputs/shards");
+            fs::create_dir_all(&dir).unwrap();
+            for partition in ["a", "b"] {
+                fs::write(
+                    dir.join(format!("{partition}.json")),
+                    serde_json::to_vec(&synthetic_shard(generic, partition)).unwrap(),
+                )
+                .unwrap();
+            }
+            let parts = vec!["a".into(), "b".into()];
+            let artifacts = finalize(root.path(), &config, &parts).unwrap();
+            assert_eq!(artifacts.len(), 2);
+            use crate::dataset::DatasetPipeline;
+            let mut run: crate::dataset::RunConfig = toml::from_str(
+                "schema_version=1\ndataset='starlight'\n[workspace]\nroot='/tmp/unused'\n",
+            )
+            .unwrap();
+            run.workspace.root = root.path().to_owned();
+            run.starlight = Some(config.clone());
+            let pipeline = &super::super::pipeline::PIPELINE;
+            assert_eq!(
+                pipeline.expected_outputs_for(&run),
+                artifacts.iter().map(|a| a.name.clone()).collect::<Vec<_>>()
+            );
+            for artifact in &artifacts {
+                pipeline
+                    .validate_artifact(&artifact.name, &artifact.path)
+                    .unwrap();
+            }
+            assert!(pipeline
+                .validation_gates(&run, &artifacts)
+                .unwrap()
+                .iter()
+                .all(|g| g.passed));
+            assert!(pipeline.build(&run, &[]).unwrap().unwrap().is_empty());
+            assert!(gates(root.path(), generic)
+                .unwrap()
+                .iter()
+                .all(|g| g.passed));
+            let map =
+                StarlightMap::from_json_file(&artifacts[0].path, &artifacts[0].sha256).unwrap();
+            assert_eq!(map.admitted_sources(), Some(2));
+            let direction =
+                siderust::healpix::HealpixGrid::ring(siderust::healpix::Nside::new(1).unwrap())
+                    .unwrap()
+                    .pixel_center::<siderust::coordinates::frames::Galactic>(
+                        siderust::healpix::HealpixIndex::new(0),
+                    )
+                    .unwrap();
+            let (flux, sigma) = map.top_of_atmosphere_pixel(direction).unwrap();
+            let factor = 12.0 / (4.0 * std::f64::consts::PI) * 1e-13;
+            let bins = if generic { 3 } else { 7 };
+            assert!((flux.value() - f64::from(bins) * 4.0 * factor).abs() < 1e-25);
+            assert!((sigma.unwrap().value() - 2.0_f64.sqrt() * factor).abs() < 1e-25);
+            let first = fs::read(&artifacts[0].path).unwrap();
+            let reversed = vec!["b".into(), "a".into()];
+            finalize(root.path(), &config, &reversed).unwrap();
+            assert_eq!(fs::read(&artifacts[0].path).unwrap(), first);
+            let mut wrong = synthetic_shard(generic, "wrong");
+            fs::write(dir.join("a.json"), serde_json::to_vec(&wrong).unwrap()).unwrap();
+            assert!(finalize(root.path(), &config, &parts).is_err());
+            wrong.partition = "a".into();
+            wrong.design_sha256 = "d".repeat(64);
+            fs::write(dir.join("a.json"), serde_json::to_vec(&wrong).unwrap()).unwrap();
+            assert!(finalize(root.path(), &config, &parts).is_err());
+        }
+    }
+
+    #[test]
+    fn malformed_shards_are_errors_instead_of_panics() {
+        let valid = synthetic_shard(true, "a");
+        for edges in [vec![], vec![360], vec![390, 360]] {
+            let mut bad = valid.clone();
+            bad.bin_edges_nm = Some(edges);
+            assert!(validate_shard(&bad).is_err());
+        }
+        let mut overflow = valid.clone();
+        overflow.excluded = [("a".into(), u64::MAX), ("b".into(), 1)].into();
+        assert!(validate_shard(&overflow).is_err());
+        let mut wrong_shape = valid.clone();
+        wrong_shape.pixels.get_mut(&0).unwrap().flux_ph_m2_s.pop();
+        assert!(validate_shard(&wrong_shape).is_err());
+        let mut empty = valid;
+        empty.pixels.get_mut(&0).unwrap().sources = 0;
+        assert!(validate_shard(&empty).is_err());
     }
 }
