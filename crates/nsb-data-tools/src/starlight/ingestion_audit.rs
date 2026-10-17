@@ -161,11 +161,19 @@ mod tests {
             partition: "a".into(),
             input_sha256: "a".repeat(64),
             raw_rows: 2,
-            canonical_rows: 2,
-            rejected: vec![],
+            canonical_rows: 1,
+            rejected: vec![xp::canonical::RejectedXpRecord {
+                source_id: Some("7".into()),
+                reason: "absent BP coefficients".into(),
+            }],
         };
         fs::write(dir.join("a.json"), serde_json::to_vec(&shard).unwrap()).unwrap();
         let artifacts = finalize(root.path(), &config, &["a".into()]).unwrap();
+        let report: serde_json::Value =
+            serde_json::from_slice(&fs::read(&artifacts[0].path).unwrap()).unwrap();
+        assert_eq!(report["canonical_rows"], 1);
+        assert_eq!(report["rejected_rows"], 1);
+        assert_eq!(report["rejections"][0]["source_id"], "7");
         assert!(gates(root.path()).unwrap()[0].passed);
         let mut run: crate::dataset::RunConfig = toml::from_str(
             "schema_version=1\ndataset='starlight'\n[workspace]\nroot='/tmp/unused'\n",

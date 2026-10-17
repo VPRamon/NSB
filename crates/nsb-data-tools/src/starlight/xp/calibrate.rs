@@ -682,7 +682,12 @@ mod interval_tests {
         missing.bp_coefficients.clear();
         missing.bp_coefficient_errors.clear();
         missing.bp_coefficient_correlations.clear();
-        assert!(integrator.integrate(&missing).is_err());
+        missing.bp_n_relevant_bases = None;
+        assert!(integrator
+            .integrate(&missing)
+            .unwrap_err()
+            .to_string()
+            .contains("no supported BP coefficients"));
     }
 
     #[test]

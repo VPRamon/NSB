@@ -496,4 +496,13 @@ mod tests {
             .parse::<AirglowContinuum>()
             .is_err());
     }
+
+    #[test]
+    fn prepared_sampling_rejects_out_of_grid_indices_without_spectral_fallback() {
+        let model = load_builtin_standard().unwrap();
+        let prepared = model.prepare_sample(1, 2, 100.0).unwrap();
+        for index in [SAMPLE_COUNT, usize::MAX] {
+            assert!(model.sample_prepared(index, &prepared).is_err());
+        }
+    }
 }
