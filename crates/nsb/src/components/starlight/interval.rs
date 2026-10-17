@@ -350,7 +350,14 @@ impl SpectralMap {
         }
         let ordering = match ordering {
             "ring" => HealpixOrdering::Ring,
-            "nested" => HealpixOrdering::Nested,
+            // The locked Siderust API represents NESTED grids but its
+            // direction lookup currently implements RING only. Reject at load
+            // time instead of accepting a product that cannot be queried.
+            "nested" => {
+                return Err(invalid(
+                    "NESTED spectral lookup requires upstream Siderust support",
+                ))
+            }
             _ => return Err(invalid("unsupported starlight pixel ordering")),
         };
         let grid = HealpixGrid::new(
@@ -843,6 +850,10 @@ mod tests {
                                     .unwrap()
                                     .remove("integrated_statistical_sigma");
                             }
+                        }
+                        if ordering == "nested" {
+                            assert!(load(value).unwrap_err().to_string().contains("NESTED"));
+                            continue;
                         }
                         let map = load(value).unwrap();
                         let (flux, sigma) = map.top_of_atmosphere_pixel(direction()).unwrap();

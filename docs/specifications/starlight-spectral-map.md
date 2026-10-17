@@ -39,7 +39,7 @@ The v2 `nsb-starlight-spectral-map-v2` JSON document contains the
 following **required** fields:
 
 - `schema`, nonempty `product_id`, `band_nm` and `bin_edges_nm`.
-- HEALPix `nside`, `ordering` (`ring` or `nested`), `coordinate_frame`
+- HEALPix `nside`, `ordering` (`ring`; NESTED lookup is unavailable in locked Siderust 0.14.1), `coordinate_frame`
   (`galactic`); `domain` (`top-of-atmosphere`).
 - `units` (`photon/(cm2 ns sr)`), `wavelength_convention` (`vacuum`),
   `maturity` (`experimental`).

@@ -31,3 +31,11 @@ Human merge order: **#254 → #257 → #258**. Retarget each remaining PR to mai
 after its prerequisite is merged if the hosting service does not do so. Verify
 its resulting diff and CI before merging. No scientific map is regenerated or
 promoted; TOA diagnostics remain separate from ground-level predictions.
+
+
+The expanded geometry regression found a specific upstream limitation:
+Siderust 0.14.1 represents NESTED grids, but `direction_to_pixel` and pixel-center
+operations implement RING only. Spectral loading therefore rejects NESTED at
+admission instead of constructing an unqueryable map. A focused upstream
+follow-up is NESTED lookup/ordering support in Siderust; NSB does not duplicate
+that implementation. This restriction is documented and tested.
