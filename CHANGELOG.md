@@ -7,6 +7,10 @@ tag-triggered publication workflow succeeds.
 
 ### Added
 
+- Source-level Gaia XP interval-report example using checksum-pinned inputs,
+  canonical parsing and covariance-aware integration, with deterministic
+  numeric source ordering (#258).
+
 - One validated `StarlightMap` Rust/Python API for versioned spectral products
   with configurable bins, explicit capabilities, checksum-verified loading and
   optional statistical uncertainty channels (#257).
@@ -26,6 +30,10 @@ tag-triggered publication workflow succeeds.
   (#254).
 
 ### Fixed
+
+- Publish source-interval reports through staged, synced files without replacing
+  existing output, preventing concurrent writers from overwriting a report or
+  exposing partial contents (#258).
 
 - Represent missing Starlight B/V photometry as unavailable instead of physical
   zero; retain supplied full-band statistical uncertainty without inventing
