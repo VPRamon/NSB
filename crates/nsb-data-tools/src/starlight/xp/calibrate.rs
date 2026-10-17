@@ -664,6 +664,17 @@ mod interval_tests {
                 .unwrap(),
         );
         assert!(GaiaXpContinuousCalibrator::from_design_bytes(b"not JSON").is_err());
+        let invalid_path = tempfile::NamedTempFile::new().unwrap();
+        fs::write(invalid_path.path(), b"not JSON").unwrap();
+        let error =
+            GaiaXpContinuousCalibrator::from_design_fixture(invalid_path.path()).unwrap_err();
+        assert!(error
+            .to_string()
+            .contains(&invalid_path.path().display().to_string()));
+        let missing_path = invalid_path.path().to_path_buf();
+        drop(invalid_path);
+        assert!(GaiaXpContinuousCalibrator::from_design_fixture(&missing_path).is_err());
+
         let mut invalid: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         invalid["schema_version"] = 2.into();
         assert!(GaiaXpContinuousCalibrator::from_design_bytes(
