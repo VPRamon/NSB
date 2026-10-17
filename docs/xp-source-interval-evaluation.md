@@ -34,3 +34,16 @@ source avoidance, telescope PSF and atmospheric transport are separate operation
 The DESI observational pilot in the validation repository used 54 restricted XP
 records through this example. A successful interval evaluation does not establish
 a complete stellar population or admit a Starlight accuracy score.
+
+Reports are serialized before staging, then written and synced in the destination
+directory and published without replacement. Concurrent invocations cannot
+truncate each other's output; only one can publish a given path. Failed
+publication removes the temporary file. Source identifiers must be canonical
+positive decimal u64 values, and report rows are sorted by numeric source ID.
+
+Run the synthetic source/covariance, negative-input and concurrent-publication
+regressions with:
+
+```sh
+cargo test --locked -p nsb-data-tools --example xp_source_intervals
+```
