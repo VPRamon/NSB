@@ -15,15 +15,15 @@
 //! is deferred to #150/#146).
 
 use super::vertical_profile::ValidatedProfileSamples;
+use siderust::bodies::solar_system::EARTH;
 use siderust::qtty::{Kilometers, Radians, SquareKilometers};
 
 /// Current implementation identifier for the reference spherical LOS integrator.
 pub(crate) const VERTICAL_PROFILE_INTEGRATOR_VERSION: &str = "spherical-los-simpson-v1";
 /// Mean spherical Earth radius used by the reference vertical-profile integrator.
 ///
-/// Chosen to match the mean Earth radius baked into Siderust's Van Rhijn
-/// implementation so thin-shell comparisons remain consistent.
-pub(crate) const AIRGLOW_MEAN_EARTH_RADIUS_KM: Kilometers = Kilometers::new(6_371.0);
+/// Same mean Earth radius as Siderust's Van Rhijn implementation.
+pub(crate) const AIRGLOW_MEAN_EARTH_RADIUS_KM: Kilometers = EARTH.radius;
 /// Production reference resolution per profile interval (must be even).
 pub(crate) const VERTICAL_PROFILE_REFERENCE_SUBSTEPS: usize = 64;
 
@@ -56,28 +56,29 @@ pub(super) fn integrate_profile_los(
 
     let r0 = AIRGLOW_MEAN_EARTH_RADIUS_KM + observer_height;
     let sin_z = zenith.sin();
-    let cos_z = zenith.cos().max(0.0);
+    let projected_radius = r0 * zenith.cos().max(0.0);
+    let impact_sq = (r0 * r0) * (sin_z * sin_z);
     let mut total = 0.0;
 
-    for index in 0..altitudes.len() - 1 {
-        let bin_low = altitudes[index];
-        let bin_high = altitudes[index + 1];
+    for (heights, emissivities) in altitudes.windows(2).zip(relative_emissivity.windows(2)) {
+        let (bin_low, bin_high) = (heights[0], heights[1]);
         let low = bin_low.max(observer_height);
         if low >= bin_high {
             continue;
         }
-        let s_low = distance_to_altitude(r0, low, sin_z, cos_z);
-        let s_high = distance_to_altitude(r0, bin_high, sin_z, cos_z);
+        let s_low = distance_to_altitude(low, projected_radius, impact_sq);
+        let s_high = distance_to_altitude(bin_high, projected_radius, impact_sq);
         let ds = (s_high - s_low) / substeps as f64;
+        let width = bin_high - bin_low;
+        let delta_emissivity = emissivities[1] - emissivities[0];
         let mut weighted = 0.0;
         for step in 0..=substeps {
             let s = s_low + ds * step as f64;
-            let radius_sq = r0 * r0 + s * s + (r0 * s) * (2.0 * cos_z);
-            let altitude = radius_sq.sqrt() - AIRGLOW_MEAN_EARTH_RADIUS_KM;
+            let radial = s + projected_radius;
+            let altitude = (radial * radial + impact_sq).sqrt() - AIRGLOW_MEAN_EARTH_RADIUS_KM;
             // Same-unit length division yields a dimensionless scalar in qtty.
-            let fraction = ((altitude - bin_low) / (bin_high - bin_low)).clamp(0.0, 1.0);
-            let emissivity = relative_emissivity[index]
-                + fraction * (relative_emissivity[index + 1] - relative_emissivity[index]);
+            let fraction = ((altitude - bin_low) / width).clamp(0.0, 1.0);
+            let emissivity = emissivities[0] + fraction * delta_emissivity;
             let weight = if step == 0 || step == substeps {
                 1.0
             } else if step % 2 == 0 {
@@ -96,15 +97,13 @@ pub(super) fn integrate_profile_los(
 }
 
 fn distance_to_altitude(
-    r0: Kilometers,
     altitude: Kilometers,
-    sin_z: f64,
-    cos_z: f64,
+    projected_radius: Kilometers,
+    impact_sq: SquareKilometers,
 ) -> Kilometers {
     let radius = AIRGLOW_MEAN_EARTH_RADIUS_KM + altitude;
-    let discriminant =
-        (radius * radius - r0 * r0 * (sin_z * sin_z)).max(SquareKilometers::new(0.0));
-    ((-r0) * cos_z + discriminant.sqrt()).max(Kilometers::new(0.0))
+    let discriminant = (radius * radius - impact_sq).max(SquareKilometers::new(0.0));
+    (discriminant.sqrt() - projected_radius).max(Kilometers::new(0.0))
 }
 
 #[cfg(test)]

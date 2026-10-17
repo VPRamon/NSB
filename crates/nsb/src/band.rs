@@ -7,20 +7,7 @@ use crate::{ComponentMask, NsbError, NsbEvaluator, PointQuery, Result};
 use std::sync::Arc;
 
 pub(crate) fn integrate_linear(x: &[f64], y: &[f64], lower: f64, upper: f64) -> f64 {
-    x.windows(2)
-        .zip(y.windows(2))
-        .map(|(x, y)| {
-            let a = lower.max(x[0]);
-            let b = upper.min(x[1]);
-            if b <= a {
-                return 0.0;
-            }
-            let slope = (y[1] - y[0]) / (x[1] - x[0]);
-            let ya = y[0] + slope * (a - x[0]);
-            let yb = y[0] + slope * (b - x[0]);
-            0.5 * (ya + yb) * (b - a)
-        })
-        .sum()
+    siderust::optica::spectrum::integrate::trapz_range(x, y, lower, upper)
 }
 
 impl NsbEvaluator {
@@ -107,6 +94,24 @@ mod tests {
             7.5
         );
     }
+    #[test]
+    fn clipped_integrals_match_independent_polynomial_oracle_at_boundaries() {
+        let xs = [300.0, 350.0, 470.0, 650.0];
+        let ys = xs.map(|x| 2.0 * x + 3.0);
+        for (a, b) in [
+            (300.0, 650.0),
+            (350.0, 470.0),
+            (350.25, 469.75),
+            (300.0, 300.000001),
+            (649.999999, 650.0),
+        ] {
+            // Average endpoint height times width is an independent exact oracle.
+            let expected = (a + b + 3.0) * (b - a);
+            let actual = integrate_linear(&xs, &ys, a, b);
+            assert!((actual - expected).abs() <= 1e-12 * expected);
+        }
+    }
+
     fn query(components: ComponentMask, utc: &str) -> PointQuery {
         use chrono::{DateTime, Utc};
         let time = tempoch::Time::<tempoch::UTC>::from_chrono(
