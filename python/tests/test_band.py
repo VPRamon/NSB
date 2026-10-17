@@ -68,3 +68,37 @@ def test_nonzero_moon_has_no_invented_spectrum():
     )
     with pytest.raises(nsb.UnsupportedError, match="moonlight"):
         nsb.NsbEvaluator().integrate_band(q, 360, 570)
+
+
+def test_band_integration_releases_the_gil():
+    import sys
+    import threading
+
+    ready = threading.Event()
+    started = threading.Event()
+    progressed = threading.Event()
+
+    def worker():
+        ready.set()
+        started.wait()
+        progressed.set()
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    assert ready.wait(timeout=5)
+    evaluator = nsb.NsbEvaluator()
+    q = query()
+    previous = sys.getswitchinterval()
+    sys.setswitchinterval(1000.0)
+    try:
+        started.set()
+        for _ in range(64):
+            evaluator.integrate_band(q, 360, 570)
+            if progressed.is_set():
+                break
+        # Observe progress before restoring normal Python thread switching.
+        ran_during_rust = progressed.is_set()
+    finally:
+        sys.setswitchinterval(previous)
+        thread.join(timeout=5)
+    assert ran_during_rust

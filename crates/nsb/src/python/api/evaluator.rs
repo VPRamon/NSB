@@ -27,15 +27,19 @@ impl NsbEvaluator {
     #[pyo3(name = "integrate_band")]
     fn py_integrate_band(
         &self,
+        py: Python<'_>,
         query: PyRef<'_, PointQuery>,
         lower_nm: f64,
         upper_nm: f64,
     ) -> PyResult<f64> {
-        self.integrate_band(
-            &query,
-            crate::units::length::Nanometers::new(lower_nm),
-            crate::units::length::Nanometers::new(upper_nm),
-        )
+        let query = query.clone();
+        py.detach(|| {
+            self.integrate_band(
+                &query,
+                crate::units::length::Nanometers::new(lower_nm),
+                crate::units::length::Nanometers::new(upper_nm),
+            )
+        })
         .map(|value| value.value())
         .map_err(to_py_err)
     }
