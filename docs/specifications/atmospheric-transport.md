@@ -105,7 +105,7 @@ actual upstream struct contains only extinction parameters.
   `cos(theta)=n_in dot n_view`. Reversing just one sign hides behind Rayleigh
   symmetry but reverses an aerosol forward peak.
 - Solver convention: `integral P dOmega = 1`. Rayleigh integrates analytically:
-  `2pi * 3/(16pi) * integral[-1,1](1+mu²)dmu = 1`.
+  `2pi * 3/(16pi) * integral of (1+mu²) dmu from -1 to 1 = 1`.
   `P(0)=P(pi)=3/(8pi)`, `P(pi/2)=3/(16pi)`.
   External 4pi-normalized values convert by **division by 4pi**.
 - The existing Optica HG surrogate uses
