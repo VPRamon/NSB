@@ -206,6 +206,7 @@ impl SpectralMap {
                     || d.statistical_covariance != "full BP coefficient covariance; source-independent; bin cross covariance not packed"
                     || d.input_partitions.is_empty()
                     || d.unmatched_xp_rows > d.xp_rows
+                    || d.admitted_sources > d.xp_rows.saturating_sub(d.unmatched_xp_rows)
                 {
                     return Err(invalid("unsupported interval product provenance"));
                 }
@@ -273,6 +274,7 @@ impl SpectralMap {
                     if !is_sha256(&gaia.design_sha256)
                         || gaia.input_partitions.is_empty()
                         || gaia.unmatched_xp_rows > gaia.xp_rows
+                        || d.admitted_sources > gaia.xp_rows.saturating_sub(gaia.unmatched_xp_rows)
                         || gaia.input_partitions.values().any(|input| {
                             !is_sha256(&input.shard_sha256)
                                 || ["gaia-source", "xp-continuous"].iter().any(|key| {
@@ -966,6 +968,12 @@ mod tests {
         let mut bad = valid.clone();
         bad["provenance"]["gaia"]["unmatched_xp_rows"] = 13.into();
         assert!(load(bad).is_err());
+        let mut bad = valid.clone();
+        bad["provenance"]["gaia"]["unmatched_xp_rows"] = 1.into();
+        assert!(
+            load(bad).is_err(),
+            "admitted sources cannot exceed matched XP rows"
+        );
         let mut bad = valid.clone();
         bad["provenance"]["gaia"]["input_partitions"]["p"]["inputs"]["xp-continuous"] =
             "invalid".into();
