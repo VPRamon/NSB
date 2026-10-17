@@ -103,6 +103,18 @@ physically misleading. The evaluator's legacy full-band `evaluate`
 rejects every TOA spectral map, including one spanning 300–650 nm.
 Band coincidence alone does not provide ground-level atmospheric transport.
 
+## Pixel uncertainty validation
+
+Map construction validates the original pixel fields before returning an output.
+The supported uncertainty states are no uncertainties, statistical-only, and a
+complete statistical/systematic/total triplet. All other presence combinations
+are rejected; supplied values are never silently discarded or inferred.
+Every supplied standard deviation must be finite and nonnegative. A complete
+triplet must have total at least as large as each component; this validation
+neither assumes independence nor reconstructs a covariance model. Statistical-only
+XP products retain unavailable systematic and total uncertainty. These rules also
+apply to legacy integrated maps constructed through `StarlightMap::from_healpix`.
+
 ## Examples
 
 Rust (schematic imports omitted):
