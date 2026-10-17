@@ -3,6 +3,7 @@
 """External candidate identity and explicit pixel observables survive PyO3."""
 import hashlib
 import json
+import math
 
 import nsb
 import pytest
@@ -111,14 +112,9 @@ def test_explicit_null_provenance_required_in_python(tmp_path, field):
         load_candidate(tmp_path, candidate)
 
 
-@pytest.mark.parametrize(
-    "edges", [[350, 570], [350, 410, 470, 570], list(range(350, 551, 20))]
-)
-def test_generic_starlight_map_supports_arbitrary_bins_without_new_python_types(
-    tmp_path, edges
-):
+def generic_candidate(edges):
     bins = len(edges) - 1
-    candidate = {
+    return {
         "schema": "nsb-starlight-spectral-map-v2",
         "product_id": "synthetic-variable-bins",
         "band_nm": [edges[0], edges[-1]],
@@ -139,16 +135,26 @@ def test_generic_starlight_map_supports_arbitrary_bins_without_new_python_types(
         "pixels": [
             {"pixel": i, "sources": 1, "radiance": [1.0] * bins,
              "statistical_sigma": [0.1] * bins,
-             "integrated_statistical_sigma": 0.5}
+             "integrated_statistical_sigma": 0.1}
             for i in range(12)
         ],
     }
+
+
+@pytest.mark.parametrize(
+    "edges", [[350, 570], [350, 410, 470, 570], list(range(350, 551, 20))]
+)
+def test_generic_starlight_map_supports_arbitrary_bins_without_new_python_types(
+    tmp_path, edges
+):
+    bins = len(edges) - 1
+    candidate = generic_candidate(edges)
     product = load_candidate(tmp_path, candidate)
     assert product.bin_edges_nm == edges
     assert list(product.band_nm) == [edges[0], edges[-1]]
-    assert product.top_of_atmosphere_pixel(0.0, 0.0) == (float(bins), 0.5)
+    assert product.top_of_atmosphere_pixel(0.0, 0.0) == (float(bins), 0.1)
     assert product.integrate_band(0.0, 0.0, edges[0], edges[-1]) == (
-        float(bins), 0.5
+        float(bins), 0.1
     )
     if bins > 2:
         assert product.integrate_band(0.0, 0.0, edges[0], edges[2]) == (
@@ -173,3 +179,47 @@ def test_generic_starlight_map_supports_arbitrary_bins_without_new_python_types(
     candidate["maturity"] = "production"
     with pytest.raises(nsb.InvalidMapError):
         load_candidate(tmp_path, candidate)
+
+
+@pytest.mark.parametrize("edges,per_bin,total,expected,valid", [
+    ([360, 570], None, None, None, True),
+    ([360, 570], [0.1], None, 0.1, True),
+    ([300, 650], None, 0.1, 0.1, True),
+    ([450, 451], [0.1], 0.1, 0.1, True),
+    ([360, 570], [0.1], 0.5, None, False),
+    ([360, 380, 470, 570], [0.1, 0.2, 0.3], None, None, True),
+    ([360, 380, 470, 570], None, 0.4, 0.4, True),
+    ([360, 380, 470, 570], [0.1, 0.2, 0.3], 0.4, 0.4, True),
+    ([360, 380, 470, 570], [0.1, 0.2, 0.3], 0.8, None, False),
+    ([360, 400, 570], [0.5, 0.1], 0.1, None, False),
+    ([360, 570], [0.0], 0.0, 0.0, True),
+    ([360, 570], [1e-300], 1e-300, 1e-300, True),
+    ([360, 570], [1e300], 1e300, 1e300, True),
+    ([360, 570], [0.1], 0.1 * (1.0 + 4e-16), 0.1 * (1.0 + 4e-16), True),
+])
+def test_spectral_sigma_consistency_and_native_band_parity(
+    tmp_path, edges, per_bin, total, expected, valid
+):
+    candidate = generic_candidate(edges)
+    for pixel in candidate["pixels"]:
+        pixel["statistical_sigma"] = per_bin
+        pixel["integrated_statistical_sigma"] = total
+    if not valid:
+        with pytest.raises(nsb.InvalidMapError, match="covariance consistency"):
+            load_candidate(tmp_path, candidate)
+        return
+    product = load_candidate(tmp_path, candidate)
+    native = product.top_of_atmosphere_pixel(0.0, 0.0)
+    assert native[0] == float(len(edges) - 1)
+    if expected is None:
+        assert native[1] is None
+    else:
+        # Decimal parsing may round the supplied float by one ulp. Keep the
+        # no-absolute-floor policy, including at tiny sigma and exact zero.
+        assert native[1] == pytest.approx(expected, rel=8 * math.ulp(1.0), abs=0)
+        if len(edges) == 2 and per_bin is not None and total != per_bin[0] and total is not None:
+            assert native[1] != per_bin[0], "preserve the supplied integrated value"
+    assert product.integrate_band(0.0, 0.0, edges[0], edges[-1]) == native
+    if len(edges) > 2:
+        expected_bin = None if per_bin is None else per_bin[0]
+        assert product.integrate_band(0.0, 0.0, edges[0], edges[1]) == (1.0, expected_bin)
