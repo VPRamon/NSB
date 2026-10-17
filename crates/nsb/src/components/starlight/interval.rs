@@ -935,4 +935,59 @@ mod tests {
         account["admitted_sources"] = 11.into();
         assert!(load(account).is_err());
     }
+
+    #[test]
+    fn generic_provenance_and_domain_errors_preserve_scientific_boundaries() {
+        let mut valid = generic_fixture(vec![360, 390, 450, 570], 1, "ring");
+        valid["provenance"]["gaia"] = serde_json::json!({
+            "design_sha256":"a".repeat(64), "xp_rows":12, "unmatched_xp_rows":0,
+            "input_partitions":{"p":{"shard_sha256":"b".repeat(64),
+                "inputs":{"gaia-source":"c".repeat(64), "xp-continuous":"d".repeat(64)}}}
+        });
+        let map = load(valid.clone()).unwrap();
+        for (low, high) in [
+            (f64::NAN, 570.0),
+            (360.0, f64::INFINITY),
+            (570.0, 360.0),
+            (300.0, 570.0),
+            (360.0, 650.0),
+            (360.0, 569.0),
+        ] {
+            assert!(map
+                .integrate_band(direction(), Nanometers::new(low), Nanometers::new(high))
+                .is_err());
+        }
+        let mut bad = valid.clone();
+        bad["provenance"]["gaia"]["design_sha256"] = "invalid".into();
+        assert!(load(bad).is_err());
+        let mut bad = valid.clone();
+        bad["provenance"]["gaia"]["input_partitions"] = serde_json::json!({});
+        assert!(load(bad).is_err());
+        let mut bad = valid.clone();
+        bad["provenance"]["gaia"]["unmatched_xp_rows"] = 13.into();
+        assert!(load(bad).is_err());
+        let mut bad = valid.clone();
+        bad["provenance"]["gaia"]["input_partitions"]["p"]["inputs"]["xp-continuous"] =
+            "invalid".into();
+        assert!(load(bad).is_err());
+        for field in [
+            "source_catalogue",
+            "source_license",
+            "source_selection",
+            "generation_method",
+        ] {
+            let mut bad = valid.clone();
+            bad["provenance"][field] = " ".into();
+            assert!(load(bad).is_err());
+        }
+        let mut bad = valid.clone();
+        bad["provenance"]["limitations"] = serde_json::json!([]);
+        assert!(load(bad).is_err());
+        let mut bad = valid.clone();
+        bad["excluded_sources"] = serde_json::json!({"overflow-a":u64::MAX,"overflow-b":1});
+        assert!(load(bad).is_err());
+        let mut bad = valid;
+        bad["pixels"][0]["sources"] = u64::MAX.into();
+        assert!(load(bad).is_err());
+    }
 }

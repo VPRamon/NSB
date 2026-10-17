@@ -143,3 +143,53 @@ pub(crate) fn gates(root: &Path) -> Result<Vec<ValidationGate>> {
         ),
     }])
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dataset::DatasetPipeline;
+
+    #[test]
+    fn audit_pipeline_keeps_reference_count_distinct_from_row_accounting() {
+        let root = tempfile::tempdir().unwrap();
+        let mut config: StarlightConfig =
+            toml::from_str("[ingestion_audit]\nexpected_rows=2\n").unwrap();
+        let dir = root.path().join("outputs/shards");
+        fs::create_dir_all(&dir).unwrap();
+        let shard = Shard {
+            schema: "nsb-xp-ingestion-shard-v1".into(),
+            partition: "a".into(),
+            input_sha256: "a".repeat(64),
+            raw_rows: 2,
+            canonical_rows: 2,
+            rejected: vec![],
+        };
+        fs::write(dir.join("a.json"), serde_json::to_vec(&shard).unwrap()).unwrap();
+        let artifacts = finalize(root.path(), &config, &["a".into()]).unwrap();
+        assert!(gates(root.path()).unwrap()[0].passed);
+        let mut run: crate::dataset::RunConfig = toml::from_str(
+            "schema_version=1\ndataset='starlight'\n[workspace]\nroot='/tmp/unused'\n",
+        )
+        .unwrap();
+        run.workspace.root = root.path().to_owned();
+        run.starlight = Some(config.clone());
+        let pipeline = &super::super::pipeline::PIPELINE;
+        assert_eq!(pipeline.expected_outputs_for(&run), vec![NAME]);
+        pipeline
+            .validate_artifact(NAME, &artifacts[0].path)
+            .unwrap();
+        assert!(pipeline.validation_gates(&run, &artifacts).unwrap()[0].passed);
+        assert!(pipeline.build(&run, &[]).unwrap().unwrap().is_empty());
+        config.ingestion_audit.as_mut().unwrap().expected_rows = 3;
+        finalize(root.path(), &config, &["a".into()]).unwrap();
+        // Complete accounting does not establish equality to a preregistered population.
+        validate(&artifacts[0].path).unwrap();
+        assert!(!gates(root.path()).unwrap()[0].passed);
+        fs::write(&artifacts[0].path, b"{}").unwrap();
+        assert!(validate(&artifacts[0].path).is_err());
+        let mut wrong = shard;
+        wrong.partition = "wrong".into();
+        fs::write(dir.join("a.json"), serde_json::to_vec(&wrong).unwrap()).unwrap();
+        assert!(finalize(root.path(), &config, &["a".into()]).is_err());
+    }
+}

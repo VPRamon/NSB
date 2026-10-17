@@ -417,6 +417,72 @@ fn xp_statistical_only_sigma_survives_public_pixel_adapter() {
     let hash = Sha256::digest(&bytes);
     let expected = hash.iter().map(|b| format!("{b:02x}")).collect::<String>();
     let map = StarlightMap::from_json_bytes(&bytes, &expected).unwrap();
+    assert_eq!(map.band_nm(), [360, 420]);
+    assert_eq!(map.bin_edges_nm(), [360, 390, 420]);
+    assert_eq!(map.nside(), 1);
+    assert_eq!(map.admitted_sources(), Some(12));
+    assert_eq!(map.maturity(), Some("experimental"));
+    assert_eq!(map.sha256(), Some(expected.as_str()));
+    let path =
+        std::env::temp_dir().join(format!("nsb-spectral-public-{}.json", std::process::id()));
+    std::fs::write(&path, &bytes).unwrap();
+    let from_file = StarlightMap::from_json_file(&path, &expected).unwrap();
+    std::fs::remove_file(path).unwrap();
+    let direction = galactic_direction(0.0, 0.0);
+    assert_eq!(
+        from_file
+            .top_of_atmosphere_pixel(direction)
+            .unwrap()
+            .0
+            .value(),
+        3.0
+    );
+    let (flux, sigma) = map
+        .integrate_band(
+            direction,
+            siderust::qtty::Nanometers::new(360.0),
+            siderust::qtty::Nanometers::new(420.0),
+        )
+        .unwrap();
+    assert_eq!((flux.value(), sigma.unwrap().value()), (3.0, 0.5));
+    let geometry =
+        crate::transport::DirectPathGeometry::new(siderust::qtty::Degrees::new(0.0)).unwrap();
+    let atmosphere = crate::site::AtmosphericConditions::clear_sky_with_pressure(
+        siderust::qtty::Hectopascals::new(790.0),
+    )
+    .unwrap();
+    let bounds = map
+        .direct_pixel_bounds(direction, geometry, atmosphere)
+        .unwrap();
+    assert!(
+        bounds.lower <= bounds.midpoint
+            && bounds.midpoint <= bounds.upper
+            && bounds.upper.value() < 3.0
+    );
+    let legacy = fixture_map();
+    assert_eq!(legacy.band_nm(), [300, 650]);
+    assert_eq!(legacy.bin_edges_nm(), [300, 650]);
+    assert!(legacy.admitted_sources().is_none());
+    assert!(legacy
+        .integrate_band(
+            direction,
+            siderust::qtty::Nanometers::new(360.0),
+            siderust::qtty::Nanometers::new(420.0)
+        )
+        .is_err());
+    assert_eq!(
+        legacy
+            .integrate_band(
+                direction,
+                siderust::qtty::Nanometers::new(300.0),
+                siderust::qtty::Nanometers::new(650.0)
+            )
+            .unwrap(),
+        legacy.top_of_atmosphere_pixel(direction).unwrap()
+    );
+    assert!(legacy
+        .direct_pixel_bounds(direction, geometry, atmosphere)
+        .is_err());
     let pixel = map.try_pixel_at(galactic_direction(0.0, 0.0)).unwrap();
     assert_eq!(pixel.integrated.value(), 3.0);
     assert_eq!(pixel.statistical_uncertainty.unwrap().value(), 0.5);
