@@ -293,7 +293,10 @@ fn validate_shard(shard: &Shard) -> Result<()> {
         .values()
         .try_fold(0_u64, |sum, n| sum.checked_add(*n))
         .context("spectral exclusion count overflow")?;
-    if admitted.checked_add(excluded) != Some(shard.catalogue_rows) {
+    if admitted.checked_add(excluded) != Some(shard.catalogue_rows)
+        || shard.unmatched_xp_rows > shard.xp_rows
+        || admitted > shard.xp_rows.saturating_sub(shard.unmatched_xp_rows)
+    {
         bail!("interval population accounting failed");
     }
     let npix = gaia_nested_npix(shard.nside)?;
@@ -353,11 +356,18 @@ pub(crate) fn finalize(
         }
         design = Some(shard.design_sha256.clone());
         identities.insert(partition, serde_json::json!({"shard_sha256":checksum_io::sha256_file(&path)?, "inputs":shard.input_sha256}));
-        rows += shard.catalogue_rows;
-        xp_rows += shard.xp_rows;
-        unmatched += shard.unmatched_xp_rows;
+        rows = rows
+            .checked_add(shard.catalogue_rows)
+            .context("catalogue count overflow")?;
+        xp_rows = xp_rows
+            .checked_add(shard.xp_rows)
+            .context("XP count overflow")?;
+        unmatched = unmatched
+            .checked_add(shard.unmatched_xp_rows)
+            .context("unmatched XP count overflow")?;
         for (reason, n) in shard.excluded {
-            *excluded.entry(reason).or_default() += n;
+            let count = excluded.entry(reason).or_default();
+            *count = count.checked_add(n).context("exclusion count overflow")?;
         }
         for (index, p) in shard.pixels {
             let m = merged.entry(index).or_insert_with(|| Pixel::new(bins));
@@ -368,7 +378,10 @@ pub(crate) fn finalize(
             }
             m.integrated_variance_ph_m2_s_squared
                 .merge(&p.integrated_variance_ph_m2_s_squared)?;
-            m.sources += p.sources;
+            m.sources = m
+                .sources
+                .checked_add(p.sources)
+                .context("pixel source count overflow")?;
         }
     }
     let npix = gaia_nested_npix(config.map.canonical_nside)?;
@@ -382,7 +395,9 @@ pub(crate) fn finalize(
         let p = merged
             .remove(&(nested as u32))
             .unwrap_or_else(|| Pixel::new(bins));
-        admitted += p.sources;
+        admitted = admitted
+            .checked_add(p.sources)
+            .context("admitted source count overflow")?;
         for f in &p.flux_ph_m2_s {
             map_flux.merge(f)?;
         }
@@ -393,8 +408,12 @@ pub(crate) fn finalize(
             "integrated_statistical_sigma":p.integrated_variance_ph_m2_s_squared.value().sqrt()*factor,
         }));
     }
+    let excluded_total = excluded
+        .values()
+        .try_fold(0_u64, |sum, n| sum.checked_add(*n))
+        .context("total exclusion count overflow")?;
     if map_flux.value().to_bits() != source_flux.value().to_bits()
-        || admitted + excluded.values().sum::<u64>() != rows
+        || admitted.checked_add(excluded_total) != Some(rows)
     {
         bail!("interval conservation/population validation failed");
     }
@@ -728,5 +747,47 @@ mod tests {
         let mut empty = valid;
         empty.pixels.get_mut(&0).unwrap().sources = 0;
         assert!(validate_shard(&empty).is_err());
+    }
+
+    #[test]
+    fn merged_population_overflow_fails_without_publishing() {
+        for channel in ["catalogue", "xp", "unmatched"] {
+            let root = tempfile::tempdir().unwrap();
+            let mut config: StarlightConfig = toml::from_str(
+                "product_band = 'measured-xp-binned'\nspectral_bin_edges_nm=[360,390,450,570]",
+            )
+            .unwrap();
+            config.map.canonical_nside = 1;
+            let dir = root.path().join("outputs/shards");
+            fs::create_dir_all(&dir).unwrap();
+            for partition in ["a", "b"] {
+                let mut shard = synthetic_shard(true, partition);
+                match channel {
+                    "catalogue" => {
+                        shard.catalogue_rows = u64::MAX;
+                        shard
+                            .excluded
+                            .insert("no_band_calibrated_non_xp_inference".into(), u64::MAX - 1);
+                    }
+                    "xp" => shard.xp_rows = u64::MAX,
+                    _ => shard.unmatched_xp_rows = u64::MAX,
+                }
+                fs::write(
+                    dir.join(format!("{partition}.json")),
+                    serde_json::to_vec(&shard).unwrap(),
+                )
+                .unwrap();
+            }
+            let error = finalize(root.path(), &config, &["a".into(), "b".into()]).unwrap_err();
+            assert!(
+                error.to_string().contains(if channel == "unmatched" {
+                    "population accounting"
+                } else {
+                    "count overflow"
+                }),
+                "{error}"
+            );
+            assert!(!root.path().join("outputs").join(GENERIC_MAP_NAME).exists());
+        }
     }
 }
