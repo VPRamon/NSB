@@ -397,6 +397,12 @@ impl SpectralMap {
             {
                 return Err(invalid("invalid or misordered starlight spectral pixel"));
             }
+            if let (Some(per_bin), Some(total)) = (
+                pixel.statistical_sigma.as_deref(),
+                pixel.integrated_statistical_sigma,
+            ) {
+                validate_statistical_consistency(per_bin, total)?;
+            }
             if sigma_channels.is_none() {
                 if channels.0 {
                     statistical_sigma = Some(Vec::with_capacity(pixel_count * bins));
@@ -467,17 +473,27 @@ impl SpectralMap {
         Ok(slot)
     }
 
+    // With one bin the marginal and native-band quantities are identical;
+    // multiple bins require an independently supplied covariance-aware sigma.
+    fn native_statistical_sigma(&self, pixel: usize) -> Option<f64> {
+        self.integrated_statistical_sigma
+            .as_ref()
+            .map(|s| s[pixel])
+            .or_else(|| {
+                if self.bins() == 1 {
+                    self.statistical_sigma.as_ref().map(|s| s[pixel])
+                } else {
+                    None
+                }
+            })
+    }
+
     /// Full-band samples for constructing the immutable legacy API view.
     pub(super) fn integrated_pixels(&self) -> impl Iterator<Item = (f64, Option<f64>)> + '_ {
         self.radiance
             .chunks_exact(self.bins())
             .enumerate()
-            .map(|(i, band)| {
-                (
-                    band.iter().sum(),
-                    self.integrated_statistical_sigma.as_ref().map(|s| s[i]),
-                )
-            })
+            .map(|(i, band)| (band.iter().sum(), self.native_statistical_sigma(i)))
     }
 
     pub(super) fn top_of_atmosphere_pixel(
@@ -489,9 +505,7 @@ impl SpectralMap {
         let radiance = &self.radiance[index * bins..(index + 1) * bins];
         Ok((
             Radiance::new(radiance.iter().sum()),
-            self.integrated_statistical_sigma
-                .as_ref()
-                .map(|s| Radiance::new(s[index])),
+            self.native_statistical_sigma(index).map(Radiance::new),
         ))
     }
 
@@ -533,7 +547,7 @@ impl SpectralMap {
         let pixel = self.pixel_index(direction)?;
         let base = pixel * self.bins();
         let sigma = if start == 0 && end == self.edges_nm.len() - 1 {
-            self.integrated_statistical_sigma.as_ref().map(|s| s[pixel])
+            self.native_statistical_sigma(pixel)
         } else if end == start + 1 {
             self.statistical_sigma.as_ref().map(|s| s[base + start])
         } else {
@@ -599,6 +613,29 @@ fn is_sha256(s: &str) -> bool {
     s.len() == 64
         && s.bytes()
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
+/// Necessary triangle and reverse-triangle bounds for the sigma of a sum.
+/// Inputs have already passed shape and finite/nonnegative validation.
+fn validate_statistical_consistency(per_bin: &[f64], total: f64) -> Result<()> {
+    let largest = per_bin.iter().copied().fold(0.0, f64::max);
+    let scale = largest.max(total);
+    if scale == 0.0 {
+        return Ok(());
+    }
+    // Normalize before summing to avoid overflow, including at f64::MAX.
+    let sum: f64 = per_bin.iter().map(|s| s / scale).sum();
+    let total = total / scale;
+    let lower = (2.0 * (largest / scale) - sum).max(0.0);
+    // Conservative O(n*epsilon) forward-error allowance for division, summation
+    // and bound subtraction. No absolute floor: zero versus tiny sigma fails.
+    let tolerance = 8.0 * f64::EPSILON * per_bin.len() as f64 * sum.max(total);
+    if total > sum + tolerance || total + tolerance < lower {
+        return Err(invalid(
+            "statistical sigma violates covariance consistency bounds (single-bin sigmas must agree)",
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -781,7 +818,7 @@ mod tests {
             "pixels":(0..12*nside*nside).map(|i| serde_json::json!({
                 "pixel":i,"sources":1,"radiance":vec![1.0;bins],
                 "statistical_sigma":vec![0.1;bins],
-                "integrated_statistical_sigma":0.5
+                "integrated_statistical_sigma":0.1
             })).collect::<Vec<_>>()
         })
     }
@@ -810,7 +847,7 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(full.0.value(), bins as f64);
-            assert_eq!(full.1.unwrap().value(), 0.5);
+            assert_eq!(full.1.unwrap().value(), 0.1);
             if bins > 2 {
                 let interior = map
                     .integrate_band(
@@ -860,7 +897,10 @@ mod tests {
                         let map = load(value).unwrap();
                         let (flux, sigma) = map.top_of_atmosphere_pixel(direction()).unwrap();
                         assert_eq!(flux.value(), f64::from(bins));
-                        assert_eq!(sigma.map(|s| s.value()), full_band.then_some(0.5));
+                        assert_eq!(
+                            sigma.map(|s| s.value()),
+                            (full_band || (bins == 1 && per_bin)).then_some(0.1)
+                        );
                         let mut sum = 0.0;
                         for edge in edges.windows(2) {
                             let (flux, sigma) = map
@@ -873,7 +913,7 @@ mod tests {
                             sum += flux.value();
                             // A single-bin map's full-band covariance channel takes precedence.
                             let expected = if bins == 1 {
-                                full_band.then_some(0.5)
+                                (full_band || (bins == 1 && per_bin)).then_some(0.1)
                             } else {
                                 per_bin.then_some(0.1)
                             };
@@ -997,5 +1037,166 @@ mod tests {
         let mut bad = valid;
         bad["pixels"][0]["sources"] = u64::MAX.into();
         assert!(load(bad).is_err());
+    }
+
+    fn sigma_fixture(
+        edges: Vec<u16>,
+        per_bin: Option<Vec<f64>>,
+        total: Option<f64>,
+    ) -> serde_json::Value {
+        let mut value = generic_fixture(edges, 1, "ring");
+        for pixel in value["pixels"].as_array_mut().unwrap() {
+            pixel["statistical_sigma"] = serde_json::json!(per_bin);
+            pixel["integrated_statistical_sigma"] = serde_json::json!(total);
+        }
+        value
+    }
+
+    #[test]
+    fn native_sigma_channels_preserve_known_information_through_public_adapters() {
+        use crate::components::starlight::StarlightMap;
+        for edges in [vec![300, 650], vec![360, 570], vec![450, 451]] {
+            for (per_bin, total, expected, valid) in [
+                (None, None, None, true),
+                (Some(vec![0.1]), None, Some(0.1), true),
+                (None, Some(0.1), Some(0.1), true),
+                (Some(vec![0.1]), Some(0.1), Some(0.1), true),
+                (Some(vec![0.1]), Some(0.5), None, false),
+            ] {
+                let value = sigma_fixture(edges.clone(), per_bin, total);
+                if !valid {
+                    assert!(matches!(load(value), Err(NsbError::InvalidMap { .. })));
+                    continue;
+                }
+                let bytes = serde_json::to_vec(&value).unwrap();
+                let sha = Sha256::digest(&bytes)
+                    .iter()
+                    .map(|b| format!("{b:02x}"))
+                    .collect::<String>();
+                let map = StarlightMap::from_json_bytes(&bytes, &sha).unwrap();
+                let native = map.top_of_atmosphere_pixel(direction()).unwrap();
+                assert_eq!(native.1.map(|s| s.value()), expected);
+                assert_eq!(
+                    map.integrate_band(
+                        direction(),
+                        Nanometers::new(f64::from(edges[0])),
+                        Nanometers::new(f64::from(edges[1]))
+                    )
+                    .unwrap(),
+                    native
+                );
+                let pixel = map.try_pixel_at(direction()).unwrap();
+                assert_eq!(pixel.integrated, native.0);
+                assert_eq!(pixel.statistical_uncertainty, native.1);
+                assert!(
+                    pixel.systematic_uncertainty.is_none() && pixel.total_uncertainty.is_none()
+                );
+            }
+        }
+        for (per_bin, total, expected) in [
+            (Some(vec![0.1, 0.2, 0.3]), None, None),
+            (None, Some(0.4), Some(0.4)),
+            (Some(vec![0.1, 0.2, 0.3]), Some(0.4), Some(0.4)),
+        ] {
+            let has_per_bin = per_bin.is_some();
+            let value = sigma_fixture(vec![360, 380, 470, 570], per_bin, total);
+            let map = load(value).unwrap();
+            let native = map.top_of_atmosphere_pixel(direction()).unwrap();
+            assert_eq!(native.1.map(|s| s.value()), expected);
+            assert_eq!(
+                map.integrate_band(direction(), Nanometers::new(360.0), Nanometers::new(570.0))
+                    .unwrap(),
+                native
+            );
+            assert_eq!(
+                map.integrate_band(direction(), Nanometers::new(360.0), Nanometers::new(380.0))
+                    .unwrap()
+                    .1
+                    .map(|s| s.value()),
+                has_per_bin.then_some(0.1)
+            );
+            assert!(map
+                .integrate_band(direction(), Nanometers::new(360.0), Nanometers::new(470.0))
+                .unwrap()
+                .1
+                .is_none());
+            assert_eq!(map.integrated_pixels().next().unwrap().1, expected);
+        }
+    }
+
+    #[test]
+    fn covariance_bounds_reject_impossible_maps_without_assuming_independence() {
+        for (per_bin, total, valid) in [
+            (vec![0.1, 0.2, 0.3], 0.8, false),
+            (vec![0.5, 0.1], 0.1, false),
+            (vec![0.5, 0.1], 0.4, true),
+            (vec![0.5, 0.1], 0.6, true),
+            (vec![1.0, 1.0], 0.0, true),
+            (vec![0.0, 0.0], 0.0, true),
+            (vec![0.0, 0.0], 1e-300, false),
+            (vec![1e300, 1e300], 1e300, true),
+            (vec![1e-300, 1e-300], 1e-300, true),
+        ] {
+            let edges = (0..=per_bin.len()).map(|i| 350 + 10 * i as u16).collect();
+            let result = load(sigma_fixture(edges, Some(per_bin), Some(total)));
+            assert_eq!(result.is_ok(), valid);
+            if let Err(error) = result {
+                assert!(matches!(error, NsbError::InvalidMap { .. }));
+                assert!(error.to_string().contains("covariance consistency"));
+            }
+        }
+    }
+
+    #[test]
+    fn covariance_comparisons_are_relative_and_avoid_overflow() {
+        let tiny = f64::from_bits(1);
+        for sigma in [0.0, tiny, 1e-300, 0.1, 1e300, f64::MAX] {
+            assert!(validate_statistical_consistency(&[sigma], sigma).is_ok());
+        }
+        for sigma in [1e-300, 0.1, 1e300] {
+            assert!(
+                validate_statistical_consistency(&[sigma], sigma * (1.0 + 4.0 * f64::EPSILON))
+                    .is_ok()
+            );
+            assert!(
+                validate_statistical_consistency(&[sigma], sigma * (1.0 - 4.0 * f64::EPSILON))
+                    .is_ok()
+            );
+            assert!(validate_statistical_consistency(
+                &[sigma],
+                sigma * (1.0 + 64.0 * f64::EPSILON)
+            )
+            .is_err());
+            assert!(validate_statistical_consistency(
+                &[sigma],
+                sigma * (1.0 - 64.0 * f64::EPSILON)
+            )
+            .is_err());
+        }
+        assert!(validate_statistical_consistency(&[0.0], tiny).is_err());
+        assert!(validate_statistical_consistency(&[tiny], 0.0).is_err());
+        assert!(validate_statistical_consistency(&[tiny], 2.0 * tiny).is_err());
+        assert!(validate_statistical_consistency(&[f64::MAX, f64::MAX], f64::MAX).is_ok());
+        assert!(validate_statistical_consistency(&[f64::MAX, 0.0], 0.0).is_err());
+        let sigmas = vec![1.0; 1024];
+        assert!(validate_statistical_consistency(&sigmas, 1024.0).is_ok());
+        assert!(
+            validate_statistical_consistency(&sigmas, 1024.0 * (1.0 + 4.0 * f64::EPSILON)).is_ok()
+        );
+        assert!(validate_statistical_consistency(&sigmas, 1024.01).is_err());
+    }
+
+    #[test]
+    fn nonfinite_and_negative_sigma_json_never_loads() {
+        let value = sigma_fixture(vec![360, 570], Some(vec![0.125]), Some(0.125));
+        let raw = serde_json::to_string(&value).unwrap();
+        for token in ["NaN", "Infinity", "1e400", "-0.125"] {
+            let bytes = raw.replace("0.125", token).into_bytes();
+            let sha = Sha256::digest(&bytes)
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>();
+            assert!(SpectralMap::from_json_bytes(&bytes, &sha).is_err());
+        }
     }
 }

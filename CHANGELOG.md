@@ -35,6 +35,11 @@ tag-triggered publication workflow succeeds.
   existing output, preventing concurrent writers from overwriting a report or
   exposing partial contents (#258).
 
+- Preserve single-bin Starlight statistical uncertainty in native-band queries
+  and pixel adapters; reject contradictory per-bin/native sigmas and violations
+  of necessary covariance bounds without assuming independent spectral bins
+  (#257).
+
 - Reject incomplete Starlight pixel uncertainty combinations during map
   construction instead of silently discarding supplied systematic/total values
   when statistical uncertainty is absent (#257).

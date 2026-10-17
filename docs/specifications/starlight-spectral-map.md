@@ -86,7 +86,23 @@ cannot be reconstructed without spectral assumptions, and requests outside
 coverage fail. A sum over multiple stored bins provides exact **radiance**
 but not exact statistical uncertainty without cross-bin covariance. A
 supplied full-native-band sigma comes from covariance-aware calibration
-and is preserved; absent uncertainty stays `None`.
+and is preserved. For exactly one bin, the bin and native-band quantities
+are identical: if only per-bin sigma is supplied, all native-band queries and
+the public pixel adapter reuse it. If both are supplied they must agree within
+roundoff; the supplied integrated value is preserved, never averaged or replaced.
+For multiple bins, missing integrated sigma stays `None`.
+
+When both channels exist, validation requires
+`max(0, 2*max(sigma_i) - sum(sigma_i)) <= sigma_native <= sum(sigma_i)`.
+These necessary triangle/reverse-triangle bounds allow arbitrary correlations;
+they neither establish a covariance matrix nor assume independent errors.
+Comparisons divide all sigmas by their maximum before summing, avoiding overflow.
+The roundoff allowance in that scale is
+`8 * n_bins * f64::EPSILON * max(sum_scaled, sigma_native_scaled)`, a conservative
+forward-error allowance for divisions, summation and bound subtraction. There is
+no absolute tolerance floor: zero versus any positive single-bin sigma fails,
+including subnormal values. Contradictory inputs return an explicit map error.
+No quadrature estimate or missing cross-bin covariance is inferred.
 
 `StarlightMap::direct_pixel_bounds` applies the existing shared
 Rayleigh/Mie direct transmission model under its explicit monotonicity
