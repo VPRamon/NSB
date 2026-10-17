@@ -12,6 +12,11 @@ single-row official DataLink CSV named `<source_id>.csv` in the input directory.
 Empty manifests, duplicate IDs, malformed records, input checksum mismatches and
 existing output paths fail. Errors do not create a partial result.
 
+The manifest, design fixture and each source CSV are read once into byte buffers.
+SHA-256 verification and parsing/calibration consume the same bytes, so replacing
+an input path after verification cannot change the reported calculation. The
+report retains the verified manifest, design and source checksum identities.
+
 ```sh
 cargo run --locked -p nsb-data-tools --example xp_source_intervals -- \
   "$PRIVATE_SOURCE_DIRECTORY" "$PRIVATE_MANIFEST" "$MANIFEST_SHA256" \

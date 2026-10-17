@@ -25,22 +25,37 @@ fn main() -> Result<()> {
     run(&std::env::args().collect::<Vec<_>>())
 }
 
+fn read_pinned(path: &Path, expected: &str) -> Result<Vec<u8>> {
+    let bytes =
+        std::fs::read(path).with_context(|| format!("read pinned input {}", path.display()))?;
+    if checksum_io::sha256_bytes(&bytes) != expected {
+        bail!("pinned input checksum mismatch: {}", path.display());
+    }
+    Ok(bytes)
+}
+
 fn run(args: &[String]) -> Result<()> {
+    run_with_reader(args, read_pinned)
+}
+
+// Keep acquisition at one boundary so tests can replace a path immediately
+// after its verified snapshot is read, without timing-dependent races.
+fn run_with_reader(
+    args: &[String],
+    mut read_input: impl FnMut(&Path, &str) -> Result<Vec<u8>>,
+) -> Result<()> {
     if args.len() != 7 {
         bail!(
             "usage: xp_source_intervals DIRECTORY MANIFEST MANIFEST_SHA DESIGN DESIGN_SHA OUTPUT"
         );
     }
-    for (path, expected) in [(&args[2], &args[3]), (&args[4], &args[5])] {
-        if checksum_io::sha256_file(Path::new(path))? != *expected {
-            bail!("pinned input checksum mismatch");
-        }
-    }
-    let manifest: Manifest = serde_json::from_slice(&std::fs::read(&args[2])?)?;
+    let manifest_bytes = read_input(Path::new(&args[2]), &args[3])?;
+    let design_bytes = read_input(Path::new(&args[4]), &args[5])?;
+    let manifest: Manifest = serde_json::from_slice(&manifest_bytes)?;
     if manifest.files.is_empty() {
         bail!("empty source manifest");
     }
-    let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(Path::new(&args[4]))?;
+    let calibrator = GaiaXpContinuousCalibrator::from_design_bytes(&design_bytes)?;
     let intervals = [
         [360.0, 570.0],
         [360.0, 390.0],
@@ -76,10 +91,8 @@ fn run(args: &[String]) -> Result<()> {
     });
     for entry in files {
         let path = Path::new(&args[1]).join(format!("{}.csv", entry.source_id));
-        if checksum_io::sha256_file(&path)? != entry.sha256 {
-            bail!("source checksum mismatch");
-        }
-        let record = parse_datalink_gaiaxpy_csv(&std::fs::read(path)?, &entry.source_id)?;
+        let bytes = read_input(&path, &entry.sha256)?;
+        let record = parse_datalink_gaiaxpy_csv(&bytes, &entry.source_id)?;
         let (flux, covariance) = integrator.integrate(&record)?;
         rows.push(serde_json::json!({"source_id":entry.source_id,
             "input_sha256":entry.sha256,"flux_ph_m2_s":flux,
@@ -165,8 +178,13 @@ mod tests {
             serde_json::to_vec(&serde_json::json!({"files":files})).unwrap(),
         )
         .unwrap();
-        let design = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json");
+        let design = root.join("design.json");
+        std::fs::copy(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/gaiaxpy_continuous_design_v375wi_v142r.json"),
+            &design,
+        )
+        .unwrap();
         vec![
             "xp_source_intervals".into(),
             root.to_str().unwrap().into(),
@@ -298,5 +316,55 @@ mod tests {
         args[3] = checksum_io::sha256_file(Path::new(&args[2])).unwrap();
         assert!(run(&args).is_err());
         assert!(!Path::new(&args[6]).exists());
+    }
+
+    #[test]
+    fn replaced_paths_cannot_change_verified_processing_or_report_bytes() {
+        let root = tempfile::tempdir().unwrap();
+        let args = fixture(root.path(), &["10", "2"]);
+        run(&args).unwrap();
+        let expected = std::fs::read(&args[6]).unwrap();
+        std::fs::remove_file(&args[6]).unwrap();
+        let mut reads = Vec::new();
+        run_with_reader(&args, |path, sha| {
+            let bytes = read_pinned(path, sha)?;
+            // Deterministically replace every path before any consumer sees
+            // the buffer. Reopening manifest, design or CSV would now fail.
+            std::fs::write(path, b"replaced after verification")?;
+            reads.push(path.to_path_buf());
+            Ok(bytes)
+        })
+        .unwrap();
+        assert_eq!(reads.len(), 4); // manifest, design, two distinct sources
+        for path in reads {
+            assert_eq!(std::fs::read(path).unwrap(), b"replaced after verification");
+        }
+        assert_eq!(std::fs::read(&args[6]).unwrap(), expected);
+        let report: serde_json::Value = serde_json::from_slice(&expected).unwrap();
+        assert_eq!(report["manifest_sha256"], args[3]);
+        assert_eq!(report["design_sha256"], args[5]);
+    }
+
+    #[test]
+    fn each_missing_or_modified_input_fails_without_publication() {
+        let root = tempfile::tempdir().unwrap();
+        let args = fixture(root.path(), &["2"]);
+        for path in [
+            Path::new(&args[2]),
+            Path::new(&args[4]),
+            &root.path().join("2.csv"),
+        ] {
+            let original = std::fs::read(path).unwrap();
+            std::fs::write(path, b"modified").unwrap();
+            assert!(run(&args)
+                .unwrap_err()
+                .to_string()
+                .contains("checksum mismatch"));
+            assert!(!Path::new(&args[6]).exists());
+            std::fs::remove_file(path).unwrap();
+            assert!(run(&args).is_err());
+            assert!(!Path::new(&args[6]).exists());
+            std::fs::write(path, original).unwrap();
+        }
     }
 }

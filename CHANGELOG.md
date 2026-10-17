@@ -31,6 +31,10 @@ tag-triggered publication workflow succeeds.
 
 ### Fixed
 
+- Verify and process the same manifest, GaiaXPy design and source CSV bytes in
+  the source-interval utility, preventing input replacement from invalidating
+  recorded scientific checksums (#258).
+
 - Publish source-interval reports through staged, synced files without replacing
   existing output, preventing concurrent writers from overwriting a report or
   exposing partial contents (#258).
