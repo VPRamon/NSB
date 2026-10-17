@@ -15,8 +15,10 @@ impl NsbEvaluator {
     ///
     /// Units: photons cm^-2 ns^-1 sr^-1. Bounds must lie within 300–650 nm.
     /// This preserves the selected models, atmospheric propagation, solar activity
-    /// and maturity. It does not add missing emission lines or starlight spectra.
-    /// Starlight is unsupported because its integrated map has no recoverable SED.
+    /// and maturity. It does not add missing emission lines or invent spectra.
+    /// Starlight maps can expose native TOA pixel-band integrals, but those
+    /// cannot be added to ground-level component totals without a validated
+    /// atmospheric/instrumental transport model. Query them on StarlightMap.
     /// Moonlight is supported only when its existing evaluator returns physical zero;
     /// nonzero lunar spectra and KS91 band reconstruction remain unsupported.
     /// This is not FORS, Johnson, AB, Vega or other calibrated passband photometry.
@@ -39,7 +41,7 @@ impl NsbEvaluator {
         }
         if query.components.contains(ComponentMask::STARLIGHT) {
             return Err(NsbError::Unsupported(
-                "starlight has no wavelength-resolved product".into(),
+                "starlight TOA maps cannot be added to ground-level restricted-band NSB without validated atmospheric transport".into(),
             ));
         }
         let mut total = Radiance::new(0.0);
@@ -226,5 +228,67 @@ mod tests {
                 .value(),
             0.0
         );
+    }
+
+    #[test]
+    fn experimental_spectral_starlight_uses_exact_band_without_default_relabeling() {
+        use crate::components::starlight::StarlightMap;
+        use crate::{NsbModelConfig, StarlightProduct};
+        use sha2::{Digest, Sha256};
+
+        let value = serde_json::json!({
+            "schema":"nsb-starlight-spectral-map-v2",
+            "product_id":"synthetic-starlight-2bins",
+            "band_nm":[360,420],"bin_edges_nm":[360,390,420],
+            "nside":1,"ordering":"ring","coordinate_frame":"galactic",
+            "domain":"top-of-atmosphere","units":"photon/(cm2 ns sr)",
+            "wavelength_convention":"vacuum","maturity":"experimental",
+            "provenance":{
+                "source_catalogue":"test-only",
+                "source_license":"test-only",
+                "source_selection":"synthetic",
+                "generation_method":"unit test",
+                "limitations":["not a physical sky model"]
+            },
+            "catalogue_rows":12,"admitted_sources":12,"excluded_sources":{},
+            "pixels":(0..12).map(|i| serde_json::json!({
+                "pixel":i,"sources":1,"radiance":[1.0,2.0],
+                "statistical_sigma":[0.1,0.2],
+                "integrated_statistical_sigma":0.25
+            })).collect::<Vec<_>>()
+        });
+        let bytes = serde_json::to_vec(&value).unwrap();
+        let sha: String = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect();
+        let map = StarlightMap::from_json_bytes(&bytes, &sha).unwrap();
+        assert_eq!(map.band_nm(), [360, 420]);
+        use siderust::coordinates::spherical;
+        let galactic = spherical::Direction::<siderust::coordinates::frames::Galactic>::new(
+            crate::units::angular::Degrees::new(0.0),
+            crate::units::angular::Degrees::new(0.0),
+        )
+        .to_cartesian();
+        let native = map
+            .integrate_band(galactic, Nanometers::new(360.0), Nanometers::new(420.0))
+            .unwrap();
+        assert_eq!(native.0.value(), 3.0);
+        let config = NsbModelConfig::generic_clear_sky()
+            .with_starlight_product(StarlightProduct::with_experimental_map(map));
+        let evaluator = NsbEvaluator::with_config(config).unwrap();
+        let q = query(ComponentMask::STARLIGHT, "2023-09-15T05:00:00Z");
+        assert!(matches!(
+            evaluator.integrate_band(&q, Nanometers::new(360.0), Nanometers::new(420.0)),
+            Err(NsbError::Unsupported(_))
+        ));
+        assert!(matches!(
+            evaluator.evaluate(&q),
+            Err(NsbError::Unsupported(_))
+        ));
+        assert!(matches!(
+            evaluator.integrate_band(&q, Nanometers::new(375.0), Nanometers::new(420.0)),
+            Err(NsbError::Unsupported(_))
+        ));
     }
 }

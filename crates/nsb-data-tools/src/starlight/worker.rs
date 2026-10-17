@@ -370,6 +370,9 @@ pub(crate) fn bright_star_supplement_shard(
     }
     let provenance = artifact.supplement_provenance(verified_artifact_sha256)?;
     let mut shard = match product_band {
+        StarlightProductBand::Measured360To570 | StarlightProductBand::MeasuredXpBinned => {
+            bail!("interval products require band-neutral supplements")
+        }
         StarlightProductBand::Measured336To650 => {
             let mut shard = PartitionShard::new_with_policy(
                 "bright-star-supplement",
@@ -546,7 +549,8 @@ mod tests {
             PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                 .join("tests/fixtures/gaiaxpy_oracle/record-01.json"),
         )?)?;
-        let source_id = oracle["source_id"].as_str().context("oracle source_id")?;
+        // Exercise the deterministic source-id research sample with synthetic input.
+        let source_id = "4093";
         let gaia_only_source_id = "999";
 
         let gaia_bytes = gzip_bytes(
@@ -662,6 +666,159 @@ mod tests {
                 .join(format!("starlight_nside{canonical_nside}.csv")),
             canonical_nside,
         )?;
+        // Exercise the interval lifecycle with the same checksum-verified inputs.
+        // No production data are involved: this is an isolated temporary fixture.
+        let config = crate::starlight::config::StarlightConfig {
+            gaia_products: products,
+            acquisition: Default::default(),
+            map: crate::starlight::config::StarlightMapConfig { canonical_nside: 1 },
+            product_band: StarlightProductBand::Measured360To570,
+            spectral_bin_edges_nm: None,
+            ultraviolet_correction: None,
+            photometric_inference: None,
+            selection_function: None,
+            bright_star_supplement: None,
+            ingestion_audit: None,
+        };
+        let interval =
+            crate::starlight::restricted::build(workspace, &config, &[partition.into()])?;
+        let interval_shard: Value = serde_json::from_slice(&fs::read(&interval[0].path)?)?;
+        assert_eq!(
+            interval_shard["training_samples"].as_array().unwrap().len(),
+            1
+        );
+        assert_eq!(
+            interval_shard["training_samples"][0]["source_id"],
+            source_id
+        );
+        assert_eq!(
+            interval_shard["training_samples"][0]["variance"]
+                .as_array()
+                .unwrap()
+                .len(),
+            8
+        );
+        artifact_store::atomic_write(&reconciled, &fs::read(&interval[0].path)?)?;
+        let maps = crate::starlight::restricted::finalize(workspace, &config, &[partition.into()])?;
+        let candidate = nsb::components::starlight::StarlightMap::from_json_file(
+            &maps[0].path,
+            &maps[0].sha256,
+        )?;
+        assert_eq!(candidate.admitted_sources(), Some(1));
+        assert_eq!(candidate.band_nm(), [360, 570]);
+        assert!(crate::starlight::restricted::gates(workspace, false)?
+            .iter()
+            .all(|g| g.passed));
+        let first = fs::read(&maps[0].path)?;
+        crate::starlight::restricted::finalize(workspace, &config, &[partition.into()])?;
+        assert_eq!(
+            first,
+            fs::read(&maps[0].path)?,
+            "repeated interval merge must be byte identical"
+        );
+        assert!(
+            crate::starlight::restricted::finalize(workspace, &config, &["missing".into()])
+                .is_err()
+        );
+        // Exercise the real lifecycle dispatch as well as the numerical helper.
+        use crate::dataset::DatasetPipeline;
+        let mut run_config = crate::dataset::RunConfig::load(
+            &PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("config/starlight-360-570-candidate.toml"),
+        )?;
+        run_config.workspace.root = workspace.to_path_buf();
+        run_config.starlight = Some(config.clone());
+        let pipeline = &crate::starlight::PIPELINE;
+        pipeline.validate_config(&run_config)?;
+        assert_eq!(pipeline.expected_outputs_for(&run_config).len(), 2);
+        assert_eq!(
+            pipeline
+                .build(&run_config, &[partition.into()])?
+                .unwrap()
+                .len(),
+            1
+        );
+        let packed = pipeline.finalize(&run_config)?.unwrap();
+        for artifact in &packed {
+            pipeline.validate_artifact(&artifact.name, &artifact.path)?;
+        }
+        assert!(pipeline
+            .validation_gates(&run_config, &packed)?
+            .iter()
+            .all(|g| g.passed));
+        let lifecycle_config = workspace.join("interval-lifecycle.toml");
+        fs::write(&lifecycle_config, toml::to_string(&run_config)?)?;
+        crate::dataset::execute(
+            &lifecycle_config,
+            crate::dataset::DatasetName::Starlight,
+            crate::dataset::Operation::Validate,
+            Some(crate::dataset::Executor::Local),
+            Some(1),
+            &[],
+        )?;
+        let validated: crate::dataset::ValidationReport =
+            serde_json::from_slice(&fs::read(workspace.join("validation.json"))?)?;
+        assert!(validated.passed);
+        assert_eq!(
+            validated.artifacts.len(),
+            2,
+            "final products must replace the shard artifact index"
+        );
+        let original_report = fs::read(&packed[1].path)?;
+        fs::write(&packed[1].path, "{}")?;
+        assert!(pipeline
+            .validate_artifact(&packed[1].name, &packed[1].path)
+            .is_err());
+        fs::write(&packed[1].path, original_report)?;
+        let mut audit_config = run_config.clone();
+        audit_config.starlight.as_mut().unwrap().ingestion_audit =
+            Some(crate::starlight::config::XpIngestionAuditConfig { expected_rows: 1 });
+        pipeline.validate_config(&audit_config)?;
+        assert_eq!(
+            pipeline.expected_outputs_for(&audit_config),
+            ["gaia_xp_ingestion_audit.json"]
+        );
+        pipeline.build(&audit_config, &[partition.into()])?;
+        let audit_path = workspace.join("ingestion-audit.toml");
+        fs::write(&audit_path, toml::to_string(&audit_config)?)?;
+        crate::dataset::execute(
+            &audit_path,
+            crate::dataset::DatasetName::Starlight,
+            crate::dataset::Operation::Validate,
+            Some(crate::dataset::Executor::Local),
+            Some(1),
+            &[],
+        )?;
+        let audit: serde_json::Value = serde_json::from_slice(&fs::read(
+            workspace.join("outputs/gaia_xp_ingestion_audit.json"),
+        )?)?;
+        assert_eq!(audit["raw_rows"], 1);
+        assert_eq!(audit["canonical_rows"], 1);
+        assert_eq!(audit["rejected_rows"], 0);
+        audit_config
+            .starlight
+            .as_mut()
+            .unwrap()
+            .ingestion_audit
+            .as_mut()
+            .unwrap()
+            .expected_rows = 2;
+        fs::write(&audit_path, toml::to_string(&audit_config)?)?;
+        assert!(crate::dataset::execute(
+            &audit_path,
+            crate::dataset::DatasetName::Starlight,
+            crate::dataset::Operation::Validate,
+            Some(crate::dataset::Executor::Local),
+            Some(1),
+            &[]
+        )
+        .is_err());
+        let mut bad = config;
+        bad.photometric_inference = Some(crate::starlight::config::ArtifactPinConfig {
+            artifact_path: "wrong-band.json".into(),
+            sha256: "a".repeat(64),
+        });
+        assert!(crate::starlight::restricted::build(workspace, &bad, &[partition.into()]).is_err());
         Ok(())
     }
 

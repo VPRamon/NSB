@@ -211,6 +211,45 @@ impl GaiaXpContinuousCalibrator {
         })
     }
 
+    /// Integrate a supported BP-only vacuum interval directly in coefficient space.
+    ///
+    /// The linear functional uses the same piecewise-linear photon-density
+    /// trapezoid as calibrated samples, including fractional end segments.
+    /// Its variance includes all published within-BP coefficient correlations.
+    /// Restricting to <= 635 nm avoids any unprovided BP/RP cross covariance.
+    pub fn bp_integrator(&self, intervals_nm: &[[f64; 2]]) -> Result<BpPhotonIntegrator> {
+        let mut weights = Vec::new();
+        for &[lower, upper] in intervals_nm {
+            if !lower.is_finite()
+                || !upper.is_finite()
+                || lower < BAND_MIN_NM
+                || upper > RP_WL_LOW
+                || lower >= upper
+            {
+                bail!("BP photon interval must lie within 336–635 nm");
+            }
+            let mut band = vec![0.0; self.design_bp.len()];
+            for (basis, samples) in self.design_bp.iter().enumerate() {
+                for i in 0..self.sampling_nm.len() - 1 {
+                    let x = self.sampling_nm[i];
+                    let y = self.sampling_nm[i + 1];
+                    let a = x.max(lower);
+                    let b = y.min(upper);
+                    if a >= b {
+                        continue;
+                    }
+                    let left = samples[i] * x * 1e-9 / (6.626_070_15e-34 * 299_792_458.0);
+                    let right = samples[i + 1] * y * 1e-9 / (6.626_070_15e-34 * 299_792_458.0);
+                    let fa = left + (right - left) * (a - x) / (y - x);
+                    let fb = left + (right - left) * (b - x) / (y - x);
+                    band[basis] += 0.5 * (fa + fb) * (b - a);
+                }
+            }
+            weights.push(band);
+        }
+        Ok(BpPhotonIntegrator { weights })
+    }
+
     /// Reconstruct and integrate one canonical coefficient record.
     pub fn calibrate_record(
         &self,
@@ -293,6 +332,62 @@ impl GaiaXpContinuousCalibrator {
             error,
             present: true,
         })
+    }
+}
+
+/// Precomputed photon integration functionals for calibrated BP spectra.
+#[derive(Debug, Clone)]
+pub struct BpPhotonIntegrator {
+    weights: Vec<Vec<f64>>,
+}
+
+impl BpPhotonIntegrator {
+    /// Return fluxes and their full within-source covariance in ph m^-2 s^-1.
+    pub fn integrate(
+        &self,
+        record: &CanonicalXpContinuousRecord,
+    ) -> Result<(Vec<f64>, Vec<Vec<f64>>)> {
+        record.validate()?;
+        let n = record.bp_n_parameters;
+        if n == 0 || self.weights.iter().any(|w| n > w.len()) {
+            bail!("no supported BP coefficients");
+        }
+        let covariance = correlation_to_covariance_dr3int5(
+            &record.bp_coefficient_correlations,
+            &record.bp_coefficient_errors,
+            record.bp_standard_deviation,
+        )?;
+        let flux: Vec<f64> = self
+            .weights
+            .iter()
+            .map(|w| {
+                w.iter()
+                    .zip(&record.bp_coefficients)
+                    .map(|(a, b)| a * b)
+                    .sum()
+            })
+            .collect();
+        let mut output = vec![vec![0.0; self.weights.len()]; self.weights.len()];
+        for (i, wi) in self.weights.iter().enumerate() {
+            let projected: Vec<f64> = (0..n)
+                .map(|col| {
+                    (0..n)
+                        .map(|row| wi[row] * covariance[row][col])
+                        .sum::<f64>()
+                        * record.bp_standard_deviation.powi(2)
+                })
+                .collect();
+            for (j, wj) in self.weights.iter().enumerate() {
+                output[i][j] = projected.iter().zip(wj).map(|(a, b)| a * b).sum();
+            }
+            if !output[i][i].is_finite() || output[i][i] < 0.0 {
+                bail!("invalid integrated BP covariance");
+            }
+        }
+        if flux.iter().any(|x| !x.is_finite()) {
+            bail!("invalid integrated BP flux");
+        }
+        Ok((flux, output))
     }
 }
 
@@ -500,5 +595,111 @@ mod tests {
         assert_eq!(calibrator.bp_model(), BP_MODEL);
         assert_eq!(calibrator.rp_model(), RP_MODEL);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod interval_tests {
+    use super::*;
+
+    fn inputs() -> (GaiaXpContinuousCalibrator, CanonicalXpContinuousRecord) {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+        let calibrator = GaiaXpContinuousCalibrator::from_design_fixture(
+            &root.join("gaiaxpy_continuous_design_v375wi_v142r.json"),
+        )
+        .unwrap();
+        let mut value: serde_json::Value =
+            serde_json::from_slice(&fs::read(root.join("gaiaxpy_oracle/record-01.json")).unwrap())
+                .unwrap();
+        let object = value.as_object_mut().unwrap();
+        for key in ["split", "correlations", "oracle"] {
+            object.remove(key);
+        }
+        object.insert("schema_version".into(), 2.into());
+        object.insert("bp_n_parameters".into(), 55.into());
+        object.insert("rp_n_parameters".into(), 55.into());
+        object.insert("source_format".into(), "data_link".into());
+        object.insert("source_checksum".into(), serde_json::Value::Null);
+        object.insert("quality_flags".into(), serde_json::json!([]));
+        for key in ["bp_coefficient_correlations", "rp_coefficient_correlations"] {
+            object.insert(key.into(), serde_json::json!(vec![0.01; 55 * 54 / 2]));
+        }
+        let record = serde_json::from_value(value).unwrap();
+        (calibrator, record)
+    }
+
+    #[test]
+    fn fractional_intervals_match_independent_sample_quadrature() {
+        let (c, r) = inputs();
+        let bands = [[360.3, 570.7], [360.3, 441.25], [441.25, 570.7]];
+        let (flux, covariance) = c.bp_integrator(&bands).unwrap().integrate(&r).unwrap();
+        let spectrum = c.calibrate(&r).unwrap();
+        for (k, &[lo, hi]) in bands.iter().enumerate() {
+            let mut oracle = 0.0;
+            for i in 0..spectrum.wavelengths_nm.len() - 1 {
+                let x = spectrum.wavelengths_nm[i];
+                let y = spectrum.wavelengths_nm[i + 1];
+                let a = x.max(lo);
+                let b = y.min(hi);
+                if a >= b {
+                    continue;
+                }
+                let density = |j: usize| {
+                    spectrum.flux_w_m2_nm[j] * spectrum.wavelengths_nm[j] * 1e-9
+                        / (6.626_070_15e-34 * 299_792_458.0)
+                };
+                let f = density(i);
+                let g = density(i + 1);
+                oracle += (b - a) * 0.5 * (2.0 * f + (g - f) * (a + b - 2.0 * x) / (y - x));
+            }
+            assert!((flux[k] / oracle - 1.0).abs() < 1e-12);
+            assert!(covariance[k][k] >= 0.0);
+        }
+        assert!((flux[0] - flux[1] - flux[2]).abs() < flux[0].abs() * 1e-12);
+        let summed = covariance[1][1] + covariance[2][2] + 2.0 * covariance[1][2];
+        assert!((covariance[0][0] / summed - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn covariance_matches_coefficient_perturbations_and_packed_correlations() {
+        let (c, r) = inputs();
+        let integrator = c.bp_integrator(&[[360.0, 570.0]]).unwrap();
+        let (_, cov) = integrator.integrate(&r).unwrap();
+        let w = &integrator.weights[0];
+        let errors = &r.bp_coefficient_errors;
+        let mut variance: f64 = w.iter().zip(errors).map(|(w, e)| (w * e).powi(2)).sum();
+        let mut k = 0;
+        for i in 1..errors.len() {
+            for j in 0..i {
+                variance +=
+                    2.0 * w[i] * w[j] * errors[i] * errors[j] * r.bp_coefficient_correlations[k];
+                k += 1;
+            }
+        }
+        assert!((cov[0][0] / variance - 1.0).abs() < 1e-12);
+        let mut missing = r.clone();
+        missing.bp_n_parameters = 0;
+        missing.bp_coefficients.clear();
+        missing.bp_coefficient_errors.clear();
+        missing.bp_coefficient_correlations.clear();
+        missing.bp_n_relevant_bases = None;
+        assert!(integrator
+            .integrate(&missing)
+            .unwrap_err()
+            .to_string()
+            .contains("no supported BP coefficients"));
+    }
+
+    #[test]
+    fn interval_rejects_extrapolation_and_bp_rp_overlap() {
+        let (c, _) = inputs();
+        for band in [
+            [300.0, 570.0],
+            [360.0, 650.0],
+            [570.0, 360.0],
+            [f64::NAN, 570.0],
+        ] {
+            assert!(c.bp_integrator(&[band]).is_err());
+        }
     }
 }

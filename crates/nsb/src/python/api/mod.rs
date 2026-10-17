@@ -7,6 +7,8 @@
 //! delegated to `siderust-py` and `tempoch-py`.
 
 mod config;
+mod starlight_map;
+pub(in crate::python) use starlight_map::PyStarlightMap;
 mod errors;
 mod evaluator;
 mod queries;

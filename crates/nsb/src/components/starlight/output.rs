@@ -73,30 +73,35 @@ impl StarlightOutputs {
             && self.integrated.value() >= 0.0
             && self.b_flux_s10.value() >= 0.0
             && self.v_flux_s10.value() >= 0.0;
-        values_are_valid && self.has_valid_uncertainties()
+        values_are_valid
+            && valid_uncertainties(
+                self.statistical_uncertainty,
+                self.systematic_uncertainty,
+                self.total_uncertainty,
+            )
     }
+}
 
-    pub(crate) fn has_uncertainties(self) -> bool {
-        self.statistical_uncertainty.is_some()
-    }
-
-    fn has_valid_uncertainties(self) -> bool {
-        match (
-            self.statistical_uncertainty,
-            self.systematic_uncertainty,
-            self.total_uncertainty,
-        ) {
-            (None, None, None) => true,
-            (Some(statistical), Some(systematic), Some(total)) => {
-                statistical.is_finite()
-                    && systematic.is_finite()
-                    && total.is_finite()
-                    && statistical.value() >= 0.0
-                    && systematic.value() >= 0.0
-                    && total >= statistical
-                    && total >= systematic
-            }
-            _ => false,
+/// Supported states are absent, statistical-only, or a complete triplet.
+pub(super) fn valid_uncertainties(
+    statistical: Option<BandPhotonRadiance>,
+    systematic: Option<BandPhotonRadiance>,
+    total: Option<BandPhotonRadiance>,
+) -> bool {
+    match (statistical, systematic, total) {
+        (None, None, None) => true,
+        // The XP spectral contract measures statistical covariance but
+        // does not claim unavailable systematic or total uncertainties.
+        (Some(statistical), None, None) => statistical.is_finite() && statistical.value() >= 0.0,
+        (Some(statistical), Some(systematic), Some(total)) => {
+            statistical.is_finite()
+                && systematic.is_finite()
+                && total.is_finite()
+                && statistical.value() >= 0.0
+                && systematic.value() >= 0.0
+                && total >= statistical
+                && total >= systematic
         }
+        _ => false,
     }
 }

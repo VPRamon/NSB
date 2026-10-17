@@ -75,6 +75,7 @@ pub(in crate::python) struct PyNsbComponent {
     integrated_photons_cm2_ns_sr: f64,
     b_flux_s10: f64,
     v_flux_s10: f64,
+    bv_diagnostics_available: bool,
     relative_uncertainty: Option<f64>,
     statistical_uncertainty_photons_cm2_ns_sr: Option<f64>,
     systematic_uncertainty_photons_cm2_ns_sr: Option<f64>,
@@ -89,6 +90,7 @@ impl From<NsbComponent> for PyNsbComponent {
             integrated_photons_cm2_ns_sr: value.integrated.value(),
             b_flux_s10: value.b_flux_s10.value(),
             v_flux_s10: value.v_flux_s10.value(),
+            bv_diagnostics_available: value.bv_diagnostics_available,
             relative_uncertainty: value.relative_uncertainty,
             statistical_uncertainty_photons_cm2_ns_sr: value
                 .statistical_uncertainty

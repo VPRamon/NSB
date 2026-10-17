@@ -119,7 +119,6 @@ version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
-
 [[package]]
 name = "assert_cmd"
 version = "2.2.2"
@@ -479,7 +478,6 @@ checksum = "704a3c26996a80471189265814dbc2c257598b96b8a7feae2d31ace646bb9782"
 dependencies = [
  "memchr",
 ]
-
 
 [[package]]
 name = "difflib"

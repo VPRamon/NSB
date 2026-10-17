@@ -144,6 +144,11 @@ pub fn nsb::StarlightProduct::validated_external(map: nsb::components::starlight
 pub fn nsb::StarlightProduct::with_experimental_map(map: nsb::components::starlight::StarlightMap) -> Self
 pub fn nsb::StarlightProduct::with_shared_experimental_map(map: alloc::sync::Arc<nsb::components::starlight::StarlightMap>) -> Self
 pub fn nsb::StarlightProduct::with_shared_validated_external_map(map: alloc::sync::Arc<nsb::components::starlight::ValidatedStarlightMap>) -> Self
+#[non_exhaustive] pub struct nsb::components::starlight::DirectStarlightBounds
+pub nsb::components::starlight::DirectStarlightBounds::lower: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::components::starlight::DirectStarlightBounds::midpoint: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::components::starlight::DirectStarlightBounds::statistical_sigma_bound: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::components::starlight::DirectStarlightBounds::upper: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
 #[non_exhaustive] pub struct nsb::components::starlight::StarlightBrightStarInputProvenance
 pub nsb::components::starlight::StarlightBrightStarInputProvenance::license_or_terms_url: alloc::string::String
 pub nsb::components::starlight::StarlightBrightStarInputProvenance::release: alloc::string::String
@@ -166,18 +171,30 @@ pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::spectra
 pub nsb::components::starlight::StarlightBrightStarSupplementProvenance::uv_completion_model_id: alloc::string::String
 pub struct nsb::components::starlight::StarlightMap
 impl nsb::components::starlight::StarlightMap
-pub fn nsb::components::starlight::StarlightMap::compact_csv(raw: &str, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<alloc::vec::Vec<u8>>
-pub fn nsb::components::starlight::StarlightMap::from_compact_bytes(bytes: &[u8], provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
-impl nsb::components::starlight::StarlightMap
+pub fn nsb::components::starlight::StarlightMap::admitted_sources(&self) -> core::option::Option<u64>
+pub fn nsb::components::starlight::StarlightMap::band_nm(&self) -> [u16; 2]
+pub fn nsb::components::starlight::StarlightMap::bin_edges_nm(&self) -> &[u16]
+pub fn nsb::components::starlight::StarlightMap::direct_pixel_bounds(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>, geometry: nsb::transport::DirectPathGeometry, atmosphere: nsb::site::AtmosphericConditions) -> nsb::Result<nsb::DirectStarlightBounds>
 pub fn nsb::components::starlight::StarlightMap::from_csv_path(path: impl core::convert::AsRef<std::path::Path>, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
 pub fn nsb::components::starlight::StarlightMap::from_csv_str(raw: &str, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
 pub fn nsb::components::starlight::StarlightMap::from_healpix(grid: siderust::healpix::grid::HealpixGrid, pixels: alloc::vec::Vec<nsb::components::starlight::StarlightPixel>, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
+pub fn nsb::components::starlight::StarlightMap::from_json_bytes(bytes: &[u8], expected_sha256: &str) -> nsb::Result<Self>
+pub fn nsb::components::starlight::StarlightMap::from_json_file(path: &std::path::Path, expected_sha256: &str) -> nsb::Result<Self>
 pub fn nsb::components::starlight::StarlightMap::grid(&self) -> siderust::healpix::grid::HealpixGrid
+pub fn nsb::components::starlight::StarlightMap::integrate_band(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>, low: qtty_core::units::length::Nanometers, high: qtty_core::units::length::Nanometers) -> nsb::Result<(qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian, core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>)>
+pub fn nsb::components::starlight::StarlightMap::maturity(&self) -> core::option::Option<&str>
+pub fn nsb::components::starlight::StarlightMap::nside(&self) -> u32
 pub fn nsb::components::starlight::StarlightMap::pixel_at(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::components::starlight::StarlightPixel
 pub fn nsb::components::starlight::StarlightMap::pixel_direction(&self, index: siderust::healpix::index::HealpixIndex) -> nsb::Result<affn::spherical::direction::Direction<affn::frames::astro::Galactic>>
 pub fn nsb::components::starlight::StarlightMap::pixel_solid_angle(&self) -> qtty_core::units::solid_angle::Steradians
 pub fn nsb::components::starlight::StarlightMap::pixels(&self) -> &[nsb::components::starlight::StarlightPixel]
 pub fn nsb::components::starlight::StarlightMap::provenance(&self) -> &nsb::components::starlight::StarlightProvenance
+pub fn nsb::components::starlight::StarlightMap::sha256(&self) -> core::option::Option<&str>
+pub fn nsb::components::starlight::StarlightMap::top_of_atmosphere_pixel(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::Result<(qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian, core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>)>
+pub fn nsb::components::starlight::StarlightMap::try_pixel_at(&self, direction: affn::cartesian::direction::Direction<affn::frames::astro::Galactic>) -> nsb::Result<nsb::components::starlight::StarlightPixel>
+impl nsb::components::starlight::StarlightMap
+pub fn nsb::components::starlight::StarlightMap::compact_csv(raw: &str, provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<alloc::vec::Vec<u8>>
+pub fn nsb::components::starlight::StarlightMap::from_compact_bytes(bytes: &[u8], provenance: nsb::components::starlight::StarlightProvenance) -> nsb::Result<Self>
 #[non_exhaustive] pub struct nsb::components::starlight::StarlightPixel
 pub nsb::components::starlight::StarlightPixel::b_flux_s10: qtty_core::units::radiometry::S10s
 pub nsb::components::starlight::StarlightPixel::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
@@ -636,11 +653,17 @@ pub fn nsb::ComponentMask::bitxor_assign(&mut self, other: Self)
 impl core::ops::bit::Not for nsb::ComponentMask
 pub type nsb::ComponentMask::Output = nsb::ComponentMask
 pub fn nsb::ComponentMask::not(self) -> Self
+#[non_exhaustive] pub struct nsb::DirectStarlightBounds
+pub nsb::DirectStarlightBounds::lower: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::DirectStarlightBounds::midpoint: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::DirectStarlightBounds::statistical_sigma_bound: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::DirectStarlightBounds::upper: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
 pub struct nsb::GenericClearSky
 impl nsb::site::SiteProfileTag for nsb::site::GenericClearSky
 pub const nsb::site::GenericClearSky::NAME: &'static str
 #[non_exhaustive] pub struct nsb::NsbComponent
 pub nsb::NsbComponent::b_flux_s10: qtty_core::units::radiometry::S10s
+pub nsb::NsbComponent::bv_diagnostics_available: bool
 pub nsb::NsbComponent::integrated: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
 pub nsb::NsbComponent::metadata: nsb::NsbComponentMetadata
 pub nsb::NsbComponent::name: &'static str

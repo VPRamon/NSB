@@ -220,6 +220,23 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
     .unwrap();
 
     command(&config, "update").assert_success();
+    // Launch outside every Git checkout: provenance must describe the binary,
+    // not the caller's unrelated working directory.
+    let runs = temporary.path().join("work/runs/solar-spectrum");
+    let run = fs::read_dir(runs)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path()
+        .join("run.json");
+    let manifest: serde_json::Value = serde_json::from_slice(&fs::read(run).unwrap()).unwrap();
+    // Compare with compiled provenance, not the checkout at test execution.
+    // A binary remains tied to its build when HEAD advances afterwards.
+    assert_eq!(
+        manifest["software_commit"].as_str().unwrap(),
+        env!("NSB_DATA_TOOLS_COMMIT")
+    );
     let copied_source = temporary.path().join("work/sources/solar-planck-v1.toml");
     let original_source = fs::read_to_string(&copied_source).unwrap();
     fs::write(
@@ -271,6 +288,7 @@ fn lifecycle_publishes_only_unchanged_validated_bytes() {
 
 fn command(config: &Path, operation: &str) -> CommandResult {
     let output = Command::new(env!("CARGO_BIN_EXE_nsb-data"))
+        .current_dir(config.parent().unwrap())
         .args([
             "dataset",
             "solar-spectrum",

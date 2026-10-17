@@ -68,10 +68,26 @@ fn point_results_expose_calibration_provenance_uncertainty_and_band_convention()
         )
         .unwrap();
 
-    assert_eq!(
-        result.band_diagnostic,
-        BandDiagnostic::MONOCHROMATIC_S10_PROXY
-    );
+    if result.components.iter().all(|c| c.bv_diagnostics_available) {
+        assert_eq!(
+            result.band_diagnostic,
+            BandDiagnostic::MONOCHROMATIC_S10_PROXY
+        );
+        assert!(result.b_mag.value().is_finite() && result.v_mag.value().is_finite());
+    } else {
+        // A bundled integrated map can have measured radiance without B/V.
+        assert_eq!(
+            result.band_diagnostic.convention,
+            "monochromatic-central-wavelength-s10-proxy-incomplete"
+        );
+        assert!(result.b_mag.value().is_nan() && result.v_mag.value().is_nan());
+        let star = result
+            .components
+            .iter()
+            .find(|c| c.name == "starlight")
+            .unwrap();
+        assert!(!star.bv_diagnostics_available);
+    }
 
     let zodiacal = result
         .components

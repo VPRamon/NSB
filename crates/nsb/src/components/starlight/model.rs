@@ -66,6 +66,14 @@ impl Starlight {
 
     /// Transform a target to Galactic coordinates and evaluate the map.
     pub(crate) fn compute(&self, target: Target) -> Result<StarlightOutputs> {
+        // Spectral products are measured at TOA, not at the observer.
+        // Even full 300–650 nm spectral coverage cannot justify addition to
+        // the ground-level total without scientifically validated transport.
+        if self.map.is_spectral() {
+            return Err(NsbError::Unsupported(
+                "spectral starlight is top-of-atmosphere; ground-level evaluation requires validated atmospheric transport".into(),
+            ));
+        }
         if !self.scale.is_finite() || self.scale < ScaleFactors::new(0.0) {
             return Err(NsbError::OutOfRange(
                 "starlight scale must be finite and non-negative".to_string(),

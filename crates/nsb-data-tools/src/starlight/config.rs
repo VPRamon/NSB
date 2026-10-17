@@ -22,6 +22,10 @@ pub struct StarlightConfig {
     /// Spectral product requested from each source.
     #[serde(default)]
     pub product_band: StarlightProductBand,
+    /// Explicit variable-width bin edges for measured XP spectral products.
+    /// Absent for all legacy product formats, preserving their byte identity.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub spectral_bin_edges_nm: Option<Vec<u16>>,
     /// Optional checksum-pinned 300–336 nm correction.
     #[serde(default)]
     pub ultraviolet_correction: Option<UvCorrectionConfig>,
@@ -38,6 +42,17 @@ pub struct StarlightConfig {
     /// the NSB repository (#103 redistribution gate).
     #[serde(default)]
     pub bright_star_supplement: Option<ArtifactPinConfig>,
+    /// Optional source-ingestion audit through the existing partition lifecycle.
+    /// Does not generate a radiance map or alter normal worker outputs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ingestion_audit: Option<XpIngestionAuditConfig>,
+}
+
+/// Preregistered reference count for a full XP canonical-ingestion audit.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct XpIngestionAuditConfig {
+    pub expected_rows: u64,
 }
 
 /// Network policy for resumable official-source acquisition.
@@ -73,6 +88,12 @@ pub enum StarlightProductBand {
     /// Independently corrected UV plus the unchanged Gaia integral.
     #[serde(rename = "combined-300-650")]
     Combined300To650,
+    /// Experimental directly integrated XP interval (not a production asset).
+    #[serde(rename = "measured-360-570")]
+    Measured360To570,
+    /// Generic XP-only experimental product with configured spectral bin edges.
+    #[serde(rename = "measured-xp-binned")]
+    MeasuredXpBinned,
 }
 
 /// Location and immutable identity of a checksum-pinned calibration artifact.

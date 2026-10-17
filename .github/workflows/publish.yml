@@ -698,6 +698,8 @@ jobs:
   publish-github-release:
     name: Publish GitHub Release
     needs: record-publication
+    # A skipped recovery branch must not suppress the successful publish path.
+    if: ${{ !cancelled() && needs.record-publication.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write

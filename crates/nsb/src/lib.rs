@@ -94,7 +94,7 @@ pub mod units;
 pub use components::airglow::AirglowModel;
 pub use components::airglow::AirglowSelection;
 pub use components::moonlight::MoonlightModel;
-pub use components::starlight::StarlightProduct;
+pub use components::starlight::{DirectStarlightBounds, StarlightProduct};
 pub use components::zodiacal::{ZodiacalExtinction, ZodiacalModel};
 pub use error::{NsbError, Result};
 pub use evaluator::{

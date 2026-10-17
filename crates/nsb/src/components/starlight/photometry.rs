@@ -19,6 +19,10 @@ pub(crate) fn scale_outputs(out: StarlightOutputs, scale: ScaleFactors) -> Starl
         (Some(statistical), Some(systematic), Some(total)) => {
             scaled.with_uncertainties(statistical * scale, systematic * scale, total * scale)
         }
+        (Some(statistical), None, None) => {
+            scaled.statistical_uncertainty = Some(statistical * scale);
+            scaled
+        }
         _ => scaled,
     }
 }

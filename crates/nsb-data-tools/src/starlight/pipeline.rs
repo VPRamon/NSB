@@ -31,11 +31,36 @@ impl DatasetPipeline for StarlightPipeline {
     }
 
     fn expected_outputs_for(&self, config: &RunConfig) -> Vec<String> {
+        if config
+            .starlight
+            .as_ref()
+            .is_some_and(|s| s.ingestion_audit.is_some())
+        {
+            return vec![super::ingestion_audit::NAME.into()];
+        }
         let canonical_nside = config
             .starlight
             .as_ref()
             .map(|starlight| starlight.map.canonical_nside)
             .unwrap_or(128);
+        if let Some(starlight) = &config.starlight {
+            if starlight.product_band == super::config::StarlightProductBand::MeasuredXpBinned {
+                return vec![
+                    super::restricted::GENERIC_MAP_NAME.into(),
+                    super::restricted::GENERIC_REPORT_NAME.into(),
+                ];
+            }
+            if matches!(
+                starlight.product_band,
+                super::config::StarlightProductBand::Measured360To570
+                    | super::config::StarlightProductBand::MeasuredXpBinned
+            ) {
+                return vec![
+                    super::restricted::MAP_NAME.into(),
+                    super::restricted::REPORT_NAME.into(),
+                ];
+            }
+        }
         production_output_names(canonical_nside)
     }
 
@@ -73,6 +98,23 @@ impl DatasetPipeline for StarlightPipeline {
         let Some(starlight) = &config.starlight else {
             return Ok(None);
         };
+        if starlight.ingestion_audit.is_some() {
+            return Ok(Some(super::ingestion_audit::build(
+                &config.workspace.root,
+                starlight,
+                partitions,
+            )?));
+        }
+        if matches!(
+            starlight.product_band,
+            super::config::StarlightProductBand::Measured360To570
+                | super::config::StarlightProductBand::MeasuredXpBinned
+        ) {
+            let artifacts =
+                super::restricted::build(&config.workspace.root, starlight, partitions)?;
+            super::worker::write_artifact_index(&config.workspace.root, &artifacts)?;
+            return Ok(Some(artifacts));
+        }
         let artifacts = super::worker::build_partitions(
             &config.workspace.root,
             &starlight.gaia_products,
@@ -96,6 +138,24 @@ impl DatasetPipeline for StarlightPipeline {
         let expected = self
             .available_partitions(config)?
             .ok_or_else(|| anyhow::anyhow!("Starlight inventories are missing"))?;
+        if starlight.ingestion_audit.is_some() {
+            return Ok(Some(super::ingestion_audit::finalize(
+                &config.workspace.root,
+                starlight,
+                &expected,
+            )?));
+        }
+        if matches!(
+            starlight.product_band,
+            super::config::StarlightProductBand::Measured360To570
+                | super::config::StarlightProductBand::MeasuredXpBinned
+        ) {
+            return Ok(Some(super::restricted::finalize(
+                &config.workspace.root,
+                starlight,
+                &expected,
+            )?));
+        }
         let selection_population = starlight
             .selection_function
             .as_ref()
@@ -163,10 +223,44 @@ impl DatasetPipeline for StarlightPipeline {
         let Some(starlight) = &config.starlight else {
             return Ok(Vec::new());
         };
+        if starlight.ingestion_audit.is_some() {
+            return super::ingestion_audit::gates(&config.workspace.root);
+        }
+        if matches!(
+            starlight.product_band,
+            super::config::StarlightProductBand::Measured360To570
+                | super::config::StarlightProductBand::MeasuredXpBinned
+        ) {
+            return super::restricted::gates(
+                &config.workspace.root,
+                starlight.product_band == super::config::StarlightProductBand::MeasuredXpBinned,
+            );
+        }
         super::map::product::scientific_gates(&config.workspace.root, starlight.map.canonical_nside)
     }
 
     fn validate_artifact(&self, name: &str, path: &Path) -> Result<()> {
+        if name == super::ingestion_audit::NAME {
+            return super::ingestion_audit::validate(path);
+        }
+        if name == super::restricted::MAP_NAME || name == super::restricted::GENERIC_MAP_NAME {
+            let sha256 = crate::platform::checksum_io::sha256_file(path)?;
+            nsb::components::starlight::StarlightMap::from_json_file(path, &sha256)?;
+            return Ok(());
+        }
+        if name == super::restricted::REPORT_NAME || name == super::restricted::GENERIC_REPORT_NAME
+        {
+            let value: serde_json::Value = serde_json::from_slice(&fs::read(path)?)?;
+            let schema = if name == super::restricted::GENERIC_REPORT_NAME {
+                "nsb-starlight-spectral-validation-v2"
+            } else {
+                "nsb-starlight-interval-validation-v1"
+            };
+            if value["schema"] != schema {
+                bail!("invalid interval validation schema");
+            }
+            return Ok(());
+        }
         if name == "merge_report.json" {
             return super::map::product::validate_report(path);
         }
@@ -202,6 +296,20 @@ impl DatasetPipeline for StarlightPipeline {
             return Ok(());
         };
         super::config::validate_canonical_nside(starlight.map.canonical_nside)?;
+        if let Some(audit) = &starlight.ingestion_audit {
+            if audit.expected_rows == 0
+                || starlight.product_band != super::config::StarlightProductBand::Measured360To570
+            {
+                bail!("XP ingestion audit requires a positive declared row count and the explicit interval candidate configuration");
+            }
+        }
+        if matches!(
+            starlight.product_band,
+            super::config::StarlightProductBand::Measured360To570
+                | super::config::StarlightProductBand::MeasuredXpBinned
+        ) {
+            super::restricted::validate_config(starlight)?;
+        }
         for (label, pin) in [
             ("UV correction", starlight.ultraviolet_correction.as_ref()),
             (
@@ -345,10 +453,12 @@ lease_timeout_seconds = 60
             acquisition: AcquisitionConfig::default(),
             map: StarlightMapConfig::default(),
             product_band: StarlightProductBand::Measured336To650,
+            spectral_bin_edges_nm: None,
             ultraviolet_correction: None,
             photometric_inference: None,
             selection_function: None,
             bright_star_supplement: None,
+            ingestion_audit: None,
         }
     }
 
