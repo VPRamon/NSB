@@ -128,18 +128,12 @@ pub(crate) fn evaluate(
         // absent B/V diagnostics explicitly instead of silently reporting
         // the other components' partial photometry.
         b_mag: if bv_complete {
-            s10_to_surface_brightness(
-                b_total.max(S10::new(f64::MIN_POSITIVE)),
-                NSB_S10_ZP.value(),
-            )
+            s10_to_surface_brightness(b_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP.value())
         } else {
             crate::units::photometry::SurfaceBrightness::new(f64::NAN)
         },
         v_mag: if bv_complete {
-            s10_to_surface_brightness(
-                v_total.max(S10::new(f64::MIN_POSITIVE)),
-                NSB_S10_ZP.value(),
-            )
+            s10_to_surface_brightness(v_total.max(S10::new(f64::MIN_POSITIVE)), NSB_S10_ZP.value())
         } else {
             crate::units::photometry::SurfaceBrightness::new(f64::NAN)
         },

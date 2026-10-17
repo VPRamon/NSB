@@ -100,8 +100,8 @@ but its **TOA** native-band integrals are queried through
 to reject Starlight, because adding a TOA pixel mean to a ground-level
 component total without atmospheric/instrumental transport would be
 physically misleading. The evaluator's legacy full-band `evaluate`
-rejects spectral maps lacking the entire 300–650 nm native band rather
-than silently relabeling their radiance.
+rejects every TOA spectral map, including one spanning 300–650 nm.
+Band coincidence alone does not provide ground-level atmospheric transport.
 
 ## Examples
 
@@ -129,3 +129,14 @@ radiance, sigma = starlight.integrate_band(120.0, 30.0, 360.0, 390.0)
 
 Scientific source auditing and the historical 300–650 nm production asset
 are unchanged.
+
+
+## Compiled provenance
+
+The data-tool build script watches workspace crates (including embedded data and
+build scripts), Cargo manifests/lockfile and `.cargo` configuration, plus Git HEAD,
+its symbolic ref, the index and packed refs when present. A change in a linked
+workspace crate refreshes the embedded identity without `cargo clean`. Dirty or
+unverifiable source is never labelled as a clean commit. Reports and `target/`
+are not watched build inputs. Cargo's incremental tracking is verified using a
+small isolated workspace, detached HEAD and linked worktree.

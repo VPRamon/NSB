@@ -145,7 +145,8 @@ impl StarlightMap {
                 pixel.statistical_uncertainty.is_some(),
                 pixel.systematic_uncertainty.is_some(),
                 pixel.total_uncertainty.is_some(),
-            ) != uncertainty_schema {
+            ) != uncertainty_schema
+            {
                 return Err(invalid_map(
                     "all starlight pixels must use the same uncertainty schema",
                 ));
@@ -351,10 +352,7 @@ impl StarlightMap {
     ///
     /// Unlike the frozen legacy pixel_at method, this never panics on an
     /// invalid direction or an out-of-range HEALPix index.
-    pub fn try_pixel_at(
-        &self,
-        direction: CartesianDirection<Galactic>,
-    ) -> Result<StarlightPixel> {
+    pub fn try_pixel_at(&self, direction: CartesianDirection<Galactic>) -> Result<StarlightPixel> {
         let index = self
             .map
             .grid()

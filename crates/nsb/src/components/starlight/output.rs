@@ -87,7 +87,7 @@ impl StarlightOutputs {
             // does not claim unavailable systematic or total uncertainties.
             (Some(statistical), None, None) => {
                 statistical.is_finite() && statistical.value() >= 0.0
-            },
+            }
             (Some(statistical), Some(systematic), Some(total)) => {
                 statistical.is_finite()
                     && systematic.is_finite()

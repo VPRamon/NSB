@@ -403,13 +403,15 @@ impl SpectralMap {
             radiance.extend(pixel.radiance);
             if let Some(out) = &mut statistical_sigma {
                 out.extend(
-                    pixel.statistical_sigma
+                    pixel
+                        .statistical_sigma
                         .expect("uniform validated channel schema"),
                 );
             }
             if let Some(out) = &mut integrated_statistical_sigma {
                 out.push(
-                    pixel.integrated_statistical_sigma
+                    pixel
+                        .integrated_statistical_sigma
                         .expect("uniform validated channel schema"),
                 );
             }
@@ -478,7 +480,9 @@ impl SpectralMap {
         let radiance = &self.radiance[index * bins..(index + 1) * bins];
         Ok((
             Radiance::new(radiance.iter().sum()),
-            self.integrated_statistical_sigma.as_ref().map(|s| Radiance::new(s[index])),
+            self.integrated_statistical_sigma
+                .as_ref()
+                .map(|s| Radiance::new(s[index])),
         ))
     }
 
@@ -746,6 +750,33 @@ mod tests {
         assert!(load(extended).is_err(), "unknown fields must fail");
     }
 
+    fn generic_fixture(edges: Vec<u16>, nside: u32, ordering: &str) -> serde_json::Value {
+        let bins = edges.len() - 1;
+        serde_json::json!({
+            "schema":"nsb-starlight-spectral-map-v2",
+            "product_id":"synthetic-arbitrary-bin-test",
+            "band_nm":[edges[0], *edges.last().unwrap()],
+            "bin_edges_nm":edges,
+            "nside":nside, "ordering":ordering,
+            "coordinate_frame":"galactic", "domain":"top-of-atmosphere",
+            "units":"photon/(cm2 ns sr)", "wavelength_convention":"vacuum",
+            "maturity":"experimental",
+            "provenance":{
+                "source_catalogue":"synthetic",
+                "source_license":"test-only",
+                "source_selection":"test-all",
+                "generation_method":"synthetic-bin-fixture",
+                "limitations":["test-only"]
+            },
+            "catalogue_rows":12*nside*nside, "admitted_sources":12*nside*nside, "excluded_sources":{},
+            "pixels":(0..12*nside*nside).map(|i| serde_json::json!({
+                "pixel":i,"sources":1,"radiance":vec![1.0;bins],
+                "statistical_sigma":vec![0.1;bins],
+                "integrated_statistical_sigma":0.5
+            })).collect::<Vec<_>>()
+        })
+    }
+
     #[test]
     fn generic_schema_accepts_different_bin_counts_and_reports_covariance_limits() {
         for edges in [
@@ -754,29 +785,7 @@ mod tests {
             (0..=10).map(|i| 350 + i * 20).collect::<Vec<_>>(),
         ] {
             let bins = edges.len() - 1;
-            let payload = serde_json::json!({
-                "schema":"nsb-starlight-spectral-map-v2",
-                "product_id":"synthetic-arbitrary-bin-test",
-                "band_nm":[edges[0], *edges.last().unwrap()],
-                "bin_edges_nm":edges,
-                "nside":1, "ordering":"ring",
-                "coordinate_frame":"galactic", "domain":"top-of-atmosphere",
-                "units":"photon/(cm2 ns sr)", "wavelength_convention":"vacuum",
-                "maturity":"experimental",
-                "provenance":{
-                    "source_catalogue":"synthetic",
-                    "source_license":"test-only",
-                    "source_selection":"test-all",
-                    "generation_method":"synthetic-bin-fixture",
-                    "limitations":["test-only"]
-                },
-                "catalogue_rows":12, "admitted_sources":12, "excluded_sources":{},
-                "pixels":(0..12).map(|i| serde_json::json!({
-                    "pixel":i,"sources":1,"radiance":vec![1.0;bins],
-                    "statistical_sigma":vec![0.1;bins],
-                    "integrated_statistical_sigma":0.5
-                })).collect::<Vec<_>>()
-            });
+            let payload = generic_fixture(edges, 1, "ring");
             let map = load(payload).unwrap();
             assert_eq!(map.edges_nm.len(), bins + 1);
             // Channels are dense and pixel-major, independent of bin count.
@@ -812,5 +821,107 @@ mod tests {
                 )
                 .is_err());
         }
+    }
+
+    #[test]
+    fn generic_uncertainty_channels_geometry_and_flux_conservation() {
+        for bins in [1, 3, 7, 12] {
+            let edges = (0..=bins).map(|i| 350 + i * 15).collect::<Vec<u16>>();
+            for nside in [1, 2, 4] {
+                for ordering in ["ring", "nested"] {
+                    for (per_bin, full_band) in
+                        [(false, false), (true, false), (false, true), (true, true)]
+                    {
+                        let mut value = generic_fixture(edges.clone(), nside, ordering);
+                        for pixel in value["pixels"].as_array_mut().unwrap() {
+                            if !per_bin {
+                                pixel.as_object_mut().unwrap().remove("statistical_sigma");
+                            }
+                            if !full_band {
+                                pixel
+                                    .as_object_mut()
+                                    .unwrap()
+                                    .remove("integrated_statistical_sigma");
+                            }
+                        }
+                        let map = load(value).unwrap();
+                        let (flux, sigma) = map.top_of_atmosphere_pixel(direction()).unwrap();
+                        assert_eq!(flux.value(), f64::from(bins));
+                        assert_eq!(sigma.map(|s| s.value()), full_band.then_some(0.5));
+                        let mut sum = 0.0;
+                        for edge in edges.windows(2) {
+                            let (flux, sigma) = map
+                                .integrate_band(
+                                    direction(),
+                                    Nanometers::new(f64::from(edge[0])),
+                                    Nanometers::new(f64::from(edge[1])),
+                                )
+                                .unwrap();
+                            sum += flux.value();
+                            // A single-bin map's full-band covariance channel takes precedence.
+                            let expected = if bins == 1 {
+                                full_band.then_some(0.5)
+                            } else {
+                                per_bin.then_some(0.1)
+                            };
+                            assert_eq!(sigma.map(|s| s.value()), expected);
+                        }
+                        assert_eq!(sum, f64::from(bins));
+                        if !per_bin {
+                            assert!(map
+                                .direct_pixel_bounds(
+                                    direction(),
+                                    DirectPathGeometry::new(Degrees::new(0.0)).unwrap(),
+                                    AtmosphericConditions::clear_sky_with_pressure(
+                                        siderust::qtty::Hectopascals::new(790.0)
+                                    )
+                                    .unwrap()
+                                )
+                                .is_err());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn generic_invalid_semantics_fail_closed() {
+        let valid = generic_fixture(vec![350, 410, 470, 570], 1, "ring");
+        for (field, bad) in [
+            (
+                "schema",
+                serde_json::json!("nsb-starlight-spectral-map-v99"),
+            ),
+            ("bin_edges_nm", serde_json::json!([350, 410, 410, 570])),
+            ("band_nm", serde_json::json!([300, 650])),
+            ("nside", serde_json::json!(3)),
+            ("ordering", serde_json::json!("unknown")),
+            ("coordinate_frame", serde_json::json!("icrs")),
+            ("domain", serde_json::json!("ground-level")),
+            ("units", serde_json::json!("watt/(m2 sr)")),
+            ("maturity", serde_json::json!("production")),
+        ] {
+            let mut bad_value = valid.clone();
+            bad_value[field] = bad;
+            assert!(load(bad_value).is_err(), "accepted invalid {field}");
+        }
+        for field in ["statistical_sigma", "integrated_statistical_sigma"] {
+            let mut mixed = valid.clone();
+            mixed["pixels"][0].as_object_mut().unwrap().remove(field);
+            assert!(load(mixed).is_err(), "accepted mixed {field}");
+        }
+        let mut missing = valid.clone();
+        missing["pixels"].as_array_mut().unwrap().pop();
+        assert!(load(missing).is_err());
+        let mut duplicate = valid.clone();
+        duplicate["pixels"][1]["pixel"] = 0.into();
+        assert!(load(duplicate).is_err());
+        let mut negative = valid.clone();
+        negative["pixels"][0]["radiance"][0] = (-1.0).into();
+        assert!(load(negative).is_err());
+        let mut account = valid;
+        account["admitted_sources"] = 11.into();
+        assert!(load(account).is_err());
     }
 }

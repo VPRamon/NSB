@@ -90,16 +90,12 @@ impl AirglowContinuum {
             ));
         }
         let cell = self.climatology[(month as usize - 1) * 12 + local_time_bin - 1];
-        let mut coefficients = [
-            PalaceSampleCoefficients {
-                mean_scale: 0.0,
-                residual_relative_mean: 0.0,
-                residual_sigma: 0.0,
-            };
-            COMPONENT_COUNT
-        ];
-        for (i, (component, variability)) in
-            self.components.iter().zip(cell.components).enumerate()
+        let mut coefficients = [PalaceSampleCoefficients {
+            mean_scale: 0.0,
+            residual_relative_mean: 0.0,
+            residual_sigma: 0.0,
+        }; COMPONENT_COUNT];
+        for (i, (component, variability)) in self.components.iter().zip(cell.components).enumerate()
         {
             let scale = variability.relative_mean
                 * (1.0
@@ -474,8 +470,10 @@ mod tests {
                 let mut old_sigma = 0.0;
                 for (component, variability) in model.components.iter().zip(cell.components) {
                     let scale = variability.relative_mean
-                        * (1.0 + 0.01 * variability.solar_slope_per_100_sfu
-                            * (solar - model.reference_solar_flux_sfu));
+                        * (1.0
+                            + 0.01
+                                * variability.solar_slope_per_100_sfu
+                                * (solar - model.reference_solar_flux_sfu));
                     let template = component.spectrum_rayleigh_per_nm[sample];
                     old_mean += template * scale;
                     old_sigma += template * variability.relative_mean * variability.residual_sigma;
