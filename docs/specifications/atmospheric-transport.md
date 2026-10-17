@@ -18,8 +18,9 @@ multiple scattering and acceleration (#192) remain separate work.
 
 Both upstream main branches were fetched for this audit. Siderust main's
 `src/atmosphere/` matches the published 0.14.1 sources used by NSB byte-for-byte.
-No dependency update is needed for existing transport; future primitives need an
-explicit release/compatibility decision. PR #193's historical description and
+No dependency update is needed for existing transport or the Optica primitives
+already re-exported by Siderust; future atmospheric adapters need an explicit
+release/compatibility decision. PR #193's historical description and
 #190's old placeholder names are not authoritative descriptions of current code.
 
 | Current NSB source (`crates/nsb/src/`) | Implemented contract |
@@ -65,17 +66,23 @@ records actual behavior, not stronger guarantees inferred from type names.
 | `rayleigh_optical_depth_bodhaine99`, `atmosphere/rayleigh.rs` | Rational approximation in micrometers; dimensionless `OpticalDepths`; scale `p_ref/1013.25 hPa * exp(-h/H)`; `Kilometers`, default H=8 km | Broad 550-nm Paranal-like range test only; not spectral empirical validation. No checked wavelength/pressure/H domain. Reference-pressure plus height OR local-pressure plus zero, never both local pressure and nonzero height. Optical-depth approximation is not a molecular density profile. |
 | `MieParams`, `mie_optical_depth`, `atmosphere/mie.rs` | Extinction `tau0*(lambda/lambda_ref)^alpha`; typed optical depth/nm, dimensionless exponent (negative for usual aerosols) | Reference equality, monotonic wavelength behavior, observatory ordering, literature-range and provenance tests. No SSA, absorption/scattering split, g, phase function or height distribution. Parameters are public and unchecked; preset median is not exposure calibration. |
 | `PhaseFunction`, `atmosphere/scattering.rs` | `phase(Nanometers,Radians)->Quantity<ScatteringFactor>` | Infallible trait; no normalization/domain/provenance requirement. Module text allows 1 or 4pi normalization. Not every implementor is a probability density. Solver must use a checked contract. |
-| `TabulatedPhaseFunction`, same file | Private Optica `Grid2D<Nanometer,Degree,ScatteringFactor>`; rows angle, columns wavelength; bilinear interpolation in wavelength and **degrees**, not cos(theta) | One interpolation test. Axis/shape/finiteness validation delegated to grid; negative finite values, incomplete angular coverage and unnormalized correction tables remain possible. All out-of-range queries clamp. No exposed domain/strict evaluator. Reuse only with independently retained validated axes/domain until upstream checked API exists. |
+| `TabulatedPhaseFunction`, same file | Private Optica `Grid2D<Nanometer,Degree,ScatteringFactor>`; rows angle, columns wavelength; bilinear interpolation in wavelength and **degrees**, not cos(theta) | One interpolation test. Only axes (including axis finiteness) and shape validated by this grid constructor; nonfinite/negative values, incomplete angular coverage and unnormalized correction tables remain possible. All out-of-range queries clamp. No exposed domain/strict evaluator. Reuse only with independently retained validated axes/domain until upstream checked API exists. |
 | `transmission`, `atmosphere/extinction.rs` | `exp(-tau*X)`; `OpticalDepths`, `Airmasses` -> `Transmittances` | Zero tau and monotonic tau/X tests. No invalid-state guard. Valid nonnegative finite optical paths reuse directly; no source term. |
 | `airmass::<F>`, `atmosphere/airmass.rs` | `PlaneParallel` secant; `Young1994`, `Rozenberg1966`, `KrisciunasSchaefer1991`; angle radians -> dimensionless `Airmasses` | Zenith approximately one, secant horizon divergence, finite KS91 horizon. Empirical effective columns are not local slant integrals. Do not apply them inside the layered plane-parallel solver. |
 | `AtmosphereProfile`, `atmosphere/profile.rs` | Local surface pressure hPa, altitude km, Rayleigh H km, aerosol parameters; column Rayleigh+Mie and transmission | Presets, wavelength ordering, transmission monotonicity, local-pressure/no-double-reduction regression. Current implementation correctly passes zero altitude to Rayleigh. No spatial layers, TOA, SSA or ozone distribution; preserve API. |
 | `ozone::transmission_table`, `transmittance_at`, `atmosphere/ozone.rs` | Bundled wavelength/transmittance spectrum (~300–1000 nm); NSB maps to vertical `-ln(T)` | SHA, monotone wavelengths, [0,1] samples, lookup tests. Endpoint clamping; no site ozone amount or vertical density. Treat as an optional column assumption, not a height-resolved absorber. Strict solver rejects unsupported spectral range. |
 | `HealpixGrid::{direction_to_pixel,pixel_center,pixel_center_spherical,pixel_area_sr}`, `healpix/grid.rs` | Frame-tagged directions, RING centers, equal area `4pi/(12 nside²)` sr (raw f64 area at this boundary) | `healpix/tests.rs`: indexing, centers/round trips, validation, map consistency. Reuse for later sky adapter; NESTED lookup unsupported. Pixel mean is not point-source/fiber radiance; no RT angular integrator. |
 | `coordinates` AFFN direction aliases; `coordinates/horizontal.rs`, `transform/horizontal.rs`, `transform/frames/to_horizontal.rs` | Frame/center-tagged directions; North-clockwise azimuth, geometric altitude upward. GMST/GAST paths have distinct accuracy assumptions | Convention and transform tests in those modules; AFFN `cartesian/direction.rs` tests normalized directions, dot/angle and degeneracy. Reuse `angle_to` / `dot` after bringing both vectors to the same local frame. Record epoch/transform/refraction choice; frame reinterpretation is not a transform. |
-| QTTY `Quantity`, `Per`, radiometry and solid-angle units (0.8.6); Optica `spectrum/integrate.rs` (0.4.0) | Spectral energy/photon radiance, nm, m, sr; `trapz`, `trapz_range`, `trapz_weighted` re-exported from `spectrum/algo.rs`; typed integration on `SampledSpectrum` | Quantity/unit conversion tests, Optica analytic spectrum/integration tests. Existing NSB `band::integrate_linear` uses `trapz_range`. Spectral trapezoids are not an atmospheric path or angular solver; no generic RT quadrature was found. No QTTY/AFFN change justified. |
+| Optica `phase::{HenyeyGreensteinPhaseFunction,DoubleHenyeyGreensteinPhaseFunction,PhaseModel,PhaseTable}`, `phase.rs` (0.4.0) | **Already available** through `siderust::optica`; normalized HG / weighted two-lobe HG; finite g strictly in (-1,1), mixing weight [0,1]; wavelength independent; table angles radians | Tests: isotropic HG, Rayleigh closed form, invalid g/weight. No angle/wavelength check or normalization integral test. Extreme valid g can suffer forward-denominator cancellation / unresolved peaks. Start with g=0.65 and validate outputs. Optica and Siderust phase traits/markers are distinct types; use one consistently or an explicit adapter. |
+| Optica `OpticalCoefficients<U>`, `InverseLength<U>`, `Medium`, `TryMedium`, `HomogeneousMedium`, `medium.rs` | **Already available**: absorption sigma_a, scattering sigma_s, extinction sigma_t=sum, typed SSA; inverse length is `Per<Ratio,U>`. Constructors reject negative/nonfinite individual inputs | Tests: transparent medium, negative/NaN inputs. Sum overflow is not checked; coefficient fields are public/mutable. Vacuum stores SSA=0 as a numerical sentinel, not a defined physical ratio. `TryMedium` supports domain errors; homogeneous medium is wavelength independent. Reuse, but validate full evaluated state and keep atmospheric constituents separately. |
+| Optica `Ray`, `RaySegment`, `ray.rs` | AFFN position/frame/center, normalized direction, typed length interval | Segment endpoint-order test; constructor sorts endpoints (not a physical-domain validator). Preserve explicit upward/downward semantics and validate atmospheric intersections before constructing segments. |
+| Optica `try_integrate_optical_depth`, `IntegrationOpts`, `IntegrationMethod`, `transport.rs` | **Existing path integration**: midpoint, trapezoidal, Simpson (odd steps rounded up), GL2/GL4; typed segment -> tau; default 64 midpoint steps | Homogeneous exactness across methods, zero-step/reversed-segment rejection tests. Checks settings/endpoints, not arbitrary medium coefficients/wavelength or convergence. Accepts `Medium`, not `TryMedium`; no fallible-medium propagation. Split layers and use exact layer sums initially; reuse this for matched smooth-medium comparisons, not a new generic integrator. No angular/source-term solver. |
+| Optica `scatter::{try_rayleigh_optical_depth_bodhaine99,MieParams::try_new,try_mie_optical_depth}`, `scatter.rs` | Existing fallible rational Rayleigh / aerosol power law; explicit typed wavelength/pressure/height, scalar parameter constructors, no site presets | Tests: invalid H, reasonable Rayleigh, aerosol constructor/reference/invalid wavelength. Same local-pressure rule. Input checks do not establish a spectral physical domain or guarantee finite computed results; aerosol parameters remain public. Reuse rather than duplicating checked formulas. |
+| QTTY `Quantity`, `Per`, radiometry and solid-angle units (0.8.6); Optica `spectrum/integrate.rs` (0.4.0) | Spectral energy/photon radiance, nm, m, sr; `trapz`, `trapz_range`, `trapz_weighted` re-exported from `spectrum/algo.rs`; typed integration on `SampledSpectrum` | Quantity/unit conversion tests, Optica analytic spectrum/integration tests. Existing NSB `band::integrate_linear` uses `trapz_range`. Spectral trapezoids are distinct from Optica path quadrature above; no all-sky scattering solver is supplied. No QTTY/AFFN change justified. |
 
-A repository-wide search of current Siderust `src` found no Henyey–Greenstein
-phase function or height-resolved optical-coefficient abstraction. The existing
+Current Siderust `atmosphere` has no HG wrapper or layered atmospheric adapter,
+but HG, generic coefficients/media and path integration **already exist in the
+locked Optica re-export**. They must not be reimplemented upstream or in NSB. The existing
 `AtmosphericConditions::mie_params` comment mentions phase parameters, but the
 actual upstream struct contains only extinction parameters.
 
@@ -101,7 +108,7 @@ actual upstream struct contains only extinction parameters.
   `2pi * 3/(16pi) * integral[-1,1](1+mu²)dmu = 1`.
   `P(0)=P(pi)=3/(8pi)`, `P(pi/2)=3/(16pi)`.
   External 4pi-normalized values convert by **division by 4pi**.
-- An HG surrogate, once upstream, uses
+- The existing Optica HG surrogate uses
   `P=(1-g²)/(4pi*(1+g²-2g cos(theta))^(3/2))`, finite `-1<g<1`.
   Positive g is forward, g=0 isotropic, and g=±1 are excluded delta limits.
   Record g's wavelength assumption; HG is not a Mie microphysics calculation.
@@ -110,23 +117,28 @@ actual upstream struct contains only extinction parameters.
   interpolation preserves normalized slices. Reject out-of-domain queries
   before legacy clamping; never silently normalize an arbitrary correction table.
   Check measured angular normalization error against declared tolerance.
+  An Optica `PhaseTable` can use `interp_at_with(...,Error,Error)` or
+  `try_interp_at` on an Error-configured grid. Its infallible `interp_at` still
+  clamps on error, as does `PhaseModel::Tabulated.phase`; never use that path to
+  claim strict-domain enforcement.
 
 ## Ownership and upstream prerequisites
 
 | Owner | Responsibility / follow-up |
 | --- | --- |
-| Siderust | Generic checked extinction/scattering/absorption coefficients, finite layers and column integrals: [Siderust #106](https://github.com/Siderust/siderust/issues/106). Additive beside `AtmosphereProfile`. |
-| Siderust | HG surrogate and strict, domain-aware normalized table path while preserving legacy clamping: [Siderust #107](https://github.com/Siderust/siderust/issues/107). |
+| Siderust | Atmospheric layers/column adapter over existing Optica coefficients and `TryMedium`: [Siderust #106](https://github.com/Siderust/siderust/issues/106). Additive beside `AtmosphereProfile`. |
+| Siderust | Strict normalized atmospheric table adapter over existing Optica grids/phases while preserving legacy clamping: [Siderust #107](https://github.com/Siderust/siderust/issues/107). |
 | NSB site | Select actual atmospheric parameters/profile; preserve local-pressure semantics and site calibration identity. No invented layer distribution from existing site fields. |
 | NSB transport | Origin policy, celestial illumination boundary, reference angular/path integration and contribution composition, diagnostics and maturity. |
 | NSB Starlight | Read exact stored spectral bins, capabilities, source identity, uncertainty and coverage; later adapt Galactic RING pixels to local directions. |
-| QTTY / AFFN / Optica | Reuse quantities, frame geometry, tables and spectral integration; no new generic framework or dependency changes in Stage 1. |
+| QTTY / AFFN / Optica | Reuse quantities, frame geometry, existing coefficients/media, HG, rays, path integration, tables and spectra; no new generic framework or dependency changes in Stage 1. |
 
 No executable upstream change is needed to complete the audit. Stage 2 must
-resolve/release the required upstream subset, verify selected-version
+resolve/release the required atmospheric-adapter subset, verify selected-version
 compatibility and retain Cargo.lock deliberately; it must not grow a second
-atmosphere library in NSB. The proposed names in upstream issues are design
-sketches, not symbols available in Siderust 0.14.1.
+atmosphere library in NSB. Proposed atmospheric adapter names in upstream issues are design sketches; the
+Optica primitives listed above already exist in the locked dependency. #107
+is needed for a reusable checked-table option, not to make analytic HG available.
 
 ## Vertical atmosphere contract for Stage 2
 
@@ -149,10 +161,14 @@ beta_aer_abs = (1 - omega_aer) * beta_aer_ext
 beta_ext = beta_sca + beta_abs
 ```
 
-All coefficients are finite and nonnegative, and `0 <= beta_sca <= beta_ext`.
+Reuse `siderust::optica::medium::OpticalCoefficients<Meter>` for each constituent,
+with its typed `sigma_a`, `sigma_s`, `sigma_t`. Revalidate the complete state at
+request evaluation because public fields and sum overflow bypass constructor
+invariants. All coefficients are finite/nonnegative, `0 <= beta_sca <= beta_ext`.
 Rayleigh is nonabsorbing in this model. SSA `omega_aer` is finite in [0,1]; the
 ratio `beta_sca/beta_ext` is **undefined** at zero extinction. A vacuum layer has
-both coefficients zero and no required phase/SSA evaluation. Aerosol extinction
+both coefficients zero and no required phase/SSA evaluation; Optica's stored
+SSA=0 sentinel must not be reported as a measured or defined physical ratio. Aerosol extinction
 never implies SSA=1. No aerosol means phase configuration is unnecessary.
 Molecular absorption contributes extinction but never a scattering source.
 
@@ -220,10 +236,11 @@ Physical dimensions are `P: sr^-1`, `dOmega: sr`, `beta: m^-1`,
 `j_lambda: I_lambda/m`, `ds: m`; integration returns the same spectral radiance.
 Optical-depth exponent is dimensionless. Integrated-band radiance has no `/nm`.
 Use existing `crate::units` quantities, not untyped public arrays. The upstream
-`ScatteringFactor` is dimensionless, so convert its value at a named, checked
+`ScatteringFactor` (Siderust and Optica have distinct markers) is dimensionless,
+so convert its value at a named, checked
 seam into a `Quantity<Per<ScatteringFactor,Steradian>>` convention before angular
-weighting. Coefficients can use `Quantity<Per<OpticalDepth,Meter>>`; these are
-compositions of existing QTTY units, not new physical units. Numerical kernels
+weighting. Reuse Optica `Quantity<InverseLength<Meter>>` (`Per<Ratio,Meter>`)
+for coefficients; no new inverse-length alias or quantity framework is needed. Numerical kernels
 may unpack f64 once at documented boundaries and restore typed results; compile
 checks must prevent mixing band and spectral inputs or m and km.
 
@@ -248,8 +265,8 @@ symbols. Initial implementation can use photon radiance only; energy support
 must use the same elastic operator if added. Samples include a separately
 queryable TOA radiance along the view for direct light; angular nodes alone must
 not invent a direct point value. NSB owns the source/quadrature adapter, path
-integration and result composition; Siderust owns layer optics and phase
-primitives. Start with analytic/synthetic angular fields and fixed deterministic
+integration and result composition; Siderust owns the atmospheric adapter over Optica
+coefficients, phases and ray primitives. Start with analytic/synthetic angular fields and fixed deterministic
 quadrature. No full HEALPix integration in #190.
 
 Future higher orders replace incident zero-order radiation in the source term
@@ -435,7 +452,8 @@ new transport remains **experimental** pending separate admission.
 
 ## Implementation sequence and open scientific decisions
 
-1. Resolve Siderust #106/#107's required checked primitives and release decision.
+1. Resolve Siderust #106's atmospheric layer adapter/release decision over existing
+   Optica; reuse analytic HG immediately. Resolve #107 for checked tabulated phases.
 2. Implement #190's internal opt-in reference with synthetic spectral illumination,
    homogeneous/two-layer optics, normalized Rayleigh/HG, separate direct/single
    and the validation gates above. Higher orders remain uncomputed.
