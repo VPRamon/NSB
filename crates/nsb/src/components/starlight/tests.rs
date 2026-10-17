@@ -599,6 +599,34 @@ fn pixel_uncertainty_presence_states_are_validated_without_loss() {
             );
             assert_eq!(output.systematic_uncertainty, pixel.systematic_uncertainty);
             assert_eq!(output.total_uncertainty, pixel.total_uncertainty);
+
+            // Exercise the public component adapter as well as pixel lookup.
+            use crate::{ComponentMask, NsbEvaluator, NsbModelConfig, PointQuery};
+            let config = NsbModelConfig::generic_clear_sky()
+                .with_starlight_product(StarlightProduct::with_experimental_map(map));
+            let evaluator = NsbEvaluator::with_config(config).unwrap();
+            let time = tempoch::Time::<tempoch::UTC>::from_chrono(
+                chrono::DateTime::parse_from_rfc3339("2023-09-04T01:48:00Z")
+                    .unwrap()
+                    .with_timezone(&chrono::Utc),
+            );
+            let query = PointQuery::new(
+                siderust::catalogs::observatories::EL_PARANAL.geodetic(),
+                time,
+                target(266.4051, -28.936175),
+            )
+            .with_components(ComponentMask::STARLIGHT);
+            let result = evaluator.evaluate(&query).unwrap();
+            let component = &result.components[0];
+            assert_eq!(
+                component.statistical_uncertainty,
+                pixel.statistical_uncertainty
+            );
+            assert_eq!(
+                component.systematic_uncertainty,
+                pixel.systematic_uncertainty
+            );
+            assert_eq!(component.total_uncertainty, pixel.total_uncertainty);
         } else {
             let error = result.unwrap_err();
             assert!(matches!(error, crate::NsbError::InvalidMap { .. }));
