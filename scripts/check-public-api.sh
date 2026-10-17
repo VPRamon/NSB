@@ -51,6 +51,19 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# cargo-public-api diffs Git commits using in-place checkouts. Its rustdoc
+# builder can refresh Cargo.lock before those checkouts, especially when the
+# dependency graph changes between the base and HEAD. Allow forced checkout
+# only in CI, and only when the tracked worktree was clean before we started.
+DIFF_CHECKOUT_ARGS=()
+if [[ "${CI:-}" == "true" && -f Cargo.lock ]]; then
+  if [[ -n "$(git status --porcelain --untracked-files=no)" ]]; then
+    echo "public API policy: refusing forced checkout of a dirty CI worktree" >&2
+    exit 1
+  fi
+  DIFF_CHECKOUT_ARGS=(--force)
+fi
+
 ensure_tool() {
   local installed
   installed="$(cargo public-api --version 2>/dev/null | awk '{print $2}' || true)"
@@ -162,6 +175,7 @@ cargo "+${NIGHTLY}" public-api diff \
   --no-default-features \
   --deny=removed \
   --deny=changed \
+  "${DIFF_CHECKOUT_ARGS[@]}" \
   --color=never
 
 echo "public API policy: frozen (snapshot + historical SemVer)"

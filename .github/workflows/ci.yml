@@ -224,7 +224,9 @@ jobs:
           NSB_FIXTURE_RESULT="$fixture/rust-result.json" cargo test --manifest-path "$fixture/Cargo.toml" -p nsb --test embedded_fixture \
             --locked --offline --target-dir "$PWD/target"
           cargo package --manifest-path "$fixture/crates/nsb/Cargo.toml" --locked --target-dir "$PWD/target"
-          test "$(stat -c '%s' target/package/nsb-0.1.0.crate)" -lt "$((10 * 1024 * 1024))"
+          crate="$(find target/package -maxdepth 1 -type f -name 'nsb-*.crate' -print -quit)"
+          test -n "$crate"
+          test "$(stat -c '%s' "$crate")" -lt "$((10 * 1024 * 1024))"
 
       - uses: actions/setup-python@v7
         with:
