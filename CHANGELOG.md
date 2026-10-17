@@ -35,6 +35,10 @@ tag-triggered publication workflow succeeds.
   existing output, preventing concurrent writers from overwriting a report or
   exposing partial contents (#258).
 
+- Reject incomplete Starlight pixel uncertainty combinations during map
+  construction instead of silently discarding supplied systematic/total values
+  when statistical uncertainty is absent (#257).
+
 - Represent missing Starlight B/V photometry as unavailable instead of physical
   zero; retain supplied full-band statistical uncertainty without inventing
   systematic uncertainty or cross-bin covariance (#257).

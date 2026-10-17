@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Vallés Puig, Ramon
 use super::interval::{DirectStarlightBounds, SpectralMap};
-use super::output::StarlightOutputs;
+use super::output::{valid_uncertainties, StarlightOutputs};
 use super::provenance::StarlightProvenance;
 use super::validated::StarlightValidationDiagnostics;
 use crate::error::{NsbError, Result};
@@ -83,31 +83,25 @@ impl StarlightPixel {
     }
 
     fn output(self) -> StarlightOutputs {
-        let mut output = StarlightOutputs::new(self.integrated, self.b_flux_s10, self.v_flux_s10);
-        output.s10_diagnostics_provided = self.s10_diagnostics_provided;
-        match (
-            self.statistical_uncertainty,
-            self.systematic_uncertainty,
-            self.total_uncertainty,
-        ) {
-            (Some(statistical), Some(systematic), Some(total)) => {
-                output.with_uncertainties(statistical, systematic, total)
-            }
-            (Some(statistical), None, None) => {
-                output.statistical_uncertainty = Some(statistical);
-                output
-            }
-            _ => output,
+        StarlightOutputs {
+            statistical_uncertainty: self.statistical_uncertainty,
+            systematic_uncertainty: self.systematic_uncertainty,
+            total_uncertainty: self.total_uncertainty,
+            s10_diagnostics_provided: self.s10_diagnostics_provided,
+            ..StarlightOutputs::new(self.integrated, self.b_flux_s10, self.v_flux_s10)
         }
     }
 
     fn validate(self) -> Result<()> {
-        if !self.output().is_finite_non_negative()
-            // A statistical-only XP product must not invent systematic/total sigma.
-            || self.systematic_uncertainty.is_some() != self.total_uncertainty.is_some()
+        // Check the supplied uncertainty state before constructing an output.
+        if !valid_uncertainties(
+            self.statistical_uncertainty,
+            self.systematic_uncertainty,
+            self.total_uncertainty,
+        ) || !self.output().is_finite_non_negative()
         {
             return Err(invalid_map(
-                "pixel radiance and any provided uncertainty triplet must be finite and non-negative; systematic and total must occur together and total >= statistical and total >= systematic",
+                "pixel radiance and any provided uncertainty triplet must be finite and non-negative; supported uncertainty states are none, statistical-only, or a complete uncertainty triplet with total >= statistical and total >= systematic",
             ));
         }
         Ok(())
