@@ -15,6 +15,8 @@
 
 mod budget;
 mod quadrature;
+/// Native-bin spectral Starlight illumination and transport (explicit opt-in).
+pub mod starlight;
 use super::RadianceOrigin;
 use crate::units::qtty::{Degrees, Meters, Nanometers, Radian, Radians};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer as Radiance;
