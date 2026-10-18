@@ -719,3 +719,59 @@ fn oblique_azimuthal_illumination_rotation_and_forward_peak_converge() {
     .unwrap();
     close(a.single.value(), b.single.value(), 1e-13);
 }
+
+#[test]
+fn collimated_equal_mu_path_oracle_and_independent_path_refinement() {
+    // One explicitly selected angular quadrature contribution isolates the
+    // path rule. We do not claim angular convergence for this discrete fixture.
+    let mu_i = quadrature::gauss(2).unwrap()[1].0;
+    struct Collimated {
+        mu: f64,
+    }
+    impl IncidentSky for Collimated {
+        fn coverage(&self) -> SkyCoverage {
+            Sky::new(1.).coverage()
+        }
+        fn radiance(&self, _: Nanometers, d: Horizontal) -> Result<Radiance> {
+            let matches =
+                (d.alt().to::<Radian>().sin() - self.mu).abs() < 1e-14 && d.az().value() == 0.;
+            Ok(Radiance::new(if matches { 1. } else { 0. }))
+        }
+    }
+    let p = phase(0.);
+    let sky = Collimated { mu: mu_i };
+    for tau in [0., 1e-12, 0.3, 2.] {
+        for mu_o in [mu_i, mu_i * (1. + 1e-12)] {
+            let m = medium(0., tau, 0.7, 0.);
+            let kernel = quadrature::Kernel {
+                atmosphere: &m,
+                phase: &p,
+                sky: &sky,
+                wavelength: wavelength(),
+                view: view(mu_o, 0.),
+            };
+            let numerical = kernel.integrate([2, 4, 32]).unwrap();
+            // Angular weight = (1/2)*(2pi/4), isotropic phase = 1/(4pi).
+            let exact = homogeneous(tau, mu_i, mu_o, 0.7 * tau) / 16.;
+            if exact == 0. {
+                assert_eq!(numerical, 0.);
+            } else {
+                close(numerical, exact, 2e-13);
+            }
+        }
+    }
+    let m = medium(0.6, 1.4, 0.7, 0.);
+    let s = Sky::new(1.);
+    let settings = SolverSettings {
+        path_nodes: 2,
+        ..SolverSettings::default()
+    };
+    let r = single_scattering(&m, &p, &s, wavelength(), view(0.2, 23.), settings).unwrap();
+    assert!(r.convergence.orders[2] > 4);
+    close(
+        r.single.value(),
+        oracle(&m, &p, &s, 0.2, r.convergence.orders),
+        1e-4,
+    );
+    println!("independent coarse-path refinement: orders={:?}, angular={:.3e}, path={:.3e}, joint={:.3e}",r.convergence.orders,r.convergence.angular_change.value(),r.convergence.path_change.value(),r.convergence.joint_change.value());
+}

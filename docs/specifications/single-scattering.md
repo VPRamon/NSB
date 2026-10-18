@@ -78,7 +78,10 @@ Relative differences are 2.58e-10 and 1.03e-8. Absolute angular-only/path-only/j
 changes are 2.64e-10/3.27e-16/1.04e-10 and
 4.56e-10/1.08e-19/4.57e-10, respectively. The oblique, azimuth-dependent HG g=0.85
 fixture refines to 64/128/64, with angular/joint change 4.84e-9 and path change
-6.51e-19. These results characterize the stated synthetic fixtures only.
+6.51e-19. An independently coarse initial path order of two refines to
+128/256/16 for a depth-two column, with angular/path/joint changes
+1.22e-13/1.42e-8/1.42e-8. A collimated quadrature contribution separately tests
+the numerical path against equal/nearly equal-mu analytic limits. These results characterize the stated synthetic fixtures only.
 
 Other tests cover vacuum, pure absorption, SSA endpoints/linearity, phase
 normalization/HG first moment, forward/back sign, rotation symmetry, layer
