@@ -405,6 +405,47 @@ pub const nsb::solar_activity::F107_STORE_SCHEMA_VERSION: u32
 pub fn nsb::solar_activity::bundled_f107_store() -> nsb::Result<&'static nsb::solar_activity::F107Store>
 pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, source: &nsb::solar_activity::SolarActivitySource) -> nsb::Result<nsb::solar_activity::ResolvedSolarActivity>
 pub mod nsb::transport
+pub mod nsb::transport::single
+#[non_exhaustive] pub enum nsb::transport::single::AerosolPhase
+pub nsb::transport::single::AerosolPhase::DoubleHenyeyGreenstein(optica::phase::DoubleHenyeyGreensteinPhaseFunction)
+pub nsb::transport::single::AerosolPhase::HenyeyGreenstein(optica::phase::HenyeyGreensteinPhaseFunction)
+pub nsb::transport::single::AerosolPhase::Tabulated(alloc::boxed::Box<siderust::atmosphere::normalized_phase::NormalizedPhaseTable>)
+pub struct nsb::transport::single::Convergence
+pub nsb::transport::single::Convergence::angular_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::Convergence::joint_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::Convergence::orders: [usize; 3]
+pub nsb::transport::single::Convergence::path_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub struct nsb::transport::single::SingleScattering
+pub nsb::transport::single::SingleScattering::aerosol_phase: nsb::transport::single::AerosolPhase
+pub nsb::transport::single::SingleScattering::atmosphere: siderust::atmosphere::layered::LayeredAtmosphere
+pub nsb::transport::single::SingleScattering::convergence: nsb::transport::single::Convergence
+pub nsb::transport::single::SingleScattering::direct: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::SingleScattering::higher_orders: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
+pub nsb::transport::single::SingleScattering::settings: nsb::transport::single::SolverSettings
+pub nsb::transport::single::SingleScattering::single: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::SingleScattering::source: nsb::transport::single::SkyCoverage
+pub nsb::transport::single::SingleScattering::view: siderust::coordinates::spherical::direction::Horizontal
+pub nsb::transport::single::SingleScattering::wavelength: qtty_core::units::length::Nanometers
+impl nsb::transport::single::SingleScattering
+pub const nsb::transport::single::SingleScattering::MODEL: &'static str
+pub struct nsb::transport::single::SkyCoverage
+pub nsb::transport::single::SkyCoverage::full_hemisphere: bool
+pub nsb::transport::single::SkyCoverage::identity: alloc::string::String
+pub nsb::transport::single::SkyCoverage::origin: nsb::transport::RadianceOrigin
+pub nsb::transport::single::SkyCoverage::wavelengths: [qtty_core::units::length::Nanometers; 2]
+pub struct nsb::transport::single::SolverSettings
+pub nsb::transport::single::SolverSettings::absolute_tolerance: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::SolverSettings::azimuth_nodes: usize
+pub nsb::transport::single::SolverSettings::mu_nodes: usize
+pub nsb::transport::single::SolverSettings::path_nodes: usize
+pub nsb::transport::single::SolverSettings::refinements: usize
+pub nsb::transport::single::SolverSettings::relative_tolerance: f64
+impl core::default::Default for nsb::transport::single::SolverSettings
+pub fn nsb::transport::single::SolverSettings::default() -> Self
+pub trait nsb::transport::single::IncidentSky
+pub fn nsb::transport::single::IncidentSky::coverage(&self) -> nsb::transport::single::SkyCoverage
+pub fn nsb::transport::single::IncidentSky::radiance(&self, wavelength: qtty_core::units::length::Nanometers, direction: siderust::coordinates::spherical::direction::Horizontal) -> nsb::Result<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
+pub fn nsb::transport::single::single_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &impl nsb::transport::single::IncidentSky, wavelength: qtty_core::units::length::Nanometers, view: siderust::coordinates::spherical::direction::Horizontal, settings: nsb::transport::single::SolverSettings) -> nsb::Result<nsb::transport::single::SingleScattering>
 #[non_exhaustive] pub enum nsb::transport::AirmassModel
 pub nsb::transport::AirmassModel::KrisciunasSchaefer1991
 pub nsb::transport::AirmassModel::PlaneParallel

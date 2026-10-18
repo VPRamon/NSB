@@ -25,9 +25,9 @@
 //!
 //! # Not part of the supported public API yet
 //!
-//! Single in-scattering, HEALPix sampling, and LUT solvers remain architectural
-//! goals documented in `docs/specifications/atmospheric-transport.md`. Their
-//! request/result types are intentionally **not** frozen here.
+//! The opt-in [`single`](crate::transport::single) reference computes direct and first-order scattering.
+//! It is experimental and does not change evaluator defaults. HEALPix sampling
+//! and LUT solvers remain future work.
 //!
 //! # Ownership
 //!
@@ -41,6 +41,9 @@ mod geometry;
 mod metadata;
 mod model;
 mod origin;
+
+/// Experimental opt-in scalar single-scattering reference; no evaluator migration.
+pub mod single;
 
 pub use direct::DirectTransmission;
 pub use extinction::{ExtinctionIngredients, MolecularAbsorption, OpticalDepthBreakdown};

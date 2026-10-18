@@ -8,3 +8,8 @@ resolver = "2"
 [profile.test]
 opt-level = 1
 debug-assertions = true
+
+# Temporary until Siderust publishes the layered-optics/strict-phase APIs.
+# Patch the registry identity for siderust-py as well as NSB; never float main.
+[patch.crates-io]
+siderust = { git = "https://github.com/Siderust/siderust", rev = "83d1ebb29ca1ae0b327d5784d13eda231d52c120" }

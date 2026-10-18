@@ -11,9 +11,7 @@ use nsb::{SIDERUST_SOURCE, SIDERUST_VERSION};
 use std::fs;
 use std::path::PathBuf;
 
-const CRATES_IO_REGISTRY_SOURCE: &str = "registry+https://github.com/rust-lang/crates.io-index";
-const SIDERUST_0_14_1_CHECKSUM: &str =
-    "0f64f5bf9a12e39de335dcc99a9675df0e83341e73bbedd5cfe96ae31f980ab0";
+const REVISION: &str = "83d1ebb29ca1ae0b327d5784d13eda231d52c120";
 
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -60,7 +58,7 @@ fn package_field(package: &str, field: &str) -> Option<String> {
     })
 }
 
-fn locked_siderust_package(lockfile: &str) -> Option<(String, String, String)> {
+fn locked_siderust_package(lockfile: &str) -> Option<(String, String)> {
     let package = lockfile.split("[[package]]").find(|package| {
         package
             .lines()
@@ -70,7 +68,6 @@ fn locked_siderust_package(lockfile: &str) -> Option<(String, String, String)> {
     Some((
         package_field(package, "version")?,
         package_field(package, "source")?,
-        package_field(package, "checksum")?,
     ))
 }
 
@@ -88,7 +85,7 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
     let nsb_version = declared_siderust_version(&nsb_manifest).expect("nsb siderust version");
     let cli_version = declared_siderust_version(&cli_manifest).expect("cli siderust version");
     let tools_version = declared_siderust_version(&tools_manifest).expect("tools siderust version");
-    let (locked_version, locked_source, locked_checksum) =
+    let (locked_version, locked_source) =
         locked_siderust_package(&lockfile).expect("locked siderust package");
 
     assert_eq!(
@@ -108,16 +105,31 @@ fn siderust_provenance_matches_manifest_and_lockfile() {
         "nsb::SIDERUST_VERSION must match the declared Siderust version"
     );
     assert_eq!(
-        locked_source, CRATES_IO_REGISTRY_SOURCE,
-        "Cargo.lock must resolve Siderust from crates.io"
-    );
-    assert_eq!(
-        locked_checksum, SIDERUST_0_14_1_CHECKSUM,
-        "Cargo.lock must contain the published Siderust 0.14.1 checksum"
+        locked_source,
+        format!("git+https://github.com/Siderust/siderust?rev={REVISION}#{REVISION}")
     );
     assert_eq!(
         SIDERUST_SOURCE,
-        format!("crates.io:siderust:{locked_version}"),
-        "nsb::SIDERUST_SOURCE must identify the crates.io package"
+        format!("git:https://github.com/Siderust/siderust@{REVISION}")
+    );
+    let workspace: toml::Value =
+        toml::from_str(&fs::read_to_string(root.join("Cargo.toml")).unwrap()).unwrap();
+    assert_eq!(
+        workspace["patch"]["crates-io"]["siderust"]["rev"].as_str(),
+        Some(REVISION)
+    );
+    assert_eq!(
+        workspace["patch"]["crates-io"]["siderust"]["git"].as_str(),
+        Some("https://github.com/Siderust/siderust")
+    );
+    let packages: toml::Value = toml::from_str(&lockfile).unwrap();
+    assert_eq!(
+        packages["package"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["name"].as_str() == Some("siderust"))
+            .count(),
+        1
     );
 }

@@ -4,22 +4,24 @@ Status: Current dependency compatibility and update policy.
 Audience: Maintainers, downstream packagers, and dependency reviewers.
 Scope: Siderust dependency source, lockfile package identity, update rules, and release
 requirements.
-Non-goals: This document does not claim a Git revision for registry dependencies.
+Non-goals: Scientific model admission and empirical accuracy claims.
 
 ## Current State
 
 | NSB | Siderust package | Manifest source | Public source identity | Rust MSRV | Status |
 | --- | --- | --- | --- | --- | --- |
-| 0.1 line; scientific corrections | 0.14.1 | crates.io | `crates.io:siderust:0.14.1` | 1.89 | Typed lunar irradiance and local pressure corrections |
+| 0.1 line; single-scattering reference | 0.14.1 | SHA-pinned workspace Git patch | `git:https://github.com/Siderust/siderust@83d1ebb29ca1ae0b327d5784d13eda231d52c120` | 1.89 | Temporary; registry publication blocked (#265) |
 
-All three workspace crates require the published Rust package with `siderust = "0.14.1"`.
-The committed lockfile resolves 0.14.1.
+All three workspace crates retain the compatible `siderust = "0.14.1"` requirement.
+The root `[patch.crates-io]` redirects every consumer, including `siderust-py`, to
+Git revision `83d1ebb29ca1ae0b327d5784d13eda231d52c120` (verified main; upstream
+PRs #108/#110). The lockfile contains exactly one Siderust package identity.
 `crates/nsb` and `crates/nsb-cli` request the `atmosphere` and
 `photometry` features, while `crates/nsb-data-tools` uses its own feature set.
 The version/source identity is shared even though feature selection is not
 identical.
 
-`Cargo.lock` resolves the registry package to its published checksum.
+`Cargo.lock` records the complete immutable Git source/revision, not a registry checksum.
 The workspace also uses Tempoch `0.10.0`, and both Python interoperability
 crates (`siderust-py` and `tempoch-py`) use `0.4.0`.
 
@@ -62,6 +64,20 @@ lockfile package, or published provenance constants disagree.
 
 
 ## Release Requirement
+
+**crates.io/PyPI releases are blocked until [#265](https://github.com/VPRamon/NSB/issues/265)
+replaces the temporary patch with a real upstream registry release.** Ordinary
+`cargo package` creates an archive but its isolated verification resolves registry
+0.14.1 and fails on missing layered/normalized-phase imports. The temporary CI
+helper verifies this exact negative case and then compiles the extracted archive
+with the explicit pin. This does not establish publishability. Tag metadata
+preflight fails closed while the patch remains. Repository wheels and sdists
+retain the pin; their build compatibility is tested separately.
+
+Transition: update all workspace version requirements and Cargo.lock, verify
+`siderust-py` still shares one type identity, remove the patch/source exception
+and temporary package verifier, restore ordinary package checks, rerun Rust 1.89,
+Python wheels, isolated sdist build and release dry-run. Do not invent a version.
 
 A release that claims reproducible dependency resolution must satisfy all of:
 

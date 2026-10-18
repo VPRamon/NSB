@@ -7,6 +7,14 @@ tag-triggered publication workflow succeeds.
 
 ### Added
 
+- Experimental opt-in `transport::single` scalar plane-parallel reference with
+  separate direct/single contributions, explicitly uncomputed higher orders,
+  deterministic convergence checks and independent analytical/SciPy validation.
+  Defaults and existing component calculations remain unchanged.
+- Temporarily pin Siderust layered optics and normalized phase APIs to
+  `83d1ebb29ca1ae0b327d5784d13eda231d52c120` across Rust/Python consumers.
+  Registry/PyPI releases remain blocked pending the real upstream release (#265).
+
 - Source-level Gaia XP interval-report example using checksum-pinned inputs,
   canonical parsing and covariance-aware integration, with deterministic
   numeric source ordering (#258).

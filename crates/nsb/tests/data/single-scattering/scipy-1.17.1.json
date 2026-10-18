@@ -1,0 +1,57 @@
+{
+  "reference": "SciPy 1.17.1 scipy.special.expn + scipy.integrate.quad (QUADPACK)",
+  "generator": "scripts/generate-single-scattering-reference.py",
+  "phase": "Rayleigh unity/4pi + isotropic aerosol g=0",
+  "illumination": "0.01*(lambda_nm/450)*(1+0.4*mu_in) photons/(cm2 ns sr nm)",
+  "fixtures": [
+    {
+      "name": "homogeneous",
+      "edges_m": [
+        2100.0,
+        3100.0
+      ],
+      "layers": [
+        [
+          7e-05,
+          0.00012,
+          0.7,
+          3e-05
+        ]
+      ],
+      "mu_out": 0.8,
+      "wavelength_nm": 450.0,
+      "direct": 0.010026352026569586,
+      "single": 0.0007492254244742733,
+      "quadpack_estimated_absolute_error": 2.6237692574149207e-17,
+      "relative_test_tolerance": 0.0001
+    },
+    {
+      "name": "two-layer",
+      "edges_m": [
+        2100.0,
+        2500.0,
+        3100.0
+      ],
+      "layers": [
+        [
+          0.0001,
+          0.0,
+          0.0,
+          0.0002
+        ],
+        [
+          0.0,
+          0.0002,
+          0.9,
+          0.0
+        ]
+      ],
+      "mu_out": 0.8,
+      "wavelength_nm": 450.0,
+      "direct": 0.009778800512998677,
+      "single": 0.0007142897454565831,
+      "quadpack_estimated_absolute_error": 7.52867826020897e-18,
+      "relative_test_tolerance": 0.0001
+    }
+  ]
+}

@@ -156,3 +156,17 @@ licences and noncommercial data restrictions remain applicable.
 See the [source terms, attribution, public contact directory and concern procedure](https://github.com/VPRamon/NSB/blob/main/docs/nsb_components/starlight/licensing/README.md)
 and the distributed `THIRD_PARTY_NOTICES.md`. Cite the original scientific
 sources, preserve their notices and assess the data terms for your actual use.
+
+### Experimental single scattering
+
+`nsb::transport::single::single_scattering` provides a separate opt-in scalar
+reference for synthetic wavelength-resolved TOA illumination (360–570 nm,
+output zenith 0–80°). Direct and first-order spectral photon radiance are separate;
+higher orders are uncomputed. Evaluator/component defaults do not use this solver.
+Run `cargo run -p nsb --example single_scattering` from the repository.
+
+The repository temporarily patches Siderust to immutable revision
+`83d1ebb29ca1ae0b327d5784d13eda231d52c120`, including Python interoperability.
+Registry/PyPI publication of this revision is blocked pending the upstream release
+([#265](https://github.com/VPRamon/NSB/issues/265)). This is an experimental
+physical reference, with no empirical sky-accuracy or complete transport claim.

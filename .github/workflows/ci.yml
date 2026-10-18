@@ -177,6 +177,8 @@ jobs:
           shutil.copy2("pyproject.toml", root / "pyproject.toml")
           shutil.copy2("LICENSE", root / "LICENSE")
           (root / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/nsb"]\nresolver = "2"\n')
+          with (root / "Cargo.toml").open("a") as manifest:
+              manifest.write("\n[patch.crates-io]" + Path("Cargo.toml").read_text().split("[patch.crates-io]", 1)[1])
           # Explicit synthetic authorization exists only in this isolated test
           # repository. Neither it nor its payload is a published release.
           rc = root / "docs/nsb_components/starlight/release-candidate"
@@ -223,7 +225,13 @@ jobs:
           cargo metadata --manifest-path "$fixture/Cargo.toml" --locked --offline --format-version 1 > /dev/null
           NSB_FIXTURE_RESULT="$fixture/rust-result.json" cargo test --manifest-path "$fixture/Cargo.toml" -p nsb --test embedded_fixture \
             --locked --offline --target-dir "$PWD/target"
-          cargo package --manifest-path "$fixture/crates/nsb/Cargo.toml" --locked --target-dir "$PWD/target"
+          cargo package --manifest-path "$fixture/crates/nsb/Cargo.toml" --locked --no-verify --target-dir "$PWD/target"
+          package_version=$(python -c 'import tomllib; print(tomllib.load(open("crates/nsb/Cargo.toml", "rb"))["package"]["version"])')
+          mkdir -p "$RUNNER_TEMP/nsb-package-fixture"
+          tar -xzf "target/package/nsb-$package_version.crate" -C "$RUNNER_TEMP/nsb-package-fixture"
+          cargo check --manifest-path "$RUNNER_TEMP/nsb-package-fixture/nsb-$package_version/Cargo.toml" --all-features \
+            --config "patch.crates-io.siderust.git='https://github.com/Siderust/siderust'" \
+            --config "patch.crates-io.siderust.rev='83d1ebb29ca1ae0b327d5784d13eda231d52c120'"
           crate="$(find target/package -maxdepth 1 -type f -name 'nsb-*.crate' -print -quit)"
           test -n "$crate"
           test "$(stat -c '%s' "$crate")" -lt "$((10 * 1024 * 1024))"
@@ -335,7 +343,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo package -p nsb --locked
+          scripts/verify-single-scattering-package.sh
           crate="$(find target/package -maxdepth 1 -name 'nsb-*.crate' -print -quit)"
           test -n "$crate"
           contents="$(tar -tzf "$crate")"
