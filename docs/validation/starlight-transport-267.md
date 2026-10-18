@@ -116,3 +116,43 @@ Reproduce the layered timing diagnostic with:
 cargo test -p nsb --release --lib representative_layered_cost_diagnostic \
   --locked -- --nocapture
 ```
+
+## Quality gates and review
+
+Local verification passed fmt; locked workspace/all-target/all-feature Clippy
+with warnings denied; locked workspace/all-target/all-feature tests; Rust
+1.89.0 workspace/all-target/all-feature check; all-feature doctests; Rustdoc
+with warnings denied; release workspace compilation; installed abi3 wheel
+regressions (**115 passed**); dependency/advisory/license/source policy; SPDX,
+`cfg(test)` boundaries and release metadata. The frozen map checksum was
+rechecked after the diagnostic and is unchanged. CLI, evaluator defaults,
+existing Starlight formats and #190 analytical/numerical regressions pass in
+the workspace run. No Python or CLI public API was added or changed.
+
+Established collection command:
+
+```sh
+cargo +nightly-2026-09-02 llvm-cov --workspace --doctests --locked --no-report
+cargo +nightly-2026-09-02 llvm-cov report --lcov --output-path coverage.lcov
+scripts/coverage-gate.sh diff --lcov coverage.lcov --base origin/main
+scripts/coverage-gate.sh overall --lcov coverage.lcov
+```
+
+Changed executable production coverage: **199/202 = 98.51%**. Three uncovered
+lines are the defensive nonfinite upstream rotation check, not an excluded
+source region. Overall workspace line coverage is 92.27%, NSB 94.87%; existing
+policy and exclusions are unchanged. The frozen public API snapshot contains
+only additions; the historical SemVer gate passes against the initial main SHA.
+
+Final manual diff review checked units, containing-pixel semantics, direction
+sign/frame conversion, origin/height validation, full-bin integration, separate
+convergence controls, work arithmetic, source lifetime/ownership and provenance.
+The scalar scattering kernel, spectral-map loader, production data, evaluator,
+Python/CLI interface and dependency strategy were not modified.
+
+Remaining tracked work: #192 conservative HEALPix angular integration/cost
+control before general real-map accuracy claims; a scientifically matched
+historical optical-column/bin-center fixture for exact frozen-pilot replay;
+#265 registry release; higher orders and empirical admission remain separate.
+The PR records final-head GitHub Actions status; this local report does not
+substitute an older green CI run for the final head.
