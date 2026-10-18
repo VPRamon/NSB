@@ -37,3 +37,6 @@ highlight = "all"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+# Temporary #190 prerequisite; only immutable revisions are permitted.
+allow-git = ["https://github.com/Siderust/siderust"]
+required-git-spec = "rev"
