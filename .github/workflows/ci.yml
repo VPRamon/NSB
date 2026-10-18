@@ -339,7 +339,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
       - name: Build release workspace
         run: cargo build --workspace --release --all-features --locked
-      - name: Verify publishable nsb crate excludes unapproved Starlight assets
+      - name: Verify temporary dependency archive and scientific asset exclusions
         shell: bash
         run: |
           set -euo pipefail
