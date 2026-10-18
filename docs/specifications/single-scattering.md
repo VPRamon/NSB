@@ -44,6 +44,70 @@ when applicable. Source statistical/systematic uncertainties, atmospheric parame
 uncertainty, model discrepancy and missing populations are **unknown**, not zero.
 Numerical resolution changes do not estimate these physical uncertainties.
 
+## Computational admission and performance
+
+Before any source metadata/radiance query, phase lookup, optical-depth integration
+or numerical-array allocation, a private checked-integer estimate admits the
+**entire configured refinement plan**. Limits are **250,000,000 work units** and
+**8 MiB of peak quadrature buffers**. Exceeding either returns `OutOfRange` with
+layer count, settings, estimated work/bytes and both maxima; integer overflow is
+an explicit error. There is no partial result or machine-dependent timing cutoff.
+
+For one integration with L layers, mu/azimuth/path orders M/A/Z and N=M*A:
+
+- Angular illumination samples: N.
+- Vertical source terms: L*Z*N (each includes incoming attenuation).
+- Atmospheric layer visits/comparisons: 2*L²*Z + L². Two exact partial-column
+  queries per path point traverse layers; coefficient lookup is conservatively
+  charged L comparisons per layer. The direct column adds L once per request.
+- Legendre recurrence steps: 64*(M*ceil(M/2) + Z*ceil(Z/2)), charging the actual
+  bounded Newton iteration ceiling for both freshly allocated rules.
+- Peak buffers: `size_of(Sample)*N + 16*max(M,Z)` bytes on supported targets.
+  Angular samples coexist with either the mu rule or the path rule, sequentially.
+
+The work limit applies to the sum of the first four counts. Starting with one
+coarse integration, each permitted refinement charges angular-only (2M,2A,Z),
+path-only (M,A,2Z) and joint (2M,2A,2Z). The joint result is reused as the next
+coarse result without another evaluation. All multiplication/addition is checked.
+Admission assumes every layer scatters and every refinement is needed, even for
+vacuum, absorption or an early-converging request. Individual order bounds remain
+initial M>=2, A>=4, Z>=2, with M<=512, A<=1024, Z<=512 **after** all permitted doublings (1–5).
+
+The kernel remains O(N + L*Z*N + L²*Z + M² + Z²) per integration with bounded
+Newton iterations. Repeated wavelength-dependent column queries and repeated
+sample allocations remain deliberate reference-solver costs. Accumulation stays
+in the existing deterministic order; grazing directions retain exponential
+attenuation. No caches, parallelization, optical-depth replacement or #192
+acceleration are introduced.
+
+These units are conservative algorithmic counts, not CPU instructions or a
+universal wall-time guarantee. Caller-provided source callbacks/opaque phase data,
+allocator overhead and owned input/result provenance storage are additional;
+the byte limit bounds solver quadrature buffers. Input/result storage scales
+with the supplied medium/phase rather than the refinement sequence.
+
+The cap admits all existing reference fixtures, including three-layer defaults
+(214,266,360 worst-case units), while rejecting four-layer default plans
+(281,384,148). Larger columns can request fewer refinements: 16 layers with two
+refinements use 17,556,240 units. This intentional preflight policy cannot credit
+a request with early convergence before evaluating it. The independent memory
+cap rejects a 512x1024 final angular grid even with inexpensive path orders.
+
+Reproduce diagnostic timings with:
+`cargo test -p nsb --release --lib computational_budget_reference_performance --locked -- --nocapture`.
+Timings are medians of 21 accepted evaluations on an Intel Core Ultra 9 185H,
+Linux x86_64; they are observations, never scientific acceptance thresholds.
+All initial orders below are mu/azimuth/path, before refinement.
+
+| Case | Layers | Initial orders | Refinements | Work units | Worst-plan buffer bytes | Median ms | Result |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Homogeneous | 1 | 16/32/16 | 4 | 80,045,454 | 3,149,824 | 0.799 | Accepted |
+| Two-layer | 2 | 16/32/16 | 4 | 147,153,462 | 3,149,824 | 1.256 | Accepted |
+| Forward HG g=0.85 | 1 | 16/32/16 | 4 | 80,045,454 | 3,149,824 | 5.572 | Accepted |
+| Layered reference | 16 | 16/32/16 | 2 | 17,556,240 | 197,632 | 7.635 | Accepted |
+| Excessive plan | 1 | 256/512/256 | 1 | 546,573,317 | 12,591,104 | 0.0206 (preflight only) | Rejected before sampling |
+| Memory-only excess | 1 | 256/512/2 | 1 | 26,215,709 | 12,591,104 | — | Rejected before sampling |
+
 ## Numerical validation
 
 Positive Gauss–Legendre nodes integrate mu over (0,1), periodic azimuth integrates

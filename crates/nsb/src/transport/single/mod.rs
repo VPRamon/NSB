@@ -13,6 +13,7 @@
 //! implementation domain, not empirical scientific admission. Resolution changes
 //! are diagnostics, not rigorous error bounds or physical uncertainty estimates.
 
+mod budget;
 mod quadrature;
 use super::RadianceOrigin;
 use crate::units::qtty::{Degrees, Meters, Nanometers, Radian, Radians};
@@ -78,6 +79,11 @@ impl AerosolPhase {
 }
 
 /// Bounded deterministic resolution and successive-resolution tolerances.
+///
+/// The entire requested refinement plan must also fit the private computational
+/// budget (250 million conservative work units; 8 MiB of quadrature buffers).
+/// Admission uses layer count before any source query, even if a request might
+/// converge early or contain no scattering. See the maintained solver notes.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SolverSettings {
     /// Initial Gauss–Legendre order on 0 < mu < 1.
@@ -186,8 +192,8 @@ impl SingleScattering {
 ///
 /// # Errors
 /// Rejects unsupported domain/origin/coverage, invalid illumination, upstream
-/// medium/phase errors, arithmetic overflow and unresolved convergence. No partial
-/// result is returned on failure. The source must be deterministic; quadrature
+/// medium/phase errors, arithmetic overflow, excessive computational work and
+/// unresolved convergence. No partial result is returned on failure. The source must be deterministic; quadrature
 /// cannot certify arbitrary unresolved angular structure in caller illumination.
 pub fn single_scattering(
     atmosphere: &LayeredAtmosphere,
@@ -197,7 +203,8 @@ pub fn single_scattering(
     view: Horizontal,
     settings: SolverSettings,
 ) -> Result<SingleScattering> {
-    settings.validate()?;
+    let layers = atmosphere.edges().len() - 1;
+    budget::estimate(settings, layers)?.enforce(layers, settings)?;
     let coverage = sky.coverage();
     let [lo, hi] = coverage.wavelengths.map(|v| v.value());
     let w = wavelength.value();

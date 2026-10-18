@@ -775,3 +775,260 @@ fn collimated_equal_mu_path_oracle_and_independent_path_refinement() {
     );
     println!("independent coarse-path refinement: orders={:?}, angular={:.3e}, path={:.3e}, joint={:.3e}",r.convergence.orders,r.convergence.angular_change.value(),r.convergence.path_change.value(),r.convergence.joint_change.value());
 }
+
+#[test]
+fn work_estimate_counts_refinements_layers_and_reused_coarse_results() {
+    let settings = SolverSettings {
+        mu_nodes: 2,
+        azimuth_nodes: 4,
+        path_nodes: 2,
+        refinements: 1,
+        ..SolverSettings::default()
+    };
+    let work = budget::estimate(settings, 1).unwrap();
+    // Explicit four calls: (2,4,2), (4,8,2), (2,4,4), (4,8,4).
+    assert_eq!(work.angular_samples, 80);
+    assert_eq!(work.source_terms, 240);
+    assert_eq!(work.layer_visits, 29); // Direct column + 2*sum(path)*L² + 4*L².
+    assert_eq!(work.legendre_steps, 2560);
+    assert_eq!(work.peak_bytes, 832);
+    assert_eq!(work.total().unwrap(), 2909);
+    let three = budget::estimate(settings, 3).unwrap();
+    assert_eq!(three.source_terms, 3 * work.source_terms);
+    assert_eq!(three.layer_visits, 3 + 9 * (work.layer_visits - 1));
+    let twice = budget::estimate(
+        SolverSettings {
+            refinements: 2,
+            ..settings
+        },
+        1,
+    )
+    .unwrap();
+    assert_eq!(twice.angular_samples, 368); // Three more calls; no repeated coarse call.
+    assert_eq!(twice.source_terms, 2032);
+    assert!(twice.layer_visits > work.layer_visits);
+    assert!(twice.legendre_steps > work.legendre_steps);
+    assert_eq!(
+        budget::estimate(SolverSettings::default(), 1)
+            .unwrap()
+            .total()
+            .unwrap(),
+        80_045_454
+    );
+    for layers in [1, 2, 3] {
+        let w = budget::estimate(SolverSettings::default(), layers).unwrap();
+        w.enforce(layers, SolverSettings::default()).unwrap();
+    }
+}
+
+#[test]
+fn work_and_memory_budget_exact_boundaries_and_overflow() {
+    let settings = SolverSettings::default();
+    for (count, accepted) in [
+        (budget::MAX_WORK - 1, true),
+        (budget::MAX_WORK, true),
+        (budget::MAX_WORK + 1, false),
+    ] {
+        let w = budget::Work {
+            source_terms: count,
+            ..budget::Work::default()
+        };
+        assert_eq!(w.enforce(1, settings).is_ok(), accepted);
+    }
+    for (bytes, accepted) in [
+        (budget::MAX_TEMPORARY_BYTES - 1, true),
+        (budget::MAX_TEMPORARY_BYTES, true),
+        (budget::MAX_TEMPORARY_BYTES + 1, false),
+    ] {
+        let w = budget::Work {
+            peak_bytes: bytes,
+            ..budget::Work::default()
+        };
+        assert_eq!(w.enforce(1, settings).is_ok(), accepted);
+    }
+    let overflow = budget::Work {
+        angular_samples: usize::MAX,
+        source_terms: 1,
+        ..budget::Work::default()
+    };
+    assert!(overflow
+        .total()
+        .unwrap_err()
+        .to_string()
+        .contains("estimate overflow"));
+    // The square-root-scale count reaches the quadratic depth-visit overflow
+    // while the linear source-term count still fits, on both 32/64-bit targets.
+    for layers in [
+        usize::MAX,
+        usize::MAX / 2,
+        usize::MAX / 1024,
+        1usize << (usize::BITS / 2),
+    ] {
+        assert!(budget::estimate(settings, layers)
+            .unwrap_err()
+            .to_string()
+            .contains("estimate overflow"));
+    }
+    let invalid = SolverSettings {
+        refinements: usize::MAX,
+        ..settings
+    };
+    assert!(budget::estimate(invalid, 1).is_err());
+}
+
+#[test]
+fn excessive_work_or_memory_fails_before_any_sky_query_deterministically() {
+    struct Unsampled;
+    impl IncidentSky for Unsampled {
+        fn coverage(&self) -> SkyCoverage {
+            panic!("over-budget request queried source metadata")
+        }
+        fn radiance(&self, _: Nanometers, _: Horizontal) -> Result<Radiance> {
+            panic!("over-budget request sampled sky")
+        }
+    }
+    let m = medium(0.1, 0.1, 0.7, 0.);
+    for settings in [
+        SolverSettings {
+            mu_nodes: 256,
+            azimuth_nodes: 512,
+            path_nodes: 256,
+            refinements: 1,
+            ..SolverSettings::default()
+        },
+        SolverSettings {
+            mu_nodes: 256,
+            azimuth_nodes: 512,
+            path_nodes: 2,
+            refinements: 1,
+            ..SolverSettings::default()
+        },
+    ] {
+        settings.validate().unwrap(); // Individually valid; globally unsafe.
+        let work = budget::estimate(settings, 1).unwrap();
+        if settings.path_nodes == 2 {
+            assert!(work.total().unwrap() < budget::MAX_WORK);
+            assert!(work.peak_bytes > budget::MAX_TEMPORARY_BYTES);
+        } else {
+            assert!(work.total().unwrap() > budget::MAX_WORK);
+        }
+        let first = single_scattering(
+            &m,
+            &phase(0.65),
+            &Unsampled,
+            wavelength(),
+            view(0.8, 0.),
+            settings,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(first.contains("computational budget exceeded"));
+        assert!(first.contains("maximum 250000000"));
+        assert!(first.contains("layers=1"));
+        for _ in 0..3 {
+            assert_eq!(
+                first,
+                single_scattering(
+                    &m,
+                    &phase(0.65),
+                    &Unsampled,
+                    wavelength(),
+                    view(0.8, 0.),
+                    settings
+                )
+                .unwrap_err()
+                .to_string()
+            );
+        }
+    }
+    let edges: Vec<_> = (0..=4)
+        .map(|i| Meters::new(2100. + 250. * i as f64))
+        .collect();
+    let layered = LayeredAtmosphere::try_new(
+        &edges,
+        m.wavelength_domain(),
+        vec![optics(0., 0., 0., 0.); 4],
+    )
+    .unwrap();
+    assert!(single_scattering(
+        &layered,
+        &phase(0.),
+        &Unsampled,
+        wavelength(),
+        view(1., 0.),
+        SolverSettings::default()
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("layers=4"));
+}
+
+#[test]
+fn computational_budget_reference_performance() {
+    let mut sky = Sky::new(0.01);
+    sky.dipole = 0.4;
+    let two = LayeredAtmosphere::try_new(
+        &[Meters::new(2100.), Meters::new(2500.), Meters::new(3100.)],
+        [Nanometers::new(360.), Nanometers::new(570.)],
+        vec![optics(0.0001, 0., 0., 0.0002), optics(0., 0.0002, 0.9, 0.)],
+    )
+    .unwrap();
+    let edges: Vec<_> = (0..=16)
+        .map(|i| Meters::new(2100. + 62.5 * i as f64))
+        .collect();
+    let sixteen = LayeredAtmosphere::try_new(
+        &edges,
+        two.wavelength_domain(),
+        vec![optics(0.00007, 0.00012, 0.7, 0.00003); 16],
+    )
+    .unwrap();
+    for (name, m, g, settings) in [
+        (
+            "homogeneous",
+            medium(0.07, 0.12, 0.7, 0.03),
+            0.,
+            SolverSettings::default(),
+        ),
+        ("two-layer", two, 0., SolverSettings::default()),
+        (
+            "forward-HG",
+            medium(0.02, 0.15, 0.9, 0.01),
+            0.85,
+            SolverSettings::default(),
+        ),
+        (
+            "16-layer",
+            sixteen,
+            0.,
+            SolverSettings {
+                refinements: 2,
+                ..SolverSettings::default()
+            },
+        ),
+    ] {
+        let layers = m.edges().len() - 1;
+        let work = budget::estimate(settings, layers).unwrap();
+        let mut times = Vec::new();
+        let p = phase(g);
+        for _ in 0..21 {
+            let start = std::time::Instant::now();
+            let result =
+                single_scattering(&m, &p, &sky, wavelength(), view(0.8, 23.), settings).unwrap();
+            std::hint::black_box(result);
+            times.push(start.elapsed());
+        }
+        times.sort();
+        println!("budget performance {name}: layers={layers}, initial=[{},{},{}], refinements={}, work={}, temporary_bytes={}, median_us={:.3}, accepted", settings.mu_nodes,settings.azimuth_nodes,settings.path_nodes,settings.refinements,work.total().unwrap(),work.peak_bytes,times[10].as_secs_f64()*1e6);
+    }
+    let settings = SolverSettings {
+        mu_nodes: 256,
+        azimuth_nodes: 512,
+        path_nodes: 256,
+        refinements: 1,
+        ..SolverSettings::default()
+    };
+    let start = std::time::Instant::now();
+    let work = budget::estimate(settings, 1).unwrap();
+    assert!(work.enforce(1, settings).is_err());
+    println!("budget performance pathological: layers=1, initial=[256,512,256], refinements=1, work={}, temporary_bytes={}, rejection_us={:.3}, rejected",work.total().unwrap(),work.peak_bytes,start.elapsed().as_secs_f64()*1e6);
+}

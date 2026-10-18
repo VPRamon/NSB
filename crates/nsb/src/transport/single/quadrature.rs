@@ -49,6 +49,8 @@ struct Sample {
     aerosol: f64,
 }
 
+pub(super) const SAMPLE_BYTES: usize = std::mem::size_of::<Sample>();
+
 pub(super) struct Kernel<'a, S> {
     pub atmosphere: &'a LayeredAtmosphere,
     pub phase: &'a AerosolPhase,
