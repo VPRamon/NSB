@@ -155,3 +155,34 @@ fn overflow_and_nonconvergence_are_errors_not_partial_results() {
         multiple_scattering(&atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), s).is_err()
     );
 }
+
+/// Offline dense-matrix oracle: invert (I - T*S) rather than iterate orders.
+/// Same finite-cell/ordinate discretization, so this verifies the recurrence
+/// but is not an independent continuum-transfer or Gaia accuracy claim.
+#[test]
+fn higher_orders_match_offline_dense_linear_system_reference() {
+    let atm = atmosphere(0.0, 0.12, 0.7, 0.02);
+    let sky = Sky {
+        scale: 0.025,
+        dipole: 0.0,
+    };
+    let s = MultipleScatteringSettings {
+        mu_nodes: 4,
+        azimuth_nodes: 8,
+        cells_per_layer: 4,
+        max_orders: 48,
+        order_tolerance: 1e-8,
+        absolute_tolerance: Radiance::new(1e-14),
+        ..relaxed()
+    };
+    let p = aerosol();
+    let v = Horizontal::new(Degrees::new(0.8_f64.asin().to_degrees()), Degrees::new(23.0));
+    let result = solution(&atm, &p, &sky, Nanometers::new(450.0), v, s, (1, 1)).unwrap();
+    // numpy.linalg.solve generator: docs/validation/multiple-scattering-matrix.py
+    let first = 0.0009520451506273049;
+    let higher = 0.00013390123542604275;
+    assert!((result.first - first).abs() < 1e-10);
+    assert!((result.higher - higher).abs() < 1e-10);
+    assert!(result.orders >= 3);
+    assert!(result.bound < 1e-10);
+}
