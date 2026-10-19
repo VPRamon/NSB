@@ -222,3 +222,43 @@ fn homogeneous_isotropic_matches_independent_fredholm_reference() {
     assert!(relative_first < 0.02, "first-order E1 oracle delta={relative_first}");
     assert!(relative_higher < 0.02, "higher-order E1 oracle delta={relative_higher}");
 }
+
+/// Uniform medium divided into two equivalent Siderust layers must preserve
+/// the cell optical depths and all scattering orders when cell edges match.
+#[test]
+fn split_layer_invariance_for_bidirectional_orders() {
+    let whole = atmosphere(0.0, 0.12, 0.7, 0.02);
+    let coeff = AtmosphericOptics::from_extinction(
+        Quantity::new(0.0),
+        Quantity::new(0.12 / 1000.0),
+        Albedos::new(0.7),
+        Quantity::new(0.02 / 1000.0),
+    )
+    .unwrap();
+    let split = LayeredAtmosphere::try_new(
+        &[Meters::new(2100.0), Meters::new(2600.0), Meters::new(3100.0)],
+        [Nanometers::new(360.0), Nanometers::new(570.0)],
+        vec![coeff.clone(), coeff],
+    )
+    .unwrap();
+    let src = Sky {
+        scale: 0.025,
+        dipole: 0.0,
+    };
+    let view = Horizontal::new(
+        Degrees::new(0.8_f64.asin().to_degrees()),
+        Degrees::new(23.0),
+    );
+    let base = MultipleScatteringSettings {
+        cells_per_layer: 4,
+        ..relaxed()
+    };
+    let divided = MultipleScatteringSettings {
+        cells_per_layer: 2,
+        ..relaxed()
+    };
+    let a = solution(&whole, &aerosol(), &src, Nanometers::new(450.0), view, base, (1, 1)).unwrap();
+    let b = solution(&split, &aerosol(), &src, Nanometers::new(450.0), view, divided, (1, 1)).unwrap();
+    assert!((a.first - b.first).abs() < 1e-13);
+    assert!((a.higher - b.higher).abs() < 1e-13);
+}
