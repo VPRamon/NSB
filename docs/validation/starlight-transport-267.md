@@ -1,32 +1,86 @@
-# Spectral Starlight transport validation (#267)
+# Spectral Starlight transport validation (#267, PR #268)
 
-Initial main: `dd59f5a7fb13d8edb98be33590a8cbe25b8bd61f` (merged #266).
-No overlapping open implementation PR existed at the initial audit. #259/#260's
-spectral product/API functionality already exists; no replacement was added.
-Siderust remains pinned to `83d1ebb29ca1ae0b327d5784d13eda231d52c120`;
-release blocker #265 remains open. Abandoned #264 is not a dependency.
+Original reviewed PR SHA: `228013b9605716a08701b00e1f9d77824fc45f49`.
+Main inspected: `dd59f5a7fb13d8edb98be33590a8cbe25b8bd61f`.
+Siderust stays pinned to `83d1ebb29ca1ae0b327d5784d13eda231d52c120`;
+#265 remains the registry release blocker. #264 is not a dependency.
 
-## Synthetic validation
+## Datum and absolute-frame corrections
 
-Offline unit tests construct checksum-validated complete RING products for one,
-three, seven and fourteen bins, including nonuniform widths. They exercise typed
-bin-integral/density conversion, vacuum recovery, exact-view pixel selection,
-seam/poles/horizon, three representative sites and two epochs, unsupported
-NESTED ordering, finite geometry, unsupported/partial/missing/union bins, invalid
-source/schema/checksum/origin/radiance, legacy behavior, source provenance,
-unknown uncertainty, absorption, Rayleigh, aerosol SSA endpoints, HG orientation
-through the authoritative operator, homogeneous/eight-layer composition,
-repeatability, independent wavelength refinement and explicit convergence/work
-failures. Existing #190 analytical/SciPy/phase/path/angular tests are unchanged.
+AFFN `Geodetic<ECEF>` height is WGS84 ellipsoidal; Siderust's profile column
+altitude is MSL. Equality of those numbers was an invalid physical consistency
+check. It is removed, with neither input altered. The first atmospheric edge
+still defines the plane-parallel observer origin. No geoid model or altitude
+correction is inferred. Regressions vary origins −430/0/2060/2097 m, geodetic
+heights −20/0/2097/2132/4000 m, equal heights, finite/invalid geometry, columns,
+coordinate bases and local pressure independently.
 
-For uniform illumination and wavelength-independent literal optics, the bin
-result equals `width * single_scattering(midpoint)`; this equality is valid only
-for that deliberately wavelength-independent synthetic case. Pure absorption
-matches `I_bin * exp(-tau/mu)` and once-scattered radiance is exactly zero.
-The wavelength-dependent profile test spans 360–570 nm and independently refines
-wavelengths; stringent unresolved spectral tolerance fails separately from
-angular/path convergence. The anisotropic NSIDE 1/2/4 HG g=0.85 fixture records
-angular convergence failures without changing the reference tolerances.
+Historical comparison also exposed a reversed ICRS/Galactic transform in the
+pinned dynamic Siderust frame catalog. The adapter now uses the existing
+canonical static `TransformFrame` implementation, matching production Starlight.
+No dependency/upstream change was needed. An absolute IAU Galactic-pole anchor
+catches the defect that paired round-trip checks alone missed. TOD/ICRS and
+Horizontal transforms remain upstream. Existing evaluator predictions are unchanged.
+
+## Numerical root cause and correction
+
+The old bounded smooth GL/periodic-azimuth path sampled discontinuous parent
+pixels without conserving each parent's area. Its frozen-map diagnostic failed
+all seven bins at orders 256/512/32 and ~212M configured work units/bin.
+These historical failures are not accepted values; their geometry also predates
+the absolute-frame correction. The smooth path remains supported for smooth
+illumination, with its original independent path/angular tests.
+
+The new public `starlight_healpix_single_scattering` streams RING child centers
+while preserving native parent means. Equal child area, antipodal hemisphere
+selection and subdivision of horizon parents remove the native-pixel aliasing.
+Only the attenuation/phase kernel varies inside a parent. The shared #190 kernel
+provides exact homogeneous-layer antiderivatives of its existing path integrand,
+using Siderust coefficients/endpoint columns and Optica phases. This is a narrow
+alternative angular quadrature, not another scattering model. See the
+[specification](../specifications/starlight-transport.md) for formulas and budget.
+
+Two successive angular changes plus raw whole-sphere phase normalization must
+pass. There is no phase renormalization, horizon cutoff, relaxed tolerance,
+source smoothing, correction multiplier or changed production optical law.
+These are resolution diagnostics rather than certified error bounds. An
+unresolved delta-like HG lobe fails explicitly instead of falsely accepting zero.
+
+## Independent synthetic validation
+
+Offline fixtures cover one/three/seven/fourteen bins and variable widths, exact
+flat-density conversion, full-bin integration, independent wavelength failure,
+vacuum, pure absorption, SSA endpoints, finite/invalid geometry, legacy/schema/
+checksum/origin/source errors, NESTED rejection, source provenance and unknown
+uncertainty. Existing #190 analytical, SciPy, angular/path and CLI/evaluator
+regressions remain active. Exact-layer evaluation additionally matches the
+unchanged SciPy homogeneous and heterogeneous two-layer fixtures, analytical
+homogeneous columns, split-layer invariance and smooth GL integration.
+
+The independent angular generator is
+`scripts/generate-starlight-angular-reference.py`, pinned to healpy 1.20.1,
+SciPy 1.18.1 and NumPy 2.5.4. It integrates Galactic z=sin(b)/longitude using
+QUADPACK, independently located native-pixel boundaries and an explicit horizon
+root, with SciPy `exprel` for the homogeneous path. It does not reuse Rust's
+HEALPix implementation or child-center sum. The committed JSON means ordinary
+CI needs no Python scientific packages or external map. Reproduction:
+
+```sh
+uv run --no-project --python 3.12 --with healpy==1.20.1 \
+  --with scipy==1.18.1 --with numpy==2.5.4 \
+  python scripts/generate-starlight-angular-reference.py
+```
+
+Cases cover isolated pixels above/below/crossing the horizon, bright forward
+HG g=0.85, backward g=−0.65, isotropic aerosol and an anisotropic 12-pixel field.
+Accepted results must match the independent integral within relative 1e-4;
+zero below-horizon contribution is exact. Boundary scans 64→128 change results
+by at most 1.4e-17; QUADPACK's largest reported absolute estimate is 5.9e-10
+(not a rigorous bound). Separate independent visible-area integrals test
+horizon parents. Parent counts at NSIDE1/2/3/4 and factors1/2/4 are exactly
+factor²; hemisphere measure is 2π. Exact quarter-turn Galactic seam symmetry,
+compatible coarse/fine constant-parent maps and deterministic repeatability
+pass. Strict tables/double-HG, resource rejection and narrow-lobe failure pass.
 
 ## Frozen-pilot boundary and reproducibility
 
@@ -67,92 +121,78 @@ higher orders. The case-specific integrated values, photons/(cm² ns sr), are:
 | Independent first order | 0.0025990756849478282 |
 | Independent multiple scattering | 0.0033296021852152395 |
 
-**Exact replay is not claimed.** The optional NSB example uses full-bin GL
-integration and the actual Siderust Bodhaine profile, with a one-layer
-homogeneous mixture. It is a diagnostic, not the historical compatibility
-fixture. The geometry epochs in its documented invocation were calculated with
-Astropy 8.0.2 and bundled offline IERS data: TT JD2459679.9675055384 and
-UT1 JD2459679.966703672. They are explicitly supplied, rather than hidden
-UTC=UT1 assumptions; historical IERS-version identity is not claimed matched.
-Exact replay needs a scientifically matched historical-column operation plus a
-conservative HEALPix angular boundary integration within the work cap (#192).
-No coefficient tuning, 28.10% multiplier, new multiple-scattering solver,
-observational accuracy score or empirical admission was introduced.
+The example declares atmospheric origin 2097 m independently of ellipsoidal
+height 2097 m; numeric coincidence does not verify geoid consistency.
+TT JD2459679.9675055384 and UT1 JD2459679.966703672 were computed with
+Astropy 8.0.2 and bundled offline IERS data. The historical source directions
+use Astropy Galactic→AltAz (including apparent-place effects), whereas this
+adapter uses a geometric Siderust celestial rotation. Exact IERS/version,
+aberration and frame-convention identity are not claimed. An offline Astropy
+8.0.2 comparison at all 196,608 NSIDE128 centers gives geometric/apparent
+direction residuals 0.0847 / 17.8393 / 21.5749 arcsec (minimum/median/maximum).
+The geometric rotation has 98,304 above-horizon centers versus 98,307 for
+Astropy. Those differences are disclosed, not absorbed into optical coefficients.
 
+## Frozen Gaia results after both corrections
 
-## Bounded execution measurements
+All seven current-model bins accept angular NSIDE **512** (128→256→512),
+wavelength order **4** (2→4), relative targets 1e-4, and absolute targets 1e-12
+in the corresponding spectral/integrated units. No partial total is accepted.
+The path is layer-exact, so it has no path-order error. Largest accepted spectral
+angular changes are 1.96e-12 latest and 1.77e-11 previous; raw whole-sphere
+phase integrals are Rayleigh 0.99999996777, aerosol 1.00000006420. A
+separate monochromatic diagnostic (not a substitute full-bin plan) at each
+bin center continues through NSIDE1024: maximum relative changes across bins
+are 1.53e-6 (128→256), 2.27e-7 (256→512), 7.60e-8 (512→1024).
 
-Release measurements on Linux x86_64 / Intel Core Ultra 9 185H, on a shared
-workstation. Timings are diagnostic, with no machine-dependent assertions.
-The eight-layer NSIDE4 case transports three native bins with literal
-wavelength-independent Rayleigh tau=0.1, aerosol tau=0.03, SSA=1 and HG g=0.65.
-For each bin the configured whole spectral plan is 127,871,856 work units;
-uniform-sky acceptance uses wavelength order 4 and scalar orders 32/64/32.
-Across 21 executions the three-bin median is **106.709 ms** for uniform sky
-(success), **126.759 ms** for anisotropic sky (explicit nonconvergence).
+| Bin nm | Current full-bin single, photons/(cm² ns sr) |
+| --- | ---: |
+| 360–390 | 0.00024993575191143786 |
+| 390–420 | 0.0003445674547143664 |
+| 420–450 | 0.00036575299729958667 |
+| 450–480 | 0.000402236185339468 |
+| 480–510 | 0.0003642020711950665 |
+| 510–540 | 0.00034446205816497145 |
+| 540–570 | 0.00034845046748063226 |
 
-The spectral-profile synthetic NSIDE1 example accepts all three 30 nm bins at
-wavelength order 4, scalar orders 32/64/32, with 25,456,368 conservative work
-units per configured bin plan. First-bin TOA/direct/single are
-0.003 / 0.0020267006978094445 / 0.0003240604633770209 in integrated photon units.
-The wavelength-order changes are 3.72e-10 direct and 2.30e-9 single; the
-accepted relative wavelength target is 1e-5, independently of scalar 1e-4.
-Representative per-bin times were 11.9–16.6 ms.
+| Deliberately distinct experiment | Integrated single |
+| --- | ---: |
+| Current Siderust Bodhaine, full-bin quadrature | **0.00241960698610553** |
+| Same current optics frozen at bin centers (`--current-bin-centers`) | 0.00241726783764973 |
+| Historical optical prescription frozen at centers (`--pilot-bin-centers`) | **0.00259905749633912** |
 
-The frozen-map diagnostic first fails all seven bins at scalar orders 64/128/64
-(9.7–10.7 ms per failed bin). The denser documented invocation uses initial
-16/32/2 with four refinements, reaching **256/512/32**, while its whole configured
-spectral plan is **212,147,684 work units** per bin, below 250M. Every bin still
-fails angular/path acceptance (131–206 ms each); the example exits nonzero and
-returns no partial pilot total. This demonstrates an unresolved real-map
-integration problem within these bounded plans, not equivalence to the
-historical optical law. A fifth doubling of this plan exceeds the budget.
-The scalar kernel's 8 MiB quadrature-buffer guard remains active at every node.
-No general LUT/cache/resampling/parallel integration framework was added.
+Full-bin integration changes the current center approximation by +0.0967683%.
+At fixed centers/geometry/integrator, the current versus historical optical
+prescriptions differ by −6.99445%. The historical-law compatibility fixture is
+−34.4747 ppm versus nsb2 first order, −6.99811 ppm versus the independent first
+order. Those residuals mix remaining astrometry and angular-projection effects;
+they are not a proof of exact historical identity or empirical accuracy. The
+historical multiple-scattering value is never used as a correction factor.
+Production coefficients and evaluator defaults were not fitted or changed.
 
-Reproduce the layered timing diagnostic with:
+Release measurements on Linux x86_64 / Intel Core Ultra 9 185H, shared
+workstation: current-model transport takes **2.53–3.43 s/bin** (map loading and
+compilation excluded). Each complete configured one-layer bin plan costs
+**243,600,079** conservative work units, below the unchanged 250M cap. It
+precharges all configured wavelength nodes, even those unused on early
+acceptance. No whole-sky subpixel buffers are allocated; layer responses,
+phase-audit descriptors and wavelength quadrature stay under 8 MiB.
 
-```sh
-cargo test -p nsb --release --lib representative_layered_cost_diagnostic \
-  --locked -- --nocapture
-```
+Reproduce with the commands in the specification; append the explicit mode
+flag only for the corresponding center fixture. The frozen map was never
+regenerated. Its checksum is rechecked after the runs.
 
-## Quality gates and review
+## Quality gates and limitations
 
-Local verification passed fmt; locked workspace/all-target/all-feature Clippy
-with warnings denied; locked workspace/all-target/all-feature tests; Rust
-1.89.0 workspace/all-target/all-feature check; all-feature doctests; Rustdoc
-with warnings denied; release workspace compilation; installed abi3 wheel
-regressions (**115 passed**); dependency/advisory/license/source policy; SPDX,
-`cfg(test)` boundaries and release metadata. The frozen map checksum was
-rechecked after the diagnostic and is unchanged. CLI, evaluator defaults,
-existing Starlight formats and #190 analytical/numerical regressions pass in
-the workspace run. No Python or CLI public API was added or changed.
+Final local and GitHub verification is recorded in PR #268. Historical 19/19
+CI and 199/202 coverage at the original SHA are superseded and are not evidence
+for this follow-up. Coverage uses the existing LLVM diff/overall policy with
+unchanged exclusions and thresholds, against main and the original reviewed SHA.
 
-Established collection command:
-
-```sh
-cargo +nightly-2026-09-02 llvm-cov --workspace --doctests --locked --no-report
-cargo +nightly-2026-09-02 llvm-cov report --lcov --output-path coverage.lcov
-scripts/coverage-gate.sh diff --lcov coverage.lcov --base origin/main
-scripts/coverage-gate.sh overall --lcov coverage.lcov
-```
-
-Changed executable production coverage: **199/202 = 98.51%**. Three uncovered
-lines are the defensive nonfinite upstream rotation check, not an excluded
-source region. Overall workspace line coverage is 92.27%, NSB 94.87%; existing
-policy and exclusions are unchanged. The frozen public API snapshot contains
-only additions; the historical SemVer gate passes against the initial main SHA.
-
-Final manual diff review checked units, containing-pixel semantics, direction
-sign/frame conversion, origin/height validation, full-bin integration, separate
-convergence controls, work arithmetic, source lifetime/ownership and provenance.
-The scalar scattering kernel, spectral-map loader, production data, evaluator,
-Python/CLI interface and dependency strategy were not modified.
-
-Remaining tracked work: #192 conservative HEALPix angular integration/cost
-control before general real-map accuracy claims; a scientifically matched
-historical optical-column/bin-center fixture for exact frozen-pilot replay;
-#265 registry release; higher orders and empirical admission remain separate.
-The PR records final-head GitHub Actions status; this local report does not
-substitute an older green CI run for the final head.
+The conservative HEALPix prerequisite for #192 is implemented and independently
+validated for these supported cases; broader LUT/cache/acceleration work remains
+open. Exact historical apparent-place replay is a distinct follow-up, not a
+blocker to these explicitly geometric first-order results. Higher orders,
+source systematics, unknown cross-bin covariance, empirical admission and
+spherical/polarized/reflected transport remain outside this PR. #267 stays open
+until human-approved merge; #265 still blocks registry publication.

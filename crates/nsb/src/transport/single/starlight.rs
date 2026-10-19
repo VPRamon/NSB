@@ -3,7 +3,11 @@
 //! Experimental native-bin Starlight transport. Pixel averages are sampled by
 //! containing HEALPix pixel; no interpolation, PSF or point-source interpretation.
 //! Numerical resolution changes are not physical uncertainty bounds. Discontinuous
-//! maps can fail angular convergence within the reference budget (see #192).
+//! maps can fail smooth quadrature; the pixel-aware path conserves parent areas
+//! and refines the attenuation/phase kernel with independent wavelength checks.
+mod healpix;
+pub use healpix::{HealpixConvergence, HealpixSettings};
+
 use super::*;
 use crate::components::starlight::{StarlightMap, StarlightProvenance};
 use crate::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian as BandRadiance;
@@ -19,7 +23,9 @@ use tempoch::{JulianDate, TT, UT1};
 /// Earth-orientation data. No UTC=UT1 or TT=UT1 approximation is made here.
 #[derive(Debug, Clone, Copy)]
 pub struct StarlightGeometry {
-    /// Geodetic site; height must equal the atmospheric bottom edge.
+    /// WGS84 geodetic site, including its ellipsoidal height. This is independent
+    /// of the atmospheric column's caller-declared datum (MSL for profiles).
+    /// No geoid conversion or consistency verification is performed.
     pub observer: Observer,
     /// Terrestrial Time Julian date.
     pub tt: JulianDate<TT>,
@@ -92,7 +98,10 @@ impl<'a> StarlightSky<'a> {
             let equatorial =
                 FromHorizontal::to_equatorial(&local, &geometry.ut1, &geometry.tt, &site);
             let icrs: Direction<ICRS> = equatorial.to_frame(&geometry.tt);
-            let galactic: Direction<Galactic> = icrs.to_frame(&geometry.tt);
+            // Use the canonical fixed-frame API. The pinned provider-based
+            // catalog implementation reverses ICRS/Galactic; see anchor tests.
+            let galactic: Direction<Galactic> =
+                siderust::coordinates::transform::TransformFrame::to_frame(&icrs);
             *column = [galactic.x(), galactic.y(), galactic.z()];
             if !column.iter().all(|v| v.is_finite()) {
                 return Err(invalid(
@@ -182,7 +191,10 @@ pub struct WavelengthSample {
     /// Interior wavelength node.
     pub wavelength: Nanometers,
     /// Independent reference angular/path convergence at this wavelength.
-    pub convergence: Convergence,
+    pub convergence: Option<Convergence>,
+    /// Pixel-aware angular refinement; None for the smooth-sky path. Vertical
+    /// integration uses the exact homogeneous-layer antiderivative in this mode.
+    pub healpix_convergence: Option<HealpixConvergence>,
 }
 
 /// Component-separated integrated photon radiance and immutable evaluation context.
@@ -223,7 +235,9 @@ pub struct StarlightTransport {
     /// Actual scattering phase configuration.
     pub aerosol_phase: AerosolPhase,
     /// Requested angular/path settings.
-    pub solver_settings: SolverSettings,
+    pub solver_settings: Option<SolverSettings>,
+    /// Pixel-aware settings; None for the original smooth-sky reference path.
+    pub healpix_settings: Option<HealpixSettings>,
     /// Resolution diagnostics cannot certify arbitrary unresolved pixel structure.
     pub numerical_limitations: &'static str,
     /// Conservative total work for the entire configured spectral refinement plan.
@@ -254,6 +268,52 @@ pub fn starlight_single_scattering(
     solver: SolverSettings,
     wavelength: WavelengthSettings,
 ) -> Result<StarlightTransport> {
+    evaluate_starlight(
+        atmosphere,
+        phase,
+        sky,
+        view,
+        Integration::Smooth(solver),
+        wavelength,
+    )
+}
+
+/// Transport a native bin with conservative HEALPix subpixel refinement and
+/// exact homogeneous-layer path integration in the shared reference kernel.
+/// The source retains piecewise-constant parent-pixel means; attenuation/phase
+/// are evaluated within those pixels. No positive horizon cutoff is imposed.
+pub fn starlight_healpix_single_scattering(
+    atmosphere: &LayeredAtmosphere,
+    phase: &AerosolPhase,
+    sky: &StarlightSky<'_>,
+    view: Horizontal,
+    angular: HealpixSettings,
+    wavelength: WavelengthSettings,
+) -> Result<StarlightTransport> {
+    evaluate_starlight(
+        atmosphere,
+        phase,
+        sky,
+        view,
+        Integration::Healpix(angular),
+        wavelength,
+    )
+}
+
+#[derive(Clone, Copy)]
+enum Integration {
+    Smooth(SolverSettings),
+    Healpix(HealpixSettings),
+}
+
+fn evaluate_starlight(
+    atmosphere: &LayeredAtmosphere,
+    phase: &AerosolPhase,
+    sky: &StarlightSky<'_>,
+    view: Horizontal,
+    integration: Integration,
+    wavelength: WavelengthSettings,
+) -> Result<StarlightTransport> {
     let n = wavelength.nodes;
     let r = wavelength.refinements;
     if !(2..=16).contains(&n)
@@ -268,8 +328,22 @@ pub fn starlight_single_scattering(
         return Err(invalid("invalid Starlight wavelength quadrature settings"));
     }
     let layers = atmosphere.edges().len() - 1;
-    let work = budget::estimate(solver, layers)?;
-    work.enforce(layers, solver)?;
+    let (scalar_work, shared_work) = match integration {
+        Integration::Smooth(solver) => {
+            let work = budget::estimate(solver, layers)?;
+            work.enforce(layers, solver)?;
+            (work.total()?, 0)
+        }
+        Integration::Healpix(angular) => {
+            let (w, a) = healpix::estimate(sky, layers, angular, phase)?;
+            (
+                w,
+                a.checked_add(layers)
+                    .and_then(|v| v.checked_add(8))
+                    .ok_or_else(|| invalid("HEALPix shared work overflow"))?,
+            )
+        }
+    };
     let calls = n * ((1 << (r + 1)) - 1);
     let wavelength_work: usize = (0..=r)
         .map(|i| {
@@ -277,25 +351,17 @@ pub fn starlight_single_scattering(
             64 * order * order.div_ceil(2)
         })
         .sum();
-    let planned_work = work
-        .total()?
+    let planned_work = scalar_work
         .checked_mul(calls)
+        .and_then(|value| value.checked_add(shared_work))
         .and_then(|value| value.checked_add(wavelength_work))
         .ok_or_else(|| invalid("Starlight spectral work estimate overflow"))?;
     if planned_work > budget::MAX_WORK {
         return Err(invalid("Starlight complete wavelength plan exceeds 250 million work units; reduce orders/refinements"));
     }
-    if sky
-        .geometry
-        .observer
-        .height
-        .to::<crate::units::qtty::Meter>()
-        != atmosphere.edges()[0]
-    {
-        return Err(invalid(
-            "Starlight observer height must equal the atmosphere bottom edge",
-        ));
-    }
+    // The column's first edge defines the plane-parallel observer origin.
+    // WGS84 ellipsoidal site height is not an atmospheric MSL height. Callers
+    // supply physically consistent inputs; no geoid offset is inferred here.
     let domain = atmosphere.wavelength_domain();
     if sky.band[0] < domain[0] || sky.band[1] > domain[1] {
         return Err(invalid("atmosphere must cover the complete Starlight bin"));
@@ -304,19 +370,67 @@ pub fn starlight_single_scattering(
     for w in sky.band {
         phase.density(w, Radians::new(0.0))?;
     }
+    let shared_audits = if let Integration::Healpix(angular) = integration {
+        let midpoint = sky.band[0] + (sky.band[1] - sky.band[0]) * 0.5;
+        direct_illumination(atmosphere, phase, sky, midpoint, view)?;
+        if healpix::wavelength_independent(phase) {
+            let kernel = quadrature::Kernel {
+                atmosphere,
+                phase,
+                sky,
+                wavelength: midpoint,
+                view,
+            };
+            Some(healpix::phase_audits(sky, &kernel, angular)?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
     let integrate = |order| -> Result<([f64; 2], Vec<WavelengthSample>)> {
         let mut sum = [0.0; 2];
         let mut samples = Vec::with_capacity(order);
         for (node, weight) in quadrature::gauss(order)? {
             let w = sky.band[0] + (sky.band[1] - sky.band[0]) * node;
-            let result = single_scattering(atmosphere, phase, sky, w, view, solver)?;
+            let (direct, single, sample) = match integration {
+                Integration::Smooth(solver) => {
+                    let result = single_scattering(atmosphere, phase, sky, w, view, solver)?;
+                    (
+                        result.direct.value(),
+                        result.single.value(),
+                        WavelengthSample {
+                            wavelength: w,
+                            convergence: Some(result.convergence),
+                            healpix_convergence: None,
+                        },
+                    )
+                }
+                Integration::Healpix(angular) => {
+                    let (direct, single, convergence) = healpix::solve(
+                        atmosphere,
+                        phase,
+                        sky,
+                        w,
+                        view,
+                        angular,
+                        shared_audits.as_deref(),
+                    )?;
+                    (
+                        direct,
+                        single,
+                        WavelengthSample {
+                            wavelength: w,
+                            convergence: None,
+                            healpix_convergence: Some(convergence),
+                        },
+                    )
+                }
+            };
             let width_weight = (sky.band[1] - sky.band[0]).value() * weight;
-            sum[0] += result.direct.value() * width_weight;
-            sum[1] += result.single.value() * width_weight;
-            samples.push(WavelengthSample {
-                wavelength: w,
-                convergence: result.convergence,
-            });
+            sum[0] += direct * width_weight;
+            sum[1] += single * width_weight;
+            samples.push(sample);
         }
         for v in sum {
             finite_nonnegative(v, "integrated Starlight radiance")?;
@@ -351,8 +465,9 @@ pub fn starlight_single_scattering(
                 view,
                 atmosphere: atmosphere.clone(),
                 aerosol_phase: phase.clone(),
-                solver_settings: solver,
-                numerical_limitations: "Containing-pixel sampling; successive angular/path/wavelength resolution changes are diagnostics, not certified HEALPix integration error bounds. Sparse pixels and boundaries may remain unresolved; see #192.",
+                solver_settings:match integration {Integration::Smooth(v)=>Some(v),_=>None},
+                healpix_settings:match integration {Integration::Healpix(v)=>Some(v),_=>None},
+                numerical_limitations: "Successive quadrature changes are diagnostics rather than rigorous error bounds. Pixel-aware mode refines kernel and horizon sampling within constant parent pixels; high phase anisotropy may exceed its work budget. Smooth mode uses containing-pixel sampling; successive angular/path/wavelength resolution changes are diagnostics, not certified HEALPix integration error bounds. Sparse pixels and boundaries may remain unresolved; see #192.",
                 planned_work,
             });
         }

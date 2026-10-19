@@ -213,8 +213,8 @@ Run `cargo run -p nsb --example single_scattering` from the repository.
 `transport::single::starlight` adapts checksum-validated native spectral bins
 with explicit flat photon density, local site/TT/UT1 geometry and independently
 refined full-bin wavelength integration. Run the offline `starlight_transport`
-example. Pixel discontinuities can fail angular convergence; the frozen Gaia
-pilot is not reproduced. See the [spectral contract](docs/specifications/starlight-transport.md)
+example. A conservative HEALPix subpixel path resolves the frozen Gaia angular
+case; the labelled historical comparison retains explicit astrometric differences. See the [spectral contract](docs/specifications/starlight-transport.md)
 for the bounded numerical method and diagnostic limitations.
 
 The repository temporarily patches Siderust to immutable revision

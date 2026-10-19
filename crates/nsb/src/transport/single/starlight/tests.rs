@@ -9,7 +9,7 @@ use siderust::coordinates::spherical;
 use siderust::coordinates::transform::ToHorizontal;
 use siderust::healpix::{HealpixIndex, HealpixOrdering, Nside};
 
-fn geometry() -> StarlightGeometry {
+pub(super) fn geometry() -> StarlightGeometry {
     StarlightGeometry {
         observer: Observer::new(
             Degrees::new(-111.59989),
@@ -20,7 +20,12 @@ fn geometry() -> StarlightGeometry {
         ut1: JulianDate::new(2459680.7992),
     }
 }
-fn payload(edges: &[u16], nside: u32, ordering: &str, anisotropic: bool) -> serde_json::Value {
+pub(super) fn payload(
+    edges: &[u16],
+    nside: u32,
+    ordering: &str,
+    anisotropic: bool,
+) -> serde_json::Value {
     let grid = HealpixGrid::new(
         Nside::new(nside).unwrap(),
         if ordering == "ring" {
@@ -45,7 +50,7 @@ fn payload(edges: &[u16], nside: u32, ordering: &str, anisotropic: bool) -> serd
         }).collect::<Vec<_>>()
     })
 }
-fn load(p: &serde_json::Value) -> StarlightMap {
+pub(super) fn load(p: &serde_json::Value) -> StarlightMap {
     let bytes = serde_json::to_vec(p).unwrap();
     StarlightMap::from_json_bytes(
         &bytes,
@@ -56,7 +61,7 @@ fn load(p: &serde_json::Value) -> StarlightMap {
     )
     .unwrap()
 }
-fn sky(map: &StarlightMap, band: [f64; 2]) -> StarlightSky<'_> {
+pub(super) fn sky(map: &StarlightMap, band: [f64; 2]) -> StarlightSky<'_> {
     StarlightSky::new(
         map,
         geometry(),
@@ -65,10 +70,16 @@ fn sky(map: &StarlightMap, band: [f64; 2]) -> StarlightSky<'_> {
     )
     .unwrap()
 }
-fn phase(g: f64) -> AerosolPhase {
+pub(super) fn phase(g: f64) -> AerosolPhase {
     AerosolPhase::HenyeyGreenstein(HenyeyGreensteinPhaseFunction::try_new(g).unwrap())
 }
-fn medium(r: f64, a: f64, ssa: f64, absorption: f64, layers: usize) -> LayeredAtmosphere {
+pub(super) fn medium(
+    r: f64,
+    a: f64,
+    ssa: f64,
+    absorption: f64,
+    layers: usize,
+) -> LayeredAtmosphere {
     let c = AtmosphericOptics::from_extinction(
         Quantity::new(r / 1000.0),
         Quantity::new(a / 1000.0),
@@ -85,13 +96,13 @@ fn medium(r: f64, a: f64, ssa: f64, absorption: f64, layers: usize) -> LayeredAt
     )
     .unwrap()
 }
-fn solver() -> SolverSettings {
+pub(super) fn solver() -> SolverSettings {
     SolverSettings {
         refinements: 2,
         ..SolverSettings::default()
     }
 }
-fn view() -> Horizontal {
+pub(super) fn view() -> Horizontal {
     Horizontal::new(Degrees::new(53.13010235415598), Degrees::new(23.0))
 }
 fn solve(map: &StarlightMap, m: &LayeredAtmosphere, g: f64) -> Result<StarlightTransport> {
@@ -104,7 +115,7 @@ fn solve(map: &StarlightMap, m: &LayeredAtmosphere, g: f64) -> Result<StarlightT
         WavelengthSettings::default(),
     )
 }
-fn close(a: f64, b: f64, tolerance: f64) {
+pub(super) fn close(a: f64, b: f64, tolerance: f64) {
     assert!(
         (a - b).abs() <= tolerance * a.abs().max(b.abs()).max(1e-15),
         "{a} != {b}"
@@ -198,7 +209,8 @@ fn geometry_roundtrip_exact_direct_pixel_seam_poles_horizon_and_ordering() {
                     let gal =
                         spherical::Direction::<Galactic>::new(Degrees::new(l), Degrees::new(gb))
                             .to_cartesian();
-                    let icrs: Direction<ICRS> = gal.to_frame(&context.tt);
+                    let icrs: Direction<ICRS> =
+                        siderust::coordinates::transform::TransformFrame::to_frame(&gal);
                     let eq: Direction<EquatorialTrueOfDate> = icrs.to_frame(&context.tt);
                     let local = ToHorizontal::to_horizontal(
                         &eq,
@@ -264,10 +276,13 @@ fn absorption_rayleigh_aerosol_layers_and_authoritative_operator_agree() {
         }
         let layered = solve(&map, &medium(r, a, ssa, m, 8), g).unwrap();
         close(result.single.value(), layered.single.value(), 1e-4);
-        assert!(result
-            .samples
-            .iter()
-            .all(|s| s.convergence.angular_change.value() <= 1e-4));
+        assert!(result.samples.iter().all(|s| s
+            .convergence
+            .as_ref()
+            .unwrap()
+            .angular_change
+            .value()
+            <= 1e-4));
     }
 }
 
@@ -434,20 +449,6 @@ fn invalid_source_geometry_spectral_requests_and_resource_plans_fail_closed() {
         WavelengthSettings::default()
     )
     .is_err());
-    let mut c = geometry();
-    c.observer.height = Meters::new(0.);
-    let wrong = StarlightSky::new(&map, c, s.band, s.assumption).unwrap();
-    assert!(starlight_single_scattering(
-        &m,
-        &phase(0.),
-        &wrong,
-        view(),
-        solver(),
-        WavelengthSettings::default()
-    )
-    .unwrap_err()
-    .to_string()
-    .contains("height"));
     let narrow = LayeredAtmosphere::try_new(
         m.edges(),
         [Nanometers::new(370.), Nanometers::new(380.)],
@@ -542,7 +543,7 @@ fn representative_layered_cost_diagnostic() {
             match result {
                 Ok(r) => {
                     assert!(!anisotropic);
-                    println!("uniform NSIDE4 layers8 band={:?} work={} order={} changes={:?} scalar_orders={:?}",r.band,r.planned_work,r.wavelength_order,r.wavelength_change,r.samples[0].convergence.orders);
+                    println!("uniform NSIDE4 layers8 band={:?} work={} order={} changes={:?} scalar_orders={:?}",r.band,r.planned_work,r.wavelength_order,r.wavelength_change,r.samples[0].convergence.as_ref().unwrap().orders);
                 }
                 Err(e) => {
                     assert!(anisotropic);
@@ -555,4 +556,120 @@ fn representative_layered_cost_diagnostic() {
             start.elapsed()
         );
     }
+}
+
+#[test]
+fn geodetic_ellipsoid_and_atmospheric_datum_are_independent() {
+    let map = load(&payload(&[360, 390], 1, "ring", true));
+    let original = medium(0.1, 0.03, 0.9, 0.02, 2);
+    let baseline = single_scattering(
+        &original,
+        &phase(0.65),
+        &sky(&map, [360., 390.]),
+        Nanometers::new(375.),
+        view(),
+        solver(),
+    );
+    // Anisotropic quadrature may fail; the direct operator/geometry can still be
+    // checked independently, without accepting a partial scattering result.
+    assert!(baseline.is_err());
+    let uniform = load(&payload(&[360, 390], 1, "ring", false));
+    let expected = solve(&uniform, &original, 0.65).unwrap();
+    let coeff = original
+        .coefficients(Nanometers::new(375.), original.edges()[0])
+        .unwrap();
+    for origin in [-430.0, 0.0, 2060.0, 2097.0] {
+        let edges = [origin, origin + 500., origin + 1000.].map(Meters::new);
+        let column =
+            LayeredAtmosphere::try_new(&edges, original.wavelength_domain(), vec![coeff; 2])
+                .unwrap();
+        let s = sky(&uniform, [360., 390.]);
+        let actual = starlight_single_scattering(
+            &column,
+            &phase(0.65),
+            &s,
+            view(),
+            solver(),
+            WavelengthSettings::default(),
+        )
+        .unwrap();
+        close(actual.direct.value(), expected.direct.value(), 1e-14);
+        close(actual.single.value(), expected.single.value(), 1e-13);
+        assert_eq!(actual.geometry.observer.height, geometry().observer.height);
+        assert_eq!(actual.atmosphere.edges(), edges);
+        assert_eq!(
+            column
+                .vertical_optical_depth(Nanometers::new(375.), edges[0], edges[2])
+                .unwrap(),
+            original
+                .vertical_optical_depth(
+                    Nanometers::new(375.),
+                    original.edges()[0],
+                    original.edges()[2]
+                )
+                .unwrap()
+        );
+    }
+    let s = sky(&map, [360., 390.]);
+    for height in [-20., 0., 2132., 4000.] {
+        let mut g = geometry();
+        g.observer.height = Meters::new(height);
+        let independent = StarlightSky::new(&map, g, s.band, s.assumption).unwrap();
+        assert_eq!(independent.geometry.observer.height, Meters::new(height));
+        assert_eq!(
+            s.galactic(view()).unwrap().as_array(),
+            independent.galactic(view()).unwrap().as_array()
+        );
+    }
+    // Local pressure determines the Rayleigh column, independently of WGS84 h.
+    let profile = AtmosphereProfile {
+        observer_altitude: Meters::new(2060.).to(),
+        ..AtmosphereProfile::EL_PARANAL
+    };
+    let column = LayeredAtmosphere::from_profile(
+        profile,
+        &[Meters::new(2060.), Meters::new(12060.)],
+        original.wavelength_domain(),
+        &[1.],
+        &[1.],
+        Albedos::new(0.9),
+    )
+    .unwrap();
+    let mut g = geometry();
+    g.observer.height = Meters::new(2097.);
+    let s = StarlightSky::new(
+        &uniform,
+        g,
+        [Nanometers::new(360.), Nanometers::new(390.)],
+        WithinBinSpectrum::FlatPhotonDensity,
+    )
+    .unwrap();
+    let r = starlight_single_scattering(
+        &column,
+        &phase(0.65),
+        &s,
+        view(),
+        solver(),
+        WavelengthSettings::default(),
+    )
+    .unwrap();
+    assert_eq!(r.atmosphere.profile(), Some(&profile));
+    assert_eq!(r.geometry.observer.height, Meters::new(2097.));
+}
+
+#[test]
+fn canonical_galactic_pole_anchor_checks_absolute_frame_orientation() {
+    use siderust::coordinates::transform::ToHorizontal;
+    let map = load(&payload(&[360, 390], 1, "ring", true));
+    let context = geometry();
+    let s = sky(&map, [360., 390.]);
+    // Canonical IAU/SOFA north Galactic pole, not a self-referential roundtrip.
+    let pole = spherical::Direction::<ICRS>::new(Degrees::new(192.85948), Degrees::new(27.12825))
+        .to_cartesian();
+    let eq: Direction<EquatorialTrueOfDate> = pole.to_frame(&context.tt);
+    let local = ToHorizontal::to_horizontal(&eq, &context.ut1, &context.tt, &context.observer)
+        .to_spherical();
+    let gal = s.galactic(local).unwrap();
+    assert!(gal.z() > 1. - 1e-14);
+    assert!(gal.x().abs() < 1e-10 && gal.y().abs() < 1e-10);
 }

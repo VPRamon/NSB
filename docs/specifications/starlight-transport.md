@@ -1,111 +1,139 @@
 # Experimental spectral Starlight single scattering (#267)
 
 `nsb::transport::single::starlight` connects the checksum-validated
-`StarlightMap` to the existing #190 reference operator. It is opt-in Rust API;
-it does not change `NsbEvaluator`, Python bindings, CLI predictions, production
-admission, legacy 300–650 nm products, or scientific input assets.
+`StarlightMap` to the #190 first-order transport kernel. This opt-in Rust API
+does not change evaluator, Python or CLI predictions, legacy 300–650 nm
+products, production admission, dependencies or scientific assets.
 
-## Input and geometry
+## Inputs and vertical datums
 
 Construct `StarlightSky::new(map, geometry, [low, high],
-WithinBinSpectrum::FlatPhotonDensity)` for **one complete stored bin**. Iterate
-`map.bin_edges_nm().windows(2)` and sum successful results to transport a union
-of native bins. Do not report a union if any constituent evaluation fails.
-Partial bins, missing edges, legacy integrated-only data and extrapolation fail.
-All requested edges must be inside both the reference 360–570 nm interval and
-the actual atmosphere's wavelength domain. The existing JSON loader enforces
-SHA-256, supported schema, complete pixels, finite nonnegative bin radiance,
-TOA origin, vacuum wavelengths and source declarations. It supports generic
-variable/nonuniform bins and the unchanged frozen seven-bin Gaia XP product.
-NESTED spectral lookup remains rejected by the existing loader until Siderust
-supports it; RING storage/indexing is preserved without resampling.
+WithinBinSpectrum::FlatPhotonDensity)` for one complete native bin. Iterate
+`map.bin_edges_nm().windows(2)` for unions; report no total if any bin fails.
+Partial bins, extrapolation and legacy integrated-only maps fail. Every edge
+must lie inside both 360–570 nm and the medium's wavelength domain. The existing
+loader enforces checksum, complete finite nonnegative pixels, TOA origin and
+vacuum wavelengths. Variable-width bins work; NESTED remains rejected upstream.
 
-`StarlightGeometry` contains geodetic ECEF site and **explicit TT and UT1 Julian
-dates for the same physical instant**, supplied by the caller. No time-scale
-approximation or network EOP lookup is introduced. Horizontal directions use
-north-clockwise azimuth and geometric altitude, without refraction. Site height
-must equal the medium's first absolute layer edge. The plane-parallel domain,
-black nonemitting ground and output altitude 10–90 degrees are inherited from
-#190. Siderust uses IAU 2006 GAST for Horizontal ↔ true-equatorial-of-date and
-its frame providers through ICRS to Galactic. Three upstream-transformed local
-basis vectors retain this fixed rotation, avoiding repeated nutation calculations
-per pixel query. Cartesian rotation handles the Galactic longitude seam and
-poles without a custom celestial-coordinate formula. Tests cover three sites,
-two epochs, seam/poles and both sides of the geometric horizon; round-trip
-Cartesian residuals are checked below 1e-9 (far below a HEALPix pixel width).
+`StarlightGeometry.observer` is Siderust/AFFN WGS84 `Geodetic<ECEF>`: its height
+is **ellipsoidal**. The atmosphere uses its independently declared vertical
+datum (MSL for `AtmosphereProfile`), with its first edge defining the
+plane-parallel observer origin. Numeric equality of these two heights is neither
+required nor a consistency test. Both inputs are preserved; callers supply
+physically consistent site/column information. No geoid conversion, inferred
+orthometric height, altitude offset or layer-boundary adjustment occurs. Local
+pressure remains a caller input with Siderust's existing Rayleigh semantics.
 
-The exact direct-view direction is looked up separately by #190. Every lookup
-returns the **containing HEALPix pixel's spatial average**, not interpolated
-radiance, a resolved star, subpixel photometry, telescope fiber or PSF model.
+Supply explicit TT and UT1 for the same physical instant; no network EOP lookup
+or UTC substitution occurs. Directions have geometric altitude and north-clockwise
+azimuth. Siderust handles Horizontal ↔ true-equatorial-of-date with IAU 2006 GAST,
+then date-dependent ICRS conversion. The fixed ICRS/Galactic step uses its
+canonical `TransformFrame` API, also used by production Starlight. The pinned
+dynamic frame catalog reverses that fixed rotation; an absolute IAU Galactic-pole
+anchor supplements round-trip tests. Three upstream-transformed basis vectors
+retain the rotation, including seam/poles. The #190 domain is output altitude
+10–90°, finite plane-parallel column and black nonemitting ground.
 
-## Spectral model and numerical integration
+Each source value is a containing pixel's **spatial average**, never a resolved
+star, interpolated intensity, PSF or invented subpixel photometry. Direct-view
+lookup uses its exact direction independently of angular quadrature.
 
-The native quantity is photons/(cm² ns sr); #190 needs photons/(cm² ns sr nm).
-`FlatPhotonDensity` explicitly sets `I_lambda = I_bin / (high-low)` independently
-in each bin. It is a model assumption, not recovery of a measured continuous SED.
-QTTY division is typed; an explicit same-scale marker bridge converts the
-composite quotient to NSB's named spectral-radiance unit.
+## Spectral and angular integration
 
-`starlight_single_scattering` uses the existing positive Gauss–Legendre rule on
-the **entire bin**, doubling wavelength order independently of angular/path
-refinement. Both integrated direct and single terms must pass the requested
-absolute/relative wavelength-change tolerances. Every wavelength uses #190's
-independent angular-only/path-only/joint convergence checks and exact layered
-Siderust optical depths, absorption/scattering separation and normalized phases.
-No second extinction or scattering equation is applied. No midpoint-kernel
-compatibility mode is silently substituted for full-bin quadrature.
+`FlatPhotonDensity` explicitly declares `I_lambda = I_bin / bin_width` in
+photons/(cm² ns sr nm); it cannot recover a measured continuous Gaia SED.
+Both public entry points integrate the **full native bin** using independently
+doubled wavelength GL orders. Both direct and single changes must pass; angular
+acceptance never substitutes for wavelength convergence.
 
-The conservative **whole spectral refinement plan** must fit 250,000,000 work
-units before any transport call. It charges each configured scalar solver plan
-and bounded wavelength GL construction, including refinements skipped on early
-acceptance. Each sequential scalar call retains the 8 MiB quadrature-buffer cap.
-Only at most 64 wavelength diagnostics are retained.
-Use explicitly budgeted scalar settings, for example
-`SolverSettings { refinements: 2, ..SolverSettings::default() }` for the supplied
-fixtures. Combining both default settings objects exceeds the spectral work cap
-and fails explicitly; no refinement budget is silently reduced. Borrowed map data and the
-fixed frame rotation avoid new sky buffers. Actual input-map memory, upstream
-model snapshots, provenance strings and caller-owned results are outside the
-solver's quadrature-buffer accounting, as in #190.
+`starlight_single_scattering` retains the #190 smooth-sky GL/periodic-azimuth
+and independent angular/path/joint refinement. Containing-pixel discontinuities
+can alias this rule; the original frozen-map nonconvergence remains a valid
+reason to use the pixel-aware entry point.
 
-**Pixel discontinuities are a numerical limitation.** Successive smooth-function
-quadrature changes are resolution diagnostics, not certified pixel-integral
-error bounds. They cannot certify arbitrary unresolved sparse structure or
-boundary aliasing. `numerical_limitations` carries this warning in every result.
-The deterministic anisotropic NSIDE 1/2/4 fixture fails convergence with HG g=0.85
-and the bounded example settings; it must keep failing rather than relaxing
-thresholds. #192 needs a conservative HEALPix boundary integration/projection
-compatible with the authoritative kernel, and an independently validated bounded
-cost model. This PR does not implement that acceleration or claim general
-real-map angular accuracy.
+`starlight_healpix_single_scattering` instead streams equal-area RING integration
+grids at native NSIDE times a power-of-two subdivision. Each fine point inherits
+its containing **native parent mean**; attenuation and Optica phase density are
+evaluated at the fine direction. Refinement changes the kernel quadrature,
+never the source model. HEALPix child centers partition each parent equally.
+RING's first half contains one member of each antipodal pair. Selecting the
+positive local-zenith member assigns exactly one fine solid angle per pair,
+conserving the hemisphere measure 2π for any rotation. Horizon-crossing parents
+are subdivided; the boundary itself has zero finite-column response. There is
+no positive-altitude cutoff. Parent-area, independent visible-area, quarter-turn
+seam symmetry and compatible-resolution tests check this construction.
 
-## Output and uncertainty
+The pixel path uses the exact antiderivative of the **same** #190 path integrand
+in each Siderust homogeneous layer. With layer extinction τ, incoming/outgoing
+cosines μi/μo, `a=τ/μi`, `b=τ/μo`, it multiplies the integrated constituent
+scattering coefficient divided by μo by
 
-`StarlightTransport` separates typed TOA, direct and once-scattered native-bin
-radiance. Higher orders and propagated physical uncertainty are `None`, never
-zero estimates. It retains bin edges, explicit spectral assumption, spectral
-settings/order/change, per-wavelength angular/path diagnostics, grid, complete
-public map provenance/checksum/product ID, actual medium/phase, site/epochs,
-view, solver settings and the conservative planned work count.
+```text
+exp(-tau_above/μi - tau_below/μo - min(a,b))
+    * [-expm1(-abs(a-b)) / abs(a-b)]
+```
 
-Wavelength/angular/path changes are not Gaia calibration, cross-bin covariance,
-missing-population, atmospheric-parameter or model-discrepancy uncertainties.
-No unmeasured uncertainty is manufactured or propagated. Model identity is
-`StarlightTransport::MODEL`; missing physics includes higher scattering orders,
-polarization, spherical geometry, refraction, internal emission, surface
-reflection, DGL and telescope response. No empirical admission is implied.
+The bracket's equal-argument limit is one. Endpoint columns and scattering
+coefficients come from Siderust, absorption contributes only to extinction,
+and Rayleigh/aerosol phases and photon-direction sign are shared with #190.
+There is no second medium or transport equation. Analytical, split-layer,
+unchanged GL and independent SciPy comparisons validate this specialization.
 
-## Runnable offline example
+Two successive angular doublings must satisfy the requested radiance-change
+target. Active constituent phase integrals over the whole sphere must also
+resolve unity at the accepted order; values are reported **without
+renormalization**. This prevents falsely accepting vanishing samples of an
+unresolved narrow HG lobe. HG/double-HG wavelength-independent phase audits are
+shared within the bin; wavelength-dependent strict tables are audited per node.
+Sharp phases can still exceed the bounded plan. Successive changes and phase
+checks are diagnostics, **not rigorous error bounds** or a guarantee for every
+unresolved structure. Independent boundary-integral fixtures test sparse bright
+pixels, grazing paths, anisotropy, forward/backward HG and isotropic phases.
+
+## Computational bounds and outputs
+
+Both paths preflight the entire configured spectral plan before sampling,
+including levels skipped by early convergence and wavelength-rule construction.
+The unchanged caps are 250,000,000 conservative work units and 8 MiB temporary
+quadrature storage. For L layers, pixel mode charges `4L²+L` layer preparation
+plus `sum(6*nside²*(7+L))` per wavelength, six named phase-audit operations per
+antipodal pair, shared validation and wavelength GL construction. Checked
+arithmetic rejects overflow and oversized plans. Only layer responses, at most
+11 phase-audit descriptors and 64 wavelength nodes are buffered; there are no
+whole-sky subpixel arrays or general cache/LUT. Caller-owned maps, medium and
+output snapshots are outside quadrature storage, as in #190.
+
+`HealpixSettings::default()` refines native NSIDE twice, with relative 1e-4 and
+absolute spectral 1e-12 targets. Coarse synthetic NSIDE1 skies require additional
+doublings. Default wavelength settings and a one-layer NSIDE128 map cost
+243,600,079 work units per bin, including the complete configured plan.
+Smooth solver settings require an independently budgeted spectral combination.
+
+`StarlightTransport` retains typed TOA/direct/single native-bin radiances,
+settings, wavelength order/changes, grid, map provenance/checksum, actual medium,
+phase, geometry and planned work. The applicable optional settings/diagnostics
+identify smooth (`convergence`) or pixel (`healpix_convergence`) mode. Pixel
+reports include accepted NSIDE, two angular changes, 2π measure and raw phase
+integrals. Higher orders and physical uncertainty remain `None`. Cross-bin
+covariance, source systematics and model discrepancy are unknown, not zero.
+Missing physics includes multiple scattering, polarization, spherical geometry,
+refraction, surface reflection, DGL, internal emission and telescope response.
+
+## Offline reproduction
 
 ```sh
 cargo run -p nsb --release --example starlight_transport --locked
-# Optional fixed-map diagnostic; exact pilot replay is NOT claimed:
 cargo run -p nsb --release --example starlight_transport --locked -- \
   /absolute/starlight_360_570_candidate.json 2459679.9675055384 2459679.966703672
+# Separately labelled historical optical-law/bin-center fixture:
+# append --pilot-bin-centers
+# Isolate wavelength integration under the current optical prescription:
+# append --current-bin-centers
 ```
 
-The second invocation pins the frozen map SHA-256 and requires explicit TT/UT1.
-It reports each bin's success or convergence failure and exits nonzero if any
-bin fails; it never prints a partial integrated pilot total. See the
-[validation record](../validation/starlight-transport-267.md) for assumptions,
-measurements and the remaining historical-pilot differences.
+The frozen invocation pins the unchanged SHA-256 and exits nonzero on any bin
+failure without a partial total. See the [validation record](../validation/starlight-transport-267.md)
+for independent references, measured results and historical assumptions.
+HEALPix geometry follows its [equal-area discretization contract](https://healpix.sourceforge.io/html/intro_Discretisation_Functions_on.htm);
+[finite-precision boundary conventions](https://healpix.sourceforge.io/html/intro_Finite_precision_cross_plat.htm)
+can differ extremely close to pixel boundaries.

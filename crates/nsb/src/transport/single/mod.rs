@@ -207,52 +207,7 @@ pub fn single_scattering(
 ) -> Result<SingleScattering> {
     let layers = atmosphere.edges().len() - 1;
     budget::estimate(settings, layers)?.enforce(layers, settings)?;
-    let coverage = sky.coverage();
-    let [lo, hi] = coverage.wavelengths.map(|v| v.value());
-    let w = wavelength.value();
-    if !w.is_finite() || !(360.0..=570.0).contains(&w) {
-        return Err(invalid(
-            "single scattering requires wavelength in 360–570 nm",
-        ));
-    }
-    if !view.alt().value().is_finite()
-        || !(10.0..=90.0).contains(&view.alt().value())
-        || !view.az().value().is_finite()
-    {
-        return Err(invalid(
-            "single scattering requires geometric zenith in 0–80 degrees",
-        ));
-    }
-    if coverage.origin != RadianceOrigin::TopOfAtmosphere {
-        return Err(NsbError::Unsupported(
-            "single scattering requires TOA celestial illumination".into(),
-        ));
-    }
-    if !coverage.full_hemisphere
-        || coverage.identity.trim().is_empty()
-        || !lo.is_finite()
-        || !hi.is_finite()
-        || lo <= 0.0
-        || hi < lo
-        || w < lo
-        || w > hi
-    {
-        return Err(invalid(
-            "source must declare spectral coverage and the complete visible hemisphere",
-        ));
-    }
-    // Validate table spectral coverage even in vacuum or an absorbing medium.
-    phase.density(wavelength, Radians::new(0.0))?;
-    phase.density(wavelength, Radians::new(PI))?;
-    let edges = atmosphere.edges();
-    let tau = atmosphere
-        .vertical_optical_depth(wavelength, edges[0], edges[edges.len() - 1])
-        .map_err(upstream)?;
-    let mu_out = view.alt().to::<Radian>().sin();
-    let direct = finite_nonnegative(
-        sky.radiance(wavelength, view)?.value(),
-        "direct-view illumination",
-    )? * (-tau.extinction().value() / mu_out).exp();
+    let (direct, coverage) = direct_illumination(atmosphere, phase, sky, wavelength, view)?;
     let kernel = quadrature::Kernel {
         atmosphere,
         phase,
@@ -304,6 +259,63 @@ pub fn single_scattering(
         coarse = joint;
     }
     Err(NsbError::Unsupported(format!("single-scattering convergence failed at orders {orders:?}; tolerances relative={}, absolute={}", settings.relative_tolerance, settings.absolute_tolerance.value())))
+}
+
+// Shared problem validation/direct operator for both angular integration paths.
+fn direct_illumination(
+    atmosphere: &LayeredAtmosphere,
+    phase: &AerosolPhase,
+    sky: &impl IncidentSky,
+    wavelength: Nanometers,
+    view: Horizontal,
+) -> Result<(f64, SkyCoverage)> {
+    let coverage = sky.coverage();
+    let [lo, hi] = coverage.wavelengths.map(|v| v.value());
+    let w = wavelength.value();
+    if !w.is_finite() || !(360.0..=570.0).contains(&w) {
+        return Err(invalid(
+            "single scattering requires wavelength in 360–570 nm",
+        ));
+    }
+    if !view.alt().value().is_finite()
+        || !(10.0..=90.0).contains(&view.alt().value())
+        || !view.az().value().is_finite()
+    {
+        return Err(invalid(
+            "single scattering requires geometric zenith in 0–80 degrees",
+        ));
+    }
+    if coverage.origin != RadianceOrigin::TopOfAtmosphere {
+        return Err(NsbError::Unsupported(
+            "single scattering requires TOA celestial illumination".into(),
+        ));
+    }
+    if !coverage.full_hemisphere
+        || coverage.identity.trim().is_empty()
+        || !lo.is_finite()
+        || !hi.is_finite()
+        || lo <= 0.0
+        || hi < lo
+        || w < lo
+        || w > hi
+    {
+        return Err(invalid(
+            "source must declare spectral coverage and the complete visible hemisphere",
+        ));
+    }
+    // Validate table spectral coverage even in vacuum or an absorbing medium.
+    phase.density(wavelength, Radians::new(0.0))?;
+    phase.density(wavelength, Radians::new(PI))?;
+    let edges = atmosphere.edges();
+    let tau = atmosphere
+        .vertical_optical_depth(wavelength, edges[0], edges[edges.len() - 1])
+        .map_err(upstream)?;
+    let mu_out = view.alt().to::<Radian>().sin();
+    let direct = finite_nonnegative(
+        sky.radiance(wavelength, view)?.value(),
+        "direct-view illumination",
+    )? * (-tau.extinction().value() / mu_out).exp();
+    Ok((direct, coverage))
 }
 
 fn invalid(message: &str) -> NsbError {
