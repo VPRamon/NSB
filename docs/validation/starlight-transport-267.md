@@ -29,7 +29,16 @@ pixels without conserving each parent's area. Its frozen-map diagnostic failed
 all seven bins at orders 256/512/32 and ~212M configured work units/bin.
 These historical failures are not accepted values; their geometry also predates
 the absolute-frame correction. The smooth path remains supported for smooth
-illumination, with its original independent path/angular tests.
+illumination, with its original independent path/angular tests. A corrected-frame
+illumination-only diagnostic isolates the angular problem: the brightest native
+pixel has 69.92 times the mean summed-bin radiance; the top 1% of native
+pixels contribute 18.45% of the hemisphere integral. Smooth 32/64, 64/128,
+128/256 and 256/512 grids visit only 2,010 / 7,565 / 27,049 / 78,785 distinct
+visible parents, compared with ~98,304 above-horizon parent centers. Against
+NSIDE512 equal-area subdivision, the final smooth illumination integral has
+−0.56% to −0.80% residual across bins (earlier orders change nonmonotonically).
+No path or wavelength operation enters that diagnostic. This identifies
+native-pixel aliasing rather than a spectral/path convergence defect.
 
 The new public `starlight_healpix_single_scattering` streams RING child centers
 while preserving native parent means. Equal child area, antipodal hemisphere
@@ -184,10 +193,35 @@ regenerated. Its checksum is rechecked after the runs.
 
 ## Quality gates and limitations
 
-Final local and GitHub verification is recorded in PR #268. Historical 19/19
-CI and 199/202 coverage at the original SHA are superseded and are not evidence
-for this follow-up. Coverage uses the existing LLVM diff/overall policy with
-unchanged exclusions and thresholds, against main and the original reviewed SHA.
+Local verification passes fmt, locked workspace/all-target/all-feature Clippy
+with warnings denied, all workspace/all-target/all-feature tests, Rust 1.89.0
+workspace/all-target/all-feature check, all-feature doctests, warning-denied
+Rustdoc, release workspace compilation and installed abi3 wheel tests (**115
+passed**). License headers, test boundaries, release metadata and dependency/
+advisory/license/source policy pass. The actual Cargo archive verifies with the
+immutable pin and fails registry verification for the established #265 missing
+APIs; it is not registry-publishable. No dependency or scientific asset changed.
+
+A fresh LLVM workspace/doctest collection gives changed executable production
+coverage **659/670 = 98.36%** versus main; this follow-up versus the original
+reviewed SHA is **483/491 = 98.37%**. Overall workspace coverage is **92.35%**,
+NSB **94.97%**. Existing policy, exclusions and thresholds are unchanged. The
+11 uncovered full-PR lines are defensive overflow/domain paths, including the
+three existing nonfinite-upstream-rotation lines. Reproduction:
+
+```sh
+cargo +nightly-2026-09-02 llvm-cov clean --workspace
+cargo +nightly-2026-09-02 llvm-cov --workspace --doctests --locked --no-report
+cargo +nightly-2026-09-02 llvm-cov report --lcov --output-path coverage.lcov
+scripts/coverage-gate.sh diff --lcov coverage.lcov --base origin/main
+scripts/coverage-gate.sh overall --lcov coverage.lcov
+```
+
+PR #268 records final-head GitHub verification and the historical-main API
+snapshot/SemVer check. The original 19/19 CI and 199/202 coverage are superseded;
+they do not substitute for final-head results. The two optional diagnostic
+fields intentionally distinguish integration modes in this unreleased API;
+no previously merged public signature is changed.
 
 The conservative HEALPix prerequisite for #192 is implemented and independently
 validated for these supported cases; broader LUT/cache/acceleration work remains
