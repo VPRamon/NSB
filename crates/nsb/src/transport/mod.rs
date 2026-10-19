@@ -45,6 +45,9 @@ mod origin;
 /// Experimental opt-in scalar single-scattering reference; no evaluator migration.
 pub mod single;
 
+/// Experimental opt-in scalar full-sphere multiple-scattering reference.
+pub mod multiple;
+
 pub use direct::DirectTransmission;
 pub use extinction::{ExtinctionIngredients, MolecularAbsorption, OpticalDepthBreakdown};
 pub use geometry::DirectPathGeometry;
