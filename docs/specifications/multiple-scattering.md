@@ -87,6 +87,26 @@ independent continuum radiative-transfer accuracy benchmark or a
 substitute for matching DISORT, angular/vertical convergence, and
 frozen Gaia XP observational comparisons.
 
+## Independent isotropic continuum reference
+
+The independent offline script
+`docs/validation/multiple-scattering-isotropic-scipy.py` integrates the
+full-sphere angular field analytically in the homogeneous, isotropically
+scattering case. It solves the resulting one-dimensional Fredholm transport
+equation using cell-integrated exponential-integral E1 kernels, SciPy
+`expn(2, ...)`, and a direct dense inverse. This differs from the Rust
+bidirectional discrete-ordinates successive-orders method.
+
+At 450 nm for 1 km, TOA radiance 0.025, aerosol extinction optical
+depth 0.12 at SSA 0.7, absorption optical depth 0.02, and ground-view
+cosine 0.8, its 256-cell reference gives direct
+0.020986425519230186, first 0.0009511033150319675 and second+
+0.0001342609721455303 photon radiance. The regression test requires
+the Rust joint resolution to agree with first and higher orders within
+2%, recognizing remaining angular/vertical discretization. This establishes
+limited **independent higher-order agreement for one isotropic synthetic
+case**, not anisotropic atmospheric or Gaia validation.
+
 **Important outstanding work** before scientific acceptance:
 
 - Conservative HEALPix pixel-area projection and isolated-bright-pixel tests;
@@ -95,8 +115,9 @@ frozen Gaia XP observational comparisons.
   preserving FlatPhotonDensity provenance and the 360–570 nm Gaia XP bins.
 - Tight matched-physics first-order equivalence tests across Rayleigh, aerosol,
   mixed media and multiple layers.
-- Independent discrete-ordinates or DISORT/PythonicDISORT higher-order fixtures
-  from a different algorithm, with physical assumptions matched precisely.
+- Extend independent high-order validation beyond the isotropic homogeneous
+  E1/Fredholm fixture: Rayleigh, anisotropic aerosol phases, mixed multi-layer
+  media and matched DISORT/PythonicDISORT references.
 - Frozen Gaia XP comparison under both current and historical optics/astrometry;
   historical 28.10% is a comparison datum, not a multiplier.
 - Complete all-feature Clippy, Rust 1.89, wheel/CLI, coverage and GitHub Actions
