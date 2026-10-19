@@ -282,6 +282,31 @@ impl StarlightMap {
         self.top_of_atmosphere_pixel(direction)
     }
 
+    // Internal read-only access to one validated native bin by storage index.
+    // Used by geometry-aware quadrature: subpixels inherit the parent mean;
+    // no new map representation, interpolation or subpixel photometry.
+    pub(crate) fn spectral_bin_at_index(
+        &self,
+        pixel: HealpixIndex,
+        bin: usize,
+    ) -> Result<BandPhotonRadiance> {
+        let spectral = self
+            .spectral
+            .as_ref()
+            .ok_or_else(|| invalid_map("spectral bins required"))?;
+        let bins = spectral.edges_nm.len() - 1;
+        let index = usize::try_from(pixel.get())
+            .ok()
+            .filter(|_| bin < bins)
+            .and_then(|i| i.checked_mul(bins))
+            .and_then(|i| i.checked_add(bin));
+        index
+            .and_then(|i| spectral.radiance.get(i))
+            .copied()
+            .map(BandPhotonRadiance::new)
+            .ok_or_else(|| invalid_map("spectral pixel or bin index out of range"))
+    }
+
     /// Bounds on directly transmitted native-band Starlight radiance.
     ///
     /// Only maps containing suitable measured spectral bins can use this

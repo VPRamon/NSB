@@ -1,0 +1,143 @@
+{
+  "schema": "nsb-starlight-spectral-map-v2",
+  "product_id": "synthetic-uniform-transport-v1",
+  "band_nm": [
+    360,
+    450
+  ],
+  "bin_edges_nm": [
+    360,
+    390,
+    420,
+    450
+  ],
+  "nside": 1,
+  "ordering": "ring",
+  "coordinate_frame": "galactic",
+  "domain": "top-of-atmosphere",
+  "units": "photon/(cm2 ns sr)",
+  "wavelength_convention": "vacuum",
+  "maturity": "experimental",
+  "provenance": {
+    "source_catalogue": "synthetic",
+    "source_license": "AGPL-3.0-only",
+    "source_selection": "all",
+    "generation_method": "constant pixel averages",
+    "limitations": [
+      "synthetic fixture; no empirical claim"
+    ]
+  },
+  "catalogue_rows": 12,
+  "admitted_sources": 12,
+  "excluded_sources": {},
+  "pixels": [
+    {
+      "pixel": 0,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 1,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 2,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 3,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 4,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 5,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 6,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 7,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 8,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 9,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 10,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    },
+    {
+      "pixel": 11,
+      "sources": 1,
+      "radiance": [
+        0.003,
+        0.006,
+        0.009
+      ]
+    }
+  ]
+}

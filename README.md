@@ -210,6 +210,13 @@ output zenith 0–80°). Direct and first-order spectral photon radiance are sep
 higher orders are uncomputed. Evaluator/component defaults do not use this solver.
 Run `cargo run -p nsb --example single_scattering` from the repository.
 
+`transport::single::starlight` adapts checksum-validated native spectral bins
+with explicit flat photon density, local site/TT/UT1 geometry and independently
+refined full-bin wavelength integration. Run the offline `starlight_transport`
+example. A conservative HEALPix subpixel path resolves the frozen Gaia angular
+case; the labelled historical comparison retains explicit astrometric differences. See the [spectral contract](docs/specifications/starlight-transport.md)
+for the bounded numerical method and diagnostic limitations.
+
 The repository temporarily patches Siderust to immutable revision
 `83d1ebb29ca1ae0b327d5784d13eda231d52c120`, including Python interoperability.
 Registry/PyPI publication of this revision is blocked pending the upstream release

@@ -406,6 +406,69 @@ pub fn nsb::solar_activity::bundled_f107_store() -> nsb::Result<&'static nsb::so
 pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, source: &nsb::solar_activity::SolarActivitySource) -> nsb::Result<nsb::solar_activity::ResolvedSolarActivity>
 pub mod nsb::transport
 pub mod nsb::transport::single
+pub mod nsb::transport::single::starlight
+#[non_exhaustive] pub enum nsb::transport::single::starlight::WithinBinSpectrum
+pub nsb::transport::single::starlight::WithinBinSpectrum::FlatPhotonDensity
+pub struct nsb::transport::single::starlight::HealpixConvergence
+pub nsb::transport::single::starlight::HealpixConvergence::angular_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::starlight::HealpixConvergence::nside: u32
+pub nsb::transport::single::starlight::HealpixConvergence::phase_normalization: [core::option::Option<f64>; 2]
+pub nsb::transport::single::starlight::HealpixConvergence::previous_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::starlight::HealpixConvergence::visible_solid_angle: qtty_core::units::solid_angle::Steradians
+pub struct nsb::transport::single::starlight::HealpixSettings
+pub nsb::transport::single::starlight::HealpixSettings::absolute_tolerance: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::single::starlight::HealpixSettings::refinements: usize
+pub nsb::transport::single::starlight::HealpixSettings::relative_tolerance: f64
+pub nsb::transport::single::starlight::HealpixSettings::subdivision: u32
+impl core::default::Default for nsb::transport::single::starlight::HealpixSettings
+pub fn nsb::transport::single::starlight::HealpixSettings::default() -> Self
+pub struct nsb::transport::single::starlight::StarlightGeometry
+pub nsb::transport::single::starlight::StarlightGeometry::observer: nsb::Observer
+pub nsb::transport::single::starlight::StarlightGeometry::tt: tempoch_core::format::JulianDate<tempoch_core::model::scale::TT>
+pub nsb::transport::single::starlight::StarlightGeometry::ut1: tempoch_core::format::JulianDate<tempoch_core::model::scale::UT1>
+pub struct nsb::transport::single::starlight::StarlightSky<'a>
+impl<'a> nsb::transport::single::starlight::StarlightSky<'a>
+pub fn nsb::transport::single::starlight::StarlightSky<'a>::new(map: &'a nsb::components::starlight::StarlightMap, geometry: nsb::transport::single::starlight::StarlightGeometry, band: [qtty_core::units::length::Nanometers; 2], assumption: nsb::transport::single::starlight::WithinBinSpectrum) -> nsb::Result<Self>
+impl nsb::transport::single::IncidentSky for nsb::transport::single::starlight::StarlightSky<'_>
+pub fn nsb::transport::single::starlight::StarlightSky<'_>::coverage(&self) -> nsb::transport::single::SkyCoverage
+pub fn nsb::transport::single::starlight::StarlightSky<'_>::radiance(&self, wavelength: qtty_core::units::length::Nanometers, direction: siderust::coordinates::spherical::direction::Horizontal) -> nsb::Result<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
+pub struct nsb::transport::single::starlight::StarlightTransport
+pub nsb::transport::single::starlight::StarlightTransport::aerosol_phase: nsb::transport::single::AerosolPhase
+pub nsb::transport::single::starlight::StarlightTransport::assumption: nsb::transport::single::starlight::WithinBinSpectrum
+pub nsb::transport::single::starlight::StarlightTransport::atmosphere: siderust::atmosphere::layered::LayeredAtmosphere
+pub nsb::transport::single::starlight::StarlightTransport::band: [qtty_core::units::length::Nanometers; 2]
+pub nsb::transport::single::starlight::StarlightTransport::direct: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::single::starlight::StarlightTransport::geometry: nsb::transport::single::starlight::StarlightGeometry
+pub nsb::transport::single::starlight::StarlightTransport::grid: siderust::healpix::grid::HealpixGrid
+pub nsb::transport::single::starlight::StarlightTransport::healpix_settings: core::option::Option<nsb::transport::single::starlight::HealpixSettings>
+pub nsb::transport::single::starlight::StarlightTransport::higher_orders: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::transport::single::starlight::StarlightTransport::numerical_limitations: &'static str
+pub nsb::transport::single::starlight::StarlightTransport::planned_work: usize
+pub nsb::transport::single::starlight::StarlightTransport::provenance: nsb::components::starlight::StarlightProvenance
+pub nsb::transport::single::starlight::StarlightTransport::samples: alloc::vec::Vec<nsb::transport::single::starlight::WavelengthSample>
+pub nsb::transport::single::starlight::StarlightTransport::single: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::single::starlight::StarlightTransport::solver_settings: core::option::Option<nsb::transport::single::SolverSettings>
+pub nsb::transport::single::starlight::StarlightTransport::toa: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::single::starlight::StarlightTransport::uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::transport::single::starlight::StarlightTransport::view: siderust::coordinates::spherical::direction::Horizontal
+pub nsb::transport::single::starlight::StarlightTransport::wavelength_change: [qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian; 2]
+pub nsb::transport::single::starlight::StarlightTransport::wavelength_order: usize
+pub nsb::transport::single::starlight::StarlightTransport::wavelength_settings: nsb::transport::single::starlight::WavelengthSettings
+impl nsb::transport::single::starlight::StarlightTransport
+pub const nsb::transport::single::starlight::StarlightTransport::MODEL: &'static str
+pub struct nsb::transport::single::starlight::WavelengthSample
+pub nsb::transport::single::starlight::WavelengthSample::convergence: core::option::Option<nsb::transport::single::Convergence>
+pub nsb::transport::single::starlight::WavelengthSample::healpix_convergence: core::option::Option<nsb::transport::single::starlight::HealpixConvergence>
+pub nsb::transport::single::starlight::WavelengthSample::wavelength: qtty_core::units::length::Nanometers
+pub struct nsb::transport::single::starlight::WavelengthSettings
+pub nsb::transport::single::starlight::WavelengthSettings::absolute_tolerance: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::single::starlight::WavelengthSettings::nodes: usize
+pub nsb::transport::single::starlight::WavelengthSettings::refinements: usize
+pub nsb::transport::single::starlight::WavelengthSettings::relative_tolerance: f64
+impl core::default::Default for nsb::transport::single::starlight::WavelengthSettings
+pub fn nsb::transport::single::starlight::WavelengthSettings::default() -> Self
+pub fn nsb::transport::single::starlight::starlight_healpix_single_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &nsb::transport::single::starlight::StarlightSky<'_>, view: siderust::coordinates::spherical::direction::Horizontal, angular: nsb::transport::single::starlight::HealpixSettings, wavelength: nsb::transport::single::starlight::WavelengthSettings) -> nsb::Result<nsb::transport::single::starlight::StarlightTransport>
+pub fn nsb::transport::single::starlight::starlight_single_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &nsb::transport::single::starlight::StarlightSky<'_>, view: siderust::coordinates::spherical::direction::Horizontal, solver: nsb::transport::single::SolverSettings, wavelength: nsb::transport::single::starlight::WavelengthSettings) -> nsb::Result<nsb::transport::single::starlight::StarlightTransport>
 #[non_exhaustive] pub enum nsb::transport::single::AerosolPhase
 pub nsb::transport::single::AerosolPhase::DoubleHenyeyGreenstein(optica::phase::DoubleHenyeyGreensteinPhaseFunction)
 pub nsb::transport::single::AerosolPhase::HenyeyGreenstein(optica::phase::HenyeyGreensteinPhaseFunction)
@@ -445,6 +508,9 @@ pub fn nsb::transport::single::SolverSettings::default() -> Self
 pub trait nsb::transport::single::IncidentSky
 pub fn nsb::transport::single::IncidentSky::coverage(&self) -> nsb::transport::single::SkyCoverage
 pub fn nsb::transport::single::IncidentSky::radiance(&self, wavelength: qtty_core::units::length::Nanometers, direction: siderust::coordinates::spherical::direction::Horizontal) -> nsb::Result<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
+impl nsb::transport::single::IncidentSky for nsb::transport::single::starlight::StarlightSky<'_>
+pub fn nsb::transport::single::starlight::StarlightSky<'_>::coverage(&self) -> nsb::transport::single::SkyCoverage
+pub fn nsb::transport::single::starlight::StarlightSky<'_>::radiance(&self, wavelength: qtty_core::units::length::Nanometers, direction: siderust::coordinates::spherical::direction::Horizontal) -> nsb::Result<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
 pub fn nsb::transport::single::single_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &impl nsb::transport::single::IncidentSky, wavelength: qtty_core::units::length::Nanometers, view: siderust::coordinates::spherical::direction::Horizontal, settings: nsb::transport::single::SolverSettings) -> nsb::Result<nsb::transport::single::SingleScattering>
 #[non_exhaustive] pub enum nsb::transport::AirmassModel
 pub nsb::transport::AirmassModel::KrisciunasSchaefer1991

@@ -7,6 +7,12 @@ tag-triggered publication workflow succeeds.
 
 ### Added
 
+- Opt-in experimental native-bin Starlight single-scattering transport with
+  explicit flat photon density, site/TT/UT1 geometry, bounded wavelength
+  refinement, conservative HEALPix kernel subdivision and independent WGS84/MSL
+  origins, with component-separated provenance; evaluator defaults remain
+  unchanged (#267).
+
 - Experimental opt-in `transport::single` scalar plane-parallel reference with
   separate direct/single contributions, explicitly uncomputed higher orders,
   deterministic convergence checks and independent analytical/SciPy validation.

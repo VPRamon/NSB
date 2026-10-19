@@ -489,6 +489,36 @@ fn independent_scipy_exponential_integral_reference() {
         let r = solve(&m, &phase(0.), &s, 0.8);
         close(r.direct.value(), fixture["direct"].as_f64().unwrap(), 1e-13);
         close(r.single.value(), fixture["single"].as_f64().unwrap(), 1e-4);
+        // Independent SciPy fixtures also validate the layer antiderivative,
+        // including a heterogeneous column with absorption below aerosol.
+        let p = phase(0.);
+        let kernel = quadrature::Kernel {
+            atmosphere: &m,
+            phase: &p,
+            sky: &s,
+            wavelength: wavelength(),
+            view: view(0.8, 0.),
+        };
+        let responses = kernel.layer_responses().unwrap();
+        let mut exact_path = 0.;
+        for (mu, weight) in quadrature::gauss(64).unwrap() {
+            for j in 0..128 {
+                let az = 2. * PI * j as f64 / 128.;
+                let direction = view(mu, az.to_degrees());
+                let cosine = mu * 0.8 + (1. - mu * mu).sqrt() * 0.6 * az.cos();
+                let sample = kernel
+                    .weighted_sample(
+                        mu,
+                        cosine,
+                        s.radiance(wavelength(), direction).unwrap().value(),
+                        crate::units::qtty::Steradians::new(weight * 2. * PI / 128.),
+                    )
+                    .unwrap();
+                exact_path += responses.iter().map(|l| l.integrate(&sample)).sum::<f64>();
+            }
+        }
+        close(exact_path, fixture["single"].as_f64().unwrap(), 1e-4);
+
         println!("{}: single={:.17e}; reference={}; orders={:?}; angular={:.3e}, path={:.3e}, joint={:.3e}",fixture["name"],r.single.value(),fixture["single"],r.convergence.orders,r.convergence.angular_change.value(),r.convergence.path_change.value(),r.convergence.joint_change.value());
     }
 }
@@ -1031,4 +1061,85 @@ fn computational_budget_reference_performance() {
     let work = budget::estimate(settings, 1).unwrap();
     assert!(work.enforce(1, settings).is_err());
     println!("budget performance pathological: layers=1, initial=[256,512,256], refinements=1, work={}, temporary_bytes={}, rejection_us={:.3}, rejected",work.total().unwrap(),work.peak_bytes,start.elapsed().as_secs_f64()*1e6);
+}
+
+#[test]
+fn exact_layer_path_matches_independent_homogeneous_oracle_and_gl() {
+    for (r, a, ssa, m) in [
+        (0., 0., 0., 0.),
+        (0., 0.2, 0., 0.1),
+        (1e-8, 0., 0., 0.),
+        (0.1, 0.2, 0.7, 0.05),
+        (2., 1., 1., 0.),
+    ] {
+        let atmo = medium(r, a, ssa, m);
+        let p = phase(0.65);
+        let sky = Sky::new(1.0);
+        let kernel = quadrature::Kernel {
+            atmosphere: &atmo,
+            phase: &p,
+            sky: &sky,
+            wavelength: Nanometers::new(450.),
+            view: view(0.8, 23.),
+        };
+        let layers = kernel.layer_responses().unwrap();
+        for mu in [0.0, f64::MIN_POSITIVE, 0.001, 0.3, 0.8, 0.800000000001, 1.0] {
+            let sample = quadrature::Sample {
+                mu,
+                rayleigh: 1.,
+                aerosol: 1.,
+            };
+            let value = layers.iter().map(|l| l.integrate(&sample)).sum::<f64>();
+            let expected = if mu == 0. {
+                0.
+            } else {
+                homogeneous(r + a + m, mu, 0.8, r + a * ssa)
+            };
+            if value == 0. && expected == 0. {
+                continue;
+            }
+            close(value, expected, 2e-13);
+        }
+    }
+    // Layer splitting cannot change the exact path integral. This separately
+    // probes endpoint columns and nontrivial incoming/outgoing attenuation.
+    let atmo = medium(0.1, 0.03, 0.9, 0.02);
+    let coefficients = atmo
+        .coefficients(Nanometers::new(450.), atmo.edges()[0])
+        .unwrap();
+    let split = LayeredAtmosphere::try_new(
+        &[
+            Meters::new(2100.),
+            Meters::new(2250.),
+            Meters::new(2800.),
+            Meters::new(3100.),
+        ],
+        atmo.wavelength_domain(),
+        vec![coefficients; 3],
+    )
+    .unwrap();
+    let p = phase(0.65);
+    let sky = Sky::new(1.);
+    for mu in [0.001, 0.3, 0.8, 1.] {
+        let sample = quadrature::Sample {
+            mu,
+            rayleigh: 0.4,
+            aerosol: 0.7,
+        };
+        let response = |m: &LayeredAtmosphere| {
+            quadrature::Kernel {
+                atmosphere: m,
+                phase: &p,
+                sky: &sky,
+                wavelength: Nanometers::new(450.),
+                view: view(0.8, 23.),
+            }
+            .layer_responses()
+            .unwrap()
+            .iter()
+            .map(|l| l.integrate(&sample))
+            .sum::<f64>()
+        };
+        close(response(&atmo), response(&split), 1e-13);
+    }
 }
