@@ -60,8 +60,15 @@ fn relaxed() -> MultipleScatteringSettings {
     }
 }
 fn compute(atm: &LayeredAtmosphere) -> MultipleScattering {
-    multiple_scattering(atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), relaxed())
-        .unwrap()
+    multiple_scattering(
+        atm,
+        &aerosol(),
+        &sky(),
+        Nanometers::new(450.0),
+        view(),
+        relaxed(),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -88,7 +95,10 @@ fn rayleigh_has_nonzero_second_and_higher_orders() {
     assert!(r.single.value() > 0.0);
     assert!(r.higher_orders.value() > 0.0);
     assert!(r.total.value() > r.direct.value() + r.single.value());
-    assert_eq!(r.total_scattered.value(), r.single.value() + r.higher_orders.value());
+    assert_eq!(
+        r.total_scattered.value(),
+        r.single.value() + r.higher_orders.value()
+    );
     assert!(r.convergence.contraction_bound < 1.0);
 }
 #[test]
@@ -105,17 +115,9 @@ fn first_order_agrees_with_existing_reference_in_thin_sky() {
         single::SolverSettings::default(),
     )
     .unwrap();
-    let multiple = multiple_scattering(
-        &atm,
-        &p,
-        &sky,
-        Nanometers::new(450.0),
-        view(),
-        relaxed(),
-    )
-    .unwrap();
-    let relative = (first.single.value() - multiple.single.value()).abs()
-        / first.single.value();
+    let multiple =
+        multiple_scattering(&atm, &p, &sky, Nanometers::new(450.0), view(), relaxed()).unwrap();
+    let relative = (first.single.value() - multiple.single.value()).abs() / first.single.value();
     assert!(relative < 0.05, "first-order difference: {relative}");
     assert!(multiple.higher_orders.value() > 0.0);
 }
@@ -124,16 +126,22 @@ fn overflow_and_nonconvergence_are_errors_not_partial_results() {
     let atm = atmosphere(0.02, 0.0, 0.0, 0.0);
     let mut s = relaxed();
     s.max_orders = usize::MAX;
-    assert!(multiple_scattering(&atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), s).is_err());
+    assert!(
+        multiple_scattering(&atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), s).is_err()
+    );
     s = relaxed();
     s.mu_nodes = 8;
     s.azimuth_nodes = 16;
     s.cells_per_layer = 16;
     s.max_orders = 64;
-    assert!(multiple_scattering(&atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), s).is_err());
+    assert!(
+        multiple_scattering(&atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), s).is_err()
+    );
     s = relaxed();
     s.max_orders = 2;
     s.order_tolerance = 1e-10;
     s.absolute_tolerance = Radiance::new(0.0);
-    assert!(multiple_scattering(&atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), s).is_err());
+    assert!(
+        multiple_scattering(&atm, &aerosol(), &sky(), Nanometers::new(450.0), view(), s).is_err()
+    );
 }
