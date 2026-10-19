@@ -14,7 +14,7 @@
 //! are diagnostics, not rigorous error bounds or physical uncertainty estimates.
 
 mod budget;
-mod quadrature;
+pub(in crate::transport) mod quadrature;
 /// Native-bin spectral Starlight illumination and transport (explicit opt-in).
 pub mod starlight;
 use super::RadianceOrigin;
