@@ -420,6 +420,7 @@ pub nsb::transport::multiple::MultipleScattering::total_scattered: qtty_core::un
 pub nsb::transport::multiple::MultipleScattering::uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
 pub nsb::transport::multiple::MultipleScattering::view: siderust::coordinates::spherical::direction::Horizontal
 pub nsb::transport::multiple::MultipleScattering::wavelength: qtty_core::units::length::Nanometers
+impl nsb::transport::multiple::MultipleScattering
 pub const nsb::transport::multiple::MultipleScattering::MODEL: &'static str
 pub struct nsb::transport::multiple::MultipleScatteringConvergence
 pub nsb::transport::multiple::MultipleScatteringConvergence::angular_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
@@ -439,6 +440,7 @@ pub nsb::transport::multiple::MultipleScatteringSettings::max_orders: usize
 pub nsb::transport::multiple::MultipleScatteringSettings::mu_nodes: usize
 pub nsb::transport::multiple::MultipleScatteringSettings::order_tolerance: f64
 pub nsb::transport::multiple::MultipleScatteringSettings::vertical_tolerance: f64
+impl core::default::Default for nsb::transport::multiple::MultipleScatteringSettings
 pub fn nsb::transport::multiple::MultipleScatteringSettings::default() -> Self
 pub fn nsb::transport::multiple::multiple_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &impl nsb::transport::single::IncidentSky, wavelength: qtty_core::units::length::Nanometers, view: siderust::coordinates::spherical::direction::Horizontal, settings: nsb::transport::multiple::MultipleScatteringSettings) -> nsb::Result<nsb::transport::multiple::MultipleScattering>
 pub mod nsb::transport::single
