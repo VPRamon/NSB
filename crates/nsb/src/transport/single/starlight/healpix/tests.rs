@@ -211,7 +211,17 @@ fn independent_horizon_areas_and_rotated_seam_partition() {
         }
     }
     // An exact quarter-turn is a symmetry of RING pixels, including the seam.
-    let input = payload(&[360, 390], 2, "ring", true);
+    let mut input = payload(&[360, 390], 2, "ring", false);
+    // Distinct parent means make this a non-axisymmetric map rotation, rather
+    // than an invariance test that a longitude-independent field passes trivially.
+    for (i, pixel) in input["pixels"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .enumerate()
+    {
+        pixel["radiance"] = serde_json::json!([30. + i as f64]);
+    }
     let original = load(&input);
     let mut rotated = input.clone();
     for i in 0..original.grid().npix() {
@@ -226,6 +236,7 @@ fn independent_horizon_areas_and_rotated_seam_partition() {
             .get();
         rotated["pixels"][j as usize]["radiance"] = input["pixels"][i as usize]["radiance"].clone();
     }
+    assert_ne!(rotated["pixels"], input["pixels"]);
     let rotated = load(&rotated);
     let a = sky(&original, [360., 390.]);
     let mut b = sky(&rotated, [360., 390.]);
