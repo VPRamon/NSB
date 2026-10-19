@@ -115,11 +115,21 @@ fn first_order_agrees_with_existing_reference_in_thin_sky() {
         single::SolverSettings::default(),
     )
     .unwrap();
-    let multiple =
-        multiple_scattering(&atm, &p, &sky, Nanometers::new(450.0), view(), relaxed()).unwrap();
-    let relative = (first.single.value() - multiple.single.value()).abs() / first.single.value();
+    // Isolate order one; higher-order angular aliasing must not hide
+    // first-order equivalence on the specified joint numerical grid.
+    let multiple = solution(
+        &atm,
+        &p,
+        &sky,
+        Nanometers::new(450.0),
+        view(),
+        relaxed(),
+        (2, 2),
+    )
+    .unwrap();
+    let relative = (first.single.value() - multiple.first).abs() / first.single.value();
     assert!(relative < 0.05, "first-order difference: {relative}");
-    assert!(multiple.higher_orders.value() > 0.0);
+    assert!(multiple.higher > 0.0);
 }
 #[test]
 fn overflow_and_nonconvergence_are_errors_not_partial_results() {
