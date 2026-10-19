@@ -67,6 +67,26 @@ not a rigorous angular/vertical error bound. The contraction bound applies to
 the **discrete scattering-order remainder only**, not discretization errors,
 atmospheric-parameter uncertainty, or physical calibration.
 
+## Reproducible algebraic reference (limited scope)
+
+An offline NumPy dense linear-system oracle is provided at
+`docs/validation/multiple-scattering-matrix.py`. Its test fixture uses
+a 1-km isotropic source, aerosol optical depth 0.12 (SSA 0.7), absorption
+depth 0.02, 4 positive-mu Gaussian nodes per hemisphere, 8 azimuths and
+4 vertical subcells. It calculates all orders using a dense inverse of
+the stationary linear transport system rather than the Rust successive-
+orders recurrence. Ground-view mu is 0.8 and wavelength is 450 nm.
+In spectral photon radiance the fixture obtains first order
+0.0009520451506273049, higher orders 0.00013390123542604275,
+and direct 0.020986425519230186.
+
+This checks algebraic consistency and component decomposition for one
+discrete physical configuration. Both implementations intentionally
+share finite-cell and angular assumptions; therefore it is **not** an
+independent continuum radiative-transfer accuracy benchmark or a
+substitute for matching DISORT, angular/vertical convergence, and
+frozen Gaia XP observational comparisons.
+
 **Important outstanding work** before scientific acceptance:
 
 - Conservative HEALPix pixel-area projection and isolated-bright-pixel tests;
