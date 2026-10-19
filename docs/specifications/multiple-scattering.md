@@ -25,8 +25,8 @@ monochromatic smooth-illumination research domain is implemented.
 
 The diffuse radiance at scattering order n+1 obeys
 
-    S[n+1](z,u) = beta_R(z) integral P_R(u,v) I[n](z,v) dv
-                + beta_A(z) integral P_A(u,v) I[n](z,v) dv.
+    S_{n+1}(z,u) = beta_R(z) integral P_R(u,v) I_n(z,v) dv
+                + beta_A(z) integral P_A(u,v) I_n(z,v) dv.
 
 At order 0, the upper-boundary illumination is transmitted through the
 Siderust optical column without scattering. A symmetric, full-sphere product
