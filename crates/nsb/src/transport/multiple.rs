@@ -32,7 +32,6 @@ pub struct MultipleScatteringSettings {
     /// Equally spaced azimuth nodes.
     pub azimuth_nodes: usize,
     /// Equal-height cells within each upstream homogeneous layer.
-    /// Final number of numerical subcells per optical layer.
     pub cells_per_layer: usize,
     /// Maximum number of physical scattering events accumulated.
     pub max_orders: usize,
@@ -66,6 +65,7 @@ impl Default for MultipleScatteringSettings {
 pub struct MultipleScatteringConvergence {
     /// Final positive-cosine and azimuth orders, respectively.
     pub angular_nodes: [usize; 2],
+    /// Final numerical subcells per Siderust optical layer.
     pub cells_per_layer: usize,
     /// Scattering orders included in the accepted result.
     pub orders: usize,
