@@ -68,7 +68,7 @@ pub enum AerosolPhase {
     Tabulated(Box<NormalizedPhaseTable>),
 }
 impl AerosolPhase {
-    fn density(&self, w: Nanometers, theta: Radians) -> Result<f64> {
+    pub(in crate::transport) fn density(&self, w: Nanometers, theta: Radians) -> Result<f64> {
         let p = match self {
             Self::HenyeyGreenstein(p) => p.phase(w, theta),
             Self::DoubleHenyeyGreenstein(p) => p.phase(w, theta),
@@ -262,7 +262,7 @@ pub fn single_scattering(
 }
 
 // Shared problem validation/direct operator for both angular integration paths.
-fn direct_illumination(
+pub(in crate::transport) fn direct_illumination(
     atmosphere: &LayeredAtmosphere,
     phase: &AerosolPhase,
     sky: &impl IncidentSky,
