@@ -26,10 +26,10 @@ impl IncidentSky for SmoothSky {
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let optics = AtmosphericOptics::from_extinction(
-        Quantity::new(0.000015),
-        Quantity::new(0.000010),
-        Albedos::new(0.7),
-        Quantity::new(0.000005),
+        Quantity::new(0.000040),
+        Quantity::new(0.000080),
+        Albedos::new(0.8),
+        Quantity::new(0.000020),
     )?;
     let atmosphere = LayeredAtmosphere::try_new(
         &[Meters::new(2100.0), Meters::new(3100.0)],
@@ -44,6 +44,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Nanometers::new(450.0),
         Horizontal::new(Degrees::new(53.13010235415598), Degrees::new(23.0)),
         MultipleScatteringSettings {
+            azimuth_nodes: 16,
+            cells_per_layer: 4,
+            max_orders: 24,
             angular_tolerance: 0.05,
             vertical_tolerance: 0.05,
             ..MultipleScatteringSettings::default()

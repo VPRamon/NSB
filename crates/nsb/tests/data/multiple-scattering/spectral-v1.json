@@ -1,0 +1,25 @@
+{
+  "schema": "nsb-independent-spectral-disort-v1",
+  "optics_input": "spectral_profile_optics.json",
+  "wavelength_nodes": 64,
+  "results": [
+    {
+      "streams": 64,
+      "direct": 0.6478098452775395,
+      "single": 0.03368977549691968,
+      "higher": 0.005336136671371618
+    },
+    {
+      "streams": 128,
+      "direct": 0.6478098452775395,
+      "single": 0.03368977549691968,
+      "higher": 0.005335000689477292
+    },
+    {
+      "streams": 256,
+      "direct": 0.6478098452775395,
+      "single": 0.03368977549691968,
+      "higher": 0.005334997081052671
+    }
+  ]
+}

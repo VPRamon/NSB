@@ -21,6 +21,9 @@ use siderust::coordinates::spherical::direction::Horizontal;
 use siderust::optica::phase::{PhaseFunction, RayleighPhaseFunction};
 use std::f64::consts::TAU;
 
+/// Native-bin HEALPix illumination with independently refined boundary cells.
+pub mod starlight;
+
 const WORK_LIMIT: usize = 250_000_000;
 const MEMORY_LIMIT: usize = 16 * 1024 * 1024;
 
@@ -77,6 +80,10 @@ pub struct MultipleScatteringConvergence {
     pub order_tail_bound: Radiance,
     /// Upper bound on the discrete scattering operator norm.
     pub contraction_bound: f64,
+    /// Signed (outgoing plus absorbed minus incident) hemispheric photon flux,
+    /// divided by incident flux. Includes finite-cell/angular/order errors;
+    /// zero for a dark sky. This is not physical uncertainty or an error bound.
+    pub flux_balance_relative: f64,
     /// Full accepted plan in conservative computational work units.
     pub planned_work: usize,
 }
@@ -136,6 +143,7 @@ struct Solution {
     orders: usize,
     bound: f64,
     contraction: f64,
+    flux_balance: f64,
 }
 
 fn invalid(s: &str) -> NsbError {
@@ -182,6 +190,9 @@ fn preflight(layers: usize, s: MultipleScatteringSettings) -> Result<usize> {
         work = work
             .checked_add(product(&[2, square, cells, s.max_orders + 1])?)
             .ok_or_else(|| invalid("full refinement work overflow"))?;
+        work = work
+            .checked_add(product(&[8, n, cells, s.max_orders + 1])?)
+            .ok_or_else(|| invalid("field transport work overflow"))?;
         let phase_bytes = product(&[2, square, std::mem::size_of::<f64>()])?;
         let field_bytes = product(&[5, n, cells, std::mem::size_of::<f64>()])?;
         if phase_bytes
@@ -239,13 +250,14 @@ fn ordinates(
     w: Nanometers,
     nmu: usize,
     nphi: usize,
+    sample_boundary: bool,
 ) -> Result<Vec<Direction>> {
     let mut result = Vec::with_capacity(2 * nmu * nphi);
     for sign in [1.0, -1.0] {
         for (mu, weight) in single::quadrature::gauss(nmu)? {
             for p in 0..nphi {
                 let az = TAU * p as f64 / nphi as f64;
-                let incident = if sign > 0.0 {
+                let incident = if sign > 0.0 && sample_boundary {
                     nonnegative(
                         sky.radiance(
                             w,
@@ -292,6 +304,50 @@ fn step(incoming: f64, source: f64, cell: Cell, distance: f64) -> f64 {
     };
     incoming * (-optical).exp() + integrated
 }
+// Exact absorption of a formal constant-source cell field, integrated over
+// height. Source iteration itself uses midpoint fields, so flux closure is a
+// separate discretization diagnostic and need not be identically zero.
+fn absorbed_in_cell(incoming: f64, source: f64, cell: Cell, mu: f64) -> f64 {
+    let absorption = (cell.extinction - cell.rayleigh - cell.aerosol).max(0.0);
+    if absorption == 0.0 {
+        return 0.0;
+    }
+    let delta = cell.depth / mu.abs();
+    let source_weight = if delta < 1e-3 {
+        delta * (0.5 + delta * (-1.0 / 6.0 + delta * (1.0 / 24.0 - delta / 120.0)))
+    } else {
+        1.0 + (-delta).exp_m1() / delta
+    };
+    let mean = incoming * (1.0 - source_weight) + source / cell.extinction * source_weight;
+    absorption * (cell.depth / cell.extinction) * mean
+}
+
+fn boundary_flux(cells: &[Cell], boundary: &[Direction]) -> Result<(f64, f64, f64)> {
+    let mut incident = 0.0;
+    let mut ground = 0.0;
+    let mut absorbed = 0.0;
+    for d in boundary.iter().filter(|d| d.mu > 0.0) {
+        incident = nonnegative(
+            incident + d.weight * d.mu * d.incoming,
+            "incident photon flux",
+        )?;
+        let mut incoming = d.incoming;
+        for cell in cells.iter().rev() {
+            if cell.extinction > 0.0 {
+                let albedo = ((cell.rayleigh + cell.aerosol) / cell.extinction).min(1.0);
+                let fraction = -(-cell.depth / d.mu).exp_m1();
+                absorbed = nonnegative(
+                    absorbed + d.weight * d.mu * incoming * (1.0 - albedo) * fraction,
+                    "absorbed direct flux",
+                )?;
+                incoming *= (-cell.depth / d.mu).exp();
+            }
+        }
+        ground = nonnegative(ground + d.weight * d.mu * incoming, "direct ground flux")?;
+    }
+    Ok((incident, ground, absorbed))
+}
+
 fn solution(
     atm: &LayeredAtmosphere,
     phase: &AerosolPhase,
@@ -301,10 +357,38 @@ fn solution(
     s: MultipleScatteringSettings,
     resolution: (usize, usize),
 ) -> Result<Solution> {
-    let (a, z) = resolution;
+    solve(
+        atm,
+        phase,
+        sky,
+        w,
+        view,
+        s,
+        (resolution.0, resolution.1, None),
+    )
+}
+fn solve(
+    atm: &LayeredAtmosphere,
+    phase: &AerosolPhase,
+    sky: &impl IncidentSky,
+    w: Nanometers,
+    view: Horizontal,
+    s: MultipleScatteringSettings,
+    resolution: (usize, usize, Option<&[Direction]>),
+) -> Result<Solution> {
+    let (a, z, boundary) = resolution;
     let cells = column(atm, w, s.cells_per_layer * z)?;
-    let dirs = ordinates(sky, w, s.mu_nodes * a, s.azimuth_nodes * a)?;
+    let dirs = ordinates(
+        sky,
+        w,
+        s.mu_nodes * a,
+        s.azimuth_nodes * a,
+        boundary.is_none(),
+    )?;
     let (n, m) = (dirs.len(), cells.len());
+    let (incident_flux, direct_flux, mut absorbed_flux) =
+        boundary_flux(&cells, boundary.unwrap_or(&dirs))?;
+    let mut diffuse_flux = 0.0;
     let mut rp = vec![0.0; n * n];
     let mut ap = vec![0.0; n * n];
     let mut max_norm = 0.0f64;
@@ -327,7 +411,10 @@ fn solution(
             }
         }
     }
-    if (has_ray || has_aer) && (min_norm < 0.9 || max_norm > 1.1) {
+    let phase_tolerance = s.angular_tolerance.min(1e-3);
+    if (has_ray || has_aer)
+        && (min_norm < 1.0 - phase_tolerance || max_norm > 1.0 + phase_tolerance)
+    {
         return Err(invalid(
             "full-sphere scattering phase quadrature is under-resolved",
         ));
@@ -358,7 +445,18 @@ fn solution(
         vr.push(p[0] * d.weight);
         va.push(p[1] * d.weight);
     }
-    let view_norm = vr.iter().sum::<f64>().max(va.iter().sum::<f64>());
+    let view_rows = [vr.iter().sum::<f64>(), va.iter().sum::<f64>()];
+    let mut view_norm = 0.0_f64;
+    for (active, norm) in [(has_ray, view_rows[0]), (has_aer, view_rows[1])] {
+        if active {
+            if (norm - 1.0).abs() > phase_tolerance {
+                return Err(invalid(
+                    "ground-view scattering phase quadrature is under-resolved",
+                ));
+            }
+            view_norm = view_norm.max(norm);
+        }
+    }
     let view_gain = omega * view_norm * -(-tau / mu).exp_m1();
     // Unscattered boundary field at finite-cell midpoints; upward order 0 = 0.
     let mut current = vec![0.0; m * n];
@@ -374,31 +472,63 @@ fn solution(
     let mut next = vec![0.0; m * n];
     let mut sources = vec![0.0; m * n];
     let mut views = vec![0.0; m];
+    let external = if let Some(boundary) = boundary {
+        let mut source = vec![0.0; m * n];
+        let mut ground_source = vec![0.0; m];
+        let mut factors = vec![0.0; m];
+        for d in boundary {
+            let mut above = 0.0;
+            for j in (0..m).rev() {
+                factors[j] = d.incoming * d.weight * (-(above + 0.5 * cells[j].depth) / d.mu).exp();
+                above += cells[j].depth;
+            }
+            for (i, out) in dirs.iter().enumerate() {
+                let pair = phase_pair(w, phase, out.vector, d.vector)?;
+                for (j, cell) in cells.iter().enumerate() {
+                    source[j * n + i] +=
+                        factors[j] * (cell.rayleigh * pair[0] + cell.aerosol * pair[1]);
+                }
+            }
+            let pair = phase_pair(w, phase, v, d.vector)?;
+            for (j, cell) in cells.iter().enumerate() {
+                ground_source[j] += factors[j] * (cell.rayleigh * pair[0] + cell.aerosol * pair[1]);
+            }
+        }
+        Some((source, ground_source))
+    } else {
+        None
+    };
     let mut first = 0.0;
     let mut higher = 0.0;
-    let mut amplitude = 0.0f64;
     for order in 1..=s.max_orders {
-        for (j, cell) in cells.iter().enumerate() {
-            for i in 0..n {
+        if order == 1 && external.is_some() {
+            if let Some((source, ground_source)) = &external {
+                sources.copy_from_slice(source);
+                views.copy_from_slice(ground_source);
+            }
+        } else {
+            for (j, cell) in cells.iter().enumerate() {
+                for i in 0..n {
+                    let mut ray = 0.0;
+                    let mut aer = 0.0;
+                    for k in 0..n {
+                        ray += rp[i * n + k] * current[j * n + k];
+                        aer += ap[i * n + k] * current[j * n + k];
+                    }
+                    sources[j * n + i] =
+                        nonnegative(cell.rayleigh * ray + cell.aerosol * aer, "diffuse source")?;
+                }
                 let mut ray = 0.0;
                 let mut aer = 0.0;
                 for k in 0..n {
-                    ray += rp[i * n + k] * current[j * n + k];
-                    aer += ap[i * n + k] * current[j * n + k];
+                    ray += vr[k] * current[j * n + k];
+                    aer += va[k] * current[j * n + k];
                 }
-                sources[j * n + i] =
-                    nonnegative(cell.rayleigh * ray + cell.aerosol * aer, "diffuse source")?;
+                views[j] = nonnegative(
+                    cell.rayleigh * ray + cell.aerosol * aer,
+                    "ground-view source",
+                )?;
             }
-            let mut ray = 0.0;
-            let mut aer = 0.0;
-            for k in 0..n {
-                ray += vr[k] * current[j * n + k];
-                aer += va[k] * current[j * n + k];
-            }
-            views[j] = nonnegative(
-                cell.rayleigh * ray + cell.aerosol * aer,
-                "ground-view source",
-            )?;
         }
         for (i, dir) in dirs.iter().enumerate() {
             let mut incoming = 0.0;
@@ -414,6 +544,12 @@ fn solution(
                         step(incoming, sources[j * n + i], cells[j], distance * 0.5),
                         "downward radiance",
                     )?;
+                    absorbed_flux = nonnegative(
+                        absorbed_flux
+                            + dir.weight
+                                * absorbed_in_cell(incoming, sources[j * n + i], cells[j], dir.mu),
+                        "absorbed diffuse flux",
+                    )?;
                     incoming = step(incoming, sources[j * n + i], cells[j], distance);
                 }
             } else {
@@ -427,9 +563,19 @@ fn solution(
                         step(incoming, sources[j * n + i], cells[j], distance * 0.5),
                         "upward radiance",
                     )?;
+                    absorbed_flux = nonnegative(
+                        absorbed_flux
+                            + dir.weight
+                                * absorbed_in_cell(incoming, sources[j * n + i], cells[j], dir.mu),
+                        "absorbed diffuse flux",
+                    )?;
                     incoming = step(incoming, sources[j * n + i], cells[j], distance);
                 }
             }
+            diffuse_flux = nonnegative(
+                diffuse_flux + dir.weight * dir.mu.abs() * incoming,
+                "outgoing diffuse flux",
+            )?;
         }
         let mut ground = 0.0;
         for j in (0..m).rev() {
@@ -449,21 +595,24 @@ fn solution(
             higher = nonnegative(higher + ground, "higher-order radiance")?;
         }
         let sup = next.iter().copied().fold(0.0f64, f64::max);
-        amplitude = amplitude.max(sup);
         // The positive discrete operator has norm at most contraction.
         // Every omitted order is bounded by the geometric Neumann tail.
-        let tail = (contraction.max(view_gain) / (1.0 - contraction)) * sup;
+        let tail = (view_gain / (1.0 - contraction)) * sup;
         if !tail.is_finite() {
             return Err(invalid("multiple-scattering residual overflow"));
         }
-        if tail <= s.absolute_tolerance.value() + s.order_tolerance * amplitude.max(first + higher)
-        {
+        if tail <= s.absolute_tolerance.value() + s.order_tolerance * (first + higher) {
             return Ok(Solution {
                 first,
                 higher,
                 orders: order,
                 bound: tail,
                 contraction,
+                flux_balance: if incident_flux > 0.0 {
+                    (direct_flux + diffuse_flux + absorbed_flux - incident_flux) / incident_flux
+                } else {
+                    0.0
+                },
             });
         }
         std::mem::swap(&mut current, &mut next);
@@ -494,13 +643,39 @@ pub fn multiple_scattering(
     view: Horizontal,
     settings: MultipleScatteringSettings,
 ) -> Result<MultipleScattering> {
+    evaluate(atmosphere, phase, sky, wavelength, view, (settings, None))
+}
+fn evaluate(
+    atmosphere: &LayeredAtmosphere,
+    phase: &AerosolPhase,
+    sky: &impl IncidentSky,
+    wavelength: Nanometers,
+    view: Horizontal,
+    configuration: (MultipleScatteringSettings, Option<&[Direction]>),
+) -> Result<MultipleScattering> {
+    let (settings, boundary) = configuration;
     let layers = atmosphere.edges().len().saturating_sub(1);
     let work = preflight(layers, settings)?;
     let (direct, source) = single::direct_illumination(atmosphere, phase, sky, wavelength, view)?;
-    let base = solution(atmosphere, phase, sky, wavelength, view, settings, (1, 1))?;
-    let angular = solution(atmosphere, phase, sky, wavelength, view, settings, (2, 1))?;
-    let vertical = solution(atmosphere, phase, sky, wavelength, view, settings, (1, 2))?;
-    let joint = solution(atmosphere, phase, sky, wavelength, view, settings, (2, 2))?;
+    let run = |a, z| {
+        if boundary.is_none() {
+            solution(atmosphere, phase, sky, wavelength, view, settings, (a, z))
+        } else {
+            solve(
+                atmosphere,
+                phase,
+                sky,
+                wavelength,
+                view,
+                settings,
+                (a, z, boundary),
+            )
+        }
+    };
+    let base = run(1, 1)?;
+    let angular = run(2, 1)?;
+    let vertical = run(1, 2)?;
+    let joint = run(2, 2)?;
     let absolute = settings.absolute_tolerance.value();
     for (a, b, rel) in [
         (base.first, angular.first, settings.angular_tolerance),
@@ -514,7 +689,7 @@ pub fn multiple_scattering(
     ] {
         if !agrees(a, b, rel, absolute) {
             return Err(NsbError::Unsupported(
-                "multiple scattering angular or vertical grid did not converge".into(),
+                format!("multiple scattering angular or vertical grid did not converge: {a} versus {b}, relative threshold {rel}"),
             ));
         }
     }
@@ -547,6 +722,7 @@ pub fn multiple_scattering(
             vertical_change: Radiance::new(vertical_change),
             order_tail_bound: Radiance::new(joint.bound),
             contraction_bound: joint.contraction,
+            flux_balance_relative: joint.flux_balance,
             planned_work: work,
         },
     })

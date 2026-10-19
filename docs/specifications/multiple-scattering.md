@@ -1,131 +1,203 @@
-# Experimental scalar multiple-scattering reference (draft)
+# Experimental scalar atmospheric multiple scattering
 
-Status: opt-in numerical implementation under scientific review. This is **not**
-an admitted Starlight/Gaia result and must not be used as observational accuracy
-evidence. It does not alter the NSB evaluator or production defaults.
+Status: opt-in research reference. Numerical validation is synthetic, under the
+restricted conditions below. There is no observational admission, Gaia XP
+promotion, uncertainty calibration, or change to evaluator defaults.
 
-## Physical contract
+## Physical problem and conventions
 
-A horizontally homogeneous, vertically layered and finite plane-parallel
-atmosphere has upstream Siderust extinction and Rayleigh/aerosol scattering
-coefficients. Optica supplies normalized Rayleigh and aerosol phase densities
-in inverse steradians. At fixed vacuum wavelength, photon directions are the
-negatives of Horizontal sky vectors (local azimuth north clockwise). The upper
-inflow boundary supplies full-hemisphere top-of-atmosphere celestial spectral
-radiance; the black, nonemitting, nonreflecting lower boundary supplies zero
-upward photons. Both upward and downward directions are retained after the
-first scattering. Observer height is the first Siderust layer edge.
+The medium is finite, plane parallel, horizontally homogeneous, and piecewise
+homogeneous in height. `LayeredAtmosphere` supplies every optical coefficient
+and partial-column extinction, including molecular absorption and aerosol
+absorption through SSA. NSB does not implement another atmospheric prescription.
+Optica supplies normalized Rayleigh, HG and double-HG phases; Siderust supplies
+the strict normalized phase-table adapter. Constituents retain separate
+scattering coefficients and share total extinction exactly once per path.
 
-There is no airglow, ground reflection, emission, polarization, refraction,
-spherical geometry, instrument response, or empirical correction. Layers are
-assumed optically homogeneous as represented by Siderust. At present, only a
-monochromatic smooth-illumination research domain is implemented.
+Horizontal vectors point **toward the apparent sky** (north-clockwise azimuth).
+Photon propagation is their negative. Their mutual phase cosine is unchanged
+when both vectors are negated. Positive sky-vector zenith cosine consequently
+labels *downward* photons. Negative cosine labels internally upward photons.
+The upper inflow is exclusively supplied TOA spectral illumination. The lower
+inflow is zero: black, nonreflecting, nonemitting ground. The observer is at the
+first atmospheric edge. Both internal propagation hemispheres are retained.
 
-## Numerical method
+Supported wavelengths are 360–570 nm. Output geometric altitude is 10–90°,
+as in the authoritative first-order reference. No polarization, refraction,
+spherical geometry, ground reflection, terrestrial emission, airglow or
+instrument response is included. Site ellipsoidal height and the atmospheric
+column's declared vertical datum remain distinct caller responsibilities.
 
-The diffuse radiance at scattering order n+1 obeys
+## Discrete transfer and component semantics
 
-    S_{n+1}(z,u) = beta_R(z) integral P_R(u,v) I_n(z,v) dv
-                + beta_A(z) integral P_A(u,v) I_n(z,v) dv.
+For scattering order n+1, with I0 the attenuated upper-boundary field,
 
-At order 0, the upper-boundary illumination is transmitted through the
-Siderust optical column without scattering. A symmetric, full-sphere product
-quadrature (Gauss-Legendre positive zenith cosines, two hemispheres, periodic
-azimuth) represents the interior angular field. Within each homogeneous layer,
-equal-height cells carry constant approximations to the diffuse source. Each
-order is transported along both propagation hemispheres with the formal exact
-constant-source solution. The requested ground view is separately swept with
-its exact geometric direction; it need not equal an ordinate.
+    S_n+1(z,u) = beta_R(z) integral P_R(u,v) I_n(z,v) dOmega_v
+               + beta_A(z) integral P_A(u,v) I_n(z,v) dOmega_v.
 
-The method **does not** multiply first-order radiance by an estimated
-enhancement. The returned fields distinguish direct, single, sum of second and
-higher orders, total scattered, and total observed radiance.
+The internal field uses Gaussian zenith cosines in each hemisphere and periodic
+azimuths on the full sphere. Each homogeneous upstream layer is subdivided
+uniformly. Source values at cell midpoints are represented as constants inside
+cells. The formal solution for each order is swept in both directions with zero
+diffuse inflow; the requested output view is integrated separately and need not
+coincide with an ordinate. Stable `expm1` evaluation handles thin cells.
 
-## Convergence, bounds, and limitations
+This is a finite-cell approximation, **not an exact first-order layer integral**.
+The unscattered field at midpoints is exact for the supplied boundary quadrature;
+its subsequent finite-cell integration has vertical discretization error.
+Independent angular/vertical studies and comparisons with the authoritative
+single-scattering solver are mandatory evidence, not an assertion that midpoint
+bias is zero. Equivalent layer subdivisions agree when numerical cell edges match.
 
-Four independently evaluated configurations compare base, angular-double,
-vertical-double and joint-double resolutions. Each computes its own
-scattering-order tail. The discrete positive scattering operator is
-conservatively bounded by the maximum single-scattering albedo, maximum
-discrete phase-row integral and finite-column escape probability. When that
-bound is not strictly below one, the solver refuses to claim convergence.
-A geometric bound of the remaining Neumann-series tail is checked at each
-iteration. Failure to meet an individual angular, vertical or order tolerance
-returns an error, never a silently truncated sum.
+Outputs distinguish unscattered `direct`, exactly once-scattered `single`,
+`higher_orders` (orders 2 and above), `total_scattered`, and `total`. Higher orders
+come from actual repeated scattering and attenuated transport. They never arise
+from a fitted enhancement. Uncertainty is `None`; numerical changes are not
+physical uncertainties.
 
-Preflight checks use checked arithmetic and apply to **all four** planned
-calculations, including iterations that might never run. Current caps: 250
-million conservative work units and 16 MiB for phase/field workspaces.
-If K is the number of vertical cells, D the number of internal directions,
-and N the maximum scattering orders, the dominant work is O(N K D^2)
-and storage O(D^2 + K D). Grid sizes, number of layers, wavelength, and
-iterations are individually bounded.
+## Order-tail guarantee and stopping
 
-The discrete phase integral audit rejects under-resolved forward peaks.
-As with existing single scattering, agreement on two grids is a *diagnostic*,
-not a rigorous angular/vertical error bound. The contraction bound applies to
-the **discrete scattering-order remainder only**, not discretization errors,
-atmospheric-parameter uncertainty, or physical calibration.
+Let q bound the infinity norm of the positive *discrete* internal scattering
+operator. With maximum effective SSA omega, maximum active discrete phase-row
+sum p, total vertical depth T, and smallest internal |mu|,
 
-## Reproducible algebraic reference (limited scope)
+    q = omega * p * (1 - exp(-T / min|mu|)).
 
-An offline NumPy dense linear-system oracle is provided at
-`docs/validation/multiple-scattering-matrix.py`. Its test fixture uses
-a 1-km isotropic source, aerosol optical depth 0.12 (SSA 0.7), absorption
-depth 0.02, 4 positive-mu Gaussian nodes per hemisphere, 8 azimuths and
-4 vertical subcells. It calculates all orders using a dense inverse of
-the stationary linear transport system rather than the Rust successive-
-orders recurrence. Ground-view mu is 0.8 and wavelength is 450 nm.
-In spectral photon radiance the fixture obtains first order
-0.0009520451506273049, higher orders 0.00013390123542604275,
-and direct 0.020986425519230186.
+Every midpoint formal response is bounded by the full-column response, so this
+bounds the actual discrete operator, including nonuniform layers. Raw active
+phase rows must resolve unity to `min(angular_tolerance, 1e-3)`; the ground-view
+row of each active constituent is audited too. No phase row is renormalized.
+A finite q strictly below one is required. Near-conservative/thick unresolved
+columns may therefore be rejected even though the continuous problem has a
+solution.
 
-This checks algebraic consistency and component decomposition for one
-discrete physical configuration. Both implementations intentionally
-share finite-cell and angular assumptions; therefore it is **not** an
-independent continuum radiative-transfer accuracy benchmark or a
-substitute for matching DISORT, angular/vertical convergence, and
-frozen Gaia XP observational comparisons.
+For the actual maximum internal radiance M_n after the nth order and ground
+response bound g = omega * p_view * (1-exp(-T/mu_view)), the omitted ground tail is
 
-## Independent isotropic continuum reference
+    tail_n <= g * M_n / (1-q).
 
-The independent offline script
-`docs/validation/multiple-scattering-isotropic-scipy.py` integrates the
-full-sphere angular field analytically in the homogeneous, isotropically
-scattering case. It solves the resulting one-dimensional Fredholm transport
-equation using cell-integrated exponential-integral E1 kernels, SciPy
-`expn(2, ...)`, and a direct dense inverse. This differs from the Rust
-bidirectional discrete-ordinates successive-orders method.
+The ground source of order n+1 depends on I_n; hence no extra q is inserted ahead
+of g. The stopping threshold is the requested absolute tolerance plus relative
+order tolerance times **ground single + higher radiance**. Peak interior
+radiance is not an allowed relative scale. An explicit regression compares this
+bound with a much longer Neumann sum. It bounds omitted orders of the discrete
+problem only, not angular/vertical error or parameter uncertainty.
 
-At 450 nm for 1 km, TOA radiance 0.025, aerosol extinction optical
-depth 0.12 at SSA 0.7, absorption optical depth 0.02, and ground-view
-cosine 0.8, its 256-cell reference gives direct
-0.020986425519230186, first 0.0009511033150319675 and second+
-0.0001342609721455303 photon radiance. The regression test requires
-the Rust joint resolution to agree with first and higher orders within
-2%, recognizing remaining angular/vertical discretization. This establishes
-limited **independent higher-order agreement for one isotropic synthetic
-case**, not anisotropic atmospheric or Gaia validation.
+Four runs compare base, angle-doubled, cell-doubled and jointly doubled grids.
+Both single and higher orders must pass all independent comparisons. These
+successive-grid changes are diagnostics, not certified discretization bounds.
+Arbitrary unresolved oscillations in a caller's nominally smooth sky cannot be
+certified by two grids. Strong phase peaks, grazing output, nonconvergence and
+excessive plans produce errors; no partial result is returned.
 
-**Important outstanding work** before scientific acceptance:
+The signed hemispheric `flux_balance_relative` diagnostic evaluates outgoing
+plus absorbed minus incident photon flux, divided by incident flux (zero for
+a dark sky). Absorption is integrated analytically along the formal cell
+fields, independently of the midpoint source used for the next order. It
+therefore exposes finite-cell/angular/order photon-closure error rather than
+assuming exact discrete conservation. Pure absorption and vacuum close to
+rounding error. Conservative Rayleigh closure converges with vertical cells;
+see the executed evidence. This diagnostic is not an observational uncertainty.
 
-- Conservative HEALPix pixel-area projection and isolated-bright-pixel tests;
-  point-sampling a Starlight map is not equivalent.
-- Separate full-native-bin spectral integration and wavelength convergence,
-  preserving FlatPhotonDensity provenance and the 360–570 nm Gaia XP bins.
-- Tight matched-physics first-order equivalence tests across Rayleigh, aerosol,
-  mixed media and multiple layers.
-- Extend independent high-order validation beyond the isotropic homogeneous
-  E1/Fredholm fixture: Rayleigh, anisotropic aerosol phases, mixed multi-layer
-  media and matched DISORT/PythonicDISORT references.
-- Frozen Gaia XP comparison under both current and historical optics/astrometry;
-  historical 28.10% is a comparison datum, not a multiplier.
-- Complete all-feature Clippy, Rust 1.89, wheel/CLI, coverage and GitHub Actions
-  checks on the final SHA.
+## Conservative HEALPix boundary and native bins
 
-No source uncertainty, covariance or observational accuracy estimate is
-available. Release #265 still blocks publishing until real Siderust registry
-artifacts provide the required APIs. Do not change the existing Git dependency
-pin to make this draft build.
+`multiple::starlight::starlight_multiple_scattering` accepts the existing
+checksum-validated `StarlightSky`, preserving Galactic coordinates, source grid,
+product provenance, actual observer, explicit TT/UT1, exact direct-view lookup
+and `WithinBinSpectrum::FlatPhotonDensity`.
+
+The frozen pilot has seven native 30 nm bins from 360 to 570 nm. Each bin's stored
+photon radiance is divided by its full width to obtain spectral photon radiance.
+This is a declared within-bin model, not recovery of a measured SED. Complete-bin
+Gaussian wavelength integration independently doubles its order and checks
+**direct, single and higher** components. Endpoints must be covered by both the
+atmosphere and phase law. No bin centers, extrapolation or cross-bin covariance
+are substituted.
+
+The incident boundary uses a separate, deterministically refined equal-area
+HEALPix grid. Fine cells carry their containing parent's mean radiance and exact
+solid angle. With power-of-two subdivision, each parent receives exactly the
+square of the linear subdivision in children. RING enumerates those geometric
+cells; their summed full-sphere integral preserves every parent. Tests cover
+all parent cells through NSIDE8, isolated bright parents, poles and seams.
+
+The upstream celestial rotation maps fine centers into the local frame. Center
+clipping selects positive local cosine; antipodal pairs give at most half the
+centers and exactly 2pi visible measure away from exact horizon centers. Horizon
+intersection fractions are approximated by refinement, not known exactly.
+Two consecutive changes in ground single/higher radiance must satisfy the
+independent boundary threshold. Child samples integrate attenuation and phase
+inside constant parent pixels; they are not invented subpixel stellar sources.
+The internal diffuse field always uses its own full-sphere ordinate grid.
+It is not a point-sampled copy of the input map. Direct view remains exact.
+
+The pinned upstream pixel operations support **RING**, not NESTED. Native NSIDE
+must be a power of two for this boundary path. Unresolved boundary/horizon
+quadrature fails explicitly. Boundary changes, diffuse-angle changes, vertical
+changes, wavelength changes and order tails have distinct meanings and fields.
+
+## API, budgets and usage
+
+The original `multiple_scattering` API remains the smooth-sky monochromatic
+entry point. Settings bound angular resolution, subcells, order count and three
+convergence criteria independently. `StarlightMultipleScattering` adds integrated
+components, original native-bin context, independent wavelength/boundary
+settings, accepted resolutions, changes and per-wavelength monochromatic results.
+Existing Python and CLI interfaces are unchanged.
+
+A monochromatic four-grid plan retains its 250 million work-unit cap. A complete
+native-bin plan has a separate **four billion** cap because it includes at least
+six wavelengths and three boundary levels, each with four diffuse-grid runs.
+This does not raise the monochromatic cap. Both paths retain a 16 MiB temporary
+field/boundary workspace ceiling. Entire worst-case plans, including levels and
+wavelengths that might not run, are charged before source sampling or allocation.
+Integer arithmetic is checked. Work units count bounded numerical operations,
+not CPU instructions or wall-clock guarantees.
+
+For D internal directions, K subcells, N orders and B boundary cells, diffuse
+work is O(N K D^2), boundary preparation O(B K D), and temporary storage
+O(D^2 + K D + B). Boundary phases are computed once per incident/output pair
+and reused across vertical cells. No whole-map clone, global state, cache/LUT
+system, service or runtime Python dependency is introduced.
+
+Run the examples offline:
+
+```sh
+cargo run --release -p nsb --example multiple_scattering --locked
+cargo run --release -p nsb --example starlight_multiple_scattering --locked
+```
+
+The synthetic native-bin example uses explicitly relaxed 5% successive diffuse
+grid criteria, a strict 1e-4 boundary criterion and independent wavelength
+criteria. Its matched independent error is below 1%; those tolerances do not
+establish arbitrary-source accuracy. Defaults are not silently changed to make
+an unsupported request pass.
+
+## Validation and scientific limitations
+
+See [executed evidence and frozen-pilot blocker](../validation/multiple-scattering-269.md)
+and the checked-in DISORT/order JSON fixtures. Generators and receipts are pinned
+in [nsb-validation 08b50e6](https://github.com/VPRamon/nsb-validation/tree/08b50e604589702405267f6b1ebae521dfaa1b24/scripts/multiple-scattering).
+
+Independent stationary validation covers seven synthetic Rayleigh, HG g<=0.4,
+absorbing mixed, azimuthally anisotropic, stratified and moderately thicker
+columns. Separate second/third-order comparisons cover five homogeneous cases.
+Tables with constant isotropic density and modest double-HG phases have upstream
+contract/regression tests, not independent arbitrary-table accuracy admission.
+Vacuum, absorption, zero SSA, dark boundary, equivalent splitting, residual
+bounds, invalid inputs and resource rejection are tested.
+
+This is a restricted reference, not a general DISORT replacement. Extremely
+thin higher-order fields, conservative/thick media, strong forward peaks,
+high-resolution maps and strict refinement requests may exceed its useful domain.
+The frozen NSIDE128 Gaia multiple-scattering experiment is **not reproduced**:
+its configured boundary exceeds memory before transfer, and its historical
+optical prescription/center wavelengths/apparent-place astrometry differ from
+the current upstream model. Exact reproduction commands and evidence are in the
+validation report. Historical 28.1% enhancement remains a comparison datum only.
+
+Registry publication remains blocked by #265: registry Siderust 0.14.1 does not
+provide the required layered/phase APIs. Preserve Git revision
+`83d1ebb29ca1ae0b327d5784d13eda231d52c120`, dependency identity and release guards.
 
 Refs #187, #192, #263, #265.
