@@ -24,6 +24,7 @@ use std::f64::consts::TAU;
 const WORK_LIMIT: usize = 250_000_000;
 const MEMORY_LIMIT: usize = 16 * 1024 * 1024;
 
+/// Bounded four-resolution configuration for smooth-sky spectral transport.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MultipleScatteringSettings {
     /// Gauss nodes per positive zenith-cosine hemisphere.
@@ -31,6 +32,7 @@ pub struct MultipleScatteringSettings {
     /// Equally spaced azimuth nodes.
     pub azimuth_nodes: usize,
     /// Equal-height cells within each upstream homogeneous layer.
+    /// Final number of numerical subcells per optical layer.
     pub cells_per_layer: usize,
     /// Maximum number of physical scattering events accumulated.
     pub max_orders: usize,
@@ -62,33 +64,54 @@ impl Default for MultipleScatteringSettings {
 /// accuracy or observational uncertainty claims.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MultipleScatteringConvergence {
+    /// Final positive-cosine and azimuth orders, respectively.
     pub angular_nodes: [usize; 2],
     pub cells_per_layer: usize,
+    /// Scattering orders included in the accepted result.
     pub orders: usize,
+    /// Largest single/higher-order angular-only change.
     pub angular_change: Radiance,
+    /// Largest single/higher-order vertical-only change.
     pub vertical_change: Radiance,
+    /// Discrete angular operator Neumann-tail bound in radiance units.
     pub order_tail_bound: Radiance,
+    /// Upper bound on the discrete scattering operator norm.
     pub contraction_bound: f64,
+    /// Full accepted plan in conservative computational work units.
     pub planned_work: usize,
 }
+/// Immutable source-separated monochromatic ground-observer transport result.
 #[derive(Debug, Clone)]
 pub struct MultipleScattering {
+    /// Exactly unscattered transmitted top-boundary radiance.
     pub direct: Radiance,
+    /// Ground contribution from exactly one scattering event.
     pub single: Radiance,
+    /// Sum of second and subsequent scattering-order contributions.
     pub higher_orders: Radiance,
+    /// Sum of first and higher scattering orders.
     pub total_scattered: Radiance,
+    /// Direct radiance plus all computed scattered radiance.
     pub total: Radiance,
     /// Physical/model/source uncertainty is not available.
     pub uncertainty: Option<Radiance>,
+    /// Original top-of-atmosphere source identity and coverage.
     pub source: SkyCoverage,
+    /// Original layered optical medium, as supplied by Siderust.
     pub atmosphere: LayeredAtmosphere,
+    /// Original Optica aerosol scattering phase law.
     pub aerosol_phase: AerosolPhase,
+    /// Requested vacuum wavelength.
     pub wavelength: Nanometers,
+    /// Original observer viewing direction in local Horizontal coordinates.
     pub view: Horizontal,
+    /// Validated numerical settings.
     pub settings: MultipleScatteringSettings,
+    /// Numerical discretization and scattering-order diagnostics.
     pub convergence: MultipleScatteringConvergence,
 }
 impl MultipleScattering {
+    /// Experimental model identity, not an empirical accuracy or admission claim.
     pub const MODEL: &'static str = "nsb-plane-parallel-scalar-multiple-sos-v0-experimental";
 }
 
@@ -127,7 +150,8 @@ fn nonnegative(x: f64, what: &str) -> Result<f64> {
 }
 fn product(xs: &[usize]) -> Result<usize> {
     xs.iter().try_fold(1usize, |x, y| {
-        x.checked_mul(*y).ok_or_else(|| invalid("work size overflow"))
+        x.checked_mul(*y)
+            .ok_or_else(|| invalid("work size overflow"))
     })
 }
 fn preflight(layers: usize, s: MultipleScatteringSettings) -> Result<usize> {
@@ -164,11 +188,15 @@ fn preflight(layers: usize, s: MultipleScatteringSettings) -> Result<usize> {
             .checked_add(field_bytes)
             .is_none_or(|bytes| bytes > MEMORY_LIMIT)
         {
-            return Err(invalid("temporary multiple-scattering memory exceeds 16 MiB"));
+            return Err(invalid(
+                "temporary multiple-scattering memory exceeds 16 MiB",
+            ));
         }
     }
     if work > WORK_LIMIT {
-        return Err(invalid("multiple-scattering work exceeds 250 million units"));
+        return Err(invalid(
+            "multiple-scattering work exceeds 250 million units",
+        ));
     }
     Ok(work)
 }
@@ -244,16 +272,14 @@ fn ordinates(
     }
     Ok(result)
 }
-fn phase_pair(
-    w: Nanometers,
-    p: &AerosolPhase,
-    a: [f64; 3],
-    b: [f64; 3],
-) -> Result<[f64; 2]> {
+fn phase_pair(w: Nanometers, p: &AerosolPhase, a: [f64; 3], b: [f64; 3]) -> Result<[f64; 2]> {
     let cos = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]).clamp(-1.0, 1.0);
     let angle = Radians::new(cos.acos());
     Ok([
-        nonnegative(RayleighPhaseFunction.phase(w, angle).value(), "Rayleigh phase")?,
+        nonnegative(
+            RayleighPhaseFunction.phase(w, angle).value(),
+            "Rayleigh phase",
+        )?,
         nonnegative(p.density(w, angle)?, "aerosol phase")?,
     ])
 }
@@ -273,9 +299,9 @@ fn solution(
     w: Nanometers,
     view: Horizontal,
     s: MultipleScatteringSettings,
-    a: usize,
-    z: usize,
+    resolution: (usize, usize),
 ) -> Result<Solution> {
+    let (a, z) = resolution;
     let cells = column(atm, w, s.cells_per_layer * z)?;
     let dirs = ordinates(sky, w, s.mu_nodes * a, s.azimuth_nodes * a)?;
     let (n, m) = (dirs.len(), cells.len());
@@ -302,7 +328,9 @@ fn solution(
         }
     }
     if (has_ray || has_aer) && (min_norm < 0.9 || max_norm > 1.1) {
-        return Err(invalid("full-sphere scattering phase quadrature is under-resolved"));
+        return Err(invalid(
+            "full-sphere scattering phase quadrature is under-resolved",
+        ));
     }
     let omega = cells.iter().fold(0.0f64, |acc, c| {
         if c.extinction > 0.0 {
@@ -315,7 +343,9 @@ fn solution(
     let min_mu = dirs.iter().fold(1.0f64, |v, d| v.min(d.mu.abs()));
     let contraction = omega * max_norm * -(-tau / min_mu).exp_m1();
     if !contraction.is_finite() || contraction >= 1.0 {
-        return Err(invalid("discrete scattering contraction is not established"));
+        return Err(invalid(
+            "discrete scattering contraction is not established",
+        ));
     }
     let mu = view.alt().to::<Radian>().sin();
     let az = view.az().to::<Radian>().value();
@@ -336,8 +366,7 @@ fn solution(
         if d.mu > 0.0 {
             let mut above = 0.0;
             for j in (0..m).rev() {
-                current[j * n + i] =
-                    d.incoming * (-(above + cells[j].depth * 0.5) / d.mu).exp();
+                current[j * n + i] = d.incoming * (-(above + cells[j].depth * 0.5) / d.mu).exp();
                 above += cells[j].depth;
             }
         }
@@ -427,8 +456,7 @@ fn solution(
         if !tail.is_finite() {
             return Err(invalid("multiple-scattering residual overflow"));
         }
-        if tail <= s.absolute_tolerance.value()
-            + s.order_tolerance * amplitude.max(first + higher)
+        if tail <= s.absolute_tolerance.value() + s.order_tolerance * amplitude.max(first + higher)
         {
             return Ok(Solution {
                 first,
@@ -468,12 +496,11 @@ pub fn multiple_scattering(
 ) -> Result<MultipleScattering> {
     let layers = atmosphere.edges().len().saturating_sub(1);
     let work = preflight(layers, settings)?;
-    let (direct, source) =
-        single::direct_illumination(atmosphere, phase, sky, wavelength, view)?;
-    let base = solution(atmosphere, phase, sky, wavelength, view, settings, 1, 1)?;
-    let angular = solution(atmosphere, phase, sky, wavelength, view, settings, 2, 1)?;
-    let vertical = solution(atmosphere, phase, sky, wavelength, view, settings, 1, 2)?;
-    let joint = solution(atmosphere, phase, sky, wavelength, view, settings, 2, 2)?;
+    let (direct, source) = single::direct_illumination(atmosphere, phase, sky, wavelength, view)?;
+    let base = solution(atmosphere, phase, sky, wavelength, view, settings, (1, 1))?;
+    let angular = solution(atmosphere, phase, sky, wavelength, view, settings, (2, 1))?;
+    let vertical = solution(atmosphere, phase, sky, wavelength, view, settings, (1, 2))?;
+    let joint = solution(atmosphere, phase, sky, wavelength, view, settings, (2, 2))?;
     let absolute = settings.absolute_tolerance.value();
     for (a, b, rel) in [
         (base.first, angular.first, settings.angular_tolerance),
