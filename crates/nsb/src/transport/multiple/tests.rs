@@ -468,6 +468,8 @@ fn zero_sky_has_black_boundaries_and_no_internal_source() {
 #[test]
 fn validation_and_aliasing_fail_closed() {
     assert!(product(&[usize::MAX, 2]).is_err());
+    assert!(workspace_bytes(usize::MAX, 4, 0).is_err());
+    assert!(workspace_bytes(128, 4, usize::MAX).is_err());
     for x in [f64::NAN, f64::INFINITY, -1.] {
         assert!(nonnegative(x, "test").is_err());
     }

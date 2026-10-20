@@ -186,14 +186,7 @@ pub fn starlight_multiple_scattering(
             work = work
                 .checked_add(product(&[2, pixels / 2, cells, dirs + 1])?)
                 .ok_or_else(|| invalid("boundary work overflow"))?;
-            let bytes = product(&[pixels, std::mem::size_of::<Direction>()])?;
-            let fields = product(&[5, dirs, cells, std::mem::size_of::<f64>()])?;
-            let phases = product(&[2, dirs, dirs, std::mem::size_of::<f64>()])?;
-            if bytes
-                .checked_add(fields)
-                .and_then(|b| b.checked_add(phases))
-                .is_none_or(|b| b > MEMORY_LIMIT)
-            {
+            if workspace_bytes(dirs, cells, pixels)? > MEMORY_LIMIT {
                 return Err(invalid("HEALPix multiple-scattering memory exceeds 16 MiB"));
             }
         }

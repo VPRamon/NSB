@@ -162,6 +162,25 @@ fn product(xs: &[usize]) -> Result<usize> {
             .ok_or_else(|| invalid("work size overflow"))
     })
 }
+// Requested numerical-buffer bytes, including direction/phase-vector and cell
+// records plus the concurrently live 64-node wavelength and 16-node mu rules.
+// Five field planes conservatively cover the four live diffuse/source planes.
+fn workspace_bytes(directions: usize, cells: usize, boundary: usize) -> Result<usize> {
+    let buffers = [
+        product(&[2, directions, directions, std::mem::size_of::<f64>()])?,
+        product(&[5, directions, cells, std::mem::size_of::<f64>()])?,
+        product(&[directions, std::mem::size_of::<Direction>()])?,
+        product(&[2, directions, std::mem::size_of::<f64>()])?,
+        product(&[cells, std::mem::size_of::<Cell>()])?,
+        product(&[3, cells, std::mem::size_of::<f64>()])?,
+        product(&[boundary, std::mem::size_of::<Direction>()])?,
+        product(&[80, std::mem::size_of::<(f64, f64)>()])?,
+    ];
+    buffers.into_iter().try_fold(0usize, |sum, bytes| {
+        sum.checked_add(bytes)
+            .ok_or_else(|| invalid("temporary workspace byte sum overflow"))
+    })
+}
 fn preflight(layers: usize, s: MultipleScatteringSettings) -> Result<usize> {
     if !(1..=16).contains(&layers)
         || !(2..=8).contains(&s.mu_nodes)
@@ -193,12 +212,7 @@ fn preflight(layers: usize, s: MultipleScatteringSettings) -> Result<usize> {
         work = work
             .checked_add(product(&[8, n, cells, s.max_orders + 1])?)
             .ok_or_else(|| invalid("field transport work overflow"))?;
-        let phase_bytes = product(&[2, square, std::mem::size_of::<f64>()])?;
-        let field_bytes = product(&[5, n, cells, std::mem::size_of::<f64>()])?;
-        if phase_bytes
-            .checked_add(field_bytes)
-            .is_none_or(|bytes| bytes > MEMORY_LIMIT)
-        {
+        if workspace_bytes(n, cells, 0)? > MEMORY_LIMIT {
             return Err(invalid(
                 "temporary multiple-scattering memory exceeds 16 MiB",
             ));

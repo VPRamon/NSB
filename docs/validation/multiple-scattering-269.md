@@ -45,6 +45,11 @@ beside this report pins their independent generators and receipts. No reference 
    External DISORT and continuous-height order-specific references now supply
    independent evidence, including nonzero azimuth modes and stratification.
 
+9. Final allocation audit found that the old phase/field estimate omitted
+   direction records, view-phase vectors and cell records. The shared checked
+   workspace calculator now charges those separately, including concurrently
+   live wavelength/mu quadrature. The 16 MiB limit is unchanged.
+
 Upward/downward sweep signs, black boundaries, constituent extinction accounting,
 order accumulation and the infinity-norm contraction argument were checked.
 They are consistent with the specified discrete scalar RTE. Arbitrary-source
@@ -86,7 +91,7 @@ Timing is from optimized test builds on a shared Linux workstation.
 | thicker | 0.00271952985383 | 0.000886188665701 | 0.05938% | 0.19802% | 77.273381ms |
 
 The public plans cost 168,652,800 work units (one layer) or 229,367,808
-(two layers). Estimated phase/field workspace ceilings are 4.16 / 4.31 MiB,
+(two layers). Estimated phase/field workspace ceilings are 4.19 / 4.35 MiB,
 respectively. Accepted iterations are 10–17. Reported ground tails range
 3.8e-12–1.7e-11. Angular/vertical changes are diagnostic; the reference differences
 are measured errors against an independently refined numerical solution.
@@ -206,7 +211,7 @@ Its area-conservation test is quantitative; no separate continuum accuracy
 percentage is claimed for that strongly anisotropic map.
 
 The complete-bin plan is 1,610,948,224 work units under its distinct 4 billion
-cap. Peak field/boundary estimate is about 9.27 MiB under the unchanged 16 MiB
+cap. Peak field/boundary estimate is about 9.28 MiB under the unchanged 16 MiB
 ceiling, excluding immutable input assets, result snapshots and allocator
 bookkeeping. The standalone release example measured 27.22 s/bin on a busy
 shared workstation; optimized Rust tests measured about 14 s/bin. These are
