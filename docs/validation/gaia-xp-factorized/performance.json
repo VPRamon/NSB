@@ -1,0 +1,47 @@
+{
+  "original-compact": {
+    "user_seconds": 18.78,
+    "peak_rss_kib": 8132,
+    "elapsed_text": "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:18.79"
+  },
+  "stream-baseline": {
+    "user_seconds": 60.86,
+    "peak_rss_kib": 3824,
+    "elapsed_text": "Elapsed (wall clock) time (h:mm:ss or m:ss): 1:00.92",
+    "first_bin_elapsed_seconds": 18.68517826,
+    "bin_count": 3
+  },
+  "projected-compact": {
+    "user_seconds": 2.1,
+    "peak_rss_kib": 12772,
+    "elapsed_text": "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:02.11",
+    "first_bin_elapsed_seconds": 0.979468171,
+    "bin_count": 3
+  },
+  "gaia-final": {
+    "user_seconds": 41.76,
+    "peak_rss_kib": 383800,
+    "elapsed_text": "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:41.95"
+  },
+  "gaia-historical": {
+    "user_seconds": 31.04,
+    "peak_rss_kib": 383368,
+    "elapsed_text": "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:31.25"
+  },
+  "gaia-current-centers": {
+    "user_seconds": 32.61,
+    "peak_rss_kib": 383256,
+    "elapsed_text": "Elapsed (wall clock) time (h:mm:ss or m:ss): 0:32.82"
+  },
+  "measured_solver_heap_bytes": 15474408,
+  "declared_workspace_bound_bytes": 15884384,
+  "source_loading_is_outside_workspace": true,
+  "machine": "Intel Core Ultra 9 185H; Linux x86_64; 30 GiB RAM; shared workstation",
+  "build": "release rustc 1.97.1; locked dependencies",
+  "warning": "single observations, different scopes: original compact example one bin, streaming/projected compact defaults three native bins; compare first-record per-bin elapsed separately",
+  "compact_residual": {
+    "single": -6.8821092923387894e-06,
+    "higher": -1.1672674253171422e-05,
+    "scattered": -7.387007789905198e-06
+  }
+}

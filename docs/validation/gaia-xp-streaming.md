@@ -1,4 +1,9 @@
-# Gaia XP boundary streaming: delivered change and remaining gates
+# Gaia XP boundary streaming: historical partial-delivery evidence
+
+**Superseded for current capability:** this report records head `a834415`.
+The [factorized full-Gaia validation](gaia-xp-factorized.md) completes the
+subsequent numerical experiment; the historical rejection receipts below remain
+unchanged for provenance.
 
 This is **partial implementation evidence**, not completion of the atmospheric
 transport roadmap. The full seven-band multiple-scattering experiment remains

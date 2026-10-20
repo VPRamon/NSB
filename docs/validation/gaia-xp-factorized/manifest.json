@@ -1,0 +1,20 @@
+{
+  "schema": "nsb-factorized-gaia-evidence-v1",
+  "starting_nsb_pr_head": "a83441596404a08e15fc3925348d45a8ed13f496",
+  "reference_generator_repository": "https://github.com/VPRamon/nsb-validation",
+  "reference_generator_revision": "c21ce40",
+  "reference_comparison_revision": "ccbef45",
+  "source_sha256": "fe331343cb9797a1d871ae798c88d2ae8865ae39358e8d82b464a91b3cf87d5f",
+  "acceptance_relative": 0.01,
+  "basis": "pre-existing independent synthetic finite-cell continuum regression allowance; no fit to Gaia output",
+  "instrumented_heap_allocation_misses": 0,
+  "files_sha256": {
+    "independent-references.json": "e48bd96e5939463bf06e4e42e7fcd665ee209e64e60e87412848b5e583052ee9",
+    "current-centers.jsonl": "a58324302afaca47b8bfffaacc65d1c7b214ad451835e4bc370eba88a3b90536",
+    "matched-comparison.json": "d596953b679f7f2273004ab0158f677134665cedc24229df751dd6af0f3d0d23",
+    "current-model.jsonl": "55a701c642870d6f3ecb2dc7afef9637b9465c08a6ad59d8f68588bb0dcd70d6",
+    "performance.json": "46dd2ae56301206f04c9304cb4de7a0539747126fbada8105905672dba90b76f",
+    "phase-audit.json": "dd4cc217d17b67e5d138473c61f05dddc5f39de72068b350484d742853660a81",
+    "historical-law-centers.jsonl": "1460e0cd7d7f465dfa3741b0a56fd6f31fdffb47f46f95e17fa1bd24b2a872bd"
+  }
+}

@@ -1,0 +1,181 @@
+{
+  "schema": "nsb-gaia-independent-comparison-v1",
+  "relative_acceptance": 0.01,
+  "absolute_acceptance": 1e-12,
+  "basis": "pre-existing independently validated synthetic continuum allowance; no fit to Gaia residuals",
+  "accepted": true,
+  "results": [
+    {
+      "band_nm": [
+        360.0,
+        390.0
+      ],
+      "accepted": true,
+      "components": {
+        "single": {
+          "rust": 0.00024976842257670495,
+          "reference": 0.00024993575192018845,
+          "relative": -0.0006694894275747111
+        },
+        "higher": {
+          "rust": 0.00013736301520638194,
+          "reference": 0.00013702679613540245,
+          "relative": 0.002453673883225398
+        },
+        "scattered": {
+          "rust": 0.0003871314377830869,
+          "reference": 0.0003869625480555909,
+          "relative": 0.0004364498020405926
+        }
+      }
+    },
+    {
+      "band_nm": [
+        390.0,
+        420.0
+      ],
+      "accepted": true,
+      "components": {
+        "single": {
+          "rust": 0.00034440022677426074,
+          "reference": 0.000344567454721631,
+          "relative": -0.0004853271691180538
+        },
+        "higher": {
+          "rust": 0.00014014072611634473,
+          "reference": 0.00013982739995793247,
+          "relative": 0.002240806583734827
+        },
+        "scattered": {
+          "rust": 0.0004845409528906055,
+          "reference": 0.0004843948546795635,
+          "relative": 0.0003016097500430088
+        }
+      }
+    },
+    {
+      "band_nm": [
+        420.0,
+        450.0
+      ],
+      "accepted": true,
+      "components": {
+        "single": {
+          "rust": 0.0003656219468094291,
+          "reference": 0.0003657529973064159,
+          "relative": -0.00035830327557647654
+        },
+        "higher": {
+          "rust": 0.00011401920769203385,
+          "reference": 0.0001137856076539676,
+          "relative": 0.002052984053806288
+        },
+        "scattered": {
+          "rust": 0.00047964115450146294,
+          "reference": 0.0004795386049603835,
+          "relative": 0.0002138504387731686
+        }
+      }
+    },
+    {
+      "band_nm": [
+        450.0,
+        480.0
+      ],
+      "accepted": true,
+      "components": {
+        "single": {
+          "rust": 0.000402128941973846,
+          "reference": 0.0004022361853476735,
+          "relative": -0.00026661791687090784
+        },
+        "higher": {
+          "rust": 9.877860559735373e-05,
+          "reference": 9.859185116625904e-05,
+          "relative": 0.0018942177156179036
+        },
+        "scattered": {
+          "rust": 0.0005009075475711997,
+          "reference": 0.0005008280365139325,
+          "relative": 0.0001587591977091373
+        }
+      }
+    },
+    {
+      "band_nm": [
+        480.0,
+        510.0
+      ],
+      "accepted": true,
+      "components": {
+        "single": {
+          "rust": 0.00036412970685294633,
+          "reference": 0.00036420207120398205,
+          "relative": -0.00019869285969873005
+        },
+        "higher": {
+          "rust": 7.230550810825894e-05,
+          "reference": 7.218154888922611e-05,
+          "relative": 0.0017173255622855044
+        },
+        "scattered": {
+          "rust": 0.0004364352149612053,
+          "reference": 0.00043638362009320816,
+          "relative": 0.0001182328245641209
+        }
+      }
+    },
+    {
+      "band_nm": [
+        510.0,
+        540.0
+      ],
+      "accepted": true,
+      "components": {
+        "single": {
+          "rust": 0.0003444113797997901,
+          "reference": 0.00034446205817512143,
+          "relative": -0.00014712324370291522
+        },
+        "higher": {
+          "rust": 5.668848695619215e-05,
+          "reference": 5.66010203641034e-05,
+          "relative": 0.001545318291544852
+        },
+        "scattered": {
+          "rust": 0.0004010998667559823,
+          "reference": 0.0004010630785392248,
+          "relative": 9.17267600185268e-05
+        }
+      }
+    },
+    {
+      "band_nm": [
+        540.0,
+        570.0
+      ],
+      "accepted": true,
+      "components": {
+        "single": {
+          "rust": 0.00034841308799630306,
+          "reference": 0.0003484504674924951,
+          "relative": -0.00010727348555747868
+        },
+        "higher": {
+          "rust": 4.8565191062417115e-05,
+          "reference": 4.85000937918052e-05,
+          "relative": 0.0013422091695606906
+        },
+        "scattered": {
+          "rust": 0.0003969782790587202,
+          "reference": 0.0003969505612843003,
+          "relative": 6.982676716763682e-05
+        }
+      }
+    }
+  ],
+  "input_sha256": {
+    "/tmp/nsb-gaia-redesign/gaia-final.jsonl": "55a701c642870d6f3ecb2dc7afef9637b9465c08a6ad59d8f68588bb0dcd70d6",
+    "/tmp/nsb-gaia-redesign/current-disort-final.json": "6c38e0707d1d3c254fa0eb58f58d10ac48788bce4932c47676017b10d2820659"
+  }
+}

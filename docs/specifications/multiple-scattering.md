@@ -225,3 +225,22 @@ The optional example emits one JSON record per original native bin, including
 rejections with absent radiances, and exits unsuccessfully if any bin fails.
 A partial result is never reported as an accepted full-band calculation.
 See [measurements and remaining scientific gates](../validation/gaia-xp-streaming.md).
+
+## Opt-in factorized full-map transport
+
+`projected_starlight_multiple_scattering` uses the same successive-orders RTE
+with an exact finite azimuth Fourier operator and separately refined positive
+boundary-kernel projection. `ProjectedSettings` retains the existing diffuse,
+height, order, native HEALPix and wavelength controls, and declares the two
+kernel-grid controls. `ProjectedStarlightMultipleScattering` adds their separate
+axis diagnostics and a checked workspace bound without changing existing result
+layouts. The original streamed reference remains available.
+
+The new method retains all sampled Fourier modes, never renormalizes a phase,
+and requires the unchanged raw .001 phase audit. It constructs a positive
+weighted norm when the original grazing-ray contraction estimate is too weak.
+The ordinary component/evaluator defaults are unchanged. The exact new cost
+model, separate32-billion-work-unit/one-billion-diffuse contract and unchanged
+16MiB ceiling, cache dependencies, independent continuum comparisons and full
+seven-band results are specified in the [scientific integration report](../validation/gaia-xp-factorized.md).
+The earlier Gaia CPU rejection describes the streamed path, not this opt-in path.

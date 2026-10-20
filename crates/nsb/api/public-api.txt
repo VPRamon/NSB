@@ -407,6 +407,17 @@ pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::ti
 pub mod nsb::transport
 pub mod nsb::transport::multiple
 pub mod nsb::transport::multiple::starlight
+pub struct nsb::transport::multiple::starlight::ProjectedSettings
+pub nsb::transport::multiple::starlight::ProjectedSettings::boundary: nsb::transport::single::starlight::HealpixSettings
+pub nsb::transport::multiple::starlight::ProjectedSettings::kernel_azimuth: usize
+pub nsb::transport::multiple::starlight::ProjectedSettings::kernel_mu: usize
+pub nsb::transport::multiple::starlight::ProjectedSettings::solver: nsb::transport::multiple::MultipleScatteringSettings
+pub nsb::transport::multiple::starlight::ProjectedSettings::wavelength: nsb::transport::single::starlight::WavelengthSettings
+pub struct nsb::transport::multiple::starlight::ProjectedStarlightMultipleScattering
+pub nsb::transport::multiple::starlight::ProjectedStarlightMultipleScattering::kernel_changes: alloc::vec::Vec<[[qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer; 2]; 2]>
+pub nsb::transport::multiple::starlight::ProjectedStarlightMultipleScattering::kernel_grid: [usize; 2]
+pub nsb::transport::multiple::starlight::ProjectedStarlightMultipleScattering::transport: nsb::transport::multiple::starlight::StarlightMultipleScattering
+pub nsb::transport::multiple::starlight::ProjectedStarlightMultipleScattering::workspace_bytes: usize
 pub struct nsb::transport::multiple::starlight::StarlightMultipleScattering
 pub nsb::transport::multiple::starlight::StarlightMultipleScattering::assumption: nsb::transport::single::starlight::WithinBinSpectrum
 pub nsb::transport::multiple::starlight::StarlightMultipleScattering::band: [qtty_core::units::length::Nanometers; 2]
@@ -429,6 +440,7 @@ pub nsb::transport::multiple::starlight::StarlightMultipleScattering::uncertaint
 pub nsb::transport::multiple::starlight::StarlightMultipleScattering::wavelength_change: [qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian; 3]
 pub nsb::transport::multiple::starlight::StarlightMultipleScattering::wavelength_order: usize
 pub nsb::transport::multiple::starlight::StarlightMultipleScattering::wavelength_settings: nsb::transport::single::starlight::WavelengthSettings
+pub fn nsb::transport::multiple::starlight::projected_starlight_multiple_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &nsb::transport::single::starlight::StarlightSky<'_>, view: siderust::coordinates::spherical::direction::Horizontal, settings: nsb::transport::multiple::starlight::ProjectedSettings) -> nsb::Result<nsb::transport::multiple::starlight::ProjectedStarlightMultipleScattering>
 pub fn nsb::transport::multiple::starlight::starlight_multiple_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &nsb::transport::single::starlight::StarlightSky<'_>, view: siderust::coordinates::spherical::direction::Horizontal, solver: nsb::transport::multiple::MultipleScatteringSettings, angular: nsb::transport::single::starlight::HealpixSettings, wavelength: nsb::transport::single::starlight::WavelengthSettings) -> nsb::Result<nsb::transport::multiple::starlight::StarlightMultipleScattering>
 pub struct nsb::transport::multiple::MultipleScattering
 pub nsb::transport::multiple::MultipleScattering::aerosol_phase: nsb::transport::single::AerosolPhase

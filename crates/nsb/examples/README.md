@@ -10,3 +10,9 @@ These examples are executable documentation and are compiled by normal CI.
 three checksum-pinned synthetic HEALPix bins. See
 [the spectral contract](../../../docs/specifications/starlight-transport.md)
 for the optional frozen-map diagnostic and its limitations.
+
+The optional `starlight_multiple_scattering --projected` command evaluates the
+frozen Gaia map with the factorized solver and component/convergence JSON output.
+Use the explicit settings and checksum-pinned command in
+[`docs/validation/gaia-xp-factorized.md`](../../../docs/validation/gaia-xp-factorized.md).
+No complete experimental map is needed by normal tests.
