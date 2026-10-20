@@ -45,13 +45,13 @@ pub enum WithinBinSpectrum {
 /// One complete native bin, adapted to the authoritative spectral sky contract.
 #[derive(Debug)]
 pub struct StarlightSky<'a> {
-    map: &'a StarlightMap,
-    geometry: StarlightGeometry,
-    band: [Nanometers; 2],
-    assumption: WithinBinSpectrum,
+    pub(in crate::transport) map: &'a StarlightMap,
+    pub(in crate::transport) geometry: StarlightGeometry,
+    pub(in crate::transport) band: [Nanometers; 2],
+    pub(in crate::transport) assumption: WithinBinSpectrum,
     // Columns are upstream-transformed local Cartesian basis vectors. This is
     // a fixed rotation, not an independent celestial transformation algorithm.
-    basis: [[f64; 3]; 3],
+    pub(in crate::transport) basis: [[f64; 3]; 3],
     identity: String,
 }
 impl<'a> StarlightSky<'a> {
@@ -131,7 +131,7 @@ impl<'a> StarlightSky<'a> {
             .ok_or_else(|| invalid("nonfinite Starlight Galactic transformation"))
     }
 
-    fn toa(&self, direction: Horizontal) -> Result<BandRadiance> {
+    pub(in crate::transport) fn toa(&self, direction: Horizontal) -> Result<BandRadiance> {
         self.map
             .integrate_band(self.galactic(direction)?, self.band[0], self.band[1])
             .map(|v| v.0)

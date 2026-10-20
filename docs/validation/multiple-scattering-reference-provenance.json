@@ -1,0 +1,27 @@
+{
+  "schema": "nsb-multiple-reference-receipt-v1",
+  "python": "3.12.13",
+  "packages": {
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "PythonicDISORT": "1.8"
+  },
+  "files": {
+    "README.md": "d6ecd8f036e8fe5319cb4eb91942f815b9cd5541bcac2c4bbb8ce11a3a8fa569",
+    "disort_reference.py": "4d17252ce573d6b19d1e48dab8dd585a7be99b72f357c45d6e3f988e0a9579ca",
+    "multiple-scattering-isotropic-scipy.py": "bacbf692111c9cb3f0d5eef5379a2bbe259f439471f702b9e5242bba1714ed19",
+    "multiple-scattering-matrix.py": "67881912e34bb4baa36d356fed08855968e476b0c016e6421d2191d1016a7e9b",
+    "order_reference.py": "c682506b84e7cbeb9ba7cf8075b6a14079e6dffe17cfdb86e72c4efc80a21dfb",
+    "results/disort-v1.json": "6a0c51a8566c74b7e35f0456319f4827aa04f3f28051860737d16dfc4dd6b4a9",
+    "results/disort-warnings.txt": "2a07a6c946389ed5ecae366a7ae6d35b3b13341fcdf2ff838935f4a5e1ad6d5b",
+    "results/isotropic.txt": "4adaf564087af8968a92415455554b6e778c8d26185c6577f15d8ab6552c97fe",
+    "results/matrix.txt": "a88ea7773cd8a2a009619f5d856cc3052dac6cbc530569165f96e2e08251ba6d",
+    "results/orders-v1.json": "b85441bfbd489fb85e05142bec8134f7a486e708744a242071ca243ab1908e68",
+    "results/spectral-v1.json": "506b4aa57e8d5cd7db82be8421f269f56d30101ff0a33b8e60415500a2dfeebb",
+    "results/spectral-warnings.txt": "2a07a6c946389ed5ecae366a7ae6d35b3b13341fcdf2ff838935f4a5e1ad6d5b",
+    "spectral_profile_optics.json": "882be0f8aff37a3ec98098bdd4354781f58b468c72565a64243339d06215df0e",
+    "spectral_reference.py": "51aaa8cca9337e16f561567410dcfde35b777728706c60f6dcc927fc850f6333"
+  },
+  "repository": "https://github.com/VPRamon/nsb-validation",
+  "commit": "08b50e604589702405267f6b1ebae521dfaa1b24"
+}

@@ -7,7 +7,7 @@ use std::f64::consts::TAU;
 
 /// GL nodes/weights on (0,1), ascending, without a positive altitude cutoff.
 /// Newton iteration is bounded; failed root construction is an explicit error.
-pub(super) fn gauss(n: usize) -> Result<Vec<(f64, f64)>> {
+pub(in crate::transport) fn gauss(n: usize) -> Result<Vec<(f64, f64)>> {
     let mut nodes = vec![(0.0, 0.0); n];
     for i in 0..n.div_ceil(2) {
         let mut x = (PI * (i as f64 + 0.75) / (n as f64 + 0.5)).cos();

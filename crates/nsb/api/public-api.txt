@@ -405,6 +405,69 @@ pub const nsb::solar_activity::F107_STORE_SCHEMA_VERSION: u32
 pub fn nsb::solar_activity::bundled_f107_store() -> nsb::Result<&'static nsb::solar_activity::F107Store>
 pub fn nsb::solar_activity::resolve_f107(requested_time: tempoch_core::model::time::Time<tempoch_core::model::scale::UTC>, source: &nsb::solar_activity::SolarActivitySource) -> nsb::Result<nsb::solar_activity::ResolvedSolarActivity>
 pub mod nsb::transport
+pub mod nsb::transport::multiple
+pub mod nsb::transport::multiple::starlight
+pub struct nsb::transport::multiple::starlight::StarlightMultipleScattering
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::assumption: nsb::transport::single::starlight::WithinBinSpectrum
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::band: [qtty_core::units::length::Nanometers; 2]
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::boundary_change: alloc::vec::Vec<[qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer; 2]>
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::boundary_nside: alloc::vec::Vec<u32>
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::boundary_settings: nsb::transport::single::starlight::HealpixSettings
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::direct: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::geometry: nsb::transport::single::starlight::StarlightGeometry
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::grid: siderust::healpix::grid::HealpixGrid
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::higher_orders: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::planned_work: usize
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::provenance: nsb::components::starlight::StarlightProvenance
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::samples: alloc::vec::Vec<nsb::transport::multiple::MultipleScattering>
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::single: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::source: nsb::transport::single::SkyCoverage
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::toa: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::total: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::total_scattered: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian>
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::wavelength_change: [qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradian; 3]
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::wavelength_order: usize
+pub nsb::transport::multiple::starlight::StarlightMultipleScattering::wavelength_settings: nsb::transport::single::starlight::WavelengthSettings
+pub fn nsb::transport::multiple::starlight::starlight_multiple_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &nsb::transport::single::starlight::StarlightSky<'_>, view: siderust::coordinates::spherical::direction::Horizontal, solver: nsb::transport::multiple::MultipleScatteringSettings, angular: nsb::transport::single::starlight::HealpixSettings, wavelength: nsb::transport::single::starlight::WavelengthSettings) -> nsb::Result<nsb::transport::multiple::starlight::StarlightMultipleScattering>
+pub struct nsb::transport::multiple::MultipleScattering
+pub nsb::transport::multiple::MultipleScattering::aerosol_phase: nsb::transport::single::AerosolPhase
+pub nsb::transport::multiple::MultipleScattering::atmosphere: siderust::atmosphere::layered::LayeredAtmosphere
+pub nsb::transport::multiple::MultipleScattering::convergence: nsb::transport::multiple::MultipleScatteringConvergence
+pub nsb::transport::multiple::MultipleScattering::direct: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScattering::higher_orders: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScattering::settings: nsb::transport::multiple::MultipleScatteringSettings
+pub nsb::transport::multiple::MultipleScattering::single: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScattering::source: nsb::transport::single::SkyCoverage
+pub nsb::transport::multiple::MultipleScattering::total: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScattering::total_scattered: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScattering::uncertainty: core::option::Option<qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer>
+pub nsb::transport::multiple::MultipleScattering::view: siderust::coordinates::spherical::direction::Horizontal
+pub nsb::transport::multiple::MultipleScattering::wavelength: qtty_core::units::length::Nanometers
+impl nsb::transport::multiple::MultipleScattering
+pub const nsb::transport::multiple::MultipleScattering::MODEL: &'static str
+pub struct nsb::transport::multiple::MultipleScatteringConvergence
+pub nsb::transport::multiple::MultipleScatteringConvergence::angular_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScatteringConvergence::angular_nodes: [usize; 2]
+pub nsb::transport::multiple::MultipleScatteringConvergence::cells_per_layer: usize
+pub nsb::transport::multiple::MultipleScatteringConvergence::contraction_bound: f64
+pub nsb::transport::multiple::MultipleScatteringConvergence::flux_balance_relative: f64
+pub nsb::transport::multiple::MultipleScatteringConvergence::order_tail_bound: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScatteringConvergence::orders: usize
+pub nsb::transport::multiple::MultipleScatteringConvergence::planned_work: usize
+pub nsb::transport::multiple::MultipleScatteringConvergence::vertical_change: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub struct nsb::transport::multiple::MultipleScatteringSettings
+pub nsb::transport::multiple::MultipleScatteringSettings::absolute_tolerance: qtty_core::units::radiometry::PhotonsPerSquareCentimeterNanosecondSteradianNanometer
+pub nsb::transport::multiple::MultipleScatteringSettings::angular_tolerance: f64
+pub nsb::transport::multiple::MultipleScatteringSettings::azimuth_nodes: usize
+pub nsb::transport::multiple::MultipleScatteringSettings::cells_per_layer: usize
+pub nsb::transport::multiple::MultipleScatteringSettings::max_orders: usize
+pub nsb::transport::multiple::MultipleScatteringSettings::mu_nodes: usize
+pub nsb::transport::multiple::MultipleScatteringSettings::order_tolerance: f64
+pub nsb::transport::multiple::MultipleScatteringSettings::vertical_tolerance: f64
+impl core::default::Default for nsb::transport::multiple::MultipleScatteringSettings
+pub fn nsb::transport::multiple::MultipleScatteringSettings::default() -> Self
+pub fn nsb::transport::multiple::multiple_scattering(atmosphere: &siderust::atmosphere::layered::LayeredAtmosphere, phase: &nsb::transport::single::AerosolPhase, sky: &impl nsb::transport::single::IncidentSky, wavelength: qtty_core::units::length::Nanometers, view: siderust::coordinates::spherical::direction::Horizontal, settings: nsb::transport::multiple::MultipleScatteringSettings) -> nsb::Result<nsb::transport::multiple::MultipleScattering>
 pub mod nsb::transport::single
 pub mod nsb::transport::single::starlight
 #[non_exhaustive] pub enum nsb::transport::single::starlight::WithinBinSpectrum
