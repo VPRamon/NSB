@@ -154,8 +154,12 @@ fn nonzero_scattering_native_bin_and_boundary_refinement() {
         },
     )
     .unwrap();
-    assert!(r.single.value() > 0.);
-    assert!(r.higher_orders.value() > 0.);
+    // Frozen materialized #269 results at identical optics and quadrature.
+    assert!((r.single.value() / 0.02658873913628157 - 1.).abs() < 2e-14);
+    assert!((r.higher_orders.value() / 0.0031324449896208877 - 1.).abs() < 2e-14);
+    assert!(
+        (r.samples[0].convergence.flux_balance_relative - (-0.0001266470069952773)).abs() < 1e-13
+    );
     assert!(r.total_scattered.value() > r.single.value());
     // Independent 256-stream continuous-height DISORT reference, same uniform
     // native bin and optical depths; finite cells dominate this 1% allowance.
@@ -446,4 +450,611 @@ fn wavelength_dependent_higher_orders_match_independent_full_bin_reference() {
     assert!((r.direct.value() / reference["direct"].as_f64().unwrap() - 1.).abs() < 1e-10);
     assert!((r.single.value() / reference["single"].as_f64().unwrap() - 1.).abs() < 0.01);
     assert!((r.higher_orders.value() / reference["higher"].as_f64().unwrap() - 1.).abs() < 0.01);
+}
+
+// Materialized #269 boundary retained only as a small-fixture oracle.
+fn boundary(sky: &StarlightSky<'_>, nside: u32) -> Result<Vec<Direction>> {
+    let fine = grid(nside)?;
+    let bin = sky
+        .map
+        .bin_edges_nm()
+        .iter()
+        .position(|e| f64::from(*e) == sky.band[0].value())
+        .ok_or_else(|| invalid("missing native bin"))?;
+    let width = (sky.band[1] - sky.band[0]).value();
+    let mut samples = Vec::with_capacity(fine.npix() as usize);
+    for i in 0..fine.npix() {
+        let gal = fine
+            .pixel_center::<Galactic>(HealpixIndex::new(i))
+            .map_err(|e| invalid(&e.to_string()))?;
+        let local: [f64; 3] = std::array::from_fn(|j| {
+            sky.basis[j]
+                .iter()
+                .zip(gal.as_array())
+                .map(|(a, b)| a * b)
+                .sum()
+        });
+        if local[2] > 0.0 {
+            let parent = sky
+                .map
+                .grid()
+                .direction_to_pixel(gal)
+                .map_err(|e| invalid(&e.to_string()))?;
+            let incoming = sky.map.spectral_bin_at_index(parent, bin)?.value() / width;
+            samples.push(Direction {
+                mu: local[2],
+                vector: local,
+                weight: fine.pixel_area_sr(),
+                incoming,
+            });
+        }
+    }
+    Ok(samples)
+}
+
+struct StoredBoundary(Vec<Direction>);
+impl IncidentBoundary for StoredBoundary {
+    fn visit(&self, visitor: &mut dyn FnMut(Direction) -> Result<()>) -> Result<()> {
+        for d in &self.0 {
+            visitor(*d)?;
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn streamed_boundary_is_identical_to_materialized_ring_oracle() {
+    for bright in [None, Some(0), Some(5), Some(11)] {
+        let map = map(bright, "ring");
+        let sky = sky(&map);
+        for nside in [1, 2, 8, 32] {
+            let expected = boundary(&sky, nside).unwrap();
+            let mut seen = 0;
+            HealpixBoundary { sky: &sky, nside }
+                .visit(&mut |d| {
+                    let old = expected[seen];
+                    assert_eq!(d.mu, old.mu);
+                    assert_eq!(d.vector, old.vector);
+                    assert_eq!(d.weight, old.weight);
+                    assert_eq!(d.incoming, old.incoming);
+                    seen += 1;
+                    Ok(())
+                })
+                .unwrap();
+            assert_eq!(seen, expected.len());
+        }
+    }
+}
+
+#[test]
+fn streamed_scattering_preserves_components_tail_and_photon_flux() {
+    for bright in [None, Some(5)] {
+        let map = map(bright, "ring");
+        let sky = sky(&map);
+        let stored = StoredBoundary(boundary(&sky, 32).unwrap());
+        let streamed = HealpixBoundary {
+            sky: &sky,
+            nside: 32,
+        };
+        for depth in [0.0, 0.08] {
+            for (a, z) in [(1, 1), (2, 1), (1, 2), (2, 2)] {
+                let run = |boundary| {
+                    solve(
+                        &medium(depth),
+                        &phase(),
+                        &sky,
+                        Nanometers::new(375.),
+                        view(),
+                        settings(),
+                        (a, z, Some(boundary)),
+                    )
+                    .unwrap()
+                };
+                let old = run(&stored as &dyn IncidentBoundary);
+                let new = run(&streamed as &dyn IncidentBoundary);
+                // Identical direction traversal and recurrence make radiances
+                // bit-identical; no relaxed continuum tolerance is needed.
+                assert_eq!(new.first, old.first);
+                assert_eq!(new.higher, old.higher);
+                assert_eq!(new.orders, old.orders);
+                assert_eq!(new.bound, old.bound);
+                assert_eq!(new.contraction, old.contraction);
+                assert_eq!(new.flux_balance, old.flux_balance);
+            }
+        }
+    }
+}
+
+#[test]
+fn streamed_boundary_propagates_errors_without_visiting_more_pixels() {
+    let map = map(None, "ring");
+    let sky = sky(&map);
+    let mut seen = 0;
+    let error = HealpixBoundary {
+        sky: &sky,
+        nside: 512,
+    }
+    .visit(&mut |_| {
+        seen += 1;
+        Err(invalid("visitor stopped"))
+    })
+    .unwrap_err();
+    assert_eq!(seen, 1);
+    assert!(error.to_string().contains("visitor stopped"));
+    assert!(HealpixBoundary {
+        sky: &sky,
+        nside: 0
+    }
+    .visit(&mut |_| Ok(()))
+    .is_err());
+}
+
+#[test]
+fn streaming_workspace_does_not_scale_with_boundary_nside() {
+    let bytes = workspace_bytes(128, 4).unwrap();
+    assert!(bytes < MEMORY_LIMIT);
+    assert_eq!(bytes, 296384);
+    assert!(workspace_bytes(usize::MAX, 4).is_err());
+    assert!(workspace_bytes(128, usize::MAX).is_err());
+    assert!(workspace_bytes(2048, 4).unwrap() > MEMORY_LIMIT);
+}
+
+#[test]
+fn complete_nside512_stream_has_hemisphere_measure_without_retained_directions() {
+    let map = map(None, "ring");
+    let sky = sky(&map);
+    let mut count = 0;
+    let mut area = 0.0;
+    let mut radiance = 0.0;
+    let start = std::time::Instant::now();
+    HealpixBoundary {
+        sky: &sky,
+        nside: 512,
+    }
+    .visit(&mut |d| {
+        count += 1;
+        area += d.weight;
+        radiance += d.incoming * d.weight;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(count, 12 * 512 * 512 / 2);
+    assert!((area / TAU - 1.0).abs() < 5e-11);
+    assert!((radiance / (0.025 * TAU) - 1.0).abs() < 5e-11);
+    eprintln!(
+        "streamed NSIDE512: {count} visible cells in {:?}",
+        start.elapsed()
+    );
+}
+
+#[test]
+fn projected_boundary_conserves_mass_and_matches_streamed_kernel() {
+    use super::projection::ProjectedBoundary;
+    let map = map(Some(5), "ring");
+    let sky = sky(&map);
+    let input = HealpixBoundary {
+        sky: &sky,
+        nside: 16,
+    };
+    let mut original = 0.0;
+    input
+        .visit(&mut |d| {
+            original += d.incoming * d.weight;
+            Ok(())
+        })
+        .unwrap();
+    let phase =
+        AerosolPhase::HenyeyGreenstein(HenyeyGreensteinPhaseFunction::try_new(0.4).unwrap());
+    let s = MultipleScatteringSettings {
+        mu_nodes: 4,
+        azimuth_nodes: 16,
+        cells_per_layer: 4,
+        max_orders: 24,
+        ..settings()
+    };
+    let reference = solve(
+        &medium(0.08),
+        &phase,
+        &sky,
+        Nanometers::new(375.),
+        view(),
+        s,
+        (1, 1, Some(&input)),
+    )
+    .unwrap();
+    let mut errors = Vec::new();
+    for nodes in [16, 32, 64, 128] {
+        let projected = ProjectedBoundary::new(&input, nodes, nodes * 2).unwrap();
+        let mass: f64 = projected.mass.iter().sum();
+        assert!((mass / original - 1.).abs() < 1e-13);
+        let result = solve(
+            &medium(0.08),
+            &phase,
+            &sky,
+            Nanometers::new(375.),
+            view(),
+            s,
+            (1, 1, Some(&projected)),
+        )
+        .unwrap();
+        let error = (result.first / reference.first - 1.)
+            .abs()
+            .max((result.higher / reference.higher - 1.).abs());
+        eprintln!(
+            "projected nodes={nodes} first={} higher={} rel_error={error}",
+            result.first, result.higher
+        );
+        errors.push(error);
+    }
+    assert!(errors[3] < errors[0] / 20.);
+    assert!(errors[3] < 1e-4);
+}
+
+#[test]
+fn projected_public_rayleigh_band_matches_independent_reference() {
+    let m = map(None, "ring");
+    let sky = sky(&m);
+    let config = ProjectedSettings {
+        solver: MultipleScatteringSettings {
+            mu_nodes: 8,
+            azimuth_nodes: 32,
+            cells_per_layer: 2,
+            max_orders: 32,
+            ..settings()
+        },
+        boundary: HealpixSettings {
+            subdivision: 8,
+            refinements: 4,
+            ..HealpixSettings::default()
+        },
+        wavelength: WavelengthSettings {
+            refinements: 1,
+            ..WavelengthSettings::default()
+        },
+        kernel_mu: 128,
+        kernel_azimuth: 64,
+    };
+    let phase =
+        AerosolPhase::HenyeyGreenstein(HenyeyGreensteinPhaseFunction::try_new(0.65).unwrap());
+    let start = std::time::Instant::now();
+    let r = projected_starlight_multiple_scattering(&medium(0.08), &phase, &sky, view(), config);
+    let accepted = r.as_ref().unwrap();
+    assert!((accepted.transport.single.value() / (30. * 0.0008873157461357191) - 1.).abs() < 0.01);
+    assert!(
+        (accepted.transport.higher_orders.value() / (30. * 0.00010378276034380166) - 1.).abs()
+            < 0.01
+    );
+    assert!(accepted.workspace_bytes < 16 * 1024 * 1024);
+    eprintln!(
+        "projected public {:?}: {:?}",
+        start.elapsed(),
+        r.as_ref()
+            .map(|r| (
+                r.transport.single.value(),
+                r.transport.higher_orders.value(),
+                r.transport.planned_work,
+                r.workspace_bytes,
+                &r.kernel_changes
+            ))
+            .map_err(|e| e.to_string())
+    );
+}
+
+#[test]
+fn projected_public_hg65_band_matches_independent_reference() {
+    let m = map(None, "ring");
+    let sky = sky(&m);
+    let optics = AtmosphericOptics::from_extinction(
+        Quantity::new(0.),
+        Quantity::new(0.12 / 1000.),
+        Albedos::new(0.7),
+        Quantity::new(0.02 / 1000.),
+    )
+    .unwrap();
+    let atm = LayeredAtmosphere::try_new(
+        &[Meters::new(2097.), Meters::new(3097.)],
+        [Nanometers::new(360.), Nanometers::new(570.)],
+        vec![optics],
+    )
+    .unwrap();
+    let s = ProjectedSettings {
+        solver: MultipleScatteringSettings {
+            mu_nodes: 8,
+            azimuth_nodes: 32,
+            cells_per_layer: 4,
+            max_orders: 24,
+            order_tolerance: 1e-7,
+            ..settings()
+        },
+        boundary: HealpixSettings {
+            subdivision: 32,
+            refinements: 2,
+            ..HealpixSettings::default()
+        },
+        wavelength: WavelengthSettings {
+            refinements: 1,
+            ..WavelengthSettings::default()
+        },
+        kernel_mu: 128,
+        kernel_azimuth: 64,
+    };
+    let phase =
+        AerosolPhase::HenyeyGreenstein(HenyeyGreensteinPhaseFunction::try_new(0.65).unwrap());
+    let start = std::time::Instant::now();
+    let result = projected_starlight_multiple_scattering(&atm, &phase, &sky, view(), s);
+    let accepted = result.as_ref().unwrap();
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../../tests/data/multiple-scattering/fourier-disort-v1.json"
+    ))
+    .unwrap();
+    let r = fixture["cases"]["hg65_uniform"]["results"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap();
+    assert!(
+        (accepted.transport.single.value() / (30. * r["single"].as_f64().unwrap()) - 1.).abs()
+            < 0.01
+    );
+    assert!(
+        (accepted.transport.higher_orders.value() / (30. * r["higher"].as_f64().unwrap()) - 1.)
+            .abs()
+            < 0.01
+    );
+    eprintln!(
+        "projected HG65 {:?}: {:?}",
+        start.elapsed(),
+        result
+            .as_ref()
+            .map(|r| (
+                r.transport.single.value(),
+                r.transport.higher_orders.value(),
+                r.transport.planned_work,
+                r.workspace_bytes
+            ))
+            .map_err(|e| e.to_string())
+    );
+}
+
+#[test]
+fn positive_projection_preserves_mass_and_first_cosine_at_horizon_and_seams() {
+    use super::projection::ProjectedBoundary;
+    for pixel in 0..12 {
+        let m = map(Some(pixel), "ring");
+        let s = sky(&m);
+        let input = HealpixBoundary { sky: &s, nside: 16 };
+        let mut exact = [0.; 2];
+        input
+            .visit(&mut |d| {
+                exact[0] += d.incoming * d.weight;
+                exact[1] += d.incoming * d.weight * d.mu;
+                Ok(())
+            })
+            .unwrap();
+        let projected = ProjectedBoundary::new(&input, 32, 64).unwrap();
+        let mut current = [0.; 2];
+        projected
+            .visit(&mut |d| {
+                assert!(d.incoming >= 0.);
+                current[0] += d.incoming;
+                current[1] += d.incoming * d.mu;
+                Ok(())
+            })
+            .unwrap();
+        for j in 0..2 {
+            assert!((current[j] - exact[j]).abs() < 1e-13);
+        }
+    }
+}
+#[test]
+fn projected_public_vacuum_and_absorption_keep_exact_direct() {
+    let m = map(None, "ring");
+    let sky = sky(&m);
+    let s = ProjectedSettings {
+        solver: settings(),
+        boundary: HealpixSettings::default(),
+        wavelength: WavelengthSettings {
+            refinements: 1,
+            ..WavelengthSettings::default()
+        },
+        kernel_mu: 8,
+        kernel_azimuth: 16,
+    };
+    for depth in [0., 0.1] {
+        let optics = AtmosphericOptics::from_extinction(
+            Quantity::new(0.),
+            Quantity::new(0.),
+            Albedos::new(0.),
+            Quantity::new(depth / 1000.),
+        )
+        .unwrap();
+        let atm = LayeredAtmosphere::try_new(
+            &[Meters::new(2097.), Meters::new(3097.)],
+            [Nanometers::new(360.), Nanometers::new(570.)],
+            vec![optics],
+        )
+        .unwrap();
+        let result =
+            projected_starlight_multiple_scattering(&atm, &phase(), &sky, view(), s).unwrap();
+        assert_eq!(result.transport.single.value(), 0.);
+        assert_eq!(result.transport.higher_orders.value(), 0.);
+        assert!((result.transport.direct.value() - 0.75 * (-depth / 0.8_f64).exp()).abs() < 1e-14);
+    }
+}
+
+#[test]
+fn projected_resource_and_grid_rejections_precede_source_projection() {
+    let m = map(None, "ring");
+    let sky = sky(&m);
+    let baseline = ProjectedSettings {
+        solver: settings(),
+        boundary: HealpixSettings::default(),
+        wavelength: WavelengthSettings {
+            refinements: 1,
+            ..WavelengthSettings::default()
+        },
+        kernel_mu: 8,
+        kernel_azimuth: 16,
+    };
+    for (u, p) in [
+        (0, 16),
+        (usize::MAX, 16),
+        (12, 16),
+        (8, 3),
+        (8, 2048),
+        (8, 24),
+    ] {
+        assert!(projected_starlight_multiple_scattering(
+            &medium(0.),
+            &phase(),
+            &sky,
+            view(),
+            ProjectedSettings {
+                kernel_mu: u,
+                kernel_azimuth: p,
+                ..baseline
+            }
+        )
+        .is_err());
+    }
+    let huge = ProjectedSettings {
+        kernel_mu: 256,
+        kernel_azimuth: 512,
+        ..baseline
+    };
+    let error = projected_starlight_multiple_scattering(&medium(0.), &phase(), &sky, view(), huge)
+        .unwrap_err();
+    assert!(error.to_string().contains("workspace") || error.to_string().contains("work units"));
+    assert!(super::projection::ProjectedBoundary::new(&StoredBoundary(Vec::new()), 0, 16).is_err());
+    for (mu, incoming) in [
+        (0., 1.),
+        (f64::NAN, 1.),
+        (1.1, 1.),
+        (0.5, f64::INFINITY),
+        (0.5, -1.),
+    ] {
+        let input = StoredBoundary(vec![Direction {
+            mu,
+            vector: [1., 0., mu],
+            weight: 1.,
+            incoming,
+        }]);
+        assert!(super::projection::ProjectedBoundary::new(&input, 8, 16).is_err());
+    }
+}
+
+#[test]
+fn spectral_phase_tables_are_recomputed_at_each_wavelength() {
+    use siderust::atmosphere::NormalizedPhaseTable;
+    use siderust::optica::phase::ScatteringFactor;
+    let k = 1. / (2. * TAU);
+    let values = [1., 1.5, 1., 1., 1., 0.5].map(|x| Quantity::<ScatteringFactor>::new(k * x));
+    let phase = AerosolPhase::Tabulated(Box::new(
+        NormalizedPhaseTable::new(
+            &[Nanometers::new(360.), Nanometers::new(390.)],
+            &[
+                Radians::new(0.),
+                Radians::new(std::f64::consts::PI / 2.),
+                Radians::new(std::f64::consts::PI),
+            ],
+            &values,
+        )
+        .unwrap(),
+    ));
+    let m = map(None, "ring");
+    let sky = sky(&m);
+    let input = HealpixBoundary {
+        sky: &sky,
+        nside: 32,
+    };
+    let projected = super::projection::ProjectedBoundary::new(&input, 64, 128).unwrap();
+    let optics = AtmosphericOptics::from_extinction(
+        Quantity::new(0.),
+        Quantity::new(0.12 / 1000.),
+        Albedos::new(0.7),
+        Quantity::new(0.02 / 1000.),
+    )
+    .unwrap();
+    let atm = LayeredAtmosphere::try_new(
+        &[Meters::new(2097.), Meters::new(3097.)],
+        [Nanometers::new(360.), Nanometers::new(390.)],
+        vec![optics],
+    )
+    .unwrap();
+    let mut first = Vec::new();
+    for wave in [360., 375., 390.] {
+        let result = solve(
+            &atm,
+            &phase,
+            &sky,
+            Nanometers::new(wave),
+            view(),
+            settings(),
+            (1, 1, Some(&projected)),
+        )
+        .unwrap();
+        first.push(result.first);
+    }
+    assert!((first[2] - first[0]).abs() > 1e-5);
+    assert!((first[1] - 0.5 * (first[0] + first[2])).abs() < 1e-12);
+}
+
+#[test]
+fn projected_layer_partition_preserves_the_same_optical_cells() {
+    let m = map(None, "ring");
+    let sky = sky(&m);
+    let c = AtmosphericOptics::from_extinction(
+        Quantity::new(0.08 / 1000.),
+        Quantity::new(0.),
+        Albedos::new(0.),
+        Quantity::new(0.08 / 1000.),
+    )
+    .unwrap();
+    let split = LayeredAtmosphere::try_new(
+        &[Meters::new(2097.), Meters::new(2597.), Meters::new(3097.)],
+        [Nanometers::new(360.), Nanometers::new(570.)],
+        vec![c; 2],
+    )
+    .unwrap();
+    let plan = ProjectedSettings {
+        solver: MultipleScatteringSettings {
+            mu_nodes: 4,
+            cells_per_layer: 4,
+            ..settings()
+        },
+        boundary: HealpixSettings {
+            subdivision: 32,
+            refinements: 2,
+            ..HealpixSettings::default()
+        },
+        wavelength: WavelengthSettings {
+            refinements: 1,
+            ..WavelengthSettings::default()
+        },
+        kernel_mu: 128,
+        kernel_azimuth: 16,
+    };
+    let one = projected_starlight_multiple_scattering(&medium(0.08), &phase(), &sky, view(), plan)
+        .unwrap();
+    let two = projected_starlight_multiple_scattering(
+        &split,
+        &phase(),
+        &sky,
+        view(),
+        ProjectedSettings {
+            solver: MultipleScatteringSettings {
+                cells_per_layer: 2,
+                ..plan.solver
+            },
+            ..plan
+        },
+    )
+    .unwrap();
+    for (a, b) in [
+        (one.transport.direct, two.transport.direct),
+        (one.transport.single, two.transport.single),
+        (one.transport.higher_orders, two.transport.higher_orders),
+    ] {
+        assert!((a.value() - b.value()).abs() < 1e-14);
+    }
 }

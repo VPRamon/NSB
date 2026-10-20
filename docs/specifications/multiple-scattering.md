@@ -155,8 +155,8 @@ Integer arithmetic is checked. Work units count bounded numerical operations,
 not CPU instructions or wall-clock guarantees.
 
 For D internal directions, K subcells, N orders and B boundary cells, diffuse
-work is O(N K D^2), boundary preparation O(B K D), and temporary storage
-O(D^2 + K D + B). Boundary phases are computed once per incident/output pair
+work is O(N K D^2), boundary projection O(B K D), and temporary storage
+O(D^2 + K D). Boundary phases are computed once per incident/output pair
 and reused across vertical cells. No whole-map clone, global state, cache/LUT
 system, service or runtime Python dependency is introduced.
 
@@ -191,7 +191,7 @@ This is a restricted reference, not a general DISORT replacement. Extremely
 thin higher-order fields, conservative/thick media, strong forward peaks,
 high-resolution maps and strict refinement requests may exceed its useful domain.
 The frozen NSIDE128 Gaia multiple-scattering experiment is **not reproduced**:
-its configured boundary exceeds memory before transfer, and its historical
+its configured complete-bin plan exceeds the CPU-work cap, and its historical
 optical prescription/center wavelengths/apparent-place astrometry differ from
 the current upstream model. Exact reproduction commands and evidence are in the
 validation report. Historical 28.1% enhancement remains a comparison datum only.
@@ -201,3 +201,46 @@ provide the required layered/phase APIs. Preserve Git revision
 `83d1ebb29ca1ae0b327d5784d13eda231d52c120`, dependency identity and release guards.
 
 Refs #187, #192, #263, #265.
+
+## Streamed boundary follow-up
+
+Refined HEALPix RING centers are visited in index order without a retained
+boundary vector. Each visible child retains exactly its native parent density
+and equal-area weight. The existing Galactic-to-local basis, center horizon
+rule and complete-bin interpretation are unchanged. Each of the four diffuse
+refinement solves traverses the source separately; the work estimate charges
+all four geometry passes. No geometry/phase/atmosphere cache is introduced.
+
+Boundary attenuation projects directly into the existing diffuse-source and
+requested-view source buffers. Direct incident/ground/absorption flux is
+accumulated in the same traversal. Only first-order source construction changes;
+subsequent physical scattering sweeps, phase audits and omitted-order criterion
+remain authoritative. The redundant retained first-source copy is removed.
+The checked memory estimate includes direction, cell, view and quadrature
+buffers as well as the dominant phase/field arrays. The 16 MiB limit and both
+CPU caps remain enforced. This removes the boundary allocation limit, but does
+not establish practical full-map computation or resolve HG g=0.65.
+
+The optional example emits one JSON record per original native bin, including
+rejections with absent radiances, and exits unsuccessfully if any bin fails.
+A partial result is never reported as an accepted full-band calculation.
+See [measurements and remaining scientific gates](../validation/gaia-xp-streaming.md).
+
+## Opt-in factorized full-map transport
+
+`projected_starlight_multiple_scattering` uses the same successive-orders RTE
+with an exact finite azimuth Fourier operator and separately refined positive
+boundary-kernel projection. `ProjectedSettings` retains the existing diffuse,
+height, order, native HEALPix and wavelength controls, and declares the two
+kernel-grid controls. `ProjectedStarlightMultipleScattering` adds their separate
+axis diagnostics and a checked workspace bound without changing existing result
+layouts. The original streamed reference remains available.
+
+The new method retains all sampled Fourier modes, never renormalizes a phase,
+and requires the unchanged raw .001 phase audit. It constructs a positive
+weighted norm when the original grazing-ray contraction estimate is too weak.
+The ordinary component/evaluator defaults are unchanged. The exact new cost
+model, separate32-billion-work-unit/one-billion-diffuse contract and unchanged
+16MiB ceiling, cache dependencies, independent continuum comparisons and full
+seven-band results are specified in the [scientific integration report](../validation/gaia-xp-factorized.md).
+The earlier Gaia CPU rejection describes the streamed path, not this opt-in path.

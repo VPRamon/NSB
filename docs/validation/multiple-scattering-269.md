@@ -2,7 +2,10 @@
 
 Initial NSB revision: `9b75053b813b12507f37650bd6523779555201e6`.
 Initial/main base: `f556125901b94a19577db062cc21dfb808aeba7f`.
-[Existing PR 269](https://github.com/VPRamon/NSB/pull/269) remains unmerged.
+[PR 269](https://github.com/VPRamon/NSB/pull/269) merged on 2026-10-20 as
+`af41a8613c22b5183609086402af7e3b13b44484`. The measurements below describe
+that implementation; see the [streaming follow-up](gaia-xp-streaming.md) for
+the subsequent boundary allocation change and remaining CPU/phase blockers.
 The final pushed revision and required-check URLs are recorded in the PR;
 this document describes the executed scientific evidence, not older CI greens.
 
