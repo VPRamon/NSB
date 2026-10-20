@@ -71,43 +71,49 @@ fn grid(nside: u32) -> Result<HealpixGrid> {
     .map_err(|e| invalid(&e.to_string()))
 }
 
-fn boundary(sky: &StarlightSky<'_>, nside: u32) -> Result<Vec<Direction>> {
-    let fine = grid(nside)?;
-    let bin = sky
-        .map
-        .bin_edges_nm()
-        .iter()
-        .position(|e| f64::from(*e) == sky.band[0].value())
-        .ok_or_else(|| invalid("missing native bin"))?;
-    let width = (sky.band[1] - sky.band[0]).value();
-    let mut samples = Vec::with_capacity(fine.npix() as usize);
-    for i in 0..fine.npix() {
-        let gal = fine
-            .pixel_center::<Galactic>(HealpixIndex::new(i))
-            .map_err(|e| invalid(&e.to_string()))?;
-        let local: [f64; 3] = std::array::from_fn(|j| {
-            sky.basis[j]
-                .iter()
-                .zip(gal.as_array())
-                .map(|(a, b)| a * b)
-                .sum()
-        });
-        if local[2] > 0.0 {
-            let parent = sky
-                .map
-                .grid()
-                .direction_to_pixel(gal)
+struct HealpixBoundary<'a, 'map> {
+    sky: &'a StarlightSky<'map>,
+    nside: u32,
+}
+impl IncidentBoundary for HealpixBoundary<'_, '_> {
+    fn visit(&self, visitor: &mut dyn FnMut(Direction) -> Result<()>) -> Result<()> {
+        let sky = self.sky;
+        let fine = grid(self.nside)?;
+        let bin = sky
+            .map
+            .bin_edges_nm()
+            .iter()
+            .position(|e| f64::from(*e) == sky.band[0].value())
+            .ok_or_else(|| invalid("missing native bin"))?;
+        let width = (sky.band[1] - sky.band[0]).value();
+        for i in 0..fine.npix() {
+            let gal = fine
+                .pixel_center::<Galactic>(HealpixIndex::new(i))
                 .map_err(|e| invalid(&e.to_string()))?;
-            let incoming = sky.map.spectral_bin_at_index(parent, bin)?.value() / width;
-            samples.push(Direction {
-                mu: local[2],
-                vector: local,
-                weight: fine.pixel_area_sr(),
-                incoming,
+            let local: [f64; 3] = std::array::from_fn(|j| {
+                sky.basis[j]
+                    .iter()
+                    .zip(gal.as_array())
+                    .map(|(a, b)| a * b)
+                    .sum()
             });
+            if local[2] > 0.0 {
+                let parent = sky
+                    .map
+                    .grid()
+                    .direction_to_pixel(gal)
+                    .map_err(|e| invalid(&e.to_string()))?;
+                let incoming = sky.map.spectral_bin_at_index(parent, bin)?.value() / width;
+                visitor(Direction {
+                    mu: local[2],
+                    vector: local,
+                    weight: fine.pixel_area_sr(),
+                    incoming,
+                })?;
+            }
         }
+        Ok(())
     }
-    Ok(samples)
 }
 
 fn initial(sky: &StarlightSky<'_>, s: HealpixSettings) -> Result<u32> {
@@ -173,12 +179,12 @@ pub fn starlight_multiple_scattering(
     let mut nside = first_nside;
     for level in 0..=angular.refinements {
         let pixels = usize::try_from(grid(nside)?.npix()).map_err(|e| invalid(&e.to_string()))?;
-        // Grid preparation visits the full sphere. Antipodal HEALPix centers
+        // Each of the four solves streams the full sphere. Antipodal centers
         // give at most half the pixels strictly above any local horizon.
         // Each boundary sample evaluates both phase laws at every cell and
         // diffuse/output direction in every one of the four refinement runs.
         let mut work = pixels
-            .checked_mul(16)
+            .checked_mul(4 * 16)
             .ok_or_else(|| invalid("boundary work overflow"))?;
         for (a, z) in [(1, 1), (2, 1), (1, 2), (2, 2)] {
             let dirs = product(&[2, solver.mu_nodes, solver.azimuth_nodes, a, a])?;
@@ -186,14 +192,7 @@ pub fn starlight_multiple_scattering(
             work = work
                 .checked_add(product(&[2, pixels / 2, cells, dirs + 1])?)
                 .ok_or_else(|| invalid("boundary work overflow"))?;
-            let bytes = product(&[pixels, std::mem::size_of::<Direction>()])?;
-            let fields = product(&[5, dirs, cells, std::mem::size_of::<f64>()])?;
-            let phases = product(&[2, dirs, dirs, std::mem::size_of::<f64>()])?;
-            if bytes
-                .checked_add(fields)
-                .and_then(|b| b.checked_add(phases))
-                .is_none_or(|b| b > MEMORY_LIMIT)
-            {
+            if workspace_bytes(dirs, cells)? > MEMORY_LIMIT {
                 return Err(invalid("HEALPix multiple-scattering memory exceeds 16 MiB"));
             }
         }
@@ -220,7 +219,7 @@ pub fn starlight_multiple_scattering(
         .ok_or_else(|| invalid("complete-bin work overflow"))?;
     if planned_work > BAND_WORK_LIMIT {
         return Err(invalid(
-            "complete-bin multiple-scattering plan exceeds four billion work units",
+            &format!("complete-bin multiple-scattering plan requires {planned_work} work units, exceeds four billion work units"),
         ));
     }
     let domain = atmosphere.wavelength_domain();
@@ -243,7 +242,7 @@ pub fn starlight_multiple_scattering(
             let mut last_change = [f64::INFINITY; 2];
             let mut nside = first_nside;
             for level in 0..=angular.refinements {
-                let incident = boundary(sky, nside)?;
+                let incident = HealpixBoundary { sky, nside };
                 let current = evaluate(atmosphere, phase, sky, w, view, (solver, Some(&incident)))?;
                 if let Some(old) = previous {
                     let change = [

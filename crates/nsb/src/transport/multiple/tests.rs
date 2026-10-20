@@ -801,3 +801,91 @@ fn optically_thin_isotropic_limit_has_linear_first_order_and_vanishing_enhanceme
     assert!(relative[2] < 1e-3 && relative[2] < relative[0]);
     assert!(enhancement[2] < enhancement[1] && enhancement[1] < enhancement[0]);
 }
+
+#[test]
+fn historical_hg_phase_resolution_is_an_explicit_remaining_limit() {
+    let phase =
+        AerosolPhase::HenyeyGreenstein(HenyeyGreensteinPhaseFunction::try_new(0.65).unwrap());
+    // Examine the finest currently supported *base* grid. Every public result
+    // must also pass its base-grid phase test before joint refinement.
+    let w = Nanometers::new(375.);
+    let dirs = ordinates(&sky(), w, 8, 16, false).unwrap();
+    let mut min = f64::INFINITY;
+    let mut max = 0.0_f64;
+    for out in &dirs {
+        let sum: f64 = dirs
+            .iter()
+            .map(|incoming| {
+                phase_pair(w, &phase, out.vector, incoming.vector).unwrap()[1] * incoming.weight
+            })
+            .sum();
+        min = min.min(sum);
+        max = max.max(sum);
+    }
+    eprintln!("HG g=0.65 base mu=8 az=16 phase rows: min={min:.16} max={max:.16}");
+    assert!(max > 1.001);
+    let error = solve(
+        &atmosphere(0.08, 0.03, 1., 0.),
+        &phase,
+        &sky(),
+        w,
+        view(),
+        MultipleScatteringSettings {
+            mu_nodes: 8,
+            azimuth_nodes: 16,
+            ..relaxed()
+        },
+        (1, 1, None),
+    )
+    .err()
+    .unwrap();
+    assert!(error
+        .to_string()
+        .contains("phase quadrature is under-resolved"));
+}
+
+#[test]
+fn refined_hg65_diagnostic_matches_independent_disort() {
+    // A single bounded diagnostic solve can resolve g=0.65, although the
+    // current public four-grid plan cannot. This is not a supported Gaia plan.
+    let fixture: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../tests/data/multiple-scattering/hg65-v1.json"
+    ))
+    .unwrap();
+    let reference = fixture["results"].as_array().unwrap().last().unwrap();
+    let s = MultipleScatteringSettings {
+        mu_nodes: 8,
+        azimuth_nodes: 32,
+        cells_per_layer: 16,
+        max_orders: 24,
+        order_tolerance: 1e-8,
+        ..relaxed()
+    };
+    let directions = 2 * s.mu_nodes * s.azimuth_nodes;
+    assert!(workspace_bytes(directions, s.cells_per_layer).unwrap() < MEMORY_LIMIT);
+    let work =
+        (2 * directions * directions + 8 * directions) * s.cells_per_layer * (s.max_orders + 1);
+    assert!(work < WORK_LIMIT);
+    let phase =
+        AerosolPhase::HenyeyGreenstein(HenyeyGreensteinPhaseFunction::try_new(0.65).unwrap());
+    let atm = atmosphere(0., 0.12, 0.7, 0.02);
+    let result = solve(
+        &atm,
+        &phase,
+        &sky(),
+        Nanometers::new(375.),
+        view(),
+        s,
+        (1, 1, None),
+    )
+    .unwrap();
+    // Same pre-existing 1% finite-cell continuum allowance as the independently
+    // validated synthetic domain; not fitted to this additional case.
+    assert!((result.first / reference["single"].as_f64().unwrap() - 1.).abs() < 0.01);
+    assert!((result.higher / reference["higher"].as_f64().unwrap() - 1.).abs() < 0.01);
+    assert!(multiple_scattering(&atm, &phase, &sky(), Nanometers::new(375.), view(), s).is_err());
+    eprintln!(
+        "HG65 refined diagnostic: first={} higher={} orders={} tail={} work={work}",
+        result.first, result.higher, result.orders, result.bound
+    );
+}

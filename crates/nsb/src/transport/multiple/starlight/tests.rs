@@ -154,8 +154,12 @@ fn nonzero_scattering_native_bin_and_boundary_refinement() {
         },
     )
     .unwrap();
-    assert!(r.single.value() > 0.);
-    assert!(r.higher_orders.value() > 0.);
+    // Frozen materialized #269 results at identical optics and quadrature.
+    assert!((r.single.value() / 0.02658873913628157 - 1.).abs() < 2e-14);
+    assert!((r.higher_orders.value() / 0.0031324449896208877 - 1.).abs() < 2e-14);
+    assert!(
+        (r.samples[0].convergence.flux_balance_relative - (-0.0001266470069952773)).abs() < 1e-13
+    );
     assert!(r.total_scattered.value() > r.single.value());
     // Independent 256-stream continuous-height DISORT reference, same uniform
     // native bin and optical depths; finite cells dominate this 1% allowance.
@@ -446,4 +450,179 @@ fn wavelength_dependent_higher_orders_match_independent_full_bin_reference() {
     assert!((r.direct.value() / reference["direct"].as_f64().unwrap() - 1.).abs() < 1e-10);
     assert!((r.single.value() / reference["single"].as_f64().unwrap() - 1.).abs() < 0.01);
     assert!((r.higher_orders.value() / reference["higher"].as_f64().unwrap() - 1.).abs() < 0.01);
+}
+
+// Materialized #269 boundary retained only as a small-fixture oracle.
+fn boundary(sky: &StarlightSky<'_>, nside: u32) -> Result<Vec<Direction>> {
+    let fine = grid(nside)?;
+    let bin = sky
+        .map
+        .bin_edges_nm()
+        .iter()
+        .position(|e| f64::from(*e) == sky.band[0].value())
+        .ok_or_else(|| invalid("missing native bin"))?;
+    let width = (sky.band[1] - sky.band[0]).value();
+    let mut samples = Vec::with_capacity(fine.npix() as usize);
+    for i in 0..fine.npix() {
+        let gal = fine
+            .pixel_center::<Galactic>(HealpixIndex::new(i))
+            .map_err(|e| invalid(&e.to_string()))?;
+        let local: [f64; 3] = std::array::from_fn(|j| {
+            sky.basis[j]
+                .iter()
+                .zip(gal.as_array())
+                .map(|(a, b)| a * b)
+                .sum()
+        });
+        if local[2] > 0.0 {
+            let parent = sky
+                .map
+                .grid()
+                .direction_to_pixel(gal)
+                .map_err(|e| invalid(&e.to_string()))?;
+            let incoming = sky.map.spectral_bin_at_index(parent, bin)?.value() / width;
+            samples.push(Direction {
+                mu: local[2],
+                vector: local,
+                weight: fine.pixel_area_sr(),
+                incoming,
+            });
+        }
+    }
+    Ok(samples)
+}
+
+struct StoredBoundary(Vec<Direction>);
+impl IncidentBoundary for StoredBoundary {
+    fn visit(&self, visitor: &mut dyn FnMut(Direction) -> Result<()>) -> Result<()> {
+        for d in &self.0 {
+            visitor(*d)?;
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn streamed_boundary_is_identical_to_materialized_ring_oracle() {
+    for bright in [None, Some(0), Some(5), Some(11)] {
+        let map = map(bright, "ring");
+        let sky = sky(&map);
+        for nside in [1, 2, 8, 32] {
+            let expected = boundary(&sky, nside).unwrap();
+            let mut seen = 0;
+            HealpixBoundary { sky: &sky, nside }
+                .visit(&mut |d| {
+                    let old = expected[seen];
+                    assert_eq!(d.mu, old.mu);
+                    assert_eq!(d.vector, old.vector);
+                    assert_eq!(d.weight, old.weight);
+                    assert_eq!(d.incoming, old.incoming);
+                    seen += 1;
+                    Ok(())
+                })
+                .unwrap();
+            assert_eq!(seen, expected.len());
+        }
+    }
+}
+
+#[test]
+fn streamed_scattering_preserves_components_tail_and_photon_flux() {
+    for bright in [None, Some(5)] {
+        let map = map(bright, "ring");
+        let sky = sky(&map);
+        let stored = StoredBoundary(boundary(&sky, 32).unwrap());
+        let streamed = HealpixBoundary {
+            sky: &sky,
+            nside: 32,
+        };
+        for depth in [0.0, 0.08] {
+            for (a, z) in [(1, 1), (2, 1), (1, 2), (2, 2)] {
+                let run = |boundary| {
+                    solve(
+                        &medium(depth),
+                        &phase(),
+                        &sky,
+                        Nanometers::new(375.),
+                        view(),
+                        settings(),
+                        (a, z, Some(boundary)),
+                    )
+                    .unwrap()
+                };
+                let old = run(&stored as &dyn IncidentBoundary);
+                let new = run(&streamed as &dyn IncidentBoundary);
+                // Identical direction traversal and recurrence make radiances
+                // bit-identical; no relaxed continuum tolerance is needed.
+                assert_eq!(new.first, old.first);
+                assert_eq!(new.higher, old.higher);
+                assert_eq!(new.orders, old.orders);
+                assert_eq!(new.bound, old.bound);
+                assert_eq!(new.contraction, old.contraction);
+                assert_eq!(new.flux_balance, old.flux_balance);
+            }
+        }
+    }
+}
+
+#[test]
+fn streamed_boundary_propagates_errors_without_visiting_more_pixels() {
+    let map = map(None, "ring");
+    let sky = sky(&map);
+    let mut seen = 0;
+    let error = HealpixBoundary {
+        sky: &sky,
+        nside: 512,
+    }
+    .visit(&mut |_| {
+        seen += 1;
+        Err(invalid("visitor stopped"))
+    })
+    .unwrap_err();
+    assert_eq!(seen, 1);
+    assert!(error.to_string().contains("visitor stopped"));
+    assert!(HealpixBoundary {
+        sky: &sky,
+        nside: 0
+    }
+    .visit(&mut |_| Ok(()))
+    .is_err());
+}
+
+#[test]
+fn streaming_workspace_does_not_scale_with_boundary_nside() {
+    let bytes = workspace_bytes(128, 4).unwrap();
+    assert!(bytes < MEMORY_LIMIT);
+    assert_eq!(bytes, 292288);
+    assert!(workspace_bytes(usize::MAX, 4).is_err());
+    assert!(workspace_bytes(128, usize::MAX).is_err());
+    assert!(workspace_bytes(2048, 4).unwrap() > MEMORY_LIMIT);
+}
+
+#[test]
+fn complete_nside512_stream_has_hemisphere_measure_without_retained_directions() {
+    let map = map(None, "ring");
+    let sky = sky(&map);
+    let mut count = 0;
+    let mut area = 0.0;
+    let mut radiance = 0.0;
+    let start = std::time::Instant::now();
+    HealpixBoundary {
+        sky: &sky,
+        nside: 512,
+    }
+    .visit(&mut |d| {
+        count += 1;
+        area += d.weight;
+        radiance += d.incoming * d.weight;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(count, 12 * 512 * 512 / 2);
+    assert!((area / TAU - 1.0).abs() < 5e-11);
+    assert!((radiance / (0.025 * TAU) - 1.0).abs() < 5e-11);
+    eprintln!(
+        "streamed NSIDE512: {count} visible cells in {:?}",
+        start.elapsed()
+    );
 }

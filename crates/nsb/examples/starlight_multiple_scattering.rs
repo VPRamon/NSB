@@ -96,41 +96,94 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         Horizontal::new(Degrees::new(53.13010235415598), Degrees::new(23.))
     };
-    let sky = StarlightSky::new(
-        &map,
-        geometry,
-        [Nanometers::new(360.), Nanometers::new(390.)],
-        WithinBinSpectrum::FlatPhotonDensity,
-    )?;
-    println!("experimental; sha256={:?}; geometry={geometry:?}; full-native-bin FlatPhotonDensity; black ground",map.sha256());
-    let start = std::time::Instant::now();
-    let result = starlight_multiple_scattering(
-        &medium,
-        &phase,
-        &sky,
-        view,
-        MultipleScatteringSettings {
-            mu_nodes: 4,
-            azimuth_nodes: 4,
-            cells_per_layer: 2,
-            max_orders: 8,
-            angular_tolerance: 0.05,
-            vertical_tolerance: 0.05,
-            ..MultipleScatteringSettings::default()
-        },
-        HealpixSettings {
-            subdivision: if frozen { 1 } else { 8 },
-            refinements: if frozen { 2 } else { 4 },
-            ..HealpixSettings::default()
-        },
-        WavelengthSettings {
-            refinements: 1,
-            ..WavelengthSettings::default()
-        },
-    );
-    match result {
-        Ok(r)=>println!("direct={} first={} higher={} scattered={} total={} wavelength_order={} boundary_nside={:?} work={} elapsed={:?}; convergence={:?}",r.direct,r.single,r.higher_orders,r.total_scattered,r.total,r.wavelength_order,r.boundary_nside,r.planned_work,start.elapsed(),r.samples[0].convergence),
-        Err(e)=>{eprintln!("explicit rejection after {:?}: {e}",start.elapsed());return Err(e.into());}
+    // Evaluate every original native bin. Failures remain explicit records with
+    // absent radiances; an incomplete seven-band run exits unsuccessfully.
+    let mut failed = false;
+    for edges in map.bin_edges_nm().windows(2) {
+        let band = [
+            Nanometers::new(f64::from(edges[0])),
+            Nanometers::new(f64::from(edges[1])),
+        ];
+        let sky = StarlightSky::new(&map, geometry, band, WithinBinSpectrum::FlatPhotonDensity)?;
+        let start = std::time::Instant::now();
+        let result = starlight_multiple_scattering(
+            &medium,
+            &phase,
+            &sky,
+            view,
+            MultipleScatteringSettings {
+                mu_nodes: 4,
+                azimuth_nodes: 4,
+                cells_per_layer: 2,
+                max_orders: 8,
+                angular_tolerance: 0.05,
+                vertical_tolerance: 0.05,
+                ..MultipleScatteringSettings::default()
+            },
+            HealpixSettings {
+                subdivision: if frozen { 1 } else { 8 },
+                refinements: if frozen { 2 } else { 4 },
+                ..HealpixSettings::default()
+            },
+            WavelengthSettings {
+                refinements: 1,
+                ..WavelengthSettings::default()
+            },
+        );
+        let mut record = serde_json::json!({
+            "schema": "nsb-multiple-scattering-example-v1",
+            "source_sha256": map.sha256(),
+            "band_nm": band.map(|w| w.value()),
+            "units": "photon/(cm2 ns sr)",
+            "within_bin": "FlatPhotonDensity",
+            "tt_jd": tt, "ut1_jd": ut1,
+            "observer_longitude_deg": -111.59989, "observer_latitude_deg": 31.96403,
+            "observer_wgs84_ellipsoidal_height_m": 2097.0,
+            "atmosphere_vertical_datum": "declared model height; no geoid conversion asserted",
+            "atmosphere_edges_m": if frozen { [2097., 12097.] } else { [2097., 3097.] },
+            "view_altitude_deg": view.alt().value(), "view_azimuth_deg": view.az().value(),
+            "ground": "black", "experimental": true,
+            "elapsed_seconds": start.elapsed().as_secs_f64(),
+            "radiances": null, "error": null,
+        });
+        match result {
+            Ok(r) => {
+                record["accepted"] = true.into();
+                record["radiances"] = serde_json::json!({
+                    "toa": r.toa.value(), "direct": r.direct.value(),
+                    "single": r.single.value(), "higher": r.higher_orders.value(),
+                    "scattered": r.total_scattered.value(), "total": r.total.value(),
+                    "physical_uncertainty": null,
+                });
+                record["planned_work"] = r.planned_work.into();
+                record["boundary_nside"] = serde_json::json!(r.boundary_nside);
+                record["wavelength_order"] = r.wavelength_order.into();
+                record["wavelength_change"] =
+                    serde_json::json!(r.wavelength_change.map(|x| x.value()));
+                record["convergence"] =
+                    serde_json::json!(r.samples.iter().map(|s| {
+                    let c = &s.convergence;
+                    serde_json::json!({
+                        "wavelength_nm": s.wavelength.value(), "angular_nodes": c.angular_nodes,
+                        "cells_per_layer": c.cells_per_layer, "orders": c.orders,
+                        "angular_change": c.angular_change.value(),
+                        "vertical_change": c.vertical_change.value(),
+                        "order_tail_bound": c.order_tail_bound.value(),
+                        "contraction_bound": c.contraction_bound,
+                        "flux_balance_relative": c.flux_balance_relative,
+                    })
+                }).collect::<Vec<_>>());
+            }
+            Err(e) => {
+                failed = true;
+                record["accepted"] = false.into();
+                record["error"] = e.to_string().into();
+            }
+        }
+        println!("{}", serde_json::to_string(&record)?);
+    }
+    if failed {
+        return Err("one or more native bins failed scientific/resource acceptance".into());
     }
     Ok(())
 }

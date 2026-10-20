@@ -136,6 +136,13 @@ struct Direction {
     weight: f64,
     incoming: f64,
 }
+// Evaluation-local boundary traversal. A visitor permits fallible, constant-space
+// source projection without storing the refined sky. Traversal order is part of
+// reproducibility: each solve visits cells in increasing HEALPix RING index.
+trait IncidentBoundary {
+    fn visit(&self, visitor: &mut dyn FnMut(Direction) -> Result<()>) -> Result<()>;
+}
+
 #[derive(Clone, Copy)]
 struct Solution {
     first: f64,
@@ -160,6 +167,26 @@ fn product(xs: &[usize]) -> Result<usize> {
     xs.iter().try_fold(1usize, |x, y| {
         x.checked_mul(*y)
             .ok_or_else(|| invalid("work size overflow"))
+    })
+}
+// Conservative requested heap-buffer bytes, excluding immutable source maps,
+// returned metadata and allocator overhead. Streaming has no boundary-sized
+// allocation. Five field planes cover the three live fields with margin.
+fn workspace_bytes(directions: usize, cells: usize) -> Result<usize> {
+    [
+        product(&[2, directions, directions, std::mem::size_of::<f64>()])?,
+        product(&[5, directions, cells, std::mem::size_of::<f64>()])?,
+        product(&[directions, std::mem::size_of::<Direction>()])?,
+        product(&[2, directions, std::mem::size_of::<f64>()])?,
+        product(&[cells, std::mem::size_of::<Cell>()])?,
+        product(&[2, cells, std::mem::size_of::<f64>()])?,
+        // Concurrent 64-node wavelength and 16-node cosine rules.
+        product(&[80, std::mem::size_of::<(f64, f64)>()])?,
+    ]
+    .into_iter()
+    .try_fold(0usize, |sum, bytes| {
+        sum.checked_add(bytes)
+            .ok_or_else(|| invalid("temporary workspace byte sum overflow"))
     })
 }
 fn preflight(layers: usize, s: MultipleScatteringSettings) -> Result<usize> {
@@ -193,12 +220,7 @@ fn preflight(layers: usize, s: MultipleScatteringSettings) -> Result<usize> {
         work = work
             .checked_add(product(&[8, n, cells, s.max_orders + 1])?)
             .ok_or_else(|| invalid("field transport work overflow"))?;
-        let phase_bytes = product(&[2, square, std::mem::size_of::<f64>()])?;
-        let field_bytes = product(&[5, n, cells, std::mem::size_of::<f64>()])?;
-        if phase_bytes
-            .checked_add(field_bytes)
-            .is_none_or(|bytes| bytes > MEMORY_LIMIT)
-        {
+        if workspace_bytes(n, cells)? > MEMORY_LIMIT {
             return Err(invalid(
                 "temporary multiple-scattering memory exceeds 16 MiB",
             ));
@@ -374,7 +396,7 @@ fn solve(
     w: Nanometers,
     view: Horizontal,
     s: MultipleScatteringSettings,
-    resolution: (usize, usize, Option<&[Direction]>),
+    resolution: (usize, usize, Option<&dyn IncidentBoundary>),
 ) -> Result<Solution> {
     let (a, z, boundary) = resolution;
     let cells = column(atm, w, s.cells_per_layer * z)?;
@@ -386,8 +408,11 @@ fn solve(
         boundary.is_none(),
     )?;
     let (n, m) = (dirs.len(), cells.len());
-    let (incident_flux, direct_flux, mut absorbed_flux) =
-        boundary_flux(&cells, boundary.unwrap_or(&dirs))?;
+    let (mut incident_flux, mut direct_flux, mut absorbed_flux) = if boundary.is_none() {
+        boundary_flux(&cells, &dirs)?
+    } else {
+        (0.0, 0.0, 0.0)
+    };
     let mut diffuse_flux = 0.0;
     let mut rp = vec![0.0; n * n];
     let mut ap = vec![0.0; n * n];
@@ -472,11 +497,15 @@ fn solve(
     let mut next = vec![0.0; m * n];
     let mut sources = vec![0.0; m * n];
     let mut views = vec![0.0; m];
-    let external = if let Some(boundary) = boundary {
-        let mut source = vec![0.0; m * n];
-        let mut ground_source = vec![0.0; m];
+    if let Some(boundary) = boundary {
         let mut factors = vec![0.0; m];
-        for d in boundary {
+        boundary.visit(&mut |d| {
+            // Fuse direct-flux accounting with source projection so the streamed
+            // HEALPix geometry and parent lookup are needed only once per solve.
+            let flux = boundary_flux(&cells, std::slice::from_ref(&d))?;
+            incident_flux = nonnegative(incident_flux + flux.0, "incident photon flux")?;
+            direct_flux = nonnegative(direct_flux + flux.1, "direct ground flux")?;
+            absorbed_flux = nonnegative(absorbed_flux + flux.2, "absorbed direct flux")?;
             let mut above = 0.0;
             for j in (0..m).rev() {
                 factors[j] = d.incoming * d.weight * (-(above + 0.5 * cells[j].depth) / d.mu).exp();
@@ -485,28 +514,21 @@ fn solve(
             for (i, out) in dirs.iter().enumerate() {
                 let pair = phase_pair(w, phase, out.vector, d.vector)?;
                 for (j, cell) in cells.iter().enumerate() {
-                    source[j * n + i] +=
+                    sources[j * n + i] +=
                         factors[j] * (cell.rayleigh * pair[0] + cell.aerosol * pair[1]);
                 }
             }
             let pair = phase_pair(w, phase, v, d.vector)?;
             for (j, cell) in cells.iter().enumerate() {
-                ground_source[j] += factors[j] * (cell.rayleigh * pair[0] + cell.aerosol * pair[1]);
+                views[j] += factors[j] * (cell.rayleigh * pair[0] + cell.aerosol * pair[1]);
             }
-        }
-        Some((source, ground_source))
-    } else {
-        None
-    };
+            Ok(())
+        })?;
+    }
     let mut first = 0.0;
     let mut higher = 0.0;
     for order in 1..=s.max_orders {
-        if order == 1 && external.is_some() {
-            if let Some((source, ground_source)) = &external {
-                sources.copy_from_slice(source);
-                views.copy_from_slice(ground_source);
-            }
-        } else {
+        if order != 1 || boundary.is_none() {
             for (j, cell) in cells.iter().enumerate() {
                 for i in 0..n {
                     let mut ray = 0.0;
@@ -651,7 +673,7 @@ fn evaluate(
     sky: &impl IncidentSky,
     wavelength: Nanometers,
     view: Horizontal,
-    configuration: (MultipleScatteringSettings, Option<&[Direction]>),
+    configuration: (MultipleScatteringSettings, Option<&dyn IncidentBoundary>),
 ) -> Result<MultipleScattering> {
     let (settings, boundary) = configuration;
     let layers = atmosphere.edges().len().saturating_sub(1);
